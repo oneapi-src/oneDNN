@@ -104,9 +104,14 @@ Here:
 
 Deconvolutions (also called fractionally strided convolutions or transposed
 convolutions) work by swapping the forward and backward passes of a
-convolution. One way to put it is to note that the weights define a
-convolution, but whether it is a direct convolution or a transposed
-convolution is determined by how the forward and backward passes are computed.
+convolution. The key difference between convolution and deconvolution lies
+in how the weights are applied in the operation. In a convolution, the weights
+are used to reduce the input data and extract key features from the input,
+while in a deconvolution, they are used to expand the input data and produce
+an output that is larger than the input. Thus, while the weights play a
+crucial role in both operations, the way they are used in the forward and
+backward passes determines whether it is a direct convolution or a transposed
+convolution.
 
 #### Difference Between Forward Training and Forward Inference
 
@@ -446,3 +451,7 @@ of Winograd algorithm implementations.
 [Convolution Primitive Example](@ref convolution_example_cpp)
 
 @copydetails convolution_example_cpp_short
+
+[Deconvolution Primitive Example](@ref deconvolution_example_cpp)
+
+@copydetails deconvolution_example_cpp_short

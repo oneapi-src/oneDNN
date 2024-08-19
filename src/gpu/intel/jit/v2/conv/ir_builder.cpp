@@ -21,6 +21,7 @@
 #include "gpu/intel/jit/ir/ir.hpp"
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
+#include "gpu/intel/jit/ir/reduce.hpp"
 #include "gpu/intel/jit/ir/reorder.hpp"
 #include "gpu/intel/jit/pass/dpas.hpp"
 #include "gpu/intel/jit/pass/pass.hpp"
@@ -609,6 +610,13 @@ int get_reg_off(const send_1d_plan_t &plan, const prb_coord_t<int> &coord) {
     return plan.reg_layout.offset_in_bytes(coord);
 }
 
+stmt_t create_stmt(const reduce_plan_t &plan, const expr_t &src_buf,
+        const expr_t &dst_buf) {
+    if (!plan) return stmt_t();
+    return create_reduce_stmt(
+            to_ir(plan.src), to_ir(plan.dst), src_buf, dst_buf);
+}
+
 stmt_t create_stmt(const reorder_plan_t &plan, const expr_t &src_buf,
         const expr_t &dst_buf) {
     if (!plan) return stmt_t();
@@ -624,7 +632,7 @@ stmt_t create_stmt(const send_1d_plan_t &plan, const expr_t &mem_buf,
         ir_assert(tile.at(d) % plan.entry_tile.at(d) == 0);
     }
     auto op = to_ir(plan.desc.op);
-    auto address = send_address_t::a64;
+    auto address = to_ir(plan.desc.address);
     auto type = to_send_type(plan.desc);
     auto slots = plan.desc.slots;
     auto send_func = jit::send_t::make(
@@ -768,7 +776,6 @@ public:
         , kernel_info_(kernel_info)
         , grid_ctx_(grid_ctx)
         , plan_(plan)
-        , cset_(desc.spec_reqs.as_constraint_set(kernel_info))
         , ir_ctx_(desc.exec_cfg(), cset_)
         , buf_mgr_(ir_ctx_)
         , loop_nest_(make_loop_nest(desc_.loop_desc, plan_.coord_info))
@@ -779,7 +786,7 @@ public:
     stmt_t build() {
         build_prefetch();
         build_x2r_mul();
-        build_c_store();
+        build_epilogue();
 
         stmt_t compute_stmt;
         compute_stmt = compute_stmt.append(zero_out_stmt());
@@ -789,7 +796,7 @@ public:
 
         stmt_t epilogue_stmt;
         epilogue_stmt = epilogue_stmt.append(epilogue_off_ctx_.init_stmt());
-        epilogue_stmt = epilogue_stmt.append(c_store_stmt_);
+        epilogue_stmt = epilogue_stmt.append(epilogue_stmt_);
 
         stmt_t stmt;
         stmt = stmt.append(compute_stmt);
@@ -851,8 +858,12 @@ private:
 
     stmt_t zero_out_stmt() const {
         auto &c_entry = buf_mgr_.find_ref("c");
-        auto ret = stmt_group_t::make(stmt_label_t::c_zero_out(),
-                funcs::zero_out(c_entry.buf, c_entry.size));
+        auto stmt = funcs::zero_out(c_entry.buf, c_entry.size);
+        if (desc_.prop == prop_kind::backward_weights && desc_.with_bias) {
+            auto &bia_entry = buf_mgr_.find_ref("bia_buf");
+            stmt = stmt.append(funcs::zero_out(bia_entry.buf, bia_entry.size));
+        }
+        auto ret = stmt_group_t::make(stmt_label_t::c_zero_out(), stmt);
         return ret;
     }
 
@@ -1023,6 +1034,17 @@ private:
         x2r_mul_stmt_ = x2r_mul_stmt_.append(stmt);
     }
 
+    void build_bia_reduce(x2r_plan_t &x2r, const expr_t &bia_buf) {
+        if (desc_.prop != prop_kind::backward_weights || !desc_.with_bias
+                || x2r.tensor_kind != tensor_kind_t::b)
+            return;
+        auto b_buf = buf_mgr_.find_buf("b");
+        auto &b_layout = x2r.layout;
+        auto stmt = create_reduce_stmt(to_ir(b_layout), to_ir(x2r.bia_layout),
+                b_buf, bia_buf, tensor_t(), (1 << 1) | (1 << 2));
+        x2r_mul_stmt_ = x2r_mul_stmt_.append(stmt);
+    }
+
     void build_x2r_mul() {
         auto &x2r_fma = plan_.x2r_fma;
         auto c_buf = buf_mgr_.get("c", x2r_fma.c_layout.size());
@@ -1031,8 +1053,64 @@ private:
                 build_mul(s.fma, c_buf);
             } else if (s.is_x2r()) {
                 build_x2r(s.x2r);
+                build_bia_reduce(s.x2r,
+                        buf_mgr_.get("bia_buf", x2r_fma.bia_layout.size()));
             }
         }
+    }
+
+    void build_bias_store() {
+        if (desc_.prop != prop_kind::backward_weights || !desc_.with_bias)
+            return;
+        auto &fma = plan_.x2r_fma;
+        auto &epilogue = plan_.epilogue;
+        auto &bia_buf = buf_mgr_.find_buf("bia_buf");
+        auto bia_tile = epilogue.bia_store.reg_layout().int_dim_sizes();
+        auto epilogue_tile = bia_tile;
+        for (auto d : bia_tile)
+            epilogue_tile[d] = epilogue.tile[d];
+        for_each(bia_tile, epilogue_tile, [&](const prb_coord_t<int> &coord) {
+            auto bia_payload_buf = bia_buf;
+            auto bia_payload_layout = epilogue.bia_store.reg_layout();
+            auto payload_coord = coord;
+            if (epilogue.bia_reorder) {
+                auto bia_tmp_buf = buf_mgr_.get(
+                        "bia_tmp", epilogue.bia_reorder.dst.size());
+                int src_off = fma.bia_layout.offset_in_bytes(coord);
+                auto stmt = create_stmt(
+                        epilogue.bia_reorder, bia_buf + src_off, bia_tmp_buf);
+                epilogue_stmt_ = epilogue_stmt_.append(stmt);
+                bia_payload_buf = bia_tmp_buf;
+                bia_payload_layout = epilogue.bia_reorder.dst;
+                payload_coord = prb_coord_t<int>();
+            }
+            auto bia_stmt = create_stmt(epilogue.bia_store, bia_mem_buf(),
+                    bia_payload_buf, epilogue_off_ctx_, coord, epilogue_tile,
+                    bia_payload_layout, payload_coord);
+            bia_stmt = if_t::make(epilogue.reduce_cond, bia_stmt);
+            epilogue_stmt_ = epilogue_stmt_.append(bia_stmt);
+        });
+    }
+
+    void build_slm_reduce() {
+        auto &slm_reduce = plan_.epilogue.slm_reduce;
+        if (!slm_reduce) return;
+
+        auto &c_buf = buf_mgr_.find_buf("c");
+        auto c_tmp_buf
+                = buf_mgr_.get("c_reduce", slm_reduce.load.reg_layout().size());
+        auto c_slm_buf = buf_mgr_.get("slm", slm_reduce.slm_size());
+        auto store_stmt = create_stmt(
+                slm_reduce.store, c_slm_buf, c_buf, epilogue_off_ctx_);
+        auto load_stmt = create_stmt(
+                slm_reduce.load, c_slm_buf, c_tmp_buf, epilogue_off_ctx_);
+        auto reduce_stmt = create_stmt(slm_reduce.reduce, c_tmp_buf, c_buf);
+        epilogue_stmt_ = epilogue_stmt_.append(store_stmt);
+        epilogue_stmt_ = epilogue_stmt_.append(funcs::barrier());
+        epilogue_stmt_ = epilogue_stmt_.append(load_stmt);
+        epilogue_stmt_ = epilogue_stmt_.append(
+                funcs::zero_out(c_buf, slm_reduce.c_layout.size()));
+        epilogue_stmt_ = epilogue_stmt_.append(reduce_stmt);
     }
 
     void build_c_store() {
@@ -1051,7 +1129,7 @@ private:
                 int src_off = c_layout.offset_in_bytes(coord);
                 auto stmt = create_stmt(
                         epilogue.reorder, c_buf + src_off, c_tmp_buf);
-                c_store_stmt_ = c_store_stmt_.append(stmt);
+                epilogue_stmt_ = epilogue_stmt_.append(stmt);
                 payload_buf = c_tmp_buf;
                 payload_layout = epilogue.reorder.dst;
                 payload_coord = prb_coord_t<int>();
@@ -1059,8 +1137,14 @@ private:
             auto stmt = create_stmt(store, c_mem_buf(), payload_buf,
                     epilogue_off_ctx_, coord, epilogue.tile, payload_layout,
                     payload_coord);
-            c_store_stmt_ = c_store_stmt_.append(stmt);
+            epilogue_stmt_ = epilogue_stmt_.append(stmt);
         });
+    }
+
+    void build_epilogue() {
+        build_slm_reduce();
+        build_c_store();
+        build_bias_store();
     }
 
     expr_t mem_buf(tensor_kind_t abc) const {
@@ -1086,6 +1170,7 @@ private:
     expr_t a_mem_buf() const { return mem_buf(tensor_kind_t::a); }
     expr_t b_mem_buf() const { return mem_buf(tensor_kind_t::b); }
     expr_t c_mem_buf() const { return mem_buf(tensor_kind_t::c); }
+    expr_t bia_mem_buf() const { return kernel_info_.find_arg("bia"); }
 
     kernel_desc_t desc_;
     kernel_info_t kernel_info_;
@@ -1102,7 +1187,7 @@ private:
 
     stmt_t prefetch_stmt_;
     stmt_t x2r_mul_stmt_;
-    stmt_t c_store_stmt_;
+    stmt_t epilogue_stmt_;
 };
 
 stmt_t build_ir(const kernel_desc_t &desc, const kernel_info_t &kernel_info,

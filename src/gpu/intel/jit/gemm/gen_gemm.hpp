@@ -65,9 +65,11 @@ struct gen_gemm_t : public gpu_gemm_t {
             int stepping = dev_info_->stepping_id();
 
             const auto d = desc();
-            wei_decomp_ = (utils::one_of(d->c_type(), f32, f16, bf16)
+            wei_decomp_ = (utils::one_of(d->c_type(), f32, f16, bf16, f8_e5m2,
+                                   f8_e4m3)
                                   && utils::one_of(d->a_type(), u8, s8, s4, u4)
-                                  && utils::one_of(d->b_type(), f16, f32, bf16))
+                                  && utils::one_of(d->b_type(), f16, f32, bf16,
+                                          f8_e5m2, f8_e4m3))
                     && attr()->mayiconvert(d->a_type(), f32);
             dy_quant_enabled_ = (utils::one_of(d->c_type(), f32, f16, bf16)
                     && utils::one_of(d->a_type(), u8, s8, s4, u4)
@@ -147,7 +149,10 @@ struct gen_gemm_t : public gpu_gemm_t {
                 VDISPATCH_GEMM(utils::one_of(d->a_type(), f64, f32, f16,
                                        f8_e5m2, f8_e4m3),
                         VERBOSE_UNSUPPORTED_DT);
-                VDISPATCH_GEMM(d->b_type() == d->a_type(),
+                VDISPATCH_GEMM(d->b_type() == d->a_type()
+                                || (utils::one_of(d->a_type(), f8_e5m2, f8_e4m3)
+                                        && utils::one_of(
+                                                d->b_type(), f8_e5m2, f8_e4m3)),
                         VERBOSE_INCONSISTENT_DT, "a", "b");
                 VDISPATCH_GEMM(utils::one_of(d->acc_type, d->a_type(), f32),
                         VERBOSE_UNSUPPORTED_DT);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ using namespace dnnl::impl::graph;
 using namespace dnnl::graph::tests::unit::utils;
 
 TEST(test_op_schema_op_schema, InferSqueezeOutputShape) {
-    auto &be = graph::dnnl_impl::dnnl_backend::get_singleton();
+    auto &be = graph::dnnl_impl::dnnl_backend_t::get_singleton();
     EXPECT_EQ(be.get_name(), "dnnl_backend");
     const op_kind_t kind = dnnl_impl::op_kind::dnnl_squeeze;
     const op_schema_t *op_schema_ = op_schema_registry_t::get_op_schema(kind);
@@ -62,7 +62,7 @@ TEST(test_op_schema_op_schema, InferSqueezeOutputShape) {
 }
 
 TEST(test_op_schema_op_schema, InferUnsqueezeOutputShape) {
-    auto &be = graph::dnnl_impl::dnnl_backend::get_singleton();
+    auto &be = graph::dnnl_impl::dnnl_backend_t::get_singleton();
     EXPECT_EQ(be.get_name(), "dnnl_backend");
     const op_kind_t kind = dnnl_impl::op_kind::dnnl_unsqueeze;
     const op_schema_t *op_schema_ = op_schema_registry_t::get_op_schema(kind);
@@ -96,7 +96,7 @@ TEST(test_op_schema_op_schema, InferUnsqueezeOutputShape) {
 }
 
 TEST(test_op_schema_op_schema, InferUnsqueezeOutputShapeBasedOnAxes) {
-    auto &be = graph::dnnl_impl::dnnl_backend::get_singleton();
+    auto &be = graph::dnnl_impl::dnnl_backend_t::get_singleton();
     EXPECT_EQ(be.get_name(), "dnnl_backend");
     const op_kind_t kind = dnnl_impl::op_kind::dnnl_unsqueeze;
     const op_schema_t *op_schema_ = op_schema_registry_t::get_op_schema(kind);

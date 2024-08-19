@@ -74,6 +74,7 @@ public:
     void release(const ngen::FlagRegister &reg)     { release(VirtualFlag(reg)); unlock(reg); }
     void safeRelease(VirtualFlag &vflag)            { if (vflag) release(vflag); vflag.clear(); }
     void safeRelease(ngen::FlagRegister &reg)       { if (reg.isValid()) release(reg); reg.invalidate(); }
+    bool isFree(VirtualFlag vflag)            const { return !(~free & mask(vflag)); }
 
     bool isVirtual(VirtualFlag vflag)               { return (vflag.idx >= nflag); }
 
@@ -81,6 +82,7 @@ public:
     void unlock(VirtualFlag vflag)                  { locked &= ~mask(vflag); }
     bool isLocked(VirtualFlag vflag)          const { return !(~locked & mask(vflag)); }
     bool canLock(int n = 1) const;
+    void freeUnlocked();
 
     ngen::FlagRegister assignPhysical(VirtualFlag vflag);
 

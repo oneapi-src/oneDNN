@@ -55,6 +55,8 @@ public:
 
     template <typename T>
     static status_t init_pd(T *pd, impl::engine_t *engine) {
+        bool enable_conv_v2 = gpu_utils::dev_getenv("enable_conv_v2", false);
+        if (enable_conv_v2) return status::unimplemented;
         try {
             using compute::compute_engine_t;
             auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
@@ -202,7 +204,8 @@ public:
                         case kernel_id_t::convolution: {
                             tmp_kernels.push_back(make_kernel<conv_kernel_t>(
                                     primitive, /*register_kernel=*/false,
-                                    engine, cfg, info, nd_ranges_[i], zp_dst));
+                                    engine, cfg, info,
+                                    nd_ranges_[i].local_range(), zp_dst));
                             break;
                         }
                         case kernel_id_t::pre_reorder: {

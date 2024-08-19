@@ -891,7 +891,7 @@ bool is_f64_supported(const dnnl_engine_t &engine) {
 #if defined(_WIN32)
 #include "windows.h"
 
-static size_t get_cpu_ram_size() {
+size_t get_cpu_ram_size() {
     MEMORYSTATUSEX s {};
     s.dwLength = sizeof(s);
     GlobalMemoryStatusEx(&s);
@@ -901,7 +901,7 @@ static size_t get_cpu_ram_size() {
 #include <unistd.h>
 #include <sys/sysctl.h>
 
-static size_t get_cpu_ram_size() {
+size_t get_cpu_ram_size() {
 #ifdef __APPLE__
     int query_ram[] = {CTL_HW, HW_MEMSIZE};
 #else
@@ -917,14 +917,14 @@ static size_t get_cpu_ram_size() {
 #else
 #include <sys/sysinfo.h>
 
-static size_t get_cpu_ram_size() {
+size_t get_cpu_ram_size() {
     struct sysinfo s {};
     sysinfo(&s);
     return s.totalram;
 }
 #endif
 
-static int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
+int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
     if (!is_gpu()) return OK;
     if (ram_size > 0 && max_alloc_size > 0) return OK;
 
@@ -1006,35 +1006,6 @@ int get_gpu_cache_size(size_t &cache_size) {
     cache_size = _cache_size;
     return OK;
 }
-
-struct check_mem_size_args_t {
-    check_mem_size_args_t(const_dnnl_primitive_desc_t pd, bool want_input)
-        : pd(pd)
-        , want_input(want_input)
-        , is_scratchpad(false)
-        , total_size_device(0)
-        , total_size_cpu(0)
-        , scratchpad_size(0) {}
-
-    // Input args.
-    const_dnnl_primitive_desc_t pd;
-    bool want_input;
-    bool is_scratchpad;
-
-    // Output args:
-    // `sizes` used to validate OpenCL memory requirements.
-    std::vector<size_t> sizes;
-    // `total_size_device` specifies memory allocated on device for a test obj.
-    size_t total_size_device;
-    // `total_size_cpu` specifies:
-    // * Memory allocated for reference ocmputations (`C` mode only).
-    // * Memory allocated for comparison results (`C` mode only).
-    // * Memory allocated for mapping device memory (GPU backend only).
-    // * Memory allocated on CPU for a test obj (CPU backend only).
-    size_t total_size_cpu;
-    // `scratchpad_size` specifies a scratchpad size for specific checks.
-    size_t scratchpad_size;
-};
 
 static int check_total_size(
         const check_mem_size_args_t &check_mem_size_args, res_t *res) {
@@ -1168,6 +1139,10 @@ void add_md_size(const_dnnl_memory_desc_t md,
         auto ref_md = dnn_mem_t::init_md(
                 query_md_ndims(md), query_md_dims(md), dnnl_f32, tag::abx);
         const auto ref_md_size = dnnl_memory_desc_get_size(ref_md);
+
+        const size_t ref_mem_idx = check_mem_size_args.want_input ? 0 : 1;
+        check_mem_size_args.total_ref_md_size[ref_mem_idx] = ref_md_size;
+
         // A memory copy for ref_compute, happens only in correctness.
         check_mem_size_args.total_size_cpu += is_corr * ref_md_size;
 
@@ -1197,7 +1172,7 @@ bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind) {
             || prop_kind == dnnl_prop_kind_undef;
 }
 
-static void get_memory_bytes(check_mem_size_args_t &check_mem_size_args) {
+void get_memory_bytes(check_mem_size_args_t &check_mem_size_args) {
     auto const_pd = check_mem_size_args.pd;
     const int n_idx = check_mem_size_args.want_input
             ? query_n_inputs(const_pd)
@@ -1253,8 +1228,8 @@ int check_mem_size(const_dnnl_memory_desc_t md, res_t *res) {
     return check_total_size(check_mem_size_args, res);
 }
 
-int check_mem_size(
-        const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir) {
+int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir,
+        bool need_skip) {
     // Skip the check if it is disabled.
     if (!mem_check) return OK;
 
@@ -1265,7 +1240,7 @@ int check_mem_size(
     // repreated run when the second test object is created to test the
     // primitive cache, but allows to verify both objects when a double-run
     // driver executes fwd-for-bwd first and bwd after.
-    if (res->mem_check_dir == dir) return OK;
+    if (need_skip && res->mem_check_dir == dir) return OK;
     res->mem_check_dir = dir;
 
     // Get input sizes.
@@ -1291,6 +1266,9 @@ int check_mem_size(
     // Get output sizes.
     check_mem_size_args.want_input = false;
     get_memory_bytes(check_mem_size_args);
+
+    // Save the mem size args for graph driver check.
+    res->mem_size_args = check_mem_size_args;
 
     return check_total_size(check_mem_size_args, res);
 }

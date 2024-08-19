@@ -18,7 +18,7 @@
 #define GEMMSTONE_GUARD_GRF_MULTIRANGE_HPP
 
 #include "internal/ngen_includes.hpp"
-#include "types.hpp"
+#include "type.hpp"
 
 #include "internal/namespace_start.hxx"
 
@@ -30,18 +30,32 @@ struct GRFMultirange {
     GRFMultirange() {}
     GRFMultirange(ngen::GRFRange range) : ranges{1, range} {}
 
-    ngen::GRF operator[](int idx) const {
+    ngen::GRF operator[](int idx) const { return lookup(idx); }
+
+    ngen::GRF lookup(int idx, int *consecutive = nullptr) const {
         for (auto &r : ranges) {
-            if (idx < r.getLen())
+            if (idx < r.getLen()) {
+                if (consecutive) *consecutive = r.getLen() - idx;
                 return r[idx];
+            }
             idx -= r.getLen();
         }
         stub("Index out of bounds");
     }
 
-    ngen::Subregister sub(ngen::HW hw, int offset, ngen::DataType type) const {
-        const int lg2Len = ngen::GRF::log2Bytes(hw) - ngen::getLog2Bytes(type);
-        return (*this)[offset >> lg2Len].sub(offset - ((offset >> lg2Len) << lg2Len), type);
+    ngen::Subregister sub(int log2GRFBytes, int offset, ngen::DataType type, int *consecutive = nullptr) const {
+        const int lg2Len = log2GRFBytes + 3 - ngen::getLog2Bits(type);
+        const int roffset = offset >> lg2Len;
+        offset -= (roffset << lg2Len);
+        int rconsecutive;
+        auto reg = lookup(roffset, &rconsecutive);
+        if (consecutive)
+            *consecutive = (rconsecutive << lg2Len) - offset;
+        return reg.sub(offset, type);
+    }
+
+    ngen::Subregister sub(ngen::HW hw, int offset, ngen::DataType type, int *consecutive = nullptr) const {
+        return sub(ngen::GRF::log2Bytes(hw), offset, type, consecutive);
     }
 
     GRFMultirange subrange(int start, int count) const {

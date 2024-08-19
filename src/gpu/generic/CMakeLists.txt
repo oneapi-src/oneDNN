@@ -19,8 +19,9 @@ file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-# The generic SYCL kernels are currently enabled for NVIDIA vendor only.
-if(DNNL_SYCL_CUDA)
+# - Always enable generic SYCL kernels for NVIDIA vendor.
+# - Only enable the generic SYCL kernels for AMD vendor if target architecture has been specified.
+if(DNNL_SYCL_CUDA OR DNNL_AMD_ENABLE_SYCL_KERNELS)
     add_subdirectory(sycl)
 endif()
 

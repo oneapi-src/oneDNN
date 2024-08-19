@@ -17,22 +17,22 @@
 #ifndef GRAPH_BACKEND_DNNL_KERNELS_PRELU_HPP
 #define GRAPH_BACKEND_DNNL_KERNELS_PRELU_HPP
 
+#include <algorithm>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
+
+#include "graph/backend/dnnl/kernels/kernel_base.hpp"
 
 #include "graph/backend/dnnl/dnnl_constant_tensor_cache.hpp"
 #include "graph/backend/dnnl/dnnl_partition_impl.hpp"
+#include "graph/backend/dnnl/op_executable.hpp"
 #include "graph/backend/dnnl/scratchpad.hpp"
+#include "graph/backend/dnnl/subgraph.hpp"
 #include "graph/backend/dnnl/thread_local_cache.hpp"
 
-#include "graph/backend/dnnl/passes/compile_ops.hpp"
-#include "graph/backend/dnnl/passes/constant_propagation.hpp"
-#include "graph/backend/dnnl/passes/insert_ops.hpp"
-#include "graph/backend/dnnl/passes/layout_propagation.hpp"
-#include "graph/backend/dnnl/passes/lower.hpp"
 #include "graph/backend/dnnl/passes/memory_planning.hpp"
-#include "graph/backend/dnnl/passes/transform.hpp"
-#include "graph/backend/dnnl/passes/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -42,7 +42,6 @@ namespace dnnl_impl {
 template <bool quantized>
 struct prelu_fwd_t : public kernel_base_t {
 private:
-    dnnl::engine p_engine_;
     allocator_t *g_alloc_ = nullptr;
 
     std::shared_ptr<subgraph_t> subgraph_;
@@ -65,180 +64,33 @@ public:
     status_t compile_impl(const dnnl_partition_impl_t *part,
             const engine_t *g_engine,
             const std::vector<logical_tensor_t> &inputs,
-            const std::vector<logical_tensor_t> &outputs) override {
-        // output tensor should have same data type as input tensor
-        if (inputs[0].data_type != outputs[0].data_type)
-            return status::unimplemented;
-
-        p_engine_ = make_dnnl_engine(*g_engine);
-        g_alloc_ = reinterpret_cast<graph::allocator_t *>(
-                g_engine->get_allocator());
-
-        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_,
-                part->get_fpmath_mode(), part->get_use_blocked_layout(), true);
-        BACKEND_DNNL_CHECK(
-                set_given_inputs_outputs(subgraph_, inputs, outputs));
-
-        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
-            return this->memory_planner_.get_memory_info(val);
-        });
-        pass_pipeline_t pipeline(vis);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_unsqueeze_for_prelu);
-        BACKEND_DNNL_ADD_PASS(
-                pipeline, insert_permute_for_op_only_require_data_format);
-
-        pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
-
-        // bind the memory for each op
-        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
-            return memory_planner_.run(sg);
-        };
-        pipeline.reset_visualize_arg(true, true);
-        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
-        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
-
-        // Run the added passes
-        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
-
-        // fill information for outputs logical tensors
-        for (size_t i = 0; i < outputs.size(); i++) {
-            auto &out = const_cast<logical_tensor_t &>(outputs[i]);
-            out = subgraph_->outs_[i];
-        }
-
-        // generate a hash key for exec_args_mgr
-        resource_ctor_ = [this]() {
-            return this->memory_planner_.get_exec_args_set().clone();
-        };
-
-        return status::success;
-    }
+            const std::vector<logical_tensor_t> &outputs) override;
 
     void prepare_args_set(const execution_args_set_t *res,
             const std::vector<tensor_t> &inputs,
             const std::vector<tensor_t> &outputs,
-            const scratchpad_t &scratchpad) {
-        // update the data of partition in/outputs args
-        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
-            mem_idx.first.set_data_handle(
-                    inputs[mem_idx.second].get_data_handle());
-        }
-        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
-            mem_idx.first.set_data_handle(
-                    outputs[mem_idx.second].get_data_handle());
-        }
-
-        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
-                scratchpad.get_buffer());
-
-        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
-            mem_offkey.first.set_data_handle(
-                    var_grantor.get(mem_offkey.second));
-        }
-    }
+            const scratchpad_t &scratchpad);
 
     status_t execute_impl(const stream_t *g_stream,
             const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs) override {
-        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-
-        // each thread's own local resource
-        thread_local_cache_t<execution_args_set_t> res_cache;
-        execution_args_set_t *res = res_cache.get_or_add(
-                reinterpret_cast<size_t>(this), resource_ctor_);
-
-        temporary_scratchpad_t scratchpad(
-                memory_planner_.total_internal_temporary_size(), p_engine_,
-                *g_alloc_);
-        assertm(scratchpad.size()
-                        >= memory_planner_.total_internal_temporary_size(),
-                "no enough scratchpad memory");
-        prepare_args_set(res, inputs, outputs, scratchpad);
-
-        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
-            subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
-        }
-
-        return status::success;
-    }
+            const std::vector<tensor_t> &outputs) override;
 
 #ifdef DNNL_WITH_SYCL
     status_t sycl_execute_impl(const stream_t *g_stream,
             const std::vector<tensor_t> &inputs,
             const std::vector<tensor_t> &outputs,
             const std::vector<::sycl::event> &sycl_deps,
-            ::sycl::event *sycl_event) override {
-
-        auto deps = sycl_deps;
-        ::sycl::event returned_event;
-        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-
-        // each thread's own local resource
-        thread_local_cache_t<execution_args_set_t> res_cache;
-        execution_args_set_t *res = res_cache.get_or_add(
-                reinterpret_cast<size_t>(this), resource_ctor_);
-
-        temporary_scratchpad_t scratchpad(
-                memory_planner_.total_internal_temporary_size(), p_engine_,
-                *g_alloc_);
-        assertm(scratchpad.size()
-                        >= memory_planner_.total_internal_temporary_size(),
-                "no enough scratchpad memory");
-        prepare_args_set(res, inputs, outputs, scratchpad);
-
-        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
-            returned_event = subgraph_->execs_[i]->execute_sycl(
-                    p_stream, res->get_exec_args()[i], deps);
-            deps = {returned_event};
-        }
-
-        scratchpad.set_deps(returned_event);
-        if (sycl_event) *sycl_event = returned_event;
-
-        return status::success;
-    }
+            ::sycl::event *sycl_event) override;
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     status_t ocl_execute_impl(const stream_t *g_stream,
             const std::vector<tensor_t> &inputs,
             const std::vector<tensor_t> &outputs,
-            const std::vector<cl_event> &cl_deps,
-            cl_event *ret_event) override {
-
-        auto deps = cl_deps;
-        cl_event returned_event;
-        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-
-        // each thread's own local resource
-        thread_local_cache_t<execution_args_set_t> res_cache;
-        execution_args_set_t *res = res_cache.get_or_add(
-                reinterpret_cast<size_t>(this), resource_ctor_);
-
-        temporary_scratchpad_t scratchpad(
-                memory_planner_.total_internal_temporary_size(), p_engine_,
-                *g_alloc_);
-        assertm(scratchpad.size()
-                        >= memory_planner_.total_internal_temporary_size(),
-                "no enough scratchpad memory");
-        prepare_args_set(res, inputs, outputs, scratchpad);
-
-        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
-            returned_event = subgraph_->execs_[i]->execute_ocl(
-                    p_stream, res->get_exec_args()[i], deps);
-            deps = {returned_event};
-        }
-
-        scratchpad.set_deps(returned_event);
-        if (ret_event) *ret_event = returned_event;
-
-        return status::success;
-    }
+            const std::vector<cl_event> &cl_deps, cl_event *ret_event) override;
 #endif
+
+    DEF_KERNEL_METHOD_STR(prelu_fwd_t)
 };
 
 using float_prelu_fwd = prelu_fwd_t</* quantized */ false>;
@@ -246,7 +98,6 @@ using float_prelu_fwd = prelu_fwd_t</* quantized */ false>;
 #if BUILD_TRAINING
 struct prelu_bwd_t : public kernel_base_t {
 private:
-    dnnl::engine p_engine_;
     allocator_t *g_alloc_ = nullptr;
 
     std::shared_ptr<subgraph_t> subgraph_;
@@ -269,173 +120,33 @@ public:
     status_t compile_impl(const dnnl_partition_impl_t *part,
             const engine_t *g_engine,
             const std::vector<logical_tensor_t> &inputs,
-            const std::vector<logical_tensor_t> &outputs) override {
-        p_engine_ = make_dnnl_engine(*g_engine);
-        g_alloc_ = reinterpret_cast<graph::allocator_t *>(
-                g_engine->get_allocator());
-
-        subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_,
-                part->get_fpmath_mode(), part->get_use_blocked_layout(), true);
-        BACKEND_DNNL_CHECK(
-                set_given_inputs_outputs(subgraph_, inputs, outputs));
-
-        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
-            return this->memory_planner_.get_memory_info(val);
-        });
-        pass_pipeline_t pipeline(vis);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-
-        BACKEND_DNNL_ADD_PASS(
-                pipeline, insert_unsqueeze_and_squeeze_for_prelu_bwd);
-        BACKEND_DNNL_ADD_PASS(
-                pipeline, insert_permute_for_op_only_require_data_format);
-
-        pipeline.reset_visualize_arg(true, false);
-        BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
-
-        auto memory_plan = [&](std::shared_ptr<subgraph_t> &sg) {
-            return memory_planner_.run(sg);
-        };
-        pipeline.reset_visualize_arg(true, true);
-
-        BACKEND_DNNL_ADD_PASS(pipeline, memory_plan);
-        BACKEND_DNNL_ADD_PASS(pipeline, compile_ops);
-
-        BACKEND_DNNL_CHECK(pipeline.run(subgraph_));
-
-        for (size_t i = 0; i < outputs.size(); i++) {
-            auto &out = const_cast<logical_tensor_t &>(outputs[i]);
-            out = subgraph_->outs_[i];
-        }
-
-        resource_ctor_ = [this]() {
-            return this->memory_planner_.get_exec_args_set().clone();
-        };
-
-        return status::success;
-    }
+            const std::vector<logical_tensor_t> &outputs) override;
 
     void prepare_args_set(const execution_args_set_t *res,
             const std::vector<tensor_t> &inputs,
             const std::vector<tensor_t> &outputs,
-            const scratchpad_t &scratchpad) {
-        // update the data of partition in/outputs args
-        for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
-            mem_idx.first.set_data_handle(
-                    inputs[mem_idx.second].get_data_handle());
-        }
-        for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
-            mem_idx.first.set_data_handle(
-                    outputs[mem_idx.second].get_data_handle());
-        }
-
-        grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
-                scratchpad.get_buffer());
-
-        for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
-            mem_offkey.first.set_data_handle(
-                    var_grantor.get(mem_offkey.second));
-        }
-    }
+            const scratchpad_t &scratchpad);
 
     status_t execute_impl(const stream_t *g_stream,
             const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs) override {
-        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-
-        // each thread's own local resource
-        thread_local_cache_t<execution_args_set_t> res_cache;
-        execution_args_set_t *res = res_cache.get_or_add(
-                reinterpret_cast<size_t>(this), resource_ctor_);
-
-        temporary_scratchpad_t scratchpad(
-                memory_planner_.total_internal_temporary_size(), p_engine_,
-                *g_alloc_);
-        assertm(scratchpad.size()
-                        >= memory_planner_.total_internal_temporary_size(),
-                "no enough scratchpad memory");
-        prepare_args_set(res, inputs, outputs, scratchpad);
-
-        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
-            subgraph_->execs_[i]->execute(p_stream, res->get_exec_args()[i]);
-        }
-        return status::success;
-    }
+            const std::vector<tensor_t> &outputs) override;
 
 #ifdef DNNL_WITH_SYCL
     status_t sycl_execute_impl(const stream_t *g_stream,
             const std::vector<tensor_t> &inputs,
             const std::vector<tensor_t> &outputs,
             const std::vector<::sycl::event> &sycl_deps,
-            ::sycl::event *sycl_event) override {
-
-        auto deps = sycl_deps;
-        ::sycl::event returned_event;
-        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-
-        // each thread's own local resource
-        thread_local_cache_t<execution_args_set_t> res_cache;
-        execution_args_set_t *res = res_cache.get_or_add(
-                reinterpret_cast<size_t>(this), resource_ctor_);
-
-        temporary_scratchpad_t scratchpad(
-                memory_planner_.total_internal_temporary_size(), p_engine_,
-                *g_alloc_);
-        assertm(scratchpad.size()
-                        >= memory_planner_.total_internal_temporary_size(),
-                "no enough scratchpad memory");
-        prepare_args_set(res, inputs, outputs, scratchpad);
-
-        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
-            returned_event = subgraph_->execs_[i]->execute_sycl(
-                    p_stream, res->get_exec_args()[i], deps);
-            deps = {returned_event};
-        }
-
-        scratchpad.set_deps(returned_event);
-        if (sycl_event) *sycl_event = returned_event;
-
-        return status::success;
-    }
+            ::sycl::event *sycl_event) override;
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     status_t ocl_execute_impl(const stream_t *g_stream,
             const std::vector<tensor_t> &inputs,
             const std::vector<tensor_t> &outputs,
-            const std::vector<cl_event> &cl_deps,
-            cl_event *ret_event) override {
-
-        auto deps = cl_deps;
-        cl_event returned_event;
-        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
-
-        // each thread's own local resource
-        thread_local_cache_t<execution_args_set_t> res_cache;
-        execution_args_set_t *res = res_cache.get_or_add(
-                reinterpret_cast<size_t>(this), resource_ctor_);
-
-        temporary_scratchpad_t scratchpad(
-                memory_planner_.total_internal_temporary_size(), p_engine_,
-                *g_alloc_);
-        assertm(scratchpad.size()
-                        >= memory_planner_.total_internal_temporary_size(),
-                "no enough scratchpad memory");
-        prepare_args_set(res, inputs, outputs, scratchpad);
-
-        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
-            returned_event = subgraph_->execs_[i]->execute_ocl(
-                    p_stream, res->get_exec_args()[i], deps);
-            deps = {returned_event};
-        }
-
-        scratchpad.set_deps(returned_event);
-        if (ret_event) *ret_event = returned_event;
-
-        return status::success;
-    }
+            const std::vector<cl_event> &cl_deps, cl_event *ret_event) override;
 #endif
+
+    DEF_KERNEL_METHOD_STR(prelu_bwd_t)
 };
 #endif
 

@@ -909,8 +909,11 @@ void BLASKernelGenerator<hw>::updateCLayout(const vector<RegisterBlock> &layoutE
             return range;
         };
 
-        // Save a little bit of space for temporary allocations inside C update.
-        auto save = state.ra.alloc_sub<uint64_t>();
+        // Save some space for temporary allocations inside C update.
+        int saveRegs = 1;
+        if (Tc != Tc_ext)
+            saveRegs += 16;
+        auto save = chunkAlloc(saveRegs, 2, state);
 
         vector<RegisterBlock> sublayoutExt, sublayoutCopy, sublayoutAcc;
         size_t sublayoutCopySize = 0;
@@ -974,7 +977,7 @@ void BLASKernelGenerator<hw>::updateCLayout(const vector<RegisterBlock> &layoutE
         for (int l = listart; l < liend; l++)
             sublayoutAcc.push_back(layout[l]);
 
-        state.ra.safeRelease(save);
+        safeReleaseRanges(save, state);
 
         // Set up C addresses relative to prior blocks.
         // TODO: use inline address offsets instead of setupAddrRel for constant offsets.
@@ -992,9 +995,9 @@ void BLASKernelGenerator<hw>::updateCLayout(const vector<RegisterBlock> &layoutE
             // Atomic update.
             // Alpha scaling is done earlier; beta scaling isn't supported.
             if (!problem.alpha1() || !problem.beta1()) stub();
-            if (copyC) {
-                if (!copyRegisters(state.Tacc, Tc_ext, sublayoutAcc, sublayoutExt, C_accRange, C_extRange, 0, 0, false, strategy, state)) stub();
-            } else if (state.Tacc != Tc_ext) {
+            if (copyC)
+                copyRegisters(state.Tacc, Tc_ext, sublayoutAcc, sublayoutExt, C_accRange, C_extRange, strategy, state);
+            else if (state.Tacc != Tc_ext) {
                 if (state.Tacc.size() != Tc_ext.size()) stub();
                 for (auto &block: sublayoutAcc) {
                     auto C_acc = subrange(C_accRange, hw, state.Tacc, block);
@@ -1034,7 +1037,7 @@ void BLASKernelGenerator<hw>::updateCLayout(const vector<RegisterBlock> &layoutE
                     auto &sublayoutDst = loadOnly ? sublayoutAcc : sublayoutCopy;
                     auto &C_dstRange   = loadOnly ? C_accRange   : C_copyRange;
                     Tload = lateCConvert ? Ts : state.Tacc;
-                    if (!copyRegisters(Tc_ext, Tload, sublayoutExt, sublayoutDst, C_extRange, C_dstRange, 0, 0, false, strategy, state)) stub();
+                    copyRegisters(Tc_ext, Tload, sublayoutExt, sublayoutDst, C_extRange, C_dstRange, strategy, state);
                 }
             }
 
@@ -1124,7 +1127,7 @@ void BLASKernelGenerator<hw>::updateCLayout(const vector<RegisterBlock> &layoutE
             // Store updated data.
             if (op == COperation::UpdateStore) {
                 if (copyC)
-                    if (!copyRegisters(state.Tacc, Tc_ext, sublayoutAcc, sublayoutExt, C_accRange, C_extRange, 0, 0, false, strategy, state)) stub();
+                    copyRegisters(state.Tacc, Tc_ext, sublayoutAcc, sublayoutExt, C_accRange, C_extRange, strategy, state);
 
                 auto &sublayoutSrc = copyC ? sublayoutExt : sublayoutAcc;
                 auto &C_srcRange = copyC ? C_extRange : C_accRange;
@@ -2265,7 +2268,7 @@ void BLASKernelGenerator<hw>::gemmAccessSums(COperation op, const GEMMProblem &p
 
         loadMatrix(CO_regsLoad, CO_layout, CO, CO_strategy, CO_addrs, strategy, state);
         if (!share)
-            copyRegisters(Tco, Tc, CO_layout, Xs_layout, CO_regsLoad, CO_regsLoadConv, 0, 0, false, strategy, state);
+            copyRegisters(Tco, Tc, CO_layout, Xs_layout, CO_regsLoad, CO_regsLoadConv, strategy, state);
 
         auto &beta = problem.beta;
 
@@ -2287,7 +2290,7 @@ void BLASKernelGenerator<hw>::gemmAccessSums(COperation op, const GEMMProblem &p
     if (!loadOnly) {
         if (!share) {
             CO_regs = state.ra.alloc_range(getRegCount(CO_layout));
-            copyRegisters(Tc, Tco, Xs_layout, CO_layout, Xs_regs, CO_regs, 0, 0, false, strategy, state);
+            copyRegisters(Tc, Tco, Xs_layout, CO_layout, Xs_regs, CO_regs, strategy, state);
             releaseRanges(Xs_regs, state);
         }
 

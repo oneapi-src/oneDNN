@@ -60,9 +60,11 @@ status_t init_layouts(const kernel_desc_t &desc, convolution_pd_t *pd) {
     auto &src_md = *const_cast<memory_desc_t *>(pd->invariant_src_md());
     auto &wei_md = *const_cast<memory_desc_t *>(pd->invariant_wei_md());
     auto &dst_md = *const_cast<memory_desc_t *>(pd->invariant_dst_md());
+    auto &bia_md = *const_cast<memory_desc_t *>(pd->invariant_bia_md());
     maybe_init_layout(src_md, desc.src_tag.raw_tag(), false);
     maybe_init_layout(wei_md, desc.wei_tag.raw_tag(), !pd->with_groups());
     maybe_init_layout(dst_md, desc.dst_tag.raw_tag(), false);
+    maybe_init_layout(bia_md, desc.bia_tag.raw_tag(), false);
     return status::success;
 }
 
@@ -79,7 +81,7 @@ public:
                 && !(pd->KSW() == 1 && pd->KSH() == 1 && pd->KSD() == 1))
             return false;
 
-        if (pd->with_bias()) return false;
+        if ((pd->is_bwd_d() || pd->is_fwd()) && pd->with_bias()) return false;
         if (!pd->attr()->has_default_values()) return false;
         return true;
     }
@@ -135,7 +137,7 @@ private:
         if (plan_preset_t::instance().is_set()) {
             _desc = plan_preset_t::instance().get();
             _desc.hw = hw_t(engine);
-            _desc.spec_reqs.specialize(prb);
+            _desc.specialize(prb);
             {
                 ir_utils::ir_check_log_level_t check_level(ir_utils::LOG_FATAL);
                 auto plan = create_conv_plan_and_finalize_desc(_desc);
@@ -143,7 +145,7 @@ private:
         } else {
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);
-            _desc.spec_reqs.specialize(prb);
+            _desc.specialize(prb);
         }
         if (_desc.is_empty()) return status::unimplemented;
         ir_assert(ir_check_fatal(_desc.fits(prb)));

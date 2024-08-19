@@ -85,6 +85,7 @@ public:
     layout_desc_t(const dim_map_t<prb_dim_t, char> &letter_map);
     char layout_letter(const prb_dim_t &dim) const;
     const std::string &canonical() const { return canonical_; }
+    const dim_map_t<prb_dim_t, char> &letter_map() const { return letter_map_; }
     int ndims() const { return letter_map_.size(); }
     prb_dim_t prb_dim(int idx) const;
     int dim_index(const prb_dim_t &dim) const;
@@ -345,6 +346,7 @@ public:
     bool is_blocked_by(const layout_t &other) const;
     void add_block(const prb_dim_t &dim, const expr_t &size,
             const expr_t &_stride = expr_t());
+    void remove(const prb_dim_t &dim);
     void block_by(const std::vector<block_t> &blocks);
     void pad(int elems) { stride_pad_ = elems; }
     void pad_bytes(int bytes) { pad(ir_utils::safe_div(bytes, type().size())); }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ TEST(test_insert_ops_insert_ops, InsertPermuteForOpOnlyRequireDataFormat) {
     auto subgraph = std::make_shared<graph::dnnl_impl::subgraph_t>(
             std::vector<std::shared_ptr<graph::op_t>> {op},
             /* reset_layout */ false);
-    graph::dnnl_impl::dnnl_backend::get_singleton();
+    graph::dnnl_impl::dnnl_backend_t::get_singleton();
 
     auto &prelu_op = subgraph->get_ops()[0];
     graph::logical_tensor_t in_lt1

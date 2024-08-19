@@ -2919,7 +2919,7 @@ TEST(test_conv_execute_subgraph_int8, Conv1dConv2dConv3d) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -3096,7 +3096,7 @@ static inline void quantized_conv2d_eltwise(
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -3343,8 +3343,8 @@ TEST(test_conv_execute_subgraph_int8, Conv2dSumRelu) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x8_conv_add_post_ops_gpu"
-                                : "x8s8x8_conv_add_post_ops_cpu");
+                                ? "x8x8x8_conv_add_post_ops_gpu"
+                                : "x8x8x8_conv_add_post_ops_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -3549,8 +3549,8 @@ TEST(test_conv_execute_subgraph_int8,
     // -------------------------case 2----------------------------------
     graph::pass::pass_base_ptr apass
             = get_pass(engine->kind() == graph::engine_kind::gpu
-                            ? "x8s8x8_conv_add_post_ops_gpu"
-                            : "x8s8x8_conv_add_post_ops_cpu");
+                            ? "x8x8x8_conv_add_post_ops_gpu"
+                            : "x8x8x8_conv_add_post_ops_cpu");
     ASSERT_NE(apass, nullptr);
 
     apass->run(agraph);
@@ -3757,8 +3757,8 @@ TEST(test_conv_execute_subgraph_int8, Conv2dSumReluNxc) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x8_conv_add_post_ops_gpu"
-                                : "x8s8x8_conv_add_post_ops_cpu");
+                                ? "x8x8x8_conv_add_post_ops_gpu"
+                                : "x8x8x8_conv_add_post_ops_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -3935,7 +3935,7 @@ TEST(test_conv_execute_subgraph_int8, Conv1d2d3dX8s8f32) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4103,7 +4103,7 @@ TEST(test_conv_execute_subgraph_int8, Conv2dReluX8s8f32) {
                 graph::status::success);
 
         // -------------------------case 2----------------------------------
-        graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+        graph::pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
         auto part = g.get_partitions()[0];
@@ -4304,9 +4304,9 @@ TEST(test_conv_execute_subgraph_int8, Conv2dSumReluGetInplacePair) {
 
         graph::pass::pass_base_ptr apass1
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x8_conv_add_post_ops_gpu"
-                                : "x8s8x8_conv_add_post_ops_cpu");
-        graph::pass::pass_base_ptr apass2 = get_pass("x8s8x_conv_post_ops");
+                                ? "x8x8x8_conv_add_post_ops_gpu"
+                                : "x8x8x8_conv_add_post_ops_cpu");
+        graph::pass::pass_base_ptr apass2 = get_pass("x8x8x_conv_post_ops");
 
         apass1->run(g);
         apass2->run(g);
@@ -6101,8 +6101,8 @@ TEST(test_conv_execute_subgraph_int8, QuantWeiConv2dSumRelu) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x8_conv_add_post_ops_gpu"
-                                : "x8s8x8_conv_add_post_ops_cpu");
+                                ? "x8x8x8_conv_add_post_ops_gpu"
+                                : "x8x8x8_conv_add_post_ops_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -6344,8 +6344,8 @@ TEST(test_conv_execute_subgraph_int8, QuantWeiConv2dSumS8Relu) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x8_conv_add_post_ops_gpu"
-                                : "x8s8x8_conv_add_post_ops_cpu");
+                                ? "x8x8x8_conv_add_post_ops_gpu"
+                                : "x8x8x8_conv_add_post_ops_cpu");
 
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -6682,7 +6682,7 @@ TEST(test_conv_execute_subgraph_int8, ShareCachedWeights) {
     agraph.add_op(&conv_node);
     agraph.finalize();
 
-    graph::pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     auto part = agraph.get_partitions()[0];

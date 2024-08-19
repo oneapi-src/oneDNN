@@ -35,7 +35,7 @@ status_t jit_gemm_pd_t::init_post_ops() {
     binary_srcs_.reserve(post_ops_.len() + 4);
 
     bool ok = true;
-
+    int prelu_count = 0;
     for (int i = 0; i < post_ops_.len(); i++) {
         const auto &e = post_ops_.entry_[i];
         switch (e.kind) {
@@ -64,6 +64,8 @@ status_t jit_gemm_pd_t::init_post_ops() {
                 ok &= get_prelu_md(e.prelu.mask, dst_md()->dims, prelu_wei_md,
                               dst_md()->ndims)
                         == status::success;
+                prelu_count++;
+                ok &= prelu_count <= 1;
                 break;
             default: return status::unimplemented;
         }

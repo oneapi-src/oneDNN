@@ -31,6 +31,7 @@ namespace ocl {
 using namespace bn_lookup_table;
 using namespace bn_utils;
 using namespace dnnl::impl::utils;
+using namespace dnnl::impl::gpu::intel::gpu_utils;
 
 static bool use_fused_atomics_reduction(bn_lookup_table::params_t &conf,
         const batch_normalization_pd_t *pd, impl::engine_t *engine) {
@@ -142,6 +143,7 @@ static status_t init_conf_common(bn_lookup_table::params_t &conf,
     using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper data_mdw(
             pd->is_fwd() ? pd->src_md() : pd->diff_src_md());
+    conf.impl = bn_impl_t::gen9;
 
     init_conf_basic(conf, pd);
     set_offsets(data_mdw, off.src_off);

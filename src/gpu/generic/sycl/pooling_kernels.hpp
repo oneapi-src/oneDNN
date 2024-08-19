@@ -20,11 +20,12 @@
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/nstl.hpp"
-#include "common/primitive_attr.hpp"
+#include "common/primitive_exec_types.hpp"
+#include "common/utils.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
-#include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
 #include "xpu/sycl/types.hpp"
 
 namespace dnnl {
@@ -53,6 +54,9 @@ struct pooling_fwd_kernel_vec_t {
                   DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t src_mem(src_, conf_.src_md);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
         const bool is_max_pool = conf_.alg == alg_kind::pooling_max;
         float base_res = is_max_pool ? data_conv() : 0.f;
@@ -73,9 +77,9 @@ struct pooling_fwd_kernel_vec_t {
             float res = base_res;
 
             if (is_max_pool) {
-                ker_max(res, mb, oc, od, oh, ow);
+                ker_max(src_mem, res, mb, oc, od, oh, ow);
             } else {
-                ker_avg(res, mb, oc, od, oh, ow);
+                ker_avg(src_mem, res, mb, oc, od, oh, ow);
             }
 
             ::sycl::vec<float, 8> dst_arr;
@@ -94,7 +98,7 @@ struct pooling_fwd_kernel_vec_t {
             }
             res = conf_.post_ops.apply(res, dst_arr);
 
-            store_float_value(dst_md().data_type(), res, dst_ptr(), data_p_off);
+            dst_mem.store(res, data_p_off);
             utils::nd_iterator_step(mb, MB, oc, OC, od, OD, oh, OH, ow, OW);
         }
     }
@@ -104,11 +108,9 @@ private:
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
     const xpu::sycl::md_t &ws_md() const { return conf_.ws_md; }
 
-    void *src_ptr() const { return src_.get_pointer(); }
     void *gen_ptr(xpu::sycl::in_memory_arg_t gen_) const {
         return gen_.get_pointer();
     }
-    void *dst_ptr() const { return dst_.get_pointer(); }
     void *ws_ptr() const { return ws_.get_pointer(); }
 
     static dim_t get_offset(const xpu::sycl::md_t &mdw, dim_t n, dim_t c,
@@ -194,18 +196,14 @@ private:
     void set_ws(dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow,
             dim_t value) const {
         if (ws_ptr()) {
+            memory_tensor_t ws_mem(ws_, conf_.ws_md);
             const auto off = get_offset(ws_md(), mb, oc, od, oh, ow);
-            const data_type_t ws_dt
-                    = ws_ptr() ? ws_md().data_type() : data_type::undef;
-            if (ws_dt == data_type::u8) {
-                store_float_value(ws_dt, value, ws_ptr(), off);
-            } else
-                store_float_value(ws_dt, value, ws_ptr(), off);
+            ws_mem.store(value, off);
         }
     }
 
-    void ker_max(
-            float &d, dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) const {
+    void ker_max(const in_memory_tensor_t &src_mem, float &d, dim_t mb,
+            dim_t oc, dim_t od, dim_t oh, dim_t ow) const {
         set_ws(mb, oc, od, oh, ow, 0);
         for (dim_t kd = 0; kd < conf_.KD; ++kd) {
             const dim_t id = od * conf_.SD - conf_.padF + kd * (conf_.DD + 1);
@@ -220,8 +218,7 @@ private:
                     if (iw < 0 || iw >= conf_.IW) continue;
 
                     const auto off = get_offset(src_md(), mb, oc, id, ih, iw);
-                    auto s = load_float_value(
-                            src_md().data_type(), src_ptr(), off);
+                    auto s = src_mem.load(off);
 
                     if (s > d) {
                         d = s;
@@ -233,8 +230,8 @@ private:
         }
     }
 
-    void ker_avg(
-            float &d, dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) const {
+    void ker_avg(const in_memory_tensor_t &src_mem, float &d, dim_t mb,
+            dim_t oc, dim_t od, dim_t oh, dim_t ow) const {
         for (dim_t kd = 0; kd < conf_.KD; ++kd) {
             const dim_t id = od * conf_.SD - conf_.padF + kd * (conf_.DD + 1);
             if (id < 0 || id >= conf_.ID) continue;
@@ -248,8 +245,7 @@ private:
                     if (iw < 0 || iw >= conf_.IW) continue;
 
                     const auto off = get_offset(src_md(), mb, oc, id, ih, iw);
-                    float s = load_float_value(
-                            src_md().data_type(), src_ptr(), off);
+                    float s = src_mem.load(off);
                     d += s;
                 }
             }
@@ -315,6 +311,9 @@ struct pooling_bwd_kernel_vec_t {
         , ws_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WORKSPACE)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t diff_src_mem(diff_src_, conf_.diff_src_md);
+        memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
+
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
 
         dim_t ow_start = max(dim_t(0),
@@ -348,14 +347,14 @@ struct pooling_bwd_kernel_vec_t {
         dim_t mb {0}, oc {0};
         utils::nd_iterator_init(start, mb, MB, oc, OC);
         for (dim_t iwork = start; iwork < end; ++iwork) {
-            ker_zero(mb, oc);
+            ker_zero(diff_src_mem, mb, oc);
             for_(dim_t od = od_start; od < od_end; ++od)
             for_(dim_t oh = oh_start; oh < oh_end; ++oh)
             for (dim_t ow = ow_start; ow < ow_end; ++ow) {
                 if (is_max_pool) {
-                    ker_max(mb, oc, od, oh, ow);
+                    ker_max(diff_src_mem, diff_dst_mem, mb, oc, od, oh, ow);
                 } else {
-                    ker_avg(mb, oc, od, oh, ow);
+                    ker_avg(diff_src_mem, diff_dst_mem, mb, oc, od, oh, ow);
                 }
             }
             utils::nd_iterator_step(mb, MB, oc, OC);
@@ -366,10 +365,6 @@ private:
     const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
     const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
     const xpu::sycl::md_t &ws_md() const { return conf_.ws_md; }
-
-    void *diff_src_ptr() const { return diff_src_.get_pointer(); }
-    void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
-    void *ws_ptr() const { return ws_.get_pointer(); }
 
     static dim_t get_offset(const xpu::sycl::md_t &mdw, dim_t n, dim_t c,
             dim_t d, dim_t h, dim_t w) {
@@ -382,22 +377,22 @@ private:
         return 0;
     }
 
-    void ker_zero(dim_t mb, dim_t oc) const {
+    void ker_zero(out_memory_tensor_t &diff_src_mem, dim_t mb, dim_t oc) const {
         for_(dim_t id = 0; id < conf_.ID; ++id)
         for_(dim_t ih = 0; ih < conf_.IH; ++ih)
         for (dim_t iw = 0; iw < conf_.IW; ++iw) {
             const auto off = get_offset(diff_src_md(), mb, oc, id, ih, iw);
-            store_float_value(
-                    diff_src_md().data_type(), 0, diff_src_ptr(), off);
+            diff_src_mem.store(0, off);
         }
     }
 
-    void ker_max(dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) const {
+    void ker_max(out_memory_tensor_t &diff_src_mem,
+            const in_memory_tensor_t &diff_dst_mem, dim_t mb, dim_t oc,
+            dim_t od, dim_t oh, dim_t ow) const {
+        memory_tensor_t ws_mem(ws_, conf_.ws_md);
         const auto ws_off = get_offset(ws_md(), mb, oc, od, oh, ow);
 
-        const int index = ws_md().data_type() == data_type::u8
-                ? (int)load_float_value(ws_md().data_type(), ws_ptr(), ws_off)
-                : load_float_value(ws_md().data_type(), ws_ptr(), ws_off);
+        const int index = ws_mem.load(ws_off);
         const dim_t kd = (index / conf_.KW) / conf_.KH;
         const dim_t kh = (index / conf_.KW) % conf_.KH;
         const dim_t kw = index % conf_.KW;
@@ -410,16 +405,15 @@ private:
 
         const auto d_src_off = get_offset(diff_src_md(), mb, oc, id, ih, iw);
         const auto d_dst_off = get_offset(diff_dst_md(), mb, oc, od, oh, ow);
-        float v_src = load_float_value(
-                diff_src_md().data_type(), diff_src_ptr(), d_src_off);
-        float v_dst = load_float_value(
-                diff_dst_md().data_type(), diff_dst_ptr(), d_dst_off);
+        float v_src = diff_src_mem.load(d_src_off);
+        float v_dst = diff_dst_mem.load(d_dst_off);
         v_src += v_dst;
-        store_float_value(
-                diff_src_md().data_type(), v_src, diff_src_ptr(), d_src_off);
+        diff_src_mem.store(v_src, d_src_off);
     }
 
-    void ker_avg(dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) const {
+    void ker_avg(out_memory_tensor_t &diff_src_mem,
+            const in_memory_tensor_t &diff_dst_mem, dim_t mb, dim_t oc,
+            dim_t od, dim_t oh, dim_t ow) const {
         int num_summands;
         if (conf_.alg == alg_kind::pooling_avg_include_padding)
             num_summands = conf_.KW * conf_.KH * conf_.KD;
@@ -473,13 +467,11 @@ private:
                             = get_offset(diff_src_md(), mb, oc, id, ih, iw);
                     const auto d_dst_off
                             = get_offset(diff_dst_md(), mb, oc, od, oh, ow);
-                    float v_src = load_float_value(diff_src_md().data_type(),
-                            diff_src_ptr(), d_src_off);
-                    float v_dst = load_float_value(diff_dst_md().data_type(),
-                            diff_dst_ptr(), d_dst_off);
+                    float v_src = diff_src_mem.load(d_src_off);
+                    ;
+                    float v_dst = diff_dst_mem.load(d_dst_off);
                     v_src += v_dst / num_summands;
-                    store_float_value(diff_src_md().data_type(), v_src,
-                            diff_src_ptr(), d_src_off);
+                    diff_src_mem.store(v_src, d_src_off);
                 }
             }
         }

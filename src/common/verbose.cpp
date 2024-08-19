@@ -146,7 +146,8 @@ void print_header(const filter_status_t &filter_status) noexcept {
         verbose_printf("onednn_verbose,graph,info,template:");
         verbose_printf(
                 "%soperation,engine,partition_id,partition_kind,op_names,data_"
-                "formats,logical_tensors,fpmath_mode,backend,exec_time\n",
+                "formats,logical_tensors,fpmath_mode,implementation,backend,"
+                "exec_time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
 #endif
         if (filter_status.status == filter_status_t::flags::valid)

@@ -138,7 +138,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_pass)
                                     1>);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<batchnorm_fwd_t>();
+            return std::make_shared<batch_norm_fwd_t>();
         });
 
 #define BATCHNORM_INPUT_NUM_CHECK(n1, n2) \
@@ -167,7 +167,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_fw_train_pass)
                     p_batchnorm_fwd_training->BATCHNORM_INPUT_NUM_CHECK(3, 5);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<batchnorm_fwd_t>();
+            return std::make_shared<batch_norm_fwd_t>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_bw_pass)
@@ -184,7 +184,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_bw_pass)
                     p_batchnorm_backprop->BATCHNORM_OUTPUT_NUM_CHECK(1, 3);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<batchnorm_bwd_t>();
+            return std::make_shared<batch_norm_bwd_t>();
         });
 #endif
 
@@ -205,7 +205,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, ln_pass)
                             check_input_ndim_from_offset<0, 2, 5>);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<layernorm_fwd_t>();
+            return std::make_shared<layer_norm_fwd_t>();
         });
 
 #if BUILD_TRAINING
@@ -227,7 +227,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, ln_bw_pass)
                             check_input_ndim_from_offset<0, 2, 5>);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<layernorm_bwd_t>();
+            return std::make_shared<layer_norm_bwd_t>();
         });
 #endif
 
@@ -272,7 +272,7 @@ DNNL_BACKEND_SINGLE_OP_TRANSFORM(
         convtranspose_pass, ConvTranspose, float_convtranspose_fwd)
 #if BUILD_TRAINING
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(convtranspose_data_bwd_pass,
-        ConvTransposeBackwardData, convtranspose_bwd_data_t)
+        ConvTransposeBackwardData, conv_transpose_bwd_data_t)
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, convtranspose_weights_bwd_pass)
         .set_priority(DEFAULT_P)
@@ -287,7 +287,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, convtranspose_weights_bwd_pass)
                             check_input_num<2>);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<convtranspose_bwd_weights_t>();
+            return std::make_shared<conv_transpose_bwd_weights_t>();
         });
 #endif
 
@@ -323,7 +323,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gn_pass)
                                     1>);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<groupnorm_fwd_t>();
+            return std::make_shared<group_norm_fwd_t>();
         });
 
 // if op is interpolate, need to filter out attrs not supported by dnnl
@@ -346,7 +346,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, interpolate_pass)
                     p_interpolate->INTERPOLATE_ATTR_CHECK();
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<float_resampling_fwd>();
+            return std::make_shared<resampling_fwd_t>();
         });
 
 #if BUILD_TRAINING

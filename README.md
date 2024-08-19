@@ -84,14 +84,14 @@ The library is optimized for the following CPUs:
 * Intel 64/AMD64 architecture
   * Intel Atom(R) processor (at least Intel SSE4.1 support is required)
   * Intel Core(TM) processor (at least Intel SSE4.1 support is required)
-  * Intel Core Ultra processors (formerly Meteor Lake)
   * Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
     Ivy Bridge, Haswell, and Broadwell)
   * Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, Cooper
     Lake, Ice Lake, Sapphire Rapids, and Emerald Rapids)
   * Intel Xeon CPU Max Series (formerly Sapphire Rapids HBM)
-  * future Intel Xeon Scalable processors (code name Sierra Forest
-and Granite Rapids)
+  * Intel Core Ultra processors (formerly Meteor Lake, Arrow Lake,
+    and Lunar Lake)
+  * Intel Xeon 6 processors (formerly Sierra Forest and Granite Rapids)
 * AArch64 architecture
   * Arm Neoverse(TM) N1 and V1 processors
 
@@ -111,11 +111,13 @@ require the use of run-time controls to enable them. See
 
 The library is optimized for the following GPUs:
 * Intel Graphics for 11th-14th Generation Intel Core Processors
-* Intel Graphics for Intel Core Ultra processors (formerly Meteor Lake)
 * Intel Iris Xe MAX Graphics (formerly DG1)
 * Intel Arc(TM) graphics (formerly Alchemist)
 * Intel Data Center GPU Flex Series (formerly Arctic Sound)
 * Intel Data Center GPU Max Series (formerly Ponte Vecchio)
+* Intel Graphics and Intel Arc graphics for Intel Core Ultra processors
+ (formerly Meteor Lake, Arrow Lake and Lunar Lake)
+* future Intel Arc graphics (code name Battlemage)
 
 [CPU dispatcher control]: https://oneapi-src.github.io/oneDNN/dev_guide_cpu_dispatcher_control.html
 [Linking Guide]: https://oneapi-src.github.io/oneDNN/dev_guide_link.html
@@ -301,7 +303,6 @@ on Windows Server\* 2019 with
 
 on macOS 11 (Big Sur) with
 * Apple LLVM version 13.0
-* [Intel oneAPI DPC++/C++ Compiler] 2024.0
 
 on Ubuntu 20.04 AArch64 with
 * GNU Compiler Collection 7.0, 8.0, 9.0, 10.0
@@ -375,9 +376,12 @@ discussions.
 
 # Contributing
 
-We welcome community contributions to oneDNN. If you have an idea on how
-to improve the library:
+We welcome community contributions to oneDNN. You can find the oneDNN release
+schedule and work already in progress towards future milestones in Github's
+[Milestones] section. If you are looking for a specific task to start,
+consider selecting from issues that are marked with the [help wanted] label.
 
+If you have an idea on how to improve the library:
 * For changes impacting the public API or library overall, such as adding new
 primitives or changes to the architecture, submit an [RFC pull request].
 * Ensure that the changes are consistent with the [code contribution guidelines]
@@ -398,6 +402,8 @@ contributors are expected to adhere to the
 [code contribution guidelines]: CONTRIBUTING.md#code-contribution-guidelines
 [coding standards]: CONTRIBUTING.md#coding-standards
 [pull request]: https://github.com/oneapi-src/oneDNN/pulls
+[Milestones]: https://github.com/oneapi-src/oneDNN/milestones
+[help wanted]: https://github.com/oneapi-src/oneDNN/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22
 
 # License
 

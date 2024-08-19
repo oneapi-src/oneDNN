@@ -104,12 +104,16 @@ const std::vector<prb_dim_t> &conv_layout_dims(
             prb_dims::od, prb_dims::oh, prb_dims::ow});
     static const std::vector<prb_dim_t> dst_g_dims({prb_dims::mb, prb_dims::g,
             prb_dims::oc, prb_dims::od, prb_dims::oh, prb_dims::ow});
+    static const std::vector<prb_dim_t> bia_g_dims({prb_dims::g, prb_dims::oc});
+    static const std::vector<prb_dim_t> bia_dims({prb_dims::oc});
     switch (tensor_kind) {
         case tensor_kind_t::src:
             return src_dst_with_group ? src_g_dims : src_dims;
         case tensor_kind_t::wei: return wei_dims;
         case tensor_kind_t::dst:
             return src_dst_with_group ? dst_g_dims : dst_dims;
+        case tensor_kind_t::bia:
+            return src_dst_with_group ? bia_g_dims : bia_dims;
         default: ir_error_not_expected();
     }
     return src_dims;
@@ -226,17 +230,17 @@ status_t conv_problem_t::init_abc_data_types(const hw_t &hw) {
 status_t conv_problem_t::init_acc_data_type() {
     auto a = a_data_type;
     auto b = b_data_type;
+    auto c = c_data_type;
+    bool is_bf8 = utils::one_of(data_type::f8_e5m2, a, b, c);
+    bool is_hf8 = utils::one_of(data_type::f8_e4m3, a, b, c);
     acc_data_type = data_type::undef;
     if (utils::one_of(a, data_type::s8, data_type::u8)
             && utils::one_of(b, data_type::s8, data_type::u8)) {
         acc_data_type = data_type::s32;
     } else if (utils::everyone_is(data_type::f16, a, b)
             || utils::everyone_is(data_type::bf16, a, b)
-            || utils::everyone_is(data_type::f8_e5m2, a, b)) {
-        acc_data_type = data_type::f32;
-    } else if (utils::everyone_is(data_type::tf32, a, b)) {
-        acc_data_type = data_type::f32;
-    } else if (utils::everyone_is(data_type::f32, a, b)) {
+            || utils::everyone_is(data_type::tf32, a, b)
+            || utils::everyone_is(data_type::f32, a, b) || is_bf8 || is_hf8) {
         acc_data_type = data_type::f32;
     } else if (utils::everyone_is(data_type::f64, a, b)) {
         acc_data_type = data_type::f64;

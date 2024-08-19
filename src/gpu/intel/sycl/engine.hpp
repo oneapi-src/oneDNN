@@ -87,15 +87,13 @@ public:
     status_t create_kernel_from_binary(gpu::intel::compute::kernel_t &kernel,
             const xpu::binary_t &binary,
             const char *kernel_name) const override {
-        std::vector<gpu::intel::compute::scalar_type_t> arg_types;
-
         std::unique_ptr<::sycl::kernel> sycl_kernel;
         CHECK(gpu::intel::sycl::compat::make_kernel(
                 sycl_kernel, this, binary, kernel_name));
 
         std::shared_ptr<gpu::intel::compute::kernel_impl_t> kernel_impl
                 = std::make_shared<sycl_interop_gpu_kernel_t>(
-                        *sycl_kernel, arg_types);
+                        std::move(sycl_kernel));
         kernel = std::move(kernel_impl);
         return status::success;
     }

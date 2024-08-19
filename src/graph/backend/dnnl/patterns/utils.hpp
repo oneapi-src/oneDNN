@@ -39,6 +39,18 @@ bool check_zps_values(op_t *op) {
             zps.begin(), zps.end(), [](int64_t i) { return i == N; });
 }
 
+inline bool check_quant_with_no_effect(op_t *op) {
+    const op_kind_t kind = op->get_kind();
+    if (!graph::utils::one_of(
+                kind, graph::op_kind::Quantize, graph::op_kind::Dequantize))
+        return true;
+
+    auto scales = op->get_attr<std::vector<float>>(op_attr::scales);
+    const auto scale_no_effect = std::all_of(
+            scales.begin(), scales.end(), [](float i) { return i == 1.f; });
+    return scale_no_effect && check_zps_values<0>(op);
+}
+
 template <size_t N>
 bool check_input_num(op_t *op) {
     return op->num_inputs() == N;
@@ -239,6 +251,21 @@ inline bool check_if_constant_weight(op_t *op) {
     }
 }
 
+inline bool is_f8_quantization(const op_t *op) {
+    const op_kind_t kind = op->get_kind();
+    if (kind == graph::op_kind::Quantize) {
+        const auto &out = op->get_output_value(0)->get_logical_tensor();
+        return graph::utils::one_of(out.data_type, graph::data_type::f8_e4m3,
+                graph::data_type::f8_e5m2);
+    } else if (kind == graph::op_kind::Dequantize) {
+        const auto &in = op->get_input_value(0)->get_logical_tensor();
+        return graph::utils::one_of(in.data_type, graph::data_type::f8_e4m3,
+                graph::data_type::f8_e5m2);
+    } else {
+        return false;
+    }
+}
+
 inline bool is_int8_quantization(const op_t *op) {
     const op_kind_t kind = op->get_kind();
     if (kind == graph::op_kind::Quantize) {
@@ -287,15 +314,16 @@ inline graph::utils::pm::repetition_t *optional_bias_add(
 inline graph::utils::pm::repetition_t *post_quantized_add(
         const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
         graph::utils::pm::pb_node_t *input, bool check_zps = false) {
+
+    // post sum
     graph::utils::pm::pb_op_t *pdequant_add
             = pgraph->append_op(graph::op_kind::Dequantize);
-    pdequant_add->append_decision_function(is_int8_quantization);
     if (check_zps) pdequant_add->append_decision_function(check_zps_values<0>);
     graph::utils::pm::pb_op_t *padd = pgraph->append_op(graph::op_kind::Add,
             graph::utils::pm::in_edges_t {
                     in_edge(0, input, 0), in_edge(1, pdequant_add, 0)});
 
-    // post ops
+    // other following post ops
     auto postop_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
     graph::utils::pm::pb_op_t *pop
             = postop_graph->append_alternation(get_unary_binary_ops());

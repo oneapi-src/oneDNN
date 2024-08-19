@@ -186,7 +186,7 @@ public:
         : kernel_name_(desc.kernel_name())
         , exec_cfg_(desc.exec_cfg())
         , kernel_info_(kernel_info)
-        , with_nd_range_(false)
+        , local_range_(desc.local_range())
         , require_dpas_(desc.with_dpas())
         , regs_(exec_cfg_.regs())
         , ra_(hw, desc.kernel_name())
@@ -197,12 +197,11 @@ public:
 
     ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
             const kernel_info_t &kernel_info,
-            const compute::nd_range_t &nd_range, bool require_dpas)
+            const compute::range_t &local_range, bool require_dpas)
         : kernel_name_(kernel_name)
         , exec_cfg_(exec_cfg)
         , kernel_info_(kernel_info)
-        , nd_range_(nd_range)
-        , with_nd_range_(true)
+        , local_range_(local_range)
         , require_dpas_(require_dpas)
         , regs_(exec_cfg.regs())
         , ra_(hw, kernel_name)
@@ -233,7 +232,7 @@ public:
             }
         }
 
-        if (!kernel_body.is_empty() && with_nd_range_) {
+        if (!kernel_body.is_empty() && local_range_) {
             int slm_size = alloc_manager_t(kernel_body)
                                    .total_size(alloc_kind_t::slm);
             int max_slm_size = compute::device_info_t::max_slm_size_per_tg(
@@ -1126,11 +1125,10 @@ protected:
     }
 
     int thread_group_size() const {
-        ir_assert(with_nd_range_);
+        ir_assert(local_range_);
         int local_size = 1;
-        ir_assert(nd_range_.local_range());
-        for (int i = 0; i < (int)nd_range_.ndims(); i++) {
-            local_size *= (int)nd_range_.local_range()[i];
+        for (int i = 0; i < (int)local_range_.ndims(); i++) {
+            local_size *= (int)local_range_[i];
         }
         return ir_utils::safe_divide(local_size, exec_cfg_.simd());
     }
@@ -1138,8 +1136,7 @@ protected:
     std::string kernel_name_;
     exec_config_t exec_cfg_;
     kernel_info_t kernel_info_;
-    compute::nd_range_t nd_range_;
-    bool with_nd_range_ = false;
+    compute::range_t local_range_;
     bool require_dpas_;
     bool require_signal_header_ = false;
     int regs_;

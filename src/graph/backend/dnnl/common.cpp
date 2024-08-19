@@ -186,7 +186,7 @@ dnnl::memory::desc make_dnnl_memory_desc(const logical_tensor_t &lt) {
         }
 #endif // DNNL_GRAPH_LAYOUT_DEBUG
 
-        const auto &td = dnnl_backend::get_singleton().get_mem_desc(
+        const auto &td = dnnl_backend_t::get_singleton().get_mem_desc(
                 static_cast<size_t>(ltw.layout_id()));
         return graph::utils::any_cast<memory::desc>(td.value());
     } else if (ltw.is_any()) {
@@ -522,7 +522,7 @@ status_t fill_layout_info(logical_tensor_t *lt, const memory::desc &md) {
                     md.get_strides().data(), md.get_ndims());
         } else {
             graph::utils::optional_t<size_t> layout_id
-                    = dnnl_backend::get_singleton().set_mem_desc(md);
+                    = dnnl_backend_t::get_singleton().set_mem_desc(md);
             lt->layout.layout_id = layout_id.value();
             lt->layout_type = layout_type::opaque;
         }
@@ -564,7 +564,7 @@ status_t fill_layout_info(
             val->set_strides(md.get_strides());
         } else {
             val->set_layout_id(
-                    dnnl_backend::get_singleton().set_mem_desc(md).value());
+                    dnnl_backend_t::get_singleton().set_mem_desc(md).value());
         }
     }
     return status::success;

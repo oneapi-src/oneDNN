@@ -32,6 +32,19 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
+inline jit::send_address_t to_ir(send_address_t address) {
+    jit::send_address_t ret = jit::send_address_t::a64;
+    switch (address) {
+#define CASE(name) \
+    case v2::send_address_t::name: ret = jit::send_address_t::name; break;
+        CASE(a64);
+        CASE(slm);
+#undef CASE
+        default: ir_error_not_expected();
+    }
+    return ret;
+}
+
 inline jit::send_op_t to_ir(send_op_t op, bool is_2d = false) {
     jit::send_op_t ret = jit::send_op_t::undef;
     switch (op) {
@@ -58,7 +71,6 @@ inline jit::send_op_t to_ir(send_op_t op, bool is_2d = false) {
 }
 
 inline jit::layout_t to_ir(const layout_t &layout) {
-    ir_assert(layout.has_zero_base());
     ir_assert(layout.has_const_sizes());
     ir_assert(layout.has_const_strides());
     std::vector<gpu::intel::block_t> blocks;
@@ -67,7 +79,8 @@ inline jit::layout_t to_ir(const layout_t &layout) {
         blocks.emplace_back(dim_idx, b.int_size(), b.int_stride());
     }
 
-    return jit::layout_t(layout.type(), layout.desc().ndims(), 0, blocks);
+    return jit::layout_t(
+            layout.type(), layout.desc().ndims(), layout.base(), blocks);
 }
 
 inline prb_tile_t to_shape(const convolution_pd_t *pd) {
@@ -111,6 +124,7 @@ inline problem_t to_problem(
     problem_t prb;
     prb.set_hw(hw_t(engine));
     prb.set_prop(prop);
+    prb.set_bias(pd->with_bias());
     prb.set_src_tag(src);
     prb.set_wei_tag(wei);
     prb.set_dst_tag(dst);

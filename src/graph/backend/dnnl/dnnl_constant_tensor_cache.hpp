@@ -70,7 +70,7 @@ inline graph::constant_tensor_cache_t::value_t dnnl_constant_cache_get_or_add(
     assertm(cache,
             "no available constant cache for specified engine kind and index");
     return cache->get_or_add(
-            dnnl_backend::get_singleton().get_id(), key, size, value);
+            dnnl_backend_t::get_singleton().get_id(), key, size, value);
 }
 
 inline void dnnl_constant_cache_remove_if_exist(
@@ -79,7 +79,7 @@ inline void dnnl_constant_cache_remove_if_exist(
             eng.get()->kind(), eng.get()->index());
     assertm(cache,
             "no available constant cache for specified engine kind and index");
-    cache->remove_if_exist(dnnl_backend::get_singleton().get_id(), key);
+    cache->remove_if_exist(dnnl_backend_t::get_singleton().get_id(), key);
 }
 
 inline bool is_constant_cache_enabled(const dnnl::engine &eng) {

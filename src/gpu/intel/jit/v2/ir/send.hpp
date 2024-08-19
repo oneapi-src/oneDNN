@@ -52,6 +52,20 @@ static auto send_op_names = nstl::to_array({
 
 GPU_DEFINE_PARSE_ENUM(send_op_t, send_op_names)
 
+enum class send_address_t {
+    undef,
+    a64,
+    slm,
+};
+
+static auto send_address_names = nstl::to_array({
+        make_enum_name(send_address_t::undef, "undef"),
+        make_enum_name(send_address_t::a64, "a64"),
+        make_enum_name(send_address_t::slm, "slm"),
+});
+
+GPU_DEFINE_PARSE_ENUM(send_address_t, send_address_names)
+
 enum class send_kind_t {
     undef,
     _2d,
@@ -303,6 +317,7 @@ struct send_2d_hint_t {
 
 struct send_params_t {
     hw_t hw;
+    send_address_t address = send_address_t::undef;
     send_kind_t kind = send_kind_t::undef;
     send_op_t op = send_op_t::undef;
     send_2d_hint_t hint_2d;
@@ -327,6 +342,7 @@ struct send_params_t {
         std::ostringstream oss;
         oss << "send_params:" << std::endl;
         oss << "  hw:                 " << hw << std::endl;
+        oss << "  address:            " << to_string(address) << std::endl;
         oss << "  kind:               " << to_string(kind) << std::endl;
         if (hint_2d) oss << "  hint_2d:            " << hint_2d << std::endl;
         oss << "  max_entry_reg_size: " << max_entry_reg_size;
@@ -338,6 +354,7 @@ struct send_params_t {
 
 struct send_1d_desc_t {
     hw_t hw;
+    send_address_t address = send_address_t::undef;
     send_op_t op = send_op_t::undef;
     int type_size = 0;
     int slots = 0;
@@ -449,6 +466,7 @@ struct send_1d_plan_t : public base_plan_t {
 
 struct send_2d_desc_t {
     hw_t hw;
+    send_address_t address = send_address_t::undef;
     send_op_t op = send_op_t::undef;
     type_t type;
     bool transpose = false;
@@ -475,6 +493,7 @@ struct send_2d_desc_t {
 
         auto &hint = params.hint_2d;
         hw = params.hw;
+        address = params.address;
         op = params.op;
         type = view.type();
         transpose = hint.transpose;
@@ -778,6 +797,7 @@ private:
 
         send_1d_desc_t desc;
         desc.hw = params.hw;
+        desc.address = params.address;
         desc.op = params.op;
         desc.type_size = slot_size;
         desc.slots = slots;

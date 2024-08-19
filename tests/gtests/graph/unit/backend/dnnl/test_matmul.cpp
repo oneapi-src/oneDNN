@@ -303,7 +303,7 @@ TEST(test_matmul_compile, MatmulBlocked) {
     // simulate user given block src
     dnnl::memory::desc src_md({24576, 1024}, dnnl::memory::data_type::bf16,
             dnnl::memory::format_tag::AB48a16b);
-    auto &backend_ptr = graph::dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = graph::dnnl_impl::dnnl_backend_t::get_singleton();
     graph::utils::optional_t<size_t> layout_id
             = backend_ptr.set_mem_desc(src_md);
     src.layout.layout_id = graph::backend_registry_t::encode_layout_id(
@@ -4039,7 +4039,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasGeluU8s8u8MixBf16) {
     g.finalize();
 
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
     pm.run_passes(g, "", graph::partition_policy::fusion);

@@ -99,6 +99,7 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     // This implementation is temporarly unavailable by default
     // TODO: remove the guard after performance tuning
     if (!dev_getenv("enable_bn_nhwc_reusable", 0)) return status::unimplemented;
+    bn_conf.impl = bn_impl_t::nhwc_reusable;
 
     using namespace dnnl::impl::format_tag;
     const memory_desc_wrapper data_mdw(
@@ -108,6 +109,8 @@ static status_t init_conf_common(nhwc_bnorm_params_t &bn_conf,
     CHECK(init_reusable_confs_basic(cmpl_conf, rt_conf, pd, data_mdw));
     // basic init bn_conf
     init_conf_basic(bn_conf, pd);
+
+    bn_conf.is_nhwc = true;
 
     // TODO: create flags() accessor that returns the correct type
     bn_conf.flags = (normalization_flags_t)pd->desc()->flags;

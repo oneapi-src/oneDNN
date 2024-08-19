@@ -281,6 +281,8 @@ public:
 
     virtual ~compiled_partition_impl_t() = default;
 
+    virtual std::string str() const { return "n/a"; }
+
     /// The getters for engine_, which is used in C API implementation
     const engine_t *get_engine() const { return engine_; }
 

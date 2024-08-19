@@ -18,6 +18,7 @@
 #define CPU_X64_MATMUL_BRGEMM_MATMUL_UTILS_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/math_utils.hpp"
 #include "common/memory_tracking.hpp"
 
 #include "common/verbose.hpp"

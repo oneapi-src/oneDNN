@@ -73,7 +73,7 @@ public:
     }
     float predict(const vec1d &x) const { return impl_->predict(x); }
     void serialize(serialized_data_t &s) const;
-    ml_model_t deserialize(deserializer_t &d);
+    static ml_model_t deserialize(deserializer_t &d);
 
 private:
     std::shared_ptr<ml_model_impl_t> impl_;

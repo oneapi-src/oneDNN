@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMMSTONE_GUARD_GENERATOR_TYPES_HPP
-#define GEMMSTONE_GUARD_GENERATOR_TYPES_HPP
+#ifndef GEMMSTONE_GUARD_GENERATOR_TYPE_HPP
+#define GEMMSTONE_GUARD_GENERATOR_TYPE_HPP
 
 #include "config.hpp"
 
@@ -23,6 +23,7 @@
 #include "internal/utils.hpp"
 
 #include "internal/namespace_start.hxx"
+
 
 // Enum-like class for data types.
 class Type {
@@ -107,15 +108,17 @@ public:
         return t.isInt4() ? int(a << 1) : int(a >> t.log2Size());
     }
 
+    /* Not a valid nGEN DataType, just a stand-in to represent hf8 data */
+    static constexpr ngen::DataType ngen_hf8() { return static_cast<ngen::DataType>(0x71); }
+
     ngen::DataType ngen() const
     {
         using DT = ngen::DataType;
         auto none = DT::invalid;
-        auto hf8 = DT::ub;
         static const DT table[32] = {DT::hf,   DT::f,    DT::df,    none,
                                      none,     none,     none,      none,
                                      none,     none,     none,      none,
-                                     DT::bf,   DT::tf32, DT::bf8,   hf8,
+                                     DT::bf,   DT::tf32, DT::bf8,   ngen_hf8(),
                                      none,     none,     DT::u4,    DT::s4,
                                      DT::ub,   DT::b,    DT::uw,    DT::w,
                                      DT::ud,   DT::d,    DT::uq,    DT::q,
@@ -143,8 +146,9 @@ public:
 inline char typeToChar(Type T)
 {
     switch (T.baseType()) {
-        case Type::f16:   return 'H';
         case Type::bf8:   return 'Q';
+        case Type::hf8:   return 'q';
+        case Type::f16:   return 'H';
         case Type::f32:   return 'S';
         case Type::f64:   return 'D';
         case Type::u4:    return 'f';
@@ -166,8 +170,9 @@ inline char typeToChar(Type T)
 inline Type charToType(char c)
 {
     switch (c) {
-        case 'H': return Type::f16;
         case 'Q': return Type::bf8;
+        case 'q': return Type::hf8;
+        case 'H': return Type::f16;
         case 'S': return Type::f32;
         case 'D': return Type::f64;
         case 'f': return Type::u4;

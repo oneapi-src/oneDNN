@@ -344,36 +344,37 @@ Subregister findBlockReg(Type T, const RegisterBlock &block, int rr, int cc, con
                          int &nelems, int cxComponent, int component)
 {
     auto Te = T;
-    const int ne = (1 << block.log2GRFBytes) / Te;
 
     if (rr < 0 || rr >= block.nr || cc < 0 || cc >= block.nc || component != block.component || !one_of(block.cxComponent, -1, cxComponent))
         stub("Requested out-of-bounds element.");
 
     int crosspack = block.crosspack;
-    int elFixed, elLD;
-    if (block.colMajor) {
-        int ccx = cc % crosspack;
-        elFixed = ccx + (rr * crosspack);
-        elLD = cc - ccx;
-        nelems = block.nr - rr;
-    } else {
-        int rrx = rr % crosspack;
-        elFixed = rrx + (cc * crosspack);
-        elLD = (rr - rrx);
-        nelems = block.nc - cc;
+    int xx = block.colMajor ? rr : cc;
+    int yy = block.colMajor ? cc : rr;
+    int nx = block.colMajor ? block.nr : block.nc;
+    nelems = nx - xx;
+
+    int yyx = yy % crosspack;
+    yy -= yyx;
+
+    if (block.byteGlue) {
+        int xxx = xx & (T.perByte() - 1);
+        yyx = yyx * T.perByte() + xxx;
+        xx -= xxx;
+        nelems = 1;
     }
+
+    int elFixed = yyx + (xx * crosspack);
+    int elLD = yy;
 
     int el = elFixed + elLD * block.ld;
     el += block.offsetBytes / Te;
-    int reg = el / ne;
-    int subreg = el % ne;
 
-    if (Te.isInt4()) {
-        if (subreg % 2) stub("Invalid int4 offset.");
-        subreg = div_up(subreg, 2);         // Effective byte subreg
-    }
+    int consecutive;
+    auto result = regs.sub(block.log2GRFBytes, el, Te.ngen(), &consecutive);
 
-    return regs[reg].sub(subreg, Te.ngen());
+    nelems = std::min(nelems, div_up(consecutive, crosspack));
+    return result;
 }
 
 Subregister findBlockReg(Type T, const vector<RegisterBlock> &layout, int r, int c, const GRFMultirange &regs,
@@ -391,6 +392,34 @@ Subregister findBlockReg(Type T, const vector<RegisterBlock> &layout, int r, int
     }
 
     stub("Could not find requested matrix element in layout.");
+}
+
+static RegisterRegion blockRegion(Type T, const Subregister &reg, const RegisterBlock &block,
+                                  int rr, int cc, int &nelems, int cxComponent, bool allow2D)
+{
+    auto cp = block.crosspack;
+
+    if (block.byteGlue && allow2D && T.bits() < 8) {
+        nelems = block.colMajor ? (block.nr - rr) : (block.nc - cc);
+        return reg(cp / T, 1 / T, 1);
+    } else
+        return reg(cp);
+}
+
+RegisterRegion findBlockRegion(Type T, const RegisterBlock &block, int rr, int cc,
+                               const GRFMultirange &regs, int &nelems,
+                               int cxComponent, int component, bool allow2D)
+{
+    auto reg = findBlockReg(T, block, rr, cc, regs, nelems, cxComponent, component);
+    return blockRegion(T, reg, block, rr, cc, nelems, cxComponent, allow2D);
+}
+
+RegisterRegion findBlockRegion(Type T, const std::vector<RegisterBlock> &layout, int r, int c,
+                               const GRFMultirange &regs, int &nelems, const RegisterBlock *&block,
+                               int cxComponent, int component, bool allow2D)
+{
+    auto reg = findBlockReg(T, layout, r, c, regs, nelems, block, cxComponent, component);
+    return blockRegion(T, reg, *block, r - block->offsetR, c - block->offsetC, nelems, cxComponent, allow2D);
 }
 
 int getAddr0Offset(const RegisterBlock &block, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy)

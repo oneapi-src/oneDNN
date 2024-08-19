@@ -181,7 +181,7 @@ void BLASKernelGenerator<hw>::gemmVectorBinaryOpC(BinaryOp op, bool column, cons
         int c = !column ? 1 : strategy.unroll[LoopN];
         makeUnbackedRegLayout(Tacc, repackLayout, r, c, !column);
         repackOffsets = state.ra.alloc_range(getRegCount(repackLayout));
-        copyRegisters(Tco, Tacc, CO_layout, repackLayout, offsets, repackOffsets, 0, 0, false, strategy, state);
+        copyRegisters(Tco, Tacc, CO_layout, repackLayout, offsets, repackOffsets, strategy, state);
         crosspack = 1;
         offsetsPtr = &repackOffsets;
 

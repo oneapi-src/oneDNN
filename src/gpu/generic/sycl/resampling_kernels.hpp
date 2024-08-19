@@ -18,12 +18,13 @@
 #define GPU_GENERIC_SYCL_RESAMPLING_KERNELS_HPP
 
 #include "common/dnnl_thread.hpp"
-#include "common/dnnl_traits.hpp"
+#include "common/primitive_exec_types.hpp"
+#include "common/utils.hpp"
 #include "gpu/generic/sycl/resampling_utils.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
-#include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
 #include "xpu/sycl/types.hpp"
 
 namespace dnnl {
@@ -50,6 +51,9 @@ struct resampling_kernel_fwd_vec_t {
                   DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t src_mem(src_, conf_.src_md);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
 
         const auto &src_ndims = conf_.src_md.ndims();
@@ -102,8 +106,7 @@ struct resampling_kernel_fwd_vec_t {
                 const dim_t ih = resampling_utils::nearest_idx(oh, OH, IH);
                 const dim_t iw = resampling_utils::nearest_idx(ow, OW, IW);
 
-                dst = load_float_value(src_md().data_type(), src_ptr(),
-                        get_offset(src_md(), mb, c, id, ih, iw));
+                dst = src_mem.load(get_offset(src_md(), mb, c, id, ih, iw));
 
             } else if (conf_.alg == alg_kind::resampling_linear) {
 
@@ -114,10 +117,8 @@ struct resampling_kernel_fwd_vec_t {
                 for_(int i = 0; i < 2; i++)
                 for_(int j = 0; j < 2; j++)
                 for (int k = 0; k < 2; k++) {
-                    src_l[4 * i + 2 * j + k]
-                            = load_float_value(src_md().data_type(), src_ptr(),
-                                    get_offset(src_md(), mb, c, id.idx[i],
-                                            ih.idx[j], iw.idx[k]));
+                    src_l[4 * i + 2 * j + k] = src_mem.load(get_offset(
+                            src_md(), mb, c, id.idx[i], ih.idx[j], iw.idx[k]));
                 }
                 dst = trilin_interp(src_l[0], src_l[1], src_l[2], src_l[3],
                         src_l[4], src_l[5], src_l[6], src_l[7], id.wei[0],
@@ -137,11 +138,10 @@ struct resampling_kernel_fwd_vec_t {
                     dst_arr[idx] = r;
                 }
             }
-            auto dst_sum = load_float_value(
-                    dst_md().data_type(), dst_ptr(), data_p_off);
+            auto dst_sum = dst_mem.load(data_p_off);
 
             dst = conf_.post_ops.apply(dst, dst_sum, dst_arr);
-            store_float_value(dst_md().data_type(), dst, dst_ptr(), data_p_off);
+            dst_mem.store(dst, data_p_off);
             utils::nd_iterator_step(mb, MB, c, C, od, OD, oh, OH, ow, OW);
         }
     }
@@ -150,13 +150,11 @@ private:
     const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
-    void *src_ptr() const { return src_.get_pointer(); }
     void *src_1_ptr() const { return src_1_.get_pointer(); }
     void *src_2_ptr() const { return src_2_.get_pointer(); }
     void *src_3_ptr() const { return src_3_.get_pointer(); }
     void *src_4_ptr() const { return src_4_.get_pointer(); }
     void *src_5_ptr() const { return src_5_.get_pointer(); }
-    void *dst_ptr() const { return dst_.get_pointer(); }
 
     void *gen_ptr(xpu::sycl::in_memory_arg_t gen_) const {
         return gen_.get_pointer();
@@ -232,6 +230,8 @@ struct resampling_kernel_bwd_vec_t {
         : conf_(conf), diff_dst_(diff_dst), diff_src_(diff_src) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t diff_src_mem(diff_src_, conf_.diff_src_md);
+        memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
 
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
 
@@ -277,11 +277,10 @@ struct resampling_kernel_bwd_vec_t {
                 for_(dim_t od = od_start; od < od_end; od++)
                 for_(dim_t oh = oh_start; oh < oh_end; oh++)
                 for (dim_t ow = ow_start; ow < ow_end; ow++)
-                    ds += load_float_value(diff_dst_md().data_type(),
-                            diff_dst_ptr(),
+                    ds += diff_dst_mem.load(
                             get_offset(diff_dst_md(), mb, c, od, oh, ow));
-                store_float_value(diff_src_md().data_type(), ds, diff_src_ptr(),
-                        get_offset(diff_src_md(), mb, c, id, ih, iw));
+                diff_src_mem.store(
+                        ds, get_offset(diff_src_md(), mb, c, id, ih, iw));
             }
             utils::nd_iterator_step(mb, MB, c, C, id, ID, ih, IH, iw, IW);
         }
@@ -290,9 +289,6 @@ struct resampling_kernel_bwd_vec_t {
 private:
     const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
     const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
-
-    void *diff_src_ptr() const { return diff_src_.get_pointer(); }
-    void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
 
     static dim_t get_offset(const xpu::sycl::md_t &mdw, dim_t n, dim_t c,
             dim_t d, dim_t h, dim_t w) {
@@ -317,6 +313,9 @@ struct resampling_kernel_bwd_vec1_t {
         : conf_(conf), diff_dst_(diff_dst), diff_src_(diff_src) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t diff_src_mem(diff_src_, conf_.diff_src_md);
+        memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
+
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
 
         const auto &diff_src_ndims = conf_.diff_src_md.ndims();
@@ -359,13 +358,12 @@ struct resampling_kernel_bwd_vec1_t {
                 const float weight_w
                         = resampling_utils::linear_weight(k, ow, OW, IW);
 
-                float dd = load_float_value(diff_dst_md().data_type(),
-                        diff_dst_ptr(),
+                float dd = diff_dst_mem.load(
                         get_offset(diff_dst_md(), mb, c, od, oh, ow));
                 ds += dd * weight_d * weight_h * weight_w;
             }
-            store_float_value(diff_src_md().data_type(), ds, diff_src_ptr(),
-                    get_offset(diff_src_md(), mb, c, id, ih, iw));
+            diff_src_mem.store(
+                    ds, get_offset(diff_src_md(), mb, c, id, ih, iw));
             utils::nd_iterator_step(mb, MB, c, C, id, ID, ih, IH, iw, IW);
         }
     }
@@ -373,9 +371,6 @@ struct resampling_kernel_bwd_vec1_t {
 private:
     const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
     const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
-
-    void *diff_src_ptr() const { return diff_src_.get_pointer(); }
-    void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
 
     static dim_t get_offset(const xpu::sycl::md_t &mdw, dim_t n, dim_t c,
             dim_t d, dim_t h, dim_t w) {

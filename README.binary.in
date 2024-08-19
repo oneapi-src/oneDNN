@@ -39,8 +39,9 @@ The library is optimized for the following CPUs:
 * Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, Cooper
   Lake, Ice Lake, Sapphire Rapids, and Emerald Rapids)
 * Intel Xeon CPU Max Series (formerly Sapphire Rapids HBM)
-* future Intel Xeon Scalable processors (code name Sierra Forest
-and Granite Rapids)
+* Intel Core Ultra processors (formerly Meteor Lake, Arrow Lake,
+  and Lunar Lake)
+* Intel Xeon 6 processors (formerly Sierra Forest and Granite Rapids)
 
 oneDNN detects the instruction set architecture (ISA) at runtime and uses
 just-in-time (JIT) code generation to deploy the code optimized
@@ -52,11 +53,13 @@ for more details.
 
 The library is optimized for the following GPUs:
 * Intel Graphics for 11th-14th Generation Intel Core Processors
-* Intel Graphics for Intel Core Ultra Processors (formerly Meteor Lake)
 * Intel Iris Xe MAX Graphics (formerly DG1)
-* Intel Arc(TM) Graphics (formerly Alchemist)
+* Intel Arc(TM) graphics (formerly Alchemist)
 * Intel Data Center GPU Flex Series (formerly Arctic Sound)
 * Intel Data Center GPU Max Series (formerly Ponte Vecchio)
+* Intel Graphics and Intel Arc graphics for Intel Core Ultra processors
+ (formerly Meteor Lake, Arrow Lake and Lunar Lake)
+* future Intel Arc graphics (code name Battlemage)
 
 Support
 -------

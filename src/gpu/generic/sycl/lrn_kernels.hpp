@@ -17,8 +17,11 @@
 #ifndef GPU_GENERIC_SYCL_LRN_KERNELS_HPP
 #define GPU_GENERIC_SYCL_LRN_KERNELS_HPP
 
+#include "common/c_types_map.hpp"
+#include "common/primitive_exec_types.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
 #include "xpu/sycl/types.hpp"
 
 namespace dnnl {
@@ -36,6 +39,9 @@ struct lrn_fwd_kernel_vec_t {
         , tag_(tag) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t src_mem(src_, conf_.src_md);
+        memory_tensor_t dst_mem(dst_, conf_.dst_md);
+
         auto sg = item.get_sub_group();
         size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
         size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
@@ -68,8 +74,7 @@ struct lrn_fwd_kernel_vec_t {
 
                 for (dim_t c = c_st; c < c_en; ++c) {
                     const auto s_off = data_off(mb, c, od, oh, ow);
-                    const auto s = load_float_value(
-                            src_md().data_type(), src_ptr(), s_off);
+                    const auto s = src_mem.load(s_off);
                     sum += s * s;
                 }
             } else {
@@ -83,31 +88,29 @@ struct lrn_fwd_kernel_vec_t {
                 for_(dim_t h = h_st; h < h_en; ++h)
                 for (dim_t w = w_st; w < w_en; ++w) {
                     const auto s_off = data_off(mb, oc, d, h, w);
-                    const auto s = load_float_value(
-                            src_md().data_type(), src_ptr(), s_off);
+                    const auto s = src_mem.load(s_off);
                     sum += s * s;
                 }
             }
             sum = conf_.k + conf_.alpha * sum / conf_.compute_n_summands;
             const auto s_off = data_off(mb, oc, od, oh, ow);
-            const auto s
-                    = load_float_value(src_md().data_type(), src_ptr(), s_off);
+            const auto s = src_mem.load(s_off);
             return (s * fast_negative_powf(sum, conf_.beta));
         };
 
-        auto operation = [&](dim_t &mb, dim_t &c, dim_t &d, dim_t &h,
-                                 dim_t &w) {
-            if (format_tag::nhwc == tag_) {
-                const dim_t off = mb * conf_.stride_mb + h * conf_.w * conf_.c
-                        + w * conf_.c + c;
-                auto val = ker(mb, c, 0, h, w);
-                store_float_value(dst_md().data_type(), val, dst_ptr(), off);
-            } else {
-                const dim_t off = data_off(mb, c, d, h, w);
-                auto val = ker(mb, c, d, h, w);
-                store_float_value(dst_md().data_type(), val, dst_ptr(), off);
-            }
-        };
+        auto operation
+                = [&](dim_t &mb, dim_t &c, dim_t &d, dim_t &h, dim_t &w) {
+                      if (format_tag::nhwc == tag_) {
+                          const dim_t off = mb * conf_.stride_mb
+                                  + h * conf_.w * conf_.c + w * conf_.c + c;
+                          auto val = ker(mb, c, 0, h, w);
+                          dst_mem.store(val, off);
+                      } else {
+                          const dim_t off = data_off(mb, c, d, h, w);
+                          auto val = ker(mb, c, d, h, w);
+                          dst_mem.store(val, off);
+                      }
+                  };
 
         for (dim_t blk_idx = 0; blk_idx < conf_.block_size; blk_idx++) {
             dim_t idx = base_idx + blk_idx;
@@ -143,9 +146,6 @@ private:
     const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
-    void *src_ptr() const { return src_.get_pointer(); }
-    void *dst_ptr() const { return dst_.get_pointer(); }
-
     sycl_lrn_conf_t conf_;
     xpu::sycl::in_memory_arg_t src_;
     xpu::sycl::out_memory_arg_t dst_;
@@ -162,6 +162,10 @@ struct lrn_bwd_kernel_vec_t {
         , tag_(tag) {}
 
     void operator()(::sycl::nd_item<1> item) const {
+        memory_tensor_t src_mem(src_, conf_.src_md);
+        memory_tensor_t diff_src_mem(diff_src_, conf_.diff_src_md);
+        memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
+
         auto sg = item.get_sub_group();
         size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
         size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
@@ -196,8 +200,7 @@ struct lrn_bwd_kernel_vec_t {
 
                 for (dim_t c = c_st; c < c_en; ++c) {
                     const auto s_off = data_off(mb, c, od, oh, ow);
-                    const auto s = load_float_value(
-                            src_md().data_type(), src_ptr(), s_off);
+                    const auto s = src_mem.load(s_off);
                     sum += s * s;
                 }
             } else {
@@ -211,8 +214,7 @@ struct lrn_bwd_kernel_vec_t {
                 for_(dim_t h = h_st; h < h_en; ++h)
                 for (dim_t w = w_st; w < w_en; ++w) {
                     const auto s_off = data_off(mb, oc, d, h, w);
-                    const auto s = load_float_value(
-                            src_md().data_type(), src_ptr(), s_off);
+                    const auto s = src_mem.load(s_off);
                     sum += s * s;
                 }
             }
@@ -232,12 +234,10 @@ struct lrn_bwd_kernel_vec_t {
                     const auto omega_in_beta
                             = fast_negative_powf(omega, conf_.beta);
 
-                    const auto dst_val = load_float_value(
-                            diff_dst_md().data_type(), diff_dst_ptr(), off);
+                    const auto dst_val = diff_dst_mem.load(off);
                     const auto tmp = omega_in_beta * dst_val;
                     if (c == oc) A = tmp;
-                    const auto src_val = load_float_value(
-                            src_md().data_type(), src_ptr(), off);
+                    const auto src_val = src_mem.load(off);
                     B += (src_val * tmp / omega);
                 }
             } else {
@@ -255,18 +255,15 @@ struct lrn_bwd_kernel_vec_t {
                     const auto omega_in_beta
                             = fast_negative_powf(omega, conf_.beta);
 
-                    const auto dst_val = load_float_value(
-                            diff_dst_md().data_type(), diff_dst_ptr(), off);
+                    const auto dst_val = diff_dst_mem.load(off);
                     const auto tmp = omega_in_beta * dst_val;
                     if (d == od && h == oh && w == ow) A = tmp;
-                    const auto src_val = load_float_value(
-                            src_md().data_type(), src_ptr(), off);
+                    const auto src_val = src_mem.load(off);
                     B += (src_val * tmp / omega);
                 }
             }
             const auto off = data_off(mb, oc, od, oh, ow);
-            const auto src_val
-                    = load_float_value(src_md().data_type(), src_ptr(), off);
+            const auto src_val = src_mem.load(off);
             B *= (2.0f * conf_.alpha * conf_.beta * src_val
                     / conf_.compute_n_summands);
             return (A - B);
@@ -278,13 +275,11 @@ struct lrn_bwd_kernel_vec_t {
                           const dim_t off = mb * conf_.stride_mb
                                   + h * conf_.w * conf_.c + w * conf_.c + c;
                           auto val = ker(mb, c, 0, h, w);
-                          store_float_value(diff_src_md().data_type(), val,
-                                  diff_src_ptr(), off);
+                          diff_src_mem.store(val, off);
                       } else {
                           const dim_t off = data_off(mb, c, d, h, w);
                           auto val = ker(mb, c, d, h, w);
-                          store_float_value(diff_src_md().data_type(), val,
-                                  diff_src_ptr(), off);
+                          diff_src_mem.store(val, off);
                       }
                   };
 
@@ -322,10 +317,6 @@ private:
     const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
     const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
     const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
-
-    void *src_ptr() const { return src_.get_pointer(); }
-    void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
-    void *diff_src_ptr() const { return diff_src_.get_pointer(); }
 
     sycl_lrn_conf_t conf_;
     xpu::sycl::in_memory_arg_t src_;

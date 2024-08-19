@@ -37,7 +37,7 @@ static inline constexpr int elementsPerGRF(ngen::HW hw, Type T)
 
 static inline constexpr int elementsPerGRF(ngen::HW hw, ngen::DataType dt)
 {
-    return (ngen::GRF::bytes(hw) >> getLog2Bytes(dt)) * elementsPerByte(dt);
+    return (ngen::GRF::bytes(hw) << 3) >> getLog2Bits(dt);
 }
 
 static inline bool canSwizzle(ngen::HW hw, ngen::DataType dt)

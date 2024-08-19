@@ -32,6 +32,7 @@ using namespace bn_lookup_table;
 using namespace bn_utils;
 using namespace bn_model;
 using namespace dnnl::impl::utils;
+using namespace dnnl::impl::gpu::intel::gpu_utils;
 
 static size_t get_slm_buff_size(
         int ic_block, nhwc_bnorm_params_t &conf, const compute::range_t &lws) {
@@ -198,6 +199,7 @@ static status_t init_conf_common(nhwc_bnorm_params_t &conf, offsets_t &off,
     const memory_desc_wrapper data_mdw(
             pd->is_fwd() ? pd->src_md() : pd->diff_src_md());
 
+    conf.impl = bn_impl_t::nhwc_opt;
     init_conf_basic(conf, pd);
     set_offsets(data_mdw, off.src_off);
 

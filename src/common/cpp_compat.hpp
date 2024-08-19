@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,11 @@
 
 #include <exception>
 #include <type_traits>
+
+// Enables compatibility with C++11/C++14
+#ifndef __has_include
+#define __has_include(x) 0
+#endif
 
 namespace dnnl {
 namespace impl {

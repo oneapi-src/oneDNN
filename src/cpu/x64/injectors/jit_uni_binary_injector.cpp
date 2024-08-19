@@ -16,10 +16,12 @@
 #include <algorithm>
 #include <cmath>
 
+#include "common/math_utils.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_attr.hpp"
 #include "common/primitive_exec_types.hpp"
 #include "common/utils.hpp"
+
 #include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 
 namespace dnnl {

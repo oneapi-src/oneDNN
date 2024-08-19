@@ -161,7 +161,7 @@ struct numeric_limits<float8_e5m2_t> {
     static constexpr float8_e5m2_t lowest() {
         return float8_e5m2_t(0xfb, true);
     }
-
+    static constexpr float8_e5m2_t min() { return float8_e5m2_t(0x04, true); }
     static constexpr float8_e5m2_t max() { return float8_e5m2_t(0x7b, true); }
 
     static constexpr int bias = 0xf;
@@ -177,7 +177,7 @@ struct numeric_limits<float8_e4m3_t> {
     static constexpr float8_e4m3_t lowest() {
         return float8_e4m3_t(0xfe, true);
     }
-
+    static constexpr float8_e4m3_t min() { return float8_e4m3_t(0x08, true); }
     static constexpr float8_e4m3_t max() { return float8_e4m3_t(0x7e, true); }
 
     static constexpr int bias = 0x7;
@@ -191,7 +191,7 @@ struct numeric_limits<float8_e4m3_t> {
 template <>
 struct numeric_limits<bfloat16_t> {
     static constexpr bfloat16_t lowest() { return bfloat16_t(0xff7f, true); }
-
+    static constexpr bfloat16_t min() { return bfloat16_t(0x0080, true); }
     static constexpr bfloat16_t max() { return bfloat16_t(0x7f7f, true); }
 
     static constexpr int digits = 8;
@@ -204,7 +204,7 @@ struct numeric_limits<bfloat16_t> {
 template <>
 struct numeric_limits<float16_t> {
     static constexpr float16_t lowest() { return float16_t(0xfbff, true); }
-
+    static constexpr float16_t min() { return float16_t(0x0400, true); }
     static constexpr float16_t max() { return float16_t(0x7bff, true); }
 
     static constexpr int digits = 11;
@@ -217,7 +217,7 @@ struct numeric_limits<float16_t> {
 template <>
 struct numeric_limits<uint4_t> {
     static constexpr uint4_t lowest() { return uint4_t(0); }
-
+    static constexpr uint4_t min() { return lowest(); }
     static constexpr uint4_t max() { return uint4_t(15); }
 
     static constexpr int digits = 4;
@@ -228,7 +228,7 @@ struct numeric_limits<uint4_t> {
 template <>
 struct numeric_limits<int4_t> {
     static constexpr int4_t lowest() { return int4_t(-8); }
-
+    static constexpr int4_t min() { return lowest(); }
     static constexpr int4_t max() { return int4_t(7); }
 
     static constexpr int digits = 4;

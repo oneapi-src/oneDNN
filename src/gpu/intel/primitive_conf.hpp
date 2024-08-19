@@ -447,6 +447,16 @@ struct rnn_reorder_conf_t {
 };
 
 // Batch Normalization
+enum bn_impl_t {
+    unknown = 0,
+    ref,
+    simple,
+    reusable,
+    gen9,
+    nhwc_opt,
+    nhwc_reusable
+};
+
 struct bnorm_conf_t {
     data_type_t data_type;
     size_t elsz;
@@ -473,6 +483,7 @@ struct bnorm_conf_t {
     bool use_stats_one_pass;
     int calc_stat_ic;
     int max_ic_block;
+    bn_impl_t impl = bn_impl_t::unknown;
 };
 
 // Layer Normalization

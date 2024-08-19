@@ -23,7 +23,7 @@
 #include "grf_multirange.hpp"
 #include "hw_utils.hpp"
 #include "register_block.hpp"
-#include "types.hpp"
+#include "type.hpp"
 #include "strategy.hpp"
 
 #include "internal/namespace_start.hxx"

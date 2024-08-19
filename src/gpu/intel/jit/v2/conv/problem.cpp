@@ -175,7 +175,8 @@ prb_tile_t problem_t::default_shape() {
 
 class arg_helper_t {
 public:
-    arg_helper_t(prop_kind_t prop) : prop_(prop) {}
+    arg_helper_t(prop_kind_t prop, bool with_bias)
+        : prop_(prop), with_bias_(with_bias) {}
 
     int src_arg_key() const {
         if (is_fwd()) return DNNL_ARG_SRC;
@@ -207,8 +208,10 @@ public:
         return DNNL_ARG_UNDEF;
     }
 
-    bool is_bia_input() const { return is_fwd() || is_bwd_d(); }
-    bool is_bia_output() const { return is_bwd_w(); }
+    bool is_bia_input() const {
+        return with_bias() && (is_fwd() || is_bwd_d());
+    }
+    bool is_bia_output() const { return is_bwd_w() && with_bias(); }
 
     int dst_arg_key() const {
         if (is_fwd()) return DNNL_ARG_DST;
@@ -225,12 +228,14 @@ private:
     bool is_fwd() const { return prop_ == prop_kind::forward; }
     bool is_bwd_d() const { return prop_ == prop_kind::backward_data; }
     bool is_bwd_w() const { return prop_ == prop_kind::backward_weights; }
+    bool with_bias() const { return with_bias_; }
 
     prop_kind_t prop_;
+    bool with_bias_;
 };
 
-tensor_config_t get_tensor_config(prop_kind_t prop) {
-    arg_helper_t h(prop);
+tensor_config_t get_tensor_config(prop_kind_t prop, bool with_bias) {
+    arg_helper_t h(prop, with_bias);
     tensor_config_t tensor_cfg;
     tensor_cfg.add_tensor("src", h.src_arg_key(), h.is_src_input(),
             h.is_src_output(), jit::layout_t());
@@ -238,6 +243,9 @@ tensor_config_t get_tensor_config(prop_kind_t prop) {
             h.is_wei_output(), jit::layout_t());
     tensor_cfg.add_tensor("dst", h.dst_arg_key(), h.is_dst_input(),
             h.is_dst_output(), jit::layout_t());
+    if (h.is_bia_output())
+        tensor_cfg.add_tensor("bia", h.bia_arg_key(), h.is_bia_input(),
+                h.is_bia_output(), jit::layout_t());
     return tensor_cfg;
 }
 

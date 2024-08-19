@@ -48,7 +48,7 @@ using namespace dnnl::impl::graph::dnnl_impl::platform;
 
 dnnl::impl::graph::pass::pass_base_ptr get_pass(const std::string &pass_name) {
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
     auto &passes = pm.get_passes();
@@ -1257,7 +1257,7 @@ TEST(test_pass_pass_system, TestConvRelated) {
     agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 5U);
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -1453,7 +1453,7 @@ TEST(test_pass_pass_system, FuseConvDepthwise) {
         ASSERT_EQ(agraph.add_op(&depthwise), status::success);
         agraph.finalize();
 
-        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
@@ -1478,7 +1478,7 @@ TEST(test_pass_pass, FuseBinarySum) {
            \   /
             add
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
             {Multiply, partition_kind_t::binary_post_ops},
@@ -1531,7 +1531,7 @@ TEST(test_pass_pass_system, TestConvSumAndBinary) {
            \   /
             add        should be fused to conv-add + binary
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
             {Multiply, partition_kind_t::convolution_post_ops},
@@ -1580,7 +1580,7 @@ TEST(test_pass_pass_system, TestConvSumAndBinary) {
 }
 
 TEST(test_pass_pass, FuseBinarySumWithSupportBroadcast) {
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
             {Multiply, partition_kind_t::binary_post_ops},
@@ -1623,7 +1623,7 @@ TEST(test_pass_pass, FuseBinarySumWithSupportBroadcast) {
 }
 
 TEST(test_pass_pass, FailToFuseBinarySumWithUnsupportBroadcast) {
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
             {Multiply, partition_kind_t::binary_post_ops},
@@ -1676,7 +1676,7 @@ TEST(test_pass_pass, FailToFuseBinarySumWithUnsupportBroadcast) {
 }
 
 TEST(test_pass_pass, FailToFuseBinarySumWithUnknownShape) {
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
             {Multiply, partition_kind_t::binary_post_ops},
@@ -1721,7 +1721,7 @@ TEST(test_pass_pass, FuseBinaryAddMul) {
            \   /
             mul
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
 
     const auto engine_kind = get_test_engine_kind();
@@ -1897,7 +1897,7 @@ TEST(test_pass_pass, ReciprocalMultiply2Divide) {
         \     /
         multiply
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
 
     const auto engine_kind = get_test_engine_kind();
@@ -1937,7 +1937,7 @@ TEST(test_pass_pass_system, TestBinaryEltwise) {
            |
         eltwise
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<std::pair<op_kind_t, op_kind_t>, partition_kind_t>>
             opkind_pair {{{Add, Sigmoid}, partition_kind_t::binary_post_ops},
@@ -2054,7 +2054,7 @@ TEST(test_pass_pass_system, TestBnRelu) {
     ASSERT_EQ(agraph.add_op(&relu), status::success);
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -2645,7 +2645,7 @@ TEST(test_pass_pass_system, TestConvBnRelu) {
     agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -2823,7 +2823,7 @@ TEST(test_pass_pass_system, TestConvBiasBnRelu) {
     agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -3972,7 +3972,7 @@ TEST(test_pass_pass_system, FuseMatmulDiv) {
     agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -4070,7 +4070,7 @@ TEST(test_pass_pass_system, FuseMatmulDivAdd) {
     agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 5U);
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -4109,7 +4109,7 @@ TEST(test_pass_pass_system, TestMatmulDivAdd) {
     agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -4522,7 +4522,7 @@ TEST(test_pass_pass_system, TestMatmulBiasSumRelu) {
     agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -4632,7 +4632,7 @@ TEST(test_pass_pass_system, FuseMatmulBiasaddSwish) {
     ASSERT_EQ(agraph.num_ops(), 4U);
 
     // run all the pass to check if the priority is correct
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -4696,7 +4696,7 @@ TEST(test_pass_pass, DnnlSingleOpReplacement) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::impl::graph::op_kind;
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<op_kind_t> single_op_set_supported = {
             BatchNormInference,
@@ -4793,7 +4793,7 @@ public:
         agraph.finalize();
         ASSERT_EQ(agraph.num_ops(), 1U);
 
-        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
@@ -4962,7 +4962,7 @@ TEST(test_pass_pass, SaveLoadJson) {
     ASSERT_EQ(agraph.num_ops(), 5U);
 
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
@@ -5016,7 +5016,7 @@ TEST(test_pass_pass, TestPassFilterFunc) {
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
     partition_policy_t policy = graph::partition_policy::debug;
@@ -5057,7 +5057,7 @@ TEST(test_pass_pass, InputJsonIsValid) {
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
@@ -5114,7 +5114,7 @@ TEST(test_pass_pass, InputJsonIsInvalidWithIncompleteHash) {
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
@@ -5173,7 +5173,7 @@ TEST(test_pass_pass, InputJsonIsInvalidWithMissingFiled) {
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
@@ -5225,7 +5225,7 @@ TEST(test_pass_pass, InputJsonIsInvalidWithWrongFormat) {
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
@@ -5414,7 +5414,7 @@ TEST(test_pass_pass_system, FuseToInt8Conv) {
 
         agraph.finalize();
 
-        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
@@ -5484,7 +5484,7 @@ TEST(test_pass_pass, FuseToInt8Fp32Conv) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+    pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -5552,7 +5552,7 @@ TEST(test_pass_pass_system, TestInt8) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -5625,7 +5625,7 @@ wildcard     | (f32)
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 4U);
@@ -5685,7 +5685,7 @@ TEST(test_pass_pass, FuseToInt8ConvBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+    pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -5754,7 +5754,7 @@ TEST(test_pass_pass_system, TestInt8ConvBias) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -5831,7 +5831,7 @@ TEST(test_pass_pass, FuseToInt8ConvRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+    pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -5914,7 +5914,7 @@ TEST(test_pass_pass, FuseToInt8ConvSwish) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+    pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -5988,7 +5988,7 @@ TEST(test_pass_pass_system, TestInt8ConvRelu) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -6066,7 +6066,7 @@ TEST(test_pass_pass, FuseToInt8ConvBiasRelu) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+    pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6142,7 +6142,7 @@ TEST(test_pass_pass_system, TestInt8ConvBiasRelu) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -6234,8 +6234,8 @@ TEST(test_pass_pass, FuseToInt8ConvBiasAdd) {
     agraph.finalize();
 
     pass::pass_base_ptr apass = get_pass(engine_kind == engine_kind::cpu
-                    ? "x8s8x8_conv_add_post_ops_cpu"
-                    : "x8s8x8_conv_add_post_ops_gpu");
+                    ? "x8x8x8_conv_add_post_ops_cpu"
+                    : "x8x8x8_conv_add_post_ops_gpu");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -6339,7 +6339,7 @@ TEST(test_pass_pass, FuseToInt8ConvBinary) {
 
             agraph.finalize();
 
-            pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+            pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
             apass->run(agraph);
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
             ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6444,7 +6444,7 @@ TEST(test_pass_pass_system, TestInt8ConvBiasAdd) {
 
         agraph.finalize();
 
-        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
@@ -6552,8 +6552,8 @@ TEST(test_pass_pass, FuseToInt8ConvBiasAddRelu) {
 
     graph::pass::pass_base_ptr apass
             = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x8_conv_add_post_ops_gpu"
-                            : "x8s8x8_conv_add_post_ops_cpu");
+                            ? "x8x8x8_conv_add_post_ops_gpu"
+                            : "x8x8x8_conv_add_post_ops_cpu");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -6653,7 +6653,7 @@ TEST(test_pass_pass_system, TestInt8ConvBiasAddRelu) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -6762,8 +6762,8 @@ TEST(test_pass_pass, FuseToInt8ConvBiasAddReluWithInputBias) {
 
     graph::pass::pass_base_ptr apass
             = get_pass(engine_kind == graph::engine_kind::gpu
-                            ? "x8s8x8_conv_add_post_ops_gpu"
-                            : "x8s8x8_conv_add_post_ops_cpu");
+                            ? "x8x8x8_conv_add_post_ops_gpu"
+                            : "x8x8x8_conv_add_post_ops_cpu");
     ASSERT_NE(apass, nullptr);
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -6821,7 +6821,7 @@ TEST(test_pass_pass, FuseToX8s8f32Conv) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+    pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6879,7 +6879,7 @@ TEST(test_pass_pass, FuseToX8s8f32ConvBiasWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+    pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -6943,7 +6943,7 @@ TEST(test_pass_pass, FuseToX8s8f32ConvReluWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+    pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7008,7 +7008,7 @@ TEST(test_pass_pass, FuseToX8s8f32ConvBiasReluWithInputBias) {
 
     agraph.finalize();
 
-    pass::pass_base_ptr apass = get_pass("x8s8x_conv_post_ops");
+    pass::pass_base_ptr apass = get_pass("x8x8x_conv_post_ops");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
     ASSERT_EQ((agraph.get_partitions()[0])->get_kind(),
@@ -7040,7 +7040,7 @@ TEST(test_pass_pass, TestQuantizedConv) {
           quantize
              | (u8/s8)
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     const auto engine_kind = get_test_engine_kind();
     graph_t agraph(engine_kind);
@@ -7284,7 +7284,7 @@ TEST(test_pass_pass_system, TestInt8Matmul) {
     agraph.finalize();
 
     // run all the pass to check if the priority is correct
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -7743,7 +7743,7 @@ TEST(test_pass_pass_system, FuseToInt8MatMulSwishReLU) {
     agraph.finalize();
 
     // run all the pass to check if the priority is correct
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -7880,7 +7880,7 @@ TEST(test_pass_pass_system, TestInt8MatmulBias) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -8029,7 +8029,7 @@ TEST(test_pass_pass_system, FuseToInt8MatmulRelu) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -8245,7 +8245,7 @@ TEST(test_pass_pass, FuseToX8s8f32MatmulEltwise) {
            eltwise
              | (f32)
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
             {ReLU, partition_kind_t::quantized_matmul_post_ops},
@@ -8316,7 +8316,7 @@ TEST(test_pass_pass, FuseToX8s8f32MatmulBiasEltwise) {
            eltwise
              | (f32)
     */
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<std::pair<op_kind_t, partition_kind_t>> opkind_pair {
             {ReLU, partition_kind_t::quantized_matmul_post_ops},
@@ -8496,7 +8496,7 @@ TEST(test_pass_pass_system, TestInt8Maxpool) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -8659,7 +8659,7 @@ TEST(test_pass_pass_system, FuseToInt8PoolAdd) {
         agraph.finalize();
 
         auto &backend_ptr
-                = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+                = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
         auto pm = dnnl::impl::graph::pass::pass_manager_t(
                 backend_ptr.get_pass_registry());
 
@@ -8698,7 +8698,7 @@ TEST(test_pass_pass_system, Quantize) {
     ASSERT_EQ(agraph.finalize(), status::success);
 
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
@@ -8919,7 +8919,7 @@ TEST(test_pass_pass_system, FuseReluAdd) {
     ASSERT_EQ(agraph.num_ops(), 2U);
 
     auto &backend_ptr
-            = dnnl::impl::graph::dnnl_impl::dnnl_backend::get_singleton();
+            = dnnl::impl::graph::dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = dnnl::impl::graph::pass::pass_manager_t(
             backend_ptr.get_pass_registry());
 
@@ -9080,7 +9080,7 @@ TEST(test_pass_pass_system, FuseToX8x8f32MatmulDivAdd_CPU) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9219,7 +9219,7 @@ TEST(test_pass_pass_system, FuseToX8s8bf16Matmul_CPU) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9379,7 +9379,7 @@ TEST(test_pass_pass_system, FuseToX8s8bf16MatmulDiv_CPU) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9595,7 +9595,7 @@ TEST(test_pass_pass_system, FuseToX8s8bf16MatmulScaleAdd_CPU) {
 
         agraph.finalize();
 
-        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9736,7 +9736,7 @@ TEST(test_pass_pass_system, FuseToX8s8bf16MatmulBias) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -9931,7 +9931,7 @@ TEST(test_pass_pass_system, FuseToX8s8bf16MatmulBiasAddBF16) {
 
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -10059,7 +10059,7 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulBiasGelu) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -10247,7 +10247,7 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulGelu) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -10434,7 +10434,7 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulBias) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -10614,7 +10614,7 @@ TEST(test_pass_pass_system, MixInt8AndBf16Matmul) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -10690,7 +10690,7 @@ TEST(test_pass_pass_system, QuantWeiMixBf16MatmulBiasTransposeReshapeQuantize) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
     const auto engine_kind = get_test_engine_kind();
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<bool> with_bias_typecasts {false, true};
     std::vector<int64_t> zps = {0};
@@ -10926,7 +10926,7 @@ TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBias) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -11209,7 +11209,7 @@ TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionBiasGelu) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -11310,7 +11310,7 @@ TEST(test_pass_pass_system, MixInt8AndBf16ConvolutionAdd) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -11559,7 +11559,7 @@ TEST(test_pass_pass_system, FuseSoftmaxQuantize) {
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
     agraph.finalize();
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -11610,7 +11610,7 @@ TEST(test_pass_pass_system, FuseLayernormQuantize_CPU) {
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
     agraph.finalize();
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -11654,7 +11654,7 @@ TEST(test_pass_pass_system, FuseSoftmaxTypecast) {
     ASSERT_EQ(agraph.add_op(&typecast), status::success);
 
     agraph.finalize();
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -11704,7 +11704,7 @@ TEST(test_pass_pass_system, FuseLayernormTypecast_CPU) {
     ASSERT_EQ(agraph.add_op(&typecast), status::success);
 
     agraph.finalize();
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -11760,7 +11760,7 @@ TEST(test_pass_pass_system, FuseSoftmaxTypecastQuantize) {
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
     agraph.finalize();
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -11821,7 +11821,7 @@ TEST(test_pass_pass_system, FuseLayernormTypecastQuantize_CPU) {
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
     agraph.finalize();
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -11883,7 +11883,7 @@ TEST(test_pass_pass_system, NotFuseLayernormTypecast_GPU) {
     ASSERT_EQ(agraph.add_op(&quant), status::success);
 
     agraph.finalize();
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 
@@ -11986,7 +11986,7 @@ TEST(test_pass_pass_system, FuseTypecaseQuantize) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -12041,7 +12041,7 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulAdd) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -12152,7 +12152,7 @@ TEST(test_pass_pass_system, MixInt8AndBf16MatmulDiv) {
     SKIP_IF(!is_supported_dtype(data_type::bf16),
             "Skip bf16 tests for systems that do not support avx512_core.");
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     std::vector<int64_t> zps = {0};
     std::vector<float> scales = {3.1f};
@@ -12455,7 +12455,7 @@ TEST(test_pass_pass_system, FuseInt8Reorder) {
 
     ASSERT_EQ(agraph.finalize(), status::success);
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -12604,7 +12604,7 @@ TEST(test_pass_pass_system, FuseInt8ReorderAdd) {
 
     ASSERT_EQ(agraph.finalize(), status::success);
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -12767,7 +12767,7 @@ TEST(test_pass_pass_system, FuseInterpolateSwish) {
     agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 4U);
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -13056,7 +13056,7 @@ TEST(test_pass_pass_system, FuseReduceSwish) {
         ASSERT_EQ(agraph.add_op(&multiply), status::success);
         agraph.finalize();
 
-        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -13115,7 +13115,7 @@ TEST(test_pass_pass_system, FuseReduceWith3PostOps) {
     ASSERT_EQ(agraph.add_op(&multiply), status::success);
     agraph.finalize();
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -13484,7 +13484,7 @@ TEST(test_pass_pass_system, FuseToInt8ConvTransposeAdd) {
 
         agraph.finalize();
 
-        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
         if (engine_kind == engine_kind::cpu) {
@@ -13735,7 +13735,7 @@ TEST(test_pass_pass_system, FuseToInt8ConvtransposeEltwise_CPU) {
 
             agraph.finalize();
 
-            auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+            auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
             auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
             pm.run_passes(agraph, "no_config");
             ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -14295,7 +14295,7 @@ TEST(test_pass_pass_system, FuseBinarySwish) {
         ASSERT_EQ(agraph.add_op(&multiply), status::success);
         agraph.finalize();
 
-        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
         ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -14635,7 +14635,7 @@ TEST(test_pass_pass_system, FuseConvTransposeSwish) {
     agraph.finalize();
     ASSERT_EQ(agraph.num_ops(), 3U);
 
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -14730,7 +14730,7 @@ TEST(test_pass_pass_system, FuseToInt8ConvTransposeSwishReLU_CPU) {
     agraph.finalize();
 
     // run all the pass to check if the priority is correct
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
@@ -14865,7 +14865,7 @@ TEST(test_pass_pass_system, PoolFusionWithInternalInputs) {
         ASSERT_EQ(agraph.add_op(&binary_op), status::success);
         agraph.finalize();
 
-        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
@@ -14921,7 +14921,7 @@ TEST(test_pass_pass_system, EltwiseFusionWithInternalInputs) {
         ASSERT_EQ(agraph.add_op(&binary_op), status::success);
         agraph.finalize();
 
-        auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+        auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
         auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
         pm.run_passes(agraph, "no_config");
 
@@ -15119,7 +15119,7 @@ TEST(test_pass_pass_system, LayernormWithSpecialAxis) {
     ASSERT_EQ(agraph.add_op(&layernorm), status::success);
 
     agraph.finalize();
-    auto &backend_ptr = dnnl_impl::dnnl_backend::get_singleton();
+    auto &backend_ptr = dnnl_impl::dnnl_backend_t::get_singleton();
     auto pm = pass::pass_manager_t(backend_ptr.get_pass_registry());
     pm.run_passes(agraph, "no_config");
 

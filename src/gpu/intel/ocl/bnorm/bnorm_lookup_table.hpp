@@ -243,6 +243,7 @@ private:
     bool matches_desc(const params_t &conf) const;
     bool matches_tag(const params_t &conf) const;
     bool matches_flags(const params_t &conf) const;
+    bool matches_impl(const params_t &conf) const;
 
     std::string dir_;
     type_filter_t type_filter_;
@@ -250,6 +251,7 @@ private:
     std::string tag_;
     normalization_flags_t flags_filter_;
     compute::gpu_arch_t hw_;
+    bn_impl_t impl_ = bn_impl_t::unknown;
 };
 
 class bnorm_lookup_table_t {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,9 +32,10 @@ TEST(test_logical_tensor_logical_tensor, ImplicitEqualLayout) {
 
     dnnl::memory::desc md({1, 2, 3, 4}, dnnl::memory::data_type::f32,
             dnnl::memory::format_tag::nchw);
-    auto layout_idx = dnnl_impl::dnnl_backend::get_singleton().set_mem_desc(md);
+    auto layout_idx
+            = dnnl_impl::dnnl_backend_t::get_singleton().set_mem_desc(md);
     ASSERT_TRUE(layout_idx.has_value());
-    auto backend_idx = dnnl_impl::dnnl_backend::get_singleton().get_id();
+    auto backend_idx = dnnl_impl::dnnl_backend_t::get_singleton().get_id();
     auto id = graph::backend_registry_t::encode_layout_id(
             layout_idx.value(), backend_idx);
 

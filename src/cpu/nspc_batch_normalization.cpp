@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2022 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 
 #include "cpu/platform.hpp"

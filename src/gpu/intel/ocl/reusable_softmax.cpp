@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <numeric>
 #include "gpu/intel/ocl/reusable_softmax.hpp"
 
 namespace dnnl {
@@ -22,9 +23,178 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
+using namespace gpu_utils;
+
+class softmax_lws_strategy_t : public compute::lws_strategy_t {
+public:
+    bool is_included(const compute::mapped_block_t &blocks) const override {
+        for (const block_t &block : inc_blocks) {
+            if (blocks.get_dim_idx() == into<size_t>(block.dim_idx)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    void include(compute::dim_id_t dim, size_t size) {
+        inc_blocks.emplace_back(into<dim_t>(dim), into<dim_t>(size), 1);
+    }
+
+private:
+    using compute::lws_strategy_t::lws_strategy_t;
+    compute::range_t create_lws(const compute::range_t &gws,
+            const compute::gws_bin_mapping_t &mapper) const override {
+        auto lws = compute::range_t::one(gws.ndims());
+
+        for (size_t i = 0; i < gws.ndims(); i++) {
+            const auto &bins = mapper.get_bins(i);
+            if (bins.empty()) continue;
+            for (const block_t &inc_block : inc_blocks) {
+                if (bins[0].get_dim_idx() == into<size_t>(inc_block.dim_idx)) {
+                    lws[i] *= into<size_t>(inc_block.block);
+                }
+            }
+        }
+
+        return lws;
+    };
+
+    std::vector<block_t> inc_blocks;
+};
+
+namespace softmax_dims_t {
+compute::dim_id_t mb = 0;
+compute::dim_id_t ic = 1;
+compute::dim_id_t sp0 = 2;
+compute::dim_id_t sp1 = 3;
+compute::dim_id_t sp2 = 4;
+compute::dim_id_t workers = 5; // artificial dimension partitions reductions
+}; // namespace softmax_dims_t
+
+static std::vector<compute::dim_id_t> get_dims(size_t ndims) {
+    std::vector<compute::dim_id_t> ret(ndims);
+    uint8_t idx = 0;
+    ret[idx++] = softmax_dims_t::mb;
+    ret[idx++] = softmax_dims_t::ic;
+    if (ndims >= 3) ret[idx++] = softmax_dims_t::sp0;
+    if (ndims >= 4) ret[idx++] = softmax_dims_t::sp1;
+    if (ndims >= 5) ret[idx++] = softmax_dims_t::sp2;
+    return ret;
+}
+
+status_t reusable_softmax_fwd_t::pd_t::init_dispatch_default_reusable(
+        engine_t *engine) {
+    using dims_vec_t = std::vector<compute::dim_id_t>;
+
+    dims_vec_t src_dim_ids(memory_desc_wrapper(src_md()).ndims());
+    std::iota(src_dim_ids.begin(), src_dim_ids.end(), 0);
+
+    dims_vec_t dispatch_dim_ids = src_dim_ids;
+    dispatch_dim_ids.erase(dispatch_dim_ids.begin() + (desc()->softmax_axis));
+
+    compute::named_buffer_t src_buf("SRC", *src_md(), src_dim_ids);
+    compute::named_buffer_t dst_buf("DST", src_buf);
+
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    compute::reusable_dispatch_config_t dispatch_config(
+            compute_engine, dispatch_dim_ids);
+    CHECK(dispatch_config.register_buffer(src_buf));
+    CHECK(dispatch_config.register_buffer(dst_buf));
+
+    compute::reusable_dispatch_t dispatch;
+    const auto *gpu_attr
+            = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
+    CHECK(dispatch_config.generate(dispatch,
+            compute::default_lws_strategy_t(compute_engine, gpu_attr)));
+
+    conf.gws_params = dispatch.get_compile_params();
+    rt_conf.gws_params = dispatch.get_runtime_params();
+
+    return status::success;
+}
+
+status_t reusable_softmax_fwd_t::pd_t::init_dispatch_workgroup_per_reduction(
+        engine_t *engine, const size_t num_workers_per_workgroup) {
+
+    const memory_desc_wrapper src_mdw(src_md());
+    std::vector<compute::dim_id_t> dims_ids = get_dims(src_mdw.ndims());
+    auto sizes = src_mdw.dims(); // TODO: dynamic worker policy
+    const size_t softmax_axis = static_cast<size_t>(desc()->softmax_axis);
+    const int softmax_axis_size = sizes[desc()->softmax_axis];
+
+    // set number of work items per reduction block
+    rt_conf.softmax_chunk_size = dnnl::impl::utils::div_up(
+            softmax_axis_size, num_workers_per_workgroup);
+
+    // apply constraint checks based on chosen workgroup_size
+    VDISPATCH_SOFTMAX(rt_conf.softmax_chunk_size < 64, VERBOSE_BAD_PARAM,
+            "indivisible axis reduction size");
+
+    // source buffer gets new dimension: multiple workers per reduction block
+    compute::named_buffer_t src_buf("SRC");
+
+    // keep original input buffer geometry for addressing
+    compute::named_buffer_t ori_buf("ORIGINAL");
+    for (size_t i = 0; i < dims_ids.size(); i++) {
+        ori_buf.append_block(dims_ids[i], sizes[i]);
+    }
+
+    for (size_t i = 0; i < dims_ids.size(); i++) {
+        if (i == softmax_axis) {
+            src_buf.append_block(
+                    softmax_dims_t::workers, num_workers_per_workgroup);
+            src_buf.append_block(dims_ids[i], rt_conf.softmax_chunk_size);
+        }
+        if (i != softmax_axis) { src_buf.append_block(dims_ids[i], sizes[i]); }
+    }
+
+    // Account for reduction axis indivisible by num workers; num
+    // workers times elements per worker will exceed reduction axis
+    // length. Reset strides outside reduction dim to original input
+    // buffer strides prior to worker partitioning (folding)
+    const size_t folded_axis_size
+            = num_workers_per_workgroup * rt_conf.softmax_chunk_size;
+    for (size_t i = 0; i < softmax_axis; i++) {
+        src_buf.format_desc.blocking.strides[i]
+                = (src_buf.format_desc.blocking.strides[i] / folded_axis_size)
+                * softmax_axis_size;
+    }
+
+    compute::named_buffer_t dst_buf("DST", src_buf);
+
+    // dispatch: all dims except reduction dimension plus workers dimension
+    std::vector<compute::dim_id_t> dispatch_dims = dims_ids;
+    dispatch_dims[softmax_axis] = softmax_dims_t::workers;
+
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    compute::reusable_dispatch_config_t dispatch_config(
+            compute_engine, dispatch_dims);
+    CHECK(dispatch_config.register_buffer(src_buf));
+    CHECK(dispatch_config.register_buffer(dst_buf));
+    CHECK(dispatch_config.register_buffer(ori_buf));
+
+    const auto *gpu_attr
+            = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
+    compute::reusable_dispatch_t dispatch;
+    auto lws_strat = softmax_lws_strategy_t(compute_engine, gpu_attr);
+    lws_strat.include(softmax_dims_t::workers, num_workers_per_workgroup);
+    CHECK(dispatch_config.generate(dispatch, lws_strat));
+    conf.gws_params = dispatch.get_compile_params();
+    rt_conf.gws_params = dispatch.get_runtime_params();
+
+    return status::success;
+}
+
 compute::kernel_ctx_t reusable_softmax_params_t::get_kernel_ctx() const {
     compute::kernel_ctx_t kernel_ctx;
     kernel_ctx.define_int("LOGSOFTMAX", is_logsoftmax);
+    kernel_ctx.define_int("MANY_REDUCTIONS_PER_WORKGROUP",
+            algorithm_number == many_reductions_per_workgroup);
+    kernel_ctx.define_int("USE_SUBGROUP_REDUCTION",
+            algorithm_number == one_reduction_per_subgroup);
+    kernel_ctx.define_int("USE_WORKGROUP_REDUCTION",
+            algorithm_number == one_reduction_per_workgroup);
+    kernel_ctx.add_option("-cl-std=CL2.0");
 
     kernel_ctx.set_data_type(src_data_type);
     def_data_type(kernel_ctx, src_data_type, "SRC");
@@ -49,10 +219,13 @@ status_t reusable_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
     arg_list.append(dst_scale);
     arg_list.append(pd()->rt_conf.softmax_axis_size);
     arg_list.append(pd()->rt_conf.softmax_axis_stride);
+    arg_list.append(pd()->rt_conf.softmax_chunk_size);
     arg_list.append(pd()->rt_conf.gws_params.get());
 
-    return parallel_for(
+    auto status = parallel_for(
             ctx, pd()->rt_conf.gws_params.nd_range, kernel_, arg_list);
+
+    return status;
 }
 
 } // namespace ocl
