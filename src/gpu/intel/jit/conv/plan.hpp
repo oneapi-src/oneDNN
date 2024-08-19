@@ -201,6 +201,13 @@ struct fma_plan_t : public base_plan_t {
     int bmnk_start_idx(bmnk_kind_t bmnk, int subtile_idx) const;
     int bmnk_stop_idx(bmnk_kind_t bmnk, int subtile_idx) const;
 
+    std::vector<func_t> create_fma_funcs(const hw_t &hw) const;
+    static stmt_t create_fma_block(const std::vector<func_t> &fmas,
+            const expr_t &a, const expr_t &b, const expr_t &c);
+    stmt_t create_stmt(ir_context_t &ir_ctx, buffer_manager_t &buf_mgr,
+            const std::string &a, const std::string &b, const std::string &c,
+            int subtile_idx) const;
+
     int estimate_regs() const;
     std::string str() const;
 

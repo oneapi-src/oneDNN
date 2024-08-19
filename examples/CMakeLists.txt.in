@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2023 Intel Corporation
+# Copyright 2019-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING
         "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel ...")
 endif()
+string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
 
 project (DNNL_EXAMPLES)
 
@@ -139,6 +140,25 @@ else()
     endif()
 endif()
 
+if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG" AND NOT APPLE)
+    if(${CMAKE_CXX_COMPILER_ID} MATCHES "IntelLLVM" OR CMAKE_BASE_NAME MATCHES "(icx|icpx|dpcpp)" OR DNNL_WITH_SYCL)
+        # When using Debug build mode CMake adds '-debug' or '-g' without
+        # any optimization-level option that will turn off most compiler
+        # optimizations similar to use of '-Od' or '-O0'.
+        # Here we disable the warning and remark aboiut this issue.
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-debug-disables-optimization -Rno-debug-disables-optimization")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-debug-disables-optimization -Rno-debug-disables-optimization")
+        if(WIN32)
+            # Disabling OMP SIMD feature on Windows ICX debug builds and
+            # suppressing the warning: Using /MTd or /MDd with '#pragma omp simd'
+            # may lead to unexpected fails due to the debugging version of iterators
+            # that cannot be vectorized correctly.
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Qopenmp-simd- -Wno-debug-option-simd")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qopenmp-simd- -Wno-debug-option-simd")
+        endif()
+    endif()
+endif()
+
 if(WIN32 AND DNNL_WITH_SYCL)
     # XXX: SYCL does not like __thiscall convention coming from TBB,
     # suppress warnings for now.
@@ -147,7 +167,6 @@ if(WIN32 AND DNNL_WITH_SYCL)
     # XXX: compiler always pulls in release C++ runtime by default, until
     # this is fixed we have to explicitly drop release C++ runtime for
     # debug build types.
-    string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
     if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG" AND NOT CMAKE_BASE_NAME MATCHES "(icx|dpcpp)")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Xlinker /NODEFAULTLIB:msvcrt")
     endif()

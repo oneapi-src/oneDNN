@@ -970,6 +970,107 @@ int fma_plan_t::bmnk_stop_idx(bmnk_kind_t bmnk, int subtile_idx) const {
     return bmnk_split_idx(bmnk, subtile_idx, false);
 }
 
+stmt_t fma_plan_t::create_stmt(ir_context_t &ir_ctx, buffer_manager_t &buf_mgr,
+        const std::string &a, const std::string &b, const std::string &c,
+        int subtile_idx) const {
+    int c_buf_size = utils::rnd_up(c_layout.size(), ir_ctx.grf_size());
+    auto a_buf = buf_mgr.get(a);
+    auto b_buf = buf_mgr.get(b);
+    auto c_buf = buf_mgr.get(c, c_buf_size);
+    int b0 = bmnk_start_idx(bmnk_kind_t::b, subtile_idx);
+    int b1 = bmnk_stop_idx(bmnk_kind_t::b, subtile_idx);
+    int m0 = bmnk_start_idx(bmnk_kind_t::m, subtile_idx);
+    int m1 = bmnk_stop_idx(bmnk_kind_t::m, subtile_idx);
+    int n0 = bmnk_start_idx(bmnk_kind_t::n, subtile_idx);
+    int n1 = bmnk_stop_idx(bmnk_kind_t::n, subtile_idx);
+    int k0 = bmnk_start_idx(bmnk_kind_t::k, subtile_idx);
+    int k1 = bmnk_stop_idx(bmnk_kind_t::k, subtile_idx);
+
+    std::vector<int> a_idx(3);
+    std::vector<int> b_idx(3);
+    std::vector<int> c_idx(3);
+
+    auto fma_funcs = create_fma_funcs(ir_ctx.hw());
+
+    stmt_t stmt;
+    for (int b = b0; b < b1; b += b_blk) {
+        a_idx[0] = b_idx[0] = c_idx[0] = b;
+        for (int k = k0; k < k1; k += k_blk) {
+            a_idx[2] = b_idx[1] = k;
+            for (int n = n0; n < n1; n += n_blk) {
+                b_idx[2] = c_idx[2] = n;
+                for (int m = m0; m < m1; m += m_blk) {
+                    a_idx[1] = c_idx[1] = m;
+                    int a_off = a_layout.offset_in_bytes(a_idx);
+                    int b_off = b_layout.offset_in_bytes(b_idx);
+                    int c_off = c_layout.offset_in_bytes(c_idx);
+                    a_off = a_off % a_buf_size();
+                    b_off = b_off % b_buf_size();
+                    stmt = stmt.append(create_fma_block(fma_funcs, a_buf[a_off],
+                            b_buf[b_off], c_buf[c_off]));
+                }
+            }
+        }
+    }
+    return stmt;
+}
+
+stmt_t fma_plan_t::create_fma_block(const std::vector<func_t> &fmas,
+        const expr_t &a, const expr_t &b, const expr_t &c) {
+    bool is_dpas = fmas[0].is<dpas_t>();
+    auto src1 = a;
+    auto src2 = b;
+    auto dst = c;
+    if (is_dpas) std::swap(src1, src2);
+    if (!is_dpas) ir_assert(fmas.size() == 1);
+    stmt_t ret;
+    for (auto &f : fmas) {
+        ret = ret.append(f.call({dst, dst, src1, src2}));
+        auto *dpas = f.as_ptr<dpas_t>();
+        if (is_dpas) {
+            src2 += dpas->src2_size();
+            dst += dpas->dst_size();
+        }
+    }
+    return ret;
+}
+
+std::vector<func_t> fma_plan_t::create_fma_funcs(const hw_t &hw) const {
+    auto &a = a_layout;
+    auto &b = b_layout;
+    auto &c = c_layout;
+    std::vector<func_t> ret;
+    switch (fma_kind) {
+        case fma_kind_t::mad: {
+            int simd = max_bmn_blk();
+            int a_stride = is_a_broadcast() ? 0 : (int)a.inner_stride();
+            int b_stride = is_b_broadcast() ? 0 : (int)b.inner_stride();
+            auto mad = mad_t::make(
+                    hw, c.type(), simd, a.type(), a_stride, b.type(), b_stride);
+            ret.push_back(mad);
+            break;
+        }
+        case fma_kind_t::dp4a:
+        case fma_kind_t::dpas:
+        case fma_kind_t::dpasw: {
+            const int max_rcount = 8;
+            int block_rcount = m_blk;
+            int simd = n_blk;
+            int sdepth = ir_utils::safe_divide(k_blk * a.type().size(), 4);
+            for (int r = 0; r < block_rcount;) {
+                int rcount = std::min(max_rcount, block_rcount - r);
+                auto dpas = dpas_t::make(/*is_dpasw=*/false, simd, sdepth,
+                        rcount, c.type(), b.type(), a.type());
+                ret.push_back(dpas);
+                r += rcount;
+            }
+            break;
+        }
+        default: ir_error_not_expected();
+    }
+    return ret;
+}
+
 int fma_plan_t::estimate_regs() const {
     return utils::div_up(c_layout.size(), grf_size());
 }
@@ -992,7 +1093,7 @@ std::string fma_plan_t::str() const {
 bool conv_plan_t::can_split(abc_kind_t abc, int factor) const {
     if (!fma.can_split(abc, factor)) return false;
     if (!x2r.can_split(abc, factor)) return false;
-    if (zp && !zp.can_split(abc, factor)) return false;
+    if (zp.has_zp_src() && !zp.can_split(abc, factor)) return false;
     return true;
 }
 
@@ -1002,7 +1103,7 @@ void conv_plan_t::set_split(abc_kind_t abc, int factor) {
     split_factor = factor;
     x2r.set_split(abc, factor);
     fma.set_split(abc, factor);
-    if (zp) zp.set_split(abc, factor);
+    if (zp.has_zp_src()) zp.set_split(abc, factor);
 }
 
 bool conv_plan_t::uses_2d_load(abc_kind_t abc) const {
@@ -2348,7 +2449,6 @@ private:
     plan_status_t init_zp_plan(const x2r_plan_t &x2r, const fma_plan_t &fma,
             zp_plan_t &plan) const {
         auto &prb = cfg_.prb();
-        if (!cfg_.zp_cfg().do_src_compensation) return plan_status_t::success;
 
         auto b_tile = gemm_schedule_.b_thr_tile(/*is_relative=*/false);
 
@@ -2368,12 +2468,16 @@ private:
             zp_ic_dim = b_tile(ic_idx);
         }
 
-        layout_t zp_layout(type_t::s32(), zp_off,
+        layout_t zp_layout(cfg_.zp_cfg().src_zp_type, zp_off,
                 std::vector<dim_t> {zp_g_dim, zp_ic_dim});
         view_t zp_view(zp_layout);
+        // TODO: support non-scalar wei layouts
+        layout_t zp_wei_layout(
+                cfg_.zp_cfg().wei_zp_type, 0, std::vector<dim_t> {1, 1});
+        view_t zp_wei_view(zp_wei_layout);
 
-        plan.init(cfg_, gemm_schedule_, zp_view, x2r.a_layout, x2r.b_layout,
-                fma.c_prb_layout);
+        plan.init(cfg_, gemm_schedule_, zp_view, zp_wei_view, x2r.a_layout,
+                x2r.b_layout, fma.c_prb_layout);
         return plan_status_t::success;
     }
 

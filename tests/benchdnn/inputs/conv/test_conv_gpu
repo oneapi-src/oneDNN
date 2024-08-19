@@ -146,6 +146,10 @@ mb128ic3ih230oc64oh112kh7sh2ph0
 --reset
 --batch=test_conv_gpu_ci
 
+# Test zero points
+--reset
+--batch=harness_conv_zero_points
+
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu

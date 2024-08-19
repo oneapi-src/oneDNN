@@ -26,13 +26,22 @@
 #define WEI_OFF CONV_WEI_OFF
 #define DST_OFF CONV_DST_OFF
 
+#if WITH_WEI_ZPOINTS_DT_S8
+#define WEI_ZP_T char
+#elif WITH_WEI_ZPOINTS_DT_U8
+#define WEI_ZP_T uchar
+#else
+#define WEI_ZP_T int
+#endif
+
 #if IS_FWD
 KERNEL_ATTR
 __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
         const __global WEI_DATA_T *wei, const __global BIA_DATA_T *bias,
         __global DST_DATA_T *dst POST_OP_ARGS, const __global float *src_scales,
         const __global float *wei_scales, const __global float *dst_scales,
-        const __global int *src_zpoints, const __global int *dst_zpoints) {
+        const __global int *src_zpoints, const __global WEI_ZP_T *wei_zpoints,
+        const __global int *dst_zpoints) {
 
     src += SRC_OFFSET0;
     dst += DST_OFFSET0;
@@ -65,6 +74,15 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
                             = src_zpoints[WITH_SRC_ZPOINTS_PER_IC ? g * IC + ic
                                                                   : 0];
                     d -= src_zp * WEI_TO_REF(wei[wei_off]);
+#endif
+#if WITH_WEI_ZPOINTS
+                    const int wei_zp = wei_zpoints[0];
+                    d -= wei_zp * SRC_TO_REF(src[src_off]);
+#endif
+#if WITH_SRC_ZPOINTS
+#if WITH_WEI_ZPOINTS
+                    d += src_zp * wei_zp;
+#endif
 #endif
                 }
     POST_OP_DATA_T tmp = d;
@@ -129,7 +147,7 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
         const __global BIA_DATA_T *bias POST_OP_ARGS,
         const __global float *src_scales, const __global float *wei_scales,
         const __global float *dst_scales, const __global int *src_zpoints,
-        const __global int *dst_zpoints) {
+        const __global WEI_ZP_T *wei_zpoints, const __global int *dst_zpoints) {
     const int n = GWS_GET_MB();
     const int ic = GWS_GET_IC();
     const int g = GWS_GET_G();
@@ -160,6 +178,15 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
             const int src_zp
                     = src_zpoints[WITH_SRC_ZPOINTS_PER_IC ? g * OC + oc : 0];
             d -= src_zp * WEI_TO_REF(wei[wei_off]);
+#endif
+#if WITH_WEI_ZPOINTS
+            const int wei_zp = wei_zpoints[0];
+            d -= wei_zp * DST_TO_REF(diff_dst[dst_off]);
+#endif
+#if WITH_SRC_ZPOINTS
+#if WITH_WEI_ZPOINTS
+            d += src_zp * wei_zp;
+#endif
 #endif
         }
     }
