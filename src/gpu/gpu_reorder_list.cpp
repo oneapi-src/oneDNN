@@ -35,7 +35,7 @@
 #include "gpu/amd/miopen_reorder.hpp"
 #endif
 
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA || DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#ifdef GENERIC_SYCL_KERNELS_ENABLED
 #include "gpu/generic/sycl/ref_reorder.hpp"
 #endif
 namespace dnnl {

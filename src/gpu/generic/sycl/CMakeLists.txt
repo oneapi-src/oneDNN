@@ -21,7 +21,7 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-if(DNNL_SYCL_CUDA)
+if(DNNL_SYCL_CUDA OR (DNNL_SYCL_GENERIC AND NVIDIA_TARGET_SUPPORTED))
     append(CMAKE_CXX_FLAGS "-fsycl-targets=nvptx64-nvidia-cuda")
     # Suppress irrelevant warning about incompatible triplets.
     append(CMAKE_CXX_FLAGS "-Wno-linker-warnings")

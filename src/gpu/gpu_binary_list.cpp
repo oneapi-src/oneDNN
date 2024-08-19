@@ -30,7 +30,7 @@
 #include "gpu/amd/miopen_binary.hpp"
 #endif
 
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA || DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#ifdef GENERIC_SYCL_KERNELS_ENABLED
 #include "gpu/generic/sycl/ref_binary.hpp"
 #endif
 

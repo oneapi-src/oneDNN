@@ -74,16 +74,19 @@ macro(adjust_headers_priority targets)
     endif()
 endmacro()
 
-if(DNNL_SYCL_CUDA)
+macro(suppress_warnings_for_nvidia_target)
     # XXX: Suppress warning coming from SYCL headers:
     #   error: use of function template name with no prior declaration in
     #   function call with eplicit template arguments is a C++20 extension
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++20-extensions")
+    append(CMAKE_CXX_FLAGS "-Wno-c++20-extensions")
 
     # Suppress LLVM warning about not supporting latest cuda. It's safe enough
     # as long as no new cuda features are used in SYCL kernels.
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-cuda-version")
+    append(CMAKE_CXX_FLAGS "-Wno-unknown-cuda-version")
+endmacro()
 
+if(DNNL_SYCL_CUDA)
+    suppress_warnings_for_nvidia_target()
     find_package(cuBLAS REQUIRED)
     find_package(cuDNN REQUIRED)
 
@@ -102,6 +105,12 @@ elseif(DNNL_SYCL_HIP)
 
     list(APPEND EXTRA_SHARED_LIBS HIP::HIP rocBLAS::rocBLAS MIOpen::MIOpen)
     message(STATUS "DPC++ support is enabled (HIP)")
+elseif(DNNL_SYCL_GENERIC)
+    CHECK_CXX_COMPILER_FLAG("-fsycl -fsycl-targets=nvptx64-nvidia-cuda" NVIDIA_TARGET_SUPPORTED)
+
+    if(NVIDIA_TARGET_SUPPORTED)
+        suppress_warnings_for_nvidia_target()
+    endif()
 else()
     find_library(OPENCL_LIBRARY OpenCL PATHS ENV LIBRARY_PATH ENV LIB NO_DEFAULT_PATH)
     if(OPENCL_LIBRARY)

@@ -65,6 +65,12 @@ status_t engine_factory_t::engine_create(engine_t **engine,
     VERROR_ENGINE(xpu::sycl::dev_ctx_consistency_check(dev, ctx),
             status::invalid_arguments, VERBOSE_DEVICE_CTX_MISMATCH);
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_GENERIC
+    if (dev.is_gpu())
+        return gpu::generic::sycl::engine_create(
+                engine, engine_kind_, dev, ctx, index);
+#endif
+
 #ifdef DNNL_SYCL_CUDA
     if (xpu::sycl::is_nvidia_gpu(dev))
         return gpu::nvidia::engine_create(

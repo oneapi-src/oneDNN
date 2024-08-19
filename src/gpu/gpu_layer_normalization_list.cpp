@@ -24,7 +24,7 @@
 #include "gpu/intel/ocl/vectorized_lnorm.hpp"
 #endif
 
-#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA || DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
+#ifdef GENERIC_SYCL_KERNELS_ENABLED
 #include "gpu/generic/sycl/ref_layer_normalizations.hpp"
 #endif
 

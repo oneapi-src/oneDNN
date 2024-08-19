@@ -94,6 +94,9 @@
 /// AMD vendor
 #define DNNL_VENDOR_AMD 4u
 
+/// Generic vendor
+#define DNNL_VENDOR_GENERIC 8u
+
 /// @} dnnl_api_service
 
 // oneDNN CPU threading runtime
@@ -150,6 +153,9 @@
 
 // When defined, SYCL HIP backend is used.
 #cmakedefine DNNL_SYCL_HIP
+
+// When defined, SYCL Generic backend is used.
+#cmakedefine DNNL_SYCL_GENERIC
 
 // When defined, stack checker is enabled.
 #cmakedefine DNNL_ENABLE_STACK_CHECKER
