@@ -68,6 +68,9 @@ void serialize_md(serialization_stream_t &sstream, const memory_desc_t &md) {
     sstream.write(&md.format_kind);
     // format desc
     switch ((int)md.format_kind) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        case format_kind::sparse:
+#endif
         case format_kind::undef:
         case format_kind::any: break;
         case format_kind::blocked:
