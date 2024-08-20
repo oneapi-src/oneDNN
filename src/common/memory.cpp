@@ -95,6 +95,16 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     this->reset_memory_storage(std::move(memory_storage));
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
+        const dnnl::impl::memory_desc_t *md,
+        std::vector<std::unique_ptr<dnnl::impl::memory_storage_t>>
+                &&memory_storages)
+    : engine_(engine), md_(*md) {
+    memory_storages_ = std::move(memory_storages);
+}
+#endif
+
 status_t dnnl_memory::set_data_handle(void *handle, int index) const {
     using namespace dnnl::impl;
     void *old_handle;
