@@ -12,3 +12,5 @@
 --batch=harness_conv_attrs_int8_asymmetric
 
 --batch=harness_conv_depthwise_int8
+
+--batch=harness_conv_zero_points

@@ -152,10 +152,16 @@ TEST_F(attr_quantization_test_t, TestConv) {
                         src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
                         gen_attr_with_scales(arg, 0)));
             } else {
-                CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
-                        prop_kind::forward, algorithm::convolution_direct,
-                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
-                        gen_attr_with_zp(arg)));
+                if (eng.get_kind() == dnnl::engine::kind::cpu)
+                    CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
+                            prop_kind::forward, algorithm::convolution_direct,
+                            src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                            gen_attr_with_zp(arg)));
+                else
+                    CHECK_OK(convolution_forward::primitive_desc(eng,
+                            prop_kind::forward, algorithm::convolution_direct,
+                            src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                            gen_attr_with_zp(arg)));
                 CHECK_OK(convolution_forward::primitive_desc(eng,
                         prop_kind::forward, algorithm::convolution_direct,
                         src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
@@ -208,10 +214,16 @@ TEST_F(attr_quantization_test_t, TestConvGroup) {
                         src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
                         gen_attr_with_scales(arg, 0)));
             } else {
-                CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
-                        prop_kind::forward, algorithm::convolution_direct,
-                        src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
-                        gen_attr_with_zp(arg)));
+                if (eng.get_kind() == dnnl::engine::kind::cpu)
+                    CHECK_UNIMPL(convolution_forward::primitive_desc(eng,
+                            prop_kind::forward, algorithm::convolution_direct,
+                            src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                            gen_attr_with_zp(arg)));
+                else
+                    CHECK_OK(convolution_forward::primitive_desc(eng,
+                            prop_kind::forward, algorithm::convolution_direct,
+                            src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},
+                            gen_attr_with_zp(arg)));
                 CHECK_OK(convolution_forward::primitive_desc(eng,
                         prop_kind::forward, algorithm::convolution_direct,
                         src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1},

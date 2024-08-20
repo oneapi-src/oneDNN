@@ -21,6 +21,7 @@
 #include <CL/cl.h>
 
 #include "gpu/intel/compute/kernel.hpp"
+#include "xpu/ocl/utils.hpp"
 #include "xpu/utils.hpp"
 
 namespace dnnl {
@@ -33,9 +34,9 @@ class ocl_gpu_kernel_cache_t;
 
 class ocl_gpu_kernel_t : public compute::kernel_impl_t {
 public:
-    ocl_gpu_kernel_t(cl_kernel ocl_kernel,
+    ocl_gpu_kernel_t(xpu::ocl::wrapper_t<cl_kernel> &&ocl_kernel,
             const std::vector<gpu::intel::compute::scalar_type_t> &arg_types);
-    ~ocl_gpu_kernel_t() override;
+    ~ocl_gpu_kernel_t() override = default;
 
     cl_kernel ocl_kernel() const { return ocl_kernel_; }
 
@@ -60,7 +61,7 @@ public:
     std::string name() const override;
 
 private:
-    cl_kernel ocl_kernel_;
+    xpu::ocl::wrapper_t<cl_kernel> ocl_kernel_;
     std::vector<gpu::intel::compute::scalar_type_t> arg_types_;
     std::shared_ptr<ocl_gpu_kernel_cache_t> cache_;
     bool save_events_;

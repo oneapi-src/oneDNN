@@ -2100,18 +2100,25 @@ public:
     // default stride means unit stride (in terms of value.type().scalar()
     // elements).
     static stmt_t make(const expr_t &buf, const expr_t &off,
-            const expr_t &value, int stride = default_stride,
+            const expr_t &_value, int stride = default_stride,
             const expr_t &_mask = expr_t(), bool fill_mask0 = false) {
         auto mask = _mask;
+        auto value = _value;
         if (!mask.is_empty()) {
             if (all_of(mask, expr_t(true))) {
                 mask = expr_t();
             } else if (all_of(mask, expr_t(false))) {
-                // No need to store anything with a false mask.
-                return stmt_t();
+                // No need to store anything with a false mask,
+                // unless explicitly asked to zero-fill the rest.
+                if (!fill_mask0) return stmt_t();
+                auto type = value.type();
+                value = shuffle_t::make_broadcast(
+                        cast_t::make(type.scalar(), 0), type.elems());
+                mask = expr_t();
             }
         }
-        return stmt_t(new store_t(buf, off, value, stride, mask, fill_mask0));
+        return stmt_t(new store_t(
+                buf, off, value, stride, mask, fill_mask0 && !mask.is_empty()));
     }
 
     bool is_equal(const object_impl_t &obj) const override {

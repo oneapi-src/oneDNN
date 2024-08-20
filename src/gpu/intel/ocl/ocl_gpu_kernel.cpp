@@ -110,15 +110,12 @@ private:
     utils::rw_mutex_t mutex_;
 };
 
-ocl_gpu_kernel_t::ocl_gpu_kernel_t(cl_kernel ocl_kernel,
+ocl_gpu_kernel_t::ocl_gpu_kernel_t(xpu::ocl::wrapper_t<cl_kernel> &&ocl_kernel,
         const std::vector<gpu::intel::compute::scalar_type_t> &arg_types)
-    : ocl_kernel_(ocl_kernel), arg_types_(arg_types), save_events_(false) {
-    OCL_CHECK_V(clRetainKernel(ocl_kernel_));
+    : ocl_kernel_(std::move(ocl_kernel))
+    , arg_types_(arg_types)
+    , save_events_(false) {
     cache_ = std::make_shared<ocl_gpu_kernel_cache_t>(ocl_kernel_);
-}
-
-ocl_gpu_kernel_t::~ocl_gpu_kernel_t() {
-    if (ocl_kernel_) OCL_CHECK_V(clReleaseKernel(ocl_kernel_));
 }
 
 status_t ocl_gpu_kernel_t::get_binary(

@@ -20,3 +20,5 @@ g16mb1ic512ih2iw2
 g8mb1ic256ih2iw2
 g8mb1ic256ih4iw4
 g4mb1ic128ih2iw2
+
+g32mb2ic320ih2iw2

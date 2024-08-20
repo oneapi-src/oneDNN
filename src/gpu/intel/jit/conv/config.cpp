@@ -878,16 +878,24 @@ bool zero_points_ok(const conv_problem_t &prb) {
     using namespace data_type;
     const auto input_type = (prb.is_fwd) ? pd->invariant_src_md()->data_type
                                          : pd->invariant_dst_md()->data_type;
-    int mask_src = 0, mask_dst = 0;
+    int mask_wei = 0, mask_src = 0, mask_dst = 0;
+    if (attr->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei) != status::success)
+        return false;
     if (attr->zero_points_.get(DNNL_ARG_SRC, &mask_src) != status::success)
         return false;
     if (attr->zero_points_.get(DNNL_ARG_DST, &mask_dst) != status::success)
         return false;
 
+    if (!attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)) {
+        if (attr->zero_points_.get_data_type(DNNL_ARG_WEIGHTS) != s8)
+            return false;
+        if (prb.with_groups) return false;
+        if (mask_src != 0) return false; // zp_wei implies scalar zp_src
+    }
+
     return IMPLICATION(!utils::one_of(input_type, s8, u8),
                    attr->zero_points_.has_default_values())
-            && attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-            && (mask_src == 0 || mask_src == 1 << 1)
+            && (mask_wei == 0) && (mask_src == 0 || mask_src == 1 << 1)
             && (mask_dst == 0 || mask_dst == 1 << 1);
 }
 
@@ -902,7 +910,7 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
     auto attr_skip_mask = sm::fpmath_mode;
     if (prb.is_fwd || prb.is_bwd_d) {
         attr_skip_mask |= sm::post_ops | sm::sum_dt | sm::zero_points_runtime
-                | sm::scales_runtime;
+                | sm::zero_points_runtime_data_type | sm::scales_runtime;
         if (!attr->has_default_values(attr_skip_mask)) return false;
     } else {
         if (!attr->has_default_values(attr_skip_mask)) return false;

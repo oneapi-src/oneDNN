@@ -92,6 +92,293 @@ static bool ends_with(const layout_t &layout, int i1, int b1, int i0, int b0) {
     return true;
 }
 
+static type_t dpas_type(type_t t) {
+    return (t.is_int()) ? (t.is_signed()) ? type_t::s32() : type_t::u32() : t;
+}
+
+static void get_kw_ic_from_b_view(const gemm_schedule_t &gemm_schedule,
+        expr_t &kw_var, expr_t &ic_var, int &kw, int &ic) {
+    loop_kind_t exp_loops = loop_kind_t::tg_grid | loop_kind_t::kernel_grid
+            | loop_kind_t::serial;
+    auto &view = gemm_schedule.b_view();
+    auto ic_var_tmp = view.vvar("ic");
+    ic = view.vdims()[view.vvar_index(ic_var_tmp)];
+    ic_var = gemm_schedule.expand(ic_var_tmp, true, exp_loops);
+    auto kw_var_tmp = view.vvar("kw");
+    kw = view.vdims()[view.vvar_index(kw_var_tmp)];
+    kw_var = gemm_schedule.expand(kw_var_tmp, true, exp_loops);
+}
+
+class split_dispatcher_t {
+public:
+    split_dispatcher_t() = default;
+    split_dispatcher_t(const layout_t &comp_layout, const layout_t &c_layout,
+            const hw_t &hw, bool is_fwd, const bmnk_mapper_t &mapper) {
+        ir_assert(comp_layout.ndims() == 6);
+        comp_g_idx_ = 0;
+        comp_c_idx_ = (is_fwd) ? 1 : 2;
+        c_g_idx_ = 1;
+        c_c_idx_ = 2;
+
+        for (auto abc : {abc_kind_t::a, abc_kind_t::b}) {
+            for (int factor : {2, 4}) {
+                auto &splits = (abc == abc_kind_t::a) ? a_splits_ : b_splits_;
+                if ((int)splits.size() <= factor) splits.resize(factor + 1);
+                splits[factor] = split_t(
+                        c_layout, mapper, abc, factor, simd_dim_idx_, simd_);
+            }
+        }
+        for (int b : {32, 16, 8}) {
+            if (b > 16 && hw < ngen::HW::XeHPC) continue;
+            if (ends_with(comp_layout, comp_g_idx_, b)
+                    && ends_with(c_layout, c_g_idx_, b)) {
+                simd_dim_idx_ = 1;
+                simd_ = b;
+                simd_tile_ = get_simd_tile(c_layout);
+                return;
+            }
+            if (ends_with(comp_layout, comp_c_idx_, b)
+                    && ends_with(c_layout, c_c_idx_, b)) {
+                simd_dim_idx_ = 2;
+                simd_ = b;
+                simd_tile_ = get_simd_tile(c_layout);
+                return;
+            }
+        }
+        ir_error_not_expected()
+                << "Can't initialize SIMD size, comp_layout = " << comp_layout
+                << ", c_layout = " << c_layout;
+    }
+
+    int simd() const { return simd_; }
+
+    std::string simd_str() const {
+        auto di_str = std::to_string(simd_dim_idx_);
+        return std::to_string(simd_) + " (dim_idx: " + di_str + ")";
+    }
+
+    const tensor_t &get_simd_tile() const { return simd_tile_; }
+
+    std::vector<dim_t> c_to_comp(const std::vector<dim_t> &c) const {
+        // c:    ngcdhw or ngc[osp]
+        // comp: goidhw
+        std::vector<dim_t> ret(6);
+        ret[comp_g_idx_] = c[c_g_idx_];
+        ret[comp_c_idx_] = c[c_c_idx_];
+        return ret;
+    }
+
+    bool can_split(abc_kind_t abc, int factor) const {
+        if (factor == 1) return true;
+        auto &splits = (abc == abc_kind_t::a) ? a_splits_ : b_splits_;
+        if (factor >= (int)splits.size()) return false;
+        return (bool)splits[factor];
+    }
+
+    void set_split(abc_kind_t abc, int factor) {
+        ir_assert(can_split(abc, factor));
+        if (factor == 1) {
+            split_ = split_t::no_split();
+            return;
+        }
+        auto &splits = (abc == abc_kind_t::a) ? a_splits_ : b_splits_;
+        split_ = splits[factor];
+    }
+
+    abc_kind_t abc() const { return split_.abc(); }
+    int factor() const { return split_.factor(); }
+
+    explicit operator bool() const { return bool(split_); }
+
+    bool in_subtile(const std::vector<dim_t> &start, int subtile_idx) const {
+        return split_.in_subtile(start, subtile_idx);
+    }
+
+private:
+    class split_t {
+    public:
+        split_t() = default;
+        split_t(const layout_t &c, const bmnk_mapper_t &mapper, abc_kind_t abc,
+                int factor, int simd_dim_idx, int simd) {
+            ir_assert(factor > 1);
+            bmnk_kind_t split_mn
+                    = (abc == abc_kind_t::a ? bmnk_kind_t::m : bmnk_kind_t::n);
+            dim_t dim = 1;
+            std::vector<block_t> mn_blocks;
+            for (auto &b : c.blocks()) {
+                if (b.block == 1) continue;
+                auto bmnk = mapper.bmnk_kind(abc_kind_t::c, b.dim_idx);
+                if (bmnk != split_mn) continue;
+                dim *= b.block;
+                mn_blocks.push_back(b);
+            }
+            if (dim % factor != 0) return;
+            dim_t subtile_dim = dim / factor;
+            dim_t cur_dim = 1;
+            int cur_idx = -1;
+            for (auto &b : mn_blocks) {
+                if (cur_idx == -1) {
+                    cur_idx = b.dim_idx;
+                } else if (b.dim_idx != cur_idx) {
+                    return;
+                }
+                dim_t max_block = std::min(b.block, subtile_dim / cur_dim);
+                if (b.block % max_block != 0) return;
+                cur_dim *= max_block;
+                if (cur_dim == subtile_dim) break;
+            }
+            if (cur_dim != subtile_dim) return;
+            if (cur_idx == simd_dim_idx && cur_dim < simd) return;
+            abc_ = abc;
+            factor_ = factor;
+            dim_idx_ = cur_idx;
+            subtile_dim_ = subtile_dim;
+        }
+
+        static split_t no_split() {
+            split_t ret;
+            ret.factor_ = 1;
+            return ret;
+        }
+
+        abc_kind_t abc() const { return abc_; }
+        int factor() const { return factor_; }
+
+        explicit operator bool() const { return factor_ != 0; }
+
+        bool in_subtile(
+                const std::vector<dim_t> &start, int subtile_idx) const {
+            if (!*this) return false;
+            if (factor_ == 1) return true;
+            int beg = subtile_idx * subtile_dim_;
+            int end = beg + subtile_dim_;
+            return start[dim_idx_] >= beg && start[dim_idx_] < end;
+        }
+
+    private:
+        abc_kind_t abc_ = abc_kind_t::undef;
+        int factor_ = 0;
+        int dim_idx_ = -1;
+        int subtile_dim_ = -1;
+    };
+
+    tensor_t get_simd_tile(const layout_t &c_layout) const {
+        std::vector<dim_t> tile_dims(c_layout.ndims(), 1);
+        tile_dims[simd_dim_idx_] = simd_;
+        return tensor_t(tile_dims);
+    }
+
+    int comp_g_idx_ = -1;
+    int comp_c_idx_ = -1;
+    int c_g_idx_ = -1;
+    int c_c_idx_ = -1;
+
+    int simd_dim_idx_ = -1; // C layout index.
+    int simd_ = -1;
+
+    std::vector<split_t> a_splits_;
+    std::vector<split_t> b_splits_;
+    split_t split_ = split_t::no_split();
+    tensor_t simd_tile_;
+};
+
+class zp_wei_init_plan_t : public base_plan_t {
+public:
+    using base_plan_t::base_plan_t;
+
+    operator bool() const { return simd_ != -1; }
+
+    zp_wei_init_plan_t(const hw_t &hw, bool is_fwd, int simd, type_t data_type,
+            const layout_t &zp_layout, const layout_t &b_layout)
+        : base_plan_t(hw)
+        , zp_layout_(zp_layout)
+        , b_layout_(b_layout)
+        , data_type_(data_type)
+        , simd_(simd) {
+        ir_assert(zp_layout_.blocks().empty());
+    }
+
+    int wei_reg_buf_size() const {
+        ir_assert(b_layout_.size()
+                        % (sdepth_ * simd_ * dpas_type(data_type_).size())
+                == 0);
+        return utils::rnd_up(b_layout_.size(), grf_size());
+    }
+
+    int estimate_regs() const {
+        return utils::div_up(wei_reg_buf_size(), grf_size());
+    }
+
+    stmt_t create_stmt(const expr_t &wei_buf, const expr_t &dpas_buf,
+            const gemm_schedule_t &gemm_schedule, int subtile_idx) {
+        auto simd_bcast = [&](const expr_t &e) {
+            return shuffle_t::make_broadcast(e, simd_);
+        };
+        if (subtile_idx > 0) return stmt_t();
+
+        ir_assert(zp_layout_.blocks().empty());
+        auto data_size = data_type_.size();
+        auto dpas_size = dpas_type(data_type_).size();
+        auto sdepth_size = simd_ * dpas_size;
+        ir_assert(zp_layout_.type().is_s8());
+        auto wei_load = -load_t::make(zp_layout_.type(), wei_buf, 0);
+        stmt_t stmt = store_t::make(wei_buf, 0, wei_load);
+        int size = dpas_size / data_size;
+        if (size > 1) {
+            wei_load = shuffle_t::make_broadcast(
+                    load_t::make(data_type_, wei_buf, 0), size);
+            stmt = stmt.append(store_t::make(dpas_buf, 0,
+                    cast_t::make(data_type_.with_elems(size), wei_load)));
+        }
+        expr_t kw_var, ic_var;
+        int kw = 0, ic = 0;
+        get_kw_ic_from_b_view(gemm_schedule, kw_var, ic_var, kw, ic);
+        kw_var = simd_bcast(kw_var);
+
+        bool small_ic = is_small(data_type_, ic);
+        int kw_idx = 5; // TODO: support non-forward kw!
+
+        std::vector<dim_t> tile_dim(b_layout_.ndims(), 1);
+        for (auto &b : b_layout_.blocks()) {
+            if (b.dim_idx == kw_idx) break;
+            tile_dim[b.dim_idx] *= b.block;
+        }
+        tensor_t tile(tile_dim);
+        ir_assert(tile.elems() % sdepth_size == 0);
+        wei_load = simd_bcast(load_t::make(
+                dpas_type(data_type_), (size > 1) ? dpas_buf : wei_buf, 0));
+        b_layout_.for_each_tile(tile, [&](const std::vector<dim_t> &start) {
+            auto off = b_layout_.offset_in_bytes(start);
+            auto mask = (small_ic) ? kw_var < simd_bcast(kw - start[kw_idx])
+                                   : expr_t();
+            for (int i = 0; i < tile.elems(); i += sdepth_size)
+                stmt = stmt.append(store_t::make(dpas_buf, off + i, wei_load,
+                        store_t::default_stride, mask, true));
+        });
+        return stmt;
+    }
+
+    std::string str() const {
+        std::ostringstream oss;
+        oss << "zp_wei_layout: " << zp_layout_ << std::endl;
+        oss << "b_layout:      " << b_layout_ << std::endl;
+        oss << "data_type:     " << data_type_ << std::endl;
+        oss << "dpas_type:     " << dpas_type(data_type_) << std::endl;
+        oss << "sdepth:        " << sdepth_ << std::endl;
+        oss << "SIMD:          " << simd_;
+        return add_indent("wei_init", oss.str());
+    }
+
+    IR_DEFINE_DUMP()
+
+private:
+    layout_t zp_layout_;
+    layout_t b_layout_;
+    type_t data_type_;
+    int sdepth_ = 8;
+    int simd_ = -1;
+};
+
 class zp_comp_init_plan_t : public base_plan_t {
 public:
     using base_plan_t::base_plan_t;
@@ -156,15 +443,35 @@ public:
 
     stmt_t create_stmt(buffer_manager_t &buf_mgr, const expr_t &zp_buf,
             const expr_t &wei_buf, const expr_t &comp_buf,
+            const expr_t &src_buf, const gemm_schedule_t &gemm_schedule,
             int subtile_idx) const {
+        auto simd_bcast = [&](const expr_t &e) {
+            return shuffle_t::make_broadcast(e, simd_);
+        };
         if (split_factor_ == 1 && subtile_idx > 0) return stmt_t();
-        stmt_t stmt;
+        stmt_t stmt, comp_buf_fill;
         int ck_blk = 1;
         switch (kind_) {
             case zp_comp_kind_t::wei_Xn4k_x8_zp_common:
             case zp_comp_kind_t::wei_Xn4k_x8_zp_per_k: ck_blk = 4; break;
             default: break;
         }
+        expr_t kw_var, ic_var;
+        int kw = 0, ic = 0;
+        get_kw_ic_from_b_view(gemm_schedule, kw_var, ic_var, kw, ic);
+        kw_var = simd_bcast(kw_var);
+
+        bool small_ic = is_small(wei_layout_.type(), ic);
+        int kw_idx = 5; // TODO: support non-forward kw!
+
+        auto load_mul = binary_op_t::make(op_kind_t::_max,
+                binary_op_t::make(op_kind_t::_min,
+                        simd_bcast(-ic_var) + simd_bcast(ic),
+                        simd_bcast(wei_layout_.dim(ck_idx_))),
+                simd_bcast(0));
+        auto load_wei = simd_bcast(load_t::make(
+                type_t::s16(), (src_buf.is_empty()) ? comp_buf : src_buf, 0));
+
         comp_layout_.for_each_tile(
                 get_simd_tile(), [&](const std::vector<dim_t> &start) {
                     if (!in_subtile(start, subtile_idx)) return;
@@ -177,15 +484,22 @@ public:
                                 create_tile_stmt(zp, wei, comp, buf_mgr));
                     }
                     stmt = stmt.append(create_zp_common_mul_stmt(zp_buf, comp));
+
+                    // TODO: this implies that zp_wei and zp_src are scalar
+                    auto mask = kw_var < simd_bcast(kw - start[kw_idx]);
+                    mask = (!src_buf.is_empty())
+                            ? (small_ic) ? mask : simd_bcast(expr_t(bool(true)))
+                            : simd_bcast(expr_t(bool(false)));
+                    comp_buf_fill = comp_buf_fill.append(
+                            store_t::make(comp, 0, load_mul * load_wei,
+                                    store_t::default_stride, mask, true));
                 });
         auto zp_1x4 = buf_mgr.get("zp_1x4");
         if (!zp_1x4.is_empty()) {
             auto init = store_t::make(zp_1x4, 0, 0x01010101);
             stmt = init.append(stmt);
         }
-        auto comp_zero_out = funcs::zero_out(comp_buf, comp_reg_buf_size());
-        stmt = comp_zero_out.append(stmt);
-        return stmt;
+        return comp_buf_fill.append(stmt);
     }
 
     std::string str() const {
@@ -875,50 +1189,33 @@ class zp_comp_apply_plan_t : public base_plan_t {
 public:
     using base_plan_t::base_plan_t;
 
-    zp_comp_apply_plan_t(const hw_t &hw, bool is_fwd,
-            const layout_t &comp_layout, const layout_t &mask_layout,
-            const layout_t &c_layout, const bmnk_mapper_t &mapper)
+    zp_comp_apply_plan_t(const hw_t &hw, const layout_t &comp_layout,
+            const layout_t &mask_layout, const layout_t &c_layout,
+            const std::string &simd_str)
         : base_plan_t(hw)
+        , comp_kw_idx_(5)
         , comp_layout_(comp_layout)
         , mask_layout_(mask_layout)
-        , c_layout_(c_layout) {
+        , c_layout_(c_layout)
+        , simd_str_(simd_str) {
         if (!mask_layout_.is_empty()) {
             ir_assert(utils::one_of(mask_layout_.ndims(), 7, 9));
         }
-        init_idxs(is_fwd);
-        init_simd();
-        init_splits(mapper);
-    }
-
-    bool can_split(abc_kind_t abc, int factor) const {
-        if (factor == 1) return true;
-        auto &splits = (abc == abc_kind_t::a) ? a_splits_ : b_splits_;
-        if (factor >= (int)splits.size()) return false;
-        return (bool)splits[factor];
-    }
-
-    void set_split(abc_kind_t abc, int factor) {
-        ir_assert(can_split(abc, factor));
-        if (factor == 1) {
-            split_ = split_t::no_split();
-            return;
-        }
-        auto &splits = (abc == abc_kind_t::a) ? a_splits_ : b_splits_;
-        split_ = splits[factor];
     }
 
     stmt_t create_stmt(const expr_t &comp_buf, const expr_t &mask_buf,
-            const expr_t &c_buf, int subtile_idx) const {
+            const expr_t &c_buf, const split_dispatcher_t &sd,
+            int subtile_idx) const {
         const auto comp_type = comp_layout_.type();
         const auto mask_type = mask_layout_.type();
         const int kw_dim = comp_layout_.dim(comp_kw_idx_);
         std::vector<int> comp_off;
         std::vector<int> mask_off;
         c_layout_.for_each_tile(
-                get_simd_tile(), [&](const std::vector<dim_t> &start) {
-                    if (!split_.in_subtile(start, subtile_idx)) return;
+                sd.get_simd_tile(), [&](const std::vector<dim_t> &start) {
+                    if (!sd.in_subtile(start, subtile_idx)) return;
                     for (int kw = 0; kw < kw_dim; kw++) {
-                        comp_off.emplace_back(get_comp_off(start, kw));
+                        comp_off.emplace_back(get_comp_off(start, kw, sd));
                         mask_off.emplace_back((mask_buf.is_empty())
                                         ? -1
                                         : get_mask_off(start, kw));
@@ -937,29 +1234,29 @@ public:
             auto &stmt = precomp.back().second;
             auto comp0 = comp_buf[comp_off[i * kw_dim]];
             auto comp0_load
-                    = load_t::make(comp_type.with_elems(simd_), comp0, 0);
+                    = load_t::make(comp_type.with_elems(sd.simd()), comp0, 0);
             if (mask_buf.is_empty()) {
                 for (int kw = i * kw_dim + 1; kw < (i + 1) * kw_dim; kw++) {
                     auto comp = comp_buf[comp_off[kw]];
                     auto comp_load = load_t::make(
-                            comp_type.with_elems(simd_), comp, 0);
+                            comp_type.with_elems(sd.simd()), comp, 0);
                     stmt = stmt.append(
                             store_t::make(comp0, 0, comp0_load + comp_load));
                 }
             } else {
                 auto mask0 = mask_buf[mask_off[i * kw_dim]];
-                auto mask0_load = shuffle_t::make_broadcast(
-                        load_t::make(mask_type.with_elems(1), mask0, 0), simd_);
+                auto m0_ld = load_t::make(mask_type.with_elems(1), mask0, 0);
+                auto mask0_load = shuffle_t::make_broadcast(m0_ld, sd.simd());
                 stmt = stmt.append(
                         store_t::make(comp0, 0, comp0_load * mask0_load));
                 for (int kw = i * kw_dim + 1; kw < (i + 1) * kw_dim; kw++) {
                     auto comp = comp_buf[comp_off[kw]];
                     auto mask = mask_buf[mask_off[kw]];
                     auto comp_load = load_t::make(
-                            comp_type.with_elems(simd_), comp, 0);
+                            comp_type.with_elems(sd.simd()), comp, 0);
                     auto mask_load = shuffle_t::make_broadcast(
                             load_t::make(mask_type.with_elems(1), mask, 0),
-                            simd_);
+                            sd.simd());
                     stmt = stmt.append(store_t::make(comp0, 0,
                             ternary_op_t::make(op_kind_t::_mad, comp0_load,
                                     comp_load, mask_load)));
@@ -972,38 +1269,38 @@ public:
         // N.B.: if irreducible, kw_dim * precomp.size() > comp_off.size()
         if (kw_dim * precomp.size() < comp_off.size()) {
             const bool do_precomp = (subtile_idx == 0)
-                    || ((split_.abc() == abc_kind_t::b)
-                            && (split_.factor() > 1));
+                    || ((sd.abc() == abc_kind_t::b) && (sd.factor() > 1));
             int p_iter = -1, t_iter = 0;
             c_layout_.for_each_tile(
-                    get_simd_tile(), [&](const std::vector<dim_t> &start) {
-                        if (!split_.in_subtile(start, subtile_idx)) return;
+                    sd.get_simd_tile(), [&](const std::vector<dim_t> &start) {
+                        if (!sd.in_subtile(start, subtile_idx)) return;
                         if (precomp[p_iter + 1].first == t_iter++) {
                             p_iter++;
                             if (do_precomp)
                                 stmt = stmt.append(precomp[p_iter].second);
                         }
                         auto off = comp_off[precomp[p_iter].first * kw_dim];
-                        auto comp_load = load_t::make(
-                                comp_type.with_elems(simd_), comp_buf[off], 0);
+                        auto csty = comp_type.with_elems(sd.simd());
+                        auto comp_load = load_t::make(csty, comp_buf[off], 0);
                         auto c = c_buf[get_c_off(start, 0)];
                         auto c_load = load_t::make(
-                                c_layout_.type().with_elems(simd_), c, 0);
+                                c_layout_.type().with_elems(sd.simd()), c, 0);
                         stmt = stmt.append(store_t::make(c, 0,
                                 (mask_buf.is_empty()) ? (c_load - comp_load)
                                                       : (c_load + comp_load)));
                     });
         } else {
             c_layout_.for_each_tile(
-                    get_simd_tile(), [&](const std::vector<dim_t> &start) {
-                        if (!split_.in_subtile(start, subtile_idx)) return;
+                    sd.get_simd_tile(), [&](const std::vector<dim_t> &start) {
+                        if (!sd.in_subtile(start, subtile_idx)) return;
                         for (int kw = 0; kw < kw_dim; kw++) {
-                            auto comp = comp_buf[get_comp_off(start, kw)];
+                            auto comp = comp_buf[get_comp_off(start, kw, sd)];
                             auto mask = mask_buf.is_empty()
                                     ? expr_t()
                                     : mask_buf[get_mask_off(start, kw)];
                             auto c = c_buf[get_c_off(start, kw)];
-                            stmt = stmt.append(create_tile_stmt(comp, mask, c));
+                            stmt = stmt.append(
+                                    create_tile_stmt(comp, mask, c, sd));
                         }
                     });
         }
@@ -1014,159 +1311,45 @@ public:
         std::ostringstream oss;
         oss << "comp_layout: " << comp_layout_ << std::endl;
         oss << "c_layout:    " << c_layout_ << std::endl;
-        oss << "SIMD:        " << simd_ << " (dim_idx: " << simd_dim_idx_
-            << ")";
+        oss << "SIMD:        " << simd_str_;
         return add_indent("comp_apply", oss.str());
     }
 
     IR_DEFINE_DUMP()
 
 private:
-    class split_t {
-    public:
-        split_t() = default;
-        split_t(const layout_t &c, const bmnk_mapper_t &mapper, abc_kind_t abc,
-                int factor, int simd_dim_idx, int simd) {
-            ir_assert(factor > 1);
-            bmnk_kind_t split_mn
-                    = (abc == abc_kind_t::a ? bmnk_kind_t::m : bmnk_kind_t::n);
-            dim_t dim = 1;
-            std::vector<block_t> mn_blocks;
-            for (auto &b : c.blocks()) {
-                if (b.block == 1) continue;
-                auto bmnk = mapper.bmnk_kind(abc_kind_t::c, b.dim_idx);
-                if (bmnk != split_mn) continue;
-                dim *= b.block;
-                mn_blocks.push_back(b);
-            }
-            if (dim % factor != 0) return;
-            dim_t subtile_dim = dim / factor;
-            dim_t cur_dim = 1;
-            int cur_idx = -1;
-            for (auto &b : mn_blocks) {
-                if (cur_idx == -1) {
-                    cur_idx = b.dim_idx;
-                } else if (b.dim_idx != cur_idx) {
-                    return;
-                }
-                dim_t max_block = std::min(b.block, subtile_dim / cur_dim);
-                if (b.block % max_block != 0) return;
-                cur_dim *= max_block;
-                if (cur_dim == subtile_dim) break;
-            }
-            if (cur_dim != subtile_dim) return;
-            if (cur_idx == simd_dim_idx && cur_dim < simd) return;
-            abc_ = abc;
-            factor_ = factor;
-            dim_idx_ = cur_idx;
-            subtile_dim_ = subtile_dim;
-        }
-
-        static split_t no_split() {
-            split_t ret;
-            ret.factor_ = 1;
-            return ret;
-        }
-
-        abc_kind_t abc() const { return abc_; }
-        int factor() const { return factor_; }
-
-        explicit operator bool() const { return factor_ != 0; }
-
-        bool in_subtile(
-                const std::vector<dim_t> &start, int subtile_idx) const {
-            if (!*this) return false;
-            if (factor_ == 1) return true;
-            int beg = subtile_idx * subtile_dim_;
-            int end = beg + subtile_dim_;
-            return start[dim_idx_] >= beg && start[dim_idx_] < end;
-        }
-
-    private:
-        abc_kind_t abc_ = abc_kind_t::undef;
-        int factor_ = 0;
-        int dim_idx_ = -1;
-        int subtile_dim_ = -1;
-    };
-
-    void init_idxs(bool is_fwd) {
-        ir_assert(comp_layout_.ndims() == 6);
-        comp_g_idx_ = 0;
-        comp_c_idx_ = is_fwd ? 1 : 2;
-        comp_kw_idx_ = 5;
-        c_g_idx_ = 1;
-        c_c_idx_ = 2;
-    }
-
-    void init_simd() {
-        for (int b : {32, 16, 8}) {
-            if (b > 16 && hw < ngen::HW::XeHPC) continue;
-            if (ends_with(comp_layout_, comp_g_idx_, b)
-                    && ends_with(c_layout_, c_g_idx_, b)) {
-                simd_dim_idx_ = 1;
-                simd_ = b;
-                return;
-            }
-            if (ends_with(comp_layout_, comp_c_idx_, b)
-                    && ends_with(c_layout_, c_c_idx_, b)) {
-                simd_dim_idx_ = 2;
-                simd_ = b;
-                return;
-            }
-        }
-        ir_error_not_expected()
-                << "Can't initialize SIMD size, comp_layout = " << comp_layout_
-                << ", c_layout = " << c_layout_;
-    }
-
-    void init_splits(const bmnk_mapper_t &mapper) {
-        for (auto abc : {abc_kind_t::a, abc_kind_t::b}) {
-            for (int factor : {2, 4}) {
-                auto &splits = (abc == abc_kind_t::a) ? a_splits_ : b_splits_;
-                if ((int)splits.size() <= factor) splits.resize(factor + 1);
-                splits[factor] = split_t(
-                        c_layout_, mapper, abc, factor, simd_dim_idx_, simd_);
-            }
-        }
-    }
-
-    tensor_t get_simd_tile() const {
-        std::vector<dim_t> tile_dims(c_layout_.ndims(), 1);
-        tile_dims[simd_dim_idx_] = simd_;
-        return tensor_t(tile_dims);
-    }
-
-    stmt_t create_tile_stmt(
-            const expr_t &comp, const expr_t &mask, const expr_t &c) const {
+    stmt_t create_tile_stmt(const expr_t &comp, const expr_t &mask,
+            const expr_t &c, const split_dispatcher_t &sd) const {
         auto comp_type = comp_layout_.type();
         auto c_type = c_layout_.type();
         ir_assert((int)comp_layout_.inner_stride() == 1);
-        auto comp_load = load_t::make(comp_type.with_elems(simd_), comp, 0);
-        auto c_load = load_t::make(c_type.with_elems(simd_), c, 0);
+        auto comp_load = load_t::make(comp_type.with_elems(sd.simd()), comp, 0);
+        auto c_load = load_t::make(c_type.with_elems(sd.simd()), c, 0);
         stmt_t c_update;
         if (mask.is_empty()) {
             c_update = store_t::make(c, 0, c_load - comp_load);
         } else {
             auto mad = mad_t::make(
-                    hw, c_type, simd_, comp_type, 1, type_t::s16(), 0);
+                    hw, c_type, sd.simd(), comp_type, 1, type_t::s16(), 0);
             c_update = mad.call({c, c, comp, mask});
         }
         return c_update;
     }
 
-    int comp_reg_buf_size() const {
+    int comp_reg_buf_size(const split_dispatcher_t &sd) const {
         int ret = (int)comp_layout_.size();
-        if (split_.abc() == abc_kind_t::b) {
-            ret = utils::div_up(ret, split_.factor());
+        if (sd.abc() == abc_kind_t::b) {
+            ret = utils::div_up(ret, sd.factor());
         }
         return utils::rnd_up(ret, grf_size());
     }
 
-    int get_comp_off(const std::vector<dim_t> &_start, int kw) const {
-        auto start = c_to_comp(_start);
+    int get_comp_off(const std::vector<dim_t> &_start, int kw,
+            const split_dispatcher_t &sd) const {
+        auto start = sd.c_to_comp(_start);
         start[comp_kw_idx_] = kw;
         int off = (int)comp_layout_.offset_in_bytes(start);
-        return off % comp_reg_buf_size();
+        return off % comp_reg_buf_size(sd);
     }
 
     int get_mask_off(const std::vector<dim_t> &_start, int kw) const {
@@ -1182,15 +1365,6 @@ private:
         return off;
     }
 
-    std::vector<dim_t> c_to_comp(const std::vector<dim_t> &c) const {
-        // c:    ngcdhw or ngc[osp]
-        // comp: goidhw
-        std::vector<dim_t> ret(6);
-        ret[comp_g_idx_] = c[c_g_idx_];
-        ret[comp_c_idx_] = c[c_c_idx_];
-        return ret;
-    }
-
     std::vector<dim_t> c_to_mask(const std::vector<dim_t> &c) const {
         // c:    ngcdhw or ngc[osp]
         // mask: ngcdhw[kd][kh][kw] or ngc[osp][kd][kh][kw]
@@ -1200,62 +1374,66 @@ private:
         return ret;
     }
 
-    int comp_g_idx_ = -1;
-    int comp_c_idx_ = -1;
     int comp_kw_idx_ = -1;
-    int c_g_idx_ = -1;
-    int c_c_idx_ = -1;
 
     layout_t comp_layout_;
     layout_t mask_layout_;
     layout_t c_layout_;
-
-    int simd_dim_idx_ = -1; // C layout index.
-    int simd_ = -1;
-
-    std::vector<split_t> a_splits_;
-    std::vector<split_t> b_splits_;
-    split_t split_ = split_t::no_split();
+    std::string simd_str_;
 };
 
 struct zp_plan_impl_t : public base_plan_t {
     bool needs_precalc = false;
+    split_dispatcher_t sd;
     send_plan_t load;
     zp_comp_init_plan_t comp_init;
     zp_mask_init_plan_t mask_init;
     zp_comp_apply_plan_t comp_apply;
+    send_plan_t wei_load;
+    zp_wei_init_plan_t wei_init;
 
     zp_plan_impl_t(const hw_t &hw)
-        : base_plan_t(hw), comp_init(hw), mask_init(hw), comp_apply(hw) {}
+        : base_plan_t(hw)
+        , comp_init(hw)
+        , mask_init(hw)
+        , comp_apply(hw)
+        , wei_init(hw) {}
 
-    explicit operator bool() const { return (bool)load; }
+    bool has_zp_src() const { return load; }
+    bool has_zp_wei() const { return wei_load; }
+    explicit operator bool() const { return has_zp_src() || has_zp_wei(); }
 
     bool can_split(abc_kind_t abc, int factor) const {
-        if (!comp_init.can_split(abc, factor)) return false;
-        if (!comp_apply.can_split(abc, factor)) return false;
+        if (has_zp_src() && !comp_init.can_split(abc, factor)) return false;
+        if (bool(*this) && !sd.can_split(abc, factor)) return false;
         return true;
     }
 
     void set_split(abc_kind_t abc, int factor) {
         ir_assert(can_split(abc, factor));
-        comp_init.set_split(abc, factor);
-        comp_apply.set_split(abc, factor);
+        if (has_zp_src()) comp_init.set_split(abc, factor);
+        if (bool(*this)) sd.set_split(abc, factor);
     }
 
     int estimate_regs() const {
-        if (!*this) return 0;
         int ret = 0;
-        ret += comp_init.estimate_regs();
-        ret += mask_init.estimate_regs();
+        if (has_zp_src()) {
+            ret += comp_init.estimate_regs();
+            ret += mask_init.estimate_regs();
+        }
+        if (has_zp_wei()) { ret += wei_init.estimate_regs(); }
         return ret;
     }
 
     std::string str() const {
         std::ostringstream oss;
-        oss << load.str("load") << std::endl;
-        oss << comp_init << std::endl;
-        oss << mask_init << std::endl;
-        oss << comp_apply << std::endl;
+        if (has_zp_src()) {
+            oss << load.str("load") << std::endl;
+            oss << comp_init << std::endl;
+            oss << mask_init << std::endl;
+            oss << comp_apply << std::endl;
+        }
+        if (has_zp_wei()) { oss << wei_init << std::endl; }
         return add_indent("zp", oss.str());
     }
 
@@ -1269,25 +1447,50 @@ zp_plan_t::~zp_plan_t() = default;
 
 void zp_plan_t::init(const conv_config_t &cfg,
         const gemm_schedule_t &gemm_schedule, const view_t &zp_view,
-        const layout_t &src_layout, const layout_t &wei_layout,
-        const layout_t &dst_layout) {
+        const view_t &zp_src_view, const layout_t &src_layout,
+        const layout_t &wei_layout, const layout_t &dst_layout) {
     impl->needs_precalc = cfg.zp_cfg().needs_src_precalc;
-    if (impl->needs_precalc) return;
+    bool do_src = cfg.zp_cfg().do_src_compensation && !impl->needs_precalc;
+    bool do_wei = cfg.zp_cfg().do_wei_compensation;
+    send_plan_t impl_load;
 
-    auto &exec_cfg = cfg.exec_cfg();
-    auto load_params = get_send_params(
-            exec_cfg, send_op_t::load, send_address_t::a64, zp_view);
-    impl->load = create_send_plan(exec_cfg, zp_view, load_params);
-    impl->comp_init = zp_comp_init_plan_t(
-            cfg.hw(), cfg.prb().is_fwd, impl->load.reg_layout(), wei_layout);
-    impl->mask_init = zp_mask_init_plan_t(cfg, gemm_schedule, src_layout);
-    impl->comp_apply = zp_comp_apply_plan_t(cfg.hw(), cfg.prb().is_fwd,
-            impl->comp_init.comp_layout(), impl->mask_init.mask_layout(),
-            dst_layout, gemm_schedule.bmnk_mapper());
+    if (do_src || do_wei) {
+        auto load_params = get_send_params(
+                cfg.exec_cfg(), send_op_t::load, send_address_t::a64, zp_view);
+        impl_load = create_send_plan(cfg.exec_cfg(), zp_view, load_params);
+        impl->comp_init = zp_comp_init_plan_t(
+                cfg.hw(), cfg.prb().is_fwd, impl_load.reg_layout(), wei_layout);
+        impl->sd = split_dispatcher_t(impl->comp_init.comp_layout(), dst_layout,
+                cfg.hw(), cfg.prb().is_fwd, gemm_schedule.bmnk_mapper());
+    }
+    if (do_src) {
+        std::swap(impl->load, impl_load);
+        impl->mask_init = zp_mask_init_plan_t(cfg, gemm_schedule, src_layout);
+        impl->comp_apply = zp_comp_apply_plan_t(cfg.hw(),
+                impl->comp_init.comp_layout(), impl->mask_init.mask_layout(),
+                dst_layout, impl->sd.simd_str());
+    }
+    if (do_wei) {
+        auto load_params = get_send_params(cfg.exec_cfg(), send_op_t::load,
+                send_address_t::a64, zp_src_view);
+        impl->wei_load
+                = create_send_plan(cfg.exec_cfg(), zp_src_view, load_params);
+        impl->wei_init
+                = zp_wei_init_plan_t(cfg.hw(), cfg.prb().is_fwd, cfg.simd(),
+                        src_layout.type(), zp_src_view.tlayout(), wei_layout);
+    }
 }
 
 zp_plan_t::operator bool() const {
     return (bool)*impl;
+}
+
+bool zp_plan_t::has_zp_src() const {
+    return impl->has_zp_src();
+}
+
+bool zp_plan_t::has_zp_wei() const {
+    return impl->has_zp_wei();
 }
 
 bool zp_plan_t::needs_precalc() const {
@@ -1298,12 +1501,20 @@ int zp_plan_t::load_reg_buf_size() const {
     return impl->load.reg_buf_size();
 }
 
+int zp_plan_t::wei_load_reg_buf_size() const {
+    return impl->wei_load.reg_buf_size();
+}
+
 int zp_plan_t::mask_reg_buf_size() const {
     return impl->mask_init.mask_reg_buf_size();
 }
 
 int zp_plan_t::comp_reg_buf_size() const {
     return impl->comp_init.comp_reg_buf_size();
+}
+
+int zp_plan_t::wei_reg_buf_size() const {
+    return impl->wei_init.wei_reg_buf_size();
 }
 
 stmt_t zp_plan_t::load_create_stmt(
@@ -1313,11 +1524,19 @@ stmt_t zp_plan_t::load_create_stmt(
             : impl->load.create_stmt(mem_buf, reg_buf, subtile_idx);
 }
 
+stmt_t zp_plan_t::wei_load_create_stmt(
+        const expr_t &mem_buf, const expr_t &reg_buf, int subtile_idx) const {
+    return subtile_idx > 0
+            ? stmt_t()
+            : impl->wei_load.create_stmt(mem_buf, reg_buf, subtile_idx);
+}
+
 stmt_t zp_plan_t::comp_init_create_stmt(buffer_manager_t &buf_mgr,
         const expr_t &zp_buf, const expr_t &wei_buf, const expr_t &comp_buf,
+        const expr_t &src_buf, const gemm_schedule_t &gemm_schedule,
         int subtile_idx) const {
-    return impl->comp_init.create_stmt(
-            buf_mgr, zp_buf, wei_buf, comp_buf, subtile_idx);
+    return impl->comp_init.create_stmt(buf_mgr, zp_buf, wei_buf, comp_buf,
+            src_buf, gemm_schedule, subtile_idx);
 }
 
 stmt_t zp_plan_t::mask_init_create_stmt(
@@ -1327,7 +1546,15 @@ stmt_t zp_plan_t::mask_init_create_stmt(
 
 stmt_t zp_plan_t::comp_apply_create_stmt(const expr_t &comp_buf,
         const expr_t &mask_buf, const expr_t &c_buf, int subtile_idx) const {
-    return impl->comp_apply.create_stmt(comp_buf, mask_buf, c_buf, subtile_idx);
+    return impl->comp_apply.create_stmt(
+            comp_buf, mask_buf, c_buf, impl->sd, subtile_idx);
+}
+
+stmt_t zp_plan_t::wei_init_create_stmt(const expr_t &wei_buf,
+        const expr_t &dpas_buf, const gemm_schedule_t &gemm_schedule,
+        int subtile_idx) const {
+    return impl->wei_init.create_stmt(
+            wei_buf, dpas_buf, gemm_schedule, subtile_idx);
 }
 
 bool zp_plan_t::can_split(abc_kind_t abc, int factor) const {
