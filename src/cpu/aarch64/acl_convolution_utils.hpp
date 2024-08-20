@@ -28,13 +28,9 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-template <typename NEConv>
+template <typename ConvOp>
 struct acl_obj_t {
-    NEConv conv;
-    arm_compute::Tensor src_tensor;
-    arm_compute::Tensor wei_tensor;
-    arm_compute::Tensor bia_tensor;
-    arm_compute::Tensor dst_tensor;
+    ConvOp conv;
     arm_compute::experimental::MemoryRequirements aux_mem_req;
 };
 
@@ -176,53 +172,6 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
 
     void *dst = dst_tensor.buffer();
     pd->post_ops.execute(ctx, dst);
-
-    return status::success;
-}
-
-template <typename conv_obj_t, typename conv_pd_t, typename src_data_t,
-        typename wei_data_t = src_data_t, typename dst_data_t = src_data_t,
-        typename bia_data_t = src_data_t>
-status_t execute_forward_conv_acl(
-        const exec_ctx_t &ctx, conv_obj_t &acl_conv_obj, const conv_pd_t *pd) {
-    bool with_bias = pd->acp_.with_bias;
-    bool use_dst_acc_for_sum = pd->acp_.use_dst_acc_for_sum;
-
-    auto src_base = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
-
-    // import_memory() and free() methods do not allocate/free any additional
-    // memory, only acquire/release pointers.
-    acl_conv_obj.src_tensor.allocator()->import_memory(
-            const_cast<src_data_t *>(src_base));
-    acl_conv_obj.wei_tensor.allocator()->import_memory(
-            const_cast<wei_data_t *>(wei_base));
-
-    const auto scratchpad = ctx.get_scratchpad_grantor();
-
-    // If we have an unfused sum post op, put the result in a scratchpad tensor.
-    // Result will be summed to the dst during acl_post_ops.execute
-    auto dst_base = use_dst_acc_for_sum
-            ? scratchpad.get<void>(memory_tracking::names::key_generic_acc)
-            : CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
-    acl_conv_obj.dst_tensor.allocator()->import_memory(dst_base);
-
-    if (with_bias) {
-        auto bia_base = CTX_IN_MEM(const bia_data_t *, DNNL_ARG_BIAS);
-        acl_conv_obj.bia_tensor.allocator()->import_memory(
-                const_cast<bia_data_t *>(bia_base));
-    }
-
-    acl_conv_obj.conv.run();
-
-    acl_conv_obj.src_tensor.allocator()->free();
-    acl_conv_obj.wei_tensor.allocator()->free();
-    if (with_bias) { acl_conv_obj.bia_tensor.allocator()->free(); }
-
-    void *dst = acl_conv_obj.dst_tensor.buffer();
-    pd->post_ops.execute(ctx, dst);
-
-    acl_conv_obj.dst_tensor.allocator()->free();
 
     return status::success;
 }
