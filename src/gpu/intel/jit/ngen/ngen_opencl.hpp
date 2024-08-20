@@ -150,7 +150,7 @@ std::vector<uint8_t> OpenCLCodeGenerator<hw>::getPatchTokenBinary(cl_context con
 
     auto binary = detail::getOpenCLCProgramBinary(context, device, dummyCLString.c_str(), modOptions.c_str());
 
-    npack::replaceKernel(binary, code ? *code : this->getCode());
+    npack::replaceKernel(binary, code ? *code : this->getCode(), (hw == HW::Xe2));
 
     return binary;
 }

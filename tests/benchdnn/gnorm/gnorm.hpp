@@ -172,8 +172,11 @@ struct cfg_t {
     // ALG_2: same as ALG_1 for mean and some more variation in src.
     // ALG_AUTO: choose between algorithms automatically.
     //
-    // `density_` is filled according to the following inequation:
+    // `density_` for ALG_0 is filled according to the following inequation:
     //     (exact_bits - log_2(L * density)) / 2 >= flex_bits
+    // For ALG_2 use ~100k non-zero elements. With more elements, rounding issues
+    // are popping up for large spatial due to very long accumulation chains
+    // and potential different order of accumulation.
     cfg_t(const prb_t *prb)
         : exact_bits_(digits_dt(prb->dt[0]))
         , L_(prb->ic / prb->g * prb->id * prb->ih * prb->iw)
@@ -193,13 +196,15 @@ struct cfg_t {
         , flex_mask_((1LL << flex_bits_) - 1)
         , density_(check_alg_ == bnorm::ALG_0
                           ? 1.f * (1LL << (exact_bits_ - 2 * flex_bits_)) / L_
+                          : check_alg_ == bnorm::ALG_2
+                          ? MIN2(100000.f / L_, 1.f)
                           : 1.f) {
         assert(logL_ <= 0 || (1LL << (logL_ - 1)) < L_);
         assert(L_ <= (1LL << logL_));
         assert(flex_bits_ >= min_flex_bits_);
         BENCHDNN_PRINT(6,
-                "[CFG]: check_alg:%s; density:%g; flex_bits:" IFMT "\n",
-                check_alg2str(check_alg_), density_, flex_bits_);
+                "[CFG]: check_alg:%s; L:%zu; density:%g; flex_bits:" IFMT "\n",
+                check_alg2str(check_alg_), (size_t)L_, density_, flex_bits_);
     }
 
     int64_t exact_bits_;

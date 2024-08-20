@@ -222,7 +222,7 @@ status_t ref_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
 
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         convolution_kernel_bwd_weights_t convolution_kernel(
-                pd()->conf_, cgh, ctx);
+                pd()->conf_, cgh, ctx, DNNL_ARG_SRC, DNNL_ARG_DIFF_DST);
 
         const int wg_size = pd()->conf_.wg_size;
 

@@ -1642,10 +1642,12 @@ void maybe_dropout(const attr_t &attr, float &val, int64_t offset,
 
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
         const std::vector<float> &v_po_vals) {
+    const auto &po = attr.post_ops;
+    if (po.len() == 0) return;
+
     using namespace dnnl::impl::math;
 
     auto it_po = v_po_vals.begin();
-    const auto &po = attr.post_ops;
     for (int idx = 0; idx < po.len(); ++idx) {
         const auto &e = po.entry[idx];
 
