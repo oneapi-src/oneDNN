@@ -22,6 +22,7 @@
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
 #include "gpu/generic/sycl/sycl_primitive_conf.hpp"
 #include "gpu/generic/sycl/sycl_q10n.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 #include "gpu/gpu_convolution_pd.hpp"
 #include "xpu/sycl/types.hpp"
 
@@ -83,7 +84,7 @@ struct ref_convolution_fwd_t : public gpu::generic::sycl::primitive_t {
 
             const bool ok = is_fwd()
                     && check_convolution_work_amount(weights_d, OC())
-                    && set_default_formats()
+                    && set_default_formats() && md_dims_in_range(src_md())
                     && attr_.set_default_formats(dst_md()) == status::success
                     && check_convolution_data_types(data_d, weights_d, dst_d)
                     && check_convolution_formats(data_d, weights_d, dst_d)
@@ -157,7 +158,7 @@ struct ref_convolution_bwd_data_t : public gpu::generic::sycl::primitive_t {
 
             const bool ok = is_bwd_d()
                     && check_convolution_work_amount(weights_d, OC())
-                    && set_default_formats()
+                    && md_dims_in_range(src_md()) && set_default_formats()
                     && check_convolution_data_types(
                             diff_data_d, weights_d, diff_dst_d)
                     && check_convolution_formats(
@@ -212,7 +213,7 @@ struct ref_convolution_bwd_weights_t : public gpu::generic::sycl::primitive_t {
 
             const bool ok = is_bwd_w()
                     && check_convolution_work_amount(diff_weights_d, OC())
-                    && set_default_formats()
+                    && md_dims_in_range(src_md()) && set_default_formats()
                     && check_convolution_data_types(
                             data_d, diff_weights_d, diff_dst_d)
                     && check_convolution_formats(
