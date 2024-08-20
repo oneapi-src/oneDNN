@@ -17,6 +17,7 @@
 #ifndef CPU_X64_JIT_UNI_XF16_SUM_HPP
 #define CPU_X64_JIT_UNI_XF16_SUM_HPP
 
+#include <memory>
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 
@@ -106,12 +107,13 @@ struct jit_avx512_core_bf16_sum_kernel_t
                   - (isa_has_bf16(jsp.isa) ? 1 : 6))
         , bf16_emu_(nullptr) {
         if (!mayiuse(avx512_core_bf16))
-            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserved_1,
-                    bf16_emu_reserved_2, bf16_emu_reserved_3, bf16_emu_scratch,
-                    bf16_emu_reserved_4, bf16_emu_reserved_5);
+            bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
+                    bf16_emu_reserved_1, bf16_emu_reserved_2,
+                    bf16_emu_reserved_3, bf16_emu_scratch, bf16_emu_reserved_4,
+                    bf16_emu_reserved_5);
     }
 
-    ~jit_avx512_core_bf16_sum_kernel_t() { delete bf16_emu_; }
+    ~jit_avx512_core_bf16_sum_kernel_t() = default;
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_bf16_sum_kernel_t)
 
@@ -173,7 +175,7 @@ protected:
         return num_regs;
     }
 
-    bf16_emulation_t *bf16_emu_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     Xbyak::Zmm bf16_emu_reserved_1 = Xbyak::Zmm(26);
     Xbyak::Zmm bf16_emu_reserved_2 = Xbyak::Zmm(27);
