@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,6 +55,13 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
     dnnl_memory(dnnl::impl::engine_t *engine,
             const dnnl::impl::memory_desc_t *md,
             std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage);
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    dnnl_memory(dnnl::impl::engine_t *engine,
+            const dnnl::impl::memory_desc_t *md,
+            std::vector<std::unique_ptr<dnnl::impl::memory_storage_t>>
+                    &&memory_storage);
+#endif
+
     virtual ~dnnl_memory() = default;
 
     /** returns memory's engine */
