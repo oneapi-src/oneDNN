@@ -283,7 +283,7 @@ std::vector<::sycl::device> get_devices(
                                       ::sycl::info::device::device_type>();
                               if (_dev_type != dev_type) return true;
 #if defined(DNNL_SYCL_GENERIC)
-                              // The devices do not have to be filter out by
+                              // The devices do not have to be filtered out by
                               // vendor and backend in the case of generic
                               // vendor.
                               return false;

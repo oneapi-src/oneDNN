@@ -1,3 +1,36 @@
+# Generic GPU support
+
+## General information
+
+Support for a generic GPU is implemented with generic SYCL kernels. The feature
+is disabled by default. Users must enable it at build time with the CMake option
+`DNNL_GPU_VENDOR=GENERIC`. The target GPUs can be used via oneDNN engine
+abstraction. The engine should be created using `dnnl::engine::kind::gpu` engine
+kind or the user can provide `sycl::device` objects that correspond to the
+target GPUs.
+
+## Limitations
+* Supported target devices: Intel and NVIDIA GPUs
+
+## Pre-requisites
+* Intel GPUs
+    * [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html)
+* NVIDIA GPUs
+    * [oneAPI DPC++ Compiler with support for CUDA](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-nvidia-cuda)
+      or [Intel oneAPI DPC++/C++ Compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html#gs.xvbgvc) with [NVIDIA plugin](https://developer.codeplay.com/products/oneapi/nvidia/home)
+
+NOTE: The Intel GPU is the default target and therefore the SYCL kernels are
+always compiled at least for the default target. If the compiler also supports
+NVIDIA GPUs then the SYCL kernels will also be compiled for NVIDIA GPUs.
+
+IMPORTANT: If there are multiple GPUs in the system it is the user's
+responsibility to ensure that the correct SYCL device representing the target
+GPU is selected at runtime. The environment variable `ONEAPI_DEVICE_SELECTOR`
+may be used to restrict the set of devices that can be used. For example, if
+there are Intel and NVIDIA GPUs in the system and the goal is to use the NVIDIA
+one, the environment variable can be set to `cuda:*`.
+
+
 # Supported Primitives
 
 ## Batch Normalization

@@ -203,6 +203,9 @@ is enabled:
     version of MIOpen)
     * [rocBLAS] version 2.45.0 or later (optional if AMD ROCm includes
     the required version of rocBLAS)
+* SYCL runtime with a generic GPU support requires
+    * oneAPI DPC++/C++ Compiler that supports the target GPU. Refer to the
+    [generic GPU vendor readme](src/gpu/generic/sycl/README.md) for more information.
 
 > **WARNING**
 >
