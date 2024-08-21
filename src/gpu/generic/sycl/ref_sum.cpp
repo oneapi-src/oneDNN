@@ -68,30 +68,12 @@ status_t ref_sum_t::execute(const exec_ctx_t &ctx) const {
                 = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MULTIPLE_SRC + 6);
         auto src7_mem_arg
                 = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MULTIPLE_SRC + 7);
-        auto src8_mem_arg
-                = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MULTIPLE_SRC + 8);
-        auto src9_mem_arg
-                = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MULTIPLE_SRC + 9);
-        auto src10_mem_arg
-                = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MULTIPLE_SRC + 10);
-        auto src11_mem_arg
-                = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MULTIPLE_SRC + 11);
-        auto src12_mem_arg
-                = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MULTIPLE_SRC + 12);
-        auto src13_mem_arg
-                = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MULTIPLE_SRC + 13);
-        auto src14_mem_arg
-                = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MULTIPLE_SRC + 14);
-        auto src15_mem_arg
-                = CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MULTIPLE_SRC + 15);
 
         auto dst_mem_arg = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
 
         sum_kernel_vec_t sum_kernel(pd()->conf_, src0_mem_arg, src1_mem_arg,
                 src2_mem_arg, src3_mem_arg, src4_mem_arg, src5_mem_arg,
-                src6_mem_arg, src7_mem_arg, src8_mem_arg, src9_mem_arg,
-                src10_mem_arg, src11_mem_arg, src12_mem_arg, src13_mem_arg,
-                src14_mem_arg, src15_mem_arg, dst_mem_arg);
+                src6_mem_arg, src7_mem_arg, dst_mem_arg);
 
         const int block_size = pd()->conf_.block_size;
         const int wg_size = pd()->conf_.wg_size;

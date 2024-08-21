@@ -380,7 +380,8 @@ struct sycl_pooling_fwd_conf_t : public sycl_pooling_base_conf_t {
     sycl_post_ops_t post_ops;
 };
 
-#define DNNL_REF_SUM_MAX_NUM_TENSORS 16
+// Intel GPU kernel fails to run with more than 8 tensors.
+#define DNNL_REF_SUM_MAX_NUM_TENSORS 8
 
 struct sycl_sum_conf_t {
     xpu::sycl::md_t src_md[DNNL_REF_SUM_MAX_NUM_TENSORS];
