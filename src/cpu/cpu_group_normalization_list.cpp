@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 #if DNNL_X64
 #include "cpu/x64/jit_uni_group_normalization.hpp"
+#include "cpu/x64/jit_uni_instance_normalization.hpp"
 using namespace dnnl::impl::cpu::x64;
 #endif
 
@@ -36,6 +37,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
     static const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> the_map = REG_GNORM_P({
         {{forward}, {
             CPU_INSTANCE_X64(jit_uni_group_normalization_fwd_t)
+            CPU_INSTANCE_X64(jit_uni_instance_normalization_fwd_t)
             CPU_INSTANCE(ncsp_group_normalization_fwd_t)
             CPU_INSTANCE(ref_group_normalization_fwd_t)
             nullptr,

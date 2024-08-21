@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_UNI_GROUP_NORMALIZATION_HPP
-#define CPU_X64_JIT_UNI_GROUP_NORMALIZATION_HPP
+#ifndef CPU_X64_JIT_UNI_INSTANCE_NORMALIZATION_HPP
+#define CPU_X64_JIT_UNI_INSTANCE_NORMALIZATION_HPP
 
 #include "common/primitive.hpp"
 
@@ -28,14 +28,15 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-struct jit_uni_group_normalization_fwd_t : public primitive_t {
+struct jit_uni_instance_normalization_fwd_t : public primitive_t {
     using primitive_t::primitive_t;
 
     struct pd_t : public cpu_group_normalization_fwd_pd_t {
         using cpu_group_normalization_fwd_pd_t::
                 cpu_group_normalization_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("jit_group:uni", jit_uni_group_normalization_fwd_t);
+        DECLARE_COMMON_PD_T(
+                "jit_instance:uni", jit_uni_instance_normalization_fwd_t);
 
         status_t init(engine_t *engine);
 

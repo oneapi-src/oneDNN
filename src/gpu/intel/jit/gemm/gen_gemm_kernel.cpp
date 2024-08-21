@@ -64,20 +64,18 @@ compute::scalar_type_t gen_gemm_kernel_desc_t::scalar_type() const {
 status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
     // Update problem alignments to match catalog entry.
     if (!isPacked(problem_.A.layout)) {
-        problem_.A.setAlignment(
-                std::max(problem_.Ta.isInt4() ? 1 : problem_.Ta.size(),
-                        entry_->driverInfo.alignment[0]));
+        problem_.A.setAlignment(std::max(
+                problem_.Ta_ext.paddedSize(), entry_->driverInfo.alignment[0]));
     }
 
     if (!isPacked(problem_.B.layout)) {
-        problem_.B.setAlignment(
-                std::max(problem_.Ta.isInt4() ? 1 : problem_.Ta.size(),
-                        entry_->driverInfo.alignment[1]));
+        problem_.B.setAlignment(std::max(
+                problem_.Tb_ext.paddedSize(), entry_->driverInfo.alignment[1]));
     }
 
     if (!isPacked(problem_.C.layout)) {
-        problem_.C.setAlignment(std::max(
-                problem_.Tc_ext.size(), entry_->restrictions.alignment[2]));
+        problem_.C.setAlignment(std::max(problem_.Tc_ext.paddedSize(),
+                entry_->restrictions.alignment[2]));
     }
 
     problem_.CO.setAlignment(problem_.Tco.size());
@@ -827,6 +825,7 @@ void gen_gemm_kernel_t::init_interface() {
 xpu::binary_t gen_gemm_kernel_t::get_binary(
         cl_context context, cl_device_id device) {
     init_interface();
+    maybe_print_verbose();
 
 #define ARCH_DISPATCH(arch) \
     case ngen::HW::arch: { \
@@ -855,6 +854,28 @@ xpu::binary_t gen_gemm_kernel_t::get_binary(
     return {};
 
 #undef ARCH_DISPATCH
+}
+
+void gen_gemm_kernel_t::maybe_print_verbose() {
+    int level = get_verbose(verbose_t::debuginfo);
+    if (level < 2) return;
+
+    const auto &problem = desc()->problem_;
+    const auto &strategy = desc()->strategy_;
+
+    auto pstr = problem.toString();
+    auto astr = problem.scalarsToString();
+    auto sstr = unparseStrategy(desc()->hw_, problem, strategy);
+
+    if (!astr.empty()) astr += ' ';
+
+    if (level >= 10)
+        printf("onednn_verbose,info,gpu,gemm,catalog entry:%s\n",
+                desc()->entry().str().c_str());
+
+    printf("onednn_verbose,info,gpu,gemm,kernel:%s %d %d %s%s\n", pstr.c_str(),
+            strategy.unroll[LoopM], strategy.unroll[LoopN], astr.c_str(),
+            sstr.c_str());
 }
 
 } // namespace jit

@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2022-2023 Intel Corporation
-* Copyright 2023 FUJITSU LIMITED
+* Copyright 2023-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -145,7 +145,7 @@ int calculate_max_bcast_block(brgemm_t *brg, const int adj_ld_block2) {
             && brg->zp_type_a != brgemm_broadcast_t::none;
     const int beta_regs = !one_of(brg->beta, 1.f, 0.f);
 
-    const int max_isa_regs = 32;
+    const int max_isa_regs = isa_num_vregs(brg->isa_impl);
     // note: the 'adj_ld_block2' already removes the necessary registers
     // for 'embd_bcst'
     auto max_reg_count = max_isa_regs - max_bcst_regs - beta_regs
@@ -189,6 +189,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
 
     set_isa_impl(brg);
     if (brg->isa_impl == isa_undef) return status::unimplemented;
+    assert(!brg->is_dgmm); // should not be called from brdgmm
     set_brg_vmm(brg);
     if (!(brg->is_zmm || brg->is_ymm)) return status::unimplemented;
 
@@ -247,10 +248,11 @@ status_t brdgmm_blocking(brgemm_t *brg) {
 
     const int requires_permute_dst_vmm = brg->isa_impl == sve_512
             && jit_brdgmm_kernel_base_t::is_fast_vnni_int8(*brg);
-    const int max_vregs = 32;
+    const int max_vregs = isa_num_vregs(brg->isa_impl);
+    const int compute_vregs = 2; // b_vmm + a_vmm
     const int aux_vregs
             = nstl::max(brg->is_bf16_emu * 4, 2) + requires_permute_dst_vmm;
-    const int max_acc_vmms = max_vregs - aux_vregs;
+    const int max_acc_vmms = max_vregs - aux_vregs - compute_vregs;
     const int simd_w = isa_max_vlen(brg->isa_impl) / brg->typesize_C;
 
     auto &M = brg->bcast_dim;

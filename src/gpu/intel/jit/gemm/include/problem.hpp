@@ -247,6 +247,9 @@ struct GEMMProblem : public CommonProblem {
     inline void autoTypeConversions(ngen::HW hw, bool systolicAvailable);
     void transpose();
 
+    std::string toString() const;
+    std::string scalarsToString() const;
+
     /* Serialization for kernel cache. */
     void serialize(serialized_data_t &s) const
     {
