@@ -45,6 +45,7 @@ struct bitcast {
 
 template <typename T> static inline constexpr14 int bsf(T x)
 {
+    if (!x) return static_cast<int>(sizeof(T) * 8);
 #if defined(_MSC_VER)
     unsigned long index = 0;
     if (sizeof(T) > 4)
@@ -62,6 +63,7 @@ template <typename T> static inline constexpr14 int bsf(T x)
 
 template <typename T> static inline constexpr14 int bsr(T x)
 {
+    if (!x) return static_cast<int>(sizeof(T) * 8);
 #if defined(_MSC_VER)
     unsigned long index = 0;
     if (sizeof(T) > 4)
