@@ -197,6 +197,7 @@ inline std::vector<std::string> split(const std::string &s,
 }
 
 std::string get_desc_str(const params_t &conf);
+std::string get_nhwc_desc_str(const params_t &conf);
 
 enum class op_kind_t {
     undef,
@@ -234,7 +235,7 @@ class bnorm_problem_filter_t {
 public:
     using key_t = std::string;
     bnorm_problem_filter_t(const std::string &s);
-    key_t key() const { return desc_; }
+    key_t key() const { return nhwc_desc_; }
     bool matches(
             const params_t &conf, const compute::gpu_arch_t &gpu_arch) const;
 
@@ -248,6 +249,7 @@ private:
     std::string dir_;
     type_filter_t type_filter_;
     std::string desc_;
+    std::string nhwc_desc_;
     std::string tag_;
     normalization_flags_t flags_filter_;
     compute::gpu_arch_t hw_;
