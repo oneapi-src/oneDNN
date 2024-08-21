@@ -51,13 +51,7 @@ struct sum_kernel_vec_t {
             xpu::sycl::in_memory_arg_t &src2, xpu::sycl::in_memory_arg_t &src3,
             xpu::sycl::in_memory_arg_t &src4, xpu::sycl::in_memory_arg_t &src5,
             xpu::sycl::in_memory_arg_t &src6, xpu::sycl::in_memory_arg_t &src7,
-            xpu::sycl::in_memory_arg_t &src8, xpu::sycl::in_memory_arg_t &src9,
-            xpu::sycl::in_memory_arg_t &src10,
-            xpu::sycl::in_memory_arg_t &src11,
-            xpu::sycl::in_memory_arg_t &src12,
-            xpu::sycl::in_memory_arg_t &src13,
-            xpu::sycl::in_memory_arg_t &src14,
-            xpu::sycl::in_memory_arg_t &src15, xpu::sycl::out_memory_arg_t &dst)
+            xpu::sycl::out_memory_arg_t &dst)
         : conf_(conf)
         , src0_(src0)
         , src1_(src1)
@@ -67,14 +61,6 @@ struct sum_kernel_vec_t {
         , src5_(src5)
         , src6_(src6)
         , src7_(src7)
-        , src8_(src8)
-        , src9_(src9)
-        , src10_(src10)
-        , src11_(src11)
-        , src12_(src12)
-        , src13_(src13)
-        , src14_(src14)
-        , src15_(src15)
         , dst_(dst) {}
 
     void operator()(::sycl::nd_item<1> item) const {
@@ -99,7 +85,8 @@ struct sum_kernel_vec_t {
                 for (int i = 0; i < max_supported_ndims; i++) {
                     off[i] = idx / strides[i] % dims[i];
                 }
-                auto result = load_float_val(src0_ptr(), conf_.src_md[0], off);
+                auto result = conf_.src_scales[0]
+                        * load_float_val(src0_ptr(), conf_.src_md[0], off);
 
 #define ONEDNN_SYCL_SUM_ADD_ARG(ARG_N) \
     if (conf_.n > ARG_N) \
@@ -114,14 +101,6 @@ struct sum_kernel_vec_t {
                 ONEDNN_SYCL_SUM_ADD_ARG(5)
                 ONEDNN_SYCL_SUM_ADD_ARG(6)
                 ONEDNN_SYCL_SUM_ADD_ARG(7)
-                ONEDNN_SYCL_SUM_ADD_ARG(8)
-                ONEDNN_SYCL_SUM_ADD_ARG(9)
-                ONEDNN_SYCL_SUM_ADD_ARG(11)
-                ONEDNN_SYCL_SUM_ADD_ARG(11)
-                ONEDNN_SYCL_SUM_ADD_ARG(12)
-                ONEDNN_SYCL_SUM_ADD_ARG(13)
-                ONEDNN_SYCL_SUM_ADD_ARG(14)
-                ONEDNN_SYCL_SUM_ADD_ARG(15)
 #undef ONEDNN_SYCL_SUM_ADD_ARG
 
                 store_float_value(
@@ -144,14 +123,6 @@ private:
     void *src5_ptr() const { return src5_.get_pointer(); }
     void *src6_ptr() const { return src6_.get_pointer(); }
     void *src7_ptr() const { return src7_.get_pointer(); }
-    void *src8_ptr() const { return src8_.get_pointer(); }
-    void *src9_ptr() const { return src9_.get_pointer(); }
-    void *src10_ptr() const { return src10_.get_pointer(); }
-    void *src11_ptr() const { return src11_.get_pointer(); }
-    void *src12_ptr() const { return src12_.get_pointer(); }
-    void *src13_ptr() const { return src13_.get_pointer(); }
-    void *src14_ptr() const { return src14_.get_pointer(); }
-    void *src15_ptr() const { return src15_.get_pointer(); }
     void *dst_ptr() const { return dst_.get_pointer(); }
 
     sycl_sum_conf_t conf_;
@@ -164,14 +135,6 @@ private:
     xpu::sycl::in_memory_arg_t src5_;
     xpu::sycl::in_memory_arg_t src6_;
     xpu::sycl::in_memory_arg_t src7_;
-    xpu::sycl::in_memory_arg_t src8_;
-    xpu::sycl::in_memory_arg_t src9_;
-    xpu::sycl::in_memory_arg_t src10_;
-    xpu::sycl::in_memory_arg_t src11_;
-    xpu::sycl::in_memory_arg_t src12_;
-    xpu::sycl::in_memory_arg_t src13_;
-    xpu::sycl::in_memory_arg_t src14_;
-    xpu::sycl::in_memory_arg_t src15_;
     xpu::sycl::out_memory_arg_t dst_;
 };
 

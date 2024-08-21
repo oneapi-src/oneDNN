@@ -50,7 +50,7 @@ struct ref_sum_many_inputs_t : public gpu::generic::sycl::primitive_t {
                     && n > DNNL_REF_SUM_MAX_NUM_TENSORS; // prevent inf recursion
             if (!ok) return status::unimplemented;
 
-            // the first kernel handles up to 16 inputs and remaining ones up to 15
+            // the first kernel handles up to 8 inputs and remaining ones up to 7
             const int n_kernels = n == 1
                     ? 1
                     : utils::div_up(n - 1, DNNL_REF_SUM_MAX_NUM_TENSORS - 1);
