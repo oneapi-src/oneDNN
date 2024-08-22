@@ -52,10 +52,12 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
             for (int i = 0; i < post_ops.len(); i++) {
                 const auto &entry = post_ops.entry_[i];
                 if (!entry.is_binary()) continue;
-                has_f8_e5m2_binary_postops = entry.binary.src1_desc.data_type
-                        == data_type::f8_e5m2;
-                has_f8_e4m3_binary_postops = entry.binary.src1_desc.data_type
-                        == data_type::f8_e4m3;
+                has_f8_e5m2_binary_postops
+                        = entry.binary.src1_desc.data_type == data_type::f8_e5m2
+                        || has_f8_e5m2_binary_postops;
+                has_f8_e4m3_binary_postops
+                        = entry.binary.src1_desc.data_type == data_type::f8_e4m3
+                        || has_f8_e4m3_binary_postops;
             }
         }
 
