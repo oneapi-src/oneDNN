@@ -276,7 +276,14 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
 // object `mem`. The size of `mem` must not be less than the size of `md`.
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL || defined(DNNL_WITH_SYCL)
 static int init_memory(
-        dnnl_memory_t *ret, const dnnl_memory_desc_t &md, dnnl_memory_t mem) {
+        dnnl_memory_t *ret, const dnnl_memory_desc_t &md, dnnl_memory_t mem
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        ,
+        const dnn_mem_t::handle_info_t &handle_info
+#endif
+#endif
+) {
     void *handle;
     DNN_SAFE(dnnl_memory_get_data_handle(mem, &handle), CRIT);
 
@@ -292,9 +299,23 @@ static int init_memory(
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         dnnl_ocl_interop_memory_kind_t mem_kind;
         DNN_SAFE(dnnl_ocl_interop_memory_get_memory_kind(mem, &mem_kind), CRIT);
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        const int nhandles = query_md_num_handles(md);
+        if (nhandles > 1) {
+            std::vector<void *> handles(nhandles, handle_info.ptr);
+            DNN_SAFE(dnnl_ocl_interop_memory_create_v2(ret, md, engine,
+                             mem_kind, (int)handles.size(), handles.data()),
+                    CRIT);
+        } else {
+            DNN_SAFE(dnnl_ocl_interop_memory_create(
+                             ret, md, engine, mem_kind, handle),
+                    CRIT);
+        }
+#else
         DNN_SAFE(dnnl_ocl_interop_memory_create(
                          ret, md, engine, mem_kind, handle),
                 CRIT);
+#endif
 #endif
     } else if (is_sycl) {
 #ifdef DNNL_WITH_SYCL
@@ -317,9 +338,12 @@ static int init_memory(
 void dnn_mem_t::map() const {
     assert(!is_mapped_ && "memory is already mapped");
     is_mapped_ = true;
-
     if (!m_) return;
-    auto mem = m_padded_ ? m_padded_ : m_;
+
+    bool is_opencl = is_opencl_engine(engine_);
+    bool is_sparse = (md_->format_kind == dnnl::impl::format_kind::sparse);
+    auto mem = (is_sparse && is_opencl) ? m_ : (m_padded_ ? m_padded_ : m_);
+
     const int nhandles = query_md_num_handles(md_);
     mapped_ptrs_.resize(nhandles);
     for (int i = 0; i < nhandles; i++) {
@@ -346,7 +370,10 @@ void dnn_mem_t::unmap() const {
     is_mapped_ = false;
 
     if (!m_) return;
-    auto mem = m_padded_ ? m_padded_ : m_;
+
+    bool is_opencl = is_opencl_engine(engine_);
+    bool is_sparse = (md_->format_kind == dnnl::impl::format_kind::sparse);
+    auto mem = (is_sparse && is_opencl) ? m_ : (m_padded_ ? m_padded_ : m_);
     const int nhandles = query_md_num_handles(md_);
     for (int i = 0; i < nhandles; i++) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
@@ -452,6 +479,8 @@ size_t dnn_mem_t::pad_memory_size(
 
 dnnl_memory_desc_t dnn_mem_t::pad_memory_desc(const_dnnl_memory_desc_t md,
         dnnl_engine_kind_t engine_kind, bool *was_padded) {
+    bool is_sparse = (md->format_kind == dnnl::impl::format_kind::sparse);
+    if (is_sparse) return nullptr;
     if (was_padded) *was_padded = false;
     size_t old_sz = dnnl_memory_desc_get_size(md);
     if (old_sz == 0 || !has_bench_mode_bit(mode_bit_t::corr)
@@ -610,7 +639,11 @@ int dnn_mem_t::initialize_memory_create_opencl(
             DNN_SAFE(dnnl_ocl_interop_memory_create(&m_padded_, md_padded,
                              engine_, mem_kind, handle_info.ptr),
                     CRIT);
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            SAFE(init_memory(&m_, md_, m_padded_, handle_info), CRIT);
+#else
             SAFE(init_memory(&m_, md_, m_padded_), CRIT);
+#endif
             break;
         }
         case memory_kind_ext_t::usm_device:
@@ -630,7 +663,12 @@ int dnn_mem_t::initialize_memory_create_opencl(
             DNN_SAFE(dnnl_ocl_interop_memory_create(&m_padded_, md_padded,
                              engine_, dnnl_ocl_interop_usm, data_[0]),
                     CRIT);
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            SAFE(init_memory(&m_, md_, m_padded_, handle_info), CRIT);
+#else
             SAFE(init_memory(&m_, md_, m_padded_), CRIT);
+#endif
             break;
         }
         default: assert(!"not expected");
