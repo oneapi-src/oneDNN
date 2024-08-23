@@ -934,8 +934,10 @@ status_t jit_uni_group_normalization_fwd_t::execute_forward(
                         + data_off * src_d.data_type_size();
                 char *__restrict dst_ptr = static_cast<char *>(dst)
                         + data_off * dst_d.data_type_size();
-                const float *__restrict scale_ptr = scale + (i % G) * C_PER_G;
-                const float *__restrict shift_ptr = shift + (i % G) * C_PER_G;
+                const float *__restrict scale_ptr
+                        = scale ? scale + (i % G) * C_PER_G : nullptr;
+                const float *__restrict shift_ptr
+                        = shift ? shift + (i % G) * C_PER_G : nullptr;
                 float *mean_ptr = mean + i;
                 float *var_ptr = variance + i;
 
@@ -1053,8 +1055,10 @@ status_t jit_uni_group_normalization_fwd_t::execute_forward(
                         + data_off * src_d.data_type_size();
                 char *__restrict dst_ptr = static_cast<char *>(dst)
                         + data_off * dst_d.data_type_size();
-                const float *__restrict scale_ptr = scale + (i % G) * C_PER_G;
-                const float *__restrict shift_ptr = shift + (i % G) * C_PER_G;
+                const float *__restrict scale_ptr
+                        = scale ? scale + (i % G) * C_PER_G : nullptr;
+                const float *__restrict shift_ptr
+                        = shift ? shift + (i % G) * C_PER_G : nullptr;
 
                 float *mean_ptr = mean + (i % G) + (i / g_per_n) * G;
                 float *var_ptr = variance + (i % G) + (i / g_per_n) * G;

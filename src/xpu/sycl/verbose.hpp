@@ -62,7 +62,8 @@ void print_verbose_header(engine_kind_t kind) {
                                 eng.get())
                                   ->device_info()
                         : nullptr;
-                auto s_binary_kernels = dev_info->mayiuse_ngen_kernels()
+                auto s_binary_kernels
+                        = dev_info && dev_info->mayiuse_ngen_kernels()
                         ? "enabled"
                         : "disabled";
 

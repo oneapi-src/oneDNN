@@ -55,7 +55,7 @@ public:
 #ifdef DNNL_WITH_SYCL
         assert(!"This interface is not for use with SYCL");
         return status::runtime_error;
-#endif
+#else
         status_t status;
         std::vector<cl_device_id> ocl_devices;
 
@@ -67,6 +67,7 @@ public:
                 VERBOSE_INVALID_ENGINE_IDX, ocl_devices.size(), "ocl", index);
 
         return engine_create(engine, ocl_devices[index], nullptr, index);
+#endif
     }
 
     status_t engine_create(impl::engine_t **engine, cl_device_id device,
@@ -76,8 +77,9 @@ public:
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
         return gpu::intel::ocl::engine_create(
                 engine, engine_kind::gpu, device, context, index, cache_blob);
-#endif
+#else
         return status::runtime_error;
+#endif
     }
 };
 } // namespace ocl

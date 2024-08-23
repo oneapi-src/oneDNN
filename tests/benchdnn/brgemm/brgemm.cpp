@@ -1235,8 +1235,9 @@ int doit(const prb_t *prb, res_t *res) {
         offsets[2 * i + 1] = i * prb->get_wei_batch_offset();
     }
 
-    dnnl_ukernel_attr_params_t attr_params;
-    DNN_SAFE(dnnl_ukernel_attr_params_create(&attr_params), WARN);
+    dnnl_ukernel_attr_params_t attr_params_ptr;
+    DNN_SAFE(dnnl_ukernel_attr_params_create(&attr_params_ptr), WARN);
+    auto attr_params = make_benchdnn_dnnl_wrapper(attr_params_ptr);
     DNN_SAFE(dnnl_ukernel_attr_params_set_post_ops_args(
                      attr_params, binary_po_v.data()),
             WARN);

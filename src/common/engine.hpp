@@ -89,6 +89,8 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
         dnnl::impl::stream_t *s;
         CHECK(create_stream(&s, stream_impl.get()));
+        // stream (`s`) takes ownership of `stream_impl` if `create_stream` call
+        // is successful.
         stream_impl.release();
         *stream = s;
         return dnnl::impl::status::success;

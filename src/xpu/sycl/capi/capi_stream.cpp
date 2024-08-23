@@ -46,6 +46,9 @@ status_t dnnl_sycl_interop_stream_create(
     if (!stream_impl) return status::out_of_memory;
 
     CHECK(engine->create_stream(stream, stream_impl.get()));
+    // `create_stream` captures `stream_impl_ptr` internally. To avoid double
+    // free of the same object, `stream_impl` releases it and delegates freeing
+    // part to the stream.
     stream_impl.release();
     return status::success;
 }

@@ -58,10 +58,10 @@ void print_verbose_header() {
                 "s\n",
                 (int)i, s_name.c_str(), s_ver.c_str(),
                 dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
-        return;
-#endif
+#else
         verbose_printf("info,gpu,engine,%d,name:%s,driver_version:%s\n", (int)i,
                 s_name.c_str(), s_ver.c_str());
+#endif
         eng_ptr->release();
     }
 }
