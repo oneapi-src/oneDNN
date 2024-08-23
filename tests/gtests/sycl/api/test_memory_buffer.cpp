@@ -388,6 +388,32 @@ TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
     }
 }
 
+TEST_P(sycl_memory_buffer_test, MemoryOutOfScope) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    SKIP_IF(eng_kind == engine::kind::cpu,
+            "Skip this test for classic CPU runtime");
+#endif
+    engine eng(eng_kind, 0);
+
+    memory::dim n = 2048;
+    memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::a);
+
+    auto eltwise_pd = eltwise_forward::primitive_desc(eng, prop_kind::forward,
+            algorithm::eltwise_relu, mem_d, mem_d, 0.0f);
+    auto eltwise = eltwise_forward(eltwise_pd);
+
+    stream s(eng);
+    {
+        memory mem = sycl_interop::make_memory(
+                mem_d, eng, sycl_interop::memory_kind::buffer);
+        eltwise.execute(s, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
+    }
+    s.wait();
+}
+
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 TEST_P(sycl_memory_buffer_test, TestSparseMemoryCreation) {
     engine::kind eng_kind = GetParam();

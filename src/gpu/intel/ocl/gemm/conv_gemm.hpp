@@ -188,25 +188,31 @@ struct conv_gemm_t : public gpu_gemm_t {
 
     status_t execute(const gemm_exec_ctx_t &ctx) const override {
         exec_args_t args;
-        memory_t a(ctx.stream()->engine(), pd()->conv_pd->src_md(0),
-                ctx.args().a->clone());
-        memory_t b(ctx.stream()->engine(), pd()->conv_pd->src_md(1),
-                ctx.args().b->clone());
-        memory_t c(ctx.stream()->engine(), pd()->conv_pd->dst_md(),
-                ctx.args().c->clone());
+        std::unique_ptr<memory_t, memory_deleter_t> a;
+        CHECK(safe_ptr_assign(
+                a = new memory_t(ctx.stream()->engine(),
+                        pd()->conv_pd->src_md(0), ctx.args().a->clone())));
+        std::unique_ptr<memory_t, memory_deleter_t> b;
+        CHECK(safe_ptr_assign(
+                b = new memory_t(ctx.stream()->engine(),
+                        pd()->conv_pd->src_md(1), ctx.args().b->clone())));
+        std::unique_ptr<memory_t, memory_deleter_t> c;
+        CHECK(safe_ptr_assign(
+                c = new memory_t(ctx.stream()->engine(),
+                        pd()->conv_pd->dst_md(), ctx.args().c->clone())));
 
-        std::unique_ptr<memory_t> bias = [&] {
+        std::unique_ptr<memory_t, memory_deleter_t> bias = [&] {
             if (ctx.args().bias) {
                 return utils::make_unique<memory_t>(ctx.stream()->engine(),
                         pd()->conv_pd->src_md(2), ctx.args().bias->clone());
             } else {
-                return std::unique_ptr<memory_t>();
+                return std::unique_ptr<memory_t, memory_deleter_t>();
             }
         }();
 
-        args[DNNL_ARG_SRC] = {&a, true};
-        args[DNNL_ARG_WEIGHTS] = {&b, true};
-        args[DNNL_ARG_DST] = {&c, false};
+        args[DNNL_ARG_SRC] = {a.get(), true};
+        args[DNNL_ARG_WEIGHTS] = {b.get(), true};
+        args[DNNL_ARG_DST] = {c.get(), false};
         if (bias) args[DNNL_ARG_BIAS] = {bias.get(), true};
 
         auto exec_ctx = ctx.into_exec_ctx_t(std::move(args));

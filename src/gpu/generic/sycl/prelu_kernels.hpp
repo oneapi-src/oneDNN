@@ -148,7 +148,7 @@ struct prelu_bwd_kernel_vec_t {
 
     prelu_bwd_kernel_vec_t(const sycl_prelu_conf_t &conf, ::sycl::handler &cgh,
             const exec_ctx_t &ctx, bool reduce_diff_weights,
-            std::unique_ptr<memory_t> &scratch_mem)
+            std::unique_ptr<memory_t, memory_deleter_t> &scratch_mem)
         : conf_(conf)
         , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
         , diff_data_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))

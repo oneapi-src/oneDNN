@@ -92,7 +92,7 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto &src = CTX_IN_STORAGE(DNNL_ARG_FROM);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_TO);
 
-    std::unique_ptr<memory_t> wspace;
+    std::unique_ptr<memory_t, memory_deleter_t> wspace;
     if (pd()->do_reorder_) {
         auto src_engine_kind = pd()->desc()->src_engine_kind;
         auto reorder_engine_kind = pd()->reorder_engine_kind_;

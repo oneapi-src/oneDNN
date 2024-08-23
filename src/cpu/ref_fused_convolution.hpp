@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -406,7 +406,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
 
         const auto &ctx_args = ctx.args();
         const auto op_count = primitives_.size();
-        std::vector<std::unique_ptr<memory_t>> inout_memory;
+        std::vector<std::unique_ptr<memory_t, memory_deleter_t>> inout_memory;
 
         for (size_t i = 0; i < op_count; ++i) {
             const auto &op = primitives_[i];

@@ -62,8 +62,6 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
                     &&memory_storage);
 #endif
 
-    virtual ~dnnl_memory() = default;
-
     /** returns memory's engine */
     dnnl::impl::engine_t *engine() const { return engine_; }
     /** returns memory's description */
@@ -100,7 +98,15 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
 
     size_t get_num_handles() const { return memory_storages_.size(); }
 
+    void retain() { counter_++; }
+
+    void release() {
+        if (--counter_ == 0) { delete this; }
+    }
+
 protected:
+    virtual ~dnnl_memory() = default;
+
     dnnl::impl::engine_t *engine_;
     const dnnl::impl::memory_desc_t md_;
 
@@ -110,6 +116,17 @@ private:
 
     // Number of storages is larger than 1 only for sparse memory.
     std::vector<std::unique_ptr<dnnl::impl::memory_storage_t>> memory_storages_;
+    std::atomic<int> counter_;
 };
+
+namespace dnnl {
+namespace impl {
+
+struct memory_deleter_t {
+    void operator()(memory_t *m) const { m->release(); }
+};
+
+} // namespace impl
+} // namespace dnnl
 
 #endif

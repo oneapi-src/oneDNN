@@ -207,7 +207,7 @@ void gemm_with_post_ops_t::pd_t::init_scratchpad() {
 }
 
 status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
-    std::unique_ptr<memory_t> c_mem_before_po_worker;
+    std::unique_ptr<memory_t, memory_deleter_t> c_mem_before_po_worker;
     status_t exec_status;
     gemm_exec_args_t g_args(ctx.args());
 

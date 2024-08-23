@@ -542,7 +542,7 @@ status_t atomic_reduction_t::execute_atomic(const exec_ctx_t &ctx) const {
     // Run a finalization kernel if needed
     if (pd()->needs_finalization) {
         exec_args_t eltwise_args;
-        std::unique_ptr<memory_t> eltwise_src;
+        std::unique_ptr<memory_t, memory_deleter_t> eltwise_src;
         CHECK(safe_ptr_assign(eltwise_src,
                 new memory_t(ctx.stream()->engine(), pd()->dst_md(0),
                         std::move(sp_reduce[(num_phases - 1) % 2]))));

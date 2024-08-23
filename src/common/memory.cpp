@@ -71,7 +71,7 @@ size_t memory_desc_map_size(const memory_desc_t *md, int index = 0) {
 dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
         const dnnl::impl::memory_desc_t *md, const std::vector<unsigned> &flags,
         const std::vector<void *> &handles)
-    : engine_(engine), md_(*md) {
+    : engine_(engine), md_(*md), counter_(1) {
 
     const size_t nhandles = handles.size();
     std::vector<std::unique_ptr<dnnl::impl::memory_storage_t>> mem_storages(
@@ -91,7 +91,7 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
 dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
         const dnnl::impl::memory_desc_t *md,
         std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage)
-    : engine_(engine), md_(*md) {
+    : engine_(engine), md_(*md), counter_(1) {
     this->reset_memory_storage(std::move(memory_storage));
 }
 
@@ -100,7 +100,7 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
         const dnnl::impl::memory_desc_t *md,
         std::vector<std::unique_ptr<dnnl::impl::memory_storage_t>>
                 &&memory_storages)
-    : engine_(engine), md_(*md) {
+    : engine_(engine), md_(*md), counter_(1) {
     memory_storages_ = std::move(memory_storages);
 }
 #endif
@@ -166,7 +166,7 @@ status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
     auto _memory = new memory_t(engine, md, flags, handle_ptr);
     if (_memory == nullptr) return out_of_memory;
     if (_memory->memory_storage() == nullptr) {
-        delete _memory;
+        _memory->release();
         return out_of_memory;
     }
     *memory = _memory;
@@ -209,7 +209,7 @@ status_t dnnl_memory_create_v2(memory_t **memory, const memory_desc_t *md,
     if (_memory == nullptr) return out_of_memory;
     for (size_t i = 0; i < handles_vec.size(); i++) {
         if (_memory->memory_storage((int)i) == nullptr) {
-            delete _memory;
+            _memory->release();
             return out_of_memory;
         }
     }
@@ -303,7 +303,7 @@ status_t dnnl_memory_unmap_data(const memory_t *memory, void *mapped_ptr) {
 }
 
 status_t dnnl_memory_destroy(memory_t *memory) {
-    delete memory;
+    if (memory != nullptr) memory->release();
     return success;
 }
 

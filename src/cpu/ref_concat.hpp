@@ -145,8 +145,10 @@ struct ref_concat_t : public primitive_t {
                     = scratchpad.get_memory_storage(key_concat_tent_dst);
 
             for (int i = 0; i < n; ++i) {
-                memory_t tent_dst_i(engine, pd()->src_image_md(i),
-                        tent_dst_storage->clone());
+                std::unique_ptr<memory_t, memory_deleter_t> tent_dst_i;
+                CHECK(safe_ptr_assign(tent_dst_i,
+                        new memory_t(engine, pd()->src_image_md(i),
+                                tent_dst_storage->clone())));
                 const auto &src_scales_arg = ctx.args().find(
                         DNNL_ARG_ATTR_SCALES | (DNNL_ARG_MULTIPLE_SRC + i));
                 const memory_arg_t *src_scales = nullptr;
@@ -154,18 +156,22 @@ struct ref_concat_t : public primitive_t {
                     src_scales = &src_scales_arg->second;
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst_i, false}, src_scales, i);
+                        {tent_dst_i.get(), false}, src_scales, i);
             }
 
-            memory_t tent_dst(
-                    engine, &pd()->tent_dst_md_, tent_dst_storage->clone());
-            execute_reorder(reorders_[n], {&tent_dst, true},
+            std::unique_ptr<memory_t, memory_deleter_t> tent_dst;
+            CHECK(safe_ptr_assign(tent_dst,
+                    new memory_t(engine, &pd()->tent_dst_md_,
+                            tent_dst_storage->clone())));
+            execute_reorder(reorders_[n], {tent_dst.get(), true},
                     ctx.args().at(DNNL_ARG_DST), nullptr, n);
         } else {
             auto &dst_mem_storage = CTX_OUT_STORAGE(DNNL_ARG_DST);
             for (int i = 0; i < n; ++i) {
-                memory_t tent_dst_i(
-                        engine, pd()->src_image_md(i), dst_mem_storage.clone());
+                std::unique_ptr<memory_t, memory_deleter_t> tent_dst_i;
+                CHECK(safe_ptr_assign(tent_dst_i,
+                        new memory_t(engine, pd()->src_image_md(i),
+                                dst_mem_storage.clone())));
                 const auto &src_scales_arg = ctx.args().find(
                         DNNL_ARG_ATTR_SCALES | (DNNL_ARG_MULTIPLE_SRC + i));
                 const memory_arg_t *src_scales = nullptr;
@@ -173,7 +179,7 @@ struct ref_concat_t : public primitive_t {
                     src_scales = &src_scales_arg->second;
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst_i, false}, src_scales, i);
+                        {tent_dst_i.get(), false}, src_scales, i);
             }
         }
         return status::success;

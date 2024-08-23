@@ -159,7 +159,7 @@ status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
     const auto &conf = pd()->conf;
 
-    std::unique_ptr<memory_t> diff_weights_to_reduce;
+    std::unique_ptr<memory_t, memory_deleter_t> diff_weights_to_reduce;
     if (conf.reduce_diff_weights) {
         auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                 memory_tracking::names::key_prelu_reduction);

@@ -320,7 +320,8 @@ public:
                     CHECK(primitive->parallel_for(
                             ctx, nd_ranges_[i], kernels_[i], arg_list));
                 } else if (info.id() == kernel_id_t::zp_precalc) {
-                    auto scratchpad_arg = [&](std::unique_ptr<memory_t> &retn,
+                    auto scratchpad_arg = [&](std::unique_ptr<memory_t,
+                                                      memory_deleter_t> &retn,
                                                   const std::string &name,
                                                   const memory_desc_t *md) {
                         auto s = ctx.get_scratchpad_grantor()
@@ -330,7 +331,7 @@ public:
                                         std::move(s)));
                     };
                     ir_assert(data.zp_prim);
-                    std::unique_ptr<memory_t> zp_src, zp_dst;
+                    std::unique_ptr<memory_t, memory_deleter_t> zp_src, zp_dst;
                     CHECK(scratchpad_arg(zp_src, "src_zero_points",
                             data.zp_pd->impl()->src_md()));
                     CHECK(scratchpad_arg(
