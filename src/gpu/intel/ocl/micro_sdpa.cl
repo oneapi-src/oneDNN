@@ -189,11 +189,6 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
     A += DST_OFF(b1, b0, 0, 0, 0);
     msk += MSK_OFF(b1 % MSK_D0, b0 % MSK_D1, 0, 0);
 
-    __builtin_assume_aligned(K, K_ALIGN);
-    __builtin_assume_aligned(Q, Q_ALIGN);
-    __builtin_assume_aligned(V, V_ALIGN);
-    __builtin_assume_aligned(A, A_ALIGN);
-
     /* Load Q tile, destined for SLM */
     q_tile_type Q_tile;
     uint q0_copy = q_tile_sg_n * sg_ij;
