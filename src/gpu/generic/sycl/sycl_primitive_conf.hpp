@@ -109,6 +109,37 @@ struct sycl_eltwise_conf_t {
     sycl_post_ops_t post_ops;
 };
 
+struct sycl_matmul_conf_t {
+    xpu::sycl::md_t data_md;
+    xpu::sycl::md_t dst_md;
+    xpu::sycl::md_t weights_md;
+    xpu::sycl::md_t bias_md;
+    alg_kind_t alg_kind;
+    bool transpose_data; //TODO can we remove?
+    bool transpose_dst;
+    bool transpose_weights;
+    bool transpose_bias;
+    dim_t post_po_len;
+    xpu::sycl::md_t binary_src_arr[sycl::sycl_post_ops_t::max_post_ops];
+    sycl_post_ops_t post_ops;
+    int wk_size;
+
+    int data_mask;
+    int weights_mask;
+    int bias_mask;
+
+    bool do_scale_data;
+    bool do_scale_weights;
+    bool do_scale_dst;
+    bool single_weights_scale;
+
+    bool use_data_zeropoints;
+    bool use_weights_zeropoints;
+    bool use_dst_zeropoints;
+
+    bool use_dropout;
+};
+
 struct sycl_prelu_conf_t {
     prop_kind_t prop_kind;
     xpu::sycl::md_t data_md;

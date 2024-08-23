@@ -34,7 +34,9 @@ struct ref_eltwise_fwd_t {
         : alg_(alg), alpha_(alpha), beta_(beta), scale_(scale) {
         using namespace alg_kind;
         assert(utils::one_of(alg_, eltwise_relu, eltwise_linear, eltwise_clip,
-                eltwise_clip_v2, eltwise_hardswish));
+                eltwise_clip_v2, eltwise_hardswish, eltwise_gelu_tanh,
+                eltwise_gelu_erf, eltwise_tanh, eltwise_logistic, eltwise_swish,
+                eltwise_elu));
     }
 
     ref_eltwise_fwd_t(const post_ops_t::entry_t::eltwise_t &eltwise)
@@ -81,6 +83,14 @@ struct ref_eltwise_fwd_t {
             case eltwise_hardswish:
                 d = dnnl::impl::math::hardswish_fwd(s, alpha, beta);
                 break;
+            case eltwise_gelu_tanh: d = gelu_tanh_fwd(s); break;
+            case eltwise_gelu_erf: d = gelu_erf_fwd(s); break;
+            case eltwise_tanh: d = tanh_fwd(s); break;
+            case eltwise_logistic: d = logistic_fwd(s); break;
+            case eltwise_swish:
+                d = dnnl::impl::math::swish_fwd(s, alpha);
+                break;
+            case eltwise_elu: d = dnnl::impl::math::elu_fwd(s, alpha); break;
             default: d = ::sycl::nan(0u);
         }
         return d;
