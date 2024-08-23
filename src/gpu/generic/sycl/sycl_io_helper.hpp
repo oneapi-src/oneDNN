@@ -239,6 +239,8 @@ struct memory_tensor_t {
         store(val, md_.off_v(offsets));
     }
 
+    inline void *ptr() const { return mem_.get_pointer(); }
+
 private:
     xpu::sycl::memory_arg_t<mode> mem_;
     xpu::sycl::md_t md_;
