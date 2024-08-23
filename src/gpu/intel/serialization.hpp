@@ -123,9 +123,9 @@ struct serialized_data_t {
     size_t hash() const { return hash_range(data.data(), data.size()); };
     std::string str() {
         std::ostringstream oss;
-        oss << std::hex << std::setfill('0') << std::setw(2);
+        oss << std::hex << std::setfill('0');
         for (auto c : data) {
-            oss << static_cast<uint32_t>(c);
+            oss << std::setw(2) << static_cast<uint32_t>(c);
         }
         return oss.str();
     }
