@@ -20,6 +20,11 @@ if(POLICY CMP0022)
     cmake_policy(SET CMP0022 NEW)
 endif()
 
+# Compiler id for Apple Clang is now AppleClang
+if(POLICY CMP0025)
+    cmake_policy(SET CMP0025 NEW)
+endif()
+
 # Foo::Bar always refers to an IMPORTED target
 if(POLICY CMP0028)
     cmake_policy(SET CMP0028 NEW)
