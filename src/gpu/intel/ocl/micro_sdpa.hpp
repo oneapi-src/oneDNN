@@ -42,6 +42,9 @@ struct micro_sdpa_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public sdpa_pd_t {
         using sdpa_pd_t::sdpa_pd_t;
+        static constexpr int mask_mb_indes = 0;
+        static constexpr int mask_q_index = 2;
+        static constexpr int mask_k_index = 3;
 
         DECLARE_COMMON_PD_T("ocl:micro:any", micro_sdpa_t);
 
@@ -58,6 +61,12 @@ struct micro_sdpa_t : public gpu_primitive_t {
             if (with_attn_mask()) {
                 VDISPATCH_SDPA(
                         attn_mask_md()->ndims == 4, VERBOSE_UNSUPPORTED_TAG);
+                VDISPATCH_SDPA(utils::one_of(attn_mask_md()->dims[mask_q_index],
+                                       desc()->queries(), 1),
+                        VERBOSE_INVALID_BROADCAST, "attn_mask", mask_q_index);
+                VDISPATCH_SDPA(
+                        attn_mask_md()->dims[mask_k_index] == desc()->keys(),
+                        VERBOSE_INVALID_BROADCAST, "attn_mask", mask_k_index);
             }
             VDISPATCH_SDPA(utils::everyone_is(data_type::f16,
                                    qry_md()->data_type, key_md()->data_type,

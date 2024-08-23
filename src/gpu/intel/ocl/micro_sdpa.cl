@@ -60,14 +60,27 @@ DECLARE_2D_TILE(
 DECLARE_2D_TILE(
         a_scale_tile_type, float, SUBGROUP_SIZE, ugemm_vs_sg_tile_n, 1, 1, 1)
 
-DECLARE_2D_TILE(
-        mask_tile_type, half, SUBGROUP_SIZE, ugemm_kq_sg_tile_m, 1, 1, 1)
+#if BROADCAST_MASK_Q
+#define mask_br ugemm_kq_sg_tile_m
+#define mask_bc 1
+#define mask_nbr 1
+#define mask_nbc 1
+#else
+#define mask_br ugemm_kq_c_type_block0
+#define mask_bc ugemm_kq_c_type_block1
+#define mask_nbr ugemm_kq_c_type_nblock0
+#define mask_nbc ugemm_kq_c_type_nblock1
+#endif
 
-DECLARE_2D_TILE(
-        mask_tile_type_float, float, SUBGROUP_SIZE, ugemm_kq_sg_tile_m, 1, 1, 1)
+DECLARE_2D_TILE(mask_tile_type, half, SUBGROUP_SIZE, mask_br, mask_bc, mask_nbr,
+        mask_nbc)
+DECLARE_2D_TILE(mask_tile_type_float, float, SUBGROUP_SIZE, mask_br, mask_bc,
+        mask_nbr, mask_nbc)
 
-DECLARE_2D_TILE_BLOCK_OPS(
-        mask_tile_type, half, SUBGROUP_SIZE, ugemm_kq_sg_tile_m, 1, 1, 1)
+#if BROADCAST_MASK_Q
+DECLARE_2D_TILE_BLOCK_OPS(mask_tile_type, half, SUBGROUP_SIZE, mask_br, mask_bc,
+        mask_nbr, mask_nbc)
+#endif
 
 #ifdef BLOCK_A
 DECLARE_2D_TILE_BLOCK_OPS(a_tile_type_half, half, SUBGROUP_SIZE,
@@ -137,6 +150,8 @@ DECLARE_2D_TILE_RSELECT(a_scale_tile_type, SUBGROUP_SIZE, ugemm_vs_sg_tile_n, 1,
 #define tile_store_block_rem_q(t, ptr, n, ld, off_r, off_c) \
     tile_store_block(t, ptr, ld, off_r, off_c)
 #endif
+
+#define binary_add(x, y) ((x) + (y))
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) kernel void
 micro_sdpa(const global half *K, const global half *Q, const global half *V,
@@ -257,7 +272,11 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
 #if WITH_ATTN_MASK
         /* Load mask. No remainder handling needed assuming k block size is a power of 2. */
         mask_tile_type mask_tile;
+#if BROADCAST_MASK_Q
         tile_load_block(&mask_tile, msk, 0, k0 + sg_i0_kq, 0);
+#else
+        tile_load_t(&mask_tile, msk, q, k, q, sg_j0_kq + wg_j0, k0 + sg_i0_kq);
+#endif
 #endif
 
 #if REMAINDER_K
@@ -283,7 +302,11 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
         mask_tile_type_float mask_tile_float;
         tile_copy(mask_tile, mask_tile_float);
         tile_elementwise(mask_tile_float, unscale);
+#if BROADCAST_MASK_Q
         tile_hbroadcast_add(&S_tile, mask_tile_float);
+#else
+        tile_binary(S_tile, mask_tile_float, binary_add);
+#endif
 #endif
 
         /* Apply k mask */
@@ -367,8 +390,7 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
             tile_hbroadcast_mul(&A_tile, A_scale_tile);
         }
 
-/* Accumulate sums */
-#define binary_add(x, y) ((x) + (y))
+        /* Accumulate sums */
         tile_binary(S_sum_tile, S_sum_tile1, binary_add);
 
         /* Save maxima */
@@ -397,9 +419,16 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
 #if WITH_ATTN_MASK && defined(PREFETCH_MASK)
         /* Prefetch next mask tile. */
         if (!last) {
+#if BROADCAST_MASK_Q
             cooperative_prefetch_2d(msk + k0 + ugemm_kq_wg_tile_m + sg_i0_kq,
                     ugemm_kq_sg_tile_m, 1, 0, 0, 1, SUBGROUP_SIZE,
                     LSC_LDCC_L1UC_L3C);
+#else
+            cooperative_prefetch_2d(msk + k0 + ugemm_kq_wg_tile_m + sg_i0_kq
+                            + (sg_j0_kq + wg_j0) * q,
+                    ugemm_kq_sg_tile_m, ugemm_kq_sg_tile_n, 0, 0, 1,
+                    SUBGROUP_SIZE, LSC_LDCC_L1UC_L3C);
+#endif
         }
 #endif
 
