@@ -411,17 +411,28 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
         // If the corresponding input is not found, return an invalid value
         return -1;
     };
-    op_ptr mm1, mm2, scale, add, select;
+    op_ptr mm1 = nullptr, mm2 = nullptr, scale = nullptr, add = nullptr,
+           select = nullptr;
     const std::unordered_set<graph::op_kind_t> post_op_kind
             = {graph::op_kind::Divide, graph::op_kind::Multiply,
                     graph::op_kind::Add, graph::op_kind::Select,
                     graph::op_kind::SoftMax};
     for (const auto &cur_op : sg->get_ops()) {
-        if (mm1 != nullptr && mm2 != nullptr) break;
+        // both mm1 and mm2 are found.
+        if (mm1 && mm2) break;
         if (cur_op->get_kind() != graph::op_kind::MatMul) continue;
+
         auto post_op = get_post_op(cur_op);
         if (post_op && post_op_kind.count(post_op->get_kind())) {
+            // find mm1
             mm1 = cur_op;
+            // TODO(xxx): Currently, p2 is not supported by decomp kernel.
+            // p1: [matmul] --> [scale] --> [select] --> [mask] --> ...
+            // p2: [matmul] --> [select] --> [scale] --> [mask] --> ...
+            if (post_op->get_kind() == graph::op_kind::Select) {
+                return status::unimplemented;
+            }
+            // find scale
             if (post_op->get_kind() == graph::op_kind::Divide
                     || post_op->get_kind() == graph::op_kind::Multiply) {
                 has_scale = true;
@@ -429,26 +440,21 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
                 post_op = get_post_op(post_op);
             }
 
-            if (post_op && post_op->get_kind() == graph::op_kind::Add) {
-                add = post_op;
-                has_attention_mask = true;
-            } else if (post_op
-                    && post_op->get_kind() == graph::op_kind::Select) {
-                select = post_op;
-                has_select = true;
-            } else {
-                add = nullptr;
-                select = nullptr;
+            if (post_op) {
+                // find mask
+                if (post_op->get_kind() == graph::op_kind::Add) {
+                    add = post_op;
+                    has_attention_mask = true;
+                } else if (post_op->get_kind() == graph::op_kind::Select) {
+                    // mm1 -> scale -> select -> ...
+                    select = post_op;
+                    has_select = true;
+                }
             }
-        }
-        // Currently, decompose support select in p1 and doesn't support p2.
-        // TODO: support p2 if necessary
-        // p1: [matmul] --> [scale] --> [select] --> [mask] --> ...
-        // p2: [matmul] --> [select] --> [scale] --> [mask] --> ...
-        else if (post_op && (post_op->get_kind() == graph::op_kind::Select)) {
-            return status::unimplemented;
-        } else
+        } else {
+            // find mm2
             mm2 = cur_op;
+        }
     }
     if (impl::utils::one_of(nullptr, mm1, mm2)) return status::invalid_graph;
 
