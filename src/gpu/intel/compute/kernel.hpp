@@ -66,6 +66,13 @@ public:
         return status::runtime_error;
     }
 
+    virtual status_t get_kernel_work_group_size(const impl::engine_t *engine,
+            size_t *kernel_work_group_size) const {
+        gpu_assert(false)
+                << "unimplemented function get_kernel_work_group_size() called";
+        return status::runtime_error;
+    }
+
     virtual const std::vector<scalar_type_t> &arg_types() const {
         static const std::vector<scalar_type_t> dummy;
         return dummy;
@@ -143,6 +150,12 @@ public:
     status_t get_binary_size(
             const impl::engine_t *engine, size_t *binary_size) const {
         return impl_->get_binary_size(engine, binary_size);
+    }
+
+    status_t get_kernel_work_group_size(const impl::engine_t *engine,
+            size_t *kernel_work_group_size) const {
+        return impl_->get_kernel_work_group_size(
+                engine, kernel_work_group_size);
     }
 
     status_t get_binary(

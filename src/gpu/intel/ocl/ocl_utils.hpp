@@ -54,6 +54,9 @@ status_t get_ocl_kernel_binary(cl_kernel ocl_kernel, xpu::binary_t &binary);
 status_t get_ocl_program_binary_size(
         cl_kernel kernel, cl_device_id device, size_t *size);
 
+status_t get_ocl_kernel_work_group_size(
+        cl_kernel kernel, cl_device_id device, size_t *size);
+
 void debugdump_processed_source(const std::string &source,
         const std::string &options, const std::string &ocl_options);
 
