@@ -1172,6 +1172,7 @@ void coalesceAddrs(HW hw, Type T, vector<RegisterBlock> &layout, const MatrixAdd
     if (hw < HW::Xe2) return;
     if (!astrategy.newDP) return;
     if (layout.empty()) return;
+    if (astrategy.noCoalesce) return;
 
     RegisterBlock *anchor = &layout[0];
     int max = maxOffsetAddr(T, astrategy);

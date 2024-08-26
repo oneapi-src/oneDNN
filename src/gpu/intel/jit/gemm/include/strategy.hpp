@@ -81,11 +81,12 @@ struct MatrixAddressingStrategy {
     uint8_t newDP : 1;                          // Use new dataport messages? (XeHPG+)
     uint8_t dpasw : 1;                          // DPASW half layout?
     uint8_t noExtraPad : 1;                     // Avoid extra padding?
+    uint8_t noCoalesce : 1;                     // Disable address coalescing?
+    uint8_t pad0 : 7;
     ngen::CacheSettingsLSC cachingR             // Cache policies for LSC reads.
         = ngen::CacheSettingsLSC::Default;
     ngen::CacheSettingsLSC cachingW             // Cache policies for LSC writes.
         = ngen::CacheSettingsLSC::Default;
-                                    ZPAD(A, 1)
 
     MatrixAddressingStrategy() : padded(false)
                                , atomic(false)
@@ -94,7 +95,9 @@ struct MatrixAddressingStrategy {
                                , pfLoad(false)
                                , newDP(false)
                                , dpasw(false)
-                               , noExtraPad(false) {}
+                               , noExtraPad(false)
+                               , noCoalesce(false)
+                               , pad0(0) {}
 
     void preflight(ngen::HW hw);
     void forceA64();

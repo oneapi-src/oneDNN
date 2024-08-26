@@ -1388,9 +1388,13 @@ void CopyPlan::legalizeRegions()
 
         /* For illegal dst, copy through temporary dst */
         if (doRestrideDst) {
-            restrideDst(i, dstMinStride, hfIntConvert);
-            rerun = true;
-            continue;
+            if (i.simd == 1)
+                i.dst.stride = dstMinStride;
+            else {
+                restrideDst(i, dstMinStride, hfIntConvert);
+                rerun = true;
+                continue;
+            }
         }
 
         /* Check for swizzling */

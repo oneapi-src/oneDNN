@@ -2199,6 +2199,11 @@ void BLASKernelGenerator<hw>::gemmAllocateTokens(const GEMMProblem &problem, con
     success &= allocateTokens(state.Ap_layout, state.Ap_regs, state, state.Ap_addrs);
     success &= allocateTokens(state.Bp_layout, state.Bp_regs, state, state.Bp_addrs);
 
+    success &= allocateTokens(state.A_offsetLayout, state.A_offsetRegs, state);
+    success &= allocateTokens(state.B_offsetLayout, state.B_offsetRegs, state);
+    success &= allocateTokens(state.A_scaleLayout, state.A_scaleRegs, state);
+    success &= allocateTokens(state.B_scaleLayout, state.B_scaleRegs, state);
+
     if (!success) {
         status << "Not enough tokens for k loop." << status_stream::endl;
         clearMappedTokenAllocations(hw, state);
