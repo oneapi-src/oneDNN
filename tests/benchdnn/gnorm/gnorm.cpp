@@ -648,7 +648,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
     std::vector<data_kind_t> check_kinds;
     if (prb->dir & FLAG_FWD) {
-        if (!(prb->flags & GLOB_STATS)) {
+        if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
             check_kinds.push_back(MEAN);
             check_kinds.push_back(VAR);
         }

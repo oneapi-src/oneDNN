@@ -1697,7 +1697,12 @@ int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
         assert(arg > 0);
 
         auto &mem = args.find(arg);
-        SAFE_V(bool(mem) ? OK : FAIL);
+        if (!mem) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: output memory was not found among arguments.");
+            res->state = FAILED;
+            return FAIL;
+        }
         // A memory used as reference for comparison, must be allocated on the
         // CPU engine.
         run1_mem_map.emplace(
@@ -1722,9 +1727,20 @@ int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
                 ? (has_multiple_args ? DNNL_ARG_MULTIPLE_SRC : DNNL_ARG_SRC)
                 : DNNL_ARG_DIFF_DST;
         auto &in_mem = const_cast<dnn_mem_t &>(args.find(query_arg));
-        SAFE_V(bool(in_mem) ? OK : FAIL);
+        if (!in_mem) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: input memory was not found among arguments.");
+            res->state = FAILED;
+            return FAIL;
+        }
         const auto &orig_in_mem = args.find(-query_arg);
-        SAFE_V(bool(orig_in_mem) ? OK : FAIL);
+        if (!orig_in_mem) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: original input memory was not found among "
+                    "arguments.");
+            res->state = FAILED;
+            return FAIL;
+        }
         SAFE(in_mem.reorder(orig_in_mem), WARN);
     }
 
