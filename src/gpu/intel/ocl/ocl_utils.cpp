@@ -148,15 +148,6 @@ status_t get_ocl_program_binary_size(
     return status::success;
 }
 
-status_t get_ocl_kernel_work_group_size(
-        cl_kernel kernel, cl_device_id device, size_t *size) {
-    cl_int err;
-    err = clGetKernelWorkGroupInfo(kernel, device, CL_KERNEL_WORK_GROUP_SIZE,
-            sizeof(size_t), size, nullptr);
-    OCL_CHECK(err);
-    return status::success;
-}
-
 status_t get_ocl_program_binary(
         cl_program program, cl_device_id device, xpu::binary_t &binary) {
     size_t n_devices = 0;

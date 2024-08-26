@@ -131,13 +131,6 @@ status_t ocl_gpu_kernel_t::get_binary_size(
             ocl_kernel(), ocl_engine->device(), binary_size);
 }
 
-status_t ocl_gpu_kernel_t::get_kernel_work_group_size(
-        const impl::engine_t *engine, size_t *kernel_work_group_size) const {
-    auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
-    return get_ocl_kernel_work_group_size(
-            ocl_kernel(), ocl_engine->device(), kernel_work_group_size);
-}
-
 status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
         const compute::nd_range_t &range,
         const compute::kernel_arg_list_t &arg_list, const xpu::event_t &deps,
