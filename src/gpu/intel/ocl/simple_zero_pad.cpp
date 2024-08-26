@@ -304,6 +304,7 @@ status_t simple_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
     auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
             pd()->attr()->gpu_attr_.get());
     bool large_grf_mode = gpu_attr && gpu_attr->threads_per_eu() == 4;
+    const size_t max_local_ws = device->max_wg_size(large_grf_mode, 16);
 
     const auto &dims = mdw.dims();
     const auto nelems = mdw.nelems(true);
@@ -317,13 +318,6 @@ status_t simple_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
 
     const unsigned block_size = 16 * 8; // SIMD * block_size
     const compute::range_t gws(static_cast<size_t>(16 * nelems / block_size));
-
-    size_t max_device_work_group_size = device->max_wg_size(large_grf_mode);
-    size_t max_kernel_work_group_size;
-    CHECK(kernel_subg16_mask_and_clear_dt_1b_.get_kernel_work_group_size(
-            engine, &max_kernel_work_group_size));
-    const size_t max_local_ws
-            = std::min(max_kernel_work_group_size, max_device_work_group_size);
     const compute::range_t lws(max_local_ws);
 
     const compute::nd_range_t zp_nd_range(gws, lws);
