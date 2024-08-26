@@ -354,7 +354,10 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
                         transposed_tensor_layout_tag, acbd)
                 : memory_desc_matches_one_of_tag(
                         A_md, plain_tensor_layout_tag, acbd);
-        if (bgmmc.src_tag == format_tag::undef) {
+        if (bgmmc.src_tag == format_tag::undef
+                || (memory_desc_matches_tag(A_md, transposed_tensor_layout_tag)
+                        && memory_desc_matches_tag(
+                                A_md, plain_tensor_layout_tag))) {
             if (gemm_based::check_gemm_input_format(A_md)) {
                 // Note: Here we batch layout may not be accurately represented
                 // by the wei_tag string, due to all the permutations of the
@@ -683,7 +686,7 @@ struct matmul_avx512_blocking_params_t {
 
         bgmmc.use_buffer_c = is_buffer_c_required(
                 bgmmc.acc_dt, bgmmc.dst_dt, bgmmc.with_sum);
-        bgmmc.LDA = bgmmc.use_buffer_a
+        bgmmc.LDA = bgmmc.use_buffer_a || bgmmc.treat_transposed_A_as_plain
                 ? get_actual_lda(bgmmc.use_buffer_a, bgmmc.tr_a_dt_sz)
                 : bgmmc.A_strides[1] / bgmmc.a_dt_sz;
     }
@@ -1399,14 +1402,14 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     const bool transposed_A = bm_conf_utils.check_is_transposed(bgmmc.src_tag);
     // if M == 1 we can still treat formally transposed A as plain
     // and avoid copy routine creation/execution
-    const bool treat_transposed_A_as_plain = transposed_A && bgmmc.M == 1;
-    bgmmc.transposed_A = ((transposed_A && !treat_transposed_A_as_plain)
+    bgmmc.treat_transposed_A_as_plain = transposed_A && bgmmc.M == 1;
+    bgmmc.transposed_A = ((transposed_A && !bgmmc.treat_transposed_A_as_plain)
             || bgmmc.src_tag == adbc);
     // For batched problems with plain A and C and fully broadcasted across B
     // we can merge all the batch dimensions into M if broadcast strategies
     // set is limited for binary post-ops
     const bool plain_A_layout = bm_conf_utils.check_is_plain(bgmmc.src_tag)
-            || treat_transposed_A_as_plain;
+            || bgmmc.treat_transposed_A_as_plain;
     const bool merge_batch_dims_into_M = bgmmc.batch > 1
             && bgmmc.bcast_B_desc.bcast_across_all_batch_dims && plain_A_layout
             && helper.is_src_dst_layout_batch_fusable()
@@ -1514,7 +1517,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     // We need to correct A_strides if batched dimensions are merged in M and
     // A layout is formally transposed but could be treated as plain
     if (merge_batch_dims_into_M
-            && (src_d.matches_tag(acbd) || treat_transposed_A_as_plain)) {
+            && (src_d.matches_tag(acbd) || bgmmc.treat_transposed_A_as_plain)) {
         bgmmc.A_strides[1] = bgmmc.A_strides[2];
     }
 
@@ -2009,7 +2012,10 @@ void matmul_amx_blocking_params_t::update_configuration(
 }
 
 dim_t matmul_amx_blocking_params_t::get_actual_lda() {
-    if (!use_buffer_a) return A_strides[1 - transposed_A] / a_dt_sz;
+    if (!use_buffer_a)
+        return treat_transposed_A_as_plain
+                ? K
+                : A_strides[1 - transposed_A] / a_dt_sz;
 
     constexpr int bytes_in_cacheline = 64;
     const int elems_in_cacheline = bytes_in_cacheline / a_dt_sz;

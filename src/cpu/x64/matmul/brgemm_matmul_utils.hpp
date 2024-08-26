@@ -174,6 +174,7 @@ struct brgemm_matmul_conf_t {
     bool transposed_A;
     bool transposed_B;
     bool blocked_B;
+    bool treat_transposed_A_as_plain;
 
     dim_t zp_a_comp_shift_n;
     dim_t zp_a_comp_elems_per_thr;
