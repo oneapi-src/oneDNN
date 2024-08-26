@@ -575,7 +575,7 @@ struct convolution_kernel_bwd_weights_t {
                 kw = off[4];
             }
 
-            auto bias_backprop_lambda = [=](int D, int H, int W, int OC, int ic,
+            auto bias_backprop_lambda = [&](int D, int H, int W, int OC, int ic,
                                                 int oc, void *diff_ptr,
                                                 xpu::sycl::md_t diff_md) {
                 if (ic == 0 && kh == 0 && kw == 0 & kd == 0) {
