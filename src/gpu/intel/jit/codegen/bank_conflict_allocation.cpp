@@ -517,7 +517,7 @@ bool search(search_context_t &ctx, int block_idx = 0) {
     // 2. Update register constraints for other blocks
     // 3. If the remaining blocks still can be assigned, move to the next
     //    block. Otherwise try the next register in step 1.
-    for (int k = 0; k < ctx.hw_ctx->regs; k++) {
+    for (int k = 0; k <= ctx.hw_ctx->regs - block.regs; k++) {
         // To mitigate fragmenation try to allocate large ranges from back end of register space and small ones from front.
         int i = block.regs > 4 && hw_ctx->hw <= ngen::HW::XeLP
                 ? ctx.hw_ctx->regs - k - block.regs
