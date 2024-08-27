@@ -75,6 +75,7 @@ double evaluateW(const kcatalog::Entry &e, const DerivedEvaluateParams &dp, Eval
     if (priority > maxPriority)
         /* no op */;        // Don't adjust very high values -- these are last resort kernels (lowest priority)
     else if (e.driverInfo.kParallel()) {
+        if (dp.threadCount == 0) return std::numeric_limits<double>::infinity();
         int wgCountK = std::max(1, int(dp.hwThreadCapacity / dp.threadCount));
         aux.k0 = alignUp(divUp(dp.sizes.k, wgCountK), e.driverInfo.unroll[LoopK]);
         if (aux.k0 < dp.sizes.k)
