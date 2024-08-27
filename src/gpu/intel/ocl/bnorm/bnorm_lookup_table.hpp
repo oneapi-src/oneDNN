@@ -39,6 +39,8 @@ public:
         return "Whether to fuse reduction using atomic operations.";
     }
     bool is_overridable() const override { return true; }
+
+    use_fused_atomics_reduction_param_t() : bool_param_t(false) {}
 };
 
 class ic_block_param_t : public int_param_t {
