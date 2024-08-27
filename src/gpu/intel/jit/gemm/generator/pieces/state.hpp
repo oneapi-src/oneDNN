@@ -313,7 +313,7 @@ struct GEMMState : public CommonState {
     CoopSplit effCoopB = CoopSplit::K;
     ngen::Subregister kSLMA, kSLMB, kSLMStorage;            // w/w/ud
     bool kSLMCountUp = false;
-    int kaq, kbq, kaqStride, kbqStride, kaqLate, kbqLate;
+    int kaq = 0, kbq = 0, kaqStride, kbqStride, kaqLate = 0, kbqLate = 0;
     bool lateScale2DA = false, lateScale2DB = false;
     std::vector<RegisterBlock> A_layout, B_layout, C_layout;
     std::vector<RegisterBlock> A_layoutRem, B_layoutRem;
@@ -338,8 +338,8 @@ struct GEMMState : public CommonState {
     Address2DParams Ai_params, Bi_params;
     Address2DParams Ap_params, Bp_params;
     int Ai_regCount = 0, Bi_regCount = 0;
-    bool aioShare, bioShare;
-    bool aioShareRem, bioShareRem;
+    bool aioShare = false, bioShare = false;
+    bool aioShareRem = false, bioShareRem = false;
     bool aoReuseA = false, boReuseB = false;
     Type Tao_int, Ta_scaleInt;
     Type Tbo_int, Tb_scaleInt;
