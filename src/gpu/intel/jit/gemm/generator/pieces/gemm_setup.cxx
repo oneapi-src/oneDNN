@@ -1674,7 +1674,7 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
             i0q = state.ra.alloc_sub<uint32_t>();
             emad(1, i0q, state.i0, state.lidN, state.ma_slm, strategy, state);
         }
-        if (!aoTo2D && state.ka_slm < strategy.unrollKSLM && problem.aqGroupK < strategy.unrollKSLM) {
+        if ((ao2D || (as2D && !state.lateScale2DA)) && state.ka_slm < strategy.unrollKSLM && problem.aqGroupK < strategy.unrollKSLM) {
             if (state.lateScale2DA)
                 A_h0s = copySubregister(A_h0q, state);
             if (A_h0q.isInvalid()) {
@@ -1690,7 +1690,7 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
             j0q = state.ra.alloc_sub<uint32_t>();
             emad(1, j0q, state.j0, state.lidM, state.nb_slm, strategy, state);
         }
-        if (!boTo2D && state.kb_slm < strategy.unrollKSLM && problem.bqGroupK < strategy.unrollKSLM) {
+        if ((bo2D || (bs2D && !state.lateScale2DB)) && state.kb_slm < strategy.unrollKSLM && problem.bqGroupK < strategy.unrollKSLM) {
             if (state.lateScale2DB)
                 B_h0s = copySubregister(B_h0q, state);
             if (B_h0q.isInvalid()) {
