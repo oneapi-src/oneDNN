@@ -95,7 +95,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
             auto maybe_reshape = [&](dims_t &orig_a_dims, dims_t &orig_b_dims,
                                          dims_t &orig_c_dims,
                                          dims_t &orig_bias_dims,
-                                         int &orig_dims) {
+                                         const int orig_dims) {
                 int batch_b_dims = 1;
                 for (int i = b_md->ndims; i > 2; i--) {
                     batch_b_dims *= b_md->dims[b_md->ndims - i];
@@ -112,14 +112,12 @@ struct gemm_matmul_t : public gpu_primitive_t {
                 if (reshape_2d || reshape_3d) {
                     auto ndims = a_md->ndims;
                     auto reshape_size = reshape_2d ? 2 : 3;
-                    dim_t a_dim = a_md->dims[a_md->ndims - reshape_size],
-                          b_dim = b_md->dims[b_md->ndims - 1],
-                          bia_dim
-                            = bias_md->dims[bias_md->ndims - reshape_size];
+                    dim_t b_dim = b_md->dims[b_md->ndims - 1];
+                    dim_t a_dim = 1, bia_dim = 1;
                     bool with_bia = bias_md->ndims > 0;
-                    for (int i = a_md->ndims; i > reshape_size; i--) {
-                        a_dim *= a_md->dims[a_md->ndims - i];
-                        bia_dim *= bias_md->dims[bias_md->ndims - i];
+                    for (int i = 0; i <= orig_dims - reshape_size; ++i) {
+                        a_dim *= a_md->dims[i];
+                        bia_dim *= bias_md->dims[i];
                     }
                     if (with_bia) {
                         //bias cannot be applied if applied on only on a subset of batch dims
