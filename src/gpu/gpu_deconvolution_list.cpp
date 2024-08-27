@@ -30,6 +30,10 @@
 #include "gpu/amd/miopen_deconvolution.hpp"
 #endif
 
+#ifdef GENERIC_SYCL_KERNELS_ENABLED
+#include "gpu/generic/sycl/ref_deconvolution.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
