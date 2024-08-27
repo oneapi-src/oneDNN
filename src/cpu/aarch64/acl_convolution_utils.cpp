@@ -283,25 +283,6 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     return status::success;
 }
-
-status_t init_conf_depthwise(acl_conv_conf_t &acp, memory_desc_t &src_md,
-        memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const convolution_desc_t &cd,
-        const primitive_attr_t &attr) {
-    if (weights_md.ndims != 5) return status::unimplemented;
-
-    CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
-
-    ACL_CHECK_VALID(arm_compute::NEDepthwiseConvolutionLayer::validate(
-            &acp.src_tensor_info, &acp.wei_tensor_info,
-            acp.with_bias ? &acp.bia_tensor_info : nullptr,
-            &acp.dst_tensor_info, acp.padstride_info,
-            1, // depth multiplier default value
-            acp.act_info, acp.dilation_info));
-
-    return status::success;
-}
-
 } // namespace acl_convolution_utils
 
 } // namespace aarch64
