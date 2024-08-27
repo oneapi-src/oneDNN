@@ -17,23 +17,20 @@
 #ifndef CPU_AARCH64_ACL_CONVOLUTION_UTILS_HPP
 #define CPU_AARCH64_ACL_CONVOLUTION_UTILS_HPP
 
+#include <map>
+#include "acl_post_ops.hpp"
+#include "acl_utils.hpp"
+#include "arm_compute/runtime/experimental/operators/CpuDepthwiseConv2d.h"
 #include "cpu/cpu_convolution_pd.hpp"
-
-#include "cpu/aarch64/acl_post_ops.hpp"
-#include "cpu/aarch64/acl_utils.hpp"
-
+#include <type_traits>
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-template <typename NEConv>
+template <typename ConvOp>
 struct acl_obj_t {
-    NEConv conv;
-    arm_compute::Tensor src_tensor;
-    arm_compute::Tensor wei_tensor;
-    arm_compute::Tensor bia_tensor;
-    arm_compute::Tensor dst_tensor;
+    ConvOp conv;
     arm_compute::experimental::MemoryRequirements aux_mem_req;
 };
 
@@ -51,6 +48,7 @@ struct acl_conv_conf_t {
     arm_compute::TensorInfo wei_tensor_info;
     arm_compute::TensorInfo bia_tensor_info;
     arm_compute::TensorInfo dst_tensor_info;
+
     arm_compute::PadStrideInfo padstride_info;
     arm_compute::Size2D dilation_info;
     // Additional information about the weights not included in wei_tensor_info
@@ -66,15 +64,6 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr);
 
-status_t init_conf_depthwise(acl_conv_conf_t &acp, memory_desc_t &src_md,
-        memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const convolution_desc_t &cd,
-        const primitive_attr_t &attr);
-
-status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
-        memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const convolution_desc_t &cd,
-        const primitive_attr_t &attr);
 } // namespace acl_convolution_utils
 
 // Keys are anonymous with local linkage. So deduce the type automagically.
@@ -127,7 +116,6 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
     arm_compute::Tensor dst_tensor;
 
     auto const acp = pd->acp_;
-
     src_tensor.allocator()->init(acp.src_tensor_info);
     wei_tensor.allocator()->init(acp.wei_tensor_info);
     dst_tensor.allocator()->init(acp.dst_tensor_info);
@@ -151,11 +139,15 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
                 const_cast<bia_data_t *>(bia_base));
     }
 
-    arm_compute::ITensorPack pack
-            = {{arm_compute::TensorType::ACL_SRC_0, &src_tensor},
-                    {arm_compute::TensorType::ACL_SRC_1, &wei_tensor},
-                    {arm_compute::TensorType::ACL_SRC_2, &bia_tensor},
-                    {arm_compute::TensorType::ACL_DST, &dst_tensor}};
+    // Constness of the weight tensor matters for depthwise conv in ACL.
+    // Otherwise, it will package the weights more often than needed, as
+    // it will expect the weights to change within the duration of the run
+    // func.
+    arm_compute::ITensorPack pack;
+    pack.add_tensor(arm_compute::TensorType::ACL_SRC_0, &src_tensor);
+    pack.add_const_tensor(arm_compute::TensorType::ACL_SRC_1, &wei_tensor);
+    pack.add_const_tensor(arm_compute::TensorType::ACL_SRC_2, &bia_tensor);
+    pack.add_tensor(arm_compute::TensorType::ACL_DST, &dst_tensor);
 
     // Get temp workspaces.
     const auto aux_mem = acl_conv_obj->aux_mem_req;
@@ -175,58 +167,10 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
         }
     }
 
-    acl_conv_obj->conv.prepare(pack);
     acl_conv_obj->conv.run(pack);
 
     void *dst = dst_tensor.buffer();
     pd->post_ops.execute(ctx, dst);
-
-    return status::success;
-}
-
-template <typename conv_obj_t, typename conv_pd_t, typename src_data_t,
-        typename wei_data_t = src_data_t, typename dst_data_t = src_data_t,
-        typename bia_data_t = src_data_t>
-status_t execute_forward_conv_acl(
-        const exec_ctx_t &ctx, conv_obj_t &acl_conv_obj, const conv_pd_t *pd) {
-    bool with_bias = pd->acp_.with_bias;
-    bool use_dst_acc_for_sum = pd->acp_.use_dst_acc_for_sum;
-
-    auto src_base = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
-
-    // import_memory() and free() methods do not allocate/free any additional
-    // memory, only acquire/release pointers.
-    acl_conv_obj.src_tensor.allocator()->import_memory(
-            const_cast<src_data_t *>(src_base));
-    acl_conv_obj.wei_tensor.allocator()->import_memory(
-            const_cast<wei_data_t *>(wei_base));
-
-    const auto scratchpad = ctx.get_scratchpad_grantor();
-
-    // If we have an unfused sum post op, put the result in a scratchpad tensor.
-    // Result will be summed to the dst during acl_post_ops.execute
-    auto dst_base = use_dst_acc_for_sum
-            ? scratchpad.get<void>(memory_tracking::names::key_generic_acc)
-            : CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
-    acl_conv_obj.dst_tensor.allocator()->import_memory(dst_base);
-
-    if (with_bias) {
-        auto bia_base = CTX_IN_MEM(const bia_data_t *, DNNL_ARG_BIAS);
-        acl_conv_obj.bia_tensor.allocator()->import_memory(
-                const_cast<bia_data_t *>(bia_base));
-    }
-
-    acl_conv_obj.conv.run();
-
-    acl_conv_obj.src_tensor.allocator()->free();
-    acl_conv_obj.wei_tensor.allocator()->free();
-    if (with_bias) { acl_conv_obj.bia_tensor.allocator()->free(); }
-
-    void *dst = acl_conv_obj.dst_tensor.buffer();
-    pd->post_ops.execute(ctx, dst);
-
-    acl_conv_obj.dst_tensor.allocator()->free();
 
     return status::success;
 }
