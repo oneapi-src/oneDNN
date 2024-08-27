@@ -41,7 +41,7 @@ platform::dir_t get_op_dir(const std::shared_ptr<op_t> &aop) {
     const auto &num_inputs = aop->num_inputs();
     const auto &num_outputs = aop->num_outputs();
 
-    dir_t dir = dir_t::FLAG_FWD;
+    dir_t dir = dir_t::DIR_UNDEF;
     switch (op_kind) {
         // BatchNorm
         case BatchNormForwardTraining: dir = dir_t::FWD_D; break;
@@ -81,7 +81,7 @@ platform::dir_t get_op_dir(const std::shared_ptr<op_t> &aop) {
         case Sqrt:
         case Square:
         case SquaredDifference:
-        case Tanh: dir = dir_t::FWD_D; break;
+        case Tanh: dir = dir_t::FWD_I; break;
         case AbsBackward:
         case ClampBackward:
         case EluBackward:
@@ -95,10 +95,7 @@ platform::dir_t get_op_dir(const std::shared_ptr<op_t> &aop) {
         case SqrtBackward:
         case TanhBackward: dir = dir_t::BWD_D; break;
         // LayerNorm
-        case LayerNorm:
-            // Outputs: SRC, MEAN( optional ), VAR( optional )
-            dir = num_outputs == 1 ? dir_t::FWD_I : dir_t::FWD_D;
-            break;
+        case LayerNorm: dir = dir_t::FWD_I; break;
         case LayerNormBackward: dir = dir_t::BWD_DW; break;
         // Pool
         case MaxPool:
@@ -106,19 +103,19 @@ platform::dir_t get_op_dir(const std::shared_ptr<op_t> &aop) {
         case MaxPoolBackward:
         case AvgPoolBackward: dir = dir_t::BWD_D; break;
         // PReLU
-        case PReLU: dir = dir_t::FWD_D; break;
+        case PReLU: dir = dir_t::FWD_I; break;
         case PReLUBackward: dir = dir_t::BWD_DW; break;
         // Resampling
-        case Interpolate: dir = dir_t::FWD_D; break;
+        case Interpolate: dir = dir_t::FWD_I; break;
         case InterpolateBackward: dir = dir_t::BWD_D; break;
         // Softmax
         case SoftMax:
-        case LogSoftmax: dir = dir_t::FWD_D; break;
+        case LogSoftmax: dir = dir_t::FWD_I; break;
         case SoftMaxBackward:
         case LogSoftmaxBackward: dir = dir_t::BWD_D; break;
         // Other ops lack of propagation kind, which are always considered as
         // forward, including Binary, Concat, Matmul, Reduction and Reorder.
-        default: dir = dir_t::FLAG_FWD; break;
+        default: dir = dir_t::FWD_I; break;
     }
 
     return dir;
