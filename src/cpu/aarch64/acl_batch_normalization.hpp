@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022, 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -257,8 +257,6 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
         // Configure the resource based on information from primitive descriptor
         CHECK(r->configure(pd()->abp, pd()));
         mapper.add(this, std::move(r));
-
-        CHECK(pd()->post_ops.create_resource(engine, mapper));
 
         return status::success;
     }

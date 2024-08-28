@@ -49,15 +49,6 @@ const std::map<int, conv_key_t> gemm_conv_keys
 
 template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
         data_type_t bia_t>
-status_t
-acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::create_resource(
-        engine_t *engine, resource_mapper_t &mapper) const {
-    CHECK(pd()->post_ops.create_resource(engine, mapper));
-    return status::success;
-}
-
-template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
-        data_type_t bia_t>
 status_t acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::pd_t::init(
         engine_t *engine) {
     using namespace data_type;

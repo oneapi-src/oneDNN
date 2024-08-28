@@ -32,9 +32,7 @@ struct acl_matmul_t : public primitive_t {
 
         pd_t(const matmul_desc_t *adesc, const primitive_attr_t *attr,
                 const cpu_matmul_pd_t *hint_fwd_pd)
-            : cpu_matmul_pd_t(adesc, attr, hint_fwd_pd)
-            , amp_()
-            , acl_post_ops() {}
+            : cpu_matmul_pd_t(adesc, attr, hint_fwd_pd), amp_() {}
 
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
@@ -56,17 +54,7 @@ struct acl_matmul_t : public primitive_t {
     acl_matmul_t(const pd_t *apd)
         : primitive_t(apd), acl_obj_(std::make_unique<acl_matmul_obj_t>()) {}
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-
-        CHECK(pd()->acl_post_ops.create_resource(engine, mapper));
-
-        return status::success;
-    }
-
     status_t init(engine_t *engine) override;
-
-    typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->weights_format_kind_ == format_kind::any) {
