@@ -1031,7 +1031,7 @@ private:
                 }
             }
         }
-        stmt = inject_dpas_atomic(stmt);
+        stmt = inject_dpas_atomic(stmt, /*filter_by_label=*/false);
         x2r_mul_stmt_ = x2r_mul_stmt_.append(stmt);
     }
 

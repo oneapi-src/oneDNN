@@ -26,7 +26,7 @@ namespace intel {
 namespace jit {
 
 // Adds {Atomic} modifier to dpas/dpasw instructions when applicable.
-stmt_t inject_dpas_atomic(const stmt_t &stmt);
+stmt_t inject_dpas_atomic(const stmt_t &stmt, bool filter_by_label = true);
 
 } // namespace jit
 } // namespace intel

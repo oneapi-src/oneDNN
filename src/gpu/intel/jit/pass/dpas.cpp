@@ -93,8 +93,10 @@ public:
     }
 };
 
-stmt_t inject_dpas_atomic(const stmt_t &stmt) {
-    return dpas_atomic_mutator_t().mutate(stmt);
+stmt_t inject_dpas_atomic(const stmt_t &stmt, bool filter_by_label) {
+    if (filter_by_label) return dpas_atomic_mutator_t().mutate(stmt);
+    auto ret = dpas_atomic_mutator_t().mutate_mul(stmt);
+    return ret;
 }
 
 } // namespace jit
