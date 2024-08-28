@@ -137,10 +137,6 @@ public:
     inline void generateDummyCL(std::ostream &stream) const;
     inline std::string generateZeInfo() const;
 
-#ifdef NGEN_ASM
-    inline void dumpAssignments(std::ostream &stream) const;
-#endif
-
     static constexpr int noSurface = 0x80;        // Returned by getArgumentSurfaceIfExists in case of no surface assignment
 
 protected:
@@ -741,25 +737,6 @@ std::string InterfaceHandler::generateZeInfo() const
 
     return md.str();
 }
-
-#ifdef NGEN_ASM
-void InterfaceHandler::dumpAssignments(std::ostream &stream) const
-{
-    LabelManager manager;
-
-    for (auto &assignment : assignments) {
-        stream << "//  ";
-        if (assignment.reg.isValid())
-            assignment.reg.outputText(stream, PrintDetail::sub, manager);
-        else
-            stream << "(none)";
-        stream << '\t' << assignment.name;
-        if (assignment.surface != noSurface)
-            stream << "\t(BTI " << assignment.surface << ')';
-        stream << std::endl;
-    }
-}
-#endif
 
 } /* namespace NGEN_NAMESPACE */
 
