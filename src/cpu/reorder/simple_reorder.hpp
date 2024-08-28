@@ -2001,6 +2001,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         // the compression into int4 as on `abx` format.
         const bool need_transform
                 = output_d.strides()[output_d.ndims() - 1] != 1;
+        wspace = need_transform ? wspace : const_cast<data_t<type_i> *>(input);
         if (need_transform) {
             const dim_t work_amount = input_d.nelems();
             parallel(0, [&](const int ithr, const int nthr) {
@@ -2013,8 +2014,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     wspace[o_off] = input[i_off];
                 }
             });
-
-            input = wspace;
         }
 
         // To avoid clashes between threads each byte (or 2 elements)
@@ -2025,15 +2024,15 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             dim_t start {0}, end {0};
             balance211(work_amount, nthr, ithr, start, end);
             PRAGMA_OMP_SIMD()
-            for_(dim_t idx = start; idx < end; idx++)
+            for_(dim_t j = start; j < end; j++)
             for (int i = 0; i < 2; ++i) {
-                const auto i_off = need_transform ? 2 * idx + i
-                                                  : input_d.off_l(2 * idx + i);
-                const auto o_off = need_transform ? 2 * idx + i
-                                                  : output_d.off_l(2 * idx + i);
+                const auto idx = 2 * j + i;
+                const auto i_off = need_transform ? idx : input_d.off_l(idx);
+                const auto o_off = need_transform ? idx : output_d.off_l(idx);
                 const auto shift = i % 2 ? int4_extract_t::high_half
                                          : int4_extract_t::low_half;
-                auto src_val = _qz_a1b0<data_type::f32, type_o>()(input[i_off]);
+                auto src_val
+                        = _qz_a1b0<data_type::f32, type_o>()(wspace[i_off]);
                 const uint8_t dst_val = i == 0
                         ? 0
                         : reinterpret_cast<uint8_t *>(output)[o_off / 2];
@@ -2055,11 +2054,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         return !input_d.has_runtime_dims_or_strides() && input_d.is_dense()
-                && input_d.strides()[output_d.ndims() - 1] == 1
                 && output_d.is_dense() && simple_attr_check(attr, false, true);
     }
 
-    GET_SCRATCHPAD_SIZE_ZERO();
+    static size_t get_scratchpad_size(const memory_desc_wrapper &input_d,
+            const memory_desc_wrapper &output_d) {
+        return output_d.size();
+    }
 
     static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
@@ -2067,6 +2068,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         input += input_d.blk_off(0);
         output += output_d.blk_off(0);
+
+        data_t<type_o> *wspace = scratchpad.template get<data_t<type_o>>(
+                memory_tracking::names::key_reorder_space);
+
+        // When formats of the input and the output are not identical, the idea
+        // is to reorder the data from the input format to the output format
+        // but within the same data type, and after the format reorder apply
+        // the compression into int4 as on `abx` format.
+        const bool need_transform = input_d.strides()[input_d.ndims() - 1] != 1;
+        wspace = need_transform ? wspace : output;
 
         // To avoid clashes between threads each byte (or 2 elements)
         // is handled by a single thread
@@ -2076,19 +2087,34 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             dim_t start {0}, end {0};
             balance211(work_amount, nthr, ithr, start, end);
             PRAGMA_OMP_SIMD()
-            for_(dim_t idx = start; idx < end; idx++)
+            for_(dim_t j = start; j < end; j++)
             for (int i = 0; i < 2; ++i) {
-                const auto i_off = input_d.off_l(2 * idx + i);
-                const auto o_off = output_d.off_l(2 * idx + i);
+                const auto idx = 2 * j + i;
+                const auto i_off = need_transform ? idx : input_d.off_l(idx);
+                const auto o_off = need_transform ? idx : output_d.off_l(idx);
                 const auto shift = i % 2 ? int4_extract_t::high_half
                                          : int4_extract_t::low_half;
                 auto src_val = data_t<type_i>::extract(
                         reinterpret_cast<const uint8_t *>(input)[i_off / 2],
                         shift);
-                reinterpret_cast<data_t<type_o> *>(output)[o_off]
+                reinterpret_cast<data_t<type_o> *>(wspace)[o_off]
                         = static_cast<float>(src_val);
             }
         });
+
+        if (need_transform) {
+            const dim_t work_amount = output_d.nelems();
+            parallel(0, [&](const int ithr, const int nthr) {
+                dim_t start {0}, end {0};
+                balance211(work_amount, nthr, ithr, start, end);
+                PRAGMA_OMP_SIMD()
+                for (dim_t idx = start; idx < end; idx++) {
+                    const auto i_off = input_d.off_l(idx);
+                    const auto o_off = output_d.off_l(idx);
+                    output[o_off] = wspace[i_off];
+                }
+            });
+        }
 
         return status::success;
     }
