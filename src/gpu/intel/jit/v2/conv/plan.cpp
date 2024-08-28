@@ -566,7 +566,12 @@ private:
 class plan_builder_t {
 public:
     plan_builder_t() = default;
-    plan_builder_t(const kernel_desc_t &desc) : desc_(desc) {}
+    plan_builder_t(const kernel_desc_t &desc) : desc_(desc) {
+        reqs_ = desc_.reqs;
+        desc_.reqs = prb_reqs_t();
+    }
+
+    const prb_reqs_t &reqs() const { return reqs_; }
 
     plan_t build() {
         init_dim_mapper_manager();
@@ -590,8 +595,21 @@ private:
         return plan;
     }
 
+    void add_align_req(const prb_dim_t &dim, const type_t &type,
+            const align_desc_t::align_t &align) {
+        if (align.value == 0) {
+            reqs_.set_any_mod(dim);
+        } else {
+            int align_bytes = (align.in_bytes ? align.value
+                                              : align.value * type.size());
+            reqs_.add(
+                    size_var(dim) % ir_utils::safe_div(align_bytes, type.size())
+                    == 0);
+        }
+    }
+
     void init_dim_mapper_manager() {
-        dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop, desc_.reqs);
+        dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop, reqs_);
     }
 
     void init_tiles() {
@@ -604,23 +622,32 @@ private:
             int iter_tile = desc_.iter_tile.get(d, 1);
             auto thr_idx = thr_grid_.index_var(d);
             coord_info_.add_dim(d, is_loop, is_global_loop, tg_tile, thr_idx,
-                    iter_tile, desc_.reqs);
+                    iter_tile, reqs_);
         }
     }
 
     void init_layouts() {
         auto src_layout = make_conv_layout(
-                tensor_kind_t::src, desc_.src_tag, desc_.is_dw, desc_.reqs);
+                tensor_kind_t::src, desc_.src_tag, desc_.is_dw, reqs_);
         auto wei_layout = make_conv_layout(
-                tensor_kind_t::wei, desc_.wei_tag, desc_.is_dw, desc_.reqs);
+                tensor_kind_t::wei, desc_.wei_tag, desc_.is_dw, reqs_);
         auto dst_layout = make_conv_layout(
-                tensor_kind_t::dst, desc_.dst_tag, desc_.is_dw, desc_.reqs);
+                tensor_kind_t::dst, desc_.dst_tag, desc_.is_dw, reqs_);
         a_layout_ = pick_a(desc_.prop, src_layout, wei_layout, dst_layout);
         b_layout_ = pick_b(desc_.prop, src_layout, wei_layout, dst_layout);
         c_layout_ = pick_c(desc_.prop, src_layout, wei_layout, dst_layout);
         if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
             bia_layout_ = make_conv_layout(
-                    tensor_kind_t::bia, desc_.bia_tag, desc_.is_dw, desc_.reqs);
+                    tensor_kind_t::bia, desc_.bia_tag, desc_.is_dw, reqs_);
+        if (desc_.access_mode == access_mode_t::alignment) {
+            auto &align = desc_.align;
+            add_align_req(
+                    src_layout.blocks()[0].dim, src_layout.type(), align.src);
+            add_align_req(
+                    wei_layout.blocks()[0].dim, wei_layout.type(), align.wei);
+            add_align_req(
+                    dst_layout.blocks()[0].dim, dst_layout.type(), align.dst);
+        }
     }
 
     dim_map_t<prb_dim_t, prb_dim_kind_t> to_bmnk_map() const {
@@ -650,7 +677,7 @@ private:
         if (!try_init_plan(plan)) return plan_t();
         if (!check_plan(plan)) return plan_t();
 
-        reqs_ = plan.reqs();
+        reqs_.add(plan.reqs());
         plan = plan_t(desc_.hw);
         if (!try_init_plan(plan) || !check_plan(plan)) {
             ir_error_not_expected();
@@ -998,6 +1025,7 @@ private:
             params.hint_2d = send_2d_hint_t(view, op, mul_info_.hint(abc));
         params.skip_mask = skip_mask(view);
         params.init_max_entry_reg_size();
+        params.external_reqs = &reqs_;
         return params;
     }
 
@@ -1052,7 +1080,6 @@ private:
 
 prb_reqs_t plan_t::reqs() const {
     prb_reqs_t ret;
-    ret.add(desc.reqs);
     ret.add(prefetch.reqs());
     ret.add(x2r_fma.reqs());
     ret.add(epilogue.c_store.reqs());

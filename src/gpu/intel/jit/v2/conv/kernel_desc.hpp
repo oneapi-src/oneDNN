@@ -162,6 +162,43 @@ private:
     std::vector<loop_desc_entry_t> entries_;
 };
 
+enum class access_mode_t {
+    // Rely on explicit load/store settings.
+    direct,
+    // Rely on alignment/2D settings
+    alignment,
+};
+
+struct align_desc_t {
+    struct align_t {
+        int value = 0;
+        // If true, then value in bytes, otherwise in elements.
+        bool in_bytes = false;
+
+        bool is_default() const { return value == 0; }
+        std::string str() const;
+        void parse(const std::string &s);
+    };
+    align_t src;
+    align_t wei;
+    align_t dst;
+
+    bool is_default() const {
+        return src.is_default() && wei.is_default() && dst.is_default();
+    }
+
+    std::string str() const;
+
+    IR_DEFINE_DUMP()
+
+#if __cplusplus >= 202002L
+    bool operator==(const align_desc_t &other) const = default;
+#endif
+
+    void stringify(std::ostream &out) const { out << str(); }
+    void parse(std::istream &in);
+};
+
 struct load_desc_t {
     send_kind_t a = send_kind_t::undef;
     send_kind_t b = send_kind_t::undef;
@@ -256,8 +293,16 @@ public:
     prb_tile_t iter_outer_tile;
     prb_tile_t thread_group_tile;
     loop_desc_t loop_desc;
+
+    access_mode_t access_mode = access_mode_t::direct;
+    // For direct mode.
     load_desc_t load;
     store_desc_t store;
+
+    // For alignment-based/2D mode.
+    bool use_2d_access = false;
+    align_desc_t align;
+
     prefetch_desc_t prefetch;
     prb_reqs_t reqs;
 
@@ -311,24 +356,29 @@ public:
     }
 
     send_kind_t access_kind(send_op_t op, tensor_kind_t tensor) const {
-        switch (op) {
-            case send_op_t::load:
-                switch (tensor) {
-                    case tensor_kind_t::a: return load.a;
-                    case tensor_kind_t::b: return load.b;
-                    default: ir_error_not_expected();
-                }
-                break;
-            case send_op_t::store:
-                switch (tensor) {
-                    case tensor_kind_t::c: return store.c;
-                    case tensor_kind_t::bia: return send_kind_t::undef;
-                    default: ir_error_not_expected();
-                }
-                break;
-            default: ir_error_not_expected();
+        if (access_mode == access_mode_t::direct) {
+            switch (op) {
+                case send_op_t::load:
+                    switch (tensor) {
+                        case tensor_kind_t::a: return load.a;
+                        case tensor_kind_t::b: return load.b;
+                        default: ir_error_not_expected();
+                    }
+                    break;
+                case send_op_t::store:
+                    switch (tensor) {
+                        case tensor_kind_t::c: return store.c;
+                        case tensor_kind_t::bia: return send_kind_t::undef;
+                        default: ir_error_not_expected();
+                    }
+                    break;
+                default: ir_error_not_expected();
+            }
+            return send_kind_t::undef;
+        } else {
+            if (use_2d_access) return send_kind_t::_2d;
+            return send_kind_t::undef;
         }
-        return send_kind_t::undef;
     }
 
     std::string kernel_name() const override { return "gen_conv_v2"; }
@@ -480,6 +530,8 @@ struct trivial_key_validator_t<jit::v2::conv::kernel_desc_t> {
                 && (t.thread_group_tile == tmp.thread_group_tile)
                 && (t.loop_desc == tmp.loop_desc) && (t.load == tmp.load)
                 && (t.prefetch == tmp.prefetch) && (t.store == tmp.store)
+                && (t.align == tmp.align)
+                && (t.use_2d_access == tmp.use_2d_access)
                 && (t.is_finalized == tmp.is_finalized);
     }
 };
