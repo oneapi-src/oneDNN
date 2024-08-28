@@ -960,7 +960,10 @@ private:
         }
         auto params = get_send_params(
                 tensor_kind_t::c, send_op_t::store, c_mem_view);
-        auto c_store = create_send_plan(params, c_mem_view);
+        // TODO: Implement fallback from 2D to block/scattered messages to
+        // allow partial use of 2D messages when possible.
+        auto c_store = try_create_send_plan(__func__, params, c_mem_view);
+        if (!c_store) return false;
         auto &tile = c_store.entry_tile();
         plan.tile = tile;
         plan.c_store = c_store;
