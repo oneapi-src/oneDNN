@@ -34,48 +34,6 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
-void load_desc_t::parse(std::istream &in) {
-    operator=(load_desc_t());
-    a = send_kind_t::undef;
-    b = send_kind_t::undef;
-    std::string s;
-    in >> s;
-    if (s == "x") return;
-    auto parts = gpu_utils::split(s, ",");
-    for (auto &p : parts) {
-        auto p_parts = gpu_utils::split(p, ":");
-        ir_assert(p_parts.size() == 2);
-        auto tensor = p_parts[0];
-        auto kind = p_parts[1];
-        if (tensor == "a") {
-            a = to_enum<send_kind_t>(kind);
-        } else if (tensor == "b") {
-            b = to_enum<send_kind_t>(kind);
-        } else {
-            ir_error_not_expected() << p;
-        }
-    }
-}
-
-void store_desc_t::parse(std::istream &in) {
-    operator=(store_desc_t());
-    std::string s;
-    in >> s;
-    if (s == "x") return;
-    auto parts = gpu_utils::split(s, ",");
-    for (auto &p : parts) {
-        auto p_parts = gpu_utils::split(p, ":");
-        ir_assert(p_parts.size() == 2);
-        auto tensor = p_parts[0];
-        auto kind = p_parts[1];
-        if (tensor == "c") {
-            c = to_enum<send_kind_t>(kind);
-        } else {
-            ir_error_not_expected() << p;
-        }
-    }
-}
-
 std::string align_desc_t::align_t::str() const {
     std::string s = (value == 0 ? "*" : std::to_string(value));
     if (in_bytes) s += "b";
@@ -95,6 +53,7 @@ std::string align_desc_t::str() const {
     parts.emplace_back(src.str());
     parts.emplace_back(wei.str());
     parts.emplace_back(dst.str());
+    if (parts[0] == parts[1] && parts[1] == parts[2]) return parts[0];
     return gpu_utils::join(":", parts);
 }
 
@@ -374,7 +333,7 @@ bool kernel_desc_t::is_supported() const {
 void kernel_desc_t::set(const std::string &s) {
     operator=(kernel_desc_t());
     if (s.empty()) return;
-    auto iface = parse_iface();
+    auto &iface = parse_iface();
     iface.parse(s, *this);
     set_defaults();
 }
@@ -420,8 +379,63 @@ void kernel_desc_t::finalize(const prb_reqs_t &final_reqs) {
     reqs.add(final_reqs);
 }
 
+bool fit_tag(tensor_kind_t kind, const layout_tag_t &desc_tag,
+        const layout_tag_t &prb_tag, const prb_tile_t &shape, bool exact,
+        bool adjust) {
+    auto &desc_type = desc_tag.type();
+    auto &prb_type = prb_tag.type();
+    bool type_ok = (desc_tag.type() == prb_tag.type());
+    if (!exact) type_ok = (desc_type.size() == prb_type.size());
+    ir_check(type_ok && prb_tag.matches(desc_tag, shape, /*check_type=*/false))
+            << to_string(kind) << " tag " << prb_tag
+            << " does not match kernel descriptor tag " << desc_tag;
+    if (desc_tag.type() != prb_tag.type() && adjust) {
+        const_cast<layout_tag_t &>(desc_tag)
+                = layout_tag_t(desc_tag.desc(), prb_type, desc_tag.raw_tag());
+    }
+    return true;
+}
+
+bool fit_impl(const kernel_desc_t &desc, const problem_t &prb, bool exact,
+        bool adjust) {
+    ir_check(prb.prop() == desc.prop) << "Propagation kind does not match";
+    ir_check(fit_tag(tensor_kind_t::src, desc.src_tag, prb.src_tag(),
+            prb.shape(), exact, adjust));
+    ir_check(fit_tag(tensor_kind_t::wei, desc.wei_tag, prb.wei_tag(),
+            prb.shape(), exact, adjust));
+    ir_check(fit_tag(tensor_kind_t::dst, desc.dst_tag, prb.dst_tag(),
+            prb.shape(), exact, adjust));
+    ir_check(prb.is_depthwise() == desc.is_dw)
+            << "Mixing depthwise/non-depthwise descriptor and problem";
+    ir_check(prb.with_bias() == desc.with_bias)
+            << "Problem and descriptor 'with_bias' field mismatch";
+    ir_check(desc.reqs.fits(prb.shape()));
+    return true;
+}
+
+bool kernel_desc_t::can_fit(const problem_t &prb) const {
+    return fit_impl(*this, prb, /*exact=*/false, /*adjust=*/false);
+}
+
+void kernel_desc_t::fit_to(const problem_t &prb) {
+    fit_impl(*this, prb, /*exact=*/false, /*adjust=*/true);
+}
+
+bool kernel_desc_t::matches(const problem_t &prb) const {
+    return fit_impl(*this, prb, /*exact=*/true, /*adjust=*/false);
+}
+
 std::string kernel_desc_t::cmd_str() const {
     return parse_iface().cmd_str(*this);
+}
+
+std::string kernel_desc_t::brief_str() const {
+    std::ostringstream oss;
+    oss << jit::to_string(prop) << "_";
+    oss << "i_" << iter_tile.str();
+    oss << "_T_" << thread_group_tile.str();
+    oss << "_p_" << prefetch.str();
+    return oss.str();
 }
 
 std::string kernel_desc_t::str() const {
@@ -443,8 +457,6 @@ std::string kernel_desc_t::str() const {
     oss << "Iteration outer tile:   " << iter_outer_tile << std::endl;
     oss << "Thread group tile:      " << thread_group_tile << std::endl;
     oss << "Loop desc:              " << loop_desc << std::endl;
-    oss << "Load:                   " << load.str() << std::endl;
-    oss << "Store:                  " << store.str() << std::endl;
     oss << "Use block 2D access:    " << ir_utils::to_string(use_2d_access)
         << std::endl;
     oss << "Align:                  " << align.str() << std::endl;
@@ -457,6 +469,7 @@ std::string kernel_desc_t::str() const {
 void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     iface->set_relaxed(true);
 #define PACK(member) decltype(kernel_desc_t::member), &kernel_desc_t::member
+    iface->add<PACK(hw_desc)>("hw", "Hardware (xehpc).", /*required=*/true);
     iface->add<PACK(prop)>("prop", "Propagation kind (fwd, bwd_d or bwd_w).",
             /*required=*/true);
     iface->add<PACK(is_dw)>(
@@ -470,7 +483,6 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             /*required=*/true);
     iface->add<PACK(dst_tag)>("dst", "Destination layout tag (e.g. axb:f32).",
             /*required=*/true);
-    iface->add<PACK(hw_desc)>("hw", "Hardware (xehpc).", /*required=*/true);
     iface->add<PACK(fma)>("fma", "FMA kind (e.g. mad).", /*required=*/true);
     iface->add<PACK(simd)>("simd", "SIMD size (16 or 32).", /*required=*/true);
     iface->add<PACK(regs)>(
@@ -485,11 +497,6 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     iface->add<PACK(loop_desc)>("loop_desc",
             "Loop description, variables ordered from innermost to outermost "
             "(e.g. kw,kh,kd,ic).");
-    iface->add<PACK(load)>("load",
-            "Load type (block, scattered [default], 2d) for A and B, e.g. "
-            "a:2d,b:block.");
-    iface->add<PACK(store)>("store",
-            "Store type (block, scattered [default], 2d) for C,  e.g. c:2d.");
     iface->add<PACK(use_2d_access)>(
             "2d", "Whether to use block 2D messages for access.");
     iface->add<PACK(align)>("align",
@@ -509,8 +516,6 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             "Dimension requirements, colon-separated (e.g. kd=1:mb>=16).");
 #undef PACK
 
-    iface->set_pre_stringify_func(
-            [](const kernel_desc_t &desc) { ir_assert(desc.is_finalized); });
     iface->set_post_parse_func([](kernel_desc_t &desc) {
         desc.src_tag
                 = make_conv_layout_tag(tensor_kind_t::src, desc.src_tag.str());
@@ -518,7 +523,6 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
                 = make_conv_layout_tag(tensor_kind_t::wei, desc.wei_tag.str());
         desc.dst_tag
                 = make_conv_layout_tag(tensor_kind_t::dst, desc.dst_tag.str());
-        desc.is_finalized = true;
     });
 }
 

@@ -16,6 +16,8 @@
 
 #include "gpu/intel/jit/v2/conv/planner/search.hpp"
 
+#include "common/profiler.hpp"
+#include "gpu/intel/jit/ir/blocking.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
 #include "gpu/intel/jit/v2/conv/model.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
@@ -137,7 +139,7 @@ struct tile_info_t {
 
     std::vector<int> iter_tiles() const {
         if (!any(flags & tile_flags_t::iter)) return {1};
-        return pow_range(1, 64, 2);
+        return pow_range(8, 64, 2);
     }
 
     std::vector<int> thread_group_tiles() const {
@@ -242,6 +244,15 @@ struct tiling_desc_t {
         iter.unset(dim);
         thread_group.unset(dim);
     }
+
+    std::string str() const {
+        std::ostringstream oss;
+        oss << "iter: " << iter.str();
+        oss << " thread_group: " << thread_group.str();
+        return oss.str();
+    }
+
+    IR_DEFINE_DUMP()
 };
 
 class dim_tile_set_t {
@@ -301,9 +312,12 @@ private:
 std::vector<tile_scheme_t> get_tile_schemes(prop_kind_t prop, bool is_dw) {
     std::vector<tile_scheme_t> schemes;
     if (prop == prop_kind::forward) {
-        schemes.emplace_back("tg=[ow], iter=[mb,g,oc,ic]");
+        schemes.emplace_back("tg=[ic],    iter=[mb,g,oc,ic]");
+        schemes.emplace_back("tg=[ic],    iter=[ow,g,oc,ic]");
         schemes.emplace_back("tg=[oc,mb], iter=[mb,g,oc,ic]");
-        schemes.emplace_back("tg=[ic,ow], iter=[ow,g,oc,ic]");
+        schemes.emplace_back("tg=[oc,mb], iter=[ow,g,oc,ic]");
+        schemes.emplace_back("tg=[oc,ow], iter=[mb,g,oc,ic]");
+        schemes.emplace_back("tg=[oc,ow], iter=[ow,g,oc,ic]");
     } else if (prop == prop_kind::backward_data) {
         schemes.emplace_back("tg=[ic,iw], iter=[mb,g,oc,ic]");
         schemes.emplace_back("tg=[ic,mb], iter=[mb,g,oc,ic]");
@@ -325,23 +339,88 @@ std::vector<tile_scheme_t> get_tile_schemes(prop_kind_t prop, bool is_dw) {
     return schemes;
 }
 
+// A group of kernel descriptors sharing the same set of requriements.
+class search_kernel_desc_group_t {
+public:
+    search_kernel_desc_group_t() = default;
+    search_kernel_desc_group_t(const prb_reqs_t &reqs) : reqs_(reqs) {}
+
+    const prb_reqs_t &reqs() const { return reqs_; }
+    const std::vector<kernel_desc_t> &descs() const { return descs_; }
+
+    void add_desc(const kernel_desc_t &desc) {
+        ir_assert(desc.reqs.str() == reqs_.str());
+        if (descs_.empty()) {
+            is_dw_ = desc.is_dw;
+        } else {
+            ir_assert(desc.is_dw == is_dw_);
+        }
+        descs_.push_back(desc);
+    }
+
+    bench_input_params_t bench_input_params(int nprbs) const {
+        if (descs_.empty()) return bench_input_params_t();
+        auto &kd = descs_.front();
+        bench_input_params_t params;
+        params.hw = kd.hw;
+        params.prop = kd.prop;
+        params.src_tag = kd.src_tag;
+        params.wei_tag = kd.wei_tag;
+        params.dst_tag = kd.dst_tag;
+        params.reqs = reqs_;
+        params.is_dw = is_dw_;
+        params.nprbs = nprbs;
+        return params;
+    }
+
+private:
+    prb_reqs_t reqs_;
+    std::vector<kernel_desc_t> descs_;
+    bool is_dw_ = false;
+};
+
+bench_data_set_t bench_kernel_desc_group(const bench_manager_t &bench_mger,
+        const search_kernel_desc_group_t &desc_group, int nprbs,
+        int max_descs = 256);
+
 class kernel_search_manager_t {
 public:
+    // Number of problems to generate to rank kernel descriptors in a kernel
+    // descriptor group.
+    static const int bench_nprbs = 30;
+    // Number of problems to generate to build performance model.
+    static const int model_nprbs = 250;
+    // Number of top kernel descriptors in a kernel descriptor group to save to
+    // registry.
+    static const int registry_top_k = 4;
+
     kernel_search_manager_t(
             const bench_manager_t &bench_mger, const kernel_desc_t &base_desc)
-        : bench_mger_(bench_mger), base_desc_(base_desc) {}
+        : bench_mger_(bench_mger), base_desc_(base_desc) {
+        if (base_desc_.prop == prop_kind::backward_data) {
+            // XXX: No stride support in backward by data yet.
+            base_desc_.reqs.add(size_var(prb_dims::sw) == 1);
+            base_desc_.reqs.add(size_var(prb_dims::sh) == 1);
+            base_desc_.reqs.add(size_var(prb_dims::sd) == 1);
+        }
+    }
 
     void search() {
         std::cout << "Starting kernel search" << std::endl;
-        auto descs = gen_descs();
-        for (size_t i = 0; i < descs.size(); i++) {
-            search_desc(descs[i]);
+        auto desc_groups = gen_desc_groups();
+        for (auto &dg : desc_groups) {
+            auto bench_data_set
+                    = bench_kernel_desc_group(bench_mger_, dg, bench_nprbs);
+            auto best = bench_data_set.find_best(registry_top_k);
+            for (auto &bd : best) {
+                populate_registry(bd.kernel_desc);
+            }
         }
         std::cout << "Kernel search completed" << std::endl;
     }
 
 private:
-    std::vector<kernel_desc_t> gen_descs() const {
+    std::vector<search_kernel_desc_group_t> gen_desc_groups() const {
         std::unordered_map<std::string, kernel_desc_t> descs;
         for (auto &s : get_tile_schemes(base_desc_.prop, base_desc_.is_dw)) {
             dim_tile_set_t tile_set(s);
@@ -350,31 +429,79 @@ private:
                 auto d = base_desc_;
                 d.thread_group_tile = td.thread_group;
                 d.iter_tile = td.iter;
-                if (!is_supported(d)) continue;
+                if (!finalize_conv_desc(d, bench_mger_.hw())) {
+                    std::cout << d.brief_str() << ": \033[1;31mFAIL\033[0m"
+                              << std::endl;
+                    continue;
+                }
                 auto d_key = jit::stringify(d);
                 if (descs.find(d_key) != descs.end()) continue;
                 descs[d_key] = d;
-                std::cout << d_key << std::endl;
+                std::cout << d.brief_str() << ": \033[1;32mOK\033[0m"
+                          << std::endl;
             }
         }
-        std::vector<kernel_desc_t> ret;
+        ir_info() << "gen_desc_groups(): descs.size() = " << descs.size()
+                  << std::endl;
+        std::unordered_map<std::string, search_kernel_desc_group_t> desc_groups;
         for (auto &kv : descs) {
+            auto &d = kv.second;
+            auto ret = desc_groups.emplace(
+                    d.reqs.str(), search_kernel_desc_group_t(d.reqs));
+            ret.first->second.add_desc(d);
+        }
+        std::vector<search_kernel_desc_group_t> ret;
+        for (auto &kv : desc_groups) {
             ret.push_back(kv.second);
         }
-        std::minstd_rand seed;
-        std::shuffle(ret.begin(), ret.end(), seed);
-        ret.resize(std::min((int)ret.size(), 8));
-        std::cout << "Generated " << ret.size() << " kernel descriptors"
-                  << std::endl;
+        std::cout << "Generated " << ret.size()
+                  << " kernel descriptor groups\n";
         return ret;
     }
 
-    bool is_supported(kernel_desc_t &desc) const {
-        if (!desc.is_supported()) return false;
-        auto plan = create_conv_plan(desc);
-        if (!plan) return false;
-        desc.finalize(plan);
-        return true;
+    void populate_registry(const kernel_desc_t &desc) const {
+        auto &registry = plan_registry();
+        auto bd = bench(bench_mger_, desc, model_nprbs);
+        auto model = model_fit(bd);
+        registry.set(desc, model);
+
+        std::vector<type_t> dst_types;
+        std::vector<type_t> wei_types;
+        switch (desc.prop) {
+            case prop_kind::forward:
+                for (auto &dst : {type_t::s8(), type_t::f16(), type_t::f32()}) {
+                    if (dst.size() == desc.src_tag.type().size()) continue;
+                    dst_types.push_back(dst);
+                }
+                break;
+            case prop_kind::backward_weights:
+                if (desc.wei_tag.type().is_bf16()) {
+                    wei_types.push_back(type_t::f32());
+                }
+            default: break;
+        }
+        for (auto &dst : dst_types) {
+            auto d = desc;
+            d.dst_tag = layout_tag_t(
+                    desc.dst_tag.desc(), dst, desc.dst_tag.raw_tag());
+            d.is_finalized = false;
+            if (!finalize_conv_desc(d, bench_mger_.hw())) continue;
+            auto bd = bench(bench_mger_, d, /*nprbs=*/250);
+            if (!bd) continue;
+            auto model = model_fit(bd);
+            registry.set(d, model);
+        }
+        for (auto &wei : wei_types) {
+            auto d = desc;
+            d.wei_tag = layout_tag_t(
+                    desc.wei_tag.desc(), wei, desc.wei_tag.raw_tag());
+            d.is_finalized = false;
+            if (!finalize_conv_desc(d, bench_mger_.hw())) continue;
+            auto bd = bench(bench_mger_, d, /*nprbs=*/250);
+            if (!bd) continue;
+            auto model = model_fit(bd);
+            registry.set(d, model);
+        }
     }
 
     static std::vector<prb_tile_t> generate_iter_outer_tiles(
@@ -394,6 +521,7 @@ private:
         return tiles;
     }
 
+    // TODO: Use search_desc.
     void search_desc(const kernel_desc_t &_desc) const {
         auto iter_outer_tiles = generate_iter_outer_tiles(_desc);
         auto &registry = plan_registry();
@@ -417,6 +545,101 @@ private:
     kernel_desc_t base_desc_;
 };
 
+class search_sequence_t {
+public:
+    search_sequence_t(const std::vector<kernel_desc_t> &descs, int max_entries)
+        : max_entries_(max_entries) {
+        std::vector<std::vector<prb_tile_t>> tiles;
+        for (int i = 0; i < (int)descs.size(); i++) {
+            auto &d = descs[i];
+            entries_.emplace_back(i, d);
+            std::vector<prb_tile_t> d_tiles;
+            auto iter = to_gemm(d.iter_tile, d.prop);
+            auto tg = to_gemm(d.thread_group_tile, d.prop);
+            d_tiles.push_back(iter);
+            d_tiles.push_back(tg);
+            tiles.push_back(std::move(d_tiles));
+        }
+        tile_to_vec_ = tile_to_vec_t(tiles);
+        entry_it_ = entries_.begin();
+        std::default_random_engine rng(0);
+        std::shuffle(entries_.begin(), entries_.end(), rng);
+    }
+
+    explicit operator bool() const {
+        return entry_idx_ < max_entries_ && entry_it_ != entries_.end();
+    }
+
+    std::pair<int, kernel_desc_t> next() {
+        ir_assert((bool)*this);
+        auto &e = *entry_it_;
+        ++entry_it_;
+        return std::make_pair(e.id, e.desc);
+    }
+
+    void update(const bench_data_set_t &data_set) {
+        entry_idx_++;
+        if (batch_entry_idx_++ < rescore_period_) return;
+        batch_entry_idx_ = 0;
+
+        const int nbest = 5;
+        auto best_ids = data_set.find_best_ids(nbest);
+        std::unordered_map<int, float> min_dists;
+        for (auto it = entry_it_; it != entries_.end(); ++it) {
+            min_dists[it->id] = std::numeric_limits<float>::max();
+            for (auto &id : best_ids) {
+                min_dists[it->id] = std::min(
+                        min_dists[it->id], tile_to_vec_.dist(it->id, id));
+            }
+        }
+        std::sort(entry_it_, entries_.end(),
+                [&](const entry_t &a, const entry_t &b) {
+                    return min_dists[a.id] < min_dists[b.id];
+                });
+    }
+
+private:
+    struct entry_t {
+        int id = -1;
+        kernel_desc_t desc;
+
+        entry_t(int id, const kernel_desc_t &desc) : id(id), desc(desc) {}
+    };
+
+    static const int rescore_period_ = 16;
+
+    std::vector<entry_t> entries_;
+    std::vector<entry_t>::iterator entry_it_;
+    tile_to_vec_t tile_to_vec_;
+
+    // The indices below are tracked only for successfully created kernels
+    // (update() must be called).
+    int batch_entry_idx_ = 0;
+    int entry_idx_ = 0;
+    int max_entries_ = 0;
+};
+
+bench_data_set_t bench_kernel_desc_group(const bench_manager_t &bench_mger,
+        const search_kernel_desc_group_t &desc_group, int nprbs,
+        int max_descs) {
+    auto eng = bench_mger.get_engine();
+    bench_runner_t runner(bench_mger, desc_group.bench_input_params(nprbs));
+    bench_data_set_t bd_set;
+    search_sequence_t seq(desc_group.descs(), max_descs);
+    while (seq) {
+        auto seq_next = seq.next();
+        int kernel_desc_id = seq_next.first;
+        auto &kernel_desc = seq_next.second;
+        auto bd = runner.bench(kernel_desc);
+        if (!bd) continue;
+        bd.id = kernel_desc_id;
+        bd_set.add(bd);
+        seq.update(bd_set);
+    }
+
+    return bd_set;
+}
+
 void search(const bench_manager_t &bench_mger, const kernel_desc_t &desc) {
     kernel_search_manager_t mger(bench_mger, desc);
     mger.search();
@@ -425,20 +648,30 @@ void search(const bench_manager_t &bench_mger, const kernel_desc_t &desc) {
 void auto_search(const bench_manager_t &bench_mger) {
     // clang-format off
     std::vector<const char *> recipes = {
-        "--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128",
-        "--prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --load a:2d,b:2d --store c:2d",
-        "--prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --hw xehpc --fma dpas --simd 16 --regs 256 --load a:2d,b:2d --store c:2d --prefetch x3",
-        "--prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --hw xehpc --fma dpas --simd 16 --regs 256",
-
-        "--prop bwd_d --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --spec-reqs sw1sh1sd1",
-        "--prop bwd_d --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --load a:2d,b:2d --store c:2d --spec-reqs sw1sh1sd1",
-        "--prop bwd_d --src axb:s8 --wei axcb:s8 --dst axb:s8 --hw xehpc --fma dpas --simd 16 --regs 256 --load a:2d,b:2d --store c:2d --prefetch x3 --spec-reqs sw1sh1sd1",
-        "--prop bwd_d --src axb:s8 --wei axcb:s8 --dst axb:s8 --hw xehpc --fma dpas --simd 16 --regs 256 --spec-reqs sw1sh1sd1",
-
-        "--prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128",
-        "--prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --hw xehpc --fma mad --simd 16 --regs 128 --load a:2d,b:2d --store c:2d",
+        "--hw xehpc --prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --fma dpas --simd 16 --regs 256 --2d 1",
+        "--hw xehpc --prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --fma dpas --simd 16 --regs 256 --align 1",
+        "--hw xehpc --prop fwd --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --2d 1",
+        "--hw xehpc --prop fwd --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --align 1",
+        "--hw xehpc --prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --2d 1",
+        "--hw xehpc --prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --align 1",
+        "--hw xehpc --prop bwd_d --src axb:bf16 --wei axbc:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --2d 1",
+        "--hw xehpc --prop bwd_d --src axb:bf16 --wei axbc:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --align 1",
+        "--hw xehpc --prop bwd_d --src axb:f32 --wei axbc:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --2d 1",
+        "--hw xehpc --prop bwd_d --src axb:f32 --wei axbc:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --align 1",
+        "--hw xehpc --prop bwd_w --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --2d 1",
+        "--hw xehpc --prop bwd_w --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --align 1",
+        "--hw xehpc --prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 16 --regs 128 --2d 1",
+        "--hw xehpc --prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 16 --regs 128 --align 1",
+        "--hw xehpc --dw 1 --prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --fma mad --simd 32 --regs 128 --align 1",
+        "--hw xehpc --dw 1 --prop fwd --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma mad --simd 32 --regs 128 --align 1",
+        "--hw xehpc --dw 1 --prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --align 1",
+        "--hw xehpc --dw 1 --prop bwd_d --src axb:bf16 --wei axbc:bf16 --dst axb:bf16 --fma mad --simd 32 --regs 128 --align 1",
+        "--hw xehpc --dw 1 --prop bwd_d --src axb:f32 --wei axbc:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --align 1",
+        "--hw xehpc --dw 1 --prop bwd_w --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma mad --simd 16 --regs 128 --align 1",
+        "--hw xehpc --dw 1 --prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --align 1",
     };
     // clang-format on
+    double t = get_msec();
     for (const char *_r : recipes) {
         auto r = std::string(_r) + " --iter x --tg x";
         kernel_desc_t desc;
@@ -446,6 +679,8 @@ void auto_search(const bench_manager_t &bench_mger) {
         desc.hw = hw_t(bench_mger.get_engine().get());
         search(bench_mger, desc);
     }
+    t = get_msec() - t;
+    std::cout << "Kernel search done, took: " << t / 1e3 << " sec" << std::endl;
 }
 
 } // namespace planner

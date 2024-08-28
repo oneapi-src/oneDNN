@@ -495,7 +495,10 @@ struct plan_t : public base_plan_t {
 };
 
 plan_t create_conv_plan(const kernel_desc_t &desc);
-bool finalize_conv_desc(kernel_desc_t &desc, const problem_t &prb);
+bool finalize_conv_desc(
+        kernel_desc_t &desc, const problem_t &prb, plan_t *plan = nullptr);
+bool finalize_conv_desc(
+        kernel_desc_t &desc, const hw_t &hw, plan_t *plan = nullptr);
 
 } // namespace conv
 } // namespace v2

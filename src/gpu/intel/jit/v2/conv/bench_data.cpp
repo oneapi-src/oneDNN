@@ -30,9 +30,66 @@ std::string bench_data_t::str() const {
     std::ostringstream oss;
     for (int i = 0; i < size(); i++) {
         if (i > 0) oss << std::endl;
-        oss << "bench," << prbs[i].csv_str() << "," << times[i];
+        double gops_sec = prbs[i].ops() / times[i];
+        oss << "bench," << prbs[i].csv_str() << "," << times[i] << ","
+            << gops_sec;
     }
     return oss.str();
+}
+
+std::vector<int> bench_data_set_t::find_best_ids(int nbest) const {
+    auto idxs = find_best_idxs(nbest);
+    std::vector<int> ret;
+    for (int idx : idxs)
+        ret.push_back(vec_[idx].id);
+    return ret;
+}
+
+std::vector<bench_data_t> bench_data_set_t::find_best(int nbest) const {
+    auto idxs = find_best_idxs(nbest);
+    std::vector<bench_data_t> ret;
+    for (int idx : idxs)
+        ret.push_back(vec_[idx]);
+    return ret;
+}
+
+std::vector<int> bench_data_set_t::find_best_idxs(int _nbest) const {
+    int nbest = std::min(_nbest, (int)vec_.size());
+    if (nbest == 0) return {};
+    int nprbs = vec_[0].size();
+    uint64_t max_time = std::numeric_limits<uint64_t>::max();
+    std::vector<uint64_t> best_times(nprbs, max_time);
+    std::vector<uint64_t> cur_times(nprbs, max_time);
+    for (auto &bd : vec_) {
+        for (int i = 0; i < nprbs; i++) {
+            best_times[i] = std::min(best_times[i], bd.times[i]);
+        }
+    }
+    std::unordered_set<int> best_idxs;
+    for (int k = 0; k < nbest; k++) {
+        double best_geomean = 0;
+        int best_idx = -1;
+        // Greedily select the kernel that gives the highest improvement in geomean.
+        for (int i = 0; i < size(); i++) {
+            if (best_idxs.count(i) > 0) continue;
+            double geomean = 1.0;
+            for (int j = 0; j < nprbs; j++) {
+                double ratio = best_times[j]
+                        / (double)std::min(cur_times[j], vec_[i].times[j]);
+                geomean *= std::pow(ratio, 1.0 / nprbs);
+            }
+            if (geomean >= best_geomean) {
+                best_geomean = geomean;
+                best_idx = i;
+            }
+        }
+        ir_assert(best_idx != -1);
+        for (int j = 0; j < nprbs; j++) {
+            cur_times[j] = std::min(cur_times[j], vec_[best_idx].times[j]);
+        }
+        best_idxs.insert(best_idx);
+    }
+    return std::vector<int>(best_idxs.begin(), best_idxs.end());
 }
 
 } // namespace conv

@@ -42,6 +42,12 @@ struct hw_config_t {
         return ss_per_gpu * hw.threads_per_eu(regs);
     }
 
+    int max_tgs_per_gpu(int tg_size) const {
+        int tgs_per_ss
+                = hw.eus_per_ss_or_dss() * hw.threads_per_eu(regs) / tg_size;
+        return hw.eu_count() / hw.eus_per_ss_or_dss() * tgs_per_ss;
+    }
+
     int max_threads() const { return hw.eu_count() * hw.threads_per_eu(regs); }
 
     int f32_mad_ops_per_clock() const {
@@ -137,44 +143,37 @@ struct sample_t {
         kl = ir_utils::safe_div(k, kt * ki);
     }
 
-    vec1d to_x() const {
-        std::vector<float> ret;
-        ret.push_back(thr_util());
-        ret.push_back(tg_util());
-        ret.push_back(inv_kl());
+    static std::vector<std::string> feature_names() {
+        std::vector<std::string> ret;
+        ret.push_back("kl");
+        ret.push_back("waves");
         return ret;
     }
 
-    float to_y() const { return eff(); }
-
-    float thr_util() const {
-        return std::min(1.0f, threads() / (float)hw_cfg.max_threads());
+    vec1d to_x() const {
+        std::vector<float> ret;
+        ret.push_back(kl);
+        ret.push_back(waves());
+        return ret;
     }
 
-    float tg_util() const {
+    float to_y() const { return time_ns; }
+
+    float ntgs() const {
         float ntgs = 1.0f;
         ntgs *= ir_utils::safe_div(b, bl * bt * bi);
         ntgs *= ir_utils::safe_div(m, ml * mt * mi);
         ntgs *= ir_utils::safe_div(n, nl * nt * ni);
         ntgs *= ir_utils::safe_div(k, kl * kt * ki);
-        return std::min(1.0f, ntgs / hw_cfg.max_tgs_per_gpu());
-    }
-
-    float inv_kl() const {
-        int iters = bl * ml * nl * kl;
-        return 1.0f / iters;
-    }
-
-    int64_t threads() const {
-        int64_t ret = 1;
-        ret *= ir_utils::safe_div(b, bl * bi);
-        ret *= ir_utils::safe_div(m, ml * mi);
-        ret *= ir_utils::safe_div(n, nl * ni);
-        ret *= ir_utils::safe_div(k, kl * ki);
-        return ret;
+        return ntgs;
     }
 
     float ops() const { return 2.0f * b * m * n * k; }
+
+    float waves() const {
+        int tgs_per_wave = hw_cfg.max_tgs_per_gpu(bt * mt * nt * kt);
+        return ntgs() / tgs_per_wave;
+    }
 
     float eff() const {
         float sec = time_ns / 1e9;
@@ -191,14 +190,75 @@ struct sample_t {
     }
 };
 
+float coef_kl(float x, float a, float b) {
+    return 1 + 1.0f / (a * std::pow(x, b));
+}
+
+float coef_wp(float x, float a, float b) {
+    return 1 - 1.0f / (a * std::pow(x, b));
+}
+
+// The performance model is based on two inputs:
+// - kl:    the number of reduction iterations (integer)
+// - waves: the number of thread waves to execute the kernel (may be fractional)
+//
+// waves input is split into wf/wp:
+// - wf: number of full waves (integer)
+// - wp: fractional number of waves, wp = 0 is translated to 1 to have smooth
+//       function behavior.
+//
+// Model parameters:
+// - T0 - "time per normalized wave-iteration",
+//   For large kl/waves the total time is T0 * kl * wf
+//
+// Intermediate coefficients:
+// - coef_kl = 1 + 1 / (a_kl * kl ^ b_kl)
+//   This is for non-linear scaling of kl value
+// - coef_wp = 1 - 1 / (a_wp * wf ^ b_wp)
+//   This is for non-linear scaling of wp value
+//
+// The model evaluates the expected time as:
+//   T = T0 * kl * coef_kl * (wf + wp * coef_wp)
+//
+// - For large kl/wf the coefficients approach 1
+// - For small kl values (coef_kl > 1): the assumed iteration time in a small
+//   loop is higher due to shorter pipeline and higher relative impact of kernel
+//   prologue/epilogue
+// - For small wf values (coef_wp < 1): this is to take into account the effect
+//   of wave tails. For example when moving from one full wave to one full wave
+//   and a few extra threadgroups a distinct increase in time is typically
+//   observed. This effect is more pronounced with a smaller number of full
+//   waves.
+float model_t::predict(float kl, float waves, const vec1d &coef) {
+    float waves_frac = waves - (int)waves;
+    float wp = (waves_frac == 0 ? 1 : waves_frac);
+    float wf = std::ceil(waves);
+    float T0 = coef[0];
+    float a_kl = coef[1];
+    float b_kl = coef[2];
+    float a_wp = coef[3];
+    float b_wp = coef[4];
+    float Tw = T0 * kl * coef_kl(kl, a_kl, b_kl);
+    return Tw * (wf + wp * coef_wp(wf, a_wp, b_wp));
+}
+
+float model_t::predict(const vec1d &x) const {
+    ir_assert(x.size() == 2);
+    float kl = x[0];
+    float waves = x[1];
+    return model_t::predict(kl, waves, coef_);
+}
+
 float model_t::predict(const problem_t &prb, const kernel_desc_t &desc) const {
     sample_t s(prb, desc);
-    return ml_model_.predict(s.to_x());
+    return predict(s.to_x());
 }
 
 float model_t::eff(const problem_t &prb, const kernel_desc_t &desc) const {
+    using namespace ir_utils;
     sample_t s(prb, desc);
-    float raw_eff = ml_model_.predict(s.to_x());
+    auto x = s.to_x();
+    float raw_eff = s.ops() / predict(x);
     return raw_eff * s.pad_eff;
 }
 
@@ -217,7 +277,7 @@ void model_t::score(const bench_data_t &bd) {
 void model_t::stringify(std::ostream &out) const {
     std::ostringstream oss;
     serialized_data_t s;
-    ml_model_.serialize(s);
+    s.append(coef_);
     for (uint8_t d : s.get_data()) {
         oss << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
             << (int)d;
@@ -233,7 +293,18 @@ void model_t::parse(std::istream &in) {
     }
     auto s = serialized_t::from_data(std::move(data));
     deserializer_t d(s);
-    ml_model_ = ml_model_t::deserialize(d);
+    d.pop(coef_);
+}
+
+std::string to_str(const vec1d &x) {
+    std::ostringstream oss;
+    bool is_first = true;
+    for (float f : x) {
+        if (!is_first) oss << ",";
+        oss << f;
+        is_first = false;
+    }
+    return oss.str();
 }
 
 void to_model_xy(const bench_data_t &bd, vec2d &X, vec1d &y) {
@@ -245,6 +316,24 @@ void to_model_xy(const bench_data_t &bd, vec2d &X, vec1d &y) {
         sample_t s(bd.prbs[i], bd.kernel_desc, bd.times[i]);
         X.push_back(s.to_x());
         y.push_back(s.to_y());
+    }
+}
+
+void dump_csv(const bench_data_t &bd, const model_t &model) {
+    auto name = bd.kernel_desc.brief_str();
+    std::ofstream out(name + ".csv");
+    out << "desc,";
+    for (auto &name : sample_t::feature_names()) {
+        out << name << ",";
+    }
+    out << "time,model_time" << std::endl;
+    for (int i = 0; i < bd.size(); i++) {
+        sample_t s(bd.prbs[i], bd.kernel_desc, bd.times[i]);
+        auto x = s.to_x();
+        auto y = s.to_y();
+        float model_time = model.predict(x);
+        out << bd.prbs[i].desc_str() << "," << to_str(x) << "," << y << ","
+            << model_time << std::endl;
     }
 }
 

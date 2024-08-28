@@ -18,8 +18,8 @@
 #define GPU_INTEL_JIT_V2_CONV_MODEL_HPP
 
 #include "gpu/intel/jit/v2/conv/bench_data.hpp"
-#include "gpu/intel/jit/v2/conv/ml.hpp"
 #include "gpu/intel/jit/v2/conv/problem.hpp"
+#include "gpu/intel/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -29,21 +29,28 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
+using vec1d = std::vector<float>;
+using vec2d = std::vector<std::vector<float>>;
+
 class model_t {
 public:
     model_t() = default;
-    model_t(const ml_model_t &ml_model) : ml_model_(ml_model) {}
+    model_t(const vec1d &coef) : coef_(coef) {}
+    float predict(const vec1d &x) const;
     float predict(const problem_t &prb, const kernel_desc_t &desc) const;
     float eff(const problem_t &prb, const kernel_desc_t &desc) const;
     void score(const bench_data_t &bd);
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
 
+    static float predict(float kl, float waves, const vec1d &coef);
+
 private:
-    ml_model_t ml_model_;
+    vec1d coef_;
 };
 
 void to_model_xy(const bench_data_t &bd, vec2d &X, vec1d &y);
+void dump_csv(const bench_data_t &bd, const model_t &model);
 
 } // namespace conv
 } // namespace v2

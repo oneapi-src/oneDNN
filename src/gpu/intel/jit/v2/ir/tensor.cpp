@@ -412,9 +412,9 @@ static inline void advance(
     }
 }
 
-bool layout_tag_t::matches(
-        const layout_tag_t &other, const prb_tile_t &sizes) const {
-    if (type_ != other.type_) return false;
+bool layout_tag_t::matches(const layout_tag_t &other, const prb_tile_t &sizes,
+        bool check_type) const {
+    if (check_type && type_ != other.type_) return false;
     return raw_tag().matches(other.raw_tag(), desc_, sizes);
 }
 

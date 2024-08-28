@@ -639,15 +639,10 @@ private:
         if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
             bia_layout_ = make_conv_layout(
                     tensor_kind_t::bia, desc_.bia_tag, desc_.is_dw, reqs_);
-        if (desc_.access_mode == access_mode_t::alignment) {
-            auto &align = desc_.align;
-            add_align_req(
-                    src_layout.blocks()[0].dim, src_layout.type(), align.src);
-            add_align_req(
-                    wei_layout.blocks()[0].dim, wei_layout.type(), align.wei);
-            add_align_req(
-                    dst_layout.blocks()[0].dim, dst_layout.type(), align.dst);
-        }
+        auto &align = desc_.align;
+        add_align_req(src_layout.blocks()[0].dim, src_layout.type(), align.src);
+        add_align_req(wei_layout.blocks()[0].dim, wei_layout.type(), align.wei);
+        add_align_req(dst_layout.blocks()[0].dim, dst_layout.type(), align.dst);
     }
 
     dim_map_t<prb_dim_t, prb_dim_kind_t> to_bmnk_map() const {
@@ -674,9 +669,10 @@ private:
 
     plan_t init_plan() {
         plan_t plan(desc_.hw);
-        if (!try_init_plan(plan)) return plan_t();
-        if (!check_plan(plan)) return plan_t();
+        if (!try_init_plan(plan) || !check_plan(plan)) return plan_t();
 
+        // Add plan requirements and re-create plan to ensure all requirements
+        // are cross-used between sub-plans.
         reqs_.add(plan.reqs());
         plan = plan_t(desc_.hw);
         if (!try_init_plan(plan) || !check_plan(plan)) {
@@ -1103,6 +1099,10 @@ plan_t create_conv_plan_impl(KernelDescT &desc, bool finalize) {
     ir_assert(!desc.has_spec_strategy())
             << "Kernel descriptor strategies are required to be specialized "
                "before plan creation";
+    if (!finalize) {
+        ir_assert(desc.is_finalized)
+                << "Kernel descriptor must be finalized before plan creation";
+    }
     plan_builder_t builder(desc);
     auto plan = builder.build();
     if (plan) {
@@ -1119,13 +1119,25 @@ plan_t create_conv_plan(const kernel_desc_t &desc) {
     return create_conv_plan_impl(desc, /*finalize=*/false);
 }
 
-bool finalize_conv_desc(kernel_desc_t &desc, const problem_t &prb) {
-    ir_assert(desc.hw_desc.hw == prb.hw().to_ngen());
-    desc.specialize(prb);
-    desc.hw = prb.hw();
+bool finalize_conv_desc_impl(kernel_desc_t &desc, const hw_t &hw,
+        const problem_t *prb, plan_t *out_plan) {
+    ir_assert(desc.hw_desc.hw == hw.to_ngen());
+    desc.hw = hw;
+    if (!desc.is_supported()) return false;
+    if (prb) desc.specialize(*prb);
     if (desc.is_finalized) return true;
     auto plan = create_conv_plan_impl(desc, /*finalize=*/true);
+    if (plan && out_plan) *out_plan = plan;
     return (bool)plan;
+}
+
+bool finalize_conv_desc(
+        kernel_desc_t &desc, const problem_t &prb, plan_t *plan) {
+    return finalize_conv_desc_impl(desc, prb.hw(), &prb, plan);
+}
+
+bool finalize_conv_desc(kernel_desc_t &desc, const hw_t &hw, plan_t *plan) {
+    return finalize_conv_desc_impl(desc, hw, nullptr, plan);
 }
 
 } // namespace conv

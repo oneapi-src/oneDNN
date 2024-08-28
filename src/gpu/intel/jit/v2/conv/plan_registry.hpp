@@ -46,10 +46,10 @@ public:
     plan_registry_t(const char **entries);
 
     void set(const kernel_desc_t &desc, const model_t &model) {
+        ir_assert(desc.is_finalized);
         entries_.emplace_back(desc, model);
     }
     int size() const { return (int)entries_.size(); }
-    void merge(const plan_registry_t &other);
     kernel_desc_t find_best(const problem_t &prb) const;
     void stringify(std::ostream &out) const;
     void parse(std::istream &out);

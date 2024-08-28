@@ -141,8 +141,11 @@ private:
             _desc = registry.find_best(prb);
         }
         if (_desc.is_empty()) return status::unimplemented;
-        ir_assert(ir_check_fatal(finalize_conv_desc(_desc, prb)));
-        ir_assert(ir_check_fatal(_desc.fits(prb)));
+        {
+            ir_utils::ir_check_log_level_t check_level(ir_utils::LOG_FATAL);
+            finalize_conv_desc(_desc, prb);
+            ir_assert(_desc.matches(prb));
+        }
         CHECK(init_layouts(_desc, pd));
         _params.prb = std::move(prb);
         desc = std::make_shared<kernel_desc_t>(_desc);
