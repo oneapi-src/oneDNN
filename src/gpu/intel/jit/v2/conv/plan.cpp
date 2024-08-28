@@ -695,7 +695,8 @@ private:
         ir_check(init_x2r_fma_plan(plan.x2r_fma));
         ir_check(init_prefetch_plan(
                 plan.x2r_fma, plan.virt_grid, plan.prefetch));
-        ir_check(init_epilogue_plan(plan.x2r_fma.c_layout, plan.epilogue));
+        ir_check(init_epilogue_plan(
+                plan.x2r_fma.c_layout, plan.virt_grid, plan.epilogue));
         if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
             ir_check(init_epilogue_bia(plan.x2r_fma.bia_layout, plan.epilogue));
         return true;
@@ -888,8 +889,8 @@ private:
         return true;
     }
 
-    bool init_slm_reduce_plan(
-            const layout_t &c_layout, slm_reduce_plan_t &plan) const {
+    bool init_slm_reduce_plan(const layout_t &c_layout, virt_grid_t &virt_grid,
+            slm_reduce_plan_t &plan) const {
         prb_dim_t k_dim;
         for (auto &d : desc_.thread_group_tile) {
             if (to_gemm(d, desc_.prop) == prb_dim_kind_t::k) {
@@ -933,14 +934,17 @@ private:
         grid_splitter.add(thr_grid_.index_var(k_dim), k_tg);
         auto split_view = view_t::split(
                 mapper, c_layout, prb_coord_t<expr_t>(), c_tile, grid_splitter);
-        ir_assert(grid_splitter.virt_grid_idxs().empty());
+        for (auto &kv : grid_splitter.virt_grid_idxs()) {
+            virt_grid.add(kv.first, kv.second);
+        }
 
         auto &load_coord = split_view.coord();
         auto tile_with_k = split_view.tile();
         tile_with_k[k_dim] = k_tg;
 
         // Load partial sums and do the final reduction.
-        auto load_view = view_t(mapper, slm_layout, load_coord, tile_with_k);
+        auto load_view = view_t(mapper, slm_layout, load_coord, tile_with_k,
+                grid_splitter.var_range_info());
         auto load_params = get_send_params(tensor_kind_t::c, send_op_t::load,
                 load_view, send_kind_t::block, send_address_t::slm);
         load_params.skip_mask.push_back(k_dim);
@@ -963,9 +967,10 @@ private:
         return true;
     }
 
-    bool init_epilogue_plan(
-            const layout_t &c_fma_layout, epilogue_plan_t &plan) const {
-        ir_check(init_slm_reduce_plan(c_fma_layout, plan.slm_reduce));
+    bool init_epilogue_plan(const layout_t &c_fma_layout,
+            virt_grid_t &virt_grid, epilogue_plan_t &plan) const {
+        ir_check(
+                init_slm_reduce_plan(c_fma_layout, virt_grid, plan.slm_reduce));
         auto &c_mapper = dim_mapper_manager_.mapper(tensor_kind_t::c);
         auto c_reg_layout
                 = (plan.slm_reduce ? plan.slm_reduce.c_layout : c_fma_layout);

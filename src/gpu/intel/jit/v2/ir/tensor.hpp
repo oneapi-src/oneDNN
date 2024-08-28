@@ -33,6 +33,41 @@ namespace intel {
 namespace jit {
 namespace v2 {
 
+// Stores upper bounds for variables.
+class var_range_info_t {
+public:
+    void set_bound(const expr_t &var, int bound) {
+        for (auto &e : entries_) {
+            if (e.var.is_equal(var)) {
+                e.bound = std::min(e.bound, bound);
+                return;
+            }
+        }
+        entries_.emplace_back(entry_t {var, bound});
+    }
+
+    int bound(const expr_t &var) const {
+        for (auto &e : entries_) {
+            if (e.var.is_equal(var)) return e.bound;
+        }
+        return default_bound;
+    }
+
+private:
+    static const int default_bound = std::numeric_limits<int>::max();
+
+    struct entry_t {
+        expr_t var;
+        int bound = default_bound;
+
+        entry_t() = default;
+        entry_t(const expr_t &var, int bound) : var(var), bound(bound) {}
+    };
+
+private:
+    std::vector<entry_t> entries_;
+};
+
 struct block_t {
     block_t() = default;
     block_t(const prb_dim_t &dim, const expr_t &size,
@@ -355,7 +390,8 @@ public:
 
     template <typename T>
     layout_t map(const dim_mapper_t &dim_mapper, const prb_coord_t<T> &coord,
-            const prb_tile_t &tile) const;
+            const prb_tile_t &tile,
+            const var_range_info_t &var_range_info = {}) const;
 
     template <typename T>
     layout_t map(const prb_coord_t<T> &coord, const prb_tile_t &tile) const {
@@ -572,6 +608,21 @@ public:
         return virt_grid_idxs_;
     }
 
+    const var_range_info_t &var_range_info() const { return var_range_info_; }
+
+    std::string str() const {
+        std::ostringstream oss;
+        bool is_first = true;
+        for (auto &kv : virt_grid_idxs_) {
+            if (!is_first) oss << "\n";
+            oss << kv.first << " -> " << kv.second;
+            is_first = false;
+        }
+        return oss.str();
+    }
+
+    IR_DEFINE_DUMP()
+
 private:
     struct index_t {
         expr_t expr;
@@ -581,17 +632,19 @@ private:
         expr_t pop(int &n);
     };
 
-    expr_t register_index(const expr_t &expr);
+    expr_t register_index(const expr_t &expr, int size);
 
     std::vector<index_t> idxs_;
     object_map_t<expr_t, expr_t> virt_grid_idxs_;
+    var_range_info_t var_range_info_;
 };
 
 class view_t {
 public:
     view_t() = default;
     view_t(const dim_mapper_t &dim_mapper, const layout_t &base_layout,
-            const prb_coord_t<expr_t> &coord, const prb_tile_t &tile);
+            const prb_coord_t<expr_t> &coord, const prb_tile_t &tile,
+            const var_range_info_t &var_range_info = {});
     bool is_empty() const { return base_layout_.is_empty(); }
     const dim_mapper_t &dim_mapper() const { return dim_mapper_; }
     const layout_t &base_layout() const { return base_layout_; }
