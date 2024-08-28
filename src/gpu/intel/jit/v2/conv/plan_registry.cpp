@@ -73,7 +73,6 @@ kernel_desc_t plan_registry_t::find_best(const problem_t &prb) const {
         if (eff > best_eff) {
             best_eff = eff;
             best = e.desc;
-            best.set_defaults();
         }
     }
     best.hw = prb.hw();
