@@ -48,6 +48,7 @@ public:
     void set(const kernel_desc_t &desc, const model_t &model) {
         entries_.emplace_back(desc, model);
     }
+    int size() const { return (int)entries_.size(); }
     void merge(const plan_registry_t &other);
     kernel_desc_t find_best(const problem_t &prb) const;
     void stringify(std::ostream &out) const;
