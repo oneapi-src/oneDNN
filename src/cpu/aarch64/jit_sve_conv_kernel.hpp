@@ -487,7 +487,7 @@ private:
     reg64_t reg_pre_addr_out = x26;
     reg64_t reg_pre_addr_ker = x26;
     reg64_t reg_ker_start_addr = x27;
-    reg64_t reg_addr_diff_input = x28;
+    reg64_t reg_addr_diff_input = x18;
 
     void prefetch(
             const std::string prfop, int level, reg64_t in, long long int ofs) {

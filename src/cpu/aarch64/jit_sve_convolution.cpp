@@ -1132,13 +1132,14 @@ void jit_sve_convolution_bwd_data_t<diff_dst_type, wei_type, diff_src_type,
 
 template struct jit_sve_convolution_bwd_data_t<data_type::f32, data_type::f32,
         data_type::f32, sve_512>;
+template struct jit_sve_convolution_bwd_data_t<data_type::f32, data_type::f32,
+        data_type::f32, sve_256>;
 
 template <data_type_t src_type, data_type_t diff_dst_type,
         data_type_t diff_weights_type, cpu_isa_t isa>
 status_t jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
         diff_weights_type, isa>::init(engine_t *engine) {
     const auto &j = pd()->jcp_;
-
     nthr_ = j.nthr;
     nthr_mb_ = j.nthr_mb;
     nthr_g_ = j.nthr_g;
@@ -1151,12 +1152,13 @@ status_t jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
 
     if (nthr_mb_ > 1) {
         CHECK(safe_ptr_assign(
-                acc_ker_, new cpu_accumulator_1d_t<diff_weights_type>()));
+                acc_ker_, new cpu_accumulator_1d_t<diff_weights_type, isa>()));
         CHECK(acc_ker_->create_kernel());
     }
 
     CHECK(safe_ptr_assign(reducer_bias_,
-            new cpu_reducer_t<diff_weights_type>(pd()->reducer_bia_conf_)));
+            new cpu_reducer_t<diff_weights_type, isa>(
+                    pd()->reducer_bia_conf_)));
     CHECK(reducer_bias_->create_kernel());
     return status::success;
 }
@@ -1514,8 +1516,8 @@ void jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
 
             jit_sve_conv_3d_ker_bwd_w_pipeline(jit_ker, p, src, dst,
                     diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
-                    diff_bia + _oc * 16, (img == img_first), od_s, od_e,
-                    jcp.kd - kd_front_pad - kd_back_pad, kd_pad_off,
+                    diff_bia + _oc * jcp.oc_block, (img == img_first), od_s,
+                    od_e, jcp.kd - kd_front_pad - kd_back_pad, kd_pad_off,
                     ic_to_compute, oc_to_compute);
 
             p.flags = ic_b == 0 ? 0 : 1;
@@ -1860,6 +1862,8 @@ void jit_sve_convolution_bwd_weights_t<src_type, diff_dst_type,
 
 template struct jit_sve_convolution_bwd_weights_t<data_type::f32,
         data_type::f32, data_type::f32, sve_512>;
+template struct jit_sve_convolution_bwd_weights_t<data_type::f32,
+        data_type::f32, data_type::f32, sve_256>;
 
 } // namespace aarch64
 } // namespace cpu
