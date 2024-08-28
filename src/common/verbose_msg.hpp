@@ -103,6 +103,8 @@
 #define VERBOSE_WS_MISMATCH \
     "workspace mismatch between forward and backward primitive " \
     "descriptors"
+#define VERBOSE_TENSOR_FORMAT_MISMATCH \
+    "memory formats for %s and %s tensors do not match"
 
 #define VERBOSE_WS_INIT "workspace initialization failed"
 #define VERBOSE_SCRATCHPAD_INIT "scratchpad initialization unsuccessful"

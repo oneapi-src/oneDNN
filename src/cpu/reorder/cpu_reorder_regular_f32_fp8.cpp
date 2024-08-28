@@ -31,6 +31,7 @@ const impl_list_map_t &regular_f32_fp8_impl_list_map() {
         }},
         // f32 -> f8_e5m2
         {{f32, f8_e5m2, 0}, {
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_direct_copy_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
@@ -40,6 +41,7 @@ const impl_list_map_t &regular_f32_fp8_impl_list_map() {
         }},
         // f32 -> f8_e4m3
         {{f32, f8_e4m3, 0}, {
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_direct_copy_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
 
