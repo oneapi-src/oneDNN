@@ -1100,7 +1100,7 @@ private:
         auto &c_buf = buf_mgr_.find_buf("c");
         auto c_tmp_buf
                 = buf_mgr_.get("c_reduce", slm_reduce.load.reg_layout().size());
-        auto c_slm_buf = buf_mgr_.get("slm", slm_reduce.slm_size());
+        auto c_slm_buf = buf_mgr_.get("slm", slm_reduce.slm_usage_bytes());
         auto store_stmt = create_stmt(
                 slm_reduce.store, c_slm_buf, c_buf, epilogue_off_ctx_);
         auto load_stmt = create_stmt(

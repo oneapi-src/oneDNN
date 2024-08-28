@@ -399,7 +399,7 @@ struct slm_reduce_plan_t : public base_plan_t {
         return ret;
     }
 
-    int slm_size() const {
+    int slm_usage_bytes() const {
         if (!*this) return 0;
         int k_local
                 = ir_utils::safe_div(reduce.src.elems(), reduce.dst.elems());
@@ -431,7 +431,7 @@ struct epilogue_plan_t : public base_plan_t {
     using base_plan_t::base_plan_t;
 
     int grf_usage_bytes() const { return 0; }
-    int slm_size() const { return slm_reduce.slm_size(); }
+    int slm_usage_bytes() const { return slm_reduce.slm_usage_bytes(); }
 
     std::string str() const {
         if (!*this) return "(empty)";
@@ -474,9 +474,9 @@ struct plan_t : public base_plan_t {
         return ret;
     }
 
-    int slm_size() const {
+    int slm_usage_bytes() const {
         int ret = 0;
-        ret += epilogue.slm_size();
+        ret += epilogue.slm_usage_bytes();
         return ret;
     }
 
