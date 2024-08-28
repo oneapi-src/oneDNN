@@ -208,7 +208,7 @@ struct attr_t {
         void set(int arg, dnnl_rounding_mode_t rm) {
             rounding_modes_[arg] = rm;
         }
-        void set_seed(int32_t s) {
+        void set_seed(uint32_t s) {
             if (is_set_seed && seed != s)
                 BENCHDNN_PRINT(0, "%s\n",
                         "WARN: rounding seed has to be the same for all "
