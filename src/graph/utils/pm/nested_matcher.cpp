@@ -40,7 +40,6 @@ matcher and want to debug pattern matcher.
         if (get_verbose(verbose_t::debuginfo, component_t::graph) \
                 >= debug_level) { \
             verbose_printf("graph,debuginfo,pattern_matcher," __VA_ARGS__); \
-            verbose_printf("\n"); \
         } \
     } while (0)
 #else
@@ -60,7 +59,6 @@ export ONEDNN_VERBOSE=dispatch,filter=graph
         if (get_verbose(verbose_t::create_dispatch, component_t::graph)) { \
             verbose_printf( \
                     "graph,create:dispatch,pattern_matcher," __VA_ARGS__); \
-            verbose_printf("\n"); \
         } \
     } while (0)
 
@@ -471,14 +469,15 @@ bool match_node(const binding_t &b, match_context_t *ctx,
         std::unordered_map<op_t *, pb_op_t *> &matched_op_map) {
     if (b.bind_op == nullptr) {
         DEBUG(DEBUGINFO_PM,
-                "matching op & node: %s (%s) <=> %s, matching failed",
+                "matching op & node: %s (%s) <=> %s, matching failed \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str());
-        DEBUG(DEBUGINFO_PM, "bind_op is a nullptr [%s:%i]", __FILE__, __LINE__);
+        DEBUG(DEBUGINFO_PM, "bind_op is a nullptr [%s:%i] \n", __FILE__,
+                __LINE__);
         VPATTERN_MATCHER(
                 "op:%s (%s),node:%s,node matching failed:bind_op is a "
-                "nullptr,[%s:%i]",
+                "nullptr,[%s:%i] \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str(),
@@ -487,15 +486,15 @@ bool match_node(const binding_t &b, match_context_t *ctx,
     }
     if (b.bind_node == nullptr) {
         DEBUG(DEBUGINFO_PM,
-                "matching op & node: %s (%s) <=> %s, matching failed",
+                "matching op & node: %s (%s) <=> %s, matching failed \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str());
-        DEBUG(DEBUGINFO_PM, "bind_node is a nullptr [%s:%i]", __FILE__,
+        DEBUG(DEBUGINFO_PM, "bind_node is a nullptr [%s:%i] \n", __FILE__,
                 __LINE__);
         VPATTERN_MATCHER(
                 "op:%s (%s),node:%s,node matching failed:bind_node is a "
-                "nullptr,%s:%i",
+                "nullptr,%s:%i \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str(),
@@ -505,17 +504,17 @@ bool match_node(const binding_t &b, match_context_t *ctx,
     if (b.bind_op->get_partition() != nullptr) {
         DEBUG(DEBUGINFO_PM,
                 "matching op & node: %s (%s) <=> %s, matching "
-                "failed",
+                "failed \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str());
         DEBUG(DEBUGINFO_PM,
                 "bind_op already belongs to certain partition "
-                "[%s:%i]",
+                "[%s:%i] \n",
                 __FILE__, __LINE__);
         VPATTERN_MATCHER(
                 "op:%s (%s),node:%s,node matching failed:bind_op already "
-                "belongs to certain partition,%s:%i",
+                "belongs to certain partition,%s:%i \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str(),
@@ -525,15 +524,15 @@ bool match_node(const binding_t &b, match_context_t *ctx,
     if (b.bind_op->has_attr(op_attr::matched)) {
         DEBUG(DEBUGINFO_PM,
                 "matching op & node: %s (%s) <=> %s, matching "
-                "failed",
+                "failed \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str());
-        DEBUG(DEBUGINFO_PM, "bind_op is already matched [%s:%i]", __FILE__,
+        DEBUG(DEBUGINFO_PM, "bind_op is already matched [%s:%i] \n", __FILE__,
                 __LINE__);
         VPATTERN_MATCHER(
                 "op:%s (%s),node:%s,node matching failed:bind_op is already "
-                "matched,%s:%i",
+                "matched,%s:%i \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str(),
@@ -543,15 +542,15 @@ bool match_node(const binding_t &b, match_context_t *ctx,
     if (!has_commutative_inputs(b.bind_op) && b.bind_op_port != b.bind_port) {
         DEBUG(DEBUGINFO_PM,
                 "matching op & node: %s (%s) <=> %s, matching "
-                "failed",
+                "failed \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str());
-        DEBUG(DEBUGINFO_PM, "op inputs are not commutative [%s:%i]", __FILE__,
-                __LINE__);
+        DEBUG(DEBUGINFO_PM, "op inputs are not commutative [%s:%i] \n",
+                __FILE__, __LINE__);
         VPATTERN_MATCHER(
                 "op:%s (%s),node:%s,node matching failed:op inputs are not "
-                "commutative,%s:%i",
+                "commutative,%s:%i \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str(),
@@ -562,18 +561,18 @@ bool match_node(const binding_t &b, match_context_t *ctx,
     if (!match_node_attributes(b.bind_op, b.bind_node)) {
         DEBUG(DEBUGINFO_PM,
                 "matching op & node: %s (%s) <=> %s, matching "
-                "failed",
+                "failed \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str());
         DEBUG(DEBUGINFO_PM,
-                "attributes of bind_op & bind_node do not matched, please "
+                "attributes of bind_op & bind_node do not match, please "
                 "check if all decision functions of op are satisfied or not"
-                "[%s:%i]",
+                "[%s:%i] \n",
                 __FILE__, __LINE__);
         VPATTERN_MATCHER(
                 "op:%s (%s),node:%s,node matching failed:attributes of bind_op "
-                "& bind_node do not matched,%s:%i",
+                "& bind_node do not match,%s:%i \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str(),
@@ -586,14 +585,15 @@ bool match_node(const binding_t &b, match_context_t *ctx,
     if (check_cyclic(b.bind_op, matched_op_map)) {
         DEBUG(DEBUGINFO_PM,
                 "matching op & node: %s (%s) <=> %s, matching "
-                "failed",
+                "failed \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str());
-        DEBUG(DEBUGINFO_PM, "cyclic check failed [%s:%i]", __FILE__, __LINE__);
+        DEBUG(DEBUGINFO_PM, "cyclic check failed [%s:%i] \n", __FILE__,
+                __LINE__);
         VPATTERN_MATCHER(
                 "op:%s (%s),node:%s,node matching failed:cyclic check "
-                "failed,%s:%i",
+                "failed,%s:%i \n",
                 dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind())
                         .c_str(),
                 b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str(),
@@ -602,10 +602,10 @@ bool match_node(const binding_t &b, match_context_t *ctx,
     }
     DEBUG(DEBUGINFO_PM,
             "matching op & node: %s (%s) <=> %s, matching "
-            "success",
+            "success \n",
             dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind()).c_str(),
             b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str());
-    VPATTERN_MATCHER("op:%s (%s),node:%s,node matching success",
+    VPATTERN_MATCHER("op:%s (%s),node:%s,node matching success \n",
             dnnl::impl::graph::op_t::kind2str(b.bind_op->get_kind()).c_str(),
             b.bind_op->get_name().c_str(), b.bind_node->get_name().c_str());
 
@@ -975,12 +975,12 @@ bool repetition_matcher_t::prepare_next_matching_round(
         if (oport >= current_op->num_outputs()) {
             DEBUG(DEBUGINFO_PM,
                     "oport: %zu exceeds the number of outputs of "
-                    "current_op: %zu [%s:%i]",
+                    "current_op: %zu [%s:%i] \n",
                     oport, current_op->num_outputs(), __FILE__, __LINE__);
             VPATTERN_MATCHER(
                     "op:%s (%s),node:%s,repetition node matching failed:oport: "
                     "%zu exceeds the number of outputs of current_op: "
-                    "%zu,%s:%i",
+                    "%zu,%s:%i \n",
                     dnnl::impl::graph::op_t::kind2str(
                             single_iter_bind_.bind_op->get_kind())
                             .c_str(),
@@ -995,11 +995,12 @@ bool repetition_matcher_t::prepare_next_matching_round(
         std::vector<value_t::consumer_t> sorted_consumers;
         sorted_consumers = sort_op_consumers(op_out_value);
         if (sorted_consumers.empty()) {
-            DEBUG(DEBUGINFO_PM, "no consumer for next matching round [%s:%i]",
-                    __FILE__, __LINE__);
+            DEBUG(DEBUGINFO_PM,
+                    "no consumer for next matching round [%s:%i] \n", __FILE__,
+                    __LINE__);
             VPATTERN_MATCHER(
                     "op:%s (%s),node:%s,repetition node matching failed:no "
-                    "consumer for next matching round,%s:%i",
+                    "consumer for next matching round,%s:%i \n",
                     dnnl::impl::graph::op_t::kind2str(
                             single_iter_bind_.bind_op->get_kind())
                             .c_str(),
@@ -1018,11 +1019,12 @@ bool repetition_matcher_t::prepare_next_matching_round(
             // output. If no, break
             pb_op_t *current_pb_op = updated_op_map_[current_op];
             if (!current_pb_op->is_allowing_external_outputs()) {
-                DEBUG(DEBUGINFO_PM, "pb_op does not allow external op [%s:%i]",
-                        __FILE__, __LINE__);
+                DEBUG(DEBUGINFO_PM,
+                        "pb_op does not allow external op [%s:%i] \n", __FILE__,
+                        __LINE__);
                 VPATTERN_MATCHER(
                         "op:%s (%s),node:%s,repetition node matching "
-                        "failed:pb_op does not allow external op,%s:%i",
+                        "failed:pb_op does not allow external op,%s:%i \n",
                         dnnl::impl::graph::op_t::kind2str(
                                 single_iter_bind_.bind_op->get_kind())
                                 .c_str(),
@@ -1049,11 +1051,11 @@ bool repetition_matcher_t::prepare_next_matching_round(
             if (!next_op) {
                 DEBUG(DEBUGINFO_PM,
                         "no next_op for next matching round "
-                        "[%s:%i]",
+                        "[%s:%i] \n",
                         __FILE__, __LINE__);
                 VPATTERN_MATCHER(
                         "op:%s (%s),node:%s,repetition node matching failed:no "
-                        "next_op for next matching round,%s:%i",
+                        "next_op for next matching round,%s:%i \n",
                         dnnl::impl::graph::op_t::kind2str(
                                 single_iter_bind_.bind_op->get_kind())
                                 .c_str(),
@@ -1199,7 +1201,7 @@ size_t repetition_matcher_t::match_repetition_blocks() {
             // checking bind_kind == BIND_IN
             DEBUG(DEBUGINFO_PM,
                     "matching op & repetition subgraph: %s (%s) <=> "
-                    "%s",
+                    "%s \n",
                     dnnl::impl::graph::op_t::kind2str(
                             single_iter_bind_.bind_op->get_kind())
                             .c_str(),
@@ -1239,10 +1241,10 @@ size_t repetition_matcher_t::match_repetition_blocks() {
         }
 
         if (num_rep == max_rep_) {
-            DEBUG(DEBUGINFO_PM, "reach the max repetition number");
+            DEBUG(DEBUGINFO_PM, "reach the max repetition number \n");
             VPATTERN_MATCHER(
                     "op:%s (%s),node:%s,repetition node matching failed:reach "
-                    "the max repetition number,%s:%i",
+                    "the max repetition number,%s:%i \n",
                     dnnl::impl::graph::op_t::kind2str(
                             single_iter_bind_.bind_op->get_kind())
                             .c_str(),
@@ -1253,11 +1255,11 @@ size_t repetition_matcher_t::match_repetition_blocks() {
         }
 
         // prepare for the next round of matching
-        DEBUG(DEBUGINFO_PM, "prepare next round of rep block match");
+        DEBUG(DEBUGINFO_PM, "prepare next round of rep block match \n");
         bool prepare_fail = prepare_next_matching_round(local_cached_ctx);
 
         if (prepare_fail) {
-            DEBUG(DEBUGINFO_PM, "preparation failed");
+            DEBUG(DEBUGINFO_PM, "preparation failed \n");
             break;
         }
     }
@@ -1269,10 +1271,10 @@ bool match_repetition(const binding_t &bind_arg, match_context_t *parent_ctx,
     repetition_matcher_t repetition_matcher(
             bind_arg, parent_ctx, matched_op_map);
 
-    DEBUG(DEBUGINFO_PM, "now doing rep matching");
+    DEBUG(DEBUGINFO_PM, "now doing rep matching \n");
 
     size_t num_rep = repetition_matcher.match_repetition_blocks();
-    DEBUG(DEBUGINFO_PM, "matched repetition block in total: %zu", num_rep);
+    DEBUG(DEBUGINFO_PM, "matched repetition block in total: %zu \n", num_rep);
 
     bool matching_status
             = repetition_matcher.post_repetition_matching(num_rep, bind_arg);
