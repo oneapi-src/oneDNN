@@ -1717,7 +1717,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             if (IMPLICATION(!pure_1d, jcp.iw % i == 0)
                     && IMPLICATION(jcp.ic * i > jcp.simd_w,
                             (jcp.ic * i) % jcp.simd_w == 0)
-                    && jcp.kw % i == 0 && jcp.stride_w % i == 0)
+                    && jcp.iw % i == 0 && jcp.kw % i == 0
+                    && jcp.stride_w % i == 0)
                 jcp.trans_dim_koef = i;
         }
         if (jcp.trans_dim_koef > 1) {
