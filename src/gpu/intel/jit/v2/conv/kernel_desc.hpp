@@ -45,7 +45,7 @@ namespace v2 {
 namespace conv {
 
 struct hw_desc_t {
-    ngen::HW hw;
+    ngen::HW hw = ngen::HW::Unknown;
 
     void stringify(std::ostream &out) const { jit::stringify(out, hw); }
     void parse(std::istream &in) { jit::parse(in, hw); }
@@ -313,7 +313,7 @@ public:
     bool is_supported() const;
     void set(const std::string &s);
     void set_defaults();
-    void finalize(const plan_t &plan);
+    void finalize(const prb_reqs_t &final_reqs);
 
     bool fits(const problem_t &prb, bool check_tags = true) const {
         ir_check(prb.prop() == prop) << "Propagation kind does not match";
@@ -404,9 +404,16 @@ public:
     void specialize(const problem_t &prb) {
         if (!has_spec_strategy()) return;
         switch (spec_strategy) {
-            case spec_strategy_t::max: reqs.add(prb.shape()); break;
-            case spec_strategy_t::min_dims: reqs.add(min_dims_tile(prb)); break;
-            default: break;
+            case spec_strategy_t::max:
+                reqs.add(prb.shape());
+                reqs.simplify();
+                break;
+            case spec_strategy_t::min_dims:
+                reqs.add(min_dims_tile(prb));
+                reqs.simplify();
+                break;
+            case spec_strategy_t::none: break;
+            default: ir_error_not_expected();
         }
         spec_strategy = spec_strategy_t::none;
     }

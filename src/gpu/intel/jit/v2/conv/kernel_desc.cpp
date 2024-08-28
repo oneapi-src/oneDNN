@@ -415,9 +415,9 @@ void kernel_desc_t::set_defaults() {
     }
 }
 
-void kernel_desc_t::finalize(const plan_t &plan) {
+void kernel_desc_t::finalize(const prb_reqs_t &final_reqs) {
     is_finalized = true;
-    reqs.add(plan.reqs());
+    reqs.add(final_reqs);
 }
 
 std::string kernel_desc_t::cmd_str() const {

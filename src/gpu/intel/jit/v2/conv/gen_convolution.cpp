@@ -136,18 +136,12 @@ private:
         kernel_params_t _params;
         if (plan_preset_t::instance().is_set()) {
             _desc = plan_preset_t::instance().get();
-            _desc.hw = hw_t(engine);
-            _desc.specialize(prb);
-            {
-                ir_utils::ir_check_log_level_t check_level(ir_utils::LOG_FATAL);
-                auto plan = create_conv_plan(_desc);
-            }
         } else {
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);
-            _desc.specialize(prb);
         }
         if (_desc.is_empty()) return status::unimplemented;
+        ir_assert(ir_check_fatal(finalize_conv_desc(_desc, prb)));
         ir_assert(ir_check_fatal(_desc.fits(prb)));
         CHECK(init_layouts(_desc, pd));
         _params.prb = std::move(prb);

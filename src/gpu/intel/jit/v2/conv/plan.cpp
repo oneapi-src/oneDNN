@@ -1097,20 +1097,35 @@ prb_reqs_t plan_t::reqs() const {
     return ret;
 }
 
-plan_t create_conv_plan(const kernel_desc_t &desc) {
+template <typename KernelDescT>
+plan_t create_conv_plan_impl(KernelDescT &desc, bool finalize) {
     if (!desc.is_supported()) return plan_t();
     ir_assert(!desc.has_spec_strategy())
             << "Kernel descriptor strategies are required to be specialized "
                "before plan creation";
     plan_builder_t builder(desc);
     auto plan = builder.build();
+    if (plan) {
+        if (finalize) {
+            const_cast<kernel_desc_t &>(desc).finalize(builder.reqs());
+        } else {
+            ir_assert(desc.reqs.implies(builder.reqs()));
+        }
+    }
     return plan;
 }
 
-plan_t create_conv_plan_and_finalize_desc(kernel_desc_t &desc) {
-    auto plan = create_conv_plan(desc);
-    if (plan) desc.finalize(plan);
-    return plan;
+plan_t create_conv_plan(const kernel_desc_t &desc) {
+    return create_conv_plan_impl(desc, /*finalize=*/false);
+}
+
+bool finalize_conv_desc(kernel_desc_t &desc, const problem_t &prb) {
+    ir_assert(desc.hw_desc.hw == prb.hw().to_ngen());
+    desc.specialize(prb);
+    desc.hw = prb.hw();
+    if (desc.is_finalized) return true;
+    auto plan = create_conv_plan_impl(desc, /*finalize=*/true);
+    return (bool)plan;
 }
 
 } // namespace conv

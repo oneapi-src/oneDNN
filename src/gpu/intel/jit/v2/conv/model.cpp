@@ -118,7 +118,7 @@ struct sample_t {
             uint64_t time_ns = 0)
         : prb(prb), kernel_desc(kernel_desc), time_ns(time_ns) {
         hw_cfg = hw_config_t(
-                kernel_desc.hw, kernel_desc.fma, kernel_desc.src_tag.type());
+                prb.hw(), kernel_desc.fma, kernel_desc.src_tag.type());
         prb_tile_t padded_shape = prb.shape();
         pad_eff = 1;
         for (auto &d : padded_shape) {
