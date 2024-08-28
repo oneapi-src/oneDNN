@@ -438,7 +438,7 @@ void auto_search(const bench_manager_t &bench_mger) {
     };
     // clang-format on
     for (const char *_r : recipes) {
-        auto r = std::string(_r) + "--iter x --tg x";
+        auto r = std::string(_r) + " --iter x --tg x";
         kernel_desc_t desc;
         desc.set(r);
         desc.hw = hw_t(bench_mger.get_engine().get());
