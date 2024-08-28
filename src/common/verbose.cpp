@@ -127,10 +127,10 @@ void print_header(const filter_status_t &filter_status) noexcept {
                 "enabled\n");
 #endif
 
-        verbose_printf("primitive,info,template:");
         verbose_printf(
-                "%soperation,engine,primitive,implementation,prop_kind,memory_"
-                "descriptors,attributes,auxiliary,problem_desc,exec_time\n",
+                "primitive,info,template:%soperation,engine,primitive,"
+                "implementation,prop_kind,memory_descriptors,attributes,"
+                "auxiliary,problem_desc,exec_time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
 
 #ifdef DNNL_EXPERIMENTAL_LOGGING
@@ -141,11 +141,10 @@ void print_header(const filter_status_t &filter_status) noexcept {
 #endif
 
 #ifdef ONEDNN_BUILD_GRAPH
-        verbose_printf("graph,info,template:");
         verbose_printf(
-                "%soperation,engine,partition_id,partition_kind,op_names,data_"
-                "formats,logical_tensors,fpmath_mode,implementation,backend,"
-                "exec_time\n",
+                "graph,info,template:%soperation,engine,partition_id,"
+                "partition_kind,op_names,data_formats,logical_tensors,fpmath_"
+                "mode,implementation,backend,exec_time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
 #endif
         if (filter_status.status == filter_status_t::flags::valid)
