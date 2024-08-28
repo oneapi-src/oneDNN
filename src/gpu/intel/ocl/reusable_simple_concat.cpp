@@ -160,6 +160,69 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
             rt_conf.gws_d, dim_idx::invalid, device_info->gpu_arch());
 
     conf.use_large_index = (max_bytes > std::numeric_limits<int>::max());
+    //conf.use_large_index = (total_bytes > std::numeric_limits<int>::max()); //old?
+
+    // attempt to enable internal padding kernel
+    if (normalize.is_internal_padding_concat()) {
+        size_t concat2_inner_axis = dst_md.dims[axis::inner];
+        size_t concat2_dtsize = dnnl_data_type_size(dst_md.data_type);
+
+        size_t min_bytes_per_thread = 8;
+        size_t loads_per_thread = min_bytes_per_thread / concat2_dtsize;
+
+        // heuristic for problem size too small
+        size_t min_block_read_elements = conf.simd * loads_per_thread;
+        size_t src0_inner_elems = rt_conf.offset[1] * concat2_inner_axis;
+        bool src0_size_sufficient = src0_inner_elems > min_block_read_elements;
+
+        // heuristic for data misaligned for subgroup loads/stores
+        bool can_subgroup_read_dt = true;
+        size_t min_subgroup_alignment_size = 4;
+        if (concat2_dtsize < min_subgroup_alignment_size) {
+            if (conf.n_blocks > 0) {
+                can_subgroup_read_dt = (concat2_dtsize * conf.blocks[0])
+                        >= min_subgroup_alignment_size;
+            } else {
+                can_subgroup_read_dt = false;
+            }
+        }
+
+        // TODO: generalize "src_bank" calculation for smaller block sizes
+        bool supported_block_size = (conf.n_blocks > 0)
+                && ((conf.blocks[0] == 8) || (conf.blocks[0] == 16)
+                        || (conf.blocks[0] == 32));
+
+        bool can_use_internal_padding_concat2 = (conf.n == 2)
+                && can_subgroup_read_dt && src0_size_sufficient
+                && supported_block_size;
+        if (can_use_internal_padding_concat2) {
+            rt_conf.inner_axis = concat2_inner_axis;
+            conf.data_type_size = concat2_dtsize;
+            conf.use_internal_padding_kernel = true;
+
+            rt_conf.gws_d[0] = utils::div_up(dst_md.padded_dims[axis::concat]
+                                               * dst_md.dims[axis::inner],
+                                       conf.simd * loads_per_thread)
+                    * conf.simd;
+            rt_conf.gws_d[1] = dst_md.dims[axis::outer];
+            rt_conf.gws_d[2] = 1;
+
+            // TODO: compute::get_optimal_lws( // no emperical diff
+            rt_conf.lws_d[0] = conf.simd;
+            rt_conf.lws_d[1] = 1;
+            rt_conf.lws_d[2] = 1;
+
+            //printf("\n dims[%zu %zu %zu] padded: [%zu %zu %zu]\n gws[%zu %zu %zu] simd:%zu dtsize:%zu\n",
+            //dst_md.dims[axis::outer], dst_md.dims[axis::concat], dst_md.dims[axis::inner],
+            //dst_md.padded_dims[axis::outer], dst_md.padded_dims[axis::concat], dst_md.padded_dims[axis::inner],
+            //rt_conf.gws_d[0], rt_conf.gws_d[1], rt_conf.gws_d[2],
+            //conf.simd, conf.data_type_size);
+            //for(int i=0; i<conf.n_blocks; ++i){
+            //printf("b%d: %d, ", i, conf.blocks[i]);
+            //}
+        }
+    }
+
     return status::success;
 }
 
@@ -212,18 +275,63 @@ void push_idx_kernel_args(compute::kernel_arg_list_t &partial_list,
         cutoff |= (rt_conf.offset[valid_idx] % rt_conf.read_overlap != 0);
         valid_idx++;
     }
+
     partial_list.append(static_cast<IDX_T>(rt_conf.dst_concat_axis));
     partial_list.append(static_cast<IDX_T>(rt_conf.dst_padded_concat_axis));
 
     partial_list.append(static_cast<IDX_T>(rt_conf.read_overlap));
     partial_list.append(static_cast<IDX_T>(rt_conf.gws0_block));
     partial_list.append(static_cast<IDX_T>(rt_conf.inner_axis));
+
     // Workgroup reads may extend past the concat dimension, so we must also
     // consider the external axis when computing write indices
     bool must_compute_ext_idx
             = (rt_conf.read_overlap * rt_conf.gws0_block > rt_conf.inner_axis)
             || cutoff;
     partial_list.append(static_cast<std::uint8_t>(must_compute_ext_idx));
+}
+
+template <typename IDX_T>
+void push_idx_kernel_args_internal_padding(
+        compute::kernel_arg_list_t &partial_list, const exec_ctx_t &ctx,
+        const reusable_simple_concat_params_t &conf,
+        const reusable_simple_concat_runtime_params_t &rt_conf,
+        const concat_pd_t *pd) {
+    const auto concat_dim = pd->concat_dim();
+
+    partial_list.append(static_cast<IDX_T>(rt_conf.dst_concat_axis));
+    partial_list.append(static_cast<IDX_T>(rt_conf.dst_padded_concat_axis));
+
+    //printf("dst_concat_axis=%ld dst_padded_concat_axis=%ld\n",
+    //rt_conf.dst_concat_axis, rt_conf.dst_padded_concat_axis);
+    for (int idx = 0, valid_idx = 0; idx < pd->n_inputs(); ++idx) {
+        // skip invalid inputs
+        if (pd->src_md(idx)->padded_dims[concat_dim] == 0) continue;
+
+        auto &src = CTX_IN_STORAGE(DNNL_ARG_MULTIPLE_SRC + idx);
+        partial_list.append(src);
+
+        partial_list.append(static_cast<IDX_T>(rt_conf.offset[valid_idx]));
+        partial_list.append(
+                static_cast<IDX_T>(rt_conf.padded_offset[valid_idx]));
+        dim_t src_concat_axis = valid_idx + 1 < conf.n
+                ? rt_conf.offset[valid_idx + 1]
+                : rt_conf.dst_concat_axis;
+        partial_list.append(static_cast<IDX_T>(src_concat_axis));
+
+        partial_list.append(pd->src_md(idx)->padded_dims[concat_dim]);
+
+        //printf("offset%d=%ld padded_offset%d=%ld src_concat_axis%d=%ld "
+        //"padded_src_concat_axis%d=%ld\n",
+        //valid_idx, rt_conf.offset[valid_idx], valid_idx,
+        //rt_conf.padded_offset[valid_idx], valid_idx, src_concat_axis,
+        //valid_idx, pd->src_md(idx)->padded_dims[concat_dim]);
+        valid_idx++;
+    }
+
+    partial_list.append(static_cast<IDX_T>(
+            rt_conf.inner_axis)); //INNERDIM add only for internal_pad kernel
+    //printf("inner_axis=%ld \n", rt_conf.inner_axis);
 }
 
 status_t reusable_simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
@@ -233,20 +341,35 @@ status_t reusable_simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
 
     compute::kernel_arg_list_t arg_list;
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
-    arg_list.append(dst);
-    arg_list.append(static_cast<std::uint64_t>(rt_conf.dst_offset0));
-    arg_list.append(static_cast<std::uint64_t>(
-            rt_conf.dst_extern_dim_size / conf.data_type_size));
 
-    if (conf.use_large_index) {
-        push_idx_kernel_args<std::uint64_t>(arg_list, ctx, conf, rt_conf, pd());
-    } else {
-        push_idx_kernel_args<int>(arg_list, ctx, conf, rt_conf, pd());
-    }
+    arg_list.append(dst);
 
     auto nd_range = compute::nd_range_t(rt_conf.gws_d, rt_conf.lws_d);
 
-    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status_t status;
+    if (conf.use_internal_padding_kernel) {
+        if (conf.use_large_index) {
+            push_idx_kernel_args_internal_padding<std::uint64_t>(
+                    arg_list, ctx, conf, rt_conf, pd());
+        } else {
+            push_idx_kernel_args_internal_padding<int>(
+                    arg_list, ctx, conf, rt_conf, pd());
+        }
+        status = parallel_for(
+                ctx, nd_range, internal_padding_kernel_, arg_list);
+    } else {
+        arg_list.append(static_cast<std::uint64_t>(rt_conf.dst_offset0));
+        arg_list.append(static_cast<std::uint64_t>(
+                rt_conf.dst_extern_dim_size / conf.data_type_size));
+
+        if (conf.use_large_index) {
+            push_idx_kernel_args<std::uint64_t>(
+                    arg_list, ctx, conf, rt_conf, pd());
+        } else {
+            push_idx_kernel_args<int>(arg_list, ctx, conf, rt_conf, pd());
+        }
+        status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    }
     return status;
 }
 

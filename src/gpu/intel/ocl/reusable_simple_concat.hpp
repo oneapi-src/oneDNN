@@ -35,7 +35,7 @@ struct reusable_simple_concat_params_t
 
     const std::vector<const char *> &get_kernel_names() const {
         static const std::vector<const char *> kernel_names
-                = {"reusable_simple_concat"};
+                = {"reusable_simple_concat", "internal_padding_block_concat2"};
         return kernel_names;
     }
 
@@ -58,6 +58,7 @@ struct reusable_simple_concat_params_t
     int simd;
     int data_type_size;
     bool use_large_index = true;
+    bool use_internal_padding_kernel = false;
     uint8_t padding[3] = {0};
 };
 
@@ -106,9 +107,11 @@ struct reusable_simple_concat_t : public gpu_primitive_t {
     };
 
     status_t init(impl::engine_t *engine) override {
-        CHECK(create_kernel(
-                engine, kernel_, pd()->conf.get_kernel_names()[0], pd()->conf));
-        if (!kernel_) return status::runtime_error;
+        std::vector<compute::kernel_t> kernels;
+        CHECK(create_kernels(
+                engine, kernels, pd()->conf.get_kernel_names(), pd()->conf));
+        kernel_ = kernels[0];
+        internal_padding_kernel_ = kernels[1];
 
         return status::success;
     }
@@ -122,6 +125,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     compute::kernel_t kernel_;
+    compute::kernel_t internal_padding_kernel_;
 };
 
 } // namespace ocl

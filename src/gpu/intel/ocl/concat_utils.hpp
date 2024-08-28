@@ -122,7 +122,8 @@ public:
             padding_type_ = padding_t::external;
 
         if (padding_type_ == padding_t::internal) {
-            chunk_size_ = math::gcd(chunk_size_, source_chunk);
+            // may use different kernel, requires different partition for blocks
+            chunk_size_ = 1;
         } else {
             chunk_size_ = math::gcd(chunk_size_, pdim);
             padded_chunk_size_ = math::gcd(padded_chunk_size_, source_chunk);
@@ -156,6 +157,10 @@ public:
     }
 
     void operator()(memory_desc_t &) const;
+
+    bool is_internal_padding_concat() const {
+        return (padding_type_ == padding_t::internal);
+    }
 
 private:
     static bool striding_ok(striding_t striding) {
