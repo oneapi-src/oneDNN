@@ -281,9 +281,11 @@ int ref_partition_t::check_partition_correctness(
         // The flag name is not very accurate, add this note to avoid confusion
         const auto op_driver = opkind2driver(ref_prim->get_kind());
         has_eltwise = has_eltwise
-                || ((op_driver == dnnl_driver_t::eltwise
-                        || (opstr2kind(op_kind) == dnnl::graph::op::kind::Divide
-                                && engine_tgt_kind == dnnl_gpu)));
+                || (op_driver == dnnl_driver_t::eltwise
+                        || ((opstr2kind(op_kind)
+                                            == dnnl::graph::op::kind::Divide
+                                    || op_driver == dnnl_driver_t::softmax)
+                                && engine_tgt_kind == dnnl_gpu));
         output_has_nans = output_has_nans
                 || ((map_kind_to_alg.find(op_kind) != map_kind_to_alg.end())
                         && ::eltwise::eltwise_alg_returns_nan_or_inf(
