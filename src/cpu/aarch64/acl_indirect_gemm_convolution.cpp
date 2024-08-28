@@ -25,6 +25,8 @@ namespace cpu {
 namespace aarch64 {
 
 namespace {
+using data_t = typename prec_traits<data_type::f32>::type;
+
 // Keys are anonymous. So deduce the type automagically.
 using conv_key_t = decltype(memory_tracking::names::key_gemm_tmp_buffer);
 
@@ -50,13 +52,6 @@ status_t acl_indirect_gemm_convolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     return execute_forward_conv_acl<acl_obj_t<Op>, pd_t, data_t>(
             ctx, acl_obj_.get(), pd(), indirect_conv_keys);
-}
-
-status_t acl_indirect_gemm_convolution_fwd_t::create_resource(
-        engine_t *engine, resource_mapper_t &mapper) const {
-
-    CHECK(pd()->post_ops.create_resource(engine, mapper));
-    return status::success;
 }
 
 status_t acl_indirect_gemm_convolution_fwd_t::pd_t::init_conf() {
