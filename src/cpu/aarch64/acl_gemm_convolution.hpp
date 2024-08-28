@@ -54,13 +54,10 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override;
-
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
-    typedef typename prec_traits<bia_type>::type bia_data_t;
+    using src_data_t = typename prec_traits<src_type>::type;
+    using wei_data_t = typename prec_traits<wei_type>::type;
+    using dst_data_t = typename prec_traits<dst_type>::type;
+    using bia_data_t = typename prec_traits<bia_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);

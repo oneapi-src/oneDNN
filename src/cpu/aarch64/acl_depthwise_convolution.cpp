@@ -22,6 +22,8 @@ namespace cpu {
 namespace aarch64 {
 
 namespace {
+using data_t = prec_traits<data_type::f32>::type;
+
 // Keys are anonymous. So deduce the type automagically.
 using conv_key_t = decltype(memory_tracking::names::key_gemm_tmp_buffer);
 
@@ -73,12 +75,6 @@ status_t acl_depthwise_convolution_fwd_t::pd_t::init(engine_t *engine) {
     return init_scratchpad(conv, scratchpad, depthwise_conv_keys, engine,
             post_ops, attr_.post_ops_, acp_.act_info, acp_.use_dst_acc_for_sum,
             dst_md_);
-}
-
-status_t acl_depthwise_convolution_fwd_t::create_resource(
-        engine_t *engine, resource_mapper_t &mapper) const {
-    CHECK(pd()->post_ops.create_resource(engine, mapper));
-    return status::success;
 }
 
 status_t acl_depthwise_convolution_fwd_t::init(engine_t *engine) {

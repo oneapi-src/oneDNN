@@ -52,12 +52,7 @@ struct acl_indirect_gemm_convolution_fwd_t : public primitive_t {
     acl_indirect_gemm_convolution_fwd_t(const pd_t *apd)
         : primitive_t(apd), acl_obj_(std::make_unique<acl_obj_t<Op>>()) {}
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override;
-
     status_t init(engine_t *engine) override;
-
-    using data_t = typename prec_traits<data_type::f32>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);

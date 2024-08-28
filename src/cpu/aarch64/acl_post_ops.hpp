@@ -162,14 +162,6 @@ struct acl_post_ops_t {
 
     bool has_sum() const { return sum_index >= 0; }
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const {
-        for (const auto &post_op : post_op_primitives) {
-            CHECK(post_op->create_resource(engine, mapper));
-        }
-        return status::success;
-    }
-
     status_t execute(
             const exec_ctx_t &ctx, void *src, void *dst = nullptr) const;
 

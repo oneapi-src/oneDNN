@@ -85,8 +85,7 @@ struct acl_deconvolution_fwd_t : public primitive_t {
         pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
             : cpu_deconvolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , acl_pd_conf()
-            , post_ops() {}
+            , acl_pd_conf() {}
 
         DECLARE_COMMON_PD_T(
                 "acl", acl_deconvolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
@@ -328,8 +327,6 @@ struct acl_deconvolution_fwd_t : public primitive_t {
         // Configure the resource based on information from primitive descriptor
         auto st = r->configure(pd()->acl_pd_conf);
         if (st == status::success) { mapper.add(this, std::move(r)); }
-
-        CHECK(pd()->post_ops.create_resource(engine, mapper));
 
         return st;
     }
