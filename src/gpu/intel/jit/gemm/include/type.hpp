@@ -100,12 +100,12 @@ public:
     constexpr Type baseType() const { return *this; }
 
     template <typename U> constexpr friend int operator*(U a, Type t) {
-        return t.isInt4() ? int((a + 1) >> 1) : int(a << t.log2Size());
+        return t.isInt4() ? int((a + 1) / 2) : int(a * (U(1) << t.log2Size()));
     }
     template <typename U> constexpr friend int operator*(Type t, U a) { return a * t; }
     template <typename U>           friend int operator*=(U &a, Type t) { a = a * t; return a; }
     template <typename U> constexpr friend int operator/(U a, Type t) {
-        return t.isInt4() ? int(a << 1) : int(a >> t.log2Size());
+        return t.isInt4() ? int(a * 2) : int(a / (U(1) << t.log2Size()));
     }
 
     /* Not a valid nGEN DataType, just a stand-in to represent hf8 data */
