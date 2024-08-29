@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,8 +25,21 @@
 #include "memory.hpp"
 #include "memory_storage.hpp"
 
-#define CTX_IN_STORAGE(arg) \
+// __VA_ARGS__here is an index of the buffer. It is empty unless the memory
+// argument is sparse.
+#define CTX_IN_STORAGE(arg, ...) CTX_IN_STORAGe##__VA_ARGS__(arg)
+
+#define CTX_IN_STORAGe(arg) \
     (ctx.input(arg) ? *(ctx.input(arg)->memory_storage()) \
+                    : dnnl::impl::memory_storage_t::empty_storage())
+#define CTX_IN_STORAGe0(arg) \
+    (ctx.input(arg) ? *ctx.input(arg)->memory_storage(0) \
+                    : dnnl::impl::memory_storage_t::empty_storage())
+#define CTX_IN_STORAGe1(arg) \
+    (ctx.input(arg) ? *ctx.input(arg)->memory_storage(1) \
+                    : dnnl::impl::memory_storage_t::empty_storage())
+#define CTX_IN_STORAGe2(arg) \
+    (ctx.input(arg) ? *ctx.input(arg)->memory_storage(2) \
                     : dnnl::impl::memory_storage_t::empty_storage())
 
 // Returns destination memory which may not have been zero pad initialized.
