@@ -124,7 +124,7 @@ private:
         return 0;
     }
     float data_conv() const {
-        switch (src_md().data_type()) {
+        switch (dst_md().data_type()) {
             case data_type::bf16:
                 return (float)
                         std::numeric_limits<xpu::sycl::bfloat16_t>::lowest();
@@ -315,49 +315,71 @@ struct pooling_bwd_kernel_vec_t {
         memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
 
         size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
-
-        dim_t ow_start = max(dim_t(0),
-                math::div_up(
-                        conf_.padL - ((conf_.KW - 1) * conf_.DW + conf_.KW) + 1,
-                        conf_.SW));
-        dim_t ow_end
-                = min(conf_.OW, 1 + (conf_.padL + conf_.IW - 1) / conf_.SW);
-
-        dim_t oh_start = max(dim_t(0),
-                math::div_up(
-                        conf_.padT - ((conf_.KH - 1) * conf_.DH + conf_.KH) + 1,
-                        conf_.SH));
-        dim_t oh_end
-                = min(conf_.OH, 1 + (conf_.padT + conf_.IH - 1) / conf_.SH);
-
-        dim_t od_start = max(dim_t(0),
-                math::div_up(
-                        conf_.padF - ((conf_.KD - 1) * conf_.DD + conf_.KD) + 1,
-                        conf_.SD));
-        dim_t od_end
-                = min(conf_.OD, 1 + (conf_.padF + conf_.ID - 1) / conf_.SD);
+        int denom = 1;
 
         const bool is_max_pool = conf_.alg == alg_kind::pooling_max;
-        dim_t MB = conf_.MB;
-        dim_t OC = conf_.OC;
-        const dim_t work_amount = MB * OC;
+        const bool is_avg_incl_pad
+                = conf_.alg == alg_kind::pooling_avg_include_padding;
+        const bool is_avg_excl_pad
+                = conf_.alg == alg_kind::pooling_avg_exclude_padding;
+        if (is_avg_incl_pad) denom = conf_.KW * conf_.KH * conf_.KD;
+
+        const dim_t work_amount
+                = conf_.MB * conf_.OC * conf_.ID * conf_.IH * conf_.IW;
         if (work_amount == 0) return;
         dim_t start {0}, end {0};
         balance211(work_amount, conf_.n_thr, ithr, start, end);
-        dim_t mb {0}, oc {0};
-        utils::nd_iterator_init(start, mb, MB, oc, OC);
+        dim_t mb {0}, oc {0}, id {0}, ih {0}, iw {0};
+        utils::nd_iterator_init(start, mb, conf_.MB, oc, conf_.OC, id, conf_.ID,
+                ih, conf_.IH, iw, conf_.IW);
         for (dim_t iwork = start; iwork < end; ++iwork) {
-            ker_zero(diff_src_mem, mb, oc);
-            for_(dim_t od = od_start; od < od_end; ++od)
-            for_(dim_t oh = oh_start; oh < oh_end; ++oh)
-            for (dim_t ow = ow_start; ow < ow_end; ++ow) {
-                if (is_max_pool) {
-                    ker_max(diff_src_mem, diff_dst_mem, mb, oc, od, oh, ow);
-                } else {
-                    ker_avg(diff_src_mem, diff_dst_mem, mb, oc, od, oh, ow);
+            float s = 0;
+            for (dim_t kd = 0; kd < conf_.KD; ++kd) {
+                dim_t _od = id + conf_.padF - kd * (conf_.DD + 1);
+                if (_od % conf_.SD != 0) continue;
+                dim_t od = _od / conf_.SD;
+                if (od < 0 || od >= conf_.OD) continue;
+
+                for (dim_t kh = 0; kh < conf_.KH; ++kh) {
+                    dim_t _oh = ih + conf_.padT - kh * (conf_.DH + 1);
+                    if (_oh % conf_.SH != 0) continue;
+                    dim_t oh = _oh / conf_.SH;
+                    if (oh < 0 || oh >= conf_.OH) continue;
+
+                    for (dim_t kw = 0; kw < conf_.KW; ++kw) {
+                        dim_t _ow = iw + conf_.padL - kw * (conf_.DW + 1);
+                        if (_ow % conf_.SW != 0) continue;
+                        dim_t ow = _ow / conf_.SW;
+                        if (ow < 0 || ow >= conf_.OW) continue;
+
+                        const auto dst_off
+                                = get_offset(diff_dst_md(), mb, oc, od, oh, ow);
+                        if (is_max_pool) {
+                            memory_tensor_t ws_mem(ws_, conf_.ws_md);
+                            const int index = ws_mem.load(dst_off);
+
+                            const dim_t hw = index % (conf_.KW * conf_.KH);
+                            const dim_t w_kd = index / (conf_.KW * conf_.KH);
+                            const dim_t w_kw = hw % conf_.KW;
+                            const dim_t w_kh = hw / conf_.KW;
+                            if (w_kd != kd || w_kh != kh || w_kw != kw)
+                                continue;
+                        }
+                        if (is_avg_excl_pad) {
+                            ker_avg_excl_pad(od, oh, ow, diff_dst_mem, dst_off,
+                                    denom, s);
+                        }
+                        if (is_max_pool || is_avg_incl_pad)
+                            s = s + diff_dst_mem.load(dst_off);
+                    }
                 }
             }
-            utils::nd_iterator_step(mb, MB, oc, OC);
+            const auto diff_src_offset
+                    = get_offset(diff_src_md(), mb, oc, id, ih, iw);
+            if (is_max_pool || is_avg_incl_pad) s = s / denom;
+            diff_src_mem.store(s, diff_src_offset);
+            utils::nd_iterator_step(mb, conf_.MB, oc, conf_.OC, id, conf_.ID,
+                    ih, conf_.IH, iw, conf_.IW);
         }
     }
 
@@ -377,104 +399,39 @@ private:
         return 0;
     }
 
-    void ker_zero(out_memory_tensor_t &diff_src_mem, dim_t mb, dim_t oc) const {
-        for_(dim_t id = 0; id < conf_.ID; ++id)
-        for_(dim_t ih = 0; ih < conf_.IH; ++ih)
-        for (dim_t iw = 0; iw < conf_.IW; ++iw) {
-            const auto off = get_offset(diff_src_md(), mb, oc, id, ih, iw);
-            diff_src_mem.store(0, off);
-        }
-    }
+    void ker_avg_excl_pad(dim_t od, dim_t oh, dim_t ow,
+            const in_memory_tensor_t &diff_dst_mem, dim_t dst_off, int &denom,
+            float &s) const {
+        const auto id_start = od * conf_.SD - conf_.padF;
+        const auto ih_start = oh * conf_.SH - conf_.padT;
+        const auto iw_start = ow * conf_.SW - conf_.padL;
+        const auto id_end = od * conf_.SD - conf_.padF
+                + (conf_.KD - 1) * conf_.DD + conf_.KD;
+        const auto ih_end = oh * conf_.SH - conf_.padT
+                + (conf_.KH - 1) * conf_.DH + conf_.KH;
+        const auto iw_end = ow * conf_.SW - conf_.padL
+                + (conf_.KW - 1) * conf_.DW + conf_.KW;
 
-    void ker_max(out_memory_tensor_t &diff_src_mem,
-            const in_memory_tensor_t &diff_dst_mem, dim_t mb, dim_t oc,
-            dim_t od, dim_t oh, dim_t ow) const {
-        memory_tensor_t ws_mem(ws_, conf_.ws_md);
-        const auto ws_off = get_offset(ws_md(), mb, oc, od, oh, ow);
+        const auto id_start_excluded
+                = id_start < 0 ? (0 - id_start - 1) / (conf_.DD + 1) + 1 : 0;
+        const auto ih_start_excluded
+                = ih_start < 0 ? (0 - ih_start - 1) / (conf_.DH + 1) + 1 : 0;
+        const auto iw_start_excluded
+                = iw_start < 0 ? (0 - iw_start - 1) / (conf_.DW + 1) + 1 : 0;
+        const auto id_end_excluded = id_end > conf_.ID
+                ? (id_end - conf_.ID - 1) / (conf_.DD + 1) + 1
+                : 0;
+        const auto ih_end_excluded = ih_end > conf_.IH
+                ? (ih_end - conf_.IH - 1) / (conf_.DH + 1) + 1
+                : 0;
+        const auto iw_end_excluded = iw_end > conf_.IW
+                ? (iw_end - conf_.IW - 1) / (conf_.DW + 1) + 1
+                : 0;
 
-        const int index = ws_mem.load(ws_off);
-        const dim_t kd = (index / conf_.KW) / conf_.KH;
-        const dim_t kh = (index / conf_.KW) % conf_.KH;
-        const dim_t kw = index % conf_.KW;
-        const dim_t id = od * conf_.SD - conf_.padF + kd * (conf_.DD + 1);
-        const dim_t ih = oh * conf_.SH - conf_.padT + kh * (conf_.DH + 1);
-        const dim_t iw = ow * conf_.SW - conf_.padL + kw * (conf_.DW + 1);
-        if (id < 0 || id >= conf_.ID) return;
-        if (ih < 0 || ih >= conf_.IH) return;
-        if (iw < 0 || iw >= conf_.IW) return;
-
-        const auto d_src_off = get_offset(diff_src_md(), mb, oc, id, ih, iw);
-        const auto d_dst_off = get_offset(diff_dst_md(), mb, oc, od, oh, ow);
-        float v_src = diff_src_mem.load(d_src_off);
-        float v_dst = diff_dst_mem.load(d_dst_off);
-        v_src += v_dst;
-        diff_src_mem.store(v_src, d_src_off);
-    }
-
-    void ker_avg(out_memory_tensor_t &diff_src_mem,
-            const in_memory_tensor_t &diff_dst_mem, dim_t mb, dim_t oc,
-            dim_t od, dim_t oh, dim_t ow) const {
-        int num_summands;
-        if (conf_.alg == alg_kind::pooling_avg_include_padding)
-            num_summands = conf_.KW * conf_.KH * conf_.KD;
-        else {
-            auto id_start = od * conf_.SD - conf_.padF;
-            auto ih_start = oh * conf_.SH - conf_.padT;
-            auto iw_start = ow * conf_.SW - conf_.padL;
-            auto id_end = od * conf_.SD - conf_.padF + (conf_.KD - 1) * conf_.DD
-                    + conf_.KD;
-            auto ih_end = oh * conf_.SH - conf_.padT + (conf_.KH - 1) * conf_.DH
-                    + conf_.KH;
-            auto iw_end = ow * conf_.SW - conf_.padL + (conf_.KW - 1) * conf_.DW
-                    + conf_.KW;
-
-            auto id_start_excluded = id_start < 0
-                    ? (0 - id_start - 1) / (conf_.DD + 1) + 1
-                    : 0;
-            auto ih_start_excluded = ih_start < 0
-                    ? (0 - ih_start - 1) / (conf_.DH + 1) + 1
-                    : 0;
-            auto iw_start_excluded = iw_start < 0
-                    ? (0 - iw_start - 1) / (conf_.DW + 1) + 1
-                    : 0;
-            auto id_end_excluded = id_end > conf_.ID
-                    ? (id_end - conf_.ID - 1) / (conf_.DD + 1) + 1
-                    : 0;
-            auto ih_end_excluded = ih_end > conf_.IH
-                    ? (ih_end - conf_.IH - 1) / (conf_.DH + 1) + 1
-                    : 0;
-            auto iw_end_excluded = iw_end > conf_.IW
-                    ? (iw_end - conf_.IW - 1) / (conf_.DW + 1) + 1
-                    : 0;
-
-            num_summands = (conf_.KD - id_start_excluded - id_end_excluded)
-                    * (conf_.KH - ih_start_excluded - ih_end_excluded)
-                    * (conf_.KW - iw_start_excluded - iw_end_excluded);
-        }
-        for (dim_t kd = 0; kd < conf_.KD; ++kd) {
-            const dim_t id = od * conf_.SD - conf_.padF + kd * (conf_.DD + 1);
-            if (id < 0 || id >= conf_.ID) continue;
-            for (dim_t kh = 0; kh < conf_.KH; ++kh) {
-                const dim_t ih
-                        = oh * conf_.SH - conf_.padT + kh * (conf_.DH + 1);
-                if (ih < 0 || ih >= conf_.IH) continue;
-                for (dim_t kw = 0; kw < conf_.KW; ++kw) {
-                    const dim_t iw
-                            = ow * conf_.SW - conf_.padL + kw * (conf_.DW + 1);
-                    if (iw < 0 || iw >= conf_.IW) continue;
-
-                    const auto d_src_off
-                            = get_offset(diff_src_md(), mb, oc, id, ih, iw);
-                    const auto d_dst_off
-                            = get_offset(diff_dst_md(), mb, oc, od, oh, ow);
-                    float v_src = diff_src_mem.load(d_src_off);
-                    ;
-                    float v_dst = diff_dst_mem.load(d_dst_off);
-                    v_src += v_dst / num_summands;
-                    diff_src_mem.store(v_src, d_src_off);
-                }
-            }
-        }
+        denom = (conf_.KD - id_start_excluded - id_end_excluded)
+                * (conf_.KH - ih_start_excluded - ih_end_excluded)
+                * (conf_.KW - iw_start_excluded - iw_end_excluded);
+        s = s + (diff_dst_mem.load(dst_off) / denom);
     }
 
     sycl_pooling_bwd_conf_t conf_;
