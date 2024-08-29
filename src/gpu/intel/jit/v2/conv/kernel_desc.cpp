@@ -434,6 +434,7 @@ std::string kernel_desc_t::brief_str() const {
 }
 
 std::string kernel_desc_t::str() const {
+    if (is_empty()) return "(empty)";
     std::ostringstream oss;
     oss << "Propagation:            " << jit::to_string(prop) << std::endl;
     oss << "Depthwise:              " << ir_utils::to_string(is_dw)

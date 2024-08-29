@@ -141,7 +141,7 @@ std::string problem_t::str() const {
     std::ostringstream oss;
     oss << "Conv problem" << std::endl;
     oss << "  HW:          " << to_string(hw_.to_ngen()) << std::endl;
-    oss << "  Propagation: " << ir_utils::to_string(prop_) << std::endl;
+    oss << "  Propagation: " << jit::to_string(prop_) << std::endl;
     oss << "  Source:      " << src_tag_ << std::endl;
     oss << "  Weights:     " << wei_tag_ << std::endl;
     oss << "  Destination: " << dst_tag_ << std::endl;
@@ -152,7 +152,7 @@ std::string problem_t::str() const {
 std::string problem_t::csv_str() const {
     std::vector<std::string> parts;
     parts.push_back(hw_.brief_str());
-    parts.push_back(ir_utils::to_string(prop_));
+    parts.push_back(jit::to_string(prop_));
     parts.push_back(src_tag_.str());
     parts.push_back(wei_tag_.str());
     parts.push_back(dst_tag_.str());

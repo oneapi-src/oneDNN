@@ -1117,13 +1117,17 @@ plan_t create_conv_plan(const kernel_desc_t &desc) {
 
 bool finalize_conv_desc_impl(kernel_desc_t &desc, const hw_t &hw,
         const problem_t *prb, plan_t *out_plan) {
-    ir_assert(desc.hw_desc.hw == hw.to_ngen());
+    if (desc.is_empty()) return false;
+    if (desc.hw_desc.hw != hw.to_ngen()) return false;
     desc.hw = hw;
     if (!desc.is_supported()) return false;
     if (prb) desc.specialize(*prb);
     if (desc.is_finalized) return true;
     auto plan = create_conv_plan_impl(desc, /*finalize=*/true);
-    if (plan && out_plan) *out_plan = plan;
+    if (plan) {
+        if (out_plan) *out_plan = plan;
+        if (prb && !desc.matches(*prb)) return false;
+    }
     return (bool)plan;
 }
 
