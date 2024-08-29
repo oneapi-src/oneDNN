@@ -62,6 +62,19 @@ void problem_t::set_shape(const std::string &s) {
     shape_ = std::move(s_tile);
 }
 
+double problem_t::ops() const {
+    return ops(prop_, shape_);
+}
+
+void problem_t::normalize() {
+#define GET(name) shape_[prb_dims::name]
+    normalize_conv_shape(GET(od), GET(id), GET(kd), GET(sd), GET(dd), GET(pd),
+            GET(oh), GET(ih), GET(kh), GET(sh), GET(dh), GET(ph), GET(ow),
+            GET(iw), GET(kw), GET(sw), GET(dw), GET(pw),
+            /*can_flatten_spatial=*/true, dhw_map_);
+#undef GET
+}
+
 std::string problem_t::desc_str() const {
     int g = shape_[prb_dims::g];
     int mb = shape_[prb_dims::mb];
@@ -171,6 +184,20 @@ prb_tile_t problem_t::default_shape() {
         return ret;
     }();
     return _default_shape;
+}
+
+double problem_t::ops(prop_kind_t prop, const prb_tile_t &shape) {
+#define GET(name) shape[prb_dims::name]
+    double ret = 2.0;
+    ret *= (double)GET(g) * GET(mb) * GET(oc) * GET(ic);
+    ret *= GET(kd) * GET(kh) * GET(kw);
+    if (prop == prop_kind::backward_data) {
+        ret *= GET(id) * GET(ih) * GET(iw);
+    } else {
+        ret *= GET(od) * GET(oh) * GET(ow);
+    }
+#undef GET
+    return ret;
 }
 
 class arg_helper_t {

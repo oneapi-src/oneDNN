@@ -129,6 +129,7 @@ inline problem_t to_problem(
     prb.set_wei_tag(wei);
     prb.set_dst_tag(dst);
     prb.set_shape(shape);
+    prb.normalize();
 
     return prb;
 }
