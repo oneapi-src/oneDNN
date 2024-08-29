@@ -92,11 +92,6 @@ status_t acl_matmul_t::pd_t::init(engine_t *engine) {
         CHECK(acl_matmul_utils::init_conf_matmul<true>(
                 amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
     } else {
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-        // to avoid seg. fault in case threadpool is enabled and its pointer is null
-        if (threadpool_utils::get_active_threadpool() == nullptr)
-            return status::unimplemented;
-#endif
         CHECK(acl_matmul_utils::init_conf_matmul<false>(
                 amp_, src_md_, weights_md_, dst_md_, *desc(), *attr()));
     }
