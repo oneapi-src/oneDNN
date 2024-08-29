@@ -2329,6 +2329,8 @@ TEST(test_subgraph_pass_subgraph_pass, FuseNCXConvolutionBinaryAddNC11PostSrc) {
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
+    ASSERT_NE(qconv_op, subgraph->get_ops().end());
+    ASSERT_TRUE((*qconv_op)->has_attr(dnnl_impl::op_attr::fusion_info_key));
     int64_t key = (*qconv_op)->get_attr<int64_t>(
             dnnl_impl::op_attr::fusion_info_key);
     auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);
@@ -2483,6 +2485,8 @@ TEST(test_subgraph_pass_subgraph_pass, FuseNXCConvolutionBinaryAddNC11PostSrc) {
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
+    ASSERT_NE(qconv_op, subgraph->get_ops().end());
+    ASSERT_TRUE((*qconv_op)->has_attr(dnnl_impl::op_attr::fusion_info_key));
     int64_t key = (*qconv_op)->get_attr<int64_t>(
             dnnl_impl::op_attr::fusion_info_key);
     auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);
