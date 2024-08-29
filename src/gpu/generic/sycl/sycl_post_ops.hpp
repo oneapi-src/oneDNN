@@ -19,7 +19,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive_attr.hpp"
+#include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_math_utils.hpp"
+#include "xpu/sycl/memory_storage_base.hpp"
 #include "xpu/sycl/types.hpp"
 
 namespace dnnl {
@@ -95,7 +97,8 @@ private:
 
 struct ref_binary_op_t {
     ref_binary_op_t() = default;
-    ref_binary_op_t(alg_kind_t alg) : alg_(alg) {
+    ref_binary_op_t(alg_kind_t alg, xpu::sycl::md_t src_md)
+        : alg_(alg), src_md_(src_md) {
         using namespace alg_kind;
         assert(utils::one_of(alg_, binary_add, binary_div, binary_max,
                 binary_min, binary_mul, binary_sub, binary_ge, binary_gt,
@@ -103,7 +106,14 @@ struct ref_binary_op_t {
     }
 
     ref_binary_op_t(const post_ops_t::entry_t::binary_t &binary)
-        : ref_binary_op_t(binary.alg) {}
+        : ref_binary_op_t(binary.alg, xpu::sycl::md_t(&binary.src1_desc)) {}
+
+    float load_and_compute(float s0, const xpu::sycl::in_memory_arg_t &src,
+            dims_t offset) const { // TODO dims32_t
+        memory_tensor_t src_mem(src, src_md_);
+        float val = src_mem.load_md_bc(offset);
+        return compute(s0, val);
+    }
 
     float compute(float s0, float s1) const { return compute(alg_, s0, s1); }
 
@@ -132,12 +142,21 @@ struct ref_binary_op_t {
 
 private:
     alg_kind_t alg_;
+    xpu::sycl::md_t src_md_;
 };
 
 struct ref_sum_op_t {
     ref_sum_op_t() = default;
     ref_sum_op_t(float scale, float zeropoint)
         : scale_(scale), zeropoint_(zeropoint) {}
+
+    float load_and_compute(float acc, const xpu::sycl::out_memory_arg_t &dst,
+            dnnl::impl::data_type_t sum_dt_,
+            dim_t offset) const { // TODO dims32_t
+        memory_plain_t dst_mem(dst, sum_dt_);
+        float val = dst_mem.load(offset);
+        return compute(acc, val);
+    }
 
     float compute(float acc, float dst) const {
         return acc + scale_ * (dst - zeropoint_);
@@ -164,6 +183,7 @@ struct sycl_post_op_t {
         ref_sum_op_t sum_;
     };
 };
+struct post_op_input_args;
 
 struct sycl_post_ops_t {
     // SYCL has a limitation on total size of kernel arguments.
@@ -173,7 +193,8 @@ struct sycl_post_ops_t {
     static constexpr int max_post_ops = 5;
 
     sycl_post_ops_t() = default;
-    sycl_post_ops_t(const primitive_attr_t *attr) {
+    sycl_post_ops_t(const primitive_attr_t *attr,
+            dnnl::impl::data_type_t dst_dt = dnnl_data_type_undef) {
         using namespace primitive_kind;
 
         const auto &attr_po = attr->post_ops_;
@@ -184,6 +205,9 @@ struct sycl_post_ops_t {
                 ops_[i].kind_ = sum;
                 ops_[i].sum_ = ref_sum_op_t(attr_po.entry_[i].sum.scale,
                         attr_po.entry_[i].sum.zero_point);
+                sum_dt_ = attr_po.entry_[i].sum.dt == dnnl_data_type_undef
+                        ? dst_dt
+                        : attr_po.entry_[i].sum.dt;
             } else if (attr_po.contain(eltwise, i)) {
                 ops_[i].kind_ = eltwise;
                 ops_[i].eltwise_ = ref_eltwise_fwd_t(attr_po.entry_[i].eltwise);
@@ -195,63 +219,13 @@ struct sycl_post_ops_t {
         n_post_ops_ = attr_po.len();
     }
 
-    template <int width>
-    ::sycl::vec<float, width> apply(::sycl::vec<float, width> acc,
-            ::sycl::vec<float, width> dst) const {
-        using namespace primitive_kind;
-        constexpr ::sycl::vec<float, width> nan_vec(NAN);
-
-        for (auto i = 0; i < n_post_ops_; ++i) {
-            switch (ops_[i].kind_) {
-                case sum: acc = ops_[i].sum_.compute(acc, dst); break;
-                case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
-                default: acc = nan_vec;
-            }
-        }
-        return acc;
-    }
-
-    float apply(float acc, float dst) const {
-        using namespace primitive_kind;
-
-        for (auto i = 0; i < n_post_ops_; ++i) {
-            switch (ops_[i].kind_) {
-                case sum: acc = ops_[i].sum_.compute(acc, dst); break;
-                case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
-                default: acc = ::sycl::nan(0u);
-            }
-        }
-        return acc;
-    }
-
-    template <int width>
-    float apply(float acc, float dst_sum, ::sycl::vec<float, width> dst) const {
-        using namespace primitive_kind;
-
-        for (auto i = 0; i < n_post_ops_; ++i) {
-            switch (ops_[i].kind_) {
-                case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
-                case binary: acc = ops_[i].binary_.compute(acc, dst[i]); break;
-                case sum: acc = ops_[i].sum_.compute(acc, dst_sum); break;
-                default: acc = ::sycl::nan(0u);
-            }
-        }
-        return acc;
-    }
-
-    template <int width>
-    float apply(float acc, ::sycl::vec<float, width> dst) const {
-        using namespace primitive_kind;
-
-        for (auto i = 0; i < n_post_ops_; ++i) {
-            switch (ops_[i].kind_) {
-                case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
-                case binary: acc = ops_[i].binary_.compute(acc, dst[i]); break;
-                default: acc = ::sycl::nan(0u);
-            }
-        }
-        return acc;
-    }
+    inline float apply(float acc, const xpu::sycl::out_memory_arg_t &dst,
+            dim_t dst_offset, const post_op_input_args &po_args,
+            dims_t src_offset) const;
+    inline float apply(float acc, const post_op_input_args &po_args,
+            dims_t src_offset) const;
+    inline float apply(float acc, const xpu::sycl::out_memory_arg_t &dst,
+            dim_t dst_offset) const;
 
     inline int get_post_op() const { return n_post_ops_; }
 
@@ -271,6 +245,79 @@ private:
     // Indicates the actual number of post ops.
     int n_post_ops_;
 };
+
+struct post_op_input_args {
+    post_op_input_args(::sycl::handler &cgh, const exec_ctx_t &ctx)
+        : args_ {CTX_IN_SYCL_KERNEL_MEMORY(
+                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1)),
+                CTX_IN_SYCL_KERNEL_MEMORY(
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1)),
+                CTX_IN_SYCL_KERNEL_MEMORY(
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1)),
+                CTX_IN_SYCL_KERNEL_MEMORY(
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1)),
+                CTX_IN_SYCL_KERNEL_MEMORY(
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1))} {
+    }
+
+    xpu::sycl::in_memory_arg_t args_[sycl_post_ops_t::max_post_ops];
+};
+
+float sycl_post_ops_t::apply(float acc, const xpu::sycl::out_memory_arg_t &dst,
+        dim_t dst_offset, const post_op_input_args &po_args,
+        dims_t src_offset) const {
+    using namespace primitive_kind;
+
+    for (auto i = 0; i < n_post_ops_; ++i) {
+        switch (ops_[i].kind_) {
+            case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
+            case binary:
+                acc = ops_[i].binary_.load_and_compute(
+                        acc, po_args.args_[i], src_offset);
+                break;
+            case sum:
+                acc = ops_[i].sum_.load_and_compute(
+                        acc, dst, sum_dt_, dst_offset);
+                break;
+            default: acc = ::sycl::nan(0u);
+        }
+    }
+    return acc;
+}
+
+float sycl_post_ops_t::apply(
+        float acc, const post_op_input_args &po_args, dims_t src_offset) const {
+    using namespace primitive_kind;
+
+    for (auto i = 0; i < n_post_ops_; ++i) {
+        switch (ops_[i].kind_) {
+            case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
+            case binary:
+                acc = ops_[i].binary_.load_and_compute(
+                        acc, po_args.args_[i], src_offset);
+                break;
+            default: acc = ::sycl::nan(0u);
+        }
+    }
+    return acc;
+}
+
+float sycl_post_ops_t::apply(float acc, const xpu::sycl::out_memory_arg_t &dst,
+        dim_t dst_offset) const {
+    using namespace primitive_kind;
+
+    for (auto i = 0; i < n_post_ops_; ++i) {
+        switch (ops_[i].kind_) {
+            case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
+            case sum:
+                acc = ops_[i].sum_.load_and_compute(
+                        acc, dst, sum_dt_, dst_offset);
+                break;
+            default: acc = ::sycl::nan(0u);
+        }
+    }
+    return acc;
+}
 
 CHECK_SYCL_KERNEL_ARG_TYPE(ref_binary_op_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(ref_eltwise_fwd_t);

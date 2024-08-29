@@ -46,8 +46,6 @@ struct sycl_binary_conf_t {
     int wg_size;
     int wk_size;
 
-    xpu::sycl::md_t binary_src_arr[sycl_post_ops_t::max_post_ops];
-
     sycl_post_ops_t post_ops;
 };
 
@@ -105,7 +103,6 @@ struct sycl_eltwise_conf_t {
     dim_t wg_size;
     dim_t wk_size;
     dim_t post_po_len;
-    xpu::sycl::md_t binary_src_arr[sycl::sycl_post_ops_t::max_post_ops];
     sycl_post_ops_t post_ops;
 };
 
@@ -190,7 +187,6 @@ struct sycl_resampling_conf_t {
     size_t work_amount;
 
     xpu::sycl::md_t src_md;
-    xpu::sycl::md_t src1_md[sycl_post_ops_t::max_post_ops];
     xpu::sycl::md_t dst_md;
     xpu::sycl::md_t diff_src_md;
     xpu::sycl::md_t diff_dst_md;
@@ -293,7 +289,6 @@ struct sycl_batch_normalization_conf_t {
 struct sycl_softmax_conf_t {
     prop_kind_t prop_kind;
     xpu::sycl::md_t src_md;
-    xpu::sycl::md_t src1_md[sycl_post_ops_t::max_post_ops];
     xpu::sycl::md_t dst_md;
 
     xpu::sycl::md_t diff_md;
@@ -375,7 +370,6 @@ struct sycl_pooling_base_conf_t {
 
 struct sycl_pooling_fwd_conf_t : public sycl_pooling_base_conf_t {
     xpu::sycl::md_t src_md;
-    xpu::sycl::md_t src1_md[sycl_post_ops_t::max_post_ops];
     xpu::sycl::md_t dst_md;
     sycl_post_ops_t post_ops;
 };

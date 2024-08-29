@@ -36,16 +36,7 @@ struct eltwise_fwd_kernel_vec_t {
             ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
         , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
-        , srcOp1_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1)))
-        , srcOp2_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1)))
-        , srcOp3_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1)))
-        , srcOp4_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1)))
-        , srcOp5_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1)))
+        , po_args_(cgh, ctx)
         , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
@@ -62,20 +53,23 @@ struct eltwise_fwd_kernel_vec_t {
 
         auto operation = [&](dim_t &idx, dim_t &n, dim_t &c, dim_t &d, dim_t &h,
                                  dim_t &w) {
-            dim_t src_offset = data_offset(src_md(), n, c, d, h, w);
-
+            dim_t src_offset = data_offset(src_mem.md(), n, c, d, h, w);
             auto src = src_mem.load(src_offset);
-            auto dst = dst_mem.load(src_offset);
 
-            dim_t data_l_off = (((n * conf_.c + c) * conf_.d + d) * conf_.h + h)
-                            * conf_.w
-                    + w;
+            float acc = compute_alg_n(
+                    src, conf_.alpha, conf_.beta, conf_.alg_kind);
 
-            ::sycl::vec<float, 16> post_po_sr = post_op_src_val(data_l_off);
+            dims_t po_off {n, c, d, h, w};
+            switch (src_mem.md().ndims()) {
+                case 3: po_off[2] = w; break;
+                case 4:
+                    po_off[2] = h;
+                    po_off[3] = w;
+                    break;
+            }
+            acc = conf_.post_ops.apply(acc, dst_, src_offset, po_args_, po_off);
 
-            dst = compute_alg_n(src, conf_.alpha, conf_.beta, conf_.alg_kind);
-            dst = conf_.post_ops.apply(dst, post_po_sr);
-            dst_mem.store(dst, src_offset);
+            dst_mem.store(acc, src_offset);
         };
 
         for (dim_t blk_idx = 0; blk_idx < conf_.block_size; blk_idx++) {
@@ -98,9 +92,6 @@ struct eltwise_fwd_kernel_vec_t {
     }
 
 private:
-    const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
-    const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
-
     float compute_alg_n(const float &s, const float &alpha, const float &beta,
             const alg_kind_t &alg) const {
         switch (alg) {
@@ -196,28 +187,6 @@ private:
         }
     }
 
-    inline ::sycl::vec<float, 16> post_op_src_val(dim_t &data_l_off) const {
-        ::sycl::vec<float, 16> post_po_sr;
-        const auto maxPostPo = conf_.post_po_len;
-
-        for (dim_t po_idx = 0; po_idx < maxPostPo; po_idx++) {
-            float res = 0.0f;
-            if (po_idx == 0)
-                res = get_post_op_val(srcOp1_, po_idx, data_l_off);
-            else if (po_idx == 1)
-                res = get_post_op_val(srcOp2_, po_idx, data_l_off);
-            else if (po_idx == 2)
-                res = get_post_op_val(srcOp3_, po_idx, data_l_off);
-            else if (po_idx == 3)
-                res = get_post_op_val(srcOp4_, po_idx, data_l_off);
-            else if (po_idx == 4)
-                res = get_post_op_val(srcOp5_, po_idx, data_l_off);
-
-            post_po_sr[po_idx] = res;
-        }
-        return post_po_sr;
-    }
-
     inline dim_t data_offset(const xpu::sycl::md_t &mem, dim_t &n, dim_t &c,
             dim_t &d, dim_t &h, dim_t &w) const {
         const auto ndims = mem.ndims();
@@ -232,78 +201,9 @@ private:
         return -1;
     }
 
-    float get_post_op_val(const xpu::sycl::in_memory_arg_t &bin_src_op,
-            dim_t &idx, dim_t &offset) const {
-        auto src1_desc = conf_.binary_src_arr[idx];
-
-        const auto off = get_binary_src1_off(
-                src1_desc, offset, dst_md().dims(), dst_md().ndims());
-
-        auto dst = load_float_value(
-                src1_desc.data_type(), bin_src_op.get_pointer(), off);
-        return dst;
-    }
-
-    dim_t get_binary_src1_off(const xpu::sycl::md_t &src1_md,
-            const dim_t &l_offset, const xpu::sycl::md_t::dims32_t &dst_dims,
-            const xpu::sycl::md_t::dim32_t &dst_ndims) const {
-        const dim_t mask_binary_po
-                = get_dims_mask(dst_dims, src1_md.dims(), dst_ndims);
-        return get_po_tensor_off(
-                src1_md, l_offset, dst_dims, dst_ndims, mask_binary_po);
-    }
-
-    inline dim_t get_dims_mask(const xpu::sycl::md_t::dims32_t &dims1,
-            const xpu::sycl::md_t::dims32_t &dims2, const dim_t &ndims,
-            bool skip_dim_of_one = false) const {
-        dim_t mask = 0;
-        for (dim_t d = 0; d < ndims; ++d) {
-            // Disable mask_bit for dimensions of `1` by request.
-            dim_t mask_bit = skip_dim_of_one && dims1[d] == 1 ? 0 : (1 << d);
-            mask += dims1[d] == dims2[d] ? mask_bit : 0;
-        }
-        return mask;
-    }
-
-    inline dim_t get_po_tensor_off(const xpu::sycl::md_t &tensor_md,
-            const dim_t &l_offset, const xpu::sycl::md_t::dims32_t &dst_dims,
-            const dim_t &dst_ndims, const dim_t &mask) const {
-        dims_t l_dims_po {};
-        get_l_dims_po(l_dims_po, l_offset, dst_dims, dst_ndims, mask);
-
-        return tensor_md.off_v(l_dims_po);
-    }
-
-    inline void get_l_dims_po(dims_t l_dims_po, dim_t l_offset,
-            const xpu::sycl::md_t::dims32_t &dst_dims, const dim_t &dst_ndims,
-            const dim_t &mask) const {
-
-        l_dims_by_l_offset(l_dims_po, l_offset, dst_dims, dst_ndims);
-        utils::apply_mask_on_dims(l_dims_po, dst_ndims, mask);
-    }
-
-    inline void l_dims_by_l_offset(dims_t dims_pos, dim_t l_offset,
-            const xpu::sycl::md_t::dims32_t &dims, const dim_t &ndims) const {
-        for (dim_t rd = 0; rd < ndims; ++rd) {
-            const dim_t d = ndims - 1 - rd;
-            /* switch to faster 32-bit division when possible. */
-            if (l_offset <= INT32_MAX && dims[d] <= INT32_MAX) {
-                dims_pos[d] = (int32_t)l_offset % (int32_t)dims[d];
-                l_offset = (int32_t)l_offset / (int32_t)dims[d];
-            } else {
-                dims_pos[d] = l_offset % dims[d];
-                l_offset /= dims[d];
-            }
-        }
-    }
-
     sycl_eltwise_conf_t conf_;
     xpu::sycl::in_memory_arg_t src_;
-    xpu::sycl::in_memory_arg_t srcOp1_;
-    xpu::sycl::in_memory_arg_t srcOp2_;
-    xpu::sycl::in_memory_arg_t srcOp3_;
-    xpu::sycl::in_memory_arg_t srcOp4_;
-    xpu::sycl::in_memory_arg_t srcOp5_;
+    post_op_input_args po_args_;
     xpu::sycl::out_memory_arg_t dst_;
 };
 
@@ -342,10 +242,6 @@ struct eltwise_bwd_kernel_vec_t {
     }
 
 private:
-    const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
-    const xpu::sycl::md_t &diff_src_md() const { return conf_.diff_src_md; }
-    const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
-
     inline float compute_alg_n(const float &dd, const float &s,
             const float &alpha, const float &beta,
             const alg_kind_t &alg) const {

@@ -235,6 +235,14 @@ struct memory_tensor_t {
         return load(md_.off_v(offsets));
     }
 
+    inline float load_md_bc(dims_t offsets) const {
+        dims_t offsets_masked;
+        for (int i = 0; i < xpu::sycl::md_t::max_dims; i++) {
+            offsets_masked[i] = md_.dims()[i] == 1 ? 0 : offsets[i];
+        }
+        return load(md_.off_v(offsets_masked));
+    }
+
     inline void store_md(float val, dims_t offsets) {
         store(val, md_.off_v(offsets));
     }
