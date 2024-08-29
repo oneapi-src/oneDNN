@@ -38,8 +38,6 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
         // XXX: this is a hack to let tests with padded area to pass for bf16
         // dt due to the library initialize values with -max_dt, but not -INF.
         float max_value = lowest_dt(prb->dst_dt());
-        if (is_nvidia_gpu() || is_amd_gpu())
-            max_value = lowest_dt(prb->src_dt());
         float avg_value = 0.;
         // Set initial value based on ws data type
         int ws_off = prb->kernel_size() <= UINT8_MAX ? UINT8_MAX : INT_MAX;
