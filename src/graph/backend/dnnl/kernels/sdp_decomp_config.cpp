@@ -444,11 +444,11 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
             if (post_op) {
                 // find mask
                 if (post_op->get_kind() == graph::op_kind::Add) {
-                    add = post_op;
+                    add = std::move(post_op);
                     has_attention_mask = true;
                 } else if (post_op->get_kind() == graph::op_kind::Select) {
                     // mm1 -> scale -> select -> ...
-                    select = post_op;
+                    select = std::move(post_op);
                     has_select = true;
                 }
             }
