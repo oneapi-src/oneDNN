@@ -52,15 +52,8 @@ status_t ref_binary_t::pd_t::init_conf() {
                 = conf_.src0_md.dims()[i] != 1 && conf_.src1_md.dims()[i] == 1;
     }
 
-    conf_.post_ops = sycl_post_ops_t(attr());
+    conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
 
-    for (auto i = 0; i < conf_.post_ops.get_post_op(); ++i) {
-        const auto &e = attr()->post_ops_.entry_[i];
-        if (e.is_binary() || e.is_prelu()) {
-            conf_.binary_src_arr[i] = xpu::sycl::md_t(
-                    arg_md(DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1));
-        }
-    }
     return status::success;
 }
 

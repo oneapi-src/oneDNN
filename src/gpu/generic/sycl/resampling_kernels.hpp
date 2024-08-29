@@ -39,16 +39,7 @@ struct resampling_kernel_fwd_vec_t {
         : conf_(conf)
         , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
         , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
-        , src_1_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1))
-        , src_2_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1))
-        , src_3_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1))
-        , src_4_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1))
-        , src_5_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1)) {}
+        , po_args_(cgh, ctx) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         memory_tensor_t src_mem(src_, conf_.src_md);
@@ -96,9 +87,6 @@ struct resampling_kernel_fwd_vec_t {
 
             const dim_t data_p_off = get_offset(dst_md(), mb, c, od, oh, ow);
 
-            const dim_t data_l_off
-                    = (((mb * C + c) * OD + od) * OH + oh) * OW + ow;
-
             float dst = 0.f;
 
             if (conf_.alg == alg_kind::resampling_nearest) {
@@ -125,22 +113,8 @@ struct resampling_kernel_fwd_vec_t {
                         ih.wei[0], iw.wei[0]);
             }
 
-            ::sycl::vec<float, 8> dst_arr;
-            for (int idx = 0; idx < conf_.po_len; ++idx) {
-                float r = 0.0f;
-                if (conf_.post_ops.get_post_op_kind(idx)
-                        == primitive_kind::binary) {
-                    if (idx == 0) { r = dst_value(src_1_, idx, data_l_off); }
-                    if (idx == 1) { r = dst_value(src_2_, idx, data_l_off); }
-                    if (idx == 2) { r = dst_value(src_3_, idx, data_l_off); }
-                    if (idx == 3) { r = dst_value(src_4_, idx, data_l_off); }
-                    if (idx == 4) { r = dst_value(src_5_, idx, data_l_off); }
-                    dst_arr[idx] = r;
-                }
-            }
-            auto dst_sum = dst_mem.load(data_p_off);
-
-            dst = conf_.post_ops.apply(dst, dst_sum, dst_arr);
+            dims_t off {mb, c, od, oh, ow};
+            dst = conf_.post_ops.apply(dst, dst_, data_p_off, po_args_, off);
             dst_mem.store(dst, data_p_off);
             utils::nd_iterator_step(mb, MB, c, C, od, OD, oh, OH, ow, OW);
         }
@@ -149,12 +123,6 @@ struct resampling_kernel_fwd_vec_t {
 private:
     const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
-
-    void *src_1_ptr() const { return src_1_.get_pointer(); }
-    void *src_2_ptr() const { return src_2_.get_pointer(); }
-    void *src_3_ptr() const { return src_3_.get_pointer(); }
-    void *src_4_ptr() const { return src_4_.get_pointer(); }
-    void *src_5_ptr() const { return src_5_.get_pointer(); }
 
     void *gen_ptr(xpu::sycl::in_memory_arg_t gen_) const {
         return gen_.get_pointer();
@@ -171,56 +139,11 @@ private:
         return 0;
     }
 
-    float dst_value(xpu::sycl::in_memory_arg_t arr, int idx, int offset) const {
-        auto src1_desc = conf_.src1_md[idx];
-        dim_t src_dim[DNNL_MAX_NDIMS];
-        auto src_dim_ = src1_desc.dims();
-
-        for (int j = 0; j < src1_desc.ndims(); j++) {
-            src_dim[j] = src_dim_[j];
-        }
-        const auto off = get_binary_src1_off(
-                src1_desc, src_dim, offset, conf_.dst_dims, conf_.dst_ndims);
-        auto dst = load_float_value(src1_desc.data_type(), gen_ptr(arr), off);
-        return dst;
-    }
-
-    dim_t get_binary_src1_off(const xpu::sycl::md_t &src1_md,
-            const dim_t *src_dim, const dim_t l_offset, const dim_t *dst_dims,
-            const int dst_ndims) const {
-
-        const int mask_binary_po
-                = utils::get_dims_mask(dst_dims, src_dim, dst_ndims);
-
-        return get_po_tensor_off(
-                src1_md, l_offset, dst_dims, dst_ndims, mask_binary_po);
-    }
-
-    dim_t get_po_tensor_off(const xpu::sycl::md_t &tensor_md,
-            const dim_t l_offset, const dim_t *dst_dims, const int dst_ndims,
-            int mask) const {
-
-        dims_t l_dims_po {};
-        get_l_dims_po(l_dims_po, l_offset, dst_dims, dst_ndims, mask);
-
-        return tensor_md.off_v(l_dims_po);
-    }
-
-    void get_l_dims_po(dims_t &l_dims_po, const dim_t l_offset,
-            const dim_t *dst_dims, const int dst_ndims, int mask) const {
-        utils::l_dims_by_l_offset(l_dims_po, l_offset, dst_dims, dst_ndims);
-        utils::apply_mask_on_dims(l_dims_po, dst_ndims, mask);
-    }
-
     sycl_resampling_conf_t conf_;
 
     xpu::sycl::in_memory_arg_t src_;
     xpu::sycl::out_memory_arg_t dst_;
-    xpu::sycl::in_memory_arg_t src_1_;
-    xpu::sycl::in_memory_arg_t src_2_;
-    xpu::sycl::in_memory_arg_t src_3_;
-    xpu::sycl::in_memory_arg_t src_4_;
-    xpu::sycl::in_memory_arg_t src_5_;
+    post_op_input_args po_args_;
 };
 
 struct resampling_kernel_bwd_vec_t {

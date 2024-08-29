@@ -48,16 +48,7 @@ struct binary_kernel_vec_t {
                                                         | DNNL_ARG_SRC_0)
                                                      .data_type()
                                            : data_type_t::dnnl_f32)
-        , po1_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1)))
-        , po2_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1)))
-        , po3_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1)))
-        , po4_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1)))
-        , po5_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1))) {}
+        , po_args_(cgh, ctx) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         memory_tensor_t src0_mem(src0_, conf_.src0_md);
@@ -85,18 +76,19 @@ struct binary_kernel_vec_t {
         bool any_broadcast = false;
         bool is_same_tag = true;
         for (int i = 0; i < max_supported_ndims; i++) {
-            if (i < dst_md().ndims()) {
-                dims[i] = dst_md().dims()[i];
-                strides[i] = dst_md().strides()[i];
+            if (i < dst_mem.md().ndims()) {
+                dims[i] = dst_mem.md().dims()[i];
+                strides[i] = dst_mem.md().strides()[i];
                 any_broadcast |= conf_.broadcast_dims0[i];
                 any_broadcast |= conf_.broadcast_dims1[i];
             } else {
                 dims[i] = 1;
                 strides[i] = INT_MAX;
             }
-            if (i < src0_md().ndims()) {
+            if (i < src0_mem.md().ndims()) {
                 is_same_tag = is_same_tag
-                        && (src0_md().strides()[i] == src1_md().strides()[i]);
+                        && (src0_mem.md().strides()[i]
+                                == src1_mem.md().strides()[i]);
             }
         }
         if (!any_broadcast && conf_.post_ops.get_post_op() == 0
@@ -106,7 +98,6 @@ struct binary_kernel_vec_t {
             for (int i = 0; i < conf_.block_size / vec_len; i++) {
                 auto src0_vec = src0_mem.load_vec<vec_len>(vec_base_idx + i);
                 auto src1_vec = src1_mem.load_vec<vec_len>(vec_base_idx + i);
-                auto dst_vec = dst_mem.load_vec<vec_len>(vec_base_idx + i);
 
                 if (conf_.do_scale_src0)
                     src0_vec *= ::sycl::vec<float, vec_len>(sm_0);
@@ -117,7 +108,6 @@ struct binary_kernel_vec_t {
                 // TODO: Adding post-ops seems to be interfering with compiler's
                 // optimizations. Figure out how to make the compiler to generate
                 // the right code.
-                acc_vec = conf_.post_ops.apply(acc_vec, dst_vec);
                 dst_mem.store_vec(acc_vec, vec_base_idx + i);
             }
         } else {
@@ -135,15 +125,14 @@ struct binary_kernel_vec_t {
 
                     auto src0 = src0_mem.load_md(off0);
                     auto src1 = src1_mem.load_md(off1);
-                    auto dst = dst_mem.load(idx);
 
                     if (conf_.do_scale_src0) src0 *= sm_0;
                     if (conf_.do_scale_src1) src1 *= sm_1;
 
                     auto acc = compute_alg_n(src0, src1, conf_.alg_kind);
-                    ::sycl::vec<float, 16> post_po_sr
-                            = post_op_src_val(off_dst);
-                    acc = conf_.post_ops.apply(acc, dst, post_po_sr);
+
+                    acc = conf_.post_ops.apply(
+                            acc, dst_, idx, po_args_, off_dst);
                     dst_mem.store(acc, idx);
                 }
             }
@@ -151,73 +140,6 @@ struct binary_kernel_vec_t {
     }
 
 private:
-    const xpu::sycl::md_t &src0_md() const { return conf_.src0_md; }
-    const xpu::sycl::md_t &src1_md() const { return conf_.src1_md; }
-    const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
-
-    inline ::sycl::vec<float, 16> post_op_src_val(dims_t data_off) const {
-        ::sycl::vec<float, 16> post_po_sr;
-        const auto maxPostPo = conf_.post_ops.get_post_op();
-
-        for (dim_t po_idx = 0; po_idx < maxPostPo; po_idx++) {
-            float res = 0.0f;
-            if (po_idx == 0)
-                res = get_post_op_val(po1_src_, po_idx, data_off);
-            else if (po_idx == 1)
-                res = get_post_op_val(po2_src_, po_idx, data_off);
-            else if (po_idx == 2)
-                res = get_post_op_val(po3_src_, po_idx, data_off);
-            else if (po_idx == 3)
-                res = get_post_op_val(po4_src_, po_idx, data_off);
-            else if (po_idx == 4)
-                res = get_post_op_val(po5_src_, po_idx, data_off);
-
-            post_po_sr[po_idx] = res;
-        }
-        return post_po_sr;
-    }
-
-    float get_post_op_val(const xpu::sycl::in_memory_arg_t &bin_src_op,
-            dim_t &idx, dims_t offset) const {
-        auto src1_desc = conf_.binary_src_arr[idx];
-
-        const auto off = get_binary_src1_off(
-                src1_desc, offset, dst_md().dims(), dst_md().ndims());
-
-        auto dst = load_float_value(
-                src1_desc.data_type(), bin_src_op.get_pointer(), off);
-        return dst;
-    }
-
-    dim_t get_binary_src1_off(const xpu::sycl::md_t &src1_md, dims_t offset,
-            const xpu::sycl::md_t::dims32_t &dst_dims,
-            const xpu::sycl::md_t::dim32_t &dst_ndims) const {
-        const dim_t mask_binary_po
-                = get_dims_mask(dst_dims, src1_md.dims(), dst_ndims);
-        return get_po_tensor_off(
-                src1_md, offset, dst_dims, dst_ndims, mask_binary_po);
-    }
-
-    inline dim_t get_dims_mask(const xpu::sycl::md_t::dims32_t &dims1,
-            const xpu::sycl::md_t::dims32_t &dims2, const dim_t &ndims,
-            bool skip_dim_of_one = false) const {
-        dim_t mask = 0;
-        for (dim_t d = 0; d < ndims; ++d) {
-            // Disable mask_bit for dimensions of `1` by request.
-            dim_t mask_bit = skip_dim_of_one && dims1[d] == 1 ? 0 : (1 << d);
-            mask += dims1[d] == dims2[d] ? mask_bit : 0;
-        }
-        return mask;
-    }
-
-    inline dim_t get_po_tensor_off(const xpu::sycl::md_t &tensor_md,
-            dims_t offset, const xpu::sycl::md_t::dims32_t &dst_dims,
-            const dim_t &dst_ndims, const dim_t &mask) const {
-        dims_t offset_po {};
-        utils::copy_dims_with_mask(offset_po, offset, dst_ndims, mask);
-        return tensor_md.off_v(offset_po);
-    }
-
     template <int width>
     ::sycl::vec<float, width> compute_alg(::sycl::vec<float, width> src0,
             ::sycl::vec<float, width> src1, alg_kind_t alg) const {
@@ -271,11 +193,7 @@ private:
     xpu::sycl::in_memory_arg_t src0_scale_;
     xpu::sycl::in_memory_arg_t src1_scale_;
     data_type_t scales_dt_;
-    xpu::sycl::in_memory_arg_t po1_src_;
-    xpu::sycl::in_memory_arg_t po2_src_;
-    xpu::sycl::in_memory_arg_t po3_src_;
-    xpu::sycl::in_memory_arg_t po4_src_;
-    xpu::sycl::in_memory_arg_t po5_src_;
+    post_op_input_args po_args_;
 };
 
 } // namespace sycl

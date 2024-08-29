@@ -43,11 +43,7 @@ status_t ref_sycl_eltwise_fwd_t::pd_t::init_conf() {
         return status::unimplemented;
     }
     conf_.post_po_len = attr()->post_ops_.len();
-    conf_.post_ops = sycl_post_ops_t(attr());
-
-    for (auto i = 0; i < conf_.post_po_len; ++i)
-        conf_.binary_src_arr[i] = xpu::sycl::md_t(
-                arg_md(DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1));
+    conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
 
     const int block_size = conf_.block_size;
     const int wg_size = conf_.wg_size;
