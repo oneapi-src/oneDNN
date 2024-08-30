@@ -84,6 +84,10 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             // This case requires scratchpad
             if (N() == DNNL_RUNTIME_DIM_VAL) ok = false;
         }
+        // Impl suppports scales only for integer weights
+        ok = ok
+                && IMPLICATION(!attr()->scales_.has_default_values(),
+                        types::is_integral_dt(wei_dt));
         return ok;
     };
 
