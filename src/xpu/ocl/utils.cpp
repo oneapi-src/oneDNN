@@ -202,8 +202,6 @@ status_t get_devices(std::vector<cl_device_id> *devices,
     OCL_CHECK(clGetPlatformIDs(num_platforms, &platforms[0], nullptr));
 
     for (size_t i = 0; i < platforms.size(); ++i) {
-        if (!is_intel_platform(platforms[i])) continue;
-
         cl_uint num_devices = 0;
         cl_int err = clGetDeviceIDs(
                 platforms[i], device_type, 0, nullptr, &num_devices);
