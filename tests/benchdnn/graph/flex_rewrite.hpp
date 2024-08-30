@@ -21,14 +21,16 @@
 #include <string>
 
 #include "deserialize.hpp"
+#include "utils.hpp"
 
 namespace graph {
 
 struct flex_rewrite {
     flex_rewrite(const std::map<size_t, std::string> &in_shapes,
             const std::map<size_t, std::string> &op_attrs,
-            const std::string &fpmath_mode, const int64_t mb,
+            const graph_fpmath_mode_t &fpmath_mode, const int64_t mb,
             const dnnl_data_type_t dt)
+
         : in_shapes_(in_shapes)
         , op_attrs_(op_attrs)
         , fpmath_mode_(fpmath_mode)
@@ -42,7 +44,7 @@ private:
     std::map<size_t, std::string> in_shapes_;
     // input attributes from CML
     std::map<size_t, std::string> op_attrs_;
-    std::string fpmath_mode_;
+    graph_fpmath_mode_t fpmath_mode_;
     int64_t mb_;
     dnnl_data_type_t dt_;
 

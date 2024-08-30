@@ -1065,12 +1065,15 @@ void flex_rewrite::dt_rewrite(deserialized_graph &dgraph) {
 
 void flex_rewrite::graph_attrs_rewrite(deserialized_graph &dgraph) {
 
-    // if the fpmath mode is specified by users through cml
-    if (fpmath_mode_ != "default") dgraph.set_fpmath_mode(fpmath_mode_);
+    // if the fpmath mode is specified by users through cml, replace the fpmath
+    // mode from JSON file with the value from cml.
+    if (!fpmath_mode_.override_json_value_)
+        dgraph.set_fpmath_mode(fpmath_mode_);
 
     for (auto &aop : dgraph.ops_) {
         // save the graph-level config for ops
-        aop.fpmath_mode_ = dgraph.get_fpmath_mode();
+        aop.fpmath_mode_ = fpmath_mode_.mode_;
+        aop.fpmath_mode_apply_to_int_ = bool2str(fpmath_mode_.apply_to_int_);
     }
 }
 
