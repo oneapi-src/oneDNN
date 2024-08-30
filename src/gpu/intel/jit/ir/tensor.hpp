@@ -271,6 +271,7 @@ public:
 private:
     static std::vector<expr_t> make_idxs(const std::string &prefix, int n) {
         std::vector<expr_t> ret;
+        ret.reserve(n);
         for (int i = 0; i < n; i++)
             ret.push_back(
                     var_t::make(type_t::s32(), prefix + std::to_string(i)));
@@ -575,6 +576,7 @@ public:
     // The innermost block (first) has index 0.
     std::vector<std::pair<int, block_t>> enumerated_blocks() const {
         std::vector<std::pair<int, block_t>> ret;
+        ret.reserve(blocks_.size());
         for (int i = 0; i < int(blocks_.size()); i++) {
             ret.emplace_back(i, blocks_[i]);
         }

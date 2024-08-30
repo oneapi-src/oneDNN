@@ -991,6 +991,7 @@ prb_dim_t select_non_blocked_iter_dim(
         const conv_config_t &cfg, const std::vector<prb_dim_t> &dims) {
     const auto shape = cfg.shape(/*pad=*/false);
     std::vector<double> scores;
+    scores.reserve(dims.size());
     for (auto &d : dims)
         scores.push_back(get_iter_dim_score(d, cfg, shape[d]));
     auto max_it = std::max_element(scores.begin(), scores.end());
@@ -1011,6 +1012,7 @@ prb_dim_t select_iter_dim(
     if (dims.size() == 1) return dims[0];
 
     std::vector<int> dim_blocks;
+    dim_blocks.reserve(dims.size());
     for (auto &d : dims) {
         dim_blocks.push_back(inner_block(cfg, d));
     }

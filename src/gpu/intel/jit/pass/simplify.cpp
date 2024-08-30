@@ -1896,6 +1896,7 @@ expr_t const_fold_unary(op_kind_t op_kind, const expr_t &a) {
     if (!a.type().is_scalar()) {
         int elems = a.type().elems();
         std::vector<expr_t> ret;
+        ret.reserve(elems);
         for (int i = 0; i < elems; i++) {
             ret.push_back(const_fold_unary(op_kind, a[i]));
         }
@@ -1924,6 +1925,7 @@ expr_t const_fold_binary(const type_t &compute_type, op_kind_t op_kind,
         int elems = compute_type.elems();
         auto scalar_type = compute_type.scalar();
         std::vector<expr_t> ret;
+        ret.reserve(elems);
         for (int i = 0; i < elems; i++) {
             ret.push_back(const_fold_binary(scalar_type, op_kind, a[i], b[i]));
         }

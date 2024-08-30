@@ -296,6 +296,7 @@ public:
 
     static std::vector<expr_t> div(const std::vector<expr_t> &v, int factor) {
         std::vector<expr_t> ret;
+        ret.reserve(v.size());
         for (auto &e : v)
             ret.push_back(div(e, factor));
         return ret;

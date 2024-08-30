@@ -198,6 +198,7 @@ expr_t to_vec(const vec_off_t &off, int elems) {
     ir_assert(off.size() == elems);
     if (off.size() == 1) return off[0];
     std::vector<expr_t> e_off;
+    e_off.reserve(off.size());
     for (auto &o : off)
         e_off.emplace_back(o);
     return shuffle_t::make(e_off);

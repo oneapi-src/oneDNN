@@ -49,6 +49,7 @@ public:
     const expr_t &size(int level) const { return loops_[level].size; }
     std::vector<expr_t> indices() const {
         std::vector<expr_t> ret;
+        ret.reserve(nloops());
         for (int i = 0; i < nloops(); i++) {
             ret.push_back(index(i));
         }

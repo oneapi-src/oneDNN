@@ -79,6 +79,7 @@ private:
             const layout_t &layout) const {
         if (idx == layout.ndims()) {
             std::vector<expr_t> vargs;
+            vargs.reserve(layout.ndims());
             for (int i = 0; i < layout.ndims(); i++)
                 vargs.push_back(view.vstart(i) + args[i]);
             expr_t mask = full_mem_view_.vmask(vargs);

@@ -395,6 +395,7 @@ private:
             const std::vector<let_info_t> &let_infos, bool is_preload,
             bool is_mul) {
         std::vector<T> ret;
+        ret.reserve(vec.size());
         for (auto &v : vec)
             ret.push_back(update_var(v, let_infos, is_preload, is_mul));
         return ret;
