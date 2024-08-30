@@ -357,7 +357,9 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_tags(memory_desc_t &A_md,
         if (bgmmc.src_tag == format_tag::undef
                 || (memory_desc_matches_tag(A_md, transposed_tensor_layout_tag)
                         && memory_desc_matches_tag(
-                                A_md, plain_tensor_layout_tag))) {
+                                A_md, plain_tensor_layout_tag)
+                        && IMPLICATION(
+                                !is_adbc_allowed, is_int8_avx512_core))) {
             if (gemm_based::check_gemm_input_format(A_md)) {
                 // Note: Here we batch layout may not be accurately represented
                 // by the wei_tag string, due to all the permutations of the
