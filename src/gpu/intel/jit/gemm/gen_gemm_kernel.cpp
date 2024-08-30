@@ -477,7 +477,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     problem_.sumB = (reduce_ab == sum_ab::sum_a_row);
 
     // Select a kernel from the catalog.
-    MatchParams match_params[3];
+    MatchParams match_params[4];
     int npatterns = 1;
 
     match_params[0] = MatchParams(hw_, has_systolic, problem_);
