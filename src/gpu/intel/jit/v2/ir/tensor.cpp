@@ -183,7 +183,7 @@ void layout_raw_tag_t::add_dim(char letter, int pos) {
         if (new_letter >= letter) new_letter++;
         new_entries.emplace_back(new_letter, e.block, e.is_blocked);
     }
-    entries_ = new_entries;
+    entries_ = std::move(new_entries);
 }
 
 void layout_raw_tag_t::remove_dim(char letter) {
@@ -195,7 +195,7 @@ void layout_raw_tag_t::remove_dim(char letter) {
         if (e.letter > letter) new_letter--;
         new_entries.emplace_back(new_letter, e.block, e.is_blocked);
     }
-    entries_ = new_entries;
+    entries_ = std::move(new_entries);
 }
 
 bool layout_raw_tag_t::is_blocked(char letter) const {
@@ -277,7 +277,7 @@ void layout_raw_tag_t::expand_x(int ndims) {
             new_entries.push_back(e);
         }
     }
-    entries_ = new_entries;
+    entries_ = std::move(new_entries);
 }
 
 layout_raw_tag_t layout_raw_tag_t::collapse_x() const {

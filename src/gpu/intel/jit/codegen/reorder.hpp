@@ -1308,7 +1308,7 @@ public:
                                 x_stride, y_sub, y_stride);
                     });
             prev_layout = next_layout;
-            prev_rd = next_rd;
+            prev_rd = std::move(next_rd);
         }
     }
 

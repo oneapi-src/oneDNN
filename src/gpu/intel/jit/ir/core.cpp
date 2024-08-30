@@ -360,7 +360,7 @@ DEFINE_BINARY_OPERATOR(&, op_kind_t::_and)
 #define DEFINE_BINARY_ASSIGN_OPERATOR(op) \
     expr_t &expr_t::operator op##=(const expr_t &rhs) { \
         auto tmp = (*this)op rhs; \
-        *this = tmp; \
+        *this = std::move(tmp); \
         return *this; \
     }
 

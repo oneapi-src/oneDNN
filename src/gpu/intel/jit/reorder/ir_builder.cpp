@@ -473,7 +473,7 @@ struct layout_normalization_t {
             last = s.curr;
         }
         blocks.push_back(last);
-        blocks_ = blocks;
+        blocks_ = std::move(blocks);
     }
 
     void reindex(int ndims, const std::vector<int> &map) {
@@ -627,7 +627,7 @@ void reorder_ir_builder_t::build() {
             compute_blocks(cfg_.exec_cfg(), src_layout_, dst_layout_,
                     new_iter_blocks, loop_blocks, tg_blocks, cur_iter_bytes);
             if (!ir_utils::is_equal(new_iter_blocks, iter_blocks)) {
-                iter_blocks = new_iter_blocks;
+                iter_blocks = std::move(new_iter_blocks);
                 break;
             }
             cur_iter_bytes /= 2;

@@ -977,7 +977,7 @@ struct send_group_t {
             if (!has_mask(md.tidx())) continue;
             auto md_mask = md.to_expr(mask_inc.slice(idx) + inc[idx]);
             if (ret.is_empty()) {
-                ret = md_mask;
+                ret = std::move(md_mask);
             } else {
                 ret &= md_mask;
             }
@@ -1106,7 +1106,7 @@ struct send_group_t {
         }
 
         auto ret = *this;
-        ret.blocks = new_blocks;
+        ret.blocks = std::move(new_blocks);
         return ret;
     }
 
@@ -2507,8 +2507,8 @@ send_group_t init_scattered(const view_info_t &info,
         it.next(mask_base, addr_base, it.inner_elems(), inner_slots, slot_size,
                 ret.mask_bits);
     }
-    ret.addr_inc = addr_base;
-    ret.mask_inc = mask_base;
+    ret.addr_inc = std::move(addr_base);
+    ret.mask_inc = std::move(mask_base);
     reg_layout = layout_t(vlayout.type(), vlayout.ndims(), 0,
             std::vector<block_t>(
                     blocks.begin(), blocks.begin() + info.outer_idx()));

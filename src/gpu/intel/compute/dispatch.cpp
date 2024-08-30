@@ -131,7 +131,7 @@ void dispatch_t::define_dim_with_nesting_level(
     di.nesting_level = nesting_level;
     di.vector_size = 1;
     di.gws_index = -1;
-    dims_[ndims_] = di;
+    dims_[ndims_] = std::move(di);
 
     ++ndims_;
 }
@@ -311,7 +311,7 @@ void dispatch_t::generate(bool generate_lws) {
                 for (int i = vec_dim_idx - 1; i >= group_beg; --i) {
                     dims_[i + 1] = dims_[i];
                 }
-                dims_[group_beg] = vec_dim_info;
+                dims_[group_beg] = std::move(vec_dim_info);
             }
         }
 

@@ -1012,14 +1012,18 @@ bool constraint_set_t::is_single_value(const expr_t &e, expr_t &value) const {
             case op_kind_t::_gt: {
                 auto cur_lo = (rel.op_kind() == op_kind_t::_ge ? rel.rhs()
                                                                : rel.rhs() + 1);
-                if (lo.is_empty() || to_cpp<bool>(cur_lo > lo)) { lo = cur_lo; }
+                if (lo.is_empty() || to_cpp<bool>(cur_lo > lo)) {
+                    lo = std::move(cur_lo);
+                }
                 break;
             }
             case op_kind_t::_le:
             case op_kind_t::_lt: {
                 auto cur_hi = (rel.op_kind() == op_kind_t::_le ? rel.rhs()
                                                                : rel.rhs() - 1);
-                if (hi.is_empty() || to_cpp<bool>(cur_hi < hi)) { hi = cur_hi; }
+                if (hi.is_empty() || to_cpp<bool>(cur_hi < hi)) {
+                    hi = std::move(cur_hi);
+                }
                 break;
             }
             default: ir_error_not_expected() << rel;
@@ -1027,7 +1031,7 @@ bool constraint_set_t::is_single_value(const expr_t &e, expr_t &value) const {
         if (do_break) break;
     }
     bool ret = !lo.is_empty() && lo.is_equal(hi);
-    if (ret) value = lo;
+    if (ret) value = std::move(lo);
     return ret;
 }
 

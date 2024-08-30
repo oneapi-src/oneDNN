@@ -69,7 +69,7 @@ stmt_t send_t::create_offset_store(const expr_t &header_buf,
         }
         off += mem_off;
     } else {
-        off = mem_off;
+        off = std::move(mem_off);
     }
     off = cast(off, address_type(is_signed_offset, off.type().elems()));
     return store_t::make(header_sub_buf, 0, off);
@@ -999,7 +999,7 @@ stmt_t access_builder_t::create_send_stmt(
         auto off = mem_walker.get_offset(
                 i * send.type.size(), off_base, off_const);
         if (off_base0.is_empty()) {
-            off_base0 = off_base;
+            off_base0 = std::move(off_base);
             off_const0 = off_const;
         } else if (!off_base.is_equal(off_base0)) {
             is_same_base = false;

@@ -201,7 +201,7 @@ bool match_binary(
     match_context_t ctx_copy = ctx;
     if (match(ptrn_op.a, expr_op.a, ctx_copy)
             && match(ptrn_op.b, expr_op.b, ctx_copy)) {
-        ctx = ctx_copy;
+        ctx = std::move(ctx_copy);
         return true;
     }
     return false;
@@ -220,7 +220,7 @@ bool match_iif(const expr_t &ptrn, const expr_t &expr, match_context_t &ctx) {
     if (match(ptrn_iif.cond, expr_iif.cond, ctx_copy)
             && match(ptrn_iif.true_expr, expr_iif.true_expr, ctx_copy)
             && match(ptrn_iif.false_expr, expr_iif.false_expr, ctx_copy)) {
-        ctx = ctx_copy;
+        ctx = std::move(ctx_copy);
         return true;
     }
 
@@ -730,7 +730,7 @@ public:
                     b *= -1;
                 }
                 b = mutate(b);
-                return make_nary_op(nary_op_kind, {a, b});
+                return make_nary_op(nary_op_kind, {std::move(a), std::move(b)});
             }
             default: return nary_op_mutator_t::_mutate(obj);
         }
@@ -788,7 +788,7 @@ public:
                 for (auto &b : i_args)
                     next_args.push_back(cvt_mul_to_nary_op(a, b));
 
-            new_args = next_args;
+            new_args = std::move(next_args);
         }
         return make_nary_op(op_kind_t::_add, new_args);
     }
@@ -1233,7 +1233,7 @@ public:
         expr_t ret = reduce_v1(obj);
         if (!ret.is_empty()) return ret;
         ret = reduce_v2(obj);
-        return (!ret.is_empty()) ? ret : obj;
+        return (!ret.is_empty()) ? std::move(ret) : obj;
     }
 
     // Applies the following rules:
@@ -1483,7 +1483,7 @@ public:
                         make_nary_op(op_kind_t::_add, {fi.expr(), fj.expr()}));
                 auto &fi_add_fj = e_fi_add_fj.as<factored_expr_t>();
                 args[i] = make_nary_op(op_kind_t::_mul, fi_add_fj.factors);
-                e_fi = e_fi_add_fj;
+                e_fi = std::move(e_fi_add_fj);
                 args[j] = to_expr(0, args[j].type());
             }
         }
@@ -1572,7 +1572,7 @@ public:
             auto cset_old = cset_;
             cset_.add_constraint(cond);
             body = ir_mutator_t::mutate(body);
-            cset_ = cset_old;
+            cset_ = std::move(cset_old);
         }
 
         auto else_body = obj.else_body;
@@ -1580,7 +1580,7 @@ public:
             auto cset_old = cset_;
             cset_.add_constraint(flip_condition(cond));
             else_body = ir_mutator_t::mutate(else_body);
-            cset_ = cset_old;
+            cset_ = std::move(cset_old);
         }
 
         return if_t::make(cond, body, else_body);
@@ -1615,7 +1615,7 @@ public:
         auto cset_old = cset_;
         cset_.add_constraint(obj.var == value);
         auto body = mutate(obj.body);
-        cset_ = cset_old;
+        cset_ = std::move(cset_old);
 
         return let_t::make(obj.var, value, body);
     }
@@ -1627,13 +1627,13 @@ public:
         if (is_one(new_bound) && is_zero(new_init)) {
             auto body = substitute(obj.body, obj.var, expr_t(0));
             body = mutate(body);
-            new_obj = body;
+            new_obj = std::move(body);
         } else {
             auto cset_old = cset_;
             cset_.add_constraint(obj.var >= obj.init);
             cset_.add_constraint(obj.var < obj.bound);
             new_obj = ir_mutator_t::_mutate(obj);
-            cset_ = cset_old;
+            cset_ = std::move(cset_old);
         }
 
         return new_obj;

@@ -250,7 +250,7 @@ void conv_problem_t::normalize_shape() {
     std::vector<int *> xd = {&id, &od, &kd, &sd, &dd, &pd};
     std::vector<int *> xh = {&ih, &oh, &kh, &sh, &dh, &ph};
     std::vector<int *> xw = {&iw, &ow, &kw, &sw, &dw, &pw};
-    std::vector<int *> x[3] = {xd, xh, xw};
+    std::vector<int *> x[3] = {std::move(xd), std::move(xh), std::move(xw)};
     std::vector<int> x_old[3];
     std::vector<int> xdef = {1, 1, 1, 1, 0, 0};
     bool has_dim[3] = {false, false, false};
@@ -690,9 +690,9 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
 
     // Use plain tags for user-facing activations for small-channel tensors.
     if (!matches_tag(src_md, src_tag) && is_small_ic_g1)
-        user_src_tag = (user_src_req.empty() ? "axb" : user_src_req);
+        user_src_tag = (user_src_req.empty() ? "axb" : std::move(user_src_req));
     if (!matches_tag(dst_md, dst_tag) && is_small_oc_g1)
-        user_dst_tag = (user_dst_req.empty() ? "axb" : user_dst_req);
+        user_dst_tag = (user_dst_req.empty() ? "axb" : std::move(user_dst_req));
 
     // Avoid reorder for small shapes
     if (prb.g == 1 && prb.ic < 4 && prb.oc < 4 && prb.mb < 4 && prb.ksp == 1) {
@@ -1577,7 +1577,7 @@ walk_order_t compute_walk_order(const conv_config_t &cfg) {
         auto outer = grid_inner;
         outer[entry.dim] = std::min(rem_tile[entry.dim], entry.size);
         size_t ab_bytes = get_memory_footprint(cfg, inner, outer);
-        if (ab_bytes <= l3_size) grid_inner = outer;
+        if (ab_bytes <= l3_size) grid_inner = std::move(outer);
     }
     // Add the blocks in this order:
     // - Step 1. Add grid_inner blocks (fitting L3 cache)
@@ -1813,7 +1813,7 @@ status_t init_cfg(conv_config_t &cfg, const primitive_t *prim) {
         auto try_cfg = cfg;
         auto status = try_init_cfg(try_cfg);
         if (status == status::success) {
-            cfg = try_cfg;
+            cfg = std::move(try_cfg);
             return status::success;
         }
     }

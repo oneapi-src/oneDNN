@@ -396,7 +396,7 @@ params_distance_t::params_distance_t(
         v.insert(v.end(), v1.begin(), v1.end());
         v.insert(v.end(), v2.begin(), v2.end());
         if (p.id() >= int(dists_.size())) dists_.resize(p.id() + 1);
-        dists_[p.id()] = v;
+        dists_[p.id()] = std::move(v);
     }
 }
 

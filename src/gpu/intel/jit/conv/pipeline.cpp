@@ -387,7 +387,7 @@ private:
         }
 
         std::reverse(new_lets.begin(), new_lets.end());
-        inner_let_stmts_ = new_lets;
+        inner_let_stmts_ = std::move(new_lets);
     }
 
     template <typename T>
@@ -861,7 +861,7 @@ public:
             }
         }
 
-        entries_[old_idx] = entry_t({key, cur_time_++});
+        entries_[old_idx] = entry_t({std::move(key), cur_time_++});
         return ngen_proxy::SBID(old_idx);
     }
 
@@ -1397,7 +1397,7 @@ public:
         g2s_store = g2s_store.append(slm_idx_update);
 
         auto s2r_mul_body = s2r_mul;
-        auto s2r_mul_tail = s2r_mul;
+        auto s2r_mul_tail = std::move(s2r_mul);
         auto slm_counter = slm_idx_load(2, 1);
         auto cond = (slm_counter >= cfg_.slm().bufs() - 1);
 
@@ -1875,8 +1875,8 @@ private:
 
                 if (!seen_dst.insert(dst).second) continue;
 
-                auto new_call = func_call_t::make(
-                        call.func, {dst, src0, src1, src2}, call.attr);
+                auto new_call = func_call_t::make(call.func,
+                        {dst, std::move(src0), src1, src2}, call.attr);
                 ret = substitute(ret, s, new_call, 1);
             } else if (is_func_call<mad_t>(s)) {
                 auto &call = s.as<func_call_t>();

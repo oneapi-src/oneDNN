@@ -59,7 +59,7 @@ void problem_t::set_shape(const std::string &s) {
         if (s_tile.has(d)) continue;
         s_tile.set(d, default_shape()[d]);
     }
-    shape_ = s_tile;
+    shape_ = std::move(s_tile);
 }
 
 std::string problem_t::desc_str() const {

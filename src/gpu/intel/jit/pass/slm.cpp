@@ -128,7 +128,9 @@ private:
                 auto d = dst.map(dst_it.tile());
                 if (s.is_dense() && d.is_dense()
                         && src_it.outer_layout() == dst_it.outer_layout()) {
-                    if (is_slm_reorder_ok(s, d)) { max_tile = src_tile; }
+                    if (is_slm_reorder_ok(s, d)) {
+                        max_tile = std::move(src_tile);
+                    }
                 }
                 if (!src_it.has_next() || !dst_it.has_next()) break;
                 ++src_it;

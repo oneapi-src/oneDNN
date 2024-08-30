@@ -236,7 +236,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
                         CHECK(map_gemm_zp(DNNL_ARG_WEIGHTS, DNNL_ARG_A, true,
                                 orig_dims - reshape_size));
                     post_ops = tmp_post_ops;
-                    gemm_attr.scales_ = scales;
+                    gemm_attr.scales_ = std::move(scales);
                     a_md = &a_md_reshaped;
                     b_md = &b_md_reshaped;
                     c_md = &c_md_reshaped;

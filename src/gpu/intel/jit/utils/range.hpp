@@ -40,7 +40,7 @@ struct filter_range_t {
 
 template <typename Fn>
 filter_range_t<Fn> filter(Fn fn) {
-    return {fn};
+    return {std::move(fn)};
 }
 
 template <typename IterT, typename Fn>

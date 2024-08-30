@@ -427,16 +427,16 @@ struct send_1d_plan_t : public base_plan_t {
         if (!desc.base_alignment_ok(addr_inc, prover)) return false;
         std::vector<expr_t> mask_incs(nmasks());
         auto coord = it.coord();
+        ir_assert(reg_layout.offset_in_bytes(coord) == reg_off);
         for (int i = 0; i < nmasks(); i++) {
             mask_incs[i] = mask_desc[i].to_expr(coord, /*with_const=*/false);
         }
         entries.emplace_back();
         auto &e = entries.back();
-        e.addr_inc = addr_inc;
-        e.mask_incs = mask_incs;
+        e.addr_inc = std::move(addr_inc);
+        e.mask_incs = std::move(mask_incs);
         e.reg_off = reg_off;
-        e.coord = coord;
-        ir_assert(reg_layout.offset_in_bytes(coord) == reg_off);
+        e.coord = std::move(coord);
         return true;
     }
 
@@ -743,7 +743,7 @@ public:
                         = init_view_.scatterize(cache_line_size, reqs.prover());
                 if (view.is_empty()) return send_plan_t();
                 params.kind = send_kind_t::scattered;
-                return try_build_1d(params, view, reqs);
+                return try_build_1d(params, view, std::move(reqs));
             }
             default: return try_build_1d(params, init_view_);
         }
@@ -777,7 +777,7 @@ private:
         int slot_stride = std::max(4, slot_size);
 
         auto inner_end = inner_last + 1;
-        auto middle_last = inner_last;
+        auto middle_last = std::move(inner_last);
         auto outer_begin = end(layout);
         if (is_scattered) {
             // Add blocks to fill up slots in the scattered message.
@@ -821,10 +821,10 @@ private:
         auto &plan_1d = plan.get_1d();
         plan_1d = send_1d_plan_t(plan.hw);
         plan_1d.desc = desc;
-        plan_1d.addr = addr;
+        plan_1d.addr = std::move(addr);
         plan_1d.mask = mask_t(mask_desc, layout, slots, elems_per_slot);
-        plan_1d.reg_layout = reg_layout;
-        plan_1d.entry_tile = entry_tile;
+        plan_1d.reg_layout = std::move(reg_layout);
+        plan_1d.entry_tile = std::move(entry_tile);
         for (auto &d : params.skip_mask)
             plan_1d.mask.clear(d);
 
@@ -839,7 +839,7 @@ private:
             if (!plan_1d.add_entry(it, mask_desc, reg_off, reqs.prover()))
                 return send_plan_t();
         }
-        plan_1d.reqs = reqs;
+        plan_1d.reqs = std::move(reqs);
         plan_1d.reqs.simplify();
         return plan;
     }
@@ -872,8 +872,8 @@ private:
         plan_2d.mask.clear(plane.y_dim);
         for (auto &d : params.skip_mask)
             plan_2d.mask.clear(d);
-        plan_2d.reg_layout = reg_layout;
-        plan_2d.entry_tile = entry_tile;
+        plan_2d.reg_layout = std::move(reg_layout);
+        plan_2d.entry_tile = std::move(entry_tile);
 
         int reg_off = 0;
         for (int h = 0; h < plane.h; h += desc.h) {
@@ -886,7 +886,7 @@ private:
                 reg_off += entry_reg_size;
             }
         }
-        plan_2d.reqs = reqs;
+        plan_2d.reqs = std::move(reqs);
         plan_2d.reqs.simplify();
         return plan;
     }

@@ -150,7 +150,7 @@ private:
         if (_desc.is_empty()) return status::unimplemented;
         ir_assert(ir_check_fatal(_desc.fits(prb)));
         CHECK(init_layouts(_desc, pd));
-        _params.prb = prb;
+        _params.prb = std::move(prb);
         desc = std::make_shared<kernel_desc_t>(_desc);
         params = std::make_shared<kernel_params_t>(_params);
         return status::success;

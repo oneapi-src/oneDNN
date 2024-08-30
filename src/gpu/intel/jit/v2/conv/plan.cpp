@@ -347,7 +347,7 @@ public:
             case fma_kind_t::dpas: {
                 auto a_tile = a_inner_.int_dim_sizes();
                 auto b_tile = b_inner_.int_dim_sizes();
-                ret = a_tile;
+                ret = std::move(a_tile);
                 for (auto &d : b_tile) {
                     if (ret.has(d)) ir_assert(ret[d] == b_tile[d]);
                     ret[d] = b_tile[d];
@@ -481,7 +481,7 @@ private:
                 block.dim = d;
                 block.size = simd_;
                 block.stride = expr_t(1);
-                b_inner_ = layout_t(b_desc, b_type_, 0, {block});
+                b_inner_ = layout_t(b_desc, b_type_, 0, {std::move(block)});
                 break;
             }
         }
@@ -728,19 +728,19 @@ private:
         if (mul_info_.is_compatible(abc, load.reg_layout())) {
             reg_layout = load.reg_layout();
         } else {
-            auto src = load.reg_layout();
+            auto &src = load.reg_layout();
             auto dst = mul_info_.to_compatible_layout(abc, load.reg_layout());
             reorder = reorder_plan_t(desc_.hw, src, dst);
             reg_layout = reorder.dst;
         }
         plan = x2r_plan_t(desc_.hw);
         plan.tensor_kind = abc;
-        plan.load = load;
-        plan.reorder = reorder;
-        plan.layout = reg_layout;
+        plan.load = std::move(load);
+        plan.reorder = std::move(reorder);
+        plan.layout = std::move(reg_layout);
         if (abc == tensor_kind_t::b) {
             auto bia_layout = mul_info_.bia_layout(plan.layout, bia_layout_);
-            plan.bia_layout = bia_layout;
+            plan.bia_layout = std::move(bia_layout);
         }
         return true;
     }
@@ -755,8 +755,8 @@ private:
         plan.fma = desc_.fma;
         plan.a_layout = a;
         plan.b_layout = b;
-        plan.c_layout = acc_layout;
-        plan.inst_tile = inst_tile;
+        plan.c_layout = std::move(acc_layout);
+        plan.inst_tile = std::move(inst_tile);
         return true;
     }
 
@@ -843,7 +843,7 @@ private:
                 reduce_cond
                         = reduce_cond & (coord_info_.iter_coord()[dim] == 0);
         }
-        plan.reduce_cond = reduce_cond;
+        plan.reduce_cond = std::move(reduce_cond);
         auto bia_params = get_send_params(
                 tensor_kind_t::bia, send_op_t::store, bia_iter_view);
         auto bia_store = create_send_plan(bia_params, bia_iter_view);
@@ -854,8 +854,8 @@ private:
             auto store_layout = bia_store.reg_layout().map(tile);
             if (fma_layout != store_layout) {
                 plan.bia_reorder = reorder_plan_t(desc_.hw);
-                plan.bia_reorder.src = fma_layout;
-                plan.bia_reorder.dst = store_layout;
+                plan.bia_reorder.src = std::move(fma_layout);
+                plan.bia_reorder.dst = std::move(store_layout);
             }
         }
         return true;
@@ -920,17 +920,17 @@ private:
         auto load = try_create_send_plan(__func__, load_params, load_view);
         if (!load) return false;
 
-        auto load_layout = load.reg_layout();
+        auto &load_layout = load.reg_layout();
         auto reduced_layout = load_layout.map(split_view.tile());
         auto reduce = reduce_plan_t(desc_.hw, load_layout, reduced_layout);
-        auto c_post_layout = reduced_layout;
+        auto c_post_layout = std::move(reduced_layout);
         c_post_layout.remove(k_dim);
 
         plan = slm_reduce_plan_t(desc_.hw);
-        plan.store = store;
-        plan.load = load;
-        plan.reduce = reduce;
-        plan.c_layout = c_post_layout;
+        plan.store = std::move(store);
+        plan.load = std::move(load);
+        plan.reduce = std::move(reduce);
+        plan.c_layout = std::move(c_post_layout);
         plan.c_coord = coord_info_.iter_coord() + load_coord;
 
         return true;
@@ -961,15 +961,15 @@ private:
         auto params = get_send_params(
                 tensor_kind_t::c, send_op_t::store, c_mem_view);
         auto c_store = create_send_plan(params, c_mem_view);
-        auto tile = c_store.entry_tile();
+        auto &tile = c_store.entry_tile();
         plan.tile = tile;
         plan.c_store = c_store;
         auto c_reg_tile_layout = c_reg_layout.map(tile);
         auto store_layout = c_store.reg_layout().map(tile);
         if (c_reg_tile_layout != store_layout) {
             plan.reorder = reorder_plan_t(desc_.hw);
-            plan.reorder.src = c_reg_tile_layout;
-            plan.reorder.dst = store_layout;
+            plan.reorder.src = std::move(c_reg_tile_layout);
+            plan.reorder.dst = std::move(store_layout);
         }
         return true;
     }

@@ -256,7 +256,8 @@ public:
         auto lhs = op_combine(op_kind_t::_mul, factors_);
         auto rhs = op_combine(op_kind_t::_mul, other.factors_);
         int const_factor = 1;
-        auto common = find_common_factors({lhs, rhs}, const_factor);
+        auto common = find_common_factors(
+                {std::move(lhs), std::move(rhs)}, const_factor);
         ir_assert(const_factor == 1);
         factors_.clear();
         for (auto &kv : common) {

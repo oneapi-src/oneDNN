@@ -117,7 +117,7 @@ status_t sycl_dev2ocl_dev(cl_device_id *ocl_dev, const ::sycl::device &dev) {
                       xpu::device_uuid_t ocl_dev_uuid;
                       auto st = xpu::ocl::get_device_uuid(ocl_dev_uuid, d);
                       assert(st == status::success);
-                      st = uuid2ocl_dev_tmp.add(ocl_dev_uuid, d);
+                      st = uuid2ocl_dev_tmp.add(std::move(ocl_dev_uuid), d);
                       assert(st == status::success);
                       MAYBE_UNUSED(st);
                   };

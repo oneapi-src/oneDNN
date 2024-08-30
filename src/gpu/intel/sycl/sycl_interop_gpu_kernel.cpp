@@ -155,7 +155,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(impl::stream_t &stream,
             } else if (arg.is_local()) {
                 auto acc = xpu::sycl::compat::local_accessor<uint8_t, 1>(
                         ::sycl::range<1>(arg.size()), cgh);
-                cgh.set_arg((int)i, acc);
+                cgh.set_arg((int)i, std::move(acc));
             } else {
                 set_scalar_arg(cgh, (int)i, arg.scalar_type(), arg.value());
             }
@@ -179,7 +179,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(impl::stream_t &stream,
         gpu_stream->profiler().register_event(std::move(sycl_event));
     }
 
-    xpu::sycl::event_t::from(out_dep).events = {event};
+    xpu::sycl::event_t::from(out_dep).events = {std::move(event)};
     return status::success;
 }
 

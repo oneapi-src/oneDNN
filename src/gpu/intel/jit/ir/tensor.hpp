@@ -805,8 +805,8 @@ public:
             auto tile = split_exact(sub_grid);
             if (tile.is_empty()) continue;
             if (min_tile.is_empty() || tile.elems() < min_tile.elems()) {
-                min_tile = tile;
-                if (out_grid) { *out_grid = sub_grid; }
+                min_tile = std::move(tile);
+                if (out_grid) { *out_grid = std::move(sub_grid); }
             }
         }
         return min_tile;
@@ -1457,7 +1457,7 @@ public:
                     << "Tensor dimension must have at least one view dimension "
                        "that maps to it.";
         }
-        tdims_[tidx] = tdim;
+        tdims_[tidx] = std::move(tdim);
     }
 
     void set_vdim(

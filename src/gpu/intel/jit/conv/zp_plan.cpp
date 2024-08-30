@@ -674,7 +674,7 @@ private:
         auto _1x4_type = type_t::s32();
         auto dp4a = dpas_t::make_dp4a(simd_, comp_type, wei_type, _1x4_type);
         auto zp_1x4 = buf_mgr.get("zp_1x4", grf_size());
-        return dp4a.call({comp, comp, wei, zp_1x4});
+        return dp4a.call({comp, comp, wei, std::move(zp_1x4)});
     }
 
     stmt_t create_tile_wei_Xn4k_x8_zp_per_k(const expr_t &zp, const expr_t &wei,

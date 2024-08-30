@@ -804,7 +804,7 @@ private:
             if (blk.thread_group().has(d))
                 blocks.emplace_back(
                         level_kind_t::thread_group, blk.thread_group_dim(d));
-            if (!layout_dim_ok(prop, tensor_kind, layout, d, blocks))
+            if (!layout_dim_ok(prop, tensor_kind, layout, d, std::move(blocks)))
                 return false;
         }
         return true;
@@ -1289,8 +1289,8 @@ public:
         params_generator_t params_gen(
                 tune_level, simd_size, chk, level_tile_sets);
         params_distance_t dist(params_gen.params_vec(), convert);
-        auto ret = conv2tuner_.emplace(
-                key, conv_tuner_t(key, ops, params_gen, dist));
+        auto ret = conv2tuner_.emplace(key,
+                conv_tuner_t(key, ops, std::move(params_gen), std::move(dist)));
         return &ret.first->second;
     }
 
