@@ -77,6 +77,7 @@ kernel_desc_t plan_registry_t::find_best(const problem_t &prb) const {
         }
     }
     best.hw = prb.hw();
+    best.hw_desc = {prb.hw().to_ngen()};
     return best;
 }
 

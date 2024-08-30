@@ -245,7 +245,7 @@ struct prefetch_plan_t : public base_plan_t {
 };
 
 struct x2r_plan_t : public base_plan_t {
-    tensor_kind_t tensor_kind;
+    tensor_kind_t tensor_kind = tensor_kind_t::undef;
     send_plan_t load;
     reorder_plan_t reorder;
     layout_t layout;

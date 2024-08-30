@@ -118,7 +118,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
     private:
         micro::Package gemm_kq_, gemm_vs_;
         int sg_size_ = 0;
-        compute::gpu_arch_t arch_;
+        compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
 
         status_t init_microkernels(impl::engine_t *engine);
     };

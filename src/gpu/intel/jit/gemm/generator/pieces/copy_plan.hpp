@@ -97,7 +97,7 @@ struct CopyTemporary
 {
     friend class CopyPlan;
 
-    int bytes, align = 0, offset = 0;
+    int bytes = 0, align = 0, offset = 0;
     bool flag = false;
     int16_t cnumMin = 0x7FFF;
     int16_t cnumMax = -1;
