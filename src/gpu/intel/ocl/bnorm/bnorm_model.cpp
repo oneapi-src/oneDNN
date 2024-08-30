@@ -430,10 +430,8 @@ float get_ss_utilization_factor(float util, data_type_t dt, bool is_reusable) {
     if (is_reusable) {
         if (dt == data_type::f16 || dt == data_type::bf16) {
             return get_pow_ratio(util, 1.0f, 2.0f, -0.8f);
-        } else {
-            return get_pow_ratio(util, 1.0f, 5.3f, -0.7f);
         }
-        return 1.f;
+        return get_pow_ratio(util, 1.0f, 5.3f, -0.7f);
     } else {
         return 1.f / std::min(util, 1.f);
     }
