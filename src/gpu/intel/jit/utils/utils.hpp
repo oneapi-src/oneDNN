@@ -836,7 +836,7 @@ bool stream_try_parse(std::istream &in, T &t) {
 inline void stream_match(std::istream &in, const std::string &s) {
     in >> std::ws;
     for (auto &c : s) {
-        char next = in.get();
+        auto next = in.get();
         if (next != c || in.fail())
             ir_error_not_expected() << "Cannot match " << s;
     }
