@@ -1164,11 +1164,13 @@ public:
     }
 
     void print_help() const {
+        std::ios_base::fmtflags f(std::cout.flags());
         for (auto &e : entries_) {
             std::cout << "  ";
             std::cout << std::left << std::setw(22) << e.name;
             std::cout << e.help << std::endl;
         }
+        std::cout.flags(f);
     }
 
 private:

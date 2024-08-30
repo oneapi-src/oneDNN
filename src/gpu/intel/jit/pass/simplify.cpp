@@ -871,7 +871,7 @@ public:
     object_t _mutate(const nary_op_t &obj) override {
         auto new_obj = nary_op_mutator_t::_mutate(obj);
         auto &nary = new_obj.as<nary_op_t>();
-        ir_assert(nary.args.size() > 0) << new_obj;
+        ir_assert(!nary.args.empty()) << new_obj;
 
         if (nary.args.size() == 1) return nary.args[0];
 

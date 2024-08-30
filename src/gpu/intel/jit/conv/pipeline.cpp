@@ -1046,7 +1046,7 @@ public:
         auto &loops = loop_nest.loops();
 
         // No loops to pipeline
-        if (loops.size() == 0) return root_;
+        if (loops.empty()) return root_;
         auto &loop_body = loops[0].body();
 
         auto A_block_stmt

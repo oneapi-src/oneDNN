@@ -498,7 +498,7 @@ public:
         const auto other_blocks = other.normalize().blocks();
         const auto self_blocks = normalize().blocks();
         if (self_blocks.size() > other_blocks.size()) return false;
-        if (self_blocks.size() == 0) return true;
+        if (self_blocks.empty()) return true;
 
         int i = 0;
         for (; i < (int)self_blocks.size() - 1; i++) {

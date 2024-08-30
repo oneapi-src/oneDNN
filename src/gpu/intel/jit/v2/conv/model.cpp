@@ -229,7 +229,7 @@ void model_t::parse(std::istream &in) {
     std::vector<uint8_t> data;
     auto s_data = stream_parse<std::string>(in);
     for (size_t i = 0; i < s_data.size(); i += 2) {
-        data.push_back(std::stoi(s_data.substr(i, 2), 0, 16));
+        data.push_back(std::stoi(s_data.substr(i, 2), nullptr, 16));
     }
     auto s = serialized_t::from_data(std::move(data));
     deserializer_t d(s);
