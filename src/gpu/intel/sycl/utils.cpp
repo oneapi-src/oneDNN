@@ -106,20 +106,20 @@ status_t sycl_dev2ocl_dev(cl_device_id *ocl_dev, const ::sycl::device &dev) {
 
         std::vector<cl_device_id> ocl_devices;
         std::vector<xpu::ocl::wrapper_t<cl_device_id>> ocl_sub_devices;
-        auto st = xpu::ocl::get_devices(
+        auto status = xpu::ocl::get_devices(
                 &ocl_devices, &ocl_sub_devices, CL_DEVICE_TYPE_GPU);
-        assert(st == status::success);
-        MAYBE_UNUSED(st);
+        assert(status == status::success);
+        MAYBE_UNUSED(status);
 
         const auto register_ocl_dev
                 = [&uuid2ocl_dev_tmp](
                           const xpu::ocl::wrapper_t<cl_device_id> &d) {
                       xpu::device_uuid_t ocl_dev_uuid;
-                      auto st = xpu::ocl::get_device_uuid(ocl_dev_uuid, d);
-                      assert(st == status::success);
-                      st = uuid2ocl_dev_tmp.add(std::move(ocl_dev_uuid), d);
-                      assert(st == status::success);
-                      MAYBE_UNUSED(st);
+                      auto status = xpu::ocl::get_device_uuid(ocl_dev_uuid, d);
+                      assert(status == status::success);
+                      status = uuid2ocl_dev_tmp.add(std::move(ocl_dev_uuid), d);
+                      assert(status == status::success);
+                      MAYBE_UNUSED(status);
                   };
 
         for (cl_device_id d : ocl_devices) {
