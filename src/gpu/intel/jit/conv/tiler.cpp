@@ -100,7 +100,7 @@ struct x2_tile_info_t {
                 for (int i : factors) {
                     int j = ij / i;
                     if (d0.is_iter_ok(i) && d1.is_iter_ok(j)) {
-                        ret.push_back(std::make_pair(i, j));
+                        ret.emplace_back(i, j);
                     }
                 }
             }

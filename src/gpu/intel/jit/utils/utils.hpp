@@ -681,7 +681,8 @@ ValueT get_or_default(const MapContainerT &map, const KeyT &key,
 
 struct debug_profiler_t {
 #ifdef DNNL_DEV_MODE
-    debug_profiler_t(std::string profile_name) : profile(profile_name) {};
+    debug_profiler_t(const std::string &profile_name)
+        : profile(profile_name) {};
     void start() { profile.start(); };
     void stamp(const char *name) { profile.stamp(name); };
     void stop(const char *name) { profile.stop(name); };
@@ -692,7 +693,7 @@ struct debug_profiler_t {
 private:
     profiler_t profile;
 #else
-    debug_profiler_t(std::string) {};
+    debug_profiler_t(const std::string &) {};
     void start() {};
     void stamp(const char *name) {};
     void stop(const char *name) {};

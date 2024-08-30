@@ -364,7 +364,7 @@ public:
         size_t old_size = stmts.size(); \
         ir_visitor_t::_visit(obj); \
         if (stmts.size() > old_size) return; \
-        if (obj.is_stmt()) stmts.push_back(obj); \
+        if (obj.is_stmt()) stmts.emplace_back(obj); \
     }
 
     HANDLE_ALL_IR_OBJECTS()
@@ -592,7 +592,7 @@ std::vector<stmt_t> find_stmt_groups(
     auto groups = find_objects<stmt_group_t>(root);
     std::vector<stmt_t> ret;
     for (auto &g : groups) {
-        if (g.as<stmt_group_t>().label == label) ret.push_back(g);
+        if (g.as<stmt_group_t>().label == label) ret.emplace_back(g);
     }
     return ret;
 }

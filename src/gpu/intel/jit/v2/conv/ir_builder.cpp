@@ -761,8 +761,8 @@ loop_nest_t make_loop_nest(
         const loop_desc_t &loop_desc, const coord_info_t &coord_info) {
     loop_nest_t ret;
     for (auto &e : loop_desc) {
-        auto index = coord_info.loop_index(e.dim);
-        auto size = coord_info.loop_size(e.dim);
+        const auto &index = coord_info.loop_index(e.dim);
+        const auto &size = coord_info.loop_size(e.dim);
         ret.add_loop(index, size);
     }
     return ret;
@@ -847,8 +847,8 @@ private:
             ret = ret.append(prefetch_it.inc_stmt(prefetch_off_ctx_));
         }
         for (auto &e : loop_desc) {
-            auto var = coord_info.loop_index(e.dim);
-            auto bound = coord_info.loop_size(e.dim);
+            const auto &var = coord_info.loop_index(e.dim);
+            const auto &bound = coord_info.loop_size(e.dim);
             ret = ret.append(off_ctx_.inc_loop_stmt(e.idx));
             ret = for_t::make(var, 0, bound, ret);
         }
@@ -882,7 +882,7 @@ private:
         auto &coord_info = plan_.coord_info;
         stmt_t ret = stmt;
         for (auto &d : conv_index_dims(plan_.desc.prop)) {
-            auto tg_idx = coord_info.tg_index(d);
+            const auto &tg_idx = coord_info.tg_index(d);
             if (is_const(tg_idx)) continue;
             auto base_tg_idx = tg_grid.index_var(d);
             if (base_tg_idx.is_empty()) continue;
@@ -1067,7 +1067,7 @@ private:
         auto &bia_buf = buf_mgr_.find_buf("bia_buf");
         auto bia_tile = epilogue.bia_store.reg_layout().int_dim_sizes();
         auto epilogue_tile = bia_tile;
-        for (auto d : bia_tile)
+        for (auto &d : bia_tile)
             epilogue_tile[d] = epilogue.tile[d];
         for_each(bia_tile, epilogue_tile, [&](const prb_coord_t<int> &coord) {
             auto bia_payload_buf = bia_buf;
@@ -1164,7 +1164,7 @@ private:
                 break;
             default: ir_error_not_expected();
         }
-        return kernel_info_.find_arg(name.c_str());
+        return kernel_info_.find_arg(name);
     }
 
     expr_t a_mem_buf() const { return mem_buf(tensor_kind_t::a); }

@@ -747,7 +747,7 @@ public:
             if (nary && nary->op_kind == obj.op_kind) {
                 args.insert(args.end(), nary->args.begin(), nary->args.end());
             } else {
-                args.push_back(new_a);
+                args.emplace_back(new_a);
             }
         }
         return make_nary_op(obj.op_kind, args);

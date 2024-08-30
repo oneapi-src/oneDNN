@@ -1443,7 +1443,7 @@ public:
         return tdims_[idx];
     }
 
-    void set_tdim(int tidx, const expr_t &_texpr, expr_t mask = {}) {
+    void set_tdim(int tidx, const expr_t &_texpr, const expr_t &mask = {}) {
         ir_assert(tdims_[tidx].is_empty());
 
         auto texpr = simplify(_texpr);
@@ -1736,7 +1736,7 @@ public:
                 auto &vvar = vvars()[vidx];
                 int vdim = vdims()[vidx];
                 if (vdim == 1) continue;
-                auto A = tdim.expr();
+                const auto &A = tdim.expr();
                 auto B = jit::substitute(A, vvar, vvar + 1);
                 auto C = simplify(B - A);
                 if (!is_const(C)) {

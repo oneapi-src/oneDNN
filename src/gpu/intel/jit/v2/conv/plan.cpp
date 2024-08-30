@@ -908,7 +908,7 @@ private:
                 mapper, c_layout, prb_coord_t<expr_t>(), c_tile, grid_splitter);
         ir_assert(grid_splitter.virt_grid_idxs().empty());
 
-        auto load_coord = split_view.coord();
+        auto &load_coord = split_view.coord();
         auto tile_with_k = split_view.tile();
         tile_with_k[k_dim] = k_tg;
 

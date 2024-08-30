@@ -1006,8 +1006,8 @@ private:
     stmt_t body_;
 };
 
-pipeline_ctx_t pipeline(
-        int length, const loop_info_t &loop, stmt_t A_block, stmt_t B_block) {
+pipeline_ctx_t pipeline(int length, const loop_info_t &loop,
+        const stmt_t &A_block, const stmt_t &B_block) {
 
     expr_t idx = loop.var;
     int bound = loop.bound();

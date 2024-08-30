@@ -109,7 +109,7 @@ public:
     // Returns the ratio of all operations (with padding) to "useful" operations
     float get_efficiency(const prb_tile_t &shape) const {
         float ret = 1;
-        for (auto d : shape) {
+        for (auto &d : shape) {
             int loop = loop_.get(d, 1);
             int tg = thread_group_.get(d, 1);
             int iter = iter_.get(d, 1);
@@ -707,7 +707,7 @@ private:
         void add(prb_dim_t d, int value) { dim_mappers_[d.id()].add(value); }
 
         void add(const prb_tile_t &t) {
-            for (auto d : t) {
+            for (auto &d : t) {
                 add(d, t[d]);
             }
         }

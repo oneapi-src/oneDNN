@@ -1005,7 +1005,7 @@ stmt_t access_builder_t::create_send_stmt(
             is_same_base = false;
         }
         off_vec.push_back(off);
-        off_const_vec.push_back(off_const - off_const0);
+        off_const_vec.emplace_back(off_const - off_const0);
     }
     expr_t off;
     if (send.slots == 1 || !is_same_base) {

@@ -1364,7 +1364,7 @@ void CopyPlan::legalizeRegions()
 
         /* Check destination stride against execution channels */
         int channelSize = 1;
-        for (auto op: {i.dst, i.src0, i.src1, i.src2})
+        for (auto &op: {i.dst, i.src0, i.src1, i.src2})
             if (op.kind == op.GRF)
                 channelSize = std::max(channelSize, getBytes(op.type));
 
