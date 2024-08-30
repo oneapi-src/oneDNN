@@ -28,6 +28,7 @@
 #include <unordered_set>
 
 #include "graph/interface/c_types_map.hpp"
+#include "graph/interface/graph_attr.hpp"
 #include "graph/interface/logical_tensor.hpp"
 #include "graph/interface/op.hpp"
 #include "graph/interface/partition_impl.hpp"
@@ -86,7 +87,7 @@ public:
         return pimpl_->get_engine_kind();
     }
 
-    graph::fpmath_mode_t get_fpmath_mode() const {
+    const graph::fpmath_t &get_fpmath_mode() const {
         return pimpl_->get_fpmath_mode();
     }
 

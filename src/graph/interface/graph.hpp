@@ -31,6 +31,7 @@
 #include "oneapi/dnnl/dnnl_graph.h"
 
 #include "graph/interface/c_types_map.hpp"
+#include "graph/interface/graph_attr.hpp"
 #include "graph/interface/logical_tensor.hpp"
 #include "graph/interface/op.hpp"
 #include "graph/interface/op_schema.hpp"
@@ -74,7 +75,7 @@ private:
     graph::engine_kind_t engine_kind_ {};
 
     /*! \brief The floating-point math mode */
-    graph::fpmath_mode_t fpmath_mode_ {};
+    graph::fpmath_t fpmath_ {};
 
     std::vector<std::shared_ptr<graph::partition_impl_t>> partition_impls_;
 
@@ -85,24 +86,28 @@ private:
 
 public:
     dnnl_graph_graph(graph::engine_kind_t kind = graph::engine_kind::cpu)
-        : engine_kind_(kind), fpmath_mode_(dnnl::impl::get_fpmath_mode()) {}
+        : engine_kind_(kind) {
+        fpmath_.mode_ = dnnl::impl::get_fpmath_mode();
+    }
 
     dnnl_graph_graph(
             graph::engine_kind_t kind, graph::fpmath_mode_t fpmath_mode)
-        : engine_kind_(kind), fpmath_mode_(fpmath_mode) {}
+        : engine_kind_(kind) {
+        fpmath_.mode_ = fpmath_mode;
+    }
 
     // deep copy (except that the partition_impls_ is shallow copy)
     dnnl_graph_graph(const dnnl_graph_graph &other)
         : id_t(other)
         , ops_(deep_copy(other.ops_))
         , engine_kind_(other.engine_kind_)
-        , fpmath_mode_(other.fpmath_mode_)
+        , fpmath_(other.fpmath_)
         , partition_impls_(other.partition_impls_) {};
 
     dnnl_graph_graph(const std::vector<op_ptr> &ops,
             graph::engine_kind_t kind = graph::engine_kind::cpu,
             graph::fpmath_mode_t fpmath_mode = graph::fpmath_mode::strict)
-        : ops_(ops), engine_kind_(kind), fpmath_mode_(fpmath_mode) {}
+        : ops_(ops), engine_kind_(kind), fpmath_ {fpmath_mode, false} {};
 
     dnnl_graph_graph &operator=(const dnnl_graph_graph &other) = delete;
 
@@ -110,7 +115,7 @@ public:
 
     graph::engine_kind_t get_engine_kind() const { return engine_kind_; }
 
-    graph::fpmath_mode_t get_fpmath_mode() const { return fpmath_mode_; }
+    const graph::fpmath_t &get_fpmath_mode() const { return fpmath_; }
 
     /*!
      * \brief Check whether an operator can be added
@@ -139,6 +144,13 @@ public:
             for (size_t i = 0; i < back_op->num_outputs(); i++)
                 back_op->get_output_value(i)->set_producer(*back_op);
         }
+        return graph::status::success;
+    }
+
+    graph::status_t set_fpmath_mode(
+            graph::fpmath_mode_t mode, bool apply_to_int) {
+        fpmath_.mode_ = mode;
+        fpmath_.apply_to_int_ = apply_to_int;
         return graph::status::success;
     }
 
@@ -410,7 +422,8 @@ public:
         writer.write_keyvalue("engine_kind",
                 std::string(graph::utils::engine_kind2str(get_engine_kind())));
         writer.write_keyvalue("fpmath_mode",
-                std::string(graph::utils::fpmath_mode2str(get_fpmath_mode())));
+                std::string(graph::utils::fpmath_mode2str(
+                        get_fpmath_mode().mode_)));
         std::vector<size_t> inputs_id;
         inputs_id.reserve(get_input_values().size());
         for (const auto &val : get_input_values()) {
