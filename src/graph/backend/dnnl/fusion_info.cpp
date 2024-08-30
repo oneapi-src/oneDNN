@@ -216,6 +216,8 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                 assertm(scale == 1.f && zp == 0,
                         "post-binary doesn't support input scale and zp");
                 auto md = make_dnnl_memory_desc(psrc);
+                if (op->get_kind() == op_kind::dnnl_convolution)
+                    md = to_format_any(md);
                 dnnl_pops.append_binary(alg, md);
             }
         } else if (fused_op_kind == op_kind::dnnl_convolution) {

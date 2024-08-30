@@ -166,6 +166,31 @@ status_t layout_propagator_for_conv(op_ptr &op, const dnnl::engine &p_engine,
         }
         if (status != status::success) return status;
     }
+
+    if (fusion_info.has_post_binary()) {
+        const auto &post_ops = fusion_info.get_post_ops();
+        for (size_t i = 0; i < post_ops.size(); ++i) {
+            if (!post_ops[i]->is_post_binary()) continue;
+            auto binary = post_ops[i];
+            std::vector<size_t> binary_idx
+                    = binary->get_unfused_input_indices();
+            if (binary_idx.empty()) continue;
+
+            value_ptr binary_unfused_src = op->get_input_value(binary_idx[0]);
+            const auto &binary_unfused_src_opt_mdesc
+                    = pd.query_md(query::exec_arg_md,
+                            DNNL_ARG_SRC_1
+                                    | DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                                            static_cast<int>(i)));
+            insert_reorder_before(op, binary_idx[0],
+                    binary_unfused_src_opt_mdesc, p_engine, mgr, pd_cache,
+                    rewriter);
+            status = fill_layout_info(
+                    binary_unfused_src, binary_unfused_src_opt_mdesc);
+
+            if (status != status::success) return status;
+        }
+    }
     // insert a reorder if output layout is different from output optimal layout
     // 1) output layout is opaque
     // 2) output is any, directly set optimal layout
