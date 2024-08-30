@@ -736,7 +736,7 @@ bool relation_t::implies(const relation_t &other) const {
 }
 
 relation_t relation_t::transform(
-        const linear_transform_t &t, const expr_t &new_var) {
+        const linear_transform_t &t, const expr_t &new_var) const {
     ir_assert(t.a == 1) << "Not implemented.";
     return relation_t(binary_op_t::make(op_kind(), new_var, rhs() + t.b));
 }

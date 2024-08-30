@@ -697,14 +697,14 @@ class nary_op_visitor_t : public ir_visitor_t {
 public:
     using ir_visitor_t::_visit;
 
-    virtual void _visit(const nary_op_t &obj) { visit(obj.args); }
+    void _visit(const nary_op_t &obj) override { visit(obj.args); }
 };
 
 class nary_op_mutator_t : public ir_mutator_t {
 public:
     using ir_mutator_t::_mutate;
 
-    virtual object_t _mutate(const nary_op_t &obj) {
+    object_t _mutate(const nary_op_t &obj) override {
         auto args = mutate(obj.args);
         if (ir_utils::is_equal(args, obj.args)) return obj;
         return make_nary_op(obj.op_kind, args);
@@ -868,7 +868,7 @@ bool is_nary_op_canonical(const expr_t &e) {
 
 class nary_op_back_transformer_t : public nary_op_mutator_t {
 public:
-    object_t _mutate(const nary_op_t &obj) {
+    object_t _mutate(const nary_op_t &obj) override {
         auto new_obj = nary_op_mutator_t::_mutate(obj);
         auto &nary = new_obj.as<nary_op_t>();
         ir_assert(nary.args.size() > 0) << new_obj;

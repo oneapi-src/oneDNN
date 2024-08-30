@@ -361,13 +361,13 @@ struct send_1d_desc_t {
 
     explicit operator bool() const { return op != send_op_t::undef; }
 
-    bool base_alignment_ok(const expr_t &off, const prover_t &prover) {
+    bool base_alignment_ok(const expr_t &off, const prover_t &prover) const {
         int align = (type_size >= 16 ? 8 : 1);
         if (!prover.require(off % align == 0)) return false;
         return true;
     }
 
-    bool base_alignment_ok(const addr_t &addr, const prover_t &prover) {
+    bool base_alignment_ok(const addr_t &addr, const prover_t &prover) const {
         if (!base_alignment_ok(addr.base, prover)) return false;
         for (auto &inc : addr.slot_incs) {
             if (!base_alignment_ok(inc, prover)) return false;
