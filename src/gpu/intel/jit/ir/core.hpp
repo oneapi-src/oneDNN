@@ -617,8 +617,7 @@ HANDLE_TRAVERSE_TARGETS()
 // the reference counter stored inside the object.
 class object_impl_t {
 public:
-    object_impl_t(type_info_t type_info)
-        : ref_count_(), type_info_(type_info) {};
+    object_impl_t(type_info_t type_info) : type_info_(type_info) {};
 
     object_impl_t(const object_impl_t &) = delete;
 

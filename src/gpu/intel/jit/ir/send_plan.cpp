@@ -860,9 +860,6 @@ public:
         auto tile = layout.split_exact(factor);
         if (tile.is_empty()) return;
 
-        std::vector<dim_t> step = tile.dims();
-        std::vector<dim_t> idx(layout.ndims());
-
         layout.for_each_tile(tile, [&](const std::vector<dim_t> &start) {
             int off = layout.offset_in_bytes(start);
             offs_.push_back(off);

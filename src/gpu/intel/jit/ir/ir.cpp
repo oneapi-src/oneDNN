@@ -207,7 +207,6 @@ public:
         remove_indent();
         print_indent();
         out_ << "}\n";
-        return;
     }
 
     void _visit(const stmt_seq_t &obj) override {
@@ -229,7 +228,6 @@ public:
     void _visit(const ternary_op_t &obj) override {
         out_ << to_string(obj.op_kind) << "(" << obj.a << ", " << obj.b << ", "
              << obj.c << ")";
-        return;
     }
 
     void _visit(const unary_op_t &obj) override {
