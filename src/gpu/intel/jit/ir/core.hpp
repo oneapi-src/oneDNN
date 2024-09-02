@@ -712,6 +712,7 @@ public:
 #endif
 
     object_t &operator=(const object_t &other) {
+        if (&other == this) return *this;
         auto *other_impl = other.impl();
         increment(other_impl);
         decrement_and_maybe_destroy(impl_);

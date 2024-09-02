@@ -646,6 +646,7 @@ struct mem_usage_guard_t {
     }
 
     mem_usage_guard_t &operator=(mem_usage_guard_t &&other) {
+        if (&other == this) return *this;
         usage = other.usage;
         peak_usage = other.peak_usage;
         size = other.size;
