@@ -18,6 +18,7 @@
 #define GPU_INTEL_JIT_V2_IR_SEND_HPP
 
 #include "gpu/intel/jit/ir/block_2d_utils.hpp"
+#include "gpu/intel/jit/ir/fma.hpp"
 #include "gpu/intel/jit/v2/ir/plan_utils.hpp"
 #include "gpu/intel/jit/v2/ir/reqs.hpp"
 #include "gpu/intel/jit/v2/ir/tensor.hpp"
