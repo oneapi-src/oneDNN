@@ -53,6 +53,8 @@ status_t sdp_primitive_kernel_t::compile_impl(const dnnl_partition_impl_t *part,
                     p_engine_, part->get_fpmath_mode(), false, true);
     CHECK(set_given_inputs_outputs(subgraph_, inputs, outputs));
 
+    CHECK(cfg_.initial_check(subgraph_, inputs));
+
     subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
         return this->memory_planner_.get_memory_info(val);
     });
@@ -99,14 +101,6 @@ status_t sdp_primitive_kernel_t::compile_impl(const dnnl_partition_impl_t *part,
 
     CHECK(modify_subgraph());
     CHECK(cfg_.init(subgraph_, p_engine_, inputs, outputs));
-
-    // Successfully created the primitive. Rerun the passes again, modifying
-    //   the original ops.
-    subgraph_ = std::make_shared<subgraph_t>(
-            part->get_ops(), p_engine_, part->get_fpmath_mode(), false, true);
-    CHECK(set_given_inputs_outputs(subgraph_, inputs, outputs));
-    CHECK(modify_subgraph());
-    CHECK(cfg_.locate_io(subgraph_, inputs, outputs));
 
     return status::success;
 }
