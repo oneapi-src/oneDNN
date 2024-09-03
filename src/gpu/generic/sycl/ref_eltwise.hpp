@@ -59,7 +59,6 @@ struct ref_sycl_eltwise_fwd_t : public gpu::generic::sycl::primitive_t {
         }
 
         sycl_eltwise_conf_t conf_;
-        dim_t wg_thr;
 
     private:
         status_t init_conf();
@@ -114,7 +113,6 @@ struct ref_sycl_eltwise_bwd_t : public gpu::generic::sycl::primitive_t {
         }
 
         sycl_eltwise_conf_t conf_;
-        dim_t wg_thr;
 
     private:
         status_t init_conf();

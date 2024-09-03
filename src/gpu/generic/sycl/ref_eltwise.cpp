@@ -16,6 +16,7 @@
 
 #include "gpu/generic/sycl/ref_eltwise.hpp"
 #include "gpu/generic/sycl/eltwise_kernels.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -31,8 +32,6 @@ status_t ref_sycl_eltwise_fwd_t::pd_t::init_conf() {
     conf_.alg_kind = desc()->alg_kind;
     conf_.alpha = desc()->alpha;
     conf_.beta = desc()->beta;
-    conf_.block_size = 16;
-    conf_.wg_size = 32;
     conf_.mb = MB();
     conf_.c = C();
     conf_.d = D();
@@ -44,14 +43,6 @@ status_t ref_sycl_eltwise_fwd_t::pd_t::init_conf() {
     }
     conf_.post_po_len = attr()->post_ops_.len();
     conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
-
-    const int block_size = conf_.block_size;
-    const int wg_size = conf_.wg_size;
-    const int t_work = conf_.wk_size;
-    int wg_work = wg_size * block_size;
-    int wg_cnt = (t_work + wg_work - 1) / wg_work;
-    wg_thr = wg_cnt * wg_size;
-    wg_thr = wg_thr < 1 ? 1 : wg_thr;
 
     return status::success;
 }
@@ -65,8 +56,8 @@ status_t ref_sycl_eltwise_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         eltwise_fwd_kernel_vec_t eltwise_fwd_kernel_(pd()->conf_, cgh, ctx);
 
-        cgh.parallel_for(::sycl::nd_range<1>(pd()->wg_thr, pd()->conf_.wg_size),
-                eltwise_fwd_kernel_);
+        cgh.parallel_for(
+                get_range(ctx, pd()->conf_.wk_size), eltwise_fwd_kernel_);
     });
 }
 
@@ -75,8 +66,6 @@ status_t ref_sycl_eltwise_bwd_t::pd_t::init_conf() {
     conf_.src_md = xpu::sycl::md_t(data_md(0));
     conf_.diff_src_md = xpu::sycl::md_t(diff_src_md());
     conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md());
-    conf_.block_size = 16;
-    conf_.wg_size = 32;
     conf_.wk_size = memory_desc_wrapper(data_md(0)).nelems();
     conf_.alg_kind = desc()->alg_kind;
     conf_.alpha = desc()->alpha;
@@ -86,14 +75,6 @@ status_t ref_sycl_eltwise_bwd_t::pd_t::init_conf() {
     conf_.d = D();
     conf_.h = H();
     conf_.w = W();
-
-    const int block_size = conf_.block_size;
-    const int wg_size = conf_.wg_size;
-    const int t_work = conf_.wk_size;
-    int wg_work = wg_size * block_size;
-    int wg_cnt = (t_work + wg_work - 1) / wg_work;
-    wg_thr = wg_cnt * wg_size;
-    wg_thr = wg_thr < 1 ? 1 : wg_thr;
 
     return status::success;
 }
@@ -108,8 +89,8 @@ status_t ref_sycl_eltwise_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
         eltwise_bwd_kernel_vec_t eltwise_bwd_kernel_(
                 pd()->conf_, cgh, ctx, pd()->use_dst());
 
-        cgh.parallel_for(::sycl::nd_range<1>(pd()->wg_thr, pd()->conf_.wg_size),
-                eltwise_bwd_kernel_);
+        cgh.parallel_for(
+                get_range(ctx, pd()->conf_.wk_size), eltwise_bwd_kernel_);
     });
 }
 

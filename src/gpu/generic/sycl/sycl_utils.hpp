@@ -19,6 +19,7 @@
 
 #include "common/memory_desc.hpp"
 #include "common/memory_desc_wrapper.hpp"
+#include "gpu/generic/sycl/stream.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,6 +34,20 @@ inline bool md_dims_in_range(const dnnl::impl::memory_desc_t *desc) {
     }
 
     return true;
+}
+
+inline ::sycl::nd_range<1> get_range(const exec_ctx_t &ctx, int work_amount) {
+    const auto *sycl_engine_impl
+            = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                    ctx.stream()->engine()->impl());
+    auto device = sycl_engine_impl->device();
+    int cu_cnt = device.get_info<::sycl::info::device::max_compute_units>();
+    // XXX: should probably be tuned.
+    int wg_size = 32;
+    int max_wgs_per_cu = 16;
+    int work_for_wg_cnt = utils::div_up(work_amount, wg_size);
+    int wg_cnt = std::min(cu_cnt * max_wgs_per_cu, work_for_wg_cnt);
+    return ::sycl::nd_range<1>(wg_cnt * wg_size, wg_size);
 }
 
 // copy from type_helpers.hpp, just without the assert

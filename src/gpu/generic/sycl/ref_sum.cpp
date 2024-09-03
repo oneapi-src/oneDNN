@@ -17,6 +17,7 @@
 #include "gpu/generic/sycl/ref_sum.hpp"
 #include "gpu/generic/sycl/sum_kernels.hpp"
 #include "gpu/generic/sycl/sycl_gpu_primitive.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,9 +35,6 @@ status_t ref_sum_t::pd_t::init_conf() {
     }
     conf_.dst_md = xpu::sycl::md_t(dst_md());
 
-    // XXX: should probably be tuned.
-    conf_.block_size = 16;
-    conf_.wg_size = 32;
     conf_.wk_size = memory_desc_wrapper(dst_md()).nelems();
     return status::success;
 }
@@ -75,15 +73,7 @@ status_t ref_sum_t::execute(const exec_ctx_t &ctx) const {
                 src2_mem_arg, src3_mem_arg, src4_mem_arg, src5_mem_arg,
                 src6_mem_arg, src7_mem_arg, dst_mem_arg);
 
-        const int block_size = pd()->conf_.block_size;
-        const int wg_size = pd()->conf_.wg_size;
-
-        const int t_work = pd()->conf_.wk_size;
-        const int wg_work = wg_size * block_size;
-        const int wg_cnt = utils::div_up(t_work, wg_work);
-
-        cgh.parallel_for(
-                ::sycl::nd_range<1>(wg_cnt * wg_size, wg_size), sum_kernel);
+        cgh.parallel_for(get_range(ctx, pd()->conf_.wk_size), sum_kernel);
     });
 
     return status::success;

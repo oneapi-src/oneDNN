@@ -72,14 +72,6 @@ struct convolution_kernel_fwd_t {
                           : data_type_t::dnnl_f32) {}
 
     void operator()(::sycl::nd_item<1> item) const {
-        auto sg = item.get_sub_group();
-        size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
-        size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
-        size_t wi_offset_t = sg.get_local_id();
-        size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
-
-        size_t base_idx = offset_t * conf_.block_size;
-
         const float sm_data = (conf_.do_scale_data
                         ? load_float_value(scales_data_dt_, data_scale_ptr(), 0)
                         : 1.f);
@@ -132,94 +124,90 @@ struct convolution_kernel_fwd_t {
         const int DH = conf_.dilation[1];
         const int DW = conf_.dilation[2];
 
-        for (int i = 0; i < conf_.block_size; i++) {
-            int idx = base_idx + i;
-            if (idx < conf_.wk_size) {
-                for (int i = 0; i < max_supported_ndims; i++) {
-                    off[i] = idx / dst_strides[i] % dst_dims[i];
-                }
+        for (int idx = item.get_global_id(0); idx < conf_.wk_size;
+                idx += item.get_global_range(0)) {
+            for (int i = 0; i < max_supported_ndims; i++) {
+                off[i] = idx / dst_strides[i] % dst_dims[i];
+            }
 
-                const int n = off[0];
-                const int oc_tot = off[1];
-                const int oc = oc_tot % OC;
-                const int g = oc_tot / OC;
+            const int n = off[0];
+            const int oc_tot = off[1];
+            const int oc = oc_tot % OC;
+            const int g = oc_tot / OC;
 
-                const int od = off[2];
-                const int oh = off[3];
-                const int ow = off[4];
+            const int od = off[2];
+            const int oh = off[3];
+            const int ow = off[4];
 
-                float accumulator = 0;
-                for (int ic = 0; ic < IC; ++ic) {
-                    for (int kd = 0; kd < KD; ++kd) {
-                        for (int kh = 0; kh < KH; ++kh) {
-                            for (int kw = 0; kw < KW; ++kw) {
-                                const int id = od * SD - PD + kd * (1 + DD);
-                                const int ih = oh * SH - PH + kh * (1 + DH);
-                                const int iw = ow * SW - PW + kw * (1 + DW);
+            float accumulator = 0;
+            for (int ic = 0; ic < IC; ++ic) {
+                for (int kd = 0; kd < KD; ++kd) {
+                    for (int kh = 0; kh < KH; ++kh) {
+                        for (int kw = 0; kw < KW; ++kw) {
+                            const int id = od * SD - PD + kd * (1 + DD);
+                            const int ih = oh * SH - PH + kh * (1 + DH);
+                            const int iw = ow * SW - PW + kw * (1 + DW);
 
-                                if (id < 0 || id >= data_dims[2] || ih < 0
-                                        || ih >= data_dims[3] || iw < 0
-                                        || iw >= data_dims[4]) {
-                                    continue;
-                                }
-
-                                dims_t off_data {n, g * IC + ic, id, ih, iw};
-                                const int data_idx = data_md().off_v(off_data);
-                                dims_t off_weights {g, oc, ic, kd, kh, kw};
-                                dims_t off_weights_no_groups {
-                                        oc, ic, kd, kh, kw};
-                                const int weights_idx = weights_md().off_v(
-                                        no_groups ? off_weights_no_groups
-                                                  : off_weights);
-
-                                auto data = load_float_value(
-                                        data_md().data_type(), data_ptr(),
-                                        data_idx);
-                                auto weight = load_float_value(
-                                        weights_md().data_type(), weights_ptr(),
-                                        weights_idx);
-
-                                if (conf_.use_data_zeropoints) {
-                                    int zpoint_idx = conf_.single_data_zeropoint
-                                            ? 0
-                                            : g * IC + ic;
-                                    auto data_zeropoint = load_float_value(
-                                            zeropoints_data_dt_,
-                                            data_zeropoint_ptr(), zpoint_idx);
-                                    data -= data_zeropoint;
-                                }
-                                accumulator += data * weight;
+                            if (id < 0 || id >= data_dims[2] || ih < 0
+                                    || ih >= data_dims[3] || iw < 0
+                                    || iw >= data_dims[4]) {
+                                continue;
                             }
+
+                            dims_t off_data {n, g * IC + ic, id, ih, iw};
+                            const int data_idx = data_md().off_v(off_data);
+                            dims_t off_weights {g, oc, ic, kd, kh, kw};
+                            dims_t off_weights_no_groups {oc, ic, kd, kh, kw};
+                            const int weights_idx = weights_md().off_v(no_groups
+                                            ? off_weights_no_groups
+                                            : off_weights);
+
+                            auto data = load_float_value(data_md().data_type(),
+                                    data_ptr(), data_idx);
+                            auto weight
+                                    = load_float_value(weights_md().data_type(),
+                                            weights_ptr(), weights_idx);
+
+                            if (conf_.use_data_zeropoints) {
+                                int zpoint_idx = conf_.single_data_zeropoint
+                                        ? 0
+                                        : g * IC + ic;
+                                auto data_zeropoint = load_float_value(
+                                        zeropoints_data_dt_,
+                                        data_zeropoint_ptr(), zpoint_idx);
+                                data -= data_zeropoint;
+                            }
+                            accumulator += data * weight;
                         }
                     }
                 }
-                if (conf_.do_scale_data) { accumulator *= sm_data; }
-                if (conf_.do_scale_weights) {
-                    if (!conf_.single_weight_scale) {
-                        sm_weights = load_float_value(scales_weights_dt_,
-                                weights_scale_ptr(), oc_tot);
-                    }
-                    accumulator *= sm_weights;
-                }
-
-                if (bias_md().ndims() != 0) {
-                    auto bias = load_float_value(
-                            bias_md().data_type(), bias_ptr(), oc_tot);
-                    accumulator += bias;
-                }
-
-                accumulator = conf_.post_ops.apply(accumulator, dst_, idx);
-
-                if (conf_.do_scale_dst) { accumulator /= sm_dst; }
-                if (conf_.use_dst_zeropoints) {
-                    int zpoint_idx = conf_.single_dst_zeropoint ? 0 : oc_tot;
-                    auto dst_zeropoint = load_float_value(zeropoints_dst_dt_,
-                            dst_zeropoint_ptr(), zpoint_idx);
-                    accumulator += dst_zeropoint;
-                }
-                store_float_value(
-                        dst_md().data_type(), accumulator, dst_ptr(), idx);
             }
+            if (conf_.do_scale_data) { accumulator *= sm_data; }
+            if (conf_.do_scale_weights) {
+                if (!conf_.single_weight_scale) {
+                    sm_weights = load_float_value(
+                            scales_weights_dt_, weights_scale_ptr(), oc_tot);
+                }
+                accumulator *= sm_weights;
+            }
+
+            if (bias_md().ndims() != 0) {
+                auto bias = load_float_value(
+                        bias_md().data_type(), bias_ptr(), oc_tot);
+                accumulator += bias;
+            }
+
+            accumulator = conf_.post_ops.apply(accumulator, dst_, idx);
+
+            if (conf_.do_scale_dst) { accumulator /= sm_dst; }
+            if (conf_.use_dst_zeropoints) {
+                int zpoint_idx = conf_.single_dst_zeropoint ? 0 : oc_tot;
+                auto dst_zeropoint = load_float_value(
+                        zeropoints_dst_dt_, dst_zeropoint_ptr(), zpoint_idx);
+                accumulator += dst_zeropoint;
+            }
+            store_float_value(
+                    dst_md().data_type(), accumulator, dst_ptr(), idx);
         }
     }
 

@@ -17,6 +17,7 @@
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"
 #include "gpu/generic/sycl/layer_normalizations_kernels.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 #include "xpu/sycl/types.hpp"
 
 namespace dnnl {
@@ -38,7 +39,6 @@ status_t ref_layer_normalization_fwd_t::pd_t::init_conf() {
     conf_.flags = desc()->flags;
     conf_.wk_size = memory_desc_wrapper(src_md(0)).nelems();
     conf_.block_size = 16;
-    conf_.wg_size = 32;
 
     conf_.rt_scaling = !attr()->scales_.defined();
     conf_.src_def = attr()->scales_.get(DNNL_ARG_SRC).has_default_values();
@@ -95,13 +95,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
         return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
             layer_normalization_fwd_kernel_vec_t layer_normalization_fwd_kernel(
                     pd()->conf_, cgh, ctx);
-            const int block_size = pd()->conf_.block_size;
-            const int wg_size = pd()->conf_.wg_size;
 
-            int work_per_wg = wg_size * block_size;
-            int n_wgs = (pd()->across_axis() + work_per_wg - 1) / work_per_wg;
-            int n_thr = n_wgs * wg_size;
-            cgh.parallel_for(::sycl::nd_range<1>(n_thr, wg_size),
+            cgh.parallel_for(get_range(ctx, pd()->conf_.wk_size),
                     layer_normalization_fwd_kernel);
         });
     } else {
@@ -109,13 +104,7 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
             layer_normalization_fwd_kernel_vec1_t
                     layer_normalization_fwd_kernel1(pd()->conf_, cgh, ctx);
 
-            const int block_size = pd()->conf_.block_size;
-            const int wg_size = pd()->conf_.wg_size;
-
-            int work_per_wg = wg_size * block_size;
-            int n_wgs = (pd()->across_axis() + work_per_wg - 1) / work_per_wg;
-            int n_thr = n_wgs * wg_size;
-            cgh.parallel_for(::sycl::nd_range<1>(n_thr, wg_size),
+            cgh.parallel_for(get_range(ctx, pd()->conf_.wk_size),
                     layer_normalization_fwd_kernel1);
         });
     }

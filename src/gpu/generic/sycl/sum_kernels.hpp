@@ -64,14 +64,6 @@ struct sum_kernel_vec_t {
         , dst_(dst) {}
 
     void operator()(::sycl::nd_item<1> item) const {
-        auto sg = item.get_sub_group();
-        size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
-        size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
-        size_t wi_offset_t = sg.get_local_id();
-        size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
-
-        size_t base_idx = offset_t * conf_.block_size;
-
         dims_t dims, off, strides;
         for (int i = 0; i < max_supported_ndims; i++) {
             dims[i] = (i < conf_.dst_md.ndims()) ? conf_.dst_md.dims()[i] : 1;
@@ -79,14 +71,13 @@ struct sum_kernel_vec_t {
                                                     : INT_MAX;
         }
 
-        for (int i = 0; i < conf_.block_size; i++) {
-            int idx = base_idx + i;
-            if (idx < conf_.wk_size) {
-                for (int i = 0; i < max_supported_ndims; i++) {
-                    off[i] = idx / strides[i] % dims[i];
-                }
-                auto result = conf_.src_scales[0]
-                        * load_float_val(src0_ptr(), conf_.src_md[0], off);
+        for (int idx = item.get_global_id(0); idx < conf_.wk_size;
+                idx += item.get_global_range(0)) {
+            for (int i = 0; i < max_supported_ndims; i++) {
+                off[i] = idx / strides[i] % dims[i];
+            }
+            auto result = conf_.src_scales[0]
+                    * load_float_val(src0_ptr(), conf_.src_md[0], off);
 
 #define ONEDNN_SYCL_SUM_ADD_ARG(ARG_N) \
     if (conf_.n > ARG_N) \
@@ -94,18 +85,16 @@ struct sum_kernel_vec_t {
                 * load_float_val( \
                         src##ARG_N##_ptr(), conf_.src_md[ARG_N], off);
 
-                ONEDNN_SYCL_SUM_ADD_ARG(1)
-                ONEDNN_SYCL_SUM_ADD_ARG(2)
-                ONEDNN_SYCL_SUM_ADD_ARG(3)
-                ONEDNN_SYCL_SUM_ADD_ARG(4)
-                ONEDNN_SYCL_SUM_ADD_ARG(5)
-                ONEDNN_SYCL_SUM_ADD_ARG(6)
-                ONEDNN_SYCL_SUM_ADD_ARG(7)
+            ONEDNN_SYCL_SUM_ADD_ARG(1)
+            ONEDNN_SYCL_SUM_ADD_ARG(2)
+            ONEDNN_SYCL_SUM_ADD_ARG(3)
+            ONEDNN_SYCL_SUM_ADD_ARG(4)
+            ONEDNN_SYCL_SUM_ADD_ARG(5)
+            ONEDNN_SYCL_SUM_ADD_ARG(6)
+            ONEDNN_SYCL_SUM_ADD_ARG(7)
 #undef ONEDNN_SYCL_SUM_ADD_ARG
 
-                store_float_value(
-                        conf_.dst_md.data_type(), result, dst_ptr(), idx);
-            }
+            store_float_value(conf_.dst_md.data_type(), result, dst_ptr(), idx);
         }
     }
 

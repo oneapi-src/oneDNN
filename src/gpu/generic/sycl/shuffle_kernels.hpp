@@ -84,7 +84,7 @@ struct shuffle_kernel_vec2_t {
 
         const dim_t stride_mb = conf_.stride_m;
 
-        size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
+        size_t ithr = item.get_global_id(0);
         dim_t sp_start {0}, sp_end {0};
         balance211(conf_.SP, conf_.nthr, ithr, sp_start, sp_end);
 
@@ -121,7 +121,7 @@ struct shuffle_kernel_vec3_t {
         memory_tensor_t data_mem(data_, conf_.src_md);
         memory_tensor_t dst_mem(dst_, conf_.dst_md);
 
-        size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
+        size_t ithr = item.get_global_id(0);
         const dim_t outer_size = conf_.outer_size;
         const dim_t inner_size = conf_.inner_size;
         const dim_t dim = conf_.axis_size * inner_size;
