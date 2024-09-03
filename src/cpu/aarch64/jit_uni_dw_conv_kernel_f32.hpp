@@ -18,6 +18,7 @@
 #ifndef CPU_AARCH64_JIT_UNI_DW_CONV_KERNEL_F32_HPP
 #define CPU_AARCH64_JIT_UNI_DW_CONV_KERNEL_F32_HPP
 
+#include <memory>
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
@@ -41,10 +42,11 @@ struct jit_uni_dw_conv_fwd_kernel_f32 : public jit_generator {
         : jcp(ajcp), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_
-                    = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
+                    = utils::make_unique<jit_uni_eltwise_injector_f32<isa>>(
+                            this, jcp.eltwise);
     }
 
-    ~jit_uni_dw_conv_fwd_kernel_f32() { delete eltwise_injector_; }
+    ~jit_uni_dw_conv_fwd_kernel_f32() = default;
 
     jit_conv_conf_t jcp;
 
@@ -133,7 +135,8 @@ private:
                 format_tag::nwc);
     }
 
-    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
+    std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> eltwise_injector_;
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_dw_conv_fwd_kernel_f32)
     void generate() override;
 };
 
