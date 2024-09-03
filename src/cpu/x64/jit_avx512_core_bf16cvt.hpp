@@ -18,6 +18,7 @@
 #define CPU_X64_JIT_AVX512_CORE_BF16CVT_HPP
 
 #include <assert.h>
+#include <memory>
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
@@ -179,13 +180,14 @@ struct jit_avx512_core_add_cvt_ps_to_bf16_t : public jit_generator {
 
     jit_avx512_core_add_cvt_ps_to_bf16_t()
         : jit_generator(jit_name()), simd_w_(16) {
-        bf16_emu_ = new bf16_emulation_t(
+        bf16_emu_ = utils::make_unique<bf16_emulation_t>(
                 this, one, even, selector, scratch, fp32_tmp, fp32_tmp);
 
         UNUSED_STATUS(create_kernel());
     }
 
-    ~jit_avx512_core_add_cvt_ps_to_bf16_t() { delete bf16_emu_; }
+    ~jit_avx512_core_add_cvt_ps_to_bf16_t() = default;
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_core_add_cvt_ps_to_bf16_t)
 
     void generate() override {
         preamble();
@@ -258,7 +260,7 @@ struct jit_avx512_core_add_cvt_ps_to_bf16_t : public jit_generator {
 private:
     int simd_w_;
 
-    bf16_emulation_t *bf16_emu_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     Xbyak::Opmask ktail_mask = k2;
     Xbyak::Zmm fp32_inp = Xbyak::Zmm(0);
