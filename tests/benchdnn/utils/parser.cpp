@@ -369,8 +369,7 @@ attr_t::dropout_t parse_attr_dropout_func(const std::string &s) {
         }
 
         if (start_pos != std::string::npos) {
-            subs = get_substr(s, start_pos, '\0');
-            v.tag = subs;
+            v.tag = get_substr(s, start_pos, '\0');
 
             if (check_tag(v.tag) != OK) {
                 BENCHDNN_PRINT(0, "%s \'%s\' %s\n", "Error: dropout mask tag",

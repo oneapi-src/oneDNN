@@ -509,7 +509,7 @@ struct rnd_mode_t : public c_compatible {
     bool operator==(const rnd_mode_t &rhs) const {
         bool res = rounding_modes_map_.size() == rhs.rounding_modes_map_.size();
         if (!res) return false;
-        for (auto e : rounding_modes_map_)
+        for (const auto &e : rounding_modes_map_)
             if (e.second != rhs.get(e.first)) return false;
         return true;
     }

@@ -214,7 +214,7 @@ int attr_t::policy2mask(int arg, policy_t policy,
                 || policy == policy_t::COMMON)
             return attr_t::get_default_mask(policy);
 
-        if (ndims <= 0) SAFE_V(FAIL);
+        if (ndims < 2) SAFE_V(FAIL);
         switch (policy) {
             case PER_DIM_1:
             case PER_OC: return (1 << (ndims - 1));
@@ -227,7 +227,7 @@ int attr_t::policy2mask(int arg, policy_t policy,
 
         // PER_OC
         assert(policy == policy_t::PER_OC);
-        if (ndims <= 0) SAFE_V(FAIL);
+        if (ndims < 1) SAFE_V(FAIL);
         return 1 << (ndims - 1);
     } else {
         // Default case
@@ -779,7 +779,7 @@ std::ostream &operator<<(std::ostream &s, dnnl_accumulation_mode_t am) {
 
 std::ostream &operator<<(std::ostream &s, const attr_t::rounding_mode_t &rm) {
     std::string sep;
-    for (auto i : rm.rounding_modes_) {
+    for (const auto &i : rm.rounding_modes_) {
         s << sep << arg2str(i.first) << ":" << rounding_mode2str(i.second);
         if (rm.is_set_seed) s << ":" << rm.seed;
         sep = "+";
@@ -1122,7 +1122,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
     }
 
     if (!attr.rounding_mode.is_def()) {
-        for (const auto e : attr.rounding_mode.rounding_modes_) {
+        for (const auto &e : attr.rounding_mode.rounding_modes_) {
             DNN_SAFE_V(dnnl_primitive_attr_set_rounding(
                     dnnl_attr, e.first, e.second));
         }

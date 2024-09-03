@@ -539,9 +539,13 @@ inline float stochastic_round_fwd(
 
     // TODO: NaN handling when dst_dt has no NaN
     if (std::isnan(s)) return s;
+    if (dst_dt == data_type::undef) return NAN;
 
     using namespace dnnl::impl::types;
-    assert(digits<uint32_t>(data_type::f32) >= digits<uint32_t>(dst_dt));
+    if (digits<uint32_t>(data_type::f32) < digits<uint32_t>(dst_dt)) {
+        assert(!"dst_dt is a bad data type");
+        return NAN;
+    }
 
     uint32_t truncation_mask = 0xffffffff
             << (digits<uint32_t>(data_type::f32) - digits<uint32_t>(dst_dt));

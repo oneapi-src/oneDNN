@@ -70,6 +70,11 @@ struct stream_profiler_t {
         m_.unlock();
     }
 
+    // The contract is profiler interfaces are called only in between
+    // `start_profiling` and `stop_profiling`, which provide a secure
+    // multi-threaded access because of the lock. It allows to strip the lock
+    // from all other calls, e.g., `stamp, or `register_event` (except `reset`)
+    // to reduce the overhead for profiling.
     void start_profiling() {
         m_.lock();
         stamp_++;
