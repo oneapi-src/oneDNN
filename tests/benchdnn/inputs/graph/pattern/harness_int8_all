@@ -124,3 +124,4 @@
 --reset --op-attrs=3:zps:1  --in-shapes=5:512 --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
 #softmax
 --reset --case=pattern/int8/int8_softmax_add.json
+--reset --op-attrs=3:zps:32 --case=pattern/int8/int8_softmax_add.json
