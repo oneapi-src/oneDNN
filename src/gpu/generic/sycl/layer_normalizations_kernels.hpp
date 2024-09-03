@@ -47,14 +47,8 @@ struct layer_normalization_fwd_kernel_vec_t {
                   DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
-        auto sg = item.get_sub_group();
-        size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
-        size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
-        size_t wi_offset_t = sg.get_local_id();
-        size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
-        size_t base_idx = offset_t * conf_.block_size;
-        for (int i = 0; i < conf_.block_size; i++) {
-            dim_t idx = base_idx + i;
+        for (int idx = item.get_global_id(0); idx < conf_.wk_size;
+                idx += item.get_global_range(0)) {
             if (idx < conf_.N) { compute_alg_n(idx); }
         }
     }
@@ -146,15 +140,8 @@ struct layer_normalization_fwd_kernel_vec1_t {
                   DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
-        auto sg = item.get_sub_group();
-        size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
-        size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
-        size_t wi_offset_t = sg.get_local_id();
-        size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
-
-        size_t base_idx = offset_t * conf_.block_size;
-        for (int i = 0; i < conf_.block_size; i++) {
-            dim_t idx = base_idx + i;
+        for (int idx = item.get_global_id(0); idx < conf_.wk_size;
+                idx += item.get_global_range(0)) {
             if (idx < conf_.N) { compute_alg_n(idx); }
         }
     }

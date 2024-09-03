@@ -59,14 +59,6 @@ struct reorder_kernel_t {
         memory_plain_t src_scale_mem(src_scale_, scales_src_dt_);
         memory_plain_t dst_scale_mem(dst_scale_, scales_dst_dt_);
 
-        auto sg = item.get_sub_group();
-        size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
-        size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
-        size_t wi_offset_t = sg.get_local_id();
-        size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
-
-        size_t base_idx = offset_t * conf_.block_size;
-
         float scale_src = conf_.do_scale_src && conf_.scale_src_mask == 0
                 ? src_scale_mem.load(0)
                 : 1.f;
@@ -95,54 +87,52 @@ struct reorder_kernel_t {
             }
         }
 
-        for (int i = 0; i < conf_.block_size; i++) {
-            int idx = base_idx + i;
-            if (idx < conf_.wk_size) {
-                for (int i = 0; i < max_supported_ndims; i++) {
-                    off[i] = idx / strides[i] % dims[i];
-                }
-
-                int dst_idx = dst_md().off_v(off);
-                auto src = src_mem.load(idx);
-
-                if (conf_.do_scale_src) {
-                    if (conf_.scale_src_mask != 0) {
-                        int scale_idx = 0;
-                        for (int i = 0; i < max_supported_ndims; i++) {
-                            if (i < src_md().ndims()) {
-                                int off_scales_i = conf_.scale_src_mask >> i & 1
-                                        ? off[i]
-                                        : 0;
-                                scale_idx = scale_idx * dims_scales_src[i]
-                                        + off_scales_i;
-                            }
-                        }
-                        scale_src = src_scale_mem.load(scale_idx);
-                    }
-                    src *= scale_src;
-                }
-
-                auto acc = src;
-                acc = conf_.post_ops.apply(acc, dst_, dst_idx);
-                if (conf_.do_scale_dst) {
-                    if (conf_.scale_dst_mask != 0) {
-                        int scale_idx = 0;
-                        for (int i = 0; i < max_supported_ndims; i++) {
-                            if (i < src_md().ndims()) {
-                                int off_scales_i = conf_.scale_dst_mask >> i & 1
-                                        ? off[i]
-                                        : 0;
-                                scale_idx = scale_idx * dims_scales_dst[i]
-                                        + off_scales_i;
-                            }
-                        }
-
-                        scale_dst = dst_scale_mem.load(scale_idx);
-                    }
-                    acc /= scale_dst;
-                }
-                dst_mem.store(acc, dst_idx);
+        for (int idx = item.get_global_id(0); idx < conf_.wk_size;
+                idx += item.get_global_range(0)) {
+            for (int i = 0; i < max_supported_ndims; i++) {
+                off[i] = idx / strides[i] % dims[i];
             }
+
+            int dst_idx = dst_md().off_v(off);
+            auto src = src_mem.load(idx);
+
+            if (conf_.do_scale_src) {
+                if (conf_.scale_src_mask != 0) {
+                    int scale_idx = 0;
+                    for (int i = 0; i < max_supported_ndims; i++) {
+                        if (i < src_md().ndims()) {
+                            int off_scales_i = conf_.scale_src_mask >> i & 1
+                                    ? off[i]
+                                    : 0;
+                            scale_idx = scale_idx * dims_scales_src[i]
+                                    + off_scales_i;
+                        }
+                    }
+                    scale_src = src_scale_mem.load(scale_idx);
+                }
+                src *= scale_src;
+            }
+
+            auto acc = src;
+            acc = conf_.post_ops.apply(acc, dst_, dst_idx);
+            if (conf_.do_scale_dst) {
+                if (conf_.scale_dst_mask != 0) {
+                    int scale_idx = 0;
+                    for (int i = 0; i < max_supported_ndims; i++) {
+                        if (i < src_md().ndims()) {
+                            int off_scales_i = conf_.scale_dst_mask >> i & 1
+                                    ? off[i]
+                                    : 0;
+                            scale_idx = scale_idx * dims_scales_dst[i]
+                                    + off_scales_i;
+                        }
+                    }
+
+                    scale_dst = dst_scale_mem.load(scale_idx);
+                }
+                acc /= scale_dst;
+            }
+            dst_mem.store(acc, dst_idx);
         }
     }
 

@@ -57,17 +57,6 @@ struct binary_kernel_vec_t {
         memory_plain_t src0_scale_mem(src0_scale_, scales_dt_);
         memory_plain_t src1_scale_mem(src1_scale_, scales_dt_);
 
-        auto sg = item.get_sub_group();
-        size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
-        size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
-        size_t wi_offset_t = sg.get_local_id();
-        size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
-
-        size_t base_idx = offset_t * conf_.block_size;
-        size_t vec_base_idx = base_idx / vec_len;
-
-        size_t sg_base_idx = (wg_offset_t + sg_offset_t) * conf_.block_size;
-
         const float sm_0 = (conf_.do_scale_src0 ? src0_scale_mem.load(0) : 1.f);
 
         const float sm_1 = (conf_.do_scale_src1 ? src1_scale_mem.load(0) : 1.f);
@@ -98,12 +87,12 @@ struct binary_kernel_vec_t {
 
         if (!any_broadcast && !is_blocked_fmt
                 && conf_.post_ops.get_post_op() == 0
-                && sg_base_idx + (sg.get_local_range()[0] * conf_.block_size)
-                        < conf_.wk_size
-                && is_same_tag) {
-            for (int i = 0; i < conf_.block_size / vec_len; i++) {
-                auto src0_vec = src0_mem.load_vec<vec_len>(vec_base_idx + i);
-                auto src1_vec = src1_mem.load_vec<vec_len>(vec_base_idx + i);
+                && conf_.wk_size % vec_len == 0 && is_same_tag) {
+            for (int vec_idx = item.get_global_id(0);
+                    vec_idx < conf_.wk_size / vec_len;
+                    vec_idx += item.get_global_range(0)) {
+                auto src0_vec = src0_mem.load_vec<vec_len>(vec_idx);
+                auto src1_vec = src1_mem.load_vec<vec_len>(vec_idx);
 
                 if (conf_.do_scale_src0)
                     src0_vec *= ::sycl::vec<float, vec_len>(sm_0);
@@ -114,37 +103,34 @@ struct binary_kernel_vec_t {
                 // TODO: Adding post-ops seems to be interfering with compiler's
                 // optimizations. Figure out how to make the compiler to generate
                 // the right code.
-                dst_mem.store_vec(acc_vec, vec_base_idx + i);
+                dst_mem.store_vec(acc_vec, vec_idx);
             }
         } else {
-            for (int i = 0; i < conf_.block_size; i++) {
-                int idx = base_idx + i;
-                if (idx < conf_.wk_size) {
-                    auto l_offset = idx;
-                    for (int i = 0; i < conf_.ndims; i++) {
-                        const int d = conf_.ndims - 1 - i;
-                        const dim_t cur_dim = conf_.dst_md.dims()[d];
-                        off_dst[d] = l_offset % cur_dim;
-                        l_offset = l_offset / cur_dim;
-                    }
-
-                    for (int i = 0; i < max_supported_ndims; i++) {
-                        off0[i] = conf_.broadcast_dims0[i] ? 0 : off_dst[i];
-                        off1[i] = conf_.broadcast_dims1[i] ? 0 : off_dst[i];
-                    }
-
-                    auto src0 = src0_mem.load_md(off0);
-                    auto src1 = src1_mem.load_md(off1);
-
-                    if (conf_.do_scale_src0) src0 *= sm_0;
-                    if (conf_.do_scale_src1) src1 *= sm_1;
-
-                    auto acc = compute_alg_n(src0, src1, conf_.alg_kind);
-
-                    acc = conf_.post_ops.apply(
-                            acc, dst_, idx, po_args_, off_dst);
-                    dst_mem.store_md(acc, off_dst);
+            for (int idx = item.get_global_id(0); idx < conf_.wk_size;
+                    idx += item.get_global_range(0)) {
+                auto l_offset = idx;
+                for (int i = 0; i < conf_.ndims; i++) {
+                    const int d = conf_.ndims - 1 - i;
+                    const dim_t cur_dim = conf_.dst_md.dims()[d];
+                    off_dst[d] = l_offset % cur_dim;
+                    l_offset = l_offset / cur_dim;
                 }
+
+                for (int i = 0; i < max_supported_ndims; i++) {
+                    off0[i] = conf_.broadcast_dims0[i] ? 0 : off_dst[i];
+                    off1[i] = conf_.broadcast_dims1[i] ? 0 : off_dst[i];
+                }
+
+                auto src0 = src0_mem.load_md(off0);
+                auto src1 = src1_mem.load_md(off1);
+
+                if (conf_.do_scale_src0) src0 *= sm_0;
+                if (conf_.do_scale_src1) src1 *= sm_1;
+
+                auto acc = compute_alg_n(src0, src1, conf_.alg_kind);
+
+                acc = conf_.post_ops.apply(acc, dst_, idx, po_args_, off_dst);
+                dst_mem.store_md(acc, off_dst);
             }
         }
     }
