@@ -163,7 +163,7 @@ This can be extended to multiple batch dimensions matrix multiplications:
 
 | Matrix A              | Matrix B              | Matrix C = A x B      |
 | --                    | --                    | --                    |
-| B1 x 1 x B3 x M x K   | B1 x B2 x 1 x M x K   | B1 x B2 x B3 x M x N  |
+| B1 x 1 x B3 x M x K   | B1 x B2 x 1 x K x N   | B1 x B2 x B3 x M x N  |
 
 This RFC proposes to further extend it to support group broadcast:
 
