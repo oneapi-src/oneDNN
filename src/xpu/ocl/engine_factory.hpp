@@ -46,7 +46,7 @@ public:
         std::vector<cl_device_id> ocl_devices;
         status_t status
                 = xpu::ocl::get_devices(&ocl_devices, CL_DEVICE_TYPE_GPU);
-        if (status != status::success) return status;
+        if (status != status::success) return 0;
         return ocl_devices.size();
     }
 
