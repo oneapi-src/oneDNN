@@ -229,7 +229,9 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
 #endif
 
     strategy_.systolicAvailable &= !disable_systolic_;
-    strategy_.preflight(hw_, problem_);
+    try {
+        strategy_.preflight(hw_, problem_);
+    } catch (...) { return status::unimplemented; }
 
     // Check for legal 2D quantization group size.
     if (problem_.aoPtrDims == 2 || problem_.aScale2D)
