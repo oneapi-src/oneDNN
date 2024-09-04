@@ -313,13 +313,12 @@ struct matmul_kernel_fwd_t {
                     for (int v_el = 0; v_el < vec_len; v_el++) {
                         off_po[dim1] += row;
                         off_po[dim1 + 1] += col * vec_len + v_el;
-                        ::sycl::vec<float, 16> binary_src_vals
-                                = kernel->post_op_src_val(off_po);
+                        data[row][col][v_el]
+                                = post_ops.apply(data[row][col][v_el],
+                                        prev_dst.data[row][col][v_el],
+                                        kernel->po_args_, off_po);
                         off_po[dim1] -= row;
                         off_po[dim1 + 1] -= col * vec_len + v_el;
-                        data[row][col][v_el] = post_ops.apply(
-                                data[row][col][v_el],
-                                prev_dst.data[row][col][v_el], binary_src_vals);
                     }
                 }
             }
@@ -378,16 +377,7 @@ struct matmul_kernel_fwd_t {
         , dropout_seed_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_ATTR_DROPOUT_SEED))
         , dropout_probability_(
                   CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_ATTR_DROPOUT_PROBABILITY))
-        , po1_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1)))
-        , po2_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1)))
-        , po3_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(2) | DNNL_ARG_SRC_1)))
-        , po4_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(3) | DNNL_ARG_SRC_1)))
-        , po5_src_(CTX_IN_SYCL_KERNEL_MEMORY(
-                  (DNNL_ARG_ATTR_MULTIPLE_POST_OP(4) | DNNL_ARG_SRC_1))) {}
+        , po_args_(cgh, ctx) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         using data_block_t = register_block<register_block_M, register_block_K>;
@@ -623,77 +613,6 @@ struct matmul_kernel_fwd_t {
     }
 
 private:
-    inline ::sycl::vec<float, 16> post_op_src_val(dims_t data_off) const {
-        ::sycl::vec<float, 16> post_po_sr;
-        const auto maxPostPo = conf_.post_ops.get_post_op();
-
-        for (dim_t po_idx = 0; po_idx < maxPostPo; po_idx++) {
-            float res = 0.0f;
-            if (po_idx == 0)
-                res = get_post_op_val(po1_src_, po_idx, data_off);
-            else if (po_idx == 1)
-                res = get_post_op_val(po2_src_, po_idx, data_off);
-            else if (po_idx == 2)
-                res = get_post_op_val(po3_src_, po_idx, data_off);
-            else if (po_idx == 3)
-                res = get_post_op_val(po4_src_, po_idx, data_off);
-            else if (po_idx == 4)
-                res = get_post_op_val(po5_src_, po_idx, data_off);
-
-            post_po_sr[po_idx] = res;
-        }
-        return post_po_sr;
-    }
-
-    float get_post_op_val(const xpu::sycl::in_memory_arg_t &bin_src_op,
-            dim_t &idx, dims_t offset) const {
-        auto src1_desc = conf_.binary_src_arr[idx];
-
-        xpu::sycl::md_t::dim32_t ndims = conf_.dst_md.ndims();
-        xpu::sycl::md_t::dims32_t dst_dims;
-        for (int i = 0; i < ndims; i++) {
-            dst_dims[i] = conf_.dst_md.dims()[i];
-        }
-        if (conf_.transpose_dst) {
-            std::swap(dst_dims[ndims - 1], dst_dims[ndims - 2]);
-        }
-        const auto off
-                = get_matmul_src1_off(src1_desc, offset, dst_dims, ndims);
-
-        auto dst = load_float_value(
-                src1_desc.data_type(), bin_src_op.get_pointer(), off);
-        return dst;
-    }
-
-    dim_t get_matmul_src1_off(const xpu::sycl::md_t &src1_md, dims_t offset,
-            const xpu::sycl::md_t::dims32_t &dst_dims,
-            const xpu::sycl::md_t::dim32_t &dst_ndims) const {
-        const dim_t mask_matmul_po
-                = get_dims_mask(dst_dims, src1_md.dims(), dst_ndims);
-        return get_po_tensor_off(
-                src1_md, offset, dst_dims, dst_ndims, mask_matmul_po);
-    }
-
-    inline dim_t get_dims_mask(const xpu::sycl::md_t::dims32_t &dims1,
-            const xpu::sycl::md_t::dims32_t &dims2, const dim_t &ndims,
-            bool skip_dim_of_one = false) const {
-        dim_t mask = 0;
-        for (dim_t d = 0; d < ndims; ++d) {
-            // Disable mask_bit for dimensions of `1` by request.
-            dim_t mask_bit = skip_dim_of_one && dims1[d] == 1 ? 0 : (1 << d);
-            mask += dims1[d] == dims2[d] ? mask_bit : 0;
-        }
-        return mask;
-    }
-
-    inline dim_t get_po_tensor_off(const xpu::sycl::md_t &tensor_md,
-            dims_t offset, const xpu::sycl::md_t::dims32_t &dst_dims,
-            const dim_t &dst_ndims, const dim_t &mask) const {
-        dims_t offset_po {};
-        utils::copy_dims_with_mask(offset_po, offset, dst_ndims, mask);
-        return tensor_md.off_v(offset_po);
-    }
-
     sycl_matmul_conf_t conf_;
 
     xpu::sycl::in_memory_arg_t data_;
@@ -715,11 +634,7 @@ private:
     xpu::sycl::out_memory_arg_t dropout_mask_;
     xpu::sycl::in_memory_arg_t dropout_seed_;
     xpu::sycl::in_memory_arg_t dropout_probability_;
-    xpu::sycl::in_memory_arg_t po1_src_;
-    xpu::sycl::in_memory_arg_t po2_src_;
-    xpu::sycl::in_memory_arg_t po3_src_;
-    xpu::sycl::in_memory_arg_t po4_src_;
-    xpu::sycl::in_memory_arg_t po5_src_;
+    post_op_input_args po_args_;
 };
 
 } // namespace sycl

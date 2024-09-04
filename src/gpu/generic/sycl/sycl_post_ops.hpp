@@ -232,6 +232,8 @@ struct sycl_post_ops_t {
     inline float apply(float acc, const xpu::sycl::out_memory_arg_t &dst,
             dim_t dst_offset, const post_op_input_args &po_args,
             dims_t src_offset) const;
+    inline float apply(float acc, float dst, const post_op_input_args &po_args,
+            dims_t src_offset) const;
     inline float apply(float acc, const post_op_input_args &po_args,
             dims_t src_offset) const;
     inline float apply(float acc, const xpu::sycl::out_memory_arg_t &dst,
@@ -289,6 +291,24 @@ float sycl_post_ops_t::apply(float acc, const xpu::sycl::out_memory_arg_t &dst,
                 acc = ops_[i].sum_.load_and_compute(
                         acc, dst, sum_dt_, dst_offset);
                 break;
+            default: acc = ::sycl::nan(0u);
+        }
+    }
+    return acc;
+}
+
+float sycl_post_ops_t::apply(float acc, float dst,
+        const post_op_input_args &po_args, dims_t src_offset) const {
+    using namespace primitive_kind;
+
+    for (auto i = 0; i < n_post_ops_; ++i) {
+        switch (ops_[i].kind_) {
+            case eltwise: acc = ops_[i].eltwise_.compute(acc); break;
+            case binary:
+                acc = ops_[i].binary_.load_and_compute(
+                        acc, po_args.args_[i], src_offset);
+                break;
+            case sum: acc = ops_[i].sum_.compute(acc, dst); break;
             default: acc = ::sycl::nan(0u);
         }
     }
