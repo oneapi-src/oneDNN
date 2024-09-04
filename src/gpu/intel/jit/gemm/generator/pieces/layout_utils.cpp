@@ -249,9 +249,10 @@ void getLayoutDims(const vector<RegisterBlock> &layout, int &m, int &n)
     // For now all layouts are sorted so last block is in lower-right corner.
     if (layout.size() == 0)
         stub("Empty layout.");
+    auto &first = layout[0];
     auto &last = layout[layout.size() - 1];
-    m = last.offsetR + last.nr;
-    n = last.offsetC + last.nc;
+    m = last.offsetR + last.nr - first.offsetR;
+    n = last.offsetC + last.nc - first.offsetC;
 }
 
 bool hasFullCrosspack(const vector<RegisterBlock> &layout, int crosspack)

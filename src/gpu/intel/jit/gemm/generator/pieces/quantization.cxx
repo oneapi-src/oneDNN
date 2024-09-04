@@ -359,18 +359,19 @@ void BLASKernelGenerator<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst, con
     bool f32 = (Tdst == Type::f32);
     bool bf16 = (Tdst == Type::bf16);
 
-    int offR0 = offR, offC0 = offC;
-
     vector<RegisterBlock> layoutDstF16;
     const vector<RegisterBlock> *effLayoutDst = &layoutDst;
     GRFMultirange dstF16;
     const GRFMultirange *effDst = &dst;
     if (f32 || bf16) {
         makeUnbackedRegLayout(Type::f16, layoutDstF16, m, n, isLayoutColMajor(layoutDst), 1);
+        for (auto &block: layoutDstF16) {
+            block.offsetR += layoutDst[0].offsetR;
+            block.offsetC += layoutDst[0].offsetC;
+        }
         dstF16 = chunkAlloc(getRegCount(layoutDstF16), 2, state);
         effLayoutDst = &layoutDstF16;
         effDst = &dstF16;
-        offR = offC = 0;
     }
 
     // 1) Shift s4 data to u4 data by adding 8.
@@ -408,7 +409,7 @@ void BLASKernelGenerator<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst, con
 
     // 6) Convert to dst type if needed.
     if (f32 || bf16) {
-        copyRegisters(Type::f16, Tdst, layoutDstF16, layoutDst, dstF16, dst, offR0, offC0, false, strategy, state);
+        copyRegisters(Type::f16, Tdst, layoutDstF16, layoutDst, dstF16, dst, offR, offC, false, strategy, state);
         safeReleaseRanges(dstF16, state);
     }
 }
