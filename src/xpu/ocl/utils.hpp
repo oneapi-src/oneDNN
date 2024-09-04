@@ -273,7 +273,7 @@ private:
 std::string get_kernel_name(cl_kernel kernel);
 
 status_t get_devices(std::vector<cl_device_id> *devices,
-        cl_device_type device_type, cl_uint vendor_id = 0x8086);
+        cl_device_type device_type);
 
 status_t get_devices(std::vector<cl_device_id> *devices,
         std::vector<wrapper_t<cl_device_id>> *sub_devices,
