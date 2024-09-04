@@ -32,7 +32,7 @@ namespace intel {
 class zero_pool_t {
 public:
     zero_pool_t(compute::compute_engine_t *engine, size_t chunk_size,
-            int chunk_count = 16);
+            bool stream_private = false, bool in_order = false);
 
     status_t init();
 
@@ -54,6 +54,8 @@ private:
     std::unique_ptr<memory_storage_t> mem_;
     size_t chunk_size_ = 0;
     int chunk_count_ = 0;
+    bool stream_private_ = false;
+    bool in_order_ = false;
     int clients_ = 0;
     int next_slot_ = 0;
     bool inited_ = false;
@@ -66,7 +68,8 @@ private:
             std::unique_ptr<memory_storage_t> &out_mem);
 };
 
-status_t lookup_zero_pool(compute::compute_engine_t *engine, size_t chunk_size,
+status_t lookup_zero_pool(compute::compute_engine_t *engine,
+        compute::compute_stream_t *stream, size_t chunk_size,
         zero_pool_t **out_pool);
 void release_zero_pool(zero_pool_t *pool);
 

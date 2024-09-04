@@ -31,17 +31,18 @@ namespace intel {
 namespace jit {
 
 status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
-        compute::compute_stream_t *compute_stream, const memory_storage_t &a,
-        const memory_storage_t &b, const memory_storage_t &c,
-        const memory_storage_t *ao, const memory_storage_t *bo,
-        const memory_storage_t *a_scales, const memory_storage_t *b_scales,
-        const memory_storage_t &co, const memory_storage_t *c_temp,
-        int po_count, const memory_storage_t **po_srcs, int64_t offset_a,
-        int64_t offset_b, int64_t offset_c, int32_t offset_aq,
-        int32_t offset_bq, int32_t offset_co, int32_t *offset_po_src,
-        int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
-        int32_t k0, float alpha, float beta, int32_t cmask, bool last_k_block,
-        bool swapab, bool disable_hilbert) const {
+        compute::compute_stream_t *compute_stream, zero_pool_t *zero_pool,
+        const memory_storage_t &a, const memory_storage_t &b,
+        const memory_storage_t &c, const memory_storage_t *ao,
+        const memory_storage_t *bo, const memory_storage_t *a_scales,
+        const memory_storage_t *b_scales, const memory_storage_t &co,
+        const memory_storage_t *c_temp, int po_count,
+        const memory_storage_t **po_srcs, int64_t offset_a, int64_t offset_b,
+        int64_t offset_c, int32_t offset_aq, int32_t offset_bq,
+        int32_t offset_co, int32_t *offset_po_src, int32_t lda, int32_t ldb,
+        int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0, float alpha,
+        float beta, int32_t cmask, bool last_k_block, bool swapab,
+        bool disable_hilbert) const {
     if (pd()->desc()->batch() == 0) return status::success;
 
     uint32_t flags = 0;
@@ -121,7 +122,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     std::unique_ptr<memory_storage_t> zeros;
     int zp_token = 0;
     if (nocopy_info()->fusedBeta() || nocopy_info()->fusedPostOps()) {
-        CHECK(zero_pool_->claim(
+        CHECK(zero_pool->claim(
                 compute_stream, zero_pool_bytes_, zeros, &zp_token));
         arg_list.set(argn++, *zeros);
     }
@@ -217,7 +218,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     auto status = parallel_for(ctx, nd_range, nocopy_kernel_, arg_list);
 
     if (nocopy_info()->fusedBeta() || nocopy_info()->fusedPostOps())
-        zero_pool_->async_release(zp_token, compute_stream->ctx().get_deps());
+        zero_pool->async_release(zp_token, compute_stream->ctx().get_deps());
 
     return status;
 }
@@ -225,6 +226,17 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
+    auto zero_pool = zero_pool_;
+
+#ifdef DNNL_WITH_SYCL
+    if (!zero_pool) {
+        auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
+                ctx.stream()->engine());
+        CHECK(lookup_zero_pool(compute_engine, compute_stream,
+                zero_pool_chunk_size_, &zero_pool));
+    }
+#endif
 
     const auto d = pd()->desc();
     const auto &problem = *pd()->kernel_desc()->problem();
@@ -392,9 +404,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
         if (k_parallel_global && !nocopy_info()->fusedBeta() && beta != 1.0f
                 && (k > dim_t(k0) * pd()->kernel_desc()->aux_params()->wgK)) {
-            status = launch_nocopy(ctx, compute_stream, a, b, c, ao, bo,
-                    a_scales, b_scales, *co, nullptr, po_count, po_srcs, off_a0,
-                    off_b0, off_c0, int32_t(off_aq0), int32_t(off_bq0),
+            status = launch_nocopy(ctx, compute_stream, zero_pool, a, b, c, ao,
+                    bo, a_scales, b_scales, *co, nullptr, po_count, po_srcs,
+                    off_a0, off_b0, off_c0, int32_t(off_aq0), int32_t(off_bq0),
                     int32_t(off_co0), po_offsets0, lda, ldb, ldc, m, n, 0, 1,
                     1.0f, beta, 0, false, swapab, true);
             if (status) return status;
@@ -454,8 +466,8 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 }
 
                 float eff_beta = (Bk == 0) ? beta : 1.0f;
-                status = launch_nocopy(ctx, compute_stream, a, b, c, ao, bo,
-                        a_scales, b_scales, *co, c_temp.get(), po_count,
+                status = launch_nocopy(ctx, compute_stream, zero_pool, a, b, c,
+                        ao, bo, a_scales, b_scales, *co, c_temp.get(), po_count,
                         po_srcs, off_a_src, off_b_src, off_c, off_aq, off_bq,
                         off_co, po_offsets, lda, ldb, ldc, size_m, size_n,
                         size_k, k0, alpha, eff_beta, cmask, last_k_block,
