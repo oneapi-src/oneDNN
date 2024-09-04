@@ -194,8 +194,7 @@ status_t get_devices(std::vector<cl_device_id> *devices,
     cl_uint num_platforms = 0;
 
     cl_int err = clGetPlatformIDs(0, nullptr, &num_platforms);
-    // No platforms - a valid scenario
-    if (err == CL_PLATFORM_NOT_FOUND_KHR) return status::success;
+    if (err == CL_PLATFORM_NOT_FOUND_KHR) return status::runtime_error;
 
     OCL_CHECK(err);
 
@@ -228,8 +227,11 @@ status_t get_devices(std::vector<cl_device_id> *devices,
             }
         }
     }
-    // No devices found but still return success
-    return status::success;
+
+    if (devices->size() != 0)
+        return status::success;
+
+    return status::runtime_error;
 }
 
 status_t get_devices(std::vector<cl_device_id> *devices,
