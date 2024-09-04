@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018-2022 Intel Corporation
+# Copyright 2018-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ macro(handle_tbb_target)
     if(TBB_FOUND)
         set_property(TARGET TBB::tbb PROPERTY "MAP_IMPORTED_CONFIG_RELWITHMDD" "DEBUG")
         include_directories_with_host_compiler(${_tbb_include_dirs})
-        list(APPEND EXTRA_SHARED_LIBS ${TBB_IMPORTED_TARGETS})
+        list(APPEND EXTRA_SHARED_LIBS TBB::tbb)
 
         # Print TBB location
         get_filename_component(_tbb_root "${_tbb_include_dirs}" PATH)
