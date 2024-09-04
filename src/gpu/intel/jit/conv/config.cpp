@@ -700,7 +700,8 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
         user_dst_tag = (user_dst_req.empty() ? "axb" : std::move(user_dst_req));
 
     // Avoid reorder for small shapes
-    if (prb.g == 1 && prb.ic < 4 && prb.oc < 4 && prb.mb < 4 && prb.ksp == 1) {
+    if (!user_src_tag.empty() && !user_dst_tag.empty() && prb.g == 1
+            && prb.ic < 4 && prb.oc < 4 && prb.mb < 4 && prb.ksp == 1) {
         src_tag = user_src_tag;
         dst_tag = user_dst_tag;
     }
