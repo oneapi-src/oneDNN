@@ -75,6 +75,43 @@ dnnl_status_t DNNL_API dnnl_ocl_interop_memory_create(dnnl_memory_t *memory,
         const_dnnl_memory_desc_t memory_desc, dnnl_engine_t engine,
         dnnl_ocl_interop_memory_kind_t memory_kind, void *handle);
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+/// Creates a memory object
+///
+/// Unless @p handle is equal to DNNL_MEMORY_NONE or DNNL_MEMORY_ALLOCATE, the
+/// constructed memory object will have the underlying buffer set. In this
+/// case, the buffer will be initialized as if:
+/// - dnnl_memory_set_data_handle() has been called, if @p memory_kind is equal
+///   to dnnl_ocl_interop_usm, or
+/// - dnnl_ocl_interop_memory_set_mem_object() has been called, if @p memory_kind
+///   is equal to dnnl_ocl_interop_buffer.
+///
+/// @param memory Output memory object.
+/// @param memory_desc Memory descriptor.
+/// @param engine Engine to use.
+/// @param memory_kind Memory allocation kind to specify the type of handle.
+/// @param nhandles Number of handles.
+///		- This is in case of sparse tensors which has 3 memory buffer handles
+/// @param handles Handles to use underlying storage. It could be:
+///     - A USM pointer to the user-allocated buffer. In this case the library
+///       doesn't own the buffer. Requires @p memory_kind to be equal to
+///       dnnl_ocl_interop_usm.
+///     - An OpenCL buffer. In this case the library doesn't own the buffer.
+///       Requires @p memory_kind to be equal to dnnl_ocl_interop_buffer.
+///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+///       allocate the buffer that corresponds to the memory allocation kind
+///       @p memory_kind for the memory object. In this case the library
+///       owns the buffer.
+///     - The DNNL_MEMORY_NONE specific value. Instructs the library to
+///       create memory object without an underlying buffer.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ocl_interop_memory_create_v2(dnnl_memory_t *memory,
+        const_dnnl_memory_desc_t memory_desc, dnnl_engine_t engine,
+        dnnl_ocl_interop_memory_kind_t memory_kind, int nhandles,
+        void **handles);
+#endif
+
 /// Returns the memory allocation kind associated with a memory object.
 ///
 /// @param memory Memory to query.
