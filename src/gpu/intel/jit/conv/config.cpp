@@ -30,6 +30,10 @@
 #include "gpu/intel/jit/ir/tensor_config.hpp"
 #include "gpu/intel/jit/jit_eltwise_injector.hpp"
 
+#define VDISPATCH_CHECK(pd, engine, cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, convolution, (cond), \
+            status::unimplemented, "%s," msg, pd->info(engine), ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -132,10 +136,11 @@ bool is_small_oc(const conv_problem_t &prb) {
 }
 
 status_t conv_problem_t::init(
-        const impl::engine_t *engine, const convolution_pd_t *conv_pd) {
+        impl::engine_t *engine, const convolution_pd_t *conv_pd) {
     using namespace compute;
 
-    if (conv_pd->has_zero_dim_memory()) return status::unimplemented;
+    VDISPATCH_CHECK(conv_pd, engine, !conv_pd->has_zero_dim_memory(),
+            VERBOSE_EMPTY_TENSOR, "");
 
     this->conv_pd = conv_pd;
     attr = conv_pd->attr();
@@ -713,7 +718,8 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     if (dst_abx && !dst_matches) user_dst_tag = "abx";
 }
 
-status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
+status_t init_tensor_layouts(
+        conv_config_t &cfg, convolution_pd_t *pd, impl::engine_t *engine) {
     const auto &prb = cfg.prb();
     // Compute layout tags and user layout tags. If a compute layout is
     // different from a user layout then an extra pre/post reorder will be
@@ -773,12 +779,18 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     layout_t user_bia_layout;
     if (prb.with_bias) user_bia_layout = init_layout(bia_md, user_bia_tag);
 
-    if (!user_src_layout.is_strictly_equal(make_layout(src_md, user_src_tag)))
-        return status::unimplemented;
-    if (!user_dst_layout.is_strictly_equal(make_layout(dst_md, user_dst_tag)))
-        return status::unimplemented;
-    if (!user_wei_layout.is_strictly_equal(make_layout(wei_md, user_wei_tag)))
-        return status::unimplemented;
+    VDISPATCH_CHECK(pd, engine,
+            user_src_layout.is_strictly_equal(
+                    make_layout(src_md, user_src_tag)),
+            VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_CHECK(pd, engine,
+            user_dst_layout.is_strictly_equal(
+                    make_layout(dst_md, user_dst_tag)),
+            VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_CHECK(pd, engine,
+            user_wei_layout.is_strictly_equal(
+                    make_layout(wei_md, user_wei_tag)),
+            VERBOSE_UNSUPPORTED_TAG);
 
     auto src_layout = (src_tag != user_src_tag) ? make_layout(src_md, src_tag)
                                                 : user_src_layout;
@@ -964,14 +976,16 @@ bool should_use_mad(const conv_problem_t &prb) {
     return prb.is_dw || small_ic_oc || grouped_small_ic_oc;
 }
 
-status_t init_fma_kind(conv_config_t &cfg) {
+status_t init_fma_kind(
+        conv_config_t &cfg, convolution_pd_t *pd, impl::engine_t *engine) {
     if (cfg.fma_kind_param().is_overridden()) return status::success;
     const auto &prb = cfg.prb();
     auto fma_kind = get_supported_fma_kind(
             cfg.hw(), prb.a_data_type, prb.b_data_type, prb.acc_data_type);
     // Force mad for some cases
     if (should_use_mad(prb)) fma_kind = fma_kind_t::mad;
-    if (fma_kind == fma_kind_t::undef) return status::unimplemented;
+    VDISPATCH_CHECK(pd, engine, fma_kind != fma_kind_t::undef,
+            VERBOSE_UNSUPPORTED_DT_CFG);
     cfg.set_fma_kind(fma_kind);
     return status::success;
 }
@@ -1074,14 +1088,15 @@ void init_bwd_d_optimize(conv_config_t &cfg) {
 }
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
-        const impl::engine_t *engine, convolution_pd_t *pd,
-        primitive_attr_t *attr) {
+        impl::engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr) {
     hw_t hw(engine);
 
-    if (!hw_ok(hw)) return status::unimplemented;
-    if (!data_types_ok(prb, hw)) return status::unimplemented;
-    if (!post_ops_ok(prb, hw)) return status::unimplemented;
-    if (!zero_points_ok(prb)) return status::unimplemented;
+    VDISPATCH_CHECK(pd, engine, hw_ok(hw), VERBOSE_UNSUPPORTED_ISA);
+    VDISPATCH_CHECK(pd, engine, data_types_ok(prb, hw), VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_CHECK(
+            pd, engine, post_ops_ok(prb, hw), VERBOSE_UNSUPPORTED_POSTOP);
+    VDISPATCH_CHECK(
+            pd, engine, zero_points_ok(prb), VERBOSE_UNSUPPORTED_ZP_CFG);
 
     zero_points_config_t zp_cfg(pd);
     cfg.set_zp_cfg(zp_cfg);
@@ -1089,14 +1104,15 @@ status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
     cfg.set_exec_cfg(exec_config_t(hw));
     cfg.maybe_override_from_env();
 
-    CHECK(init_fma_kind(cfg));
+    CHECK(init_fma_kind(cfg, pd, engine));
     CHECK(init_simd(cfg));
     CHECK(init_vec_size(cfg));
-    CHECK(init_tensor_layouts(cfg, pd));
+    CHECK(init_tensor_layouts(cfg, pd, engine));
 
     CHECK(attr->set_default_formats(&prb.c_md()));
 
-    if (!post_op_layouts_ok(prb)) return status::unimplemented;
+    VDISPATCH_CHECK(
+            pd, engine, post_op_layouts_ok(prb), VERBOSE_UNSUPPORTED_POSTOP);
 
     init_bwd_d_optimize(cfg);
 
