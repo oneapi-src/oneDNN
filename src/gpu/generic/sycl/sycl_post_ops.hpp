@@ -31,14 +31,21 @@ namespace generic {
 namespace sycl {
 
 struct ref_eltwise_fwd_t {
+    static bool eltwise_ok(alg_kind_t alg) {
+        using namespace alg_kind;
+        return utils::one_of(alg, eltwise_relu, eltwise_linear, eltwise_clip,
+                eltwise_clip_v2, eltwise_hardswish, eltwise_gelu_tanh,
+                eltwise_gelu_erf, eltwise_tanh, eltwise_logistic, eltwise_swish,
+                eltwise_elu);
+    }
+    static bool eltwise_ok(const post_ops_t::entry_t::eltwise_t &eltwise) {
+        return eltwise_ok(eltwise.alg);
+    }
+
     ref_eltwise_fwd_t() = default;
     ref_eltwise_fwd_t(alg_kind_t alg, float alpha, float beta, float scale)
         : alg_(alg), alpha_(alpha), beta_(beta), scale_(scale) {
-        using namespace alg_kind;
-        assert(utils::one_of(alg_, eltwise_relu, eltwise_linear, eltwise_clip,
-                eltwise_clip_v2, eltwise_hardswish, eltwise_gelu_tanh,
-                eltwise_gelu_erf, eltwise_tanh, eltwise_logistic, eltwise_swish,
-                eltwise_elu));
+        assert(eltwise_ok(alg));
     }
 
     ref_eltwise_fwd_t(const post_ops_t::entry_t::eltwise_t &eltwise)
@@ -106,13 +113,20 @@ private:
 };
 
 struct ref_binary_op_t {
+    static bool binary_ok(alg_kind_t alg) {
+        using namespace alg_kind;
+        return utils::one_of(alg, binary_add, binary_div, binary_max,
+                binary_min, binary_mul, binary_sub, binary_ge, binary_gt,
+                binary_le, binary_lt, binary_eq, binary_ne);
+    }
+    static bool binary_ok(const post_ops_t::entry_t::binary_t &binary) {
+        return binary_ok(binary.alg);
+    }
+
     ref_binary_op_t() = default;
     ref_binary_op_t(alg_kind_t alg, xpu::sycl::md_t src_md)
         : alg_(alg), src_md_(src_md) {
-        using namespace alg_kind;
-        assert(utils::one_of(alg_, binary_add, binary_div, binary_max,
-                binary_min, binary_mul, binary_sub, binary_ge, binary_gt,
-                binary_le, binary_lt, binary_eq, binary_ne));
+        assert(binary_ok(alg));
     }
 
     ref_binary_op_t(const post_ops_t::entry_t::binary_t &binary)
@@ -201,6 +215,28 @@ struct sycl_post_ops_t {
     // implemented) contains xpu::sycl::md_t which is large enough to limit
     // the number of post ops.
     static constexpr int max_post_ops = 5;
+
+    static bool post_ops_ok(const primitive_attr_t *attr,
+            bool allow_inputs = true, bool allow_sum = true) {
+        using namespace primitive_kind;
+        const auto &attr_po = attr->post_ops_;
+        if (attr_po.len() > max_post_ops) { return false; }
+        for (auto i = 0; i < attr_po.len(); ++i) {
+            if (allow_sum && attr_po.contain(sum, i)) {
+            } else if (attr_po.contain(eltwise, i)) {
+                if (!ref_eltwise_fwd_t::eltwise_ok(attr_po.entry_[i].eltwise)) {
+                    return false;
+                }
+            } else if (allow_inputs && attr_po.contain(binary, i)) {
+                if (!ref_binary_op_t::binary_ok(attr_po.entry_[i].binary)) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
 
     sycl_post_ops_t() = default;
     sycl_post_ops_t(const primitive_attr_t *attr,

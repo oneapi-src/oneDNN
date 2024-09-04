@@ -44,7 +44,8 @@ struct ref_sycl_softmax_fwd_t : public gpu::generic::sycl::primitive_t {
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)
                     && attr()->has_default_values(
                             sm::scales_runtime | sm::post_ops)
-                    && attr_oscale_ok() && post_ops_ok()
+                    && attr_oscale_ok()
+                    && sycl_post_ops_t::post_ops_ok(attr(), true, false)
                     && set_default_formats() == status::success
                     && attr_.set_default_formats(dst_md()) == status::success
                     && md_dims_in_range(src_md());
@@ -63,12 +64,6 @@ struct ref_sycl_softmax_fwd_t : public gpu::generic::sycl::primitive_t {
                 ok = ok && e.second.mask_ == 0;
             }
             return ok;
-        }
-
-        bool post_ops_ok() const {
-            return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
-                    && attr()->post_ops_.has_default_values(
-                            {primitive_kind::eltwise, primitive_kind::binary});
         }
 
         bool check_data_types(data_type_t src) {

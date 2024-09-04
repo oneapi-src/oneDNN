@@ -56,7 +56,8 @@ struct ref_binary_t : public gpu::generic::sycl::primitive_t {
                             sm::scales_runtime | sm::post_ops)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask())
-                    && post_ops_ok() && md_dims_in_range(src_md(0))
+                    && sycl_post_ops_t::post_ops_ok(attr())
+                    && md_dims_in_range(src_md(0))
                     && md_dims_in_range(src_md(1))
                     && md_dims_in_range(dst_md());
             if (!ok) return status::unimplemented;
@@ -73,15 +74,6 @@ struct ref_binary_t : public gpu::generic::sycl::primitive_t {
             const std::vector<int> supported_args
                     = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
             return attr_scales_ok(supported_args);
-        }
-
-        bool post_ops_ok() const {
-            // Dw conv post-ops are not supported.
-            return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
-                    && attr()->post_ops_.has_default_values(
-                            {primitive_kind::eltwise, primitive_kind::binary,
-                                    primitive_kind::prelu,
-                                    primitive_kind::sum});
         }
 
         static bool check_data_types(const memory_desc_wrapper &src0,

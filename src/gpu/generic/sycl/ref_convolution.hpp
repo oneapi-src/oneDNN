@@ -93,7 +93,7 @@ struct ref_convolution_fwd_t : public gpu::generic::sycl::primitive_t {
                             | sm::sum_dt)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             attr_scales_ok())
-                    && post_ops_ok();
+                    && sycl_post_ops_t::post_ops_ok(attr(), false);
             if (!ok) return status::unimplemented;
 
             return init_conf();
@@ -111,24 +111,6 @@ struct ref_convolution_fwd_t : public gpu::generic::sycl::primitive_t {
                     ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
-
-        bool post_ops_ok() const {
-            for (int i = 0; i < attr()->post_ops_.len(); i++) {
-                const auto &e = attr()->post_ops_.entry_[i];
-                if (!IMPLICATION(e.is_eltwise(),
-                            utils::one_of(e.eltwise.alg, alg_kind::eltwise_relu,
-                                    alg_kind::eltwise_linear,
-                                    alg_kind::eltwise_clip,
-                                    alg_kind::eltwise_clip_v2,
-                                    alg_kind::eltwise_hardswish))) {
-                    return false;
-                }
-            }
-            return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
-                    && attr()->post_ops_.has_default_values(
-                            {primitive_kind::eltwise, primitive_kind::prelu,
-                                    primitive_kind::sum});
         }
     };
 

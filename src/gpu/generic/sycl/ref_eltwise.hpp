@@ -51,7 +51,8 @@ struct ref_sycl_eltwise_fwd_t : public gpu::generic::sycl::primitive_t {
                     && attr()->has_default_values(sm::post_ops)
                     && set_default_formats_common() && src_d == dst_d
                     && attr_.set_default_formats(dst_md(0)) == status::success
-                    && post_ops_ok() && md_dims_in_range(src_md());
+                    && sycl_post_ops_t::post_ops_ok(attr())
+                    && md_dims_in_range(src_md());
 
             if (!ok) return status::unimplemented;
             return init_conf();
@@ -73,27 +74,6 @@ struct ref_sycl_eltwise_fwd_t : public gpu::generic::sycl::primitive_t {
             }
 
             return true;
-        }
-
-        bool post_ops_ok() const {
-            for (int i = 0; i < attr()->post_ops_.len(); i++) {
-                const auto &e = attr()->post_ops_.entry_[i];
-                if (!IMPLICATION(e.is_binary(),
-                            utils::one_of(e.binary.alg, alg_kind::binary_add,
-                                    alg_kind::binary_div, alg_kind::binary_mul,
-                                    alg_kind::binary_sub, alg_kind::binary_max,
-                                    alg_kind::binary_min, alg_kind::binary_ge,
-                                    alg_kind::binary_gt, alg_kind::binary_le,
-                                    alg_kind::binary_lt, alg_kind::binary_eq,
-                                    alg_kind::binary_ne))) {
-
-                    return false;
-                }
-            }
-            return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
-                    && attr()->post_ops_.has_default_values(
-                            {primitive_kind::eltwise, primitive_kind::binary,
-                                    primitive_kind::sum});
         }
     };
 

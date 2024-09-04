@@ -54,7 +54,8 @@ struct ref_reorder_t : public gpu::generic::sycl::primitive_t {
                     && check_formats(src_d, dst_d)
                     && attr()->has_default_values(
                             sm::scales_runtime | sm::post_ops)
-                    && post_ops_ok() && md_dims_in_range(dst_md());
+                    && sycl_post_ops_t::post_ops_ok(attr())
+                    && md_dims_in_range(dst_md());
             if (!ok) return status::unimplemented;
 
             return init_conf();
@@ -66,15 +67,6 @@ struct ref_reorder_t : public gpu::generic::sycl::primitive_t {
         DECLARE_GPU_REORDER_CREATE();
 
         status_t init_conf();
-
-        bool post_ops_ok() const {
-            for (int i = 0; i < attr()->post_ops_.len(); i++) {
-                if (!attr()->post_ops_.entry_[i].is_sum()) { return false; }
-            }
-            return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
-                    && attr()->post_ops_.has_default_values(
-                            {primitive_kind::sum});
-        }
 
         static bool check_data_types(const memory_desc_wrapper &src,
                 const memory_desc_wrapper &dst) {
