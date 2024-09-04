@@ -221,6 +221,12 @@ status_t stream_impl_t::fill(impl::stream_t *stream,
     return status::success;
 }
 
+status_t stream_impl_t::barrier() {
+    cl_int err = clEnqueueMarkerWithWaitList(queue(), 0, nullptr, nullptr);
+    OCL_CHECK(err);
+    return status::success;
+}
+
 const xpu::ocl::context_t &stream_impl_t::ocl_ctx() const {
     static xpu::ocl::context_t empty_ctx {};
     return ctx_.get(empty_ctx);

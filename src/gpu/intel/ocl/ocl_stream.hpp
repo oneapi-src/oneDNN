@@ -89,6 +89,8 @@ struct ocl_stream_t : public compute::compute_stream_t {
     status_t fill(const memory_storage_t &dst, uint8_t pattern, size_t size,
             const xpu::event_t &deps, xpu::event_t &out_dep) override;
 
+    status_t barrier() override;
+
     ~ocl_stream_t() override = default;
 
     const xpu::ocl::context_t &ocl_ctx() const { return impl()->ocl_ctx(); }

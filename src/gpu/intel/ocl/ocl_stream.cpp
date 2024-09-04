@@ -130,6 +130,10 @@ status_t ocl_stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
             this, dst, pattern, size, deps, out_dep, profiler_.get());
 }
 
+status_t ocl_stream_t::barrier() {
+    return impl()->barrier();
+}
+
 } // namespace ocl
 } // namespace intel
 } // namespace gpu

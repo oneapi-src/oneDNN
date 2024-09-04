@@ -175,6 +175,11 @@ status_t stream_impl_t::fill(const memory_storage_t &dst, uint8_t pattern,
     return status::success;
 }
 
+status_t stream_impl_t::barrier() {
+    queue()->ext_oneapi_submit_barrier();
+    return status::success;
+}
+
 const xpu::sycl::context_t &stream_impl_t::sycl_ctx() const {
     static xpu::sycl::context_t empty_ctx {};
     return ctx_.get(empty_ctx);

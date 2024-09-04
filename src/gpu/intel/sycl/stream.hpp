@@ -100,6 +100,8 @@ struct stream_t : public gpu::intel::compute::compute_stream_t {
         return impl()->fill(dst, pattern, size, deps, out_dep, profiler_.get());
     }
 
+    status_t barrier() override { return impl()->barrier(); }
+
     const xpu::sycl::context_t &sycl_ctx() const { return impl()->sycl_ctx(); }
     xpu::sycl::context_t &sycl_ctx() { return impl()->sycl_ctx(); }
 
@@ -114,6 +116,15 @@ struct stream_t : public gpu::intel::compute::compute_stream_t {
         return impl()->register_deps(cgh);
     }
 
+    bool recording() const;
+    using weak_graph_t = ::sycl::ext::oneapi::weak_object<
+            ::sycl::ext::oneapi::experimental::command_graph<::sycl::ext::
+                            oneapi::experimental::graph_state::modifiable>>;
+    weak_graph_t get_current_graph_weak() const;
+
+    status_t enter_immediate_mode() override;
+    status_t exit_immediate_mode() override;
+
 protected:
     xpu::sycl::stream_impl_t *impl() const {
         return (xpu::sycl::stream_impl_t *)impl::stream_t::impl_.get();
@@ -124,6 +135,16 @@ protected:
 
 private:
     status_t init();
+
+    status_t pause_recording();
+    status_t resume_recording();
+
+    std::mutex immediate_mode_mutex_;
+    int immediate_mode_level_ = 0;
+    std::unique_ptr<::sycl::ext::oneapi::experimental::command_graph<
+            ::sycl::ext::oneapi::experimental::graph_state::modifiable>>
+            paused_graph_;
+    xpu::sycl::event_t paused_dep_;
 };
 
 } // namespace sycl

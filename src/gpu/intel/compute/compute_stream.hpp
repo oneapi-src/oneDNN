@@ -36,6 +36,10 @@ public:
 
     status_t notify_profiling_complete() const override;
 
+    virtual status_t barrier() = 0;
+    virtual status_t enter_immediate_mode() { return status::success; }
+    virtual status_t exit_immediate_mode() { return status::success; }
+
 protected:
     bool has_zero_pad_primitive() const {
         return engine()->kind() == dnnl_gpu;
