@@ -110,9 +110,10 @@ status_t compiler_backend_t::get_partitions(
 
 } // namespace compiler_impl
 
-void register_compiler_backend() {
-    backend_registry_t::get_singleton().register_backend(
+status_t register_compiler_backend() {
+    const status_t ret = backend_registry_t::get_singleton().register_backend(
             &compiler_impl::compiler_backend_t::get_singleton());
+    return ret;
 }
 
 } // namespace graph

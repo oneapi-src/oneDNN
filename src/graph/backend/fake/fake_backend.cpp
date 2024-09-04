@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,9 +37,10 @@ graph::pass::pass_registry_t fake_backend_t::pass_registry_
 } // namespace fake_impl
 
 // This function must be called by backend_registry_t
-void register_fake_backend() {
-    backend_registry_t::get_singleton().register_backend(
+status_t register_fake_backend() {
+    const status_t ret = backend_registry_t::get_singleton().register_backend(
             &fake_impl::fake_backend_t::get_singleton());
+    return ret;
 }
 
 } // namespace graph

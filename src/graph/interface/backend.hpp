@@ -38,11 +38,11 @@ namespace impl {
 namespace graph {
 
 // forward declaration
-void register_dnnl_backend();
-void register_fake_backend();
+status_t register_dnnl_backend();
+status_t register_fake_backend();
 #ifdef DNNL_ENABLE_COMPILER_BACKEND
 // register graph compiler backend
-void register_compiler_backend();
+status_t register_compiler_backend();
 #endif
 
 class backend_t {
@@ -131,10 +131,11 @@ public:
         return inst;
     }
 
-    backend_t *register_backend(const backend_t *abackend) {
+    status_t register_backend(const backend_t *abackend) {
         auto has_colliding_name = [&](const backend_t *backend) {
             return backend->get_name().compare(abackend->get_name()) == 0;
         };
+
         auto backend_already_registered = [&]() {
             return std::find_if(sorted_backends_.begin(),
                            sorted_backends_.end(), has_colliding_name)
@@ -145,10 +146,7 @@ public:
             return l->get_priority() > r->get_priority();
         };
 
-        if (backend_already_registered()) {
-            throw std::runtime_error(
-                    "backend name not unique: " + abackend->get_name());
-        }
+        if (backend_already_registered()) { return status::runtime_error; }
 
         std::lock_guard<std::mutex> lock(m_);
 
@@ -156,7 +154,7 @@ public:
         sorted_backends_.emplace_back(abackend);
         std::sort(sorted_backends_.begin(), sorted_backends_.end(),
                 compare_priority);
-        return const_cast<backend_t *>(abackend);
+        return status::success;
     }
 
     // This interface will firstly register all available backends and then
