@@ -31,6 +31,8 @@ struct cleanup_sentinel_t {
     cleanup_sentinel_t(bool *ptr) : ptr_(ptr) {}
     cleanup_sentinel_t(const cleanup_sentinel_t &) = delete;
     cleanup_sentinel_t(cleanup_sentinel_t &&other) = delete;
+    cleanup_sentinel_t &operator=(const cleanup_sentinel_t &) = delete;
+    cleanup_sentinel_t &operator=(cleanup_sentinel_t &&other) = delete;
     ~cleanup_sentinel_t() { *ptr_ = true; }
 
 private:
