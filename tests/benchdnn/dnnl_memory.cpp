@@ -268,6 +268,12 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
             ((dnnl::impl::nibble2_t *)data)[idx / 2] = dst_val;
             break;
         }
+        case dnnl_f4_e2m1: {
+            auto dst_val = ((dnnl::impl::nibble2_t *)data)[idx / 2];
+            dst_val.set(dnnl::impl::float4_e2m1_t(value).raw_bits_, idx % 2);
+            ((dnnl::impl::nibble2_t *)data)[idx / 2] = dst_val;
+            break;
+        }
         default: assert(!"bad data type");
     }
 }
@@ -951,6 +957,7 @@ int check_zero_padding(
             CASE(dnnl_u8, uint8_t);
             CASE(dnnl_s4, dnnl::impl::int4_t);
             CASE(dnnl_u4, dnnl::impl::uint4_t);
+            CASE(dnnl_f4_e2m1, dnnl::impl::float4_e2m1_t);
         default: assert(!"bad data_type");
     };
 #undef CASE
