@@ -68,6 +68,11 @@ ushort16 __builtin_IB_simd_block_read_16_global_h(const __global ushort *);
 
 void __builtin_IB_simd_block_write_8_global_l(__global ulong *, ulong8);
 void __builtin_IB_simd_block_write_16_global_h(__global ushort *, ushort16);
+float __attribute__((overloadable)) cvt_e8m0_to_f32(uchar f) {
+    if (f == (uchar)0xff) return as_float(0xffc00000);
+    uint bits = f << 23;
+    return as_float(bits);
+}
 
 #if MATH_UTILS_DECLARE_HF8
 // Emulation functions for f8_e4m3 <-> f16 conversion.
