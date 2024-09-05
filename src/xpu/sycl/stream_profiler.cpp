@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <unordered_map>
+#include <map>
 #include <unordered_set>
 
 #include "common/c_types_map.hpp"
@@ -41,7 +41,7 @@ status_t stream_profiler_t::get_info(profiling_data_kind_t data_kind,
         return status::success;
     }
 
-    std::unordered_map<uint64_t, stream_profiler_t::entry_t> stamp2entry;
+    std::map<uint64_t, stream_profiler_t::entry_t> stamp2entry;
     for (auto &ev : events_) {
         const xpu::sycl::event_t &sycl_event
                 = *utils::downcast<xpu::sycl::event_t *>(ev.event.get());

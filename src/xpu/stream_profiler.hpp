@@ -19,9 +19,9 @@
 
 #include <cassert>
 #include <limits>
+#include <map>
 #include <mutex>
 #include <vector>
-#include <unordered_map>
 
 #include "common/c_types_map.hpp"
 
@@ -91,8 +91,7 @@ struct stream_profiler_t {
     }
 
 protected:
-    status_t get_info_impl(
-            const std::unordered_map<uint64_t, entry_t> &stamp2entry,
+    status_t get_info_impl(const std::map<uint64_t, entry_t> &stamp2entry,
             profiling_data_kind_t data_kind, uint64_t *data) const {
         int idx = 0;
         for (auto &kv : stamp2entry) {
