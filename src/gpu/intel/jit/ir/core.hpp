@@ -1878,7 +1878,7 @@ public:
 
     stmt_t() = default;
     stmt_t(const object_t &obj) : object_t(obj) {}
-    stmt_t(object_t &&obj) : object_t(obj) {}
+    stmt_t(object_t &&obj) : object_t(std::move(obj)) {}
     stmt_t &operator=(const object_t &obj) {
         object_t::operator=(obj);
         return *this;

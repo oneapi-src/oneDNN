@@ -89,7 +89,7 @@ void slm_reduce_builder_t::build() {
             if (split_grid.dim(i) == full_grid.dim(i)) continue;
             auto cond = full_grid.idx(i) < split_grid.dim(i);
             if (reduce_cond_.is_empty())
-                reduce_cond_ = cond;
+                reduce_cond_ = std::move(cond);
             else
                 reduce_cond_ &= cond;
         }

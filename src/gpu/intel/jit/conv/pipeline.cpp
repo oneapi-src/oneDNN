@@ -1889,8 +1889,8 @@ private:
 
                 if (!seen_dst.insert(dst).second) continue;
 
-                auto new_call = func_call_t::make(
-                        call.func, {dst, src0, src1, src2}, call.attr);
+                auto new_call = func_call_t::make(call.func,
+                        {dst, std::move(src0), src1, src2}, call.attr);
                 ret = substitute(ret, s, new_call, 1);
             }
         }
