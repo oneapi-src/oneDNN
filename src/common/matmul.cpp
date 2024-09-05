@@ -216,11 +216,20 @@ status_t matmul_desc_init(matmul_desc_t *matmul_desc,
             ? utils::get_dims_mask(dst_desc->dims, op_d.bias_desc.dims, ndims)
             : 0;
 
-    // s4/u4 requires n to be multiple of 2
-    VCHECK_MATMUL(IMPLICATION(utils::one_of(weights_desc->data_type,
-                                      data_type::s4, data_type::u4),
-                          weights_desc->dims[n_idx] % 2 == 0),
+    // TODO: requirement is for innermost dim to be multiple of 2 for
+    // the memory to be byte aligned.
+
+    // s4/u4/f4 weights requires n to be multiple of 2 to be byte aligned
+    VCHECK_MATMUL(
+            IMPLICATION(utils::one_of(weights_desc->data_type, data_type::s4,
+                                data_type::u4, data_type::f4_e2m1),
+                    weights_desc->dims[n_idx] % 2 == 0),
             VERBOSE_BAD_DIM, "weights", n_idx);
+    // s4/u4/f4 src requires k to be multiple of 2 to be byte aligned
+    VCHECK_MATMUL(IMPLICATION(utils::one_of(src_desc->data_type, data_type::s4,
+                                      data_type::u4, data_type::f4_e2m1),
+                          src_desc->dims[k_idx_src] % 2 == 0),
+            VERBOSE_BAD_DIM, "src", n_idx);
 
     // check if other dims match.
     for (int d = 0; d < ndims - 2; ++d) {
