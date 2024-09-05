@@ -91,6 +91,12 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
     q_ = mm1->get_input_value(0);
     k_ = mm1->get_input_value(1);
     v_ = mm2->get_input_value(1);
+
+    auto k_follow = follow_back(k_);
+    for (auto &t : inputs)
+        if (k_follow->get_logical_tensor().id == t.id) {
+            kv_head_number_ = t.dims[1];
+        }
     dst_ = (final_op->get_kind() == op_kind::dnnl_transpose)
             ? final_op->get_input_value(0)
             : final_op->get_output_value(
@@ -213,7 +219,7 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
 
     CHECK(create_sdpa_pd(sdpa_pd_, p_engine.get(), md_q.get(), md_k.get(),
             md_v.get(), md_dst.get(), md_mask.get(), scale_dt, invert_scale_,
-            attr.get()));
+            attr.get(), kv_head_number_));
 
     auto status = sdpa_pd_->create_primitive(sdpa_prim_, p_engine.get());
 

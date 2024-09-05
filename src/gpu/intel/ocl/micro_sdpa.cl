@@ -198,9 +198,9 @@ micro_sdpa(const global half *K, const global half *Q, const global half *V,
     const bool need_sum_barrier = (ugemm_vs_barrier_count == 0);
 
     /* Locate K/Q/V/A matrices within batch */
-    K += KEY_OFF(b1, b0 % KEY_D1, 0, 0);
+    K += KEY_OFF(b1, b0 / KV_GROUP_SIZE, 0, 0);
     Q += QRY_OFF(b1, b0, 0, 0);
-    V += VAL_OFF(b1, b0 % VAL_D1, 0, 0);
+    V += VAL_OFF(b1, b0 / KV_GROUP_SIZE, 0, 0);
     A += DST_OFF(b1, b0, 0, 0, 0);
     msk += MSK_OFF(b1 % MSK_D0, b0 % MSK_D1, 0, 0);
 

@@ -300,6 +300,9 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     def_offsets(msk_off, kernel_ctx, "MSK", ndims);
     kernel_ctx.define_int("NDIMS", ndims);
 
+    auto Q_num_heads_dim = qry_mdw.dims()[1];
+    kernel_ctx.define_int("KV_GROUP_SIZE", Q_num_heads_dim / d->kv_head_number);
+
     auto ldq = gemm_desc_t::get_ld(*pd()->qry_md()) * qry_mdw.data_type_size();
     auto ldk = gemm_desc_t::get_ld(*pd()->key_md()) * key_mdw.data_type_size();
     auto ldv = gemm_desc_t::get_ld(*pd()->val_md()) * val_mdw.data_type_size();

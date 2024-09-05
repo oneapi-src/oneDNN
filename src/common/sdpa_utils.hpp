@@ -31,7 +31,7 @@ namespace impl {
 static inline sdpa_desc_t create_sdpa_desc(const memory_desc_t *q_md,
         const memory_desc_t *k_md, const memory_desc_t *v_md,
         const memory_desc_t *dst_md, const memory_desc_t *attn_mask_md,
-        data_type_t scale_dt, bool invert_scale = false) {
+        data_type_t scale_dt, dim_t kv_head_number, bool invert_scale = false) {
     auto sdpa_desc = sdpa_desc_t();
     sdpa_desc.primitive_kind = primitive_kind::sdpa;
     sdpa_desc.q_desc = *q_md;
@@ -41,6 +41,7 @@ static inline sdpa_desc_t create_sdpa_desc(const memory_desc_t *q_md,
     if (attn_mask_md) sdpa_desc.attn_mask_desc = *attn_mask_md;
     sdpa_desc.scale_dt = scale_dt;
     sdpa_desc.invert_scale = invert_scale;
+    sdpa_desc.kv_head_number = kv_head_number;
     return sdpa_desc;
 }
 
@@ -49,9 +50,9 @@ static inline status_t create_sdpa_pd(
         const memory_desc_t *q_md, const memory_desc_t *k_md,
         const memory_desc_t *v_md, const memory_desc_t *dst_md,
         const memory_desc_t *attn_mask_md, data_type_t scale_dt,
-        bool invert_scale, const primitive_attr_t *attr) {
-    auto sdpa_desc = create_sdpa_desc(
-            q_md, k_md, v_md, dst_md, attn_mask_md, scale_dt, invert_scale);
+        bool invert_scale, const primitive_attr_t *attr, dim_t kv_head_number) {
+    auto sdpa_desc = create_sdpa_desc(q_md, k_md, v_md, dst_md, attn_mask_md,
+            scale_dt, kv_head_number, invert_scale);
 
     int ndims = dst_md->ndims;
     int r = ndims - 2, c = ndims - 1;

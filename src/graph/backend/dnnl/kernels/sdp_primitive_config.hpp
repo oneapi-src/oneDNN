@@ -50,6 +50,7 @@ public:
     std::shared_ptr<value_t> scale_ = nullptr;
     std::shared_ptr<value_t> attn_mask_ = nullptr;
     bool invert_scale_ = false;
+    dim_t kv_head_number_;
 
     // SDP pd and primitive.
     std::shared_ptr<primitive_desc_t> sdpa_pd_;

@@ -61,6 +61,7 @@ status_t sdp_primitive_kernel_t::compile_impl(const dnnl_partition_impl_t *part,
     pass_pipeline_t pipeline = pass_pipeline_t(vis);
 
     BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+    BACKEND_DNNL_ADD_PASS(pipeline, fuse_reshape_for_gqa);
     BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
     BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_matmul);
 
