@@ -216,17 +216,15 @@ float dnn_mem_t::get_elem(int64_t idx, int buffer_index) const {
             elem = static_cast<dnnl::impl::float8_e4m3_t *>(data)[idx];
             break;
         case dnnl_s4: {
-            auto half = idx % 2 ? dnnl::impl::int4_extract_t::high_half
-                                : dnnl::impl::int4_extract_t::low_half;
-            elem = static_cast<float>(dnnl::impl::int4_t::extract(
-                    static_cast<uint8_t *>(data)[idx / 2], half));
+            dnnl::impl::nibble2_t nibble_pair(
+                    reinterpret_cast<uint8_t *>(data)[idx / 2]);
+            elem = dnnl::impl::int4_t(nibble_pair.get(idx));
             break;
         }
         case dnnl_u4: {
-            auto half = idx % 2 ? dnnl::impl::int4_extract_t::high_half
-                                : dnnl::impl::int4_extract_t::low_half;
-            elem = static_cast<float>(dnnl::impl::uint4_t::extract(
-                    static_cast<uint8_t *>(data)[idx / 2], half));
+            dnnl::impl::nibble2_t nibble_pair(
+                    reinterpret_cast<uint8_t *>(data)[idx / 2]);
+            elem = dnnl::impl::uint4_t(nibble_pair.get(idx));
             break;
         }
         default: assert(!"bad data type");
@@ -253,19 +251,15 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
             ((dnnl::impl::float8_e4m3_t *)data)[idx] = value;
             break;
         case dnnl_s4: {
-            using type = dnnl::impl::int4_t;
-            auto half = idx % 2 ? dnnl::impl::int4_extract_t::high_half
-                                : dnnl::impl::int4_extract_t::low_half;
-            uint8_t dst_val = ((uint8_t *)data)[idx / 2];
-            ((type *)data)[idx / 2] = type(value).insert(dst_val, half);
+            auto dst_val = ((dnnl::impl::nibble2_t *)data)[idx / 2];
+            dst_val.set(dnnl::impl::int4_t(value).raw_bits_, idx % 2);
+            ((dnnl::impl::nibble2_t *)data)[idx / 2] = dst_val;
             break;
         }
         case dnnl_u4: {
-            using type = dnnl::impl::uint4_t;
-            auto half = idx % 2 ? dnnl::impl::int4_extract_t::high_half
-                                : dnnl::impl::int4_extract_t::low_half;
-            uint8_t dst_val = ((uint8_t *)data)[idx / 2];
-            ((type *)data)[idx / 2] = type(value).insert(dst_val, half);
+            auto dst_val = ((dnnl::impl::nibble2_t *)data)[idx / 2];
+            dst_val.set(dnnl::impl::uint4_t(value).raw_bits_, idx % 2);
+            ((dnnl::impl::nibble2_t *)data)[idx / 2] = dst_val;
             break;
         }
         default: assert(!"bad data type");
