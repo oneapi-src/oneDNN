@@ -630,11 +630,7 @@ grid_t create_thread_group_grid(const kernel_desc_t &desc) {
             grid.add_mapping(prb_dims::kd, 1);
             grid.add_mapping(prb_dims::kh, 1);
             grid.add_mapping(prb_dims::kw, 1);
-            grid.add_mapping(prb_dims::od, 1);
-            grid.add_mapping(prb_dims::oh, 1);
-            grid.add_mapping(prb_dims::ow, 1);
             grid.add_mapping(prb_dims::g, 2);
-            grid.add_mapping(prb_dims::mb, 2);
             break;
         default: ir_error_not_expected();
     }
