@@ -4106,7 +4106,7 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::compute_full_spat_loop(
         assert(full_spat_opt_working_set_size < full_spat_max_working_set_size);
 
         while (working_set_size > full_spat_opt_working_set_size
-                && h_block_size >= min_h_block_size) {
+                && h_block_size >= min_h_block_size && h_block_size >= 2) {
             for (int i = 2; i <= h_block_size; i++)
                 if (i == h_block_size)
                     h_block_size = h_block_size / 2;
@@ -4253,7 +4253,6 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::compute_full_spat_loop(
             // restore the zeroing flag (it will be cleared after the end of
             // emit_kh_kw_loop, but we may need it until then)
             or_(reg_ker, 1);
-            jmp(kh_loop_end, T_NEAR);
 
             L(skip_ker_zeroing);
             add(reg_ker, get_kernel_offset(0, jcp.kw));
