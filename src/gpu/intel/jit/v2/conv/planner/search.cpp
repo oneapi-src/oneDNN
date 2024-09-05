@@ -386,7 +386,9 @@ private:
                 continue;
             for (int outer : {2, 4}) {
                 if (desc.iter_tile.at(d) % outer != 0) continue;
-                tiles.push_back(outer);
+                prb_tile_t tile_outer;
+                tile_outer[d] = outer;
+                tiles.push_back(tile_outer);
             }
         }
         return tiles;

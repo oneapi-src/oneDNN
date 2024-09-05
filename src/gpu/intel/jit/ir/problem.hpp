@@ -211,19 +211,19 @@ public:
         values_.fill(ValueT());
     }
 
-    dim_map_t(const ValueT &value) {
+    explicit dim_map_t(const ValueT &value) {
         is_set_.fill(true);
         values_.fill(value);
     }
 
-    dim_map_t(const std::initializer_list<KeyT> &keys) {
+    explicit dim_map_t(const std::initializer_list<KeyT> &keys) {
         is_set_.fill(false);
         values_.fill(ValueT());
         for (auto &k : keys)
             operator[](k) = 1;
     }
 
-    dim_map_t(const std::string &s) {
+    explicit dim_map_t(const std::string &s) {
         is_set_.fill(false);
         values_.fill(ValueT());
         for (auto &kv : ir_utils::to_string_int_pairs(s)) {
