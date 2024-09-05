@@ -242,6 +242,12 @@ struct send_2d_hint_t {
             w_blk = is_w_reduce ? k_blk : mn_blk;
             h_blk = !is_w_reduce ? k_blk : mn_blk;
             if (vnni && transpose) return;
+            if (transpose && plane.type.size() != 4) {
+                // Transpose is not supported for sub-dword types, load VNNI
+                // transformed data followed by GRF reorder.
+                vnni = true;
+                transpose = false;
+            }
         }
         if (!init(send_op, plane.type, vnni, transpose, plane.w, plane.h, w_blk,
                     h_blk))
