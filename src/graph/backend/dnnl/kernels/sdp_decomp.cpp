@@ -46,8 +46,8 @@ status_t sdp_decomp_kernel_t<quantized, dt>::compile_impl(
             = reinterpret_cast<graph::allocator_t *>(g_engine->get_allocator());
 
     // get subgraph from the deep copied partition
-    subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_,
-            part->get_fpmath_mode(), part->get_use_blocked_layout(), true);
+    subgraph_ = std::make_shared<subgraph_t>(
+            part->get_ops(), p_engine_, part->get_fpmath_mode(), false, true);
     BACKEND_DNNL_CHECK(set_given_inputs_outputs(subgraph_, inputs, outputs));
 
     // Check if it's supported by decomposition kernel
@@ -60,6 +60,7 @@ status_t sdp_decomp_kernel_t<quantized, dt>::compile_impl(
     pass_pipeline_t pipeline = pass_pipeline_t(vis);
     pass_pipeline_t select_pipeline = pass_pipeline_t(vis);
     BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+    BACKEND_DNNL_ADD_PASS(pipeline, fuse_reshape_for_gqa);
     // Fusion and canonicalization passes begin
     if (quantized) {
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
@@ -291,7 +292,7 @@ status_t sdp_decomp_kernel_t<quantized, dt>::execute_impl(
             auto mask_strides = ltw(mask_input.get_logical_tensor()).vstrides();
             sub_mm1_post_add_tid.set_data_handle(
                     static_cast<char *>(mask_input.get_data_handle())
-                    + bo * mask_strides[1]
+                    + bo * mask_strides[0]
                             * get_mem_dt_size(sub_mm1_post_add_tid));
         }
         if (sdp_cfg_.has_select) {

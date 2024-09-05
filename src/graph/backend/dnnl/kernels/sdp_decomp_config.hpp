@@ -74,10 +74,11 @@ public:
     sdp_decomp_config_t() = default;
 
     // SDP input dimension
-    memory::dim batch_size, num_head_q, num_head_kv, seq_len_q, size_per_head;
+    dim_t batch_size, num_head_q, num_head_kv, seq_len_q, seq_len_kv,
+            size_per_head;
 
     // SDP input and output strides
-    memory::dims src1_strides, wei1_strides, wei2_strides, dst_strides,
+    dims src1_strides, wei1_strides, wei2_strides, dst_strides,
             post_add_strides;
 
     // Thread nums during the workflow

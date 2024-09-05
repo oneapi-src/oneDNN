@@ -27,7 +27,7 @@ bool sdp_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
     // to record the input offset in a certain order of ops.
     auto op_status = record_input_offset(sg, inputs);
     if (op_status != status::success) return false;
-    memory::dims src1_user_dims = ltw(inputs[graph_inport[0]]).vdims();
+    dims src1_user_dims = ltw(inputs[graph_inport[0]]).vdims();
     if (src1_user_dims.size() != 4) return false;
 
     // Initialize SDP input dimension according to the src of mm1
@@ -35,6 +35,9 @@ bool sdp_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
     num_head_q = src1_user_dims[1];
     seq_len_q = src1_user_dims[2];
     size_per_head = src1_user_dims[3];
+
+    dims wei1_user_dims = ltw(inputs[graph_inport[1]]).vdims();
+    num_head_kv = wei1_user_dims[1];
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
 // RATIO is an empirical value used to determine the numerical relationship
@@ -67,10 +70,8 @@ impl::status_t sdp_decomp_config_t::construct_params(
 
     // Update SDPA input params. Sequence length for query and key/value are
     // NOT always same.
-    memory::dim seq_len_kv;
     const auto &lt_wei = sdp_op[1]->get_input_value(1)->get_logical_tensor();
     const ltw ltw_wei(lt_wei);
-    num_head_kv = ltw_wei.vdims()[1];
     seq_len_kv = ltw_wei.vdims()[3];
 
     // Acquire the data type from input param for later primitive creation.
@@ -102,7 +103,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     sub_reorder0_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
     // per-head: reorder src1 to dense, for first matmul
-    memory::dims sub_src1_dims = {1, 1, seq_len_q, size_per_head};
+    dims sub_src1_dims = {1, 1, seq_len_q, size_per_head};
     src1_strides = ltw(inputs[graph_inport[0]]).vstrides();
     sub_src1_md = memory::desc(sub_src1_dims, dt_src_user,
             {1, 1, src1_strides[2], src1_strides[3]});
@@ -117,7 +118,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // create reorder1 primitive attr
     dnnl::primitive_attr sub_reorder1_attr
             = make_primitive_attr(sdp_op[0], mgr);
-    memory::dims sub_wei1_dims = {1, 1, size_per_head, seq_len_kv};
+    dims sub_wei1_dims = {1, 1, size_per_head, seq_len_kv};
     auto wei_md = make_dnnl_memory_desc(
             sdp_op[1]->get_input_value(1)->get_logical_tensor());
     wei1_strides = wei_md.get_strides();
@@ -132,9 +133,9 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // first matmul
     // create first matmul primitive attr
     dnnl::primitive_attr sub_matmul1_attr = make_primitive_attr(sdp_op[1], mgr);
-    memory::dims sub_mm1_src_dims = {1, 1, seq_len_q, size_per_head};
-    memory::dims sub_mm1_wei_dims = {1, 1, size_per_head, seq_len_kv};
-    memory::dims sub_mm1_dst_dims = {1, 1, seq_len_q, seq_len_kv};
+    dims sub_mm1_src_dims = {1, 1, seq_len_q, size_per_head};
+    dims sub_mm1_wei_dims = {1, 1, size_per_head, seq_len_kv};
+    dims sub_mm1_dst_dims = {1, 1, seq_len_q, seq_len_kv};
 
     sub_mm1_src_md = memory::desc(sub_mm1_src_dims, dt_src_user, tag::abcd);
     sub_mm1_wei_md = memory::desc(sub_mm1_wei_dims, dt_wei, tag::abdc);
@@ -149,8 +150,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
         auto post_shape = ori_desc.dims;
         auto post_stride = ori_desc.format_desc.blocking.strides;
         auto post_dt = static_cast<memory::data_type>(ori_desc.data_type);
-        memory::dims post_stride_dims
-                = memory::dims(post_stride, post_stride + ori_desc.ndims);
+        dims post_stride_dims = dims(post_stride, post_stride + ori_desc.ndims);
         auto new_sub_md = memory::desc({1, 1, post_shape[2], post_shape[3]},
                 post_dt, post_stride_dims);
         sub_mm1_post_md.emplace_back(new_sub_md);
@@ -175,7 +175,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // create reorder2 primitive attr
     dnnl::primitive_attr sub_reorder2_attr
             = make_primitive_attr(sdp_op[3], mgr);
-    memory::dims sub_wei2_dims = {1, 1, seq_len_kv, size_per_head};
+    dims sub_wei2_dims = {1, 1, seq_len_kv, size_per_head};
     wei2_strides = ltw(inputs[graph_inport[4]]).vstrides();
     sub_wei2_user_md = memory::desc(sub_wei2_dims, dt_wei_user,
             {1, 1, wei2_strides[2], wei2_strides[3]});
@@ -188,9 +188,9 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // second matmul
     // create second matmul primitive attr
     dnnl::primitive_attr sub_matmul2_attr = make_primitive_attr(sdp_op[4], mgr);
-    memory::dims sub_mm2_src_dims = {1, 1, seq_len_q, seq_len_kv};
-    memory::dims sub_mm2_wei_dims = {1, 1, seq_len_kv, size_per_head};
-    memory::dims sub_mm2_dst_dims = {1, 1, seq_len_q, size_per_head};
+    dims sub_mm2_src_dims = {1, 1, seq_len_q, seq_len_kv};
+    dims sub_mm2_wei_dims = {1, 1, seq_len_kv, size_per_head};
+    dims sub_mm2_dst_dims = {1, 1, seq_len_q, size_per_head};
     auto sub_mm2_src_md
             = memory::desc(sub_mm2_src_dims, dt_src_user, tag::abcd);
     sub_mm2_wei_md = memory::desc(sub_mm2_wei_dims, dt_wei, tag::abcd);
@@ -202,7 +202,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // per-head: reorder dst2 from dense to strided
     primitive_attr sub_reorder3_attr;
     sub_reorder3_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
-    memory::dims sub_dst_dims = {1, 1, seq_len_q, size_per_head};
+    dims sub_dst_dims = {1, 1, seq_len_q, size_per_head};
     auto out_lt = sdp_op[4]->get_output_value(0)->get_logical_tensor();
     dst_strides = ltw(out_lt).vstrides();
     sub_dst_md = memory::desc(sub_dst_dims, dt_src_user, tag::abcd);
@@ -401,7 +401,10 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
     auto find_graph_inport = [&](std::shared_ptr<value_t> val) {
         // for quantized matmul, it has producer such as add_zp,sub_zp,mul_scale.
         if (val->get_consumers()[0].get_op().get_kind()
-                == graph::op_kind::MatMul) {
+                        == graph::op_kind::MatMul
+                || (val->has_producer()
+                        && val->get_producer().get_kind()
+                                == graph::op_kind::StaticReshape)) {
             while (val->has_producer()) {
                 val = val->get_producer().get_input_value(0);
             }

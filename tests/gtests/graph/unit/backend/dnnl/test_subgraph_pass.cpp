@@ -870,7 +870,7 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
 
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
             agraph.get_partitions()[0]->get_ops(), p_eng, fpmath_mode::strict,
-            false, true);
+            true, true);
     ASSERT_EQ(subgraph->get_ops().size(), 5U);
 
     dnnl_impl::check_with_bias(subgraph);
@@ -992,7 +992,7 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
 
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
             agraph.get_partitions()[0]->get_ops(), p_eng, fpmath_mode::strict,
-            false, true);
+            true, true);
     ASSERT_EQ(subgraph->get_ops().size(), 2U);
 
     dnnl_impl::check_with_bias(subgraph);
