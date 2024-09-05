@@ -89,6 +89,7 @@ if(NOT ONEDNN_BUILD_GRAPH)
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/sdpa.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/mqa.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/sdpa_stacked_qkv.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/gqa.cpp
         )
 endif()
 
