@@ -280,7 +280,7 @@ public:
         ir_assert(block_idx >= 0 && block_idx < int(block_offs_.size()));
         base = block_offs_[block_idx];
         auto prev_base = block_offs_[block_idx == 0 ? 0 : block_idx - 1];
-        auto get_const_summand = [&](expr_t expr) -> int64_t {
+        auto get_const_summand = [&](const expr_t &expr) -> int64_t {
             if (!expr.type().is_int()) return 0;
             auto binary_op = expr.as_ptr<binary_op_t>();
             if (binary_op && binary_op->op_kind == op_kind_t::_add

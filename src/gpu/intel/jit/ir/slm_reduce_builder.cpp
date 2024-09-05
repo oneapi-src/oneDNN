@@ -120,7 +120,7 @@ void slm_reduce_builder_t::build() {
 
     tmp_reg_buf_size_ = std::max(tmp_reg_buf_size_, read.reg_buf_size());
 
-    auto read_layout = read.reg_layout();
+    auto &read_layout = read.reg_layout();
     load_stmt_ = load_stmt_.append(create_reduce_stmt(read_layout, reg_layout_,
             tmp_reg_buf_, reg_buf_, tensor_t(), reduction_mask()));
 
