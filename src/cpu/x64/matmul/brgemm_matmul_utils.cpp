@@ -1395,10 +1395,14 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             && bgmmc.is_oscale_per_k && bgmmc.is_oscale_per_n
             && bgmmc.transposed_B;
 
-    // int4 weights decompression only supports plain layout for now
-    // TODO: enable int4 reorder and extend support to other weight layouts
+    // int4 weights decompression only supports plain layout
+    // and transpose layouts when K % 2 == 0
+    // TODO: enable int4 reorder and extend support to blocked weights
+    // layout when needed
     if (bgmmc.with_wei_decompression && bgmmc.is_int4_weights)
-        VCONDCHECK_BG(bm_conf_utils.check_is_plain(bgmmc.wei_tag),
+        VCONDCHECK_BG(bm_conf_utils.check_is_plain(bgmmc.wei_tag)
+                        || (bm_conf_utils.check_is_transposed(bgmmc.wei_tag)
+                                && bgmmc.K % 2 == 0),
                 VERBOSE_UNSUPPORTED_TAG);
 
     const bool transposed_A = bm_conf_utils.check_is_transposed(bgmmc.src_tag);
@@ -1763,7 +1767,7 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
                 * factor;
     } else if (bgmmc.transposed_B) {
         bgmmc.copy_B_wei_stride
-                = wei_d.strides()[bgmmc.ndims - 1] * bgmmc.b_dt_sz;
+                = (wei_d.strides()[bgmmc.ndims - 1] * bgmmc.b_dt_sz) / int4_fac;
     } else if (bgmmc.is_runtime_N) {
         bgmmc.copy_B_wei_stride = bgmmc.N;
     } else if (bgmmc.blocked_B) {
