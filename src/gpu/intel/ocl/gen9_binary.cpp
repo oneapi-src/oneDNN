@@ -236,7 +236,8 @@ status_t gen9_binary_t::pd_t::init_conf(impl::engine_t *engine) {
         }
 
         const int subgroup_size = 16;
-        int rem = (dst_d.dims()[ndims - 1]) % subgroup_size;
+        const dim_t last_dim = dst_d.dims()[ndims - 1];
+        int rem = last_dim % subgroup_size;
         if (rem) { conf.has_tail = 1; }
         conf.nvect = subgroup_size;
         bool all_dims_broadcast = true;
@@ -247,21 +248,23 @@ status_t gen9_binary_t::pd_t::init_conf(impl::engine_t *engine) {
 
         if (rem && !all_dims_broadcast) { return status::unimplemented; }
 
-        int rounded_last_dim = rem
-                ? utils::rnd_up(dst_d.dims()[ndims - 1], subgroup_size)
-                : dst_d.dims()[ndims - 1];
+        int rounded_last_dim = utils::rnd_up(last_dim, subgroup_size);
 
-        while ((rounded_last_dim / 16) % conf.nvect != 0) {
-            --conf.nvect;
-        }
-
-        dim_t mixed_dim = rounded_last_dim;
+        dim_t mixed_dim = 1;
         for (int i = 0; i < (ndims - 1); ++i) {
             mixed_dim *= dst_d.dims()[i];
         }
 
+        if (rem && (mixed_dim * last_dim) % subgroup_size == 0)
+            return status::unimplemented;
+        mixed_dim *= rounded_last_dim;
+
+        while ((rounded_last_dim / subgroup_size) % conf.nvect != 0) {
+            --conf.nvect;
+        }
+
         conf.dispatch.define_dim("MIXED_DIM", 0, mixed_dim, conf.nvect);
-        CHECK(conf.dispatch.vectorize_dim("MIXED_DIM", 16));
+        CHECK(conf.dispatch.vectorize_dim("MIXED_DIM", subgroup_size));
     } else {
         return status::unimplemented;
     }
