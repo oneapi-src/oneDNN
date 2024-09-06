@@ -17,6 +17,7 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
+#include "src/common/float4.hpp"
 #include "src/common/int4.hpp"
 #include "src/common/nstl.hpp"
 #include "src/common/type_helpers.hpp"
@@ -40,6 +41,10 @@ TEST(test_limits, uint4) {
     test_limits<impl::uint4_t>(15.f, 0.f, 0.f);
 }
 
+TEST(test_limits, f4_e2m1) {
+    test_limits<impl::float4_e2m1_t>(6.0f, -6.0f, 1.0f);
+}
+
 template <typename T>
 void test_conversions() {
     impl::parallel_nd(0xff, [&](uint8_t u8) {
@@ -60,7 +65,8 @@ void test_conversions() {
         if (u8 <= 0xf)
             ASSERT_TRUE(num2 == 0);
         else
-            ASSERT_TRUE(num2 != 0);
+            // only case for num2 == -num2 is with fp types and signed 0.
+            ASSERT_TRUE(num2 != 0 || num2 == -num2);
 
         // The target value must be initialized
         impl::nibble2_t new_T_pair(static_cast<T>(T_pair.get(0)).raw_bits_,
@@ -75,6 +81,10 @@ TEST(test_int4_conversion, int4) {
 
 TEST(test_int4_conversion, uint4) {
     test_conversions<impl::uint4_t>();
+}
+
+TEST(test_e2m1_conversion, f4_e2m1) {
+    test_conversions<impl::float4_e2m1_t>();
 }
 
 } // namespace dnnl
