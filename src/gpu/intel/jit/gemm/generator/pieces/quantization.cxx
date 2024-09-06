@@ -169,7 +169,7 @@ void BLASKernelGenerator<hw>::gemmRepack2DQuantizationData(Type Ts, Type Td, con
 
     int ms, ns, md, nd;
     getLayoutDims(layoutSrc, ms, ns);
-    getLayoutDims(layoutSrc, md, nd);
+    getLayoutDims(layoutDst, md, nd);
 
     // Copy, broadcasting 1D to 2D data as needed.
     for (int doffR = 0; doffR < md; doffR += ms)
