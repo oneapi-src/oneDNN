@@ -2726,9 +2726,10 @@ static void prb_thread_kernel_balance(
 
     if (want_borrow_ker_from_drv || want_borrow_drv_from_ker) {
         DEBUG({
-            printf("split: ");
-            prb_dump(prb);
-            printf("ndims_ker_max = %d\n", ndims_ker_max);
+            verbose_printf(
+                    verbose_t::debuginfo, "split: %s\n", prb_dump(prb).c_str());
+            verbose_printf(verbose_t::debuginfo, "ndims_ker_max = %d\n",
+                    ndims_ker_max);
         });
     }
 }
@@ -2793,8 +2794,8 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
 
     prb_block_for_cache(prb);
     DEBUG({
-        printf("cache: ");
-        prb_dump(prb);
+        verbose_printf(
+                verbose_t::debuginfo, "cache: %s\n", prb_dump(prb).c_str());
     });
 
     int ndims_ker_max {};
@@ -2813,8 +2814,8 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
         return status::unimplemented;
 
     DEBUG({
-        printf("ker  : ");
-        prb_dump(ker_desc.prb);
+        verbose_printf(verbose_t::debuginfo, "ker  : %s\n",
+                prb_dump(ker_desc.prb).c_str());
     });
 
     auto _pd = make_unique_pd<pd_t>(
@@ -3023,12 +3024,12 @@ void jit_uni_reorder_t::omp_driver(const char *in, char *out,
     out += pd()->prb_.ooff * data_type_size(pd()->prb_.otype);
 
     DEBUG({
-        printf("prb : ");
-        tr::prb_dump(pd()->prb_);
+        verbose_printf(verbose_t::debuginfo, "prb : %s\n",
+                tr::prb_dump(pd()->prb_).c_str());
     });
     DEBUG({
-        printf("ker : ");
-        tr::prb_dump(pd()->ker_desc_.prb);
+        verbose_printf(verbose_t::debuginfo, "ker : %s\n",
+                tr::prb_dump(pd()->ker_desc_.prb).c_str());
     });
 
     int ndims = pd()->prb_.ndims;
@@ -3232,8 +3233,8 @@ status_t jit_blk_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
 
     prb_tile_normalize(prb);
     DEBUG({
-        printf("tile : ");
-        prb_dump(prb);
+        verbose_printf(
+                verbose_t::debuginfo, "tile : %s\n", prb_dump(prb).c_str());
     });
 
     if (!tr::jit_single_blk_kernel_t::applicable(prb)) {
