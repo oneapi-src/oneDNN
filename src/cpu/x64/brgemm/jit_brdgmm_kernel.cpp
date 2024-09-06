@@ -1007,8 +1007,8 @@ void jit_brdgmm_kernel_base_t<Wmm>::brdgmm_microkernel(int m_blocks,
 
             align(64);
             L(jmp_table_base);
-            for (int m_i = 0; m_i < m_blocks; ++m_i) {
-                putL(jmp_table_labels[m_i]);
+            for (const auto &label : jmp_table_labels) {
+                putL(label);
             }
         }
 
