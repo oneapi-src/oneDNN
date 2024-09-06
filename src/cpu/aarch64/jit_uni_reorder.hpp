@@ -149,8 +149,8 @@ void prb_node_swap(prb_t &p, int d0, int d1);
  * to the right if d0 > d1 */
 void prb_node_move(prb_t &p, int d0, int d1);
 
-/** dumps the problem to stdout */
-void prb_dump(const prb_t &p);
+/** dumps the problem to a string */
+std::string prb_dump(const prb_t &p);
 
 struct call_param_t {
     const void *in = nullptr;
