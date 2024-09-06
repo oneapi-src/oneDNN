@@ -14,7 +14,7 @@
  * generated code that can be used by performance tools. The user inserts
  * calls in the code generator to report information before JIT-compiled
  * code goes to execution. This information is collected at runtime and used
- * by tools like Intel(R) VTune(TM) Amplifier to display performance metrics
+ * by tools like Intel(R) VTune(TM) Profiler to display performance metrics
  * associated with JIT-compiled code.
  *
  * These APIs can be used to\n
@@ -45,16 +45,16 @@
  *  * Expected behavior:
  *    * If any iJVM_EVENT_TYPE_METHOD_LOAD_FINISHED event overwrites an
  *      already reported method, then such a method becomes invalid and its
- *      memory region is treated as unloaded. VTune Amplifier displays the metrics
+ *      memory region is treated as unloaded. VTune Profiler displays the metrics
  *      collected by the method until it is overwritten.
  *    * If supplied line number information contains multiple source lines for
- *      the same assembly instruction (code location), then VTune Amplifier picks up
+ *      the same assembly instruction (code location), then VTune Profiler picks up
  *      the first line number.
  *    * Dynamically generated code can be associated with a module name.
  *      Use the iJIT_Method_Load_V2 structure.\n
  *      Clarification of some cases:
  *        * If you register a function with the same method ID multiple times,
- *          specifying different module names, then the VTune Amplifier picks up
+ *          specifying different module names, then the VTune Profiler picks up
  *          the module name registered first. If you want to distinguish the same
  *          function between different JIT engines, supply different method IDs for
  *          each function. Other symbolic information (for example, source file)
@@ -91,18 +91,18 @@
  *        belonging to the same method. Symbolic information (method name,
  *        source file name) will be taken from the first notification, and all
  *        subsequent notifications with the same method ID will be processed
- *        only for line number table information. So, the VTune Amplifier will map
+ *        only for line number table information. So, the VTune Profiler will map
  *        samples to a source line using the line number table from the current
  *        notification while taking the source file name from the very first one.\n
  *        Clarification of some cases:\n
  *          * If you register a second code region with a different source file
  *          name and the same method ID, then this information will be saved and
  *          will not be considered as an extension of the first code region, but
- *          VTune Amplifier will use the source file of the first code region and map
+ *          VTune Profiler will use the source file of the first code region and map
  *          performance metrics incorrectly.
  *          * If you register a second code region with the same source file as
  *          for the first region and the same method ID, then the source file will be
- *          discarded but VTune Amplifier will map metrics to the source file correctly.
+ *          discarded but VTune Profiler will map metrics to the source file correctly.
  *          * If you register a second code region with a null source file and
  *          the same method ID, then provided line number info will be associated
  *          with the source file of the first code region.
@@ -241,7 +241,7 @@ typedef enum _iJIT_IsProfilingActiveFlags
  * @brief Description of a single entry in the line number information of a code region.
  * @details A table of line number entries gives information about how the reported code region
  * is mapped to source file.
- * Intel(R) VTune(TM) Amplifier uses line number information to attribute
+ * Intel(R) VTune(TM) Profiler uses line number information to attribute
  * the samples (virtual address) to a line number. \n
  * It is acceptable to report different code addresses for the same source line:
  * @code
@@ -252,7 +252,7 @@ typedef enum _iJIT_IsProfilingActiveFlags
  *      18      1
  *      21      30
  *
- *  VTune Amplifier constructs the following table using the client data
+ *  VTune Profiler constructs the following table using the client data
  *
  *   Code subrange  Line number
  *      0-1             2
@@ -376,7 +376,7 @@ typedef struct _iJIT_Method_Load_V2
 
     char* module_name; /**<\brief Module name. Can be NULL.
                            The module name can be useful for distinguishing among
-                           different JIT engines. VTune Amplifier will display
+                           different JIT engines. VTune Profiler will display
                            reported methods grouped by specific module. */
 
 } *piJIT_Method_Load_V2, iJIT_Method_Load_V2;
@@ -428,7 +428,7 @@ typedef struct _iJIT_Method_Load_V3
 
     char* module_name; /**<\brief Module name. Can be NULL.
                         *  The module name can be useful for distinguishing among
-                        *  different JIT engines. VTune Amplifier will display
+                        *  different JIT engines. VTune Profiler will display
                         *  reported methods grouped by specific module. */
 
     iJIT_CodeArchitecture module_arch; /**<\brief Architecture of the method's code region.
@@ -438,9 +438,9 @@ typedef struct _iJIT_Method_Load_V3
                                         *  engine generates 64-bit code.
                                         *
                                         *  If JIT engine reports both 32-bit and 64-bit types
-                                        *  of methods then VTune Amplifier splits the methods
+                                        *  of methods then VTune Profiler splits the methods
                                         *  with the same module name but with different
-                                        *  architectures in two different modules. VTune Amplifier
+                                        *  architectures in two different modules. VTune Profiler
                                         *  modifies the original name provided with a 64-bit method
                                         *  version by ending it with '(64)' */
 
@@ -509,9 +509,9 @@ typedef enum _iJIT_SegmentType
     iJIT_CT_CODE,           /**<\brief Executable code. */
 
     iJIT_CT_DATA,           /**<\brief Data (not executable code).
-                             * VTune Amplifier uses the format string
+                             * VTune Profiler uses the format string
                              * (see iJIT_Method_Update) to represent
-                             * this data in the VTune Amplifier GUI */
+                             * this data in the VTune Profiler GUI */
 
     iJIT_CT_KEEP,           /**<\brief Use the previous markup for the trace.
                              * Can be used for the following
@@ -528,11 +528,11 @@ typedef enum _iJIT_SegmentType
  * structure to describe the update of the content within a JIT-compiled method,
  * use iJVM_EVENT_TYPE_METHOD_UPDATE_V2 as an event type to report it.
  *
- * On the first Update event, VTune Amplifier copies the original code range reported by
+ * On the first Update event, VTune Profiler copies the original code range reported by
  * the iJVM_EVENT_TYPE_METHOD_LOAD event, then modifies it with the supplied bytes and
- * adds the modified range to the original method. For next update events, VTune Amplifier
+ * adds the modified range to the original method. For next update events, VTune Profiler
  * does the same but it uses the latest modified version of a code region for update.
- * Eventually, VTune Amplifier GUI displays multiple code ranges for the method reported by
+ * Eventually, VTune Profiler GUI displays multiple code ranges for the method reported by
  * the iJVM_EVENT_TYPE_METHOD_LOAD event.
  * Notes:
  * - Multiple update events with different types for the same trace are allowed
@@ -621,7 +621,7 @@ iJIT_IsProfilingActiveFlags JITAPI iJIT_IsProfilingActive(void);
  * @brief Reports infomation about JIT-compiled code to the agent.
  *
  * The reported information is used to attribute samples obtained from any
- * Intel(R) VTune(TM) Amplifier collector. This API needs to be called
+ * Intel(R) VTune(TM) Profiler collector. This API needs to be called
  * after JIT compilation and before the first entry into the JIT-compiled
  * code.
  *
