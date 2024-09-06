@@ -56,6 +56,8 @@ ITT_STUB(ITTAPI, __itt_counter, counter_create_typed,  (const char    *name, con
 
 ITT_STUBV(ITTAPI, void, pause,  (void), (ITT_NO_PARAMS), pause,  __itt_group_control | __itt_group_legacy, "no args")
 ITT_STUBV(ITTAPI, void, resume, (void), (ITT_NO_PARAMS), resume, __itt_group_control | __itt_group_legacy, "no args")
+ITT_STUBV(ITTAPI, void, pause_scoped,  (__itt_collection_scope scope), (ITT_FORMAT scope), pause_scoped,  __itt_group_control, "%d")
+ITT_STUBV(ITTAPI, void, resume_scoped, (__itt_collection_scope scope), (ITT_FORMAT scope), resume_scoped, __itt_group_control, "%d")
 
 #if ITT_PLATFORM==ITT_PLATFORM_WIN
 ITT_STUBV(ITTAPI, void, thread_set_nameA, (const char    *name), (ITT_FORMAT name), thread_set_nameA, __itt_group_thread, "\"%s\"")
@@ -79,6 +81,15 @@ ITT_STUB(ITTAPI, __itt_histogram*, histogram_createW, (const __itt_domain* domai
 #else  /* ITT_PLATFORM==ITT_PLATFORM_WIN */
 ITT_STUB(ITTAPI, __itt_histogram*, histogram_create, (const __itt_domain* domain, const char* name, __itt_metadata_type x_type, __itt_metadata_type y_type), (ITT_FORMAT domain, name, x_type, y_type), histogram_create, __itt_group_structure, "%p, \"%s\", %d, %d")
 #endif /* ITT_PLATFORM==ITT_PLATFORM_WIN */
+
+#if ITT_PLATFORM==ITT_PLATFORM_WIN
+ITT_STUB(ITTAPI, __itt_counter, counter_createA_v3, (const __itt_domain* domain, const char    *name, __itt_metadata_type type), (ITT_FORMAT domain, name, type), counter_createA_v3, __itt_group_counter, "%p, \"%s\", %d")
+ITT_STUB(ITTAPI, __itt_counter, counter_createW_v3, (const __itt_domain* domain, const wchar_t *name, __itt_metadata_type type), (ITT_FORMAT domain, name, type), counter_createW_v3, __itt_group_counter, "%p, \"%s\", %d")
+#else  /* ITT_PLATFORM==ITT_PLATFORM_WIN */
+ITT_STUB(ITTAPI, __itt_counter, counter_create_v3,  (const __itt_domain* domain, const char    *name, __itt_metadata_type type), (ITT_FORMAT domain, name, type), counter_create_v3,  __itt_group_counter, "%p, \"%s\", %d")
+#endif /* ITT_PLATFORM==ITT_PLATFORM_WIN */
+
+ITT_STUBV(ITTAPI, void, bind_context_metadata_to_counter, (__itt_counter counter, size_t length, __itt_context_metadata* metadata), (ITT_FORMAT counter, length, metadata), bind_context_metadata_to_counter, __itt_group_structure, "%p, %lu, %p")
 
 #endif /* __ITT_INTERNAL_BODY */
 
@@ -351,5 +362,7 @@ ITT_STUBV(ITTAPI, void, module_load, (void *start_addr, void *end_addr, const ch
 ITT_STUBV(ITTAPI, void, module_unload, (void *start_addr), (ITT_FORMAT start_addr), module_unload, __itt_group_module, "%p")
 
 ITT_STUBV(ITTAPI, void, histogram_submit, (__itt_histogram* hist, size_t length, void* x_data, void* y_data), (ITT_FORMAT hist, length, x_data, y_data), histogram_submit, __itt_group_structure, "%p, %lu, %p, %p")
+
+ITT_STUBV(ITTAPI, void, counter_set_value_v3, (__itt_counter counter, void *value_ptr), (ITT_FORMAT counter, value_ptr), counter_set_value_v3, __itt_group_counter, "%p, %p")
 
 #endif /* __ITT_INTERNAL_INIT */
