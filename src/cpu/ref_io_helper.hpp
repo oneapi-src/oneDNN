@@ -93,6 +93,12 @@ inline float load_float_value(data_type_t dt, const void *ptr, dim_t idx) {
             uint4_t val(nibble_pair.get(idx % 2));
             return static_cast<float>(val);
         }
+        case f4_e2m1: {
+            const nibble2_t nibble_pair
+                    = reinterpret_cast<const nibble2_t *>(ptr)[idx / 2];
+            float4_e2m1_t val(nibble_pair.get(idx % 2), true);
+            return static_cast<float>(val);
+        }
         default: assert(!"bad data_type");
     }
 
@@ -119,6 +125,14 @@ inline void store_float_value(data_type_t dt, float val, void *ptr, dim_t idx) {
         CASE(s32);
         CASE(s8);
         CASE(u8);
+        case f4_e2m1: {
+            auto dst_ = reinterpret_cast<nibble2_t *>(ptr);
+            nibble2_t nibble_pair = dst_[idx / 2];
+            float4_e2m1_t f4_val(val);
+            nibble_pair.set(f4_val.raw_bits_, idx % 2);
+            dst_[idx / 2] = nibble_pair;
+            break;
+        }
         default: assert(!"bad data_type");
     }
 
