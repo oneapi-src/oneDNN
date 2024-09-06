@@ -68,7 +68,8 @@ status_t init_conf(matmul::brgemm_matmul_conf_t &conf,
     const auto type_o = od.data_type();
 
     const bool is_bf16_with_int_wei = type_o == data_type::bf16
-            && utils::one_of(type_i, data_type::s8, data_type::u8);
+            && utils::one_of(type_i, data_type::s8, data_type::u8,
+                    data_type::s4, data_type::u4);
 
     format_tag_t otag = get_otag(dst_md);
     // TODO: enable for itag = {ba, acb}
@@ -80,6 +81,8 @@ status_t init_conf(matmul::brgemm_matmul_conf_t &conf,
     dim_t batch = ndims > 2 ? dims[ndims - 3] : 1;
     dim_t K = dims[ndims - 2];
     dim_t N = dims[ndims - 1];
+    if (utils::one_of(type_i, data_type::s4, data_type::u4) && N % 2 != 0)
+        return status::invalid_arguments;
 
     dim_t in_ld
             = ndims >= 2 ? memory_desc_wrapper(src_md).strides()[ndims - 2] : 1;
@@ -112,18 +115,20 @@ status_t brgemm_matmul_matrix_B_reorder_t::pd_t::init(
     const auto type_o = od.data_type();
 
     // TODO: enable support for type_i != type_o cases
+    const bool is_int_weights = utils::one_of(
+            type_i, data_type::s8, data_type::u8, data_type::s4, data_type::u4);
     const bool dt_ok = true
             && IMPLICATION(type_i == type_o,
                     utils::one_of(type_o, data_type::s8, data_type::bf16,
                             data_type::f16, data_type::f32))
             && IMPLICATION(type_i != type_o,
-                    type_o == data_type::bf16
-                            && utils::one_of(
-                                    type_i, data_type::s8, data_type::u8));
+                    utils::one_of(type_o, data_type::f32, data_type::f16,
+                            data_type::bf16)
+                            && is_int_weights);
     const bool is_f16 = utils::one_of(data_type::f16, type_i, type_o);
     const bool is_s8s8 = type_i == data_type::s8 && type_o == data_type::s8;
-    const bool is_bf16_with_int_wei = type_o == data_type::bf16
-            && utils::one_of(type_i, data_type::s8, data_type::u8);
+    const bool is_bf16_with_int_wei
+            = type_o == data_type::bf16 && is_int_weights;
     const bool has_adj_scale
             = od.extra().flags & memory_extra_flags::scale_adjust;
     const bool args_ok = true && dt_ok && id.is_dense()
@@ -184,6 +189,10 @@ status_t brgemm_matmul_matrix_B_reorder_t::execute_body(
     const auto sdt_sz = types::data_type_size(src_d.data_type());
     const auto type_o = dst_d.data_type();
     const auto ddt_sz = types::data_type_size(type_o);
+    const auto src_typesz_scale
+            = utils::one_of(src_d.data_type(), data_type::s4, data_type::u4)
+            ? 2
+            : 1;
 
     const auto &kernel_conf = pd()->matmul_conf_for_reorder_;
     const size_t comp_offset_bytes
@@ -238,7 +247,8 @@ status_t brgemm_matmul_matrix_B_reorder_t::execute_body(
                             ? get_blk_off(src_d, sdt_sz, batch, k, n)
                             : get_blk_off(
                                     src_d, sdt_sz, batch, k_blk_idx, n_blk_idx);
-                    ker_exec_ctx.src = (void *)&src[src_offset];
+                    ker_exec_ctx.src
+                            = (void *)&src[src_offset / src_typesz_scale];
                     ker_exec_ctx.tr_src = (void *)&dst[get_blk_off(
                             dst_d, ddt_sz, batch, k_blk_idx, n_blk_idx)];
                     ker_exec_ctx.current_K_start = k;
@@ -251,7 +261,8 @@ status_t brgemm_matmul_matrix_B_reorder_t::execute_body(
                             ? get_blk_off(src_d, sdt_sz, batch, k, n)
                             : get_blk_off(
                                     src_d, sdt_sz, batch, k_blk_idx, n_blk_idx);
-                    ker_exec_ctx.src = (void *)&src[src_offset];
+                    ker_exec_ctx.src
+                            = (void *)&src[src_offset / src_typesz_scale];
                     const auto dst_offset = get_blk_off(
                             dst_d, ddt_sz, batch, k_blk_idx, n_blk_idx);
                     ker_exec_ctx.tr_src = (void *)&dst[dst_offset];

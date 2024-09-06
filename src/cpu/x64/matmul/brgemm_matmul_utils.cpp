@@ -1621,9 +1621,13 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
     if (vnni_granularity <= 0) return status::invalid_arguments;
 
     const bool is_bf16_with_int_wei = out_type == data_type::bf16
-            && utils::one_of(in_type, data_type::s8, data_type::u8);
+            && utils::one_of(in_type, data_type::s8, data_type::u8,
+                    data_type::s4, data_type::u4);
     const bool with_wei_decompression = in_type != out_type
-            && utils::one_of(in_type, data_type::s8, data_type::u8);
+            && utils::one_of(in_type, data_type::s8, data_type::u8,
+                    data_type::s4, data_type::u4);
+    const dim_t typesize_scale
+            = utils::one_of(in_type, data_type::s4, data_type::u4) ? 2 : 1;
 
     conf.blocked_B = !utils::one_of(in_tag, ab, ba, abc, acb);
     conf.transposed_B = utils::one_of(in_tag, ba, acb);
@@ -1643,7 +1647,7 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
     conf.a_dt_sz = conf.tr_a_dt_sz = types::data_type_size(conf.src_dt);
     conf.b_dt_sz = types::data_type_size(in_type);
     conf.tr_b_dt_sz = types::data_type_size(conf.wei_dt);
-    conf.copy_B_wei_stride = in_ld * conf.b_dt_sz;
+    conf.copy_B_wei_stride = (in_ld * conf.b_dt_sz) / typesize_scale;
     conf.N_chunk_elems = conf.N; // To match seems unneeded assert.
     conf.s8s8_comp_b_str = utils::rnd_up(conf.N, conf.wei_n_blk);
     conf.s8s8_comp_n_str = conf.wei_n_blk;
