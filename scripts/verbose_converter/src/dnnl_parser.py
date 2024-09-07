@@ -347,13 +347,10 @@ class LogParser:
                     return value
 
                 def convert_dropout(value):
-                    res = {"p": 0}
+                    res = {}
                     elems = value.split(":")
-                    res["p"] = elems[0]
-                    if len(elems) > 1:
-                        res["seed"] = elems[1]
-                        if len(elems) > 2:
-                            res["tag"] = elems[2]
+                    if len(elems) > 0:
+                        res["tag"] = elems[0]
                     return res
 
                 def convert_deterministic(value):

@@ -783,7 +783,7 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                 } break;
                 case primitive_kind::binary: {
                     const post_ops_t::entry_t::binary_t &eb = e.binary;
-                    const auto &md = eb.src1_desc;
+                    const auto &md = eb.user_src1_desc;
                     int mask = 0;
                     for (int d = 0; d < md.ndims; ++d)
                         mask += md.dims[d] != 1 ? (1 << d) : 0;
@@ -792,7 +792,7 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                     switch (mdw.format_kind()) {
                         case format_kind::blocked:
                             if (!mdw.count_non_unit_dims(1))
-                                ss << ":" << md2fmt_tag_str(&md);
+                                ss << ":" << md2fmt_tag_str(&eb.src1_desc);
                             break;
                         case format_kind::any: ss << ":any"; break;
                         default: assert(!"unsupported format_kind");
@@ -816,7 +816,8 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
     }
 
     if (!attr->dropout_.has_default_values()) {
-        const memory_desc_wrapper mdw(attr->dropout_.dropout_desc_);
+        ss << field_delim() << "attr-dropout";
+        const memory_desc_wrapper mdw(attr->dropout_.user_dropout_desc_);
         switch (mdw.format_kind()) {
             case format_kind::blocked:
                 if (!mdw.count_non_unit_dims(1))
