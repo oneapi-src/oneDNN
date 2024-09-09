@@ -78,16 +78,19 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         const std::vector<int> supported_args
                 = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
         bool ok = attr_scales_ok(supported_args);
-        if (!attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
-                && !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()
-                && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ != 0) {
+        const auto &asc = attr()->scales_;
+        if (!asc.get(DNNL_ARG_SRC).has_default_values()
+                && !asc.get(DNNL_ARG_WEIGHTS).has_default_values()
+                && asc.get(DNNL_ARG_WEIGHTS).mask_ != 0) {
             // This case requires scratchpad
             if (N() == DNNL_RUNTIME_DIM_VAL) ok = false;
         }
-        // Impl suppports scales only for integer weights
-        ok = ok
-                && IMPLICATION(!attr()->scales_.has_default_values(),
-                        types::is_integral_dt(wei_dt));
+        // Impl suppports f32 scales only for non-weight decompression
+        if (!is_bf16_with_int_wei) {
+            ok = ok && one_of(asc.get_data_type(DNNL_ARG_SRC), undef, f32);
+            ok = ok && one_of(asc.get_data_type(DNNL_ARG_WEIGHTS), undef, f32);
+            ok = ok && one_of(asc.get_data_type(DNNL_ARG_DST), undef, f32);
+        }
         return ok;
     };
 
