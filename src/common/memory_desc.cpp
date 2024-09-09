@@ -722,6 +722,7 @@ status_t dnnl_memory_desc_query(
         case query::format_kind:
             switch ((int)md->format_kind) {
                 case format_kind::rnn_packed:
+                case format_kind::cublaslt_blocked:
                 case format_kind::wino:
                     *(format_kind_t *)result = format_kind::opaque;
                     break;

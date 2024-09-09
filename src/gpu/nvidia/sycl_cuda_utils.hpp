@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2024 Intel Corporation
-* Copyright 2020 Codeplay Software Limited
+* Copyright 2020-2024 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,7 +58,10 @@ namespace nvidia {
             .get_access<::sycl::access::mode::read_write>(cgh)
 
 bool compare_cuda_devices(const ::sycl::device &lhs, const ::sycl::device &rhs);
+cudaDeviceProp query_device_properties(const ::sycl::device &dev);
 bool has_bf16_support(const ::sycl::device &dev);
+bool has_imma_ampere_layout_support(const ::sycl::device &dev);
+bool has_imma_dst_int8_support();
 
 // Check if the device type matches the passed engine kind
 inline status_t check_device(dnnl::impl::engine_kind_t eng_kind) {
@@ -182,9 +185,48 @@ static status_t convert_data_type(const memory_desc_t *mem_desc,
                                     ? cudnnDataType_t::CUDNN_DATA_INT8x4
                                     : cudnnDataType_t::CUDNN_DATA_INT8);
             break;
+        case dnnl_data_type_t::dnnl_s32:
+            *cudnn_data_type = cudnnDataType_t::CUDNN_DATA_INT32;
+            break;
         default: return status::unimplemented;
     }
     return status::success;
+}
+
+static status_t get_cublas_data_type(
+        dnnl_data_type_t data_type, cudaDataType_t &blas_dt) {
+    switch (data_type) {
+        case dnnl_data_type_t::dnnl_f32:
+            blas_dt = CUDA_R_32F;
+            return status::success;
+        case dnnl_data_type_t::dnnl_f16:
+            blas_dt = CUDA_R_16F;
+            return status::success;
+        case dnnl_data_type_t::dnnl_bf16:
+            blas_dt = CUDA_R_16BF;
+            return status::success;
+        case dnnl_data_type_t::dnnl_s8:
+            blas_dt = CUDA_R_8I;
+            return status::success;
+        case dnnl_data_type_t::dnnl_s32:
+            blas_dt = CUDA_R_32I;
+            return status::success;
+        default: return status::unimplemented;
+    }
+    return status::unimplemented;
+}
+
+inline bool is_md_col32(const memory_desc_wrapper &md) {
+    const bool is_batched = md.ndims() > 2;
+    // cublas operates in col-major so this function checks if the rows are blocked in 32.
+    if (md.is_blocking_desc()) {
+        if (md.blocking_desc().inner_nblks == 1
+                && md.blocking_desc().inner_idxs[0] == (is_batched ? 1 : 0)
+                && md.blocking_desc().inner_blks[0] == 32) {
+            return true;
+        }
+    }
+    return false;
 }
 
 class cublas_error : virtual public std::runtime_error {

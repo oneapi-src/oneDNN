@@ -1,6 +1,6 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
-* Copyright 2020 Codeplay Software Limited
+* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2024 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,13 +58,33 @@ bool attr_post_ops_ok(const primitive_attr_t *attr) {
     }
 }
 
-bool has_bf16_support(const ::sycl::device &dev) {
-    // This function checks compute capabilities of the given device.
-    // BF16 is supported starting with compute capabilities 8.0.
+cudaDeviceProp query_device_properties(const ::sycl::device &dev) {
     auto cuda_dev = compat::get_native<CUdevice>(dev);
     cudaDeviceProp prop {};
     cudaGetDeviceProperties(&prop, cuda_dev);
+    return prop;
+}
+
+bool has_bf16_support(const ::sycl::device &dev) {
+    // This function checks compute capabilities of the given device.
+    // BF16 is supported starting with compute capabilities 8.0.
+    auto prop = query_device_properties(dev);
     return prop.major >= 8;
+}
+
+bool has_imma_ampere_layout_support(const ::sycl::device &dev) {
+    // This function checks compute capabilities of the given device.
+    // Ampere blocked layouts are supported starting with compute capabilities 7.0.
+    auto prop = query_device_properties(dev);
+    return prop.major == 8;
+}
+
+bool has_imma_dst_int8_support() {
+    // This function checks cuda runtime version capabilities.
+    // Int8 dst imma kernels are supported starting with cuda version 12.x.x.
+    int rt_version;
+    cudaRuntimeGetVersion(&rt_version);
+    return rt_version >= 12000;
 }
 
 } // namespace nvidia

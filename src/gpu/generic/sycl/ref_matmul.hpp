@@ -57,8 +57,8 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
                             | sm::zero_points_runtime | sm::post_ops
                             | sm::dropout | sm::scales_runtime_data_type
                             | sm::zero_points_runtime_data_type)
-                    && IMPLICATION(!attr()->scales_.has_default_values(),
-                            check_scales_mask())
+                    && IMPLICATION(
+                            !attr()->scales_.has_default_values(), scales_ok())
                     && post_ops_ok() && md_dims_in_range(src_md())
                     && md_dims_in_range(weights_md());
             if (!ok) return status::unimplemented;
@@ -98,10 +98,19 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
             return status::success;
         }
 
-        bool check_scales_mask() const {
+        bool scales_ok() const {
+            using namespace data_type;
             const std::vector<int> supported_args
                     = {DNNL_ARG_SRC_0, DNNL_ARG_WEIGHTS_0, DNNL_ARG_DST};
-            return attr_scales_ok(supported_args);
+
+            const auto &scales = attr()->scales_;
+            bool dt_ok = true;
+            for (auto arg : supported_args) {
+                auto &s = scales.get(arg);
+                dt_ok = dt_ok
+                        && utils::one_of(s.data_type_, s8, s32, f32, f16, bf16);
+            }
+            return dt_ok && attr_scales_ok(supported_args);
         }
 
         bool post_ops_ok() const {
