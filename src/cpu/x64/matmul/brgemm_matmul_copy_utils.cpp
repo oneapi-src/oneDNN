@@ -3712,7 +3712,7 @@ private:
 template <typename Vmm>
 void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::init_tail_mask(
         const int columns_tail, const bool use_int4_mask) {
-    assert(IMPLICATION(is_src_int4_, use_int4_mask));
+    assert(IMPLICATION(use_int4_mask, is_src_int4_));
     if (columns_tail > 0) {
         const int dt_step = req_cvtps2bf16_ || conf_->isa == avx512_core_fp16
                 ? 1
