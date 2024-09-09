@@ -176,6 +176,8 @@ status_t sdp_primitive_config_t::initial_check(
         return -1;
     };
 
+    if (impl::utils::one_of(nullptr, mm1, mm2)) return status::invalid_graph;
+
     // step3(dims check): only support 4-dims now.
     int q_id = find_graph_inport(mm1->get_input_value(0));
     int k_id = find_graph_inport(mm1->get_input_value(1));
