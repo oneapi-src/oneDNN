@@ -18,6 +18,7 @@
 #define GPU_INTEL_JIT_V2_IR_SEND_HPP
 
 #include "gpu/intel/jit/ir/block_2d_utils.hpp"
+#include "gpu/intel/jit/ir/fma.hpp"
 #include "gpu/intel/jit/v2/ir/plan_utils.hpp"
 #include "gpu/intel/jit/v2/ir/reqs.hpp"
 #include "gpu/intel/jit/v2/ir/tensor.hpp"
@@ -323,6 +324,7 @@ struct send_params_t {
     send_2d_hint_t hint_2d;
     // For register payload.
     int max_entry_reg_size = 0;
+    const prb_reqs_t *external_reqs = nullptr;
     std::vector<prb_dim_t> skip_mask;
 
     void init_max_entry_reg_size() {
@@ -361,13 +363,13 @@ struct send_1d_desc_t {
 
     explicit operator bool() const { return op != send_op_t::undef; }
 
-    bool base_alignment_ok(const expr_t &off, const prover_t &prover) {
+    bool base_alignment_ok(const expr_t &off, const prover_t &prover) const {
         int align = (type_size >= 16 ? 8 : 1);
         if (!prover.require(off % align == 0)) return false;
         return true;
     }
 
-    bool base_alignment_ok(const addr_t &addr, const prover_t &prover) {
+    bool base_alignment_ok(const addr_t &addr, const prover_t &prover) const {
         if (!base_alignment_ok(addr.base, prover)) return false;
         for (auto &inc : addr.slot_incs) {
             if (!base_alignment_ok(inc, prover)) return false;
@@ -427,16 +429,16 @@ struct send_1d_plan_t : public base_plan_t {
         if (!desc.base_alignment_ok(addr_inc, prover)) return false;
         std::vector<expr_t> mask_incs(nmasks());
         auto coord = it.coord();
+        ir_assert(reg_layout.offset_in_bytes(coord) == reg_off);
         for (int i = 0; i < nmasks(); i++) {
             mask_incs[i] = mask_desc[i].to_expr(coord, /*with_const=*/false);
         }
         entries.emplace_back();
         auto &e = entries.back();
-        e.addr_inc = addr_inc;
-        e.mask_incs = mask_incs;
+        e.addr_inc = std::move(addr_inc);
+        e.mask_incs = std::move(mask_incs);
         e.reg_off = reg_off;
-        e.coord = coord;
-        ir_assert(reg_layout.offset_in_bytes(coord) == reg_off);
+        e.coord = std::move(coord);
         return true;
     }
 
@@ -734,28 +736,30 @@ public:
 
     send_plan_t build() const {
         send_params_t params = init_params_;
+        prb_reqs_t reqs;
+        auto prover = reqs.prover(*params.external_reqs,
+                /*can_update=*/params.kind != send_kind_t::undef);
         switch (params.kind) {
-            case send_kind_t::_2d: return try_build_2d(params, init_view_);
+            case send_kind_t::_2d:
+                return try_build_2d(params, init_view_, prover);
             case send_kind_t::compressed_prefetch: {
-                prb_reqs_t reqs;
                 int cache_line_size = params.hw.cache_line_size();
-                auto view
-                        = init_view_.scatterize(cache_line_size, reqs.prover());
+                auto view = init_view_.scatterize(cache_line_size, prover);
                 if (view.is_empty()) return send_plan_t();
                 params.kind = send_kind_t::scattered;
-                return try_build_1d(params, view, reqs);
+                return try_build_1d(params, view, prover);
             }
-            default: return try_build_1d(params, init_view_);
+            default: return try_build_1d(params, init_view_, prover);
         }
     }
 
 private:
     send_plan_t try_build_1d(const send_params_t &params, const view_t &view,
-            prb_reqs_t reqs = prb_reqs_t()) const {
+            prover_t &prover) const {
         send_plan_t plan(params.hw);
         auto &layout = view.layout();
         auto &mask_desc = view.mask_desc();
-        auto inner_last = find_inner_last(params, view, mask_desc, reqs);
+        auto inner_last = find_inner_last(params, view, mask_desc, prover);
         int type_size = layout.type().size();
         int inner_elems = inner_last.elems();
         int inner_bytes = type_size * inner_elems;
@@ -777,7 +781,7 @@ private:
         int slot_stride = std::max(4, slot_size);
 
         auto inner_end = inner_last + 1;
-        auto middle_last = inner_last;
+        auto middle_last = std::move(inner_last);
         auto outer_begin = end(layout);
         if (is_scattered) {
             // Add blocks to fill up slots in the scattered message.
@@ -803,7 +807,7 @@ private:
         desc.slots = slots;
 
         addr_t addr(layout, slots, elems_per_slot);
-        if (!desc.base_alignment_ok(addr, reqs.prover())) return send_plan_t();
+        if (!desc.base_alignment_ok(addr, prover)) return send_plan_t();
 
         int elem_stride = 1;
         if (slot_stride > slot_size) {
@@ -821,33 +825,32 @@ private:
         auto &plan_1d = plan.get_1d();
         plan_1d = send_1d_plan_t(plan.hw);
         plan_1d.desc = desc;
-        plan_1d.addr = addr;
+        plan_1d.addr = std::move(addr);
         plan_1d.mask = mask_t(mask_desc, layout, slots, elems_per_slot);
-        plan_1d.reg_layout = reg_layout;
-        plan_1d.entry_tile = entry_tile;
+        plan_1d.reg_layout = std::move(reg_layout);
+        plan_1d.entry_tile = std::move(entry_tile);
         for (auto &d : params.skip_mask)
             plan_1d.mask.clear(d);
 
         int step_elems = slots * elems_per_slot;
         layout_iterator_t it(layout);
         int reg_off = 0;
-        plan_1d.add_entry(it, mask_desc, reg_off, reqs.prover());
+        plan_1d.add_entry(it, mask_desc, reg_off, prover);
         while (it.has_next(step_elems)) {
             it.next(step_elems);
             reg_off += slots * slot_stride;
             reg_off = utils::rnd_up(reg_off, grf_size);
-            if (!plan_1d.add_entry(it, mask_desc, reg_off, reqs.prover()))
+            if (!plan_1d.add_entry(it, mask_desc, reg_off, prover))
                 return send_plan_t();
         }
-        plan_1d.reqs = reqs;
-        plan_1d.reqs.simplify();
+        plan_1d.reqs = prover.reqs();
         return plan;
     }
 
     send_plan_t try_build_2d(const send_params_t &params, const view_t &view,
-            prb_reqs_t reqs = prb_reqs_t()) const {
+            prover_t &prover) const {
         send_plan_t plan(params.hw);
-        send_2d_desc_t desc(view, params, reqs.prover());
+        send_2d_desc_t desc(view, params, prover);
         if (!desc) return send_plan_t();
 
         auto &plane = view.plane();
@@ -872,8 +875,8 @@ private:
         plan_2d.mask.clear(plane.y_dim);
         for (auto &d : params.skip_mask)
             plan_2d.mask.clear(d);
-        plan_2d.reg_layout = reg_layout;
-        plan_2d.entry_tile = entry_tile;
+        plan_2d.reg_layout = std::move(reg_layout);
+        plan_2d.entry_tile = std::move(entry_tile);
 
         int reg_off = 0;
         for (int h = 0; h < plane.h; h += desc.h) {
@@ -881,19 +884,18 @@ private:
                 prb_coord_t<int> coord;
                 coord[plane.w_dim] = w;
                 coord[plane.h_dim] = h;
-                if (!plan_2d.add_entry(coord, reg_off, reqs.prover()))
+                if (!plan_2d.add_entry(coord, reg_off, prover))
                     return send_plan_t();
                 reg_off += entry_reg_size;
             }
         }
-        plan_2d.reqs = reqs;
-        plan_2d.reqs.simplify();
+        plan_2d.reqs = prover.reqs();
         return plan;
     }
 
     block_iterator_t find_inner_last(const send_params_t &params,
             const view_t &view, const mask_desc_t &mask_desc,
-            prb_reqs_t &reqs) const {
+            prover_t &prover) const {
         auto &layout = view.layout();
         auto inner_last = begin(layout);
         int type_size = layout.type().size();
@@ -903,8 +905,8 @@ private:
             return type_size * inner_last.elems() >= grf_size;
         };
         for (auto it = begin(layout); it != end(layout); ++it) {
-            auto prover = reqs.prover(!ok_to_return());
-            if (!mask_desc.is_uniform(it, prover)) break;
+            auto _prover = prover_t(prover, /*can_update=*/!ok_to_return());
+            if (!mask_desc.is_uniform(it, _prover)) break;
             if (!it.is_dense()) break;
             if (type_size * it.elems() > params.max_entry_reg_size) break;
             inner_last = it;

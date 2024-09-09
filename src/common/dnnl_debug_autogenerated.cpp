@@ -56,6 +56,7 @@ const char *dnnl_dt2str(dnnl_data_type_t v) {
     if (v == dnnl_f8_e4m3) return "f8_e4m3";
     if (v == dnnl_s4) return "s4";
     if (v == dnnl_u4) return "u4";
+    if (v == dnnl_e8m0) return "e8m0";
     if (v == dnnl_data_type_max) return "data_type_max";
     assert(!"unknown dt");
     return "unknown dt";
@@ -1853,6 +1854,13 @@ const char *dnnl_scratchpad_mode2str(dnnl_scratchpad_mode_t v) {
     if (v == dnnl_scratchpad_mode_user) return "user";
     assert(!"unknown scratchpad_mode");
     return "unknown scratchpad_mode";
+}
+
+const char *dnnl_rounding_mode2str(dnnl_rounding_mode_t v) {
+    if (v == dnnl_rounding_mode_environment) return "environment";
+    if (v == dnnl_rounding_mode_stochastic) return "stochastic";
+    assert(!"unknown rounding_mode");
+    return "unknown rounding_mode";
 }
 
 const char *dnnl_cpu_isa2str(dnnl_cpu_isa_t v) {

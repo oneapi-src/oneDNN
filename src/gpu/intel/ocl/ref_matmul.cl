@@ -42,14 +42,15 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
         long src_scale_stride_m, long src_scale_group_k,
         __global WEI_SCALES_DATA_T *wei_scales, long wei_scale_stride_n,
         long wei_scale_stride_k, long wei_scale_group_k,
-        __global float *dst_scales, long group_K, long K, long N, long M,
-        long D0, long D1, long D2, long bia_stride_d3, long bia_stride_d2,
-        long bia_stride_d1, long bia_stride_d0, long bia_stride_m,
-        long bia_stride_n, long a_stride_d3, long a_stride_d2, long a_stride_d1,
-        long a_stride_d0, long a_stride_m, long a_stride_k, long b_stride_d3,
-        long b_stride_d2, long b_stride_d1, long b_stride_d0, long b_stride_k,
-        long b_stride_n, long c_stride_d3, long c_stride_d2, long c_stride_d1,
-        long c_stride_d0, long c_stride_m, long c_stride_n
+        __global DST_SCALES_DATA_T *dst_scales, long group_K, long K, long N,
+        long M, long D0, long D1, long D2, long bia_stride_d3,
+        long bia_stride_d2, long bia_stride_d1, long bia_stride_d0,
+        long bia_stride_m, long bia_stride_n, long a_stride_d3,
+        long a_stride_d2, long a_stride_d1, long a_stride_d0, long a_stride_m,
+        long a_stride_k, long b_stride_d3, long b_stride_d2, long b_stride_d1,
+        long b_stride_d0, long b_stride_k, long b_stride_n, long c_stride_d3,
+        long c_stride_d2, long c_stride_d1, long c_stride_d0, long c_stride_m,
+        long c_stride_n
 #if WITH_DROPOUT
         ,
         __global uchar *dropout_mask_buf, __global uint *dropout_seed_buf,
@@ -228,7 +229,7 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
                     d1, 1, d0, 1, m, 1, n, 1);
 
 #if WITH_DST_SCALES
-        po_acc /= dst_scales[0];
+        po_acc /= DST_SCALES_TO_REF(dst_scales[0]);
 #endif
         po_acc += dst_zp;
         C[dst_off] = TO_DST(po_acc);

@@ -118,7 +118,7 @@ struct sample_t {
             uint64_t time_ns = 0)
         : prb(prb), kernel_desc(kernel_desc), time_ns(time_ns) {
         hw_cfg = hw_config_t(
-                kernel_desc.hw, kernel_desc.fma, kernel_desc.src_tag.type());
+                prb.hw(), kernel_desc.fma, kernel_desc.src_tag.type());
         prb_tile_t padded_shape = prb.shape();
         pad_eff = 1;
         for (auto &d : padded_shape) {
@@ -229,9 +229,9 @@ void model_t::parse(std::istream &in) {
     std::vector<uint8_t> data;
     auto s_data = stream_parse<std::string>(in);
     for (size_t i = 0; i < s_data.size(); i += 2) {
-        data.push_back(std::stoi(s_data.substr(i, 2), 0, 16));
+        data.push_back(std::stoi(s_data.substr(i, 2), nullptr, 16));
     }
-    auto s = serialized_t::from_data(data);
+    auto s = serialized_t::from_data(std::move(data));
     deserializer_t d(s);
     ml_model_ = ml_model_t::deserialize(d);
 }

@@ -142,6 +142,9 @@ const char *fpmath_mode2str(dnnl_fpmath_mode_t mode);
 /* accumulation mode */
 const char *accumulation_mode2str(dnnl_accumulation_mode_t mode);
 
+/* rounding mode */
+const char *rounding_mode2str(dnnl_rounding_mode_t mode);
+
 #endif
 """
         % body
@@ -196,6 +199,10 @@ const char *fpmath_mode2str(dnnl_fpmath_mode_t mode) {
 const char *accumulation_mode2str(dnnl_accumulation_mode_t mode) {
     return dnnl_accumulation_mode2str(mode);
 }
+
+const char *rounding_mode2str(dnnl_rounding_mode_t mode) {
+    return dnnl_rounding_mode2str(mode);
+}
 """
         % body.rstrip()
     )
@@ -230,6 +237,7 @@ def sanitize_value(v):
         return "any"
     v = v.split("dnnl_fpmath_mode_")[-1]
     v = v.split("dnnl_accumulation_mode_")[-1]
+    v = v.split("dnnl_rounding_mode_")[-1]
     v = v.split("dnnl_scratchpad_mode_")[-1]
     v = v.split("dnnl_")[-1]
     return v

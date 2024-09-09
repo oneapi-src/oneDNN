@@ -54,6 +54,8 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
         {{forward}, {
             /* fp */
             CPU_INSTANCE_X64(jit_uni_pooling_fwd_t<avx512_core_fp16, f16>)
+            CPU_INSTANCE_X64(jit_uni_pooling_fwd_t<avx512_core_fp16, f8_e5m2>)
+            CPU_INSTANCE_X64(jit_uni_pooling_fwd_t<avx512_core_fp16, f8_e4m3>)
             CPU_INSTANCE_X64(jit_uni_pooling_fwd_t<avx512_core, bf16>)
             CPU_INSTANCE_X64(jit_uni_pooling_fwd_t<avx512_core, f32>)
             CPU_INSTANCE_X64(jit_uni_pooling_fwd_t<avx2_vnni_2, bf16>)
@@ -68,12 +70,18 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
             CPU_INSTANCE(nchw_pooling_fwd_t<bf16>)
             CPU_INSTANCE(nchw_pooling_fwd_t<f32>)
             CPU_INSTANCE(nchw_pooling_fwd_t<f16>)
+            CPU_INSTANCE(nchw_pooling_fwd_t<f8_e5m2>)
+            CPU_INSTANCE(nchw_pooling_fwd_t<f8_e4m3>)
             CPU_INSTANCE(nhwc_pooling_fwd_t<bf16>)
             CPU_INSTANCE(nhwc_pooling_fwd_t<f32>)
             CPU_INSTANCE(nhwc_pooling_fwd_t<f16>)
+            CPU_INSTANCE(nhwc_pooling_fwd_t<f8_e5m2>)
+            CPU_INSTANCE(nhwc_pooling_fwd_t<f8_e4m3>)
             CPU_INSTANCE(ref_pooling_fwd_t<f32>)
             CPU_INSTANCE(ref_pooling_fwd_t<bf16, f32>)
             CPU_INSTANCE(ref_pooling_fwd_t<f16, f32>)
+            CPU_INSTANCE(ref_pooling_fwd_t<f8_e5m2, f32>)
+            CPU_INSTANCE(ref_pooling_fwd_t<f8_e4m3, f32>)
             /* int */
             CPU_INSTANCE_X64(jit_uni_i8i8_pooling_fwd_t<avx512_core>)
             CPU_INSTANCE_X64(jit_uni_i8i8_pooling_fwd_t<avx2>)

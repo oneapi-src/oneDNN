@@ -146,6 +146,7 @@ const alg_kind_t softmax_log = dnnl_softmax_log;
 using data_type_t = dnnl_data_type_t;
 namespace data_type {
 const data_type_t undef = dnnl_data_type_undef;
+const data_type_t e8m0 = dnnl_e8m0;
 const data_type_t f8_e5m2 = dnnl_f8_e5m2;
 const data_type_t f8_e4m3 = dnnl_f8_e4m3;
 const data_type_t f16 = dnnl_f16;
@@ -189,6 +190,12 @@ namespace scratchpad_mode {
 const scratchpad_mode_t library = dnnl_scratchpad_mode_library;
 const scratchpad_mode_t user = dnnl_scratchpad_mode_user;
 } // namespace scratchpad_mode
+
+using rounding_mode_t = dnnl_rounding_mode_t;
+namespace rounding_mode {
+const rounding_mode_t environment = dnnl_rounding_mode_environment;
+const rounding_mode_t stochastic = dnnl_rounding_mode_stochastic;
+} // namespace rounding_mode
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 using sparse_encoding_t = dnnl_sparse_encoding_t;

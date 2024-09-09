@@ -375,6 +375,8 @@ template struct ref_pooling_fwd_t<data_type::f32>;
 template struct ref_pooling_fwd_t<data_type::s32>;
 template struct ref_pooling_fwd_t<data_type::bf16, data_type::f32>;
 template struct ref_pooling_fwd_t<data_type::f16, data_type::f32>;
+template struct ref_pooling_fwd_t<data_type::f8_e5m2, data_type::f32>;
+template struct ref_pooling_fwd_t<data_type::f8_e4m3, data_type::f32>;
 template struct ref_pooling_fwd_t<data_type::s8, data_type::s32>;
 template struct ref_pooling_fwd_t<data_type::u8, data_type::s32>;
 

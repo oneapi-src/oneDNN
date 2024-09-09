@@ -84,7 +84,8 @@ x64::cpu_isa_t brgemm_calc_isa(
     }
 
     if (rnn.is_cell_dt_int8()) {
-        return x64::avx512_core_vnni;
+        return utils::map(true, x64::isa_undef, mayiuse(avx512_core_vnni),
+                avx512_core, mayiuse(avx512_core), avx512_core);
     } else if (rnn.is_cell_dt_bf16()) {
         return x64::avx512_core_bf16;
     } else if (rnn.is_cell_dt_f16()) {
@@ -1339,7 +1340,7 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
     tmp_matmul_conf_for_reorder.N_tail = diff_wei_conf.n_tail;
     tmp_matmul_conf_for_reorder.LDB = diff_wei_conf.LDB;
     tmp_matmul_conf_for_reorder.src_dt = tmp_matmul_conf_for_reorder.wei_dt
-            = rnn.cell_dt;
+            = tmp_matmul_conf_for_reorder.orig_wei_dt = rnn.cell_dt;
     tmp_matmul_conf_for_reorder.a_dt_sz = tmp_matmul_conf_for_reorder.tr_a_dt_sz
             = types::data_type_size(tmp_matmul_conf_for_reorder.src_dt);
     tmp_matmul_conf_for_reorder.b_dt_sz = tmp_matmul_conf_for_reorder.tr_b_dt_sz

@@ -69,7 +69,7 @@ stmt_t send_t::create_offset_store(const expr_t &header_buf,
         }
         off += mem_off;
     } else {
-        off = mem_off;
+        off = std::move(mem_off);
     }
     off = cast(off, address_type(is_signed_offset, off.type().elems()));
     return store_t::make(header_sub_buf, 0, off);
@@ -280,7 +280,7 @@ public:
         ir_assert(block_idx >= 0 && block_idx < int(block_offs_.size()));
         base = block_offs_[block_idx];
         auto prev_base = block_offs_[block_idx == 0 ? 0 : block_idx - 1];
-        auto get_const_summand = [&](expr_t expr) -> int64_t {
+        auto get_const_summand = [&](const expr_t &expr) -> int64_t {
             if (!expr.type().is_int()) return 0;
             auto binary_op = expr.as_ptr<binary_op_t>();
             if (binary_op && binary_op->op_kind == op_kind_t::_add
@@ -567,7 +567,7 @@ static stmt_t try_promote_to_lsc(const stmt_t &_call) {
     if (mask.is_empty()) return call;
 
     auto new_args = call.args;
-    send_t::arg_mask(new_args) = mask;
+    send_t::arg_mask(new_args) = std::move(mask);
 
     auto lsc_send = send_t::make(send.hw, send.op, send.address, send.type,
             send.slots, /*is_lsc=*/true, send.zero_out, send.cache_hint);
@@ -999,13 +999,13 @@ stmt_t access_builder_t::create_send_stmt(
         auto off = mem_walker.get_offset(
                 i * send.type.size(), off_base, off_const);
         if (off_base0.is_empty()) {
-            off_base0 = off_base;
+            off_base0 = std::move(off_base);
             off_const0 = off_const;
         } else if (!off_base.is_equal(off_base0)) {
             is_same_base = false;
         }
         off_vec.push_back(off);
-        off_const_vec.push_back(off_const - off_const0);
+        off_const_vec.emplace_back(off_const - off_const0);
     }
     expr_t off;
     if (send.slots == 1 || !is_same_base) {

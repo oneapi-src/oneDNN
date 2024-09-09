@@ -70,13 +70,7 @@ status_t ref_pooling_fwd_t::pd_t::init_conf() {
         return dnnl_unimplemented;
     }
     conf_.po_len = attr_po.len();
-    for (auto i = 0; i < attr_po.len(); ++i) {
-        if (attr_po.contain(binary, i)) {
-            dnnl::impl::memory_desc_t mem = attr_po.entry_[i].binary.src1_desc;
-            conf_.src1_md[i] = xpu::sycl::md_t(&mem);
-        }
-    }
-    conf_.post_ops = sycl_post_ops_t(attr());
+    conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
     return status::success;
 }
 

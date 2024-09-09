@@ -316,6 +316,30 @@ attr_t::fpmath_mode_t parse_attr_fpmath_mode_func(const std::string &s) {
     return v;
 }
 
+attr_t::rounding_mode_t parse_attr_rounding_mode_func(const std::string &s) {
+    attr_t::rounding_mode_t rm;
+
+    if (s.empty()) return rm;
+
+    size_t start_pos = 0;
+    while (start_pos != std::string::npos) {
+        auto subs = parser::get_substr(s, start_pos, '+');
+        size_t subs_pos = 0;
+
+        auto arg = str2arg(parser::get_substr(subs, subs_pos, ':'));
+        if (arg == DNNL_ARG_UNDEF) {
+            BENCHDNN_PRINT(0, "%s\n", "Error: undefined argument index");
+            SAFE_V(FAIL);
+        }
+        if (subs_pos != std::string::npos)
+            rm.set(arg,
+                    str2rounding_mode(parser::get_substr(subs, subs_pos, ':')));
+        if (subs_pos != std::string::npos)
+            rm.set_seed(stoll_safe(get_substr(subs, subs_pos, ':')));
+    }
+    return rm;
+}
+
 attr_t::dropout_t parse_attr_dropout_func(const std::string &s) {
     const char *err = "Error: dangling symbol at the end of input";
     attr_t::dropout_t v;
@@ -345,8 +369,7 @@ attr_t::dropout_t parse_attr_dropout_func(const std::string &s) {
         }
 
         if (start_pos != std::string::npos) {
-            subs = get_substr(s, start_pos, '\0');
-            v.tag = subs;
+            v.tag = get_substr(s, start_pos, '\0');
 
             if (check_tag(v.tag) != OK) {
                 BENCHDNN_PRINT(0, "%s \'%s\' %s\n", "Error: dropout mask tag",
@@ -517,6 +540,20 @@ bool parse_attr_zero_points(std::vector<attr_t::zero_points_t> &zp,
     return parse_subattr(zp, str, option_name, help);
 }
 
+bool parse_attr_rounding_mode(std::vector<attr_t::rounding_mode_t> &rm,
+        const char *str,
+        const std::string &option_name = "attr-rounding-mode") {
+    static const std::string help
+            = "ARG:MODE[:SEED][+...]    (Default: `environment`)\n    "
+              "Specifies a "
+              "rounding mode MODE to be applied upon conversion of argument "
+              "ARG.\n    More details at "
+            + doc_url + "knobs_attr.md\n";
+    return parse_vector_option(rm, {},
+            parser_utils::parse_attr_rounding_mode_func, str, option_name,
+            help);
+}
+
 bool parse_attr_scratchpad_mode(
         std::vector<dnnl_scratchpad_mode_t> &scratchpad_mode,
         const std::vector<dnnl_scratchpad_mode_t> &def_scratchpad_mode,
@@ -587,8 +624,8 @@ bool parse_attributes(
                     s.scratchpad_mode, def.scratchpad_mode, str)
             || parse_attr_fpmath_mode(s.fpmath_mode, def.fpmath_mode, str)
             || parse_attr_acc_mode(s.acc_mode, def.acc_mode, str)
-            || parse_attr_deterministic(
-                    s.deterministic, def.deterministic, str);
+            || parse_attr_deterministic(s.deterministic, def.deterministic, str)
+            || parse_attr_rounding_mode(s.rounding_mode, str);
     return parsed_attrs;
 }
 

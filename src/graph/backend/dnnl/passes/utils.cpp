@@ -267,9 +267,11 @@ bool binary_doable(
     return true;
 }
 
+// TODO: ekind can be removed once CPU optimized 5d tensor MatMul with
+// broadcasted post op
 static bool post_binary_fusible_impl(const op_t *base_op,
         const std::vector<dim_t> &fused_shape,
-        const std::vector<dim_t> &other_shape) {
+        const std::vector<dim_t> &other_shape, engine_kind_t ekind) {
     assertm(fused_shape.size() == other_shape.size(),
             "must have same ndims, pls run binary_canonicalization pass first");
     // full tensor and per tensor broadcasted
@@ -278,9 +280,14 @@ static bool post_binary_fusible_impl(const op_t *base_op,
                     [](dim_t i) { return i == 1; }))
         return true;
 
-    // any broadcasted for 4d tensor MatMul
     int32_t output_ndims = static_cast<int32_t>(fused_shape.size());
-    if (base_op->get_kind() == op_kind::dnnl_matmul && output_ndims == 4) {
+    // 5d tensor MatMul with broadcasted post was not optimized on CPU
+    if (ekind == dnnl_cpu && base_op->get_kind() == op_kind::dnnl_matmul
+            && output_ndims == 5)
+        return false;
+    // any broadcasted for 4d or 5d tensor MatMul
+    if (base_op->get_kind() == op_kind::dnnl_matmul
+            && (output_ndims == 4 || output_ndims == 5)) {
         for (int32_t i = output_ndims - 1; i >= 0; i--) {
             if (other_shape[i] == 1) continue;
             if (fused_shape[i] != other_shape[i]) { return false; }
@@ -367,7 +374,8 @@ std::pair<bool, std::pair<size_t, int64_t>> shuffle_fusible(
     return {true, {c_over_g_pos, groups}};
 }
 
-bool post_binary_fusible(const op_t *base_op, const op_t *bin_op) {
+bool post_binary_fusible(
+        const op_t *base_op, const op_t *bin_op, graph::engine_kind_t ekind) {
     auto fused_out = base_op->get_output_values()[0];
     auto consumers = fused_out->get_consumers();
     if (consumers.size() != 1) return false;
@@ -395,7 +403,7 @@ bool post_binary_fusible(const op_t *base_op, const op_t *bin_op) {
     }
 
     return post_binary_fusible_impl(
-            base_op, ltw(fused_in).vdims(), ltw(other_in).vdims());
+            base_op, ltw(fused_in).vdims(), ltw(other_in).vdims(), ekind);
 }
 
 bool post_depthwise_conv_fusible(

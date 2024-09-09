@@ -1,5 +1,5 @@
 /******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2024 Intel Corporation
 * Copyright 2023 KNS Group LLC (YADRO)
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,7 @@
 #ifndef RV64_NCHW_POOLING_HPP
 #define RV64_NCHW_POOLING_HPP
 
+#include "common/primitive.hpp"
 #include "cpu/cpu_pooling_pd.hpp"
 
 namespace dnnl {

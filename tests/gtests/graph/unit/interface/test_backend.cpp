@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,5 +48,5 @@ TEST(test_interface_backend, CompareLogicalTensor) {
 TEST(test_interface_backend, RegisterBackend) {
     auto &registry = graph::backend_registry_t::get_singleton();
     auto bkds = registry.get_registered_backends();
-    EXPECT_THROW(registry.register_backend(bkds[0]), std::runtime_error);
+    EXPECT_EQ(registry.register_backend(bkds[0]), graph::status::runtime_error);
 }

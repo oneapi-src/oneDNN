@@ -326,10 +326,14 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
             if (!fusedM()) stub();
             B.dpasw = true;
             B.tileC = std::max(1, std::min(unroll[LoopN], params.rcountMax) / 2);
+            if (unroll[LoopN] % (2 * B.tileC))
+                stub("Cannot use dpasw for this n tile size");
         } else {
             if (!fusedN()) stub();
             A.dpasw = true;
             A.tileR = std::max(1, std::min(unroll[LoopM], params.rcountMax) / 2);
+            if (unroll[LoopM] % (2 * A.tileR))
+                stub("Cannot use dpasw for this m tile size");
         }
     }
 

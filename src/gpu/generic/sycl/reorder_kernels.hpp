@@ -104,7 +104,6 @@ struct reorder_kernel_t {
 
                 int dst_idx = dst_md().off_v(off);
                 auto src = src_mem.load(idx);
-                auto dst = dst_mem.load(dst_idx);
 
                 if (conf_.do_scale_src) {
                     if (conf_.scale_src_mask != 0) {
@@ -124,7 +123,7 @@ struct reorder_kernel_t {
                 }
 
                 auto acc = src;
-                acc = conf_.post_ops.apply(acc, dst);
+                acc = conf_.post_ops.apply(acc, dst_, dst_idx);
                 if (conf_.do_scale_dst) {
                     if (conf_.scale_dst_mask != 0) {
                         int scale_idx = 0;

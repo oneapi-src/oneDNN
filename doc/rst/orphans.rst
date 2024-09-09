@@ -86,6 +86,7 @@ Orphans
     page_cpu_sgemm_and_matmul_cpp_short.rst
     page_dev_guide_attributes_fpmath_mode.rst
     page_dev_guide_attributes_accumulation_mode.rst
+    page_dev_guide_attributes_rounding_mode.rst
     page_dev_guide_attributes_deterministic.rst
     page_dev_guide_attributes_post_ops.rst
     page_dev_guide_attributes_quantization.rst

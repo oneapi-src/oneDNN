@@ -110,16 +110,22 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
 
-                    auto fscore_scale = pgraph->append_alternation(
-                            {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)});
+                    std::shared_ptr<pb_graph_t> scale_graph;
+                    scale_graph = std::make_shared<pb_graph_t>();
+                    auto scale = scale_graph->append_alternation(
+                            {graph::op_kind::Divide, graph::op_kind::Multiply});
+                    scale_graph->create_input_port(0, scale, 0);
+                    scale_graph->create_output_port(0, scale, 0);
+                    auto optional_scale = pgraph->append_optional(
+                            scale_graph, {in_edge(0, matmul_qk, 0)});
+
                     auto optional_mask = std::make_shared<pb_graph_t>();
                     auto fscore_add
                             = optional_mask->append_op(graph::op_kind::Add);
                     optional_mask->create_input_port(0, fscore_add, 0);
                     optional_mask->create_output_port(0, fscore_add, 0);
                     auto mask = pgraph->append_optional(
-                            optional_mask, {in_edge(0, fscore_scale, 0)});
+                            optional_mask, {in_edge(0, optional_scale, 0)});
 
                     // Optional select for distilbert
                     auto p_select2 = optional_select(pgraph, mask, 2);
@@ -129,6 +135,50 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion)
                             graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     // Optional transpose + reshape/reorder
                     optional_transpose_reshape(pgraph, matmul_v, 0);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<sdp_base_t<>>();
+        });
+
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_gqa_fusion)
+        .set_priority(21.1f)
+        .set_kind(partition_kind_t::sdp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto reshape1
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
+                    auto reshape2
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
+                            {{in_edge(0, reshape1, 0),
+                                    in_edge(1, reshape2, 0)}});
+                    auto fscore_scale = pgraph->append_alternation(
+                            {graph::op_kind::Divide, graph::op_kind::Multiply},
+                            {in_edge(0, matmul_qk, 0)});
+                    auto optional_mask = std::make_shared<pb_graph_t>();
+                    auto mask_reshape = optional_mask->append_op(
+                            graph::op_kind::StaticReshape);
+                    auto fscore_add = optional_mask->append_op(
+                            graph::op_kind::Add, {in_edge(1, mask_reshape, 0)});
+                    optional_mask->create_input_port(0, fscore_add, 0);
+                    optional_mask->create_output_port(0, fscore_add, 0);
+                    auto mask = pgraph->append_optional(
+                            optional_mask, {in_edge(0, fscore_scale, 0)});
+
+                    // Optional select for distilbert
+                    auto p_select2 = optional_select(pgraph, mask, 2);
+                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
+                            {in_edge(0, p_select2, 0)});
+                    auto reshape3
+                            = pgraph->append_op(graph::op_kind::StaticReshape);
+                    auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
+                            {in_edge(0, softmax, 0), in_edge(1, reshape3, 0)});
+                    auto reshape4
+                            = pgraph->append_op(graph::op_kind::StaticReshape,
+                                    {in_edge(0, matmul_v, 0)});
+
+                    // Optional transpose + reshape/reorder
+                    optional_transpose_reshape(pgraph, reshape4, 0);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<sdp_base_t<>>();
@@ -211,16 +261,22 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_sdp_fusion)
                             in_edges_t {in_edge(0, dequantize_query, 0),
                                     in_edge(1, dequantize_key, 0)});
 
-                    auto fscore_scale = pgraph->append_alternation(
-                            {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            in_edges_t {in_edge(0, matmul_qk, 0)});
+                    std::shared_ptr<pb_graph_t> scale_graph;
+                    scale_graph = std::make_shared<pb_graph_t>();
+                    auto scale = scale_graph->append_alternation(
+                            {graph::op_kind::Divide, graph::op_kind::Multiply});
+                    scale_graph->create_input_port(0, scale, 0);
+                    scale_graph->create_output_port(0, scale, 0);
+                    auto optional_scale = pgraph->append_optional(
+                            scale_graph, {in_edge(0, matmul_qk, 0)});
+
                     auto optional_mask = std::make_shared<pb_graph_t>();
                     auto fscore_add
                             = optional_mask->append_op(graph::op_kind::Add);
                     optional_mask->create_input_port(0, fscore_add, 0);
                     optional_mask->create_output_port(0, fscore_add, 0);
                     auto mask = pgraph->append_optional(
-                            optional_mask, {in_edge(0, fscore_scale, 0)});
+                            optional_mask, {in_edge(0, optional_scale, 0)});
 
                     // Optional select for distilbert
                     auto p_select2 = optional_select(pgraph, mask, 2);
@@ -274,9 +330,14 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_sdp_fusion)
                             {in_edge(0, cast_query, 0),
                                     in_edge(1, cast_key, 0)});
 
-                    auto fscore_scale = pgraph->append_alternation(
-                            {graph::op_kind::Divide, graph::op_kind::Multiply},
-                            {in_edge(0, matmul_qk, 0)});
+                    std::shared_ptr<pb_graph_t> scale_graph;
+                    scale_graph = std::make_shared<pb_graph_t>();
+                    auto scale = scale_graph->append_alternation(
+                            {graph::op_kind::Divide, graph::op_kind::Multiply});
+                    scale_graph->create_input_port(0, scale, 0);
+                    scale_graph->create_output_port(0, scale, 0);
+                    auto optional_scale = pgraph->append_optional(
+                            scale_graph, {in_edge(0, matmul_qk, 0)});
 
                     auto optional_mask = std::make_shared<pb_graph_t>();
                     auto fscore_add
@@ -284,7 +345,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_sdp_fusion)
                     optional_mask->create_input_port(0, fscore_add, 0);
                     optional_mask->create_output_port(0, fscore_add, 0);
                     auto mask = pgraph->append_optional(
-                            optional_mask, {in_edge(0, fscore_scale, 0)});
+                            optional_mask, {in_edge(0, optional_scale, 0)});
 
                     // Optional select for distilbert
                     auto p_select2 = optional_select(pgraph, mask, 2);

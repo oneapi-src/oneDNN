@@ -5,6 +5,7 @@
     --attr-scratchpad=MODE
     --attr-fpmath=MATHMODE[:APPLY_TO_INT]
     --attr-acc-mode=ACCMODE
+    --attr-rounding-mode=ARG:MODE[+...]
     --attr-deterministic=BOOL
     --attr-dropout=PROBABILITY[:SEED[:TAG]]
     --attr-scales=ARG:POLICY[:SCALE[:DATA_TYPE[:GROUPS]]][+...]
@@ -37,6 +38,17 @@ for details.
 `ACCMODE` values can be any of `strict` (the default), `relaxed`, `any`, `f32`,
 `s32` or `f16`. Refer to
 [accumulation mode primitive attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_accumulation_mode.html)
+for details.
+
+## --attr-rounding-mode
+`--attr-rounding-mode` specifies the rounding mode to be used for benchmarking.
+`ARG` specifies which memory argument will be modified. Supported values are:
+  - `dst` corresponds to `DNNL_ARG_DST`.
+  - `diff_src` corresponds to `DNNL_ARG_DIFF_SRC`.
+  - `diff_weights` corresponds to `DNNL_ARG_DIFF_WEIGHTS`.
+`MODE` specifies which mode to apply to the corresponding memory
+argument. Supported values are: `environment` (default) and `stochastic`.  Refer
+to [rounding mode primitive attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_rounding_mode.html)
 for details.
 
 ## --attr-deterministic

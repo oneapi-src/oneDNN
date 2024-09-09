@@ -1,0 +1,30 @@
+# fp8
+--reset
+--mb=2
+
+--dt=f8_e5m2,f8_e4m3
+--alg=max,avg_np,avg_p
+# Training
+--tag=abx,axb,aBx16b
+
+--dir=FWD_D
+--batch=set_all
+--batch=set_topologies
+
+--dir=FWD_D
+--attr-post-ops=add:f32:per_oc,linear:0.5:-1
+--batch=set_all_small
+
+# Inference
+--dir=FWD_I
+--tag=axb
+--batch=set_all
+
+--attr-post-ops=add:f16,linear:0.5:-1
+--batch=set_all_small
+
+--attr-post-ops=add:f8_e5m2,linear:0.5:-1
+--batch=set_all_small
+
+--attr-post-ops=add:f8_e4m3,linear:0.5:-1
+--batch=set_all_small

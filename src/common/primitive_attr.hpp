@@ -27,6 +27,11 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+// Use `...` for `msg` and additional variables used in msg
+#define VCHECK_ATTR(cond, ...) \
+    VCONDCHECK(primitive, exec, check, primitive, (cond), \
+            status::invalid_arguments, __VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 
@@ -483,6 +488,52 @@ struct dropout_t : public c_compatible {
     dnnl::impl::memory_desc_t user_dropout_desc_;
 };
 
+struct rnd_mode_t : public c_compatible {
+    rnd_mode_t() = default;
+
+    bool has_default_values() const { return rounding_modes_map_.empty(); }
+    bool has_default_values(int arg) const { return get(arg) == default_mode; }
+
+    rounding_mode_t get(int arg) const {
+        auto r = rounding_modes_map_.find(arg);
+        if (r == rounding_modes_map_.end()) return default_mode;
+        return rounding_modes_map_.at(arg);
+    }
+
+    dnnl_status_t set(int arg, dnnl_rounding_mode_t rm) {
+        if (!check(arg, rm)) return status::invalid_arguments;
+        if (rm != default_mode) rounding_modes_map_[arg] = rm;
+        return status::success;
+    }
+
+    bool operator==(const rnd_mode_t &rhs) const {
+        bool res = rounding_modes_map_.size() == rhs.rounding_modes_map_.size();
+        if (!res) return false;
+        for (const auto &e : rounding_modes_map_)
+            if (e.second != rhs.get(e.first)) return false;
+        return true;
+    }
+
+    std::unordered_map<int, rounding_mode_t> rounding_modes_map_;
+
+private:
+    const static rounding_mode_t default_mode = rounding_mode::environment;
+
+    bool check(int arg, dnnl_rounding_mode_t rm) const {
+        // Only gradients and matmul dst for gradient computation
+        // can use non-default rounding mode.
+        return IMPLICATION(rm != default_mode,
+                utils::one_of(arg, DNNL_ARG_DST, DNNL_ARG_DIFF_SRC,
+                        DNNL_ARG_DIFF_WEIGHTS));
+    }
+
+    bool check() const {
+        for (auto e : rounding_modes_map_)
+            if (!check(e.first, e.second)) return false;
+        return true;
+    }
+};
+
 struct serialization_stream_t;
 
 struct primitive_attr_item_t {
@@ -780,6 +831,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         output_scales_ = other.output_scales_;
         scales_ = other.scales_;
         zero_points_ = other.zero_points_;
+        rounding_mode_ = other.rounding_mode_;
         scratchpad_mode_ = other.scratchpad_mode_;
         fpmath_ = other.fpmath_;
         acc_mode_ = other.acc_mode_;
@@ -821,6 +873,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         zero_points_runtime_data_type
         = (unsigned)zero_points_runtime | (1u << 18),
         dropout = 1u << 19,
+        rounding_mode = 1u << 20,
     };
 
     /** Returns true if the attributes have default values.
@@ -847,7 +900,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
                 && ((gpu_attr_ && rhs.gpu_attr_
                             && gpu_attr_->is_equal(*rhs.gpu_attr_))
                         || (!gpu_attr_ && !rhs.gpu_attr_))
-                && dropout_ == rhs.dropout_;
+                && dropout_ == rhs.dropout_
+                && rounding_mode_ == rhs.rounding_mode_;
         return ret;
     }
 
@@ -923,6 +977,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::scales_t rnn_weights_projection_qparams_;
     dnnl::impl::rnn_tparams_t rnn_tparams_;
     dnnl::impl::dropout_t dropout_;
+    dnnl::impl::rnd_mode_t rounding_mode_;
 
     std::unique_ptr<dnnl::impl::primitive_attr_item_t> gpu_attr_;
 

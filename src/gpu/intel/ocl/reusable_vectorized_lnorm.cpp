@@ -166,7 +166,8 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     auto lws_strategy = single_subgroup_lws_strategy_t(
             compute_engine, gpu_attr, conf->sg_size);
 
-    compute::reusable_dispatch_config_t dispatch_config(compute_engine, dims);
+    compute::reusable_dispatch_config_t dispatch_config(
+            compute_engine, std::move(dims));
     CHECK(dispatch_config.register_buffer(input_buf));
     CHECK(dispatch_config.register_buffer(output_buf));
     CHECK(dispatch_config.register_buffer(stat_buf));

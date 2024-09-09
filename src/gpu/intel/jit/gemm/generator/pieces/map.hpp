@@ -155,8 +155,8 @@ static inline void map(ngen::HW hw, const GRFMultirange &regs, const std::vector
 
 // Variant that allow the type to be specified as a native Type, rather than an nGEN type.
 template <typename... Targs>
-static inline void map(ngen::HW hw, Type T, Targs... args) {
-    map(hw, T.ngen(), args...);
+static inline void map(ngen::HW hw, Type T, Targs &&...args) {
+    map(hw, T.ngen(), std::forward<Targs>(args)...);
 }
 
 static inline bool canDualGRF(ngen::HW hw, ngen::DataType dt, const CommonStrategy &strategy)

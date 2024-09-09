@@ -51,8 +51,8 @@ void print_verbose_header() {
             = backend_registry_t::get_singleton().get_registered_backends();
     for (size_t i = 0; i < backends.size() - 1; ++i) {
         backend_t *bkd = const_cast<backend_t *>(backends[i]);
-        verbose_printf("onednn_verbose,info,graph,backend,%zu:%s\n", i,
-                bkd->get_name().c_str());
+        verbose_printf(
+                "info,graph,backend,%zu:%s\n", i, bkd->get_name().c_str());
     }
 }
 

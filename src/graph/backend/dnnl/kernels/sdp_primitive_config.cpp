@@ -48,25 +48,38 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
     };
 
     // Locate ops of interest: matmuls, scale, mask
-    op_ptr mm1, mm2, scale, add, final_op;
+    op_ptr mm1 = nullptr, mm2 = nullptr, scale = nullptr, add = nullptr,
+           final_op = nullptr;
+    const std::unordered_set<op_kind_t> mm1_post_op_kind
+            = {op_kind::dnnl_binary, op_kind::dnnl_softmax};
     for (const auto &cur_op : sg->get_ops()) {
         if (in_tensor_list(cur_op->get_output_value(0).get(), outputs))
             final_op = cur_op;
         if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
         auto post_op = get_post_op(cur_op);
-        if (post_op && post_op->get_kind() == op_kind::dnnl_binary) {
+        if (post_op && mm1_post_op_kind.count(post_op->get_kind())) {
+            // Locate mm1 and all post ops(scale and mask) here.
+            // 1. locate mm1
             if (mm1) return status::unimplemented;
             mm1 = cur_op;
-            scale = post_op;
+            // At least one of scale and mask exists
+            if (post_op->get_kind() == op_kind::dnnl_binary) {
+                auto binary_alg = static_cast<alg_kind_t>(
+                        post_op->get_attr<int64_t>(op_attr::alg_kind));
+                // 2. locate scale if have
+                if (one_of(binary_alg, alg_kind::binary_mul,
+                            alg_kind::binary_div)) {
+                    scale = post_op;
+                    invert_scale_ = (binary_alg == alg_kind::binary_div);
+                    // Update `post_op` to the next op of scale
+                    post_op = get_post_op(post_op);
+                }
 
-            auto scale_alg = static_cast<alg_kind_t>(
-                    post_op->get_attr<int64_t>(op_attr::alg_kind));
-            if (!one_of(scale_alg, alg_kind::binary_mul, alg_kind::binary_div))
-                return status::unimplemented;
-            invert_scale_ = (scale_alg == alg_kind::binary_div);
-
-            if (get_post_op(post_op)->get_kind() == op_kind::dnnl_binary)
-                add = get_post_op(post_op);
+                // 3. locate mask if have
+                if (post_op->get_kind() == op_kind::dnnl_binary) {
+                    add = post_op;
+                }
+            }
         } else {
             if (mm2) return status::unimplemented;
             mm2 = cur_op;
@@ -78,6 +91,12 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
     q_ = mm1->get_input_value(0);
     k_ = mm1->get_input_value(1);
     v_ = mm2->get_input_value(1);
+
+    auto k_follow = follow_back(k_);
+    for (auto &t : inputs)
+        if (k_follow->get_logical_tensor().id == t.id) {
+            kv_head_number_ = t.dims[1];
+        }
     dst_ = (final_op->get_kind() == op_kind::dnnl_transpose)
             ? final_op->get_input_value(0)
             : final_op->get_output_value(
@@ -95,6 +114,81 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
     }
 
     return status::success;
+}
+
+status_t sdp_primitive_config_t::initial_check(
+        const std::shared_ptr<subgraph_t> &sg,
+        const std::vector<logical_tensor_t> &inputs) {
+    // At least 3 inputs: Q, K, V
+    if (inputs.size() < 3) return status::invalid_arguments;
+
+    // step1(pattern check): Not support sdpa variants with select as mask
+    // We already have a pattern matcher to ensure that the sdpa patterns
+    // dispatch to here are knows ones, and we have quant check in sdpa base
+    // kernel, so here we only check specific variants based on support matrix.
+    const std::unordered_set<graph::op_kind_t> mm1_post_op_kind
+            = {graph::op_kind::Divide, graph::op_kind::Multiply,
+                    graph::op_kind::Add, graph::op_kind::Select,
+                    graph::op_kind::SoftMax};
+    op_ptr mm1 = nullptr, mm2 = nullptr;
+    for (const auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != graph::op_kind::MatMul) continue;
+        auto post_op = get_post_op(cur_op);
+        if (post_op && mm1_post_op_kind.count(post_op->get_kind())) {
+            mm1 = cur_op;
+            // Not support select between mm1 and scale(optional)
+            // GPT-J:[mm1] --> [select] --> [scale]* --> [mask]* --> ...
+            if (post_op->get_kind() == graph::op_kind::Select) {
+                return status::unimplemented;
+            }
+            // scale
+            if (post_op->get_kind() == graph::op_kind::Divide
+                    || post_op->get_kind() == graph::op_kind::Multiply) {
+                // Scale exists, update post_op and traverse to next op
+                post_op = get_post_op(post_op);
+            }
+            // mask
+            if (post_op->get_kind() == graph::op_kind::Add) {
+                // Mask exists, update post_op and traverse to next op
+                post_op = get_post_op(post_op);
+            }
+
+            // Not support select after scale(optional) and mask(optional)
+            // Distill-Bert:[mm1] --> [scale]* --> [mask]* --> [select] --> ...
+            if (post_op->get_kind() == graph::op_kind::Select) {
+                return status::unimplemented;
+            }
+        } else {
+            mm2 = cur_op;
+        }
+    }
+
+    // step2(data type check): only support fp16 now.
+    auto in_lt = inputs[0];
+    if (in_lt.data_type != dnnl_data_type_t::dnnl_f16)
+        return status::unimplemented;
+
+    auto find_graph_inport = [&inputs](const std::shared_ptr<value_t> &val) {
+        for (int i = 0; i < (int)inputs.size(); i++) {
+            if (val->get_logical_tensor().id == inputs[i].id) { return i; }
+        }
+        // If the corresponding input is not found, return an invalid value
+        return -1;
+    };
+
+    // step3(dims check): only support 4-dims now.
+    int q_id = find_graph_inport(mm1->get_input_value(0));
+    int k_id = find_graph_inport(mm1->get_input_value(1));
+    int v_id = find_graph_inport(mm2->get_input_value(1));
+
+    bool ok = true;
+    ok = ok && (q_id != -1) && (k_id != -1) && (v_id != -1);
+    if (!ok) return status::unimplemented;
+    ok = ok && ltw(inputs[q_id]).vdims().size() == 4
+            && ltw(inputs[k_id]).vdims().size() == 4
+            && ltw(inputs[v_id]).vdims().size() == 4;
+
+    return ok ? status::success : status::unimplemented;
 }
 
 status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
@@ -125,15 +219,15 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
 
     CHECK(create_sdpa_pd(sdpa_pd_, p_engine.get(), md_q.get(), md_k.get(),
             md_v.get(), md_dst.get(), md_mask.get(), scale_dt, invert_scale_,
-            attr.get()));
+            attr.get(), kv_head_number_));
 
     auto status = sdpa_pd_->create_primitive(sdpa_prim_, p_engine.get());
 
     if (status != status::success) {
         if (get_verbose(verbose_t::create_dispatch, component_t::graph)) {
             verbose_printf(
-                    "onednn_verbose,graph,create:dispatch,sdpa,could not "
-                    "create primitive, falling back\n");
+                    "graph,create:dispatch,sdpa,could not create primitive, "
+                    "falling back\n");
         }
     }
 

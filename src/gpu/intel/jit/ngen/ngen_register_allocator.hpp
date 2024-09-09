@@ -493,6 +493,8 @@ GRFRange RegisterAllocator::tryAllocRange(int nregs, Bundle baseBundle, BundleGr
     bool ok = false;
     int r_base = -1;
 
+    if (nregs <= 0) return GRFRange(0, 0);
+
     for (int rchunk = 0; rchunk < (GRF::maxRegs() >> 6); rchunk++) {
         int64_t free = freeWhole64[rchunk] & bundleMask.regMask(rchunk);
         int64_t free_base = free & baseBundle.regMask(hw, rchunk);

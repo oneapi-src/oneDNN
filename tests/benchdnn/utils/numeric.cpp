@@ -24,6 +24,10 @@
 #include "utils/numeric.hpp"
 
 template <>
+struct prec_traits<dnnl_e8m0> {
+    using type = dnnl::impl::float8_e8m0_t;
+};
+template <>
 struct prec_traits<dnnl_f8_e5m2> {
     using type = dnnl::impl::float8_e5m2_t;
 };
@@ -74,6 +78,7 @@ struct prec_traits<dnnl_u4> {
 };
 #define CASE_ALL(dt) \
     switch (dt) { \
+        CASE(dnnl_e8m0); \
         CASE(dnnl_f8_e5m2); \
         CASE(dnnl_f8_e4m3); \
         CASE(dnnl_bf16); \
@@ -163,6 +168,7 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
     switch (dt) {
         case dnnl_f32: break;
         case dnnl_f64: break;
+        case dnnl_e8m0: value = (float)dnnl::impl::float8_e8m0_t(value); break;
         case dnnl_f8_e5m2:
             value = (float)dnnl::impl::float8_e5m2_t(value);
             break;

@@ -28,12 +28,13 @@ namespace brgemm {
         || (defined(DNNL_AARCH64) && DNNL_AARCH64 == 1)) \
         && DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
 
-void check_correctness(const settings_t &s, const settings_t &def) {
+void check_correctness(const settings_t &s) {
     for_(const auto &i_dt : s.dt)
     for_(const auto &i_bia_dt : s.bia_dt)
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_wtag : s.wtag)
     for_(const auto &i_dtag : s.dtag)
+    for_(const auto &i_strides : s.strides)
     for_(const auto &i_ld : s.ld)
     for_(const auto &i_alpha : s.alpha)
     for_(const auto &i_beta : s.beta)
@@ -43,8 +44,8 @@ void check_correctness(const settings_t &s, const settings_t &def) {
     for_(const auto &i_attr : s.attributes)
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
-        const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_ld,
-                i_bia_dt, i_alpha, i_beta, i_batch_size, i_brgemm_attr,
+        const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_strides,
+                i_ld, i_bia_dt, i_alpha, i_beta, i_batch_size, i_brgemm_attr,
                 i_batch_kind, i_attr, i_ctx_init, i_ctx_exe);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
         BENCHDNN_PRINT(1, "run: %s\n", prb.str());
@@ -61,7 +62,7 @@ void check_correctness(const settings_t &s, const settings_t &def) {
     }
 }
 
-int verify_input(const settings_t &s) {
+int verify_input(const settings_t &s, const settings_t &def) {
     static constexpr int n_inputs = 3;
 
     if (s.prb_vdims.ndims > 2) {
@@ -81,6 +82,42 @@ int verify_input(const settings_t &s) {
                     (long)i_dt.size()),
                     fflush(stderr);
             SAFE_V(FAIL);
+        }
+    }
+
+    for (const auto &i_strides : s.strides) {
+        if (i_strides.size() != n_inputs) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "ERROR: `strides` option expects three inputs in format "
+                    "`[SRC]:[WEI]:[DST]` (two colons must be present).");
+            return FAIL;
+        }
+    }
+
+    for (const auto &i_strides : s.strides) {
+        const bool src_dst_strided_input = !i_strides[STRIDES_SRC].empty()
+                || !i_strides[STRIDES_DST].empty();
+        if (src_dst_strided_input) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "ERROR: `strides` option supports only weights strides and "
+                    "expects input in the format `:[WEI]:` (two colons must be "
+                    "present).");
+            return FAIL;
+        }
+
+        const bool strided_input = !i_strides[STRIDES_WEI].empty();
+        if (!strided_input) continue;
+
+        for (const auto &i_wtag : s.wtag) {
+            const bool no_stride_with_tag = IMPLICATION(
+                    i_wtag != def.wtag[0], i_strides[STRIDES_WEI].empty());
+
+            if (!no_stride_with_tag) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "ERROR: both `strides` and `tag` knobs can not be used "
+                        "with `wei` tensor.\n");
+                return FAIL;
+            }
         }
     }
 
@@ -126,6 +163,8 @@ int bench(int argc, char **argv) {
                 || parse_batch(bench, argv[0])
                 || parse_multi_dt(s.dt, def.dt, argv[0], "dt")
                 || parse_dt(s.bia_dt, def.bia_dt, argv[0], "bia_dt")
+                || parse_tag(s.wtag, def.wtag, argv[0], "wtag")
+                || parse_strides(s.strides, def.strides, argv[0], "strides")
                 || parse_multivector_option(
                         s.ld, def.ld, atoi, argv[0], "ld", help_ld)
                 || parse_vector_option(s.batch_size, def.batch_size, atoi,
@@ -148,9 +187,9 @@ int bench(int argc, char **argv) {
 
             parse_prb_vdims(s.prb_vdims, argv[0]);
 
-            SAFE(verify_input(s), WARN);
+            SAFE(verify_input(s, def), WARN);
             s.finalize();
-            check_correctness(s, def);
+            check_correctness(s);
         }
     }
     return parse_last_argument();

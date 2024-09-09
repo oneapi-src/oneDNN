@@ -229,7 +229,7 @@ struct jit_uni_kernel_t : public jit_uni_eltwise_kernel {
         eltwise_injector_->prepare_table();
         if (is_superset(isa, avx512_core_amx) && is_f8()
                 && io_.at(data_type()) != nullptr)
-            io_[data_type()]->prepare_table_fp8();
+            io_.at(data_type())->prepare_table_fp8();
     }
 
 private:

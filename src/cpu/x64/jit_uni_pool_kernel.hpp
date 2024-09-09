@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2024 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -83,12 +83,10 @@ private:
     Vmm vmm_c_tail_mask = Vmm(2);
     Xmm xmm_c_tail_mask = Xmm(2);
 
-    Xmm xmm_tmp = Xmm(3);
-
     Vmm vmm_ker_area_h = Vmm(2);
     Vmm vmm_one = Vmm(2);
     Vmm vmm_tmp = Vmm(3);
-    Ymm ymm_tmp = Ymm(3);
+    Xmm xmm_tmp = Xmm(3);
 
     Vmm vmm_k_offset = Vmm(1);
 
@@ -105,6 +103,14 @@ private:
     Zmm bf16_emu_reserv_3 = Zmm(7);
     Reg64 bf16_emu_reserv_4 = r11;
     Zmm bf16_emu_reserv_5 = Zmm(8);
+
+    Zmm fp8_emu_reserv_1 = Zmm(5);
+    Zmm fp8_emu_reserv_2 = Zmm(6);
+    Zmm fp8_emu_reserv_3 = Zmm(7);
+    Zmm fp8_emu_reserv_4 = Zmm(8);
+    Zmm fp8_emu_reserv_5 = Zmm(9);
+    Reg64 fp8_emu_reg64 = bf16_emu_reserv_4;
+    Xbyak::Opmask fp8_tmp_mask = Xbyak::Opmask(3);
 
     Opmask k_c_tail_mask = Opmask(4);
     Opmask k_mask_cvt = Opmask(5);
@@ -254,7 +260,13 @@ private:
         return jpp.is_bf16 && !isa_has_bf16(jpp.isa) && isa != avx2_vnni_2;
     }
 
+    inline bool use_fp8_emulation() const {
+        return jpp.is_fp8 && is_superset(isa, avx512_core_fp16);
+    }
+
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
+    std::unique_ptr<fp8_emulation_e5m2_t> f8_e5m2_emu_;
+    std::unique_ptr<fp8_emulation_e4m3_t> f8_e4m3_emu_;
     std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
             postops_injector_;
 };

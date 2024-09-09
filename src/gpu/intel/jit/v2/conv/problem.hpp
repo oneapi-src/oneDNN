@@ -58,8 +58,10 @@ public:
     void set_shape(const prb_tile_t &shape) { shape_ = shape; }
     void set_bias(bool with_bias) { with_bias_ = with_bias; }
     bool with_bias() const { return with_bias_; }
+    double ops() const;
 
     void set_shape(const std::string &s);
+    void normalize();
     std::string desc_str() const;
     std::string str() const;
     std::string csv_str() const;
@@ -67,6 +69,7 @@ public:
     IR_DEFINE_DUMP()
 
     static prb_tile_t default_shape();
+    static double ops(prop_kind_t prop, const prb_tile_t &shape);
 
 private:
     hw_t hw_;
@@ -76,6 +79,7 @@ private:
     layout_tag_t wei_tag_;
     layout_tag_t dst_tag_;
     prb_tile_t shape_;
+    std::array<int, 3> dhw_map_;
 };
 
 tensor_config_t get_tensor_config(prop_kind_t prop, bool with_bias);

@@ -208,12 +208,7 @@ struct convolution_kernel_fwd_t {
                     accumulator += bias;
                 }
 
-                auto dst = load_float_value(
-                        conf_.post_ops.sum_dt_ == dnnl_data_type_undef
-                                ? dst_md().data_type()
-                                : conf_.post_ops.sum_dt_,
-                        dst_ptr(), idx);
-                accumulator = conf_.post_ops.apply(accumulator, dst);
+                accumulator = conf_.post_ops.apply(accumulator, dst_, idx);
 
                 if (conf_.do_scale_dst) { accumulator /= sm_dst; }
                 if (conf_.use_dst_zeropoints) {
@@ -446,12 +441,7 @@ struct convolution_kernel_bwd_data_t {
                 accumulator += bias;
             }
 
-            auto diff_data = load_float_value(
-                    conf_.post_ops.sum_dt_ == dnnl_data_type_undef
-                            ? diff_data_md().data_type()
-                            : conf_.post_ops.sum_dt_,
-                    diff_data_ptr(), idx);
-            accumulator = conf_.post_ops.apply(accumulator, diff_data);
+            accumulator = conf_.post_ops.apply(accumulator, diff_data_, idx);
 
             if (conf_.do_scale_dst) { accumulator /= sm_dst; }
             if (conf_.use_dst_zeropoints) {
@@ -575,7 +565,7 @@ struct convolution_kernel_bwd_weights_t {
                 kw = off[4];
             }
 
-            auto bias_backprop_lambda = [=](int D, int H, int W, int OC, int ic,
+            auto bias_backprop_lambda = [&](int D, int H, int W, int OC, int ic,
                                                 int oc, void *diff_ptr,
                                                 xpu::sycl::md_t diff_md) {
                 if (ic == 0 && kh == 0 && kw == 0 & kd == 0) {

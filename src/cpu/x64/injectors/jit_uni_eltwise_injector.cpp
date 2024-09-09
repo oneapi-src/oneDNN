@@ -1036,7 +1036,10 @@ void jit_uni_eltwise_injector<isa, Wmm>::log_compute_vector_fwd(
     vec_shift(vmm_aux(1), vmm_aux(1), true, simd_w);
 
     const auto it = entry_map_.find(log_predefined_vals);
-    assert(it != entry_map_.end());
+    if (it == entry_map_.end()) {
+        assert(it != entry_map_.end());
+        return;
+    }
     const auto table_start_idx = (*it).second.off;
 
     auto gather_table_values = [&](const Vmm &vmm_dst, const Vmm &vmm_idxs,

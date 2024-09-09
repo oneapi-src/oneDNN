@@ -10,3 +10,9 @@
 --bia_dt=f32
 --dt=f32
 --batch=option_set_f32
+
+# ukernel wtag support
+--reset
+--wtag=ba
+--dt=f32
+--batch=option_set_f32

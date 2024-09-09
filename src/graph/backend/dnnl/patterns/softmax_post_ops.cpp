@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,7 +76,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_softmax_post_ops)
                     auto q_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquantize
                             = q_graph->append_op(graph::op_kind::Quantize);
-                    pquantize->append_decision_function(check_zps_values<0>);
                     q_graph->create_input_port(0, pquantize, 0);
                     q_graph->create_output_port(0, pquantize, 0);
                     pgraph->append_optional(

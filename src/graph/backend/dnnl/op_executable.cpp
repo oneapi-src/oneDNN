@@ -328,9 +328,7 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
                 pd_cache.at(op.get()));
         return {pd, true};
     }
-    bool can_use_blocked_layout = true;
-    if (p_engine.get_kind() == dnnl::engine::kind::gpu)
-        can_use_blocked_layout = mgr.get_use_blocked_layout();
+    const bool can_use_blocked_layout = mgr.get_use_blocked_layout();
     dnnl::primitive_attr prm_attr;
     if (op->has_attr(op_attr::fusion_info_key)
             && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
@@ -377,12 +375,11 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
                                 op->get_input_value(1)->get_logical_tensor())
                                 .is_constant()
             && is_constant_cache_enabled(p_engine);
-    const bool use_strided_wei = !const_weight
-            && (wei.get_ndims() == 4
-                    && (is_format(wei, dnnl::memory::format_tag::adbc)
-                            || is_format(wei, dnnl::memory::format_tag::abdc)
-                            || is_format(wei, dnnl::memory::format_tag::acbd)));
-    if (can_use_blocked_layout && !use_strided_wei) {
+    const bool use_strided_wei = wei.get_ndims() == 4
+            && (is_format(wei, dnnl::memory::format_tag::adbc)
+                    || is_format(wei, dnnl::memory::format_tag::abdc)
+                    || is_format(wei, dnnl::memory::format_tag::acbd));
+    if (const_weight || (can_use_blocked_layout && !use_strided_wei)) {
         wei = to_format_any(wei);
     }
     auto dst = make_dnnl_memory_desc(

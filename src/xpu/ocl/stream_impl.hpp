@@ -67,6 +67,8 @@ public:
             xpu::event_t &out_dep,
             xpu::stream_profiler_t *stream_profiler = nullptr);
 
+    status_t barrier();
+
     const xpu::ocl::context_t &ocl_ctx() const;
     xpu::ocl::context_t &ocl_ctx();
     xpu::context_t &ctx();

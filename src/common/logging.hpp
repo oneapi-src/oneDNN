@@ -71,7 +71,7 @@ public:
     // and sets logger to the aligned level.
     // Logging level is set during instantiation but is also updated whenever
     // the verbose levels are functionally updated
-    void set_log_level(const std::string vmode_str) const;
+    void set_log_level(const std::string &vmode_str) const;
 
 private:
     log_manager_t();

@@ -157,6 +157,22 @@ template <>
 struct numeric_limits<uint8_t> : public std::numeric_limits<uint8_t> {};
 
 template <>
+struct numeric_limits<float8_e8m0_t> {
+    static constexpr float8_e8m0_t lowest() {
+        return float8_e8m0_t(0x00, true);
+    }
+    static constexpr float8_e8m0_t min() { return float8_e8m0_t(0x7f, true); }
+    static constexpr float8_e8m0_t max() { return float8_e8m0_t(0xfe, true); }
+
+    static constexpr int bias = 0x7f;
+    static constexpr int digits = 1; // e8m0 -> 1 implicit bits
+
+    static constexpr float8_e8m0_t epsilon() {
+        return float8_e8m0_t(0x80, true);
+    }
+};
+
+template <>
 struct numeric_limits<float8_e5m2_t> {
     static constexpr float8_e5m2_t lowest() {
         return float8_e5m2_t(0xfb, true);

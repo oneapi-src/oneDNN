@@ -681,7 +681,8 @@ ValueT get_or_default(const MapContainerT &map, const KeyT &key,
 
 struct debug_profiler_t {
 #ifdef DNNL_DEV_MODE
-    debug_profiler_t(std::string profile_name) : profile(profile_name) {};
+    debug_profiler_t(const std::string &profile_name)
+        : profile(profile_name) {};
     void start() { profile.start(); };
     void stamp(const char *name) { profile.stamp(name); };
     void stop(const char *name) { profile.stop(name); };
@@ -692,7 +693,7 @@ struct debug_profiler_t {
 private:
     profiler_t profile;
 #else
-    debug_profiler_t(std::string) {};
+    debug_profiler_t(const std::string &) {};
     void start() {};
     void stamp(const char *name) {};
     void stop(const char *name) {};
@@ -836,7 +837,7 @@ bool stream_try_parse(std::istream &in, T &t) {
 inline void stream_match(std::istream &in, const std::string &s) {
     in >> std::ws;
     for (auto &c : s) {
-        char next = in.get();
+        auto next = in.get();
         if (next != c || in.fail())
             ir_error_not_expected() << "Cannot match " << s;
     }
@@ -1163,11 +1164,13 @@ public:
     }
 
     void print_help() const {
+        std::ios_base::fmtflags f(std::cout.flags());
         for (auto &e : entries_) {
             std::cout << "  ";
             std::cout << std::left << std::setw(22) << e.name;
             std::cout << e.help << std::endl;
         }
+        std::cout.flags(f);
     }
 
 private:

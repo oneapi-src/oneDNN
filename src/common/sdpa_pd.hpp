@@ -97,6 +97,10 @@ struct sdpa_pd_t : public primitive_desc_t {
     int n_inputs() const override { return 3 + int(with_attn_mask()); }
     int n_outputs() const override { return 1; }
 
+    bool with_attn_scale() const {
+        return (desc_.scale_dt != data_type::undef);
+    }
+
     bool with_attn_mask() const {
         return (attn_mask_md()->data_type != data_type::undef);
     }

@@ -37,8 +37,7 @@ namespace gpu {
 // - INTEL
 // - NVIDIA
 // - AMD
-// - GENERIC (standalone (not yet supported) or in a combination with the
-//            other vendors)
+// - GENERIC (standalone or in a combination with the other vendors)
 //
 // The macros for INTEL, NVIDIA and AMD vendors assume that all implementations
 // within a single vendor can be enabled at once.
@@ -49,8 +48,6 @@ namespace gpu {
 //            and runtime, e.g. an implementation of the concat primitive
 //            based on reorders.
 // - GENERIC_SYCL: SYCL generic implementations (written in generic SYCL).
-//                 NOTE: these implementations are currently only enabled for
-//                 NVIDIA vendor.
 //
 // The concat, sum and reorder primitives require specialized versions of the
 // macros because their `pd_t::create` functions have unique signatures.
@@ -74,12 +71,12 @@ namespace gpu {
 #define DNNL_GPU_AMD_ONLY(...)
 #endif
 
-// NOTE: Support for the standalone GENERIC vendor has not been added yet.
 #if defined(DNNL_WITH_SYCL) \
         && ((DNNL_GPU_VENDOR == DNNL_VENDOR_GENERIC) \
                 || (DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA) \
                 || (DNNL_AMD_ENABLE_SYCL_KERNELS == 1))
 #define DNNL_GPU_GENERIC_SYCL_ONLY(...) __VA_ARGS__
+#define GENERIC_SYCL_KERNELS_ENABLED
 #else
 #define DNNL_GPU_GENERIC_SYCL_ONLY(...)
 #endif

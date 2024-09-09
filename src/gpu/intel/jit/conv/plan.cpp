@@ -102,10 +102,10 @@ static dim_tile_t create_tile(gemm_schedule_t &gemm_schedule,
         auto outer_name = (i == 1) ? dim_name + suffixes[i - 1] : std::string();
         auto inner_name = dim_name + suffixes[i];
         gemm_schedule.split(idx, dims[i], outer, inner, outer_name, inner_name);
-        if (has_block(i)) idxs[i] = inner;
-        idx = outer;
+        if (has_block(i)) idxs[i] = std::move(inner);
+        idx = std::move(outer);
     }
-    idxs[0] = idx;
+    idxs[0] = std::move(idx);
 
     tile.set_grid_idx(idxs[0]);
     tile.set_loop_idx(idxs[1]);
@@ -300,8 +300,9 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     gemm_schedule.tensorize(kw_tile.iter_idx());
     gemm_schedule.tensorize(ic_tile.iter_idx());
 
-    gemm_schedule.reorder({ic_tile.loop_idx(), kd, kh, kw_tile.loop_idx(),
-            oc_tile.tg_idx(), mb_ow_tg_idx, ic_tile.tg_idx()});
+    gemm_schedule.reorder({ic_tile.loop_idx(), std::move(kd), std::move(kh),
+            kw_tile.loop_idx(), oc_tile.tg_idx(), std::move(mb_ow_tg_idx),
+            ic_tile.tg_idx()});
 }
 
 void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
@@ -482,7 +483,8 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
 
     switch (cfg_.bwd_d_optimize_kind()) {
         case bwd_d_optimize_kind_t::none:
-            gemm_schedule.reorder({oc_tile.loop_idx(), kd, kh, kw});
+            gemm_schedule.reorder({oc_tile.loop_idx(), std::move(kd),
+                    std::move(kh), std::move(kw)});
             break;
         case bwd_d_optimize_kind_t::skip_strided_dhw:
             gemm_schedule.set_dynamic_bounds(
@@ -493,7 +495,8 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
             gemm_schedule.set_dynamic_bounds(
                     kh, (ih + prb_.ph) % prb_.sh, prb_.sh);
             // Put kd/kh/kw outermost to allow pipelining in oc loop.
-            gemm_schedule.reorder({kd, kh, kw, oc_tile.loop_idx()});
+            gemm_schedule.reorder({std::move(kd), std::move(kh), std::move(kw),
+                    oc_tile.loop_idx()});
             break;
         case bwd_d_optimize_kind_t::skip_out_of_bound_w:
             gemm_schedule.set_dynamic_bounds(kw,
@@ -2433,10 +2436,10 @@ private:
             return plan_status_t::invalid_c_layout;
         }
 
-        plan.a_layout = a_layout;
-        plan.b_layout = b_layout;
-        plan.c_layout = c_layout;
-        plan.c_prb_layout = c_prb_layout;
+        plan.a_layout = std::move(a_layout);
+        plan.b_layout = std::move(b_layout);
+        plan.c_layout = std::move(c_layout);
+        plan.c_prb_layout = std::move(c_prb_layout);
         plan.fma_kind = fma_kind;
         plan.b_blk = b_blk;
         plan.m_blk = m_blk;

@@ -208,6 +208,13 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
     seed = hash_combine(seed, static_cast<size_t>(attr.deterministic_));
     // acc_mode
     seed = hash_combine(seed, static_cast<size_t>(attr.acc_mode_));
+    // rounding_mode
+    if (!attr.rounding_mode_.has_default_values()) {
+        for (const auto &e : attr.rounding_mode_.rounding_modes_map_) {
+            seed = hash_combine(seed, e.first);
+            seed = hash_combine(seed, static_cast<size_t>(e.second));
+        }
+    }
 
     if (!attr.output_scales_.has_default_values()) {
         // output_scales: mask

@@ -347,7 +347,7 @@ public:
             case fma_kind_t::dpas: {
                 auto a_tile = a_inner_.int_dim_sizes();
                 auto b_tile = b_inner_.int_dim_sizes();
-                ret = a_tile;
+                ret = std::move(a_tile);
                 for (auto &d : b_tile) {
                     if (ret.has(d)) ir_assert(ret[d] == b_tile[d]);
                     ret[d] = b_tile[d];
@@ -481,7 +481,7 @@ private:
                 block.dim = d;
                 block.size = simd_;
                 block.stride = expr_t(1);
-                b_inner_ = layout_t(b_desc, b_type_, 0, {block});
+                b_inner_ = layout_t(b_desc, b_type_, 0, {std::move(block)});
                 break;
             }
         }
@@ -566,7 +566,12 @@ private:
 class plan_builder_t {
 public:
     plan_builder_t() = default;
-    plan_builder_t(const kernel_desc_t &desc) : desc_(desc) {}
+    plan_builder_t(const kernel_desc_t &desc) : desc_(desc) {
+        reqs_ = desc_.reqs;
+        desc_.reqs = prb_reqs_t();
+    }
+
+    const prb_reqs_t &reqs() const { return reqs_; }
 
     plan_t build() {
         init_dim_mapper_manager();
@@ -590,8 +595,21 @@ private:
         return plan;
     }
 
+    void add_align_req(const prb_dim_t &dim, const type_t &type,
+            const align_desc_t::align_t &align) {
+        if (align.value == 0) {
+            reqs_.set_any_mod(dim);
+        } else {
+            int align_bytes = (align.in_bytes ? align.value
+                                              : align.value * type.size());
+            reqs_.add(
+                    size_var(dim) % ir_utils::safe_div(align_bytes, type.size())
+                    == 0);
+        }
+    }
+
     void init_dim_mapper_manager() {
-        dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop, desc_.reqs);
+        dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop, reqs_);
     }
 
     void init_tiles() {
@@ -604,23 +622,32 @@ private:
             int iter_tile = desc_.iter_tile.get(d, 1);
             auto thr_idx = thr_grid_.index_var(d);
             coord_info_.add_dim(d, is_loop, is_global_loop, tg_tile, thr_idx,
-                    iter_tile, desc_.reqs);
+                    iter_tile, reqs_);
         }
     }
 
     void init_layouts() {
         auto src_layout = make_conv_layout(
-                tensor_kind_t::src, desc_.src_tag, desc_.is_dw, desc_.reqs);
+                tensor_kind_t::src, desc_.src_tag, desc_.is_dw, reqs_);
         auto wei_layout = make_conv_layout(
-                tensor_kind_t::wei, desc_.wei_tag, desc_.is_dw, desc_.reqs);
+                tensor_kind_t::wei, desc_.wei_tag, desc_.is_dw, reqs_);
         auto dst_layout = make_conv_layout(
-                tensor_kind_t::dst, desc_.dst_tag, desc_.is_dw, desc_.reqs);
+                tensor_kind_t::dst, desc_.dst_tag, desc_.is_dw, reqs_);
         a_layout_ = pick_a(desc_.prop, src_layout, wei_layout, dst_layout);
         b_layout_ = pick_b(desc_.prop, src_layout, wei_layout, dst_layout);
         c_layout_ = pick_c(desc_.prop, src_layout, wei_layout, dst_layout);
         if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
             bia_layout_ = make_conv_layout(
-                    tensor_kind_t::bia, desc_.bia_tag, desc_.is_dw, desc_.reqs);
+                    tensor_kind_t::bia, desc_.bia_tag, desc_.is_dw, reqs_);
+        if (desc_.access_mode == access_mode_t::alignment) {
+            auto &align = desc_.align;
+            add_align_req(
+                    src_layout.blocks()[0].dim, src_layout.type(), align.src);
+            add_align_req(
+                    wei_layout.blocks()[0].dim, wei_layout.type(), align.wei);
+            add_align_req(
+                    dst_layout.blocks()[0].dim, dst_layout.type(), align.dst);
+        }
     }
 
     dim_map_t<prb_dim_t, prb_dim_kind_t> to_bmnk_map() const {
@@ -650,7 +677,7 @@ private:
         if (!try_init_plan(plan)) return plan_t();
         if (!check_plan(plan)) return plan_t();
 
-        reqs_ = plan.reqs();
+        reqs_.add(plan.reqs());
         plan = plan_t(desc_.hw);
         if (!try_init_plan(plan) || !check_plan(plan)) {
             ir_error_not_expected();
@@ -668,7 +695,8 @@ private:
         ir_check(init_x2r_fma_plan(plan.x2r_fma));
         ir_check(init_prefetch_plan(
                 plan.x2r_fma, plan.virt_grid, plan.prefetch));
-        ir_check(init_epilogue_plan(plan.x2r_fma.c_layout, plan.epilogue));
+        ir_check(init_epilogue_plan(
+                plan.x2r_fma.c_layout, plan.virt_grid, plan.epilogue));
         if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
             ir_check(init_epilogue_bia(plan.x2r_fma.bia_layout, plan.epilogue));
         return true;
@@ -728,19 +756,19 @@ private:
         if (mul_info_.is_compatible(abc, load.reg_layout())) {
             reg_layout = load.reg_layout();
         } else {
-            auto src = load.reg_layout();
+            auto &src = load.reg_layout();
             auto dst = mul_info_.to_compatible_layout(abc, load.reg_layout());
             reorder = reorder_plan_t(desc_.hw, src, dst);
             reg_layout = reorder.dst;
         }
         plan = x2r_plan_t(desc_.hw);
         plan.tensor_kind = abc;
-        plan.load = load;
-        plan.reorder = reorder;
-        plan.layout = reg_layout;
+        plan.load = std::move(load);
+        plan.reorder = std::move(reorder);
+        plan.layout = std::move(reg_layout);
         if (abc == tensor_kind_t::b) {
             auto bia_layout = mul_info_.bia_layout(plan.layout, bia_layout_);
-            plan.bia_layout = bia_layout;
+            plan.bia_layout = std::move(bia_layout);
         }
         return true;
     }
@@ -755,8 +783,8 @@ private:
         plan.fma = desc_.fma;
         plan.a_layout = a;
         plan.b_layout = b;
-        plan.c_layout = acc_layout;
-        plan.inst_tile = inst_tile;
+        plan.c_layout = std::move(acc_layout);
+        plan.inst_tile = std::move(inst_tile);
         return true;
     }
 
@@ -843,7 +871,7 @@ private:
                 reduce_cond
                         = reduce_cond & (coord_info_.iter_coord()[dim] == 0);
         }
-        plan.reduce_cond = reduce_cond;
+        plan.reduce_cond = std::move(reduce_cond);
         auto bia_params = get_send_params(
                 tensor_kind_t::bia, send_op_t::store, bia_iter_view);
         auto bia_store = create_send_plan(bia_params, bia_iter_view);
@@ -854,15 +882,15 @@ private:
             auto store_layout = bia_store.reg_layout().map(tile);
             if (fma_layout != store_layout) {
                 plan.bia_reorder = reorder_plan_t(desc_.hw);
-                plan.bia_reorder.src = fma_layout;
-                plan.bia_reorder.dst = store_layout;
+                plan.bia_reorder.src = std::move(fma_layout);
+                plan.bia_reorder.dst = std::move(store_layout);
             }
         }
         return true;
     }
 
-    bool init_slm_reduce_plan(
-            const layout_t &c_layout, slm_reduce_plan_t &plan) const {
+    bool init_slm_reduce_plan(const layout_t &c_layout, virt_grid_t &virt_grid,
+            slm_reduce_plan_t &plan) const {
         prb_dim_t k_dim;
         for (auto &d : desc_.thread_group_tile) {
             if (to_gemm(d, desc_.prop) == prb_dim_kind_t::k) {
@@ -906,39 +934,43 @@ private:
         grid_splitter.add(thr_grid_.index_var(k_dim), k_tg);
         auto split_view = view_t::split(
                 mapper, c_layout, prb_coord_t<expr_t>(), c_tile, grid_splitter);
-        ir_assert(grid_splitter.virt_grid_idxs().empty());
+        for (auto &kv : grid_splitter.virt_grid_idxs()) {
+            virt_grid.add(kv.first, kv.second);
+        }
 
-        auto load_coord = split_view.coord();
+        auto &load_coord = split_view.coord();
         auto tile_with_k = split_view.tile();
         tile_with_k[k_dim] = k_tg;
 
         // Load partial sums and do the final reduction.
-        auto load_view = view_t(mapper, slm_layout, load_coord, tile_with_k);
+        auto load_view = view_t(mapper, slm_layout, load_coord, tile_with_k,
+                grid_splitter.var_range_info());
         auto load_params = get_send_params(tensor_kind_t::c, send_op_t::load,
                 load_view, send_kind_t::block, send_address_t::slm);
         load_params.skip_mask.push_back(k_dim);
         auto load = try_create_send_plan(__func__, load_params, load_view);
         if (!load) return false;
 
-        auto load_layout = load.reg_layout();
+        auto &load_layout = load.reg_layout();
         auto reduced_layout = load_layout.map(split_view.tile());
         auto reduce = reduce_plan_t(desc_.hw, load_layout, reduced_layout);
-        auto c_post_layout = reduced_layout;
+        auto c_post_layout = std::move(reduced_layout);
         c_post_layout.remove(k_dim);
 
         plan = slm_reduce_plan_t(desc_.hw);
-        plan.store = store;
-        plan.load = load;
-        plan.reduce = reduce;
-        plan.c_layout = c_post_layout;
+        plan.store = std::move(store);
+        plan.load = std::move(load);
+        plan.reduce = std::move(reduce);
+        plan.c_layout = std::move(c_post_layout);
         plan.c_coord = coord_info_.iter_coord() + load_coord;
 
         return true;
     }
 
-    bool init_epilogue_plan(
-            const layout_t &c_fma_layout, epilogue_plan_t &plan) const {
-        ir_check(init_slm_reduce_plan(c_fma_layout, plan.slm_reduce));
+    bool init_epilogue_plan(const layout_t &c_fma_layout,
+            virt_grid_t &virt_grid, epilogue_plan_t &plan) const {
+        ir_check(
+                init_slm_reduce_plan(c_fma_layout, virt_grid, plan.slm_reduce));
         auto &c_mapper = dim_mapper_manager_.mapper(tensor_kind_t::c);
         auto c_reg_layout
                 = (plan.slm_reduce ? plan.slm_reduce.c_layout : c_fma_layout);
@@ -960,24 +992,32 @@ private:
         }
         auto params = get_send_params(
                 tensor_kind_t::c, send_op_t::store, c_mem_view);
-        auto c_store = create_send_plan(params, c_mem_view);
-        auto tile = c_store.entry_tile();
+        // TODO: Implement fallback from 2D to block/scattered messages to
+        // allow partial use of 2D messages when possible.
+        auto c_store = try_create_send_plan(__func__, params, c_mem_view);
+        if (!c_store) return false;
+        auto &tile = c_store.entry_tile();
         plan.tile = tile;
         plan.c_store = c_store;
         auto c_reg_tile_layout = c_reg_layout.map(tile);
         auto store_layout = c_store.reg_layout().map(tile);
         if (c_reg_tile_layout != store_layout) {
             plan.reorder = reorder_plan_t(desc_.hw);
-            plan.reorder.src = c_reg_tile_layout;
-            plan.reorder.dst = store_layout;
+            plan.reorder.src = std::move(c_reg_tile_layout);
+            plan.reorder.dst = std::move(store_layout);
         }
         return true;
     }
 
     bool check_plan(const plan_t &plan) const {
-        int bound = desc_.hw.grf_size() * desc_.regs;
-        int usage_bytes = plan.grf_usage_bytes();
-        ir_check(usage_bytes <= bound) << "check_plan: out of registers";
+        int grf_bound = desc_.hw.grf_size() * desc_.regs;
+        int grf_bytes = plan.grf_usage_bytes();
+        ir_check(grf_bytes <= grf_bound) << "check_plan: out of registers";
+        int slm_bound = compute::device_info_t::max_slm_size_per_tg(
+                convert_ngen_arch_to_dnnl(desc_.hw.to_ngen()),
+                desc_.thread_group_tile.elems(), desc_.regs > 128);
+        int slm_bytes = plan.slm_usage_bytes();
+        ir_check(slm_bytes <= slm_bound) << "check_plan: out of SLM";
         return true;
     }
 
@@ -995,6 +1035,7 @@ private:
             params.hint_2d = send_2d_hint_t(view, op, mul_info_.hint(abc));
         params.skip_mask = skip_mask(view);
         params.init_max_entry_reg_size();
+        params.external_reqs = &reqs_;
         return params;
     }
 
@@ -1049,7 +1090,6 @@ private:
 
 prb_reqs_t plan_t::reqs() const {
     prb_reqs_t ret;
-    ret.add(desc.reqs);
     ret.add(prefetch.reqs());
     ret.add(x2r_fma.reqs());
     ret.add(epilogue.c_store.reqs());
@@ -1057,20 +1097,35 @@ prb_reqs_t plan_t::reqs() const {
     return ret;
 }
 
-plan_t create_conv_plan(const kernel_desc_t &desc) {
+template <typename KernelDescT>
+plan_t create_conv_plan_impl(KernelDescT &desc, bool finalize) {
     if (!desc.is_supported()) return plan_t();
     ir_assert(!desc.has_spec_strategy())
             << "Kernel descriptor strategies are required to be specialized "
                "before plan creation";
     plan_builder_t builder(desc);
     auto plan = builder.build();
+    if (plan) {
+        if (finalize) {
+            const_cast<kernel_desc_t &>(desc).finalize(builder.reqs());
+        } else {
+            ir_assert(desc.reqs.implies(builder.reqs()));
+        }
+    }
     return plan;
 }
 
-plan_t create_conv_plan_and_finalize_desc(kernel_desc_t &desc) {
-    auto plan = create_conv_plan(desc);
-    if (plan) desc.finalize(plan);
-    return plan;
+plan_t create_conv_plan(const kernel_desc_t &desc) {
+    return create_conv_plan_impl(desc, /*finalize=*/false);
+}
+
+bool finalize_conv_desc(kernel_desc_t &desc, const problem_t &prb) {
+    ir_assert(desc.hw_desc.hw == prb.hw().to_ngen());
+    desc.specialize(prb);
+    desc.hw = prb.hw();
+    if (desc.is_finalized) return true;
+    auto plan = create_conv_plan_impl(desc, /*finalize=*/true);
+    return (bool)plan;
 }
 
 } // namespace conv

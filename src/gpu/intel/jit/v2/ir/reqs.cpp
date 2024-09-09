@@ -207,7 +207,7 @@ public:
     }
 
     req_kind_t kind() const { return kind_; }
-    dim_product_t lhs() const { return lhs_; }
+    const dim_product_t &lhs() const { return lhs_; }
     int rhs() const { return rhs_; }
 
     void substitute(const prb_tile_t &dim_sizes) {
@@ -247,12 +247,14 @@ public:
     // requirement.
     bool can_prove(const req_impl_t &to_prove) const {
         if (*this == to_prove) return true;
-        if (kind_ != req_kind_t::mod_eq_0
-                && to_prove.kind_ != req_kind_t::mod_eq_0)
-            return false;
+        if (kind_ != to_prove.kind_) return false;
         if (lhs_ != to_prove.lhs_) return false;
-        if (rhs_ % to_prove.rhs_ == 0) return true;
-        return false;
+        switch (kind_) {
+            case req_kind_t::ge: return rhs_ >= to_prove.rhs_;
+            case req_kind_t::le: return rhs_ <= to_prove.rhs_;
+            case req_kind_t::mod_eq_0: return rhs_ % to_prove.rhs_ == 0;
+            default: return false;
+        }
     }
 
     void stringify(std::ostream &out) const { stringify_impl(out); }
@@ -367,6 +369,10 @@ void prb_reqs_t::set(const prb_dim_t &dim, int value) {
     add(size_var(dim) == value);
 }
 
+void prb_reqs_t::set_any_mod(const prb_dim_t &dim) {
+    any_mods_.push_back(dim);
+}
+
 void prb_reqs_t::add_if_not_found(const req_impl_t &new_req) {
     for (auto &r : reqs_) {
         if (r.impl() == new_req) return;
@@ -374,9 +380,8 @@ void prb_reqs_t::add_if_not_found(const req_impl_t &new_req) {
     reqs_.emplace_back(new_req);
 }
 
-prover_t prb_reqs_t::prover(bool enable) {
-    if (!enable) return prover_t();
-    return prover_t(this);
+prover_t prb_reqs_t::prover(const prb_reqs_t &parent, bool can_update) {
+    return prover_t(&parent, this, can_update);
 }
 
 bool prb_reqs_t::fits(const prb_tile_t &sizes) const {
@@ -562,9 +567,22 @@ bool prb_reqs_t::can_prove(const expr_t &to_prove) const {
     return can_prove(req_impl_t(e));
 }
 
-bool prb_reqs_t::can_prove(const req_impl_t &to_prove) const {
+bool prb_reqs_t::can_prove(const req_impl_t &to_prove, bool use_any_mod) const {
     for (auto &r : reqs_) {
         if (r.impl().can_prove(to_prove)) return true;
+    }
+    if (to_prove.kind() == req_kind_t::mod_eq_0) {
+        int mod = 1;
+        for (int i = 0; i < to_prove.lhs().size(); i++) {
+            auto &dim = to_prove.lhs()[i];
+            if (use_any_mod) {
+                for (auto &d : any_mods_) {
+                    if (d == dim) return true;
+                }
+            }
+            mod *= max_factor(dim);
+        }
+        if (mod % to_prove.rhs() == 0) return true;
     }
     return false;
 }
@@ -581,6 +599,17 @@ bool prb_reqs_t::get_value(const prb_dim_t &dim, int &value) const {
     return false;
 }
 
+int prb_reqs_t::max_factor(const prb_dim_t &dim) const {
+    int ret = 1;
+    for (auto &r : reqs_) {
+        auto &ri = r.impl();
+        if (ri.kind() == req_kind_t::mod_eq_0 && ri.lhs() == dim) {
+            ret = std::max(ret, ri.rhs());
+        }
+    }
+    return ret;
+}
+
 bool prb_reqs_t::is_equal(const prb_dim_t &dim, int value) const {
     int dim_value;
     return get_value(dim, dim_value) && dim_value == value;
@@ -588,7 +617,7 @@ bool prb_reqs_t::is_equal(const prb_dim_t &dim, int value) const {
 
 bool prb_reqs_t::implies(const prb_reqs_t &other) const {
     for (auto &req : other.reqs_) {
-        if (!can_prove(req.impl())) return false;
+        ir_check(can_prove(req.impl())) << "Cannot prove: " << req.impl();
     }
     return true;
 }
@@ -608,8 +637,10 @@ bool prover_t::require(const expr_t &_e) const {
     auto e = simplify_expr(_e);
     if (auto *imm = e.as_ptr<bool_imm_t>()) return imm->value;
 
-    if (!parent_) return false;
-    parent_->add_if_not_found(req_impl_t(e));
+    req_impl_t ri(e);
+    bool is_true = (parent_ && parent_->can_prove(ri, /*use_any_mod=*/true));
+    if (!is_true && !can_update_) return false;
+    reqs_->add_if_not_found(ri);
     return true;
 }
 

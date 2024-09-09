@@ -49,6 +49,7 @@ public:
     const expr_t &size(int level) const { return loops_[level].size; }
     std::vector<expr_t> indices() const {
         std::vector<expr_t> ret;
+        ret.reserve(nloops());
         for (int i = 0; i < nloops(); i++) {
             ret.push_back(index(i));
         }
@@ -251,7 +252,7 @@ public:
         expr_t ret;
         for (auto &e : entries_) {
             auto cmp = (e.off.load() < e.off.make_broadcast(e.bound));
-            ret = (ret.is_empty() ? cmp : (ret & cmp));
+            ret = (ret.is_empty() ? std::move(cmp) : (ret & cmp));
             if (e.has_underflow)
                 ret &= (e.off.load() >= e.off.make_broadcast(0));
         }
@@ -390,7 +391,7 @@ private:
         ret.type = type;
         ret.base = base0 + _base_init;
         ret.shift = _shift;
-        ret.shift_vec = shift_vec;
+        ret.shift_vec = std::move(shift_vec);
         ret.esize = params.esize;
 
         expr_t comp_value = 0;
@@ -559,7 +560,7 @@ public:
             if (i + 1 < nloops())
                 stmt = stmt.append(if_t::make(
                         loop_idxs_[i].var() >= loop_nest_.size(i), body));
-            body = stmt;
+            body = std::move(stmt);
         }
         body = linear_idx_.inc_stmt(-1).append(body);
         return body;
@@ -761,8 +762,8 @@ loop_nest_t make_loop_nest(
         const loop_desc_t &loop_desc, const coord_info_t &coord_info) {
     loop_nest_t ret;
     for (auto &e : loop_desc) {
-        auto index = coord_info.loop_index(e.dim);
-        auto size = coord_info.loop_size(e.dim);
+        const auto &index = coord_info.loop_index(e.dim);
+        const auto &size = coord_info.loop_size(e.dim);
         ret.add_loop(index, size);
     }
     return ret;
@@ -847,8 +848,8 @@ private:
             ret = ret.append(prefetch_it.inc_stmt(prefetch_off_ctx_));
         }
         for (auto &e : loop_desc) {
-            auto var = coord_info.loop_index(e.dim);
-            auto bound = coord_info.loop_size(e.dim);
+            const auto &var = coord_info.loop_index(e.dim);
+            const auto &bound = coord_info.loop_size(e.dim);
             ret = ret.append(off_ctx_.inc_loop_stmt(e.idx));
             ret = for_t::make(var, 0, bound, ret);
         }
@@ -882,7 +883,7 @@ private:
         auto &coord_info = plan_.coord_info;
         stmt_t ret = stmt;
         for (auto &d : conv_index_dims(plan_.desc.prop)) {
-            auto tg_idx = coord_info.tg_index(d);
+            const auto &tg_idx = coord_info.tg_index(d);
             if (is_const(tg_idx)) continue;
             auto base_tg_idx = tg_grid.index_var(d);
             if (base_tg_idx.is_empty()) continue;
@@ -906,7 +907,7 @@ private:
         auto base_idx = tg_grid.index_var(dim);
         if (base_idx.is_empty()) return expr_t();
 
-        expr_t value = base_idx;
+        expr_t value = std::move(base_idx);
         auto &dims = tg_grid.dims(tg_grid.index(dim));
         int ndims = (int)dims.size();
         for (int i = 0; i < ndims; i++) {
@@ -1024,13 +1025,13 @@ private:
                         auto src1 = a_buf[a_off];
                         auto src2 = b_buf[b_off];
                         if (fma.fma == fma_kind_t::dpas) std::swap(src1, src2);
-                        stmt = stmt.append(
-                                fma_func.call({dst, dst, src1, src2}));
+                        stmt = stmt.append(fma_func.call(
+                                {dst, dst, std::move(src1), std::move(src2)}));
                     }
                 }
             }
         }
-        stmt = inject_dpas_atomic(stmt);
+        stmt = inject_dpas_atomic(stmt, /*filter_by_label=*/false);
         x2r_mul_stmt_ = x2r_mul_stmt_.append(stmt);
     }
 
@@ -1067,7 +1068,7 @@ private:
         auto &bia_buf = buf_mgr_.find_buf("bia_buf");
         auto bia_tile = epilogue.bia_store.reg_layout().int_dim_sizes();
         auto epilogue_tile = bia_tile;
-        for (auto d : bia_tile)
+        for (auto &d : bia_tile)
             epilogue_tile[d] = epilogue.tile[d];
         for_each(bia_tile, epilogue_tile, [&](const prb_coord_t<int> &coord) {
             auto bia_payload_buf = bia_buf;
@@ -1080,7 +1081,7 @@ private:
                 auto stmt = create_stmt(
                         epilogue.bia_reorder, bia_buf + src_off, bia_tmp_buf);
                 epilogue_stmt_ = epilogue_stmt_.append(stmt);
-                bia_payload_buf = bia_tmp_buf;
+                bia_payload_buf = std::move(bia_tmp_buf);
                 bia_payload_layout = epilogue.bia_reorder.dst;
                 payload_coord = prb_coord_t<int>();
             }
@@ -1099,7 +1100,7 @@ private:
         auto &c_buf = buf_mgr_.find_buf("c");
         auto c_tmp_buf
                 = buf_mgr_.get("c_reduce", slm_reduce.load.reg_layout().size());
-        auto c_slm_buf = buf_mgr_.get("slm", slm_reduce.slm_size());
+        auto c_slm_buf = buf_mgr_.get("slm", slm_reduce.slm_usage_bytes());
         auto store_stmt = create_stmt(
                 slm_reduce.store, c_slm_buf, c_buf, epilogue_off_ctx_);
         auto load_stmt = create_stmt(
@@ -1130,7 +1131,7 @@ private:
                 auto stmt = create_stmt(
                         epilogue.reorder, c_buf + src_off, c_tmp_buf);
                 epilogue_stmt_ = epilogue_stmt_.append(stmt);
-                payload_buf = c_tmp_buf;
+                payload_buf = std::move(c_tmp_buf);
                 payload_layout = epilogue.reorder.dst;
                 payload_coord = prb_coord_t<int>();
             }
@@ -1164,7 +1165,7 @@ private:
                 break;
             default: ir_error_not_expected();
         }
-        return kernel_info_.find_arg(name.c_str());
+        return kernel_info_.find_arg(name);
     }
 
     expr_t a_mem_buf() const { return mem_buf(tensor_kind_t::a); }

@@ -815,7 +815,8 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
             bool not_fusible
                     = (!pops_fusible_map.at(base_op_kind).count(post_op_kind))
                     || (post_op_kind == op_kind::dnnl_binary
-                            && !post_binary_fusible(op, &post_op))
+                            && !post_binary_fusible(
+                                    op, &post_op, sg->get_engine_kind()))
                     || (post_op_kind == op_kind::dnnl_convolution
                             && !post_depthwise_conv_fusible(op, &post_op));
             if (not_fusible) { return status::success; }
@@ -3664,6 +3665,46 @@ impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
     }
 
     return impl::status::success;
+}
+
+impl::status_t fuse_reshape_for_gqa(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> reshape_ops;
+    dnnl_dim_t head_num;
+    for (auto &cur_op : sg->get_ops()) {
+        auto in = cur_op->get_input_value(0)->get_logical_tensor();
+        auto out = cur_op->get_output_value(0)->get_logical_tensor();
+        if (cur_op->get_kind() == op_kind::dnnl_reshape) {
+            if (ltw(in).ndims() == 5 || ltw(out).ndims() == 5) {
+                reshape_ops.emplace_back(cur_op);
+                if (ltw(in).ndims() == 5) head_num = ltw(out).vdims()[1];
+            }
+        }
+    }
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &reshape_op : reshape_ops) {
+        auto in = reshape_op->get_input_value(0)->get_logical_tensor();
+        auto out = reshape_op->get_output_value(0)->get_logical_tensor();
+        if (ltw(in).ndims() == 5)
+            rewriter.fuse_op_to_predecessor(reshape_op->shared_from_this());
+        if (ltw(out).ndims() == 5) {
+            auto in_dims = ltw(in).vdims();
+            // set the dim to 1 to ensure the shape infer can be passed.
+            // eg:[32,16,384,64]*[32,2,384,64] -> [32,16,384,64]*[32,1,384,64]
+            if (in_dims[1] != head_num) in_dims[1] = 1;
+            reshape_op->get_input_value(0)->set_dims(in_dims);
+            rewriter.fuse_op_to_successor(reshape_op->shared_from_this());
+        }
+    }
+    rewriter.run();
+
+    //rewrite the subgraph internal logical_tensor's shape
+    for (auto &cur_op : sg->get_ops()) {
+        auto out_val = cur_op->get_output_value(0);
+        //the subgraph output logical tensor don't change shape.
+        if (!out_val->get_consumers().empty()) out_val->set_ndims(-1);
+    }
+    return infer_shape(sg);
 }
 
 impl::status_t swap_relu_mul_scales(std::shared_ptr<subgraph_t> &sg) {

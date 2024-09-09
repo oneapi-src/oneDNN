@@ -16,7 +16,7 @@
 
 #include <CL/cl.h>
 
-#include <unordered_map>
+#include <map>
 #include <unordered_set>
 
 #include "common/c_types_map.hpp"
@@ -43,7 +43,7 @@ status_t stream_profiler_t::get_info(profiling_data_kind_t data_kind,
         return status::success;
     }
 
-    std::unordered_map<uint64_t, xpu::stream_profiler_t::entry_t> stamp2entry;
+    std::map<uint64_t, xpu::stream_profiler_t::entry_t> stamp2entry;
     for (auto &ev : events_) {
         auto &entry = stamp2entry[ev.stamp];
         const xpu::ocl::event_t &ocl_event

@@ -174,6 +174,7 @@ struct brgemm_matmul_conf_t {
     bool transposed_A;
     bool transposed_B;
     bool blocked_B;
+    bool treat_transposed_A_as_plain;
 
     dim_t zp_a_comp_shift_n;
     dim_t zp_a_comp_elems_per_thr;
@@ -350,7 +351,7 @@ private:
 // This function initializes all required fields in the conf object to generate
 // copy_b kernel. Used in this impl and re-used in brgemm kernel API.
 status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
-        dim_t n_blk, data_type_t in_type, data_type_t out_type,
+        dim_t in_ld, dim_t n_blk, data_type_t in_type, data_type_t out_type,
         format_tag_t in_tag);
 
 void init_aux_values(brgemm_matmul_conf_t &bgmmc,

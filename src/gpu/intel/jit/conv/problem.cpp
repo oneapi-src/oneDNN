@@ -168,6 +168,38 @@ const std::vector<prb_dim_t> &conv_padding_dims() {
     return _padding_dims;
 }
 
+bool can_reduce_to_1d(const memory_desc_t &out_md, const post_ops_t &post_ops) {
+    int ndims = out_md.ndims;
+    int sp_ndims = ndims - 2;
+    int non_one_sp_ndims = 0;
+    for (int i = ndims - sp_ndims; i < ndims; i++) {
+        if (out_md.dims[i] != 1) non_one_sp_ndims++;
+    }
+    if (non_one_sp_ndims == 1) return true;
+    for (int i = 0; i < post_ops.len(); i++) {
+        auto &po = post_ops.entry_[i];
+        int mask = 0;
+        if (po.is_prelu()) {
+            mask = po.prelu.mask;
+        } else if (po.is_binary()) {
+            mask = utils::get_dims_mask(
+                    out_md.dims, po.binary.src1_desc.dims, ndims);
+        }
+        // If the post-op is applied per D/H/W dimension then it cannot be
+        // transformed to 1D.
+        for (int i = ndims - sp_ndims; i < ndims; i++) {
+            if ((mask & (1 << i)) != 0) return false;
+        }
+    }
+    return true;
+}
+
+void conv_problem_t::normalize_shape() {
+    normalize_conv_shape(id, od, kd, sd, dd, pd, ih, oh, kh, sh, dh, ph, iw, ow,
+            kw, sw, dw, pw,
+            can_reduce_to_1d(c_md(), conv_pd->attr()->post_ops_), dhw_map);
+}
+
 const memory_desc_t &conv_problem_t::a_md() const {
     return *pick_a(conv_pd->invariant_src_md(), conv_pd->invariant_wei_md(),
             conv_pd->invariant_dst_md());
@@ -283,6 +315,60 @@ void conv_problem_t::init_transpose(const hw_t &hw) {
             && (do_oc_swap || do_ic_swap);
     ab_swap_transpose
             = gpu_utils::dev_getenv("ab_swap_transpose", ab_swap_transpose);
+}
+
+void normalize_conv_shape(int &id, int &od, int &kd, int &sd, int &dd, int &pd,
+        int &ih, int &oh, int &kh, int &sh, int &dh, int &ph, int &iw, int &ow,
+        int &kw, int &sw, int &dw, int &pw, bool can_flatten_spatial,
+        std::array<int, 3> &dhw_map) {
+    for (int i = 0; i < 3; i++)
+        dhw_map[i] = -1;
+    bool is_1x1 = (kd * kh * kw == 1);
+    bool is_eq_oi = (od == id && oh == ih && ow == iw);
+    if (is_1x1 && sd == 1 && sh == 1 && sw == 1 && is_eq_oi
+            && can_flatten_spatial) {
+        // Convert 3D to 1D convolution.
+        ir_assert(pd == 0 && ph == 0 && pw == 0);
+        ow = od * oh * ow;
+        iw = id * ih * iw;
+        od = id = kd = 1;
+        oh = ih = kh = 1;
+        dhw_map[0] = dhw_map[1] = dhw_map[2] = 2;
+        return;
+    }
+    // Propagate D -> H -> W. If the spatial dimension is not present, map it
+    // to the next present dimension.
+    std::vector<int *> xd = {&id, &od, &kd, &sd, &dd, &pd};
+    std::vector<int *> xh = {&ih, &oh, &kh, &sh, &dh, &ph};
+    std::vector<int *> xw = {&iw, &ow, &kw, &sw, &dw, &pw};
+    std::vector<int *> x[3] = {std::move(xd), std::move(xh), std::move(xw)};
+    std::vector<int> x_old[3];
+    std::vector<int> xdef = {1, 1, 1, 1, 0, 0};
+    bool has_dim[3] = {false, false, false};
+    for (int i = 0; i < 3; i++) {
+        x_old[i].resize(xdef.size());
+        for (size_t j = 0; j < xdef.size(); j++) {
+            if (*x[i][j] != xdef[j]) has_dim[i] = true;
+            x_old[i][j] = *x[i][j];
+        }
+    }
+    auto set = [](const std::vector<int *> &x, const std::vector<int> &values) {
+        for (size_t i = 0; i < x.size(); i++)
+            *x[i] = values[i];
+    };
+    if (!has_dim[0] && !has_dim[1] && !has_dim[2]) has_dim[2] = true;
+    int sp_count = (int)has_dim[0] + (int)has_dim[1] + (int)has_dim[2];
+    int shift = 3 - sp_count;
+    for (int i = 0, idx = 0; i < 3; i++) {
+        if (has_dim[i]) dhw_map[i] = shift + idx++;
+        set(x[i], xdef);
+    }
+    for (int i = 0; i < 3; i++) {
+        if (dhw_map[i] != -1) set(x[dhw_map[i]], x_old[i]);
+    }
+    if (!has_dim[2]) dhw_map[2] = 2;
+    if (!has_dim[1]) dhw_map[1] = dhw_map[2];
+    if (!has_dim[0]) dhw_map[0] = dhw_map[1];
 }
 
 prb_dim_t to_gemm(const prb_dim_t &d, prop_kind_t prop, bool is_transpose) {

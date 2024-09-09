@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ################################################################################
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2021-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,10 +65,20 @@ def filter_verbose(benchdnn_verbose, driver):
             else:
                 # detect driver
                 l_s = l.split(",")
-                d = benchdnn_gen.convert_driver(l_s[4]) if len(l_s) > 4 else ""
-                if len(l_s) > 4 and l_s[0] == "onednn_verbose" and d == driver:
-                    # filter out additional forward calls
-                    verbose_prop_kind = l_s[6]
+                primitive_idx = 5
+                d = (
+                    benchdnn_gen.convert_driver(l_s[primitive_idx])
+                    if len(l_s) > primitive_idx
+                    else ""
+                )
+                if (
+                    len(l_s) > primitive_idx
+                    and l_s[0] == "onednn_verbose"
+                    and d == driver
+                ):
+                    # filter out additional forward calls, it's located in two
+                    # positions after primitive_kind.
+                    verbose_prop_kind = l_s[primitive_idx + 2]
                     if (
                         benchdnn_prop_kind != None
                         and verbose_prop_kind != benchdnn_prop_kind
@@ -78,6 +88,12 @@ def filter_verbose(benchdnn_verbose, driver):
                     # `len - 1` due to status piece left in `verbose_lines` as
                     # a product of split by `__REPRO`.
                     if d == "reorder" and idx != len(verbose_lines) - 1:
+                        continue
+                    # Filter out transform routine till it's properly supported.
+                    # Use impl name for that due to it's the only difference
+                    # between two ukernel calls.
+                    impl_name = l_s[5]
+                    if d == "brgemm" and impl_name == "pack_B":
                         continue
 
                     # found primitive creation for the test case
@@ -93,10 +109,11 @@ def generate_verbose(path_to_benchdnn, driver, batch):
     sub_env = os.environ.copy()
     sub_env["ONEDNN_PRIMITIVE_CACHE_CAPACITY"] = "0"
 
-    # Runtime dimension require execution verbose output
+    # Runtime dimension require execution verbose output.
+    # BRGEMM driver through ukernel API supports verbose only at execution.
     sub_env["ONEDNN_VERBOSE"] = "2"
     benchdnn_mode = "I"
-    if driver == "matmul" or driver == "reorder":
+    if driver == "matmul" or driver == "reorder" or driver == "brgemm":
         sub_env["ONEDNN_VERBOSE"] = "1"
         benchdnn_mode = "R"
 

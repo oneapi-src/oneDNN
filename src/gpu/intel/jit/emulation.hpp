@@ -180,9 +180,11 @@ struct EmulationImplementation {
 
         if (isQ || isUQ) {
             outLo = uint32_t(static_cast<uint64_t>(in));
+            outLo = outLo.forceInt32();
             outLo.setType(DataType::ud);
 
             outHi = uint32_t(static_cast<uint64_t>(in) >> 32);
+            outHi = outHi.forceInt32();
             outHi.setType(isQ ? DataType::d : DataType::ud);
         } else {
             outLo = in;
@@ -588,8 +590,31 @@ struct EmulationImplementation {
 
         bool emulate64 = strategy.emulate64_mul;
 
-        if (s0Q || s1Q) {
+        if (s0Q) {
             stub();
+        } else if (s1Q) {
+            if (!s0D || !dstQ) stub();
+            auto s0Type = src0.getType();
+            ngen::RegData dstLo, dstHi;
+            S1 s1Hi, s1Lo;
+            splitToDW(dst, dstLo, dstHi);
+            splitToDW(src1, s1Lo, s1Hi);
+            s1Hi = expandDW(s1Hi);
+            s1Lo = expandDW(s1Lo);
+            dstLo.setType(src0.getType());
+            dstHi.setType(src0.getType());
+            auto s1W0 = lowWord(s1Lo);
+            auto s1W2 = lowWord(s1Hi);
+            auto accLo
+                    = g.acc0.retype(s0Type)[dstLo.getOffset()](dstLo.getHS());
+            auto accHi
+                    = g.acc0.retype(s0Type)[dstHi.getOffset()](dstHi.getHS());
+            g.mul(mod, accHi, src0, s1W2);
+            g.macl(mod, dstHi, src0, s1Hi);
+            g.mul(mod, accLo, src0, s1W0);
+            g.mach(mod, dstLo, src0, s1Lo);
+            g.add(mod, dstHi, dstHi, dstLo);
+            g.mov(mod, dstLo, accLo);
         } else if (dstQ && s0W && s1W) {
             RegData dstLo, dstHi;
             splitToDW(dst, dstLo, dstHi);

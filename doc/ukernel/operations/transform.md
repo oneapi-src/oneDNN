@@ -7,13 +7,16 @@ Data transformation {#dev_guide_ukernel_transform}
 
 ## General
 
-The packB ukernel allows users to pack BRGeMM B matrices in an optimal layout
-before executing the [BRGeMM ukernel](@ref dev_guide_ukernel_brgemm). This is an
-out-of-place operation.
+The transform ukernel allows users to convert data from one format to the other,
+similar to what reorder primitive provides functionally.
+
+The only output data format supported by this routine is packed format, which is
+required by B matrices in [BRGeMM ukernel](@ref dev_guide_ukernel_brgemm).
+This is an out-of-place operation.
 
 ## Data Types
 
-The packB ukernel does not allow data type conversion.
+The transform ukernel does not allow data type conversion.
 
 ## Data Representation
 
@@ -27,13 +30,11 @@ The packB ukernel does not allow data type conversion.
 
 ## Attributes
 
-No attribute is supported for packB ukernel.
+No attribute is supported for transform ukernel.
 
 ## Implementation limitations
 
-- Source leading dimension should be greater or equal to N to return the correct
-  result.
-- Destination leading dimension should be one of 16, 32, 48, or 64.
+- Destination leading dimension only supported values are: 16, 32, 48, or 64.
 
 ## Examples
 

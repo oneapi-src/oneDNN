@@ -30,6 +30,10 @@
 #include "gpu/intel/jit/ir/tensor_config.hpp"
 #include "gpu/intel/jit/jit_eltwise_injector.hpp"
 
+#define VDISPATCH_CHECK(pd, engine, cond, msg, ...) \
+    VCONDCHECK(primitive, create, dispatch, convolution, (cond), \
+            status::unimplemented, "%s," msg, pd->info(engine), ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -132,10 +136,11 @@ bool is_small_oc(const conv_problem_t &prb) {
 }
 
 status_t conv_problem_t::init(
-        const impl::engine_t *engine, const convolution_pd_t *conv_pd) {
+        impl::engine_t *engine, const convolution_pd_t *conv_pd) {
     using namespace compute;
 
-    if (conv_pd->has_zero_dim_memory()) return status::unimplemented;
+    VDISPATCH_CHECK(conv_pd, engine, !conv_pd->has_zero_dim_memory(),
+            VERBOSE_EMPTY_TENSOR, "");
 
     this->conv_pd = conv_pd;
     attr = conv_pd->attr();
@@ -203,81 +208,6 @@ status_t conv_problem_t::init(
     CHECK(init_acc_data_type());
 
     return status::success;
-}
-
-bool can_reduce_to_1d(const memory_desc_t &out_md, const post_ops_t &post_ops) {
-    int ndims = out_md.ndims;
-    int sp_ndims = ndims - 2;
-    int non_one_sp_ndims = 0;
-    for (int i = ndims - sp_ndims; i < ndims; i++) {
-        if (out_md.dims[i] != 1) non_one_sp_ndims++;
-    }
-    if (non_one_sp_ndims == 1) return true;
-    for (int i = 0; i < post_ops.len(); i++) {
-        auto &po = post_ops.entry_[i];
-        int mask = 0;
-        if (po.is_prelu()) {
-            mask = po.prelu.mask;
-        } else if (po.is_binary()) {
-            mask = utils::get_dims_mask(
-                    out_md.dims, po.binary.src1_desc.dims, ndims);
-        }
-        // If the post-op is applied per D/H/W dimension then it cannot be
-        // transformed to 1D.
-        for (int i = ndims - sp_ndims; i < ndims; i++) {
-            if ((mask & (1 << i)) != 0) return false;
-        }
-    }
-    return true;
-}
-
-void conv_problem_t::normalize_shape() {
-    bool is_1x1 = (kd * kh * kw == 1);
-    bool is_eq_oi = (od == id && oh == ih && ow == iw);
-    if (is_1x1 && is_stride1() && is_eq_oi
-            && can_reduce_to_1d(c_md(), conv_pd->attr()->post_ops_)) {
-        // Convert 3D to 1D convolution.
-        ir_assert(pd == 0 && ph == 0 && pw == 0);
-        ow = od * oh * ow;
-        iw = id * ih * iw;
-        od = id = kd = 1;
-        oh = ih = kh = 1;
-        dhw_map[0] = dhw_map[1] = dhw_map[2] = 2;
-        return;
-    }
-    // Propagate D -> H -> W. If the spatial dimension is not present, map it
-    // to the next present dimension.
-    std::vector<int *> xd = {&id, &od, &kd, &sd, &dd, &pd};
-    std::vector<int *> xh = {&ih, &oh, &kh, &sh, &dh, &ph};
-    std::vector<int *> xw = {&iw, &ow, &kw, &sw, &dw, &pw};
-    std::vector<int *> x[3] = {xd, xh, xw};
-    std::vector<int> x_old[3];
-    std::vector<int> xdef = {1, 1, 1, 1, 0, 0};
-    bool has_dim[3] = {false, false, false};
-    for (int i = 0; i < 3; i++) {
-        x_old[i].resize(xdef.size());
-        for (size_t j = 0; j < xdef.size(); j++) {
-            if (*x[i][j] != xdef[j]) has_dim[i] = true;
-            x_old[i][j] = *x[i][j];
-        }
-    }
-    auto set = [](const std::vector<int *> &x, const std::vector<int> &values) {
-        for (size_t i = 0; i < x.size(); i++)
-            *x[i] = values[i];
-    };
-    if (!has_dim[0] && !has_dim[1] && !has_dim[2]) has_dim[2] = true;
-    int sp_count = (int)has_dim[0] + (int)has_dim[1] + (int)has_dim[2];
-    int shift = 3 - sp_count;
-    for (int i = 0, idx = 0; i < 3; i++) {
-        if (has_dim[i]) dhw_map[i] = shift + idx++;
-        set(x[i], xdef);
-    }
-    for (int i = 0; i < 3; i++) {
-        if (dhw_map[i] != -1) set(x[dhw_map[i]], x_old[i]);
-    }
-    if (!has_dim[2]) dhw_map[2] = 2;
-    if (!has_dim[1]) dhw_map[1] = dhw_map[2];
-    if (!has_dim[0]) dhw_map[0] = dhw_map[1];
 }
 
 std::string conv_problem_t::desc_str(bool print_mb) const {
@@ -690,12 +620,13 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
 
     // Use plain tags for user-facing activations for small-channel tensors.
     if (!matches_tag(src_md, src_tag) && is_small_ic_g1)
-        user_src_tag = (user_src_req.empty() ? "axb" : user_src_req);
+        user_src_tag = (user_src_req.empty() ? "axb" : std::move(user_src_req));
     if (!matches_tag(dst_md, dst_tag) && is_small_oc_g1)
-        user_dst_tag = (user_dst_req.empty() ? "axb" : user_dst_req);
+        user_dst_tag = (user_dst_req.empty() ? "axb" : std::move(user_dst_req));
 
     // Avoid reorder for small shapes
-    if (prb.g == 1 && prb.ic < 4 && prb.oc < 4 && prb.mb < 4 && prb.ksp == 1) {
+    if (!user_src_tag.empty() && !user_dst_tag.empty() && prb.g == 1
+            && prb.ic < 4 && prb.oc < 4 && prb.mb < 4 && prb.ksp == 1) {
         src_tag = user_src_tag;
         dst_tag = user_dst_tag;
     }
@@ -713,7 +644,8 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     if (dst_abx && !dst_matches) user_dst_tag = "abx";
 }
 
-status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
+status_t init_tensor_layouts(
+        conv_config_t &cfg, convolution_pd_t *pd, impl::engine_t *engine) {
     const auto &prb = cfg.prb();
     // Compute layout tags and user layout tags. If a compute layout is
     // different from a user layout then an extra pre/post reorder will be
@@ -773,12 +705,18 @@ status_t init_tensor_layouts(conv_config_t &cfg, convolution_pd_t *pd) {
     layout_t user_bia_layout;
     if (prb.with_bias) user_bia_layout = init_layout(bia_md, user_bia_tag);
 
-    if (!user_src_layout.is_strictly_equal(make_layout(src_md, user_src_tag)))
-        return status::unimplemented;
-    if (!user_dst_layout.is_strictly_equal(make_layout(dst_md, user_dst_tag)))
-        return status::unimplemented;
-    if (!user_wei_layout.is_strictly_equal(make_layout(wei_md, user_wei_tag)))
-        return status::unimplemented;
+    VDISPATCH_CHECK(pd, engine,
+            user_src_layout.is_strictly_equal(
+                    make_layout(src_md, user_src_tag)),
+            VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_CHECK(pd, engine,
+            user_dst_layout.is_strictly_equal(
+                    make_layout(dst_md, user_dst_tag)),
+            VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_CHECK(pd, engine,
+            user_wei_layout.is_strictly_equal(
+                    make_layout(wei_md, user_wei_tag)),
+            VERBOSE_UNSUPPORTED_TAG);
 
     auto src_layout = (src_tag != user_src_tag) ? make_layout(src_md, src_tag)
                                                 : user_src_layout;
@@ -964,14 +902,16 @@ bool should_use_mad(const conv_problem_t &prb) {
     return prb.is_dw || small_ic_oc || grouped_small_ic_oc;
 }
 
-status_t init_fma_kind(conv_config_t &cfg) {
+status_t init_fma_kind(
+        conv_config_t &cfg, convolution_pd_t *pd, impl::engine_t *engine) {
     if (cfg.fma_kind_param().is_overridden()) return status::success;
     const auto &prb = cfg.prb();
     auto fma_kind = get_supported_fma_kind(
             cfg.hw(), prb.a_data_type, prb.b_data_type, prb.acc_data_type);
     // Force mad for some cases
     if (should_use_mad(prb)) fma_kind = fma_kind_t::mad;
-    if (fma_kind == fma_kind_t::undef) return status::unimplemented;
+    VDISPATCH_CHECK(pd, engine, fma_kind != fma_kind_t::undef,
+            VERBOSE_UNSUPPORTED_DT_CFG);
     cfg.set_fma_kind(fma_kind);
     return status::success;
 }
@@ -1074,14 +1014,15 @@ void init_bwd_d_optimize(conv_config_t &cfg) {
 }
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
-        const impl::engine_t *engine, convolution_pd_t *pd,
-        primitive_attr_t *attr) {
+        impl::engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr) {
     hw_t hw(engine);
 
-    if (!hw_ok(hw)) return status::unimplemented;
-    if (!data_types_ok(prb, hw)) return status::unimplemented;
-    if (!post_ops_ok(prb, hw)) return status::unimplemented;
-    if (!zero_points_ok(prb)) return status::unimplemented;
+    VDISPATCH_CHECK(pd, engine, hw_ok(hw), VERBOSE_UNSUPPORTED_ISA);
+    VDISPATCH_CHECK(pd, engine, data_types_ok(prb, hw), VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_CHECK(
+            pd, engine, post_ops_ok(prb, hw), VERBOSE_UNSUPPORTED_POSTOP);
+    VDISPATCH_CHECK(
+            pd, engine, zero_points_ok(prb), VERBOSE_UNSUPPORTED_ZP_CFG);
 
     zero_points_config_t zp_cfg(pd);
     cfg.set_zp_cfg(zp_cfg);
@@ -1089,14 +1030,15 @@ status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
     cfg.set_exec_cfg(exec_config_t(hw));
     cfg.maybe_override_from_env();
 
-    CHECK(init_fma_kind(cfg));
+    CHECK(init_fma_kind(cfg, pd, engine));
     CHECK(init_simd(cfg));
     CHECK(init_vec_size(cfg));
-    CHECK(init_tensor_layouts(cfg, pd));
+    CHECK(init_tensor_layouts(cfg, pd, engine));
 
     CHECK(attr->set_default_formats(&prb.c_md()));
 
-    if (!post_op_layouts_ok(prb)) return status::unimplemented;
+    VDISPATCH_CHECK(
+            pd, engine, post_op_layouts_ok(prb), VERBOSE_UNSUPPORTED_POSTOP);
 
     init_bwd_d_optimize(cfg);
 
@@ -1577,7 +1519,7 @@ walk_order_t compute_walk_order(const conv_config_t &cfg) {
         auto outer = grid_inner;
         outer[entry.dim] = std::min(rem_tile[entry.dim], entry.size);
         size_t ab_bytes = get_memory_footprint(cfg, inner, outer);
-        if (ab_bytes <= l3_size) grid_inner = outer;
+        if (ab_bytes <= l3_size) grid_inner = std::move(outer);
     }
     // Add the blocks in this order:
     // - Step 1. Add grid_inner blocks (fitting L3 cache)
@@ -1813,7 +1755,7 @@ status_t init_cfg(conv_config_t &cfg, const primitive_t *prim) {
         auto try_cfg = cfg;
         auto status = try_init_cfg(try_cfg);
         if (status == status::success) {
-            cfg = try_cfg;
+            cfg = std::move(try_cfg);
             return status::success;
         }
     }

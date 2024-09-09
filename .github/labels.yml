@@ -1,0 +1,85 @@
+#===============================================================================
+# Copyright 2024 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#===============================================================================
+
+# This is configuration file for Labeler workflow. See documenation for syntax
+# reference: https://github.com/marketplace/actions/labeler
+
+# Labels based on area of responsibility
+# Process definition and code owners
+governance:
+- changed-files:
+  - any-glob-to-any-file:
+    - '.github/CODEOWNERS'
+    - 'SECURITY.md'
+    - 'MAINTAINERS.md'
+    - 'CONTRIBUTING.md'
+    - 'CODING_STANDARDS.md'
+    - 'CODE_OF_CONDUCT.md'
+
+# Github automation
+devops:
+- all:
+  - changed-files:
+    - any-glob-to-any-file: '.github/**'
+    - all-globs-to-all-files: '!.github/CODEOWNERS'
+
+# Documentation
+documentation:
+- changed-files:
+  - any-glob-to-any-file: ['**/*.md', 'doc/**']
+
+# CPU Engine
+platform:cpu-aarch64:
+- changed-files:
+  - any-glob-to-any-file: 'src/cpu/aarch64/**'
+
+platform:cpu-ppc64:
+- changed-files:
+  - any-glob-to-any-file: 'src/cpu/ppc64/**'
+
+platform:cpu-rv64:
+- changed-files:
+  - any-glob-to-any-file: 'src/cpu/rv64/**'
+
+platform:cpu-s390x:
+- changed-files:
+  - any-glob-to-any-file: 'src/cpu/s390x/**'
+
+platform:cpu-x64:
+- changed-files:
+  - any-glob-to-any-file: ['src/cpu/x64/**', 'src/cpu/rnn/**']
+
+# GPU Engine
+platform:gpu-amd:
+- changed-files:
+  - any-glob-to-any-file: 'src/gpu/amd/**'
+
+platform:gpu-intel:
+- changed-files:
+  - any-glob-to-any-file: 'src/gpu/intel/**'
+
+platform:gpu-nvidia:
+- changed-files:
+  - any-glob-to-any-file: 'src/gpu/nvidia/**'
+
+platform:gpu-generic:
+- changed-files:
+  - any-glob-to-any-file: 'src/gpu/generic/**'
+
+# Labels based on target branch
+# Backport
+backport:
+- base-branch: 'rls-*'

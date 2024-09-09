@@ -19,6 +19,10 @@
 
 #include "gpu/intel/compute/zero_pool.hpp"
 
+#ifdef DNNL_WITH_SYCL
+#include "gpu/intel/sycl/stream.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -27,8 +31,26 @@ namespace intel {
 static std::unordered_map<engine_id_t, zero_pool_t *> zero_pool_cache;
 static std::mutex zero_pool_cache_mutex;
 
+#ifdef DNNL_WITH_SYCL
+// Unfortunately, weak_ptrs cannot be hashed, so unordered_map not possible here.
+// SYCL is currently missing owner_less for command graphs, so define it ourselves.
+struct weak_graph_owner_less {
+    bool operator()(const sycl::stream_t::weak_graph_t &lhs,
+            const sycl::stream_t::weak_graph_t &rhs) const noexcept {
+        return lhs.owner_before(rhs);
+    }
+};
+static std::map<sycl::stream_t::weak_graph_t, zero_pool_t *,
+        weak_graph_owner_less>
+        recorded_zero_pool_cache;
+#endif
+
 struct cleanup_sentinel_t {
     cleanup_sentinel_t(bool *ptr) : ptr_(ptr) {}
+    cleanup_sentinel_t(const cleanup_sentinel_t &) = delete;
+    cleanup_sentinel_t(cleanup_sentinel_t &&other) = delete;
+    cleanup_sentinel_t &operator=(const cleanup_sentinel_t &) = delete;
+    cleanup_sentinel_t &operator=(cleanup_sentinel_t &&other) = delete;
     ~cleanup_sentinel_t() { *ptr_ = true; }
 
 private:
@@ -42,11 +64,39 @@ static bool in_cleanup() {
     return destroyed;
 }
 
-status_t lookup_zero_pool(compute::compute_engine_t *engine, size_t chunk_size,
+status_t lookup_zero_pool(compute::compute_engine_t *engine,
+        compute::compute_stream_t *stream, size_t chunk_size,
         zero_pool_t **out_pool) {
     status_t status = status::success;
 
     (void)in_cleanup();
+
+#ifdef DNNL_WITH_SYCL
+    // If recording, get a per-graph zero pool.
+    const auto *sycl_stream
+            = utils::downcast<const gpu::intel::sycl::stream_t *>(stream);
+    if (sycl_stream->recording()) {
+        {
+            std::lock_guard<std::mutex> lock(zero_pool_cache_mutex);
+            auto &pool = recorded_zero_pool_cache
+                    [sycl_stream->get_current_graph_weak()];
+            if (!pool) {
+                pool = new zero_pool_t(engine, chunk_size, true,
+                        stream->flags() & stream_flags::in_order);
+                status = pool->init();
+
+                // Short-term hack: intentionally leak pool as
+                //  we cannot know when graph is no longer in use.
+                pool->attach_client();
+            }
+            *out_pool = pool;
+        }
+        (*out_pool)->attach_client();
+        return status;
+    }
+#endif
+
+    // In regular mode, find a per-engine zero pool.
     auto engine_id = engine->engine_id();
 
     {
@@ -84,9 +134,14 @@ void release_zero_pool(zero_pool_t *pool) {
     }
 }
 
-zero_pool_t::zero_pool_t(
-        compute::compute_engine_t *engine, size_t chunk_size, int chunk_count)
-    : engine_(engine), chunk_size_(chunk_size), chunk_count_(chunk_count) {
+zero_pool_t::zero_pool_t(compute::compute_engine_t *engine, size_t chunk_size,
+        bool stream_private, bool in_order)
+    : engine_(engine)
+    , chunk_size_(chunk_size)
+    , stream_private_(stream_private)
+    , in_order_(in_order) {
+
+    chunk_count_ = stream_private ? 1 : 16;
     assert(chunk_count_ <= max_chunks);
 }
 
@@ -144,21 +199,28 @@ status_t zero_pool_t::claim(compute::compute_stream_t *stream, size_t len,
 
     if (!inited_) {
         // One-time zero initialization before first use.
+        // Use immediate mode to ensure zero initialization
+        //   occurs now and is not recorded.
+        stream->enter_immediate_mode();
         stream->fill(*mem_, 0, chunk_count_ * chunk_size_,
                 stream->ctx().get_deps(), stream->ctx().get_deps());
+        stream->exit_immediate_mode();
         inited_ = true;
     }
 
     auto slot = next_slot_++;
     if (next_slot_ >= chunk_count_) next_slot_ = 0;
 
-    if (event_pending_[slot]) {
+    if (!stream_private_ && event_pending_[slot]) {
         // Rare case: another thread claimed this slot but has not yet registered a completion event for it.
         // No choice but to create a temporary allocation (or yield and wait for the completion event).
         return claim_unpooled(stream, len, out_mem);
     }
 
-    if (events_[slot]) {
+    if (stream_private_) {
+        // Per-stream zero pool. No event synchronization needed.
+        if (!in_order_) CHECK(stream->barrier());
+    } else if (events_[slot]) {
         // Slot is claimed and has an outstanding event. Wait on it and delete it.
         stream->ctx().append_deps(*events_[slot]);
         events_[slot].reset();
@@ -175,7 +237,7 @@ void zero_pool_t::async_release(int token, const xpu::event_t &ev) {
     if (token >= 0) {
         std::lock_guard<std::mutex> lock(mutex_);
         int slot = token;
-        events_[slot] = ev.clone();
+        if (!stream_private_) events_[slot] = ev.clone();
         event_pending_[slot] = false;
     }
 }

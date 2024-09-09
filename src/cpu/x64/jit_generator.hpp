@@ -387,8 +387,8 @@ public:
         else if (is_valid_isa(avx))
             vpxor(x1, x2, op);
         else {
-            assert(x1.isEqualIfNotInherited(x2));
-            pxor(x2, op);
+            if (!x1.isEqualIfNotInherited(x2)) movdqa(x1, x2);
+            pxor(x1, op);
         }
     }
     void uni_vpxor(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
@@ -685,7 +685,7 @@ public:
         if (is_valid_isa(avx))
             vdivps(x, op1, op2);
         else {
-            assert(x.isEqualIfNotInherited(op1));
+            if (!x.isEqualIfNotInherited(op1)) movups(x, op1);
             divps(x, op2);
         }
     }
@@ -699,7 +699,7 @@ public:
         if (is_valid_isa(avx))
             vdivss(x, op1, op2);
         else {
-            assert(x.isEqualIfNotInherited(op1));
+            if (!x.isEqualIfNotInherited(op1)) movss(x, op1);
             divss(x, op2);
         }
     }
@@ -738,7 +738,7 @@ public:
         if (is_valid_isa(avx))
             vaddss(x, op1, op2);
         else {
-            assert(x.isEqualIfNotInherited(op1));
+            if (!x.isEqualIfNotInherited(op1)) movss(x, op1);
             addss(x, op2);
         }
     }
@@ -752,7 +752,7 @@ public:
         if (is_valid_isa(avx)) {
             vphaddd(x, x2, op);
         } else {
-            assert(x.isEqualIfNotInherited(op));
+            if (!x.isEqualIfNotInherited(op)) movdqa(x, x2);
             phaddd(x, op);
         }
     }
@@ -762,7 +762,7 @@ public:
         if (is_valid_isa(avx)) {
             vhaddps(x, x2, op);
         } else {
-            assert(x.isEqualIfNotInherited(op));
+            if (!x.isEqualIfNotInherited(op)) movups(x, x2);
             haddps(x, op);
         }
     }
@@ -772,7 +772,7 @@ public:
         if (is_valid_isa(avx))
             vpsignd(x1, x2, op);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (!x1.isEqualIfNotInherited(x2)) movdqa(x1, x2);
             psignd(x1, op);
         }
     }
@@ -786,7 +786,7 @@ public:
         if (is_valid_isa(avx))
             vpsubd(x1, x2, op);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (!x1.isEqualIfNotInherited(x2)) movdqa(x1, x2);
             psubd(x1, op);
         }
     }
@@ -800,7 +800,7 @@ public:
         if (is_valid_isa(avx))
             vpsubb(x1, x2, op);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (!x1.isEqualIfNotInherited(x2)) movdqa(x1, x2);
             psubb(x1, op);
         }
     }
@@ -814,7 +814,7 @@ public:
         if (is_valid_isa(avx))
             vsubss(x, op1, op2);
         else {
-            assert(x.isEqualIfNotInherited(op1));
+            if (!x.isEqualIfNotInherited(op1)) movss(x, op1);
             subss(x, op2);
         }
     }
@@ -842,7 +842,7 @@ public:
         if (is_valid_isa(avx))
             vsubps(x, op1, op2);
         else {
-            assert(x.isEqualIfNotInherited(op1));
+            if (!x.isEqualIfNotInherited(op1)) movups(x, op1);
             subps(x, op2);
         }
     }
@@ -916,7 +916,7 @@ public:
         if (is_valid_isa(avx))
             vmulss(x, op1, op2);
         else {
-            assert(x.isEqualIfNotInherited(op1));
+            if (!x.isEqualIfNotInherited(op1)) movss(x, op1);
             mulss(x, op2);
         }
     }
@@ -1353,7 +1353,7 @@ public:
         if (is_valid_isa(avx))
             vandps(x1, x2, op);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (!x1.isEqualIfNotInherited(x2)) movups(x1, x2);
             andps(x1, op);
         }
     }
@@ -1374,7 +1374,7 @@ public:
             assert(IMPLICATION(x1.getBit() == 256, is_valid_isa(avx2)));
             vpandn(x1, x2, op);
         } else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (!x1.isEqualIfNotInherited(x2)) movdqa(x1, x2);
             pandn(x1, op);
         }
     }
@@ -1384,7 +1384,7 @@ public:
         if (is_valid_isa(avx))
             vorps(x1, x2, op);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (!x1.isEqualIfNotInherited(x2)) movups(x1, x2);
             orps(x1, op);
         }
     }
@@ -1418,7 +1418,7 @@ public:
         if (is_valid_isa(avx))
             vpslld(x, op, imm);
         else {
-            assert(x.isEqualIfNotInherited(op));
+            if (!x.isEqualIfNotInherited(op)) movdqa(x, op);
             pslld(x, imm);
         }
     }
@@ -1539,27 +1539,28 @@ public:
 
     void uni_vblendvps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op, const Xbyak::Xmm &msk) {
+        assert(!x1.isZMM() && !x2.isZMM());
         if (is_valid_isa(avx))
             vblendvps(x1, x2, op, msk);
         else {
-            assert(x1.getIdx() == x2.getIdx());
             assert(msk.getIdx() == 0);
+            if (!x1.isEqualIfNotInherited(x2)) movups(x1, x2);
             blendvps(x1, op);
         }
     }
     void uni_vblendvps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op, const Xbyak::Ymm &msk) {
+        assert(!x1.isZMM() && !x2.isZMM());
         vblendvps(x1, x2, op, msk);
     }
 
     void uni_vblendps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op, const int imm) {
         assert(!x1.isZMM() && !x2.isZMM());
-
         if (is_valid_isa(avx))
             vblendps(x1, x2, op, imm);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (!x1.isEqualIfNotInherited(x2)) movups(x1, x2);
             blendps(x1, op, imm);
         }
     }
@@ -1699,7 +1700,7 @@ public:
         if (is_valid_isa(avx))
             vpackssdw(x1, x2, op);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
             packssdw(x1, op);
         }
     }
@@ -1713,7 +1714,7 @@ public:
         if (is_valid_isa(avx))
             vpackuswb(x1, x2, op);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
             packuswb(x1, op);
         }
     }
@@ -1727,7 +1728,7 @@ public:
         if (is_valid_isa(avx))
             vpacksswb(x1, x2, op);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
             packsswb(x1, op);
         }
     }
@@ -1741,7 +1742,7 @@ public:
         if (is_valid_isa(avx))
             vpinsrb(x1, x2, op, imm);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
             pinsrb(x1, op, imm);
         }
     }
@@ -1756,7 +1757,7 @@ public:
         if (is_valid_isa(avx))
             vpinsrd(x1, x2, op, imm);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
             pinsrd(x1, op, imm);
         }
     }
@@ -1770,7 +1771,7 @@ public:
         if (is_valid_isa(avx))
             vpinsrq(x1, x2, op, imm);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
             pinsrq(x1, op, imm);
         }
     }
@@ -1784,7 +1785,7 @@ public:
         if (is_valid_isa(avx))
             vpinsrw(x1, x2, op, imm);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
             pinsrw(x1, op, imm);
         }
     }
@@ -1891,7 +1892,7 @@ public:
         if (is_valid_isa(avx))
             vpshufb(x1, x2, op);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
             pshufb(x1, op);
         }
     }
@@ -1907,7 +1908,7 @@ public:
         else if (is_valid_isa(avx))
             vpand(x1, x2, op);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
             pand(x1, op);
         }
     }
@@ -1917,7 +1918,7 @@ public:
         if (is_valid_isa(avx))
             vpslldq(x, op, imm);
         else {
-            assert(x.isEqualIfNotInherited(op));
+            if (!x.isEqualIfNotInherited(op)) movdqa(x, op);
             pslldq(x, imm);
         }
     }
@@ -1975,7 +1976,7 @@ public:
         if (is_valid_isa(avx))
             vpackusdw(x1, x2, op);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
             packusdw(x1, op);
         }
     }
@@ -2009,7 +2010,7 @@ public:
         if (is_valid_isa(avx))
             vmovhlps(x1, x2, x3);
         else {
-            assert(x1.getIdx() == x2.getIdx());
+            if (x1.getIdx() != x2.getIdx()) movups(x1, x2);
             movhlps(x1, x3);
         }
     }

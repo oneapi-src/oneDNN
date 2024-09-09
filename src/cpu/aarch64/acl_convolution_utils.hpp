@@ -116,7 +116,6 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
     arm_compute::Tensor dst_tensor;
 
     auto const acp = pd->acp_;
-
     src_tensor.allocator()->init(acp.src_tensor_info);
     wei_tensor.allocator()->init(acp.wei_tensor_info);
     dst_tensor.allocator()->init(acp.dst_tensor_info);

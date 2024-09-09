@@ -1717,7 +1717,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             if (IMPLICATION(!pure_1d, jcp.iw % i == 0)
                     && IMPLICATION(jcp.ic * i > jcp.simd_w,
                             (jcp.ic * i) % jcp.simd_w == 0)
-                    && jcp.kw % i == 0 && jcp.stride_w % i == 0)
+                    && jcp.iw % i == 0 && jcp.kw % i == 0
+                    && jcp.stride_w % i == 0)
                 jcp.trans_dim_koef = i;
         }
         if (jcp.trans_dim_koef > 1) {
@@ -1830,7 +1831,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf_default;
     jcp.brgemm_bd_loop_innermost = false;
 
-    if (!jcp.wei_plain && jcp.prop_kind != prop_kind::backward_weights) {
+    if (!jcp.wei_plain) {
         // fast check data layout before spending time for blocking selection
         format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
         const bool any_eligible = is_any_eligible(jcp);

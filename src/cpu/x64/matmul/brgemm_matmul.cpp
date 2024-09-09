@@ -84,6 +84,10 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             // This case requires scratchpad
             if (N() == DNNL_RUNTIME_DIM_VAL) ok = false;
         }
+        // Impl suppports scales only for integer weights
+        ok = ok
+                && IMPLICATION(!attr()->scales_.has_default_values(),
+                        types::is_integral_dt(wei_dt));
         return ok;
     };
 
@@ -1100,7 +1104,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         num_threads_used_ = nthr_k_ * nthr_bmn_;
 
         const bool need_to_calculate_compensation_for_a
-                = bgmmc.has_zero_point_b;
+                = bgmmc.has_zero_point_b && !bgmmc.with_wei_decompression;
         const bool need_to_calculate_compensation_for_b = !IMPLICATION(
                 (bgmmc.has_zero_point_a || bgmmc.s8s8_compensation_required),
                 bgmmc.blocked_B);

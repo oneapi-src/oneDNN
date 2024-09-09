@@ -79,7 +79,8 @@
 __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
         __global DST_DATA_T *dst POST_OP_ARGS, __global SPAD_DATA_T *scratchpad,
         global float *a_scales, global WEI_SCALES_DATA_T *b_scales,
-        global float *c_scales, int scale_stride, global int *dst_zp) {
+        global DST_SCALES_DATA_T *c_scales, int scale_stride,
+        global int *dst_zp) {
     const uint d0 = GWS_GET_D0();
     const uint d1 = GWS_GET_D1();
     const uint d2 = GWS_GET_D2();
@@ -148,7 +149,7 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
 #endif
 
 #if C_SCALES
-        accumulator /= c_scales[0];
+        accumulator /= DST_SCALES_TO_REF(c_scales[0]);
 #endif
 #if DST_ZERO_POINT
         accumulator += dst_zp[0];

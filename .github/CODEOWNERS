@@ -17,16 +17,8 @@
 # Default
 * @oneapi-src/onednn-arch @intel-innersource/dnn-arch
 
-# Codeowners
-/.github/CODEOWNERS @oneapi-src/onednn-maintain
-/MAINTAINERS.md @oneapi-src/onednn-maintain
-
 # Github automation
 /.github/ @oneapi-src/onednn-devops
-
-# Documentation
-*.md  @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
-/doc/ @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
 
 # CPU Engine
 /src/cpu/aarch64/ @oneapi-src/onednn-cpu-aarch64 @intel-innersource/dnn-arch
@@ -52,3 +44,15 @@
 # Graph compiler
 /src/graph/backend/graph_compiler/ @intel-innersource/dnn-compiler
 /tests/gtests/graph/unit/backend/graph_compiler/ @intel-innersource/dnn-compiler
+
+# Documentation
+*.md  @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
+/doc/ @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
+
+# Governance and process
+/.github/CODEOWNERS @oneapi-src/onednn-maintain
+/SECURITY.md @oneapi-src/onednn-maintain
+/MAINTAINERS.md @oneapi-src/onednn-maintain
+/CONTRIBUTING.md @oneapi-src/onednn-maintain
+/CODING_STANDARDS.md @oneapi-src/onednn-maintain
+/CODE_OF_CONDUCT.md @oneapi-src/onednn-maintain

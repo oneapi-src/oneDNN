@@ -18,6 +18,7 @@
 #ifndef CPU_AARCH64_JIT_SVE_CONV_KERNEL_HPP
 #define CPU_AARCH64_JIT_SVE_CONV_KERNEL_HPP
 
+#include <memory>
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
@@ -42,17 +43,16 @@ namespace aarch64 {
 
 template <cpu_isa_t isa = isa_undef>
 struct jit_sve_conv_fwd_kernel : public jit_generator {
-
     jit_sve_conv_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-
         if (jcp.with_eltwise)
             eltwise_injector_
-                    = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
+                    = utils::make_unique<jit_uni_eltwise_injector_f32<isa>>(
+                            this, jcp.eltwise);
     }
 
-    ~jit_sve_conv_fwd_kernel() { delete eltwise_injector_; }
+    ~jit_sve_conv_fwd_kernel() = default;
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_conv_fwd_kernel)
 
@@ -162,7 +162,7 @@ private:
         }
     }
 
-    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
+    std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> eltwise_injector_;
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
@@ -487,7 +487,7 @@ private:
     reg64_t reg_pre_addr_out = x26;
     reg64_t reg_pre_addr_ker = x26;
     reg64_t reg_ker_start_addr = x27;
-    reg64_t reg_addr_diff_input = x28;
+    reg64_t reg_addr_diff_input = x18;
 
     void prefetch(
             const std::string prfop, int level, reg64_t in, long long int ofs) {

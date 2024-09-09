@@ -46,8 +46,6 @@ struct sycl_binary_conf_t {
     int wg_size;
     int wk_size;
 
-    xpu::sycl::md_t binary_src_arr[sycl_post_ops_t::max_post_ops];
-
     sycl_post_ops_t post_ops;
 };
 
@@ -105,8 +103,38 @@ struct sycl_eltwise_conf_t {
     dim_t wg_size;
     dim_t wk_size;
     dim_t post_po_len;
+    sycl_post_ops_t post_ops;
+};
+
+struct sycl_matmul_conf_t {
+    xpu::sycl::md_t data_md;
+    xpu::sycl::md_t dst_md;
+    xpu::sycl::md_t weights_md;
+    xpu::sycl::md_t bias_md;
+    alg_kind_t alg_kind;
+    bool transpose_data; //TODO can we remove?
+    bool transpose_dst;
+    bool transpose_weights;
+    bool transpose_bias;
+    dim_t post_po_len;
     xpu::sycl::md_t binary_src_arr[sycl::sycl_post_ops_t::max_post_ops];
     sycl_post_ops_t post_ops;
+    int wk_size;
+
+    int data_mask;
+    int weights_mask;
+    int bias_mask;
+
+    bool do_scale_data;
+    bool do_scale_weights;
+    bool do_scale_dst;
+    bool single_weights_scale;
+
+    bool use_data_zeropoints;
+    bool use_weights_zeropoints;
+    bool use_dst_zeropoints;
+
+    bool use_dropout;
 };
 
 struct sycl_prelu_conf_t {
@@ -190,7 +218,6 @@ struct sycl_resampling_conf_t {
     size_t work_amount;
 
     xpu::sycl::md_t src_md;
-    xpu::sycl::md_t src1_md[sycl_post_ops_t::max_post_ops];
     xpu::sycl::md_t dst_md;
     xpu::sycl::md_t diff_src_md;
     xpu::sycl::md_t diff_dst_md;
@@ -293,7 +320,6 @@ struct sycl_batch_normalization_conf_t {
 struct sycl_softmax_conf_t {
     prop_kind_t prop_kind;
     xpu::sycl::md_t src_md;
-    xpu::sycl::md_t src1_md[sycl_post_ops_t::max_post_ops];
     xpu::sycl::md_t dst_md;
 
     xpu::sycl::md_t diff_md;
@@ -375,12 +401,12 @@ struct sycl_pooling_base_conf_t {
 
 struct sycl_pooling_fwd_conf_t : public sycl_pooling_base_conf_t {
     xpu::sycl::md_t src_md;
-    xpu::sycl::md_t src1_md[sycl_post_ops_t::max_post_ops];
     xpu::sycl::md_t dst_md;
     sycl_post_ops_t post_ops;
 };
 
-#define DNNL_REF_SUM_MAX_NUM_TENSORS 16
+// Intel GPU kernel fails to run with more than 8 tensors.
+#define DNNL_REF_SUM_MAX_NUM_TENSORS 8
 
 struct sycl_sum_conf_t {
     xpu::sycl::md_t src_md[DNNL_REF_SUM_MAX_NUM_TENSORS];

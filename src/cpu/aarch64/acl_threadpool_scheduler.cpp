@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Arm Ltd. and affiliates
+* Copyright 2022-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -113,6 +113,19 @@ void ThreadpoolScheduler::run_workloads(
     ThreadFeeder feeder(num_threads, workloads.size());
     using namespace dnnl::impl::threadpool_utils;
     dnnl::threadpool_interop::threadpool_iface *tp = get_active_threadpool();
+    // Non-initialized threadpool can cause a segmentation fault.
+    // Here, the task is executed in a single thread when threadpool
+    // is unavailable or is single-threaded.
+    if (!tp || num_threads == 1) {
+        threadpool_utils::deactivate_threadpool();
+        ThreadInfo info;
+        info.cpu_info = &cpu_info();
+        info.num_threads = 1;
+        info.thread_id = 0;
+        process_workloads(workloads, feeder, info);
+        threadpool_utils::activate_threadpool(tp);
+        return;
+    }
     bool is_async = tp->get_flags()
             & dnnl::threadpool_interop::threadpool_iface::ASYNCHRONOUS;
     counting_barrier_t b;

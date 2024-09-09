@@ -100,7 +100,7 @@ void reorder_to_weight_format(arm_compute::TensorInfo &info, memory_desc_t &md,
 #define LOG_ACL_UNSUPPORTED(msg) \
     do { \
         if (get_verbose(verbose_t::create_dispatch)) \
-            printf("onednn_verbose,cpu,acl,unsupported: %s\n", (msg)); \
+            verbose_printf("cpu,acl,unsupported: %s\n", (msg)); \
     } while (0)
 
 // Returns unimplemented if error code x is NOT OK

@@ -98,15 +98,21 @@ dev_guide_attributes_fpmath_mode.
 
 
 
-### Floating-point environment
-oneDNN floating-point computation behavior is controlled by the
-floating-point environment as defined by the C and C++ standards, in
-the fenv.h header. In particular, the floating-point environment can control:
+### Rounding mode and denormal handling
+
+oneDNN floating-point computation behavior follows the floating-point
+environment for the given device runtime by default. In particular,
+the floating-point environment can control:
 - the rounding mode. It is set to round-to-nearest tie-even by default
-  on x64 systems and can be changed using the fesetround() C function.
-- the handling of denormal values. Computation on denormals can
-  negatively impact performance on x64 systems and are not flushed to
-  zero by default.
+  on x64 systems as well as devices running on SYCL and openCL runtime.
+- the handling of denormal values. Computation on denormals are not
+  flushed to zero by default. Note denormal handling can negatively
+  impact performance on x64 systems.
+
+@note
+  For CPU devices, the default floating-point environment is defined by
+  the C and C++ standards in the fenv.h header. Rounding mode can be
+  changed globally using the fesetround() C function.
 
 @note
   Most DNN applications do not require precise computations with denormal
@@ -117,6 +123,16 @@ the fenv.h header. In particular, the floating-point environment can control:
 #include <xmmintrin.h>
 _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
 ~~~
+
+@note
+  On some hardware architectures, low-precision datatype acceleration
+  ignores floating-point environment and will flush denormal outputs
+  to zero (FTZ). In particular this is the case for Intel AMX
+  instruction set.
+
+oneDNN also exposes non-standard stochastic rounding through the
+`rounding_mode` primitive attribute. More details on this attribute
+can be found in @ref dev_guide_attributes_rounding_mode.
 
 ## Hardware Limitations
 

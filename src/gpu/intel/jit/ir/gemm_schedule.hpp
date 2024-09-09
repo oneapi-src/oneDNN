@@ -345,7 +345,7 @@ public:
                     auto e = fused_loop.expand_var(
                                      all_loops, skip_fused, filter_kind)
                             / denom;
-                    return (i == 0 ? e : e % bound);
+                    return (i == 0 ? std::move(e) : e % bound);
                 }
                 denom *= bound;
             }

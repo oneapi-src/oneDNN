@@ -19,9 +19,9 @@
 
 #include <cassert>
 #include <limits>
+#include <map>
 #include <mutex>
 #include <vector>
-#include <unordered_map>
 
 #include "common/c_types_map.hpp"
 
@@ -70,6 +70,11 @@ struct stream_profiler_t {
         m_.unlock();
     }
 
+    // The contract is profiler interfaces are called only in between
+    // `start_profiling` and `stop_profiling`, which provide a secure
+    // multi-threaded access because of the lock. It allows to strip the lock
+    // from all other calls, e.g., `stamp, or `register_event` (except `reset`)
+    // to reduce the overhead for profiling.
     void start_profiling() {
         m_.lock();
         stamp_++;
@@ -86,8 +91,7 @@ struct stream_profiler_t {
     }
 
 protected:
-    status_t get_info_impl(
-            const std::unordered_map<uint64_t, entry_t> &stamp2entry,
+    status_t get_info_impl(const std::map<uint64_t, entry_t> &stamp2entry,
             profiling_data_kind_t data_kind, uint64_t *data) const {
         int idx = 0;
         for (auto &kv : stamp2entry) {

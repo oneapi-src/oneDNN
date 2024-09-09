@@ -48,20 +48,20 @@ class LogParser:
         self.__writer = writer
         self.__input = input
 
-    def process(self):
+    def process(self, filter_events):
         """
         Adds data from the last log file.
 
         Parameters:
         -----------
-        None
+        filter_events -- List of events to parse, other events are ignored.
 
         Returns:
         --------
         None
         """
 
-        def convert_primitive(log_entry, template):
+        def convert_primitive(log_entry, template, version):
             """
             Converts oneDNN verbose primitive entry into the internal
             representation.
@@ -138,23 +138,45 @@ class LogParser:
                     if parse_int_type(dt) or parse_float_type(dt):
                         return "_".join(input_parts), dt
 
-            def convert_mds(log_mds):
+            def convert_mds(log_mds, version):
                 mds = []
                 for md in log_mds.split(" "):
-                    # arg_dt:properties:format_kind:tag:strides:flags
                     fields = md.split(":")
-                    arg_dt = fields[0]
-                    properties = fields[1]
-                    format_kind = fields[2]
-                    tag = fields[3]
+                    idx = 0
+
+                    # if version >= 1:
+                    #     arg:dt:properties:format_kind:tag:strides:flags
+                    ##       ^
+                    # else:
+                    #     arg_dt:properties:format_kind:tag:strides:flags
+                    # (note) Legacy way could have collisions with `arg` and
+                    #   `dt` since `_` used as a delimiter and as a part of the
+                    #   name.
+                    arg = None
+                    data_type = None
+                    if int(version) >= 1:
+                        arg = fields[idx]
+                        idx += 1
+                        data_type = fields[idx]
+                        idx += 1
+                    else:
+                        arg_dt = fields[idx]
+                        idx += 1
+                        arg, data_type = split_arg_dt(arg_dt)
+
+                    properties = fields[idx]
+                    idx += 1
+                    format_kind = fields[idx]
+                    idx += 1
+                    tag = fields[idx]
+                    idx += 1
 
                     # Add compatibility for v3.1 verbose and below,
                     # when strides delimeter is absent.
                     # TODO: remove eventually.
-                    idx = 4
                     strides = ""
                     if "f" not in fields[idx] and format_kind != "undef":
-                        strides = fields[4]
+                        strides = fields[idx]
                         idx += 1
 
                     flags = {}
@@ -168,7 +190,6 @@ class LogParser:
                             if f[:3] == "zpm":
                                 flags["zp_comp_mask"] = f[3:]
 
-                    arg, data_type = split_arg_dt(arg_dt)
                     mds.append(
                         {
                             "arg": arg,
@@ -182,7 +203,7 @@ class LogParser:
                     )
                 return mds
 
-            def convert_aux(log_aux):
+            def convert_aux(log_aux, version):
                 aux = {}
                 if log_aux == "":
                     return aux
@@ -200,10 +221,10 @@ class LogParser:
                     aux[field] = value
                 return aux
 
-            def convert_prim_kind(prim_kind):
+            def convert_prim_kind(prim_kind, version):
                 return prim_kind
 
-            def convert_exts(exts):
+            def convert_exts(exts, version):
                 def extract_attr(attrs, type):
                     start_idx = attrs.find(type)
                     if start_idx == -1:
@@ -308,6 +329,14 @@ class LogParser:
                         res[arg] = convert_structure_to_ir_seq(zp_dict, zp_value_wo_arg)
                     return res
 
+                def convert_rounding_mode(value):
+                    res = {}
+                    rounding_modes = value.split("+")
+                    for r in rounding_modes:
+                        arg = r[: r.find(":")]
+                        res[arg] = r[r.find(":") + 1 :]
+                    return res
+
                 def convert_scratchpad_mode(value):
                     return value
 
@@ -337,6 +366,7 @@ class LogParser:
                     "attr-scratchpad": convert_scratchpad_mode,
                     "attr-fpmath": convert_fpmath_mode,
                     "attr-acc": convert_acc_mode,
+                    "attr-rounding-mode": convert_rounding_mode,
                     "attr-dropout": convert_dropout,
                     "attr-deterministic": convert_deterministic,
                 }
@@ -347,7 +377,7 @@ class LogParser:
                         attrs[e] = converters[e](attr)
                 return attrs
 
-            def convert_pass(v):
+            def convert_pass(v, version):
                 return v
 
             convert = {
@@ -394,7 +424,7 @@ class LogParser:
                             cvt = convert_pass
                         field = log_entry[idx]
                         try:
-                            entry[key] = cvt(field)
+                            entry[key] = cvt(field, version)
                         except:
                             self.__writer.print(
                                 f"Parser: parsing entry error: {field}: {value}",
@@ -426,28 +456,41 @@ class LogParser:
             self.__raw_data.append(line.rstrip())
             l_raw = line.split(",")
             marker = l_raw[0]
-            if marker == "onednn_verbose":
-                if l_raw[1].split(".")[0].isdigit():
-                    l_raw.pop(1)
-                # Skip graph component as not supported
-                if l_raw[1] == "graph":
-                    continue
-                # Remove a component from the line if presented
-                if l_raw[1] == "primitive":
-                    l_raw.pop(1)
+            if marker != "onednn_verbose":
+                continue
 
-                event = l_raw[1].split(":")[0]
-                if event == "info":
-                    opt = l_raw[2]
-                    if opt == "template":
-                        verbose_template = "onednn_verbose," + line.split(":")[1]
-                if event in ["exec", "create"]:
-                    l_converted = convert_primitive(
-                        l_raw, verbose_template + ",exec_time"
-                    )
-                    if l_converted:
-                        self.__data[i] = l_converted
-                        i = i + 1
+            verbose_version = 0
+            # Check for version presence, discard 'v' from numerical version,
+            # and discard version entry for compatibility reasons.
+            # Note: to compare against `version`, one must use int() function
+            # call as arg is passed as `str` object!
+            if l_raw[1][0] == "v" and l_raw[1][1].isdigit():
+                verbose_version = l_raw[1].lstrip("v")
+                l_raw.pop(1)
+
+            # Discard a timestamp when it's supplied in a standalone line.
+            # TODO: update verbose_template instead.
+            if l_raw[1].split(".")[0].isdigit():
+                l_raw.pop(1)
+            # Skip Graph component as not supported
+            if l_raw[1] == "graph":
+                continue
+            # Remove a component from the line if presented (see a comment above)
+            if l_raw[1] == "primitive" or l_raw[1] == "ukernel":
+                l_raw.pop(1)
+
+            event = l_raw[1].split(":")[0]
+            if event == "info":
+                opt = l_raw[2]
+                if opt.split(":")[0] == "template":
+                    verbose_template = "onednn_verbose," + line.split(":")[1]
+            if event in filter_events:
+                l_converted = convert_primitive(
+                    l_raw, verbose_template + ",exec_time", verbose_version
+                )
+                if l_converted:
+                    self.__data[i] = l_converted
+                    i = i + 1
 
     def get_data(self):
         """

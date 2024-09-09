@@ -77,22 +77,26 @@
 namespace dnnl {
 namespace impl {
 
+// Versioning is used to communicate breaking verbose lines changes to
+// verbose_converter tool for maintaining compatibility smoother.
+// Numeration uses integers only and goes linearly from 0 to infinity.
+static constexpr char verbose_version[] = "v1";
+
 static setting_t<uint32_t> verbose {0};
 
 void print_header(const filter_status_t &filter_status) noexcept {
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
     if (!version_printed.test_and_set()) {
-        verbose_printf("onednn_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
+        verbose_printf("info,oneDNN v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-        verbose_printf("onednn_verbose,info,cpu,runtime:%s,nthr:%d\n",
+        verbose_printf("info,cpu,runtime:%s,nthr:%d\n",
                 dnnl_runtime2str(dnnl_version()->cpu_runtime),
                 dnnl_get_max_threads());
-        verbose_printf("onednn_verbose,info,cpu,isa:%s\n",
-                cpu::platform::get_isa_info());
+        verbose_printf("info,cpu,isa:%s\n", cpu::platform::get_isa_info());
 #endif
-        verbose_printf("onednn_verbose,info,gpu,runtime:%s\n",
+        verbose_printf("info,gpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->gpu_runtime));
         // Printing the header generally requires iterating over devices/backends,
         // which may involve an allocation. Use a try/catch block in case
@@ -108,57 +112,50 @@ void print_header(const filter_status_t &filter_status) noexcept {
             graph::utils::print_verbose_header();
 #endif
         } catch (...) {
-            verbose_printf(
-                    "onednn_verbose,info,exception while printing verbose "
-                    "header\n");
+            verbose_printf("info,exception while printing verbose header\n");
         }
 #ifdef DNNL_EXPERIMENTAL
-        verbose_printf(
-                "onednn_verbose,info,experimental features are enabled\n");
-        verbose_printf(
-                "onednn_verbose,info,use batch_normalization stats one pass is "
-                "%s\n",
+        verbose_printf("info,experimental features are enabled\n");
+        verbose_printf("info,use batch_normalization stats one pass is %s\n",
                 experimental::use_bnorm_stats_one_pass() ? "enabled"
                                                          : "disabled");
 #endif
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
         verbose_printf(
-                "onednn_verbose,info,experimental functionality for sparse "
-                "domain is enabled\n");
+                "info,experimental functionality for sparse domain is "
+                "enabled\n");
 #endif
 
-        verbose_printf("onednn_verbose,primitive,info,template:");
         verbose_printf(
-                "%soperation,engine,primitive,implementation,prop_kind,memory_"
-                "descriptors,attributes,auxiliary,problem_desc,exec_time\n",
+                "primitive,info,template:%soperation,engine,primitive,"
+                "implementation,prop_kind,memory_descriptors,attributes,"
+                "auxiliary,problem_desc,exec_time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
 
 #ifdef DNNL_EXPERIMENTAL_LOGGING
         const log_manager_t &log_manager = log_manager_t::get_log_manager();
         if (log_manager.is_logger_enabled())
             verbose_printf(
-                    "onednn_verbose,info,experimental functionality for "
-                    "logging is enabled\n");
+                    "info,experimental functionality for logging is enabled\n");
 #endif
 
 #ifdef ONEDNN_BUILD_GRAPH
-        verbose_printf("onednn_verbose,graph,info,template:");
         verbose_printf(
-                "%soperation,engine,partition_id,partition_kind,op_names,data_"
-                "formats,logical_tensors,fpmath_mode,implementation,backend,"
-                "exec_time\n",
+                "graph,info,template:%soperation,engine,partition_id,"
+                "partition_kind,op_names,data_formats,logical_tensors,fpmath_"
+                "mode,implementation,backend,exec_time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
 #endif
         if (filter_status.status == filter_status_t::flags::valid)
             verbose_printf(
-                    "onednn_verbose,common,info,filter format is enabled, hit "
-                    "components: %s\n",
+                    "common,info,filter format is enabled, hit components: "
+                    "%s\n",
                     filter_status.components.c_str());
         else if (filter_status.status == filter_status_t::flags::invalid)
             verbose_printf(
-                    "onednn_verbose,common,error,filter format is ill-formed "
-                    "and is not applied, error: %s\n",
+                    "common,error,filter format is ill-formed and is not "
+                    "applied, error: %s\n",
                     filter_status.err_msg.c_str());
     }
 }
@@ -235,6 +232,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
                 REGEX_SEARCH(k, group_normalization, regexp, filter_status);
                 REGEX_SEARCH(k, graph, regexp, filter_status);
                 REGEX_SEARCH(k, gemm_api, regexp, filter_status);
+                REGEX_SEARCH(k, ukernel, regexp, filter_status);
 #undef REGEX_SEARCH
             } catch (const std::exception &e) {
                 filter_status.status = filter_status_t::flags::invalid;
@@ -483,8 +481,10 @@ std::string md2fmt_strides_str(const memory_desc_t *md) {
 // the info provided to this call.
 // On the other hand, just a user memory descriptor can't be passed because it
 // is not initialized b the library, and format information will be missed.
-std::string md2fmt_str(const memory_desc_t *md, format_kind_t user_format) {
+std::string md2fmt_str(
+        const char *name, const memory_desc_t *md, format_kind_t user_format) {
     std::stringstream ss;
+    ss << name << ":";
     if (!md || types::is_zero_md(md)) {
         ss << data_type::undef << "::" << format_kind::undef << ":::";
         return ss.str();
@@ -530,7 +530,7 @@ std::string md2fmt_str(const memory_desc_t *md, format_kind_t user_format) {
 
 // Puts memory_desc information into stream without dimensions
 std::ostream &operator<<(std::ostream &ss, const memory_desc_t *md) {
-    ss << md2fmt_str(md, format_kind::undef);
+    assert(!"unexpected call to the operator<<");
     return ss;
 }
 
@@ -561,8 +561,7 @@ std::string md2dim_str(const memory_desc_t *md, dims_type_t dims_type) {
     return s;
 }
 
-// Returns string with descriptor style from memory_desc since there's an
-// operator<< for memory_desc.
+// Returns string with descriptor style from memory_desc.
 std::string md2desc_str(const memory_desc_t *md) {
     const auto dims = md->dims;
     std::string s;
@@ -662,6 +661,8 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
         char next = 0;
     } field_delim;
 
+    std::string empty_delim, attr_delim = "+";
+
     // scratchpad and fpmath mode are not a part of
     // has_default_values(). Check them first.
     const scratchpad_mode_t &spm = attr->scratchpad_mode_;
@@ -682,6 +683,20 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
         ss << field_delim() << "attr-acc:" << dnnl_accumulation_mode2str(am);
     }
 
+    const auto &rm = attr->rounding_mode_;
+    if (!rm.has_default_values()) {
+        std::string delim = empty_delim;
+        ss << field_delim() << "attr-rounding-mode:";
+        for (const auto &e : rm.rounding_modes_map_) {
+            // TODO: add support for diff tensors in arg2str when
+            // support is added
+            if (!rm.has_default_values(e.first))
+                ss << delim << arg2str(e.first) << ":"
+                   << dnnl_rounding_mode2str(e.second);
+            delim = attr_delim;
+        }
+    }
+
     const bool deterministic = attr->deterministic_;
     if (deterministic) {
         ss << field_delim() << "attr-deterministic:" << deterministic;
@@ -692,8 +707,6 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
     if (!os.has_default_values()) {
         ss << field_delim() << "attr-oscale:" << os;
     }
-
-    std::string empty_delim, attr_delim = "+";
 
     const arg_scales_t &as = attr->scales_;
     if (!as.has_default_values()) {
@@ -816,6 +829,12 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
     return ss;
 }
 
+std::string attr2str(const primitive_attr_t *attr) {
+    std::stringstream ss;
+    ss << attr;
+    return ss.str();
+}
+
 /* init_info section */
 namespace {
 
@@ -826,10 +845,13 @@ std::string init_info_batch_normalization(const engine_t *e, const pd_t *pd) {
        << pd->desc()->prop_kind << ",";
 
     auto src_md = pd->src_md();
-    auto diff_src_md = pd->diff_src_md();
 
-    ss << "data_" << src_md;
-    if (diff_src_md) ss << " diff_" << diff_src_md;
+    ss << md2fmt_str("data", src_md, pd->src_md(0, true)->format_kind);
+    if (!pd->is_fwd()) {
+        ss << " "
+           << md2fmt_str("diff", pd->diff_src_md(0),
+                      pd->diff_src_md(0, true)->format_kind);
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "flags:" << normalization_flags2str(pd->desc()->flags) << ",";
@@ -848,9 +870,11 @@ std::string init_info_binary(const engine_t *e, const pd_t *pd) {
     auto src1_md = pd->invariant_src_md(1);
     auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << md2fmt_str(src0_md, pd->invariant_src_user_format_kind(0));
-    ss << " src_" << md2fmt_str(src1_md, pd->invariant_src_user_format_kind(1));
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("src", src0_md, pd->invariant_src_user_format_kind(0))
+       << " ";
+    ss << md2fmt_str("src", src1_md, pd->invariant_src_user_format_kind(1))
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
@@ -867,12 +891,11 @@ std::string init_info_concat(const engine_t *e, const pd_t *pd) {
 
     for (int i = 0; i < pd->n_inputs(); ++i) {
         auto src_i_md = pd->invariant_src_md(i);
-        ss << "src_"
-           << md2fmt_str(src_i_md, pd->invariant_src_user_format_kind(i))
+        ss << md2fmt_str("src", src_i_md, pd->invariant_src_user_format_kind(i))
            << " ";
     }
     auto dst_md = pd->invariant_dst_md();
-    ss << "dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",";
     ss << "axis:" << pd->desc()->concat_dimension << ",";
@@ -897,11 +920,12 @@ std::string init_info_convolution(const engine_t *e, const pd_t *pd) {
     auto bia_md = pd->invariant_bia_md();
     auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " wei_" << md2fmt_str(wei_md, pd->invariant_wei_user_format_kind());
-    if (bia_md)
-        ss << " bia_"
-           << md2fmt_str(bia_md, pd->invariant_bia_user_format_kind());
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("wei", wei_md, pd->invariant_wei_user_format_kind())
+       << " ";
+    ss << md2fmt_str("bia", bia_md, pd->invariant_bia_user_format_kind())
+       << " ";
 
     // `has_fused_dw` modifies the convolution output in the following way:
     // * It provides additional src, wei and bia md to show their presence and
@@ -929,17 +953,16 @@ std::string init_info_convolution(const engine_t *e, const pd_t *pd) {
         auto bia_fused_md
                 = pd->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
         // User-provided dst memory descriptor.
-        ss << " src_fused_"
-           << md2fmt_str(src_fused_md,
-                      pd->invariant_dst_user_format_kind(
-                              DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_SRC));
+        ss << md2fmt_str("src_fused", src_fused_md,
+                pd->invariant_dst_user_format_kind(
+                        DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_SRC))
+           << " ";
         // Not user-provided memory descriptors.
-        ss << " wei_fused_" << wei_fused_md;
-        ss << " bia_fused_" << bia_fused_md;
-        ss << " dst_" << dst_md;
+        ss << md2fmt_str("wei_fused", wei_fused_md, format_kind::undef) << " ";
+        ss << md2fmt_str("bia_fused", bia_fused_md, format_kind::undef) << " ";
+        ss << md2fmt_str("dst", dst_md, format_kind::undef);
     } else {
-        ss << " dst_"
-           << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+        ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
     }
 
     ss << "," << pd->attr() << ",";
@@ -974,11 +997,18 @@ std::string init_info_eltwise(const engine_t *e, const pd_t *pd) {
     ss << e << "," << pd->kind() << "," << pd->name() << ","
        << pd->desc()->prop_kind << ",";
 
-    auto data_md = pd->use_dst() ? pd->dst_md() : pd->src_md();
+    auto data_md = pd->use_dst() ? pd->dst_md(0) : pd->src_md(0);
+    auto user_data_format_kind = pd->use_dst()
+            ? pd->dst_md(0, true)->format_kind
+            : pd->src_md(0, true)->format_kind;
     auto diff_src_md = pd->diff_src_md();
 
-    ss << "data_" << data_md;
-    if (diff_src_md) ss << " diff_" << diff_src_md;
+    ss << md2fmt_str("data", data_md, user_data_format_kind);
+    if (!pd->is_fwd()) {
+        ss << " "
+           << md2fmt_str("diff", diff_src_md,
+                      pd->invariant_src_user_format_kind(0));
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << " alpha:" << pd->desc()->alpha
@@ -1009,16 +1039,16 @@ std::string init_info_gemm(const engine_t *e, const pd_t *pd) {
         return mask;
     };
 
-    ss << "src_a_"
-       << md2fmt_str(src_a_md, pd->invariant_src_user_format_kind(0));
-    ss << " src_b_"
-       << md2fmt_str(src_b_md, pd->invariant_src_user_format_kind(1));
+    ss << md2fmt_str("src_a", src_a_md, pd->invariant_src_user_format_kind(0))
+       << " ";
+    ss << md2fmt_str("src_b", src_b_md, pd->invariant_src_user_format_kind(1))
+       << " ";
     if (pd->with_bias()) {
-        ss << " bia_"
-           << md2fmt_str(bia_md, pd->invariant_bia_user_format_kind());
+        ss << md2fmt_str("bia", bia_md, pd->invariant_bia_user_format_kind());
         ss << "_mask" << get_bia_mask();
+        ss << " ";
     }
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",,";
 
@@ -1035,12 +1065,15 @@ std::string init_info_group_normalization(const engine_t *e, const pd_t *pd) {
 
     auto src_md = pd->src_md();
     auto dst_md = pd->invariant_dst_md();
-    ss << "src_" << src_md;
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
-    if (!pd->is_fwd()) ss << " diff_src_" << pd->diff_src_md();
-    ss << ",";
+    ss << md2fmt_str("src", src_md, pd->src_md(0, true)->format_kind) << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
+    if (!pd->is_fwd()) {
+        ss << " "
+           << md2fmt_str("diff_src", pd->diff_src_md(0),
+                      pd->diff_src_md(0, true)->format_kind);
+    }
 
-    ss << pd->attr() << ",";
+    ss << "," << pd->attr() << ",";
     ss << "flags:" << normalization_flags2str(pd->desc()->flags) << ",";
     ss << "g" << pd->desc()->groups << md2desc_str(src_md);
 
@@ -1058,12 +1091,13 @@ std::string init_info_inner_product(const engine_t *e, const pd_t *pd) {
     auto bia_md = pd->invariant_bia_md();
     auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " wei_" << md2fmt_str(wei_md, pd->invariant_wei_user_format_kind());
-    if (bia_md)
-        ss << " bia_"
-           << md2fmt_str(bia_md, pd->invariant_bia_user_format_kind());
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("wei", wei_md, pd->invariant_wei_user_format_kind())
+       << " ";
+    ss << md2fmt_str("bia", bia_md, pd->invariant_bia_user_format_kind())
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",,";
 
@@ -1083,21 +1117,41 @@ std::string init_info_layer_normalization(const engine_t *e, const pd_t *pd) {
     auto dst_md = pd->invariant_dst_md();
     auto stats_md = pd->is_fwd() && !pd->stats_are_src() ? pd->dst_md(1)
                                                          : pd->src_md(1);
+    auto user_stats_format_kind = pd->is_fwd() && !pd->stats_are_src()
+            ? pd->dst_md(1, true)->format_kind
+            : pd->src_md(1, true)->format_kind;
     auto scaleshift_md = pd->weights_md(0);
     auto diff_scaleshift_md = pd->diff_weights_md(0);
 
-    ss << "src_" << src_md;
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
-    if (stats_md) ss << " stats_" << stats_md;
-    if (pd->use_scale()) ss << " scale_" << scaleshift_md;
-    if (pd->use_shift()) ss << " shift_" << scaleshift_md;
-
-    if (!pd->is_fwd()) ss << " diff_src_" << pd->diff_src_md();
-
-    if (!pd->is_fwd() && pd->use_scale())
-        ss << " diff_scale_" << diff_scaleshift_md;
-    if (!pd->is_fwd() && pd->use_shift())
-        ss << " diff_shift_" << diff_scaleshift_md;
+    ss << md2fmt_str("src", src_md, pd->src_md(0, true)->format_kind) << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind())
+       << " ";
+    ss << md2fmt_str("stats", stats_md, user_stats_format_kind);
+    if (pd->use_scale()) {
+        ss << " "
+           << md2fmt_str("scale", scaleshift_md,
+                      pd->weights_md(0, true)->format_kind);
+    }
+    if (pd->use_shift()) {
+        ss << " "
+           << md2fmt_str("shift", scaleshift_md,
+                      pd->weights_md(0, true)->format_kind);
+    }
+    if (!pd->is_fwd()) {
+        ss << " "
+           << md2fmt_str("diff_src", pd->diff_src_md(0),
+                      pd->diff_src_md(0, true)->format_kind);
+    }
+    if (!pd->is_fwd() && pd->use_scale()) {
+        ss << " "
+           << md2fmt_str("diff_scale", diff_scaleshift_md,
+                      pd->diff_weights_md(0, true)->format_kind);
+    }
+    if (!pd->is_fwd() && pd->use_shift()) {
+        ss << " "
+           << md2fmt_str("diff_shift", diff_scaleshift_md,
+                      pd->diff_weights_md(0, true)->format_kind);
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "flags:" << normalization_flags2str(pd->desc()->flags) << ",";
@@ -1115,8 +1169,12 @@ std::string init_info_lrn(const engine_t *e, const pd_t *pd) {
     auto data_md = pd->src_md();
     auto diff_src_md = pd->diff_src_md();
 
-    ss << "data_" << data_md;
-    if (diff_src_md) ss << " diff_" << diff_src_md;
+    ss << md2fmt_str("data", data_md, pd->src_md(0, true)->format_kind);
+    if (!pd->is_fwd()) {
+        ss << " "
+           << md2fmt_str("diff", diff_src_md,
+                      pd->invariant_src_user_format_kind(0));
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
@@ -1131,7 +1189,6 @@ std::string mds2str_matmul(const memory_desc_t *src_md,
         format_kind_t wei_user_format_kind, const memory_desc_t *bia_md,
         format_kind_t bia_user_format_kind, const memory_desc_t *dst_md,
         format_kind_t dst_user_format_kind) {
-    std::string s;
     auto get_bia_mask = [&bia_md]() {
         auto bia_ndims = bia_md->ndims;
         auto bia_dims = bia_md->dims;
@@ -1143,14 +1200,17 @@ std::string mds2str_matmul(const memory_desc_t *src_md,
     };
 
     std::stringstream ss;
-    ss << "src_" << md2fmt_str(src_md, src_user_format_kind);
-    ss << " wei_" << md2fmt_str(wei_md, wei_user_format_kind);
+
+    ss << md2fmt_str("src", src_md, src_user_format_kind) << " ";
+    ss << md2fmt_str("wei", wei_md, wei_user_format_kind) << " ";
     if (!memory_desc_wrapper(bia_md).is_zero()) {
-        ss << " bia_" << md2fmt_str(bia_md, bia_user_format_kind);
+        ss << md2fmt_str("bia", bia_md, bia_user_format_kind);
         ss << "_mask" << get_bia_mask();
+        ss << " ";
     }
-    ss << " dst_" << md2fmt_str(dst_md, dst_user_format_kind);
-    s = ss.str();
+    ss << md2fmt_str("dst", dst_md, dst_user_format_kind);
+
+    std::string s = ss.str();
     return s;
 }
 
@@ -1195,9 +1255,12 @@ std::string init_info_pooling(const engine_t *e, const pd_t *pd) {
     auto dst_md = pd->invariant_dst_md();
     auto ws_md = pd->workspace_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
-    if (ws_md) ss << " ws_" << ws_md;
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
+    if (!memory_desc_wrapper(ws_md).is_zero()) {
+        ss << " " << md2fmt_str("ws", ws_md, format_kind::undef);
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
@@ -1226,10 +1289,18 @@ std::string init_info_prelu(const engine_t *e, const pd_t *pd) {
     auto diff_data_md = pd->diff_src_md(0);
     auto diff_wei_md = pd->diff_weights_md(0);
 
-    ss << "data_" << data_md;
-    ss << " wei_" << wei_md;
-    if (diff_data_md) ss << " diff_" << diff_data_md;
-    if (diff_wei_md) ss << " diff_wei_" << diff_wei_md;
+    ss << md2fmt_str("data", data_md, pd->src_md(0, true)->format_kind) << " ";
+    ss << md2fmt_str("wei", wei_md, pd->weights_md(0, true)->format_kind);
+    if (!memory_desc_wrapper(diff_data_md).is_zero()) {
+        ss << " "
+           << md2fmt_str("diff", diff_data_md,
+                      pd->diff_src_md(0, true)->format_kind);
+    }
+    if (!memory_desc_wrapper(diff_wei_md).is_zero()) {
+        ss << " "
+           << md2fmt_str("diff_wei", diff_wei_md,
+                      pd->diff_weights_md(0, true)->format_kind);
+    }
 
     ss << "," << pd->attr() << ",,";
     ss << md2dim_str(data_md) << ":" << md2dim_str(wei_md);
@@ -1246,8 +1317,9 @@ std::string init_info_reduction(const engine_t *e, const pd_t *pd) {
     auto src_md = pd->invariant_src_md();
     auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << " p:" << pd->desc()->p
@@ -1261,8 +1333,9 @@ std::string mds2str_reorder(const memory_desc_t *src_md,
         format_kind_t src_user_format_kind, const memory_desc_t *dst_md,
         format_kind_t dst_user_format_kind) {
     std::string s;
-    s += "src_" + md2fmt_str(src_md, src_user_format_kind);
-    s += " dst_" + md2fmt_str(dst_md, dst_user_format_kind);
+    s += md2fmt_str("src", src_md, src_user_format_kind);
+    s += " ";
+    s += md2fmt_str("dst", dst_md, dst_user_format_kind);
     return s;
 }
 
@@ -1309,8 +1382,9 @@ std::string init_info_resampling(const engine_t *e, const pd_t *pd) {
     auto src_md = pd->invariant_src_md();
     auto dst_md = pd->invariant_dst_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->desc()->alg_kind << ",";
@@ -1330,76 +1404,81 @@ std::string init_info_rnn(const engine_t *e, const pd_t *pd) {
        << pd->desc()->prop_kind << ",";
 
     // TODO: shorten the names to consume fewer characters on verbose output.
-    ss << "src_layer_"
-       << md2fmt_str(pd->src_md(0), pd->src_md(0, true)->format_kind);
+    ss << md2fmt_str(
+            "src_layer", pd->src_md(0), pd->src_md(0, true)->format_kind)
+       << " ";
     if (pd->with_src_iter())
-        ss << " src_iter_"
-           << md2fmt_str(pd->src_md(1), pd->src_md(1, true)->format_kind);
-    ss << " wei_layer_"
-       << md2fmt_str(pd->weights_md(0), pd->weights_md(0, true)->format_kind);
-    ss << " wei_iter_"
-       << md2fmt_str(pd->weights_md(1), pd->weights_md(1, true)->format_kind);
+        ss << md2fmt_str(
+                "src_iter", pd->src_md(1), pd->src_md(1, true)->format_kind)
+           << " ";
+    ss << md2fmt_str("wei_layer", pd->weights_md(0),
+            pd->weights_md(0, true)->format_kind)
+       << " ";
+    ss << md2fmt_str(
+            "wei_iter", pd->weights_md(1), pd->weights_md(1, true)->format_kind)
+       << " ";
     if (pd->is_lstm_peephole())
-        ss << " wei_peephole_"
-           << md2fmt_str(
-                      pd->weights_md(2), pd->weights_md(2, true)->format_kind);
+        ss << md2fmt_str("wei_peephole", pd->weights_md(2),
+                pd->weights_md(2, true)->format_kind)
+           << " ";
     // TODO: separate methods for aux weights?
     if (pd->is_lstm_projection()) {
         auto proj_idx = 2 + pd->is_lstm_peephole();
-        ss << " wei_proj_"
-           << md2fmt_str(pd->weights_md(proj_idx),
-                      pd->weights_md(proj_idx, true)->format_kind);
+        ss << md2fmt_str("wei_proj", pd->weights_md(proj_idx),
+                pd->weights_md(proj_idx, true)->format_kind)
+           << " ";
     }
     if (pd->with_bias()) {
         auto bias_idx = 2 + pd->is_lstm_peephole() + pd->is_lstm_projection();
-        ss << " bias_"
-           << md2fmt_str(pd->weights_md(bias_idx),
-                      pd->weights_md(bias_idx, true)->format_kind);
+        ss << md2fmt_str("bias", pd->weights_md(bias_idx),
+                pd->weights_md(bias_idx, true)->format_kind)
+           << " ";
     }
-    ss << " dst_layer_"
-       << md2fmt_str(pd->dst_md(0), pd->dst_md(0, true)->format_kind);
+    ss << md2fmt_str(
+            "dst_layer", pd->dst_md(0), pd->dst_md(0, true)->format_kind);
     if (pd->with_dst_iter())
-        ss << " dst_iter_"
-           << md2fmt_str(pd->dst_md(1), pd->dst_md(1, true)->format_kind);
+        ss << " "
+           << md2fmt_str("dst_iter", pd->dst_md(1),
+                      pd->dst_md(1, true)->format_kind);
 
     if (!pd->is_fwd()) {
-        ss << " diff_src_layer_"
-           << md2fmt_str(pd->diff_src_md(0),
-                      pd->invariant_src_user_format_kind(0));
+        ss << " ";
+        ss << md2fmt_str("diff_src_layer", pd->diff_src_md(0),
+                pd->diff_src_md(0, true)->format_kind)
+           << " ";
         if (pd->with_src_iter())
-            ss << " diff_src_iter_"
-               << md2fmt_str(pd->diff_src_md(1),
-                          pd->invariant_src_user_format_kind(1));
-        ss << " diff_wei_layer_"
-           << md2fmt_str(pd->diff_weights_md(0),
-                      pd->invariant_wei_user_format_kind(0));
-        ss << " diff_wei_iter_"
-           << md2fmt_str(pd->diff_weights_md(1),
-                      pd->invariant_wei_user_format_kind(1));
+            ss << md2fmt_str("diff_src_iter", pd->diff_src_md(1),
+                    pd->diff_src_md(1, true)->format_kind)
+               << " ";
+        ss << md2fmt_str("diff_wei_layer", pd->diff_weights_md(0),
+                pd->diff_weights_md(0, true)->format_kind)
+           << " ";
+        ss << md2fmt_str("diff_wei_iter", pd->diff_weights_md(1),
+                pd->diff_weights_md(1, true)->format_kind)
+           << " ";
         if (pd->is_lstm_peephole())
-            ss << " diff_wei_peephole_"
-               << md2fmt_str(pd->diff_weights_md(2),
-                          pd->invariant_wei_user_format_kind(2));
+            ss << md2fmt_str("diff_wei_peephole", pd->diff_weights_md(2),
+                    pd->diff_weights_md(2, true)->format_kind)
+               << " ";
         if (pd->is_lstm_projection()) {
             auto proj_idx = 2 + pd->is_lstm_peephole();
-            ss << " diff_wei_proj_"
-               << md2fmt_str(pd->weights_md(proj_idx),
-                          pd->invariant_wei_user_format_kind(proj_idx));
+            ss << md2fmt_str("diff_wei_proj", pd->weights_md(proj_idx),
+                    pd->weights_md(proj_idx, true)->format_kind)
+               << " ";
         }
         if (pd->with_bias()) {
             auto bias_idx
                     = 2 + pd->is_lstm_peephole() + pd->is_lstm_projection();
-            ss << " diff_bias_"
-               << md2fmt_str(pd->weights_md(bias_idx),
-                          pd->invariant_wei_user_format_kind(bias_idx));
+            ss << md2fmt_str("diff_bias", pd->weights_md(bias_idx),
+                    pd->weights_md(bias_idx, true)->format_kind)
+               << " ";
         }
-        ss << " diff_dst_layer_"
-           << md2fmt_str(pd->diff_dst_md(0),
-                      pd->invariant_dst_user_format_kind(0));
+        ss << md2fmt_str("diff_dst_layer", pd->diff_dst_md(0),
+                pd->diff_dst_md(0, true)->format_kind);
         if (pd->with_dst_iter())
-            ss << " diff_dst_iter_"
-               << md2fmt_str(pd->diff_dst_md(1),
-                          pd->invariant_dst_user_format_kind(1));
+            ss << " "
+               << md2fmt_str("diff_dst_iter", pd->diff_dst_md(1),
+                          pd->diff_dst_md(1, true)->format_kind);
     }
 
     ss << "," << pd->attr() << ",";
@@ -1423,7 +1502,7 @@ std::string init_info_shuffle(const engine_t *e, const pd_t *pd) {
 
     auto data_md = pd->invariant_src_md();
 
-    ss << "data_" << data_md;
+    ss << md2fmt_str("data", data_md, pd->invariant_src_user_format_kind());
 
     ss << "," << pd->attr() << ",";
     ss << "axis:" << pd->axis() << " group:" << pd->group_size() << ",";
@@ -1442,9 +1521,13 @@ std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
     auto dst_md = pd->dst_md();
     auto diff_dst_md = pd->diff_dst_md();
 
-    ss << "src_" << md2fmt_str(src_md, pd->invariant_src_user_format_kind());
-    ss << " dst_" << dst_md;
-    if (!types::is_zero_md(diff_dst_md)) ss << " diff_dst_" << diff_dst_md;
+    ss << md2fmt_str("src", src_md, pd->invariant_src_user_format_kind())
+       << " ";
+    ss << md2fmt_str("dst", dst_md, pd->dst_md(0, true)->format_kind);
+    if (!types::is_zero_md(diff_dst_md)) {
+        ss << md2fmt_str(
+                "diff_dst", diff_dst_md, pd->diff_dst_md(0, true)->format_kind);
+    }
 
     ss << "," << pd->attr() << ",";
     ss << "alg:" << pd->alg_kind() << " axis:" << pd->axis() << ",";
@@ -1461,12 +1544,11 @@ std::string init_info_sum(const engine_t *e, const pd_t *pd) {
 
     for (int i = 0; i < pd->n_inputs(); ++i) {
         auto src_i_md = pd->invariant_src_md(i);
-        ss << "src_"
-           << md2fmt_str(src_i_md, pd->invariant_src_user_format_kind(i))
+        ss << md2fmt_str("src", src_i_md, pd->invariant_src_user_format_kind(i))
            << " ";
     }
     auto dst_md = pd->invariant_dst_md();
-    ss << "dst_" << md2fmt_str(dst_md, pd->invariant_dst_user_format_kind());
+    ss << md2fmt_str("dst", dst_md, pd->invariant_dst_user_format_kind());
 
     ss << "," << pd->attr() << ",,";
     ss << md2dim_str(dst_md);
@@ -1513,6 +1595,37 @@ std::string rt_mds2str(primitive_kind_t prim_kind, const memory_desc_t *src_md,
         default: assert(!"unknown primitive kind");
     }
     return s;
+}
+
+// Designated function to prepend a verbose marker and correspondent version.
+// Note: intended to be called inside `verbose_printf_impl` only!
+std::string prepend_identifier_and_version(const char *fmt_str) {
+    assert(std::string(fmt_str).find("onednn_verbose") == std::string::npos);
+    std::string s
+            = "onednn_verbose," + std::string(verbose_version) + "," + fmt_str;
+    return s;
+}
+
+void verbose_printf_impl(const char *raw_fmt_str, verbose_t::flag_kind kind) {
+    const auto &fmt_str = prepend_identifier_and_version(raw_fmt_str);
+
+#ifdef DNNL_EXPERIMENTAL_LOGGING
+    // by default, verbose_t::create_check is passed to the logger
+    // so that it prints at spdlog log_level_t::info when no verbose flag
+    // is specified. This is useful for printing headers, format fields, etc.
+    // which do not correspond to a specific verbose kind.
+    const log_manager_t &log_manager = log_manager_t::get_log_manager();
+
+    if (log_manager.is_logger_enabled())
+        log_manager.log(fmt_str.c_str(), align_verbose_mode_to_log_level(kind));
+    if (log_manager.is_console_enabled()) {
+        printf("%s", fmt_str.c_str());
+        fflush(stdout);
+    }
+#else
+    printf("%s", fmt_str.c_str());
+    fflush(stdout);
+#endif
 }
 
 std::string rt_dims2fmt_str(primitive_kind_t prim_kind,

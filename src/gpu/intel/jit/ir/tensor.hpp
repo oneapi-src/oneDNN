@@ -271,6 +271,7 @@ public:
 private:
     static std::vector<expr_t> make_idxs(const std::string &prefix, int n) {
         std::vector<expr_t> ret;
+        ret.reserve(n);
         for (int i = 0; i < n; i++)
             ret.push_back(
                     var_t::make(type_t::s32(), prefix + std::to_string(i)));
@@ -497,7 +498,7 @@ public:
         const auto other_blocks = other.normalize().blocks();
         const auto self_blocks = normalize().blocks();
         if (self_blocks.size() > other_blocks.size()) return false;
-        if (self_blocks.size() == 0) return true;
+        if (self_blocks.empty()) return true;
 
         int i = 0;
         for (; i < (int)self_blocks.size() - 1; i++) {
@@ -575,6 +576,7 @@ public:
     // The innermost block (first) has index 0.
     std::vector<std::pair<int, block_t>> enumerated_blocks() const {
         std::vector<std::pair<int, block_t>> ret;
+        ret.reserve(blocks_.size());
         for (int i = 0; i < int(blocks_.size()); i++) {
             ret.emplace_back(i, blocks_[i]);
         }
@@ -805,8 +807,8 @@ public:
             auto tile = split_exact(sub_grid);
             if (tile.is_empty()) continue;
             if (min_tile.is_empty() || tile.elems() < min_tile.elems()) {
-                min_tile = tile;
-                if (out_grid) { *out_grid = sub_grid; }
+                min_tile = std::move(tile);
+                if (out_grid) { *out_grid = std::move(sub_grid); }
             }
         }
         return min_tile;
@@ -1443,7 +1445,7 @@ public:
         return tdims_[idx];
     }
 
-    void set_tdim(int tidx, const expr_t &_texpr, expr_t mask = {}) {
+    void set_tdim(int tidx, const expr_t &_texpr, const expr_t &mask = {}) {
         ir_assert(tdims_[tidx].is_empty());
 
         auto texpr = simplify(_texpr);
@@ -1457,7 +1459,7 @@ public:
                     << "Tensor dimension must have at least one view dimension "
                        "that maps to it.";
         }
-        tdims_[tidx] = tdim;
+        tdims_[tidx] = std::move(tdim);
     }
 
     void set_vdim(
@@ -1736,7 +1738,7 @@ public:
                 auto &vvar = vvars()[vidx];
                 int vdim = vdims()[vidx];
                 if (vdim == 1) continue;
-                auto A = tdim.expr();
+                const auto &A = tdim.expr();
                 auto B = jit::substitute(A, vvar, vvar + 1);
                 auto C = simplify(B - A);
                 if (!is_const(C)) {

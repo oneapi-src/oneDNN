@@ -70,8 +70,7 @@ class conv_problem_t {
 public:
     conv_problem_t() = default;
 
-    status_t init(
-            const impl::engine_t *engine, const convolution_pd_t *conv_pd);
+    status_t init(impl::engine_t *engine, const convolution_pd_t *conv_pd);
 
     bool is_stride1() const { return sd == 1 && sh == 1 && sw == 1; }
 
@@ -200,6 +199,10 @@ private:
     void init_transpose(const hw_t &hw);
 };
 
+void normalize_conv_shape(int &id, int &od, int &kd, int &sd, int &dd, int &pd,
+        int &ih, int &oh, int &kh, int &sh, int &dh, int &ph, int &iw, int &ow,
+        int &kw, int &sw, int &dw, int &pw, bool can_flatten_spatial,
+        std::array<int, 3> &dhw_map);
 bool is_small_ic(const conv_problem_t &prb);
 
 class conv_arg_helper_t {

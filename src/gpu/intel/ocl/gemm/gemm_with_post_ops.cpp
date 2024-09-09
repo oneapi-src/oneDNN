@@ -185,6 +185,8 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("C_SCALES", with_dst_scales);
     def_data_type(kernel_ctx, attr_scales.get(DNNL_ARG_WEIGHTS).data_type_,
             "WEI_SCALES");
+    def_data_type(
+            kernel_ctx, attr_scales.get(DNNL_ARG_DST).data_type_, "DST_SCALES");
     int dst_zp_mask;
     attr()->zero_points_.get(DNNL_ARG_DST, &dst_zp_mask);
     kernel_ctx.define_int("DST_ZERO_POINT",

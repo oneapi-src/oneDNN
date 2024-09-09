@@ -56,4 +56,7 @@ const char *fpmath_mode2str(dnnl_fpmath_mode_t mode);
 /* accumulation mode */
 const char *accumulation_mode2str(dnnl_accumulation_mode_t mode);
 
+/* accumulation mode */
+const char *rounding_mode2str(dnnl_rounding_mode_t mode);
+
 #endif

@@ -387,7 +387,7 @@ private:
         }
 
         std::reverse(new_lets.begin(), new_lets.end());
-        inner_let_stmts_ = new_lets;
+        inner_let_stmts_ = std::move(new_lets);
     }
 
     template <typename T>
@@ -395,6 +395,7 @@ private:
             const std::vector<let_info_t> &let_infos, bool is_preload,
             bool is_mul) {
         std::vector<T> ret;
+        ret.reserve(vec.size());
         for (auto &v : vec)
             ret.push_back(update_var(v, let_infos, is_preload, is_mul));
         return ret;
@@ -861,7 +862,7 @@ public:
             }
         }
 
-        entries_[old_idx] = entry_t({key, cur_time_++});
+        entries_[old_idx] = entry_t({std::move(key), cur_time_++});
         return ngen_proxy::SBID(old_idx);
     }
 
@@ -1006,8 +1007,8 @@ private:
     stmt_t body_;
 };
 
-pipeline_ctx_t pipeline(
-        int length, const loop_info_t &loop, stmt_t A_block, stmt_t B_block) {
+pipeline_ctx_t pipeline(int length, const loop_info_t &loop,
+        const stmt_t &A_block, const stmt_t &B_block) {
 
     expr_t idx = loop.var;
     int bound = loop.bound();
@@ -1045,7 +1046,7 @@ public:
         auto &loops = loop_nest.loops();
 
         // No loops to pipeline
-        if (loops.size() == 0) return root_;
+        if (loops.empty()) return root_;
         auto &loop_body = loops[0].body();
 
         auto A_block_stmt
@@ -1397,7 +1398,7 @@ public:
         g2s_store = g2s_store.append(slm_idx_update);
 
         auto s2r_mul_body = s2r_mul;
-        auto s2r_mul_tail = s2r_mul;
+        auto s2r_mul_tail = std::move(s2r_mul);
         auto slm_counter = slm_idx_load(2, 1);
         auto cond = (slm_counter >= cfg_.slm().bufs() - 1);
 
@@ -1875,8 +1876,8 @@ private:
 
                 if (!seen_dst.insert(dst).second) continue;
 
-                auto new_call = func_call_t::make(
-                        call.func, {dst, src0, src1, src2}, call.attr);
+                auto new_call = func_call_t::make(call.func,
+                        {dst, std::move(src0), src1, src2}, call.attr);
                 ret = substitute(ret, s, new_call, 1);
             } else if (is_func_call<mad_t>(s)) {
                 auto &call = s.as<func_call_t>();
@@ -1888,8 +1889,8 @@ private:
 
                 if (!seen_dst.insert(dst).second) continue;
 
-                auto new_call = func_call_t::make(
-                        call.func, {dst, src0, src1, src2}, call.attr);
+                auto new_call = func_call_t::make(call.func,
+                        {dst, std::move(src0), src1, src2}, call.attr);
                 ret = substitute(ret, s, new_call, 1);
             }
         }

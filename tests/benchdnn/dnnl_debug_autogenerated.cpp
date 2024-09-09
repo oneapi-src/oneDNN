@@ -47,6 +47,7 @@ dnnl_data_type_t str2dt(const char *str) {
     CASE(f8_e4m3);
     CASE(s4);
     CASE(u4);
+    CASE(e8m0);
     CASE(data_type_max);
 #undef CASE
     if (!strcmp("undef", str) || !strcmp("dnnl_data_type_undef", str))
@@ -1726,4 +1727,8 @@ const char *fpmath_mode2str(dnnl_fpmath_mode_t mode) {
 
 const char *accumulation_mode2str(dnnl_accumulation_mode_t mode) {
     return dnnl_accumulation_mode2str(mode);
+}
+
+const char *rounding_mode2str(dnnl_rounding_mode_t mode) {
+    return dnnl_rounding_mode2str(mode);
 }

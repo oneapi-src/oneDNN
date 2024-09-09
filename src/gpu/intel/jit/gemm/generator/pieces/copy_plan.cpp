@@ -1364,7 +1364,7 @@ void CopyPlan::legalizeRegions()
 
         /* Check destination stride against execution channels */
         int channelSize = 1;
-        for (auto op: {i.dst, i.src0, i.src1, i.src2})
+        for (auto &op: {i.dst, i.src0, i.src1, i.src2})
             if (op.kind == op.GRF)
                 channelSize = std::max(channelSize, getBytes(op.type));
 
@@ -1388,9 +1388,13 @@ void CopyPlan::legalizeRegions()
 
         /* For illegal dst, copy through temporary dst */
         if (doRestrideDst) {
-            restrideDst(i, dstMinStride, hfIntConvert);
-            rerun = true;
-            continue;
+            if (i.simd == 1)
+                i.dst.stride = dstMinStride;
+            else {
+                restrideDst(i, dstMinStride, hfIntConvert);
+                rerun = true;
+                continue;
+            }
         }
 
         /* Check for swizzling */

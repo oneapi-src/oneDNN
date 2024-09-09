@@ -129,5 +129,7 @@ TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt) {}
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestConvolutionAlexnetAnyFmtForward,
         conv_any_fmt_test_float, ::testing::Values(ALEXNET_SUITE(BLK)));
+GPU_INSTANTIATE_TEST_SUITE_P(TestConvolutionAlexnetAnyFmtForward,
+        conv_any_fmt_test_float, ::testing::Values(ALEXNET_SUITE(BLK)));
 #endif
 } // namespace dnnl

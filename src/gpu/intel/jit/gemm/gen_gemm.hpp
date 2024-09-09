@@ -647,9 +647,6 @@ struct gen_gemm_t : public gpu_gemm_t {
         const auto *info = nocopy_info();
 
         if (info->fusedBeta() || info->fusedPostOps()) {
-            auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine);
-
             int zg_cl = 0;
             if (info->fusedBeta()) zg_cl++;
             if (info->fusedPostOps()) zg_cl++;
@@ -657,9 +654,14 @@ struct gen_gemm_t : public gpu_gemm_t {
             zero_pool_bytes_ = pd()->max_k_sliced_groups() * 64 * zg_cl;
 
             auto zg_max = pd()->dev_info_->hw_threads(false);
-            auto zg_bytes_max = zg_max * 2 * 2 * 64;
+            zero_pool_chunk_size_ = zg_max * 2 * 2 * 64;
 
-            CHECK(lookup_zero_pool(compute_engine, zg_bytes_max, &zero_pool_));
+#ifndef DNNL_WITH_SYCL
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+            CHECK(lookup_zero_pool(compute_engine, nullptr,
+                    zero_pool_chunk_size_, &zero_pool_));
+#endif
 
             nocopy_kernel_.save_output_events();
         }
@@ -671,17 +673,18 @@ struct gen_gemm_t : public gpu_gemm_t {
 
 private:
     status_t launch_nocopy(const gemm_exec_ctx_t &ctx,
-            compute::compute_stream_t *s, const memory_storage_t &a,
-            const memory_storage_t &b, const memory_storage_t &c,
-            const memory_storage_t *ao, const memory_storage_t *bo,
-            const memory_storage_t *a_scales, const memory_storage_t *b_scales,
-            const memory_storage_t &co, const memory_storage_t *c_temp,
-            int po_count, const memory_storage_t **po_src, int64_t offset_a,
-            int64_t offset_b, int64_t offset_c, int32_t offset_aq,
-            int32_t offset_bq, int32_t offset_co, int32_t *offset_po_src,
-            int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n,
-            int32_t k, int32_t k0, float alpha, float beta, int32_t cmask,
-            bool last_k_block, bool swapab, bool disable_hilbert) const;
+            compute::compute_stream_t *s, zero_pool_t *zero_pool,
+            const memory_storage_t &a, const memory_storage_t &b,
+            const memory_storage_t &c, const memory_storage_t *ao,
+            const memory_storage_t *bo, const memory_storage_t *a_scales,
+            const memory_storage_t *b_scales, const memory_storage_t &co,
+            const memory_storage_t *c_temp, int po_count,
+            const memory_storage_t **po_src, int64_t offset_a, int64_t offset_b,
+            int64_t offset_c, int32_t offset_aq, int32_t offset_bq,
+            int32_t offset_co, int32_t *offset_po_src, int32_t lda, int32_t ldb,
+            int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0,
+            float alpha, float beta, int32_t cmask, bool last_k_block,
+            bool swapab, bool disable_hilbert) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     const CommonDriverInfo *nocopy_info() const {
@@ -692,6 +695,7 @@ private:
     compute::scalar_type_t scalar_type_;
     zero_pool_t *zero_pool_ = nullptr;
     size_t zero_pool_bytes_ = 0;
+    size_t zero_pool_chunk_size_ = 0;
 };
 
 } // namespace jit

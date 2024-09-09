@@ -245,7 +245,7 @@ struct prefetch_plan_t : public base_plan_t {
 };
 
 struct x2r_plan_t : public base_plan_t {
-    tensor_kind_t tensor_kind;
+    tensor_kind_t tensor_kind = tensor_kind_t::undef;
     send_plan_t load;
     reorder_plan_t reorder;
     layout_t layout;
@@ -399,7 +399,7 @@ struct slm_reduce_plan_t : public base_plan_t {
         return ret;
     }
 
-    int slm_size() const {
+    int slm_usage_bytes() const {
         if (!*this) return 0;
         int k_local
                 = ir_utils::safe_div(reduce.src.elems(), reduce.dst.elems());
@@ -431,7 +431,7 @@ struct epilogue_plan_t : public base_plan_t {
     using base_plan_t::base_plan_t;
 
     int grf_usage_bytes() const { return 0; }
-    int slm_size() const { return slm_reduce.slm_size(); }
+    int slm_usage_bytes() const { return slm_reduce.slm_usage_bytes(); }
 
     std::string str() const {
         if (!*this) return "(empty)";
@@ -474,9 +474,9 @@ struct plan_t : public base_plan_t {
         return ret;
     }
 
-    int slm_size() const {
+    int slm_usage_bytes() const {
         int ret = 0;
-        ret += epilogue.slm_size();
+        ret += epilogue.slm_usage_bytes();
         return ret;
     }
 
@@ -495,7 +495,7 @@ struct plan_t : public base_plan_t {
 };
 
 plan_t create_conv_plan(const kernel_desc_t &desc);
-plan_t create_conv_plan_and_finalize_desc(kernel_desc_t &desc);
+bool finalize_conv_desc(kernel_desc_t &desc, const problem_t &prb);
 
 } // namespace conv
 } // namespace v2

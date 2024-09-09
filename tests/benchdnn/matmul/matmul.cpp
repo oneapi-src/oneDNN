@@ -741,9 +741,6 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
-    const auto dt = prb->get_dt(kind);
-    const float trh = dt == dnnl_f32 ? 1e-6f : epsilon_dt(dt);
-    cmp.set_threshold(trh);
     cmp.set_zero_trust_percent(90.f); // TODO: why so bad filling?
 }
 

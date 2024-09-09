@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -87,39 +87,43 @@ public:
 
     // Clear the cached values in current thread
     void clear() {
-        cache_type_t &cache = get_thread_local_cache();
-        for (auto &it : cache.data()) {
-            std::shared_ptr<T> value = it.second.lock();
-            if (value) {
-                std::lock_guard<std::mutex> lock(
-                        global_cache_type_t::get_global_cache()->mutex());
-                auto &data = global_cache_type_t::get_global_cache()->data();
+        cache_type_t &lcache = get_thread_local_cache();
+        global_cache_type_t *gcache = global_cache_type_t::get_global_cache();
+        // for safety purpose. it should not be nullptr.
+        if (gcache) {
+            for (auto &it : lcache.data()) {
+                std::shared_ptr<T> value = it.second.lock();
+                if (value) {
+                    std::lock_guard<std::mutex> lock(gcache->mutex());
+                    auto &data = gcache->data();
 
-                auto ret = data.find(it.first);
-                if (ret != data.end()) {
-                    std::vector<std::shared_ptr<T>> &thread_instances
-                            = ret->second;
-                    auto pos = std::find_if(thread_instances.begin(),
-                            thread_instances.end(),
-                            [&](std::shared_ptr<T> &ins) -> bool {
-                                return ins.get() == value.get();
-                            });
-                    assertm(pos != thread_instances.end(),
-                            "expected value to exist in cache");
-                    thread_instances.erase(pos);
+                    auto ret = data.find(it.first);
+                    if (ret != data.end()) {
+                        std::vector<std::shared_ptr<T>> &thread_instances
+                                = ret->second;
+                        auto pos = std::find_if(thread_instances.begin(),
+                                thread_instances.end(),
+                                [&](std::shared_ptr<T> &ins) -> bool {
+                                    return ins.get() == value.get();
+                                });
+                        assertm(pos != thread_instances.end(),
+                                "expected value to exist in cache");
+                        thread_instances.erase(pos);
+                    }
                 }
             }
         }
-        cache.data().clear();
+        lcache.data().clear();
     }
 
     // Remove the cached values for the given key in ALL threads
     void remove_if_exist(const size_t &key) {
-        std::lock_guard<std::mutex> lock(
-                global_cache_type_t::get_global_cache()->mutex());
-        auto pos = global_cache_type_t::get_global_cache()->data().find(key);
-        if (pos != global_cache_type_t::get_global_cache()->data().end()) {
-            pos->second.clear();
+        global_cache_type_t *gcache = global_cache_type_t::get_global_cache();
+        // for safety purpose. it should not be nullptr.
+        if (gcache) {
+            std::lock_guard<std::mutex> lock(gcache->mutex());
+            auto pos = gcache->data().find(key);
+            if (pos != gcache->data().end()) { pos->second.clear(); }
         }
     }
 
@@ -136,17 +140,16 @@ public:
             // be shared between threads
             std::shared_ptr<T> ins = creator();
             {
-                std::lock_guard<std::mutex> lock(
-                        global_cache_type_t::get_global_cache()->mutex());
-                if (global_cache_type_t::get_global_cache()->data().count(
-                            key)) {
-                    global_cache_type_t::get_global_cache()
-                            ->data()
-                            .at(key)
-                            .emplace_back(ins);
-                } else {
-                    global_cache_type_t::get_global_cache()->data().emplace(
-                            key, std::vector<std::shared_ptr<T>> {ins});
+                auto *gcache = global_cache_type_t::get_global_cache();
+                // for safety purpose. it should not be nullptr.
+                if (gcache) {
+                    std::lock_guard<std::mutex> lock(gcache->mutex());
+                    if (gcache->data().count(key)) {
+                        gcache->data().at(key).emplace_back(ins);
+                    } else {
+                        gcache->data().emplace(
+                                key, std::vector<std::shared_ptr<T>> {ins});
+                    }
                 }
             }
             cache.data()[key] = ins;
@@ -155,9 +158,15 @@ public:
     }
 
     // This function increments the reference count
-    void retain() { global_cache_type_t::get_global_cache()->retain(); }
+    void retain() {
+        auto *gcache = global_cache_type_t::get_global_cache();
+        if (gcache) gcache->retain();
+    }
 
-    void release() { global_cache_type_t::get_global_cache()->release(); }
+    void release() {
+        auto *gcache = global_cache_type_t::get_global_cache();
+        if (gcache) gcache->release();
+    }
 
 private:
     class global_cache_type_t {
@@ -172,10 +181,14 @@ private:
         static global_cache_type_t *get_global_cache() {
             // A global table to store cached values in ALL threads. This global
             // table takes the ownership of cached values
-            static auto global_cache = std::shared_ptr<global_cache_type_t>(
-                    new global_cache_type_t {},
-                    [](global_cache_type_t *ptr) { return ptr->release(); });
-            return global_cache.get();
+            try {
+                static auto global_cache = std::shared_ptr<global_cache_type_t>(
+                        new global_cache_type_t {},
+                        [](global_cache_type_t *ptr) {
+                            return ptr->release();
+                        });
+                return global_cache.get();
+            } catch (...) { return nullptr; }
         }
 
         // This function increments the reference count

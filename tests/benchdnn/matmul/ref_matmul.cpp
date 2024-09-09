@@ -184,6 +184,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
 
         int dst_zp = has_dst_zp ? dst_zps.get_elem(dst_zp_mask > 0 ? n : 0) : 0;
         dst = tmp * dst_scale + dst_zp;
+        maybe_round(prb->attr, DNNL_ARG_DST, dst, dst_off, prb->dst_dt());
     });
 }
 

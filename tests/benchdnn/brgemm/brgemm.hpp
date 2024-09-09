@@ -58,8 +58,8 @@ struct settings_t : public base_settings_t {
     prb_vdims_t prb_vdims;
 
     std::vector<std::vector<dnnl_data_type_t>> dt {{dnnl_f32}};
-    std::vector<std::string> stag {tag::abx}, wtag {tag::undef},
-            dtag {tag::abx};
+    std::vector<std::string> stag {tag::abx}, wtag {tag::abx}, dtag {tag::abx};
+    std::vector<vdims_t> strides {vdims_t(STRIDES_SIZE)};
     std::vector<std::vector<int64_t>> ld {{}};
     std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
     std::vector<int> batch_size {1};
@@ -78,8 +78,9 @@ struct settings_t : public base_settings_t {
 struct prb_t : public prb_vdims_t {
     prb_t(const prb_vdims_t &prb_vdims, const std::vector<dnnl_data_type_t> &dt,
             const std::string &stag, const std::string &wtag,
-            const std::string &dtag, const std::vector<int64_t> &ld,
-            dnnl_data_type_t bia_dt, float alpha, float beta, int batch_size,
+            const std::string &dtag, const vdims_t &strides,
+            const std::vector<int64_t> &ld, dnnl_data_type_t bia_dt,
+            float alpha, float beta, int batch_size,
             const std::string &brgemm_attr, const std::string &batch_kind,
             const attr_t &attr, const thr_ctx_t &ctx_init,
             const thr_ctx_t &ctx_exe)
@@ -88,6 +89,7 @@ struct prb_t : public prb_vdims_t {
         , stag(stag)
         , wtag(wtag)
         , dtag(dtag)
+        , strides(strides)
         , ld(ld)
         , bia_dt(bia_dt)
         , alpha(alpha)
@@ -128,6 +130,7 @@ struct prb_t : public prb_vdims_t {
     dir_t dir = FWD_I;
     std::vector<dnnl_data_type_t> dt;
     std::string stag, wtag, dtag;
+    vdims_t strides;
     std::vector<int64_t> ld;
     dnnl_data_type_t bia_dt;
     float alpha, beta;

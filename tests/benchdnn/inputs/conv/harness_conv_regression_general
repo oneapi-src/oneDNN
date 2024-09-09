@@ -403,3 +403,8 @@ ic64ih14oc24oh14kh5ph2_n"zp_with_top_and_bottom_vpad"
 --skip-impl=ref,x64:gemm
 --dir=FWD_I --dt=u8:s8:s8 --attr-post-ops=add:f32:2:abx
 mb1_g50ic50oc50_ih28oh26_kh3sh1ph0_n"dw_post-op_ngroups-tail"
+
+# test dimensions transformation for brgemm kernel
+--reset
+--skip-impl=ref,x64:gemm
+--dir=FWD_I --dt=bf16:bf16:bf16 mb1_ic8oc128_ih1oh1kh1sh1dh0ph0_iw1048576ow2097kw500sw500dw0pw0_n"dimensions_transformation"

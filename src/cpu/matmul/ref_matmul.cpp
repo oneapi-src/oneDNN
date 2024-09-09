@@ -42,6 +42,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const auto p = CTX_IN_MEM(const float *, DNNL_ARG_ATTR_DROPOUT_PROBABILITY);
     const auto seed = CTX_IN_MEM(const uint32_t *, DNNL_ARG_ATTR_DROPOUT_SEED);
+    const auto rnd_seed
+            = CTX_IN_MEM(const uint32_t *, DNNL_ARG_ATTR_ROUNDING_SEED);
     auto dropout_mask = CTX_OUT_CLEAN_MEM(
             unsigned char *, DNNL_ARG_ATTR_DROPOUT_MASK, status);
     CHECK(status);
@@ -126,6 +128,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0]
             : 1;
 
+    auto dst_rnd_mode = pd()->attr()->rounding_mode_.get(DNNL_ARG_DST);
+
     // mm kernel
     auto ker = [&](const dims_t dst_dims_idx, dim_t m, dim_t n) {
         float acc = 0;
@@ -202,6 +206,9 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             ref_post_ops->execute(d, args);
         }
         if (with_dst_scales) d *= dst_scales[0];
+        if (dst_rnd_mode == rounding_mode::stochastic)
+            d = math::stochastic_round_fwd(
+                    d, dst_off, rnd_seed[0], dst_d.data_type());
         io::store_float_value(dst_d.data_type(), d, dst, dst_off);
         utils::dim_iterator(dst_d.dims(), dst_dims_idx, batch_ndims);
     });

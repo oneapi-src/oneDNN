@@ -642,6 +642,8 @@ void skip_unimplemented_data_type(
             || (is_cpu() && has_data_type_support(dnnl_f16)
                     && IMPLICATION(
                             !(dir & FLAG_INF), has_training_support(dnnl_f16)));
+    const bool has_e8m0_support
+            = is_gpu() || (is_cpu() && has_data_type_support(dnnl_e8m0));
     const bool has_f8_e5m2_support = is_gpu()
             || (is_cpu() && has_data_type_support(dnnl_f8_e5m2)
                     && (dir & FLAG_INF));
@@ -652,6 +654,7 @@ void skip_unimplemented_data_type(
     const bool has_bf16_support = is_gpu();
     // f16 is supported on GPU for inference only.
     const bool has_f16_support = is_gpu() && (dir & FLAG_FWD);
+    const bool has_e8m0_support = is_gpu();
     const bool has_f8_e5m2_support = is_gpu();
     const bool has_f8_e4m3_support = is_gpu();
 #endif
@@ -662,6 +665,7 @@ void skip_unimplemented_data_type(
             case dnnl_bf16: need_skip = !has_bf16_support; break;
             case dnnl_f16: need_skip = !has_f16_support; break;
             case dnnl_f64: need_skip = !has_f64_support; break;
+            case dnnl_e8m0: need_skip = !has_e8m0_support; break;
             case dnnl_f8_e5m2: need_skip = !has_f8_e5m2_support; break;
             case dnnl_f8_e4m3: need_skip = !has_f8_e4m3_support; break;
             default: break;
@@ -1616,6 +1620,7 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
     const bool is_zero_point_arg = (exec_arg & DNNL_ARG_ATTR_ZERO_POINTS);
     const bool is_dropout_p = (exec_arg == DNNL_ARG_ATTR_DROPOUT_PROBABILITY);
     const bool is_dropout_seed = (exec_arg == DNNL_ARG_ATTR_DROPOUT_SEED);
+    const bool is_rounding_seed = (exec_arg == DNNL_ARG_ATTR_ROUNDING_SEED);
 
     if (is_post_ops_arg) {
         if (exec_arg & DNNL_ARG_SRC_1) {
@@ -1656,6 +1661,9 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
     } else if (is_dropout_seed) {
         ref_mem.set_elem(0, attr.dropout.seed);
         TIME_FILL(SAFE(mem.reorder(ref_mem), WARN));
+    } else if (is_rounding_seed) {
+        ref_mem.set_elem(0, attr.rounding_mode.seed);
+        TIME_FILL(SAFE(mem.reorder(ref_mem), WARN));
     }
 
     return OK;
@@ -1693,7 +1701,12 @@ int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
         assert(arg > 0);
 
         auto &mem = args.find(arg);
-        SAFE_V(bool(mem) ? OK : FAIL);
+        if (!mem) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: output memory was not found among arguments.");
+            res->state = FAILED;
+            return FAIL;
+        }
         // A memory used as reference for comparison, must be allocated on the
         // CPU engine.
         run1_mem_map.emplace(
@@ -1718,9 +1731,20 @@ int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
                 ? (has_multiple_args ? DNNL_ARG_MULTIPLE_SRC : DNNL_ARG_SRC)
                 : DNNL_ARG_DIFF_DST;
         auto &in_mem = const_cast<dnn_mem_t &>(args.find(query_arg));
-        SAFE_V(bool(in_mem) ? OK : FAIL);
+        if (!in_mem) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: input memory was not found among arguments.");
+            res->state = FAILED;
+            return FAIL;
+        }
         const auto &orig_in_mem = args.find(-query_arg);
-        SAFE_V(bool(orig_in_mem) ? OK : FAIL);
+        if (!orig_in_mem) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: original input memory was not found among "
+                    "arguments.");
+            res->state = FAILED;
+            return FAIL;
+        }
         SAFE(in_mem.reorder(orig_in_mem), WARN);
     }
 

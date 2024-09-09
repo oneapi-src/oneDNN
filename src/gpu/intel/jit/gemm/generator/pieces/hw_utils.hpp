@@ -103,7 +103,7 @@ static inline size_t slmCapacity(ngen::HW hw)
 static inline size_t maxSLMPerWG(ngen::HW hw, int grfCount)
 {
     auto slmMax = slmCapacity(hw);
-    if (hw <= ngen::HW::XeHPG && grfCount <= 128)
+    if (hw <= ngen::HW::XeHPG)
         slmMax = std::min<size_t>(slmMax, 65536);
     return slmMax;
 }

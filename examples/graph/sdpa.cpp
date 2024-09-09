@@ -41,6 +41,7 @@ struct sdpa_dims_t {
     dim seq_len;
     dim head_num;
     dim head_size;
+    dim query_num;
 };
 
 static const int min_runs = 4;
@@ -81,7 +82,8 @@ void print_test_case(memory::data_type dt, const sdpa_dims_t &p) {
     std::cout << '[' << std::setw(4) << dnnl_dt2str(memory::convert_to_c(dt));
     std::cout << " mb = " << p.mb << ", seq_len = " << p.seq_len
               << ", head_num = " << p.head_num
-              << ", head_size = " << p.head_size;
+              << ", head_size = " << p.head_size
+              << ", query_num = " << p.query_num;
     std::cout << "] " << std::flush;
 }
 
@@ -96,17 +98,18 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     dnnl::stream strm(eng);
 
     // Prepare input and output shapes to construct the sdpa graph.
-    const memory::dims qv_sz = {p.mb, p.head_num, p.seq_len, p.head_size};
+    const memory::dims q_sz = {p.mb, p.head_num, p.query_num, p.head_size};
     const memory::dims k_sz = {p.mb, p.head_num, p.head_size, p.seq_len};
-    const memory::dims score_sz = {p.mb, p.head_num, p.seq_len, p.seq_len};
+    const memory::dims v_sz = {p.mb, p.head_num, p.seq_len, p.head_size};
+    const memory::dims score_sz = {p.mb, p.head_num, p.query_num, p.seq_len};
     const memory::dims scale_sz = {1, 1, 1, 1};
-    const memory::dims mask_sz = {p.mb, 1, 1, p.seq_len};
+    const memory::dims mask_sz = {p.mb, 1, p.query_num, p.seq_len};
 
     // score = query x key.T
     // scaled_score = score / scale
     // masked_score = scaled_score + mask
     // All combined in a single matmul primitive.
-    auto query_md = memory::desc(qv_sz, dt, tag::abcd);
+    auto query_md = memory::desc(q_sz, dt, tag::abcd);
     auto key_md = memory::desc(k_sz, dt, tag::abdc);
     auto score_md = memory::desc(score_sz, dt, tag::abcd);
     auto scale_md = memory::desc(scale_sz, dt, tag::abcd);
@@ -132,9 +135,8 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     auto softmax_prim = softmax_forward(softmax_pd);
 
     // attention_output = attention_probs x value
-    auto value_md = memory::desc(qv_sz, dt, tag::abcd);
-    auto output_md = memory::desc(qv_sz, dt, tag::abcd);
-
+    auto value_md = memory::desc(v_sz, dt, tag::abcd);
+    auto output_md = memory::desc(q_sz, dt, tag::abcd);
     primitive_attr bmm2_attr;
     bmm2_attr.set_scratchpad_mode(scratchpad_mode::user);
     auto bmm2_pd = matmul::primitive_desc(
@@ -150,12 +152,12 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     auto m_output = memory(output_md, eng);
 
     // Allocate user data.
-    std::vector<float> query_data(product(qv_sz));
+    std::vector<float> query_data(product(q_sz));
     std::vector<float> key_data(product(k_sz));
     std::vector<float> scale_data(product(scale_sz), std::sqrt(p.head_size));
     std::vector<float> mask_data(product(mask_sz));
-    std::vector<float> value_data(product(qv_sz));
-    std::vector<float> output_data(product(qv_sz));
+    std::vector<float> value_data(product(v_sz));
+    std::vector<float> output_data(product(q_sz));
 
     fill_random(query_data);
     fill_random(key_data);
@@ -254,7 +256,8 @@ void print_test_case(logical_tensor::data_type dt, const sdpa_dims_t &p) {
     std::cout << '[' << std::setw(4) << get_type_string(dt);
     std::cout << " mb = " << p.mb << ", seq_len = " << p.seq_len
               << ", head_num = " << p.head_num
-              << ", head_size = " << p.head_size;
+              << ", head_size = " << p.head_size
+              << ", query_num = " << p.query_num;
     std::cout << "] " << std::flush;
 }
 
@@ -271,17 +274,18 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     dnnl::stream strm(eng);
 
     // Prepare input and output shapes to construct the sdpa graph.
-    const dims qkv_sz = {p.mb, p.head_num, p.seq_len, p.head_size};
-    const dims score_sz = {p.mb, p.head_num, p.seq_len, p.seq_len};
+    const dims qv_sz = {p.mb, p.head_num, p.query_num, p.head_size};
+    const dims k_sz = {p.mb, p.head_num, p.seq_len, p.head_size};
+    const dims score_sz = {p.mb, p.head_num, p.query_num, p.seq_len};
     const dims scale_sz = {1};
-    const dims mask_sz = {p.mb, 1, 1, p.seq_len};
+    const dims mask_sz = {p.mb, 1, p.query_num, p.seq_len};
 
     // Incremental IDs used to create logical tensors and operations.
     size_t id = 0;
 
     // score = query x key.T
-    auto query = logical_tensor(id++, dt, qkv_sz, layout_type::strided);
-    auto key = logical_tensor(id++, dt, qkv_sz, layout_type::strided);
+    auto query = logical_tensor(id++, dt, qv_sz, layout_type::strided);
+    auto key = logical_tensor(id++, dt, k_sz, layout_type::strided);
     auto score = logical_tensor(id++, dt, score_sz, layout_type::strided);
     auto bmm1 = op(id++, op::kind::MatMul, "bmm1");
     bmm1.set_attr<bool>(op::attr::transpose_b, true);
@@ -312,8 +316,8 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     softmax.add_outputs({probs});
 
     // attention_output = attention_probs x value
-    auto value = logical_tensor(id++, dt, qkv_sz, layout_type::strided);
-    auto output = logical_tensor(id++, dt, qkv_sz, layout_type::strided);
+    auto value = logical_tensor(id++, dt, k_sz, layout_type::strided);
+    auto output = logical_tensor(id++, dt, qv_sz, layout_type::strided);
     auto bmm2 = op(id++, op::kind::MatMul, "bmm2");
     bmm2.add_inputs({probs, value});
     bmm2.add_outputs({output});
@@ -348,12 +352,12 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     auto ts_output = tensor(output, eng);
 
     // Allocate user data.
-    std::vector<float> query_data(product(qkv_sz));
-    std::vector<float> key_data(product(qkv_sz));
+    std::vector<float> query_data(product(qv_sz));
+    std::vector<float> key_data(product(k_sz));
     std::vector<float> scale_data(product(scale_sz), std::sqrt(p.head_size));
     std::vector<float> mask_data(product(mask_sz));
-    std::vector<float> value_data(product(qkv_sz));
-    std::vector<float> output_data(product(qkv_sz));
+    std::vector<float> value_data(product(k_sz));
+    std::vector<float> output_data(product(qv_sz));
 
     fill_random(query_data);
     fill_random(key_data);
@@ -404,8 +408,8 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
 
 void bad_args() {
     std::cerr << "Usage: graph-sdpa-cpp [cpu|gpu]\n"
-                 "       graph-sdpa-cpp [cpu|gpu] <mb> <seq_len> <head_num> "
-                 "<head_size>\n\n"
+                 "       graph-sdpa-cpp [cpu|gpu] <mb> <seq_len> "
+                 "<head_num> <head_size> [<query_num>]\n\n"
                  "On CPU, it's recommended to test with numactl and memory "
                  "allocation tools like jemalloc or tcmalloc.\n\n";
     throw std::invalid_argument("Incorrect input arguments.");
@@ -439,14 +443,21 @@ void bench(api_kind api, engine::kind ekind, dnnl_data_type_t dt,
 
 void sdpa_perf(engine::kind ekind, int argc, char **argv) {
     // default testing parameters
-    sdpa_dims_t params = {32, 384, 16, 64};
+    sdpa_dims_t params = {32, 384, 16, 64, 384};
 
     if (argc > 2) {
         if (argc == 6) {
             params.mb = std::atoi(argv[2]);
             params.seq_len = std::atoi(argv[3]);
+            params.query_num = std::atoi(argv[3]);
             params.head_num = std::atoi(argv[4]);
             params.head_size = std::atoi(argv[5]);
+        } else if (argc == 7) {
+            params.mb = std::atoi(argv[2]);
+            params.seq_len = std::atoi(argv[3]);
+            params.head_num = std::atoi(argv[4]);
+            params.head_size = std::atoi(argv[5]);
+            params.query_num = std::atoi(argv[6]);
         } else {
             bad_args();
         }
@@ -468,5 +479,5 @@ void sdpa_perf(engine::kind ekind, int argc, char **argv) {
 
 int main(int argc, char **argv) {
     return handle_example_errors(
-            sdpa_perf, parse_engine_kind(argc, argv, 4), argc, argv);
+            sdpa_perf, parse_engine_kind(argc, argv, 5), argc, argv);
 }

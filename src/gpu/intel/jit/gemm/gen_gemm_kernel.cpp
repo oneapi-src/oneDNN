@@ -20,6 +20,7 @@
 #include "gpu/intel/jit/gemm/include/generator.hpp"
 #include "gpu/intel/jit/gemm/include/strategy_parser.hpp"
 #include "gpu/intel/jit/utils/ngen_type_bridge.hpp"
+#include "gpu/intel/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -181,6 +182,52 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
         }
     }
 
+#ifdef DNNL_DEV_MODE
+    std::string ovr_strategy;
+    ovr_strategy = gpu_utils::dev_getenv("GEMM_KERNEL", ovr_strategy);
+    if (!ovr_strategy.empty()) {
+        // Warning: will override problem data types (including up/down
+        // conversions) - this will cause inaccuracies if precisions/layouts
+        // are chosen that are incompatible with the given problem
+        std::stringstream ss(ovr_strategy);
+        std::string val;
+        ss >> val;
+        gpu_assert(val == "gemm");
+        ss >> val;
+        const char *pstr = val.c_str();
+        pstr = parsePrecisions(pstr, problem_.Ta_ext, problem_.Ta);
+        pstr = parsePrecisions(pstr, problem_.Tb_ext, problem_.Tb);
+        pstr = parsePrecisions(pstr, problem_.Tc, problem_.Tc_ext);
+        ss >> val;
+        pstr = val.c_str();
+        pstr = parseLayout(pstr, problem_.A);
+        pstr = parseLayout(pstr, problem_.B);
+        pstr = parseLayout(pstr, problem_.C);
+
+        if (problem_.A.alignment == 0)
+            problem_.A.setAlignment(
+                    problem_.A.defaultAlignment(problem_.Ta_ext));
+        if (problem_.B.alignment == 0)
+            problem_.B.setAlignment(
+                    problem_.B.defaultAlignment(problem_.Tb_ext));
+        if (problem_.C.alignment == 0)
+            problem_.C.setAlignment(
+                    problem_.C.defaultAlignment(problem_.Tc_ext));
+
+        strategy_ = GEMMStrategy(hw_, stepping_);
+        ss >> strategy_.unroll[LoopM];
+        ss >> strategy_.unroll[LoopN];
+
+        ss >> val;
+        problem_.alpha = std::stoi(val);
+        ss >> val;
+        problem_.beta = std::stoi(val);
+
+        ovr_strategy = ss.str().substr(ss.tellg()); // remaining string
+        parseStrategy(ovr_strategy.c_str(), hw_, problem_, strategy_);
+    }
+#endif
+
     strategy_.systolicAvailable &= !disable_systolic_;
     strategy_.preflight(hw_, problem_);
 
@@ -193,6 +240,21 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
             return status::unimplemented;
 
     update_driver_info();
+
+#ifdef DNNL_DEV_MODE
+    if (!ovr_strategy.empty()) {
+        // TODO: override in a way that's consistent with the kernel evaluator
+        // (typically requires extra benchmarking data not supplied with
+        // the kernel override string)
+        // Currently: assume the W model because it's simple
+        aux_params_.k0
+                = utils::rnd_up(utils::div_up(k_, driver_info_.wg[LoopK]),
+                        driver_info_.unroll[LoopK]);
+        aux_params_.wgK = std::max(1,
+                std::min(driver_info_.wg[LoopK],
+                        int(utils::div_up(k_, aux_params_.k0))));
+    }
+#endif
 
     return status::success;
 }
@@ -415,7 +477,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     problem_.sumB = (reduce_ab == sum_ab::sum_a_row);
 
     // Select a kernel from the catalog.
-    MatchParams match_params[3];
+    MatchParams match_params[4];
     int npatterns = 1;
 
     match_params[0] = MatchParams(hw_, has_systolic, problem_);
@@ -870,10 +932,10 @@ void gen_gemm_kernel_t::maybe_print_verbose() {
     if (!astr.empty()) astr += ' ';
 
     if (level >= 10)
-        printf("onednn_verbose,info,gpu,gemm,catalog entry:%s\n",
+        verbose_printf("info,gpu,gemm,catalog entry:%s\n",
                 desc()->entry().str().c_str());
 
-    printf("onednn_verbose,info,gpu,gemm,kernel:%s %d %d %s%s\n", pstr.c_str(),
+    verbose_printf("info,gpu,gemm,kernel:%s %d %d %s%s\n", pstr.c_str(),
             strategy.unroll[LoopM], strategy.unroll[LoopN], astr.c_str(),
             sstr.c_str());
 }

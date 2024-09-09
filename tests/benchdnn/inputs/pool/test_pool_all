@@ -33,3 +33,6 @@
 
 # f16
 --batch=test_pool_float16
+
+# fp8
+--batch=test_pool_fp8

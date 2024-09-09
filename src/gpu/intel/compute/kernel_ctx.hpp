@@ -124,7 +124,7 @@ public:
 
     void add_custom_header(
             const std::string &header_name, std::string &&source) {
-        custom_headers_[header_name] = source;
+        custom_headers_[header_name] = std::move(source);
     }
 
     const char *get_custom_header(const std::string &header_name) const {

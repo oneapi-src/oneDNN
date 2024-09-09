@@ -488,9 +488,7 @@ private:
         } else {
             ir_assert(dst.byte_offset() == src0.getByteOffset())
                     << "dst/src0 must be aligned to the same GRF offset.";
-            auto _src1 = src1;
-            auto _src2 = src2;
-            align_src_dst_offset(host_, scope, mod, dst, _src1, _src2);
+            align_src_dst_offset(host_, scope, mod, dst, src1, src2);
             if (hw < ngen::HW::XeLP
                     && (ngen_is_dw(to_ngen(mad_func.dst_type))
                             || mad_func.dst_type == type_t::f64()
@@ -501,15 +499,15 @@ private:
                         (mad_func.exec_size * mad_func.dst_type.size())
                         / ngen::GRF::bytes(hw));
                 auto reg = tmp[0].setType(to_ngen(mad_func.dst_type));
-                host_->mul(mod, reg, _src1, _src2);
+                host_->mul(mod, reg, src1, src2);
                 host_->add(mod, dst, reg, src0);
             } else if (mad_func.dst_type == type_t::f64()
-                    && _src1.reg_data().getHS() == 0
-                    && _src1.reg_data().getVS() == 0) {
+                    && src1.reg_data().getHS() == 0
+                    && src1.reg_data().getVS() == 0) {
                 // Workaround for sporadic f64 mad errors with broadcast src1 on XeHPC.
-                host_->mad(mod, dst, src0, _src2, _src1);
+                host_->mad(mod, dst, src0, src2, src1);
             } else {
-                host_->mad(mod, dst, src0, _src1, _src2);
+                host_->mad(mod, dst, src0, src1, src2);
             }
         }
     }
@@ -1498,7 +1496,7 @@ private:
             t_strided = tmp_strided.format(0, w_type, obj.elems(), w_stride);
             host_->emov(obj.elems(), t_strided, t);
         } else {
-            t_strided = t;
+            t_strided = std::move(t);
         }
         if (factor != 1) {
             host_->emul(obj.elems(), d, t_strided, ngen::Immediate(factor));

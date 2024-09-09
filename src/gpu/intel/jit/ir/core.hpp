@@ -617,8 +617,7 @@ HANDLE_TRAVERSE_TARGETS()
 // the reference counter stored inside the object.
 class object_impl_t {
 public:
-    object_impl_t(type_info_t type_info)
-        : ref_count_(), type_info_(type_info) {};
+    object_impl_t(type_info_t type_info) : type_info_(type_info) {};
 
     object_impl_t(const object_impl_t &) = delete;
 
@@ -713,6 +712,7 @@ public:
 #endif
 
     object_t &operator=(const object_t &other) {
+        if (&other == this) return *this;
         auto *other_impl = other.impl();
         increment(other_impl);
         decrement_and_maybe_destroy(impl_);
@@ -1878,7 +1878,7 @@ public:
 
     stmt_t() = default;
     stmt_t(const object_t &obj) : object_t(obj) {}
-    stmt_t(object_t &&obj) : object_t(obj) {}
+    stmt_t(object_t &&obj) : object_t(std::move(obj)) {}
     stmt_t &operator=(const object_t &obj) {
         object_t::operator=(obj);
         return *this;

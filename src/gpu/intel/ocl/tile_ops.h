@@ -242,6 +242,43 @@ DEF_BLOCK2D_LOAD_STORE(half, ushort, 16, 16, u16_m8k32v1, 32, 8)
             int offset_c) { \
         tile_load(t, ptr, m, n, m, offset_r, offset_c); \
     } \
+    __attribute__((overloadable)) void tile_load_t_full(tile_type *t, \
+            const global element_type *ptr, int ld, int offset_r, \
+            int offset_c) { \
+        ptr += ld * offset_r + offset_c; \
+        _Pragma("unroll") for (int i0 = 0; i0 < br * nbr; \
+                               i0 += sg, ptr += ld * sg) { \
+            _Pragma("unroll") for (int j = 0; j < bc * nbc; j++) { \
+                tile_access(*t, i0, j, sg, br, bc, nbr) \
+                        = ptr[get_sub_group_local_id() * ld + j]; \
+            } \
+        } \
+    } \
+    __attribute__((overloadable)) void tile_load_t(tile_type *t, \
+            const global element_type *ptr, int m, int n, int ld, \
+            int offset_r, int offset_c) { \
+        if (m >= offset_r + br * nbr && n >= offset_c + bc * nbc) { \
+            tile_load_t_full(t, ptr, ld, offset_r, offset_c); \
+            return; \
+        } \
+        ptr += ld * offset_r + offset_c; \
+        _Pragma("unroll") for (int i0 = 0; i0 < br * nbr; \
+                               i0 += sg, ptr += ld * sg) { \
+            int i = i0 + get_sub_group_local_id(); \
+            if (offset_r + i < m) \
+                _Pragma("unroll") for (int j = 0; j < bc * nbc; j++) { \
+                    if (offset_c + j < n) { \
+                        tile_access(*t, i0, j, sg, br, bc, nbr) \
+                                = ptr[get_sub_group_local_id() * ld + j]; \
+                    } \
+                } \
+        } \
+    } \
+    __attribute__((overloadable)) void tile_load_t(tile_type *t, \
+            const global element_type *ptr, int m, int n, int offset_r, \
+            int offset_c) { \
+        tile_load_t(t, ptr, m, n, n, offset_r, offset_c); \
+    } \
     __attribute__((overloadable)) void tile_store_full(tile_type t, \
             local element_type *ptr, int ld, int offset_r, int offset_c) { \
         ptr += ld * offset_c + offset_r; \

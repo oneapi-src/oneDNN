@@ -46,8 +46,8 @@ status_t sdp_decomp_kernel_t<quantized, dt>::compile_impl(
             = reinterpret_cast<graph::allocator_t *>(g_engine->get_allocator());
 
     // get subgraph from the deep copied partition
-    subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_,
-            part->get_fpmath_mode(), part->get_use_blocked_layout(), true);
+    subgraph_ = std::make_shared<subgraph_t>(
+            part->get_ops(), p_engine_, part->get_fpmath_mode(), false, true);
     BACKEND_DNNL_CHECK(set_given_inputs_outputs(subgraph_, inputs, outputs));
 
     // Check if it's supported by decomposition kernel
@@ -60,6 +60,7 @@ status_t sdp_decomp_kernel_t<quantized, dt>::compile_impl(
     pass_pipeline_t pipeline = pass_pipeline_t(vis);
     pass_pipeline_t select_pipeline = pass_pipeline_t(vis);
     BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+    BACKEND_DNNL_ADD_PASS(pipeline, fuse_reshape_for_gqa);
     // Fusion and canonicalization passes begin
     if (quantized) {
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
@@ -229,7 +230,7 @@ status_t sdp_decomp_kernel_t<quantized, dt>::execute_impl(
     sdp_args_set_t *res = res_cache.get_or_add(
             reinterpret_cast<size_t>(this), resource_ctor_);
 
-    int MBO = sdp_cfg_.batch_size, MBI = sdp_cfg_.num_head;
+    int MBO = sdp_cfg_.batch_size, MBI = sdp_cfg_.num_head_q;
 
     char *src1_user_pointer = static_cast<char *>(
             inputs[sdp_cfg_.graph_inport[0]].get_data_handle());
@@ -274,14 +275,16 @@ status_t sdp_decomp_kernel_t<quantized, dt>::execute_impl(
                 = res->mem_map[sdp_cfg_.sub_wei1_user.get()][tid];
 
         // matmul1
-        auto &sub_mm1_post_scale_tid
-                = res->mem_map[sdp_cfg_.sub_mm1_post_mem[0].get()][tid];
-        sub_mm1_post_scale_tid.set_data_handle(
-                inputs[sdp_cfg_.graph_inport[2]].get_data_handle());
-
-        //The first post_op is post_scale, so it starts from 1.
-        size_t start_index = 1;
-        if (sdp_cfg_.attention_mask) {
+        //post op index offset.
+        size_t start_index = 0;
+        if (sdp_cfg_.has_scale) {
+            auto &sub_mm1_post_scale_tid
+                    = res->mem_map[sdp_cfg_.sub_mm1_post_mem[start_index++]
+                                           .get()][tid];
+            sub_mm1_post_scale_tid.set_data_handle(
+                    inputs[sdp_cfg_.graph_inport[2]].get_data_handle());
+        }
+        if (sdp_cfg_.has_attention_mask) {
             auto &sub_mm1_post_add_tid
                     = res->mem_map[sdp_cfg_.sub_mm1_post_mem[start_index++]
                                            .get()][tid];
@@ -289,7 +292,7 @@ status_t sdp_decomp_kernel_t<quantized, dt>::execute_impl(
             auto mask_strides = ltw(mask_input.get_logical_tensor()).vstrides();
             sub_mm1_post_add_tid.set_data_handle(
                     static_cast<char *>(mask_input.get_data_handle())
-                    + bo * mask_strides[1]
+                    + bo * mask_strides[0]
                             * get_mem_dt_size(sub_mm1_post_add_tid));
         }
         if (sdp_cfg_.has_select) {
@@ -322,11 +325,15 @@ status_t sdp_decomp_kernel_t<quantized, dt>::execute_impl(
         const size_t sub_src1_offset = (bo * sdp_cfg_.src1_strides[0]
                                                + bi * sdp_cfg_.src1_strides[1])
                 * get_mem_dt_size(sub_src1_tid);
-        const size_t sub_wei1_offset = (bo * sdp_cfg_.wei1_strides[0]
-                                               + bi * sdp_cfg_.wei1_strides[1])
+        const size_t group_head = sdp_cfg_.num_head_q / sdp_cfg_.num_head_kv;
+        size_t wei_head_offset = bi / group_head;
+        const size_t sub_wei1_offset
+                = (bo * sdp_cfg_.wei1_strides[0]
+                          + wei_head_offset * sdp_cfg_.wei1_strides[1])
                 * get_mem_dt_size(sub_wei1_user_tid);
-        const size_t sub_wei2_offset = (bo * sdp_cfg_.wei2_strides[0]
-                                               + bi * sdp_cfg_.wei2_strides[1])
+        const size_t sub_wei2_offset
+                = (bo * sdp_cfg_.wei2_strides[0]
+                          + wei_head_offset * sdp_cfg_.wei2_strides[1])
                 * get_mem_dt_size(sub_wei2_user_tid);
         const size_t sub_dst_user_offset
                 = (bo * sdp_cfg_.dst_strides[0] + bi * sdp_cfg_.dst_strides[1])

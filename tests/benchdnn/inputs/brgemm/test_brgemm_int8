@@ -83,3 +83,9 @@
 --dt=s8:u8:f32,u8:u8:s32
 --bia_dt=f32,bf16,s32,u8,s8
 --batch=option_set_int8
+
+# ukernel wtag support
+--reset
+--wtag=ba
+--dt=u8:s8:f32,s8:s8:s32,u8:u8:u8
+--batch=option_set_int8

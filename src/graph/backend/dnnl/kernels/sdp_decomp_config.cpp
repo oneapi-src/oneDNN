@@ -27,30 +27,33 @@ bool sdp_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
     // to record the input offset in a certain order of ops.
     auto op_status = record_input_offset(sg, inputs);
     if (op_status != status::success) return false;
-    memory::dims src1_user_dims = ltw(inputs[graph_inport[0]]).vdims();
+    dims src1_user_dims = ltw(inputs[graph_inport[0]]).vdims();
     if (src1_user_dims.size() != 4) return false;
 
     // Initialize SDP input dimension according to the src of mm1
     batch_size = src1_user_dims[0];
-    num_head = src1_user_dims[1];
+    num_head_q = src1_user_dims[1];
     seq_len_q = src1_user_dims[2];
     size_per_head = src1_user_dims[3];
 
+    dims wei1_user_dims = ltw(inputs[graph_inport[1]]).vdims();
+    num_head_kv = wei1_user_dims[1];
+
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
 // RATIO is an empirical value used to determine the numerical relationship
-// between batch_size, num_head and thread number to determine whether to use
+// between batch_size, num_head_q and thread number to determine whether to use
 // decompose kernel. The key to the decompose kernel is that we do parallel in
-// the batch_size and num_head dimensions. Therefore, if the batch_size or
-// num_head is too small, it will cause many idle threads and affect efficiency
-// which may even worse than the original sequential kernel. Here we set this
-// ratio based on the experimental value to ensure that users do not have any
-// regression when using the decompose kernel.
+// the batch_size and num_head_q dimensions. Therefore, if the batch_size or
+// num_head_q is too small, it will cause many idle threads and affect
+// efficiency which may even worse than the original sequential kernel. Here we
+// set this ratio based on the experimental value to ensure that users do not
+// have any regression when using the decompose kernel.
 // TODO: Refine the inequation based on the relationship of cache size and sdp
 // memory footprint requirements.
 #define RATIO 2
     // Initialize nthr with current threads num
     nthr = dnnl_get_current_num_threads();
-    return batch_size * num_head > RATIO * nthr;
+    return batch_size * num_head_q > RATIO * nthr;
 #else
     return true;
 #endif
@@ -67,7 +70,6 @@ impl::status_t sdp_decomp_config_t::construct_params(
 
     // Update SDPA input params. Sequence length for query and key/value are
     // NOT always same.
-    memory::dim seq_len_kv;
     const auto &lt_wei = sdp_op[1]->get_input_value(1)->get_logical_tensor();
     const ltw ltw_wei(lt_wei);
     seq_len_kv = ltw_wei.vdims()[3];
@@ -101,7 +103,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     sub_reorder0_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
     // per-head: reorder src1 to dense, for first matmul
-    memory::dims sub_src1_dims = {1, 1, seq_len_q, size_per_head};
+    dims sub_src1_dims = {1, 1, seq_len_q, size_per_head};
     src1_strides = ltw(inputs[graph_inport[0]]).vstrides();
     sub_src1_md = memory::desc(sub_src1_dims, dt_src_user,
             {1, 1, src1_strides[2], src1_strides[3]});
@@ -116,7 +118,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // create reorder1 primitive attr
     dnnl::primitive_attr sub_reorder1_attr
             = make_primitive_attr(sdp_op[0], mgr);
-    memory::dims sub_wei1_dims = {1, 1, size_per_head, seq_len_kv};
+    dims sub_wei1_dims = {1, 1, size_per_head, seq_len_kv};
     auto wei_md = make_dnnl_memory_desc(
             sdp_op[1]->get_input_value(1)->get_logical_tensor());
     wei1_strides = wei_md.get_strides();
@@ -131,9 +133,9 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // first matmul
     // create first matmul primitive attr
     dnnl::primitive_attr sub_matmul1_attr = make_primitive_attr(sdp_op[1], mgr);
-    memory::dims sub_mm1_src_dims = {1, 1, seq_len_q, size_per_head};
-    memory::dims sub_mm1_wei_dims = {1, 1, size_per_head, seq_len_kv};
-    memory::dims sub_mm1_dst_dims = {1, 1, seq_len_q, seq_len_kv};
+    dims sub_mm1_src_dims = {1, 1, seq_len_q, size_per_head};
+    dims sub_mm1_wei_dims = {1, 1, size_per_head, seq_len_kv};
+    dims sub_mm1_dst_dims = {1, 1, seq_len_q, seq_len_kv};
 
     sub_mm1_src_md = memory::desc(sub_mm1_src_dims, dt_src_user, tag::abcd);
     sub_mm1_wei_md = memory::desc(sub_mm1_wei_dims, dt_wei, tag::abdc);
@@ -148,8 +150,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
         auto post_shape = ori_desc.dims;
         auto post_stride = ori_desc.format_desc.blocking.strides;
         auto post_dt = static_cast<memory::data_type>(ori_desc.data_type);
-        memory::dims post_stride_dims
-                = memory::dims(post_stride, post_stride + ori_desc.ndims);
+        dims post_stride_dims = dims(post_stride, post_stride + ori_desc.ndims);
         auto new_sub_md = memory::desc({1, 1, post_shape[2], post_shape[3]},
                 post_dt, post_stride_dims);
         sub_mm1_post_md.emplace_back(new_sub_md);
@@ -174,7 +175,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // create reorder2 primitive attr
     dnnl::primitive_attr sub_reorder2_attr
             = make_primitive_attr(sdp_op[3], mgr);
-    memory::dims sub_wei2_dims = {1, 1, seq_len_kv, size_per_head};
+    dims sub_wei2_dims = {1, 1, seq_len_kv, size_per_head};
     wei2_strides = ltw(inputs[graph_inport[4]]).vstrides();
     sub_wei2_user_md = memory::desc(sub_wei2_dims, dt_wei_user,
             {1, 1, wei2_strides[2], wei2_strides[3]});
@@ -187,9 +188,9 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // second matmul
     // create second matmul primitive attr
     dnnl::primitive_attr sub_matmul2_attr = make_primitive_attr(sdp_op[4], mgr);
-    memory::dims sub_mm2_src_dims = {1, 1, seq_len_q, seq_len_kv};
-    memory::dims sub_mm2_wei_dims = {1, 1, seq_len_kv, size_per_head};
-    memory::dims sub_mm2_dst_dims = {1, 1, seq_len_q, size_per_head};
+    dims sub_mm2_src_dims = {1, 1, seq_len_q, seq_len_kv};
+    dims sub_mm2_wei_dims = {1, 1, seq_len_kv, size_per_head};
+    dims sub_mm2_dst_dims = {1, 1, seq_len_q, size_per_head};
     auto sub_mm2_src_md
             = memory::desc(sub_mm2_src_dims, dt_src_user, tag::abcd);
     sub_mm2_wei_md = memory::desc(sub_mm2_wei_dims, dt_wei, tag::abcd);
@@ -201,7 +202,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // per-head: reorder dst2 from dense to strided
     primitive_attr sub_reorder3_attr;
     sub_reorder3_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
-    memory::dims sub_dst_dims = {1, 1, seq_len_q, size_per_head};
+    dims sub_dst_dims = {1, 1, seq_len_q, size_per_head};
     auto out_lt = sdp_op[4]->get_output_value(0)->get_logical_tensor();
     dst_strides = ltw(out_lt).vstrides();
     sub_dst_md = memory::desc(sub_dst_dims, dt_src_user, tag::abcd);
@@ -400,7 +401,10 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
     auto find_graph_inport = [&](std::shared_ptr<value_t> val) {
         // for quantized matmul, it has producer such as add_zp,sub_zp,mul_scale.
         if (val->get_consumers()[0].get_op().get_kind()
-                == graph::op_kind::MatMul) {
+                        == graph::op_kind::MatMul
+                || (val->has_producer()
+                        && val->get_producer().get_kind()
+                                == graph::op_kind::StaticReshape)) {
             while (val->has_producer()) {
                 val = val->get_producer().get_input_value(0);
             }
@@ -411,31 +415,50 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
         // If the corresponding input is not found, return an invalid value
         return -1;
     };
-    op_ptr mm1, mm2, scale, add, select;
+    op_ptr mm1 = nullptr, mm2 = nullptr, scale = nullptr, add = nullptr,
+           select = nullptr;
+    const std::unordered_set<graph::op_kind_t> post_op_kind
+            = {graph::op_kind::Divide, graph::op_kind::Multiply,
+                    graph::op_kind::Add, graph::op_kind::Select,
+                    graph::op_kind::SoftMax};
     for (const auto &cur_op : sg->get_ops()) {
-        if (mm1 != nullptr && mm2 != nullptr) break;
+        // both mm1 and mm2 are found.
+        if (mm1 && mm2) break;
         if (cur_op->get_kind() != graph::op_kind::MatMul) continue;
+
         auto post_op = get_post_op(cur_op);
-        if (post_op
-                && (post_op->get_kind() == graph::op_kind::Divide
-                        || post_op->get_kind() == graph::op_kind::Multiply)) {
+        if (post_op && post_op_kind.count(post_op->get_kind())) {
+            // find mm1
             mm1 = cur_op;
-            scale = post_op;
-            const auto pop = get_post_op(post_op);
-            if (pop->get_kind() == graph::op_kind::Add) {
-                add = pop;
-                attention_mask = true;
-            } else if (pop->get_kind() == graph::op_kind::Select) {
-                select = pop;
-                has_select = true;
-            } else {
-                add = nullptr;
-                select = nullptr;
+            // TODO(xxx): Currently, p2 is not supported by decomp kernel.
+            // p1: [matmul] --> [scale] --> [select] --> [mask] --> ...
+            // p2: [matmul] --> [select] --> [scale] --> [mask] --> ...
+            if (post_op->get_kind() == graph::op_kind::Select) {
+                return status::unimplemented;
             }
-        } else if (post_op && (post_op->get_kind() == graph::op_kind::Select)) {
-            return status::unimplemented;
-        } else
+            // find scale
+            if (post_op->get_kind() == graph::op_kind::Divide
+                    || post_op->get_kind() == graph::op_kind::Multiply) {
+                has_scale = true;
+                scale = post_op;
+                post_op = get_post_op(post_op);
+            }
+
+            if (post_op) {
+                // find mask
+                if (post_op->get_kind() == graph::op_kind::Add) {
+                    add = std::move(post_op);
+                    has_attention_mask = true;
+                } else if (post_op->get_kind() == graph::op_kind::Select) {
+                    // mm1 -> scale -> select -> ...
+                    select = std::move(post_op);
+                    has_select = true;
+                }
+            }
+        } else {
+            // find mm2
             mm2 = cur_op;
+        }
     }
     if (impl::utils::one_of(nullptr, mm1, mm2)) return status::invalid_graph;
 
@@ -444,10 +467,16 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
     int wei1_id = find_graph_inport(mm1->get_input_value(1));
     graph_inport.emplace_back(wei1_id);
     // for scale and add op. The input order is uncertain.
-    int scale_id = find_graph_inport(scale->get_input_value(1));
-    if (scale_id == -1) scale_id = find_graph_inport(scale->get_input_value(0));
-    graph_inport.emplace_back(scale_id);
-    if (add) {
+    if (has_scale) {
+        int scale_id = find_graph_inport(scale->get_input_value(1));
+        if (scale_id == -1)
+            scale_id = find_graph_inport(scale->get_input_value(0));
+        graph_inport.emplace_back(scale_id);
+    } else {
+        //placeholder
+        graph_inport.emplace_back(-1);
+    }
+    if (has_attention_mask) {
         int add_id = find_graph_inport(add->get_input_value(1));
         if (add_id == -1) add_id = find_graph_inport(add->get_input_value(0));
         graph_inport.emplace_back(add_id);
@@ -457,7 +486,7 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
     }
     int wei2_id = find_graph_inport(mm2->get_input_value(1));
     graph_inport.emplace_back(wei2_id);
-    if (select) {
+    if (has_select) {
         int cond_id = find_graph_inport(select->get_input_value(0));
         int src0_id = find_graph_inport(select->get_input_value(1));
         graph_inport.emplace_back(cond_id);

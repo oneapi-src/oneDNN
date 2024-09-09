@@ -45,6 +45,7 @@ def convert_driver(prop_kind):
     driver = {
         "batch_normalization": "bnorm",
         "binary": "binary",
+        "brgemm": "brgemm",
         "concat": "concat",
         "convolution": "conv",
         "deconvolution": "deconv",
@@ -194,6 +195,10 @@ def convert_aux(entry):
                 else ""
             )
             return f"--runtime-dim-mask={runtime_dim_mask}"
+        elif pk == "brgemm":
+            bs = entry["aux"]["bs"] if entry["aux"].get("bs") != None else ""
+            beta = entry["aux"]["beta"] if entry["aux"].get("beta") != None else ""
+            return f"--bs={bs} --beta={beta}"
         else:
             alg = alg_remove_primitive(alg)
             if alg != "":
@@ -336,6 +341,7 @@ def convert_dts(mds, prim_kind):
     convert_dts = {
         "batch_normalization": convert_dts_common,
         "binary": convert_dts_multiple_src,
+        "brgemm": convert_dts_multiple,
         "concat": convert_dts_all,
         "convolution": convert_dts_multiple,
         "deconvolution": convert_dts_multiple,
@@ -482,7 +488,11 @@ def convert_tags(mds, prim_kind):
         weights_md = [md for md in mds if "wei" in md["arg"]][0]
 
         data_tag = data_md["tag"]
+        if "a" in data_md["properties"]:
+            data_tag = "any"
         weights_tag = weights_md["tag"]
+        if "a" in weights_md["properties"]:
+            weights_tag = "any"
 
         return f" --stag={data_tag}:{weights_tag}"
 
@@ -491,17 +501,36 @@ def convert_tags(mds, prim_kind):
         with_proj = ""
         with_peep = ""
         skip_colon = True
+
+        # Tags for backward are driven by diff tensors, query them instead of
+        # forward tensors. Latter will always have `any` format.
+        has_diff_tensors = False
+        for md in mds:
+            if md["arg"].find("diff") != -1:
+                has_diff_tensors = True
+
         for md in mds:
             md_arg = md["arg"]
             md_tag = md["tag"]
-            if md_arg == "src_layer" or md_arg == "wei_layer" or md_arg == "dst_layer":
-                if not skip_colon:
-                    tags += f":"
-                if "a" in md["properties"]:
-                    tags += f"any"
-                else:
-                    tags += f"{md_tag}"
-                skip_colon = False
+            if has_diff_tensors == True:
+                if md_arg in ["diff_src_layer", "diff_wei_layer", "diff_dst_layer"]:
+                    if not skip_colon:
+                        tags += f":"
+                    if "a" in md["properties"]:
+                        tags += f"any"
+                    else:
+                        tags += f"{md_tag}"
+                    skip_colon = False
+            else:
+                if md_arg in ["src_layer", "wei_layer", "dst_layer"]:
+                    if not skip_colon:
+                        tags += f":"
+                    if "a" in md["properties"]:
+                        tags += f"any"
+                    else:
+                        tags += f"{md_tag}"
+                    skip_colon = False
+
             if md_arg == "wei_proj" and md_tag != "undef":
                 with_proj = " --with-projection=true"
             if md_arg == "wei_peephole" and md_tag != "undef":
@@ -630,6 +659,7 @@ def convert_scale_policy(value, prim_kind):
             3: "per_ocic",
             4: "per_oc",
             6: "per_ocic",
+            8: "per_oc",
             12: "per_ocic",
         }
     else:
@@ -751,6 +781,11 @@ def convert_zero_points(zero_points, prim_kind):
         q_param=zero_points, prim_kind=prim_kind, def_value="1", def_type="s32"
     )
 
+def convert_rounding_mode(rounding_modes, prim_kind):
+    res = []
+    for arg in rounding_modes.keys():
+        res.append(arg + ":" + rounding_modes[arg])
+    return "+".join(res)
 
 def convert_scratchpad_mode(scratchpad_mode, prim_kind):
     return scratchpad_mode
@@ -785,6 +820,7 @@ def convert_attrs(exts, prim_kind):
         "attr-scratchpad": convert_scratchpad_mode,
         "attr-fpmath": convert_fpmath_mode,
         "attr-acc": convert_acc_mode,
+        "attr-rounding-mode": convert_rounding_mode,
         "attr-dropout": convert_dropout,
         "attr-deterministic": convert_deterministic,
     }

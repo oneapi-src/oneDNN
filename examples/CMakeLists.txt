@@ -22,13 +22,20 @@ endif()
 append(CMAKE_C_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
 
-if(DNNL_SYCL_CUDA)
-    append(CMAKE_CXX_FLAGS "-fsycl-targets=nvptx64-nvidia-cuda")
-    append(CMAKE_CXX_FLAGS "-Wno-linker-warnings")
-endif()
+if(DNNL_WITH_SYCL)
+    if(DNNL_SYCL_GENERIC)
+        CHECK_CXX_COMPILER_FLAG("-fsycl -fsycl-targets=nvptx64-nvidia-cuda" NVIDIA_TARGET_SUPPORTED)
+    endif()
 
-if (DNNL_AMD_ENABLE_SYCL_KERNELS)
-    append(CMAKE_CXX_FLAGS "-fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=${DNNL_AMD_SYCL_KERNELS_TARGET_ARCH}")
+    # Enable linking SYCL kernels.
+    if(DNNL_SYCL_CUDA OR (DNNL_SYCL_GENERIC AND NVIDIA_TARGET_SUPPORTED))
+        append(CMAKE_CXX_FLAGS "-fsycl-targets=nvptx64-nvidia-cuda")
+        append(CMAKE_CXX_FLAGS "-Wno-linker-warnings")
+    endif()
+
+    if(DNNL_AMD_ENABLE_SYCL_KERNELS)
+        append(CMAKE_CXX_FLAGS "-fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=${DNNL_AMD_SYCL_KERNELS_TARGET_ARCH}")
+    endif()
 endif()
 
 # propagate sanitizer flags
@@ -79,7 +86,11 @@ if(NOT ONEDNN_BUILD_GRAPH)
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/cpu_single_op_partition.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/sycl_single_op_partition.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/gpu_opencl_getting_started.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/graph/sdpa.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/sdpa.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/mqa.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/sdpa_stacked_qkv.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/gqa.cpp
+        )
 endif()
 
 if(DNNL_SYCL_HIP)

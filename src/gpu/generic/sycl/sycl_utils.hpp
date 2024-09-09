@@ -35,6 +35,27 @@ inline bool md_dims_in_range(const dnnl::impl::memory_desc_t *desc) {
     return true;
 }
 
+// copy from type_helpers.hpp, just without the assert
+inline size_t data_type_size(data_type_t data_type) {
+    using namespace data_type;
+    switch ((int)data_type) {
+        case f8_e5m2: return sizeof(prec_traits<f8_e5m2>::type);
+        case f8_e4m3: return sizeof(prec_traits<f8_e4m3>::type);
+        case f16: return sizeof(prec_traits<f16>::type);
+        case bf16: return sizeof(prec_traits<bf16>::type);
+        case tf32: // the tf32 type is an f32
+        case f32: return sizeof(prec_traits<f32>::type);
+        case f64: return sizeof(prec_traits<f64>::type);
+        case s32: return sizeof(prec_traits<s32>::type);
+        case s8: return sizeof(prec_traits<s8>::type);
+        case u8: return sizeof(prec_traits<u8>::type);
+        case s4: return sizeof(prec_traits<s4>::type);
+        case u4: return sizeof(prec_traits<u4>::type);
+        case boolean: return sizeof(prec_traits<boolean>::type);
+    }
+    return (size_t)-1; /* not supposed to be reachable */
+}
+
 } // namespace sycl
 } // namespace generic
 } // namespace gpu

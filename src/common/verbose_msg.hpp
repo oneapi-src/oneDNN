@@ -21,6 +21,7 @@
 // api type strings
 #define VERBOSE_primitive "primitive"
 #define VERBOSE_graph "graph"
+#define VERBOSE_ukernel "ukernel"
 #define VERBOSE_common "common"
 
 // log type strings

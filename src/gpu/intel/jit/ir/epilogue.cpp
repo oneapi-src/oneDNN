@@ -79,6 +79,7 @@ private:
             const layout_t &layout) const {
         if (idx == layout.ndims()) {
             std::vector<expr_t> vargs;
+            vargs.reserve(layout.ndims());
             for (int i = 0; i < layout.ndims(); i++)
                 vargs.push_back(view.vstart(i) + args[i]);
             expr_t mask = full_mem_view_.vmask(vargs);
@@ -295,8 +296,8 @@ public:
                 reg_layout_, f32_layout, reg_buf_, f32_buf);
 
         // Assign new f32 layout and buffer.
-        reg_layout_ = f32_layout;
-        reg_buf_ = f32_buf;
+        reg_layout_ = std::move(f32_layout);
+        reg_buf_ = std::move(f32_buf);
 
         return ret;
     }
@@ -339,7 +340,7 @@ public:
             stmt = stmt.append(
                     create_reduce_stmt(reg_layout_, reduced_layout, reg_buf_,
                             reg_buf_, tensor_t(), mask(), /*drop_dims=*/false));
-            reg_layout_ = reduced_layout;
+            reg_layout_ = std::move(reduced_layout);
         }
 
         return stmt;

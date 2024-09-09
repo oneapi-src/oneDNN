@@ -870,7 +870,7 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
 
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
             agraph.get_partitions()[0]->get_ops(), p_eng, fpmath_mode::strict,
-            false, true);
+            true, true);
     ASSERT_EQ(subgraph->get_ops().size(), 5U);
 
     dnnl_impl::check_with_bias(subgraph);
@@ -992,7 +992,7 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
 
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
             agraph.get_partitions()[0]->get_ops(), p_eng, fpmath_mode::strict,
-            false, true);
+            true, true);
     ASSERT_EQ(subgraph->get_ops().size(), 2U);
 
     dnnl_impl::check_with_bias(subgraph);
@@ -2329,6 +2329,8 @@ TEST(test_subgraph_pass_subgraph_pass, FuseNCXConvolutionBinaryAddNC11PostSrc) {
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
+    ASSERT_NE(qconv_op, subgraph->get_ops().end());
+    ASSERT_TRUE((*qconv_op)->has_attr(dnnl_impl::op_attr::fusion_info_key));
     int64_t key = (*qconv_op)->get_attr<int64_t>(
             dnnl_impl::op_attr::fusion_info_key);
     auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);
@@ -2483,6 +2485,8 @@ TEST(test_subgraph_pass_subgraph_pass, FuseNXCConvolutionBinaryAddNC11PostSrc) {
             subgraph->get_ops().end(), [](const std::shared_ptr<op_t> &op) {
                 return op->get_kind() == dnnl_impl::op_kind::dnnl_convolution;
             });
+    ASSERT_NE(qconv_op, subgraph->get_ops().end());
+    ASSERT_TRUE((*qconv_op)->has_attr(dnnl_impl::op_attr::fusion_info_key));
     int64_t key = (*qconv_op)->get_attr<int64_t>(
             dnnl_impl::op_attr::fusion_info_key);
     auto &fusion_info = subgraph->fusion_info_mgr_.get_info(key);

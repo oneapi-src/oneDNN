@@ -201,7 +201,7 @@ bool match_binary(
     match_context_t ctx_copy = ctx;
     if (match(ptrn_op.a, expr_op.a, ctx_copy)
             && match(ptrn_op.b, expr_op.b, ctx_copy)) {
-        ctx = ctx_copy;
+        ctx = std::move(ctx_copy);
         return true;
     }
     return false;
@@ -220,7 +220,7 @@ bool match_iif(const expr_t &ptrn, const expr_t &expr, match_context_t &ctx) {
     if (match(ptrn_iif.cond, expr_iif.cond, ctx_copy)
             && match(ptrn_iif.true_expr, expr_iif.true_expr, ctx_copy)
             && match(ptrn_iif.false_expr, expr_iif.false_expr, ctx_copy)) {
-        ctx = ctx_copy;
+        ctx = std::move(ctx_copy);
         return true;
     }
 
@@ -697,14 +697,14 @@ class nary_op_visitor_t : public ir_visitor_t {
 public:
     using ir_visitor_t::_visit;
 
-    virtual void _visit(const nary_op_t &obj) { visit(obj.args); }
+    void _visit(const nary_op_t &obj) override { visit(obj.args); }
 };
 
 class nary_op_mutator_t : public ir_mutator_t {
 public:
     using ir_mutator_t::_mutate;
 
-    virtual object_t _mutate(const nary_op_t &obj) {
+    object_t _mutate(const nary_op_t &obj) override {
         auto args = mutate(obj.args);
         if (ir_utils::is_equal(args, obj.args)) return obj;
         return make_nary_op(obj.op_kind, args);
@@ -730,7 +730,7 @@ public:
                     b *= -1;
                 }
                 b = mutate(b);
-                return make_nary_op(nary_op_kind, {a, b});
+                return make_nary_op(nary_op_kind, {std::move(a), std::move(b)});
             }
             default: return nary_op_mutator_t::_mutate(obj);
         }
@@ -747,7 +747,7 @@ public:
             if (nary && nary->op_kind == obj.op_kind) {
                 args.insert(args.end(), nary->args.begin(), nary->args.end());
             } else {
-                args.push_back(new_a);
+                args.emplace_back(new_a);
             }
         }
         return make_nary_op(obj.op_kind, args);
@@ -788,7 +788,7 @@ public:
                 for (auto &b : i_args)
                     next_args.push_back(cvt_mul_to_nary_op(a, b));
 
-            new_args = next_args;
+            new_args = std::move(next_args);
         }
         return make_nary_op(op_kind_t::_add, new_args);
     }
@@ -868,10 +868,10 @@ bool is_nary_op_canonical(const expr_t &e) {
 
 class nary_op_back_transformer_t : public nary_op_mutator_t {
 public:
-    object_t _mutate(const nary_op_t &obj) {
+    object_t _mutate(const nary_op_t &obj) override {
         auto new_obj = nary_op_mutator_t::_mutate(obj);
         auto &nary = new_obj.as<nary_op_t>();
-        ir_assert(nary.args.size() > 0) << new_obj;
+        ir_assert(!nary.args.empty()) << new_obj;
 
         if (nary.args.size() == 1) return nary.args[0];
 
@@ -1233,7 +1233,7 @@ public:
         expr_t ret = reduce_v1(obj);
         if (!ret.is_empty()) return ret;
         ret = reduce_v2(obj);
-        return (!ret.is_empty()) ? ret : obj;
+        return (!ret.is_empty()) ? std::move(ret) : obj;
     }
 
     // Applies the following rules:
@@ -1483,7 +1483,7 @@ public:
                         make_nary_op(op_kind_t::_add, {fi.expr(), fj.expr()}));
                 auto &fi_add_fj = e_fi_add_fj.as<factored_expr_t>();
                 args[i] = make_nary_op(op_kind_t::_mul, fi_add_fj.factors);
-                e_fi = e_fi_add_fj;
+                e_fi = std::move(e_fi_add_fj);
                 args[j] = to_expr(0, args[j].type());
             }
         }
@@ -1572,7 +1572,7 @@ public:
             auto cset_old = cset_;
             cset_.add_constraint(cond);
             body = ir_mutator_t::mutate(body);
-            cset_ = cset_old;
+            cset_ = std::move(cset_old);
         }
 
         auto else_body = obj.else_body;
@@ -1580,7 +1580,7 @@ public:
             auto cset_old = cset_;
             cset_.add_constraint(flip_condition(cond));
             else_body = ir_mutator_t::mutate(else_body);
-            cset_ = cset_old;
+            cset_ = std::move(cset_old);
         }
 
         return if_t::make(cond, body, else_body);
@@ -1615,7 +1615,7 @@ public:
         auto cset_old = cset_;
         cset_.add_constraint(obj.var == value);
         auto body = mutate(obj.body);
-        cset_ = cset_old;
+        cset_ = std::move(cset_old);
 
         return let_t::make(obj.var, value, body);
     }
@@ -1627,13 +1627,13 @@ public:
         if (is_one(new_bound) && is_zero(new_init)) {
             auto body = substitute(obj.body, obj.var, expr_t(0));
             body = mutate(body);
-            new_obj = body;
+            new_obj = std::move(body);
         } else {
             auto cset_old = cset_;
             cset_.add_constraint(obj.var >= obj.init);
             cset_.add_constraint(obj.var < obj.bound);
             new_obj = ir_mutator_t::_mutate(obj);
-            cset_ = cset_old;
+            cset_ = std::move(cset_old);
         }
 
         return new_obj;
@@ -1896,6 +1896,7 @@ expr_t const_fold_unary(op_kind_t op_kind, const expr_t &a) {
     if (!a.type().is_scalar()) {
         int elems = a.type().elems();
         std::vector<expr_t> ret;
+        ret.reserve(elems);
         for (int i = 0; i < elems; i++) {
             ret.push_back(const_fold_unary(op_kind, a[i]));
         }
@@ -1924,6 +1925,7 @@ expr_t const_fold_binary(const type_t &compute_type, op_kind_t op_kind,
         int elems = compute_type.elems();
         auto scalar_type = compute_type.scalar();
         std::vector<expr_t> ret;
+        ret.reserve(elems);
         for (int i = 0; i < elems; i++) {
             ret.push_back(const_fold_binary(scalar_type, op_kind, a[i], b[i]));
         }

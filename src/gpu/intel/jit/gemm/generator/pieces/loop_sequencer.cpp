@@ -43,7 +43,7 @@ void LoopSequencer::schedule(std::vector<Item> list)
         for (auto &entry: list)
             xlist.push_back(CheckedItem(entry));
 
-        schedule_if(xlist);
+        schedule_if(std::move(xlist));
     }
 }
 
@@ -56,7 +56,7 @@ void LoopSequencer::schedule_if(std::vector<CheckedItem> list)
 {
     if (!list.empty()) {
         validate(list);
-        actions.push_back({list, NeverScheduled});
+        actions.push_back({std::move(list), NeverScheduled});
     }
 }
 
@@ -69,7 +69,7 @@ void LoopSequencer::swapLast2()
 
 void LoopSequencer::setCallback(CallbackType type, Callback cb)
 {
-    callbacks[static_cast<size_t>(type)] = cb;
+    callbacks[static_cast<size_t>(type)] = std::move(cb);
 }
 
 void LoopSequencer::setRemainderHandling(RemainderHandling handling)

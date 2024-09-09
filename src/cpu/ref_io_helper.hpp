@@ -82,6 +82,7 @@ inline float load_float_value(data_type_t dt, const void *ptr, dim_t idx) {
         CASE(s32);
         CASE(s8);
         CASE(u8);
+        CASE(e8m0);
         case s4: {
             const auto shift = idx % 2 ? int4_extract_t::high_half
                                        : int4_extract_t::low_half;

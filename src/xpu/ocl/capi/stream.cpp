@@ -44,6 +44,8 @@ status_t dnnl_ocl_interop_stream_create(
     if (!stream_impl) return status::out_of_memory;
 
     CHECK(engine->create_stream(stream, stream_impl.get()));
+    // stream (`s`) takes ownership of `stream_impl` if `create_stream` call
+    // is successful.
     stream_impl.release();
     return status::success;
 }

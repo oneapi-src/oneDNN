@@ -170,6 +170,8 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
                     dnnl::impl::accumulation_mode::any)));
     CHECK_ARG(IMPLICATION(
             (bool)(~mask & smask_t::dropout), dropout_.has_default_values()));
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::rounding_mode),
+            rounding_mode_.has_default_values()));
     CHECK_ARG(this->defined(defined_mask));
     bool fpmath_mode_ok = IMPLICATION(
             (bool)(~mask & smask_t::fpmath_mode) && fpmath_.apply_to_int_,
@@ -568,12 +570,19 @@ status_t dnnl_primitive_attr_set_scales_mask(
 status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
         int mask, int ndims, const dims_t group_dims, data_type_t data_type) {
     using namespace data_type;
-    bool ok = attr && mask >= 0 && arg >= 0 && ndims >= 0
-            && utils::one_of(data_type, f32, bf16, f16)
-            && IMPLICATION(!utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS),
-                    data_type == f32 && ndims == 0)
-            && IMPLICATION(ndims, validate_dims(ndims, group_dims));
-    if (!ok) return invalid_arguments;
+    VCHECK_ATTR(attr, VERBOSE_NULL_ARG);
+    VCHECK_ATTR(mask >= 0, VERBOSE_BAD_PARAM, "mask");
+    VCHECK_ATTR(arg >= 0, VERBOSE_BAD_PARAM, "arg");
+    VCHECK_ATTR(ndims >= 0, VERBOSE_BAD_PARAM, "ndims");
+    VCHECK_ATTR(utils::one_of(data_type, f32, bf16, f16, e8m0),
+            VERBOSE_INVALID_DATATYPE, "scales");
+    VCHECK_ATTR(IMPLICATION(!utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS),
+                        data_type == f32 && ndims == 0)
+                    || IMPLICATION(arg == DNNL_ARG_DST,
+                            utils::one_of(data_type, f32, e8m0)),
+            VERBOSE_INVALID_DATATYPE, "scales");
+    VCHECK_ATTR(IMPLICATION(ndims, validate_dims(ndims, group_dims)),
+            VERBOSE_BAD_PARAM, "group_dims");
     return attr->scales_.set(arg, mask, ndims, group_dims, data_type);
 }
 
@@ -598,6 +607,19 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
     if (!ok) return invalid_arguments;
 
     return attr->zero_points_.set(arg, mask, ndims, group_dims, data_type);
+}
+
+status_t dnnl_primitive_attr_get_rounding(
+        primitive_attr_t *attr, int arg, dnnl_rounding_mode_t *mode) {
+    if (any_null(attr, mode)) return invalid_arguments;
+    *mode = attr->rounding_mode_.get(arg);
+    return success;
+}
+
+status_t dnnl_primitive_attr_set_rounding(
+        primitive_attr_t *attr, int arg, dnnl_rounding_mode_t mode) {
+    if (attr == nullptr) return invalid_arguments;
+    return attr->rounding_mode_.set(arg, mode);
 }
 
 status_t dnnl_primitive_attr_get_post_ops(

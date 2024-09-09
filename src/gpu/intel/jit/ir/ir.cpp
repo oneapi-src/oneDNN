@@ -207,7 +207,6 @@ public:
         remove_indent();
         print_indent();
         out_ << "}\n";
-        return;
     }
 
     void _visit(const stmt_seq_t &obj) override {
@@ -229,7 +228,6 @@ public:
     void _visit(const ternary_op_t &obj) override {
         out_ << to_string(obj.op_kind) << "(" << obj.a << ", " << obj.b << ", "
              << obj.c << ")";
-        return;
     }
 
     void _visit(const unary_op_t &obj) override {
@@ -364,7 +362,7 @@ public:
         size_t old_size = stmts.size(); \
         ir_visitor_t::_visit(obj); \
         if (stmts.size() > old_size) return; \
-        if (obj.is_stmt()) stmts.push_back(obj); \
+        if (obj.is_stmt()) stmts.emplace_back(obj); \
     }
 
     HANDLE_ALL_IR_OBJECTS()
@@ -592,7 +590,7 @@ std::vector<stmt_t> find_stmt_groups(
     auto groups = find_objects<stmt_group_t>(root);
     std::vector<stmt_t> ret;
     for (auto &g : groups) {
-        if (g.as<stmt_group_t>().label == label) ret.push_back(g);
+        if (g.as<stmt_group_t>().label == label) ret.emplace_back(g);
     }
     return ret;
 }
@@ -736,7 +734,7 @@ bool relation_t::implies(const relation_t &other) const {
 }
 
 relation_t relation_t::transform(
-        const linear_transform_t &t, const expr_t &new_var) {
+        const linear_transform_t &t, const expr_t &new_var) const {
     ir_assert(t.a == 1) << "Not implemented.";
     return relation_t(binary_op_t::make(op_kind(), new_var, rhs() + t.b));
 }
@@ -1012,14 +1010,18 @@ bool constraint_set_t::is_single_value(const expr_t &e, expr_t &value) const {
             case op_kind_t::_gt: {
                 auto cur_lo = (rel.op_kind() == op_kind_t::_ge ? rel.rhs()
                                                                : rel.rhs() + 1);
-                if (lo.is_empty() || to_cpp<bool>(cur_lo > lo)) { lo = cur_lo; }
+                if (lo.is_empty() || to_cpp<bool>(cur_lo > lo)) {
+                    lo = std::move(cur_lo);
+                }
                 break;
             }
             case op_kind_t::_le:
             case op_kind_t::_lt: {
                 auto cur_hi = (rel.op_kind() == op_kind_t::_le ? rel.rhs()
                                                                : rel.rhs() - 1);
-                if (hi.is_empty() || to_cpp<bool>(cur_hi < hi)) { hi = cur_hi; }
+                if (hi.is_empty() || to_cpp<bool>(cur_hi < hi)) {
+                    hi = std::move(cur_hi);
+                }
                 break;
             }
             default: ir_error_not_expected() << rel;
@@ -1027,7 +1029,7 @@ bool constraint_set_t::is_single_value(const expr_t &e, expr_t &value) const {
         if (do_break) break;
     }
     bool ret = !lo.is_empty() && lo.is_equal(hi);
-    if (ret) value = lo;
+    if (ret) value = std::move(lo);
     return ret;
 }
 

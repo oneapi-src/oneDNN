@@ -283,13 +283,13 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                 schedule.split(s0, s0_full, s0_split, s0_ktlg, ps0 + "_split",
                         ps0 + "_ktlg");
                 s1_fuse.emplace_back(s0_split);
-                s0 = s0_ktlg;
+                s0 = std::move(s0_ktlg);
             } else if (dims[s0_idx] <= utils::div_up(s0_full, 2)) {
                 expr_t s1_split, s1_ktlg; // part of kg[s1] is in kg[s0]
                 const int s1_ext = utils::div_up(s0_full, dims[s0_idx]);
                 schedule.split(s1_fuse[0], s1_ext, s1_ktlg, s1_split,
                         ps1 + "_ktlg", ps1 + "_split");
-                s1_fuse[0] = s1_ktlg;
+                s1_fuse[0] = std::move(s1_ktlg);
                 s0_fuse.emplace_back(s1_split);
             }
 
@@ -446,7 +446,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     if (is_identity) {
         allocs.emplace_back(read_alloc[0]);
         write_stmt = substitute(write_stmt, acc_buf, read_buf);
-        acc_buf = read_buf;
+        acc_buf = std::move(read_buf);
         acc_type = read_type;
         stmt = (check_idhw)
                 ? gen_zero_out(simd, is_neg, acc_buf, dst_tile, write_layout)
@@ -478,8 +478,9 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                     = compute_stmt.append(store_t::make(acc_buf, off_a, op));
         });
 
-        stmt = stmt.append(schedule.create_loop_nest(
-                (check_idhw) ? fill_stmt.append(compute_stmt) : compute_stmt));
+        stmt = stmt.append(schedule.create_loop_nest((check_idhw)
+                        ? fill_stmt.append(compute_stmt)
+                        : std::move(compute_stmt)));
 
         if (!cfg.is_max()) {
             expr_t filter(prb.kd * prb.kh * prb.kw);
@@ -552,7 +553,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     ir_trace() << "Pooling kernel body:\n" << stmt << std::endl;
     ir_trace() << "Pooling cfg (~" << regs << " regs):\n" << cfg << std::endl;
 
-    return (regs > exec.regs()) ? stmt_t() : stmt;
+    return (regs > exec.regs()) ? stmt_t() : std::move(stmt);
 }
 
 } // namespace jit

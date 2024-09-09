@@ -108,9 +108,10 @@ graph::utils::optional_t<memory::desc> dnnl_backend_t::get_mem_desc(
 } // namespace dnnl_impl
 
 // This function should be called by backend_registry_t
-void register_dnnl_backend() {
-    backend_registry_t::get_singleton().register_backend(
+status_t register_dnnl_backend() {
+    const status_t ret = backend_registry_t::get_singleton().register_backend(
             &dnnl_impl::dnnl_backend_t::get_singleton());
+    return ret;
 }
 
 } // namespace graph

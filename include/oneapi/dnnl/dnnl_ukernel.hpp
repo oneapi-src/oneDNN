@@ -42,9 +42,16 @@ struct handle_traits<dnnl_brgemm_t> {
 };
 
 template <>
-struct handle_traits<dnnl_brgemm_pack_B_t> {
-    static dnnl_status_t destructor(dnnl_brgemm_pack_B_t p) {
-        return dnnl_brgemm_pack_B_destroy(p);
+struct handle_traits<dnnl_transform_t> {
+    static dnnl_status_t destructor(dnnl_transform_t p) {
+        return dnnl_transform_destroy(p);
+    }
+};
+
+template <>
+struct handle_traits<dnnl_ukernel_attr_params_t> {
+    static dnnl_status_t destructor(dnnl_ukernel_attr_params_t p) {
+        return dnnl_ukernel_attr_params_destroy(p);
     }
 };
 
@@ -61,6 +68,75 @@ namespace ukernel {
 
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
 
+/// Packing specification
+enum class pack_type {
+    /// Undefined pack type. A guard value.
+    undef = dnnl_pack_type_undef,
+    /// Plain, not transposed layout. Similar to format_tag::ab.
+    no_trans = dnnl_pack_type_no_trans,
+    /// Plain, transposed layout. Similar to format_tag::ba.
+    trans = dnnl_pack_type_trans,
+    /// Packed by 32 bits along K dimension layout.
+    pack32 = dnnl_pack_type_pack32,
+};
+
+/// Ukernel attributes memory storage
+struct attr_params : public handle<dnnl_ukernel_attr_params_t> {
+    /// Constructs a ukernel attributes memory storage.
+    attr_params() {
+        dnnl_ukernel_attr_params_t c_params = nullptr;
+        dnnl_status_t status = dnnl_ukernel_attr_params_create(&c_params);
+        error::wrap_c_api(
+                status, "could not create an attributes memory storage");
+        reset(c_params);
+    }
+
+    /// Sets post-operations arguments to a storage.
+    ///
+    /// @param post_ops_args Pointer to pointers of post_ops storages.
+    ///     Expected to be packed together.
+    void set_post_ops_args(const void **post_ops_args) {
+        dnnl_status_t status = dnnl_ukernel_attr_params_set_post_ops_args(
+                get(), post_ops_args);
+        if (status != dnnl_success)
+            error::wrap_c_api(
+                    status, "could not set post operations arguments");
+    }
+
+    /// Sets tensor A scales arguments to a storage.
+    ///
+    /// @param a_scales Pointer to scales storage.
+    void set_A_scales(const void *a_scales) {
+        dnnl_status_t status
+                = dnnl_ukernel_attr_params_set_A_scales(get(), a_scales);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set A scales argument");
+    }
+
+    /// Sets tensor B scales arguments to a storage.
+    ///
+    /// If @ref brgemm::set_B_scales used mask of 2, then at least N values of
+    /// selected data type are expected.
+    ///
+    /// @param b_scales Pointer to scales storage.
+    void set_B_scales(const void *b_scales) {
+        dnnl_status_t status
+                = dnnl_ukernel_attr_params_set_B_scales(get(), b_scales);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set B scales argument");
+    }
+
+    /// Sets tensor D scales arguments to a storage.
+    ///
+    /// @param d_scales Pointer to scales storage.
+    void set_D_scales(const void *d_scales) {
+        dnnl_status_t status
+                = dnnl_ukernel_attr_params_set_D_scales(get(), d_scales);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set D scales argument");
+    }
+};
+
 /// @addtogroup dnnl_api_ukernel_brgemm BRGeMM ukernel
 /// BRGeMM ukernel routines
 /// @{
@@ -70,7 +146,7 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     brgemm() = default;
 
     /// Constructs a BRGeMM ukernel object. Operates by the following formula:
-    /// `C = alpha * [A x B] + beta * C`.
+    /// `C = [A x B]`.
     ///
     /// @param M Dimension M of tensor A.
     /// @param N Dimension N of tensor B.
@@ -82,8 +158,6 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     /// @param a_dt Data type of tensor A.
     /// @param b_dt Data type of tensor B.
     /// @param c_dt Data type of tensor C.
-    /// @param alpha Scale for an accumulation output.
-    /// @param beta Scale for a tensor C to append on an accumulated output.
     /// @param allow_empty A flag signifying whether construction is
     ///     allowed to fail without throwing an exception. In this case an
     ///     empty object will be produced. This flag is optional and
@@ -91,14 +165,12 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     brgemm(memory::dim M, memory::dim N, memory::dim K, memory::dim batch_size,
             memory::dim lda, memory::dim ldb, memory::dim ldc,
             memory::data_type a_dt, memory::data_type b_dt,
-            memory::data_type c_dt, float alpha, float beta,
-            bool allow_empty = false) {
+            memory::data_type c_dt, bool allow_empty = false) {
 
         dnnl_brgemm_t brgemm = nullptr;
         dnnl_status_t status = dnnl_brgemm_create(&brgemm, M, N, K, batch_size,
-                lda, ldb, ldc, ldc, memory::convert_to_c(a_dt),
-                memory::convert_to_c(b_dt), memory::convert_to_c(c_dt),
-                memory::convert_to_c(c_dt), alpha, beta, nullptr);
+                lda, ldb, ldc, memory::convert_to_c(a_dt),
+                memory::convert_to_c(b_dt), memory::convert_to_c(c_dt));
 
         if (!allow_empty)
             error::wrap_c_api(
@@ -106,45 +178,93 @@ struct brgemm : public handle<dnnl_brgemm_t> {
         reset(brgemm);
     }
 
-    /// Constructs a BRGeMM ukernel object. Operates by the following formula:
-    /// `C = alpha * [A x B] + beta * C`;
+    /// Sets adding an intermediate result to the output tensor C instead of
+    /// writing: `C += [A x B]`.
+    ///
+    /// @param add_C Value to indicate addition. `false` to skip addition, and
+    ///     `true` to apply addition.
+    void set_add_C(bool add_C) {
+        dnnl_status_t status
+                = dnnl_brgemm_set_add_C(get(), static_cast<int>(add_C));
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set add_C attribute");
+    }
+
+    /// Sets post-operations to a BRGeMM ukernel object:
     /// `D = post-operations(C)`.
     ///
-    /// @param M Dimension M of tensor A.
-    /// @param N Dimension N of tensor B.
-    /// @param K Dimension K of tensors A and B.
-    /// @param batch_size Number of batches to process.
-    /// @param lda Leading dimension of tensor A.
-    /// @param ldb Leading dimension of tensor B.
-    /// @param ldc Leading dimension of tensor C.
+    /// Post-operations applies if one of the following holds:
+    /// * Non-empty post-operations are specified.
+    /// * Output data type `d_dt` is different from accumulation data type
+    ///     `c_dt`.
+    ///
     /// @param ldd Leading dimension of tensor D.
-    /// @param a_dt Data type of tensor A.
-    /// @param b_dt Data type of tensor B.
-    /// @param c_dt Data type of tensor C. Must be data_type::f32.
     /// @param d_dt Data type of tensor D.
-    /// @param alpha Scale for an accumulation output.
-    /// @param beta Scale for a tensor C to append on an accumulated output.
-    /// @param attr Primitive attributes to extend the kernel operations.
-    /// @param allow_empty A flag signifying whether construction is
-    ///     allowed to fail without throwing an exception. In this case an
-    ///     empty object will be produced. This flag is optional and
-    ///     defaults to false.
-    brgemm(memory::dim M, memory::dim N, memory::dim K, memory::dim batch_size,
-            memory::dim lda, memory::dim ldb, memory::dim ldc, memory::dim ldd,
-            memory::data_type a_dt, memory::data_type b_dt,
-            memory::data_type c_dt, memory::data_type d_dt, float alpha,
-            float beta, const primitive_attr &attr, bool allow_empty = false) {
+    /// @param post_ops Primitive post-operation attributes to extend the kernel
+    ///     operations.
+    void set_post_ops(memory::dim ldd, memory::data_type d_dt,
+            const post_ops &po = default_post_ops()) {
+        dnnl_status_t status = dnnl_brgemm_set_post_ops(
+                get(), ldd, memory::convert_to_c(d_dt), po.get());
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set post operations");
+    }
 
-        dnnl_brgemm_t brgemm = nullptr;
-        dnnl_status_t status = dnnl_brgemm_create(&brgemm, M, N, K, batch_size,
-                lda, ldb, ldc, ldd, memory::convert_to_c(a_dt),
-                memory::convert_to_c(b_dt), memory::convert_to_c(c_dt),
-                memory::convert_to_c(d_dt), alpha, beta, attr.get());
+    /// Sets tensor A scales mask to a BRGeMM ukernel object.
+    ///
+    /// For quantization flavor tensor A scales apply to accumulation buffer
+    /// once C is ready.
+    ///
+    /// @param a_scale_mask Tensor A scale mask. Can be `0` only.
+    void set_A_scales(int a_scale_mask) {
+        dnnl_status_t status = dnnl_brgemm_set_A_scales(get(), a_scale_mask);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set A scales");
+    }
 
-        if (!allow_empty)
-            error::wrap_c_api(
-                    status, "could not create a BRGeMM ukernel object");
-        reset(brgemm);
+    /// Sets tensor B scales mask to a BRGeMM ukernel object.
+    ///
+    /// For quantization flavor tensor B scales apply to accumulation buffer
+    /// once C is ready.
+    ///
+    /// @param b_scale_mask Tensor B scale mask. Can be `0` and `2` only.
+    void set_B_scales(int b_scale_mask) {
+        dnnl_status_t status = dnnl_brgemm_set_B_scales(get(), b_scale_mask);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set B scales");
+    }
+
+    /// Sets tensor D scales mask to a BRGeMM ukernel object.
+    ///
+    /// For quantization flavor tensor D scales apply after all post-ops are
+    /// applied.
+    ///
+    /// @param d_scale_mask Tensor D scale mask. Can be `0` only.
+    void set_D_scales(int d_scale_mask) {
+        dnnl_status_t status = dnnl_brgemm_set_D_scales(get(), d_scale_mask);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set D scales");
+    }
+
+    /// Finalizes initialization of a BRGeMM ukernel object.
+    ///
+    /// This step must be performed prior to querying information from the
+    /// object.
+    void finalize() {
+        dnnl_status_t status = dnnl_brgemm_finalize(get());
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not finalize an object");
+    }
+
+    /// Returns the packing type expected by a tensor B of a BRGeMM ukernel
+    /// object.
+    pack_type get_B_pack_type() const {
+        dnnl_pack_type_t c_pack_type;
+        dnnl_status_t status = dnnl_brgemm_get_B_pack_type(get(), &c_pack_type);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not query B pack type");
+
+        return static_cast<pack_type>(c_pack_type);
     }
 
     /// Returns the size of a scratchpad memory needed for the BRGeMM ukernel
@@ -219,26 +339,42 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     void execute(const void *A, const void *B,
             const std::vector<std::pair<memory::dim, memory::dim>> &A_B_offsets,
             void *C, void *D, void *scratchpad,
-            const void *binary_po = nullptr) const {
+            const attr_params &params = default_attr_params()) const {
         // TODO: export batch_element to C API later for user to fill it and
         // pass directly to the call.
         dnnl_status_t status = dnnl_brgemm_execute_postops(get(), A, B,
                 (const dnnl_dim_t *)A_B_offsets.data(), C, D, scratchpad,
-                binary_po);
+                params.get());
         if (status != dnnl_success)
             error::wrap_c_api(
                     status, "could not execute a BRGeMM ukernel object");
     }
+
+    /// Returns a constant reference to a static instance of default constructed
+    /// primitive post-operations attribute.
+    static const post_ops &default_post_ops() {
+        static const post_ops po;
+        return po;
+    }
+
+    /// Returns a constant reference to a static instance of default constructed
+    /// ukernel attributes parameters.
+    static const attr_params &default_attr_params() {
+        static const attr_params ap;
+        return ap;
+    }
 };
 
-struct brgemm_pack_B : public handle<dnnl_brgemm_pack_B_t> {
+struct transform : public handle<dnnl_transform_t> {
     /// Default constructor. Produces an empty object.
-    brgemm_pack_B() = default;
+    transform() = default;
 
-    /// Constructs a BRGeMM ukernel packing tensor B object.
+    /// Constructs a transform object.
     ///
     /// @param K Dimension K.
     /// @param N Dimension N.
+    /// @param in_pack_type Input packing type. Must be one of
+    ///     `pack_type::no_trans`, or `pack_type::trans`.
     /// @param in_ld Input leading dimension.
     /// @param out_ld Output leading dimension. Specifies a block by N dimension
     ///     during data packing.
@@ -248,46 +384,35 @@ struct brgemm_pack_B : public handle<dnnl_brgemm_pack_B_t> {
     ///     allowed to fail without throwing an exception. In this case an
     ///     empty object will be produced. This flag is optional and
     ///     defaults to false.
-    brgemm_pack_B(memory::dim K, memory::dim N, memory::dim in_ld,
-            memory::dim out_ld, memory::data_type in_dt,
+    transform(memory::dim K, memory::dim N, pack_type in_pack_type,
+            memory::dim in_ld, memory::dim out_ld, memory::data_type in_dt,
             memory::data_type out_dt, bool allow_empty = false) {
 
-        dnnl_brgemm_pack_B_t brgemm_pack_B = nullptr;
-        dnnl_status_t status = dnnl_brgemm_pack_B_create(&brgemm_pack_B, K, N,
-                in_ld, out_ld, memory::convert_to_c(in_dt),
-                memory::convert_to_c(out_dt));
+        dnnl_transform_t transform = nullptr;
+        dnnl_status_t status = dnnl_transform_create(&transform, K, N,
+                static_cast<dnnl_pack_type_t>(in_pack_type), in_ld, out_ld,
+                memory::convert_to_c(in_dt), memory::convert_to_c(out_dt));
 
         if (!allow_empty)
             error::wrap_c_api(status,
                     "could not create a BRGeMM ukernel packing B object");
-        reset(brgemm_pack_B);
+        reset(transform);
     }
 
-    /// Returns the flag if packing is expected by BRGeMM ukernel kernel.
-    bool need_pack() const {
-        int flag;
-        dnnl_status_t status = dnnl_brgemm_pack_B_need_pack(get(), &flag);
-        if (status != dnnl_success)
-            error::wrap_c_api(status,
-                    "could not query a need_pack flag from a BRGeMM ukernel "
-                    "packing B object");
-        return bool(flag);
-    }
-
-    /// Generates an executable part of BRGeMM ukernel packing B object.
+    /// Generates an executable part of transform object.
     void generate() {
-        dnnl_status_t status = dnnl_brgemm_pack_B_generate(get());
+        dnnl_status_t status = dnnl_transform_generate(get());
         if (status != dnnl_success)
             error::wrap_c_api(status,
                     "could not generate a BRGeMM ukernel packing B object");
     }
 
-    /// Executes a BRGeMM ukernel packing tensor B object.
+    /// Executes a transform object.
     ///
     /// @param in Pointer to an input buffer.
     /// @param out Pointer to an output buffer.
     void execute(const void *in, void *out) const {
-        dnnl_status_t status = dnnl_brgemm_pack_B_execute(get(), in, out);
+        dnnl_status_t status = dnnl_transform_execute(get(), in, out);
         if (status != dnnl_success)
             error::wrap_c_api(status,
                     "could not execute a BRGeMM ukernel packing B object");

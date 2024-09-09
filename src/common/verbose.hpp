@@ -77,9 +77,9 @@ struct const_expr_value {
     do { \
         std::string stamp_; \
         if (dnnl::impl::get_verbose_timestamp()) \
-            stamp_ = "," + std::to_string(stamp); \
+            stamp_ = std::to_string(stamp) + ","; \
         dnnl::impl::verbose_printf( \
-                "onednn_verbose%s," CONCAT2(VERBOSE_, apitype) "," CONCAT2( \
+                "%s" CONCAT2(VERBOSE_, apitype) "," CONCAT2( \
                         VERBOSE_, logtype) "%s," msg "\n", \
                 stamp_.c_str(), logsubtype, ##__VA_ARGS__); \
     } while (0)
@@ -190,6 +190,7 @@ struct component_t {
         group_normalization = 1 << 21,
         graph = 1 << 22,
         gemm_api = 1 << 23,
+        ukernel = 1 << 24,
         all = (uint32_t)-1,
     };
 };
@@ -262,35 +263,14 @@ inline log_manager_t::log_level_t align_verbose_mode_to_log_level(
 // when logging is disabled, data is printed only to stdout.
 // when enabled, it is printed to the logfile and to stdout as well if
 // DNNL_VERBOSE_LOG_WITH_CONSOLE is set.
-inline void verbose_printf_impl(const char *fmt_str,
-        verbose_t::flag_kind kind = verbose_t::create_check) {
-#ifdef DNNL_EXPERIMENTAL_LOGGING
-    // by default, verbose_t::create_check is passed to the logger
-    // so that it prints at spdlog log_level_t::info when no verbose flag
-    // is specified. This is useful for printing headers, format fields, etc.
-    // which do not correspond to a specific verbose kind.
-    const log_manager_t &log_manager = log_manager_t::get_log_manager();
-
-    if (log_manager.is_logger_enabled())
-        log_manager.log(
-                fmt_str, dnnl::impl::align_verbose_mode_to_log_level(kind));
-    if (log_manager.is_console_enabled()) {
-        printf("%s", fmt_str);
-        fflush(stdout);
-    }
-#else
-    printf("%s", fmt_str);
-    fflush(stdout);
-#endif
-}
+void verbose_printf_impl(const char *fmt_str, verbose_t::flag_kind kind);
 
 template <typename... str_args>
 inline std::string format_verbose_string(
         const char *fmt_str, str_args... args) {
     const int size = snprintf(nullptr, 0, fmt_str, args...) + 1;
     if (size == 0) {
-        return "onednn_verbose,info,error encountered while formatting verbose "
-               "message\n";
+        return "info,error encountered while formatting verbose message\n";
     }
     std::string msg(size, '\0');
     snprintf(&msg[0], size, fmt_str, args...);
@@ -299,7 +279,7 @@ inline std::string format_verbose_string(
 
 // processes fixed strings for logging and printing
 inline void verbose_printf(const char *fmt_str) {
-    verbose_printf_impl(fmt_str);
+    verbose_printf_impl(fmt_str, verbose_t::create_check);
 }
 
 // When logging is enabled, a verbose flag can be specified which allows the
@@ -313,7 +293,7 @@ inline void verbose_printf(verbose_t::flag_kind kind, const char *fmt_str) {
 template <typename... str_args>
 inline void verbose_printf(const char *fmt_str, str_args... args) {
     std::string msg = format_verbose_string(fmt_str, args...);
-    verbose_printf_impl(msg.c_str());
+    verbose_printf_impl(msg.c_str(), verbose_t::create_check);
 }
 
 template <typename... str_args>
@@ -364,7 +344,8 @@ enum class dims_type_t {
     strides,
 };
 
-std::string md2fmt_str(const memory_desc_t *md, format_kind_t user_format);
+std::string md2fmt_str(
+        const char *name, const memory_desc_t *md, format_kind_t user_format);
 std::string md2dim_str(
         const memory_desc_t *md, dims_type_t dims_type = dims_type_t::dims);
 // Returns a verbose string of dimensions or descriptor from src, wei, and/or
@@ -379,6 +360,8 @@ std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
 std::string rt_mds2str(primitive_kind_t prim_kind, const memory_desc_t *src_md,
         const memory_desc_t *wei_md, const memory_desc_t *bia_md,
         const memory_desc_t *dst_md);
+// Returns a verbose string for primitive attributes. Used in ukernel API.
+std::string attr2str(const primitive_attr_t *attr);
 
 } // namespace impl
 } // namespace dnnl

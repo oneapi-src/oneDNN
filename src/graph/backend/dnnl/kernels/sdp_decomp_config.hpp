@@ -74,10 +74,11 @@ public:
     sdp_decomp_config_t() = default;
 
     // SDP input dimension
-    memory::dim batch_size, num_head, seq_len_q, size_per_head;
+    dim_t batch_size, num_head_q, num_head_kv, seq_len_q, seq_len_kv,
+            size_per_head;
 
     // SDP input and output strides
-    memory::dims src1_strides, wei1_strides, wei2_strides, dst_strides,
+    dims src1_strides, wei1_strides, wei2_strides, dst_strides,
             post_add_strides;
 
     // Thread nums during the workflow
@@ -122,7 +123,7 @@ public:
     // shared memory
     memory sub_max_src1_src2, sub_max_dst1_wei2;
 
-    bool attention_mask = false, has_select = false;
+    bool has_scale = false, has_attention_mask = false, has_select = false;
     // Used to record the ops from select
     std::vector<op_ptr> select_op;
     std::vector<int> select_outop_index;

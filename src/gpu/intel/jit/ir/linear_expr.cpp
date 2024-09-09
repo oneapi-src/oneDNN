@@ -180,7 +180,7 @@ expr_t linear_normalize_const_factor_out(const expr_t &_e) {
     }
 
     std::vector<expr_t> v_common;
-    v_common.push_back(const_factor);
+    v_common.emplace_back(const_factor);
     for (auto &kv : common) {
         for (int i = 0; i < kv.second; i++)
             v_common.push_back(kv.first);
@@ -256,7 +256,8 @@ public:
         auto lhs = op_combine(op_kind_t::_mul, factors_);
         auto rhs = op_combine(op_kind_t::_mul, other.factors_);
         int const_factor = 1;
-        auto common = find_common_factors({lhs, rhs}, const_factor);
+        auto common = find_common_factors(
+                {std::move(lhs), std::move(rhs)}, const_factor);
         ir_assert(const_factor == 1);
         factors_.clear();
         for (auto &kv : common) {
@@ -295,6 +296,7 @@ public:
 
     static std::vector<expr_t> div(const std::vector<expr_t> &v, int factor) {
         std::vector<expr_t> ret;
+        ret.reserve(v.size());
         for (auto &e : v)
             ret.push_back(div(e, factor));
         return ret;

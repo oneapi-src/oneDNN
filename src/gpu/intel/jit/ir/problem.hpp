@@ -257,7 +257,7 @@ public:
 
     std::vector<KeyT> keys() const {
         std::vector<KeyT> ret;
-        for (auto key : *this)
+        for (auto &key : *this)
             ret.push_back(key);
         return ret;
     }
@@ -290,7 +290,7 @@ public:
 
     std::unordered_map<std::string, int> to_map() const {
         std::unordered_map<std::string, int> ret;
-        for (auto d : (*this)) {
+        for (auto &d : (*this)) {
             ret[d.name()] = at(d);
         }
         return ret;

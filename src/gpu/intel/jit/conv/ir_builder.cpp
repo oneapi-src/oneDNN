@@ -159,7 +159,7 @@ expr_t add_grid_guard(
         if (tg[i] == load[i]) continue;
         auto i_cond = (tg.idx(i) < load[i]);
         if (cond.is_empty()) {
-            cond = i_cond;
+            cond = std::move(i_cond);
         } else {
             cond = cond & i_cond;
         }
@@ -651,7 +651,7 @@ void conv_ir_builder_t::build() {
     c_store_stmt = c_store_stmt.append(cb.c_store_stmt());
     c_store_stmt = stmt_group_t::make(stmt_label_t::c_store(), c_store_stmt);
 
-    stmt_ = loop_stmt;
+    stmt_ = std::move(loop_stmt);
     stmt_ = stmt_seq_t::make(cb.zero_out_stmt(), stmt_);
     stmt_ = stmt_seq_t::make(stmt_, c_store_stmt);
 

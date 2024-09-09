@@ -848,7 +848,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     }
 
     if (strategy.optAlignAB > 0)    s << " l" << strategy.optAlignAB;
-    if (anyOptAlignAB)              s << " l2d";
+    if (strategy.optAlignAB2D)      s << " l2d";
 
     bool nq = false;
     for (auto &astrategy: {strategy.A, strategy.B, strategy.C, strategy.CO,

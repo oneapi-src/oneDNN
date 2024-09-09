@@ -166,6 +166,11 @@ bool are_equal(const ::sycl::device &lhs, const ::sycl::device &rhs) {
         return gpu::amd::compare_hip_devices(lhs, rhs);
     }
 #endif
+
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_GENERIC
+    // Generic vendor code is backend agnostic.
+    return true;
+#endif
     assert(!"not expected");
     return false;
 }
@@ -213,7 +218,7 @@ status_t check_device(engine_kind_t eng_kind, const ::sycl::device &dev,
     VERROR_ENGINE(!(eng_kind == engine_kind::gpu && !dev.is_gpu()),
             status::invalid_arguments, VERBOSE_BAD_ENGINE_KIND);
 
-#if !defined(DNNL_SYCL_CUDA) && !defined(DNNL_SYCL_HIP)
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
     // Check that platform is an Intel platform.
     VERROR_ENGINE(!(!is_host(dev) && !is_intel_platform(dev.get_platform())),
             status::invalid_arguments, VERBOSE_INVALID_PLATFORM, "sycl",
@@ -265,7 +270,7 @@ std::vector<::sycl::device> get_devices(
     auto platforms = ::sycl::platform::get_platforms();
 
     for (const auto &p : platforms) {
-#if !defined(DNNL_SYCL_CUDA) && !defined(DNNL_SYCL_HIP)
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
         if (!is_host(p) && !is_intel_platform(p)) continue;
 #endif
         auto p_devices = p.get_devices(dev_type);
@@ -274,13 +279,18 @@ std::vector<::sycl::device> get_devices(
 
     devices.erase(std::remove_if(devices.begin(), devices.end(),
                           [=](const ::sycl::device &dev) {
-                              auto _vendor_id = dev.get_info<
-                                      ::sycl::info::device::vendor_id>();
-                              if (_vendor_id != vendor_id) return true;
-
                               auto _dev_type = dev.get_info<
                                       ::sycl::info::device::device_type>();
                               if (_dev_type != dev_type) return true;
+#if defined(DNNL_SYCL_GENERIC)
+                              // The devices do not have to be filtered out by
+                              // vendor and backend in the case of generic
+                              // vendor.
+                              return false;
+#endif
+                              auto _vendor_id = dev.get_info<
+                                      ::sycl::info::device::vendor_id>();
+                              if (_vendor_id != vendor_id) return true;
 
                               if (dev_type == ::sycl::info::device_type::gpu) {
                                   auto _backend = get_backend(dev);

@@ -45,6 +45,10 @@
 #include "gpu/intel/sycl/engine.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_GENERIC
+#include "gpu/generic/sycl/engine.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace xpu {

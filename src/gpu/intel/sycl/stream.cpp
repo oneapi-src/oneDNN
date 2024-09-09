@@ -96,6 +96,84 @@ void stream_t::after_exec_hook() {
     if (is_profiling_enabled()) profiler_->stop_profiling();
 }
 
+// The following code needs sycl::queue::ext_oneapi_get_graph(), but it may
+//  not be defined. Some SFINAE is needed to avoid compile errors in this case.
+namespace syclex = ::sycl::ext::oneapi::experimental;
+template <typename Q>
+static auto get_graph_internal(const Q &q, bool &success, int)
+        -> decltype(q.ext_oneapi_get_graph()) {
+    success = true;
+    return q.ext_oneapi_get_graph();
+}
+
+template <typename Q>
+static syclex::command_graph<syclex::graph_state::modifiable>
+get_graph_internal(const Q &q, bool &success, long) {
+    success = false;
+    return syclex::command_graph<syclex::graph_state::modifiable>(
+            q.get_context(), q.get_device());
+}
+
+static syclex::command_graph<syclex::graph_state::modifiable> get_graph(
+        const ::sycl::queue *q, bool &success) {
+    return get_graph_internal(*q, success, 0);
+}
+
+bool stream_t::recording() const {
+    return impl()->queue()->ext_oneapi_get_state()
+            == syclex::queue_state::recording;
+}
+
+stream_t::weak_graph_t stream_t::get_current_graph_weak() const {
+    bool success;
+    stream_t::weak_graph_t result = get_graph(impl()->queue(), success);
+    if (!success) result.reset();
+    return result;
+}
+
+status_t stream_t::enter_immediate_mode() {
+    std::lock_guard<std::mutex> lock(immediate_mode_mutex_);
+    if (!immediate_mode_level_++) pause_recording();
+    return status::success;
+}
+
+status_t stream_t::exit_immediate_mode() {
+    std::lock_guard<std::mutex> lock(immediate_mode_mutex_);
+    if (immediate_mode_level_ > 0) {
+        if (!--immediate_mode_level_) resume_recording();
+    } else {
+        assert(!"exit_immediate_mode called without enter");
+        return status::runtime_error;
+    }
+    return status::success;
+}
+
+status_t stream_t::pause_recording() {
+    using graph_t = syclex::command_graph<syclex::graph_state::modifiable>;
+    if (recording()) {
+        bool success;
+        assert(!paused_graph_);
+        paused_graph_.reset(new graph_t(get_graph(impl()->queue(), success)));
+        if (!success) return status::runtime_error;
+        paused_graph_->end_recording();
+        auto &cur_dep = xpu::sycl::event_t::from(ctx().get_deps());
+        paused_dep_ = xpu::sycl::event_t {};
+        std::swap(paused_dep_, cur_dep);
+    }
+    return status::success;
+}
+
+status_t stream_t::resume_recording() {
+    if (paused_graph_) {
+        paused_graph_->begin_recording(*impl()->queue());
+        paused_graph_.reset();
+        auto &cur_dep = xpu::sycl::event_t::from(ctx().get_deps());
+        std::swap(paused_dep_, cur_dep);
+        paused_dep_ = xpu::sycl::event_t {};
+    }
+    return status::success;
+}
+
 } // namespace sycl
 } // namespace intel
 } // namespace gpu

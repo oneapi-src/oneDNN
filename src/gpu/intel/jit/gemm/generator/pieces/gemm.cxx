@@ -217,8 +217,8 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
     state.ra.safeRelease(state.inputs.offsetAScale);
     state.ra.safeRelease(state.inputs.offsetBScale);
 
-    if (problem.aqGroupK == 0) problem.aqGroupK = strategy.ka_load;
-    if (problem.bqGroupK == 0) problem.bqGroupK = strategy.kb_load;
+    if (problem.aqGroupK == 0) problem.aqGroupK = std::max(strategy.unrollKSLM, strategy.ka_load);
+    if (problem.bqGroupK == 0) problem.bqGroupK = std::max(strategy.unrollKSLM, strategy.kb_load);
 
     // Persistent thread preparation and re-entry.
     if (strategy.persistent) {

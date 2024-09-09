@@ -646,6 +646,7 @@ struct mem_usage_guard_t {
     }
 
     mem_usage_guard_t &operator=(mem_usage_guard_t &&other) {
+        if (&other == this) return *this;
         usage = other.usage;
         peak_usage = other.peak_usage;
         size = other.size;
@@ -696,7 +697,8 @@ public:
     bool implies(const relation_t &other) const;
 
     // Applies linear transformation to left and right hand sides of the relation.
-    relation_t transform(const linear_transform_t &t, const expr_t &new_var);
+    relation_t transform(
+            const linear_transform_t &t, const expr_t &new_var) const;
 
     std::string str() const {
         std::ostringstream oss;

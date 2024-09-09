@@ -37,12 +37,22 @@ class prover_t {
 public:
     static const prover_t &instance();
     prover_t() = default;
-    prover_t(prb_reqs_t *parent) : parent_(parent) {}
+    prover_t(const prb_reqs_t *parent, prb_reqs_t *reqs, bool can_update)
+        : parent_(parent), reqs_(reqs), can_update_(can_update) {}
+    prover_t(prover_t &other, bool can_update)
+        : parent_(other.parent_), reqs_(other.reqs_), can_update_(can_update) {}
+    // TODO: Change to non-const.
     bool require(const expr_t &e) const;
-    explicit operator bool() const { return parent_; }
+    const prb_reqs_t &reqs() const {
+        ir_assert(reqs_);
+        return *reqs_;
+    }
+    explicit operator bool() const { return reqs_; }
 
 private:
-    prb_reqs_t *parent_ = nullptr;
+    const prb_reqs_t *parent_ = nullptr;
+    prb_reqs_t *reqs_ = nullptr;
+    bool can_update_ = false;
 };
 
 class req_impl_t;
@@ -57,7 +67,10 @@ public:
     void add(const prb_reqs_t &other);
     void add(const prb_tile_t &tile);
     void set(const prb_dim_t &dim, int value);
-    prover_t prover(bool enable = true);
+    // Mark the dimension as being divisible by any number - this changes
+    // behavior of methods like can_prove() and max_factor().
+    void set_any_mod(const prb_dim_t &dim);
+    prover_t prover(const prb_reqs_t &parent, bool can_update = true);
 
     explicit operator bool() const { return !reqs_.empty(); }
     // Checks if the requirements are satisfied for the given problem sizes .
@@ -68,8 +81,9 @@ public:
     // For example: prb_reqs_t(oc % 64 == 0) implies (oc % 16) == 0 so the
     // latter can be proven from the original requirements.
     bool can_prove(const expr_t &to_prove) const;
-    bool can_prove(const req_impl_t &to_prove) const;
+    bool can_prove(const req_impl_t &to_prove, bool use_any_mod = false) const;
     bool get_value(const prb_dim_t &dim, int &value) const;
+    int max_factor(const prb_dim_t &dim) const;
     bool is_equal(const prb_dim_t &dim, int value) const;
     // Checks if other prb_reqs_t object is fully implied from the requirements
     // of this object.
@@ -97,6 +111,9 @@ private:
     void add_if_not_found(const req_impl_t &new_req);
 
     std::vector<req_t> reqs_;
+    // List of dimensions that are treated as having any arbitrary factors
+    // during proving.
+    std::vector<prb_dim_t> any_mods_;
 };
 
 } // namespace v2

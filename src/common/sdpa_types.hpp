@@ -38,6 +38,7 @@ struct sdpa_desc_t {
     // invert_scale = false: multiply by scale
     // invert_scale = true:  divide by scale
     bool invert_scale;
+    dim_t kv_head_number;
 
     // Number of queries.
     dnnl_dim_t queries() const { return q_desc.dims[q_desc.ndims - 2]; }

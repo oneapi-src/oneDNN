@@ -40,11 +40,11 @@ optional.
 
 1. The first MatMul calculates the dot products between Query and Key. See
    [MatMul](@ref dev_guide_op_matmul) operation in Graph API.
-2. The Scale node scales the output of the first MatMul with a scaling factor.
-   It can be constructed by [Multiply](@ref dev_guide_op_multiply) or
-   [Divide](@ref dev_guide_op_divide) operation in Graph API. The scaling factor
-   is given by users as an input of SDPA. \f$\sqrt{d_k}\f$ in the formula is not
-   considered as part of the SDPA pattern as it is constant.
+2. The Scale node is optional and is used to scale the output of the first
+   MatMul with a scaling factor. It can be constructed by [Multiply](@ref dev_guide_op_multiply)
+   or [Divide](@ref dev_guide_op_divide) operation in Graph API. The scaling
+   factor is given by users as an input of SDPA. \f$\sqrt{d_k}\f$ in the formula
+   is not considered as part of the SDPA pattern as it is constant.
 3. The Mask node is optional and is used to apply an attention mask to the
    output of the previous Scale node. It can be constructed by [Add](@ref dev_guide_op_add)
    or [Select](@ref dev_guide_op_select) operation in Graph API for different

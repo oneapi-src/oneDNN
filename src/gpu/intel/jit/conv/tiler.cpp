@@ -100,7 +100,7 @@ struct x2_tile_info_t {
                 for (int i : factors) {
                     int j = ij / i;
                     if (d0.is_iter_ok(i) && d1.is_iter_ok(j)) {
-                        ret.push_back(std::make_pair(i, j));
+                        ret.emplace_back(i, j);
                     }
                 }
             }
@@ -804,7 +804,7 @@ private:
             if (blk.thread_group().has(d))
                 blocks.emplace_back(
                         level_kind_t::thread_group, blk.thread_group_dim(d));
-            if (!layout_dim_ok(prop, tensor_kind, layout, d, blocks))
+            if (!layout_dim_ok(prop, tensor_kind, layout, d, std::move(blocks)))
                 return false;
         }
         return true;
@@ -991,6 +991,7 @@ prb_dim_t select_non_blocked_iter_dim(
         const conv_config_t &cfg, const std::vector<prb_dim_t> &dims) {
     const auto shape = cfg.shape(/*pad=*/false);
     std::vector<double> scores;
+    scores.reserve(dims.size());
     for (auto &d : dims)
         scores.push_back(get_iter_dim_score(d, cfg, shape[d]));
     auto max_it = std::max_element(scores.begin(), scores.end());
@@ -1011,6 +1012,7 @@ prb_dim_t select_iter_dim(
     if (dims.size() == 1) return dims[0];
 
     std::vector<int> dim_blocks;
+    dim_blocks.reserve(dims.size());
     for (auto &d : dims) {
         dim_blocks.push_back(inner_block(cfg, d));
     }
@@ -1288,9 +1290,19 @@ public:
 
         params_generator_t params_gen(
                 tune_level, simd_size, chk, level_tile_sets);
-        params_distance_t dist(params_gen.params_vec(), convert);
-        auto ret = conv2tuner_.emplace(
-                key, conv_tuner_t(key, ops, params_gen, dist));
+        std::vector<std::vector<prb_tile_t>> tiles;
+        for (auto &p : params_gen.params_vec()) {
+            auto &b = p.blocking();
+            std::vector<prb_tile_t> p_tiles;
+            p_tiles.push_back(convert(b.iter()));
+            p_tiles.push_back(convert(b.thread_group()));
+            p_tiles.push_back(convert(b.loop()));
+            tiles.push_back(std::move(p_tiles));
+        }
+        tile_to_vec_t tile_to_vec(tiles);
+        auto ret = conv2tuner_.emplace(key,
+                conv_tuner_t(key, ops, std::move(params_gen),
+                        std::move(tile_to_vec)));
         return &ret.first->second;
     }
 
@@ -1316,10 +1328,10 @@ public:
 
 private:
     conv_tuner_t(const conv_key_t &key, double ops,
-            params_generator_t params_gen, params_distance_t params_dist)
+            params_generator_t params_gen, tile_to_vec_t tile_vec)
         : key_(key)
         , params_gen_(std::move(params_gen))
-        , params_dist_(std::move(params_dist))
+        , tile_vec_(std::move(tile_vec))
         , ops_(ops) {
         params_gen_.shuffle(conv_key_hash_t()(key_));
     }
@@ -1368,7 +1380,7 @@ private:
             auto &p = params_gen_.at(i);
             dists[p.id()] = std::numeric_limits<float>::max();
             for (int id : best_ids) {
-                float d = params_dist_.dist(id, p.id());
+                float d = tile_vec_.dist(id, p.id());
                 dists[p.id()] = std::min(dists[p.id()], d);
             }
         }
@@ -1384,7 +1396,7 @@ private:
 
     conv_key_t key_;
     params_generator_t params_gen_;
-    const params_distance_t params_dist_;
+    const tile_to_vec_t tile_vec_;
     tune_data_t tune_data_;
     blocking_params_t best_params_dbg_;
 

@@ -343,7 +343,7 @@ void BLASKernelGenerator<hw>::innerProductFMA(int h, int ha, int hb, int opCount
 
         if (A_block->colMajor || !B_block->colMajor) stub();
 
-        int ne = std::min({na, nb, nc, strategy.fmaSIMD});
+        int ne = std::min({na, nb, nc, vl, strategy.fmaSIMD});
 
         mad(ne, C(1), C(1), A(1), B(1));
 

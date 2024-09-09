@@ -109,6 +109,25 @@ partition_data_displacer_t::partition_data_displacer_t(
                                         filling_type_t::quantization));
                         break;
                     }
+
+                    if (parent_op->kind_ == "StaticReshape") {
+                        // StaticReshape is accepted when the pattern is
+                        // "StaticReshape + Matmul" and it doesn't have any
+                        // predecessors in the partition
+                        const auto &parent_op_in_lt = parent_op->in_lts_[0];
+                        const auto &prev_parent_op
+                                = dg_->get_op_by_out_lt(parent_op_in_lt.id_);
+                        if (prev_parent_op.empty()
+                                || op_ids_set_.find(prev_parent_op.id_)
+                                        == op_ids_set_.end()) {
+                            if (aop.kind_ == "MatMul") {
+                                quantize_displace_.emplace(parent_op_in_lt.id_,
+                                        std::make_tuple(aop, i, parent_op_in_lt,
+                                                filling_type_t::quantization));
+                            }
+                            break;
+                        }
+                    }
                 }
                 // Continue only on allowed ops.
                 if (go_through_op_kind.find(parent_op->kind_)
@@ -264,11 +283,22 @@ int partition_data_displacer_t::displace_input_data(
         is_grouped_conv = groups > 1;
     }
 
-    bool mds_ok = IMPLICATION(!mds_are_equal, mds_are_int8 || is_grouped_conv);
+    bool is_reshaped_dims = mem_replace.nelems() == mem.nelems()
+            && mem_replace.ndims() != mem.ndims();
+
+    bool mds_ok = IMPLICATION(!mds_are_equal,
+            mds_are_int8 || is_grouped_conv || is_reshaped_dims);
     SAFE(mds_ok ? OK : FAIL, WARN);
+
+    dnnl_memory_desc_t md = mem.md_;
+    if (is_reshaped_dims) {
+        DNN_SAFE_V(dnnl_memory_desc_create_with_strides(
+                &md, mem.ndims(), mem.dims(), mem_replace.dt(), mem.strides()));
+    }
     dnnl_memory_desc_destroy(mem_replace.md_);
-    dnnl_memory_desc_clone(&mem_replace.md_, mem.md_);
+    dnnl_memory_desc_clone(&mem_replace.md_, md);
     SAFE(mem.reorder(mem_replace), WARN);
+    if (is_reshaped_dims) dnnl_memory_desc_destroy(md);
     return OK;
 }
 
@@ -279,6 +309,7 @@ int partition_data_displacer_t::gen_quantize_filling(
     ::graph::deserialized_op op = main_op;
     auto driver = opkind2driver(opstr2kind(op.kind_));
     bool is_f8_quantization = (dt == "f8_e5m2" || dt == "f8_e4m3");
+    bool is_f16 = dt == "f16";
 
     op.in_lts_[0].data_type_ = dt;
     if (op.in_lts_.size() > 1) {
@@ -314,9 +345,10 @@ int partition_data_displacer_t::gen_quantize_filling(
     }
 
     ::std::unordered_set<size_t> empty_set;
-    // As f8 support status is limited now, use tset engine to ensure that
-    // primitive can be created and generate data
-    const auto &eng = is_f8_quantization ? get_test_engine() : get_cpu_engine();
+    // As f8 and f16 support status is limited now, use test engine to ensure
+    // that primitive can be created and generate data
+    const auto &eng = is_f8_quantization || is_f16 ? get_test_engine()
+                                                   : get_cpu_engine();
 
     ref_primitive_t ref_prim(op);
     ref_prim.init_prb(res);

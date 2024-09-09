@@ -73,17 +73,18 @@ kernel_desc_t plan_registry_t::find_best(const problem_t &prb) const {
         if (eff > best_eff) {
             best_eff = eff;
             best = e.desc;
-            best.set_defaults();
         }
     }
-    best.hw = prb.hw();
+    best.spec_strategy = spec_strategy_t::min_dims;
     return best;
 }
 
 void plan_registry_t::stringify(std::ostream &out) const {
+    bool is_first = true;
     for (auto &e : entries_) {
+        if (!is_first) out << "\n";
         e.stringify(out);
-        out << "\n";
+        is_first = false;
     }
 }
 
@@ -115,17 +116,20 @@ struct plan_registry_instance_t {
     }
 
     plan_registry_instance_t() {
-        registry = plan_registry_t(get_plan_registry_entries());
 #ifdef DNNL_DEV_MODE
         registry_path = getenv_string_user(env_registry_path_name);
         if (!registry_path.empty()) {
             std::ifstream in(registry_path);
-            if (!in.good()) return;
-            plan_registry_t file_registry;
-            file_registry.parse(in);
-            registry.merge(file_registry);
+            if (in.good()) {
+                registry.parse(in);
+                ir_info() << "Loaded kernel registry from " << registry_path
+                          << " with " << registry.size() << " entries"
+                          << std::endl;
+                return;
+            }
         }
 #endif
+        registry = plan_registry_t(get_plan_registry_entries());
     }
 
     void dump() const {

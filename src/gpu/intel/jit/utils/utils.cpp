@@ -39,10 +39,10 @@ void stringify_to_cpp_file(const std::string &file_name,
     for (auto &l : lines) {
         out << "        \"" << l << "\",\n";
     }
-    out << "        nullptr,\n";
+    out << "        nullptr,";
     out << "\n    };";
     out << "\n    return entries;";
-    out << "\n};";
+    out << "\n}";
     out << "\n// clang-format on\n\n";
     for (auto it = namespaces.rbegin(); it != namespaces.rend(); it++)
         out << "} // namespace " << *it << "\n";

@@ -33,6 +33,29 @@ extern "C" {
 /// @{
 
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
+
+/// Packing specification
+typedef enum {
+    /// Undefined pack type. A guard value.
+    dnnl_pack_type_undef = 0,
+    /// Plain, not transposed layout. Similar to format_tag::ab.
+    dnnl_pack_type_no_trans,
+    /// Plain, transposed layout. Similar to format_tag::ba.
+    dnnl_pack_type_trans,
+    /// Packed by 32 bits along K dimension layout.
+    dnnl_pack_type_pack32,
+} dnnl_pack_type_t;
+
+/// @struct dnnl_ukernel_attr_params
+/// An opaque structure to describe ukernel attributes memory storage.
+struct dnnl_ukernel_attr_params;
+
+/// A ukernel attributes memory storage handle.
+typedef struct dnnl_ukernel_attr_params *dnnl_ukernel_attr_params_t;
+
+/// A constant ukernel attributes memory storage handle.
+typedef const struct dnnl_ukernel_attr_params *const_dnnl_ukernel_attr_params_t;
+
 /// @addtogroup dnnl_api_ukernel_brgemm
 /// @{
 
@@ -46,15 +69,15 @@ typedef struct dnnl_brgemm *dnnl_brgemm_t;
 /// A constant brgemm ukernel handle.
 typedef const struct dnnl_brgemm *const_dnnl_brgemm_t;
 
-/// @struct dnnl_brgemm_pack_B
-/// An opaque structure to describe a brgemm ukernel packing B routine.
-struct dnnl_brgemm_pack_B;
+/// @struct dnnl_transform
+/// An opaque structure to describe a transform routine.
+struct dnnl_transform;
 
-/// A brgemm ukernel packing B routine handle.
-typedef struct dnnl_brgemm_pack_B *dnnl_brgemm_pack_B_t;
+/// A transform routine handle.
+typedef struct dnnl_transform *dnnl_transform_t;
 
-/// A constant brgemm ukernel packing B routine handle.
-typedef const struct dnnl_brgemm_pack_B *const_dnnl_brgemm_pack_B_t;
+/// A constant transform routine handle.
+typedef const struct dnnl_transform *const_dnnl_transform_t;
 
 /// @} dnnl_api_ukernel_brgemm
 #endif

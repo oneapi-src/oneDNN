@@ -1547,8 +1547,9 @@ bool get_prelu_sdt(
 bool get_prelu_stag(
         const deserialized_op &base_op_ref, ::prelu::settings_t &op_setting) {
     std::string tag0, tag1;
-    get_driver_tag_by_idx(base_op_ref, tag0);
-    get_driver_tag_by_idx(base_op_ref, tag1, 1);
+    if (!get_driver_tag_by_idx(base_op_ref, tag0)
+            || !get_driver_tag_by_idx(base_op_ref, tag1, 1))
+        return false;
     op_setting.stag = {{tag0, tag1}};
     return true;
 }

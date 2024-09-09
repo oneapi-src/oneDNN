@@ -236,7 +236,7 @@ bool fits_xab_xba(const memory_desc_wrapper &src,
 }
 
 bool matches_ABxxxx8ayb_layout(const blocking_desc_t &blk, int ndims) {
-    if (ndims > 2) { return false; }
+    if (ndims > 2 || blk.inner_nblks < 2) { return false; }
     int last = blk.inner_nblks - 1;
     // Don't allow this kernel when two adjacent blocks by b create
     // total block size smaller than 16 - in that situation macros

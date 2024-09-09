@@ -198,6 +198,9 @@ struct ref_matmul_t : public gpu_primitive_t {
         def_data_type(kernel_ctx,
                 pd()->attr()->scales_.get(DNNL_ARG_SRC).data_type_,
                 "SRC_SCALES");
+        def_data_type(kernel_ctx,
+                pd()->attr()->scales_.get(DNNL_ARG_DST).data_type_,
+                "DST_SCALES");
         CHECK(create_kernel(engine, &kernel_, "ref_matmul", kernel_ctx));
         if (!kernel_) return status::runtime_error;
         return status::success;

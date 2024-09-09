@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -333,21 +333,21 @@ int main(int argc, char **argv) {
 ///
 /// ~~~sh
 /// $ ONEDNN_VERBOSE=1 ./memory-format-propagation-cpp
-/// onednn_verbose,info,oneDNN <ver> (Git Hash <hash>)
-/// onednn_verbose,info,cpu,runtime:OpenMP
-/// onednn_verbose,info,cpu,isa:Intel AVX2
-/// onednn_verbose,info,gpu,runtime:none
-/// onednn_verbose,exec,cpu,reorder,jit:uni,undef,
+/// onednn_verbose,v0,info,oneDNN <ver> (Git Hash <hash>)
+/// onednn_verbose,v0,info,cpu,runtime:OpenMP
+/// onednn_verbose,v0,info,cpu,isa:Intel AVX2
+/// onednn_verbose,v0,info,gpu,runtime:none
+/// onednn_verbose,v0,exec,cpu,reorder,jit:uni,undef,
 ///     src_f32::blocked:abcd:f0 dst_f32::blocked:aBcd8b:f0,,,1x128x14x14,0.326904
-/// onednn_verbose,exec,cpu,reorder,jit:uni,undef,
+/// onednn_verbose,v0,exec,cpu,reorder,jit:uni,undef,
 ///     src_f32::blocked:abcd:f0 dst_f32::blocked:ABcd8b8a:f0,,,256x128x3x3,0.244141
-/// onednn_verbose,exec,cpu,convolution,jit:avx2,forward_inference,
+/// onednn_verbose,v0,exec,cpu,convolution,jit:avx2,forward_inference,
 ///     src_f32::blocked:aBcd8b:f0 wei_f32::blocked:ABcd8b8a:f0 bia_undef::undef::f0 dst_f32::blocked:aBcd8b:f0,,
 ///     alg:convolution_direct,mb1_ic128oc256_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1,1.20312
-/// onednn_verbose,exec,cpu,pooling,jit:avx,forward_inference,
+/// onednn_verbose,v0,exec,cpu,pooling,jit:avx,forward_inference,
 ///     src_f32::blocked:aBcd8b:f0 dst_f32::blocked:aBcd8b:f0 ws_undef::undef::f0,,
 ///     alg:pooling_max,mb1ic256_ih14oh14kh3sh1ph1_iw14ow14kw3sw1pw1,0.187012
-/// onednn_verbose,exec,cpu,reorder,jit:uni,undef,
+/// onednn_verbose,v0,exec,cpu,reorder,jit:uni,undef,
 ///     src_f32::blocked:aBcd8b:f0 dst_f32::blocked:abcd:f0,,,1x256x14x14,0.0419922
 /// Example passed on CPU.
 /// ~~~

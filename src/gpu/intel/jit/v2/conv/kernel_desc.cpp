@@ -76,6 +76,43 @@ void store_desc_t::parse(std::istream &in) {
     }
 }
 
+std::string align_desc_t::align_t::str() const {
+    std::string s = (value == 0 ? "*" : std::to_string(value));
+    if (in_bytes) s += "b";
+    return s;
+}
+
+void align_desc_t::align_t::parse(const std::string &_s) {
+    auto s = _s;
+    in_bytes = (!s.empty() && s.back() == 'b');
+    if (in_bytes) s = s.substr(0, s.length() - 1);
+    value = (s == "*") ? 0 : std::stoi(s);
+}
+
+std::string align_desc_t::str() const {
+    if (is_default()) return "x";
+    std::vector<std::string> parts;
+    parts.emplace_back(src.str());
+    parts.emplace_back(wei.str());
+    parts.emplace_back(dst.str());
+    return gpu_utils::join(":", parts);
+}
+
+void align_desc_t::parse(std::istream &in) {
+    operator=(align_desc_t());
+    auto s = jit::parse<std::string>(in);
+    if (s == "x") return;
+    auto parts = gpu_utils::split(s, ":");
+    if (parts.size() == 1) {
+        parts.push_back(parts[0]);
+        parts.push_back(parts[0]);
+    }
+    ir_assert(parts.size() == 3);
+    src.parse(parts[0]);
+    wei.parse(parts[1]);
+    dst.parse(parts[2]);
+}
+
 void prefetch_desc_t::parse(std::istream &in) {
     operator=(prefetch_desc_t());
     std::string s;
@@ -378,9 +415,9 @@ void kernel_desc_t::set_defaults() {
     }
 }
 
-void kernel_desc_t::finalize(const plan_t &plan) {
+void kernel_desc_t::finalize(const prb_reqs_t &final_reqs) {
     is_finalized = true;
-    reqs.add(plan.reqs());
+    reqs.add(final_reqs);
 }
 
 std::string kernel_desc_t::cmd_str() const {
@@ -407,8 +444,11 @@ std::string kernel_desc_t::str() const {
     oss << "Thread group tile:      " << thread_group_tile << std::endl;
     oss << "Loop desc:              " << loop_desc << std::endl;
     oss << "Load:                   " << load.str() << std::endl;
-    oss << "Prefetch:               " << prefetch.str() << std::endl;
     oss << "Store:                  " << store.str() << std::endl;
+    oss << "Use block 2D access:    " << ir_utils::to_string(use_2d_access)
+        << std::endl;
+    oss << "Align:                  " << align.str() << std::endl;
+    oss << "Prefetch:               " << prefetch.str() << std::endl;
     if (reqs) oss << ir_utils::add_tag("Reqs", reqs.str()) << std::endl;
     oss << "Command:                " << cmd_str();
     return ir_utils::add_tag("Desc", oss.str());
@@ -444,21 +484,27 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             "tg", "Threadgroup tile (e.g. ow4oc4).", /*required=*/true);
     iface->add<PACK(loop_desc)>("loop_desc",
             "Loop description, variables ordered from innermost to outermost "
-            "(e.g. kw,kh,kd,ic).",
-            /*required=*/true);
+            "(e.g. kw,kh,kd,ic).");
     iface->add<PACK(load)>("load",
             "Load type (block, scattered [default], 2d) for A and B, e.g. "
             "a:2d,b:block.");
     iface->add<PACK(store)>("store",
             "Store type (block, scattered [default], 2d) for C,  e.g. c:2d.");
+    iface->add<PACK(use_2d_access)>(
+            "2d", "Whether to use block 2D messages for access.");
+    iface->add<PACK(align)>("align",
+            "Alignments in bytes/elements for the innermost dimension in "
+            "source, weights and destination. Examples: 8b:8b:8b (in bytes), "
+            "2:2:2 (in elements), *:*:* (for optimal values determined during "
+            "kernel plan generation).");
     iface->add<PACK(prefetch)>("prefetch",
             "Prefetch description specifying distance and whether A/B are "
             "prefetched. Examples: x3 (distance is 3, both A/B are "
             "prefetched), x2.a (distance is 2, only A is prefetched), x0 (no "
             "prefetch, default).");
     iface->add<PACK(spec_strategy)>("spec_strategy",
-            "Specialization strategy for problem dimensions (e.g. 1d for 1D "
-            "convolution).");
+            "Specialization strategy for problem dimensions (e.g. min_dims to "
+            "eliminate unused spatial dimensions).");
     iface->add<PACK(reqs)>("reqs",
             "Dimension requirements, colon-separated (e.g. kd=1:mb>=16).");
 #undef PACK
