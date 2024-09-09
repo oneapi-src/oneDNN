@@ -91,7 +91,13 @@ struct binary_kernel_vec_t {
                                 == src1_mem.md().strides()[i]);
             }
         }
-        if (!any_broadcast && conf_.post_ops.get_post_op() == 0
+
+        const bool is_blocked_fmt = conf_.src0_md.inner_nblks() > 0
+                || conf_.src1_md.inner_nblks() > 0
+                || conf_.dst_md.inner_nblks() > 0;
+
+        if (!any_broadcast && !is_blocked_fmt
+                && conf_.post_ops.get_post_op() == 0
                 && sg_base_idx + (sg.get_local_range()[0] * conf_.block_size)
                         < conf_.wk_size
                 && is_same_tag) {
@@ -114,8 +120,12 @@ struct binary_kernel_vec_t {
             for (int i = 0; i < conf_.block_size; i++) {
                 int idx = base_idx + i;
                 if (idx < conf_.wk_size) {
-                    for (int i = 0; i < max_supported_ndims; i++) {
-                        off_dst[i] = idx / strides[i] % dims[i];
+                    auto l_offset = idx;
+                    for (int i = 0; i < conf_.ndims; i++) {
+                        const int d = conf_.ndims - 1 - i;
+                        const dim_t cur_dim = conf_.dst_md.dims()[d];
+                        off_dst[d] = l_offset % cur_dim;
+                        l_offset = l_offset / cur_dim;
                     }
 
                     for (int i = 0; i < max_supported_ndims; i++) {
@@ -133,7 +143,7 @@ struct binary_kernel_vec_t {
 
                     acc = conf_.post_ops.apply(
                             acc, dst_, idx, po_args_, off_dst);
-                    dst_mem.store(acc, idx);
+                    dst_mem.store_md(acc, off_dst);
                 }
             }
         }

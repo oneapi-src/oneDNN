@@ -352,6 +352,10 @@ inline bool wino_desc_is_equal(const wino_desc_t &lhs, const wino_desc_t &rhs) {
             && lhs.ic2_block == rhs.ic2_block && lhs.oc2_block == rhs.oc2_block
             && lhs.r == rhs.r;
 }
+inline bool cublaslt_blocked_desc_is_equal(const cublaslt_blocked_desc_t &lhs,
+        const cublaslt_blocked_desc_t &rhs) {
+    return lhs.cublaslt_format == rhs.cublaslt_format && lhs.size == rhs.size;
+}
 
 inline bool rnn_packed_desc_is_equal(
         const rnn_packed_desc_t &lhs, const rnn_packed_desc_t &rhs) {

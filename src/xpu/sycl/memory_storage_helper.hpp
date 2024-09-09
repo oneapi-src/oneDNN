@@ -86,6 +86,11 @@ public:
         acc_.emplace(buf, cgh);
     }
 
+    interop_memory_arg_t(uint8_t *usm_ptr, size_t offset = 0)
+        : offset_ {offset} {
+        raw_ptr_ = usm_ptr;
+    }
+
     template <typename T = void>
     T *get_native_pointer(
 #ifdef DNNL_SYCL_CUDA

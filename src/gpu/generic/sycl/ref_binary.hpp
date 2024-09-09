@@ -99,8 +99,11 @@ struct ref_binary_t : public gpu::generic::sycl::primitive_t {
             using namespace format_tag;
 
             for (const auto &mdw : {src0, src1, dst}) {
-                if (!mdw.is_plain()) { return false; }
+                if (!(mdw.is_plain() || mdw.matches_tag(format_tag::Ab32a)
+                            || mdw.matches_tag(format_tag::aBc32b)))
+                    return false;
             }
+
             return true;
         }
     };

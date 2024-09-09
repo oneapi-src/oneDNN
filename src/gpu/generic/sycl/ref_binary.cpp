@@ -65,6 +65,8 @@ status_t ref_binary_t::init(impl::engine_t *engine) {
 
 status_t ref_binary_t::execute(const exec_ctx_t &ctx) const {
 
+    ctx.zero_pad_output(DNNL_ARG_TO);
+
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         binary_kernel_vec_t binary_kernel(pd()->conf_, cgh, ctx);
 

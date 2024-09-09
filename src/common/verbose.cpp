@@ -394,6 +394,14 @@ std::string rnn_flags2str(unsigned flags) {
     return s;
 }
 
+std::string cublasltfmt2str(const memory_desc_t *md) {
+    if (md->format_desc.cublaslt_blocked_desc.cublaslt_format
+            == cublaslt_memory_format_t::col32_2r_4r4) {
+        return ":col32_2r_4r4";
+    }
+    return "";
+}
+
 std::ostream &operator<<(std::ostream &ss, const memory_extra_desc_t &extra) {
     using namespace memory_extra_flags;
 
@@ -514,6 +522,7 @@ std::string md2fmt_str(
         case format_kind::blocked:
             ss << ":" << md2fmt_tag_str(md) << ":" << md2fmt_strides_str(md);
             break;
+        case format_kind::cublaslt_blocked: ss << cublasltfmt2str(md); break;
         case format_kind::wino:
         case format_kind::rnn_packed:
         case format_kind::opaque: ss << "::"; break;

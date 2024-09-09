@@ -192,6 +192,7 @@ status_t memory_desc_wrapper::compute_blocking(
 
         C(Ab4a, {0, 1}, {4}, {0});
         C(Ab8a, {0, 1}, {8}, {0});
+        C(Ab32a, {0, 1}, {32}, {0});
 
         C(BA4b4a, {1, 0}, {4, 4}, {1, 0});
         C(BA8b4a, {1, 0}, {8, 4}, {1, 0});
