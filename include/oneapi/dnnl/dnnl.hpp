@@ -1215,6 +1215,7 @@ struct memory : public handle<dnnl_memory_t> {
         AB16b64a2b = dnnl_AB16b64a2b,
         Ab4a = dnnl_Ab4a,
         Ab8a = dnnl_Ab8a,
+        Ab32a = dnnl_Ab32a,
         Abc16a = dnnl_Abc16a,
         ABc16a16b = dnnl_ABc16a16b,
         ABc4a4b = dnnl_ABc4a4b,

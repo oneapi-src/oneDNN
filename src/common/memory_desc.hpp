@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@
 
 namespace dnnl {
 namespace impl {
+
+enum class cublaslt_memory_format_t { col32_2r_4r4 };
 
 // Winograd-specific formats
 enum class wino_memory_format_t {
@@ -132,6 +134,11 @@ struct rnn_packed_desc_t {
     size_t part_pack_size[max_n_parts];
     unsigned pack_part[max_n_parts];
     size_t offset_compensation;
+    size_t size;
+};
+
+struct cublaslt_blocked_desc_t {
+    cublaslt_memory_format_t cublaslt_format;
     size_t size;
 };
 
@@ -289,6 +296,8 @@ struct dnnl_memory_desc : public dnnl::impl::c_compatible {
         dnnl::impl::wino_desc_t wino_desc;
         // Tensor of packed weights for RNN.
         dnnl::impl::rnn_packed_desc_t rnn_packed_desc;
+        // Description of the data layout for memory formats used in cublasLt IMMA kernels.
+        dnnl::impl::cublaslt_blocked_desc_t cublaslt_blocked_desc;
         // Description of the sparse encodings.
         dnnl::impl::sparse_desc_t sparse_desc;
         // ... other descriptions possible

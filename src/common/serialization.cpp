@@ -94,6 +94,11 @@ void serialize_md(serialization_stream_t &sstream, const memory_desc_t &md) {
             sstream.write(&md.format_desc.wino_desc.adj_scale);
             sstream.write(&md.format_desc.wino_desc.size);
             break;
+        case format_kind::cublaslt_blocked:
+            sstream.write(
+                    &md.format_desc.cublaslt_blocked_desc.cublaslt_format);
+            sstream.write(&md.format_desc.cublaslt_blocked_desc.size);
+            break;
         case format_kind::rnn_packed:
             sstream.write(&md.format_desc.rnn_packed_desc.format);
             sstream.write(&md.format_desc.rnn_packed_desc.n_parts);

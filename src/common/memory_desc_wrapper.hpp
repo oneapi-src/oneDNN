@@ -67,6 +67,9 @@ struct memory_desc_wrapper : public c_compatible {
     bool is_rnn_packed_desc() const {
         return format_kind() == format_kind::rnn_packed;
     }
+    bool is_cublaslt_blocked_desc() const {
+        return format_kind() == format_kind::cublaslt_blocked;
+    }
     bool is_sparse_desc() const { return format_kind() == format_kind::sparse; }
 
     const blocking_desc_t &blocking_desc() const {
@@ -81,6 +84,10 @@ struct memory_desc_wrapper : public c_compatible {
     const rnn_packed_desc_t &rnn_packed_desc() const {
         assert(is_rnn_packed_desc());
         return md_->format_desc.rnn_packed_desc;
+    }
+    const cublaslt_blocked_desc_t &cublaslt_blocked_desc() const {
+        assert(is_cublaslt_blocked_desc());
+        return md_->format_desc.cublaslt_blocked_desc;
     }
 
     const sparse_desc_t &sparse_desc() const {
@@ -224,7 +231,8 @@ struct memory_desc_wrapper : public c_compatible {
             return 0;
 
         if (utils::one_of(format_kind(), format_kind::blocked,
-                    format_kind::wino, format_kind::rnn_packed)
+                    format_kind::wino, format_kind::rnn_packed,
+                    format_kind::cublaslt_blocked)
                 && index != 0) {
             return 0;
         }
@@ -235,6 +243,8 @@ struct memory_desc_wrapper : public c_compatible {
             return wino_desc().size;
         } else if (is_rnn_packed_desc()) {
             return rnn_packed_desc().size;
+        } else if (is_cublaslt_blocked_desc()) {
+            return cublaslt_blocked_desc().size;
         } else if (is_blocking_desc()) {
             if (offset0() != 0) return 0;
 
@@ -581,7 +591,8 @@ inline bool memory_desc_wrapper::similar_to(const memory_desc_wrapper &rhs,
 
     if (one_of(format_kind(), format_kind::undef, format_kind::any))
         return false;
-    if (is_wino_desc() || is_rnn_packed_desc()) return false;
+    if (is_wino_desc() || is_rnn_packed_desc() || is_cublaslt_blocked_desc())
+        return false;
 
     const int ds = dim_start;
     const auto &blk = blocking_desc();

@@ -232,6 +232,7 @@ const format_kind_t sparse = static_cast<format_kind_t>(4);
 const format_kind_t internal_only_start = (format_kind_t)(1 << 8);
 const format_kind_t wino = internal_only_start;
 const format_kind_t rnn_packed = (format_kind_t)(internal_only_start + 1);
+const format_kind_t cublaslt_blocked = (format_kind_t)(internal_only_start + 2);
 } // namespace format_kind
 
 #ifdef DNNL_EXPERIMENTAL_PROFILING
@@ -371,6 +372,7 @@ const format_tag_t aCB16b64c4b = dnnl_aCB16b64c4b;
 
 const format_tag_t Ab4a = dnnl_Ab4a;
 const format_tag_t Ab8a = dnnl_Ab8a;
+const format_tag_t Ab32a = dnnl_Ab32a;
 const format_tag_t Abc16a = dnnl_Abc16a;
 const format_tag_t ABc16a16b = dnnl_ABc16a16b;
 const format_tag_t ABc4a2b = dnnl_ABc4a2b;

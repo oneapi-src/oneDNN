@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -722,6 +722,7 @@ status_t dnnl_memory_desc_query(
         case query::format_kind:
             switch ((int)md->format_kind) {
                 case format_kind::rnn_packed:
+                case format_kind::cublaslt_blocked:
                 case format_kind::wino:
                     *(format_kind_t *)result = format_kind::opaque;
                     break;
