@@ -743,18 +743,41 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                     mem_map.emplace(exec_arg + i, dnn_mem_t(md, test_engine));
                 }
             } else {
+                const bool is_arg_in_map
+                        = mem_map.find(exec_arg) != mem_map.end();
                 const auto &md = query_md(const_pd, exec_arg);
-                if (has_runtime_dims(md)) {
-                    mem_map.emplace(exec_arg,
-                            dnn_mem_t(prb->get_md(exec_arg), test_engine));
+                // Check for ndims is needed when the driver supported args map
+                // contains extra arguments for other purposes.
+                const int ndims = query_md_ndims(md);
+                if (is_arg_in_map && ndims > 0
+                        && dnnl_memory_desc_equal(md, mem_map.at(exec_arg).md_)
+                                == 0) {
+                    // It may happen that the map already has the argument but
+                    // the library requires it in a different format, e.g., RNN
+                    // BWD support on GPU (for better performance). It may also
+                    // happen in a combination with `no_host_memory` modifier,
+                    // which requires the library memories map to handle such
+                    // cases.
+                    assert(!has_runtime_dims(md));
+                    dnn_mem_t new_mem(md, test_engine);
+                    // Reorder user's data from the old memory to the new one.
+                    auto st = new_mem.reorder(mem_map.at(exec_arg));
+                    assert(st == OK);
+                    if (st != OK) return;
+                    mem_map[exec_arg] = std::move(new_mem);
                 } else {
-                    // In case when arguments get updated on backward when
-                    // forward is required, `emplace` guarantees newly
-                    // constructed element will be destroyed if an element with
-                    // a key already present in the map. C++17 could use
-                    // try_emplace instead to mitigate construction/destruction
-                    // overhead.
-                    mem_map.emplace(exec_arg, dnn_mem_t(md, test_engine));
+                    if (has_runtime_dims(md)) {
+                        mem_map.emplace(exec_arg,
+                                dnn_mem_t(prb->get_md(exec_arg), test_engine));
+                    } else {
+                        // In case when arguments get updated on backward when
+                        // forward is required, `emplace` guarantees newly
+                        // constructed element will be destroyed if an element
+                        // with a key already present in the map. C++17 could
+                        // use try_emplace instead to mitigate
+                        // construction/destruction overhead.
+                        mem_map.emplace(exec_arg, dnn_mem_t(md, test_engine));
+                    }
                 }
             }
         }
