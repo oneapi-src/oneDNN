@@ -1058,7 +1058,6 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
 
     const auto &prb = *prb_;
-    const auto &test_engine = get_test_engine();
     const auto &ref_engine = get_cpu_engine();
 
     auto const_pd = query_pd(prim);
@@ -1101,32 +1100,16 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 SAFE(fill_src_iter_c(prb, mem, ref_mem, rnn_attr), WARN);
                 break;
             case DNNL_ARG_WEIGHTS_LAYER:
-                if (is_fwd_prim) {
+                if (is_fwd_prim)
                     SAFE(fill_weights(
                                  prb, WEIGHTS_LAYER, mem, ref_mem, rnn_attr),
                             WARN);
-                } else {
-                    // RNN uses a different md on backward. It's required to
-                    // re-create it and reorder from former.
-                    const auto &bwd_md = query_md(const_pd, exec_arg);
-                    dnn_mem_t bwd_mem = dnn_mem_t(bwd_md, test_engine);
-                    SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
-                    mem_map[exec_arg] = std::move(bwd_mem);
-                }
                 break;
             case DNNL_ARG_WEIGHTS_ITER:
-                if (is_fwd_prim) {
+                if (is_fwd_prim)
                     SAFE(fill_weights(
                                  prb, WEIGHTS_ITER, mem, ref_mem, rnn_attr),
                             WARN);
-                } else {
-                    // RNN uses a different md on backward. It's required to
-                    // re-create it and reorder from former.
-                    const auto &bwd_md = query_md(const_pd, exec_arg);
-                    dnn_mem_t bwd_mem = dnn_mem_t(bwd_md, test_engine);
-                    SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
-                    mem_map[exec_arg] = std::move(bwd_mem);
-                }
                 break;
             case DNNL_ARG_WEIGHTS_PEEPHOLE:
                 if (is_fwd_prim)
@@ -1134,18 +1117,10 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                             WARN);
                 break;
             case DNNL_ARG_WEIGHTS_PROJECTION:
-                if (is_fwd_prim) {
+                if (is_fwd_prim)
                     SAFE(fill_weights(prb, WEIGHTS_PROJECTION, mem, ref_mem,
                                  rnn_attr),
                             WARN);
-                } else {
-                    // RNN uses a different md on backward. It's required to
-                    // re-create it and reorder from former.
-                    const auto &bwd_md = query_md(const_pd, exec_arg);
-                    dnn_mem_t bwd_mem = dnn_mem_t(bwd_md, test_engine);
-                    SAFE(bwd_mem.reorder(mem_map[exec_arg]), WARN);
-                    mem_map[exec_arg] = std::move(bwd_mem);
-                }
                 break;
             case DNNL_ARG_BIAS:
                 if (is_fwd_prim)
