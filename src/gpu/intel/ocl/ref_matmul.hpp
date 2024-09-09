@@ -62,7 +62,8 @@ struct ref_matmul_t : public gpu_primitive_t {
                             | smask_t::scales_runtime_groups | smask_t::dropout
                             | smask_t::zero_points_runtime_data_type
                             | smask_t::zero_points_runtime_groups
-                            | smask_t::post_ops | smask_t::fpmath_mode),
+                            | smask_t::post_ops | smask_t::fpmath_mode
+                            | smask_t::rounding_mode),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_MATMUL(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_MATMUL(zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
@@ -163,6 +164,12 @@ struct ref_matmul_t : public gpu_primitive_t {
         kernel_ctx.define_int(
                 "WITH_DROPOUT", !pd()->attr()->dropout_.has_default_values());
         kernel_ctx.define_int("NON_DEFAULT_ATTRS", pd()->non_default_attrs_);
+
+        auto dst_rnd_mode = pd()->attr()->rounding_mode_.get(DNNL_ARG_DST);
+        kernel_ctx.define_int(
+                "WITH_SROUND", dst_rnd_mode == rounding_mode::stochastic);
+        kernel_ctx.define_int("DST_DT_DIGITS",
+                dnnl::impl::types::digits<uint32_t>(pd()->dst_dt_));
 
         kernel_ctx.set_data_type(pd()->dst_dt_);
         CHECK(def_attr_info(kernel_ctx, pd()->attr_info_,

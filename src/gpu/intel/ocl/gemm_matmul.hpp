@@ -258,6 +258,9 @@ struct gemm_matmul_t : public gpu_primitive_t {
             if (!attr()->post_ops_.has_default_values()) {
                 gemm_attr.post_ops_ = post_ops;
             }
+            if (!attr()->rounding_mode_.has_default_values()) {
+                gemm_attr.rounding_mode_ = attr()->rounding_mode_;
+            }
 
             // We create a gemm_pd and resolve 'any' desc by querying gemm_pd
             VDISPATCH_MATMUL(
