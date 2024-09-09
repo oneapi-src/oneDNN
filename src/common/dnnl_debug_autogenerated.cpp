@@ -926,6 +926,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_AcdeB4b8a4b) return "AcdeB4b8a4b";
     if (v == dnnl_Ab4a) return "Ab4a";
     if (v == dnnl_Ab8a) return "Ab8a";
+    if (v == dnnl_Ab32a) return "Ab32a";
     if (v == dnnl_BA4b4a) return "BA4b4a";
     if (v == dnnl_BA8b4a) return "BA8b4a";
     if (v == dnnl_BA2a24b) return "BA2a24b";

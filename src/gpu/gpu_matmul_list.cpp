@@ -24,6 +24,7 @@
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
 #include "gpu/nvidia/cudnn_matmul.hpp"
+#include "gpu/nvidia/cudnn_matmul_lt.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
@@ -45,6 +46,7 @@ constexpr impl_list_item_t impl_list[] = REG_MATMUL_P({
         GPU_INSTANCE_INTEL(intel::ocl::gemm_matmul_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_sparse_matmul_t)
         GPU_INSTANCE_INTEL_REF(intel::ocl::ref_matmul_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_matmul_lt_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_matmul_t)
         GPU_INSTANCE_AMD(amd::miopen_matmul_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_matmul_t)

@@ -139,6 +139,13 @@ size_t get_md_hash(const memory_desc_t &md) {
             seed = hash_combine(seed, md.format_desc.wino_desc.adj_scale);
             seed = hash_combine(seed, md.format_desc.wino_desc.size);
             break;
+        case format_kind::cublaslt_blocked:
+            seed = hash_combine(seed,
+                    static_cast<size_t>(md.format_desc.cublaslt_blocked_desc
+                                                .cublaslt_format));
+            seed = hash_combine(
+                    seed, (md.format_desc.cublaslt_blocked_desc.size));
+            break;
         case format_kind::rnn_packed:
             seed = hash_combine(seed,
                     static_cast<size_t>(md.format_desc.rnn_packed_desc.format));
