@@ -370,7 +370,7 @@ status_t larger_partition_kernel_t::ocl_execute_impl(const stream_t *g_stream,
         const std::vector<tensor_t> &outputs,
         const std::vector<cl_event> &ocl_deps, cl_event *event) {
     auto deps = ocl_deps;
-    cl_event returned_event;
+    cl_event returned_event {};
     dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
     thread_local_cache_t<execution_args_set_t> res_cache;
