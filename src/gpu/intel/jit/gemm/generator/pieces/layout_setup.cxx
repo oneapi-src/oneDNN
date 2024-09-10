@@ -1635,8 +1635,8 @@ void BLASKernelGenerator<hw>::adjustSubblockAddrs(Type T, const vector<RegisterB
                          : mov(1, subaddr[0].ud(3), newH);
                 }
             }
-
-            updateBlock2DSizes(subaddr[0], subblock, block, atype);
+	    if (subaddr.isValid())
+		updateBlock2DSizes(subaddr[0], subblock, block, atype);
         }
     }
 }

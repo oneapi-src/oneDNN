@@ -465,7 +465,7 @@ void RegisterAllocator::release(FlagRegister flag)
 GRFRange RegisterAllocator::allocRange(int nregs, Bundle baseBundle, BundleGroup bundleMask)
 {
     auto result = tryAllocRange(nregs, baseBundle, bundleMask);
-    if (result.isInvalid())
+    if (result.isInvalid() && nregs > 0)
         throw out_of_registers_exception();
     return result;
 }
@@ -493,7 +493,7 @@ GRFRange RegisterAllocator::tryAllocRange(int nregs, Bundle baseBundle, BundleGr
     bool ok = false;
     int r_base = -1;
 
-    if (nregs <= 0) return GRFRange(0, 0);
+    if (nregs <= 0) return GRFRange();
 
     for (int rchunk = 0; rchunk < (GRF::maxRegs() >> 6); rchunk++) {
         int64_t free = freeWhole64[rchunk] & bundleMask.regMask(rchunk);

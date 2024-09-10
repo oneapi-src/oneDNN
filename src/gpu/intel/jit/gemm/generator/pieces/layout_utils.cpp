@@ -215,7 +215,9 @@ bool tryAllocAddrRegs(vector<GRFRange> &addrRegs, const vector<RegisterBlock> &l
     GRFRange last;
     for (int l = 0; l < nblocks && ok; l++) {
         if (layout[l].offsetAddr == 0) {
-            last = state.ra.try_alloc_range(addrGRFCount(atype, astrategy, layout[l]), hint);
+            auto count = addrGRFCount(atype, astrategy, layout[l]);
+            if (count < 1) continue;
+            last = state.ra.try_alloc_range(count, hint);
             ok &= last.isValid();
         }
         addrRegs[l] = last;
