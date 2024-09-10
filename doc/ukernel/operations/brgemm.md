@@ -44,14 +44,14 @@ The BRGeMM ukernel supports the following combinations of data-types.
 
 Because of hardware restrictions, the BRGeMM ukernel requires a specific data
 layout. For x86-64 architecture this layout applies to a B matrix. It is
-expressed through @ref dnnl::ukernel::pack_type which can be queried by
-@ref dnnl::ukernel::brgemm::get_B_pack_type call. If the query returns
-@ref dnnl::ukernel::brgemm::pack_type::no_trans, then packing is not required.
+expressed through #dnnl::ukernel::pack_type which can be queried by
+#dnnl::ukernel::brgemm::get_B_pack_type call. If the query returns
+#dnnl::ukernel::brgemm::pack_type::no_trans, then packing is not required.
 Otherwise, the user is responsible for packing the data appropriately before
-calling @ref dnnl::ukernel::brgemm::execute, either with custom code, or by
-using a dedicated set of APIs: @ref dnnl::ukernel::transform::generate for
+calling #dnnl::ukernel::brgemm::execute, either with custom code, or by
+using a dedicated set of APIs: #dnnl::ukernel::transform::generate for
 generating a kernel of a transform routine and
-@ref dnnl::ukernel::transform::execute to run the generated kernel.
+#dnnl::ukernel::transform::execute to run the generated kernel.
 
 ## Attributes
 

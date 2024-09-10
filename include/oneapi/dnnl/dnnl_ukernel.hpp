@@ -115,8 +115,8 @@ struct attr_params : public handle<dnnl_ukernel_attr_params_t> {
 
     /// Sets tensor B scales arguments to a storage.
     ///
-    /// If @ref brgemm::set_B_scales used mask of 2, then at least N values of
-    /// selected data type are expected.
+    /// If @ref attr_params::set_B_scales used mask of 2, then at
+    /// least N values of selected data type are expected.
     ///
     /// @param b_scales Pointer to scales storage.
     void set_B_scales(const void *b_scales) {
@@ -200,7 +200,7 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     ///
     /// @param ldd Leading dimension of tensor D.
     /// @param d_dt Data type of tensor D.
-    /// @param post_ops Primitive post-operation attributes to extend the kernel
+    /// @param po Primitive post-operation attributes to extend the kernel
     ///     operations.
     void set_post_ops(memory::dim ldd, memory::data_type d_dt,
             const post_ops &po = default_post_ops()) {
@@ -334,8 +334,8 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     /// @param C Pointer to a tensor C (accumulation buffer).
     /// @param D Pointer to a tensor D (output buffer).
     /// @param scratchpad Pointer to a scratchpad buffer.
-    /// @param binary_po Binary post-op memory buffer. Must be passed If binary
-    ///     post-op was specified at construction call.
+    /// @param params Post-op memory arguments. Must be passed If binary
+    ///     post-op or scales were set.
     void execute(const void *A, const void *B,
             const std::vector<std::pair<memory::dim, memory::dim>> &A_B_offsets,
             void *C, void *D, void *scratchpad,
