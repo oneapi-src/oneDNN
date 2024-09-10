@@ -41,6 +41,9 @@ macro(sdl_gnu_common_ccxx_flags var)
             append(${var} "-fstack-protector-strong")
         endif()
     endif()
+    if(NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0))
+        append(${var} "-fcf-protection=full")
+    endif()
 endmacro()
 
 # GCC might be very paranoid for partial structure initialization, e.g.
@@ -58,52 +61,74 @@ macro(sdl_gnu_example_ccxx_flags var)
     sdl_gnu_src_ccxx_flags(${var})
 endmacro()
 
-if(UNIX)
-    set(CMAKE_CCXX_FLAGS)
+set(ONEDNN_SDL_COMPILER_FLAGS)
+set(ONEDNN_SDL_LINKER_FLAGS)
 
-    sdl_unix_common_ccxx_flags(CMAKE_CCXX_FLAGS)
-    append(CMAKE_CXX_FLAGS_RELEASE "-D_FORTIFY_SOURCE=2")
-    append(CMAKE_C_FLAGS_RELEASE "-D_FORTIFY_SOURCE=2")
+if(UNIX)
+    sdl_unix_common_ccxx_flags(ONEDNN_SDL_COMPILER_FLAGS)
+    if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
+        append(ONEDNN_SDL_COMPILER_FLAGS "-D_FORTIFY_SOURCE=2")
+    endif()
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-        sdl_gnu_common_ccxx_flags(CMAKE_CCXX_FLAGS)
+        sdl_gnu_common_ccxx_flags(ONEDNN_SDL_COMPILER_FLAGS)
         sdl_gnu_src_ccxx_flags(CMAKE_SRC_CCXX_FLAGS)
         sdl_gnu_example_ccxx_flags(CMAKE_EXAMPLE_CCXX_FLAGS)
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
         get_filename_component(CXX_CMD_NAME ${CMAKE_CXX_COMPILER} NAME)
         # Fujitsu CXX compiler does not support "-fstack-protector-all".
         if(NOT CXX_CMD_NAME STREQUAL "FCC")
-            append(CMAKE_CCXX_FLAGS "-fstack-protector-all")
+            append(ONEDNN_SDL_COMPILER_FLAGS "-fstack-protector-all")
         endif()
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
-        append(CMAKE_CXX_FLAGS "-fstack-protector")
+        append(ONEDNN_SDL_COMPILER_FLAGS "-fstack-protector")
     endif()
-    append(CMAKE_C_FLAGS "${CMAKE_CCXX_FLAGS}")
-    append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_FLAGS}")
     if(APPLE)
-        append(CMAKE_SHARED_LINKER_FLAGS "-Wl,-bind_at_load")
-        append(CMAKE_EXE_LINKER_FLAGS "-Wl,-bind_at_load")
+        append(ONEDNN_SDL_LINKER_FLAGS "-Wl,-bind_at_load")
     else()
+        # Only applies to executables.
         append(CMAKE_EXE_LINKER_FLAGS "-pie")
-        append(CMAKE_SHARED_LINKER_FLAGS "-Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now")
-        append(CMAKE_EXE_LINKER_FLAGS "-Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now")
+        append(ONEDNN_SDL_LINKER_FLAGS "-Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now")
     endif()
-elseif(MSVC AND ${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
-    set(CMAKE_CCXX_FLAGS "/guard:cf")
+elseif(WIN32)
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+        append(ONEDNN_SDL_COMPILER_FLAGS "/GS /Gy /guard:cf /DYNAMICBASE /sdl")
+        append(ONEDNN_SDL_LINKER_FLAGS "/NXCOMPAT /LTCG")
+    elseif(CMAKE_BASE_NAME STREQUAL "icx")
+        append(ONEDNN_SDL_COMPILER_FLAGS "/GS /Gy /guard:cf /Wformat /Wformat-security")
+        append(ONEDNN_SDL_LINKER_FLAGS "/link /NXCOMPAT")
+    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+        append(ONEDNN_SDL_COMPILER_FLAGS "-Wformat -Wformat-security")
+        if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
+            append(ONEDNN_SDL_COMPILER_FLAGS "-D_FORTIFY_SOURCE=2")
+        endif()
+        get_filename_component(CXX_CMD_NAME ${CMAKE_CXX_COMPILER} NAME)
+        # Fujitsu CXX compiler does not support "-fstack-protector-all".
+        if(NOT CXX_CMD_NAME STREQUAL "FCC")
+            append(ONEDNN_SDL_COMPILER_FLAGS "-fstack-protector-all")
+        endif()
+        append(ONEDNN_SDL_LINKER_FLAGS "-Xlinker /NXCOMPAT -Xlinker /LTCG")
     endif()
 
-# For a Windows build, a malicious DLL can be injected because of the 
-# uncontrolled search order for load-time linked libraries defined for a 
-# Windows setting. The following cmake flags change the search order so that 
-# DLLs are loaded from the current working directory only if it is under a path 
-# in the Safe Load List.
-if(WIN32 AND NOT MINGW)
-    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-        # add Clang++ specific flags
-        append(CMAKE_EXE_LINKER_FLAGS "-Xlinker /DEPENDENTLOADFLAG:0x2000")
-        append(CMAKE_SHARED_LINKER_FLAGS "-Xlinker /DEPENDENTLOADFLAG:0x2000")
-    else()
-        # Default to MSVC-style definition
-        append(CMAKE_EXE_LINKER_FLAGS "/DEPENDENTLOADFLAG:0x2000")
-        append(CMAKE_SHARED_LINKER_FLAGS "/DEPENDENTLOADFLAG:0x2000")
+    if(NOT MINGW)
+        # For a Windows build, a malicious DLL can be injected because of the
+        # uncontrolled search order for load-time linked libraries defined for a
+        # Windows setting. The following cmake flags change the search order so that
+        # DLLs are loaded from the current working directory only if it is under a path
+        # in the Safe Load List.
+        if(CMAKE_BASE_NAME STREQUAL "icx")
+            # add ICX-style linker flags
+            append(ONEDNN_SDL_LINKER_FLAGS "/link /DEPENDENTLOADFLAG:0x2000")
+        elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+            # add Clang-style linker flags
+            append(ONEDNN_SDL_LINKER_FLAGS "-Xlinker /DEPENDENTLOADFLAG:0x2000")
+        else()
+            # Default to MSVC-style definition
+            append(ONEDNN_SDL_LINKER_FLAGS "/DEPENDENTLOADFLAG:0x2000")
+        endif()
     endif()
 endif()
+
+append(CMAKE_C_FLAGS "${ONEDNN_SDL_COMPILER_FLAGS}")
+append(CMAKE_CXX_FLAGS "${ONEDNN_SDL_COMPILER_FLAGS}")
+append(CMAKE_SHARED_LINKER_FLAGS "${ONEDNN_SDL_LINKER_FLAGS}")
+append(CMAKE_EXE_LINKER_FLAGS "${ONEDNN_SDL_LINKER_FLAGS}")

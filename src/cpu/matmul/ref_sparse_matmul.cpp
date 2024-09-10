@@ -60,8 +60,8 @@ status_t ref_sparse_matmul_t::execute(const exec_ctx_t &ctx) const {
         // For COO encoding, data preparation includes using a temporary
         // buffer to convert the data to the CSR format.
         // Matrix multiplication is then carried out using the CSR encoded data.
-        const int32_t *wei_indices;
-        const int32_t *wei_pointers;
+        const int32_t *wei_indices = nullptr;
+        const int32_t *wei_pointers = nullptr;
 
         if (weights_d.encoding() == sparse_encoding::csr) {
             // For CSR encodings, pointer and indices assignment is
@@ -103,8 +103,8 @@ status_t ref_sparse_matmul_t::execute(const exec_ctx_t &ctx) const {
         // For COO encoding, data preparation includes using a temporary
         // buffer to convert the data to the CSR format.
         // Matrix multiplication is then carried out using the CSR encoded data.
-        const int32_t *src_indices;
-        const int32_t *src_pointers;
+        const int32_t *src_indices = nullptr;
+        const int32_t *src_pointers = nullptr;
 
         if (src_d.encoding() == sparse_encoding::csr) {
             // For CSR encodings, pointer and indices assignment is

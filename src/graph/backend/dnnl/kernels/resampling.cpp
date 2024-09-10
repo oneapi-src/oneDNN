@@ -179,7 +179,7 @@ status_t resampling_fwd_t::ocl_execute_impl(const stream_t *g_stream,
         const std::vector<cl_event> &cl_deps, cl_event *ret_event) {
 
     auto deps = cl_deps;
-    cl_event returned_event;
+    cl_event returned_event {};
     dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
     thread_local_cache_t<execution_args_set_t> res_cache;
@@ -339,7 +339,7 @@ status_t resampling_bwd_t::ocl_execute_impl(const stream_t *g_stream,
         const std::vector<cl_event> &cl_deps, cl_event *ret_event) {
 
     auto deps = cl_deps;
-    cl_event returned_event;
+    cl_event returned_event {};
     dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
     thread_local_cache_t<execution_args_set_t> res_cache;

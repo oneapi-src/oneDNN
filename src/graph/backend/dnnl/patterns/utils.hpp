@@ -459,7 +459,7 @@ inline graph::utils::pm::pb_node_t *append_optional_typecast_quantize(
         graph::utils::pm::pb_node_t *input, bool is_bf16 = false) {
     auto subgraph = std::make_shared<graph::utils::pm::pb_graph_t>();
     graph::utils::pm::in_edges_t in_edges;
-    graph::utils::pm::pb_node_t *subgraph_in_node;
+    graph::utils::pm::pb_node_t *subgraph_in_node = nullptr;
     if (is_bf16) {
         auto typecast_output = subgraph->append_op(graph::op_kind::TypeCast);
         in_edges
