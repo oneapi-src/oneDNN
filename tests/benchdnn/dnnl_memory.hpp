@@ -135,10 +135,9 @@ struct dnn_mem_t {
     float get_elem(int64_t idx, int buffer_index = 0) const;
     void set_elem(int64_t idx, float value, int buffer_index = 0) const;
 
-    int64_t get_scale_idx(
-            int64_t data_idx, int scale_mask, const int ndims) const;
-    int64_t get_scale_idx(int64_t data_idx, int scale_mask) const {
-        return get_scale_idx(data_idx, scale_mask, ndims());
+    int64_t get_idx(int64_t logical_idx, int dims_mask, const int ndims) const;
+    int64_t get_idx(int64_t logical_idx, int dims_mask) const {
+        return get_idx(logical_idx, dims_mask, ndims());
     }
 
     dnnl_engine_t engine() const { return engine_; }

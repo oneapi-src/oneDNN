@@ -613,8 +613,7 @@ std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
     std::vector<float> v_vals(v_po_masks.size());
 
     for (size_t d = 0; d < v_po_masks.size(); ++d) {
-        const auto po_offset
-                = dst_m.get_scale_idx(dst_off, v_po_masks[d].second);
+        const auto po_offset = dst_m.get_idx(dst_off, v_po_masks[d].second);
         const float val = args.find(v_po_masks[d].first).get_elem(po_offset);
         v_vals[d] = val;
     }

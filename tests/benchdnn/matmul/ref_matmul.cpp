@@ -116,9 +116,9 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
 
         float dst = 0;
         const int64_t src_mb
-                = dst_m.get_scale_idx(mb, src_broadcast_mask, batch_ndims);
+                = dst_m.get_idx(mb, src_broadcast_mask, batch_ndims);
         const int64_t wei_mb
-                = dst_m.get_scale_idx(mb, wei_broadcast_mask, batch_ndims);
+                = dst_m.get_idx(mb, wei_broadcast_mask, batch_ndims);
 
         for (int64_t k = 0; k < K; ++k) {
             int src_zp = has_src_zp ? src_zps.get_elem(src_zp_mask > 0 ? k : 0)
@@ -171,7 +171,7 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         float tmp = ((float *)dst_tmp)[dst_off] * src_scale * wei_scale;
 
         if (prb->bia_dt != dnnl_data_type_undef) {
-            int64_t bia_off = dst_m.get_scale_idx(dst_off, bias_broadcast_mask);
+            int64_t bia_off = dst_m.get_idx(dst_off, bias_broadcast_mask);
             float *bia_ptr = (float *)bia_m;
             tmp += bia_ptr[bia_off];
         }

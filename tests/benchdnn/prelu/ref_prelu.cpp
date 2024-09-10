@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ void compute_ref_fwd(const prb_t *prb, const args_t &args) {
     const auto weights_broadcast_mask = prb->get_broadcast_mask();
 
     benchdnn_parallel_nd(nelems, [&](int64_t i) {
-        const auto wei_idx = src.get_scale_idx(i, weights_broadcast_mask);
+        const auto wei_idx = src.get_idx(i, weights_broadcast_mask);
         const float s = src.get_elem(i);
         float res = s * (s > 0 ? 1.f : wei.get_elem(wei_idx));
         maybe_saturate(prb->sdt[0], res);

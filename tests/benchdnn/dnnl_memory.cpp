@@ -278,9 +278,33 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
     }
 }
 
-int64_t dnn_mem_t::get_scale_idx(
-        int64_t data_idx, int scale_mask, const int ndims) const {
-    if (scale_mask == 0) return 0;
+// Returns an updated logical index based on input `logical_index` and
+// `dims_mask`.
+// `logical_idx` is a generally composed index where dims[ndims - 1] is most
+// dense and dims[0] is least dense dimensions, as tensor in `abx` format.
+// `dims_mask` represents dimensions to keep or remove. A value is composed of
+// number of bits equal to `ndims` and value of `1` indicates the dimension to
+// present in final calculation. E.g., mask=0 means a single value, and mask=2,
+// or 1 << 1, means to keep dims[1] only.
+// `ndims` allows to reduce the number of dimensions from innermost direction.
+// It is used to find an index in batched dimensions. E.g., if ndims() returns
+// `4`, but `ndims` argument is passed as `2`, it will count only first two
+// dimensions instead of all 4.
+//
+// Helps to find an index of smaller tensor in bigger one, e.g., scales. Scales
+// are usually represented by a 1D array and have a mask indicating dims to be
+// applied for. It coincides with `dims_mask`.
+// Another usage is to identify an index for operations that support broadcast
+// over different dimensions, e.g., matmul batch dimensions, or binary
+// primitive.
+//
+// Example: there's a tensor 3x4 and scales with mask=2, which means to apply
+// scales over the dimension of 4. Passing indices from 0 to 3 will return
+// values from 0 to 3 correspondently. However, passing `logical_idx` of 4 will
+// return 0, as 4 is a logical representation of point 1x0.
+int64_t dnn_mem_t::get_idx(
+        int64_t logical_idx, int dims_mask, const int ndims) const {
+    if (dims_mask == 0) return 0;
 
     const auto &dims = this->dims();
     int64_t stride = 1;
@@ -288,9 +312,9 @@ int64_t dnn_mem_t::get_scale_idx(
 
     for (int i = 0; i < ndims; ++i) {
         int d = ndims - 1 - i;
-        auto pos = data_idx % dims[d];
-        data_idx /= dims[d];
-        if (scale_mask & (1 << d)) {
+        auto pos = logical_idx % dims[d];
+        logical_idx /= dims[d];
+        if (dims_mask & (1 << d)) {
             offset += pos * stride;
             stride *= dims[d];
         }

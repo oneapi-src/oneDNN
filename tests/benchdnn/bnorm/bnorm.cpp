@@ -533,8 +533,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
                 const auto &sh = ref_args.find(DNNL_ARG_SHIFT);
                 const auto &dst = ref_args.find(DNNL_ARG_DST);
-                const int64_t c = dst.get_scale_idx(
-                        args.idx, 1 << 1 /* channel_mask */);
+                const int64_t c
+                        = dst.get_idx(args.idx, 1 << 1 /* channel_mask */);
                 const float beta = sh.get_elem(c);
                 // Using an empirically derived threshold, check if
                 // cancellation error in `|Y| = |a*X - (-b)|` is huge.
