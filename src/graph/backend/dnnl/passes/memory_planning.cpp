@@ -38,7 +38,6 @@ namespace impl {
 namespace graph {
 namespace dnnl_impl {
 using op_t = op_t;
-using op_ptr = std::shared_ptr<op_t>;
 using ltw = logical_tensor_wrapper_t;
 
 struct op_inplace_pair_t {

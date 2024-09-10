@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,8 +31,6 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 namespace dnnl_impl {
-using op_ptr = std::shared_ptr<op_t>;
-
 /// After the lower down, infer shape, infer type and layout propagation passes,
 /// each op in the subgraph will has complete attributes and each edge will have
 /// complete shape/dtype/layout information. We can create executable for these
