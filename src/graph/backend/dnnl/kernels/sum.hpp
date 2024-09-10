@@ -91,6 +91,7 @@ public:
 #endif
 
     DEF_KERNEL_METHOD_STR(sum_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(sum_t)
 };
 
 } // namespace dnnl_impl

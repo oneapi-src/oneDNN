@@ -96,6 +96,7 @@ public:
     }
 
     DEF_KERNEL_METHOD_STR(reduction_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(reduction_t)
 };
 
 using float_reduction = reduction_t</* quantized */ false>;

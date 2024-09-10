@@ -102,6 +102,7 @@ public:
 #endif
 
     DEF_KERNEL_METHOD_STR(binary_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(binary_t)
 };
 
 } // namespace dnnl_impl
