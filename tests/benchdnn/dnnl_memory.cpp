@@ -290,6 +290,17 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
 // It is used to find an index in batched dimensions. E.g., if ndims() returns
 // `4`, but `ndims` argument is passed as `2`, it will count only first two
 // dimensions instead of all 4.
+// `groups` is an extension of scales when their dimensions are different.
+// In this case, it's required to adjust dimensions values according to group
+// values to properly compute stride in a smaller tensor. The definition is
+// aligned with the API and expects groups of size 2 or empty.
+// When `ndims()/ndims` are bigger than 2, groups are applied only to two most
+// dense dimensions, which is aligned with 2D matmul definition. E.g., dims=2x6,
+// mask=3, ndims=2 and groups=1x3; in this case indices 0,1,2 will return 0 as
+// those indices represent the first group. 3,4,5 will return 1. Changing the
+// example like dims=6x2, mask=3, ndims=2 and groups=3x1 will change ouput as
+// well due to groups are dense not over the last dimension. The match will look
+// like this: 0->0, 1->1, 2->0, 3->1, ..., 6->2, ..., 11->4.
 //
 // Helps to find an index of smaller tensor in bigger one, e.g., scales. Scales
 // are usually represented by a 1D array and have a mask indicating dims to be
@@ -302,21 +313,29 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
 // scales over the dimension of 4. Passing indices from 0 to 3 will return
 // values from 0 to 3 correspondently. However, passing `logical_idx` of 4 will
 // return 0, as 4 is a logical representation of point 1x0.
-int64_t dnn_mem_t::get_idx(
-        int64_t logical_idx, int dims_mask, const int ndims) const {
+int64_t dnn_mem_t::get_idx(int64_t logical_idx, int dims_mask, const int ndims,
+        const dims_t &groups) const {
     if (dims_mask == 0) return 0;
 
     const auto &dims = this->dims();
     int64_t stride = 1;
     int64_t offset = 0;
 
+    assert(groups.empty() || groups.size() == 2);
+    assert(groups.size() <= static_cast<size_t>(ndims));
+    dims_t groups_ext(ndims, 1);
+    if (!groups.empty()) {
+        groups_ext[ndims - 2] = groups[0];
+        groups_ext[ndims - 1] = groups[1];
+    }
+
     for (int i = 0; i < ndims; ++i) {
         int d = ndims - 1 - i;
         auto pos = logical_idx % dims[d];
         logical_idx /= dims[d];
         if (dims_mask & (1 << d)) {
-            offset += pos * stride;
-            stride *= dims[d];
+            offset += (pos / groups_ext[d]) * stride;
+            stride *= (dims[d] / groups_ext[d]);
         }
     }
 
