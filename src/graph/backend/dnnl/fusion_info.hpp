@@ -210,11 +210,11 @@ public:
         return pos != post_ops_.end();
     }
 
-    bool with_runtime_zero_points(bool is_input, size_t indice) const {
+    bool with_runtime_zero_points(bool is_input, size_t index) const {
         if (is_input) {
-            if (input_zps_.find(indice) == input_zps_.end()) return false;
+            if (input_zps_.find(index) == input_zps_.end()) return false;
             const op_t *zp_op
-                    = const_cast<op_t *>(input_zps_.at(indice)->get_op());
+                    = const_cast<op_t *>(input_zps_.at(index)->get_op());
             if (zp_op->has_attr(op_attr::with_runtime_zps)) {
                 return zp_op->get_attr<bool>(op_attr::with_runtime_zps);
             } else {
@@ -231,11 +231,11 @@ public:
         }
     }
 
-    bool with_runtime_scales(bool is_input, size_t indice) const {
+    bool with_runtime_scales(bool is_input, size_t index) const {
         if (is_input) {
-            if (input_scales_.find(indice) == input_scales_.end()) return false;
+            if (input_scales_.find(index) == input_scales_.end()) return false;
             const op_t *zp_op
-                    = const_cast<op_t *>(input_scales_.at(indice)->get_op());
+                    = const_cast<op_t *>(input_scales_.at(index)->get_op());
             if (zp_op->has_attr(op_attr::with_runtime_scales)) {
                 return zp_op->get_attr<bool>(op_attr::with_runtime_scales);
             } else {
