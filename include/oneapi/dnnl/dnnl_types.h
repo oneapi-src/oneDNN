@@ -2383,6 +2383,7 @@ typedef enum {
     dnnl_scratchpad_mode_user,
 } dnnl_scratchpad_mode_t;
 
+/// Rounding mode
 typedef enum {
     /// rounding mode dictated by the floating-point environment
     dnnl_rounding_mode_environment,

@@ -89,4 +89,21 @@ if(UNIX)
     endif()
 elseif(MSVC AND ${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
     set(CMAKE_CCXX_FLAGS "/guard:cf")
+    endif()
+
+# For a Windows build, a malicious DLL can be injected because of the 
+# uncontrolled search order for load-time linked libraries defined for a 
+# Windows setting. The following cmake flags change the search order so that 
+# DLLs are loaded from the current working directory only if it is under a path 
+# in the Safe Load List.
+if(WIN32)
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+        # add Clang++ specific flags
+        append(CMAKE_EXE_LINKER_FLAGS "-Xlinker /DEPENDENTLOADFLAG:0x2000")
+        append(CMAKE_SHARED_LINKER_FLAGS "-Xlinker /DEPENDENTLOADFLAG:0x2000")
+    else()
+        # Default to MSVC-style definition
+        append(CMAKE_EXE_LINKER_FLAGS "/DEPENDENTLOADFLAG:0x2000")
+        append(CMAKE_SHARED_LINKER_FLAGS "/DEPENDENTLOADFLAG:0x2000")
+    endif()
 endif()

@@ -183,6 +183,7 @@ public:
     void init_full_mask();
     void init_saturate_f32() const;
     void init_bf16();
+    // `prepare_table` implies the call must be used after `postamble`.
     void prepare_table_fp8();
     void gather(const Xbyak::Reg64 &src_reg, const Vmm &indices_vmm,
             const Vmm &dst_vmm, const bool tail);
@@ -273,6 +274,8 @@ public:
     void init_saturate_f32(const data_types_t &store_data_types);
     void init_full_mask();
     void init_bf16();
+    // `prepare_table` implies the call must be used after `postamble`.
+    void prepare_table_fp8();
 
     std::shared_ptr<jit_io_helper_t<Vmm>> at(const data_type_t dt) const;
     bool empty() const;

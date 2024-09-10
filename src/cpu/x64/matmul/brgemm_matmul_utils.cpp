@@ -93,17 +93,20 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
     const auto ndims = dst_d.ndims();
 
     bool is_binary_po_per_oc_sp_bcast {};
+    bool is_binary_po_per_oc_d_bcast {};
     bool is_binary_po_channel_bcast {};
     bool is_binary_po_per_mb_bcast {};
     bool is_binary_po_per_mb_w_bcast {};
     bool is_binary_po_per_w_bcast {};
     bool is_binary_po_batch_bcast {};
-    std::tie(is_binary_po_per_oc_sp_bcast, is_binary_po_channel_bcast,
-            is_binary_po_per_mb_bcast, is_binary_po_per_mb_w_bcast,
-            is_binary_po_per_w_bcast, is_binary_po_batch_bcast)
+    std::tie(is_binary_po_per_oc_sp_bcast, is_binary_po_per_oc_d_bcast,
+            is_binary_po_channel_bcast, is_binary_po_per_mb_bcast,
+            is_binary_po_per_mb_w_bcast, is_binary_po_per_w_bcast,
+            is_binary_po_batch_bcast)
             = binary_injector_utils::bcast_strategies_present_tup(
                     post_ops.entry_, dst_d,
                     broadcasting_strategy_t::per_oc_spatial,
+                    broadcasting_strategy_t::per_oc_d,
                     broadcasting_strategy_t::per_mb,
                     broadcasting_strategy_t::per_mb_spatial,
                     broadcasting_strategy_t::per_mb_w,
@@ -111,6 +114,7 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
                     broadcasting_strategy_t::batch);
     const bool supported_binary_bcast
             = IMPLICATION(is_binary_po_per_oc_sp_bcast, ndims < 4)
+            && IMPLICATION(is_binary_po_per_oc_d_bcast, ndims == 4)
             && IMPLICATION(
                     is_binary_po_channel_bcast, utils::one_of(ndims, 3, 4))
             && IMPLICATION(
@@ -122,7 +126,8 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
                     is_binary_po_batch_bcast, utils::one_of(ndims, 3, 4));
     const bcast_set_t default_bcast_set = {broadcasting_strategy_t::per_oc,
             broadcasting_strategy_t::per_oc_spatial,
-            broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_mb,
+            broadcasting_strategy_t::per_oc_d, broadcasting_strategy_t::scalar,
+            broadcasting_strategy_t::per_mb,
             broadcasting_strategy_t::per_mb_spatial,
             broadcasting_strategy_t::per_mb_w, broadcasting_strategy_t::per_w,
             broadcasting_strategy_t::batch,

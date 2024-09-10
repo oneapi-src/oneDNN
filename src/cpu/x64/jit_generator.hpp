@@ -2103,18 +2103,26 @@ public:
         using namespace data_type;
         if (!utils::one_of(odt, u8, s8, s32)) return;
 
-        // no need to apply lower saturation bound when odt is
+        // Note: no need to apply lower saturation bound when odt is
         // signed, as cvtps2dq will return MIN_INT if the value
         // does not fit. The param force_lbound, will force saturate values
         // unconditionally to lbound.
+        //
+        // Note: `vmaxps` and `vminps` would propagate the value from the second
+        // source operand if any of values is NaN. As `lbound` or `ubound` are
+        // fixed values, to propagate NaN from the input further, the register
+        // with data must be a second source operand (last argument).
+        // TODO: this will disalign the behavior with SSE41 which will require
+        // either a scratch register or stack allocation to handle the case.
+        // Since there's no request for SSE41, keep it as is for now.
         if (odt == u8 || force_lbound) {
             if (is_valid_isa(avx))
-                vmaxps(vmm, vmm, vmm_lbound);
+                vmaxps(vmm, vmm_lbound, vmm);
             else
                 maxps(vmm, vmm_lbound);
         }
         if (is_valid_isa(avx))
-            vminps(vmm, vmm, vmm_ubound);
+            vminps(vmm, vmm_ubound, vmm);
         else
             minps(vmm, vmm_ubound);
     }

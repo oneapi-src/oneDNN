@@ -8,8 +8,10 @@
 
 #if ITT_PLATFORM==ITT_PLATFORM_WIN
 #include <windows.h>
+#include <string.h>
+#include <ctype.h>
 #endif /* ITT_PLATFORM==ITT_PLATFORM_WIN */
-#if ITT_PLATFORM != ITT_PLATFORM_MAC && ITT_PLATFORM != ITT_PLATFORM_FREEBSD
+#if ITT_PLATFORM != ITT_PLATFORM_MAC && ITT_PLATFORM != ITT_PLATFORM_FREEBSD && ITT_PLATFORM != ITT_PLATFORM_OPENBSD
 #include <malloc.h>
 #endif
 #include <stdlib.h>
@@ -17,8 +19,6 @@
 #include "jitprofiling.h"
 
 static const char rcsid[] = "\n@(#) $Revision$\n";
-
-#define DLL_ENVIRONMENT_VAR             "VS_PROFILER"
 
 #ifndef NEW_DLL_ENVIRONMENT_VAR
 #if ITT_ARCH==ITT_ARCH_IA32
@@ -114,6 +114,38 @@ ITT_EXTERN_C iJIT_IsProfilingActiveFlags JITAPI iJIT_IsProfilingActive()
     return executionMode;
 }
 
+#if ITT_PLATFORM == ITT_PLATFORM_WIN
+static int isValidAbsolutePath(char *path, size_t maxPathLength)
+{
+    if (path == NULL)
+    {
+        return 0;
+    }
+
+    size_t pathLength = strnlen(path, maxPathLength);
+    if (pathLength == maxPathLength)
+    {
+      /* The strnlen() function returns maxPathLength if there is no null terminating
+       * among the first maxPathLength characters in the string pointed to by path.
+       */
+      return 0;
+    }
+
+    if (pathLength > 2)
+    {
+        if (isalpha(path[0]) && path[1] == ':' && path[2] == '\\')
+        {
+            return 1;
+        }
+        else if (path[0] == '\\' && path[1] == '\\')
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+#endif
+
 /* This function loads the collector dll and the relevant functions.
  * on success: all functions load,     iJIT_DLL_is_missing = 0, return value = 1
  * on failure: all functions are NULL, iJIT_DLL_is_missing = 1, return value = 0
@@ -157,7 +189,7 @@ static int loadiJIT_Funcs()
         {
             envret = GetEnvironmentVariableA(NEW_DLL_ENVIRONMENT_VAR, 
                                              dllName, dNameLength);
-            if (envret)
+            if (envret && isValidAbsolutePath(dllName, dNameLength))
             {
                 /* Try to load the dll from the PATH... */
                 m_libHandle = LoadLibraryExA(dllName, 
@@ -165,30 +197,9 @@ static int loadiJIT_Funcs()
             }
             free(dllName);
         }
-    } else {
-        /* Try to use old VS_PROFILER variable */
-        dNameLength = GetEnvironmentVariableA(DLL_ENVIRONMENT_VAR, NULL, 0);
-        if (dNameLength)
-        {
-            DWORD envret = 0;
-            dllName = (char*)malloc(sizeof(char) * (dNameLength + 1));
-            if(dllName != NULL)
-            {
-                envret = GetEnvironmentVariableA(DLL_ENVIRONMENT_VAR, 
-                                                 dllName, dNameLength);
-                if (envret)
-                {
-                    /* Try to load the dll from the PATH... */
-                    m_libHandle = LoadLibraryA(dllName);
-                }
-                free(dllName);
-            }
-        }
     }
 #else  /* ITT_PLATFORM==ITT_PLATFORM_WIN */
     dllName = getenv(NEW_DLL_ENVIRONMENT_VAR);
-    if (!dllName)
-        dllName = getenv(DLL_ENVIRONMENT_VAR);
 #if defined(__ANDROID__) || defined(ANDROID)
     if (!dllName)
         dllName = ANDROID_JIT_AGENT_PATH;
