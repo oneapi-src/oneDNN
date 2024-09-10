@@ -2064,8 +2064,8 @@ void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(brgemm_iteration_t &bi) {
 
 void jit_brgemm_amx_uker_base_t::rdb_loop(brgemm_iteration_t &bi) {
     const auto &tloop = imap_[bi.apply_postops];
-    for (size_t irdi = 0; irdi < tloop.rdis.size(); irdi++) {
-        bi.rdi = &(tloop.rdis[irdi]);
+    for (auto &rdi : tloop.rdis) {
+        bi.rdi = &rdi;
         gemm_microkernel_amx(bi);
     }
 }
@@ -2195,8 +2195,8 @@ void jit_brgemm_amx_uker_base_t::ldb_loop(brgemm_iteration_t &bi) {
     // we move to next bdb2 block.
     const auto &tloop = imap_[bi.apply_postops];
     transform_buf_map_A_.clear();
-    for (size_t ildi = 0; ildi < tloop.ldis.size(); ildi++) {
-        bi.ldi = &(tloop.ldis[ildi]);
+    for (auto &ldi : tloop.ldis) {
+        bi.ldi = &ldi;
         ldb_loop_body(bi);
     }
 }
@@ -2253,8 +2253,8 @@ void jit_brgemm_amx_uker_base_t::bdb_loop(brgemm_iteration_t &bi) {
         mov(ptr[rsp + reg_iter_labels_list_offs_], reg_iter_labels_list);
     }
 
-    for (size_t ibdi = 0; ibdi < tloop.bdis.size(); ibdi++) {
-        bi.bdi = &(tloop.bdis[ibdi]);
+    for (auto &bdi : tloop.bdis) {
+        bi.bdi = &bdi;
         bdb_loop_body(bi);
     }
     if (ununroll_bd_loop) {
@@ -2263,8 +2263,8 @@ void jit_brgemm_amx_uker_base_t::bdb_loop(brgemm_iteration_t &bi) {
 
         align(64);
         L(iteration_pointers);
-        for (size_t ibdi = 0; ibdi < tloop.bdis.size(); ibdi++) {
-            putL(tloop.bdis[ibdi].lstart);
+        for (const auto &bdi : tloop.bdis) {
+            putL(bdi.lstart);
         }
         putL(loop_end);
         L(loop_end);
