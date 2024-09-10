@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/generic/sycl/ref_matmul.hpp"
 #include "gpu/gpu_impl_list.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
@@ -22,7 +23,6 @@
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
-#include "gpu/generic/sycl/ref_matmul.hpp"
 #include "gpu/nvidia/cudnn_matmul.hpp"
 #endif
 
