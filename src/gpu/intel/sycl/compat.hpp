@@ -31,9 +31,15 @@ class engine_t;
 
 namespace compat {
 
-status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
+status_t make_kernels(
+        std::vector<std::unique_ptr<::sycl::kernel>> &sycl_kernels,
+        const std::vector<const char *> &kernel_names,
         const gpu::intel::sycl::engine_t *sycl_engine,
-        const xpu::binary_t &binary, const char *kernel_name);
+        const xpu::binary_t &binary);
+
+status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
+        const char *kernel_name, const gpu::intel::sycl::engine_t *sycl_engine,
+        const xpu::binary_t &binary);
 
 uint64_t init_extensions(const ::sycl::device &dev);
 

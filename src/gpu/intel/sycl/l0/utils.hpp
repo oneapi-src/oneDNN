@@ -34,9 +34,9 @@ class engine_t;
 
 xpu::device_uuid_t get_device_uuid(const ::sycl::device &dev);
 
-status_t sycl_create_kernel_with_level_zero(
-        std::unique_ptr<::sycl::kernel> &sycl_kernel,
-        const std::string &kernel_name,
+status_t sycl_create_kernels_with_level_zero(
+        std::vector<std::unique_ptr<::sycl::kernel>> &sycl_kernels,
+        const std::vector<const char *> &kernel_names,
         const gpu::intel::sycl::engine_t *sycl_engine,
         const xpu::binary_t &binary);
 

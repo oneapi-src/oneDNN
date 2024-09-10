@@ -31,6 +31,7 @@
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
 #include "gpu/intel/ocl/ocl_gpu_kernel.hpp"
 
+#include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/sycl/compat.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 
@@ -64,6 +65,29 @@ public:
 
     status_t convert_to_sycl(
             std::vector<gpu::intel::compute::kernel_t> &kernels,
+            cl_program program, const std::vector<const char *> &kernel_names,
+            gpu::intel::ocl::ocl_gpu_engine_t *ocl_engine) const {
+        kernels = std::vector<gpu::intel::compute::kernel_t>(
+                kernel_names.size());
+        xpu::binary_t binary;
+        CHECK(ocl::get_ocl_program_binary(
+                program, ocl_engine->device(), binary));
+
+        std::vector<std::unique_ptr<::sycl::kernel>> sycl_kernels;
+        CHECK(gpu::intel::sycl::compat::make_kernels(
+                sycl_kernels, kernel_names, this, binary));
+
+        for (int i = 0; i < kernel_names.size(); i++) {
+            std::shared_ptr<gpu::intel::compute::kernel_impl_t> kernel_impl
+                    = std::make_shared<sycl_interop_gpu_kernel_t>(
+                            std::move(sycl_kernels[i]));
+            kernels[i] = std::move(kernel_impl);
+        }
+        return status::success;
+    }
+
+    status_t convert_to_sycl(
+            std::vector<gpu::intel::compute::kernel_t> &kernels,
             const std::vector<gpu::intel::compute::kernel_t> &ocl_kernels,
             const std::vector<const char *> &kernel_names,
             gpu::intel::ocl::ocl_gpu_engine_t *ocl_engine) const {
@@ -86,7 +110,7 @@ public:
             const char *kernel_name) const override {
         std::unique_ptr<::sycl::kernel> sycl_kernel;
         CHECK(gpu::intel::sycl::compat::make_kernel(
-                sycl_kernel, this, binary, kernel_name));
+                sycl_kernel, kernel_name, this, binary));
 
         std::shared_ptr<gpu::intel::compute::kernel_impl_t> kernel_impl
                 = std::make_shared<sycl_interop_gpu_kernel_t>(
@@ -151,11 +175,11 @@ public:
                 ocl_engine;
         CHECK(gpu::intel::sycl::create_ocl_engine(&ocl_engine, this));
 
-        std::vector<gpu::intel::compute::kernel_t> ocl_kernels;
-        CHECK(ocl_engine->create_kernels(
-                &ocl_kernels, kernel_names, kernel_ctx, cache_blob));
+        xpu::ocl::wrapper_t<cl_program> ocl_program;
+        CHECK(ocl_engine->create_program(
+                ocl_program, kernel_names, kernel_ctx));
         CHECK(convert_to_sycl(
-                *kernels, ocl_kernels, kernel_names, ocl_engine.get()));
+                *kernels, ocl_program, kernel_names, ocl_engine.get()));
         return status::success;
     }
 
