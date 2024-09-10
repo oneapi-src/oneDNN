@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/generic/sycl/ref_matmul.hpp"
 #include "gpu/gpu_impl_list.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
@@ -28,6 +27,10 @@
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
 #include "gpu/amd/miopen_matmul.hpp"
+#endif
+
+#if GENERIC_SYCL_KERNELS_ENABLED
+#include "gpu/generic/sycl/ref_matmul.hpp"
 #endif
 
 namespace dnnl {
