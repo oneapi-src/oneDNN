@@ -36,9 +36,10 @@ bool allocateTokens(const vector<RegisterBlock> &layout, const GRFMultirange &re
         if (token < 0)
             success = false;
         else {
-            auto regKey = !regs.empty() ? regs[layout[l].offsetReg()].getBase()
-                                        : addrs[l].getBase();
-            state.tokenMap.push_back(std::make_pair(regKey, token));
+            auto regKey = !regs.empty() ? regs[layout[l].offsetReg()]
+                                        : addrs[l];
+            if (regKey.isInvalid()) continue;
+            state.tokenMap.push_back(std::make_pair(regKey.getBase(), token));
         }
     }
 
