@@ -499,7 +499,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
 ///
 /// @param attr Primitive attributes.
 /// @param arg Argument for which rounding mode should be set.
-/// @params mode Rounding mode to apply to the argument.
+/// @param mode Rounding mode to apply to the argument.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_rounding(
@@ -509,7 +509,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_rounding(
 ///
 /// @param attr Primitive attributes.
 /// @param arg Argument for which rounding mode query applies.
-/// @params mode Output rounding mode.
+/// @param mode Output rounding mode.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_attr_get_rounding(
