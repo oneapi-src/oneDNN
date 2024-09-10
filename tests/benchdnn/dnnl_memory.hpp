@@ -136,26 +136,7 @@ struct dnn_mem_t {
     void set_elem(int64_t idx, float value, int buffer_index = 0) const;
 
     int64_t get_scale_idx(
-            int64_t data_idx, int scale_mask, const int ndims) const {
-        const auto &_dims = dims();
-        int64_t stride = 1;
-        int64_t offset = 0;
-
-        if (scale_mask != 0) {
-            for (int i = 0; i < ndims; ++i) {
-                int d = ndims - 1 - i;
-                auto pos = data_idx % _dims[d];
-                data_idx /= _dims[d];
-                if (scale_mask & (1 << d)) {
-                    offset += pos * stride;
-                    stride *= _dims[d];
-                }
-            }
-        }
-
-        return offset;
-    }
-
+            int64_t data_idx, int scale_mask, const int ndims) const;
     int64_t get_scale_idx(int64_t data_idx, int scale_mask) const {
         return get_scale_idx(data_idx, scale_mask, ndims());
     }

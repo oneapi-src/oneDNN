@@ -278,6 +278,27 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
     }
 }
 
+int64_t dnn_mem_t::get_scale_idx(
+        int64_t data_idx, int scale_mask, const int ndims) const {
+    if (scale_mask == 0) return 0;
+
+    const auto &dims = this->dims();
+    int64_t stride = 1;
+    int64_t offset = 0;
+
+    for (int i = 0; i < ndims; ++i) {
+        int d = ndims - 1 - i;
+        auto pos = data_idx % dims[d];
+        data_idx /= dims[d];
+        if (scale_mask & (1 << d)) {
+            offset += pos * stride;
+            stride *= dims[d];
+        }
+    }
+
+    return offset;
+}
+
 // Creates a memory object from the underlying buffer of an existing memory
 // object `mem`. The size of `mem` must not be less than the size of `md`.
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL || defined(DNNL_WITH_SYCL)
