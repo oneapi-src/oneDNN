@@ -43,14 +43,31 @@ status_t stream_impl_t::copy(impl::stream_t *stream,
         void *src_mapped_ptr;
         void *dst_mapped_ptr;
 
-        CHECK(src.map_data(&src_mapped_ptr, stream, size));
-        CHECK(dst.map_data(&dst_mapped_ptr, stream, size));
+        // It is allowed for src or dst memory to be created for an engine that
+        // is not associated with the stream passed to this function. It is done
+        // to enabled cross engine reordering.
+        //
+        // For example, there are two memory objects created using different
+        // engines. One of the engines was then used to create the reorder
+        // primitive and a stream. In this case only one memory object contains
+        // an engine that matches the engine contained by the stream.
+        //
+        // The SYCL copy routines require both pointers (src and dst) to be
+        // associated with the same context as the queue the copy routine runs
+        // on.
+        auto *src_map_stream
+                = src.engine() == stream->engine() ? stream : nullptr;
+        auto *dst_map_stream
+                = dst.engine() == stream->engine() ? stream : nullptr;
+
+        CHECK(src.map_data(&src_mapped_ptr, src_map_stream, size));
+        CHECK(dst.map_data(&dst_mapped_ptr, dst_map_stream, size));
 
         std::memcpy(static_cast<void *>(dst_mapped_ptr),
                 static_cast<const void *>(src_mapped_ptr), size);
 
-        CHECK(src.unmap_data(src_mapped_ptr, stream));
-        CHECK(dst.unmap_data(dst_mapped_ptr, stream));
+        CHECK(src.unmap_data(src_mapped_ptr, src_map_stream));
+        CHECK(dst.unmap_data(dst_mapped_ptr, dst_map_stream));
 
         return status::success;
     }
