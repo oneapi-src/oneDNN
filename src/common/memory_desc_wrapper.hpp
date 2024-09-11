@@ -283,6 +283,18 @@ struct memory_desc_wrapper : public c_compatible {
                     }
                     default: assert(!"unknown index"); return 0;
                 }
+            } else if (sparse_desc().encoding == sparse_encoding::coo) {
+                // Return size for values.
+                if (index == 0) {
+                    return nnz() * data_type_size();
+                } else if (index > 0 && index <= ndims()) {
+                    // Return size for index buffers.
+                    const auto idx_dt = metadata_type(0);
+                    return nnz() * types::data_type_size(idx_dt);
+                } else {
+                    assert(!"unknown index");
+                    return 0;
+                }
             } else if (sparse_desc().encoding == sparse_encoding::packed) {
                 // If the size if queried from a user-created memory descriptor.
                 if (blocking_desc().strides[0] == 0) return 0;
