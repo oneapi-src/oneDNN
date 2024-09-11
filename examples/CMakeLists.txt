@@ -57,6 +57,7 @@ file(GLOB_RECURSE headers *.hpp *.h)
 
 if(NOT DNNL_EXPERIMENTAL_SPARSE)
     list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/cpu_matmul_csr.cpp)
+    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/cpu_matmul_coo.cpp)
     list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/cpu_matmul_weights_compression.cpp)
 endif()
 
