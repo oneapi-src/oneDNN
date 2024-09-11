@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,25 +44,62 @@ struct ref_sparse_matmul_t : public primitive_t {
             memory_desc_wrapper src_d(src_md());
             memory_desc_wrapper wei_d(weights_md(0));
 
-            const bool ok
-                    = utils::everyone_is(f32, src_type, wei_type, dst_type)
-                    && utils::one_of(true, wei_d.is_sparse_desc(),
-                            src_d.is_sparse_desc())
-                    && IMPLICATION(wei_d.is_sparse_desc(),
-                            wei_d.encoding() == sparse_encoding::csr)
-                    && IMPLICATION(src_d.is_sparse_desc(),
-                            src_d.encoding() == sparse_encoding::csr)
-                    && IMPLICATION(
-                            wei_d.is_sparse_desc(), !src_d.is_sparse_desc())
-                    && IMPLICATION(src_d.is_sparse_desc(),
-                            utils::everyone_is(s32, src_d.metadata_type(0),
-                                    src_d.metadata_type(1)))
-                    && IMPLICATION(wei_d.is_sparse_desc(),
-                            utils::everyone_is(s32, wei_d.metadata_type(0),
-                                    wei_d.metadata_type(1)))
-                    && !with_bias() && attr()->has_default_values()
-                    && set_default_formats() && formats_ok(src_d, wei_d);
-            return ok ? status::success : status::unimplemented;
+            VDISPATCH_MATMUL(wei_d.is_sparse_desc() || src_d.is_sparse_desc(),
+                    VERBOSE_UNSUPPORTED_SPARSE_CFG);
+            VDISPATCH_MATMUL(wei_d.is_sparse_desc() ^ src_d.is_sparse_desc(),
+                    VERBOSE_UNSUPPORTED_SPARSE_CFG);
+
+            VDISPATCH_MATMUL(IMPLICATION(src_d.is_sparse_desc(),
+                                     utils::one_of(src_d.encoding(),
+                                             sparse_encoding::csr,
+                                             sparse_encoding::coo)),
+                    VERBOSE_UNSUPPORTED_SPARSE_CFG);
+            VDISPATCH_MATMUL(IMPLICATION(wei_d.is_sparse_desc(),
+                                     utils::one_of(wei_d.encoding(),
+                                             sparse_encoding::csr,
+                                             sparse_encoding::coo)),
+                    VERBOSE_UNSUPPORTED_SPARSE_CFG);
+
+            VDISPATCH_MATMUL(
+                    utils::everyone_is(f16, src_type, wei_type, dst_type)
+                            || utils::everyone_is(
+                                    f32, src_type, wei_type, dst_type),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+
+            if (src_d.is_sparse_desc()) {
+                sparse_mem_encoding = src_d.encoding();
+                VDISPATCH_MATMUL(
+                        IMPLICATION(sparse_mem_encoding == sparse_encoding::coo,
+                                s32 == src_d.metadata_type(0)),
+                        VERBOSE_UNSUPPORTED_SPARSE_CFG);
+                VDISPATCH_MATMUL(
+                        IMPLICATION(sparse_mem_encoding == sparse_encoding::csr,
+                                utils::everyone_is(s32, src_d.metadata_type(0),
+                                        src_d.metadata_type(1))),
+                        VERBOSE_UNSUPPORTED_SPARSE_CFG);
+            }
+            if (wei_d.is_sparse_desc()) {
+                sparse_mem_encoding = wei_d.encoding();
+                VDISPATCH_MATMUL(
+                        IMPLICATION(sparse_mem_encoding == sparse_encoding::coo,
+                                s32 == wei_d.metadata_type(0)),
+                        VERBOSE_UNSUPPORTED_SPARSE_CFG);
+
+                VDISPATCH_MATMUL(
+                        IMPLICATION(sparse_mem_encoding == sparse_encoding::csr,
+                                utils::everyone_is(s32, wei_d.metadata_type(0),
+                                        wei_d.metadata_type(1))),
+                        VERBOSE_UNSUPPORTED_SPARSE_CFG);
+            }
+
+            VDISPATCH_MATMUL(!with_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
+            VDISPATCH_MATMUL(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_MATMUL(formats_ok(src_d, wei_d), VERBOSE_UNSUPPORTED_TAG);
+
+            init_scratchpad();
+            return status::success;
         }
 
         bool formats_ok(const memory_desc_wrapper &src_d,
@@ -76,9 +113,39 @@ struct ref_sparse_matmul_t : public primitive_t {
                 return src_d.matches_one_of_tag(format_tag::ab);
             return false;
         }
+
+    private:
+        void init_scratchpad() {
+            using namespace memory_tracking::names;
+            const memory_desc_wrapper src_d(src_md());
+            const memory_desc_wrapper wei_d(weights_md());
+
+            if (sparse_mem_encoding == sparse_encoding::coo) {
+                auto scratchpad = scratchpad_registry().registrar();
+                const auto ptr_size
+                        = src_d.dims()[(int)wei_d.is_sparse_desc()] + 1;
+                scratchpad.template book<int32_t>(
+                        key_matmul_sparse_tmp_ptr, ptr_size);
+            }
+        }
+
+        sparse_encoding_t sparse_mem_encoding = sparse_encoding::undef;
     };
 
     ref_sparse_matmul_t(const pd_t *apd) : primitive_t(apd) {}
+
+    // COO sparse encodings are converted to CSR format by
+    // compressing the respective row indices into CSR pointers.
+    void cvt_coo_indices_to_csr_pointers(const int32_t *indices,
+            int32_t *pointers, const int nnz, const int nrows) const;
+
+    // Executes the matrix mutiplication, C = A x B where one of the input
+    // matrices is dense. Operation indices are determined depending on
+    // whether the mulitplier or multiplicand is dense
+    void run_csr_kernel(const void *dmat, const void *values,
+            const int32_t *indices, const int32_t *pointers, void *res,
+            const dim_t M, const dim_t N, const dim_t K,
+            const data_type_t mm_dt, bool is_src_sparse) const;
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
