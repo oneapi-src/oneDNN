@@ -175,6 +175,10 @@ struct align_desc_t {
         // If true, then value in bytes, otherwise in elements.
         bool in_bytes = false;
 
+#if __cplusplus >= 202002L
+        bool operator==(const align_t &other) const = default;
+#endif
+
         bool is_default() const { return value == 0; }
         std::string str() const;
         void parse(const std::string &s);
