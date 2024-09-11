@@ -37,6 +37,7 @@ Orphans
     example_convolution.cpp.rst
     example_cpu_cnn_training_f32.c.rst
     example_cpu_matmul_csr.cpp.rst
+    example_cpu_matmul_coo.cpp.rst
     example_cpu_matmul_quantization.cpp.rst
     example_cpu_matmul_weights_compression.cpp.rst
     example_cpu_rnn_inference_f32.cpp.rst
@@ -79,6 +80,7 @@ Orphans
     page_convolution_example_cpp.rst
     page_convolution_example_cpp_short.rst
     page_cpu_matmul_csr_cpp
+    page_cpu_matmul_coo_cpp
     page_cpu_matmul_weights_compression_cpp
     page_cpu_matmul_quantization_cpp.rst
     page_cpu_matmul_quantization_cpp_short.rst
