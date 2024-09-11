@@ -62,6 +62,10 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
                     return dnn_mem_t::init_csr_md(prb->ndims,
                             src_rt_dims.data(), dt, nnz, dnnl_s32, dnnl_s32);
                     break;
+                case dnnl_coo:
+                    return dnn_mem_t::init_coo_md(
+                            prb->ndims, src_rt_dims.data(), dt, nnz, dnnl_s32);
+                    break;
                 default: assert(!"unsupported encoding"); return nullptr;
             }
         } else
@@ -86,6 +90,9 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
                     return dnn_mem_t::init_csr_md(prb->ndims,
                             weights_rt_dims.data(), dt, nnz, dnnl_s32,
                             dnnl_s32);
+                case dnnl_coo:
+                    return dnn_mem_t::init_coo_md(prb->ndims,
+                            weights_rt_dims.data(), dt, nnz, dnnl_s32);
                 case dnnl_packed:
                     return dnn_mem_t::init_sparse_packed_md(
                             prb->ndims, weights_rt_dims.data(), dt, nnz);
@@ -253,8 +260,8 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
 // The main idea is to generate values and metadata directly without generating
 // the dense matrix to avoid excessive memory consumption for large problem
 // sizes.
-int fill_csr_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res) {
+int fill_sparse_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *res, dnnl_sparse_encoding_t encoding) {
     if (query_md_num_handles(mem_dt.md_) != 3) return FAIL;
 
     if (kind != SRC && kind != WEI) return FAIL;
@@ -300,19 +307,36 @@ int fill_csr_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
 
     if (remaining_nnz_cnt != 0) return FAIL;
 
-    const int values_idx = 0;
-    const int indices_idx = 1;
+    int values_idx = 0;
+    int indices_idx = 1;
     const int pointers_idx = 2;
 
-    // Fill pointers.
-    mem_fp.set_elem(0, 0, pointers_idx);
-    mem_dt.set_elem(0, 0, pointers_idx);
+    if (encoding == dnnl_csr) {
+        // fill pointers for CSR encoding
+        mem_fp.set_elem(0, 0, pointers_idx);
+        mem_dt.set_elem(0, 0, pointers_idx);
 
-    for (int64_t i = 0; i < dim0; i++) {
-        const int32_t pointer
-                = mem_fp.get_elem(i, pointers_idx) + distributed_nnz[i];
-        mem_fp.set_elem(i + 1, pointer, pointers_idx);
-        mem_dt.set_elem(i + 1, pointer, pointers_idx);
+        for (int64_t i = 0; i < dim0; i++) {
+            const int32_t pointer
+                    = mem_fp.get_elem(i, pointers_idx) + distributed_nnz[i];
+            mem_fp.set_elem(i + 1, pointer, pointers_idx);
+            mem_dt.set_elem(i + 1, pointer, pointers_idx);
+        }
+    } else if (encoding == dnnl_coo) {
+        values_idx = 0;
+        indices_idx = 2;
+        const int row_indices_idx = 1;
+
+        // fill row indices for COO encoding
+        int32_t row_ptr = 0;
+
+        for (int64_t i = 0; i < dim0; i++) {
+            for (int32_t j = 0; j < distributed_nnz[i]; j++) {
+                mem_fp.set_elem(row_ptr + j, i, row_indices_idx);
+                mem_dt.set_elem(row_ptr + j, i, row_indices_idx);
+            }
+            row_ptr = row_ptr + distributed_nnz[i];
+        }
     }
 
     std::uniform_int_distribution<> indices_gen(0, dim1 - 1);
@@ -355,8 +379,12 @@ int fill_csr_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
 
         for (int64_t i = idx_start; i < idx_end; i++) {
             float val = values_gen(values_seed);
-            mem_fp.set_elem(i, val, values_idx);
-            mem_dt.set_elem(i, val, values_idx);
+            mem_fp.set_elem(i,
+                    round_to_nearest_representable(cfg.get_dt(kind), val),
+                    values_idx);
+            mem_dt.set_elem(i,
+                    round_to_nearest_representable(cfg.get_dt(kind), val),
+                    values_idx);
         }
     });
 
@@ -378,9 +406,12 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
 #ifdef DNNL_EXPERIMENTAL_SPARSE
     auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
     auto wei_encoding = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
-    if ((kind == SRC && src_encoding == dnnl_csr)
-            || (kind == WEI && wei_encoding == dnnl_csr))
-        return fill_csr_data(kind, prb, mem_dt, mem_fp, res);
+
+    if ((kind == SRC && (src_encoding == dnnl_csr || src_encoding == dnnl_coo))
+            || (kind == WEI
+                    && (wei_encoding == dnnl_csr || wei_encoding == dnnl_coo)))
+        return fill_sparse_data(kind, prb, mem_dt, mem_fp, res,
+                kind == SRC ? src_encoding : wei_encoding);
 
     bool is_wei_sparse_packed = wei_encoding == dnnl_packed;
     std::vector<bool> nnz_mask;
@@ -790,12 +821,12 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
         if ((is_sparse_src || is_sparse_wei) && !is_sparse_wei_packed) {
             if (is_sparse_src) {
-                auto src_fp_d = create_md(prb, SRC, dnnl_f32);
+                auto src_fp_d = create_md(prb, SRC);
                 ref_mem_map.emplace(exec_arg, dnn_mem_t(src_fp_d, ref_engine));
             }
 
             if (is_sparse_wei) {
-                auto wei_fp_d = create_md(prb, WEI, dnnl_f32);
+                auto wei_fp_d = create_md(prb, WEI);
                 ref_mem_map.emplace(exec_arg, dnn_mem_t(wei_fp_d, ref_engine));
             }
         } else
