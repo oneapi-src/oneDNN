@@ -60,13 +60,11 @@ public:
             const std::vector<const char *> &kernel_names) const override;
 
     status_t create_kernel(compute::kernel_t *kernel,
-            jit::jit_generator_base *jitter,
-            const cache_blob_t &cache_blob) const override;
+            jit::jit_generator_base *jitter) const override;
 
     status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
-            const compute::kernel_ctx_t &kernel_ctx,
-            const cache_blob_t &cache_blob) const override;
+            const compute::kernel_ctx_t &kernel_ctx) const override;
 
     static status_t create_kernels_from_program(
             std::vector<compute::kernel_t> *kernels,

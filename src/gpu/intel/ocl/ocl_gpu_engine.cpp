@@ -305,24 +305,12 @@ status_t ocl_gpu_engine_t::create_kernels_from_cache_blob(
             this, cache_blob, kernel_names, &kernels);
 }
 
-status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
-        jit::jit_generator_base *jitter, const cache_blob_t &cache_blob) const {
-    if (!jitter && !cache_blob) return status::invalid_arguments;
-
-    const char *kernel_name = jitter ? jitter->kernel_name() : "";
-
-    if (cache_blob) {
-        std::vector<compute::kernel_t> kernels(1);
-        auto status = create_ocl_kernel_from_cache_blob(
-                this, cache_blob, {kernel_name}, &kernels);
-        CHECK(status);
-        (*kernel) = kernels[0];
-        return status::success;
-    }
-
+status_t ocl_gpu_engine_t::create_kernel(
+        compute::kernel_t *kernel, jit::jit_generator_base *jitter) const {
+    if (!jitter) return status::invalid_arguments;
     xpu::binary_t binary = jitter->get_binary(context(), device());
     if (binary.empty()) return status::runtime_error;
-    return create_kernel_from_binary(*kernel, binary, kernel_name);
+    return create_kernel_from_binary(*kernel, binary, jitter->kernel_name());
 }
 
 status_t ocl_gpu_engine_t::create_program(
@@ -366,16 +354,10 @@ status_t ocl_gpu_engine_t::create_program(
 status_t ocl_gpu_engine_t::create_kernels(
         std::vector<compute::kernel_t> *kernels,
         const std::vector<const char *> &kernel_names,
-        const compute::kernel_ctx_t &kernel_ctx,
-        const cache_blob_t &cache_blob) const {
+        const compute::kernel_ctx_t &kernel_ctx) const {
     maybe_print_build_info(kernel_names, kernel_ctx);
 
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
-
-    if (cache_blob) {
-        return create_ocl_kernel_from_cache_blob(
-                this, cache_blob, kernel_names, kernels);
-    }
 
     xpu::ocl::wrapper_t<cl_program> program;
     CHECK(create_program(program, kernel_names, kernel_ctx));

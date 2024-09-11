@@ -141,10 +141,8 @@ public:
     }
 
     status_t create_kernel(gpu::intel::compute::kernel_t *kernel,
-            gpu::intel::jit::jit_generator_base *jitter,
-            const cache_blob_t &cache_blob) const override {
+            gpu::intel::jit::jit_generator_base *jitter) const override {
 
-        UNUSED(cache_blob);
         if (kind() != engine_kind::gpu) {
             assert(!"not expected");
             return status::invalid_arguments;
@@ -163,9 +161,8 @@ public:
 
     status_t create_kernels(std::vector<gpu::intel::compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
-            const gpu::intel::compute::kernel_ctx_t &kernel_ctx,
-            const cache_blob_t &cache_blob) const override {
-        UNUSED(cache_blob);
+            const gpu::intel::compute::kernel_ctx_t &kernel_ctx)
+            const override {
         if (kind() != engine_kind::gpu) {
             assert(!"not expected");
             return status::invalid_arguments;
