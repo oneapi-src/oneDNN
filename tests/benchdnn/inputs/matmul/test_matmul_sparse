@@ -1,5 +1,11 @@
 --reset
---dt=f32:f32:f32
+--dt=f16:f16:f16,f32:f32:f32
 --dtag=ab
 --encoding=csr+0.9::,:csr+0.9:
+--batch=shapes_sparse
+
+--reset
+--dt=f16:f16:f16,f32:f32:f32
+--dtag=ab
+--encoding=coo+0.9::,:coo+0.9:
 --batch=shapes_sparse

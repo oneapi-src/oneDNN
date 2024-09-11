@@ -189,28 +189,63 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
 }
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
-void compute_ref_matmul_csr(const prb_t *prb, const args_t &args) {
+
+void cvt_coo_indices_to_csr_pointers(const int32_t *indices, int32_t *pointers,
+        const int nnz, const int nrows) {
+    for (int i = 0; i < nnz; ++i) {
+        ++pointers[indices[i] + 1];
+    }
+    for (int i = 0; i < nrows; ++i) {
+        pointers[i + 1] += pointers[i];
+    }
+}
+
+void compute_ref_sparse_matmul(const prb_t *prb, const args_t &args) {
     const dnn_mem_t &src_m = args.find(DNNL_ARG_SRC);
     const dnn_mem_t &wei_m = args.find(DNNL_ARG_WEIGHTS);
     const dnn_mem_t &dst_m = args.find(DNNL_ARG_DST);
+
+    const auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
+    const auto wei_encoding
+            = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
+
+    const bool is_src_sparse
+            = src_encoding == dnnl_csr || src_encoding == dnnl_coo;
+    const bool is_wei_sparse
+            = wei_encoding == dnnl_csr || wei_encoding == dnnl_coo;
+    auto encoding = is_src_sparse ? src_encoding : wei_encoding;
+
     const int64_t M = prb->m;
     const int64_t N = prb->n;
     const int64_t K = prb->k;
 
+    // TODO: Depending on the matrix dimensions the pointer buffer may take
+    // up a significant amount of memory. This wil require a mechanism to
+    // register the memory needed for the current scratchpad during
+    // COO-to-CSR format conversion.
+    std::vector<int32_t> pointer_buffer(1 + (is_src_sparse ? M : K), 0);
+
     // Batch is not supported.
     const int64_t mb = 0;
-
-    float *dst = dst_m.get_mapped_pointer<float>();
-
     benchdnn_parallel_nd(M, N, [&](int64_t m, int64_t n) {
-        dst[dst_off_f(prb, mb, m, n)] = 0.0f;
+        dst_m.set_elem(dst_off_f(prb, mb, m, n), 0.0f);
     });
 
-    if (prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS) == dnnl_csr) {
-        const float *src = src_m.get_mapped_pointer<float>();
-        const float *wei_values = wei_m.get_mapped_pointer<float>(0);
-        const int32_t *wei_indices = wei_m.get_mapped_pointer<int32_t>(1);
-        const int32_t *wei_pointers = wei_m.get_mapped_pointer<int32_t>(2);
+    if (is_wei_sparse) {
+        int32_t *wei_indices = wei_m.get_mapped_pointer<int32_t>(
+                encoding == dnnl_csr ? 1 : 2);
+        int32_t *wei_pointers = wei_m.get_mapped_pointer<int32_t>(2);
+
+        if (encoding == dnnl_coo) {
+            int32_t *wei_row_indices = wei_m.get_mapped_pointer<int32_t>(1);
+            const int64_t nnz = query_md_nnz(wei_m.md_);
+
+            benchdnn_parallel_nd(
+                    K + 1, [&](int64_t i) { pointer_buffer[i] = 0; });
+            cvt_coo_indices_to_csr_pointers(
+                    wei_row_indices, pointer_buffer.data(), nnz, K);
+            wei_pointers = pointer_buffer.data();
+        }
 
         benchdnn_parallel_nd(M, [&](int64_t m) {
             for (int64_t k = 0; k < K; k++) {
@@ -220,27 +255,42 @@ void compute_ref_matmul_csr(const prb_t *prb, const args_t &args) {
                     const int64_t src_idx = src_off_f(prb, mb, m, k);
                     const int64_t dst_idx
                             = dst_off_f(prb, mb, m, wei_indices[n]);
-                    dst[dst_idx] = dst[dst_idx] + src[src_idx] * wei_values[n];
+                    const float src_val = src_m.get_elem(src_idx);
+                    const float wei_val = wei_m.get_elem(n, 0);
+                    float dst_val = dst_m.get_elem(dst_idx);
+                    dst_val += src_val * wei_val;
+                    dst_m.set_elem(dst_idx, dst_val);
                 }
             }
         });
-    } else if (prb->sparse_options.get_encoding(DNNL_ARG_SRC) == dnnl_csr) {
-        const float *weights = wei_m.get_mapped_pointer<float>();
-        const float *src_values = src_m.get_mapped_pointer<float>(0);
-        const int32_t *src_indices = src_m.get_mapped_pointer<int32_t>(1);
-        const int32_t *src_pointers = src_m.get_mapped_pointer<int32_t>(2);
+    } else if (is_src_sparse) {
+        int32_t *src_indices = src_m.get_mapped_pointer<int32_t>(
+                encoding == dnnl_csr ? 1 : 2);
+        int32_t *src_pointers = src_m.get_mapped_pointer<int32_t>(2);
+
+        if (encoding == dnnl_coo) {
+            int32_t *src_row_indices = src_m.get_mapped_pointer<int32_t>(1);
+            const int64_t nnz = query_md_nnz(src_m.md_);
+            cvt_coo_indices_to_csr_pointers(
+                    src_row_indices, pointer_buffer.data(), nnz, M);
+            src_pointers = pointer_buffer.data();
+        }
 
         benchdnn_parallel_nd(M, [&](int64_t m) {
             const int64_t row_start = src_pointers[m];
             const int64_t row_end = src_pointers[m + 1];
-            for (int64_t k = row_start; k < row_end; k++) {
-                for (int64_t n = 0; n < N; n++) {
-                    const int64_t dst_idx = dst_off_f(prb, mb, m, n);
+            for (int64_t n = 0; n < N; n++) {
+                const int64_t dst_idx = dst_off_f(prb, mb, m, n);
+                float dst_val = dst_m.get_elem(dst_idx);
+
+                for (int64_t k = row_start; k < row_end; k++) {
                     const int64_t wei_idx
                             = wei_off_f(prb, mb, src_indices[k], n);
-                    dst[dst_idx]
-                            = dst[dst_idx] + src_values[k] * weights[wei_idx];
+                    const float src_val = src_m.get_elem(k, 0);
+                    const float wei_val = wei_m.get_elem(wei_idx);
+                    dst_val += src_val * wei_val;
                 }
+                dst_m.set_elem(dst_idx, dst_val);
             }
         });
     }
@@ -259,8 +309,9 @@ void compute_ref(
     const auto wei_encoding
             = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
 
-    if (src_encoding == dnnl_csr || wei_encoding == dnnl_csr) {
-        compute_ref_matmul_csr(prb, args);
+    if (src_encoding == dnnl_csr || wei_encoding == dnnl_csr
+            || src_encoding == dnnl_coo || wei_encoding == dnnl_coo) {
+        compute_ref_sparse_matmul(prb, args);
     } else {
         compute_ref_matmul(prb, args);
     }
