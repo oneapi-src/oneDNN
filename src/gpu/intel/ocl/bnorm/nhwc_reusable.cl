@@ -13,6 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#include "gpu/intel/ocl/bnorm/gen9_bnorm_reduce.h"
 #include "gpu/intel/ocl/bnorm/nhwc_reusable.h"
 
 // Two sets of nhwc-optimized reusable kernels which are implemented with and

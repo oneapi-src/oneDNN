@@ -68,11 +68,9 @@ public:
             const compute::kernel_ctx_t &kernel_ctx,
             const cache_blob_t &cache_blob) const override;
 
-    status_t create_kernels_from_ocl_source(
+    static status_t create_kernels_from_program(
             std::vector<compute::kernel_t> *kernels,
-            const std::vector<const char *> &kernel_names,
-            const char *source_string,
-            const compute::kernel_ctx_t &kernel_ctx) const override;
+            const std::vector<const char *> &kernel_names, cl_program program);
 
     const impl_list_item_t *get_concat_implementation_list() const override {
         return gpu_impl_list_t::get_concat_implementation_list();
@@ -106,6 +104,10 @@ public:
     status_t get_cache_blob(size_t size, uint8_t *cache_blob) const override {
         return device_info_->get_cache_blob(size, cache_blob);
     }
+
+    status_t create_program(xpu::ocl::wrapper_t<cl_program> &program,
+            const std::vector<const char *> &kernel_names,
+            const compute::kernel_ctx_t &kernel_ctx) const;
 
     DECLARE_COMMON_OCL_ENGINE_FUNCTIONS();
 

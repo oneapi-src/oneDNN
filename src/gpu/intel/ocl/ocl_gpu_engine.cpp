@@ -25,9 +25,7 @@
 
 #include "xpu/ocl/memory_storage.hpp"
 
-#include "gpu/intel/compute/kernel_list.hpp"
 #include "gpu/intel/microkernels/fuser.hpp"
-#include "gpu/intel/ocl/kernel_utils.hpp"
 #include "gpu/intel/ocl/ocl_gpu_device_info.hpp"
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
 #include "gpu/intel/ocl/ocl_gpu_kernel.hpp"
@@ -39,6 +37,9 @@ namespace impl {
 namespace gpu {
 namespace intel {
 namespace ocl {
+
+const char *get_kernel_source(const char *name);
+const char *get_kernel_header(const std::string &name);
 
 status_t engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
         cl_device_id dev, cl_context ctx, size_t index,
@@ -324,6 +325,44 @@ status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
     return create_kernel_from_binary(*kernel, binary, kernel_name);
 }
 
+status_t ocl_gpu_engine_t::create_program(
+        xpu::ocl::wrapper_t<cl_program> &program,
+        const std::vector<const char *> &kernel_names,
+        const compute::kernel_ctx_t &kernel_ctx) const {
+
+    const char *source = nullptr;
+    for (size_t i = 0; source == nullptr && i < kernel_names.size(); i++)
+        source = ocl::get_kernel_source(kernel_names[i]);
+    gpu_assert(source)
+            << "No kernel source file was found for the kernels: " <<
+            [&]() {
+                std::ostringstream oss;
+                bool is_first = true;
+                for (auto &n : kernel_names) {
+                    if (!is_first) oss << ", ";
+                    oss << n;
+                    is_first = false;
+                }
+                return oss.str();
+            }()
+            << ". In order to map kernel names to the implementation "
+               "file, at least one kernel needs to be implemented in a .cl "
+               "file";
+
+    gpu_assert([&]() {
+        for (auto &name : kernel_names) {
+            if (!utils::one_of(ocl::get_kernel_source(name), source, nullptr))
+                return false;
+        }
+        return true;
+    }()) << "Due to the cost of compiling OpenCL programs, building kernels "
+            "from multiple source files is unsupported. Either consolidate "
+            "kernels in a single .cl source file or split creation in groups "
+            "based on their .cl source file.";
+
+    return build_program_from_source(program, source, kernel_ctx);
+}
+
 status_t ocl_gpu_engine_t::create_kernels(
         std::vector<compute::kernel_t> *kernels,
         const std::vector<const char *> &kernel_names,
@@ -338,21 +377,14 @@ status_t ocl_gpu_engine_t::create_kernels(
                 this, cache_blob, kernel_names, kernels);
     }
 
-    compute::kernel_list_t kernel_list;
-    for (size_t i = 0; i < kernels->size(); ++i) {
-        if (kernel_names[i]) kernel_list.add(kernel_names[i], &(*kernels)[i]);
-    }
-
-    return ocl::create_kernels(this, kernel_list, kernel_ctx);
+    xpu::ocl::wrapper_t<cl_program> program;
+    CHECK(create_program(program, kernel_names, kernel_ctx));
+    return create_kernels_from_program(kernels, kernel_names, program);
 }
 
-status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
+status_t ocl_gpu_engine_t::create_kernels_from_program(
         std::vector<compute::kernel_t> *kernels,
-        const std::vector<const char *> &kernel_names, const char *code_string,
-        const compute::kernel_ctx_t &kernel_ctx) const {
-    xpu::ocl::wrapper_t<cl_program> program;
-    CHECK(build_program_from_source(program, code_string, kernel_ctx));
-
+        const std::vector<const char *> &kernel_names, cl_program program) {
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); ++i) {
         if (!kernel_names[i]) continue;
