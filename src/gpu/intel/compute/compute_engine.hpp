@@ -74,15 +74,6 @@ public:
         return status::success;
     }
 
-    virtual status_t create_kernels_from_ocl_source(
-            std::vector<compute::kernel_t> *kernels,
-            const std::vector<const char *> &kernel_names,
-            const char *source_string,
-            const compute::kernel_ctx_t &kernel_ctx) const {
-        assert(!"unexpected");
-        return status::success;
-    };
-
     virtual status_t create_kernel_from_binary(compute::kernel_t &kernel,
             const xpu::binary_t &binary, const char *kernel_name) const = 0;
 
