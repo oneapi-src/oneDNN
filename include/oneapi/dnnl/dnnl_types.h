@@ -74,6 +74,8 @@ typedef enum {
     /// only be used to create a primitive descriptor to query the
     /// actual memory descriptor (similar to the format tag `any`).
     dnnl_packed,
+    /// Coordinate Sparse Encoding (COO).
+    dnnl_coo,
 } dnnl_sparse_encoding_t;
 #endif
 

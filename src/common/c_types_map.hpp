@@ -202,6 +202,7 @@ using sparse_encoding_t = dnnl_sparse_encoding_t;
 namespace sparse_encoding {
 const sparse_encoding_t undef = dnnl_sparse_encoding_undef;
 const sparse_encoding_t csr = dnnl_csr;
+const sparse_encoding_t coo = dnnl_coo;
 const sparse_encoding_t packed = dnnl_packed;
 } // namespace sparse_encoding
 #else
@@ -211,6 +212,7 @@ namespace sparse_encoding {
 const sparse_encoding_t undef = 0;
 const sparse_encoding_t csr = 1;
 const sparse_encoding_t packed = 2;
+const sparse_encoding_t coo = 3;
 } // namespace sparse_encoding
 #endif
 
