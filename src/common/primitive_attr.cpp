@@ -40,7 +40,7 @@ const runtime_scales_t &default_runtime_scale() {
     return default_runtime_scale_instance;
 }
 
-void scales_t::set_single_scale(float scale) {
+void rnn_create_time_scales_t::set_single_scale(float scale) {
     count_ = 1;
     mask_ = 0;
     scales_ = scales_buf_;
@@ -51,7 +51,8 @@ void scales_t::set_single_scale(float scale) {
     }
 }
 
-status_t scales_t::set(dim_t count, int mask, const float *scales) {
+status_t rnn_create_time_scales_t::set(
+        dim_t count, int mask, const float *scales) {
     cleanup();
 
     count_ = count;
