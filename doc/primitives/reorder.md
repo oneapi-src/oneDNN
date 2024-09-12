@@ -122,8 +122,9 @@ would lead to the following operation:
 @note
     * The intermediate operations are being done using single precision
       floating point data type.
-    * \f$scale_{src}\f$ and \f$scale_{dst}\f$ must be passed during execution runtime
-      as a separate memory argument. Using \f$scale_{src}\f$ argument will lead to
+    * \f$scale_{src}\f$, \f$shift_{src}\f$, \f$scale_{dst}\f$, and
+      \f$shift_{dst}\f$ must be passed during execution runtime as a separate
+      memory arguments. Using \f$scale_{src}\f$ argument will lead to
       multiplication of tensor values by a scale value. Using \f$scale_{dst}\f$
       argument will lead to division of tensor values by a scale value.
 
