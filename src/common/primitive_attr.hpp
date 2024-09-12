@@ -828,7 +828,6 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::status_t copy_from(const dnnl_primitive_attr &other) {
         using namespace dnnl::impl;
 
-        output_scales_ = other.output_scales_;
         scales_ = other.scales_;
         zero_points_ = other.zero_points_;
         rounding_mode_ = other.rounding_mode_;
@@ -852,8 +851,6 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
 
     enum class skip_mask_t : unsigned {
         none = 0,
-        oscale = 1u << 0,
-        oscale_runtime = 1u << 1,
         scales = 1u << 2,
         scales_runtime = (unsigned)scales | (1u << 3),
         zero_points = 1u << 4,
@@ -889,7 +886,6 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         bool ret = scratchpad_mode_ == rhs.scratchpad_mode_
                 && fpmath_ == rhs.fpmath_ && acc_mode_ == rhs.acc_mode_
                 && deterministic_ == rhs.deterministic_
-                && output_scales_ == rhs.output_scales_
                 && scales_ == rhs.scales_ && zero_points_ == rhs.zero_points_
                 && post_ops_ == rhs.post_ops_
                 && rnn_data_qparams_ == rhs.rnn_data_qparams_
@@ -964,7 +960,6 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     }
 
     // NOTE: make sure that the types below have overloaded comparison operator
-    dnnl::impl::runtime_scales_t output_scales_;
     dnnl::impl::arg_scales_t scales_;
     dnnl::impl::zero_points_t zero_points_;
     dnnl::impl::scratchpad_mode_t scratchpad_mode_;

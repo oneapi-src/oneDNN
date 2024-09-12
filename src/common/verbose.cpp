@@ -715,11 +715,6 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
     }
     if (attr->has_default_values()) return ss;
 
-    const runtime_scales_t &os = attr->output_scales_;
-    if (!os.has_default_values()) {
-        ss << field_delim() << "attr-oscale:" << os;
-    }
-
     const arg_scales_t &as = attr->scales_;
     if (!as.has_default_values()) {
         std::string delim = empty_delim;

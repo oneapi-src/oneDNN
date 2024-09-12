@@ -85,7 +85,7 @@ std::string get_descriptor(dim_t M, dim_t N, dim_t K) {
         if (!is_src_ab && lda != M) ss << "lda:" << lda << " "; \
         if (is_wei_ab && ldb != N) ss << "ldb:" << ldb << " "; \
         if (!is_wei_ab && ldb != K) ss << "ldb:" << ldb << " "; \
-        if (alpha != 1.f) ss << "attr-oscale:common:" << alpha << " "; \
+        if (alpha != 1.f) ss << "attr-scales:src:common:" << alpha << " "; \
         if (beta != 0.f) ss << "attr-post-ops:sum:" << beta << " "; \
         ss << ",," << get_descriptor(M, N, K); \
         VPROF(start_ms, primitive, exec, VERBOSE_profile, ss.str().c_str(), \

@@ -131,8 +131,6 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
     using smask_t = skip_mask_t;
     // prepare mask for runtime-parameters check
     smask_t defined_mask = smask_t::none;
-    if ((mask & smask_t::oscale_runtime) == smask_t::oscale_runtime)
-        defined_mask |= smask_t::oscale;
     if ((mask & smask_t::scales_runtime) == smask_t::scales_runtime)
         defined_mask |= smask_t::scales;
     if ((mask & smask_t::zero_points_runtime) == smask_t::zero_points_runtime)
@@ -143,7 +141,6 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
 #define CHECK_MASK(mask_name, mask_field) \
     CHECK_ARG(IMPLICATION( \
             (bool)(~mask & (mask_name)), (mask_field).has_default_values()))
-    CHECK_MASK(smask_t::oscale_runtime, output_scales_);
     CHECK_MASK(smask_t::scales, scales_);
     CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::scales_runtime_groups),
             scales_.has_default_groups()));
@@ -189,7 +186,6 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
 #define CHECK_ARG(x) ok = ok && (x)
 #define CHECK_MASK(mask_name, mask_field) \
     CHECK_ARG(IMPLICATION((bool)(~mask & (mask_name)), (mask_field).defined()))
-    CHECK_MASK(smask_t::oscale, output_scales_);
     CHECK_MASK(smask_t::scales, scales_);
     CHECK_MASK(smask_t::zero_points, zero_points_);
     CHECK_MASK(smask_t::post_ops, post_ops_);

@@ -248,9 +248,9 @@ struct miopen_gemm_inner_product_fwd_impl_t
         with_eltwise_ = with_eltwise || with_relu;
         with_relu_ = with_eltwise;
 
-        output_scales_ = 1.0f;
-        alpha_s32 = output_scales_;
-        alpha_f32 = output_scales_;
+        alpha_ = 1.0f;
+        alpha_s32 = alpha_;
+        alpha_f32 = alpha_;
 
         with_sum_ = with_sum;
         sum_scale_ = sum_scale(pd);
@@ -324,9 +324,8 @@ struct miopen_gemm_inner_product_fwd_impl_t
 
         if (with_bias_) {
             MIOPEN_EXECUTE_FUNC(miopenOpTensor, miopen_handle,
-                    miopenTensorOpAdd, &alpha_, y_acc_desc_, y_dst,
-                    &output_scales_, tensor_descs_[io::bia], b, &alpha2,
-                    y_acc_desc_, y_dst);
+                    miopenTensorOpAdd, &alpha_, y_acc_desc_, y_dst, &alpha_,
+                    tensor_descs_[io::bia], b, &alpha2, y_acc_desc_, y_dst);
         }
 
         if (with_eltwise_) {

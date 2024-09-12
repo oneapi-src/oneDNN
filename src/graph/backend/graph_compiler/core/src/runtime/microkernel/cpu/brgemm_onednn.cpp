@@ -196,7 +196,7 @@ static dnnl::impl::post_ops_t get_dnnl_postops_setting(
         if (alg == alg_kind_t::bias_add) {
             bias_dt = convert_dnnl_dtype(static_cast<int>(op.bias_op_.dtype_));
         } else if (alg == alg_kind_t::out_scales) {
-            status = pattr.output_scales_.set(op.scale_op_.scale_);
+            assert(!"unsupported quantization");
         } else if (alg == alg_kind_t::a_zp) {
             status = pattr.zero_points_.set(DNNL_ARG_SRC, op.zp_op_.zp_);
         } else if (alg == alg_kind_t::b_zp) {

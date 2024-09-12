@@ -17,11 +17,7 @@
 #ifndef GPU_INTEL_OCL_GEMM_OCL_GEMM_ATTRS_H
 #define GPU_INTEL_OCL_GEMM_OCL_GEMM_ATTRS_H
 
-#if WITH_SCALES
-#define ATTR_ALPHA alpha[0]
-#else
 #define ATTR_ALPHA 1.0f
-#endif
 
 #if WITH_SRC_ZPOINTS
 #define ATTR_A0 ao[0]

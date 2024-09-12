@@ -85,10 +85,9 @@ status_t acl_matmul_t::pd_t::init(engine_t *engine) {
             VERBOSE_UNSUPPORTED_DT_CFG);
     VDISPATCH_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
     VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
-    VDISPATCH_MATMUL(attr()->has_default_values(smask_t::oscale
-                             | smask_t::post_ops | smask_t::fpmath_mode),
+    VDISPATCH_MATMUL(attr()->has_default_values(
+                             smask_t::post_ops | smask_t::fpmath_mode),
             VERBOSE_UNSUPPORTED_ATTR);
-    VDISPATCH_MATMUL(attr_oscale_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
     VDISPATCH_MATMUL(
             !has_runtime_dims_or_strides(), VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 

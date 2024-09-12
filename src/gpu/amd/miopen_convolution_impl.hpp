@@ -62,7 +62,7 @@ protected:
     size_t workspace_size = 0;
     bool with_bias = false;
     int selected_sol = -1;
-    bool do_scaling = false;
+    bool do_scaling = false; // TODO: add proper scaling support.
     float output_scaling = 1.0f;
     bool runtime_scaling = false;
     bool use_temp_dst_ = false;
@@ -154,8 +154,8 @@ public:
         with_bias = pd->with_bias();
         alpha = 1.0f;
         beta = 0.0f;
-        do_scaling = !pd->attr()->output_scales_.has_default_values();
-        output_scaling = !pd->attr()->output_scales_.defined();
+        do_scaling = false;
+        output_scaling = false;
 
         dnnl_descs[x] = *pd->invariant_src_md();
         dnnl_descs[weights] = *pd->invariant_wei_md();
