@@ -29,35 +29,6 @@
 
 #include "cpu/ref_io_helper.hpp"
 
-#define DEFINE_SCALES_BUFFER_ATTR_ARG(attr, scales, arg) \
-    alignas(16) float CONCAT2(scales, _buf16)[16] = {0}; \
-    const float *scales {nullptr}; \
-    if ((attr)) { \
-        if ((attr)->output_scales_.has_default_values()) { \
-            utils::array_set(CONCAT2(scales, _buf16), 1.0f, 16); \
-            scales = CONCAT2(scales, _buf16); \
-        } else { \
-            scales = CTX_IN_MEM(const float *, arg); \
-            VCHECK_ATTR(scales != nullptr, \
-                    "Scales buffer for arg %d is missing", arg); \
-            const auto scales_d = ctx.memory_mdw(arg); \
-            VCHECK_ATTR(scales_d.data_type() == data_type::f32, \
-                    "Scales data type is not f32"); \
-            VCHECK_ATTR(scales_d.ndims() == 1, "Scales ndims is not 1"); \
-            if (scales_d.dims()[0] == 1) { \
-                utils::array_set(CONCAT2(scales, _buf16), scales[0], 16); \
-                scales = CONCAT2(scales, _buf16); \
-            } \
-        } \
-    } \
-    MAYBE_UNUSED(scales);
-
-#define DEFINE_SCALES_BUFFER_ATTR(attr, scales) \
-    DEFINE_SCALES_BUFFER_ATTR_ARG(attr, scales, DNNL_ARG_ATTR_OUTPUT_SCALES);
-
-#define DEFINE_SCALES_BUFFER(scales) \
-    DEFINE_SCALES_BUFFER_ATTR(pd()->attr(), scales)
-
 #define DEFINE_ARG_SCALES_BUFFER_ATTR(attr, scales, arg) \
     alignas(16) float CONCAT2(scales, _buf16)[16] = {0}; \
     const float *scales {nullptr}; \
