@@ -150,8 +150,6 @@ struct attr_info_t {
         attr_info.with_per_oc_oscales
                 = attr_info.with_oscales && (scales_mask == (1 << 1));
 
-        attr_info.with_runtime_oscales = !attr->output_scales_.defined();
-
         const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
         attr_info.with_src_scales = !src_scales.has_default_values();
         attr_info.with_src0_scale = !src_scales.has_default_values();
@@ -207,7 +205,6 @@ struct attr_info_t {
     bool with_oscales;
     bool with_common_oscales;
     bool with_per_oc_oscales;
-    bool with_runtime_oscales;
 
     bool with_src0_scale;
     bool with_src1_scale;
@@ -1440,8 +1437,6 @@ inline status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_SRC1_SCALE", attr_info.with_src1_scale);
 
     kernel_ctx.define_int("WITH_SCALES", attr_info.with_oscales);
-    kernel_ctx.define_int(
-            "WITH_RUNTIME_SCALES", attr_info.with_runtime_oscales);
     kernel_ctx.define_int("SCALES_PER_OC", attr_info.with_per_oc_oscales);
     kernel_ctx.define_int("SCALES_COMMON", attr_info.with_common_oscales);
 

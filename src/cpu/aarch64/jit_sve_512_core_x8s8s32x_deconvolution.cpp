@@ -274,12 +274,8 @@ status_t _jit_sve_512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     //save post_ops desc for further usage
     jcp.post_ops = p;
 
-    const auto &oscales = attr.output_scales_;
-    jcp.is_oc_scale = oscales.mask_ == 1 << 1;
-
-    // only common and per-oc-channel scales are supported
-    const bool oscales_ok = one_of(oscales.mask_, 0, 1 << 1);
-    if (!oscales_ok) return status::unimplemented;
+    // TODO: add proper scaling support.
+    jcp.is_oc_scale = false;
 
     jcp.dst_dt = dst_d.data_type();
     jcp.bia_dt = jcp.with_bias ? bias_d.data_type() : data_type::undef;

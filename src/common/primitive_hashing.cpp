@@ -223,10 +223,7 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
         }
     }
 
-    if (!attr.output_scales_.has_default_values()) {
-        // output_scales: mask
-        seed = hash_combine(seed, attr.output_scales_.mask_);
-    } else if (!attr.scales_.has_default_values()) {
+    if (!attr.scales_.has_default_values()) {
         // go through scales for all arguments
         for (const auto &p : attr.scales_.scales_) {
             // scales: arg

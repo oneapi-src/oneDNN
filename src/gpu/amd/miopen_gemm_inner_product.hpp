@@ -182,7 +182,7 @@ struct miopen_gemm_inner_product_fwd_t : public miopen_inner_product_fwd_t {
                     : reorder_check(src_md(), weights_md(), dst_md());
 
             using sm_t = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm_t::oscale_runtime | sm_t::post_ops;
+            const auto attr_skip_mask = sm_t::post_ops;
 
             bool with_eltwise
                     = attr()->post_ops_.find(primitive_kind::eltwise) != -1;
@@ -212,9 +212,6 @@ struct miopen_gemm_inner_product_fwd_t : public miopen_inner_product_fwd_t {
             ok = ok && memory_format_ok(src_md())
                     && memory_format_ok(weights_md(0))
                     && memory_format_ok(dst_md())
-                    && IMPLICATION(!attr()->output_scales_.has_default_values(),
-                            utils::one_of(src_md_.data_type, s8)
-                                    && attr()->output_scales_.mask_ == 0)
                     && attr()->has_default_values(attr_skip_mask)
                     && attr_post_ops_ok(attr(), s8_case)
                     && dense_check(src_md(), weights_md(), dst_md())

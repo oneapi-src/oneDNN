@@ -53,9 +53,9 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
             using namespace primitive_kind;
             assert(engine->kind() == engine_kind::gpu);
 
+            // TODO: add proper quantization support
             const primitive_attr_t::skip_mask_t attr_skip_mask
-                    = primitive_attr_t::skip_mask_t::oscale_runtime
-                    | primitive_attr_t::skip_mask_t::post_ops;
+                    = primitive_attr_t::skip_mask_t::post_ops;
 
             VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
             VDISPATCH_INNER_PRODUCT_SC(
@@ -73,10 +73,6 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_INNER_PRODUCT_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_INNER_PRODUCT(
-                    IMPLICATION(!attr()->output_scales_.has_default_values(),
-                            one_of(attr()->output_scales_.mask_, 0, 1 << 1)),
-                    VERBOSE_UNSUPPORTED_SCALES_CFG);
 
             attr_info_ = attr_info_t::create(attr());
 

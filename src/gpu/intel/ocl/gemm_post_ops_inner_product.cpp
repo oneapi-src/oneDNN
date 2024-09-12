@@ -62,10 +62,8 @@ status_t gemm_post_ops_inner_product_fwd_t::execute_forward(
         arg_list.set(arg_idx++,
                 pd()->use_scratchpad() ? *acc
                                        : memory_storage_t::empty_storage());
-        arg_list.set(arg_idx,
-                pd()->attr_info_.with_runtime_oscales
-                        ? CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES)
-                        : memory_storage_t::empty_storage());
+        // TODO: remove me?
+        arg_list.set(arg_idx, memory_storage_t::empty_storage());
 
         size_t mb = pd()->MB();
         size_t oc = pd()->OC();

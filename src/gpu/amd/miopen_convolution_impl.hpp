@@ -154,8 +154,8 @@ public:
         with_bias = pd->with_bias();
         alpha = 1.0f;
         beta = 0.0f;
-        do_scaling = !pd->attr()->output_scales_.has_default_values();
-        output_scaling = !pd->attr()->output_scales_.defined();
+        do_scaling = false;
+        output_scaling = false;
 
         dnnl_descs[x] = *pd->invariant_src_md();
         dnnl_descs[weights] = *pd->invariant_wei_md();

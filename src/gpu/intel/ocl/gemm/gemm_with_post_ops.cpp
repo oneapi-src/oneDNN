@@ -89,7 +89,6 @@ status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
     primitive_attr_t attributes_without_po = *attr();
     attributes_without_po.set_post_ops(post_ops_t());
     attributes_without_po.scales_ = arg_scales_t();
-    attributes_without_po.output_scales_ = runtime_scales_t();
     attributes_without_po.zero_points_ = zero_points_t();
     int src_mask, wei_mask;
     auto zp = attributes_with_po->zero_points_;

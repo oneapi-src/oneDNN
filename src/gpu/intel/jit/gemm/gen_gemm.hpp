@@ -188,8 +188,6 @@ struct gen_gemm_t : public gpu_gemm_t {
                     VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "ngen_kernels");
             VDISPATCH_GEMM(attr()->has_default_values(attr_skip_mask),
                     VERBOSE_UNSUPPORTED_ATTR);
-            VDISPATCH_GEMM(attr()->output_scales_.mask_ == 0,
-                    VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_GEMM(IMPLICATION(with_sum_ab(),
                                    !with_bias()
                                            && (attr_zps.has_default_values(

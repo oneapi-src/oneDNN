@@ -62,8 +62,7 @@ struct miopen_matmul_t : public gpu::primitive_t {
 
             bool ok = blocking_ok()
                     && attr()->has_default_values(smask_t::post_ops)
-                    && attr_oscale_ok() && attr_post_ops_ok(s8_case)
-                    && set_default_formats()
+                    && attr_post_ops_ok(s8_case) && set_default_formats()
                     && (f32_case || f16_case || s8_case || bf16_case)
                     && IMPLICATION(with_bias(),
                             (IMPLICATION(f32_case, (bia_dt == f32))
@@ -80,11 +79,6 @@ struct miopen_matmul_t : public gpu::primitive_t {
         }
 
     private:
-        bool attr_oscale_ok() const {
-            const auto &oscale = attr()->output_scales_;
-            return oscale.mask_ == 0;
-        }
-
         bool attr_post_ops_ok(bool s8_case) const {
             using namespace primitive_kind;
             const auto &p = attr()->post_ops_;

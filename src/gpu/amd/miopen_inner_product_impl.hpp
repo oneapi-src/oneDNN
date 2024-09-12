@@ -155,7 +155,7 @@ struct miopen_inner_product_impl_base_t {
 
 struct miopen_inner_product_fwd_base_t
     : public miopen_inner_product_impl_base_t {
-    float output_scales_; // alpha in gemm
+    float alpha_; // alpha in gemm
     bool do_scaling_ {false}, runtime_scaling_ {false};
     float sum_scale_; // beta in gemm
     float eltwise_alpha(const inner_product_pd_t *pd) const {
