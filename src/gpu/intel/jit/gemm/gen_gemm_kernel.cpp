@@ -241,6 +241,8 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
         if (problem_.bqGroupK % strategy_.bqGroupKGranularity())
             return status::unimplemented;
 
+    strategy_.kInterleaveChunk
+            = std::min(strategy_.kInterleaveChunk, (int)aux_params_.k0);
     update_driver_info();
 
 #ifdef DNNL_DEV_MODE
