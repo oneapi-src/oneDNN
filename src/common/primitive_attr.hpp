@@ -129,14 +129,14 @@ private:
 };
 
 // Note: keep for RNN quantization
-struct scales_t : public c_compatible {
-    scales_t() : count_(1), mask_(0), scales_(scales_buf_) {
+struct rnn_create_time_scales_t : public c_compatible {
+    rnn_create_time_scales_t() : count_(1), mask_(0), scales_(scales_buf_) {
         set_single_scale(1.);
     }
 
-    ~scales_t() { cleanup(); }
+    ~rnn_create_time_scales_t() { cleanup(); }
 
-    bool operator==(const scales_t &rhs) const {
+    bool operator==(const rnn_create_time_scales_t &rhs) const {
         bool ret = count_ == rhs.count_ && mask_ == rhs.mask_
                 && !utils::any_null(scales_, rhs.scales_)
                 && defined() == rhs.defined()
@@ -162,7 +162,7 @@ struct scales_t : public c_compatible {
         return status::success;
     }
 
-    status_t copy_from(const scales_t &other) {
+    status_t copy_from(const rnn_create_time_scales_t &other) {
         return set(other.count_, other.mask_, other.scales_);
     }
 
@@ -182,7 +182,7 @@ private:
         scales_ = scales_buf_;
     }
 
-    DNNL_DISALLOW_COPY_AND_ASSIGN(scales_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(rnn_create_time_scales_t);
 };
 
 struct runtime_scales_t : public c_compatible {
@@ -973,8 +973,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     bool deterministic_;
     dnnl::impl::post_ops_t post_ops_;
     dnnl::impl::rnn_data_qparams_t rnn_data_qparams_;
-    dnnl::impl::scales_t rnn_weights_qparams_;
-    dnnl::impl::scales_t rnn_weights_projection_qparams_;
+    dnnl::impl::rnn_create_time_scales_t rnn_weights_qparams_;
+    dnnl::impl::rnn_create_time_scales_t rnn_weights_projection_qparams_;
     dnnl::impl::rnn_tparams_t rnn_tparams_;
     dnnl::impl::dropout_t dropout_;
     dnnl::impl::rnd_mode_t rounding_mode_;

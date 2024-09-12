@@ -602,12 +602,13 @@ std::ostream &operator<<(std::ostream &ss, const runtime_scales_t &scale) {
     return ss;
 }
 
-std::ostream &operator<<(std::ostream &ss, const scales_t &oscale) {
-    ss << oscale.mask_;
-    const float val = oscale.scales_[0];
+std::ostream &operator<<(
+        std::ostream &ss, const rnn_create_time_scales_t &rnn_scales) {
+    ss << rnn_scales.mask_;
+    const float val = rnn_scales.scales_[0];
     // Can't use scientific flags since it breaks parsing on converter and
     // benchdnn side.
-    if (oscale.mask_ == 0 || is_runtime_value(val))
+    if (rnn_scales.mask_ == 0 || is_runtime_value(val))
         ss << ":" << get_val_str(val);
     return ss;
 }
