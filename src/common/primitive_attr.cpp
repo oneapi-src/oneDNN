@@ -186,9 +186,6 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
 #define CHECK_ARG(x) ok = ok && (x)
 #define CHECK_MASK(mask_name, mask_field) \
     CHECK_ARG(IMPLICATION((bool)(~mask & (mask_name)), (mask_field).defined()))
-    CHECK_MASK(smask_t::scales, scales_);
-    CHECK_MASK(smask_t::zero_points, zero_points_);
-    CHECK_MASK(smask_t::post_ops, post_ops_);
     CHECK_MASK(smask_t::rnn_data_qparams, rnn_data_qparams_);
     CHECK_MASK(smask_t::rnn_weights_qparams, rnn_weights_qparams_);
     CHECK_MASK(smask_t::rnn_weights_projection_qparams,
@@ -200,6 +197,8 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
 
 status_t post_ops_t::append_sum(
         float scale, int32_t zero_point, data_type_t dt) {
+    if (is_runtime_value(scale)) return invalid_arguments;
+
     entry_.emplace_back();
     auto &e = entry_.back();
     e.kind = primitive_kind::sum;
@@ -213,6 +212,9 @@ status_t post_ops_t::append_eltwise(
         float scale, alg_kind_t alg, float alpha, float beta) {
     if (!math::is_eltwise_ok(data_type::f32, alg, alpha, beta))
         return invalid_arguments;
+    if (is_runtime_value(scale)) return invalid_arguments;
+    if (is_runtime_value(alpha)) return invalid_arguments;
+    if (is_runtime_value(beta)) return invalid_arguments;
 
     entry_.emplace_back();
     auto &e = entry_.back();
@@ -308,27 +310,6 @@ status_t post_ops_t::append_prelu(int mask) {
     it_entry->prelu.mask = mask;
 
     return success;
-}
-
-bool post_ops_t::defined() const {
-    for (int idx = 0; idx < len(); ++idx) {
-        auto kind = entry_[idx].kind;
-        if (kind == primitive_kind::sum) {
-            if (is_runtime_value(entry_[idx].sum.scale)) return false;
-        } else if (kind == primitive_kind::eltwise) {
-            const auto &e = entry_[idx].eltwise;
-            if (is_runtime_value(e.scale) || is_runtime_value(e.alpha)
-                    || is_runtime_value(e.beta))
-                return false;
-        } else if (utils::one_of(kind, primitive_kind::binary,
-                           primitive_kind::prelu,
-                           primitive_kind::convolution)) {
-            // binary is always defined
-        } else {
-            assert(!"unreachable");
-        }
-    }
-    return true;
 }
 
 status_t post_ops_t::set_default_formats(const memory_desc_t *dst_md) {

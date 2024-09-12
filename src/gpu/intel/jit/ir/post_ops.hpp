@@ -62,12 +62,13 @@ public:
                           DNNL_ARG_WEIGHTS))
         , do_dst_compensation(pd
                   && !pd->attr()->zero_points_.has_default_values(DNNL_ARG_DST))
-        , is_runtime_src_zero_points(
-                  pd && !pd->attr()->zero_points_.defined(DNNL_ARG_SRC))
-        , is_runtime_wei_zero_points(
-                  pd && !pd->attr()->zero_points_.defined(DNNL_ARG_WEIGHTS))
-        , is_runtime_dst_zero_points(
-                  pd && !pd->attr()->zero_points_.defined(DNNL_ARG_DST))
+        , is_runtime_src_zero_points(pd
+                  && !pd->attr()->zero_points_.has_default_values(DNNL_ARG_SRC))
+        , is_runtime_wei_zero_points(pd
+                  && !pd->attr()->zero_points_.has_default_values(
+                          DNNL_ARG_WEIGHTS))
+        , is_runtime_dst_zero_points(pd
+                  && !pd->attr()->zero_points_.has_default_values(DNNL_ARG_DST))
         , is_common_src_zero_point(
                   pd && pd->attr()->zero_points_.common(DNNL_ARG_SRC))
         , is_common_wei_zero_point(

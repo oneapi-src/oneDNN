@@ -167,10 +167,12 @@ struct attr_info_t {
         attr_info.dst_zpoints_data_type = zp.get_data_type(DNNL_ARG_DST);
 
         attr_info.with_per_ic_src_zpoints = attr_info.with_src_zpoints
-                && !zp.defined(DNNL_ARG_SRC) && !zp.common(DNNL_ARG_SRC);
+                && !zp.has_default_values(DNNL_ARG_SRC)
+                && !zp.common(DNNL_ARG_SRC);
 
         attr_info.with_per_oc_dst_zpoints = attr_info.with_dst_zpoints
-                && !zp.defined(DNNL_ARG_DST) && !zp.common(DNNL_ARG_DST);
+                && !zp.has_default_values(DNNL_ARG_DST)
+                && !zp.common(DNNL_ARG_DST);
 
         attr_info.initialized = true;
         return attr_info;

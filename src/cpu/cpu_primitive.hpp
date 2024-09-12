@@ -66,7 +66,7 @@
 #define DEFINE_ZERO_POINTS_BUFFER(zero_points_ptr, mem_arg) \
     int32_t CONCAT2(default_zero_point_, mem_arg) = 0; \
     const int32_t *zero_points_ptr \
-            = pd()->attr()->zero_points_.defined(mem_arg) \
+            = pd()->attr()->zero_points_.has_default_values(mem_arg) \
             ? &CONCAT2(default_zero_point_, mem_arg) \
             : CTX_IN_MEM( \
                     const int32_t *, DNNL_ARG_ATTR_ZERO_POINTS | mem_arg); \
