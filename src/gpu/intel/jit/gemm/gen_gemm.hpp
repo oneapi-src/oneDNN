@@ -226,6 +226,14 @@ struct gen_gemm_t : public gpu_gemm_t {
                             ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
                             : 1;
                 }
+                // Zero points with non-trivial groups only supported when
+                // target tensor is being dequantized.
+                VDISPATCH_GEMM(
+                        IMPLICATION(wei_zp_2d,
+                                !dy_quant_enabled_
+                                        || utils::one_of(d->a_type(), s4, u4)
+                                        || wei_q2d_group_k == desc()->k()),
+                        VERBOSE_UNSUPPORTED_ZP_CFG);
             }
 
             auto &wei_scales = attr()->scales_.get(DNNL_ARG_WEIGHTS);
@@ -264,8 +272,12 @@ struct gen_gemm_t : public gpu_gemm_t {
                         = src_scales.ndims_ > 0 ? src_scales.group_dims_[1] : 1;
                 if (scales_group_k >= d->k())
                     src_scales_2d_ = false;
-                else
+                else {
                     src_q2d_group_k = scales_group_k;
+                    VDISPATCH_GEMM(dy_quant_enabled_
+                                    && utils::one_of(eff_a_type(), s4, u4),
+                            VERBOSE_UNSUPPORTED_SCALES_CFG);
+                }
             }
 
             VDISPATCH_GEMM_SC(init_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
@@ -302,12 +314,13 @@ struct gen_gemm_t : public gpu_gemm_t {
                     ? attr_zps.get_data_type(DNNL_ARG_A)
                     : data_type::s32;
             auto bo_type = data_type::s32;
+            bool int_acc = utils::one_of(eff_a_type(), s8, u8);
             auto co_type = with_bias() ? d->bias_type()
-                    : with_sum_ab()
-                    ? d->sum_ab_type
-                    : (utils::one_of(eff_a_type(), s8, u8) ? s32 : d->c_type());
+                    : with_sum_ab()    ? d->sum_ab_type
+                    : int_acc          ? s32
+                                       : d->c_type();
 
-            auto acc_type = utils::one_of(eff_a_type(), s8, u8)
+            auto acc_type = int_acc
                     ? s32
                     : (utils::one_of(f64, eff_a_type(), eff_b_type()) ? f64
                                                                       : f32);
