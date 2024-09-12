@@ -3524,9 +3524,9 @@ impl::status_t lift_up_weight_reshape_for_depthwiseconv(
     subgraph_rewriter_t rewriter(sg);
     for (auto &pair : to_be_swapped) {
         op_t *baseop = pair.first;
-        for (auto swaped : pair.second)
+        for (auto swapped : pair.second)
             rewriter.swap_neighboring_reshape_ops(
-                    swaped->shared_from_this(), baseop->shared_from_this());
+                    swapped->shared_from_this(), baseop->shared_from_this());
     }
 
     return infer_shape(sg);

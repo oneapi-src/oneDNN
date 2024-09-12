@@ -107,6 +107,7 @@ public:
 #endif
 
     DEF_KERNEL_METHOD_STR(larger_partition_kernel_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(larger_partition_kernel_t)
 };
 
 kernel_ptr large_partition_kernel_creator();

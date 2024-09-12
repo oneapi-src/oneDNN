@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ TEST(iface_sparse_test_t, TestSparseMDCreation) {
     // CSR.
     ASSERT_NO_THROW(
             md = memory::desc::csr({64, 128}, dt::f32, nnz, dt::s32, dt::s32));
+    // COO.
+    ASSERT_NO_THROW(md = memory::desc::coo({64, 128}, dt::f32, nnz, dt::s32));
     // Packed.
     ASSERT_NO_THROW(md = memory::desc::packed({64, 128}, dt::f32, nnz));
 }
@@ -61,6 +63,24 @@ TEST(iface_sparse_test_t, TestSparseMDComparison) {
             md1 = memory::desc::csr({64, 128}, dt::f32, nnz, dt::s32, dt::s32));
     ASSERT_NO_THROW(md2
             = memory::desc::csr({64, 128}, dt::f32, nnz + 1, dt::s32, dt::s32));
+    ASSERT_NE(md1, md2);
+
+    // COO.
+
+    // Different value data types.
+    ASSERT_NO_THROW(md1 = memory::desc::coo({64, 128}, dt::f32, nnz, dt::s32));
+    ASSERT_NO_THROW(md2 = memory::desc::coo({64, 128}, dt::f16, nnz, dt::s32));
+    ASSERT_NE(md1, md2);
+
+    // Different index data types.
+    ASSERT_NO_THROW(md1 = memory::desc::coo({64, 128}, dt::f32, nnz, dt::s32));
+    ASSERT_NO_THROW(md2 = memory::desc::coo({64, 128}, dt::f32, nnz, dt::s8));
+    ASSERT_NE(md1, md2);
+
+    // Different nnz.
+    ASSERT_NO_THROW(md1 = memory::desc::coo({64, 128}, dt::f32, nnz, dt::s32));
+    ASSERT_NO_THROW(
+            md2 = memory::desc::coo({64, 128}, dt::f32, nnz + 1, dt::s32));
     ASSERT_NE(md1, md2);
 
     // Packed.
@@ -98,6 +118,18 @@ TEST(iface_sparse_test_t, TestSparseMDQueries) {
     ASSERT_EQ(md.get_data_type(1), indices_dt);
     ASSERT_EQ(md.get_data_type(2), pointers_dt);
 
+    // COO.
+    ASSERT_NO_THROW(md = memory::desc::coo(dims, data_type, nnz, indices_dt));
+    ASSERT_EQ(md.get_dims(), dims);
+    ASSERT_EQ(md.get_data_type(), data_type);
+    ASSERT_EQ(md.get_data_type(0), data_type);
+    ASSERT_EQ(md.get_format_kind(), memory::format_kind::sparse);
+
+    ASSERT_EQ(md.get_nnz(), nnz);
+    ASSERT_EQ(md.get_sparse_encoding(), memory::sparse_encoding::coo);
+    ASSERT_EQ(md.get_data_type(1), indices_dt);
+    ASSERT_EQ(md.get_data_type(2), indices_dt);
+
     // Packed.
     ASSERT_NO_THROW(md = memory::desc::packed(dims, data_type, nnz));
     ASSERT_EQ(md.get_dims(), dims);
@@ -117,22 +149,34 @@ TEST(iface_sparse_test_t, TestSparseMDSize) {
     ASSERT_NO_THROW(
             md = memory::desc::csr({64, 128}, dt::f32, nnz, dt::s32, dt::s32));
     // Size of values.
-    const size_t exp_values_size
-            = nnz * memory::data_type_size(md.get_data_type());
+    size_t exp_values_size = nnz * memory::data_type_size(md.get_data_type());
     // Default.
     ASSERT_EQ(md.get_size(), exp_values_size);
     // Explicit.
     ASSERT_EQ(md.get_size(0), exp_values_size);
 
     // Size of indices.
-    const size_t exp_indices_size
-            = nnz * memory::data_type_size(md.get_data_type(1));
+    size_t exp_indices_size = nnz * memory::data_type_size(md.get_data_type(1));
     ASSERT_EQ(md.get_size(1), exp_indices_size);
 
     // Size of  pointers.
-    const size_t exp_pointers_size = (md.get_dims()[0] + 1)
+    size_t exp_pointers_size = (md.get_dims()[0] + 1)
             * memory::data_type_size(md.get_data_type(2));
     ASSERT_EQ(md.get_size(2), exp_pointers_size);
+
+    // COO.
+    ASSERT_NO_THROW(md = memory::desc::coo({64, 128}, dt::f32, nnz, dt::s32));
+    // Size of values.
+    exp_values_size = nnz * memory::data_type_size(md.get_data_type());
+    // Default.
+    ASSERT_EQ(md.get_size(), exp_values_size);
+    // Explicit.
+    ASSERT_EQ(md.get_size(0), exp_values_size);
+
+    // Size of indices.
+    exp_indices_size = nnz * memory::data_type_size(md.get_data_type(1));
+    ASSERT_EQ(md.get_size(1), exp_indices_size);
+    ASSERT_EQ(md.get_size(2), exp_indices_size);
 
     // Packed.
 
@@ -161,6 +205,8 @@ TEST(iface_sparse_test_t, TestSparseMemoryCreation) {
 
     const int nnz = 12;
     memory::desc md;
+
+    // CSR.
     ASSERT_NO_THROW(
             md = memory::desc::csr({64, 128}, dt::f32, nnz, dt::s32, dt::s32));
     memory mem;
@@ -176,6 +222,22 @@ TEST(iface_sparse_test_t, TestSparseMemoryCreation) {
                 mem = memory(md, eng,
                         {values.data(), indices.data(), pointers.data()}));
     }
+
+    // COO.
+    ASSERT_NO_THROW(md = memory::desc::coo({64, 128}, dt::f32, nnz, dt::s32));
+
+    // Default memory constructor.
+    EXPECT_NO_THROW(mem = memory(md, eng));
+    // User provided buffers.
+    {
+        std::vector<float> values(1);
+        std::vector<int> row_indices(1);
+        std::vector<int> col_indices(1);
+
+        EXPECT_NO_THROW(mem = memory(md, eng,
+                                {values.data(), row_indices.data(),
+                                        col_indices.data()}));
+    }
 }
 
 TEST(iface_sparse_test_t, TestSparseMemorySetGetDataHandles) {
@@ -186,12 +248,14 @@ TEST(iface_sparse_test_t, TestSparseMemorySetGetDataHandles) {
     if (is_unimplemented) return;
 
     const int nnz = 12;
+
+    // CSR.
     memory::desc md;
     ASSERT_NO_THROW(
             md = memory::desc::csr({64, 128}, dt::f32, nnz, dt::s32, dt::s32));
     memory mem;
 
-    const int nhandles = 3;
+    int nhandles = 3;
     // Default memory constructor.
     EXPECT_NO_THROW(mem = memory(md, eng));
     for (int i = 0; i < nhandles; i++) {
@@ -223,6 +287,41 @@ TEST(iface_sparse_test_t, TestSparseMemorySetGetDataHandles) {
         ASSERT_EQ(mem.get_data_handle(1), indices.data());
         ASSERT_EQ(mem.get_data_handle(2), pointers.data());
     }
+
+    // COO.
+    ASSERT_NO_THROW(md = memory::desc::coo({64, 128}, dt::f32, nnz, dt::s32));
+
+    // Default memory constructor.
+    EXPECT_NO_THROW(mem = memory(md, eng));
+    for (int i = 0; i < nhandles; i++) {
+        void *h = mem.get_data_handle(i);
+        ASSERT_NE(h, nullptr);
+    }
+
+    // Creating a memory object without underlying buffers.
+    for (int i = 0; i < nhandles; i++) {
+        EXPECT_NO_THROW(mem.set_data_handle(DNNL_MEMORY_NONE, i));
+    }
+
+    for (int i = 0; i < nhandles; i++) {
+        void *h = mem.get_data_handle(i);
+        ASSERT_EQ(h, nullptr);
+    }
+
+    // User provided buffers.
+    {
+        std::vector<float> values(1);
+        std::vector<int> row_indices(1);
+        std::vector<int> col_indices(1);
+
+        ASSERT_NO_THROW(mem.set_data_handle(values.data(), 0));
+        ASSERT_NO_THROW(mem.set_data_handle(row_indices.data(), 1));
+        ASSERT_NO_THROW(mem.set_data_handle(col_indices.data(), 2));
+
+        ASSERT_EQ(mem.get_data_handle(0), values.data());
+        ASSERT_EQ(mem.get_data_handle(1), row_indices.data());
+        ASSERT_EQ(mem.get_data_handle(2), col_indices.data());
+    }
 }
 
 TEST(iface_sparse_test_t, TestSparseMemoryMapUnmap) {
@@ -233,6 +332,8 @@ TEST(iface_sparse_test_t, TestSparseMemoryMapUnmap) {
     if (is_unimplemented) return;
 
     const int nnz = 2;
+
+    // CSR.
     memory::desc md;
     ASSERT_NO_THROW(
             md = memory::desc::csr({2, 2}, dt::f32, nnz, dt::s32, dt::s32));
@@ -263,6 +364,37 @@ TEST(iface_sparse_test_t, TestSparseMemoryMapUnmap) {
     ASSERT_NO_THROW(mem.unmap_data(mapped_values, 0));
     ASSERT_NO_THROW(mem.unmap_data(mapped_indices, 1));
     ASSERT_NO_THROW(mem.unmap_data(mapped_pointers, 2));
+
+    // COO.
+    ASSERT_NO_THROW(md = memory::desc::coo({2, 2}, dt::f32, nnz, dt::s32));
+
+    std::vector<float> coo_values = {1.5, 2.5};
+    std::vector<int> row_indices = {0, 1};
+    std::vector<int> col_indices = {0, 1};
+
+    memory coo_mem(md, eng,
+            {coo_values.data(), row_indices.data(), col_indices.data()});
+
+    float *mapped_coo_values = nullptr;
+    int *mapped_row_indices = nullptr;
+    int *mapped_col_indices = nullptr;
+
+    ASSERT_NO_THROW(mapped_coo_values = coo_mem.map_data<float>(0));
+    ASSERT_NO_THROW(mapped_row_indices = coo_mem.map_data<int>(1));
+    ASSERT_NO_THROW(mapped_col_indices = coo_mem.map_data<int>(2));
+
+    for (size_t i = 0; i < coo_values.size(); i++)
+        ASSERT_EQ(values[i], mapped_values[i]);
+
+    for (size_t i = 0; i < row_indices.size(); i++)
+        ASSERT_EQ(row_indices[i], mapped_row_indices[i]);
+
+    for (size_t i = 0; i < col_indices.size(); i++)
+        ASSERT_EQ(col_indices[i], mapped_col_indices[i]);
+
+    ASSERT_NO_THROW(mem.unmap_data(mapped_coo_values, 0));
+    ASSERT_NO_THROW(mem.unmap_data(mapped_row_indices, 1));
+    ASSERT_NO_THROW(mem.unmap_data(mapped_col_indices, 2));
 }
 
 } // namespace dnnl

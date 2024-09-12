@@ -153,7 +153,7 @@ inline std::shared_ptr<op_executable_t> executable_creator(
 // - support data formatting ops like permute/reshape/transpose
 // - support zero-volume tensor (empty tensor) like (1024, 64)x(64, 0)
 //
-// In the execute_sycl fuction, we will run a dummy sycl kernel to gather all
+// In the execute_sycl function, we will run a dummy sycl kernel to gather all
 // the input events
 struct dummy_impl_t : public op_executable_t {
     void execute(const stream &stream,

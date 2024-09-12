@@ -918,6 +918,8 @@ struct memory : public handle<dnnl_memory_t> {
             /// only be used to create a primitive descriptor to query the
             /// actual memory descriptor (similar to the format tag `any`).
             packed = dnnl_packed,
+            /// Coordinate Sparse (COO) encoding.
+            coo = dnnl_coo,
     };
 #endif
 
@@ -2824,6 +2826,38 @@ struct memory : public handle<dnnl_memory_t> {
             if (!allow_empty)
                 error::wrap_c_api(status,
                         "could not create a memory descriptor for CSR sparse "
+                        "encoding");
+            return desc {md};
+        }
+
+        /// Function for creating a memory descriptor for COO sparse encodings.
+        ///
+        /// The created memory descriptor will describe a memory object that
+        /// contains n+1 buffers for an n-dimensional tensor.
+        /// The buffers have the following meaning and assigned numbers (index):
+        ///  - 0: values
+        ///  - 1: indices for dimension 0
+        ///  - 2: indices for dimension 1 ...
+        ///  - n: indices for dimension n-1
+        ///
+        /// @param adims Tensor dimensions.
+        /// @param adata_type Data precision/type.
+        /// @param nnz Number of non-zero entries.
+        /// @param index_dt Data type of indices.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case a
+        ///     zero memory descriptor will be constructed. This flag is
+        ///     optional and defaults to false.
+        static desc coo(const dims &adims, data_type adata_type, dim nnz,
+                data_type index_dt, bool allow_empty = false) {
+            validate_dims(adims);
+            dnnl_memory_desc_t md = nullptr;
+            dnnl_status_t status = dnnl_memory_desc_create_with_coo_encoding(
+                    &md, (int)adims.size(), adims.data(),
+                    convert_to_c(adata_type), nnz, convert_to_c(index_dt));
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a memory descriptor for COO sparse "
                         "encoding");
             return desc {md};
         }

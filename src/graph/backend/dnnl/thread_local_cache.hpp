@@ -232,7 +232,7 @@ private:
                                 });
                         assertm(pos != thread_instances.end(),
                                 "expected value to exist in cache");
-                        // Detroy it
+                        // Destroy it
                         thread_instances.erase(pos);
                     }
                 }

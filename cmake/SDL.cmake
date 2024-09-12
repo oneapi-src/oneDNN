@@ -96,7 +96,7 @@ elseif(MSVC AND ${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
 # Windows setting. The following cmake flags change the search order so that 
 # DLLs are loaded from the current working directory only if it is under a path 
 # in the Safe Load List.
-if(WIN32)
+if(WIN32 AND NOT MINGW)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
         # add Clang++ specific flags
         append(CMAKE_EXE_LINKER_FLAGS "-Xlinker /DEPENDENTLOADFLAG:0x2000")

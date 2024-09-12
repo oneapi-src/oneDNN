@@ -100,6 +100,7 @@ public:
 #endif
 
     DEF_KERNEL_METHOD_STR(eltwise_fwd_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(eltwise_fwd_t)
 };
 
 using float_eltwise_fwd = eltwise_fwd_t</* quantized */ false>;
@@ -157,6 +158,7 @@ public:
 #endif
 
     DEF_KERNEL_METHOD_STR(eltwise_bwd_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(eltwise_bwd_t)
 };
 #endif
 

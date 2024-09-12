@@ -32,7 +32,6 @@ namespace graph {
 namespace dnnl_impl {
 using op_t = op_t;
 using op_ptr = std::shared_ptr<op_t>;
-using value_ptr = std::shared_ptr<value_t>;
 using ltw = logical_tensor_wrapper_t;
 
 bool need_prop_once_more(const std::shared_ptr<subgraph_t> &sg) {

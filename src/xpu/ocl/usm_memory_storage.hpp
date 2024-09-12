@@ -75,7 +75,7 @@ public:
 protected:
     status_t init_allocate(size_t size) override {
         using kind_t = usm::kind_t;
-        if (usm_kind_ == kind_t::unknown) usm_kind_ = kind_t::shared;
+        if (usm_kind_ == kind_t::unknown) usm_kind_ = kind_t::device;
 
         void *usm_ptr_alloc = nullptr;
 

@@ -337,7 +337,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_conv_post_ops)
             [quant_out]*
                 | 
 
-This pattern is defined for itex orginally, the conv here is a depthwise 
+This pattern is defined for itex originally, the conv here is a depthwise 
 convolution.
 */
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_reshape_post_ops)

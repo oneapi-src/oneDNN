@@ -25,6 +25,21 @@
 #define GWS_GET_THREAD_ID(index) \
     (off_t)(get_global_id(index) + offset.array[index])
 
+__kernel void subbyte_pack(__global uchar *restrict src,
+        __global uchar *restrict dst, off_t n, int bits, int64x3_t offset) {
+    const uchar mask = (1 << bits) - 1;
+
+    const off_t dst_off = get_global_id(0) + offset.array[0];
+    const off_t src_off = (8 / bits) * dst_off;
+
+    uchar packed = 0;
+    for (int i = 0, j = 0; i < 8; i += bits, ++j) {
+        uchar byte = src_off + j < n ? src[src_off + j] : 0;
+        packed |= (byte & mask) << i;
+    }
+    dst[dst_off] = packed;
+}
+
 KERNEL_ATTR
 __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
         __global DST_DATA_T *restrict dst, __global float *restrict src_scales,
@@ -69,11 +84,7 @@ __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
         int pad_d4 = NDIMS > 4 && d4 >= SRC_D4;
         int pad_d5 = NDIMS > 5 && d5 >= SRC_D5;
         if (pad_d0 || pad_d1 || pad_d2 || pad_d3 || pad_d4 || pad_d5) {
-#if TO_I4
-            SET_DOUBLE_HALF_BYTE(dst, dst_off, 0);
-#else
             dst[dst_off] = 0;
-#endif
             continue;
         }
 #endif
@@ -84,22 +95,11 @@ __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
         dst_scale = dst_scales[SCALE_OFF(DST, d0, d1, d2, d3, d4, d5)];
 #endif
 #if FROM_I4
-        SRC_DATA_T sval = GET_HALF_BYTE(src, src_off);
-        dst[dst_off] = TO_DST(SRC_TO_REF(sval));
-#elif TO_I4
-        if (dst_off % 2) {
-            continue;
-        } else {
-            SRC_DATA_T sval = src[src_off];
-            uchar dval = 0;
-            dval = dval | TO_DST(sval);
-            sval = src[src_off + SRC_S_CONTIG_D];
-            dval = dval | ((TO_DST(sval) << 4));
-            SET_DOUBLE_HALF_BYTE(dst, dst_off, dval);
-        }
+        SRC_DATA_T src_value = GET_HALF_BYTE(src, src_off);
 #else
-        REORDER(dst[dst_off], src[src_off], src_scale, dst_scale, sum_scale,
-                src_zp, dst_zp, sum_zp);
+        SRC_DATA_T src_value = src[src_off];
 #endif
+        REORDER(dst[dst_off], src_value, src_scale, dst_scale, sum_scale,
+                src_zp, dst_zp, sum_zp);
     }
 }

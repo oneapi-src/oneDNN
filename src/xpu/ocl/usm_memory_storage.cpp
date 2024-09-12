@@ -43,7 +43,7 @@ status_t usm_memory_storage_t::map_data(
 
     if (!stream) CHECK(engine()->get_service_stream(stream));
 
-    void *host_ptr = usm::malloc_host(engine(), size);
+    void *host_ptr = usm::malloc_host(stream->engine(), size);
     if (!host_ptr) return status::out_of_memory;
 
     auto leak_guard = decltype(usm_ptr_)(

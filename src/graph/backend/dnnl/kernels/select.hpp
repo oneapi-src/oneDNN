@@ -97,6 +97,7 @@ public:
     }
 
     DEF_KERNEL_METHOD_STR(select_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(select_t)
 };
 
 } // namespace dnnl_impl

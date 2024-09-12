@@ -95,6 +95,7 @@ public:
 #endif
 
     DEF_KERNEL_METHOD_STR(resampling_fwd_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(resampling_fwd_t)
 };
 
 #if BUILD_TRAINING
@@ -149,6 +150,7 @@ public:
 #endif
 
     DEF_KERNEL_METHOD_STR(resampling_bwd_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(resampling_bwd_t)
 };
 #endif
 

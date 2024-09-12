@@ -898,6 +898,29 @@ dnnl_status_t DNNL_API dnnl_memory_desc_create_with_csr_encoding(
         dnnl_data_type_t data_type, dnnl_dim_t nnz, dnnl_data_type_t indices_dt,
         dnnl_data_type_t pointers_dt);
 
+/// Creates a memory descriptor for COO encoding.
+///
+/// The created memory descriptor will describe a memory object that
+/// contains n+1 buffers for an n-dimensional tensor.
+/// The buffers have the following meaning and assigned numbers (index):
+///  - 0: values
+///  - 1: indices for dimension 0
+///  - 2: indices for dimension 1 ...
+///  - n: indices for dimension n-1
+///
+/// @param memory_desc Output memory descriptor.
+/// @param ndims Number of dimensions.
+/// @param dims Array of dimensions.
+/// @param data_type Elements data type.
+/// @param nnz Number of non-zero entries.
+/// @param indices_dt Data type of indices.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_desc_create_with_coo_encoding(
+        dnnl_memory_desc_t *memory_desc, int ndims, const dnnl_dims_t dims,
+        dnnl_data_type_t data_type, dnnl_dim_t nnz,
+        dnnl_data_type_t indices_dt);
+
 /// Creates a memory descriptor for packed sparse encoding.
 ///
 /// The created memory descriptor cannot be used to create a memory

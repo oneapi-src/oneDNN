@@ -140,6 +140,36 @@ status_t memory_desc_init_by_csr_encoding(memory_desc_t &memory_desc, int ndims,
     return success;
 }
 
+status_t memory_desc_init_by_coo_encoding(memory_desc_t &memory_desc, int ndims,
+        const dims_t dims, data_type_t data_type, dim_t nnz,
+        data_type_t indices_dt) {
+    if (ndims == 0) {
+        memory_desc = types::zero_md();
+        return success;
+    }
+
+    // This is the only number of dims that is supported at this point.
+    VCHECK_MEMORY(ndims <= 2, unimplemented, VERBOSE_BAD_NDIMS, "", ndims);
+
+    bool args_ok = memory_desc_sanity_check(
+            ndims, dims, data_type, format_kind::undef);
+    VCHECK_MEMORY(args_ok, invalid_arguments, VERBOSE_MEM_DESC_CHECK_FAIL);
+
+    auto md = memory_desc_t();
+    md.ndims = ndims;
+    array_copy(md.dims, dims, ndims);
+    md.data_type = data_type;
+    array_copy(md.padded_dims, dims, ndims);
+    md.format_kind = format_kind::sparse;
+    md.format_desc.sparse_desc.encoding = sparse_encoding::coo;
+    md.format_desc.sparse_desc.nnz = nnz;
+    md.format_desc.sparse_desc.metadata_types[0] = indices_dt;
+
+    memory_desc = md;
+
+    return success;
+}
+
 status_t memory_desc_init_by_packed_encoding(memory_desc_t &memory_desc,
         int ndims, const dims_t dims, data_type_t data_type, dim_t nnz) {
     if (ndims == 0) {
@@ -592,6 +622,19 @@ status_t dnnl_memory_desc_create_with_csr_encoding(memory_desc_t **memory_desc,
     return success;
 }
 
+status_t dnnl_memory_desc_create_with_coo_encoding(memory_desc_t **memory_desc,
+        int ndims, const dims_t dims, data_type_t data_type, dim_t nnz,
+        data_type_t indices_dt) {
+    if (any_null(memory_desc)) return invalid_arguments;
+
+    auto md = utils::make_unique<memory_desc_t>();
+    if (!md) return out_of_memory;
+    CHECK(memory_desc_init_by_coo_encoding(
+            *md, ndims, dims, data_type, nnz, indices_dt));
+    (*memory_desc) = md.release();
+    return success;
+}
+
 status_t dnnl_memory_desc_create_with_packed_encoding(
         memory_desc_t **memory_desc, int ndims, const dims_t dims,
         data_type_t data_type, dim_t nnz) {
@@ -728,12 +771,20 @@ status_t dnnl_memory_desc_query_v2(
         case query::data_type:
             *(data_type_t *)result = (index == 0)
                     ? md->data_type
-                    : md->format_desc.sparse_desc.metadata_types[index - 1];
+                    : md->format_desc.sparse_desc.metadata_types
+                              [md->format_desc.sparse_desc.encoding
+                                                      == sparse_encoding_t::
+                                                              dnnl_coo
+                                              ? 0
+                                              : index - 1];
             break;
         case query::num_handles_s32:
             if (is_sparse) {
                 switch (md->format_desc.sparse_desc.encoding) {
                     case sparse_encoding::csr:
+                    case sparse_encoding::coo:
+                        *(int *)result = md->ndims + 1;
+                        break;
                     case sparse_encoding::packed: *(int *)result = 3; break;
                     default: assert(!"unknown encoding"); *(int *)result = 0;
                 }

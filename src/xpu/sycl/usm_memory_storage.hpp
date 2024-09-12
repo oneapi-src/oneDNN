@@ -131,7 +131,7 @@ protected:
         auto &sycl_ctx = sycl_engine_impl->context();
         using ::sycl::usm::alloc;
 
-        if (usm_kind_ == alloc::unknown) usm_kind_ = alloc::shared;
+        if (usm_kind_ == alloc::unknown) usm_kind_ = alloc::device;
 
         void *usm_ptr_alloc = nullptr;
 

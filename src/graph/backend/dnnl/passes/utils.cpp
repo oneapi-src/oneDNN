@@ -44,7 +44,6 @@ namespace graph {
 namespace dnnl_impl {
 using op_t = op_t;
 using op_ptr = std::shared_ptr<op_t>;
-using value_ptr = std::shared_ptr<value_t>;
 using ltw = logical_tensor_wrapper_t;
 
 status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
@@ -576,24 +575,24 @@ bool is_typecast(const op_t *op) {
 }
 
 bool with_runtime_zps(const op_ptr &op, const fusion_info_mgr_t &mgr,
-        bool is_input, size_t indice) {
+        bool is_input, size_t index) {
     if (op->has_attr(op_attr::fusion_info_key)
             && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
         int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         const fusion_info_t &fusion_info = mgr.get_info(key);
-        return fusion_info.with_runtime_zero_points(is_input, indice);
+        return fusion_info.with_runtime_zero_points(is_input, index);
     } else {
         return false;
     }
 }
 
 bool with_runtime_scales(const op_ptr &op, const fusion_info_mgr_t &mgr,
-        bool is_input, size_t indice) {
+        bool is_input, size_t index) {
     if (op->has_attr(op_attr::fusion_info_key)
             && op->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
         int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         const fusion_info_t &fusion_info = mgr.get_info(key);
-        return fusion_info.with_runtime_scales(is_input, indice);
+        return fusion_info.with_runtime_scales(is_input, index);
     } else {
         return false;
     }

@@ -90,6 +90,7 @@ public:
 #endif
 
     DEF_KERNEL_METHOD_STR(batch_norm_fwd_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(batch_norm_fwd_t)
 };
 
 #if BUILD_TRAINING
@@ -144,6 +145,7 @@ public:
 #endif
 
     DEF_KERNEL_METHOD_STR(batch_norm_bwd_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(batch_norm_bwd_t)
 };
 #endif // BUILD_TRAINING
 

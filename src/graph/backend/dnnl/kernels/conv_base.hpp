@@ -85,6 +85,8 @@ public:
             const std::vector<cl_event> &ocl_deps,
             cl_event *ocl_event) override;
 #endif
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(conv_base_t)
 };
 
 } // namespace dnnl_impl

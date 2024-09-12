@@ -93,6 +93,7 @@ public:
 #endif
 
     DEF_KERNEL_METHOD_STR(pooling_fwd_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(pooling_fwd_t)
 };
 
 using float_pooling_fwd = pooling_fwd_t</* quantized */ false>;
@@ -150,6 +151,7 @@ public:
 #endif
 
     DEF_KERNEL_METHOD_STR(pooling_bwd_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(pooling_bwd_t)
 };
 #endif
 
