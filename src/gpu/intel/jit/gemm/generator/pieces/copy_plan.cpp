@@ -1106,7 +1106,7 @@ void CopyPlan::planEmulatedHFToHF8(CopyInstruction &i)
     // mul          t0:hf   t0:hf   2^(-15):hf      /* hf8 underflow */
     // and (ze)f1   null    ~t0:uw  0x7C00          /* nan/inf check */
     // add          t0:uw   t0:uw   -0x40           /* round */
-    // and (nz)f2   null    t0:uw   0x3FF
+    // and (nz)f2   null    t0:uw   0x00FF
     // shl          t0:uw   t0:uw   1               /* move to high byte */
     // (f2) add     t0:uw   t0:uw   0x100
     // (f1) mov     t0:uw   0x7F00
@@ -1143,7 +1143,7 @@ void CopyPlan::planEmulatedHFToHF8(CopyInstruction &i)
     ie[4]->dst = CopyOperand();
     ie[4]->dst.type = DataType::uw;
     ie[4]->src0 = t0UW;
-    ie[4]->src1 = 0x3FF;
+    ie[4]->src1 = 0x00FF;
     ie[4]->cmod = ConditionModifier::nz;
     ie[4]->flag = newFlag(ie[4]->simd);
 
