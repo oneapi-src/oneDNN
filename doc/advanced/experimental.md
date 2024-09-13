@@ -55,11 +55,12 @@ of buffers. The order of the buffers in the vector matters and should correspond
 the buffers' indices.
 
 oneDNN also introduces a new format kind dnnl::memory::format_kind::sparse.
-Sparse encoding (a.k.a. sparse format) is an
-enumeration type that specifies how data is encoded. Currently, oneDNN
-supports Compressed Sparse Row (CSR), Sorted Co-ordinate (COO) Sparse 
-Format, and PACKED sparse encodings (dnnl::memory::sparse_encoding::csr, 
-dnnl::memory::sparse_encoding::coo, dnnl::memory::sparse_encoding::packed).
+Sparse encoding (a.k.a. sparse format) is an enumeration type that specifies
+how data is encoded. Currently, oneDNN supports Compressed Sparse Row (CSR),
+Sorted Co-ordinate (COO) Sparse Format, and PACKED sparse encodings
+(dnnl::memory::sparse_encoding::csr, dnnl::memory::sparse_encoding::coo,
+dnnl::memory::sparse_encoding::packed) for CPU engine, and, only sorted
+COO (Co-ordinate Sparse Format) for GPU engine.
 
 The memory descriptor has dedicated static member functions for creating memory
 descriptors for different sparse encodings.
@@ -263,7 +264,6 @@ destination tensor should also work for the sparse one.
 * The interoperability API for sparse memory is not provided
 * Sparse memory and memory descriptor can only be used with the Matrix
 Multiplication and Reorder primitives
-* Sparse memory can be created only for a CPU engine
 
 ### ONEDNN_EXPERIMENTAL_UKERNEL
 
