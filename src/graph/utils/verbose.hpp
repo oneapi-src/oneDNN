@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,18 +35,9 @@ void print_verbose_header();
 
 struct partition_info_t {
     partition_info_t() = default;
-    partition_info_t(const partition_info_t &rhs)
-        : str_(rhs.str_), is_initialized_(rhs.is_initialized_) {};
-    partition_info_t &operator=(const partition_info_t &rhs) {
-        str_ = rhs.str_;
-        is_initialized_ = rhs.is_initialized_;
-        return *this;
-    }
-
+    void init(const engine_t *engine, const compiled_partition_t *partition);
     const char *c_str() const { return str_.c_str(); }
     bool is_initialized() const { return is_initialized_; }
-
-    void init(const engine_t *engine, const compiled_partition_t *partition);
 
 private:
     std::string str_;
