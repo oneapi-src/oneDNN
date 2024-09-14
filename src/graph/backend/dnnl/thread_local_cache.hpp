@@ -240,6 +240,9 @@ private:
             global_cache_ref_.release();
         }
 
+        cache_type_t(const cache_type_t &) = delete;
+        cache_type_t &operator=(const cache_type_t &) = delete;
+
         std::unordered_map<size_t, std::weak_ptr<T>> &data() { return data_; }
 
         global_cache_type_t &global_cache_ref_;
