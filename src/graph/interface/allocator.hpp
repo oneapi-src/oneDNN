@@ -17,19 +17,11 @@
 #ifndef GRAPH_INTERFACE_ALLOCATOR_HPP
 #define GRAPH_INTERFACE_ALLOCATOR_HPP
 
-#include <atomic>
-#include <cstdlib>
-#include <unordered_map>
-
 #include "oneapi/dnnl/dnnl_graph.h"
-
-#include "common/rw_mutex.hpp"
 
 #include "graph/interface/c_types_map.hpp"
 
 #include "graph/utils/alloc.hpp"
-#include "graph/utils/id.hpp"
-#include "graph/utils/utils.hpp"
 #include "graph/utils/verbose.hpp"
 
 #ifdef DNNL_WITH_SYCL
