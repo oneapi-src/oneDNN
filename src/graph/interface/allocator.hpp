@@ -61,41 +61,6 @@ public:
         : ocl_malloc_(ocl_malloc), ocl_free_(ocl_free) {}
 #endif
 
-    dnnl_graph_allocator(const dnnl_graph_allocator &alloc) {
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-        ocl_malloc_ = alloc.ocl_malloc_;
-        ocl_free_ = alloc.ocl_free_;
-#endif
-
-#ifdef DNNL_WITH_SYCL
-        sycl_malloc_ = alloc.sycl_malloc_;
-        sycl_free_ = alloc.sycl_free_;
-#endif
-
-        host_malloc_ = alloc.host_malloc_;
-        host_free_ = alloc.host_free_;
-    }
-
-    ~dnnl_graph_allocator() = default;
-
-    dnnl_graph_allocator &operator=(const dnnl_graph_allocator &alloc) {
-        // check self-assignment
-        if (this == &alloc) return *this;
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-        ocl_malloc_ = alloc.ocl_malloc_;
-        ocl_free_ = alloc.ocl_free_;
-#endif
-
-#ifdef DNNL_WITH_SYCL
-        sycl_malloc_ = alloc.sycl_malloc_;
-        sycl_free_ = alloc.sycl_free_;
-#endif
-        host_malloc_ = alloc.host_malloc_;
-        host_free_ = alloc.host_free_;
-        return *this;
-    }
-
     enum class mem_type_t {
         persistent = 0,
         output = 1,
@@ -117,12 +82,6 @@ public:
             type_ = type;
             alignment_ = alignment;
         }
-
-        /// Copy constructor
-        mem_attr_t(const mem_attr_t &other) = default;
-
-        /// Assign operator
-        mem_attr_t &operator=(const mem_attr_t &other) = default;
     };
 
     void *allocate(size_t size, mem_attr_t attr = {}) const {
