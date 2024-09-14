@@ -41,7 +41,7 @@
 #include "oneapi/dnnl/dnnl_graph_ocl.h"
 #endif
 
-struct dnnl_graph_allocator final : public dnnl::impl::graph::utils::id_t {
+struct dnnl_graph_allocator {
 public:
     dnnl_graph_allocator() = default;
 
