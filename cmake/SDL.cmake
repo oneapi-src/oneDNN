@@ -1,6 +1,7 @@
 #===============================================================================
 # Copyright 2017-2024 Intel Corporation
 # Copyright 2021 FUJITSU LIMITED
+# Copyright 2024 Arm Ltd. and affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,7 +42,11 @@ macro(sdl_gnu_common_ccxx_flags var)
             append(${var} "-fstack-protector-strong")
         endif()
     endif()
-    if(NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0))
+    # The -fcf-protection=full option fails to compile on aarch64 with the
+    # error: "'-fcf-protection=full' is not supported for this target".
+    # This patch skips this option for this configuration.
+    if(NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0 OR
+        CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64"))
         append(${var} "-fcf-protection=full")
     endif()
 endmacro()
