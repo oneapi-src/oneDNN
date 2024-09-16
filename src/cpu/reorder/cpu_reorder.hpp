@@ -75,6 +75,7 @@ using impl_list_map_t
         = std::map<reorder_impl_key_t, std::vector<impl_list_item_t>>;
 
 /* regular reorders */
+extern const impl_list_map_t &regular_fp4_impl_list_map();
 extern const impl_list_map_t &regular_f32_fp8_impl_list_map();
 extern const impl_list_map_t &regular_f32_bf16_impl_list_map();
 extern const impl_list_map_t &regular_f32_f16_impl_list_map();

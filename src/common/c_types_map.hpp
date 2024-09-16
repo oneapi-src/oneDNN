@@ -146,6 +146,7 @@ const alg_kind_t softmax_log = dnnl_softmax_log;
 using data_type_t = dnnl_data_type_t;
 namespace data_type {
 const data_type_t undef = dnnl_data_type_undef;
+const data_type_t f4_e2m1 = dnnl_f4_e2m1;
 const data_type_t e8m0 = dnnl_e8m0;
 const data_type_t f8_e5m2 = dnnl_f8_e5m2;
 const data_type_t f8_e4m3 = dnnl_f8_e4m3;

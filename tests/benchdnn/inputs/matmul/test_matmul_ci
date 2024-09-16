@@ -196,3 +196,12 @@
 --runtime_dims_masks=,4:0,0:8,8:4,4:8,12:4,8:12,12:12
 --attr-post-ops=mul:f32,relu,sum,prelu,prelu:per_oc
 2x10x3x20:2x10x20x4n"postops+runtime_dims_4d"
+
+# Rounding Mode
+--reset
+--dt=f8_e5m2,f8_e4m3
+--bia_dt=f32
+--attr-rounding-mode=dst:stochastic
+--batch=shapes_2d_ci
+--batch=shapes_2d
+--batch=shapes_3d

@@ -1268,6 +1268,8 @@
 #define DST_TO_REF8(x) convert_float(cvt_f8_e4m3_to_hf(x))
 #define REF_TO_DST(x) cvt_hf_to_f8_e4m3(convert_half(x))
 #define REF_TO_DST8(x) cvt_hf_to_f8_e4m3(convert_half8(x))
+#define DST_DATA_MAX (uchar)0x7B
+#define DST_DATA_MIN (uchar)0xFB
 #elif DST_DT_F16
 #define REF_TO_DST(x) convert_half(x)
 #define DST_TO_REF(x) convert_float(x)
@@ -1293,33 +1295,36 @@
 #define REF_TO_DST8(x) (x)
 #endif
 
-#if DST_DT_F64
-#define TO_DST(x) convert_double(x)
-#define TO_DST2(x) convert_double2(x)
-#define TO_DST4(x) convert_double4(x)
-#define TO_DST8(x) convert_double8(x)
-#elif DST_DT_BF16
+#if DST_DT_BF16
 #define TO_DST(x) cvt_f32_to_bf16(convert_float(x))
 #define TO_DST2(x) cvt_f32_to_bf16(convert_float2(x))
 #define TO_DST4(x) cvt_f32_to_bf16(convert_float4(x))
 #define TO_DST8(x) cvt_f32_to_bf16(convert_float8(x))
+#define DST_DATA_FMAX cvt_bf16_to_f32((ushort)0x7F7F)
+#define DST_DATA_FMIN cvt_bf16_to_f32((ushort)0xFF7F)
 #elif DST_DT_F16
 #define TO_DST(x) convert_half(x)
 #define TO_DST2(x) convert_half2(x)
 #define TO_DST4(x) convert_half4(x)
 #define TO_DST8(x) convert_half8(x)
+#define DST_DATA_FMAX convert_float(HALF_MAX)
+#define DST_DATA_FMIN -DST_DATA_FMAX
 #elif DST_DT_BF8
 #define TO_DST(x) cvt_hf_to_f8_e5m2(convert_half(x))
 #define TO_DST2(x) cvt_hf_to_f8_e5m2(convert_half2(x))
 #define TO_DST4(x) cvt_hf_to_f8_e5m2(convert_half4(x))
 #define TO_DST8(x) cvt_hf_to_f8_e5m2(convert_half8(x))
 #define TO_DST16(x) cvt_hf_to_f8_e5m2(convert_half16(x))
+#define DST_DATA_FMAX convert_float(cvt_f8_e5m2_to_hf((uchar)0x7B))
+#define DST_DATA_FMIN convert_float(cvt_f8_e5m2_to_hf((uchar)0xFB))
 #elif DST_DT_HF8
 #define TO_DST(x) cvt_hf_to_f8_e4m3(convert_half(x))
 #define TO_DST2(x) cvt_hf_to_f8_e4m3(convert_half2(x))
 #define TO_DST4(x) cvt_hf_to_f8_e4m3(convert_half4(x))
 #define TO_DST8(x) cvt_hf_to_f8_e4m3(convert_half8(x))
 #define TO_DST16(x) cvt_hf_to_f8_e4m3(convert_half16(x))
+#define DST_DATA_FMAX convert_float(cvt_f8_e4m3_to_hf((uchar)0x7E))
+#define DST_DATA_FMIN convert_float(cvt_f8_e4m3_to_hf((uchar)0xFE))
 #elif DST_DT_U4
 #define SET_DOUBLE_HALF_BYTE(x, y, z) set_double_half_byte(x, y, z)
 #define TO_DST(x) cvt_f32_to_u4(convert_float(x))
@@ -1327,6 +1332,8 @@
 #define TO_DST4(x) cvt_f32_to_u4(convert_float4(x))
 #define TO_DST8(x) cvt_f32_to_u4(convert_float8(x))
 #define TO_DST16(x) cvt_f32_to_u4(convert_float16(x))
+#define DST_DATA_FMAX 15.0
+#define DST_DATA_FMIN 0.0
 #elif DST_DT_S4
 #define SET_DOUBLE_HALF_BYTE(x, y, z) set_double_half_byte(x, y, z)
 #define TO_DST(x) cvt_f32_to_s4(convert_float(x))
@@ -1334,33 +1341,45 @@
 #define TO_DST4(x) cvt_f32_to_s4(convert_float4(x))
 #define TO_DST8(x) cvt_f32_to_s4(convert_float8(x))
 #define TO_DST16(x) cvt_f32_to_s4(convert_float16(x))
+#define DST_DATA_FMAX 7.0
+#define DST_DATA_FMIN -8.0
 #elif DST_DT_U8
 #define TO_DST(x) convert_uchar_sat_rte(x)
 #define TO_DST2(x) convert_uchar2_sat_rte(x)
 #define TO_DST4(x) convert_uchar4_sat_rte(x)
 #define TO_DST8(x) convert_uchar8_sat_rte(x)
 #define TO_DST16(x) convert_uchar16_sat_rte(x)
+#define DST_DATA_FMAX convert_float(UCHAR_MAX)
+#define DST_DATA_FMIN -DST_DATA_FMAX
 #elif DST_DT_S8
 #define TO_DST(x) convert_char_sat_rte(x)
 #define TO_DST2(x) convert_char2_sat_rte(x)
 #define TO_DST4(x) convert_char4_sat_rte(x)
 #define TO_DST8(x) convert_char8_sat_rte(x)
 #define TO_DST16(x) convert_char16_sat_rte(x)
+#define DST_DATA_FMAX convert_float(CHAR_MAX)
+#define DST_DATA_FMIN -DST_DATA_FMAX
 #elif DST_DT_S32
 #define TO_DST(x) convert_int_sat_rte(x)
 #define TO_DST2(x) convert_int2_sat_rte(x)
 #define TO_DST4(x) convert_int4_sat_rte(x)
 #define TO_DST8(x) convert_int8_sat_rte(x)
+#define DST_DATA_FMAX convert_float(INT_MAX)
+#define DST_DATA_FMIN -DST_DATA_FMAX
 #elif DST_DT_F32
 #define TO_DST(x) convert_float(x)
 #define TO_DST2(x) convert_float2(x)
 #define TO_DST4(x) convert_float4(x)
 #define TO_DST8(x) convert_float8(x)
+#define DST_DATA_FMAX convert_float(FLT_MAX)
+#define DST_DATA_FMIN -DST_DATA_FMAX
 #elif DST_DT_F64
 #define TO_DST(x) convert_double(x)
 #define TO_DST2(x) convert_double2(x)
 #define TO_DST4(x) convert_double4(x)
 #define TO_DST8(x) convert_double8(x)
+#define DST_DATA_FMAX convert_float(DBL_MAX)
+#define DST_DATA_FMIN -DST_DATA_FMAX
 #else
 #error "Not expected"
 #endif

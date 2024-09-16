@@ -298,7 +298,7 @@ status_t pooling_fwd_t<quantized>::ocl_execute_impl(const stream_t *g_stream,
         const std::vector<cl_event> &cl_deps, cl_event *ret_event) {
 
     auto deps = cl_deps;
-    cl_event returned_event;
+    cl_event returned_event {};
     dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
     // each thread's own local resource
@@ -513,7 +513,7 @@ status_t pooling_bwd_t::ocl_execute_impl(const stream_t *g_stream,
         const std::vector<cl_event> &cl_deps, cl_event *ret_event) {
 
     auto deps = cl_deps;
-    cl_event returned_event;
+    cl_event returned_event {};
     dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
     // each thread's own local resource

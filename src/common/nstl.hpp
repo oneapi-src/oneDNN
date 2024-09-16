@@ -29,6 +29,7 @@
 
 #include "bfloat16.hpp"
 #include "float16.hpp"
+#include "float4.hpp"
 #include "float8.hpp"
 #include "int4.hpp"
 #include "internal_defs.hpp"
@@ -155,6 +156,22 @@ struct numeric_limits<int8_t> : public std::numeric_limits<int8_t> {};
 
 template <>
 struct numeric_limits<uint8_t> : public std::numeric_limits<uint8_t> {};
+
+template <>
+struct numeric_limits<float4_e2m1_t> {
+    static constexpr float4_e2m1_t lowest() { return float4_e2m1_t(0xf, true); }
+    // Min normal is equal to the value 1.0
+    static constexpr float4_e2m1_t min() { return float4_e2m1_t(0x2, true); }
+    // Max normal is equal to the value 6.0
+    static constexpr float4_e2m1_t max() { return float4_e2m1_t(0x7, true); }
+
+    static constexpr int bias = 0x1;
+    static constexpr int digits = 2; // 1+1 implicit bits
+
+    static constexpr float4_e2m1_t epsilon() {
+        return float4_e2m1_t(0x2, true);
+    }
+};
 
 template <>
 struct numeric_limits<float8_e8m0_t> {

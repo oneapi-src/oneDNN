@@ -778,6 +778,48 @@ template <typename T>
 using maybe_unique_ptr = std::unique_ptr<T, nop_deleter_t>;
 #endif // DNNL_MAYBE_UNIQUE_PTR_IS_UNIQUE
 
+// Common abstraction to manipulate nibbles in memory as pairs
+struct nibble2_t {
+
+    // constructs a nibble pair from a pair of uint8_t values
+    nibble2_t(uint8_t low_, uint8_t high_) {
+        low = low_;
+        high = high_;
+    }
+
+    // constructs a nibble pairs from an uin8_t, taking its low and high part
+    nibble2_t(uint8_t pack_) {
+        low = pack_ & 0xf;
+        high = (pack_ >> 4) & 0xf;
+    }
+
+    // sets low (idx=0) or high (idx=1)  nibble.
+    inline void set(uint8_t val, int idx) {
+        switch (idx) {
+            case 0: low = val; return;
+            case 1: high = val; return;
+            default: assert(!"Out of range index"); return;
+        }
+    }
+
+    // returns low (idx = 0) or high (idx = 1) nibble in a uint8_t
+    inline uint8_t get(int idx) const {
+        switch (idx) {
+            case 0: return low;
+            case 1: return high;
+            default: assert(!"out of range index"); return 0;
+        }
+    }
+
+    // returns pair of nibbles as uint8t
+    inline uint8_t get() const { return high << 4 | low; }
+
+private:
+    uint8_t low : 4;
+    uint8_t high : 4;
+};
+static_assert(sizeof(nibble2_t) == 1, "nibble2_t must be 1 byte");
+
 } // namespace impl
 } // namespace dnnl
 

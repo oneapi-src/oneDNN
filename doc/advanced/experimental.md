@@ -57,8 +57,8 @@ the buffers' indices.
 oneDNN also introduces a new format kind dnnl::memory::format_kind::sparse.
 Sparse encoding (a.k.a. sparse format) is an
 enumeration type that specifies how data is encoded. Currently, oneDNN
-supports CSR (Compressed Sparse Row), Sorted COO (Co-ordinate Sparse Format) and 
-PACKED sparse encodings (dnnl::memory::sparse_encoding::csr, 
+supports Compressed Sparse Row (CSR), Sorted Co-ordinate (COO) Sparse 
+Format, and PACKED sparse encodings (dnnl::memory::sparse_encoding::csr, 
 dnnl::memory::sparse_encoding::coo, dnnl::memory::sparse_encoding::packed).
 
 The memory descriptor has dedicated static member functions for creating memory
@@ -72,8 +72,8 @@ Each encoding defines the number and meaning of the buffers.
 | Sorted COO      | 0 - values, 1 to *ndims* - indices (*ndims* - number of tensor dimensions) |
 | PACKED          | The meaning and content are unspecified                                    |
 
-The pseudo-code below demonstrates how to create a memory object
-for CSR and COO sparse encodings and use the new API to work with the
+The pseudocode below demonstrates how to create a memory object
+for the CSR and COO sparse encodings and use the new API to work with the
 underlying handles.
 
 ###### CSR Encoding:
@@ -178,10 +178,10 @@ This option enables the matmul primitive that can work with
 sparse input tensors.
 
 ###### CSR encoding
-Only one of the input tensors is allowed to be sparse. The
+Only one of the input tensors can be sparse. The
 output tensor is always dense.
 
-The following data types combinations are supported:
+The following data type combinations are supported:
 
 | Values (src, weight, dst)   | Indices  |
 |:----------------------------|:---------|
@@ -202,10 +202,10 @@ For the case above, the number of non-zero elements for the source tensor is
 calculated as max(4 * 1000000 * (1 - 0.99), 1).
 
 ###### COO encoding
-Only one of the input tensors is allowed to be sparse. The
+Only one of the input tensors can be sparse. The
 output tensor is always dense.
 
-The following data types combinations are supported:
+The following data type combinations are supported:
 
 | Values (src, weight, dst)   | Indices  |
 |:----------------------------|:---------|

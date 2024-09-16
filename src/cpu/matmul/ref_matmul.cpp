@@ -18,6 +18,7 @@
 #include <float.h>
 #include <math.h>
 
+#include <algorithm>
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
@@ -183,35 +184,41 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     bool with_dropout = !pd()->attr()->dropout_.has_default_values();
 
     // computations
-    parallel_nd(batch, M, N, [&](dim_t mb, dim_t m, dim_t n) {
-        dims_t dst_dims_idx;
-        // account for M, N dims for index calculations
-        const size_t l_offset = mb * M * N + m * N + n;
-        utils::l_dims_by_l_offset(dst_dims_idx, l_offset, dst_d.dims(), ndims);
-        float d = ker(dst_dims_idx, m, n);
-        if (with_src_scales) d *= src_scales[0];
-        if (with_wei_scales && !with_wei_decompression)
-            d *= wei_scales[wei_scale_stride_n * n];
-        if (bias) d += ker_bias(dst_dims_idx);
+    // Note: If dst type is < 8 bits, we cannot split a byte during
+    // store or we get a race condition.  To simplify logic, we just
+    // emit fewer threads
+    int nthr = batch * std::min<dim_t>(M / 2, 1) * std::min<dim_t>(N / 2, 1);
+    parallel_nd_ext(
+            nthr, batch, M, N, [&](int, int, dim_t mb, dim_t m, dim_t n) {
+                dims_t dst_dims_idx;
+                // account for M, N dims for index calculations
+                const size_t l_offset = mb * M * N + m * N + n;
+                utils::l_dims_by_l_offset(
+                        dst_dims_idx, l_offset, dst_d.dims(), ndims);
+                float d = ker(dst_dims_idx, m, n);
+                if (with_src_scales) d *= src_scales[0];
+                if (with_wei_scales && !with_wei_decompression)
+                    d *= wei_scales[wei_scale_stride_n * n];
+                if (bias) d += ker_bias(dst_dims_idx);
 
-        const auto dst_off = dst_d.off_v(dst_dims_idx);
-        if (non_default_attrs) {
-            if (with_dropout)
-                d = ref_dropout(d, dropout_mask, dst_off, *p, *seed);
-            ref_post_ops_t::args_t args;
-            args.dst_val = io::load_float_value(sum_dt, dst, dst_off);
-            args.ctx = &ctx;
-            args.l_offset = l_offset;
-            args.dst_md = pd()->dst_md();
-            ref_post_ops->execute(d, args);
-        }
-        if (with_dst_scales) d *= dst_scales[0];
-        if (dst_rnd_mode == rounding_mode::stochastic)
-            d = math::stochastic_round_fwd(
-                    d, dst_off, rnd_seed[0], dst_d.data_type());
-        io::store_float_value(dst_d.data_type(), d, dst, dst_off);
-        utils::dim_iterator(dst_d.dims(), dst_dims_idx, batch_ndims);
-    });
+                const auto dst_off = dst_d.off_v(dst_dims_idx);
+                if (non_default_attrs) {
+                    if (with_dropout)
+                        d = ref_dropout(d, dropout_mask, dst_off, *p, *seed);
+                    ref_post_ops_t::args_t args;
+                    args.dst_val = io::load_float_value(sum_dt, dst, dst_off);
+                    args.ctx = &ctx;
+                    args.l_offset = l_offset;
+                    args.dst_md = pd()->dst_md();
+                    ref_post_ops->execute(d, args);
+                }
+                if (with_dst_scales) d *= dst_scales[0];
+                if (dst_rnd_mode == rounding_mode::stochastic)
+                    d = math::stochastic_round_fwd(
+                            d, dst_off, rnd_seed[0], dst_d.data_type());
+                io::store_float_value(dst_d.data_type(), d, dst, dst_off);
+                utils::dim_iterator(dst_d.dims(), dst_dims_idx, batch_ndims);
+            });
 
     return status::success;
 }

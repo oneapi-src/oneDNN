@@ -1972,7 +1972,8 @@ template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<tag_i == format_tag::any
                         && tag_o == format_tag::any && type_i == dnnl_f32
-                        && utils::one_of(type_o, dnnl_s4, dnnl_u4),
+                        && utils::one_of(
+                                type_o, dnnl_s4, dnnl_u4, dnnl_f4_e2m1),
                 spec::reference>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -2024,19 +2025,19 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             dim_t start {0}, end {0};
             balance211(work_amount, nthr, ithr, start, end);
             PRAGMA_OMP_SIMD()
-            for_(dim_t j = start; j < end; j++)
-            for (int i = 0; i < 2; ++i) {
-                const auto idx = 2 * j + i;
-                const auto i_off = need_transform ? idx : input_d.off_l(idx);
+            for (dim_t j = start; j < end; j++) {
+                const auto idx = 2 * j;
+
+                const auto i0_off = need_transform ? idx : input_d.off_l(idx);
+                auto val0 = _qz_a1b0<data_type::f32, type_o>()(wspace[i0_off]);
+
+                const auto i1_off
+                        = need_transform ? idx + 1 : input_d.off_l(idx + 1);
+                auto val1 = _qz_a1b0<data_type::f32, type_o>()(wspace[i1_off]);
+
                 const auto o_off = need_transform ? idx : output_d.off_l(idx);
-                const auto shift = i % 2 ? int4_extract_t::high_half
-                                         : int4_extract_t::low_half;
-                auto src_val
-                        = _qz_a1b0<data_type::f32, type_o>()(wspace[i_off]);
-                const uint8_t dst_val = i == 0
-                        ? 0
-                        : reinterpret_cast<uint8_t *>(output)[o_off / 2];
-                output[o_off / 2] = src_val.insert(dst_val, shift);
+                nibble2_t o_val(val0.raw_bits_, val1.raw_bits_);
+                reinterpret_cast<uint8_t *>(output)[o_off / 2] = o_val.get();
             }
         });
 
@@ -2048,7 +2049,7 @@ template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<tag_i == format_tag::any
                         && tag_o == format_tag::any
-                        && utils::one_of(type_i, dnnl_s4, dnnl_u4)
+                        && utils::one_of(type_i, dnnl_s4, dnnl_u4, dnnl_f4_e2m1)
                         && type_o == dnnl_f32,
                 spec::reference>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
@@ -2084,21 +2085,22 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dim_t work_amount = input_d.nelems() / 2;
 
         parallel(0, [&](const int ithr, const int nthr) {
+            auto u8_input = reinterpret_cast<const uint8_t *>(input);
             dim_t start {0}, end {0};
             balance211(work_amount, nthr, ithr, start, end);
             PRAGMA_OMP_SIMD()
-            for_(dim_t j = start; j < end; j++)
-            for (int i = 0; i < 2; ++i) {
-                const auto idx = 2 * j + i;
+            for (dim_t j = start; j < end; j++) {
+                const auto idx = 2 * j;
                 const auto i_off = need_transform ? idx : input_d.off_l(idx);
-                const auto o_off = need_transform ? idx : output_d.off_l(idx);
-                const auto shift = i % 2 ? int4_extract_t::high_half
-                                         : int4_extract_t::low_half;
-                auto src_val = data_t<type_i>::extract(
-                        reinterpret_cast<const uint8_t *>(input)[i_off / 2],
-                        shift);
-                reinterpret_cast<data_t<type_o> *>(wspace)[o_off]
-                        = static_cast<float>(src_val);
+                const nibble2_t in_nibble(u8_input[i_off / 2]);
+
+                for (int i = 0; i < 2; ++i) {
+                    const auto o_off = need_transform ? idx + i
+                                                      : output_d.off_l(idx + i);
+                    data_t<type_i> src_val(in_nibble.get(i));
+                    reinterpret_cast<data_t<type_o> *>(wspace)[o_off]
+                            = static_cast<float>(src_val);
+                }
             }
         });
 
@@ -2225,8 +2227,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         && tag_o == format_tag::any
                         && order_keep == fmt_order::any
                         // u4/s4 requires a special implementation
-                        && !utils::one_of(type_i, dnnl_s4, dnnl_u4)
-                        && !utils::one_of(type_o, dnnl_s4, dnnl_u4),
+                        && !utils::one_of(
+                                type_i, dnnl_s4, dnnl_u4, dnnl_f4_e2m1)
+                        && !utils::one_of(
+                                type_o, dnnl_s4, dnnl_u4, dnnl_f4_e2m1),
                 spec::reference>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {

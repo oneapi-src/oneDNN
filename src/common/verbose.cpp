@@ -323,6 +323,8 @@ std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
     return std::string();
 }
 
+void verbose_printf_impl(const char *raw_fmt_str, verbose_t::flag_kind kind) {}
+
 #else
 
 std::ostream &operator<<(std::ostream &ss, engine_kind_t eng_kind) {

@@ -72,6 +72,7 @@ struct float8_e4m3_t {
         return *this;
     }
 };
+static_assert(sizeof(float8_e4m3_t) == 1, "float8_e4m3_t must be 1 byte");
 
 void cvt_f8_e5m2_to_float(float *out, const float8_e5m2_t *inp, size_t nelems);
 void cvt_f8_e4m3_to_float(float *out, const float8_e4m3_t *inp, size_t nelems);
@@ -84,8 +85,6 @@ void add_floats_and_cvt_to_f8_e5m2(float8_e5m2_t *out, const float *inp0,
         const float *inp1, size_t nelems);
 void add_floats_and_cvt_to_f8_e4m3(float8_e4m3_t *out, const float *inp0,
         const float *inp1, size_t nelems);
-
-static_assert(sizeof(float8_e5m2_t) == 1, "float8_e4m3_t must be 1 byte");
 
 #if DNNL_X64
 namespace cpu {

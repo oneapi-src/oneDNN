@@ -44,6 +44,10 @@ template <primitive_kind_t>
 struct pkind_traits {}; /* ::desc_type, ::query_d */
 
 template <>
+struct prec_traits<data_type::f4_e2m1> {
+    typedef float4_e2m1_t type;
+};
+template <>
 struct prec_traits<data_type::e8m0> {
     typedef float8_e8m0_t type;
 };
@@ -96,6 +100,14 @@ struct prec_traits<data_type::boolean> {
     typedef bool type;
 };
 
+template <>
+struct data_traits<float4_e2m1_t> {
+    static constexpr data_type_t data_type = data_type::f4_e2m1;
+};
+template <>
+struct data_traits<float8_e8m0_t> {
+    static constexpr data_type_t data_type = data_type::e8m0;
+};
 template <>
 struct data_traits<float8_e5m2_t> {
     static constexpr data_type_t data_type = data_type::f8_e5m2;

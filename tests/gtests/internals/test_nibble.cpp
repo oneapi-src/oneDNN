@@ -17,6 +17,7 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
+#include "src/common/float4.hpp"
 #include "src/common/int4.hpp"
 #include "src/common/nstl.hpp"
 #include "src/common/type_helpers.hpp"
@@ -37,43 +38,40 @@ TEST(test_limits, int4) {
 }
 
 TEST(test_limits, uint4) {
-    test_limits<impl::uint4_t>(15, 0, 0);
+    test_limits<impl::uint4_t>(15.f, 0.f, 0.f);
+}
+
+TEST(test_limits, f4_e2m1) {
+    test_limits<impl::float4_e2m1_t>(6.0f, -6.0f, 1.0f);
 }
 
 template <typename T>
 void test_conversions() {
-    impl::parallel_nd(0xff, [&](uint16_t u16) {
-        // Each uint8_t contains a pair of int4_t numbers.
-        // Convert int4 -> f32 and back again,
+    impl::parallel_nd(0xff, [&](uint8_t u8) {
+        // Each uint8_t contains a pair of 4-bit numbers.
+        // Convert T -> f32 and back again,
         // expecting bitwise identical values.
-        uint8_t int4_pair = static_cast<uint8_t>(u16);
-        float num1 = static_cast<float>(
-                T::extract(int4_pair, impl::int4_extract_t::low_half));
-        float num2 = static_cast<float>(
-                T::extract(int4_pair, impl::int4_extract_t::high_half));
+        impl::nibble2_t T_pair(u8);
+        float num1 = static_cast<T>(T_pair.get(0));
+        float num2 = static_cast<T>(T_pair.get(1));
         // Check that the all numbers are in the range
-        float int4_lowest
+        float T_lowest
                 = static_cast<float>(impl::nstl::numeric_limits<T>::lowest());
-        float int4_max
-                = static_cast<float>(impl::nstl::numeric_limits<T>::max());
-        ASSERT_TRUE(num1 >= int4_lowest && num1 <= int4_max);
-        ASSERT_TRUE(num2 >= int4_lowest && num2 <= int4_max);
+        float T_max = static_cast<float>(impl::nstl::numeric_limits<T>::max());
+        ASSERT_TRUE(num1 >= T_lowest && num1 <= T_max);
+        ASSERT_TRUE(num2 >= T_lowest && num2 <= T_max);
 
         // Check that the numbers are extracted in the right order
-        if (u16 <= 0xf)
+        if (u8 <= 0xf)
             ASSERT_TRUE(num2 == 0);
         else
-            ASSERT_TRUE(num2 != 0);
+            // only case for num2 == -num2 is with fp types and signed 0.
+            ASSERT_TRUE(num2 != 0 || num2 == -num2);
 
         // The target value must be initialized
-        uint8_t new_int4_pair = 0;
-        // Down-convert
-        T i4_num1(num1), i4_num2(num2);
-        new_int4_pair
-                = i4_num1.insert(new_int4_pair, impl::int4_extract_t::low_half);
-        new_int4_pair = i4_num2.insert(
-                new_int4_pair, impl::int4_extract_t::high_half);
-        ASSERT_EQ(int4_pair, new_int4_pair);
+        impl::nibble2_t new_T_pair(static_cast<T>(T_pair.get(0)).raw_bits_,
+                static_cast<T>(T_pair.get(1)).raw_bits_);
+        ASSERT_EQ(T_pair.get(), new_T_pair.get());
     });
 }
 
@@ -83,6 +81,10 @@ TEST(test_int4_conversion, int4) {
 
 TEST(test_int4_conversion, uint4) {
     test_conversions<impl::uint4_t>();
+}
+
+TEST(test_e2m1_conversion, f4_e2m1) {
+    test_conversions<impl::float4_e2m1_t>();
 }
 
 } // namespace dnnl

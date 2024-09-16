@@ -94,14 +94,16 @@ The MatMul primitive supports the following combinations of data
 types for source, destination, weights, and bias tensors:
 
 
-| Source         | Weights   | Destination                 | Bias                        |
-|:---------------|:----------|:----------------------------|:----------------------------|
-| f32            | f32       | f32                         | f32                         |
-| f16            | f16       | f16, u8, s8                 | f16, f32                    |
-| bf16           | bf16      | f32, bf16                   | bf16, f32                   |
-| f32, bf16, f16 | u8, s8    | f32, bf16, f16              | f32, bf16, f16              |
-| u8, s8         | s8        | u8, s8, s32, f32, f16, bf16 | u8, s8, s32, f32, f16, bf16 |
-| f8_e5m2        | f8_e5m2   | f32, f16, bf16, f8_e5m2     | f32, bf16, f16              |
+| Source           | Weights              | Destination                      | Bias                        |
+|:-----------------|:---------------------|:---------------------------------|:----------------------------|
+| f32              | f32                  | f32                              | f32                         |
+| f16              | f16, u8, s8, u4, s4  | f16, u8, s8                      | f16, f32                    |
+| bf16             | bf16, u8, s8, u4, s4 | f32, bf16                        | bf16, f32                   |
+| f32, bf16, f16   | u8, s8               | f32, bf16, f16                   | f32, bf16, f16              |
+| f8_e5m2, f8_e4m3 | f8_e5m2, f8_e4m3     | f32, f16, bf16, f8_e5m2, f8_e4m3 | f32, bf16, f16              |
+| f8_e5m2, f8_e4m3 | f8_e5m2, f8_e4m3     | f32, f16, bf16, f8_e5m2, f8_e4m3 | f32, bf16, f16              |
+| u8, s8           | s8                   | u8, s8, s32, f32, f16, bf16      | u8, s8, s32, f32, f16, bf16 |
+
 
 
 ### Data Representation
