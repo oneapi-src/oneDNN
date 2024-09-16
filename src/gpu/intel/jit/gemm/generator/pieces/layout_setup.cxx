@@ -262,7 +262,7 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                 vymask.bitRep = consecutive;
                 vymask.maskRep = 1;
                 vymask.rsize = *yblock;
-                vymask.rdivide = 1;
+                vymask.rshift = 0;
             } else if (logicalSlots < slots) {
                 auto &fymask = block.colMajor ? block.rowMask.fixed : block.colMask.fixed;
                 fymask.isFixed = true;
@@ -279,7 +279,7 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                     vxmask.bitRep = (block.simdSize > 16) ? 32 : 16;
                     vxmask.maskRep = 1;
                     vxmask.rsize = 1;
-                    vxmask.rdivide = 1;
+                    vxmask.rshift = 0;
                 } else if (allowDesc && (channelScattered || astrategy.newDP) && *xblock > 1 && !byte) {
                     fragment = std::min(*xblock, 4 * width / T);
                     if (block.colMajor)             // Clang can't handle the ternary operator equivalent of this.
@@ -482,7 +482,7 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                         vrmask.rsize = rblock;
                         vrmask.bitRep = std::max<int>(T.paddedSize() / maskGranularity, 1);
                         vrmask.maskRep = cblock;
-                        vrmask.rdivide = std::max<int>(maskGranularity / T, 1);
+                        vrmask.rshift = ilog2(std::max<int>(maskGranularity / T, 1));
                     }
                 } else {
                     if (avoidFragment) {
@@ -491,8 +491,8 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                         vrmask.isFixed = false;
                         vrmask.bitRep = 0;  /* will be filled in later */
                         vrmask.maskRep = 1;
-                        vrmask.rdivide = 1;
                         vrmask.rsize = 1;
+                        vrmask.rshift = 0;
                     } else {
                         // Fragment it. Could actually handle rowFragment = 2 by changing descriptor.
                         block.rowFragment = 1;
@@ -520,7 +520,7 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                         vcmask.rsize = cblock;
                         vcmask.bitRep = std::max<int>(T.paddedSize() / maskGranularity, 1);
                         vcmask.maskRep = rblock;
-                        vcmask.rdivide = std::max<int>(maskGranularity / T, 1);
+                        vcmask.rshift = ilog2(std::max<int>(maskGranularity / T, 1));
                     }
                 } else {
                     if (avoidFragment) {
@@ -529,8 +529,8 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                         vcmask.isFixed = false;
                         vcmask.bitRep = 0;
                         vcmask.maskRep = 1;
-                        vcmask.rdivide = 1;
                         vcmask.rsize = 1;
+                        vcmask.rshift = 0;
                     } else {
                         // Fragment it. Could actually handle colFragment = 2 by changing descriptor.
                         block.colFragment = 1;
@@ -719,7 +719,8 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                 auto &vxmask = block.colMajor ? block.rowMask.variable : block.colMask.variable;
                 vxmask.isFixed = false;
                 vxmask.bitRep = block.simdSize;
-                vxmask.maskRep = vxmask.rdivide = vxmask.rsize = 1;
+                vxmask.maskRep = vxmask.rsize = 1;
+                vxmask.rshift = 0;
             }
 
             if (remainderY) {
@@ -728,7 +729,7 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                 vymask.bitRep = xCacheLines;
                 vymask.maskRep = 1;
                 vymask.rsize = yblock;
-                vymask.rdivide = 1;
+                vymask.rshift = 0;
             }
             break;
         }
@@ -739,13 +740,13 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
     if (block.rowMask && !block.rowMask.fixed.isFixed) {
         if (vrmask.rsize == 0)
             vrmask.rsize = rblock;
-        vrmask.maskRep = std::min<int>(vrmask.maskRep, std::max<int>(1, vrmask.rdivide * block.simdSize / (vrmask.bitRep * vrmask.rsize)));
+        vrmask.maskRep = std::min<int>(vrmask.maskRep, std::max<int>(1, (block.simdSize << vrmask.rshift) / (vrmask.bitRep * vrmask.rsize)));
         block.noRowsOK = true;          // All-zero masks are always OK.
     }
     if (block.colMask && !block.colMask.fixed.isFixed) {
         if (vcmask.rsize == 0)
             vcmask.rsize = cblock;
-        vcmask.maskRep = std::min<int>(vcmask.maskRep, std::max<int>(1, vcmask.rdivide * block.simdSize / (vcmask.bitRep * vcmask.rsize)));
+        vcmask.maskRep = std::min<int>(vcmask.maskRep, std::max<int>(1, (block.simdSize << vcmask.rshift) / (vcmask.bitRep * vcmask.rsize)));
         block.noColsOK = true;
     }
 
