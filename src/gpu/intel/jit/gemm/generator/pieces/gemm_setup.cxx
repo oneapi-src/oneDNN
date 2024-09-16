@@ -1703,6 +1703,26 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
         }
     }
 
+    if (problem.aqGroupM > 1 && (ao2D || as2D)) {
+        auto inI0Q = i0q, inI0S = i0s;
+        if (i0q == state.i0) i0q = state.ra.alloc_sub<uint32_t>();
+        divDown(i0q, inI0Q, problem.aqGroupM, strategy, state);
+        if (inI0S == inI0Q)
+            i0s = i0q;
+        else
+            divDown(i0s, i0s, problem.aqGroupM, strategy, state);
+    }
+
+    if (problem.bqGroupN > 1 && (bo2D || bs2D)) {
+        auto inJ0Q = j0q, inJ0S = j0s;
+        if (j0q == state.j0) j0q = state.ra.alloc_sub<uint32_t>();
+        divDown(j0q, inJ0Q, problem.bqGroupN, strategy, state);
+        if (inJ0S == inJ0Q)
+            j0s = j0q;
+        else
+            divDown(j0s, j0s, problem.bqGroupN, strategy, state);
+    }
+
     auto setupQAddr = [&](Type T, vector<GRFRange> &addrs, const vector<RegisterBlock> &layout,
                           Subregister ptr, Subregister r0, Subregister c0, Subregister ld,
                           const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy)
