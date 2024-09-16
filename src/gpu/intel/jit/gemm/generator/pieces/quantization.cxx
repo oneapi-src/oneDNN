@@ -140,6 +140,9 @@ bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMM
         crosspack = 1;
     int cpo = div_up(crosspack, cpoDiv);
 
+    if (isA  && problem.aqGroupK == 1) tileC = crosspack;
+    if (!isA && problem.bqGroupK == 1) tileR = crosspack;
+
     auto makeQRepack = [&](Type Txq, Type Txq_int, vector<RegisterBlock> &repack, vector<RegisterBlock> &src, int m, int n, int cp) {
         if (cp > 1 || (cColMajor && (cp != src[0].crosspack)) || Txq != Txq_int)
             makeUnbackedRegLayout(Txq_int, repack, m, n, isA, cp, tileR, tileC, false);
@@ -176,14 +179,15 @@ void BLASKernelGenerator<hw>::gemmRepack2DQuantizationData(Type Ts, Type Td, con
         for (int doffC = 0; doffC < nd; doffC += ns)
             copyRegisters(Ts, Td, layoutSrc, layoutDst, src, dst, doffR, doffC, false, strategy, state);
 
-    // Duplicate data in crosspack dimension. TODO: do this as part of the copy.
+    // Duplicate data in padded region. TODO: do this as part of the copy.
     int cp = layoutDst[0].crosspack;
+    int p0 = layoutDst[0].colMajor ? layoutDst[0].nc : layoutDst[0].nr;
 
     if (cp > 1) map(hw, Td, dst, layoutDst, strategy, [&](int simd, RegData r) {
         Subregister r0 = GRF(r.getBase()).sub(r.getOffset(), r.getType());
         moveToIntPipe(r0);
         auto r1 = r0;
-        for (int i = 1; i < cp; i++) {
+        for (int i = p0; i < cp; i++) {
             r1.setOffset(r1.getOffset() + 1);
             mov(simd / cp, r1(cp), r0(cp));
         }
