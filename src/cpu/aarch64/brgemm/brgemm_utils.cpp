@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2022-2023 Intel Corporation
 * Copyright 2023-2024 FUJITSU LIMITED
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,15 +48,18 @@ impl::data_type_t get_accum_datatype(brgemm_t *brg) {
     return brg->is_int8 ? data_type::s32 : data_type::f32;
 }
 
-void init_kernel_datatype(
+status_t init_kernel_datatype(
         brgemm_t *brg, impl::data_type_t dt_a, impl::data_type_t dt_b) {
-    assert(dt_a != data_type::undef && dt_b != data_type::undef);
+    if (dt_a != data_type::undef && dt_b != data_type::undef)
+        return status::unimplemented;
     brg->is_int8 = utils::one_of(dt_a, data_type::u8, data_type::s8)
             && utils::one_of(dt_b, data_type::u8, data_type::s8);
     brg->is_bf16 = (dt_a == data_type::bf16) && (dt_b == data_type::bf16);
     brg->is_f32 = (dt_a == data_type::f32) && (dt_b == data_type::f32);
     brg->is_f16 = utils::one_of(data_type::f16, dt_a, dt_b);
-    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16);
+    if (brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16)
+        return status::unimplemented;
+    return status::success;
 }
 
 void init_common_conf(brgemm_t *brg, brgemm_batch_kind_t type, float alpha,
@@ -88,7 +92,7 @@ void maybe_try_bf32(brgemm_t *brg) {
     //
 }
 
-void set_isa_impl(brgemm_t *brg) {
+status_t set_isa_impl(brgemm_t *brg) {
     auto is_isa_ok = [&](cpu_isa_t isa) {
         return mayiuse(isa) &&
                 // maybe IMPLICATION(brg->isa_user != isa_undef,
@@ -96,19 +100,14 @@ void set_isa_impl(brgemm_t *brg) {
                 one_of(brg->isa_user, isa_undef, isa);
     };
 
-    if (brg->is_bf32) {
-        assert(!"unsupported case");
-    } else if (brg->is_f32) {
+    if (brg->is_bf32 || brg->is_bf16 || brg->is_f16) {
+        return status::unimplemented;
+    } else if (brg->is_f32 || brg->is_int8) {
         brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(sve_512), sve_512,
                 is_isa_ok(sve_256), sve_256);
-    } else if (brg->is_bf16) {
-        assert(!"unsupported case");
-    } else if (brg->is_f16) {
-        assert(!"unsupported case");
-    } else if (brg->is_int8) {
-        brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(sve_512), sve_512,
-                is_isa_ok(sve_256), sve_256);
+        return status::success;
     }
+    return status::success;
 }
 
 void set_brg_vmm(brgemm_t *brg) {
@@ -187,7 +186,7 @@ inline size_t data_type_vnni_granularity(data_type_t data_type) {
 }
 status_t brgemm_blocking(brgemm_t *brg) {
 
-    set_isa_impl(brg);
+    CHECK(set_isa_impl(brg));
     if (brg->isa_impl == isa_undef) return status::unimplemented;
     assert(!brg->is_dgmm); // should not be called from brdgmm
     set_brg_vmm(brg);
@@ -296,10 +295,11 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     return status::success;
 }
 
-void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
-        impl::data_type_t dt_a, impl::data_type_t dt_b, brgemm_layout_t layout,
-        float alpha, float beta, dim_t LDA, dim_t LDB, dim_t LDC, dim_t M,
-        dim_t N, dim_t K, const brgemm_strides_t *strides, bool is_bf32) {
+status_t init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa,
+        brgemm_batch_kind_t type, impl::data_type_t dt_a,
+        impl::data_type_t dt_b, brgemm_layout_t layout, float alpha, float beta,
+        dim_t LDA, dim_t LDB, dim_t LDC, dim_t M, dim_t N, dim_t K,
+        const brgemm_strides_t *strides, bool is_bf32) {
 
     init_common_conf(brg, type, alpha, beta, strides);
 
@@ -307,7 +307,7 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
 
     brg->dt_a = brg->is_row_major() ? dt_a : dt_b;
     brg->dt_b = brg->is_row_major() ? dt_b : dt_a;
-    init_kernel_datatype(brg, brg->dt_a, brg->dt_b);
+    CHECK(init_kernel_datatype(brg, brg->dt_a, brg->dt_b));
 
     brg->dt_c = get_accum_datatype(brg);
     brg->dt_d = brg->dt_c;
@@ -319,7 +319,7 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
     brg->isa_user = isa;
-    set_isa_impl(brg);
+    CHECK(set_isa_impl(brg));
     brg->is_bf32 = false;
 
     brg->has_int8_vnni = true;
@@ -352,11 +352,13 @@ void init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
     brg->rd_step = has_no_vnni_compute_instruction
             ? 1
             : data_type_vnni_granularity(brg->dt_b);
+    return status::success;
 }
 
-void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
-        impl::data_type_t dt_a, impl::data_type_t dt_b, brgemm_layout_t layout,
-        float alpha, float beta, dim_t LDA, dim_t LDC, dim_t M, dim_t N,
+status_t init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa,
+        brgemm_batch_kind_t type, impl::data_type_t dt_a,
+        impl::data_type_t dt_b, brgemm_layout_t layout, float alpha, float beta,
+        dim_t LDA, dim_t LDC, dim_t M, dim_t N,
         const brgemm_strides_t *strides) {
 
     init_common_conf(brg, type, alpha, beta, strides);
@@ -365,7 +367,7 @@ void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
 
     brg->dt_a = dt_a;
     brg->dt_b = dt_b;
-    init_kernel_datatype(brg, brg->dt_a, brg->dt_b);
+    CHECK(init_kernel_datatype(brg, brg->dt_a, brg->dt_b));
 
     brg->dt_c = get_accum_datatype(brg);
     brg->dt_d = brg->dt_c;
@@ -394,6 +396,7 @@ void init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa, brgemm_batch_kind_t type,
 
     brg->bcast_dim = M;
     brg->load_dim = N;
+    return status::success;
 }
 
 } // namespace brgemm_utils

@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2023-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -244,8 +245,8 @@ void ref_primitive_t::check_correctness(
         check_buffer_overwrite(args.dnn_mem(i), args.arg(i), res);
 
         const auto arg = args.arg(i);
-        const auto &mem_dt = args.find(arg);
-        const auto &mem_fp = args_.find(arg);
+        const dnn_mem_t &mem_dt = args.find(arg);
+        const dnn_mem_t &mem_fp = args_.find(arg);
 
         if (dnnl_arg_2_data_kind_map.find(arg)
                 == dnnl_arg_2_data_kind_map.end()) {
