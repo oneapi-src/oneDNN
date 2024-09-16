@@ -115,7 +115,7 @@ would lead to the following operation:
 
 \f[
     \dst(\overline{x}) =
-            scale_{src} \cdot \src(\overline{x} - shift_{src}) +
+            scale_{src} \cdot (\src(\overline{x}) - shift_{src}) +
             \beta  \cdot \dst(\overline{x}) + shift_{dst}
 \f]
 
