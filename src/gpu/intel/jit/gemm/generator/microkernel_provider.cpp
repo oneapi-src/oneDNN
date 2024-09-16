@@ -53,6 +53,12 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo, SizeP
     bool localA = protocol.options().localA;
     bool localB = protocol.options().localB;
     bool beta1 = protocol.options().addToC;
+    bool slmPtr = protocol.options().slmPtr;
+    bool scaleA = protocol.options().scaleA;
+    bool scaleB = protocol.options().scaleB;
+    bool offsetA = protocol.options().offsetA;
+    bool offsetB = protocol.options().offsetB;
+
     bool transC = !isColMajor(problem_.C.layout);
 
     auto problem = problem_;
@@ -70,6 +76,11 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo, SizeP
         for (auto &req: reqs)
             req.transpose();
     }
+
+    if (scaleA != problem.aScale2D || scaleB != problem.bScale2D)
+        stub("Protocol scales do not match problem description");
+    if (offsetA != (problem.aoPtrDims >= 0) || offsetB != (problem.boPtrDims >= 0))
+        stub("Protocol offsets do not match problem description");
 
     /* Get hardware information */
     auto product = npack::decodeHWIPVersion(hwInfo.gmdid);
@@ -182,8 +193,13 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo, SizeP
     interface.newArgument("h0", DataType::d);
     interface.newArgument("local_id_m", DataType::d);
     interface.newArgument("local_id_n", DataType::d);
-    if (protocol.options().slmPtr)
-        interface.newArgument("slm_base", ExternalArgumentType::LocalPtr);
+    if (slmPtr)            interface.newArgument("slm_base", ExternalArgumentType::LocalPtr);
+    if (scaleA)            interface.newArgument("a_scale", DataType::d);
+    if (offsetA)           interface.newArgument("a_offset", DataType::d);
+    if (scaleA || offsetA) interface.newArgument("ldaq", DataType::d);
+    if (scaleB)            interface.newArgument("b_scale", DataType::d);
+    if (offsetB)           interface.newArgument("b_offset", DataType::d);
+    if (scaleB || offsetB) interface.newArgument("ldbq", DataType::d);
 
     /* Update problem from strategy */
     if (isPacked(problem.A.layout))

@@ -758,8 +758,10 @@ void BLASKernelGenerator<hw>::gemmScaleInputs(const GEMMProblem &problem, const 
     scale(Tco, inputs.ldco);
 
     {
-        scale(Ta_ext, inputs.offsetA);
-        scale(Tb_ext, inputs.offsetB);
+        if (strategy.A.base.getModel() != ModelSLM)
+            scale(Ta_ext, inputs.offsetA);
+        if (strategy.B.base.getModel() != ModelSLM)
+            scale(Tb_ext, inputs.offsetB);
         for (int q = 0; q < state.C_count; q++)
             scale(Tc_ext, inputs.offsetC[q]);
         if (problem.usesCO())

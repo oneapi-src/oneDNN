@@ -63,6 +63,11 @@ void BLASKernelGenerator<hw>::gemmMicrokernel(GEMMProblem problem, GEMMStrategy 
     state.lidM = getAndClaim("local_id_m").uw();
     state.lidN = getAndClaim("local_id_n").uw();
 
+    state.A_offsetStrategy.base = A64;
+    state.B_offsetStrategy.base = A64;
+    state.A_scaleStrategy.base = A64;
+    state.B_scaleStrategy.base = A64;
+
     state.allocEmulate64Temp(strategy.emulate);
 
     setDefaultNoMask();
@@ -100,10 +105,7 @@ void BLASKernelGenerator<hw>::gemmMicrokernel(GEMMProblem problem, GEMMStrategy 
     state.lid0 = (strategy.fusedLoop == LoopN) ? state.lidN : state.lidM;
     getFusedID(strategy.unroll[strategy.fusedLoop], problem, strategy, state);
 
-    emulConstant(1, state.inputs.lda, state.inputs.lda, problem.Ta_ext.size(), strategy, state);
-    emulConstant(1, state.inputs.ldb, state.inputs.ldb, problem.Tb_ext.size(), strategy, state);
-    if (!registerC)
-        emulConstant(1, state.inputs.ldc[0], state.inputs.ldc[0], problem.Tc_ext.size(), strategy, state);
+    gemmScaleInputs(problem, strategy, state);
 
     if (wgCheck || gemmtBarriers) {
         state.wgI0 = copySubregister(state.i0, state);
@@ -226,6 +228,10 @@ micro::Package BLASKernelGenerator<hw>::gemmMicrokernelPackage(const GEMMProblem
             if (arg.name == "a") aname = "A";
             if (arg.name == "b") aname = "B";
             if (arg.name == "slm") aname = "slm_base";
+            if (arg.name == "a_offset") aname = "ao_ptr";
+            if (arg.name == "b_offset") aname = "bo_ptr";
+            if (arg.name == "a_scale") aname = "a_scale_ptr";
+            if (arg.name == "b_scale") aname = "b_scale_ptr";
             auto reg = interface.getArgument(aname);
             arg.location.resize(1);
             arg.location[0].boffset = reg.getBase() * GRF::bytes(hw) + reg.getByteOffset();
@@ -247,6 +253,12 @@ micro::Package BLASKernelGenerator<hw>::gemmMicrokernelPackage(const GEMMProblem
             else if (arg.name == "j0") arg.name = "i0";
             else if (arg.name == "local_id_m") arg.name = "local_id_n";
             else if (arg.name == "local_id_n") arg.name = "local_id_m";
+            else if (arg.name == "a_scale") arg.name = "b_scale";
+            else if (arg.name == "b_scale") arg.name = "a_scale";
+            else if (arg.name == "a_offset") arg.name = "b_offset";
+            else if (arg.name == "b_offset") arg.name = "a_offset";
+            else if (arg.name == "ldaq") arg.name = "ldbq";
+            else if (arg.name == "ldbq") arg.name = "ldaq";
         }
 
         package.arguments.push_back(std::move(arg));
