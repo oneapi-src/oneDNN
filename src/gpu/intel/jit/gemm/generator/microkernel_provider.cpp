@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#define BINARY_OUTPUT
+
 #include "microkernel_provider.hpp"
 #include "generator.hpp"
 #include "kernel_selector.hpp"
