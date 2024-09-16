@@ -127,7 +127,7 @@ void BLASKernelGenerator<hw>::loadMask(MaskAssignment assignment, Subregister in
         // Load a variable mask, which requires some minor bit-twiddling.
         auto &vmask = assignment.mask.variable;
 
-        uint32_t rsizeScaled = vmask.rsize / vmask.rdivide;
+        uint32_t rsizeScaled = vmask.rsize >> vmask.rshift;
         uint32_t maskLen = vmask.bitRep * vmask.maskRep * rsizeScaled;
         uint32_t fullMask = (uint64_t(1) << maskLen) - 1;
         uint32_t rep1Mask = (uint64_t(1) << (vmask.bitRep * rsizeScaled)) - 1;
@@ -136,7 +136,7 @@ void BLASKernelGenerator<hw>::loadMask(MaskAssignment assignment, Subregister in
         auto flagType = flag.getType();
         auto mask0Type = getBytes(flagType) >= 4 ? DataType::uq : flagType;
 
-        if (vmask.rsize == 1 && vmask.rdivide == 1) {
+        if (vmask.rsize == 1 && vmask.rshift == 0) {
             // Simple threshold comparison.
             offset += assignment.offset;
             if (flag.isARF())
@@ -152,11 +152,11 @@ void BLASKernelGenerator<hw>::loadMask(MaskAssignment assignment, Subregister in
             auto mask0 = state.ra.alloc_sub(mask0Type, getHint(HintType::Bank1));
             auto mask = mask0.reinterpret(0, flagType);
             auto mindex = index;
+            auto rdivide = 1 << vmask.rshift;
 
-            if (vmask.rdivide > 1) {
-                if (!is_zero_or_pow2(vmask.rdivide)) stub();
-                add(1 | sat, temp, mindex, -offset + vmask.rdivide - 1);
-                shr(1, temp, temp, uint16_t(ilog2(vmask.rdivide)));
+            if (vmask.rshift) {
+                add(1 | sat, temp, mindex, -offset + rdivide - 1);
+                shr(1, temp, temp, uint16_t(vmask.rshift));
                 mindex = temp;
                 offset = 0;
             }
@@ -169,7 +169,7 @@ void BLASKernelGenerator<hw>::loadMask(MaskAssignment assignment, Subregister in
                 mulConstant(1, temp, mindex, vmask.bitRep);
                 mindex = temp;
             }
-            uint16_t tshift = vmask.bitRep * (rsizeScaled + div_up(assignment.offset + offset, vmask.rdivide));
+            uint16_t tshift = vmask.bitRep * (rsizeScaled + div_up(assignment.offset + offset, rdivide));
             add(1 | sat, temp, -mindex, tshift);
             if (tshift >= 32)
                 min_(1, temp, temp, vmask.bitRep * rsizeScaled);            // Ensure shift count doesn't overflow.
