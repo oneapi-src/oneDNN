@@ -35,9 +35,13 @@ T get_native_mem(const interop_handle &ih, U acc) {
             ih.get_native_mem<::sycl::backend::ext_oneapi_cuda>(acc));
 }
 
-template <typename T>
-void host_task(::sycl::handler &cgh, const T &task) {
+template <typename HandlerT, typename FnT>
+void host_task(HandlerT &cgh, const FnT &task) {
+#ifdef SYCL_EXT_ONEAPI_ENQUEUE_NATIVE_COMMAND
+    cgh.ext_codeplay_enqueue_native_command(task);
+#else
     cgh.host_task(task);
+#endif
 }
 
 template <typename native_object_t, typename sycl_object_t,

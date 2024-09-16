@@ -70,6 +70,12 @@ inline status_t check_device(dnnl::impl::engine_kind_t eng_kind) {
                     : status::invalid_arguments);
 }
 
+static void sync_device() {
+#ifndef SYCL_EXT_ONEAPI_ENQUEUE_NATIVE_COMMAND
+    cudaDeviceSynchronize();
+#endif
+}
+
 static void convert_dnnl_dims_array(
         const dnnl_dim_t *dims, int *new_dims, int n_dims) {
     for (size_t i = 0; i < n_dims; i++) {
