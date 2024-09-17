@@ -107,8 +107,11 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             || (!src_d.is_sparse_desc() && !bias_d.is_sparse_desc()
                     && !dst_d.is_sparse_desc()
                     && weights_d.is_sparse_packed_desc());
+    // Disabling verbose dispatch messages for unsupported isa for better
+    // readability.
+    if (!mayiuse(isa)) return status::unimplemented;
+
     VDISPATCH_MATMUL(is_sparse_ok, VERBOSE_UNSUPPORTED_SPARSE_CFG);
-    VDISPATCH_MATMUL(mayiuse(isa), VERBOSE_UNSUPPORTED_ISA);
     VDISPATCH_MATMUL(problem_dt_correct, VERBOSE_UNSUPPORTED_DT_CFG);
     VDISPATCH_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
     VDISPATCH_MATMUL(
