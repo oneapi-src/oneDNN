@@ -42,11 +42,10 @@ macro(sdl_gnu_common_ccxx_flags var)
             append(${var} "-fstack-protector-strong")
         endif()
     endif()
-    # The -fcf-protection=full option fails to compile on aarch64 with the
-    # error: "'-fcf-protection=full' is not supported for this target".
-    # This patch skips this option for this configuration.
-    if(NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0 OR
-        CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64"))
+    # -fcf-protection=full is an x86 specific option and needs to skipped for
+    # other configurations.
+    if(NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0) AND
+        (CMAKE_SYSTEM_PROCESSOR MATCHES "i686|x86_64"))
         append(${var} "-fcf-protection=full")
     endif()
 endmacro()
