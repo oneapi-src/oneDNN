@@ -165,7 +165,7 @@ void BLASKernelGenerator<hw>::gemmRepack2DQuantizationData(Type Ts, Type Td, con
                                                            const GRFMultirange &src, const GRFMultirange &dst,
                                                            const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
-    if (dst.empty()) return;
+    if (layoutDst.empty()) return;
 
     int ms, ns, md, nd;
     getLayoutDims(layoutSrc, ms, ns);
@@ -435,10 +435,10 @@ void BLASKernelGenerator<hw>::gemmDequantizeAB(bool doA, Type Tsrc, Type Tdst,
     auto &srRegs     = doA ? state.Ar_scaleRegs    : state.Br_scaleRegs;
     bool lateScale   = doA ? state.lateScale2DA    : state.lateScale2DB;
 
-    auto &oLayout = orRegs.empty() ? oiLayout : orLayout;
-    auto &oRegs   = orRegs.empty() ? oiRegs   : orRegs;
-    auto &sLayout = srRegs.empty() ? siLayout : srLayout;
-    auto &sRegs   = srRegs.empty() ? siRegs   : srRegs;
+    auto &oLayout = orLayout.empty() ? oiLayout : orLayout;
+    auto &oRegs   = orLayout.empty() ? oiRegs   : orRegs;
+    auto &sLayout = srLayout.empty() ? siLayout : srLayout;
+    auto &sRegs   = srLayout.empty() ? siRegs   : srRegs;
 
     bool xo2D = !oLayout.empty();
     bool xs2D = !sLayout.empty() && !lateScale;
