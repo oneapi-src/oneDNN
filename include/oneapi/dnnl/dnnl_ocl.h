@@ -76,28 +76,20 @@ dnnl_status_t DNNL_API dnnl_ocl_interop_memory_create(dnnl_memory_t *memory,
         dnnl_ocl_interop_memory_kind_t memory_kind, void *handle);
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
-/// Creates a memory object
-///
-/// Unless @p handle is equal to DNNL_MEMORY_NONE or DNNL_MEMORY_ALLOCATE, the
-/// constructed memory object will have the underlying buffer set. In this
-/// case, the buffer will be initialized as if:
-/// - dnnl_memory_set_data_handle() has been called, if @p memory_kind is equal
-///   to dnnl_ocl_interop_usm, or
-/// - dnnl_ocl_interop_memory_set_mem_object() has been called, if @p memory_kind
-///   is equal to dnnl_ocl_interop_buffer.
+/// Creates a memory object with multiple handles.
 ///
 /// @param memory Output memory object.
 /// @param memory_desc Memory descriptor.
 /// @param engine Engine to use.
-/// @param memory_kind Memory allocation kind to specify the type of handle.
+/// @param memory_kind Memory allocation kind to specify the type of handles.
 /// @param nhandles Number of handles.
-///		- This is in case of sparse tensors which has 3 memory buffer handles
-/// @param handles Handles to use underlying storage. It could be:
+/// @param handles Handles of the memory buffers to use as underlying storages.
+///     For each element of the @p handles array the following applies:
 ///     - A USM pointer to the user-allocated buffer. In this case the library
 ///       doesn't own the buffer. Requires @p memory_kind to be equal to
 ///       dnnl_ocl_interop_usm.
 ///     - An OpenCL buffer. In this case the library doesn't own the buffer.
-///       Requires @p memory_kind to be equal to dnnl_ocl_interop_buffer.
+///       Requires @p memory_kind be equal to be equal to dnnl_ocl_interop_buffer.
 ///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
 ///       allocate the buffer that corresponds to the memory allocation kind
 ///       @p memory_kind for the memory object. In this case the library
