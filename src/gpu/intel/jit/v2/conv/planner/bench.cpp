@@ -535,8 +535,16 @@ bench_data_t bench(const bench_manager_t &bench_mger,
         if (!tasks[0].init_primitive(eng)) return {};
     }
 
+    ir_assert(kernel_desc.spec_strategy == spec_strategy_t::none);
+    auto kernel_desc_min_dims = kernel_desc;
+    kernel_desc_min_dims.spec_strategy = spec_strategy_t::min_dims;
+    {
+        auto guard = plan_preset_t::instance().make_guard(kernel_desc_min_dims);
+        if (!tasks[0].init_primitive(eng)) return {};
+    }
+
     parallel_nd(ntasks, [&](dim_t i) {
-        auto guard = plan_preset_t::instance().make_guard(kernel_desc);
+        auto guard = plan_preset_t::instance().make_guard(kernel_desc_min_dims);
         bool ok = tasks[i].init_primitive(eng);
         if (!ok) throw std::runtime_error("Initialization failed");
     });
