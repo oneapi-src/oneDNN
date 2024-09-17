@@ -88,8 +88,11 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     // Check scales
     if (!attr->scales_.has_default_values()) {
         const auto &sc = attr->scales_;
-        const int mask_src = sc.get(DNNL_ARG_SRC).mask_;
-        const int mask_wei = sc.get(DNNL_ARG_WEIGHTS).mask_;
+        const auto &sc_src = sc.get(DNNL_ARG_SRC);
+        const auto &sc_wei = sc.get(DNNL_ARG_WEIGHTS);
+
+        const int mask_src = sc_src.mask_;
+        const int mask_wei = sc_wei.mask_;
         const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
 
         // Check allowed masks.
@@ -102,11 +105,13 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         // Check dependency between scales.
         // Source scales groups are supported for int8 source and must divide
         // or be divided by weights groups when both are greater than 1.
-        const auto src_scale_group_k = (mask_src & src_qmask_K)
-                ? sc.get(DNNL_ARG_SRC).group_dims_[1]
+        const auto src_scale_group_k
+                = (mask_src & src_qmask_K) && sc_src.ndims_ > 0
+                ? sc_src.group_dims_[1]
                 : 1;
-        const auto wei_scale_group_k = (mask_wei & wei_qmask_K)
-                ? sc.get(DNNL_ARG_WEIGHTS).group_dims_[0]
+        const auto wei_scale_group_k
+                = (mask_wei & wei_qmask_K) && sc_wei.ndims_ > 0
+                ? sc_wei.group_dims_[0]
                 : 1;
         const bool groups_are_divisible = IMPLICATION(
                 src_scale_group_k > 1 && wei_scale_group_k > 1,
