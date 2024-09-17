@@ -2207,11 +2207,7 @@ private:
 
         const auto &blk = data_d.blocking_desc();
 
-        dim_t blk_size = 1;
-        for (int iblk = 0; iblk < blk.inner_nblks; ++iblk)
-            blk_size *= blk.inner_blks[iblk];
-
-        dim_t max_size = blk_size;
+        dim_t max_size = data_d.blk_size();
         for (int d = 1; d < data_d.ndims(); ++d) {
             max_size = nstl::max(max_size,
                     data_d.padded_dims()[d] / blocks[d] * blk.strides[d]);
