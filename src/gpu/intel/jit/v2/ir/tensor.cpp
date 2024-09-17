@@ -1339,6 +1339,7 @@ view_t view_t::scatterize(int stride_bytes, const prover_t &prover) const {
     if (compress_mask_idx != -1) {
         auto &new_dmd = ret.mask_desc_[compress_mask_idx];
         new_dmd.a = expr_t(stride);
+        new_dmd.base *= stride;
         new_dmd.bound = block0.size;
     }
     return ret;
