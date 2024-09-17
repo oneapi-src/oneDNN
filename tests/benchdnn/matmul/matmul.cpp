@@ -533,31 +533,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     }
 
     if (is_gpu()) {
-        if (prb->attr.zero_points.get(DNNL_ARG_SRC).policy != policy_t::COMMON
-                || prb->attr.zero_points.get(DNNL_ARG_DST).policy
-                        != policy_t::COMMON) {
-            BENCHDNN_PRINT(2,
-                    "[SKIP][%s:%d]: GPU doesn't support multiple zero-points "
-                    "per tensor.\n",
-                    __FILE__, __LINE__);
-            res->state = SKIPPED;
-            res->reason = skip_reason::case_not_supported;
-            return;
-        }
-
-        if (prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).policy
-                        == policy_t::PER_OCIC
-                || prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy
-                        == policy_t::PER_OCIC) {
-            BENCHDNN_PRINT(2,
-                    "[SKIP][%s:%d]: GPU doesn't support grouped scales or "
-                    "zero-points.\n",
-                    __FILE__, __LINE__);
-            res->state = SKIPPED;
-            res->reason = skip_reason::case_not_supported;
-            return;
-        }
-
         const auto &po = prb->attr.post_ops;
         if (prb->dst_dt() == dnnl_f64 && !po.is_def()) {
             BENCHDNN_PRINT(2,
