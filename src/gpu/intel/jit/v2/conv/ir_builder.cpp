@@ -36,22 +36,32 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
+struct loop_t {
+    size_t idx = 0;
+    pvar_t dim;
+    expr_t var;
+    expr_t size;
+
+    loop_t() = default;
+    loop_t(size_t idx, const pvar_t &dim, const expr_t &var, const expr_t &size)
+        : idx(idx), dim(dim), var(var), size(size) {}
+};
+
 class loop_nest_t {
 public:
     loop_nest_t() = default;
 
-    void add_loop(const expr_t &idx, const expr_t &size) {
-        loops_.push_back(loop_t {idx, size});
+    void add_loop(const pvar_t &dim, const expr_t &idx, const expr_t &size) {
+        loops_.push_back(loop_t(loops_.size(), dim, idx, size));
     }
 
-    int nloops() const { return (int)loops_.size(); }
-    const expr_t &index(int level) const { return loops_[level].index; }
-    const expr_t &size(int level) const { return loops_[level].size; }
+    size_t nloops() const { return loops_.size(); }
+    const loop_t &operator[](size_t idx) const { return loops_[idx]; }
     std::vector<expr_t> indices() const {
         std::vector<expr_t> ret;
         ret.reserve(nloops());
-        for (int i = 0; i < nloops(); i++) {
-            ret.push_back(index(i));
+        for (size_t i = 0; i < nloops(); i++) {
+            ret.push_back(loops_[i].var);
         }
         return ret;
     }
@@ -59,9 +69,9 @@ public:
     std::string str() const {
         std::ostringstream oss;
         oss << "nloops: " << nloops();
-        for (int i = 0; i < nloops(); i++) {
+        for (size_t i = 0; i < nloops(); i++) {
             oss << std::endl;
-            oss << "  idx: " << index(i) << " size: " << size(i);
+            oss << "  var: " << loops_[i].var << " size: " << loops_[i].size;
         }
         return oss.str();
     }
@@ -69,11 +79,6 @@ public:
     IR_DEFINE_DUMP()
 
 private:
-    struct loop_t {
-        expr_t index;
-        expr_t size;
-    };
-
     std::vector<loop_t> loops_;
 };
 
@@ -395,8 +400,8 @@ private:
         ret.esize = params.esize;
 
         expr_t comp_value = 0;
-        for (int i = 0; i < loop_nest_.nloops(); i++) {
-            auto loop_size = loop_nest_.size(i);
+        for (size_t i = 0; i < loop_nest_.nloops(); i++) {
+            auto loop_size = loop_nest_[i].size;
             auto inc_value = simplify(_loop_incs[i] - comp_value);
             auto inc = to_simple_expr(inc_value);
             ret.loop_incs.push_back(inc);
@@ -530,12 +535,12 @@ public:
     iterator_t(buffer_manager_t &buf_mgr, const loop_nest_t &loop_nest)
         : loop_nest_(loop_nest) {
         linear_idx_ = loop_index_t(buf_mgr);
-        for (int i = 0; i < loop_nest.nloops(); i++) {
+        for (size_t i = 0; i < loop_nest.nloops(); i++) {
             loop_idxs_.emplace_back(buf_mgr);
         }
     }
 
-    int nloops() const { return loop_nest_.nloops(); }
+    int nloops() const { return (int)loop_nest_.nloops(); }
 
     stmt_t init_stmt() const {
         stmt_t ret;
@@ -559,7 +564,7 @@ public:
             stmt = stmt.append(off_ctx.inc_loop_stmt(i));
             if (i + 1 < nloops())
                 stmt = stmt.append(if_t::make(
-                        loop_idxs_[i].var() >= loop_nest_.size(i), body));
+                        loop_idxs_[i].var() >= loop_nest_[i].size, body));
             body = std::move(stmt);
         }
         body = linear_idx_.inc_stmt(-1).append(body);
@@ -589,9 +594,9 @@ private:
         expr_t ret;
         for (int i = 0; i < nloops(); i++) {
             if (ret.is_empty()) {
-                ret = loop_nest_.size(i);
+                ret = loop_nest_[i].size;
             } else {
-                ret *= loop_nest_.size(i);
+                ret *= loop_nest_[i].size;
             }
         }
         return ret;
@@ -765,9 +770,10 @@ loop_nest_t make_loop_nest(
         const loop_desc_t &loop_desc, const coord_info_t &coord_info) {
     loop_nest_t ret;
     for (auto &e : loop_desc) {
-        const auto &index = coord_info.loop_index(e.dim);
+        const auto &var = coord_info.loop_index(e.dim);
         const auto &size = coord_info.loop_size(e.dim);
-        ret.add_loop(index, size);
+        if (is_one(size)) continue;
+        ret.add_loop(e.dim, var, size);
     }
     return ret;
 }
@@ -824,7 +830,6 @@ public:
 
 private:
     stmt_t loop() const {
-        auto &loop_desc = desc_.loop_desc;
         auto &coord_info = plan_.coord_info;
         int prefetch_dist = desc_.prefetch.dist;
         stmt_t init_stmt;
@@ -850,10 +855,11 @@ private:
         if (prefetch_dist > 0) {
             ret = ret.append(prefetch_it.inc_stmt(prefetch_off_ctx_));
         }
-        for (auto &e : loop_desc) {
-            const auto &var = coord_info.loop_index(e.dim);
-            const auto &bound = coord_info.loop_size(e.dim);
-            ret = ret.append(off_ctx_.inc_loop_stmt(e.idx));
+        for (size_t i = 0; i < loop_nest_.nloops(); i++) {
+            auto &loop = loop_nest_[i];
+            const auto &var = coord_info.loop_index(loop.dim);
+            const auto &bound = loop.size;
+            ret = ret.append(off_ctx_.inc_loop_stmt((int)loop.idx));
             ret = for_t::make(var, 0, bound, ret);
         }
         ret = init_stmt.append(ret);
