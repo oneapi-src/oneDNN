@@ -337,6 +337,17 @@ void dump_csv(const bench_data_t &bd, const model_t &model) {
     }
 }
 
+void dump_model_params(const kernel_desc_t &kernel_desc, const model_t &model) {
+    auto name = kernel_desc.brief_str();
+    std::ofstream out(name + "_params.txt");
+    bool is_first = true;
+    for (auto &c : model.coef()) {
+        if (!is_first) out << ", ";
+        out << c;
+        is_first = false;
+    }
+}
+
 } // namespace conv
 } // namespace v2
 } // namespace jit

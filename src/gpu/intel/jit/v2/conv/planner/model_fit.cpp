@@ -171,6 +171,7 @@ model_t model_fit(const bench_data_t &bd) {
     }
     ml_model = model_fit(X_adjusted, y_adjusted, /*verbose=*/true);
     dump_csv(bd, ml_model);
+    dump_model_params(bd.kernel_desc, ml_model);
     return model_t(ml_model);
 }
 
