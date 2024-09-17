@@ -41,6 +41,7 @@ void compute_ref(
             prb->attr.scales.get(DNNL_ARG_SRC).policy);
     const int dst_scale_mask = attr_t::get_default_mask(
             prb->attr.scales.get(DNNL_ARG_DST).policy);
+    const auto &src_scale_groups = prb->attr.scales.get(DNNL_ARG_SRC).groups;
 
     const auto dst_dt = prb->ddt;
     const auto nelems = src.nelems();
@@ -73,7 +74,8 @@ void compute_ref(
 
         float src_scale = 1.f, dst_scale = 1.f;
         if (has_src_scale) {
-            int64_t src_mask_idx = src.get_idx(idx, src_scale_mask);
+            int64_t src_mask_idx = src.get_idx(
+                    idx, src_scale_mask, src.ndims(), src_scale_groups);
             src_scale = src_scales.get_elem(src_mask_idx);
         }
         if (has_dst_scale) {
