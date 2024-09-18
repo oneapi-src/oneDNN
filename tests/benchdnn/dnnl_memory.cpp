@@ -276,16 +276,7 @@ void dnn_mem_t::set_elem(int64_t idx, float value, int buffer_index) const {
 // object `mem`. The size of `mem` must not be less than the size of `md`.
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL || defined(DNNL_WITH_SYCL)
 static int init_memory(
-        dnnl_memory_t *ret, const dnnl_memory_desc_t &md, dnnl_memory_t mem
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-        ,
-        const dnn_mem_t::handle_info_t &handle_info
-#endif
-#endif
-) {
-    void *handle;
-    DNN_SAFE(dnnl_memory_get_data_handle(mem, &handle), CRIT);
+        dnnl_memory_t *ret, const dnnl_memory_desc_t &md, dnnl_memory_t mem) {
 
     dnnl_engine_t engine;
     DNN_SAFE(dnnl_memory_get_engine(mem, &engine), CRIT);
@@ -295,25 +286,26 @@ static int init_memory(
 
     *ret = nullptr;
 
+    const int nhandles = query_md_num_handles(md);
+    std::vector<void *> handles(nhandles);
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    for (int i = 0; i < nhandles; i++)
+        DNN_SAFE(dnnl_memory_get_data_handle_v2(mem, &handles[i], i), CRIT);
+#else
+    DNN_SAFE(dnnl_memory_get_data_handle(mem, &handles[0]), CRIT);
+#endif
+
     if (is_opencl) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         dnnl_ocl_interop_memory_kind_t mem_kind;
         DNN_SAFE(dnnl_ocl_interop_memory_get_memory_kind(mem, &mem_kind), CRIT);
 #ifdef DNNL_EXPERIMENTAL_SPARSE
-        const int nhandles = query_md_num_handles(md);
-        if (nhandles > 1) {
-            std::vector<void *> handles(nhandles, handle_info.ptr);
-            DNN_SAFE(dnnl_ocl_interop_memory_create_v2(ret, md, engine,
-                             mem_kind, (int)handles.size(), handles.data()),
-                    CRIT);
-        } else {
-            DNN_SAFE(dnnl_ocl_interop_memory_create(
-                             ret, md, engine, mem_kind, handle),
-                    CRIT);
-        }
+        DNN_SAFE(dnnl_ocl_interop_memory_create_v2(ret, md, engine, mem_kind,
+                         (int)handles.size(), handles.data()),
+                CRIT);
 #else
         DNN_SAFE(dnnl_ocl_interop_memory_create(
-                         ret, md, engine, mem_kind, handle),
+                         ret, md, engine, mem_kind, handles[0]),
                 CRIT);
 #endif
 #endif
@@ -322,9 +314,15 @@ static int init_memory(
         dnnl_sycl_interop_memory_kind_t mem_kind;
         DNN_SAFE(
                 dnnl_sycl_interop_memory_get_memory_kind(mem, &mem_kind), CRIT);
-        DNN_SAFE(dnnl_sycl_interop_memory_create(
-                         ret, md, engine, mem_kind, handle),
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        DNN_SAFE(dnnl_sycl_interop_memory_create_v2(ret, md, engine, mem_kind,
+                         (int)handles.size(), handles.data()),
                 CRIT);
+#else
+        DNN_SAFE(dnnl_sycl_interop_memory_create(
+                         ret, md, engine, mem_kind, handles[0]),
+                CRIT);
+#endif
 #endif
     }
 
@@ -338,12 +336,9 @@ static int init_memory(
 void dnn_mem_t::map() const {
     assert(!is_mapped_ && "memory is already mapped");
     is_mapped_ = true;
+
     if (!m_) return;
-
-    bool is_opencl = is_opencl_engine(engine_);
-    bool is_sparse = (md_->format_kind == dnnl::impl::format_kind::sparse);
-    auto mem = (is_sparse && is_opencl) ? m_ : (m_padded_ ? m_padded_ : m_);
-
+    auto mem = m_padded_ ? m_padded_ : m_;
     const int nhandles = query_md_num_handles(md_);
     mapped_ptrs_.resize(nhandles);
     for (int i = 0; i < nhandles; i++) {
@@ -370,10 +365,7 @@ void dnn_mem_t::unmap() const {
     is_mapped_ = false;
 
     if (!m_) return;
-
-    bool is_opencl = is_opencl_engine(engine_);
-    bool is_sparse = (md_->format_kind == dnnl::impl::format_kind::sparse);
-    auto mem = (is_sparse && is_opencl) ? m_ : (m_padded_ ? m_padded_ : m_);
+    auto mem = m_padded_ ? m_padded_ : m_;
     const int nhandles = query_md_num_handles(md_);
     for (int i = 0; i < nhandles; i++) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
@@ -479,9 +471,11 @@ size_t dnn_mem_t::pad_memory_size(
 
 dnnl_memory_desc_t dnn_mem_t::pad_memory_desc(const_dnnl_memory_desc_t md,
         dnnl_engine_kind_t engine_kind, bool *was_padded) {
-    bool is_sparse = (md->format_kind == dnnl::impl::format_kind::sparse);
-    if (is_sparse) return nullptr;
     if (was_padded) *was_padded = false;
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    // TODO: add padded memory descriptor support for sparse memory.
+    if (query_md_format_kind(md) == dnnl_format_kind_sparse) return nullptr;
+#endif
     size_t old_sz = dnnl_memory_desc_get_size(md);
     if (old_sz == 0 || !has_bench_mode_bit(mode_bit_t::corr)
             || engine_kind == dnnl_cpu)
@@ -559,9 +553,18 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
 #ifdef DNNL_WITH_SYCL
     if (handle_info.is_host_ptr) {
         // Ignore memory_kind with host pointers and force USM.
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        const int nhandles = query_md_num_handles(md_);
+        std::vector<void *> handles(nhandles, handle_info.ptr);
+        DNN_SAFE(dnnl_sycl_interop_memory_create_v2(&m_, md_, engine_,
+                         dnnl_sycl_interop_usm, (int)handles.size(),
+                         handles.data()),
+                CRIT);
+#else
         DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, md_, engine_,
                          dnnl_sycl_interop_usm, handle_info.ptr),
                 CRIT);
+#endif
         return OK;
     }
 
@@ -575,9 +578,18 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
                     = (memory_kind == memory_kind_ext_t::usm
                                     ? dnnl_sycl_interop_usm
                                     : dnnl_sycl_interop_buffer);
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            const int nhandles = query_md_num_handles(md_);
+            std::vector<void *> handles(nhandles, handle_info.ptr);
+            DNN_SAFE(dnnl_sycl_interop_memory_create_v2(&m_padded_, md_padded,
+                             engine_, mem_kind, (int)handles.size(),
+                             handles.data()),
+                    CRIT);
+#else
             DNN_SAFE(dnnl_sycl_interop_memory_create(&m_padded_, md_padded,
                              engine_, mem_kind, handle_info.ptr),
                     CRIT);
+#endif
             SAFE(init_memory(&m_, md_, m_padded_), CRIT);
             break;
         }
@@ -585,21 +597,39 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
         case memory_kind_ext_t::usm_shared: {
             SAFE(handle_info.is_allocate() ? OK : FAIL, CRIT);
             is_data_owner_ = true;
-            size_t sz = dnnl_memory_desc_get_size(md_padded);
+
             auto eng = dnnl::engine(engine_, true);
             auto dev = dnnl::sycl_interop::get_device(eng);
             auto ctx = dnnl::sycl_interop::get_context(eng);
-            if (memory_kind == memory_kind_ext_t::usm_device) {
-                data_.push_back(::sycl::malloc_device(sz, dev, ctx));
-            } else {
-                data_.push_back(::sycl::malloc_shared(sz, dev, ctx));
+
+            const int nhandles = query_md_num_handles(md_);
+            for (int i = 0; i < nhandles; i++) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+                size_t sz = dnnl_memory_desc_get_size_v2(md_padded, i);
+#else
+                size_t sz = dnnl_memory_desc_get_size(md_padded);
+#endif
+                if (memory_kind == memory_kind_ext_t::usm_device) {
+                    data_.push_back(::sycl::malloc_device(sz, dev, ctx));
+                } else {
+                    data_.push_back(::sycl::malloc_shared(sz, dev, ctx));
+                }
+                if (sz > 0 && !data_[i]) {
+                    for (void *p : data_)
+                        ::sycl::free(p, ctx);
+                    DNN_SAFE(dnnl_out_of_memory, CRIT);
+                }
             }
-            assert(data_.size() == 1);
-            DNN_SAFE((sz > 0 && !data_[0]) ? dnnl_out_of_memory : dnnl_success,
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            DNN_SAFE(dnnl_sycl_interop_memory_create_v2(&m_padded_, md_padded,
+                             engine_, dnnl_sycl_interop_usm, (int)data_.size(),
+                             data_.data()),
                     CRIT);
+#else
             DNN_SAFE(dnnl_sycl_interop_memory_create(&m_padded_, md_padded,
                              engine_, dnnl_sycl_interop_usm, data_[0]),
                     CRIT);
+#endif
             SAFE(init_memory(&m_, md_, m_padded_), CRIT);
             break;
         }
@@ -618,9 +648,18 @@ int dnn_mem_t::initialize_memory_create_opencl(
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (handle_info.is_host_ptr) {
         // Ignore memory_kind with host pointers and force USM.
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        const int nhandles = query_md_num_handles(md_);
+        std::vector<void *> handles(nhandles, handle_info.ptr);
+        DNN_SAFE(dnnl_ocl_interop_memory_create_v2(&m_, md_, engine_,
+                         dnnl_ocl_interop_usm, (int)handles.size(),
+                         handles.data()),
+                CRIT);
+#else
         DNN_SAFE(dnnl_ocl_interop_memory_create(&m_, md_, engine_,
                          dnnl_ocl_interop_usm, handle_info.ptr),
                 CRIT);
+#endif
         return OK;
     }
 
@@ -636,39 +675,57 @@ int dnn_mem_t::initialize_memory_create_opencl(
                     = (memory_kind == memory_kind_ext_t::usm
                                     ? dnnl_ocl_interop_usm
                                     : dnnl_ocl_interop_buffer);
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            const int nhandles = query_md_num_handles(md_);
+            std::vector<void *> handles(nhandles, handle_info.ptr);
+            DNN_SAFE(dnnl_ocl_interop_memory_create_v2(&m_padded_, md_padded,
+                             engine_, mem_kind, (int)handles.size(),
+                             handles.data()),
+                    CRIT);
+#else
             DNN_SAFE(dnnl_ocl_interop_memory_create(&m_padded_, md_padded,
                              engine_, mem_kind, handle_info.ptr),
                     CRIT);
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-            SAFE(init_memory(&m_, md_, m_padded_, handle_info), CRIT);
-#else
-            SAFE(init_memory(&m_, md_, m_padded_), CRIT);
 #endif
+            SAFE(init_memory(&m_, md_, m_padded_), CRIT);
             break;
         }
         case memory_kind_ext_t::usm_device:
         case memory_kind_ext_t::usm_shared: {
             is_data_owner_ = true;
-            size_t sz = dnnl_memory_desc_get_size(md_padded);
-            if (memory_kind == memory_kind_ext_t::usm_device) {
-                data_.push_back(
-                        dnnl::impl::xpu::ocl::usm::malloc_device(engine_, sz));
-            } else {
-                data_.push_back(
-                        dnnl::impl::xpu::ocl::usm::malloc_shared(engine_, sz));
+
+            const int nhandles = query_md_num_handles(md_);
+            for (int i = 0; i < nhandles; i++) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+                size_t sz = dnnl_memory_desc_get_size_v2(md_padded, i);
+#else
+                size_t sz = dnnl_memory_desc_get_size(md_padded);
+#endif
+                if (memory_kind == memory_kind_ext_t::usm_device) {
+                    data_.push_back(dnnl::impl::xpu::ocl::usm::malloc_device(
+                            engine_, sz));
+                } else {
+                    data_.push_back(dnnl::impl::xpu::ocl::usm::malloc_shared(
+                            engine_, sz));
+                }
+
+                if (sz > 0 && !data_[i]) {
+                    for (void *p : data_)
+                        dnnl::impl::xpu::ocl::usm::free(engine_, p);
+                    DNN_SAFE(dnnl_out_of_memory, CRIT);
+                }
             }
-            assert(data_.size() == 1);
-            DNN_SAFE((sz > 0 && !data_[0]) ? dnnl_out_of_memory : dnnl_success,
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+            DNN_SAFE(dnnl_ocl_interop_memory_create_v2(&m_padded_, md_padded,
+                             engine_, dnnl_ocl_interop_usm, (int)data_.size(),
+                             data_.data()),
                     CRIT);
+#else
             DNN_SAFE(dnnl_ocl_interop_memory_create(&m_padded_, md_padded,
                              engine_, dnnl_ocl_interop_usm, data_[0]),
                     CRIT);
-
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-            SAFE(init_memory(&m_, md_, m_padded_, handle_info), CRIT);
-#else
-            SAFE(init_memory(&m_, md_, m_padded_), CRIT);
 #endif
+            SAFE(init_memory(&m_, md_, m_padded_), CRIT);
             break;
         }
         default: assert(!"not expected");
