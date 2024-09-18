@@ -511,12 +511,13 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 
     const auto wei_encoding
             = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
-    bool is_wei_sparse_undef = (wei_encoding == dnnl_sparse_encoding_undef);
+    bool is_wei_dense = (wei_encoding == dnnl_sparse_encoding_undef);
     bool is_src_coo_sparse
             = (prb->sparse_options.get_encoding(DNNL_ARG_SRC) == dnnl_coo);
-    if (is_gpu() && !is_wei_sparse_undef && !is_src_coo_sparse) {
+    if (is_gpu() && (!is_wei_dense || !is_src_coo_sparse)) {
         BENCHDNN_PRINT(2,
-                "[SKIP][%s:%d]: GPU doesn't support sparse functionality.\n",
+                "[SKIP][%s:%d]: GPU sparse matmul only supports COO encoding "
+                "for source.\n",
                 __FILE__, __LINE__);
         res->state = SKIPPED;
         res->reason = skip_reason::case_not_supported;
