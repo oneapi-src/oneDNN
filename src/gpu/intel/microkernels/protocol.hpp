@@ -53,6 +53,10 @@ public:
         bool localB = false;
         bool addToC = false;
         bool slmPtr = false;
+        bool offsetA = false;
+        bool offsetB = false;
+        bool scaleA = false;
+        bool scaleB = false;
     };
 
     GEMMProtocol() : GEMMProtocol(Options {}) {}

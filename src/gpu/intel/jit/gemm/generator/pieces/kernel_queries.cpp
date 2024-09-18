@@ -93,6 +93,7 @@ bool keepIJ0(const GEMMProblem &problem, const GEMMStrategy &strategy)
     if (problem.hasBinaryPostOp()) return true;
     if (problem.aoPtrDims > 0 || problem.boPtrDims > 0) return true;
     if (problem.aScale2D || problem.bScale2D) return true;
+    if (problem.earlyDequantizeA() ||  problem.earlyDequantizeB()) return true;
     return false;
 }
 

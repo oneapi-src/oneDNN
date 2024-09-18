@@ -215,7 +215,9 @@ bool tryAllocAddrRegs(vector<GRFRange> &addrRegs, const vector<RegisterBlock> &l
     GRFRange last;
     for (int l = 0; l < nblocks && ok; l++) {
         if (layout[l].offsetAddr == 0) {
-            last = state.ra.try_alloc_range(addrGRFCount(atype, astrategy, layout[l]), hint);
+            auto count = addrGRFCount(atype, astrategy, layout[l]);
+            if (count < 1) continue;
+            last = state.ra.try_alloc_range(count, hint);
             ok &= last.isValid();
         }
         addrRegs[l] = last;
@@ -249,9 +251,10 @@ void getLayoutDims(const vector<RegisterBlock> &layout, int &m, int &n)
     // For now all layouts are sorted so last block is in lower-right corner.
     if (layout.size() == 0)
         stub("Empty layout.");
+    auto &first = layout[0];
     auto &last = layout[layout.size() - 1];
-    m = last.offsetR + last.nr;
-    n = last.offsetC + last.nc;
+    m = last.offsetR + last.nr - first.offsetR;
+    n = last.offsetC + last.nc - first.offsetC;
 }
 
 bool hasFullCrosspack(const vector<RegisterBlock> &layout, int crosspack)

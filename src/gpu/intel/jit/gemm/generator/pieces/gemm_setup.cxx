@@ -758,8 +758,10 @@ void BLASKernelGenerator<hw>::gemmScaleInputs(const GEMMProblem &problem, const 
     scale(Tco, inputs.ldco);
 
     {
-        scale(Ta_ext, inputs.offsetA);
-        scale(Tb_ext, inputs.offsetB);
+        if (strategy.A.base.getModel() != ModelSLM)
+            scale(Ta_ext, inputs.offsetA);
+        if (strategy.B.base.getModel() != ModelSLM)
+            scale(Tb_ext, inputs.offsetB);
         for (int q = 0; q < state.C_count; q++)
             scale(Tc_ext, inputs.offsetC[q]);
         if (problem.usesCO())
@@ -1491,7 +1493,7 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
         // Repacked data can use significantly more registers than the loaded
         // data. Lazy repacking can reduce register utilization and improve load
         // pipelining at (in some cases) the expense of more work.
-        bool lazyRepack = state.Ta_load.isInt4() && Ta == Type::f16;    // Other cases are unimplemented
+        bool lazyRepack = state.Ta_load.isInt4() && one_of(Ta, Type::f16, Type::bf16, Type::f32);    // Other cases are unimplemented
         if (lazyRepack)
             state.ka_repack = std::min(state.ka_repack, strategy.kb_load);
         makeUnbackedRegLayout(Ta, state.Ar_layout, unrollM, state.ka_repack, isLayoutColMajor(state.A_layout), crosspackA, tileM_A, tileK_A, true, splitA);
@@ -1699,6 +1701,26 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
             }
             addScaled(1, B_h0q, B_h0q, state.lidM, state.kb_slm, problem.bqGroupK, state, true);
         }
+    }
+
+    if (problem.aqGroupM > 1 && (ao2D || as2D)) {
+        auto inI0Q = i0q, inI0S = i0s;
+        if (i0q == state.i0) i0q = state.ra.alloc_sub<uint32_t>();
+        divDown(i0q, inI0Q, problem.aqGroupM, strategy, state);
+        if (inI0S == inI0Q)
+            i0s = i0q;
+        else
+            divDown(i0s, i0s, problem.aqGroupM, strategy, state);
+    }
+
+    if (problem.bqGroupN > 1 && (bo2D || bs2D)) {
+        auto inJ0Q = j0q, inJ0S = j0s;
+        if (j0q == state.j0) j0q = state.ra.alloc_sub<uint32_t>();
+        divDown(j0q, inJ0Q, problem.bqGroupN, strategy, state);
+        if (inJ0S == inJ0Q)
+            j0s = j0q;
+        else
+            divDown(j0s, j0s, problem.bqGroupN, strategy, state);
     }
 
     auto setupQAddr = [&](Type T, vector<GRFRange> &addrs, const vector<RegisterBlock> &layout,

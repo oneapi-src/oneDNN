@@ -66,12 +66,12 @@ std::string GEMMProblem::toString() const
         case BatchMode::Variable:   ss << "batchnv "; break;
     }
 
-    auto appendQString = [&](char matrix, int ptrDims, int xqGroupK) {
+    auto appendQString = [&](char matrix, int ptrDims, int xqGroupR, int xqGroupC) {
         ss << matrix;
         if (ptrDims < 0 || ptrDims > 2) return;
         ss << "[" << "pvg"[ptrDims];
         if (ptrDims == 2)
-            ss << xqGroupK;
+            ss << xqGroupR << 'x' << xqGroupC;
         ss << ']';
     };
 
@@ -80,16 +80,16 @@ std::string GEMMProblem::toString() const
     bool offsetc = (cOffset == COffset::Post);
     if (offseta || offsetb || offsetc) {
         ss << "offset";
-        if (offseta) appendQString('a', aoPtrDims, aqGroupK);
-        if (offsetb) appendQString('b', boPtrDims, bqGroupK);
-        if (offsetc) appendQString('c', -1, 0);
+        if (offseta) appendQString('a', aoPtrDims, aqGroupM, aqGroupK);
+        if (offsetb) appendQString('b', boPtrDims, bqGroupK, bqGroupN);
+        if (offsetc) appendQString('c', -1, 0, 0);
         ss << ' ';
     }
 
     if (aScale2D || bScale2D) {
         ss << "scale";
-        if (aScale2D) appendQString('a', 2, aqGroupK);
-        if (bScale2D) appendQString('b', 2, bqGroupK);
+        if (aScale2D) appendQString('a', 2, aqGroupM, aqGroupK);
+        if (bScale2D) appendQString('b', 2, bqGroupK, bqGroupN);
         ss << ' ';
     }
 

@@ -36,6 +36,7 @@ struct GRFMultirange {
         for (auto &r : ranges) {
             if (idx < r.getLen()) {
                 if (consecutive) *consecutive = r.getLen() - idx;
+                if (r.isInvalid()) return ngen::GRF();
                 return r[idx];
             }
             idx -= r.getLen();

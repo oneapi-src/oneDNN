@@ -72,7 +72,8 @@ EntranceAgent::Status EntranceAgent::scan(Package &package) {
             else
                 base = j, len = 1;
         } else if (len > 0) {
-            package.clobbers.emplace_back(base * regBytes, len * regBytes);
+            package.clobbers.emplace_back(
+                    RegisterRange(base * regBytes, len * regBytes));
             len = 0;
         }
     }

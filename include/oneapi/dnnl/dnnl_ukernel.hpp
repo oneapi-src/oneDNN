@@ -68,6 +68,10 @@ namespace ukernel {
 
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
 
+/// @addtogroup dnnl_api_ukernel_utils ukernel utils
+/// ukernel utility functions
+/// @{
+
 /// Packing specification
 enum class pack_type {
     /// Undefined pack type. A guard value.
@@ -136,11 +140,13 @@ struct attr_params : public handle<dnnl_ukernel_attr_params_t> {
             error::wrap_c_api(status, "could not set D scales argument");
     }
 };
+/// @} dnnl_api_ukernel_utils
 
 /// @addtogroup dnnl_api_ukernel_brgemm BRGeMM ukernel
 /// BRGeMM ukernel routines
 /// @{
 
+/// BRGeMM ukernel
 struct brgemm : public handle<dnnl_brgemm_t> {
     /// Default constructor. Produces an empty object.
     brgemm() = default;
@@ -364,7 +370,13 @@ struct brgemm : public handle<dnnl_brgemm_t> {
         return ap;
     }
 };
+/// @} dnnl_api_ukernel_brgemm
 
+/// @addtogroup dnnl_api_ukernel_transform Transform ukernel
+/// Transform routines
+/// @{
+
+/// Transform ukernel
 struct transform : public handle<dnnl_transform_t> {
     /// Default constructor. Produces an empty object.
     transform() = default;
@@ -419,7 +431,7 @@ struct transform : public handle<dnnl_transform_t> {
     }
 };
 
-/// @} dnnl_api_ukernel_brgemm
+/// @} dnnl_api_ukernel_transform
 
 #endif
 

@@ -217,8 +217,10 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
     state.ra.safeRelease(state.inputs.offsetAScale);
     state.ra.safeRelease(state.inputs.offsetBScale);
 
-    if (problem.aqGroupK == 0) problem.aqGroupK = std::max(strategy.unrollKSLM, strategy.ka_load);
-    if (problem.bqGroupK == 0) problem.bqGroupK = std::max(strategy.unrollKSLM, strategy.kb_load);
+    if (problem.aqGroupK == 0) problem.aqGroupK = strategy.slmA ? strategy.unrollKSLM : strategy.ka_load;
+    if (problem.bqGroupK == 0) problem.bqGroupK = strategy.slmB ? strategy.unrollKSLM : strategy.kb_load;
+    if (problem.aqGroupM == 0) problem.aqGroupM = 1;
+    if (problem.bqGroupN == 0) problem.bqGroupN = 1;
 
     // Persistent thread preparation and re-entry.
     if (strategy.persistent) {
@@ -518,13 +520,11 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
             // k <- floor(k / (chunk * k local size)) * chunk + min(k % (chunk * k local size), chunk)
             auto chunk = strategy.kInterleaveChunk;
             auto wgChunk = chunk * strategy.wg[LoopK];
-            if (!is_zero_or_pow2(wgChunk)) stub();
             auto temp1 = state.ra.alloc_sub<uint32_t>();
             auto temp2 = state.ra.alloc_sub<uint32_t>();
-
-            shr(1, temp1, state.inputs.k.ud(), ilog2(strategy.wg[LoopK]));
-            and_(1, temp2, state.inputs.k.ud(), wgChunk - 1);
-            and_(1, temp1, temp1, ~uint32_t(chunk - 1));
+            divDown(temp1, state.inputs.k.ud(), wgChunk, strategy, state);
+            emad(1, temp2, state.inputs.k.ud(), -temp1, wgChunk, strategy, state);
+            emul(1, temp1, temp1, chunk, strategy, state);
             min_(1, temp2, temp2, chunk);
             add(1, state.inputs.k.ud(), temp1, temp2);
 

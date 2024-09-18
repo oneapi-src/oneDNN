@@ -56,6 +56,8 @@ bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMM
     auto Tx          = isA ? problem.Ta         : problem.Tb;
     auto Txo         = isA ? problem.Tao        : problem.Tbo;
     auto Txs         = isA ? problem.Ta_scale   : problem.Tb_scale;
+    auto xqGroupK    = isA ? problem.aqGroupK   : problem.bqGroupK;
+    auto xqGroupMN   = isA ? problem.aqGroupM   : problem.bqGroupN;
     auto &Txo_int    = isA ? state.Tao_int      : state.Tbo_int;
     auto &Txs_int    = isA ? state.Ta_scaleInt  : state.Tb_scaleInt;
     auto &Tx_scaleOp = isA ? state.Ta_scaleOp   : state.Tb_scaleOp;
@@ -90,11 +92,15 @@ bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMM
         r = slmA ? state.ma_slm : rNoSLM;
         c = slmA ? state.ka_slm : cNoSLM;
         k = slmA ? strategy.unrollKSLM : cNoSLM;
-        c = state.kaq = std::max(1, c / problem.aqGroupK);
-        state.kaqStride = std::max(1, k / problem.aqGroupK);
-        cNoSLM = state.kaqLate = std::max(1, cNoSLM / problem.aqGroupK);
+        r = std::max(1, r / xqGroupMN);
+        c = state.kaq = std::max(1, c / xqGroupK);
+        state.kaqStride = std::max(1, k / xqGroupK);
+        rNoSLM = std::max(1, rNoSLM / xqGroupMN);
+        cNoSLM = state.kaqLate = std::max(1, cNoSLM / xqGroupK);
         remR = (strategy.remHandling[LoopM] != RemainderHandling::Ignore);
-        tileC = 1;
+        if (xqGroupMN <= 1 && xqGroupK > 1) tileC = 1;
+        if (xqGroupMN > 1 && (xqGroupMN % strategy.unroll[LoopM] && strategy.unroll[LoopM] % xqGroupMN))
+            stub("Tile size not compatible with group size in m dimension");
     } else {
         bool slmB = strategy.slmB;
         cNoSLM = strategy.unroll[LoopN];
@@ -102,11 +108,15 @@ bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMM
         c = slmB ? state.nb_slm : cNoSLM;
         r = slmB ? state.kb_slm : rNoSLM;
         k = slmB ? strategy.unrollKSLM : rNoSLM;
-        r = state.kbq = std::max(1, r / problem.bqGroupK);
-        state.kbqStride = std::max(1, k / problem.bqGroupK);
-        rNoSLM = state.kbqLate = std::max(1, rNoSLM / problem.bqGroupK);
+        c = std::max(1, c / xqGroupMN);
+        r = state.kbq = std::max(1, r / xqGroupK);
+        state.kbqStride = std::max(1, k / xqGroupK);
+        cNoSLM = std::max(1, cNoSLM / xqGroupMN);
+        rNoSLM = state.kbqLate = std::max(1, rNoSLM / xqGroupK);
         remC = (strategy.remHandling[LoopN] != RemainderHandling::Ignore);
-        tileR = 1;
+        if (xqGroupMN <= 1 && xqGroupK > 1) tileR = 1;
+        if (xqGroupMN > 1 && (xqGroupMN % strategy.unroll[LoopN] && strategy.unroll[LoopN] % xqGroupMN))
+            stub("Tile size not compatible with group size in n dimension");
     }
 
     int rs = lateScale ? rNoSLM : r;
@@ -120,29 +130,47 @@ bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMM
     X_offsetStrategy.newDP = (hw >= HW::XeHPG);
     X_scaleStrategy = X_offsetStrategy;
 
-    X_offsetStrategy.accessType = (isA == isColMajor(XO.layout)) ? AccessType::Block : AccessType::Scattered;
-    X_scaleStrategy.accessType  = (isA == isColMajor(XS.layout)) ? AccessType::Block : AccessType::Scattered;
+    bool wantCM = isA ^ (xqGroupMN > 1);
+    X_offsetStrategy.accessType = (wantCM == isColMajor(XO.layout)) ? AccessType::Block : AccessType::Scattered;
+    X_scaleStrategy.accessType  = (wantCM == isColMajor(XS.layout)) ? AccessType::Block : AccessType::Scattered;
 
     if (!X_offsetStrategy.base.isStateless()) {
         X_offsetStrategy.base.setIndex(isA ? state.inputs.surfaceAO : state.inputs.surfaceBO);
         X_scaleStrategy.base.setIndex(isA ? state.inputs.surfaceAScale : state.inputs.surfaceBScale);
     }
 
-    if (xo2D && !getRegLayout(Txo, X_offsetLayout, r,  c,  remR, remC, false, AvoidFragment, tileR, tileC, XO, X_offsetStrategy)) return false;
-    if (xs2D && !getRegLayout(Txs, X_scaleLayout,  rs, cs, remR, remC, false, AvoidFragment, tileR, tileC, XS, X_scaleStrategy)) return false;
+    if (xo2D && !getRegLayout(Txo, X_offsetLayout, r,  c,  remR, remC, false, AvoidFragment, 0, 0, XO, X_offsetStrategy)) return false;
+    if (xs2D && !getRegLayout(Txs, X_scaleLayout,  rs, cs, remR, remC, false, AvoidFragment, 0, 0, XS, X_scaleStrategy)) return false;
+
+    // Adjust masks for m/n grouping.
+    auto adjustMask = [=](MaskInfo &mask) {
+        if (!mask || xqGroupMN <= 1) return;
+        if (!is_zero_or_pow2(xqGroupMN)) stub();
+        if (mask.fixed.isFixed) stub();
+        mask.variable.rshift += ilog2(xqGroupMN);
+    };
+
+    for (auto *Xq_layout: {&X_offsetLayout, &X_scaleLayout}) {
+        for (auto &block: *Xq_layout) {
+            adjustMask(block.rowMask);
+            adjustMask(block.colMask);
+        }
+    }
 
     // Quantization parameters will be upconverted to the size of A/B and duplicated to match crosspack.
     auto &lsrc = isA ? (strategy.slmA ? state.Ao_layout : !state.Ar_layout.empty() ? state.Ar_layout : state.A_layout)
                      : (strategy.slmB ? state.Bo_layout : !state.Br_layout.empty() ? state.Br_layout : state.B_layout);
     if (lsrc.empty()) stub();
     int crosspack = lsrc[0].crosspack;
+    if (xqGroupMN > 1)
+        crosspack = 1;
     if (int4SpecialPath && Tx == Type::bf16)
         crosspack = 1;
     int cpo = div_up(crosspack, cpoDiv);
 
     auto makeQRepack = [&](Type Txq, Type Txq_int, vector<RegisterBlock> &repack, vector<RegisterBlock> &src, int m, int n, int cp) {
         if (cp > 1 || (cColMajor && (cp != src[0].crosspack)) || Txq != Txq_int)
-            makeUnbackedRegLayout(Txq_int, repack, m, n, isA, cp, tileR, tileC, false);
+            makeUnbackedRegLayout(Txq_int, repack, m, n, wantCM, cp, tileR, tileC, false);
     };
 
     if (xo2D) makeQRepack(Txo, Txo_int,    Xr_offsetLayout, X_offsetLayout, r,  c,  cpo);
@@ -165,25 +193,26 @@ void BLASKernelGenerator<hw>::gemmRepack2DQuantizationData(Type Ts, Type Td, con
                                                            const GRFMultirange &src, const GRFMultirange &dst,
                                                            const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
-    if (dst.empty()) return;
+    if (layoutDst.empty()) return;
 
     int ms, ns, md, nd;
     getLayoutDims(layoutSrc, ms, ns);
-    getLayoutDims(layoutSrc, md, nd);
+    getLayoutDims(layoutDst, md, nd);
 
     // Copy, broadcasting 1D to 2D data as needed.
     for (int doffR = 0; doffR < md; doffR += ms)
         for (int doffC = 0; doffC < nd; doffC += ns)
             copyRegisters(Ts, Td, layoutSrc, layoutDst, src, dst, doffR, doffC, false, strategy, state);
 
-    // Duplicate data in crosspack dimension. TODO: do this as part of the copy.
+    // Duplicate data in padded region. TODO: do this as part of the copy.
     int cp = layoutDst[0].crosspack;
+    int p0 = layoutDst[0].colMajor ? layoutDst[0].nc : layoutDst[0].nr;
 
     if (cp > 1) map(hw, Td, dst, layoutDst, strategy, [&](int simd, RegData r) {
         Subregister r0 = GRF(r.getBase()).sub(r.getOffset(), r.getType());
         moveToIntPipe(r0);
         auto r1 = r0;
-        for (int i = 1; i < cp; i++) {
+        for (int i = p0; i < cp; i++) {
             r1.setOffset(r1.getOffset() + 1);
             mov(simd / cp, r1(cp), r0(cp));
         }
@@ -248,11 +277,13 @@ void BLASKernelGenerator<hw>::gemmDequantizeOperation(bool doA, Type T, Type To,
                                                       const GRFMultirange &regs, const GRFMultirange &qregs,
                                                       int hq, const GEMMProblem &problem)
 {
-    int xqGroupK = doA ? problem.aqGroupK : problem.bqGroupK;
+    int xqGroupK  = doA ? problem.aqGroupK : problem.bqGroupK;
+    int xqGroupMN = doA ? problem.aqGroupM : problem.bqGroupN;
 
     int mq, nq;
     getLayoutDims(qlayout, mq, nq);
     bool broadcast = (mq * nq) == 1;
+    bool mnGrouped = (xqGroupMN > 1);
 
     for (auto &block: layout) {
         auto crosspack = block.crosspack;
@@ -260,15 +291,18 @@ void BLASKernelGenerator<hw>::gemmDequantizeOperation(bool doA, Type T, Type To,
         int nx = colMajor ? block.nr : block.nc;
         int ny = colMajor ? block.nc : block.nr;
 
-        for (int y0 = 0; y0 < ny; y0 += crosspack) {
+        for (int y0 = 0; y0 < ny; y0 += (mnGrouped ? 1 : crosspack)) {
         for (int x0 = 0; x0 < nx; ) {
             auto ii0 = colMajor ? x0 : y0;
             auto jj0 = colMajor ? y0 : x0;
             auto io0 = ii0 + block.offsetR;
             auto jo0 = jj0 + block.offsetC;
             auto &ho0 = doA ? jo0 : io0;
+            auto &lo0 = doA ? io0 : jo0;
+            auto l0 = lo0;
             ho0 += hq;
             ho0 /= xqGroupK;
+            if (mnGrouped) lo0 /= xqGroupMN;
             if (broadcast) io0 = jo0 = 0;
 
             int ne, neq;
@@ -277,9 +311,14 @@ void BLASKernelGenerator<hw>::gemmDequantizeOperation(bool doA, Type T, Type To,
             auto qdata = findBlockReg(To, qlayout, io0, jo0, qregs, neq, qblock);
 
             int strideq = 1;
+            int strided = 1;
             if (broadcast)
                 strideq = 0;
-            else if (colMajor == doA) {
+            else if (mnGrouped) {
+                strided = crosspack;
+                strideq = 0;
+                ne = std::min(ne, xqGroupMN - (l0 % xqGroupMN));
+            } else if (colMajor == doA) {
                 ne = std::min(ne, neq);
                 if (qblock->crosspack * To != crosspack * T) stub();
             } else {
@@ -288,25 +327,25 @@ void BLASKernelGenerator<hw>::gemmDequantizeOperation(bool doA, Type T, Type To,
             }
 
             int maxSIMD = (op == BinaryOp::Sub && T.isInt8()) ? 64 : 32;
-            int simd = std::min({ne * crosspack, 2 * elementsPerGRF(hw, T), maxSIMD});
+            int simd = std::min({ne * crosspack / strided, 2 * elementsPerGRF(hw, T) / strided, maxSIMD});
             switch (op) {
                 case BinaryOp::Sub:
-                    if (T.isInt8()) {
+                    if (T.isInt8() && strided == 1) {
                         add(simd / 2, data(2), data(2), -qdata(strideq * 2 / To));
                         data.setOffset(data.getOffset() + 1);
                         qdata.setOffset(qdata.getOffset() + strideq / To);
                         add(simd / 2, data(2), data(2), -qdata(strideq * 2 / To));
                     } else
-                        add(simd, data(1), data(1), -qdata(strideq));
+                        add(simd, data(strided), data(strided), -qdata(strideq));
                     break;
-                case BinaryOp::Mul: mul(simd, data(1), data(1),  qdata(strideq)); break;
+                case BinaryOp::Mul: mul(simd, data(strided), data(strided),  qdata(strideq)); break;
                 case BinaryOp::ScaleSub:
                     if (T != Type::f16) stub();
-                    mad(simd, data(1), -qdata(strideq), data(1), Immediate::hf(0x7800));  /* 0x7800 = 2^15 */
+                    mad(simd, data(strided), -qdata(strideq), data(strided), Immediate::hf(0x7800));  /* 0x7800 = 2^15 */
                     break;
                 default: stub();
             }
-            x0 += simd / crosspack;
+            x0 += simd * strided / crosspack;
         }
         }
     }
@@ -359,18 +398,19 @@ void BLASKernelGenerator<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst, con
     bool f32 = (Tdst == Type::f32);
     bool bf16 = (Tdst == Type::bf16);
 
-    int offR0 = offR, offC0 = offC;
-
     vector<RegisterBlock> layoutDstF16;
     const vector<RegisterBlock> *effLayoutDst = &layoutDst;
     GRFMultirange dstF16;
     const GRFMultirange *effDst = &dst;
     if (f32 || bf16) {
         makeUnbackedRegLayout(Type::f16, layoutDstF16, m, n, isLayoutColMajor(layoutDst), 1);
+        for (auto &block: layoutDstF16) {
+            block.offsetR += layoutDst[0].offsetR;
+            block.offsetC += layoutDst[0].offsetC;
+        }
         dstF16 = chunkAlloc(getRegCount(layoutDstF16), 2, state);
         effLayoutDst = &layoutDstF16;
         effDst = &dstF16;
-        offR = offC = 0;
     }
 
     // 1) Shift s4 data to u4 data by adding 8.
@@ -408,7 +448,7 @@ void BLASKernelGenerator<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst, con
 
     // 6) Convert to dst type if needed.
     if (f32 || bf16) {
-        copyRegisters(Type::f16, Tdst, layoutDstF16, layoutDst, dstF16, dst, offR0, offC0, false, strategy, state);
+        copyRegisters(Type::f16, Tdst, layoutDstF16, layoutDst, dstF16, dst, offR, offC, false, strategy, state);
         safeReleaseRanges(dstF16, state);
     }
 }
@@ -434,10 +474,10 @@ void BLASKernelGenerator<hw>::gemmDequantizeAB(bool doA, Type Tsrc, Type Tdst,
     auto &srRegs     = doA ? state.Ar_scaleRegs    : state.Br_scaleRegs;
     bool lateScale   = doA ? state.lateScale2DA    : state.lateScale2DB;
 
-    auto &oLayout = orRegs.empty() ? oiLayout : orLayout;
-    auto &oRegs   = orRegs.empty() ? oiRegs   : orRegs;
-    auto &sLayout = srRegs.empty() ? siLayout : srLayout;
-    auto &sRegs   = srRegs.empty() ? siRegs   : srRegs;
+    auto &oLayout = orLayout.empty() ? oiLayout : orLayout;
+    auto &oRegs   = orLayout.empty() ? oiRegs   : orRegs;
+    auto &sLayout = srLayout.empty() ? siLayout : srLayout;
+    auto &sRegs   = srLayout.empty() ? siRegs   : srRegs;
 
     bool xo2D = !oLayout.empty();
     bool xs2D = !sLayout.empty() && !lateScale;

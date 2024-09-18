@@ -34,7 +34,7 @@ struct MaskInfo {
         struct {
             uint8_t isFixed : 1;  // = false (variable mask)
             uint8_t reverse : 1;  // True to reverse mask.
-            uint8_t rdivide : 6;  // Amount by which to divide index before forming mask. Fractions are rounded up.
+            uint8_t rshift : 6;   // Power of 2 by which to divide index before forming mask. Fractions are rounded up.
                                   // Note maskRep * bitRep * (rsize >> rshift) = # mask bits.
             uint8_t rsize;        // Maximum remainder value. (e.g. 16 if we need the last 4 bits of the index).
             uint8_t maskRep;      // # of repetitions of mask pattern.

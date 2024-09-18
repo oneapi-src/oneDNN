@@ -34,6 +34,10 @@ GEMMProtocol::GEMMProtocol(const Options &options) {
     if (options.localB) ioptions |= (1 << 1);
     if (options.addToC) ioptions |= (1 << 2);
     if (options.slmPtr) ioptions |= (1 << 3);
+    if (options.offsetA) ioptions |= (1 << 4);
+    if (options.offsetB) ioptions |= (1 << 5);
+    if (options.scaleA) ioptions |= (1 << 6);
+    if (options.scaleB) ioptions |= (1 << 7);
 }
 
 GEMMProtocol::Options GEMMProtocol::options() const {
@@ -42,6 +46,10 @@ GEMMProtocol::Options GEMMProtocol::options() const {
     options.localB = (ioptions & (1 << 1));
     options.addToC = (ioptions & (1 << 2));
     options.slmPtr = (ioptions & (1 << 3));
+    options.offsetA = (ioptions & (1 << 4));
+    options.offsetB = (ioptions & (1 << 5));
+    options.scaleA = (ioptions & (1 << 6));
+    options.scaleB = (ioptions & (1 << 7));
     return options;
 }
 
@@ -100,6 +108,14 @@ std::vector<ProtocolArgument> GEMMProtocol::arguments() const {
     if (options().localB) argsV[2].stype.format = LocalPointer;
     if (options().addToC) argsV[4].direction = ProtocolArgument::InOut;
     if (options().slmPtr) argsV.push_back({"slm", In, LocalPointer});
+    if (options().offsetA) argsV.push_back({"a_scale", In, GlobalPointer});
+    if (options().scaleA) argsV.push_back({"a_offset", In, GlobalPointer});
+    if (options().offsetA || options().scaleA)
+        argsV.push_back({"ldaq", In, s32});
+    if (options().offsetB) argsV.push_back({"b_scale", In, GlobalPointer});
+    if (options().scaleB) argsV.push_back({"b_offset", In, GlobalPointer});
+    if (options().offsetB || options().scaleB)
+        argsV.push_back({"ldbq", In, s32});
 
     return argsV;
 }
