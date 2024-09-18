@@ -511,8 +511,6 @@ impl::status_t sdp_decomp_config_t::record_sdp_ops(
             return nullptr;
     };
 
-    subgraph_rewriter_t rewriter(sg);
-
     for (const auto &cur_op : sg->get_ops()) {
         if (!cur_op || cur_op->get_kind() != op_kind::dnnl_matmul) continue;
         auto post_op = get_post_op(cur_op);

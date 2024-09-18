@@ -787,8 +787,6 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
     // lambda function to fuse one post op into base primitive
     auto fuse_post_ops_func = [&](bool &changed) -> status_t {
         auto &mgr = sg->fusion_info_mgr_;
-        subgraph_rewriter_t rewriter(sg);
-
         std::vector<std::pair<op_t *, op_t *>> fuse_groups;
 
         std::set<op_t *> visited;
@@ -834,7 +832,7 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
             changed = false;
             return status::success;
         }
-
+        subgraph_rewriter_t rewriter(sg);
         for (auto &fuse_group : fuse_groups) {
             auto base_op = fuse_group.first;
             auto post_op = fuse_group.second;
@@ -3365,6 +3363,7 @@ impl::status_t lift_up_typecast(std::shared_ptr<subgraph_t> &sg) {
             rewriter.swap_neighboring_si_ops(
                     producer->shared_from_this(), tc->shared_from_this());
         }
+        rewriter.run();
     }
     return infer_shape(sg);
 }
@@ -3402,6 +3401,7 @@ impl::status_t lift_up_quantize(std::shared_ptr<subgraph_t> &sg) {
             rewriter.swap_neighboring_si_ops(
                     producer->shared_from_this(), quant->shared_from_this());
         }
+        rewriter.run();
     }
     return infer_shape(sg);
 }
@@ -3528,7 +3528,7 @@ impl::status_t lift_up_weight_reshape_for_depthwiseconv(
             rewriter.swap_neighboring_reshape_ops(
                     swapped->shared_from_this(), baseop->shared_from_this());
     }
-
+    rewriter.run();
     return infer_shape(sg);
 }
 
@@ -3569,7 +3569,7 @@ impl::status_t fuse_src_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
                 if (axis < 0) axis += ltw(in_lt).ndims();
             }
         } else {
-            return impl::status::success;
+            break;
         }
 
         std::vector<int> axes = dnnl_impl::utils::fmap(order,
@@ -3593,6 +3593,7 @@ impl::status_t fuse_src_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
         const auto &strides = expected_in_md.get_strides();
         out_val->set_strides(strides);
     }
+    rewriter.run();
     return impl::status::success;
 }
 
@@ -3630,7 +3631,7 @@ impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
                 if (axis < 0) axis += ltw(in_lt).ndims();
             }
         } else {
-            return impl::status::success;
+            break;
         }
 
         std::vector<int> axes = dnnl_impl::utils::fmap(order,
@@ -3656,14 +3657,14 @@ impl::status_t fuse_dst_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
         // Special check to avoid low matmul performance with adbc layout.
         // TODO: remove this once the performance is improved.
         if (get_format_tag(expected_out_md) == dnnl::memory::format_tag::adbc) {
-            return impl::status::success;
+            break;
         }
         const auto &strides = expected_out_md.get_strides();
         in_val->set_strides(strides);
         auto &matmul = transpose_op->get_input_value(0)->get_producer();
         matmul.set_attr(op_attr::keep_dst_layout, true);
     }
-
+    rewriter.run();
     return impl::status::success;
 }
 
@@ -3744,6 +3745,7 @@ impl::status_t swap_relu_mul_scales(std::shared_ptr<subgraph_t> &sg) {
             rewriter.swap_neighboring_si_ops(
                     relu->shared_from_this(), mul_scales->shared_from_this());
         }
+        rewriter.run();
     }
     return infer_shape(sg);
 }
