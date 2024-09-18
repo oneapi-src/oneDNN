@@ -1296,6 +1296,11 @@ void jit_diff_wei_trans_to_vnni_t::generate() {
         f8_emu = utils::make_unique<fp8_emulation_e4m3_t>(this, emu_reserv_1,
                 emu_reserv_2, emu_reserv_3, emu_reserv_4, emu_reserv_5,
                 emu_scratch);
+    if (utils::one_of(out_dt_, data_type::f8_e5m2, data_type::f8_e4m3)
+            && f8_emu == nullptr) {
+        assert("Failed to create f8 emulation kernel.");
+        return;
+    }
 
     const Zmm &zmm_idx = Zmm(31);
     auto get_zmm_src = [&](int idx, int ic) { return Zmm(4 * idx + ic); };
