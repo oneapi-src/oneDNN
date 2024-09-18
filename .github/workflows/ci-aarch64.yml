@@ -1,0 +1,100 @@
+# *******************************************************************************
+# Copyright 2024 Arm Limited and affiliates.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# *******************************************************************************
+
+name: "CI AArch64"
+
+#* To avoid duplicate jobs running when both push and PR is satisfied, we use this:
+#* https://github.com/orgs/community/discussions/26940#discussioncomment-5686753
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+#* Stop stale workflows when pull requests are updated: https://stackoverflow.com/a/70972844
+#* Does not apply to the main branch.
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Declare default permissions as read only.
+permissions: read-all
+
+jobs:
+  macos:
+    name: macOS
+    runs-on: macos-14
+    strategy:
+      matrix:
+        compiler: [
+          {CC: clang, CXX: clang++},
+          {CC: gcc-14, CXX: g++-14}
+        ]
+        config: [
+          {CMAKE_BUILD_TYPE: Debug, ACL_WITH_ASSERTS: '1'},
+          {CMAKE_BUILD_TYPE: Release, ACL_WITH_ASSERTS: '0'}
+        ]
+    steps:
+      - name: Get number of CPU cores
+        uses: SimenB/github-actions-cpu-cores@v2
+        id: cpu-cores
+      - name: Checkout oneDNN
+        uses: actions/checkout@v4
+        with:
+          path: oneDNN
+      # ACL is built with clang, so we can link with it directly if we are using
+      # clang as well.
+      - if: matrix.compiler.CC == 'clang'
+        name: Download and Extract ACL
+        run: ${{ github.workspace }}/oneDNN/.github/automation/get_acl.sh
+        env:
+          ACL_WITH_ASSERTS: ${{ matrix.config.ACL_WITH_ASSERTS }}
+          ACL_VERSION: ${{ github.event.inputs.ACL_VERSION || 'v24.08.1' }}
+      # If we are building with gcc, we need to clone and build ACL ourselves to
+      # link properly.
+      - if: contains( matrix.compiler.CC , 'gcc' )
+        name: Install Scons
+        uses: threeal/pipx-install-action@v1.0.0
+        with:
+          packages: scons
+      - if: contains( matrix.compiler.CC , 'gcc' )
+        name: Checkout ACL
+        uses: actions/checkout@v4
+        with:
+          repository: ARM-software/ComputeLibrary
+          ref: 'v24.08.1'
+          path: ComputeLibrary
+      - if: contains( matrix.compiler.CC , 'gcc' )
+        name: Build ACL
+        working-directory: ${{ github.workspace }}/ComputeLibrary
+        run: scons Werror=1 -j${{ steps.cpu-cores.outputs.count }} neon=1 opencl=0 os=macos arch=armv8.2-a build=native cppthreads=0 openmp=0 examples=0 validation_tests=0
+        env:
+          CC: ${{ matrix.compiler.CC }}
+          CXX: ${{ matrix.compiler.CXX }}
+      - name: Configure oneDNN
+        run: cmake -B${{ github.workspace }}/oneDNN/build -S${{ github.workspace }}/oneDNN -DDNNL_AARCH64_USE_ACL=ON -DONEDNN_BUILD_GRAPH=0 -DONEDNN_WERROR=OFF -DDNNL_BUILD_FOR_CI=ON -DCMAKE_BUILD_TYPE=${{ matrix.config.CMAKE_BUILD_TYPE }}
+        working-directory: ${{ github.workspace }}/oneDNN
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/lib
+          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
+          CC: ${{ matrix.compiler.CC }}
+          CXX: ${{ matrix.compiler.CXX }}
+      - name: Build oneDNN
+        run: cmake --build ${{ github.workspace }}/oneDNN/build -j${{ steps.cpu-cores.outputs.count }}
+        working-directory: ${{ github.workspace }}/oneDNN
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/lib
+          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
