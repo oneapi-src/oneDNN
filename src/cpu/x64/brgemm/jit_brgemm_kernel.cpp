@@ -45,10 +45,7 @@ struct jit_brgemm_kernel_t : public jit_generator {
         : jit_generator(jit_name(), abrg.isa_impl)
         , brg(abrg)
         , postops_injector_(nullptr)
-        , max_effective_vregs(isa_num_vregs(brg.isa_impl)
-                  - (brg.is_int8 && !brg.has_int8_vnni
-                                  ? 2
-                                  : (brg.is_fp8_via_convert() ? 5 : 0))) {
+        , max_effective_vregs(get_max_effective_vregs(abrg)) {
 
         // The implementation uses is_superset(), is_subset() utilities.
         // So avoid isa_all, isa_undef in these comparisions.
@@ -149,6 +146,8 @@ private:
 
     Xbyak::Label avx_tail_mask_;
     Xbyak::Label sum_zp_scale_data_;
+    Xbyak::Label f16_perm_even_table_;
+    Xbyak::Label f16_perm_odd_table_;
     using reg64_t = const Xbyak::Reg64;
 
     // Register decomposition
@@ -276,6 +275,17 @@ private:
     Xbyak::Opmask fp8_col_mask = Xbyak::Opmask(4);
     Xbyak::Opmask kmask_fp8_aux = Xbyak::Opmask(5);
 
+    static int get_max_effective_vregs(const brgemm_desc_t &brg) {
+        auto used_vregs = 0;
+        if (brg.is_int8 && !brg.has_int8_vnni)
+            used_vregs = 2;
+        else if (brg.is_fp8_via_convert())
+            used_vregs = 5;
+        else if (brg.is_f16_b_non_amx_vnni())
+            used_vregs = 2;
+        return isa_num_vregs(brg.isa_impl) - used_vregs;
+    }
+
     Vmm accm(int ld_block, int bd, int ld) {
         return Vmm(max_effective_vregs - 1 - (bd * ld_block + ld));
     }
@@ -335,6 +345,9 @@ private:
     Vmm int8_dot_product_temp() const noexcept {
         return Vmm(isa_num_vregs(brg.isa_impl) - 2);
     }
+
+    Zmm f16_perm_even_vreg_ = Zmm(isa_num_vregs(brg.isa_impl) - 1);
+    Zmm f16_perm_odd_vreg_ = Zmm(isa_num_vregs(brg.isa_impl) - 2);
 
     Vmm vmm_mask(const Vmm vmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask) const;
@@ -448,7 +461,9 @@ int jit_brgemm_kernel_t<Wmm>::B_offset(
     if (is_amx) {
         return brg.typesize_B * (brg.rd_step * ld * brg.ld_block);
     } else {
-        const int data_vnni_granularity = brg.ld_step;
+        const int data_vnni_granularity = brg.is_f16_b_non_amx_vnni()
+                ? data_type_vnni_granularity(data_type::f16)
+                : brg.ld_step;
         const int rdb0 = rd / data_vnni_granularity;
         // Note: Offsets for elements within vnni_granularity are expected to be
         // handled within gemm_microkernel (for ex: odd-even converts).
@@ -484,8 +499,12 @@ int jit_brgemm_kernel_t<Wmm>::rdb_B_offset() const noexcept {
 template <typename Wmm>
 int jit_brgemm_kernel_t<Wmm>::ldb_B_offset(
         int ld_block2, bool is_tail) const noexcept {
-    return (is_tail) ? brg.typesize_B * brg.ldb_tail * brg.ld_step
-                     : brg.typesize_B * ld_block2 * brg.ld_block * brg.ld_step;
+    const int data_vnni_granularity = brg.is_f16_b_non_amx_vnni()
+            ? data_type_vnni_granularity(data_type::f16)
+            : brg.ld_step;
+    return (is_tail)
+            ? brg.typesize_B * brg.ldb_tail * data_vnni_granularity
+            : brg.typesize_B * ld_block2 * brg.ld_block * data_vnni_granularity;
 }
 
 template <typename Wmm>
@@ -2194,8 +2213,20 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
                             vcvtneeph2ps(vmm_load, addr);
                         else
                             vcvtneoph2ps(vmm_load, addr);
-                    } else
-                        vcvtph2psx(vmm_load, addr);
+                    } else {
+                        if (brg.is_f16_b_non_amx_vnni()) {
+                            const auto vnni_addr = ptr[reg_aux_B
+                                    + B_offset(ld, utils::rnd_dn(rd, 2))];
+                            vmovups(vmm_load, vnni_addr);
+                            if (rd % 2 == 0)
+                                vpermw(vmm_load, f16_perm_even_vreg_, vmm_load);
+                            else
+                                vpermw(vmm_load, f16_perm_odd_vreg_, vmm_load);
+                            vcvtph2psx(
+                                    vmm_load, Vmm_lower_t(vmm_load.getIdx()));
+                        } else
+                            vcvtph2psx(vmm_load, addr);
+                    }
                 } else if (brg.dt_b == data_type::bf16
                         && brg.isa_impl == avx2_vnni_2) {
                     if (rd % 2 == 0)
@@ -2239,7 +2270,20 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
                         else
                             vcvtneoph2ps(vmm_load, addr);
                     } else {
-                        vcvtph2psx(vmm_load, addr);
+                        if (brg.is_f16_b_non_amx_vnni()) {
+                            const auto actual_B_offset
+                                    = B_offset(ld, utils::rnd_dn(rd, 2));
+                            const auto vnni_addr
+                                    = ptr[reg_aux_B + actual_B_offset];
+                            vmovups(vmm_load, vnni_addr);
+                            if (rd % 2 == 0)
+                                vpermw(vmm_load, f16_perm_even_vreg_, vmm_load);
+                            else
+                                vpermw(vmm_load, f16_perm_odd_vreg_, vmm_load);
+                            vcvtph2psx(
+                                    vmm_load, Vmm_lower_t(vmm_load.getIdx()));
+                        } else
+                            vcvtph2psx(vmm_load, addr);
                     }
                 } else if (brg.dt_b == data_type::bf16
                         && brg.isa_impl == avx2_vnni_2) {
@@ -2739,6 +2783,13 @@ void jit_brgemm_kernel_t<Wmm>::generate() {
         vpbroadcastw(int8_ones_words(), reg_tmp_gpr.cvt16());
     }
 
+    if (brg.is_f16_b_non_amx_vnni()) {
+        mov(reg_tmp_gpr, f16_perm_even_table_);
+        vmovups(f16_perm_even_vreg_, ptr[reg_tmp_gpr]);
+        mov(reg_tmp_gpr, f16_perm_odd_table_);
+        vmovups(f16_perm_odd_vreg_, ptr[reg_tmp_gpr]);
+    }
+
     read_params();
 
     bdb_loop();
@@ -2771,6 +2822,25 @@ void jit_brgemm_kernel_t<Wmm>::generate() {
 
     if (brg.with_eltwise)
         postops_injector_->prepare_table(/* generate = */ true);
+
+    if (brg.is_f16_b_non_amx_vnni()) {
+        // convert interleaved vnni data with holes to packed.
+        align(64);
+        L(f16_perm_even_table_);
+        for (int i = 0; i < 32; ++i) {
+            if (i < 16)
+                dw(uint16_t(2 * i));
+            else
+                dw(uint16_t(0));
+        }
+        align(64);
+        L(f16_perm_odd_table_);
+        for (int i = 0; i < 32; ++i)
+            if (i < 16)
+                dw(uint16_t(2 * i + 1));
+            else
+                dw(uint16_t(0));
+    }
 }
 
 brgemm_attr_t::brgemm_attr_t()
