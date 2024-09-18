@@ -48,12 +48,13 @@ int rnd_down(int a, unsigned int b) {
 #endif
 
 #if DT_S4 || SRC_DT_S4 || WEI_DT_S4 || DST_DT_S4 || BIA_DT_S4 || A_DT_S4 \
-        || B_DT_S4 || C_DT_S4 || DATA_DT_S4
+        || B_DT_S4 || C_DT_S4 || DATA_DT_S4 || WEI_ZP_DT_S4 || SRC_ZP_DT_S4
 #define MATH_UTILS_DECLARE_S4 1
 #endif
 
 #if DT_U4 || SRC_DT_U4 || WEI_DT_U4 || DST_DT_U4 || BIA_DT_U4 || A_DT_U4 \
-        || A_DT_U4 || B_DT_U4 || C_DT_U4 || DATA_DT_U4
+        || A_DT_U4 || B_DT_U4 || C_DT_U4 || DATA_DT_U4 || WEI_ZP_DT_U4 \
+        || SRC_ZP_DT_U4
 #define MATH_UTILS_DECLARE_U4 1
 #endif
 
@@ -714,6 +715,7 @@ inline float atomic_add_global(
 #endif
 
 #if MATH_UTILS_DECLARE_S4 || MATH_UTILS_DECLARE_U4
+#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
 
 uchar __attribute__((overloadable)) cvt_f32_to_u4(float a) {
     uchar i = convert_uchar_sat_rte(a);

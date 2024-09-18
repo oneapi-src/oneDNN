@@ -845,10 +845,8 @@
 #define SRC_TO_REF8(x) convert_float8(cvt_f8_e4m3_to_hf(x))
 #define REF_TO_SRC(x) cvt_hf_to_f8_e4m3(convert_half(x))
 #elif SRC_DT_U4
-#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
 #define SRC_TO_REF(x) convert_float(x)
 #elif SRC_DT_S4
-#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
 #define SRC_TO_REF(x) convert_float(cvt_s4_to_f32(x))
 #else
 #define SRC_TO_REF(x) (x)
@@ -927,10 +925,8 @@
 #define WEI_TO_REF(x) convert_int_sat_rte(x)
 #define REF_TO_WEI(x) convert_uchar_sat_rte(x)
 #elif WEI_DT_S4
-#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
 #define WEI_TO_REF(x) cvt_s4_to_s32(x)
 #elif WEI_DT_U4
-#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
 #define WEI_TO_REF(x) convert_int_sat_rte(x)
 #else
 #define WEI_TO_REF(x) (x)
