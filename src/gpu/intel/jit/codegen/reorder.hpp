@@ -546,7 +546,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     s.reinterpret(0, ngen::DataType::uw)(1), -0x40);
             // check for zero mantissa.
             host->and_(esize | host->nz | host->f1[0], host->null.uw(),
-                    s.reinterpret(0, ngen::DataType::uw)(1), 0x3FF);
+                    s.reinterpret(0, ngen::DataType::uw)(1), 0x00FF);
             host->eshr(esize, s.reinterpret(0, ngen::DataType::uw)(1),
                     s.reinterpret(0, ngen::DataType::uw)(1), 7);
             host->add(esize | host->f1[0],

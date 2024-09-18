@@ -1,7 +1,6 @@
 #===============================================================================
 # Copyright 2017-2024 Intel Corporation
 # Copyright 2021 FUJITSU LIMITED
-# Copyright 2024 Arm Ltd. and affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,22 +30,14 @@ macro(sdl_unix_common_ccxx_flags var)
     append(${var} "-fPIC -Wformat -Wformat-security")
 endmacro()
 
-macro(sdl_gnu_common_ccxx_flags var)
-    if(DPCPP_HOST_COMPILER_KIND STREQUAL "GNU")
-        # GNU compiler 7.4 or newer is required for host compiler
-        append(${var} "-fstack-protector-strong")
+macro(sdl_gnu_common_ccxx_flags var gnu_version)
+    if(${gnu_version} VERSION_LESS 4.9)
+        append(${var} "-fstack-protector-all")
     else()
-        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)
-            append(${var} "-fstack-protector-all")
-        else()
-            append(${var} "-fstack-protector-strong")
+        append(${var} "-fstack-protector-strong")
+        if(NOT (${gnu_version} VERSION_LESS 8.0) AND (DNNL_TARGET_ARCH STREQUAL "X64"))
+            append(${var} "-fcf-protection=full")
         endif()
-    endif()
-    # -fcf-protection=full is an x86 specific option and needs to skipped for
-    # other configurations.
-    if(NOT (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0) AND
-        (CMAKE_SYSTEM_PROCESSOR MATCHES "i686|x86_64"))
-        append(${var} "-fcf-protection=full")
     endif()
 endmacro()
 
@@ -74,7 +65,7 @@ if(UNIX)
         append(ONEDNN_SDL_COMPILER_FLAGS "-D_FORTIFY_SOURCE=2")
     endif()
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-        sdl_gnu_common_ccxx_flags(ONEDNN_SDL_COMPILER_FLAGS)
+        sdl_gnu_common_ccxx_flags(ONEDNN_SDL_COMPILER_FLAGS CMAKE_CXX_COMPILER_VERSION)
         sdl_gnu_src_ccxx_flags(CMAKE_SRC_CCXX_FLAGS)
         sdl_gnu_example_ccxx_flags(CMAKE_EXAMPLE_CCXX_FLAGS)
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")

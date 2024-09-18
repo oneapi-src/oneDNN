@@ -781,11 +781,13 @@ def convert_zero_points(zero_points, prim_kind):
         q_param=zero_points, prim_kind=prim_kind, def_value="1", def_type="s32"
     )
 
+
 def convert_rounding_mode(rounding_modes, prim_kind):
     res = []
     for arg in rounding_modes.keys():
         res.append(arg + ":" + rounding_modes[arg])
     return "+".join(res)
+
 
 def convert_scratchpad_mode(scratchpad_mode, prim_kind):
     return scratchpad_mode
@@ -800,12 +802,12 @@ def convert_acc_mode(acc_mode, prim_kind):
 
 
 def convert_dropout(dropout, prim_kind):
-    ret = dropout["p"]
-    if dropout["seed"] != None:
-        ret += ":" + dropout["seed"]
-        if dropout["tag"] != None:
-            ret += ":" + dropout["tag"]
-    return ret
+    # Use default p=0.5 and seed=12345 since those values are user data and
+    # can't be obtained properly.
+    res = "0.5:12345"
+    if dropout["tag"] != None:
+        res += ":" + dropout["tag"]
+    return res
 
 
 def convert_deterministic(deterministic, prim_kind):
