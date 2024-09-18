@@ -171,6 +171,7 @@ status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
     return success;
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
 status_t dnnl_memory_create_v2(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, int nhandles, void **handles) {
     const bool args_ok = !any_null(memory, engine, handles) && nhandles > 0;
@@ -179,8 +180,8 @@ status_t dnnl_memory_create_v2(memory_t **memory, const memory_desc_t *md,
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
     if (engine->kind() == engine_kind::gpu)
 #endif
-        return dnnl_sycl_interop_memory_create(
-                memory, md, engine, dnnl_sycl_interop_usm, handles[0]);
+        return dnnl_sycl_interop_memory_create_v2(
+                memory, md, engine, dnnl_sycl_interop_usm, nhandles, handles);
 #endif
     memory_desc_t z_md = types::zero_md();
     if (md == nullptr) md = &z_md;
@@ -213,6 +214,7 @@ status_t dnnl_memory_create_v2(memory_t **memory, const memory_desc_t *md,
     *memory = _memory;
     return success;
 }
+#endif
 
 status_t dnnl_memory_get_memory_desc(
         const memory_t *memory, const memory_desc_t **md) {
