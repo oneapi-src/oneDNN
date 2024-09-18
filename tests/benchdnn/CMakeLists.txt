@@ -193,6 +193,7 @@ foreach(driver ${all_drivers})
     elseif(DNNL_TEST_SET_COVERAGE EQUAL DNNL_TEST_SET_NIGHTLY)
         if(NOT DNNL_EXPERIMENTAL_SPARSE)
             list(REMOVE_ITEM test_files_cpu "test_matmul_sparse")
+            list(REMOVE_ITEM test_files_gpu "test_matmul_sparse_gpu")
         endif()
 
         ## Filter out gpu, large cpu and invalid inputs from cpu
