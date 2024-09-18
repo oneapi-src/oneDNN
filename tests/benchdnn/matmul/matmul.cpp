@@ -523,6 +523,17 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         res->reason = skip_reason::case_not_supported;
         return;
     }
+
+    if (is_cpu() && is_wei_dense && prb->wtag != "any" && prb->wtag != "ab") {
+        BENCHDNN_PRINT(2,
+                "[SKIP][%s:%d]: Only `any` and `ab` tags are supported for "
+                "dense weights on CPU.\n",
+                __FILE__, __LINE__);
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
+
     if (wei_encoding == dnnl_packed) {
         BENCHDNN_PRINT(2,
                 "[SKIP][%s:%d]: Weights argument doesn't support packed "
