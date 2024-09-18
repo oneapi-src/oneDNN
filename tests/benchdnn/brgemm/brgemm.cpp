@@ -142,6 +142,7 @@ dnnl_status_t brgemm_attr_init(
         // PROCESS_KEY_VAL(bd_mask_level);
         PROCESS_KEY_VAL(use_uker);
         PROCESS_KEY_VAL(use_interleave_stores);
+        PROCESS_KEY_VAL(b_is_vnni);
         PROCESS_KEY_VAL(postops_only);
         PROCESS_KEY_VAL(hint_bd_block);
         PROCESS_KEY_VAL(hint_bd_block2);

@@ -1,27 +1,58 @@
 --reset
-
 --dt=f16,f16:f16:f32,f16:f32:f32,f32:f16:f32
 --bia_dt=undef,f32,f16
 --beta=0,1
 --attr-post-ops=,sum:2,relu
---batch=option_set_f32 # f16 uses f32 blocking for avx512_core_fp16
+--brgemm-attr=b_is_vnni:0
+# f16 uses f32 blocking for avx512_core_fp16
+--batch=option_set_f32
+
+--reset
+--dt=f16,f16:f16:f32,f16:f32:f32,f32:f16:f32
+--bia_dt=undef,f32,f16
+--beta=0,1
+--attr-post-ops=,sum:2,relu
+--brgemm-attr=b_is_vnni:1
+# f16 with b_is_vnni=1 uses vnni blocking for avx512_core_fp16
+--batch=option_set_bf16
 
 # Separate cases for non-default alpha
 --reset
 --dt=f16
 --alpha=2
+--brgemm-attr=b_is_vnni:0
 --batch=shapes_2d_no_tail_f32
+
+--reset
+--dt=f16
+--alpha=2
+--brgemm-attr=b_is_vnni:1
+--batch=shapes_2d_no_tail_bf16
 
 # Skip-acc feature
 --reset
---brgemm-attr=generate_skip_accumulation:1
+--brgemm-attr=generate_skip_accumulation:1+b_is_vnni:0
 --beta=0,1
 --bia_dt=f32
 --dt=f16
 --batch=option_set_f32
 
+--reset
+--brgemm-attr=generate_skip_accumulation:1+b_is_vnni:1
+--beta=0,1
+--bia_dt=f32
+--dt=f16
+--batch=option_set_bf16
+
 # ukernel wtag support
 --reset
 --wtag=ba
 --dt=f16
+--brgemm-attr=b_is_vnni:0
 --batch=option_set_f32
+
+--reset
+--wtag=ba
+--dt=f16
+--brgemm-attr=b_is_vnni:1
+--batch=option_set_bf16
