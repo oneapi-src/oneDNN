@@ -5696,13 +5696,13 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias_row(int ocb) {
     };
 
     Label ow_loop;
-    const int sp_substep = data_type_vnni_granularity(jcp.ddst_dt);
+    const dim_t sp_substep = data_type_vnni_granularity(jcp.ddst_dt);
     if (sp_substep == 0) {
         assert("Invalid vnni granularity.");
         return;
     }
 
-    const int niters = jcp.tr_ow / sp_substep;
+    const dim_t niters = jcp.tr_ow / sp_substep;
     if (niters > 0) {
         mov(reg_tmp, niters);
         L(ow_loop);
