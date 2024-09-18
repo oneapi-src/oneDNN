@@ -229,6 +229,120 @@ TEST_P(sycl_memory_usm_test, ErrorMemoryConstructorUsingSystemMemory) {
     }
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+TEST_P(sycl_memory_usm_test, TestSparseMemoryCreation) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+    engine eng(eng_kind, 0);
+    const int nnz = 12;
+    memory::desc md;
+
+    // COO.
+    ASSERT_NO_THROW(md = memory::desc::coo({64, 128}, memory::data_type::f32,
+                            nnz, memory::data_type::s32));
+    memory mem;
+    // Default memory constructor.
+    EXPECT_NO_THROW(mem = memory(md, eng));
+    // Memory object is expected to have 3 handles.
+    EXPECT_NO_THROW(mem.get_data_handle(0));
+    EXPECT_NO_THROW(mem.get_data_handle(1));
+    EXPECT_NO_THROW(mem.get_data_handle(2));
+
+    // Default interop API to create a memory object.
+    EXPECT_NO_THROW(mem = sycl_interop::make_memory(
+                            md, eng, sycl_interop::memory_kind::usm));
+    // Memory object is expected to have 3 handles.
+    EXPECT_NO_THROW(mem.get_data_handle(0));
+    EXPECT_NO_THROW(mem.get_data_handle(1));
+    EXPECT_NO_THROW(mem.get_data_handle(2));
+
+    // User provided buffers.
+    auto dev = sycl_interop::get_device(eng);
+    auto ctx = sycl_interop::get_context(eng);
+    void *usm_values = ::sycl::malloc_shared(md.get_size(0), dev, ctx);
+    void *usm_row_indices = ::sycl::malloc_shared(md.get_size(1), dev, ctx);
+    void *usm_col_indices = ::sycl::malloc_shared(md.get_size(2), dev, ctx);
+
+    EXPECT_NO_THROW(mem
+            = sycl_interop::make_memory(md, eng, sycl_interop::memory_kind::usm,
+                    {usm_values, usm_row_indices, usm_col_indices}));
+
+    ASSERT_EQ(mem.get_data_handle(0), usm_values);
+    ASSERT_EQ(mem.get_data_handle(1), usm_row_indices);
+    ASSERT_EQ(mem.get_data_handle(2), usm_col_indices);
+
+    ::sycl::free(usm_values, ctx);
+    ::sycl::free(usm_row_indices, ctx);
+    ::sycl::free(usm_col_indices, ctx);
+}
+
+TEST_P(sycl_memory_usm_test, TestSparseMemoryMapUnmap) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+    engine eng(eng_kind, 0);
+
+    const int nnz = 2;
+    memory::desc md;
+
+    // COO.
+    ASSERT_NO_THROW(md = memory::desc::coo({2, 2}, memory::data_type::f32, nnz,
+                            memory::data_type::s32));
+
+    // User provided buffers.
+    std::vector<float> coo_values = {1.5, 2.5};
+    std::vector<int> row_indices = {0, 1};
+    std::vector<int> col_indices = {0, 1};
+
+    auto dev = sycl_interop::get_device(eng);
+    auto ctx = sycl_interop::get_context(eng);
+    float *usm_values = ::sycl::malloc_shared<float>(
+            md.get_size(0) / sizeof(float), dev, ctx);
+    int *usm_row_indices = ::sycl::malloc_shared<int>(
+            md.get_size(1) / sizeof(int), dev, ctx);
+    int *usm_col_indices = ::sycl::malloc_shared<int>(
+            md.get_size(2) / sizeof(int), dev, ctx);
+
+    for (size_t i = 0; i < coo_values.size(); i++)
+        usm_values[i] = coo_values[i];
+    for (size_t i = 0; i < row_indices.size(); i++)
+        usm_row_indices[i] = row_indices[i];
+    for (size_t i = 0; i < col_indices.size(); i++)
+        usm_col_indices[i] = col_indices[i];
+
+    memory coo_mem;
+    EXPECT_NO_THROW(coo_mem
+            = sycl_interop::make_memory(md, eng, sycl_interop::memory_kind::usm,
+                    {usm_values, usm_row_indices, usm_col_indices}));
+
+    float *mapped_coo_values = nullptr;
+    int *mapped_row_indices = nullptr;
+    int *mapped_col_indices = nullptr;
+
+    ASSERT_NO_THROW(mapped_coo_values = coo_mem.map_data<float>(0));
+    ASSERT_NO_THROW(mapped_row_indices = coo_mem.map_data<int>(1));
+    ASSERT_NO_THROW(mapped_col_indices = coo_mem.map_data<int>(2));
+
+    for (size_t i = 0; i < coo_values.size(); i++)
+        ASSERT_EQ(coo_values[i], mapped_coo_values[i]);
+
+    for (size_t i = 0; i < row_indices.size(); i++)
+        ASSERT_EQ(row_indices[i], mapped_row_indices[i]);
+
+    for (size_t i = 0; i < col_indices.size(); i++)
+        ASSERT_EQ(col_indices[i], mapped_col_indices[i]);
+
+    ASSERT_NO_THROW(coo_mem.unmap_data(mapped_coo_values, 0));
+    ASSERT_NO_THROW(coo_mem.unmap_data(mapped_row_indices, 1));
+    ASSERT_NO_THROW(coo_mem.unmap_data(mapped_col_indices, 2));
+
+    ::sycl::free(usm_values, ctx);
+    ::sycl::free(usm_row_indices, ctx);
+    ::sycl::free(usm_col_indices, ctx);
+}
+#endif
+
 namespace {
 struct PrintToStringParamName {
     template <class ParamType>

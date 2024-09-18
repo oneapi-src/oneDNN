@@ -388,6 +388,106 @@ TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
     }
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+TEST_P(sycl_memory_buffer_test, TestSparseMemoryCreation) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+    engine eng(eng_kind, 0);
+    const int nnz = 12;
+    memory::desc md;
+
+    // COO.
+    ASSERT_NO_THROW(md = memory::desc::coo({64, 128}, memory::data_type::f32,
+                            nnz, memory::data_type::s32));
+    memory mem;
+    // Default memory constructor.
+    EXPECT_NO_THROW(mem = memory(md, eng));
+    // Memory object is expected to have 3 handles.
+    EXPECT_NO_THROW(mem.get_data_handle(0));
+    EXPECT_NO_THROW(mem.get_data_handle(1));
+    EXPECT_NO_THROW(mem.get_data_handle(2));
+
+    // Default interop API to create a memory object.
+    EXPECT_NO_THROW(mem = sycl_interop::make_memory(
+                            md, eng, sycl_interop::memory_kind::buffer));
+    // Memory object is expected to have 3 handles.
+    EXPECT_NO_THROW(mem.get_data_handle(0));
+    EXPECT_NO_THROW(mem.get_data_handle(1));
+    EXPECT_NO_THROW(mem.get_data_handle(2));
+
+    // User provided buffers.
+    buffer<uint8_t, 1> buf_values {range<1>(md.get_size(0))};
+    buffer<uint8_t, 1> buf_row_indices {range<1>(md.get_size(1))};
+    buffer<uint8_t, 1> buf_col_indices {range<1>(md.get_size(2))};
+
+    EXPECT_NO_THROW(mem = sycl_interop::make_memory(md, eng,
+                            sycl_interop::memory_kind::buffer,
+                            {&buf_values, &buf_row_indices, &buf_col_indices}));
+
+    auto &h1 = *reinterpret_cast<buffer<uint8_t, 1> *>(mem.get_data_handle(0));
+    auto &h2 = *reinterpret_cast<buffer<uint8_t, 1> *>(mem.get_data_handle(1));
+    auto &h3 = *reinterpret_cast<buffer<uint8_t, 1> *>(mem.get_data_handle(2));
+
+    ASSERT_EQ(h1, buf_values);
+    ASSERT_EQ(h2, buf_row_indices);
+    ASSERT_EQ(h3, buf_col_indices);
+}
+
+TEST_P(sycl_memory_buffer_test, TestSparseMemoryMapUnmap) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+    engine eng(eng_kind, 0);
+
+    const int nnz = 2;
+    memory::desc md;
+
+    // COO.
+    ASSERT_NO_THROW(md = memory::desc::coo({2, 2}, memory::data_type::f32, nnz,
+                            memory::data_type::s32));
+
+    // User provided buffers.
+    std::vector<float> coo_values = {1.5, 2.5};
+    std::vector<int> row_indices = {0, 1};
+    std::vector<int> col_indices = {0, 1};
+
+    buffer<uint8_t, 1> buf_coo_values(
+            (uint8_t *)&coo_values[0], range<1>(md.get_size(0)));
+    buffer<uint8_t, 1> buf_row_indices(
+            (uint8_t *)&row_indices[0], range<1>(md.get_size(1)));
+    buffer<uint8_t, 1> buf_col_indices(
+            (uint8_t *)&col_indices[0], range<1>(md.get_size(2)));
+
+    memory coo_mem;
+    EXPECT_NO_THROW(
+            coo_mem = sycl_interop::make_memory(md, eng,
+                    sycl_interop::memory_kind::buffer,
+                    {&buf_coo_values, &buf_row_indices, &buf_col_indices}));
+
+    float *mapped_coo_values = nullptr;
+    int *mapped_row_indices = nullptr;
+    int *mapped_col_indices = nullptr;
+
+    ASSERT_NO_THROW(mapped_coo_values = coo_mem.map_data<float>(0));
+    ASSERT_NO_THROW(mapped_row_indices = coo_mem.map_data<int>(1));
+    ASSERT_NO_THROW(mapped_col_indices = coo_mem.map_data<int>(2));
+
+    for (size_t i = 0; i < coo_values.size(); i++)
+        ASSERT_EQ(coo_values[i], mapped_coo_values[i]);
+
+    for (size_t i = 0; i < row_indices.size(); i++)
+        ASSERT_EQ(row_indices[i], mapped_row_indices[i]);
+
+    for (size_t i = 0; i < col_indices.size(); i++)
+        ASSERT_EQ(col_indices[i], mapped_col_indices[i]);
+
+    ASSERT_NO_THROW(coo_mem.unmap_data(mapped_coo_values, 0));
+    ASSERT_NO_THROW(coo_mem.unmap_data(mapped_row_indices, 1));
+    ASSERT_NO_THROW(coo_mem.unmap_data(mapped_col_indices, 2));
+}
+#endif
+
 namespace {
 struct PrintToStringParamName {
     template <class ParamType>
