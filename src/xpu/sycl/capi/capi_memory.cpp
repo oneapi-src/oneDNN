@@ -25,6 +25,7 @@
 #include "xpu/sycl/engine_factory.hpp"
 #include "xpu/sycl/memory_storage.hpp"
 
+using namespace dnnl::impl;
 using namespace dnnl::impl::xpu::sycl;
 
 using dnnl::impl::engine_t;
@@ -33,6 +34,67 @@ using dnnl::impl::memory_t;
 using dnnl::impl::status_t;
 using ::sycl::context;
 using ::sycl::get_pointer_type;
+
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+status_t dnnl_sycl_interop_memory_create_v2(memory_t **memory,
+        const memory_desc_t *md, engine_t *engine, memory_kind_t memory_kind,
+        int nhandles, void **handles) {
+
+    bool ok = !utils::any_null(memory, md, engine, handles) && nhandles > 0
+            && engine->runtime_kind() == runtime_kind::sycl;
+    if (!ok) return status::invalid_arguments;
+
+    const auto mdw = memory_desc_wrapper(md);
+    if (mdw.format_any() || mdw.has_runtime_dims_or_strides())
+        return status::invalid_arguments;
+
+    std::vector<unsigned> flags_vec(nhandles);
+    std::vector<void *> handles_vec(nhandles);
+    for (int i = 0; i < nhandles; i++) {
+        unsigned f = (handles[i] == DNNL_MEMORY_ALLOCATE)
+                ? memory_flags_t::alloc
+                : memory_flags_t::use_runtime_ptr;
+        void *h = (handles[i] == DNNL_MEMORY_ALLOCATE) ? nullptr : handles[i];
+        flags_vec[i] = f;
+        handles_vec[i] = h;
+    }
+
+    bool is_usm = memory_kind == memory_kind::usm;
+    std::vector<std::unique_ptr<memory_storage_t>> mem_storages(nhandles);
+
+    if (is_usm) {
+        for (int i = 0; i < nhandles; i++) {
+            if (handles[i] != DNNL_MEMORY_NONE
+                    && handles[i] != DNNL_MEMORY_ALLOCATE) {
+                const auto *sycl_engine_impl
+                        = utils::downcast<const xpu::sycl::engine_impl_t *>(
+                                engine->impl());
+                auto &sycl_ctx = sycl_engine_impl->context();
+                ::sycl::usm::alloc ptr_type
+                        = get_pointer_type(handles[i], sycl_ctx);
+                if (ptr_type == ::sycl::usm::alloc::unknown
+                        && !engine->mayiuse_system_memory_allocators())
+                    return status::invalid_arguments;
+            }
+            size_t sz = dnnl_memory_desc_get_size_v2(md, i);
+            mem_storages[i].reset(new xpu::sycl::usm_memory_storage_t(engine));
+            if (!mem_storages[i]) return status::out_of_memory;
+            CHECK(mem_storages[i]->init(flags_vec[i], sz, handles_vec[i]));
+        }
+    } else {
+        for (int i = 0; i < nhandles; i++) {
+            size_t sz = dnnl_memory_desc_get_size_v2(md, i);
+            mem_storages[i].reset(
+                    new xpu::sycl::buffer_memory_storage_t(engine));
+            if (!mem_storages[i]) return status::out_of_memory;
+            CHECK(mem_storages[i]->init(flags_vec[i], sz, handles_vec[i]));
+        }
+    }
+
+    return safe_ptr_assign(
+            *memory, new memory_t(engine, md, std::move(mem_storages)));
+}
+#endif
 
 status_t dnnl_sycl_interop_memory_create(memory_t **memory,
         const memory_desc_t *md, engine_t *engine, memory_kind_t memory_kind,
