@@ -108,7 +108,9 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
 status_t dnnl_memory::set_data_handle(void *handle, int index) const {
     using namespace dnnl::impl;
     void *old_handle;
-    CHECK(memory_storage(index)->get_data_handle(&old_handle));
+    auto *ms = memory_storage(index);
+    if (!ms) return status::invalid_arguments;
+    CHECK(ms->get_data_handle(&old_handle));
     if (handle != old_handle) {
         CHECK(memory_storage(index)->set_data_handle(handle));
     }

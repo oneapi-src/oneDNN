@@ -84,7 +84,9 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
 
     /** returns data handle */
     dnnl::impl::status_t get_data_handle(void **handle, int index = 0) const {
-        return memory_storage(index)->get_data_handle(handle);
+        auto ms = memory_storage(index);
+        if (!ms) return dnnl::impl::status::invalid_arguments;
+        return ms->get_data_handle(handle);
     }
 
     /** sets data handle */
