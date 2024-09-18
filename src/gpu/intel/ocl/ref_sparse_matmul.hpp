@@ -54,17 +54,22 @@ struct ref_sparse_matmul_t : public gpu_primitive_t {
 
             bool is_f16_dt = utils::everyone_is(f16, src_dt_, wei_dt_, dst_dt_);
             bool is_f32_dt = utils::everyone_is(f32, src_dt_, wei_dt_, dst_dt_);
-            bool is_src_coo_sparse = src_d.is_sparse_desc()
-                    && (src_d.encoding() == sparse_encoding::coo);
-            bool is_meta_data_valid = src_d.metadata_type(0) == s32;
-            bool wei_tag_check
-                    = wei_d.matches_one_of_tag(format_tag::ab, format_tag::ba);
             VDISPATCH_MATMUL(
                     is_f32_dt || is_f16_dt, VERBOSE_UNSUPPORTED_DT_CFG);
-            VDISPATCH_MATMUL(is_src_coo_sparse && is_meta_data_valid,
-                    VERBOSE_UNSUPPORTED_SPARSE_CFG);
-            VDISPATCH_MATMUL(wei_tag_check, VERBOSE_UNSUPPORTED_TAG);
+
+            bool is_src_coo_sparse = src_d.is_sparse_desc()
+                    && (src_d.encoding() == sparse_encoding::coo);
+            VDISPATCH_MATMUL(is_src_coo_sparse, VERBOSE_UNSUPPORTED_SPARSE_CFG);
+
+            bool is_meta_data_valid = src_d.metadata_type(0) == s32;
+            VDISPATCH_MATMUL(
+                    is_meta_data_valid, VERBOSE_UNSUPPORTED_SPARSE_CFG);
+
             VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            bool wei_tag_check
+                    = wei_d.matches_one_of_tag(format_tag::ab, format_tag::ba);
+            VDISPATCH_MATMUL(wei_tag_check, VERBOSE_UNSUPPORTED_TAG);
+
             VDISPATCH_MATMUL(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_MATMUL(!with_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
