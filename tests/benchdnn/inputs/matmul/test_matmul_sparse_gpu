@@ -1,6 +1,2 @@
 --reset
---dt=f16:f16:f16,f32:f32:f32
---dtag=ab
---wtag=ab,ba
---encoding=coo+0.9::
---batch=shapes_sparse
+--batch=test_matmul_sparse
