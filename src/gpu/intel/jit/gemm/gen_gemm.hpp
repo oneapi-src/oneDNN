@@ -225,6 +225,13 @@ struct gen_gemm_t : public gpu_gemm_t {
                             = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS) > 0
                             ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
                             : 1;
+                    const auto wei_q2d_group_n
+                            = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS) > 0
+                            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[1]
+                            : 1;
+                    // Non-trivial N group unsupported.
+                    VDISPATCH_GEMM(
+                            wei_q2d_group_n == 1, VERBOSE_UNSUPPORTED_ZP_CFG);
                 }
                 // Zero points with non-trivial groups only supported when
                 // target tensor is being dequantized.
@@ -264,6 +271,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                                 VERBOSE_UNSUPPORTED_SCALES_CFG);
                     }
                 }
+                // Non-trivial N group unsupported.
+                VDISPATCH_GEMM(wei_scales.group_dims_[1] == 1,
+                        VERBOSE_UNSUPPORTED_ZP_CFG);
             }
             if (src_scales_2d_) {
                 src_scales_type = src_scales.data_type_;
