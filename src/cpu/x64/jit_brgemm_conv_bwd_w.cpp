@@ -404,6 +404,11 @@ struct brgemm_convolution_bwd_weights_t::thread_info_t {
 
         if (jcp.transform_to_vnni) {
             const int vnni_granularity = data_type_vnni_granularity(jcp.wei_dt);
+            if (vnni_granularity == 0) {
+                assert("Invalid vnni granularity.");
+                return;
+            }
+
             const auto icb_work = div_up(jcp.nb_ic, vnni_granularity);
             balance211(
                     icb_work, jcp.nthr_ic_b, ithr_ic_b, ic_b_start, ic_b_end);
@@ -1227,6 +1232,10 @@ void brgemm_convolution_bwd_weights_t::store_in_vnni_format(
     if (one_of(0, ti->g_work, ti->oc_b_work, ti->ic_b_work)) return;
 
     const int vnni_granularity = data_type_vnni_granularity(jcp.wei_dt);
+    if (vnni_granularity == 0) {
+        assert("Invalid vnni granularity.");
+        return;
+    }
 
     const auto icb2_work = div_up(ti->ic_b_work, vnni_granularity);
     const auto work = ti->g_work * ti->oc_b_work * icb2_work;

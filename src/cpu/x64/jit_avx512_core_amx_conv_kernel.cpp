@@ -5609,6 +5609,11 @@ void jit_avx512_core_amx_bwd_weights_kernel_t::balance(const jit_conv_conf_t &j,
 dim_t jit_avx512_core_amx_bwd_bias_kernel_t::get_ddst_offset(
         dim_t w_idx, dim_t hd_idx) const {
     int ow_per_oc = data_type_vnni_granularity(jcp.ddst_dt);
+    if (ow_per_oc == 0) {
+        assert("Invalid vnni granularity.");
+        return 0;
+    }
+
     dim_t w_off = utils::rnd_dn(w_idx, ow_per_oc) * jcp.oc_block
             + w_idx % ow_per_oc;
     return jcp.typesize_in * (w_off + jcp.tr_ow * jcp.oc_block * hd_idx);
@@ -5692,6 +5697,11 @@ void jit_avx512_core_amx_bwd_bias_kernel_t::compute_diff_bias_row(int ocb) {
 
     Label ow_loop;
     const int sp_substep = data_type_vnni_granularity(jcp.ddst_dt);
+    if (sp_substep == 0) {
+        assert("Invalid vnni granularity.");
+        return;
+    }
+
     const int niters = jcp.tr_ow / sp_substep;
     if (niters > 0) {
         mov(reg_tmp, niters);
