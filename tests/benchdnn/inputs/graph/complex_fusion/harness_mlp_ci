@@ -1,0 +1,1 @@
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mlp/gated-mlp-f32.json

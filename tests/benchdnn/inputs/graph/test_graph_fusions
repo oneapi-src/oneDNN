@@ -1,1 +1,2 @@
 --batch=complex_fusion/harness_mha_all
+--batch=complex_fusion/harness_mlp_all
