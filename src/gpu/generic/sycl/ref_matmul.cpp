@@ -118,7 +118,7 @@ status_t ref_matmul_t::pd_t::init_conf() {
 
     conf_.use_dropout = !attr()->dropout_.has_default_values();
 
-    conf_.post_ops = sycl_post_ops_t(attr());
+    conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
 
     for (auto i = 0; i < conf_.post_ops.get_post_op(); ++i) {
         const auto &e = attr()->post_ops_.entry_[i];
