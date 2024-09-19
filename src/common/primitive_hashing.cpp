@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -95,10 +96,8 @@ bool key_t::operator==(const key_t &rhs) const {
 
     if (!ret) return false;
 
-    for (size_t i = 0; i < hint_mds_.size(); ++i)
-        if (hint_mds_[i] != rhs.hint_mds_[i]) return false;
-
-    return true;
+    return std::equal(
+            hint_mds_.begin(), hint_mds_.end(), rhs.hint_mds_.begin());
 }
 
 // Combine hash of each memory_desc_t data member
