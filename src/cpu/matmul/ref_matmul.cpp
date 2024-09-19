@@ -90,15 +90,15 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             = !attr_zps.has_default_values(DNNL_ARG_WEIGHTS);
     int wei_zp_mask = 0;
     attr_zps.get(DNNL_ARG_WEIGHTS, &wei_zp_mask);
-    const bool wei_zp_per_n = wei_zp_mask & pd()->wei_qmask_N();
-    const bool wei_zp_per_k = wei_zp_mask & pd()->wei_qmask_K();
-    const dim_t wei_zp_stride_n = wei_zp_per_n ? 1 : 0;
-    const dim_t wei_zp_stride_k = wei_zp_per_k ? wei_zp_per_n ? N : 1 : 0;
     const auto &wei_zp_dt = attr_zps.get_data_type(DNNL_ARG_WEIGHTS);
     const auto wei_zp_group_ndims = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS);
     const auto wei_zp_group_k = wei_zp_group_ndims > 0
             ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
             : 1;
+    // Initialize a memory desc for quant entries for easier offset calculation.
+    memory_desc_t wei_zp_md {};
+    CHECK(matmul_helper_t::get_quant_md(wei_zp_md, ndims, weights_d.dims(),
+            wei_zp_mask, wei_zp_group_k, 1, wei_zp_dt));
 
     const int src_mask
             = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
@@ -116,18 +116,19 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const bool with_dst_scales
             = !attr_scales.get(DNNL_ARG_DST).has_default_values();
     const auto wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-    const bool wei_scale_per_n = wei_scale_mask & pd()->wei_qmask_N();
-    const bool wei_scale_per_k = wei_scale_mask & pd()->wei_qmask_K();
-    const dim_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
-    const dim_t wei_scale_stride_k
-            = wei_scale_per_k ? wei_scale_per_n ? N : 1 : 0;
+    const dim_t wei_scale_stride_n
+            = (wei_scale_mask & pd()->wei_qmask_N()) ? 1 : 0;
     const auto &wei_scale_dt = attr_scales.get(DNNL_ARG_WEIGHTS).data_type_;
-    const auto scales_d
+    const auto wei_scales_d
             = ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
     const auto wei_scale_group_ndim = attr_scales.get(DNNL_ARG_WEIGHTS).ndims_;
     const auto wei_scale_group_k = wei_scale_group_ndim > 0
             ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0]
             : 1;
+    // Initialize a memory desc for quant entries for easier offset calculation.
+    memory_desc_t wei_scale_md {};
+    CHECK(matmul_helper_t::get_quant_md(wei_scale_md, ndims, weights_d.dims(),
+            wei_scale_mask, wei_scale_group_k, 1, wei_scale_dt));
 
     auto dst_rnd_mode = pd()->attr()->rounding_mode_.get(DNNL_ARG_DST);
 
@@ -153,17 +154,23 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                     weights_d.data_type(), weights, weights_off);
             // weights decompression should happen before the operation
             if (with_wei_decompression) {
-                if (with_wei_zero_points)
-                    w -= io::load_float_value(wei_zp_dt, wei_zero_points,
-                            wei_zp_stride_n * n
-                                    + wei_zp_stride_k * (k / wei_zp_group_k));
+                if (with_wei_zero_points) {
+                    const dim_t wei_zp_offset = matmul_helper_t::get_quant_off(
+                            weights_dims_idx, ndims, wei_zp_mask,
+                            wei_zp_group_k, 1, wei_zp_md);
+                    const auto wei_zp = io::load_int_value(
+                            wei_zp_dt, wei_zero_points, wei_zp_offset);
+                    w -= wei_zp;
+                }
                 if (with_wei_scales) {
-                    float wei_scale = scales_d.nelems() == 1
+                    const dim_t wei_scale_offset
+                            = matmul_helper_t::get_quant_off(weights_dims_idx,
+                                    ndims, wei_scale_mask, wei_scale_group_k, 1,
+                                    wei_scale_md);
+                    const float wei_scale = wei_scales_d.nelems() == 1
                             ? wei_scales[0]
-                            : io::load_float_value(wei_scale_dt, wei_scales,
-                                    wei_scale_stride_n * n
-                                            + wei_scale_stride_k
-                                                    * (k / wei_scale_group_k));
+                            : io::load_float_value(
+                                    wei_scale_dt, wei_scales, wei_scale_offset);
                     w *= wei_scale;
                 }
             }

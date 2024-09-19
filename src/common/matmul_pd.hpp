@@ -170,9 +170,6 @@ struct matmul_pd_t : public primitive_desc_t {
             if (sc.has_default_values()) { continue; }
 
             if (arg == DNNL_ARG_WEIGHTS) {
-                ok = ok
-                        && utils::one_of(mask, 0, wei_qmask_N(),
-                                wei_qmask_K() + wei_qmask_N());
                 ok = ok && utils::one_of(sc.ndims_, 0, 2)
                         && IMPLICATION(sc.ndims_ == 2,
                                 sc.group_dims_[1] == 1

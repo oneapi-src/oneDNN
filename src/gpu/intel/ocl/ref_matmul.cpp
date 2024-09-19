@@ -85,42 +85,100 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const auto &attr_scales = pd()->attr()->scales_;
     const int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-    const bool wei_scale_per_n = wei_scale_mask & pd()->wei_qmask_N();
     const bool wei_scale_per_k = wei_scale_mask & pd()->wei_qmask_K();
     const auto wei_scale_group_ndim = attr_scales.get(DNNL_ARG_WEIGHTS).ndims_;
     const auto wei_scale_group_k = wei_scale_group_ndim > 0
             ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0]
             : (wei_scale_per_k ? 1 : K);
-    const dim_t wei_scale_stride_n = wei_scale_per_n ? 1 : 0;
-    const dim_t wei_scale_stride_k
-            = wei_scale_group_k < K ? wei_scale_per_n ? N : 1 : 0;
     const auto wei_scale_ngroups_k = K / wei_scale_group_k;
+    // Identify wei_scales dimensions as user may not pass them.
+    dims_t wei_scale_dims {};
+    dims_t wei_scale_strides {};
+    utils::copy_dims_with_mask(
+            wei_scale_dims, b_d.dims(), b_d.ndims(), wei_scale_mask);
+    wei_scale_dims[b_d.ndims() - 2] /= wei_scale_group_k;
+
+    dim_t last_scale_dim = 0;
+    dim_t last_scale_stride = 0;
+    for (int d = b_d.ndims() - 1; d >= 0; d--) {
+        if (wei_scale_dims[d] == 0) continue;
+        wei_scale_strides[d] = last_scale_stride == 0
+                ? 1
+                : last_scale_dim * last_scale_stride;
+        last_scale_stride = wei_scale_strides[d];
+        last_scale_dim = wei_scale_dims[d];
+    }
+
+    const dim_t wei_scale_stride_n = wei_scale_strides[b_d.ndims() - 1];
+    const dim_t wei_scale_stride_k = wei_scale_strides[b_d.ndims() - 2];
+    const dim_t wei_scale_stride_b0
+            = b_d.ndims() > 2 ? wei_scale_strides[b_d.ndims() - 3] : 0;
+    const dim_t wei_scale_stride_b1
+            = b_d.ndims() > 3 ? wei_scale_strides[b_d.ndims() - 4] : 0;
 
     const int src_scale_mask = attr_scales.get(DNNL_ARG_SRC).mask_;
     const bool src_scale_per_k = src_scale_mask & pd()->src_qmask_K();
-    const bool src_scale_per_m = src_scale_mask & pd()->src_qmask_M();
     const auto src_scale_group_ndim = attr_scales.get(DNNL_ARG_SRC).ndims_;
     const auto src_scale_group_k = src_scale_group_ndim > 0
             ? attr_scales.get(DNNL_ARG_SRC).group_dims_[1]
             : (src_scale_per_k ? 1 : K);
     const auto src_scale_ngroups_k = K / src_scale_group_k;
-    const dim_t src_scale_stride_k = src_scale_group_k < K ? 1 : 0;
-    const dim_t src_scale_stride_m = src_scale_per_m
-            ? src_scale_group_k < K ? src_scale_ngroups_k : 1
-            : 0;
+    // Identify src_scales dimensions as user may not pass them.
+    dims_t src_scale_dims {};
+    dims_t src_scale_strides {};
+    utils::copy_dims_with_mask(
+            src_scale_dims, a_d.dims(), a_d.ndims(), src_scale_mask);
+    src_scale_dims[a_d.ndims() - 1] /= src_scale_group_k;
+
+    last_scale_dim = 0;
+    last_scale_stride = 0;
+    for (int d = a_d.ndims() - 1; d >= 0; d--) {
+        if (src_scale_dims[d] == 0) continue;
+        src_scale_strides[d] = last_scale_stride == 0
+                ? 1
+                : last_scale_dim * last_scale_stride;
+        last_scale_stride = src_scale_strides[d];
+        last_scale_dim = src_scale_dims[d];
+    }
+
+    const dim_t src_scale_stride_k = src_scale_strides[a_d.ndims() - 1];
+    const dim_t src_scale_stride_m = src_scale_strides[a_d.ndims() - 2];
+    const dim_t src_scale_stride_b0
+            = a_d.ndims() > 2 ? src_scale_strides[a_d.ndims() - 3] : 0;
+    const dim_t src_scale_stride_b1
+            = a_d.ndims() > 3 ? src_scale_strides[a_d.ndims() - 4] : 0;
 
     const auto &attr_zps = pd()->attr()->zero_points_;
     int wei_zp_mask = 0;
     attr_zps.get(DNNL_ARG_WEIGHTS, &wei_zp_mask);
-    const bool wei_zp_per_n = wei_zp_mask & pd()->wei_qmask_N();
     const bool wei_zp_per_k = wei_zp_mask & pd()->wei_qmask_K();
     const auto wei_zp_group_ndims = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS);
     const auto wei_zp_group_k = wei_zp_group_ndims > 0
             ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
             : (wei_zp_per_k ? 1 : K);
-    const dim_t wei_zp_stride_n = wei_zp_per_n ? 1 : 0;
-    const dim_t wei_zp_stride_k = wei_zp_group_k < K ? wei_zp_per_n ? N : 1 : 0;
     const auto wei_zp_ngroups_k = K / wei_zp_group_k;
+    // Identify wei_zp dimensions as user may not pass them.
+    dims_t wei_zp_dims {};
+    dims_t wei_zp_strides {};
+    utils::copy_dims_with_mask(
+            wei_zp_dims, b_d.dims(), b_d.ndims(), wei_zp_mask);
+    wei_zp_dims[b_d.ndims() - 2] /= wei_zp_group_k;
+
+    dim_t last_zp_dim = 0;
+    dim_t last_zp_stride = 0;
+    for (int d = b_d.ndims() - 1; d >= 0; d--) {
+        if (wei_zp_dims[d] == 0) continue;
+        wei_zp_strides[d]
+                = last_zp_stride == 0 ? 1 : last_zp_dim * last_zp_stride;
+        last_zp_stride = wei_zp_strides[d];
+        last_zp_dim = wei_zp_dims[d];
+    }
+    const dim_t wei_zp_stride_n = wei_zp_strides[b_d.ndims() - 1];
+    const dim_t wei_zp_stride_k = wei_zp_strides[b_d.ndims() - 2];
+    const dim_t wei_zp_stride_b0
+            = b_d.ndims() > 2 ? wei_zp_strides[b_d.ndims() - 3] : 0;
+    const dim_t wei_zp_stride_b1
+            = b_d.ndims() > 3 ? wei_zp_strides[b_d.ndims() - 4] : 0;
 
     const bool subbyte_pack
             = pd()->subbyte_pack_; //(c_d.data_type() == data_type::f4_e2m1);
@@ -144,15 +202,21 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(arg_idx++, b0);
     arg_list.set(arg_idx++, wei_zp_stride_n);
     arg_list.set(arg_idx++, wei_zp_stride_k);
+    arg_list.set(arg_idx++, wei_zp_stride_b0);
+    arg_list.set(arg_idx++, wei_zp_stride_b1);
     arg_list.set(arg_idx++, wei_zp_group_k);
     arg_list.set(arg_idx++, c0);
     arg_list.set(arg_idx++, src_scales);
     arg_list.set(arg_idx++, src_scale_stride_k);
     arg_list.set(arg_idx++, src_scale_stride_m);
+    arg_list.set(arg_idx++, src_scale_stride_b0);
+    arg_list.set(arg_idx++, src_scale_stride_b1);
     arg_list.set(arg_idx++, src_scale_group_k);
     arg_list.set(arg_idx++, wei_scales);
     arg_list.set(arg_idx++, wei_scale_stride_n);
     arg_list.set(arg_idx++, wei_scale_stride_k);
+    arg_list.set(arg_idx++, wei_scale_stride_b0);
+    arg_list.set(arg_idx++, wei_scale_stride_b1);
     arg_list.set(arg_idx++, wei_scale_group_k);
     arg_list.set(arg_idx++, dst_scales);
     arg_list.set(arg_idx++, group_K);
