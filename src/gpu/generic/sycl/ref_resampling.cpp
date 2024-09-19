@@ -50,7 +50,7 @@ status_t ref_resampling_fwd_t::pd_t::init_conf() {
     }
     conf_.po_len = attr_po.len();
 
-    conf_.post_ops = sycl_post_ops_t(attr());
+    conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
     return status::success;
 }
 
