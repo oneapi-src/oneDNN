@@ -430,7 +430,7 @@ TEST_F(attr_quantization_test_t, TestLRN) {
     }
 }
 
-CPU_TEST_F(attr_quantization_test_t, TestMatmul) {
+TEST_F(attr_quantization_test_t, TestMatmul) {
     for (auto a_dt : {data_type::f32, data_type::u8}) {
         const data_type b_dt
                 = a_dt == data_type::f32 ? data_type::f32 : data_type::s8;
@@ -485,8 +485,12 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmul) {
                                     data_type::f32, {3, 1})));
                 }
             } else if (arg == DNNL_ARG_SRC) {
-                CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
-                        gen_attr_with_scales(arg, 1 << 1)));
+                // Somehow GPU doeshave this support.
+                const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
+                if (is_cpu) {
+                    CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(arg, 1 << 1)));
+                }
                 if (a_dt == data_type::u8) {
                     CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_scales(
@@ -505,10 +509,10 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmul) {
             } else {
                 CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                         gen_attr_with_scales(arg, 1 << 1)));
+                // scales: unsupported mask only relevant for DST arg.
+                CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                        gen_attr_with_scales(arg, 1 << 2)));
             }
-            //scales: unsupported mask
-            CHECK_UNIMPL(matmul::primitive_desc(
-                    eng, a_md, b_md, c_md, gen_attr_with_scales(arg, 1 << 2)));
         }
     }
 }
@@ -518,9 +522,10 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmulBatch) {
         const data_type b_dt
                 = a_dt == data_type::f32 ? data_type::f32 : data_type::s8;
 
-        memory::desc a_md {{1, 10, 3}, a_dt, tag::abc};
-        memory::desc b_md {{1, 3, 20}, b_dt, tag::acb};
-        memory::desc c_md {{1, 10, 20}, data_type::f32, tag::abc};
+        memory::desc a_md {{2, 5, 10, 3}, a_dt, tag::abcd};
+        memory::desc b_md {{2, 5, 3, 20}, b_dt, tag::abdc};
+        memory::desc c_md {{2, 5, 10, 20}, data_type::f32, tag::abcd};
+        const auto ndims = a_md.get_ndims();
 
         CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md));
         CHECK_OK(matmul::primitive_desc(
@@ -539,15 +544,28 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmulBatch) {
             CHECK_OK(matmul::primitive_desc(
                     eng, a_md, b_md, c_md, gen_attr_with_scales(arg)));
             // scales: per_oc mask
-            if (arg == DNNL_ARG_WEIGHTS)
+            const auto per_oc_mask = 1 << (ndims - 1);
+            if (arg == DNNL_ARG_WEIGHTS) {
                 CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
-                        gen_attr_with_scales(arg, 1 << 2)));
-            else
+                        gen_attr_with_scales(arg, per_oc_mask)));
+            }
+
+            if (a_dt != data_type::u8 && a_dt != data_type::s8) continue;
+            // scales: per_tensor mask for int8 type only.
+            const auto per_tensor_mask = (1 << ndims) - 1;
+            const auto per_ocic_mask = (1 << (ndims - 1)) + (1 << (ndims - 2));
+            if (arg == DNNL_ARG_WEIGHTS) {
+                CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                        gen_attr_with_scales(
+                                arg, per_tensor_mask, data_type::f32, {3, 1})));
+            } else if (arg == DNNL_ARG_SRC) {
+                CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                        gen_attr_with_scales(
+                                arg, per_ocic_mask, data_type::f32, {1, 3})));
+            } else {
                 CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
-                        gen_attr_with_scales(arg, 1 << 2)));
-            //scales: unsupported mask
-            CHECK_UNIMPL(matmul::primitive_desc(
-                    eng, a_md, b_md, c_md, gen_attr_with_scales(arg, 1 << 1)));
+                        gen_attr_with_scales(arg, per_tensor_mask)));
+            }
         }
     }
 }

@@ -219,6 +219,7 @@ int attr_t::policy2mask(int arg, policy_t policy,
             case PER_DIM_1:
             case PER_OC: return (1 << (ndims - 1));
             case PER_OCIC: return (1 << (ndims - 1)) + (1 << (ndims - 2));
+            case PER_TENSOR: return attr_t::get_default_mask(policy);
             default: SAFE_V(FAIL); return -1;
         }
     } else if (prim_kind == dnnl_layer_normalization) {

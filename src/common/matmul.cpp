@@ -95,13 +95,11 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         const int mask_wei = sc_wei.mask_;
         const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
 
-        // Check allowed masks.
         VCHECK_MATMUL_UNIMPL(utils::one_of(mask_src, 0, src_qmask_K,
-                                     src_qmask_M + src_qmask_K)
-                        && utils::one_of(mask_wei, 0, wei_qmask_N,
-                                wei_qmask_N + wei_qmask_K)
-                        && mask_dst == 0,
+                                     src_qmask_M + src_qmask_K),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
+        // Masks for weights scales can be any - skipping them.
+        VCHECK_MATMUL_UNIMPL(mask_dst == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
         // Check dependency between scales.
         // Source scales groups are supported for int8 source and must divide
         // or be divided by weights groups when both are greater than 1.
@@ -133,9 +131,7 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         VCHECK_MATMUL_UNIMPL(mask_src == 0
                         || (desc.src_desc.ndims == 2 && mask_src == 1 << 1),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
-        VCHECK_MATMUL_UNIMPL(utils::one_of(mask_wei, 0, wei_qmask_N,
-                                     wei_qmask_N + wei_qmask_K),
-                VERBOSE_UNSUPPORTED_ZP_CFG);
+        // Masks for weights zero points can be any - skipping them.
         VCHECK_MATMUL_UNIMPL(mask_dst == 0
                         || (desc.dst_desc.ndims == 2 && mask_dst == 1 << 1),
                 VERBOSE_UNSUPPORTED_ZP_CFG);

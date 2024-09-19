@@ -142,8 +142,6 @@ struct ref_matmul_t : public primitive_t {
 
             return attr()->zero_points_.has_default_values(DNNL_ARG_SRC)
                     && attr()->zero_points_.has_default_values(DNNL_ARG_DST)
-                    && utils::one_of(mask_wei, 0, wei_qmask_N(),
-                            wei_qmask_N() + wei_qmask_K())
                     && utils::one_of(wei_group_ndims, 0, 2)
                     && IMPLICATION(wei_group_ndims == 2,
                             wei_group_dims[1] == 1

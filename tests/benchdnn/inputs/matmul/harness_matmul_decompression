@@ -75,6 +75,23 @@
 --attr-fpmath=f16:true
 1x4096:4096x4096
 
+## 4D cases with full mask
+--reset
+--dt=bf16:s8:bf16,bf16:u8:bf16
+--wtag=any,abcd,abdc
+--attr-scales=wei:per_tensor:bf16:128x1
+--attr-zero-points=wei:per_tensor:u8:128x1
+--attr-fpmath=bf16:true
+2x3x5x512:2x3x512x1024
+
+--reset
+--dt=f16:s8:f16,f16:u8:f16
+--wtag=any,abcd,abdc
+--attr-scales=wei:per_tensor:f16:128x1
+--attr-zero-points=wei:per_tensor:u8:128x1
+--attr-fpmath=f16:true
+2x3x5x512:2x3x512x1024
+
 # int4 wei decompression
 --reset
 --dt=bf16:s4:bf16,bf16:u4:bf16
@@ -121,6 +138,22 @@
 --attr-fpmath=f16:true
 5x4096:4096x4096
 
+--reset
+--dt=bf16:s4:bf16,bf16:u4:bf16
+--wtag=any,abcd,abdc
+--attr-scales=wei:per_tensor:bf16:128x1
+--attr-zero-points=wei:per_tensor:u4:128x1
+--attr-fpmath=bf16:true
+2x3x5x512:2x3x512x1024
+
+--reset
+--dt=f16:s4:f16,f16:u4:f16
+--wtag=any,abcd,abdc
+--attr-scales=wei:per_tensor:f16:128x1
+--attr-zero-points=wei:per_tensor:u4:128x1
+--attr-fpmath=f16:true
+2x3x5x512:2x3x512x1024
+
 # int4 src grouped quantization
 --reset
 --wtag=any,ab,ba
@@ -151,3 +184,10 @@
 --attr-zero-points=wei:per_ocic:u4:192x1 # groups matches scales groups
 12x4x576:12x576x192
 12x6x192:12x192x100
+
+--wtag=any,abcd,abdc
+--dt=s8:s4:f16
+--attr-scales=src:per_tensor:f16:1x256+wei:per_tensor:f16:128x1
+--attr-zero-points=wei:per_tensor:s4:128x1 # groups matches scales groups
+2x3x4x256:2x3x256x64
+2x3x6x256:2x3x256x100

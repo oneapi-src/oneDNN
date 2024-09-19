@@ -156,11 +156,9 @@ struct ref_matmul_t : public gpu_primitive_t {
                     = attr()->zero_points_.get_groups(DNNL_ARG_WEIGHTS);
 
             bool mask_src_ok = mask_src == 0;
-            bool mask_wei_ok = utils::one_of(
-                    mask_wei, 0, wei_qmask_N(), wei_qmask_K() + wei_qmask_N());
             bool mask_dst_ok = mask_dst == 0;
 
-            return mask_src_ok && mask_dst_ok && mask_wei_ok
+            return mask_src_ok && mask_dst_ok
                     && utils::one_of(wei_group_ndims, 0, 2)
                     && IMPLICATION(wei_group_ndims == 2,
                             wei_group_dims[1] == 1
