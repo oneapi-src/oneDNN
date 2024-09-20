@@ -93,7 +93,7 @@ public:
     hw_unsupported_exception() : std::runtime_error("Unsupported in hardware") {}
 };
 
-#if __cpp_lib_source_location >= 201907L
+#if defined(__cpp_lib_source_location) && __cpp_lib_source_location >= 201907L
 [[noreturn]] static inline void stub(
                                      std::source_location where = std::source_location::current()) {
     throw stub_exception(where.file_name(), where.line());
