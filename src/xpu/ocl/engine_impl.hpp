@@ -103,6 +103,9 @@ public:
         return status::success;
     }
 
+    status_t create_memory_storage(memory_storage_t **storage, engine_t *engine,
+            unsigned flags, size_t size, void *handle) const;
+
     cl_device_id device() const { return device_; }
     cl_context context() const { return context_; }
     cl_platform_id platform() const { return platform_; }
