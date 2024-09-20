@@ -125,6 +125,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto src_scales_type = data_type::undef;
             int wei_q2d_group_k = 0;
             int src_q2d_group_k = 0;
+            int a_ndims = desc()->a_desc.ndims;
 
             // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
@@ -196,6 +197,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             VDISPATCH_GEMM(attr()->post_ops_.check_sum_consistency(d->c_type(),
                                    utils::one_of(d->a_type(), s8, u8)),
                     VERBOSE_UNSUPPORTED_POSTOP);
+            auto valid_2d_mask = [](int mask, int ndims) {
+                return utils::one_of(mask, (1 << (ndims - 1)),
+                        (1 << (ndims - 1)) + (1 << (ndims - 2)));
+            };
 
             if (!attr()->zero_points_.has_default_values()) {
                 bool a_zp = !attr_zps.has_default_values(DNNL_ARG_A);
@@ -208,7 +213,9 @@ struct gen_gemm_t : public gpu_gemm_t {
 
                 wei_zp_2d = attr_zps.get_groups_ndims(DNNL_ARG_A) > 1;
                 VDISPATCH_GEMM(
-                        (utils::one_of(cmask_a, 0, 1 << 1, 1 << 2) || wei_zp_2d)
+                        (utils::one_of(cmask_a, 0, 1 << 1, 1 << 2)
+                                || (wei_zp_2d
+                                        && valid_2d_mask(cmask_a, a_ndims)))
                                 && utils::one_of(cmask_b, 0, 1 << 0)
                                 && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1),
                         VERBOSE_UNSUPPORTED_ZP_CFG);
@@ -250,8 +257,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 auto mask = attr()->scales_.get(s).mask_;
                 VDISPATCH_GEMM(utils::one_of(mask, 0, 1 << 0, 1 << 1, 1 << 2)
-                                || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_)
-                                || (s == DNNL_ARG_SRC && src_scales_2d_),
+                                || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_
+                                        && valid_2d_mask(mask, a_ndims))
+                                || (s == DNNL_ARG_SRC && src_scales_2d_
+                                        && valid_2d_mask(mask, a_ndims)),
                         VERBOSE_UNSUPPORTED_SCALES_CFG);
             }
 
@@ -271,7 +280,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 }
                 // Non-trivial N group unsupported.
                 VDISPATCH_GEMM(wei_scales.group_dims_[1] == 1,
-                        VERBOSE_UNSUPPORTED_ZP_CFG);
+                        VERBOSE_UNSUPPORTED_SCALES_CFG);
             }
             if (src_scales_2d_) {
                 src_scales_type = src_scales.data_type_;
