@@ -391,6 +391,11 @@ TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
 TEST_P(sycl_memory_buffer_test, TestSparseMemoryCreation) {
     engine::kind eng_kind = GetParam();
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    SKIP_IF(eng_kind == engine::kind::cpu,
+            "Skip this test for classic CPU runtime");
+#endif
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
     engine eng(eng_kind, 0);
@@ -436,6 +441,11 @@ TEST_P(sycl_memory_buffer_test, TestSparseMemoryCreation) {
 
 TEST_P(sycl_memory_buffer_test, TestSparseMemoryMapUnmap) {
     engine::kind eng_kind = GetParam();
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    SKIP_IF(eng_kind == engine::kind::cpu,
+            "Skip this test for classic CPU runtime");
+#endif
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
     engine eng(eng_kind, 0);
