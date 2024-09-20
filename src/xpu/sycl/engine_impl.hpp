@@ -113,6 +113,11 @@ private:
     backend_t backend_;
 };
 
+#define DECLARE_COMMON_SYCL_ENGINE_FUNCTIONS() \
+    const ::sycl::device &device() const { return impl()->device(); } \
+    const ::sycl::context &context() const { return impl()->context(); } \
+    xpu::sycl::backend_t backend() const { return impl()->backend(); }
+
 } // namespace sycl
 } // namespace xpu
 } // namespace impl

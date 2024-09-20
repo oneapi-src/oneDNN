@@ -93,10 +93,6 @@ public:
         return gpu_impl_list_t::get_implementation_list(desc);
     }
 
-    cl_device_id device() const { return impl()->device(); }
-    cl_context context() const { return impl()->context(); }
-    cl_platform_id platform() const { return impl()->platform(); }
-
     gpu_utils::device_id_t device_id() const override {
         return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
     }
@@ -110,6 +106,8 @@ public:
     status_t get_cache_blob(size_t size, uint8_t *cache_blob) const override {
         return device_info_->get_cache_blob(size, cache_blob);
     }
+
+    DECLARE_COMMON_OCL_ENGINE_FUNCTIONS();
 
 protected:
     const xpu::ocl::engine_impl_t *impl() const {

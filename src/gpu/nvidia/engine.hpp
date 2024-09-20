@@ -49,11 +49,6 @@ public:
     void activate_stream_cudnn(CUstream cuda_stream);
     void activate_stream_cublas(CUstream cuda_stream);
 
-    const ::sycl::device &device() const { return impl()->device(); }
-    const ::sycl::context &context() const { return impl()->context(); }
-
-    xpu::sycl::backend_t backend() const { return impl()->backend(); }
-
     CUcontext get_underlying_context() const;
     CUdevice get_underlying_device() const;
     cudnnHandle_t *get_cudnn_handle();
@@ -62,6 +57,8 @@ public:
     bool mayiuse_system_memory_allocators() const override {
         return impl()->mayiuse_system_memory_allocators();
     }
+
+    DECLARE_COMMON_SYCL_ENGINE_FUNCTIONS();
 
 protected:
     const xpu::sycl::engine_impl_t *impl() const {

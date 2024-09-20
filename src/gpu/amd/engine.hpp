@@ -55,11 +55,6 @@ public:
     void activate_stream_miopen(HIPstream hip_stream);
     void activate_stream_rocblas(HIPstream hip_stream);
 
-    const ::sycl::device &device() const { return impl()->device(); }
-    const ::sycl::context &context() const { return impl()->context(); }
-
-    xpu::sycl::backend_t backend() const { return impl()->backend(); }
-
     hipCtx_t get_underlying_context() const;
     hipDevice_t get_underlying_device() const;
     miopenHandle_t *get_miopen_handle();
@@ -69,6 +64,8 @@ public:
     bool mayiuse_system_memory_allocators() const override {
         return impl()->mayiuse_system_memory_allocators();
     }
+
+    DECLARE_COMMON_SYCL_ENGINE_FUNCTIONS();
 
 protected:
     const xpu::sycl::engine_impl_t *impl() const {

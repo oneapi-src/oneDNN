@@ -159,11 +159,6 @@ public:
         return status::success;
     }
 
-    const ::sycl::device &device() const { return impl()->device(); }
-    const ::sycl::context &context() const { return impl()->context(); }
-
-    xpu::sycl::backend_t backend() const { return impl()->backend(); }
-
     cl_device_id ocl_device() const {
         if (backend() != xpu::sycl::backend_t::opencl) {
             assert(!"not expected");
@@ -187,6 +182,8 @@ public:
     gpu::intel::gpu_utils::device_id_t device_id() const override {
         return gpu::intel::sycl::device_id(device());
     }
+
+    DECLARE_COMMON_SYCL_ENGINE_FUNCTIONS();
 
 protected:
     const xpu::sycl::engine_impl_t *impl() const {

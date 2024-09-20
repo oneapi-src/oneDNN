@@ -47,14 +47,11 @@ public:
         return cpu::sycl::stream_t::create_stream(stream, this, stream_impl);
     }
 
-    const ::sycl::device &device() const { return impl()->device(); }
-    const ::sycl::context &context() const { return impl()->context(); }
-
-    xpu::sycl::backend_t backend() const { return impl()->backend(); }
-
     bool mayiuse_system_memory_allocators() const override {
         return impl()->mayiuse_system_memory_allocators();
     }
+
+    DECLARE_COMMON_SYCL_ENGINE_FUNCTIONS();
 
 protected:
     const xpu::sycl::engine_impl_t *impl() const {
