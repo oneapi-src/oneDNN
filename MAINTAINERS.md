@@ -213,10 +213,11 @@ Teams:
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
+| Anton Mitkov       | @ShanoToni            | Codeplay Software | Code Owner |
 | Dylan Angus        | @dylan-angus-codeplay | Codeplay Software | Code Owner |
 | John Osorio        | @kala855              | Codeplay Software | Code Owner |
 | Mehdi Goli         | @mehdi-goli           | Codeplay Software | Code Owner |
-| Anton Mitkov       | @ShanoToni            | Codeplay Software | Code Owner |
+| Tadej Ciglarič     | @t4c1                 | Codeplay Software | Code Owner |
 | Svetlozar Georgiev | @sgeor255             | Codeplay Software | Code Owner |
 
 ## Support functions
