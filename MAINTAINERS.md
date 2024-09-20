@@ -144,6 +144,7 @@ Team: @oneapi-src/onednn-cpu-x64
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Andrey Kalinin     | @ankalinin            | Intel Corporation | Maintainer |
+| Arthur Mitrano     | @aaraujom             | Intel Corporation | Maintainer |
 | Srinivas Putta     | @nivas-x86            | Intel Corporation | Maintainer |
 | Tatyana Primak     | @tprimak              | Intel Corporation | Maintainer |
 | David Eberius      | @davideberius         | Intel Corporation | Code Owner |
@@ -192,9 +193,11 @@ Team: @oneapi-src/onednn-gpu-intel
 | Konstantin Arturov | @karturov             | Intel Corporation | Maintainer |
 | Peter Caday        | @petercad             | Intel Corporation | Maintainer |
 | Andy Kassen        | @atkassen             | Intel Corporation | Code Owner |
+| Daniel Youssif     | @dyoussif             | Intel Corporation | Code Owner |
 | Haleema Sadia      | @h-sadia              | Intel Corporation | Code Owner |
 | Andrey Guskov      | @hidefromkgb          | Intel Corporation | Code Owner |
 | Gallagher Pryor    | @pv-pterab-s          | Intel Corporation | Code Owner |
+| Kealan Barbieri    | @kealan-barbieri      | Intel Corporation | Code Owner |
 | Roy Oursler        | @rjoursler            | Intel Corporation | Code Owner |
 | Simon Ewing        | @Simonsays095         | Intel Corporation | Code Owner |
 | Sergey Kazakov     | @skazakov1            | Intel Corporation | Code Owner |
