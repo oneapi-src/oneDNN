@@ -122,8 +122,9 @@ struct ref_sparse_matmul_t : public primitive_t {
 
             if (sparse_mem_encoding == sparse_encoding::coo) {
                 auto scratchpad = scratchpad_registry().registrar();
+                const bool is_wei_sparse = wei_d.is_sparse_desc();
                 const auto ptr_size
-                        = src_d.dims()[(int)wei_d.is_sparse_desc()] + 1;
+                        = src_d.dims()[static_cast<int>(is_wei_sparse)] + 1;
                 scratchpad.template book<int32_t>(
                         key_matmul_sparse_tmp_ptr, ptr_size);
             }
