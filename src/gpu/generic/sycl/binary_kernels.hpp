@@ -129,8 +129,10 @@ struct binary_kernel_vec_t {
 
                 auto acc = compute_alg_n(src0, src1, conf_.alg_kind);
 
-                acc = conf_.post_ops.apply(acc, dst_, idx, po_args_, off_dst);
-                dst_mem.store_md(acc, off_dst);
+                int dst_idx = dst_mem.md().off_v(off_dst);
+                acc = conf_.post_ops.apply(
+                        acc, dst_, dst_idx, po_args_, off_dst);
+                dst_mem.store(acc, dst_idx);
             }
         }
     }
