@@ -49,10 +49,10 @@ jobs:
         ]
     steps:
       - name: Get number of CPU cores
-        uses: SimenB/github-actions-cpu-cores@v2
+        uses: SimenB/github-actions-cpu-cores@97ba232459a8e02ff6121db9362b09661c875ab8 # v2.0.0
         id: cpu-cores
       - name: Checkout oneDNN
-        uses: actions/checkout@v4
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           path: oneDNN
       # ACL is built with clang, so we can link with it directly if we are using
@@ -67,12 +67,12 @@ jobs:
       # link properly.
       - if: contains( matrix.compiler.CC , 'gcc' )
         name: Install Scons
-        uses: threeal/pipx-install-action@v1.0.0
+        uses: threeal/pipx-install-action@b0bf0add7d5aefda03a3d4e47d651df807889e10 # v1.0.0
         with:
           packages: scons
       - if: contains( matrix.compiler.CC , 'gcc' )
         name: Checkout ACL
-        uses: actions/checkout@v4
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           repository: ARM-software/ComputeLibrary
           ref: 'v24.08.1'
