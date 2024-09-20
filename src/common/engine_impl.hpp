@@ -62,6 +62,12 @@ public:
 
     virtual status_t init() { return status::success; }
 
+    virtual status_t create_memory_storage(memory_storage_t **storage,
+            engine_t *engine, unsigned flags, size_t size, void *handle) const {
+        assert(!"unexpected");
+        return status::runtime_error;
+    }
+
     virtual status_t create_stream_impl(
             impl::stream_impl_t **stream_impl, unsigned flags) const {
         auto *si = new impl::stream_impl_t(flags);

@@ -59,9 +59,6 @@ public:
         return status::success;
     }
 
-    status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
-            size_t size, void *handle) override;
-
     status_t create_stream(
             impl::stream_t **stream, impl::stream_impl_t *stream_impl) override;
 

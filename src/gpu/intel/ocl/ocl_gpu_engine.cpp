@@ -80,11 +80,6 @@ status_t ocl_gpu_engine_t::init(const std::vector<uint8_t> &cache_blob) {
     return status::success;
 }
 
-status_t ocl_gpu_engine_t::create_memory_storage(
-        memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
-    return impl()->create_memory_storage(storage, this, flags, size, handle);
-}
-
 status_t ocl_gpu_engine_t::create_stream(
         impl::stream_t **stream, impl::stream_impl_t *stream_impl) {
     return ocl_stream_t::create_stream(stream, this, stream_impl);
