@@ -2549,9 +2549,6 @@ TEST(test_conv_execute, ConvBiasAddEltwise) {
             // We noticed mish test has slight accuracy issue on GPU or AArch64
             // CPU or SNB.
             dst = eltwise_dst_ts.as_vec_type<float>();
-#ifdef DNNL_AARCH64
-            ASSERT_NEAR(dst[i], param.ref_dst[i], 1e-6);
-#else
             if (eng->kind() == graph::engine_kind::gpu
                     || (eng->kind() == graph::engine_kind::cpu
                             && dnnl_get_effective_cpu_isa()
@@ -2560,7 +2557,6 @@ TEST(test_conv_execute, ConvBiasAddEltwise) {
             } else {
                 ASSERT_FLOAT_EQ(dst[i], param.ref_dst[i]);
             }
-#endif
         }
     }
 }
