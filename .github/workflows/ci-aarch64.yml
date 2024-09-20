@@ -43,18 +43,39 @@ jobs:
         config: [Debug, Release]
 
     steps:
+      - name: Get number of CPU cores
+        uses: SimenB/github-actions-cpu-cores@97ba232459a8e02ff6121db9362b09661c875ab8 # v2.0.0
+        id: cpu-cores
       - name: Checkout oneDNN
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           path: oneDNN
-
-      - name: Install Scons
+      # ACL is built with clang, so we can link with it directly if we are using
+      # clang as well.
+      - if: matrix.compiler.CC == 'clang'
+        name: Download and Extract ACL
+        run: ${{ github.workspace }}/oneDNN/.github/automation/get_acl.sh
+        env:
+          ACL_WITH_ASSERTS: ${{ matrix.config.ACL_WITH_ASSERTS }}
+          ACL_VERSION: ${{ github.event.inputs.ACL_VERSION || 'v24.08.1' }}
+      # If we are building with gcc, we need to clone and build ACL ourselves to
+      # link properly.
+      - if: contains( matrix.compiler.CC , 'gcc' )
+        name: Install Scons
         uses: threeal/pipx-install-action@b0bf0add7d5aefda03a3d4e47d651df807889e10 # v1.0.0
         with:
           packages: scons
-
-      - name: Build ACL
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
+      - if: contains( matrix.compiler.CC , 'gcc' )
+        name: Checkout ACL
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          repository: ARM-software/ComputeLibrary
+          ref: 'v24.08.1'
+          path: ComputeLibrary
+      - if: contains( matrix.compiler.CC , 'gcc' )
+        name: Build ACL
+        working-directory: ${{ github.workspace }}/ComputeLibrary
+        run: scons Werror=1 -j${{ steps.cpu-cores.outputs.count }} neon=1 opencl=0 os=macos arch=armv8.2-a build=native cppthreads=0 openmp=0 examples=0 validation_tests=0
         env:
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
           BUILD_TOOLSET: ${{ matrix.toolset }}
@@ -87,7 +108,7 @@ jobs:
         toolset: [clang, gcc]
         config: [Debug, Release]
         host: [
-          { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50 }, 
+          { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50 },
           { name: c7g, label: ah-ubuntu_22_04-c7g_2x-50 }
         ]
 
@@ -148,4 +169,4 @@ jobs:
           BUILD_TOOLSET: ${{ matrix.toolset }}
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
-          ONEDNN_THREADING: ${{ matrix.threading }}     
+          ONEDNN_THREADING: ${{ matrix.threading }}
