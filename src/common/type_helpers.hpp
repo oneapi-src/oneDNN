@@ -988,6 +988,19 @@ inline bool operator==(const sdpa_desc_t &lhs, const sdpa_desc_t &rhs) {
     return ret;
 }
 
+inline bool operator==(const gated_mlp_desc_t &lhs, const gated_mlp_desc_t &rhs) {
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            //&& COMPARE_DESC_MEMBERS(q_desc)
+            //&& COMPARE_DESC_MEMBERS(k_desc)
+            //&& COMPARE_DESC_MEMBERS(v_desc)
+            //&& COMPARE_DESC_MEMBERS(dst_desc)
+            //&& COMPARE_DESC_MEMBERS(attn_mask_desc)
+            //&& COMPARE_DESC_MEMBERS(scale_dt)
+            //&& COMPARE_DESC_MEMBERS(invert_scale);
+            ; //STF:TODO
+    return ret;
+}
+
 // clang-format on
 
 #undef COMPARE_DESC_MEMBERS
@@ -1299,6 +1312,39 @@ inline bool memory_desc_sanity_check(int ndims, const dims_t dims,
 inline bool memory_desc_sanity_check(const memory_desc_t &md) {
     return memory_desc_sanity_check(
             md.ndims, md.dims, md.data_type, format_kind::undef);
+}
+
+inline void copy_c_op_desc(op_desc_t *dst, const op_desc_t *src) {
+#define CASE_OP_DESC(pkind) \
+    case primitive_kind::pkind: dst->pkind = src->pkind; break;
+
+    switch ((int)src->kind) {
+        CASE_OP_DESC(batch_normalization);
+        CASE_OP_DESC(binary);
+        CASE_OP_DESC(convolution);
+        CASE_OP_DESC(deconvolution);
+        CASE_OP_DESC(eltwise);
+        CASE_OP_DESC(gated_mlp);
+        CASE_OP_DESC(gemm);
+        CASE_OP_DESC(group_normalization);
+        CASE_OP_DESC(inner_product);
+        CASE_OP_DESC(layer_normalization);
+        CASE_OP_DESC(lrn);
+        CASE_OP_DESC(matmul);
+        CASE_OP_DESC(pooling);
+        CASE_OP_DESC(prelu);
+        CASE_OP_DESC(reduction);
+        CASE_OP_DESC(resampling);
+        CASE_OP_DESC(rnn);
+        CASE_OP_DESC(sdpa);
+        CASE_OP_DESC(shuffle);
+        CASE_OP_DESC(softmax);
+
+        // Internal descs
+        CASE_OP_DESC(zero_pad);
+        default: assert(!"unknown C primitive kind");
+    }
+#undef CASE_OP_DESC
 }
 
 } // namespace impl

@@ -36,6 +36,7 @@ status_t serialize_desc(
         CASE(convolution)
         CASE(deconvolution)
         CASE(eltwise)
+        CASE(gated_mlp)
         CASE(gemm)
         CASE(group_normalization)
         CASE(inner_product)
@@ -601,6 +602,18 @@ void serialize_desc(serialization_stream_t &sstream, const sdpa_desc_t &desc) {
     sstream.write(&desc.invert_scale);
     sstream.write(&desc.kv_head_number);
     sstream.write(&desc.causal_mask);
+}
+
+void serialize_desc(
+        serialization_stream_t &sstream, const gated_mlp_desc_t &desc) {
+    // Kind
+    sstream.write(&desc.primitive_kind);
+    serialize_md(sstream, desc.src_desc);
+    serialize_md(sstream, desc.W_gate_desc);
+    serialize_md(sstream, desc.W_up_desc);
+    serialize_md(sstream, desc.W_down_desc);
+    serialize_md(sstream, desc.dst_desc);
+    //STF:TODO: zp + scale  activation?
 }
 
 } // namespace serialization
