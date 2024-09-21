@@ -48,9 +48,10 @@ static const int min_runs = 4;
 void fill_random(std::vector<float> &out) {
     static std::vector<float> random_data_f;
     constexpr size_t nrand = 1037;
+    const unsigned seed = 2;
 
     if (random_data_f.empty()) {
-        std::mt19937 generator;
+        std::mt19937 generator(seed);
         std::uniform_real_distribution<float> dist_f(-1.0f, 1.0f);
 
         random_data_f.resize(nrand);
@@ -61,6 +62,196 @@ void fill_random(std::vector<float> &out) {
     for (size_t i = 0; i < out.size(); i += nrand) {
         size_t chunk = std::min(nrand, out.size() - i);
         std::memcpy(&out[i], random_data_f.data(), chunk * sizeof(float));
+    }
+}
+
+// initialize the mask with first 3/4 elements with 0s and the last 1/4 elements
+// with -inf.
+void fill_mask(std::vector<float> &mask, size_t seq_len) {
+    const size_t pos = seq_len * 3 / 4;
+    for (size_t i = 0; i < mask.size(); ++i) {
+        if (i % seq_len < pos)
+            mask[i] = 0.f;
+        else
+            mask[i] = -1 * std::numeric_limits<float>::infinity();
+    }
+}
+
+void print_test_case(memory::data_type dt, const swiglu_dims_t &p) {
+    std::cout << '[' << std::setw(4) << dnnl_dt2str(memory::convert_to_c(dt));
+    std::cout << " mb = " << p.mb << ", ic = " << p.ic << ", oc = " << p.oc;
+    std::cout << "] " << std::flush;
+}
+
+void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
+        const swiglu_dims_t &p, double time_limit = 0.) {
+    const bool quick_test = (time_limit == 0.);
+    print_test_case(dt, p);
+
+    // Create execution dnnl::engine.
+    dnnl::engine eng(ekind, 0);
+    // Create dnnl::stream.
+    dnnl::stream strm(eng);
+
+    // Prepare input and output shapes to construct the swiglu graph.
+    const memory::dims O_proj_sz = {p.mb, p.ic};
+    //const memory::dims W_gate_sz  = {p.oc, p.ic};
+    const memory::dims W_gate_sz
+            = {p.ic, p.oc}; // .T() transposed? does this match OV?
+    //const memory::dims W_up_sz    = {p.oc, p.ic}; // .T()
+    const memory::dims W_up_sz = {p.ic, p.oc};
+    //const memory::dims W_down_sz  = {p.ic, p.oc};
+    const memory::dims W_down_sz = {p.oc, p.ic}; // .T()
+    const memory::dims FC_gate_sz = {p.mb, p.oc};
+    const memory::dims FC_up_sz = {p.mb, p.oc};
+    const memory::dims FC_down_sz = {p.mb, p.ic};
+    const memory::dims scale_sz = {1, 1};
+
+    // All combined in a single matmul primitive.
+    auto O_proj_md
+            = memory::desc(O_proj_sz, dt, tag::ab); //TODO: layout? ba ab ?
+    auto W_gate_md = memory::desc(W_gate_sz, dt, tag::ab);
+    auto W_up_md = memory::desc(W_up_sz, dt, tag::ab);
+    auto W_down_md = memory::desc(W_down_sz, dt, tag::ab);
+    auto FC_gate_md = memory::desc(FC_gate_sz, dt, tag::ab);
+    auto FC_up_md = memory::desc(FC_up_sz, dt, tag::ab);
+    auto FC_down_md = memory::desc(FC_down_sz, dt, tag::ab);
+    auto scale_md = memory::desc(scale_sz, dt, tag::ab);
+
+    // fc_up
+    primitive_attr bmm0_attr;
+    //bmm0_attr.set_scratchpad_mode(scratchpad_mode::user);
+    auto bmm0_pd = matmul::primitive_desc(
+            eng, O_proj_md, W_up_md, FC_up_md, bmm0_attr);
+    auto bmm0_prim = matmul(bmm0_pd);
+
+    // fc_gate -> swish -> mul
+    primitive_attr bmm1_attr;
+    //bmm1_attr.set_scratchpad_mode(scratchpad_mode::user); // TODO: needed? no threading in this example...
+    post_ops bmm1_po;
+    bmm1_po.append_eltwise(algorithm::eltwise_swish, 1.f, 1.f);
+    bmm1_po.append_binary(algorithm::binary_mul, FC_up_md);
+    bmm1_attr.set_post_ops(bmm1_po);
+
+    auto bmm1_pd = matmul::primitive_desc(
+            eng, O_proj_md, W_gate_md, FC_gate_md, bmm1_attr);
+    auto bmm1_prim = matmul(bmm1_pd);
+
+    primitive_attr bmm2_attr;
+    //bmm2_attr.set_scratchpad_mode(scratchpad_mode::user);
+    auto bmm2_pd = matmul::primitive_desc(
+            eng, FC_gate_md, W_down_md, FC_down_md, bmm2_attr);
+    auto bmm2_prim = matmul(bmm2_pd);
+
+    // Create memory objects
+    auto m_O_proj = memory(O_proj_md, eng);
+    auto m_W_gate = memory(W_gate_md, eng);
+    auto m_W_up = memory(W_up_md, eng);
+    auto m_W_down = memory(W_down_md, eng);
+    auto m_FC_gate = memory(FC_gate_md, eng);
+    auto m_FC_up = memory(FC_up_md, eng);
+    auto m_FC_down = memory(FC_down_md, eng);
+    auto m_scale = memory(scale_md, eng);
+
+    // Allocate user data.
+    std::vector<float> O_proj_data(product(O_proj_sz));
+    std::vector<float> W_gate_data(product(W_gate_sz));
+    std::vector<float> W_up_data(product(W_up_sz));
+    std::vector<float> W_down_data(product(W_down_sz));
+    std::vector<float> FC_gate_data(product(FC_gate_sz));
+    std::vector<float> FC_up_data(product(FC_up_sz));
+    std::vector<float> FC_down_data(product(FC_down_sz));
+    std::vector<float> scale_data(product(scale_sz), 1); //?? sz 1?
+
+    fill_random(O_proj_data);
+    fill_random(W_gate_data);
+    fill_random(W_up_data);
+    fill_random(W_down_data);
+
+    // Write data to tensor object's handle.
+    write_to_dnnl_memory(O_proj_data.data(), m_O_proj);
+    write_to_dnnl_memory(W_gate_data.data(), m_W_gate);
+    write_to_dnnl_memory(W_up_data.data(), m_W_up);
+    write_to_dnnl_memory(W_down_data.data(), m_W_down);
+    write_to_dnnl_memory(scale_data.data(), m_scale);
+
+    /*
+    size_t max_scratchpad_size = 0;
+    auto bmm1_scratchpad = bmm1_pd.scratchpad_desc().get_size();
+    auto softmax_scratchpad = softmax_pd.scratchpad_desc().get_size();
+    auto bmm2_scratchpad = bmm2_pd.scratchpad_desc().get_size();
+    for (auto &sz : {bmm1_scratchpad, softmax_scratchpad, bmm2_scratchpad}) {
+        if (max_scratchpad_size < sz) max_scratchpad_size = sz;
+    }
+    auto scratchpad_md
+            = memory::desc({static_cast<memory::dim>(max_scratchpad_size)},
+                    memory::data_type::u8, tag::a);
+
+    // allocate intermediate memory
+    auto m_score = memory(score_md, eng);
+    auto m_scratchpad = memory(scratchpad_md, eng);
+    */
+
+    const auto loop = [&]() {
+        bmm0_prim.execute(strm,
+                {{DNNL_ARG_SRC, m_O_proj}, {DNNL_ARG_WEIGHTS, m_W_up},
+                        {DNNL_ARG_DST, m_FC_up}});
+
+        // each primitive will use all threads
+        bmm1_prim.execute(strm,
+                {{DNNL_ARG_SRC, m_O_proj}, {DNNL_ARG_WEIGHTS, m_W_gate},
+                        {DNNL_ARG_DST, m_FC_gate},
+                        {DNNL_ARG_ATTR_MULTIPLE_POST_OP(1) | DNNL_ARG_SRC_1,
+                                m_FC_up}});
+
+        bmm2_prim.execute(strm,
+                {{DNNL_ARG_SRC, m_FC_gate}, {DNNL_ARG_WEIGHTS, m_W_down},
+                        {DNNL_ARG_DST, m_FC_down}});
+    };
+
+    // Warmup run.
+    // Execute primitives of sdpa.
+    loop();
+
+    // Wait for the computation to finish.
+    strm.wait();
+
+    // First run.
+    auto start_first = std::chrono::steady_clock::now();
+    loop();
+    strm.wait();
+    auto end_first = std::chrono::steady_clock::now();
+    std::chrono::duration<double, std::milli> dur_first
+            = end_first - start_first;
+
+    if (quick_test) return;
+
+    // Timing runs.
+    const int runs = std::max(min_runs, int(time_limit / dur_first.count()));
+    auto start = std::chrono::steady_clock::now();
+    for (int i = 0; i <= runs; i++)
+        loop();
+    strm.wait();
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double, std::milli> duration = end - start;
+
+    // Display the results.
+    double avg_time = (duration.count() - dur_first.count()) / runs;
+    std::cout << "primitive runs: " << runs + 1 << "; ";
+    std::cout << "avg_time: " << avg_time << " ms" << std::endl;
+
+    if (product(FC_down_sz) < 128) {
+        std::vector<float> res(product(FC_down_sz));
+        read_from_dnnl_memory(res.data(), m_FC_down);
+
+        const memory::dims FC_down_sz = {p.mb, p.ic};
+        for (int y = 0; y < p.mb; ++y) {
+            for (int x = 0; x < p.ic; ++x) {
+                printf("%f ", res[y * p.ic + x]);
+            }
+            printf("\n");
+        }
+        printf("\n");
     }
 }
 
@@ -124,37 +315,30 @@ void bench_gated_mlp(engine::kind ekind, logical_tensor::data_type dt,
     fc_up.add_inputs({src, wei1});
     fc_up.add_outputs({out1});
 
-    // activation swish: sigmoid
+    // activation: sigmoid
     auto out2 = logical_tensor(id++, dt, hd_sz, layout_type::strided);
-    auto swi_sig = op(id++, op::kind::Sigmoid, "swish/sigmoid");
-    swi_sig.add_inputs({out0});
-    swi_sig.add_outputs({out2});
-
-    // activation swish: multiply
-    auto out3 = logical_tensor(id++, dt, hd_sz, layout_type::strided);
-    auto swi_mul = op(id++, op::kind::Multiply, "swish/multiply");
-    swi_mul.add_inputs({out0, out2});
-    swi_mul.add_outputs({out3});
+    auto sig = op(id++, op::kind::Sigmoid, "sigmoid");
+    sig.add_inputs({out0});
+    sig.add_outputs({out2});
 
     // multiplication
-    auto out4 = logical_tensor(id++, dt, hd_sz, layout_type::strided);
+    auto out3 = logical_tensor(id++, dt, hd_sz, layout_type::strided);
     auto mul = op(id++, op::kind::Multiply, "mul");
-    mul.add_inputs({out3, out1});
-    mul.add_outputs({out4});
+    mul.add_inputs({out2, out1});
+    mul.add_outputs({out3});
 
     // fc_down
     auto wei2 = logical_tensor(id++, dt, wei2_sz, layout_type::strided);
     auto dst = logical_tensor(id++, dt, out_sz, layout_type::strided);
     auto fc_down = op(id++, op::kind::MatMul, "fc_down");
-    fc_down.add_inputs({out4, wei2});
+    fc_down.add_inputs({out3, wei2});
     fc_down.add_outputs({dst});
 
     // Construct a gated mlp graph with engine kind and operations.
     dnnl::graph::graph mlp(ekind);
     mlp.add_op(fc_gate);
     mlp.add_op(fc_up);
-    mlp.add_op(swi_sig);
-    mlp.add_op(swi_mul);
+    mlp.add_op(sig);
     mlp.add_op(mul);
     mlp.add_op(fc_down);
     mlp.finalize();
@@ -265,9 +449,15 @@ void mlp_perf(engine::kind ekind, int argc, char **argv) {
         if (params.mb <= 0 || params.ic <= 0 || params.oc <= 0) { bad_args(); }
     }
 
-    bench(ekind, dnnl_f32, params, 2000.0 /*ms*/);
-    bench(ekind, dnnl_bf16, params, 2000.0 /*ms*/);
-    bench(ekind, dnnl_f16, params, 2000.0 /*ms*/);
+    //TODO: merge w/existing graph PR
+    //bench(api_kind::graph, ekind, dnnl_f32, params, 2000.0 /*ms*/);
+    //bench(api_kind::graph, ekind, dnnl_bf16, params, 2000.0 /*ms*/);
+    //bench(api_kind::graph, ekind, dnnl_f16, params, 2000.0 /*ms*/);
+    //bench(api_kind::graph, ekind, dnnl_f32, params, 2000.0 /*ms*/);
+
+    bench(api_kind::primitive, ekind, dnnl_f32, params, 2000.0 /*ms*/);
+    //bench(api_kind::primitive, ekind, dnnl_bf16, params, 2000.0 /*ms*/);
+    //bench(api_kind::primitive, ekind, dnnl_f16, params, 2000.0 /*ms*/);
 }
 
 int main(int argc, char **argv) {
