@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,12 +25,12 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-struct brgemm_matmul_matrix_B_reorder_t : public primitive_t {
+struct brgemm_matmul_copy_reorder_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
-        DECLARE_COMMON_PD_T("brgemm_matmul_matrix_B_reorder_t",
-                brgemm_matmul_matrix_B_reorder_t);
+        DECLARE_COMMON_PD_T(
+                "brgemm_matmul_copy_reorder_t", brgemm_matmul_copy_reorder_t);
 
         // required to re-use brgemm matmul copy_b jit kernels
         matmul::brgemm_matmul_conf_t matmul_conf_for_reorder_;
@@ -47,10 +47,18 @@ struct brgemm_matmul_matrix_B_reorder_t : public primitive_t {
         friend dnnl::impl::impl_list_item_t;
     };
 
-    brgemm_matmul_matrix_B_reorder_t(const pd_t *apd) : primitive_t(apd) {}
+    brgemm_matmul_copy_reorder_t(const pd_t *apd) : primitive_t(apd) {}
     status_t init(engine_t *engine) override {
-        CHECK(matmul::create_brgemm_matmul_copy_b(
-                kernel_, &pd()->matmul_conf_for_reorder_));
+        // Assuming copy_B operates over K and N only and copy_A
+        // operates over M and K only, checking for positive N is
+        // sufficient to dispatch into copy_B kernel and copy_A kernel
+        // otherwise.
+        if (pd()->matmul_conf_for_reorder_.N > 0)
+            CHECK(matmul::create_brgemm_matmul_copy_b(
+                    b_kernel_, &pd()->matmul_conf_for_reorder_));
+        else
+            CHECK(matmul::create_brgemm_matmul_copy_a(
+                    a_kernel_, &pd()->matmul_conf_for_reorder_));
 
         return status::success;
     }
@@ -62,7 +70,8 @@ private:
     }
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::unique_ptr<matmul::jit_brgemm_matmul_copy_b_t> kernel_;
+    std::unique_ptr<matmul::jit_brgemm_matmul_copy_b_t> b_kernel_;
+    std::unique_ptr<matmul::jit_brgemm_matmul_copy_a_t> a_kernel_;
 };
 
 } // namespace x64

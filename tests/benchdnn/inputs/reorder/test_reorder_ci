@@ -51,3 +51,31 @@
 # fp4 cases
 --reset
 --batch=test_reorder_fp4
+
+# plain transpose cases
+--reset
+--sdt=f32 --ddt=f32
+--stag=abx --dtag=axb
+1x4x84x84
+1x512x100
+1x512x101
+2x64x15x10x20
+2x64x18x18x18
+2x64x19x19x7
+2x64x31x32x16
+2x64x8
+--stag=axb --dtag=abx
+1x4x84x84
+1x512x100
+1x512x101
+2x64x15x10x20
+2x64x18x18x18
+2x64x19x19x7
+2x64x31x32x16
+2x64x8
+--stag=ab --dtag=ba
+16x64
+7x65
+--stag=ba --dtag=ab
+16x64
+7x65

@@ -1646,10 +1646,10 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     return status::success;
 }
 
-status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
-        dim_t in_ld, dim_t n_blk, data_type_t in_type, data_type_t out_type,
-        format_tag_t in_tag) {
-    if (n_blk <= 0) return status::invalid_arguments;
+status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t M, dim_t K,
+        dim_t N, dim_t in_ld, dim_t n_blk, data_type_t in_type,
+        data_type_t out_type, format_tag_t in_tag) {
+    if (n_blk <= 0 && M <= 0) return status::invalid_arguments;
 
     const auto vnni_granularity = data_type_vnni_granularity(out_type);
     if (vnni_granularity <= 0) return status::invalid_arguments;
@@ -1661,29 +1661,44 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t K, dim_t N,
             && utils::one_of(in_type, data_type::s8, data_type::u8,
                     data_type::s4, data_type::u4);
 
-    conf.blocked_B = !utils::one_of(in_tag, ab, ba, abc, acb);
-    conf.transposed_B = utils::one_of(in_tag, ba, acb);
-    conf.is_bf32 = false;
-    conf.is_bf16_with_int_wei = is_bf16_with_int_wei;
-    conf.with_wei_decompression = with_wei_decompression;
-    conf.orig_wei_dt = in_type;
-    conf.wei_tag = in_tag;
-    conf.batch = batch;
-    conf.K = K;
-    conf.N = N;
-    conf.wei_n_blk = conf.N_blk = conf.LDB = n_blk;
-    conf.N_tail = conf.N % conf.N_blk;
-    conf.K_blk = 16 * vnni_granularity;
-    conf.K_tail = conf.K % conf.K_blk;
-    conf.src_dt = conf.wei_dt = out_type;
-    conf.a_dt_sz = conf.tr_a_dt_sz = types::data_type_size(conf.src_dt);
-    conf.b_dt_sz = types::data_type_size(in_type);
-    conf.tr_b_dt_sz = types::data_type_size(conf.wei_dt);
-    conf.copy_B_wei_stride = in_ld * conf.b_dt_sz;
-    conf.N_chunk_elems = conf.N; // To match seems unneeded assert.
-    conf.s8s8_comp_b_str = utils::rnd_up(conf.N, conf.wei_n_blk);
-    conf.s8s8_comp_n_str = conf.wei_n_blk;
+    const bool is_copyB = N > 0;
     conf.isa = get_max_cpu_isa(); // Just use the best ISA possible.
+    conf.is_bf32 = false;
+    conf.batch = batch;
+    conf.src_dt = conf.wei_dt = out_type;
+    // Note: will need to change `tr_a_dt_sz` for copyA in cases where src_dt != dst_dt
+    conf.a_dt_sz = conf.tr_a_dt_sz = types::data_type_size(conf.src_dt);
+    conf.N = N;
+    conf.M = M;
+    conf.K = K;
+    const dim_t copyA_K_blk = isa_num_vregs(conf.isa) / 2;
+    const dim_t copyB_K_blk = 16 * vnni_granularity;
+    conf.K_blk = is_copyB ? copyB_K_blk : copyA_K_blk;
+    conf.K_tail = conf.K % conf.K_blk;
+    if (!is_copyB) {
+        // Note: current implementation always calls the transposed kernel.
+        conf.transposed_A = true;
+        conf.M_blk = (dim_t)isa_max_vlen(conf.isa) / conf.a_dt_sz;
+        conf.M_tail = conf.M % conf.M_blk;
+        conf.copy_A_src_stride = in_ld * conf.a_dt_sz;
+        // setting LDA parameter required for plain transpose
+        conf.LDA = conf.K;
+    } else {
+        conf.blocked_B = !utils::one_of(in_tag, ab, ba, abc, acb);
+        conf.transposed_B = utils::one_of(in_tag, ba, acb);
+        conf.is_bf16_with_int_wei = is_bf16_with_int_wei;
+        conf.with_wei_decompression = with_wei_decompression;
+        conf.orig_wei_dt = in_type;
+        conf.wei_tag = in_tag;
+        conf.wei_n_blk = conf.N_blk = conf.LDB = n_blk;
+        conf.N_tail = conf.N % conf.N_blk;
+        conf.b_dt_sz = types::data_type_size(in_type);
+        conf.tr_b_dt_sz = types::data_type_size(conf.wei_dt);
+        conf.copy_B_wei_stride = in_ld * conf.b_dt_sz;
+        conf.N_chunk_elems = conf.N; // To match seems unneeded assert.
+        conf.s8s8_comp_b_str = utils::rnd_up(conf.N, conf.wei_n_blk);
+        conf.s8s8_comp_n_str = conf.wei_n_blk;
+    }
 
     // The following members are different from the upper level `init_conf()`
     // call from the reorder implementation due to lacking a memory descriptor
