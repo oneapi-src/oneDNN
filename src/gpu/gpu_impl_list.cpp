@@ -34,6 +34,7 @@ const impl_list_item_t *gpu_impl_list_t::get_implementation_list(
             CASE(convolution);
             CASE(deconvolution);
             CASE(eltwise);
+            CASE(gated_mlp);
             CASE(gemm);
             CASE(group_normalization);
             CASE(inner_product);
