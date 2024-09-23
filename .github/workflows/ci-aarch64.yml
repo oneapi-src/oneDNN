@@ -35,18 +35,24 @@ permissions: read-all
 
 jobs:
   macos:
-    name: macOS
     runs-on: macos-14
     strategy:
       matrix:
-        compiler: [
-          {CC: clang, CXX: clang++},
-          {CC: gcc-14, CXX: g++-14}
-        ]
-        config: [
-          {CMAKE_BUILD_TYPE: Debug, ACL_WITH_ASSERTS: '1'},
-          {CMAKE_BUILD_TYPE: Release, ACL_WITH_ASSERTS: '0'}
-        ]
+        compiler: [{ CC: clang, CXX: clang++ }, { CC: gcc-14, CXX: g++-14 }]
+        config:
+          [
+            {
+              CMAKE_BUILD_TYPE: Debug,
+              ACL_WITH_ASSERTS: '1',
+              IGNORED_TEST_FAILS: 'cpu-primitives-deconvolution-cpp|test_benchdnn_modeC_lnorm_smoke_cpu|test_benchdnn_modeC_brgemm_smoke_cpu'
+            },
+            {
+              CMAKE_BUILD_TYPE: Release,
+              ACL_WITH_ASSERTS: '0',
+              IGNORED_TEST_FAILS: 'cpu-primitives-deconvolution-cpp|test_benchdnn_modeC_lnorm_smoke_cpu'
+            }
+          ]
+    name: macOS (${{ matrix.compiler.CC }}, ${{ matrix.config.CMAKE_BUILD_TYPE }})
     steps:
       - name: Get number of CPU cores
         uses: SimenB/github-actions-cpu-cores@97ba232459a8e02ff6121db9362b09661c875ab8 # v2.0.0
@@ -85,7 +91,7 @@ jobs:
           CC: ${{ matrix.compiler.CC }}
           CXX: ${{ matrix.compiler.CXX }}
       - name: Configure oneDNN
-        run: cmake -B${{ github.workspace }}/oneDNN/build -S${{ github.workspace }}/oneDNN -DDNNL_AARCH64_USE_ACL=ON -DONEDNN_BUILD_GRAPH=0 -DONEDNN_WERROR=OFF -DDNNL_BUILD_FOR_CI=ON -DCMAKE_BUILD_TYPE=${{ matrix.config.CMAKE_BUILD_TYPE }}
+        run: cmake -B${{ github.workspace }}/oneDNN/build -S${{ github.workspace }}/oneDNN -DDNNL_AARCH64_USE_ACL=ON -DONEDNN_BUILD_GRAPH=0 -DONEDNN_WERROR=OFF -DDNNL_BUILD_FOR_CI=ON -DONEDNN_TEST_SET=SMOKE -DCMAKE_BUILD_TYPE=${{ matrix.config.CMAKE_BUILD_TYPE }}
         working-directory: ${{ github.workspace }}/oneDNN
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/lib
@@ -98,3 +104,11 @@ jobs:
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/lib
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
+      # Only run smoke tests for clang. We only test gcc for build.
+      # Failure list currently depends on config. Exclude current failures.
+      - if: matrix.compiler.CC == 'clang'
+        name: Run oneDNN smoke tests
+        run: ctest --test-dir ${{ github.workspace }}/oneDNN/build -j${{ steps.cpu-cores.outputs.count }} -E '${{ matrix.config.IGNORED_TEST_FAILS }}'
+        working-directory: ${{ github.workspace }}/oneDNN
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/lib
