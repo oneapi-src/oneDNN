@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
-* Copyright 2021-2023 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
 #include <assert.h>
 #include <float.h>
 
@@ -32,7 +31,7 @@
 #include "cpu/aarch64/injectors/injector_utils.hpp"
 #include "cpu/aarch64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/aarch64/injectors/jit_uni_eltwise_injector.hpp"
-#include "cpu/aarch64/jit_sve_512_1x1_conv_kernel.hpp"
+#include "cpu/aarch64/jit_sve_1x1_conv_kernel.hpp"
 #include "cpu/aarch64/jit_uni_1x1_conv_utils.hpp"
 
 #define GET_OFF(field) \
@@ -47,7 +46,8 @@ using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::utils;
 
-jit_sve_512_1x1_conv_kernel::jit_sve_512_1x1_conv_kernel(
+template <cpu_isa_t isa_>
+jit_sve_1x1_conv_kernel<isa_>::jit_sve_1x1_conv_kernel(
         const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
     : jcp(ajcp), attr_(attr) {
@@ -68,12 +68,13 @@ jit_sve_512_1x1_conv_kernel::jit_sve_512_1x1_conv_kernel(
                 this->param1, rhs_arg_static_params};
 
         postops_injector_ = utils::make_unique<
-                injector::jit_uni_postops_injector_t<sve_512>>(
+                injector::jit_uni_postops_injector_t<isa_>>(
                 this, jcp.post_ops, static_params);
     }
 }
 
-void jit_sve_512_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
+template <cpu_isa_t isa_>
+void jit_sve_1x1_conv_kernel<isa_>::bcast_loop(int load_loop_blk) {
 
     mov(aux1_reg_bcast_data, reg_bcast_data);
     mov(aux_reg_bcast_data, reg_bcast_data);
@@ -135,7 +136,8 @@ void jit_sve_512_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
     }
 }
 
-Xbyak_aarch64::XReg jit_sve_512_1x1_conv_kernel::output_ptr(
+template <cpu_isa_t isa_>
+Xbyak_aarch64::XReg jit_sve_1x1_conv_kernel<isa_>::output_ptr(
         const bool is_out_layout_nxc, const int i_load, const int i_ur,
         Xbyak_aarch64::XReg addr) {
     if (one_of(jcp.prop_kind, forward_training, forward_inference,
@@ -176,7 +178,8 @@ static void iterate(const int load_loop_blk, const int ur, const F &fun) {
     iterate(load_loop_blk, ur, false, fun);
 }
 
-void jit_sve_512_1x1_conv_kernel::apply_postops(
+template <cpu_isa_t isa_>
+void jit_sve_1x1_conv_kernel<isa_>::apply_postops(
         const bool is_out_layout_nxc, const int load_loop_blk, const int ur) {
     injector_utils::vmm_index_set_t vmm_idxs;
     if (jcp.with_binary) {
@@ -209,7 +212,8 @@ void jit_sve_512_1x1_conv_kernel::apply_postops(
     }
 }
 
-void jit_sve_512_1x1_conv_kernel::reduce_loop(
+template <cpu_isa_t isa_>
+void jit_sve_1x1_conv_kernel<isa_>::reduce_loop(
         int load_loop_blk, int ur, int substep, bool wraparound) {
 
     const bool out_layout_nxc = is_out_layout_nxc(jcp);
@@ -284,7 +288,8 @@ void jit_sve_512_1x1_conv_kernel::reduce_loop(
                         ld1w(vreg_acc.s, k_load_dim_mask / T_z,
                                 ptr(bias_ptr(i_load)));
                     else
-                        ldr(vreg_acc, ptr(bias_ptr(i_load)));
+                        ld1w(vreg_acc.s, P_ALL_ONE / T_z,
+                                ptr(bias_ptr(i_load)));
                 }
             b(init_done);
         }
@@ -315,7 +320,7 @@ void jit_sve_512_1x1_conv_kernel::reduce_loop(
                             ptr(output_ptr(out_layout_nxc, i_load, i_ur,
                                     X_DEFAULT_ADDR)));
                 else
-                    ldr(zreg_tmp,
+                    ld1w(zreg_tmp.s, P_ALL_ONE / T_z,
                             ptr(output_ptr(out_layout_nxc, i_load, i_ur,
                                     X_DEFAULT_ADDR)));
                 fadd(r, r, zreg_tmp.s);
@@ -347,7 +352,7 @@ void jit_sve_512_1x1_conv_kernel::reduce_loop(
                                 ptr(output_ptr(out_layout_nxc, i_load, i_ur,
                                         X_DEFAULT_ADDR)));
                     } else {
-                        str(vreg_acc,
+                        st1w(vreg_acc.s, P_ALL_ONE / T_z,
                                 ptr(output_ptr(out_layout_nxc, i_load, i_ur,
                                         X_DEFAULT_ADDR)));
                     }
@@ -356,7 +361,7 @@ void jit_sve_512_1x1_conv_kernel::reduce_loop(
         };
 
         Label unaligned_store, end_store;
-        tst(aux_reg_output_data, cpu_isa_traits<sve_512>::vlen - 1);
+        tst(aux_reg_output_data, cpu_isa_traits<isa_>::vlen - 1);
         b(NE, unaligned_store);
         store_output(true);
         b(end_store);
@@ -378,7 +383,7 @@ void jit_sve_512_1x1_conv_kernel::reduce_loop(
                             ptr(load_ptr(i_reduce, i_load, X_DEFAULT_ADDR,
                                     X_TMP_0)));
                 else
-                    ldr(vreg,
+                    ld1w(vreg.s, P_ALL_ONE / T_z,
                             ptr(load_ptr(i_reduce, i_load, X_DEFAULT_ADDR,
                                     X_TMP_0)));
             }
@@ -444,7 +449,8 @@ void jit_sve_512_1x1_conv_kernel::reduce_loop(
     store();
 }
 
-void jit_sve_512_1x1_conv_kernel::generate() {
+template <cpu_isa_t isa_>
+void jit_sve_1x1_conv_kernel<isa_>::generate() {
     preamble();
 
     sub_imm(X_SP, X_SP, stack_space_needed, X_TMP_0);
@@ -482,7 +488,7 @@ void jit_sve_512_1x1_conv_kernel::generate() {
     if (load_dim_tail) {
         const WReg w_tmp(reg_load_dim_tail_mask.getIdx());
         mov_imm(w_tmp, (1 << load_dim_tail) - 1);
-        str(zreg_tmp1, ptr(X_TRANSLATOR_STACK, -1, MUL_VL));
+        st1w(zreg_tmp1.s, P_ALL_ONE / T_z, ptr(X_TRANSLATOR_STACK, -1, MUL_VL));
         index(zreg_tmp.s, 0, 1);
         mov(zreg_tmp1.s, 1);
         lsl(zreg_tmp1.s, P_ALL_ONE / T_m, zreg_tmp.s);
@@ -545,7 +551,7 @@ void jit_sve_512_1x1_conv_kernel::generate() {
         }
     };
 
-    const int simd_w = cpu_isa_traits<sve_512>::vlen / sizeof(float);
+    const int simd_w = cpu_isa_traits<isa_>::vlen / sizeof(float);
 
     Label load_loop_blk[7];
 
@@ -606,22 +612,24 @@ void jit_sve_512_1x1_conv_kernel::generate() {
     if (jcp.with_eltwise) postops_injector_->prepare_table();
 }
 
-status_t jit_sve_512_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
+template <cpu_isa_t isa_>
+status_t jit_sve_1x1_conv_kernel<isa_>::init_conf(jit_1x1_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr, int nthreads, bool reduce_src) {
 
     /* arch check */
-    if (!mayiuse(sve_512)) return status::unimplemented;
+    if (!mayiuse(isa_)) { return status::unimplemented; }
 
     if (!everyone_is(data_type::f32, src_d.data_type(), weights_d.data_type(),
-                dst_d.data_type()))
+                dst_d.data_type())) {
         return status::unimplemented;
+    }
 
     jcp.nthr = nthreads;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    const int simd_w = cpu_isa_traits<sve_512>::vlen / sizeof(float);
+    const int simd_w = cpu_isa_traits<isa_>::vlen / sizeof(float);
     const int ndims = src_d.ndims();
     /* Forward_[training, inference], backward_[data, weight] */
     jcp.prop_kind = cd.prop_kind;
@@ -667,7 +675,7 @@ status_t jit_sve_512_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     const auto &post_ops = attr.post_ops_;
     const int dw_conv_ind = post_ops.find(primitive_kind::convolution);
     jcp.with_dw_conv = dw_conv_ind != -1;
-    if (jcp.with_dw_conv) return status::unimplemented;
+    if (jcp.with_dw_conv) { return status::unimplemented; }
 
     /* Post operation check */
     // Using dw_conv_ind as upper-bound below, as post-ops after it will be
@@ -676,7 +684,9 @@ status_t jit_sve_512_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
             = post_ops.find(primitive_kind::eltwise, 0, dw_conv_ind);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) {
-        if (dst_d.data_type() == data_type::s32) return status::unimplemented;
+        if (dst_d.data_type() == data_type::s32) {
+            return status::unimplemented;
+        }
     }
 
     const int sum_ind = post_ops.find(primitive_kind::sum, 0, dw_conv_ind);
@@ -696,13 +706,32 @@ status_t jit_sve_512_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
 
     /* Data format check */
     const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
-    const auto dat_tag_nCx16c = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
-    jcp.src_tag = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
-    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
-    bool is_data_layout_nxc
-            = utils::everyone_is(dat_tag_nxc, jcp.src_tag, jcp.dst_tag);
-    auto required_dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
+    bool is_data_layout_nxc;
+    format_tag_t required_dat_tag;
 
+    switch (isa_) {
+        case sve_512: {
+            const auto dat_tag_nCx16c
+                    = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+            jcp.src_tag = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
+            jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
+            is_data_layout_nxc
+                    = utils::everyone_is(dat_tag_nxc, jcp.src_tag, jcp.dst_tag);
+            required_dat_tag
+                    = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
+            break;
+        }
+        case sve_256: {
+            const auto dat_tag_nCx8c = pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+            jcp.src_tag = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
+            jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
+            is_data_layout_nxc
+                    = utils::everyone_is(dat_tag_nxc, jcp.src_tag, jcp.dst_tag);
+            required_dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx8c;
+            break;
+        }
+        default: break;
+    }
     /* Channel padding check */
     bool ok_to_pad_channels = true && !is_data_layout_nxc && jcp.ngroups == 1
             && src_d.data_type() == data_type::f32;
@@ -721,7 +750,7 @@ status_t jit_sve_512_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     const bool post_ops_ok_ = post_ops_ok(post_ops_ok_args_t(jcp.isa,
             {eltwise, binary, sum}, jcp.post_ops, &dst_d, sum_at_pos_0_only,
             sum_requires_scale_one, sum_requires_zp_zero));
-    if (!post_ops_ok_) return status::unimplemented;
+    if (!post_ops_ok_) { return status::unimplemented; }
 
     bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == required_dat_tag
             && jcp.dst_tag == required_dat_tag
@@ -731,41 +760,73 @@ status_t jit_sve_512_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
             && jcp.stride_w == 1 && jcp.stride_h == 1 && jcp.stride_d == 1
             && jcp.kd == 1 && jcp.kh == 1 && jcp.kw == 1 && jcp.ow == jcp.iw
             && jcp.oh == jcp.ih && jcp.od == jcp.id; // enforce rpad=0
-    if (!args_ok) return status::unimplemented;
+    if (!args_ok) { return status::unimplemented; }
 
     /* Channel blocking size is simd_w */
     jcp.ic_block = jcp.oc_block = simd_w;
 
-    jcp.ver = ver_sve_512;
+    switch (isa_) {
+        case sve_512: {
+            jcp.ver = ver_sve_512;
+            break;
+        }
+        case sve_256: {
+            jcp.ver = ver_sve_256;
+            break;
+        }
+        default: break;
+    }
+
     if (everyone_is(data_type::f32, src_d.data_type(), weights_d.data_type(),
                 dst_d.data_type())) {
         const int is_bwd_d = jcp.prop_kind == backward_data;
+
         /* Set weight data layout tag */
-        format_tag_t wei_tag = with_groups
-                ? pick(2 * ndims - 6 + is_bwd_d, gOIw16i16o, gIOw16o16i,
-                        gOIhw16i16o, gIOhw16o16i, gOIdhw16i16o, gIOdhw16o16i)
-                : pick(2 * ndims - 6 + is_bwd_d, OIw16i16o, IOw16o16i,
-                        OIhw16i16o, IOhw16o16i, OIdhw16i16o, IOdhw16o16i);
+        format_tag_t wei_tag;
+        switch (isa_) {
+            case sve_512: {
+                wei_tag = with_groups
+                        ? pick(2 * ndims - 6 + is_bwd_d, gOIw16i16o, gIOw16o16i,
+                                gOIhw16i16o, gIOhw16o16i, gOIdhw16i16o,
+                                gIOdhw16o16i)
+                        : pick(2 * ndims - 6 + is_bwd_d, OIw16i16o, IOw16o16i,
+                                OIhw16i16o, IOhw16o16i, OIdhw16i16o,
+                                IOdhw16o16i);
+                break;
+            }
+            case sve_256: {
+                wei_tag = with_groups
+                        ? pick(2 * ndims - 6 + is_bwd_d, gOIw8i8o, gIOw8o8i,
+                                gOIhw8i8o, gIOhw8o8i, gOIdhw8i8o, gIOdhw8o8i)
+                        : pick(2 * ndims - 6 + is_bwd_d, OIw8i8o, IOw8o8i,
+                                OIhw8i8o, IOhw8o8i, OIdhw8i8o, IOdhw8o8i);
+                break;
+            }
+            default: break;
+        }
 
         jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+
         if (jcp.wei_tag != wei_tag) return status::unimplemented;
 
         //        jcp.fma_step = 1;
         jcp.typesize_in = sizeof(prec_traits<data_type::f32>::type);
         jcp.typesize_out = sizeof(prec_traits<data_type::f32>::type);
     } else {
-        // TODO: currently, only support fp32
+        // TODO: currently, only support fp32;
         return status::unimplemented;
     }
 
     /* once all the formats are set, check the padding consistency */
+
     if (!is_data_layout_nxc) {
         args_ok = true && jcp.ic <= src_d.padded_dims()[1]
                 && jcp.oc <= dst_d.padded_dims()[1]
                 && jcp.ic <= weights_d.padded_dims()[with_groups + 1]
                 && jcp.oc <= weights_d.padded_dims()[with_groups + 0];
-        if (!args_ok) return status::unimplemented;
+        if (!args_ok) { return status::unimplemented; }
     }
+
     // TODO: Optimize bellow params
     const int SMALL_SPATIAL = 10;
     const int BIG_SPATIAL = 65;
@@ -788,9 +849,9 @@ status_t jit_sve_512_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     const int L2_capacity = (L2_size * 3) / 4;
 
     /* FWD, BWD data */
+
     if (one_of(jcp.prop_kind, forward_training, forward_inference,
                 backward_data)) {
-
         if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
             /* Forward */
             if (jcp.with_dw_conv) jcp.ur = nstl::min(jcp.ow, jcp.ur);
@@ -811,7 +872,6 @@ status_t jit_sve_512_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
 
             jcp.bcast_dim = jcp.os; // src H*W
         }
-
         /* # of consecutive channel elements  */
         jcp.reduce_loop_unroll = jcp.reduce_block;
 
@@ -1198,8 +1258,9 @@ status_t jit_sve_512_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         }
 
         reduce_blocking_max = rnd_dn(reduce_blocking * 3 / 2, jcp.reduce_block);
-    } else
+    } else {
         return status::unimplemented;
+    }
 
     assert(load_blocking);
     assert(load_blocking_max);
@@ -1229,11 +1290,10 @@ status_t jit_sve_512_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
     jcp.nb_load = div_up(jcp.load_dim, jcp.load_block);
     jcp.nb_reduce = div_up(jcp.reduce_dim, jcp.reduce_block);
-
     return status::success;
 }
-
-void jit_sve_512_1x1_conv_kernel::init_scratchpad(
+template <cpu_isa_t isa_>
+void jit_sve_1x1_conv_kernel<isa_>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad,
         const jit_1x1_conv_conf_t &jcp) {
 
@@ -1261,7 +1321,8 @@ void jit_sve_512_1x1_conv_kernel::init_scratchpad(
 }
 
 /* BWD W*/
-void jit_sve_512_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp) {
+template <cpu_isa_t isa_>
+void jit_sve_1x1_conv_kernel<isa_>::balance(jit_1x1_conv_conf_t &jcp) {
     int nthreads = jcp.nthr;
     // initialize jcp reduction threading properties
     jcp.nthr = jcp.nthr_mb = jcp.nthr_g = jcp.nthr_oc_b = jcp.nthr_ic_b = 1;
@@ -1327,6 +1388,8 @@ void jit_sve_512_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp) {
     assert(jcp.nthr <= nthreads);
 }
 
+template struct jit_sve_1x1_conv_kernel<sve_512>;
+template struct jit_sve_1x1_conv_kernel<sve_256>;
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl
