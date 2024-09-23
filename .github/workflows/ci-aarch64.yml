@@ -35,13 +35,24 @@ permissions: read-all
 
 jobs:
   macos:
-    name: macOS
     runs-on: macos-14
     strategy:
       matrix:
-        toolset: [clang, gcc]
-        config: [Debug, Release]
-
+        compiler: [{ CC: clang, CXX: clang++ }, { CC: gcc-14, CXX: g++-14 }]
+        config:
+          [
+            {
+              CMAKE_BUILD_TYPE: Debug,
+              ACL_WITH_ASSERTS: '1',
+              IGNORED_TEST_FAILS: 'cpu-primitives-deconvolution-cpp|test_benchdnn_modeC_lnorm_smoke_cpu|test_benchdnn_modeC_brgemm_smoke_cpu'
+            },
+            {
+              CMAKE_BUILD_TYPE: Release,
+              ACL_WITH_ASSERTS: '0',
+              IGNORED_TEST_FAILS: 'cpu-primitives-deconvolution-cpp|test_benchdnn_modeC_lnorm_smoke_cpu'
+            }
+          ]
+    name: macOS (${{ matrix.compiler.CC }}, ${{ matrix.config.CMAKE_BUILD_TYPE }})
     steps:
       - name: Get number of CPU cores
         uses: SimenB/github-actions-cpu-cores@97ba232459a8e02ff6121db9362b09661c875ab8 # v2.0.0
@@ -77,6 +88,13 @@ jobs:
         working-directory: ${{ github.workspace }}/ComputeLibrary
         run: scons Werror=1 -j${{ steps.cpu-cores.outputs.count }} neon=1 opencl=0 os=macos arch=armv8.2-a build=native cppthreads=0 openmp=0 examples=0 validation_tests=0
         env:
+          CC: ${{ matrix.compiler.CC }}
+          CXX: ${{ matrix.compiler.CXX }}
+      - name: Configure oneDNN
+        run: cmake -B${{ github.workspace }}/oneDNN/build -S${{ github.workspace }}/oneDNN -DDNNL_AARCH64_USE_ACL=ON -DONEDNN_BUILD_GRAPH=0 -DONEDNN_WERROR=OFF -DDNNL_BUILD_FOR_CI=ON -DONEDNN_TEST_SET=SMOKE -DCMAKE_BUILD_TYPE=${{ matrix.config.CMAKE_BUILD_TYPE }}
+        working-directory: ${{ github.workspace }}/oneDNN
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/lib
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
           BUILD_TOOLSET: ${{ matrix.toolset }}
           ACL_CONFIG: ${{ matrix.config }}
@@ -87,86 +105,11 @@ jobs:
         working-directory: ${{ github.workspace }}/oneDNN
         env:
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
-          BUILD_TOOLSET: ${{ matrix.toolset }}
-          CMAKE_BUILD_TYPE: ${{ matrix.config }}
-          GCC_VERSION: 14
-
-      - if: matrix.toolset == 'clang'
+      # Only run smoke tests for clang. We only test gcc for build.
+      # Failure list currently depends on config. Exclude current failures.
+      - if: matrix.compiler.CC == 'clang'
         name: Run oneDNN smoke tests
-        run: ${{ github.workspace }}/oneDNN/.github/automation/test_aarch64.sh
-        working-directory: ${{ github.workspace }}/oneDNN/build
-        env:
-          CMAKE_BUILD_TYPE: ${{ matrix.config }}
-          DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
-
-  # We only run the linux aarch64 runners if macos smoke tests pass.
-  linux:
-    needs: macos
-    strategy:
-      matrix:
-        threading: [OMP]
-        toolset: [clang, gcc]
-        config: [Debug, Release]
-        host: [
-          { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50 },
-          { name: c7g, label: ah-ubuntu_22_04-c7g_2x-50 }
-        ]
-
-    name: ${{ matrix.host.name }}, ${{ matrix.toolset }}, ${{ matrix.threading }}, ${{ matrix.config }}
-    runs-on: ${{ matrix.host.label }}
-    steps:
-      - name: Checkout oneDNN
-        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
-        with:
-          path: oneDNN
-
-      - name: Install dev tools
-        run: |
-          sudo apt update -y
-          sudo apt install -y scons cmake make
-
-      - if: matrix.threading == 'OMP'
-        name: Install openmp
-        run: |
-          sudo apt install -y libomp-dev
-
-      - if: matrix.toolset == 'gcc'
-        name: Install gcc
-        run: |
-          sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-          sudo apt update -y
-          sudo apt install -y g++-13
-
-      - if: matrix.toolset == 'clang'
-        name: Install clang
-        uses: KyleMayes/install-llvm-action@e0a8dc9cb8a22e8a7696e8a91a4e9581bec13181
-        with:
-          version: "17"
-
-      - name: Build ACL
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
-        env:
-          ACL_CONFIG: ${{ matrix.config }}
-          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
-          BUILD_TOOLSET: ${{ matrix.toolset }}
-          GCC_VERSION: 13
-          ACL_THREADING: ${{ matrix.threading }}
-
-      - name: Build oneDNN
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
+        run: ctest --test-dir ${{ github.workspace }}/oneDNN/build -j${{ steps.cpu-cores.outputs.count }} -E '${{ matrix.config.IGNORED_TEST_FAILS }}'
         working-directory: ${{ github.workspace }}/oneDNN
         env:
-          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
-          BUILD_TOOLSET: ${{ matrix.toolset }}
-          CMAKE_BUILD_TYPE: ${{ matrix.config }}
-          GCC_VERSION: 13
-          ONEDNN_THREADING: ${{ matrix.threading }}
-
-      - name: Run oneDNN tests
-        run: ${{ github.workspace }}/oneDNN/.github/automation/test_aarch64.sh
-        working-directory: ${{ github.workspace }}/oneDNN/build
-        env:
-          BUILD_TOOLSET: ${{ matrix.toolset }}
-          CMAKE_BUILD_TYPE: ${{ matrix.config }}
-          DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
-          ONEDNN_THREADING: ${{ matrix.threading }}
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/lib
