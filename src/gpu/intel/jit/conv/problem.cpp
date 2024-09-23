@@ -25,15 +25,15 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-const std::vector<prb_dim_t> &conv_dims() {
-    static std::vector<prb_dim_t> _conv_dims = []() {
-        std::vector<prb_dim_t> ret;
+const std::vector<pvar_t> &conv_dims() {
+    static std::vector<pvar_t> _conv_dims = []() {
+        std::vector<pvar_t> ret;
         for (auto &d : conv_index_dims(prop_kind::forward)) {
             ret.push_back(d);
         }
-        ret.push_back(prb_dims::id);
-        ret.push_back(prb_dims::ih);
-        ret.push_back(prb_dims::iw);
+        ret.push_back(pvars::id);
+        ret.push_back(pvars::ih);
+        ret.push_back(pvars::iw);
         for (auto &d : conv_stride_dims())
             ret.push_back(d);
         for (auto &d : conv_dilation_dims())
@@ -45,31 +45,30 @@ const std::vector<prb_dim_t> &conv_dims() {
     return _conv_dims;
 }
 
-const std::vector<prb_dim_t> &conv_index_dims(prop_kind_t prop) {
+const std::vector<pvar_t> &conv_index_dims(prop_kind_t prop) {
     auto get_dims = [&](prop_kind_t prop) {
-        std::vector<prb_dim_t> ret;
-        ret.push_back(prb_dims::mb);
-        ret.push_back(prb_dims::g);
-        ret.push_back(prb_dims::oc);
-        ret.push_back(prb_dims::ic);
-        ret.push_back(prb_dims::kd);
-        ret.push_back(prb_dims::kh);
-        ret.push_back(prb_dims::kw);
+        std::vector<pvar_t> ret;
+        ret.push_back(pvars::mb);
+        ret.push_back(pvars::g);
+        ret.push_back(pvars::oc);
+        ret.push_back(pvars::ic);
+        ret.push_back(pvars::kd);
+        ret.push_back(pvars::kh);
+        ret.push_back(pvars::kw);
         if (prop != prop_kind::backward_data) {
-            ret.push_back(prb_dims::od);
-            ret.push_back(prb_dims::oh);
-            ret.push_back(prb_dims::ow);
+            ret.push_back(pvars::od);
+            ret.push_back(pvars::oh);
+            ret.push_back(pvars::ow);
         } else {
-            ret.push_back(prb_dims::id);
-            ret.push_back(prb_dims::ih);
-            ret.push_back(prb_dims::iw);
+            ret.push_back(pvars::id);
+            ret.push_back(pvars::ih);
+            ret.push_back(pvars::iw);
         }
         return ret;
     };
-    static std::vector<prb_dim_t> fwd_dims = get_dims(prop_kind::forward);
-    static std::vector<prb_dim_t> bwd_d_dims
-            = get_dims(prop_kind::backward_data);
-    static std::vector<prb_dim_t> bwd_w_dims
+    static std::vector<pvar_t> fwd_dims = get_dims(prop_kind::forward);
+    static std::vector<pvar_t> bwd_d_dims = get_dims(prop_kind::backward_data);
+    static std::vector<pvar_t> bwd_w_dims
             = get_dims(prop_kind::backward_weights);
     switch (prop) {
         case prop_kind::forward: return fwd_dims;
@@ -79,33 +78,33 @@ const std::vector<prb_dim_t> &conv_index_dims(prop_kind_t prop) {
     }
 }
 
-bool is_conv_index(const prb_dim_t &dim) {
+bool is_conv_index(const pvar_t &dim) {
     for (auto prop : {prop_kind::forward, prop_kind::backward_data,
                  prop_kind::backward_weights})
         if (is_conv_index(dim, prop)) return true;
     return false;
 }
 
-bool is_conv_index(const prb_dim_t &dim, prop_kind_t prop) {
+bool is_conv_index(const pvar_t &dim, prop_kind_t prop) {
     for (auto &d : conv_index_dims(prop))
         if (d == dim) return true;
     return false;
 }
 
-const std::vector<prb_dim_t> &conv_layout_dims(
+const std::vector<pvar_t> &conv_layout_dims(
         tensor_kind_t tensor_kind, bool src_dst_with_group) {
-    static const std::vector<prb_dim_t> src_dims({prb_dims::mb, prb_dims::ic,
-            prb_dims::id, prb_dims::ih, prb_dims::iw});
-    static const std::vector<prb_dim_t> src_g_dims({prb_dims::mb, prb_dims::g,
-            prb_dims::ic, prb_dims::id, prb_dims::ih, prb_dims::iw});
-    static const std::vector<prb_dim_t> wei_dims({prb_dims::g, prb_dims::oc,
-            prb_dims::ic, prb_dims::kd, prb_dims::kh, prb_dims::kw});
-    static const std::vector<prb_dim_t> dst_dims({prb_dims::mb, prb_dims::oc,
-            prb_dims::od, prb_dims::oh, prb_dims::ow});
-    static const std::vector<prb_dim_t> dst_g_dims({prb_dims::mb, prb_dims::g,
-            prb_dims::oc, prb_dims::od, prb_dims::oh, prb_dims::ow});
-    static const std::vector<prb_dim_t> bia_g_dims({prb_dims::g, prb_dims::oc});
-    static const std::vector<prb_dim_t> bia_dims({prb_dims::oc});
+    static const std::vector<pvar_t> src_dims(
+            {pvars::mb, pvars::ic, pvars::id, pvars::ih, pvars::iw});
+    static const std::vector<pvar_t> src_g_dims(
+            {pvars::mb, pvars::g, pvars::ic, pvars::id, pvars::ih, pvars::iw});
+    static const std::vector<pvar_t> wei_dims(
+            {pvars::g, pvars::oc, pvars::ic, pvars::kd, pvars::kh, pvars::kw});
+    static const std::vector<pvar_t> dst_dims(
+            {pvars::mb, pvars::oc, pvars::od, pvars::oh, pvars::ow});
+    static const std::vector<pvar_t> dst_g_dims(
+            {pvars::mb, pvars::g, pvars::oc, pvars::od, pvars::oh, pvars::ow});
+    static const std::vector<pvar_t> bia_g_dims({pvars::g, pvars::oc});
+    static const std::vector<pvar_t> bia_dims({pvars::oc});
     switch (tensor_kind) {
         case tensor_kind_t::src:
             return src_dst_with_group ? src_g_dims : src_dims;
@@ -135,34 +134,34 @@ tensor_kind_t to_abc(prop_kind_t prop, tensor_kind_t tensor) {
     return kinds[0];
 }
 
-const std::vector<prb_dim_t> &conv_stride_dims() {
-    static std::vector<prb_dim_t> _stride_dims = [&]() {
-        std::vector<prb_dim_t> ret;
-        ret.push_back(prb_dims::sd);
-        ret.push_back(prb_dims::sh);
-        ret.push_back(prb_dims::sw);
+const std::vector<pvar_t> &conv_stride_dims() {
+    static std::vector<pvar_t> _stride_dims = [&]() {
+        std::vector<pvar_t> ret;
+        ret.push_back(pvars::sd);
+        ret.push_back(pvars::sh);
+        ret.push_back(pvars::sw);
         return ret;
     }();
     return _stride_dims;
 }
 
-const std::vector<prb_dim_t> &conv_dilation_dims() {
-    static std::vector<prb_dim_t> _dilation_dims = [&]() {
-        std::vector<prb_dim_t> ret;
-        ret.push_back(prb_dims::dd);
-        ret.push_back(prb_dims::dh);
-        ret.push_back(prb_dims::dw);
+const std::vector<pvar_t> &conv_dilation_dims() {
+    static std::vector<pvar_t> _dilation_dims = [&]() {
+        std::vector<pvar_t> ret;
+        ret.push_back(pvars::dd);
+        ret.push_back(pvars::dh);
+        ret.push_back(pvars::dw);
         return ret;
     }();
     return _dilation_dims;
 }
 
-const std::vector<prb_dim_t> &conv_padding_dims() {
-    static std::vector<prb_dim_t> _padding_dims = [&]() {
-        std::vector<prb_dim_t> ret;
-        ret.push_back(prb_dims::pd);
-        ret.push_back(prb_dims::ph);
-        ret.push_back(prb_dims::pw);
+const std::vector<pvar_t> &conv_padding_dims() {
+    static std::vector<pvar_t> _padding_dims = [&]() {
+        std::vector<pvar_t> ret;
+        ret.push_back(pvars::pd);
+        ret.push_back(pvars::ph);
+        ret.push_back(pvars::pw);
         return ret;
     }();
     return _padding_dims;
@@ -371,60 +370,46 @@ void normalize_conv_shape(int &id, int &od, int &kd, int &sd, int &dd, int &pd,
     if (!has_dim[0]) dhw_map[0] = dhw_map[1];
 }
 
-prb_dim_t to_gemm(const prb_dim_t &d, prop_kind_t prop, bool is_transpose) {
+pvar_t to_gemm(const pvar_t &d, prop_kind_t prop, bool is_transpose) {
     const bool is_fwd = (prop == prop_kind::forward);
     const bool is_bwd_d = (prop == prop_kind::backward_data);
     const bool is_bwd_w = (prop == prop_kind::backward_weights);
-    auto transpose_gemm = [](const prb_dim_t &d) {
-        if (d == prb_dims::m) return prb_dims::n;
-        if (d == prb_dims::n) return prb_dims::m;
-        if (d == prb_dims::k) return prb_dims::k;
+    auto transpose_gemm = [](const pvar_t &d) {
+        if (d == pvars::m) return pvars::n;
+        if (d == pvars::n) return pvars::m;
+        if (d == pvars::k) return pvars::k;
         ir_error_not_expected();
-        return prb_dim_t();
+        return pvar_t();
     };
-    auto pick = [&](const prb_dim_t &fwd, const prb_dim_t &bwd_d,
-                        const prb_dim_t &bwd_w) {
-        if (is_transpose) {
-            if (is_fwd) return transpose_gemm(fwd);
-            if (is_bwd_d) return transpose_gemm(bwd_d);
-            if (is_bwd_w) return transpose_gemm(bwd_w);
-        }
-        if (is_fwd) return fwd;
-        if (is_bwd_d) return bwd_d;
-        if (is_bwd_w) return bwd_w;
-        ir_error_not_expected();
-        return prb_dim_t();
-    };
-    switch (d.kind()) {
-        case prb_dim_kind_t::g: return prb_dims::b;
-        case prb_dim_kind_t::mb:
-            return pick(prb_dims::m, prb_dims::m, prb_dims::k);
-        case prb_dim_kind_t::oc:
-            return pick(prb_dims::n, prb_dims::k, prb_dims::n);
-        case prb_dim_kind_t::ic:
-            return pick(prb_dims::k, prb_dims::n, prb_dims::m);
-        case prb_dim_kind_t::kd:
-        case prb_dim_kind_t::kh:
-        case prb_dim_kind_t::kw:
-            return pick(prb_dims::k, prb_dims::k, prb_dims::m);
-        case prb_dim_kind_t::od:
-        case prb_dim_kind_t::oh:
-        case prb_dim_kind_t::ow:
-            return pick(prb_dims::m, prb_dim_t(), prb_dims::k);
-        case prb_dim_kind_t::id:
-        case prb_dim_kind_t::ih:
-        case prb_dim_kind_t::iw:
-            return pick(prb_dim_t(), prb_dims::m, prb_dim_t());
-        default: return prb_dim_t();
-    }
+    auto pick
+            = [&](const pvar_t &fwd, const pvar_t &bwd_d, const pvar_t &bwd_w) {
+                  if (is_transpose) {
+                      if (is_fwd) return transpose_gemm(fwd);
+                      if (is_bwd_d) return transpose_gemm(bwd_d);
+                      if (is_bwd_w) return transpose_gemm(bwd_w);
+                  }
+                  if (is_fwd) return fwd;
+                  if (is_bwd_d) return bwd_d;
+                  if (is_bwd_w) return bwd_w;
+                  ir_error_not_expected();
+                  return pvar_t();
+              };
+    if (d == pvars::g) return pvars::b;
+    if (d == pvars::mb) return pick(pvars::m, pvars::m, pvars::k);
+    if (d == pvars::oc) return pick(pvars::n, pvars::k, pvars::n);
+    if (d == pvars::ic) return pick(pvars::k, pvars::n, pvars::m);
+    if (is_kernel_spatial(d)) return pick(pvars::k, pvars::k, pvars::m);
+    if (is_output_spatial(d)) return pick(pvars::m, pvar_t(), pvars::k);
+    if (is_input_spatial(d)) return pick(pvar_t(), pvars::m, pvar_t());
+    return pvar_t();
 }
 
-prb_tile_t to_gemm(const prb_tile_t &t, prop_kind_t prop, bool is_transpose) {
-    prb_tile_t ret;
-    ret[prb_dims::b] = 1;
-    ret[prb_dims::m] = 1;
-    ret[prb_dims::n] = 1;
-    ret[prb_dims::k] = 1;
+pvar_tile_t to_gemm(const pvar_tile_t &t, prop_kind_t prop, bool is_transpose) {
+    pvar_tile_t ret;
+    ret[pvars::b] = 1;
+    ret[pvars::m] = 1;
+    ret[pvars::n] = 1;
+    ret[pvars::k] = 1;
     for (auto &d : t) {
         auto gemm_d = to_gemm(d, prop, is_transpose);
         if (gemm_d.is_undef()) continue;

@@ -435,9 +435,8 @@ public:
         ngen::Subregister grid_ids[grid_ndims] = {r0.ud(1), r0.ud(6), r0.ud(7)};
         for (int i = 0; i < grid_ndims; i++) {
             std::vector<std::pair<int, int>> blocks;
-            std::unordered_map<prb_dim_t, int, ir_utils::hasher_t<prb_dim_t>>
-                    dim_map;
-            auto to_dim_idx = [&](const prb_dim_t &dim) {
+            std::unordered_map<pvar_t, int> dim_map;
+            auto to_dim_idx = [&](const pvar_t &dim) {
                 if (dim_map.count(dim) != 0) return dim_map.at(dim);
                 int idx = (int)dim_map.size();
                 dim_map.emplace(dim, idx);

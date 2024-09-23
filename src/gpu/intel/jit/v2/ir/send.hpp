@@ -136,7 +136,7 @@ struct dim_mask_t {
 
     IR_DEFINE_DUMP()
 
-    prb_dim_t dim;
+    pvar_t dim;
     expr_t base;
     expr_t bound;
     std::vector<expr_t> slot_incs;
@@ -166,7 +166,7 @@ struct mask_t {
     // TODO: Rename.
     int nmasks() const { return static_cast<int>(dim_masks.size()); }
     int slots() const { return dim_masks[0].slots(); }
-    void clear(const prb_dim_t &dim) {
+    void clear(const pvar_t &dim) {
         for (auto &dm : dim_masks) {
             if (dm.dim == dim) {
                 dm = dim_mask_t();
@@ -198,11 +198,9 @@ struct multiply_hint_t {
     int simd = 0;
     bool src1 = false;
     bool src2 = false;
-    dim_map_t<prb_dim_t, prb_dim_kind_t> bmnk_map;
+    pvar_map_t<char> bmnk_map;
 
-    bool is_k(const prb_dim_t &dim) const {
-        return bmnk_map.get(dim, prb_dim_kind_t::undef) == prb_dim_kind_t::k;
-    }
+    bool is_k(const pvar_t &dim) const { return bmnk_map.get(dim, ' ') == 'k'; }
 };
 
 struct send_2d_hint_t {
@@ -331,7 +329,7 @@ struct send_params_t {
     // For register payload.
     int max_entry_reg_size = 0;
     const prb_reqs_t *external_reqs = nullptr;
-    std::vector<prb_dim_t> skip_mask;
+    std::vector<pvar_t> skip_mask;
 
     void init_max_entry_reg_size() {
         if (hint_2d) {
@@ -401,7 +399,7 @@ struct send_1d_entry_t {
     expr_t addr_inc;
     std::vector<expr_t> mask_incs; // Per dimension mask.
     int reg_off = 0;
-    prb_coord_t<int> coord;
+    pvar_coord_t<int> coord;
 
     std::string str() const {
         using namespace ir_utils;
@@ -419,7 +417,7 @@ struct send_1d_plan_t : public base_plan_t {
     mask_t mask;
     std::vector<send_1d_entry_t> entries;
     layout_t reg_layout;
-    prb_tile_t entry_tile;
+    pvar_tile_t entry_tile;
 
     using base_plan_t::base_plan_t;
 
@@ -487,8 +485,8 @@ struct send_2d_desc_t {
     int c = 0; // Batch count.
     int w_rcount = 0;
     int h_rcount = 0;
-    prb_dim_t w_dim;
-    prb_dim_t h_dim;
+    pvar_t w_dim;
+    pvar_t h_dim;
     bool is_valid = false;
     expr_t base;
 
@@ -565,7 +563,7 @@ struct send_2d_desc_t {
             stride_grf,
         };
         int cur_stride = 1;
-        auto add_block = [&](prb_dim_t dim, int size,
+        auto add_block = [&](pvar_t dim, int size,
                                  pad_kind_t pad = pad_kind_t::none) {
             ret.add_block(dim, size, cur_stride);
             int stride = cur_stride * size;
@@ -627,7 +625,7 @@ struct send_2d_entry_t {
     expr_t x_inc;
     expr_t y_inc;
     int reg_off = 0;
-    prb_coord_t<int> coord;
+    pvar_coord_t<int> coord;
 
     std::string str() const {
         std::ostringstream oss;
@@ -648,14 +646,14 @@ struct send_2d_plan_t : public base_plan_t {
     mask_t mask;
     std::vector<send_2d_entry_t> entries;
     layout_t reg_layout;
-    prb_tile_t entry_tile;
+    pvar_tile_t entry_tile;
 
     using base_plan_t::base_plan_t;
 
     int nentries() const { return static_cast<int>(entries.size()); }
     explicit operator bool() const { return (bool)desc; }
 
-    bool add_entry(const prb_coord_t<int> &coord, int reg_off,
+    bool add_entry(const pvar_coord_t<int> &coord, int reg_off,
             const prover_t &prover) {
         entries.emplace_back();
         auto &e = entries.back();
@@ -715,7 +713,7 @@ struct send_plan_t : public base_plan_t {
         return _2d.reg_layout;
     }
 
-    const prb_tile_t &entry_tile() const {
+    const pvar_tile_t &entry_tile() const {
         if (is_1d()) return _1d.entry_tile;
         return _2d.entry_tile;
     }
@@ -887,7 +885,7 @@ private:
         int reg_off = 0;
         for (int h = 0; h < plane.h; h += desc.h) {
             for (int w = 0; w < plane.w; w += desc.w * desc.c) {
-                prb_coord_t<int> coord;
+                pvar_coord_t<int> coord;
                 coord[plane.w_dim] = w;
                 coord[plane.h_dim] = h;
                 if (!plan_2d.add_entry(coord, reg_off, prover))

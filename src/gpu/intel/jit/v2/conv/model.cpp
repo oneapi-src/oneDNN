@@ -125,7 +125,7 @@ struct sample_t {
         : prb(prb), kernel_desc(kernel_desc), time_ns(time_ns) {
         hw_cfg = hw_config_t(
                 prb.hw(), kernel_desc.fma, kernel_desc.src_tag.type());
-        prb_tile_t padded_shape = prb.shape();
+        pvar_tile_t padded_shape = prb.shape();
         pad_eff = 1;
         for (auto &d : padded_shape) {
             if (!is_conv_index(d)) continue;
@@ -180,13 +180,13 @@ struct sample_t {
         return ops() / 1e9 / sec / hw_cfg.max_gops_per_sec();
     }
 
-    static void to_bmnk(prop_kind_t prop, const prb_tile_t &tile, int &b,
+    static void to_bmnk(prop_kind_t prop, const pvar_tile_t &tile, int &b,
             int &m, int &n, int &k) {
         const auto t = to_gemm(tile, prop);
-        b = t[prb_dims::b];
-        m = t[prb_dims::m];
-        n = t[prb_dims::n];
-        k = t[prb_dims::k];
+        b = t[pvars::b];
+        m = t[pvars::m];
+        n = t[pvars::n];
+        k = t[pvars::k];
     }
 };
 

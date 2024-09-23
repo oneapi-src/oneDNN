@@ -83,7 +83,7 @@ struct stride_layout_t {
                 if (size > other.size)
                     return true;
                 else if (size == other.size)
-                    return dim.id() < other.dim.id();
+                    return dim < other.dim;
             }
             return false;
         }
@@ -143,18 +143,17 @@ struct send_hint_t {
     enum send_dim_idx { block = 0, w = 1, h = 2 };
     using slayout_t = stride_layout_t<dim_type_t>;
     using hint_t = send_hint_t<dim_type_t>;
-    const dim_t &operator[](dim_type_t i) const { return hint_[i.id()]; }
-    dim_t &operator[](dim_type_t i) { return hint_[i.id()]; }
+    dim_t operator[](dim_type_t i) const {
+        return (hint_.count(i) == 0 ? 0 : hint_.at(i));
+    }
+    dim_t &operator[](dim_type_t i) { return hint_[i]; }
     std::string str() const {
         std::ostringstream oss;
         oss << "hint:";
         bool is_empty = true;
-        for (int id = 0; id < dim_type_t::max_id(); id++) {
-            auto i = dim_type_t::from_id(id);
-            if (hint_[i.id()] != unset) {
-                oss << " " << i.str() << ":" << hint_[i.id()];
-                is_empty = false;
-            }
+        for (auto &kv : hint_) {
+            oss << " " << kv.first.str() << ":" << kv.second;
+            is_empty = false;
         }
         if (is_empty) oss << " (empty)";
         return oss.str();
@@ -163,10 +162,9 @@ struct send_hint_t {
     dim_t size(send_dim_idx dim = send_dim_idx::block) const {
         assert((dim == send_dim_idx::block) || is_uniform_2d());
         int s = 1;
-        for (size_t i = 0; i < hint_.size(); ++i) {
-            if (hint_[i] != unset
-                    && (dim == send_dim_idx::block || dim & w_dims_[i]))
-                s *= hint_[i];
+        for (auto &kv : hint_) {
+            if (dim == send_dim_idx::block || dim & w_dims_.at(kv.first))
+                s *= kv.second;
         }
         return s;
     }
@@ -188,17 +186,17 @@ struct send_hint_t {
                 break;
         }
         base = std::min(base, i.size);
-        hint_[i.dim.id()] = hint_[i.dim.id()] == hint_t::unset
-                ? base
-                : hint_[i.dim.id()] * base;
+        hint_[i.dim] = (hint_.count(i.dim) == 0) ? base : hint_[i.dim] * base;
     }
 
-    void set_dim(dim_type_t idx, send_dim_idx i) { w_dims_[idx.id()] |= i; }
+    void set_dim(dim_type_t idx, send_dim_idx i) { w_dims_[idx] |= i; }
     bool is_w_dim(dim_type_t idx) const {
-        return w_dims_[idx.id()] & send_dim_idx::w;
+        if (w_dims_.count(idx) == 0) return false;
+        return (w_dims_.at(idx)) & send_dim_idx::w;
     }
     bool is_h_dim(dim_type_t idx) const {
-        return w_dims_[idx.id()] & send_dim_idx::h;
+        if (w_dims_.count(idx) == 0) return false;
+        return w_dims_.at(idx) & send_dim_idx::h;
     }
 
     bool is_uniform_blocked() const { return type_id_ == uniform_blocked; }
@@ -237,7 +235,7 @@ struct send_hint_t {
     dim_t surface_width() const {
         dim_t val = 0;
         for (auto &s : strides_) {
-            if (is_w_dim(s.dim)) val = hint_[s.dim.id()] * s.stride;
+            if (is_w_dim(s.dim)) val = hint_.at(s.dim) * s.stride;
         }
         return val * type_size_;
     };
@@ -246,8 +244,8 @@ private:
     send_type_id_t type_id_;
     dim_t type_size_;
     dim_t ref_block_size_;
-    std::array<dim_t, dim_type_t::max_id()> hint_ = {0};
-    std::array<dim_t, dim_type_t::max_id()> w_dims_ = {0};
+    std::map<dim_type_t, dim_t> hint_;
+    std::map<dim_type_t, dim_t> w_dims_;
     std::vector<typename slayout_t::stride_dim_t> strides_;
 };
 

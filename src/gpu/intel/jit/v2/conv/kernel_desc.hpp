@@ -66,7 +66,7 @@ static auto spec_strategy_names = nstl::to_array({
 GPU_DEFINE_PARSE_ENUM(spec_strategy_t, spec_strategy_names)
 
 struct loop_desc_entry_t {
-    prb_dim_t dim;
+    pvar_t dim;
     int idx = -1;
     bool is_outer = true;
     // Whether the dimension range is distributed between thread groups (global
@@ -74,7 +74,7 @@ struct loop_desc_entry_t {
     bool is_global = false;
 
     loop_desc_entry_t() = default;
-    loop_desc_entry_t(const prb_dim_t &dim, int idx, bool is_global)
+    loop_desc_entry_t(const pvar_t &dim, int idx, bool is_global)
         : dim(dim), idx(idx), is_global(is_global) {}
 
     bool is_empty() const { return dim.is_undef(); }
@@ -97,18 +97,18 @@ public:
     bool is_empty() const { return entries_.empty(); }
     const std::vector<loop_desc_entry_t> &entries() const { return entries_; }
     int ndims() const { return (int)entries_.size(); }
-    bool has(const prb_dim_t &dim) const { return !find(dim).is_empty(); }
-    loop_desc_entry_t find(const prb_dim_t &dim) const {
+    bool has(const pvar_t &dim) const { return !find(dim).is_empty(); }
+    loop_desc_entry_t find(const pvar_t &dim) const {
         for (auto &e : entries_)
             if (e.dim == dim) return e;
         return loop_desc_entry_t();
     }
-    bool is_global(const prb_dim_t &dim) const { return find(dim).is_global; }
-    void add(const prb_dim_t &dim, bool is_global = false) {
+    bool is_global(const pvar_t &dim) const { return find(dim).is_global; }
+    void add(const pvar_t &dim, bool is_global = false) {
         if (!entries_.empty()) entries_.back().is_outer = false;
         entries_.emplace_back(dim, ndims(), is_global);
     }
-    void remove(const prb_dim_t &dim) {
+    void remove(const pvar_t &dim) {
         for (auto it = entries_.begin(); it != entries_.end(); it++) {
             if (it->dim == dim) {
                 entries_.erase(it);
@@ -117,7 +117,7 @@ public:
         }
         update_indices();
     }
-    int index(const prb_dim_t &dim) const { return find(dim).idx; }
+    int index(const pvar_t &dim) const { return find(dim).idx; }
     std::vector<loop_desc_entry_t>::const_iterator begin() const {
         return entries_.begin();
     }
@@ -148,7 +148,7 @@ public:
         in >> s;
         auto parts = gpu_utils::split(s, ",");
         for (auto &p : parts)
-            add(prb_dim_t::from_name(p));
+            add(pvar_t(p));
     }
 
 private:
@@ -228,7 +228,7 @@ layout_tag_t make_conv_layout_tag(
         tensor_kind_t tensor_kind, const std::string &s);
 layout_tag_t make_conv_layout_tag(
         tensor_kind_t tensor_kind, int conv_ndims, const memory_desc_t &md);
-prb_tile_t min_dims_tile(const problem_t &prb);
+pvar_tile_t min_dims_tile(const problem_t &prb);
 
 struct plan_t;
 
@@ -246,9 +246,9 @@ public:
     fma_kind_t fma = fma_kind_t::undef;
     int simd = 0;
     int regs = 0;
-    prb_tile_t iter_tile;
-    prb_tile_t iter_outer_tile;
-    prb_tile_t thread_group_tile;
+    pvar_tile_t iter_tile;
+    pvar_tile_t iter_outer_tile;
+    pvar_tile_t thread_group_tile;
     loop_desc_t loop_desc;
 
     bool use_2d_access = false;
@@ -351,13 +351,13 @@ public:
                     = var_t::make(type_t::s32(), prefix + std::to_string(i));
     }
 
-    void add_mapping(const prb_dim_t &dim, int idx) {
+    void add_mapping(const pvar_t &dim, int idx) {
         ir_assert(idx >= 0 && idx < N);
         ir_assert(index_var(dim).is_empty());
         entries_[idx].dims.push_back(dim);
     }
 
-    void unset(const prb_dim_t &dim) {
+    void unset(const pvar_t &dim) {
         for (int i = 0; i < N; i++) {
             auto &dims = entries_[i].dims;
             for (auto it = dims.begin(); it != dims.end(); it++) {
@@ -369,7 +369,7 @@ public:
         }
     }
 
-    int index(const prb_dim_t &dim) const {
+    int index(const pvar_t &dim) const {
         for (int i = 0; i < N; i++) {
             for (auto &d : entries_[i].dims) {
                 if (d == dim) return i;
@@ -383,17 +383,15 @@ public:
         return entries_[idx].idx_var;
     }
 
-    expr_t index_var(const prb_dim_t &dim) const {
-        return index_var(index(dim));
-    }
+    expr_t index_var(const pvar_t &dim) const { return index_var(index(dim)); }
 
-    const std::vector<prb_dim_t> &dims(int idx) const {
+    const std::vector<pvar_t> &dims(int idx) const {
         ir_assert(idx >= 0 && idx < N);
         return entries_[idx].dims;
     }
 
-    std::vector<prb_dim_t> all_dims() const {
-        std::vector<prb_dim_t> ret;
+    std::vector<pvar_t> all_dims() const {
+        std::vector<pvar_t> ret;
         for (int i = 0; i < N; i++) {
             auto &e = entries_[i];
             ret.insert(ret.end(), e.dims.begin(), e.dims.end());
@@ -401,7 +399,7 @@ public:
         return ret;
     }
 
-    size_t size(size_t idx, const prb_tile_t &tile) const {
+    size_t size(size_t idx, const pvar_tile_t &tile) const {
         ir_assert(idx < N);
         size_t ret = 1;
         for (auto &d : entries_[idx].dims) {
@@ -413,7 +411,7 @@ public:
 private:
     struct entry_t {
         expr_t idx_var;
-        std::vector<prb_dim_t> dims;
+        std::vector<pvar_t> dims;
 
         int ndims() const { return (int)dims.size(); }
     };

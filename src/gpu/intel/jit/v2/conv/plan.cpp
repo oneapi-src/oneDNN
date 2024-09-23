@@ -27,8 +27,8 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
-prb_coord_t<expr_t> coord_info_t::iter_coord() const {
-    prb_coord_t<expr_t> ret;
+pvar_coord_t<expr_t> coord_info_t::iter_coord() const {
+    pvar_coord_t<expr_t> ret;
     for (auto &d : entries_) {
         auto &e = entries_.at(d);
         ret[d] = simplify_rewrite(e.iter_size * e.iter_idx);
@@ -36,8 +36,8 @@ prb_coord_t<expr_t> coord_info_t::iter_coord() const {
     return ret;
 }
 
-prb_coord_t<expr_t> coord_info_t::tg_iter_coord() const {
-    prb_coord_t<expr_t> ret;
+pvar_coord_t<expr_t> coord_info_t::tg_iter_coord() const {
+    pvar_coord_t<expr_t> ret;
     for (auto &d : entries_) {
         auto &e = entries_.at(d);
         auto idx = e.iter_size * e.iter_idx;
@@ -49,8 +49,8 @@ prb_coord_t<expr_t> coord_info_t::tg_iter_coord() const {
     return ret;
 }
 
-prb_tile_t coord_info_t::tg_iter_tile() const {
-    prb_tile_t ret;
+pvar_tile_t coord_info_t::tg_iter_tile() const {
+    pvar_tile_t ret;
     for (auto &d : entries_) {
         auto &e = entries_.at(d);
         ret[d] = e.tg_size * e.iter_size;
@@ -64,7 +64,7 @@ layout_tag_t append_groups(
     bool is_dst = (tensor_kind == tensor_kind_t::dst);
     bool is_bia = (tensor_kind == tensor_kind_t::bia);
     if (!is_src && !is_dst && !is_bia) return layout_tag;
-    auto xc_dim = (is_src ? prb_dims::ic : prb_dims::oc);
+    auto xc_dim = (is_src ? pvars::ic : pvars::oc);
     auto xc_letter = 'a' + layout_tag.desc().dim_index(xc_dim);
     auto new_g_letter = xc_letter;
     auto new_xc_letter = xc_letter + 1;
@@ -96,10 +96,9 @@ layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
         bool is_dw, const prb_reqs_t &reqs) {
     auto tag = append_groups(tensor_kind, _tag, is_dw);
     layout_t ret(tag.desc(), tag.type());
-    dim_map_t<prb_dim_t, int> blocks;
-    auto rem_size = [&](const prb_dim_t &dim,
-                            const dim_map_t<prb_dim_t, int> &blocks) {
-        auto dim_size = size_var(dim);
+    pvar_map_t<int> blocks;
+    auto rem_size = [&](const pvar_t &dim, const pvar_map_t<int> &blocks) {
+        auto dim_size = dim.var();
         bool is_dim_1 = reqs.is_equal(dim, 1);
         if (is_dim_1) return expr_t(1);
         if (!blocks.has(dim)) return dim_size;
@@ -107,7 +106,7 @@ layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
     };
     auto &entries = tag.raw_tag().entries();
     for (auto it = entries.rbegin(); it != entries.rend(); it++) {
-        prb_dim_t dim = tag.desc().prb_dim(it->index());
+        pvar_t dim = tag.desc().prb_dim(it->index());
         int block_size = it->block;
         expr_t block_size_expr;
         if (block_size > 0) {
@@ -153,30 +152,30 @@ public:
     }
 
 private:
-    expr_t kw_idx = index_var(prb_dims::kw);
-    expr_t kh_idx = index_var(prb_dims::kh);
-    expr_t kd_idx = index_var(prb_dims::kd);
-    expr_t id_idx = index_var(prb_dims::id);
-    expr_t ih_idx = index_var(prb_dims::ih);
-    expr_t iw_idx = index_var(prb_dims::iw);
-    expr_t od_idx = index_var(prb_dims::od);
-    expr_t oh_idx = index_var(prb_dims::oh);
-    expr_t ow_idx = index_var(prb_dims::ow);
+    expr_t kw_idx = pvars::kw.index_var();
+    expr_t kh_idx = pvars::kh.index_var();
+    expr_t kd_idx = pvars::kd.index_var();
+    expr_t id_idx = pvars::id.index_var();
+    expr_t ih_idx = pvars::ih.index_var();
+    expr_t iw_idx = pvars::iw.index_var();
+    expr_t od_idx = pvars::od.index_var();
+    expr_t oh_idx = pvars::oh.index_var();
+    expr_t ow_idx = pvars::ow.index_var();
 
     dim_mapper_t init_src_mapper() const {
-        auto pd = reqs_.to_expr(prb_dims::pd);
-        auto ph = reqs_.to_expr(prb_dims::ph);
-        auto pw = reqs_.to_expr(prb_dims::pw);
-        auto sd = reqs_.to_expr(prb_dims::sd);
-        auto sh = reqs_.to_expr(prb_dims::sh);
-        auto sw = reqs_.to_expr(prb_dims::sw);
-        auto dd = reqs_.to_expr(prb_dims::dd);
-        auto dh = reqs_.to_expr(prb_dims::dh);
-        auto dw = reqs_.to_expr(prb_dims::dw);
+        auto pd = reqs_.to_expr(pvars::pd);
+        auto ph = reqs_.to_expr(pvars::ph);
+        auto pw = reqs_.to_expr(pvars::pw);
+        auto sd = reqs_.to_expr(pvars::sd);
+        auto sh = reqs_.to_expr(pvars::sh);
+        auto sw = reqs_.to_expr(pvars::sw);
+        auto dd = reqs_.to_expr(pvars::dd);
+        auto dh = reqs_.to_expr(pvars::dh);
+        auto dw = reqs_.to_expr(pvars::dw);
         dim_mapper_t mapper;
-        mapper.set_dim(prb_dims::mb);
-        mapper.set_dim(prb_dims::g);
-        mapper.set_dim(prb_dims::ic);
+        mapper.set_dim(pvars::mb);
+        mapper.set_dim(pvars::g);
+        mapper.set_dim(pvars::ic);
         if (utils::one_of(
                     prop_, prop_kind::forward, prop_kind::backward_weights)) {
             auto dd_inc = const_fold(dd + 1);
@@ -185,19 +184,19 @@ private:
             auto neg_pd = const_fold(-pd);
             auto neg_ph = const_fold(-ph);
             auto neg_pw = const_fold(-pw);
-            mapper.set_dim(prb_dims::id,
+            mapper.set_dim(pvars::id,
                     simplify_rewrite(sd * od_idx + neg_pd + kd_idx * dd_inc),
                     true);
-            mapper.set_dim(prb_dims::ih,
+            mapper.set_dim(pvars::ih,
                     simplify_rewrite(sh * oh_idx + neg_ph + kh_idx * dh_inc),
                     true);
-            mapper.set_dim(prb_dims::iw,
+            mapper.set_dim(pvars::iw,
                     simplify_rewrite(sw * ow_idx + neg_pw + kw_idx * dw_inc),
                     true);
         } else {
-            mapper.set_dim(prb_dims::id);
-            mapper.set_dim(prb_dims::ih);
-            mapper.set_dim(prb_dims::iw);
+            mapper.set_dim(pvars::id);
+            mapper.set_dim(pvars::ih);
+            mapper.set_dim(pvars::iw);
         }
         mapper.set_layout_desc(
                 make_conv_algo_layout_desc(prop_, tensor_kind_t::src));
@@ -206,12 +205,12 @@ private:
 
     dim_mapper_t init_wei_mapper() const {
         dim_mapper_t mapper;
-        mapper.set_dim(prb_dims::g);
-        mapper.set_dim(prb_dims::oc);
-        mapper.set_dim(prb_dims::ic);
-        mapper.set_dim(prb_dims::kd);
-        mapper.set_dim(prb_dims::kh);
-        mapper.set_dim(prb_dims::kw);
+        mapper.set_dim(pvars::g);
+        mapper.set_dim(pvars::oc);
+        mapper.set_dim(pvars::ic);
+        mapper.set_dim(pvars::kd);
+        mapper.set_dim(pvars::kh);
+        mapper.set_dim(pvars::kw);
         mapper.set_layout_desc(
                 make_conv_algo_layout_desc(prop_, tensor_kind_t::wei));
         return mapper;
@@ -219,8 +218,8 @@ private:
 
     dim_mapper_t init_bia_mapper() const {
         dim_mapper_t mapper;
-        mapper.set_dim(prb_dims::g);
-        mapper.set_dim(prb_dims::oc);
+        mapper.set_dim(pvars::g);
+        mapper.set_dim(pvars::oc);
         mapper.set_layout_desc(
                 make_conv_algo_layout_desc(prop_, tensor_kind_t::bia));
         return mapper;
@@ -228,36 +227,36 @@ private:
 
     dim_mapper_t init_dst_mapper() const {
         dim_mapper_t mapper;
-        mapper.set_dim(prb_dims::mb);
-        mapper.set_dim(prb_dims::g);
-        mapper.set_dim(prb_dims::oc);
+        mapper.set_dim(pvars::mb);
+        mapper.set_dim(pvars::g);
+        mapper.set_dim(pvars::oc);
         if (utils::one_of(
                     prop_, prop_kind::forward, prop_kind::backward_weights)) {
-            mapper.set_dim(prb_dims::od);
-            mapper.set_dim(prb_dims::oh);
-            mapper.set_dim(prb_dims::ow);
+            mapper.set_dim(pvars::od);
+            mapper.set_dim(pvars::oh);
+            mapper.set_dim(pvars::ow);
         } else {
-            auto pd = reqs_.to_expr(prb_dims::pd);
-            auto ph = reqs_.to_expr(prb_dims::ph);
-            auto pw = reqs_.to_expr(prb_dims::pw);
-            auto sd = reqs_.to_expr(prb_dims::sd);
-            auto sh = reqs_.to_expr(prb_dims::sh);
-            auto sw = reqs_.to_expr(prb_dims::sw);
-            auto dd = reqs_.to_expr(prb_dims::dd);
-            auto dh = reqs_.to_expr(prb_dims::dh);
-            auto dw = reqs_.to_expr(prb_dims::dw);
+            auto pd = reqs_.to_expr(pvars::pd);
+            auto ph = reqs_.to_expr(pvars::ph);
+            auto pw = reqs_.to_expr(pvars::pw);
+            auto sd = reqs_.to_expr(pvars::sd);
+            auto sh = reqs_.to_expr(pvars::sh);
+            auto sw = reqs_.to_expr(pvars::sw);
+            auto dd = reqs_.to_expr(pvars::dd);
+            auto dh = reqs_.to_expr(pvars::dh);
+            auto dw = reqs_.to_expr(pvars::dw);
 
             auto dd_inc = const_fold(dd + 1);
             auto dh_inc = const_fold(dh + 1);
             auto dw_inc = const_fold(dw + 1);
 
-            mapper.set_dim(prb_dims::od,
+            mapper.set_dim(pvars::od,
                     simplify_rewrite((id_idx + pd - (kd_idx * dd_inc)) / sd),
                     true);
-            mapper.set_dim(prb_dims::oh,
+            mapper.set_dim(pvars::oh,
                     simplify_rewrite((ih_idx + ph - (kh_idx * dh_inc)) / sh),
                     true);
-            mapper.set_dim(prb_dims::ow,
+            mapper.set_dim(pvars::ow,
                     simplify_rewrite((iw_idx + pw - (kw_idx * dw_inc)) / sw),
                     true);
         }
@@ -277,11 +276,10 @@ private:
 class multiply_info_t {
 public:
     multiply_info_t() = default;
-    multiply_info_t(fma_kind_t fma, int simd, const prb_tile_t &iter_tile,
-            const dim_map_t<prb_dim_t, prb_dim_kind_t> &bmnk_map,
-            const type_t &a_type, const layout_desc_t &a_desc,
-            const type_t &b_type, const layout_desc_t &b_desc,
-            const layout_desc_t &c_desc)
+    multiply_info_t(fma_kind_t fma, int simd, const pvar_tile_t &iter_tile,
+            const pvar_map_t<char> &bmnk_map, const type_t &a_type,
+            const layout_desc_t &a_desc, const type_t &b_type,
+            const layout_desc_t &b_desc, const layout_desc_t &c_desc)
         : fma_(fma)
         , simd_(simd)
         , iter_tile_(iter_tile)
@@ -315,7 +313,7 @@ public:
     const type_t &b_type() const { return b_type_; }
     const type_t &acc_type() const { return acc_type_; }
 
-    bool has(tensor_kind_t abc, const prb_dim_t &dim) const {
+    bool has(tensor_kind_t abc, const pvar_t &dim) const {
         switch (abc) {
             case tensor_kind_t::a: return is_b(dim) || is_m(dim) || is_k(dim);
             case tensor_kind_t::b: return is_b(dim) || is_k(dim) || is_n(dim);
@@ -325,23 +323,20 @@ public:
         return false;
     }
 
-    bool is(const prb_dim_t &dim, prb_dim_kind_t kind) const {
-        ir_assert(utils::one_of(kind, prb_dim_kind_t::b, prb_dim_kind_t::m,
-                prb_dim_kind_t::n, prb_dim_kind_t::k));
+    bool is(const pvar_t &dim, char bmnk) const {
+        ir_assert(utils::one_of(bmnk, 'b', 'm', 'n', 'k'));
         if (!bmnk_map_.has(dim)) return false;
-        return bmnk_map_[dim] == kind;
+        return bmnk_map_[dim] == bmnk;
     }
 
-    bool is_b(const prb_dim_t &dim) const { return is(dim, prb_dim_kind_t::b); }
-    bool is_m(const prb_dim_t &dim) const { return is(dim, prb_dim_kind_t::m); }
-    bool is_n(const prb_dim_t &dim) const { return is(dim, prb_dim_kind_t::n); }
-    bool is_k(const prb_dim_t &dim) const { return is(dim, prb_dim_kind_t::k); }
-    prb_dim_kind_t to_bmnk(const prb_dim_t &dim) const {
-        return bmnk_map_.at(dim);
-    }
+    bool is_b(const pvar_t &dim) const { return is(dim, 'b'); }
+    bool is_m(const pvar_t &dim) const { return is(dim, 'm'); }
+    bool is_n(const pvar_t &dim) const { return is(dim, 'n'); }
+    bool is_k(const pvar_t &dim) const { return is(dim, 'k'); }
+    char to_bmnk(const pvar_t &dim) const { return bmnk_map_.at(dim); }
 
-    prb_tile_t inst_tile() const {
-        prb_tile_t ret;
+    pvar_tile_t inst_tile() const {
+        pvar_tile_t ret;
         switch (fma_) {
             case fma_kind_t::mad: ret = b_inner_.int_dim_sizes(); break;
             case fma_kind_t::dpas: {
@@ -492,20 +487,20 @@ private:
 
     bool init_dpas(const layout_desc_t &a_desc, const layout_desc_t &b_desc,
             const layout_desc_t &c_desc) {
-        prb_dim_t m_dim;
-        prb_dim_t n_dim;
-        prb_dim_t k_dim;
+        pvar_t m_dim;
+        pvar_t n_dim;
+        pvar_t k_dim;
         for (auto &d : iter_tile_) {
             switch (to_bmnk(d)) {
-                case prb_dim_kind_t::m:
+                case 'm':
                     ir_assert(m_dim.is_undef());
                     m_dim = d;
                     break;
-                case prb_dim_kind_t::n:
+                case 'n':
                     ir_assert(n_dim.is_undef());
                     n_dim = d;
                     break;
-                case prb_dim_kind_t::k:
+                case 'k':
                     ir_assert(k_dim.is_undef());
                     k_dim = d;
                     break;
@@ -532,16 +527,16 @@ private:
                 a_type_);
         auto &dpas = _dpas.as<dpas_t>();
         a_inner_ = to_v2_layout(
-                dpas.b_layout(), a_desc, std::vector<prb_dim_t> {k_dim, m_dim});
+                dpas.b_layout(), a_desc, std::vector<pvar_t> {k_dim, m_dim});
         b_inner_ = to_v2_layout(
-                dpas.a_layout(), b_desc, std::vector<prb_dim_t> {n_dim, k_dim});
+                dpas.a_layout(), b_desc, std::vector<pvar_t> {n_dim, k_dim});
         c_inner_ = to_v2_layout(
-                dpas.c_layout(), c_desc, std::vector<prb_dim_t> {n_dim, m_dim});
+                dpas.c_layout(), c_desc, std::vector<pvar_t> {n_dim, m_dim});
         return true;
     }
 
     static layout_t to_v2_layout(const jit::layout_t &layout,
-            const layout_desc_t &desc, const std::vector<prb_dim_t> &dims) {
+            const layout_desc_t &desc, const std::vector<pvar_t> &dims) {
         layout_t ret(desc, layout.type());
         for (auto &b : layout.blocks()) {
             auto dim = dims[b.dim_idx];
@@ -553,8 +548,8 @@ private:
     bool is_valid_ = false;
     fma_kind_t fma_ = fma_kind_t::undef;
     int simd_ = 0;
-    prb_tile_t iter_tile_;
-    dim_map_t<prb_dim_t, prb_dim_kind_t> bmnk_map_;
+    pvar_tile_t iter_tile_;
+    pvar_map_t<char> bmnk_map_;
     type_t a_type_;
     type_t b_type_;
     type_t acc_type_;
@@ -595,15 +590,14 @@ private:
         return plan;
     }
 
-    void add_align_req(const prb_dim_t &dim, const type_t &type,
+    void add_align_req(const pvar_t &dim, const type_t &type,
             const align_desc_t::align_t &align) {
         if (align.value == 0) {
             reqs_.set_any_mod(dim);
         } else {
             int align_bytes = (align.in_bytes ? align.value
                                               : align.value * type.size());
-            reqs_.add(
-                    size_var(dim) % ir_utils::safe_div(align_bytes, type.size())
+            reqs_.add(dim.var() % ir_utils::safe_div(align_bytes, type.size())
                     == 0);
         }
     }
@@ -645,10 +639,12 @@ private:
         add_align_req(dst_layout.blocks()[0].dim, dst_layout.type(), align.dst);
     }
 
-    dim_map_t<prb_dim_t, prb_dim_kind_t> to_bmnk_map() const {
-        dim_map_t<prb_dim_t, prb_dim_kind_t> ret;
+    pvar_map_t<char> to_bmnk_map() const {
+        pvar_map_t<char> ret;
         for (auto &d : conv_index_dims(desc_.prop)) {
-            ret[d] = to_gemm(d, desc_.prop).kind();
+            auto gemm_d = to_gemm(d, desc_.prop);
+            ir_assert(!gemm_d.is_undef());
+            ret[d] = gemm_d.name()[0];
         }
         return ret;
     }
@@ -699,7 +695,7 @@ private:
     }
 
     bool init_x_prefetch_plan(tensor_kind_t abc,
-            const prb_coord_t<expr_t> &coord, const prb_tile_t &tile,
+            const pvar_coord_t<expr_t> &coord, const pvar_tile_t &tile,
             const x2r_fma_plan_t &x2r_fma, virt_grid_t &virt_grid,
             send_plan_t &prefetch) const {
         auto &mapper = dim_mapper_manager_.mapper(abc);
@@ -788,7 +784,7 @@ private:
         auto &outer = desc_.iter_outer_tile;
         auto &tile = desc_.iter_tile;
         ir_assert(outer.is_empty() || outer.size() == 1);
-        auto outer_dim = (outer.is_empty() ? prb_dims::undef : *outer.begin());
+        auto outer_dim = (outer.is_empty() ? pvar_t() : *outer.begin());
         int outer_size = outer.get(outer_dim, 1);
         auto sub_tile = tile;
         if (!outer_dim.is_undef()) sub_tile[outer_dim] /= outer_size;
@@ -887,9 +883,9 @@ private:
 
     bool init_slm_reduce_plan(const layout_t &c_layout, virt_grid_t &virt_grid,
             slm_reduce_plan_t &plan) const {
-        prb_dim_t k_dim;
+        pvar_t k_dim;
         for (auto &d : desc_.thread_group_tile) {
-            if (to_gemm(d, desc_.prop) == prb_dim_kind_t::k) {
+            if (to_gemm(d, desc_.prop) == pvars::k) {
                 k_dim = d;
                 break;
             }
@@ -912,9 +908,9 @@ private:
         slm_layout.add_block(k_dim, k_tg);
         auto c_tile = c_layout.desc().filter_dim_map(desc_.iter_tile);
 
-        prb_coord_t<expr_t> store_coord;
+        pvar_coord_t<expr_t> store_coord;
         store_coord[k_dim] = thr_grid_.index_var(k_dim);
-        prb_tile_t store_tile = c_tile;
+        pvar_tile_t store_tile = c_tile;
         store_tile.unset(k_dim);
 
         // Store partial reductions.
@@ -928,8 +924,8 @@ private:
         // Split the original tile evenly between k_tg threads.
         grid_splitter_t grid_splitter;
         grid_splitter.add(thr_grid_.index_var(k_dim), k_tg);
-        auto split_view = view_t::split(
-                mapper, c_layout, prb_coord_t<expr_t>(), c_tile, grid_splitter);
+        auto split_view = view_t::split(mapper, c_layout,
+                pvar_coord_t<expr_t>(), c_tile, grid_splitter);
         for (auto &kv : grid_splitter.virt_grid_idxs()) {
             virt_grid.add(kv.first, kv.second);
         }
@@ -983,7 +979,7 @@ private:
             tile_last = it;
         }
         auto full_tile = desc_.iter_tile;
-        for (auto &d : full_tile) {
+        for (auto &d : desc_.iter_tile) {
             if (mul_info_.is_k(d)) full_tile.unset(d);
         }
         auto params = get_send_params(
@@ -1035,17 +1031,17 @@ private:
         return params;
     }
 
-    std::vector<prb_dim_t> skip_mask(const view_t &view) const {
-        std::vector<prb_dim_t> ret;
+    std::vector<pvar_t> skip_mask(const view_t &view) const {
+        std::vector<pvar_t> ret;
         auto &mask_desc = view.mask_desc();
         auto tg_iter_tile = coord_info_.tg_iter_tile();
         auto dim_sizes = view.base_layout().dim_sizes();
         for (int i = 0; i < mask_desc.nmasks(); i++) {
-            prb_dim_t dim = mask_desc[i].dim;
+            pvar_t dim = mask_desc[i].dim;
             ir_assert(view.dim_mapper().has(dim));
             // Assume that dimensions with non-trivial mapping always require
             // masking.
-            if (!view.dim_mapper().expr(dim).is_same(index_var(dim))) continue;
+            if (!view.dim_mapper().expr(dim).is_same(dim.index_var())) continue;
             // Assume global k-slciing implies masking.
             if (coord_info_.is_global_loop(dim)) continue;
             // Check if the mask can be proven with known dimension requirements.
@@ -1058,7 +1054,7 @@ private:
     }
 
     dim_mapper_t extend_mapper(const dim_mapper_t &mapper,
-            const prb_dim_t &extra_dim, char letter) const {
+            const pvar_t &extra_dim, char letter) const {
         auto new_mapper = mapper;
         new_mapper.set_dim(extra_dim);
         auto &desc = mapper.layout_desc();

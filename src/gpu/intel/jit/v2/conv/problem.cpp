@@ -32,26 +32,26 @@ problem_t::problem_t(const std::string &line) {
 
 void problem_t::set_shape(const std::string &s) {
     ir_assert(prop_ != prop_kind::undef);
-    prb_tile_t s_tile(s);
-    bool has_d = has_spatial(s_tile, prb_dim_spatial_kind_t::d);
-    bool has_h = has_spatial(s_tile, prb_dim_spatial_kind_t::h);
-    bool has_w = has_spatial(s_tile, prb_dim_spatial_kind_t::w);
+    pvar_tile_t s_tile(s);
+    bool has_d = has_spatial(s_tile, 'd');
+    bool has_h = has_spatial(s_tile, 'h');
+    bool has_w = has_spatial(s_tile, 'w');
     if ((has_d && has_h && has_w) || (has_h && has_w) || has_w) {
         // Nothing to propagate.
     } else if (has_d && !has_h && !has_w) {
-        s_tile[prb_dims::ih] = s_tile[prb_dims::iw] = s_tile[prb_dims::id];
-        s_tile[prb_dims::oh] = s_tile[prb_dims::ow] = s_tile[prb_dims::od];
-        s_tile[prb_dims::kh] = s_tile[prb_dims::kw] = s_tile[prb_dims::kd];
-        s_tile[prb_dims::sh] = s_tile[prb_dims::sw] = s_tile[prb_dims::sd];
-        s_tile[prb_dims::dh] = s_tile[prb_dims::dw] = s_tile[prb_dims::dd];
-        s_tile[prb_dims::ph] = s_tile[prb_dims::pw] = s_tile[prb_dims::pd];
+        s_tile[pvars::ih] = s_tile[pvars::iw] = s_tile[pvars::id];
+        s_tile[pvars::oh] = s_tile[pvars::ow] = s_tile[pvars::od];
+        s_tile[pvars::kh] = s_tile[pvars::kw] = s_tile[pvars::kd];
+        s_tile[pvars::sh] = s_tile[pvars::sw] = s_tile[pvars::sd];
+        s_tile[pvars::dh] = s_tile[pvars::dw] = s_tile[pvars::dd];
+        s_tile[pvars::ph] = s_tile[pvars::pw] = s_tile[pvars::pd];
     } else if (has_h && !has_w) {
-        s_tile[prb_dims::iw] = s_tile[prb_dims::ih];
-        s_tile[prb_dims::ow] = s_tile[prb_dims::oh];
-        s_tile[prb_dims::kw] = s_tile[prb_dims::kh];
-        s_tile[prb_dims::sw] = s_tile[prb_dims::sh];
-        s_tile[prb_dims::dw] = s_tile[prb_dims::dh];
-        s_tile[prb_dims::pw] = s_tile[prb_dims::ph];
+        s_tile[pvars::iw] = s_tile[pvars::ih];
+        s_tile[pvars::ow] = s_tile[pvars::oh];
+        s_tile[pvars::kw] = s_tile[pvars::kh];
+        s_tile[pvars::sw] = s_tile[pvars::sh];
+        s_tile[pvars::dw] = s_tile[pvars::dh];
+        s_tile[pvars::pw] = s_tile[pvars::ph];
     } else {
         ir_error_not_expected();
     }
@@ -67,7 +67,7 @@ double problem_t::ops() const {
 }
 
 void problem_t::normalize() {
-#define GET(name) shape_[prb_dims::name]
+#define GET(name) shape_[pvars::name]
     normalize_conv_shape(GET(od), GET(id), GET(kd), GET(sd), GET(dd), GET(pd),
             GET(oh), GET(ih), GET(kh), GET(sh), GET(dh), GET(ph), GET(ow),
             GET(iw), GET(kw), GET(sw), GET(dw), GET(pw),
@@ -76,28 +76,28 @@ void problem_t::normalize() {
 }
 
 std::string problem_t::desc_str() const {
-    int g = shape_[prb_dims::g];
-    int mb = shape_[prb_dims::mb];
-    int oc = shape_[prb_dims::oc];
-    int ic = shape_[prb_dims::ic];
-    int id = shape_[prb_dims::id];
-    int ih = shape_[prb_dims::ih];
-    int iw = shape_[prb_dims::iw];
-    int od = shape_[prb_dims::od];
-    int oh = shape_[prb_dims::oh];
-    int ow = shape_[prb_dims::ow];
-    int kd = shape_[prb_dims::kd];
-    int kh = shape_[prb_dims::kh];
-    int kw = shape_[prb_dims::kw];
-    int sd = shape_[prb_dims::sd];
-    int sh = shape_[prb_dims::sh];
-    int sw = shape_[prb_dims::sw];
-    int pd = shape_[prb_dims::pd];
-    int ph = shape_[prb_dims::ph];
-    int pw = shape_[prb_dims::pw];
-    int dd = shape_[prb_dims::dd];
-    int dh = shape_[prb_dims::dh];
-    int dw = shape_[prb_dims::dw];
+    int g = shape_[pvars::g];
+    int mb = shape_[pvars::mb];
+    int oc = shape_[pvars::oc];
+    int ic = shape_[pvars::ic];
+    int id = shape_[pvars::id];
+    int ih = shape_[pvars::ih];
+    int iw = shape_[pvars::iw];
+    int od = shape_[pvars::od];
+    int oh = shape_[pvars::oh];
+    int ow = shape_[pvars::ow];
+    int kd = shape_[pvars::kd];
+    int kh = shape_[pvars::kh];
+    int kw = shape_[pvars::kw];
+    int sd = shape_[pvars::sd];
+    int sh = shape_[pvars::sh];
+    int sw = shape_[pvars::sw];
+    int pd = shape_[pvars::pd];
+    int ph = shape_[pvars::ph];
+    int pw = shape_[pvars::pw];
+    int dd = shape_[pvars::dd];
+    int dh = shape_[pvars::dh];
+    int dw = shape_[pvars::dw];
     std::ostringstream oss;
     oss << "mb" << mb;
     if (g > 1) oss << "g" << g;
@@ -167,14 +167,14 @@ std::string problem_t::csv_str() const {
     return oss.str();
 }
 
-prb_tile_t problem_t::default_shape() {
-    static prb_tile_t _default_shape = []() {
-        static prb_tile_t ret;
-        ret[prb_dims::g] = 1;
-        ret[prb_dims::mb] = 1;
-        ret[prb_dims::id] = ret[prb_dims::ih] = ret[prb_dims::iw] = 1;
-        ret[prb_dims::od] = ret[prb_dims::oh] = ret[prb_dims::ow] = 1;
-        ret[prb_dims::kd] = ret[prb_dims::kh] = ret[prb_dims::kw] = 1;
+pvar_tile_t problem_t::default_shape() {
+    static pvar_tile_t _default_shape = []() {
+        static pvar_tile_t ret;
+        ret[pvars::g] = 1;
+        ret[pvars::mb] = 1;
+        ret[pvars::id] = ret[pvars::ih] = ret[pvars::iw] = 1;
+        ret[pvars::od] = ret[pvars::oh] = ret[pvars::ow] = 1;
+        ret[pvars::kd] = ret[pvars::kh] = ret[pvars::kw] = 1;
         for (auto &d : conv_stride_dims())
             ret[d] = 1;
         for (auto &d : conv_dilation_dims())
@@ -186,8 +186,8 @@ prb_tile_t problem_t::default_shape() {
     return _default_shape;
 }
 
-double problem_t::ops(prop_kind_t prop, const prb_tile_t &shape) {
-#define GET(name) shape[prb_dims::name]
+double problem_t::ops(prop_kind_t prop, const pvar_tile_t &shape) {
+#define GET(name) shape[pvars::name]
     double ret = 2.0;
     ret *= (double)GET(g) * GET(mb) * GET(oc) * GET(ic);
     ret *= GET(kd) * GET(kh) * GET(kw);

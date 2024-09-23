@@ -28,8 +28,8 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-struct conv_stride_layout_t : public stride_layout_t<prb_dim_t> {
-    using base_layout_t = stride_layout_t<prb_dim_t>;
+struct conv_stride_layout_t : public stride_layout_t<pvar_t> {
+    using base_layout_t = stride_layout_t<pvar_t>;
 
     enum class input_tensor_t {
         src,
@@ -79,7 +79,7 @@ struct conv_stride_layout_t : public stride_layout_t<prb_dim_t> {
         auto write_strides =
                 [&](std::array<base_layout_t::stride_dim_t, MAX_NDIMS>::iterator
                                 s,
-                        prb_dim_t conv_dim, dim_t desc_dim, dim_t size,
+                        pvar_t conv_dim, dim_t desc_dim, dim_t size,
                         dim_t access_stride = 1, bool can_overflow = false) {
                     // Size 1 dimensions are effectively non-existent
                     if (size == 1) return s;
@@ -125,11 +125,11 @@ struct conv_stride_layout_t : public stride_layout_t<prb_dim_t> {
             case input_tensor_t::dst: {
                 bool is_src = type == input_tensor_t::src;
                 int i = 0;
-                s = write_strides(s, prb_dims::mb, i++, prb.mb);
+                s = write_strides(s, pvars::mb, i++, prb.mb);
                 if (is_src)
-                    s = write_strides(s, prb_dims::ic, i++, prb.ic);
+                    s = write_strides(s, pvars::ic, i++, prb.ic);
                 else
-                    s = write_strides(s, prb_dims::oc, i++, prb.oc);
+                    s = write_strides(s, pvars::oc, i++, prb.oc);
 
                 if (mdw.ndims() >= 5) {
                     bool is_padded = is_src
@@ -137,14 +137,13 @@ struct conv_stride_layout_t : public stride_layout_t<prb_dim_t> {
                                     || prb.id < prb.od * prb.sd
                                                     + (prb.kd - 1)
                                                             * (prb.dd + 1));
-                    auto x_dim = !prb.is_bwd_d ? prb_dims::od : prb_dims::id;
+                    auto x_dim = !prb.is_bwd_d ? pvars::od : pvars::id;
                     auto x = !prb.is_bwd_d ? prb.od : prb.id;
                     auto xas = !prb.is_bwd_d ? prb.sd : prb.sd == 1;
                     auto kx = prb.kd;
                     auto kxas = !prb.is_bwd_w ? prb.dd + 1 : prb.dd == 0;
                     s = write_strides(s, x_dim, i, x, xas, is_padded);
-                    s = write_strides(
-                            s, prb_dims::kd, i++, kx, kxas, is_padded);
+                    s = write_strides(s, pvars::kd, i++, kx, kxas, is_padded);
                 }
                 if (mdw.ndims() >= 4) {
                     bool is_padded = is_src
@@ -152,41 +151,39 @@ struct conv_stride_layout_t : public stride_layout_t<prb_dim_t> {
                                     || prb.ih < prb.oh * prb.sh
                                                     + (prb.kh - 1)
                                                             * (prb.dh + 1));
-                    auto x_dim = !prb.is_bwd_d ? prb_dims::oh : prb_dims::ih;
+                    auto x_dim = !prb.is_bwd_d ? pvars::oh : pvars::ih;
                     auto x = !prb.is_bwd_d ? prb.oh : prb.ih;
                     auto xas = !prb.is_bwd_d ? prb.sh : prb.sh == 1;
                     auto kx = prb.kh;
                     auto kxas = !prb.is_bwd_w ? prb.dh + 1 : prb.dh == 0;
                     s = write_strides(s, x_dim, i, x, xas, is_padded);
-                    s = write_strides(
-                            s, prb_dims::kh, i++, kx, kxas, is_padded);
+                    s = write_strides(s, pvars::kh, i++, kx, kxas, is_padded);
                 }
                 bool is_padded = is_src
                         && (prb.pw
                                 || prb.iw < prb.ow * prb.sw
                                                 + (prb.kw - 1) * (prb.dw + 1));
-                auto x_dim = !prb.is_bwd_d ? prb_dims::ow : prb_dims::iw;
+                auto x_dim = !prb.is_bwd_d ? pvars::ow : pvars::iw;
                 auto x = !prb.is_bwd_d ? prb.ow : prb.iw;
                 auto xas = !prb.is_bwd_d ? prb.sw : prb.sw == 1;
                 auto kx = prb.kw;
                 auto kxas = !prb.is_bwd_w ? prb.dw + 1 : prb.dw == 0;
                 s = write_strides(s, x_dim, i, x, xas, is_padded);
-                s = write_strides(s, prb_dims::kw, i++, kx, kxas, is_padded);
+                s = write_strides(s, pvars::kw, i++, kx, kxas, is_padded);
                 break;
             }
             case input_tensor_t::wei: {
                 int i = 0;
-                if (prb.with_groups)
-                    s = write_strides(s, prb_dims::g, i++, prb.g);
-                s = write_strides(s, prb_dims::oc, i++, prb.oc);
-                s = write_strides(s, prb_dims::ic, i++, prb.ic);
+                if (prb.with_groups) s = write_strides(s, pvars::g, i++, prb.g);
+                s = write_strides(s, pvars::oc, i++, prb.oc);
+                s = write_strides(s, pvars::ic, i++, prb.ic);
                 if (mdw.ndims() >= 5 + prb.with_groups) {
-                    s = write_strides(s, prb_dims::kd, i++, prb.kd);
+                    s = write_strides(s, pvars::kd, i++, prb.kd);
                 }
                 if (mdw.ndims() >= 4 + prb.with_groups) {
-                    s = write_strides(s, prb_dims::kh, i++, prb.kh);
+                    s = write_strides(s, pvars::kh, i++, prb.kh);
                 }
-                s = write_strides(s, prb_dims::kw, i++, prb.kw);
+                s = write_strides(s, pvars::kw, i++, prb.kw);
                 break;
             }
             default: assert("unimplemented");

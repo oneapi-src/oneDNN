@@ -185,26 +185,26 @@ private:
 using problem_t = dnnl::impl::gpu::intel::jit::v2::conv::problem_t;
 using kernel_desc_t = dnnl::impl::gpu::intel::jit::v2::conv::kernel_desc_t;
 using bench_data_t = dnnl::impl::gpu::intel::jit::v2::conv::bench_data_t;
-using prb_tile_t = dnnl::impl::gpu::intel::jit::prb_tile_t;
-namespace prb_dims = dnnl::impl::gpu::intel::jit::prb_dims;
+using pvar_tile_t = dnnl::impl::gpu::intel::jit::pvar_tile_t;
+namespace pvars = dnnl::impl::gpu::intel::jit::pvars;
 
 class bench_task_t : public bench_task_base_t {
 public:
     bench_task_t(const problem_t &prb) : prb_(prb) {
-        g = prb.shape()[prb_dims::g];
-        mb = prb.shape()[prb_dims::mb];
-        oc = prb.shape()[prb_dims::oc];
-        ic = prb.shape()[prb_dims::ic];
-        ih = prb.shape()[prb_dims::ih];
-        iw = prb.shape()[prb_dims::iw];
-        oh = prb.shape()[prb_dims::oh];
-        ow = prb.shape()[prb_dims::ow];
-        kh = prb.shape()[prb_dims::kh];
-        kw = prb.shape()[prb_dims::kw];
-        sh = prb.shape()[prb_dims::sh];
-        sw = prb.shape()[prb_dims::sw];
-        ph = prb.shape()[prb_dims::ph];
-        pw = prb.shape()[prb_dims::pw];
+        g = prb.shape()[pvars::g];
+        mb = prb.shape()[pvars::mb];
+        oc = prb.shape()[pvars::oc];
+        ic = prb.shape()[pvars::ic];
+        ih = prb.shape()[pvars::ih];
+        iw = prb.shape()[pvars::iw];
+        oh = prb.shape()[pvars::oh];
+        ow = prb.shape()[pvars::ow];
+        kh = prb.shape()[pvars::kh];
+        kw = prb.shape()[pvars::kw];
+        sh = prb.shape()[pvars::sh];
+        sw = prb.shape()[pvars::sw];
+        ph = prb.shape()[pvars::ph];
+        pw = prb.shape()[pvars::pw];
     }
 
     const problem_t &prb() const { return prb_; }
@@ -365,7 +365,7 @@ struct random_dim_t {
     int hi = 0;
     int tile = 0;
 
-    random_dim_t(const prb_dim_t &dim, int _tile) : tile(_tile) {}
+    random_dim_t(const pvar_t &dim, int _tile) : tile(_tile) {}
     random_dim_t with_range(int _lo, int _hi) {
         auto ret = *this;
         ret.lo = utils::div_up(_lo, tile);
@@ -404,47 +404,48 @@ random_dim_set_t operator|(const random_dim_t &a, const random_dim_set_t &b) {
     return random_dim_set_t(a) | b;
 }
 
-prb_tile_t random_shape(prop_kind_t prop, bool is_dw, const prb_tile_t &tile) {
-    auto make_random_dim = [&](const prb_dim_t &dim, int lo = 0, int hi = 0) {
+pvar_tile_t random_shape(
+        prop_kind_t prop, bool is_dw, const pvar_tile_t &tile) {
+    auto make_random_dim = [&](const pvar_t &dim, int lo = 0, int hi = 0) {
         auto ret = random_dim_t(dim, tile.get(dim, 1));
         return ret.with_range(lo, hi);
     };
-    auto make_random_dim_set = [&](const prb_dim_t &dim, int s, int m, int l) {
+    auto make_random_dim_set = [&](const pvar_t &dim, int s, int m, int l) {
         auto d = make_random_dim(dim);
         auto d_s = d.with_range(1, s);
         auto d_m = d.with_range(s + 1, m);
         auto d_l = d.with_range(m + 1, l);
         return d_s | d_m | d_l;
     };
-    prb_tile_t s = problem_t::default_shape();
+    pvar_tile_t s = problem_t::default_shape();
     if (is_dw) {
-        auto g = make_random_dim(prb_dims::g, 2, 512);
-        auto mb = make_random_dim(prb_dims::mb, 1, 16);
-        auto ow = make_random_dim(prb_dims::ow, 1, 512);
-        auto iw = make_random_dim(prb_dims::iw, 1, 512);
-        s[prb_dims::g] = g();
-        s[prb_dims::mb] = mb();
-        s[prb_dims::ic] = 1;
-        s[prb_dims::oc] = 1;
-        s[prb_dims::iw] = s[prb_dims::ow] = (ow.with_tile() ? ow() : iw());
+        auto g = make_random_dim(pvars::g, 2, 512);
+        auto mb = make_random_dim(pvars::mb, 1, 16);
+        auto ow = make_random_dim(pvars::ow, 1, 512);
+        auto iw = make_random_dim(pvars::iw, 1, 512);
+        s[pvars::g] = g();
+        s[pvars::mb] = mb();
+        s[pvars::ic] = 1;
+        s[pvars::oc] = 1;
+        s[pvars::iw] = s[pvars::ow] = (ow.with_tile() ? ow() : iw());
     } else {
-        auto mb = make_random_dim_set(prb_dims::mb, 1, 16, 128);
-        auto ic = make_random_dim_set(prb_dims::ic, 64, 512, 2048);
-        auto oc = make_random_dim_set(prb_dims::oc, 64, 512, 2048);
-        auto ow = make_random_dim_set(prb_dims::ow, 64, 512, 2048);
-        auto iw = make_random_dim_set(prb_dims::iw, 64, 512, 2048);
-        s[prb_dims::g] = 1;
-        s[prb_dims::mb] = mb();
-        s[prb_dims::ic] = ic();
-        s[prb_dims::oc] = oc();
-        s[prb_dims::iw] = s[prb_dims::ow] = (ow.with_tile() ? ow() : iw());
+        auto mb = make_random_dim_set(pvars::mb, 1, 16, 128);
+        auto ic = make_random_dim_set(pvars::ic, 64, 512, 2048);
+        auto oc = make_random_dim_set(pvars::oc, 64, 512, 2048);
+        auto ow = make_random_dim_set(pvars::ow, 64, 512, 2048);
+        auto iw = make_random_dim_set(pvars::iw, 64, 512, 2048);
+        s[pvars::g] = 1;
+        s[pvars::mb] = mb();
+        s[pvars::ic] = ic();
+        s[pvars::oc] = oc();
+        s[pvars::iw] = s[pvars::ow] = (ow.with_tile() ? ow() : iw());
     }
     return s;
 }
 
 double footprint(const layout_tag_t &src, const layout_tag_t &wei,
-        const layout_tag_t &dst, const prb_tile_t &shape) {
-#define GET(name) shape[prb_dims::name]
+        const layout_tag_t &dst, const pvar_tile_t &shape) {
+#define GET(name) shape[pvars::name]
     double src_elems
             = (double)GET(g) * GET(mb) * GET(ic) * GET(id) * GET(ih) * GET(iw);
     double wei_elems
@@ -459,9 +460,9 @@ double footprint(const layout_tag_t &src, const layout_tag_t &wei,
     return ret;
 }
 
-prb_tile_t expand_tile(
-        prop_kind_t prop, const prb_reqs_t &reqs, const prb_tile_t &_tile) {
-    prb_tile_t tile = _tile;
+pvar_tile_t expand_tile(
+        prop_kind_t prop, const prb_reqs_t &reqs, const pvar_tile_t &_tile) {
+    pvar_tile_t tile = _tile;
     for (auto &d : conv_index_dims(prop)) {
         int mod = reqs.max_factor(d);
         mod = math::lcm(mod, tile.get(d, 1));

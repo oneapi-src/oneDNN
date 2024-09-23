@@ -65,16 +65,16 @@ public:
 
     void add(const expr_t &e);
     void add(const prb_reqs_t &other);
-    void add(const prb_tile_t &tile);
-    void set(const prb_dim_t &dim, int value);
+    void add(const pvar_tile_t &tile);
+    void set(const pvar_t &dim, int value);
     // Mark the dimension as being divisible by any number - this changes
     // behavior of methods like can_prove() and max_factor().
-    void set_any_mod(const prb_dim_t &dim);
+    void set_any_mod(const pvar_t &dim);
     prover_t prover(const prb_reqs_t &parent, bool can_update = true);
 
     explicit operator bool() const { return !reqs_.empty(); }
     // Checks if the requirements are satisfied for the given problem sizes .
-    bool fits(const prb_tile_t &sizes) const;
+    bool fits(const pvar_tile_t &sizes) const;
     // Simplifies and eliminates redundant requirements.
     void simplify();
     // Checks if an expression/condition is an implication of the requirements.
@@ -82,13 +82,13 @@ public:
     // latter can be proven from the original requirements.
     bool can_prove(const expr_t &to_prove) const;
     bool can_prove(const req_impl_t &to_prove, bool use_any_mod = false) const;
-    bool get_value(const prb_dim_t &dim, int &value) const;
-    int max_factor(const prb_dim_t &dim) const;
-    bool is_equal(const prb_dim_t &dim, int value) const;
+    bool get_value(const pvar_t &dim, int &value) const;
+    int max_factor(const pvar_t &dim) const;
+    bool is_equal(const pvar_t &dim, int value) const;
     // Checks if other prb_reqs_t object is fully implied from the requirements
     // of this object.
     bool implies(const prb_reqs_t &other) const;
-    expr_t to_expr(const prb_dim_t &dim) const;
+    expr_t to_expr(const pvar_t &dim) const;
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
     std::string str() const;
@@ -113,7 +113,7 @@ private:
     std::vector<req_t> reqs_;
     // List of dimensions that are treated as having any arbitrary factors
     // during proving.
-    std::vector<prb_dim_t> any_mods_;
+    std::vector<pvar_t> any_mods_;
 };
 
 } // namespace v2

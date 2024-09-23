@@ -93,25 +93,26 @@ void prefetch_desc_t::parse(std::istream &in) {
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group) {
     bool is_wei = (tensor_kind == tensor_kind_t::wei);
-    dim_map_t<prb_dim_t, char> letter_map;
+    pvar_map_t<char> letter_map;
     for (auto &d : conv_layout_dims(tensor_kind, src_dst_with_group)) {
         char c = ' ';
-        switch (d.kind()) {
-            case prb_dim_kind_t::g: c = 'g'; break;
-            case prb_dim_kind_t::mb: c = 'n'; break;
-            case prb_dim_kind_t::ic: c = is_wei ? 'i' : 'c'; break;
-            case prb_dim_kind_t::oc: c = is_wei ? 'o' : 'c'; break;
-            case prb_dim_kind_t::id:
-            case prb_dim_kind_t::od: c = 'd'; break;
-            case prb_dim_kind_t::kd: c = is_wei ? 'd' : 'z'; break;
-            case prb_dim_kind_t::ih:
-            case prb_dim_kind_t::oh: c = 'h'; break;
-            case prb_dim_kind_t::kh: c = is_wei ? 'h' : 'y'; break;
-            case prb_dim_kind_t::iw:
-            case prb_dim_kind_t::ow: c = 'w'; break;
-            case prb_dim_kind_t::kw: c = is_wei ? 'w' : 'x'; break;
-            default: ir_error_not_expected();
-        }
+#define CASE(key, value) \
+    if (d == pvars::key) c = (value)
+        CASE(g, 'g');
+        CASE(mb, 'n');
+        CASE(ic, is_wei ? 'i' : 'c');
+        CASE(oc, is_wei ? 'o' : 'c');
+        CASE(id, 'd');
+        CASE(od, 'd');
+        CASE(kd, is_wei ? 'd' : 'z');
+        CASE(ih, 'h');
+        CASE(oh, 'h');
+        CASE(kh, is_wei ? 'h' : 'y');
+        CASE(iw, 'w');
+        CASE(ow, 'w');
+        CASE(kw, is_wei ? 'w' : 'x');
+#undef CASE
+        ir_assert(c != ' ');
         letter_map[d] = c;
     }
     return layout_desc_t(letter_map);
@@ -131,30 +132,24 @@ layout_desc_t make_conv_algo_layout_desc(
             break;
         default: ir_error_not_expected();
     }
-    dim_map_t<prb_dim_t, char> letter_map;
+    pvar_map_t<char> letter_map;
     bool is_src = (tensor_kind == tensor_kind_t::src);
-    prb_dim_t xd = (is_src ? prb_dims::od : prb_dims::id);
-    prb_dim_t xh = (is_src ? prb_dims::oh : prb_dims::ih);
-    prb_dim_t xw = (is_src ? prb_dims::ow : prb_dims::iw);
+    pvar_t xd = (is_src ? pvars::od : pvars::id);
+    pvar_t xh = (is_src ? pvars::oh : pvars::ih);
+    pvar_t xw = (is_src ? pvars::ow : pvars::iw);
     for (int i = 0; i < desc.ndims(); i++) {
         auto d = desc.prb_dim(i);
-        switch (d.kind()) {
-            case prb_dim_kind_t::id:
-            case prb_dim_kind_t::od:
-                letter_map[xd] = 'd';
-                letter_map[prb_dims::kd] = 'z';
-                break;
-            case prb_dim_kind_t::ih:
-            case prb_dim_kind_t::oh:
-                letter_map[xh] = 'h';
-                letter_map[prb_dims::kh] = 'y';
-                break;
-            case prb_dim_kind_t::iw:
-            case prb_dim_kind_t::ow:
-                letter_map[xw] = 'w';
-                letter_map[prb_dims::kw] = 'x';
-                break;
-            default: letter_map[d] = desc.layout_letter(d); break;
+        if (utils::one_of(d, pvars::id, pvars::od)) {
+            letter_map[xd] = 'd';
+            letter_map[pvars::kd] = 'z';
+        } else if (utils::one_of(d, pvars::ih, pvars::oh)) {
+            letter_map[xh] = 'h';
+            letter_map[pvars::kh] = 'y';
+        } else if (utils::one_of(d, pvars::iw, pvars::ow)) {
+            letter_map[xw] = 'w';
+            letter_map[pvars::kw] = 'x';
+        } else {
+            letter_map[d] = desc.layout_letter(d);
         }
     }
     return layout_desc_t(letter_map);
@@ -250,15 +245,15 @@ layout_tag_t make_conv_layout_tag(
     raw_tag = normalize_conv_tag(tensor_kind, conv_ndims, raw_tag);
     return layout_tag_t(desc, type, raw_tag);
 }
-prb_tile_t min_dims_tile(const problem_t &prb) {
-    prb_tile_t xd;
-    xd[prb_dims::id] = xd[prb_dims::od] = xd[prb_dims::kd] = 1;
-    xd[prb_dims::dd] = xd[prb_dims::pd] = 0;
-    xd[prb_dims::sd] = 1;
-    prb_tile_t xhd = xd;
-    xhd[prb_dims::ih] = xhd[prb_dims::oh] = xhd[prb_dims::kh] = 1;
-    xhd[prb_dims::dh] = xhd[prb_dims::ph] = 0;
-    xhd[prb_dims::sh] = 1;
+pvar_tile_t min_dims_tile(const problem_t &prb) {
+    pvar_tile_t xd;
+    xd[pvars::id] = xd[pvars::od] = xd[pvars::kd] = 1;
+    xd[pvars::dd] = xd[pvars::pd] = 0;
+    xd[pvars::sd] = 1;
+    pvar_tile_t xhd = xd;
+    xhd[pvars::ih] = xhd[pvars::oh] = xhd[pvars::kh] = 1;
+    xhd[pvars::dh] = xhd[pvars::ph] = 0;
+    xhd[pvars::sh] = 1;
     for (auto *t : {&xhd, &xd}) {
         bool ok = true;
         for (auto &d : *t) {
@@ -269,7 +264,7 @@ prb_tile_t min_dims_tile(const problem_t &prb) {
         }
         if (ok) return *t;
     }
-    return prb_tile_t();
+    return pvar_tile_t();
 }
 
 int estimate_grf_usage_bytes(const kernel_desc_t &desc) {
@@ -277,20 +272,20 @@ int estimate_grf_usage_bytes(const kernel_desc_t &desc) {
     int b_type_size = desc.b_type().size();
     int c_type_size = desc.c_type().size();
     auto iter = to_gemm(desc.iter_tile, desc.prop);
-    int b_iter = iter.at(prb_dims::b);
-    int m_iter = iter.at(prb_dims::m);
-    int n_iter = iter.at(prb_dims::n);
-    int k_iter = iter.at(prb_dims::k);
+    int b_iter = iter.at(pvars::b);
+    int m_iter = iter.at(pvars::m);
+    int n_iter = iter.at(pvars::n);
+    int k_iter = iter.at(pvars::k);
     int a_elems = b_iter * m_iter * k_iter;
     int b_elems = b_iter * k_iter * n_iter;
     int c_elems = m_iter * n_iter;
     auto iter_outer_dim
-            = (desc.iter_outer_tile.is_empty() ? prb_dims::undef
+            = (desc.iter_outer_tile.is_empty() ? pvar_t()
                                                : *desc.iter_outer_tile.begin());
     auto bmnk = to_gemm(iter_outer_dim, desc.prop);
-    if (bmnk == prb_dims::m) {
+    if (bmnk == pvars::m) {
         a_elems = utils::div_up(a_elems, desc.iter_outer_tile.elems());
-    } else if (bmnk == prb_dims::n) {
+    } else if (bmnk == pvars::n) {
         b_elems = utils::div_up(b_elems, desc.iter_outer_tile.elems());
     }
     int a_size = a_elems * a_type_size;
@@ -343,29 +338,29 @@ void kernel_desc_t::set_defaults() {
         switch (prop) {
             case prop_kind::forward_training:
             case prop_kind::forward_inference:
-                loop_desc.add(prb_dims::kw);
-                loop_desc.add(prb_dims::kh);
-                loop_desc.add(prb_dims::kd);
-                loop_desc.add(prb_dims::ic);
+                loop_desc.add(pvars::kw);
+                loop_desc.add(pvars::kh);
+                loop_desc.add(pvars::kd);
+                loop_desc.add(pvars::ic);
                 break;
             case prop_kind::backward_data:
-                loop_desc.add(prb_dims::kw);
-                loop_desc.add(prb_dims::kh);
-                loop_desc.add(prb_dims::kd);
-                loop_desc.add(prb_dims::oc);
+                loop_desc.add(pvars::kw);
+                loop_desc.add(pvars::kh);
+                loop_desc.add(pvars::kd);
+                loop_desc.add(pvars::oc);
                 break;
             case prop_kind::backward_weights:
-                loop_desc.add(prb_dims::mb);
-                loop_desc.add(prb_dims::ow);
-                loop_desc.add(prb_dims::oh);
-                loop_desc.add(prb_dims::od);
+                loop_desc.add(pvars::mb);
+                loop_desc.add(pvars::ow);
+                loop_desc.add(pvars::oh);
+                loop_desc.add(pvars::od);
                 break;
             default: ir_error_not_expected(); break;
         }
     }
     if (is_dw) {
-        reqs.set(prb_dims::ic, 1);
-        reqs.set(prb_dims::oc, 1);
+        reqs.set(pvars::ic, 1);
+        reqs.set(pvars::oc, 1);
     }
     if (prop == prop_kind::backward_weights && with_bias) {
         bia_tag = make_conv_layout_tag(tensor_kind_t::bia, "a");
@@ -380,7 +375,7 @@ void kernel_desc_t::finalize(const prb_reqs_t &final_reqs) {
 }
 
 bool fit_tag(tensor_kind_t kind, const layout_tag_t &desc_tag,
-        const layout_tag_t &prb_tag, const prb_tile_t &shape, bool exact,
+        const layout_tag_t &prb_tag, const pvar_tile_t &shape, bool exact,
         bool adjust) {
     auto &desc_type = desc_tag.type();
     auto &prb_type = prb_tag.type();
@@ -538,7 +533,7 @@ void init_kernel_info_div_magic(
 }
 
 void init_dispatch_kernel_info_div_magic(
-        kernel_info_t &kernel_info, const prb_tile_t &tg_dims) {
+        kernel_info_t &kernel_info, const pvar_tile_t &tg_dims) {
     for (auto &d : tg_dims) {
         uint32_t size = tg_dims.at(d);
         uint64_t magic = ir_utils::idiv_magicgu_packed(size);
@@ -613,28 +608,28 @@ grid_t create_thread_group_grid(const kernel_desc_t &desc) {
     grid_t grid("tg_idx");
     switch (desc.prop) {
         case prop_kind::forward:
-            grid.add_mapping(prb_dims::oc, 0);
-            grid.add_mapping(prb_dims::g, 1);
-            grid.add_mapping(prb_dims::od, 1);
-            grid.add_mapping(prb_dims::oh, 1);
-            grid.add_mapping(prb_dims::ow, 1);
-            grid.add_mapping(prb_dims::mb, 2);
+            grid.add_mapping(pvars::oc, 0);
+            grid.add_mapping(pvars::g, 1);
+            grid.add_mapping(pvars::od, 1);
+            grid.add_mapping(pvars::oh, 1);
+            grid.add_mapping(pvars::ow, 1);
+            grid.add_mapping(pvars::mb, 2);
             break;
         case prop_kind::backward_data:
-            grid.add_mapping(prb_dims::ic, 0);
-            grid.add_mapping(prb_dims::g, 1);
-            grid.add_mapping(prb_dims::id, 1);
-            grid.add_mapping(prb_dims::ih, 1);
-            grid.add_mapping(prb_dims::iw, 1);
-            grid.add_mapping(prb_dims::mb, 2);
+            grid.add_mapping(pvars::ic, 0);
+            grid.add_mapping(pvars::g, 1);
+            grid.add_mapping(pvars::id, 1);
+            grid.add_mapping(pvars::ih, 1);
+            grid.add_mapping(pvars::iw, 1);
+            grid.add_mapping(pvars::mb, 2);
             break;
         case prop_kind::backward_weights:
-            grid.add_mapping(prb_dims::oc, 0);
-            grid.add_mapping(prb_dims::ic, 1);
-            grid.add_mapping(prb_dims::kd, 1);
-            grid.add_mapping(prb_dims::kh, 1);
-            grid.add_mapping(prb_dims::kw, 1);
-            grid.add_mapping(prb_dims::g, 2);
+            grid.add_mapping(pvars::oc, 0);
+            grid.add_mapping(pvars::ic, 1);
+            grid.add_mapping(pvars::kd, 1);
+            grid.add_mapping(pvars::kh, 1);
+            grid.add_mapping(pvars::kw, 1);
+            grid.add_mapping(pvars::g, 2);
             break;
         default: ir_error_not_expected();
     }
@@ -645,20 +640,20 @@ grid_t create_thread_grid(const kernel_desc_t &desc) {
     grid_t grid("thr_idx");
     switch (desc.prop) {
         case prop_kind::forward:
-            grid.add_mapping(prb_dims::oc, 0);
-            grid.add_mapping(prb_dims::mb, 1);
-            grid.add_mapping(prb_dims::ow, 1);
-            grid.add_mapping(prb_dims::ic, 2);
+            grid.add_mapping(pvars::oc, 0);
+            grid.add_mapping(pvars::mb, 1);
+            grid.add_mapping(pvars::ow, 1);
+            grid.add_mapping(pvars::ic, 2);
             break;
         case prop_kind::backward_data:
-            grid.add_mapping(prb_dims::ic, 0);
-            grid.add_mapping(prb_dims::mb, 1);
-            grid.add_mapping(prb_dims::iw, 1);
-            grid.add_mapping(prb_dims::oc, 2);
+            grid.add_mapping(pvars::ic, 0);
+            grid.add_mapping(pvars::mb, 1);
+            grid.add_mapping(pvars::iw, 1);
+            grid.add_mapping(pvars::oc, 2);
             break;
         case prop_kind::backward_weights:
-            grid.add_mapping(prb_dims::oc, 0);
-            grid.add_mapping(prb_dims::ic, 1);
+            grid.add_mapping(pvars::oc, 0);
+            grid.add_mapping(pvars::ic, 1);
             break;
         default: ir_error_not_expected();
     }
@@ -678,7 +673,7 @@ status_t kernel_params_t::init_dispatch_kernel_info(
     for (auto &d : dims) {
         kernel_info.set_internal_arg(d.str(), dims.at(d));
     }
-    prb_tile_t tg_dims;
+    pvar_tile_t tg_dims;
     for (auto &d : tg_grid.all_dims()) {
         int tg_size = desc.thread_group_tile.get(d, 1);
         int iter_size = desc.iter_tile.get(d, 1);

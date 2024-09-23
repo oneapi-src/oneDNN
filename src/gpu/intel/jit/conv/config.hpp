@@ -506,10 +506,10 @@ public:
 
     std::string str() const override;
 
-    const std::vector<prb_dim_t> &index_dims() const override {
+    const std::vector<pvar_t> &index_dims() const override {
         return conv_index_dims(prb().prop_kind());
     }
-    prb_tile_t shape(bool pad) const override;
+    pvar_tile_t shape(bool pad) const override;
 
     std::string blocking_brief_str() const;
 
@@ -521,9 +521,9 @@ public:
     // compute and store, we still need to pad 8 to 32 and
     // spawn more thread groups to ensure 32c block is
     // properly zero-padded.
-    int pad_block(const prb_dim_t &d) const override;
+    int pad_block(const pvar_t &d) const override;
 
-    int unroll(const prb_dim_t &d) const { return unroll()(d); }
+    int unroll(const pvar_t &d) const { return unroll()(d); }
 
     int reserved_regs() const;
 
@@ -632,18 +632,18 @@ public:
         gemm_loop_ = to_gemm(cfg.loop_dims().get(), prb);
     }
 
-    int iter_dim(prb_dim_t d) const { return gemm_iter_.get(d, 1); }
+    int iter_dim(pvar_t d) const { return gemm_iter_.get(d, 1); }
 
-    int thread_group_dim(prb_dim_t d) const {
+    int thread_group_dim(pvar_t d) const {
         return gemm_thread_group_.get(d, 1);
     }
 
-    int loop_dim(prb_dim_t d) const { return gemm_loop_.get(d, 1); }
+    int loop_dim(pvar_t d) const { return gemm_loop_.get(d, 1); }
 
 private:
-    prb_tile_t gemm_iter_;
-    prb_tile_t gemm_thread_group_;
-    prb_tile_t gemm_loop_;
+    pvar_tile_t gemm_iter_;
+    pvar_tile_t gemm_thread_group_;
+    pvar_tile_t gemm_loop_;
 };
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
@@ -661,8 +661,8 @@ int default_regs(const conv_config_t &cfg);
 void init_kernel_grid(conv_config_t &cfg);
 void init_walk_order(conv_config_t &cfg);
 void init_thread_group_grid(conv_config_t &cfg);
-std::array<prb_tile_t, 3> get_kernel_grid_conv_dims(const conv_config_t &cfg);
-std::array<prb_tile_t, 3> get_thread_group_grid_conv_dims(
+std::array<pvar_tile_t, 3> get_kernel_grid_conv_dims(const conv_config_t &cfg);
+std::array<pvar_tile_t, 3> get_thread_group_grid_conv_dims(
         const conv_config_t &cfg);
 
 } // namespace jit

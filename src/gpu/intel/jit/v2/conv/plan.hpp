@@ -36,7 +36,7 @@ namespace conv {
 
 class coord_info_t {
 public:
-    void add_dim(const prb_dim_t &dim, bool is_loop, bool is_global_loop,
+    void add_dim(const pvar_t &dim, bool is_loop, bool is_global_loop,
             int tg_tile, const expr_t &thr_idx, int iter_tile,
             const prb_reqs_t &reqs) {
         auto &e = entries_[dim];
@@ -53,8 +53,8 @@ public:
                         type_t::s32(), e.dim.str() + "_loop_size");
                 e.is_global_loop = true;
             } else {
-                e.loop_size = binary_op_t::make(op_kind_t::_div_up,
-                        size_var(e.dim), tg_tile * iter_tile);
+                e.loop_size = binary_op_t::make(
+                        op_kind_t::_div_up, e.dim.var(), tg_tile * iter_tile);
             }
         }
         e.tg_idx = expr_t(0);
@@ -74,33 +74,31 @@ public:
         e.loop_size = simplify_rewrite(e.loop_size);
     }
 
-    std::vector<prb_dim_t> dims() const { return entries_.keys(); }
+    std::vector<pvar_t> dims() const { return entries_.keys(); }
 
-    bool is_loop(const prb_dim_t &dim) const {
-        return entries_.at(dim).is_loop();
-    }
-    bool is_global_loop(const prb_dim_t &dim) const {
+    bool is_loop(const pvar_t &dim) const { return entries_.at(dim).is_loop(); }
+    bool is_global_loop(const pvar_t &dim) const {
         return entries_.at(dim).is_global_loop;
     }
-    const expr_t &tg_index(const prb_dim_t &dim) const {
+    const expr_t &tg_index(const pvar_t &dim) const {
         return entries_.at(dim).tg_idx;
     }
-    const expr_t &thr_index(const prb_dim_t &dim) const {
+    const expr_t &thr_index(const pvar_t &dim) const {
         return entries_.at(dim).thr_idx;
     }
-    const expr_t &iter_index(const prb_dim_t &dim) const {
+    const expr_t &iter_index(const pvar_t &dim) const {
         return entries_.at(dim).iter_idx;
     }
-    const expr_t &loop_size(const prb_dim_t &dim) const {
+    const expr_t &loop_size(const pvar_t &dim) const {
         return entries_.at(dim).loop_size;
     }
-    const expr_t &loop_index(const prb_dim_t &dim) const {
+    const expr_t &loop_index(const pvar_t &dim) const {
         return entries_.at(dim).loop_idx;
     }
 
-    prb_coord_t<expr_t> iter_coord() const;
-    prb_coord_t<expr_t> tg_iter_coord() const;
-    prb_tile_t tg_iter_tile() const;
+    pvar_coord_t<expr_t> iter_coord() const;
+    pvar_coord_t<expr_t> tg_iter_coord() const;
+    pvar_tile_t tg_iter_tile() const;
 
     std::string str() const {
         std::ostringstream oss;
@@ -118,7 +116,7 @@ public:
 
 private:
     struct entry_t {
-        prb_dim_t dim;
+        pvar_t dim;
         expr_t tg_idx;
         expr_t thr_idx;
         expr_t iter_idx;
@@ -142,7 +140,7 @@ private:
         IR_DEFINE_DUMP()
     };
 
-    dim_map_t<prb_dim_t, entry_t> entries_;
+    pvar_map_t<entry_t> entries_;
 };
 
 class virt_grid_t {
@@ -286,7 +284,7 @@ struct fma_plan_t : public base_plan_t {
     layout_t a_layout;
     layout_t b_layout;
     layout_t c_layout;
-    prb_tile_t inst_tile;
+    pvar_tile_t inst_tile;
     fma_kind_t fma = fma_kind_t::undef;
     int simd = 0;
 
@@ -334,7 +332,7 @@ struct x2r_fma_plan_t : public base_plan_t {
         }
     };
 
-    prb_tile_t outer;
+    pvar_tile_t outer;
     layout_t c_layout;
     layout_t bia_layout;
     std::vector<stage_t> stages;
@@ -389,7 +387,7 @@ struct slm_reduce_plan_t : public base_plan_t {
     // C layout and tile coordinate after reduction and redistribution in
     // threadgroup.
     layout_t c_layout;
-    prb_coord_t<expr_t> c_coord;
+    pvar_coord_t<expr_t> c_coord;
 
     using base_plan_t::base_plan_t;
 
@@ -419,7 +417,7 @@ struct slm_reduce_plan_t : public base_plan_t {
 };
 
 struct epilogue_plan_t : public base_plan_t {
-    prb_tile_t tile;
+    pvar_tile_t tile;
     slm_reduce_plan_t slm_reduce;
     reorder_plan_t reorder;
     reorder_plan_t bia_reorder;

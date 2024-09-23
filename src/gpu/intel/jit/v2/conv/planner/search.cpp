@@ -129,11 +129,11 @@ inline std::vector<int> pow_range(int a, int b, int step) {
 }
 
 struct tile_info_t {
-    prb_dim_t dim;
+    pvar_t dim;
     tile_flags_t flags = tile_flags_t::undef;
 
     tile_info_t() = default;
-    tile_info_t(const prb_dim_t &dim) : dim(dim) {}
+    tile_info_t(const pvar_t &dim) : dim(dim) {}
 
     void add(tile_flags_t f) { flags = flags | f; }
 
@@ -187,27 +187,27 @@ public:
         }
     }
 
-    void unset(const prb_dim_t &dim) { tile_infos_.unset(dim); }
+    void unset(const pvar_t &dim) { tile_infos_.unset(dim); }
 
-    std::vector<prb_dim_t> dims() const { return tile_infos_.keys(); }
-    const tile_info_t &tile_info(const prb_dim_t &dim) const {
+    std::vector<pvar_t> dims() const { return tile_infos_.keys(); }
+    const tile_info_t &tile_info(const pvar_t &dim) const {
         return tile_infos_.at(dim);
     }
 
 private:
     void set(const std::string &key, const std::string &value) {
         if (key == "iter") {
-            auto dim = prb_dim_t::from_name(value);
+            auto dim = pvar_t::from_name(value);
             tile_infos_[dim].add(tile_flags_t::iter);
         } else if (key == "tg") {
-            auto dim = prb_dim_t::from_name(value);
+            auto dim = pvar_t::from_name(value);
             tile_infos_[dim].add(tile_flags_t::thread_group);
         } else {
             ir_error_not_expected();
         }
     }
 
-    dim_map_t<prb_dim_t, tile_info_t> tile_infos_;
+    pvar_map_t<tile_info_t> tile_infos_;
 };
 
 struct dim_tile_t {
@@ -232,15 +232,15 @@ std::ostream &operator<<(std::ostream &out, const dim_tile_t &tile) {
 }
 
 struct tiling_desc_t {
-    prb_tile_t iter;
-    prb_tile_t thread_group;
+    pvar_tile_t iter;
+    pvar_tile_t thread_group;
 
-    void set(const prb_dim_t &dim, const dim_tile_t &tile) {
+    void set(const pvar_t &dim, const dim_tile_t &tile) {
         if (tile.iter != 1) iter[dim] = tile.iter;
         if (tile.tg != 1) thread_group[dim] = tile.tg;
     }
 
-    void unset(const prb_dim_t &dim) {
+    void unset(const pvar_t &dim) {
         iter.unset(dim);
         thread_group.unset(dim);
     }
@@ -289,7 +289,7 @@ private:
     }
 
     static std::vector<dim_tile_t> get_dim_tiles(
-            const tile_scheme_t &scheme, const prb_dim_t &dim) {
+            const tile_scheme_t &scheme, const pvar_t &dim) {
         std::vector<dim_tile_t> ret;
         auto &info = scheme.tile_info(dim);
         auto iter_tiles = info.iter_tiles();
@@ -305,8 +305,8 @@ private:
         return ret;
     }
 
-    std::vector<prb_dim_t> dims_;
-    dim_map_t<prb_dim_t, std::vector<dim_tile_t>> tiles_;
+    std::vector<pvar_t> dims_;
+    pvar_map_t<std::vector<dim_tile_t>> tiles_;
 };
 
 std::vector<tile_scheme_t> get_tile_schemes(prop_kind_t prop, bool is_dw) {
@@ -330,10 +330,10 @@ std::vector<tile_scheme_t> get_tile_schemes(prop_kind_t prop, bool is_dw) {
     }
     for (auto &s : schemes) {
         if (is_dw) {
-            s.unset(prb_dims::ic);
-            s.unset(prb_dims::oc);
+            s.unset(pvars::ic);
+            s.unset(pvars::oc);
         } else {
-            s.unset(prb_dims::g);
+            s.unset(pvars::g);
         }
     }
     return schemes;
@@ -504,13 +504,12 @@ private:
         }
     }
 
-    static std::vector<prb_tile_t> generate_iter_outer_tiles(
+    static std::vector<pvar_tile_t> generate_iter_outer_tiles(
             const kernel_desc_t &desc) {
-        std::vector<prb_tile_t> tiles = {prb_tile_t()};
+        std::vector<pvar_tile_t> tiles = {pvar_tile_t()};
         for (auto &d : desc.iter_tile) {
-            auto bmnk = to_gemm(d, desc.prop).kind();
-            if (!utils::one_of(bmnk, prb_dim_kind_t::m, prb_dim_kind_t::n))
-                continue;
+            auto bmnk = to_gemm(d, desc.prop);
+            if (!utils::one_of(bmnk, pvars::m, pvars::n)) continue;
             for (int outer : {2, 4}) {
                 if (desc.iter_tile.at(d) % outer != 0) continue;
                 prb_tile_t tile_outer;

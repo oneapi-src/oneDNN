@@ -73,58 +73,53 @@ expr_t simplify_expr(const expr_t &_e) {
 }
 
 // Represents a product of dimensions.
-class dim_product_t {
+class pvar_product_t {
 public:
-    dim_product_t() = default;
-    explicit dim_product_t(const expr_t &e) : dims_(split(e)) {
-        std::sort(dims_.begin(), dims_.end(),
-                [](const prb_dim_t &a, const prb_dim_t &b) {
-                    return a.id() < b.id();
-                });
+    pvar_product_t() = default;
+    explicit pvar_product_t(const expr_t &e) : params_(split(e)) {
+        std::sort(params_.begin(), params_.end());
         // Duplicates are not expected.
         for (int i = 1; i < size(); i++) {
-            ir_assert(dims_[i] != dims_[i - 1]);
+            ir_assert(params_[i] != params_[i - 1]);
         }
     }
 
-    int size() const { return (int)dims_.size(); }
-    const prb_dim_t &operator[](int idx) const { return dims_[idx]; }
-    bool operator==(const dim_product_t &other) const {
-        return dims_ == other.dims_;
+    int size() const { return (int)params_.size(); }
+    const pvar_t &operator[](int idx) const { return params_[idx]; }
+    bool operator==(const pvar_product_t &other) const {
+        return params_ == other.params_;
     }
-    bool operator==(const prb_dim_t &dim) const {
-        return size() == 1 && (*this)[0] == dim;
+    bool operator==(const pvar_t &param) const {
+        return size() == 1 && (*this)[0] == param;
     }
-    bool operator!=(const dim_product_t &other) const {
+    bool operator!=(const pvar_product_t &other) const {
         return !operator==(other);
     }
 
-    int64_t to_int(const prb_tile_t &sizes) const {
+    int64_t to_int(const pvar_tile_t &sizes) const {
         int64_t value = 1;
-        for (auto &dim : dims_) {
-            value *= sizes.at(dim);
+        for (auto &param : params_) {
+            value *= sizes.at(param);
         }
         return value;
     }
 
     bool is_ge_1() const {
-        for (auto &dim : dims_) {
+        for (auto &param : params_) {
             // All dimensions take positive values except padding and dilation.
-            if (utils::one_of(dim, prb_dims::dd, prb_dims::dh, prb_dims::dw))
-                return false;
-            if (utils::one_of(dim, prb_dims::pd, prb_dims::ph, prb_dims::pw))
-                return false;
+            if (is_dilation(param)) return false;
+            if (is_padding(param)) return false;
         }
         return true;
     }
 
-    int substitute(const prb_tile_t &dim_sizes) {
+    int substitute(const pvar_tile_t &tile) {
         int factor = 1;
-        for (auto &d : dim_sizes) {
+        for (auto &p : tile) {
             for (int i = 0; i < size(); i++) {
-                if (dims_[i] == d) {
-                    dims_.erase(dims_.begin() + i);
-                    factor *= dim_sizes[d];
+                if (params_[i] == p) {
+                    params_.erase(params_.begin() + i);
+                    factor *= tile[p];
                     break;
                 }
             }
@@ -137,9 +132,9 @@ public:
     void stringify_impl(std::ostream &out, const std::string &sep = "*") const {
         ir_assert(size() > 0);
         bool is_first = true;
-        for (auto &dim : dims_) {
+        for (auto &p : params_) {
             if (!is_first) out << sep;
-            out << dim.str();
+            out << p.str();
             is_first = false;
         }
     }
@@ -149,13 +144,12 @@ public:
         auto parts = gpu_utils::split(s, "*");
         std::vector<expr_t> args;
         for (auto &p : parts) {
-            auto dim = prb_dim_t::from_name(p);
-            dims_.push_back(dim);
+            params_.push_back(pvar_t(p));
         }
     }
 
     std::string str() const {
-        if (dims_.empty()) return "(empty)";
+        if (params_.empty()) return "(empty)";
         std::ostringstream oss;
         stringify_impl(oss, " * ");
         return oss.str();
@@ -164,20 +158,21 @@ public:
     IR_DEFINE_DUMP()
 
 private:
-    static std::vector<prb_dim_t> split(const expr_t &e) {
-        if (auto *var = e.as_ptr<const_var_t>()) return {size_to_prb_dim(*var)};
+    static std::vector<pvar_t> split(const expr_t &e) {
+        if (auto *var = e.as_ptr<const_var_t>())
+            return {pvar_t::from_var(*var)};
         if (auto *op = e.as_ptr<binary_op_t>()) {
             ir_assert(op->op_kind == op_kind_t::_mul);
-            auto a_dims = split(op->a);
-            auto b_dims = split(op->b);
-            a_dims.insert(a_dims.end(), b_dims.begin(), b_dims.end());
-            return a_dims;
+            auto a_params = split(op->a);
+            auto b_params = split(op->b);
+            a_params.insert(a_params.end(), b_params.begin(), b_params.end());
+            return a_params;
         }
         ir_error_not_expected() << "Unknown expression: " << e;
         return {};
     }
 
-    std::vector<prb_dim_t> dims_;
+    std::vector<pvar_t> params_;
 };
 
 enum class req_kind_t : uint32_t {
@@ -207,18 +202,18 @@ public:
     }
 
     req_kind_t kind() const { return kind_; }
-    const dim_product_t &lhs() const { return lhs_; }
+    const pvar_product_t &lhs() const { return lhs_; }
     int rhs() const { return rhs_; }
 
-    void substitute(const prb_tile_t &dim_sizes) {
-        int factor = lhs_.substitute(dim_sizes);
+    void substitute(const pvar_tile_t &tile) {
+        int factor = lhs_.substitute(tile);
         ir_assert(rhs_ % factor == 0);
         rhs_ /= factor;
         if (lhs_.size() == 0) {
             // Fully reduced, check that the requirement evaluates to true and
             // reset it to skip later.
-            ir_assert(fits(prb_tile_t()));
-            lhs_ = dim_product_t();
+            ir_assert(fits(pvar_tile_t()));
+            lhs_ = pvar_product_t();
             rhs_ = 0;
             kind_ = req_kind_t::undef;
         }
@@ -228,7 +223,7 @@ public:
         return (kind_ == other.kind_) && (lhs_ == other.lhs_)
                 && (rhs_ == other.rhs_);
     }
-    bool fits(const prb_tile_t &sizes) const {
+    bool fits(const pvar_tile_t &sizes) const {
         int64_t lhs = lhs_.to_int(sizes);
         bool ret = false;
         switch (kind_) {
@@ -293,11 +288,11 @@ public:
                 kind_ = req_kind_t::mod_eq_0;
                 auto s_mod_lhs = s_lhs.substr(0, mod_pos);
                 auto s_mod_rhs = s_lhs.substr(mod_pos + 1);
-                lhs_ = jit::parse<dim_product_t>(s_mod_lhs);
+                lhs_ = jit::parse<pvar_product_t>(s_mod_lhs);
                 rhs_ = std::stoi(s_mod_rhs);
             } else {
                 kind_ = op;
-                lhs_ = jit::parse<dim_product_t>(s_lhs);
+                lhs_ = jit::parse<pvar_product_t>(s_lhs);
                 rhs_ = std::stoi(s_rhs);
             }
             return;
@@ -320,7 +315,7 @@ private:
         int b;
         if (!is_a_mod_b_eq_0(e, a, b)) return false;
         kind_ = req_kind_t::mod_eq_0;
-        lhs_ = dim_product_t(a);
+        lhs_ = pvar_product_t(a);
         rhs_ = b;
         return true;
     }
@@ -335,13 +330,13 @@ private:
             case op_kind_t::_le: kind_ = req_kind_t::le; break;
             default: return false;
         }
-        lhs_ = dim_product_t(op->a);
+        lhs_ = pvar_product_t(op->a);
         rhs_ = to_cpp<int>(op->b);
         return true;
     }
 
     req_kind_t kind_ = req_kind_t::undef;
-    dim_product_t lhs_;
+    pvar_product_t lhs_;
     int rhs_ = 0;
 };
 
@@ -359,18 +354,18 @@ void prb_reqs_t::add(const prb_reqs_t &other) {
         add_if_not_found(r.impl());
 }
 
-void prb_reqs_t::add(const prb_tile_t &tile) {
+void prb_reqs_t::add(const pvar_tile_t &tile) {
     for (auto &d : tile) {
         set(d, tile[d]);
     }
 }
 
-void prb_reqs_t::set(const prb_dim_t &dim, int value) {
-    add(size_var(dim) == value);
+void prb_reqs_t::set(const pvar_t &pvar, int value) {
+    add(pvar.var() == value);
 }
 
-void prb_reqs_t::set_any_mod(const prb_dim_t &dim) {
-    any_mods_.push_back(dim);
+void prb_reqs_t::set_any_mod(const pvar_t &pvar) {
+    any_mods_.push_back(pvar);
 }
 
 void prb_reqs_t::add_if_not_found(const req_impl_t &new_req) {
@@ -384,7 +379,7 @@ prover_t prb_reqs_t::prover(const prb_reqs_t &parent, bool can_update) {
     return prover_t(&parent, this, can_update);
 }
 
-bool prb_reqs_t::fits(const prb_tile_t &sizes) const {
+bool prb_reqs_t::fits(const pvar_tile_t &sizes) const {
     for (auto &r : reqs_) {
         ir_check(r.impl().fits(sizes));
     }
@@ -434,49 +429,58 @@ void prb_reqs_t::simplify() {
     int default_mod = 1;
     int default_low = 0;
     int default_high = std::numeric_limits<int>::max();
-    dim_map_t<prb_dim_t, int> low_bound;
-    dim_map_t<prb_dim_t, int> high_bound;
-    dim_map_t<prb_dim_t, int> mod;
-    dim_map_t<prb_dim_t, uint32_t> mask;
-    mod.fill_missing(default_mod);
-    low_bound.fill_missing(default_low);
-    high_bound.fill_missing(default_high);
-    mask.fill_missing(0);
+    std::unordered_set<pvar_t> seen;
+    for (auto &r : reqs_) {
+        auto &lhs = r.impl().lhs();
+        for (int i = 0; i < lhs.size(); i++) {
+            seen.insert(lhs[i]);
+        }
+    }
+    pvar_map_t<int> low_bound;
+    pvar_map_t<int> high_bound;
+    pvar_map_t<int> mod;
+    pvar_map_t<uint32_t> mask;
+    for (auto &pvar : seen) {
+        low_bound[pvar] = default_low;
+        high_bound[pvar] = default_high;
+        mod[pvar] = default_mod;
+        mask[pvar] = 0;
+    }
     // Collect low/high bounds and modulus information for individual
     // dimensions.
     for (auto &r : reqs_) {
         auto &ri = r.impl();
         if (ri.lhs().size() != 1) continue;
-        auto dim = ri.lhs()[0];
+        auto pvar = ri.lhs()[0];
         switch (ri.kind()) {
             case req_kind_t::mod_eq_0: {
-                int &f = mod[dim];
+                int &f = mod[pvar];
                 f = std::max(f, ri.rhs());
                 break;
             }
             case req_kind_t::eq:
-                low_bound[dim] = high_bound[dim] = ri.rhs();
+                low_bound[pvar] = high_bound[pvar] = ri.rhs();
                 break;
             case req_kind_t::le:
-                high_bound[dim] = std::min(high_bound[dim], ri.rhs());
+                high_bound[pvar] = std::min(high_bound[pvar], ri.rhs());
                 break;
             case req_kind_t::ge:
-                low_bound[dim] = std::max(low_bound[dim], ri.rhs());
+                low_bound[pvar] = std::max(low_bound[pvar], ri.rhs());
                 break;
             default: break;
         }
     }
     // Set masks based on known modulus information and bounds.
-    for (auto &dim : mask) {
-        if (mod[dim] != default_mod) {
-            mask[dim] |= static_cast<uint32_t>(req_kind_t::mod_eq_0);
+    for (auto &pvar : mask) {
+        if (mod[pvar] != default_mod) {
+            mask[pvar] |= static_cast<uint32_t>(req_kind_t::mod_eq_0);
         }
-        if (low_bound[dim] == high_bound[dim]) {
-            mask[dim] |= static_cast<uint32_t>(req_kind_t::eq);
-        } else if (low_bound[dim] != default_low) {
-            mask[dim] |= static_cast<uint32_t>(req_kind_t::ge);
-        } else if (high_bound[dim] != default_high) {
-            mask[dim] |= static_cast<uint32_t>(req_kind_t::le);
+        if (low_bound[pvar] == high_bound[pvar]) {
+            mask[pvar] |= static_cast<uint32_t>(req_kind_t::eq);
+        } else if (low_bound[pvar] != default_low) {
+            mask[pvar] |= static_cast<uint32_t>(req_kind_t::ge);
+        } else if (high_bound[pvar] != default_high) {
+            mask[pvar] |= static_cast<uint32_t>(req_kind_t::le);
         }
     }
     // Drop redundant requirements based on the collected restrictions.
@@ -501,10 +505,11 @@ void prb_reqs_t::simplify() {
                 if (ri.lhs().is_ge_1()) {
                     // (a * b <= C + x) => (a <= C) if a >= 1 and b >= 1.
                     for (int i = 0; i < ri.lhs().size(); i++) {
-                        auto dim = ri.lhs()[i];
-                        if (mask[dim] & static_cast<uint32_t>(req_kind_t::le)) {
-                            if (high_bound[dim] >= ri.rhs()) {
-                                mask[dim] &= ~static_cast<uint32_t>(
+                        auto pvar = ri.lhs()[i];
+                        if (mask[pvar]
+                                & static_cast<uint32_t>(req_kind_t::le)) {
+                            if (high_bound[pvar] >= ri.rhs()) {
+                                mask[pvar] &= ~static_cast<uint32_t>(
                                         req_kind_t::le);
                             }
                         }
@@ -517,8 +522,8 @@ void prb_reqs_t::simplify() {
                 if (ri.lhs().is_ge_1()) {
                     // (a >= C + x) => (a * b >= C) if a >= 1 and b >= 1.
                     for (int i = 0; i < ri.lhs().size(); i++) {
-                        auto dim = ri.lhs()[i];
-                        if (low_bound[dim] >= ri.rhs()) {
+                        auto pvar = ri.lhs()[i];
+                        if (low_bound[pvar] >= ri.rhs()) {
                             skip = true;
                             break;
                         }
@@ -530,28 +535,28 @@ void prb_reqs_t::simplify() {
         }
         new_reqs.emplace_back(ri);
     }
-    prb_tile_t fixed_dims;
+    pvar_tile_t fixed_pvars;
     // Add requirements for individual dimensions based on the modulus data and
     // bounds.
     for (auto &d : mask) {
         if (mask[d] & static_cast<uint32_t>(req_kind_t::mod_eq_0)) {
-            new_reqs.emplace_back(req_impl_t((size_var(d) % mod[d]) == 0));
+            new_reqs.emplace_back(req_impl_t((d.var() % mod[d]) == 0));
         }
         if (mask[d] & static_cast<uint32_t>(req_kind_t::eq)) {
-            fixed_dims[d] = low_bound[d];
-            new_reqs.emplace_back(req_impl_t(size_var(d) == low_bound[d]));
+            fixed_pvars[d] = low_bound[d];
+            new_reqs.emplace_back(req_impl_t(d.var() == low_bound[d]));
         }
         if (mask[d] & static_cast<uint32_t>(req_kind_t::ge)) {
-            new_reqs.emplace_back(req_impl_t(size_var(d) >= low_bound[d]));
+            new_reqs.emplace_back(req_impl_t(d.var() >= low_bound[d]));
         }
         if (mask[d] & static_cast<uint32_t>(req_kind_t::le)) {
-            new_reqs.emplace_back(req_impl_t(size_var(d) <= high_bound[d]));
+            new_reqs.emplace_back(req_impl_t(d.var() <= high_bound[d]));
         }
     }
     reqs_.clear();
     // Substitute exact values and add overwrite requirements.
     for (auto &r : new_reqs) {
-        if (r.impl().lhs().size() != 1) r.impl().substitute(fixed_dims);
+        if (r.impl().lhs().size() != 1) r.impl().substitute(fixed_pvars);
         if (r.impl().kind() == req_kind_t::undef) continue;
         reqs_.push_back(r);
     }
@@ -574,24 +579,23 @@ bool prb_reqs_t::can_prove(const req_impl_t &to_prove, bool use_any_mod) const {
     if (to_prove.kind() == req_kind_t::mod_eq_0) {
         int mod = 1;
         for (int i = 0; i < to_prove.lhs().size(); i++) {
-            auto &dim = to_prove.lhs()[i];
+            auto &lhs_pvar = to_prove.lhs()[i];
             if (use_any_mod) {
-                for (auto &d : any_mods_) {
-                    if (d == dim) return true;
+                for (auto &pvar : any_mods_) {
+                    if (pvar == lhs_pvar) return true;
                 }
             }
-            mod *= max_factor(dim);
+            mod *= max_factor(lhs_pvar);
         }
         if (mod % to_prove.rhs() == 0) return true;
     }
     return false;
 }
 
-bool prb_reqs_t::get_value(const prb_dim_t &dim, int &value) const {
-    auto var = size_var(dim);
+bool prb_reqs_t::get_value(const pvar_t &pvar, int &value) const {
     for (auto &r : reqs_) {
         auto &ri = r.impl();
-        if (ri.kind() == req_kind_t::eq && ri.lhs() == dim) {
+        if (ri.kind() == req_kind_t::eq && ri.lhs() == pvar) {
             value = ri.rhs();
             return true;
         }
@@ -599,20 +603,20 @@ bool prb_reqs_t::get_value(const prb_dim_t &dim, int &value) const {
     return false;
 }
 
-int prb_reqs_t::max_factor(const prb_dim_t &dim) const {
+int prb_reqs_t::max_factor(const pvar_t &pvar) const {
     int ret = 1;
     for (auto &r : reqs_) {
         auto &ri = r.impl();
-        if (ri.kind() == req_kind_t::mod_eq_0 && ri.lhs() == dim) {
+        if (ri.kind() == req_kind_t::mod_eq_0 && ri.lhs() == pvar) {
             ret = std::max(ret, ri.rhs());
         }
     }
     return ret;
 }
 
-bool prb_reqs_t::is_equal(const prb_dim_t &dim, int value) const {
-    int dim_value;
-    return get_value(dim, dim_value) && dim_value == value;
+bool prb_reqs_t::is_equal(const pvar_t &pvar, int value) const {
+    int pvar_value;
+    return get_value(pvar, pvar_value) && pvar_value == value;
 }
 
 bool prb_reqs_t::implies(const prb_reqs_t &other) const {
@@ -622,10 +626,10 @@ bool prb_reqs_t::implies(const prb_reqs_t &other) const {
     return true;
 }
 
-expr_t prb_reqs_t::to_expr(const prb_dim_t &dim) const {
-    int dim_value;
-    if (get_value(dim, dim_value)) return dim_value;
-    return size_var(dim);
+expr_t prb_reqs_t::to_expr(const pvar_t &pvar) const {
+    int pvar_value;
+    if (get_value(pvar, pvar_value)) return pvar_value;
+    return pvar.var();
 }
 
 const prover_t &prover_t::instance() {
