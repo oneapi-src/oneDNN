@@ -229,6 +229,12 @@ inline bool is_md_col32(const memory_desc_wrapper &md) {
     return false;
 }
 
+template <typename T,
+        typename = typename std::enable_if<std::is_integral_v<T>>::type>
+T ceildiv(T n, T d) {
+    return (n + d - 1) / d;
+}
+
 class cublas_error : virtual public std::runtime_error {
 
 protected:

@@ -18,15 +18,24 @@
 #ifndef GPU_NVIDIA_CUDNN_MATMUL_LT_HPP
 #define GPU_NVIDIA_CUDNN_MATMUL_LT_HPP
 
-#include "gpu/nvidia/cudnn_matmul_base.hpp"
+#include <cublas_v2.h>
+
+#include "gpu/gpu_matmul_pd.hpp"
+
+#include "common/primitive.hpp"
+#include "common/primitive_desc_iterator.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/nvidia/cudnn_matmul_executor.hpp"
+#include "gpu/nvidia/cudnn_matmul_lt_impl.hpp"
+#include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_matmul_lt_t : cudnn_matmul_base_t {
-    using cudnn_matmul_base_t::cudnn_matmul_base_t;
+struct cudnn_matmul_lt_t : public gpu::primitive_t {
+    using primitive_t::primitive_t;
 
     struct pd_t : public gpu_matmul_pd_t {
         using gpu_matmul_pd_t::gpu_matmul_pd_t;
@@ -160,6 +169,16 @@ struct cudnn_matmul_lt_t : cudnn_matmul_base_t {
             if (is_scale_ok(DNNL_ARG_DST)) {
                 CHECK(create_scale_binary_pd(engine, DNNL_ARG_DST));
             }
+
+            params_ = std::make_shared<cublas_lt_params>();
+            CHECK(params_->init(engine, src_md(), weights_md(), dst_md(),
+                    weights_md(1), attr(), batched(), with_bias()));
+
+            if (!params_->has_runtime_params()) {
+                auto scratchpad = scratchpad_registry().registrar();
+                params_->init_scratchpad(scratchpad);
+            }
+
             return status::success;
         }
 
@@ -167,6 +186,7 @@ struct cudnn_matmul_lt_t : cudnn_matmul_base_t {
         std::shared_ptr<primitive_desc_t> wei_scale_binary_pd_;
         std::shared_ptr<primitive_desc_t> dst_scale_binary_pd_;
         std::shared_ptr<primitive_desc_t> binary_pd_;
+        std::shared_ptr<cublas_lt_params> params_;
 
         memory_desc_t s32_dst_md_;
 
@@ -458,42 +478,42 @@ struct cudnn_matmul_lt_t : cudnn_matmul_base_t {
     status_t init(impl::engine_t *engine) override {
         // LT matmul
         matmul_impl_.reset(new cudnn_matmul_lt_impl_t());
-        auto status = matmul_impl_->init((matmul_pd_t *)pd(), engine);
 
-        bool has_runtime_args = matmul_impl_->has_runtime_params();
+        bool has_runtime_args = pd()->params_->has_runtime_params();
         if (has_runtime_args) {
             executor_.reset(new cudnn_matmul_lt_runtime_args_exec_t);
         } else if (!has_runtime_args) {
             executor_.reset(new cudnn_matmul_lt_exec_t);
+            matmul_impl_->set_non_runtime_params(pd()->params_);
         }
 
-        if (matmul_impl_->with_bias()) {
+        if (pd()->params_->with_bias_) {
             CHECK(create_nested_primitive(binary_, pd()->binary_pd_, engine));
         }
 
         if (!memory_desc_wrapper(pd()->src_md()).is_cublaslt_blocked_desc()
                 && !pd()->default_scale(DNNL_ARG_SRC)
-                && (matmul_impl_->multi_src_scale()
-                        || matmul_impl_->scale_type() == CUDA_R_32I)) {
+                && (pd()->params_->multi_src_scale_
+                        || pd()->params_->acc_type_ == CUDA_R_32I)) {
             CHECK(create_nested_primitive(
                     src_scale_binary_, pd()->src_scale_binary_pd_, engine));
         }
 
         if (!pd()->default_scale(DNNL_ARG_WEIGHTS)
-                && (matmul_impl_->multi_wei_scale()
-                        || matmul_impl_->scale_type() == CUDA_R_32I)) {
+                && (pd()->params_->multi_wei_scale_
+                        || pd()->params_->acc_type_ == CUDA_R_32I)) {
             CHECK(create_nested_primitive(
                     wei_scale_binary_, pd()->wei_scale_binary_pd_, engine));
         }
 
         if (!pd()->default_scale(DNNL_ARG_DST)
-                && (matmul_impl_->multi_dst_scale()
-                        || matmul_impl_->scale_type() == CUDA_R_32I)) {
+                && (pd()->params_->multi_dst_scale_
+                        || pd()->params_->acc_type_ == CUDA_R_32I)) {
             CHECK(create_nested_primitive(
                     dst_scale_binary_, pd()->dst_scale_binary_pd_, engine));
         }
 
-        return status;
+        return status::success;
     }
 
     status_t execute(const exec_ctx_t &ctx) const override;
