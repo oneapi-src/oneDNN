@@ -218,13 +218,13 @@ float dnn_mem_t::get_elem(int64_t idx, int buffer_index) const {
         case dnnl_s4: {
             dnnl::impl::nibble2_t nibble_pair(
                     reinterpret_cast<uint8_t *>(data)[idx / 2]);
-            elem = dnnl::impl::int4_t(nibble_pair.get(idx));
+            elem = dnnl::impl::int4_t(nibble_pair.get(idx % 2));
             break;
         }
         case dnnl_u4: {
             dnnl::impl::nibble2_t nibble_pair(
                     reinterpret_cast<uint8_t *>(data)[idx / 2]);
-            elem = dnnl::impl::uint4_t(nibble_pair.get(idx));
+            elem = dnnl::impl::uint4_t(nibble_pair.get(idx % 2));
             break;
         }
         case dnnl_f4_e2m1: {
