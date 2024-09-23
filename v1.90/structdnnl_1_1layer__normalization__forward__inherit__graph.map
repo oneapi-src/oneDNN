@@ -1,0 +1,4 @@
+<map id="dnnl::layer_normalization_forward" name="dnnl::layer_normalization_forward">
+<area shape="rect" id="node2" href="$classdnnl_1_1primitive.html" title="Base class for all computational primitives. " alt="" coords="41,95,158,121"/>
+<area shape="rect" id="node3" href="$classdnnl_1_1handle.html" title="dnnl::handle\&lt; dnnl\l_primitive_t \&gt;" alt="" coords="27,5,172,47"/>
+</map>

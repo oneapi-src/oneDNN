@@ -1,0 +1,151 @@
+.. index:: pair: struct; dnnl::inner_product_forward::desc
+.. _doxid-structdnnl_1_1inner__product__forward_1_1desc:
+
+struct dnnl::inner_product_forward::desc
+========================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for an inner product forward propagation primitive. :ref:`More...<details-structdnnl_1_1inner__product__forward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_inner_product_desc_t<doxid-structdnnl__inner__product__desc__t>` :target:`data<doxid-structdnnl_1_1inner__product__forward_1_1desc_1a729459ae01689af5c939082bae51db03>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1inner__product__forward_1_1desc_1a30dfb10aad7d4a2ed19761ae454643f3>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+			);
+	
+		:ref:`desc<doxid-structdnnl_1_1inner__product__forward_1_1desc_1a26f9ccb7d914078d1eee94634025edfe>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+			);
+	};
+.. _details-structdnnl_1_1inner__product__forward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for an inner product forward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1inner__product__forward_1_1desc_1a30dfb10aad7d4a2ed19761ae454643f3:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+		)
+
+Constructs a descriptor for an inner product forward propagation primitive with bias.
+
+.. note:: 
+
+   All the memory descriptors may be initialized with the :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::forward_training <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa24775787fab8f13aa4809e1ce8f82aeb>`, and :ref:`dnnl::prop_kind::forward_inference <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa3b9fad4f80d45368f856b5403198ac4c>`.
+
+	*
+		- src_desc
+
+		- Memory descriptor for src.
+
+	*
+		- weights_desc
+
+		- Memory descriptor for weights.
+
+	*
+		- bias_desc
+
+		- Memory descriptor for bias.
+
+	*
+		- dst_desc
+
+		- Memory descriptor for dst.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1inner__product__forward_1_1desc_1a26f9ccb7d914078d1eee94634025edfe:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+		)
+
+Constructs a descriptor for an inner product forward propagation primitive without bias.
+
+.. note:: 
+
+   All the memory descriptors may be initialized with the :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::forward_training <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa24775787fab8f13aa4809e1ce8f82aeb>`, and :ref:`dnnl::prop_kind::forward_inference <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa3b9fad4f80d45368f856b5403198ac4c>`.
+
+	*
+		- src_desc
+
+		- Memory descriptor for src.
+
+	*
+		- weights_desc
+
+		- Memory descriptor for weights.
+
+	*
+		- dst_desc
+
+		- Memory descriptor for dst.
+
