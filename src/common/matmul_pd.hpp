@@ -170,10 +170,20 @@ struct matmul_pd_t : public primitive_desc_t {
             if (sc.has_default_values()) { continue; }
 
             if (arg == DNNL_ARG_WEIGHTS) {
+                const bool wei_k_group_ok
+                        = IMPLICATION(sc.ndims_ == 2 && sc.group_dims_[0] > 1,
+                                K() % sc.group_dims_[0] == 0);
+                const bool wei_n_group_ok
+                        = IMPLICATION(sc.ndims_ == 2 && sc.group_dims_[1] > 1,
+                                N() % sc.group_dims_[1] == 0);
+
+                // Any group is allowed to be greater than 1 but only one at a
+                // time, not both.
                 ok = ok && utils::one_of(sc.ndims_, 0, 2)
                         && IMPLICATION(sc.ndims_ == 2,
-                                sc.group_dims_[1] == 1
-                                        && K() % sc.group_dims_[0] == 0);
+                                utils::one_of(
+                                        1, sc.group_dims_[0], sc.group_dims_[1])
+                                        && wei_k_group_ok && wei_n_group_ok);
             } else if (arg == DNNL_ARG_SRC) {
                 ok = ok
                         && utils::one_of(mask, 0, src_qmask_K(),

@@ -118,6 +118,17 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         VCHECK_MATMUL_UNIMPL(IMPLICATION(src_scale_group_k > 1,
                                      src_is_int8 && groups_are_divisible),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+        // Groups per N are solely for weights decompression as it's impossible
+        // to get performant kernel for a single `k` element in chain for
+        // regular quantized case.
+        const auto wei_scale_group_n
+                = (mask_wei & wei_qmask_N) && sc_wei.ndims_ > 0
+                ? sc_wei.group_dims_[1]
+                : 1;
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_scale_group_n > 1, attr->fpmath_.apply_to_int_),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
     // Check zero points
