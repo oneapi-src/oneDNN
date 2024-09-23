@@ -37,13 +37,14 @@ uint get_dropout_threshold(float p) {
 __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
         __global DST_DATA_T *C, __global BIA_DATA_T *bia, __global int *a0,
         __global WEI_ZP_DATA_T *b0, long wei_zp_stride_n, long wei_zp_stride_k,
-        long wei_zp_stride_d0, long wei_zp_stride_d1, long wei_zp_group_k,
-        __global int *c0, __global SRC_SCALES_DATA_T *src_scales,
-        long src_scale_stride_k, long src_scale_stride_m,
-        long src_scale_stride_d0, long src_scale_stride_d1,
-        long src_scale_group_k, __global WEI_SCALES_DATA_T *wei_scales,
-        long wei_scale_stride_n, long wei_scale_stride_k,
-        long wei_scale_stride_d0, long wei_scale_stride_d1,
+        long wei_zp_stride_d0, long wei_zp_stride_d1, long wei_zp_group_n,
+        long wei_zp_group_k, __global int *c0,
+        __global SRC_SCALES_DATA_T *src_scales, long src_scale_stride_k,
+        long src_scale_stride_m, long src_scale_stride_d0,
+        long src_scale_stride_d1, long src_scale_group_k,
+        __global WEI_SCALES_DATA_T *wei_scales, long wei_scale_stride_n,
+        long wei_scale_stride_k, long wei_scale_stride_d0,
+        long wei_scale_stride_d1, long wei_scale_group_n,
         long wei_scale_group_k, __global DST_SCALES_DATA_T *dst_scales,
         long group_K, long K, long N, long M, long D0, long D1, long D2,
         long bia_stride_d3, long bia_stride_d2, long bia_stride_d1,
@@ -135,7 +136,7 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
 #endif
                 int wei_zp = 0;
 #if WITH_WEI_ZPOINTS
-                long wei_zp_off = wei_zp_stride_n * n
+                long wei_zp_off = wei_zp_stride_n * (n / wei_zp_group_n)
                         + wei_zp_stride_k * (k / wei_zp_group_k)
                         + wei_zp_stride_d0 * d0 + wei_zp_stride_d1 * d1;
                 wei_zp = WEI_ZP_TO_REF(b0, wei_zp_off);
@@ -164,7 +165,7 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
             src_scale = SRC_SCALES_TO_REF(src_scales[src_scale_off]);
 #endif
 #if WITH_WEI_SCALES
-            long wei_scale_off = wei_scale_stride_n * n
+            long wei_scale_off = wei_scale_stride_n * (n / wei_scale_group_n)
                     + wei_scale_stride_k * (g * group_K / wei_scale_group_k)
                     + wei_scale_stride_d0 * d0 + wei_scale_stride_d1 * d1;
             wei_scale = WEI_SCALES_TO_REF(wei_scales[wei_scale_off]);

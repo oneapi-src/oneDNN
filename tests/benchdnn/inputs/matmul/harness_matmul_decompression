@@ -79,8 +79,8 @@
 --reset
 --dt=bf16:s8:bf16,bf16:u8:bf16
 --wtag=any,abcd,abdc
---attr-scales=wei:per_tensor:bf16:128x1
---attr-zero-points=wei:per_tensor:u8:128x1
+--attr-scales=wei:per_tensor:bf16:128x1,wei:per_tensor:bf16:1x128
+--attr-zero-points=wei:per_tensor:u8:128x1,wei:per_tensor:u8:1x128
 --attr-fpmath=bf16:true
 2x3x5x512:2x3x512x1024
 
@@ -141,16 +141,16 @@
 --reset
 --dt=bf16:s4:bf16,bf16:u4:bf16
 --wtag=any,abcd,abdc
---attr-scales=wei:per_tensor:bf16:128x1
---attr-zero-points=wei:per_tensor:u4:128x1
+--attr-scales=wei:per_tensor:bf16:128x1,wei:per_tensor:bf16:1x128
+--attr-zero-points=wei:per_tensor:u4:128x1,wei:per_tensor:u4:1x128
 --attr-fpmath=bf16:true
 2x3x5x512:2x3x512x1024
 
 --reset
 --dt=f16:s4:f16,f16:u4:f16
 --wtag=any,abcd,abdc
---attr-scales=wei:per_tensor:f16:128x1
---attr-zero-points=wei:per_tensor:u4:128x1
+--attr-scales=wei:per_tensor:f16:128x1,wei:per_tensor:f16:1x128
+--attr-zero-points=wei:per_tensor:u4:128x1,wei:per_tensor:u4:1x128
 --attr-fpmath=f16:true
 2x3x5x512:2x3x512x1024
 
@@ -187,7 +187,7 @@
 
 --wtag=any,abcd,abdc
 --dt=s8:s4:f16
---attr-scales=src:per_tensor:f16:1x256+wei:per_tensor:f16:128x1
+--attr-scales=src:per_ocic:f16:1x256+wei:per_tensor:f16:128x1
 --attr-zero-points=wei:per_tensor:s4:128x1 # groups matches scales groups
 2x3x4x256:2x3x256x64
 2x3x6x256:2x3x256x100

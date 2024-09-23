@@ -154,6 +154,12 @@ struct ref_matmul_t : public gpu_primitive_t {
                     = attr()->zero_points_.get_groups_ndims(DNNL_ARG_WEIGHTS);
             const auto wei_group_dims
                     = attr()->zero_points_.get_groups(DNNL_ARG_WEIGHTS);
+            const bool wei_k_group_ok
+                    = IMPLICATION(wei_group_ndims == 2 && wei_group_dims[0] > 1,
+                            K() % wei_group_dims[0] == 0);
+            const bool wei_n_group_ok
+                    = IMPLICATION(wei_group_ndims == 2 && wei_group_dims[1] > 1,
+                            N() % wei_group_dims[1] == 0);
 
             bool mask_src_ok = mask_src == 0;
             bool mask_dst_ok = mask_dst == 0;
@@ -161,8 +167,9 @@ struct ref_matmul_t : public gpu_primitive_t {
             return mask_src_ok && mask_dst_ok
                     && utils::one_of(wei_group_ndims, 0, 2)
                     && IMPLICATION(wei_group_ndims == 2,
-                            wei_group_dims[1] == 1
-                                    && K() % wei_group_dims[0] == 0);
+                            utils::one_of(
+                                    1, wei_group_dims[0], wei_group_dims[1])
+                                    && wei_k_group_ok && wei_n_group_ok);
         }
     };
 

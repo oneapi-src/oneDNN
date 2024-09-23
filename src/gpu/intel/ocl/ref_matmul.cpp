@@ -90,12 +90,16 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto wei_scale_group_k = wei_scale_group_ndim > 0
             ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0]
             : (wei_scale_per_k ? 1 : K);
+    const auto wei_scale_group_n = wei_scale_group_ndim > 0
+            ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[1]
+            : 1;
     const auto wei_scale_ngroups_k = K / wei_scale_group_k;
     // Identify wei_scales dimensions as user may not pass them.
     dims_t wei_scale_dims {};
     dims_t wei_scale_strides {};
     utils::copy_dims_with_mask(
             wei_scale_dims, b_d.dims(), b_d.ndims(), wei_scale_mask);
+    wei_scale_dims[b_d.ndims() - 1] /= wei_scale_group_n;
     wei_scale_dims[b_d.ndims() - 2] /= wei_scale_group_k;
 
     dim_t last_scale_dim = 0;
@@ -156,12 +160,16 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto wei_zp_group_k = wei_zp_group_ndims > 0
             ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
             : (wei_zp_per_k ? 1 : K);
+    const auto wei_zp_group_n = wei_zp_group_ndims > 0
+            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[1]
+            : 1;
     const auto wei_zp_ngroups_k = K / wei_zp_group_k;
     // Identify wei_zp dimensions as user may not pass them.
     dims_t wei_zp_dims {};
     dims_t wei_zp_strides {};
     utils::copy_dims_with_mask(
             wei_zp_dims, b_d.dims(), b_d.ndims(), wei_zp_mask);
+    wei_zp_dims[b_d.ndims() - 1] /= wei_zp_group_n;
     wei_zp_dims[b_d.ndims() - 2] /= wei_zp_group_k;
 
     dim_t last_zp_dim = 0;
@@ -204,6 +212,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(arg_idx++, wei_zp_stride_k);
     arg_list.set(arg_idx++, wei_zp_stride_b0);
     arg_list.set(arg_idx++, wei_zp_stride_b1);
+    arg_list.set(arg_idx++, wei_zp_group_n);
     arg_list.set(arg_idx++, wei_zp_group_k);
     arg_list.set(arg_idx++, c0);
     arg_list.set(arg_idx++, src_scales);
@@ -217,6 +226,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(arg_idx++, wei_scale_stride_k);
     arg_list.set(arg_idx++, wei_scale_stride_b0);
     arg_list.set(arg_idx++, wei_scale_stride_b1);
+    arg_list.set(arg_idx++, wei_scale_group_n);
     arg_list.set(arg_idx++, wei_scale_group_k);
     arg_list.set(arg_idx++, dst_scales);
     arg_list.set(arg_idx++, group_K);
