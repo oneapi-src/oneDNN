@@ -217,8 +217,8 @@ __kernel void generic_reorder(__global SRC_DATA_T *restrict src,
                     ? dst_scales[dst_scale_idx]
                     : 0.0;
 #endif
-            REORDER(dst_tmp, from_cache, src_scale, dst_scale, sum_scale,
-                    src_zp, dst_zp, sum_zp);
+            REORDER(DEFAULT_ROUND, dst_tmp, from_cache, src_scale, dst_scale,
+                    sum_scale, src_zp, dst_zp, sum_zp);
             dst[dst_off] = dst_tmp;
         }
     }

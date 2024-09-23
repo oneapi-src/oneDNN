@@ -297,43 +297,54 @@
 #endif
 
 #if WITH_SUM_MOD
-#define REORDER(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
+#define REORDER(round, _dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         const float _x = SRC_TO_REF(_src); \
         const float _y = DST_TO_REF(_dst); \
         const float _s = AXPY(_x, _y, _a, _b, _c, _x0, _y0, _z0); \
-        _dst = TO_DST(_s); \
+        _dst = TO_DST(round(_s)); \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
+#define REORDER8(round8, _dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
         const float8 _y = convert_float8(DST_TO_REF8(_dst)); \
         const float8 _s = AXPY(_x, _y, _a, _b, _c, _x0, _y0, _z0); \
-        _dst = TO_DST8(_s); \
+        _dst = TO_DST8(round8(_s)); \
     } while (0)
 #elif WITH_SRC_MOD || WITH_DST_MOD
-#define REORDER(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
+#define REORDER(round, _dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         const float _x = SRC_TO_REF(_src); \
         const float _s = AXPY(_x, 0.f, _a, _b, _c, _x0, _y0, _z0); \
-        _dst = TO_DST(_s); \
+        _dst = TO_DST(round(_s)); \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
+#define REORDER8(round8, _dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         const float8 _x = convert_float8(SRC_TO_REF8(_src)); \
         const float8 _s = AXPY(_x, 0.f, _a, _b, _c, _x0, _y0, _z0); \
-        _dst = TO_DST8(_s); \
+        _dst = TO_DST8(round8(_s)); \
+    } while (0)
+#elif WITH_SROUND
+#define REORDER(round, _dst, _src, _a, _b, _c, _x0, _y0, _z0) \
+    do { \
+        _dst = TO_DST(round(SRC_TO_REF(_src))); \
+    } while (0)
+#define REORDER8(round8, _dst, _src, _a, _b, _c, _x0, _y0, _z0) \
+    do { \
+        _dst = TO_DST8(round8(SRC_TO_REF8(_src)); \
     } while (0)
 #else
-#define REORDER(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
+#define REORDER(round, _dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         _dst = SRC_TO_DST(_src); \
     } while (0)
-#define REORDER8(_dst, _src, _a, _b, _c, _x0, _y0, _z0) \
+#define REORDER8(round8, _dst, _src, _a, _b, _c, _x0, _y0, _z0) \
     do { \
         _dst = SRC_TO_DST8(_src); \
     } while (0)
 #endif // WITH_SUM_MOD
+
+#define DEFAULT_ROUND(f) f
 
 #if WITH_SRC_SCALE || WITH_DST_SCALE
 #define MASK_DIM(prefix, dim) ((CONCAT2(prefix, _SCALE_MASK) >> dim) & 1)

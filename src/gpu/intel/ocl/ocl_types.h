@@ -1909,8 +1909,7 @@ float stochastic_round_fwd(float s, long idx, uint seed) {
     r = fmin(fmax((float)DST_DATA_FMIN, r), (float)DST_DATA_FMAX);
     if (r > 0 && r < FLT_MIN) r = 0;
     if (r < 0 && r > -FLT_MIN) r = 0;
-    printf("%f %f %u\n", s, r, seed);
-    return s;
+    return r;
 }
 #endif
 
