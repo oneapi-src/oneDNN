@@ -47,6 +47,12 @@ int rnd_down(int a, unsigned int b) {
 #define MATH_UTILS_DECLARE_HF8 1
 #endif
 
+#if DT_F4_E2M1 || SRC_DT_F4_E2M1 || WEI_DT_F4_E2M1 || DST_DT_F4_E2M1 \
+        || BIA_DT_F4_E2M1 || A_DT_F4_E2M1 || A_DT_F4_E2M1 || B_DT_F4_E2M1 \
+        || C_DT_F4_E2M1 || DATA_DT_F4_E2M1 || POST_OP_USING_F4_E2M1
+#define MATH_UTILS_DECLARE_F4_E2M1 1
+#endif
+
 #if DT_S4 || SRC_DT_S4 || WEI_DT_S4 || DST_DT_S4 || BIA_DT_S4 || A_DT_S4 \
         || B_DT_S4 || C_DT_S4 || DATA_DT_S4 || WEI_ZP_DT_S4 || SRC_ZP_DT_S4
 #define MATH_UTILS_DECLARE_S4 1
@@ -738,6 +744,38 @@ float __attribute__((overloadable)) cvt_s4_to_s32(char a) {
     return convert_int_sat_rte(val);
 }
 
+#endif
+
+#if MATH_UTILS_DECLARE_F4_E2M1
+
+uchar __attribute__((overloadable)) cvt_f32_to_f4_e2m1(float a) {
+    // Rounding boundaries
+    const ushort8 boundaries
+            = {0x800, 0x3e8, 0x3f4, 0x3fa, 0x3fe, 0x402, 0x406, 0x40a};
+    ushort b = as_uint(a) >> 20;
+    ushort val = b & 0x7ff;
+    short cmp_mask = (val & 0x7f8) != 0x7f8;
+    short8 gt = (val > boundaries) & cmp_mask;
+    short4 eq = (val == boundaries.s0246) & cmp_mask;
+    short4 r0 = gt.s0123 + gt.s4567 + eq;
+    short2 r1 = r0.s01 + r0.s23;
+    uchar sign = (b >> 8) & (cmp_mask << 3);
+    return sign | (uchar)(r1.s0 + r1.s1);
+}
+
+float __attribute__((overloadable)) cvt_f4_e2m1_to_f32(uchar a) {
+    uint sign = a & 0x08;
+    uint em = a & 0x07;
+    uint exp = em >> 1;
+    uint mant = exp ? a & 0x01 : 0x0;
+    if (em) exp += 126; // No f4 values are subnormal in f32
+    return as_float((sign << 28) | (exp << 23) | (mant << 22));
+}
+
+#endif
+
+#if MATH_UTILS_DECLARE_S4 || MATH_UTILS_DECLARE_U4 || MATH_UTILS_DECLARE_F4_E2M1
+
 uchar __attribute__((overloadable)) get_half_byte(__global uchar *x, off_t y) {
     uchar ret = 0;
     if (y % 2) {
@@ -747,6 +785,7 @@ uchar __attribute__((overloadable)) get_half_byte(__global uchar *x, off_t y) {
     }
     return ret;
 }
+
 char __attribute__((overloadable)) get_half_byte(__global char *x, off_t y) {
     if (y % 2) {
         return (x[y / 2] & 0xf0) >> 4;
@@ -754,13 +793,17 @@ char __attribute__((overloadable)) get_half_byte(__global char *x, off_t y) {
         return x[y / 2] & 0x0f;
     }
 }
+
 void __attribute__((overloadable))
 set_double_half_byte(__global uchar *x, off_t y, uchar z) {
     x[y / 2] = z;
 }
+
 void __attribute__((overloadable))
 set_double_half_byte(__global char *x, off_t y, uchar z) {
     x[y / 2] = z;
 }
+
 #endif
+
 #endif

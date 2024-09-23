@@ -60,26 +60,21 @@ struct custom_reorder_t : public gpu_primitive_t {
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
                     dst_engine->kind() == engine_kind::gpu ? dst_engine
                                                            : src_engine);
+            using namespace data_type;
+            auto sdt = src_md()->data_type;
+            auto ddt = dst_md()->data_type;
             VDISPATCH_REORDER(
-                    IMPLICATION(utils::one_of(dst_md()->data_type,
-                                        data_type::f8_e4m3, data_type::f8_e5m2),
-                            utils::one_of(src_md()->data_type, data_type::f32,
-                                    data_type::f16, data_type::bf16,
-                                    data_type::f64))
-                            && IMPLICATION(utils::one_of(src_md()->data_type,
-                                                   data_type::f8_e4m3,
-                                                   data_type::f8_e5m2),
-                                    utils::one_of(dst_md()->data_type,
-                                            data_type::f32, data_type::f16,
-                                            data_type::bf16, data_type::f64)),
+                    utils::one_of(sdt, f32, f16, f8_e5m2, f8_e4m3, s32, s8, u8),
                     VERBOSE_UNSUPPORTED_DT);
-
             VDISPATCH_REORDER(
-                    !(utils::one_of(data_type::s4, dst_md()->data_type,
-                              src_md()->data_type)
-                            || utils::one_of(data_type::u4, dst_md()->data_type,
-                                    src_md()->data_type)),
+                    utils::one_of(ddt, f32, f16, f8_e5m2, f8_e4m3, s32, s8, u8),
                     VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_REORDER(IMPLICATION(utils::one_of(ddt, f8_e4m3, f8_e5m2),
+                                      utils::one_of(sdt, f32, f16, bf16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_REORDER(IMPLICATION(utils::one_of(sdt, f8_e4m3, f8_e5m2),
+                                      utils::one_of(ddt, f32, f16, bf16)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
 
             VDISPATCH_REORDER(!memory_desc_ndims_ok(src_md(), dst_md()),
                     VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
@@ -87,19 +82,13 @@ struct custom_reorder_t : public gpu_primitive_t {
                                       compute::device_ext_t::intel_subgroups),
                     VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroups");
             VDISPATCH_REORDER(
-                    IMPLICATION(
-                            utils::one_of(data_type::f16, src_md()->data_type,
-                                    dst_md()->data_type),
+                    IMPLICATION(utils::one_of(f16, sdt, ddt),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16)
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
                                                     intel_subgroups_short)),
                     VERBOSE_UNSUPPORTED_DT_CFG);
-            VDISPATCH_REORDER(
-                    (!utils::one_of(data_type::f64, src_md()->data_type,
-                            dst_md()->data_type)),
-                    VERBOSE_UNSUPPORTED_DT);
 
             VDISPATCH_REORDER_SC(init_conf(engine),
                     VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
