@@ -85,6 +85,7 @@ void compute_ref(
         value = maybe_saturate(dst_dt, value);
         if (dst_dt == dnnl_s32 && value >= (float)INT_MAX)
             value = BENCHDNN_S32_TO_F32_SAT_CONST;
+        maybe_round(prb->attr, DNNL_ARG_DST, value, idx, dst_dt);
 
         dst.set_elem(idx, round_to_nearest_representable(dst_dt, value));
     });
