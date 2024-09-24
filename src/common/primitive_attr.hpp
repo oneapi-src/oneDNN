@@ -376,7 +376,12 @@ struct zero_points_t : public c_compatible {
                 && group_ndims_wei == rhs.group_ndims_wei
                 && IMPLICATION(group_ndims_wei > 0,
                         utils::array_cmp(group_dims_wei, rhs.group_dims_wei,
-                                group_ndims_wei));
+                                group_ndims_wei))
+                && data_type_src == rhs.data_type_src
+                && group_ndims_src == rhs.group_ndims_src
+                && IMPLICATION(group_ndims_src > 0,
+                        utils::array_cmp(group_dims_src, rhs.group_dims_src,
+                                group_ndims_src));
     }
 
     // arg-specific checks
@@ -385,7 +390,8 @@ struct zero_points_t : public c_compatible {
         return is_set(arg) == false && has_default_data_type(arg);
     }
     bool has_default_groups(int arg) const {
-        return IMPLICATION(arg == DNNL_ARG_WEIGHTS, group_ndims_wei == 0);
+        return IMPLICATION(arg == DNNL_ARG_WEIGHTS, group_ndims_wei == 0)
+                && IMPLICATION(arg == DNNL_ARG_SRC, group_ndims_src == 0);
     }
     bool has_default_data_type(int arg) const {
         return get_data_type(arg) == data_type::s32;
@@ -408,16 +414,19 @@ struct zero_points_t : public c_compatible {
 
     data_type_t get_data_type(int arg) const {
         if (arg == DNNL_ARG_WEIGHTS) return data_type_wei;
+        if (arg == DNNL_ARG_SRC) return data_type_src;
         return data_type::s32;
     }
 
     const dim_t *get_groups(int arg) const {
         if (arg == DNNL_ARG_WEIGHTS) return group_dims_wei;
+        if (arg == DNNL_ARG_SRC) return group_dims_src;
         return nullptr;
     }
 
     int get_groups_ndims(int arg) const {
         if (arg == DNNL_ARG_WEIGHTS) return group_ndims_wei;
+        if (arg == DNNL_ARG_SRC) return group_ndims_src;
         return 0;
     }
 
@@ -436,6 +445,11 @@ private:
     data_type_t data_type_wei = data_type::s32;
     int group_ndims_wei = 0;
     dims_t group_dims_wei {};
+    // TODO: A temporary solution until a single quant abstraction is
+    // introduced.
+    data_type_t data_type_src = data_type::s32;
+    int group_ndims_src = 0;
+    dims_t group_dims_src {};
 
     int get_mask(int arg) const {
         int mask = 0;

@@ -380,6 +380,8 @@ int attr_t::zero_points_t::entry_t::from_str(const std::string &s) {
             parser::parser_utils::stoll_safe, g_str, 'x');
     if (!groups.empty()) {
         switch (this->policy) {
+            case PER_TENSOR:
+            case PER_OC:
             case PER_OCIC:
                 if (this->groups.size() != 2) {
                     BENCHDNN_PRINT(0, "%s\n",

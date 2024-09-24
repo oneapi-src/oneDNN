@@ -5,14 +5,17 @@
 --stag=abx,axb,xba
 --dtag=abx,axb,xba
 --attr-scales=src:per_tensor:bf16
+--attr-zero-points=,src:per_tensor:s8
 48x64_n"2d_scale:0"
 17x32_n"2d_scale:1"
 17x33_n"2d_scale_tail:0"
 
---attr-scales=src:per_tensor:f32:8x1
+--attr-scales=,src:per_tensor:f32:8x1
+--attr-zero-points=,src:per_tensor:s32:8x1
 12x25x16x7_n"4d_scale_w_d0_group:0"
 128x16_n"2d_scale_w_d0_group:0"
 
---attr-scales=src:per_tensor:f16:1x16
+--attr-scales=,src:per_tensor:f16:1x16
+--attr-zero-points=,src:per_tensor:s4:1x16
 12x25x7x32_n"4d_scale_w_d1_group:0"
 128x16_n"2d_scale_w_d1_group:0"
