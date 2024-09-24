@@ -73,7 +73,8 @@ struct gemm_desc_t {
     // Simplified accessors that comply to GEMM API
     static transpose_t get_trans(const memory_desc_t &md) {
         if (!md.ndims) return transpose::notrans; // arbitrary
-        return md.format_desc.blocking.strides[md.ndims - 1] != 1
+        return md.dims[md.ndims - 1] != 1
+                        && md.format_desc.blocking.strides[md.ndims - 1] != 1
                 ? transpose::trans
                 : transpose::notrans;
     }
@@ -116,9 +117,14 @@ struct gemm_desc_t {
     // This assumes that one of the dimensions has strides 1
     static dnnl_dim_t get_ld(const memory_desc_t &md) {
         auto strides = md.format_desc.blocking.strides;
-        assert(strides[md.ndims - 1] == 1 || strides[md.ndims - 2] == 1);
-        return strides[md.ndims - 1] != 1 ? strides[md.ndims - 1]
-                                          : strides[md.ndims - 2];
+        assert(md.dims[md.ndims - 1] == 1 || strides[md.ndims - 1] == 1
+                || md.dims[md.ndims - 2] == 1 || strides[md.ndims - 2] == 1);
+        switch (get_trans(md)) {
+            case transpose::trans:
+                return md.dims[md.ndims - 1] > 1 ? strides[md.ndims - 1] : 1;
+            default:
+                return md.dims[md.ndims - 2] > 1 ? strides[md.ndims - 2] : 1;
+        }
     }
     // Leading dimension of A.
     dnnl_dim_t lda() const { return get_ld(b_desc); }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -156,8 +156,11 @@ static inline bool is_md_gemm_compatible_plain_format(
 
     if (blk_desc.inner_nblks != 0) return false;
 
-    return (blk_desc.strides[md->ndims - 1] == 1)
-            || (!is_dst && blk_desc.strides[md->ndims - 2] == 1);
+    return (md->dims[md->ndims - 1] == 1
+                   || blk_desc.strides[md->ndims - 1] == 1)
+            || (!is_dst
+                    && (md->dims[md->ndims - 2] == 1
+                            || blk_desc.strides[md->ndims - 2] == 1));
 }
 
 } // namespace impl
