@@ -147,6 +147,7 @@ struct DNNL_API brgemm_attr_t {
     // interleave stores or not
     bool use_interleave_stores;
     impl::fpmath_mode_t fpmath_mode = fpmath_mode::strict;
+    bool b_is_vnni {false};
     // Second level leading dimension describing distance between 16-line
     // blocks in case of blocked layout. Used to calculate address of next
     // bd block. By default are equal to regular leading dimension parameters

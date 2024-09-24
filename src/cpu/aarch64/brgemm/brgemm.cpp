@@ -517,6 +517,7 @@ int brgemm_cmp(const brgemm_t &lhs, const brgemm_t &rhs) {
     CMP_BRGEMM_FIELD(brgattr.bd_mask_level);
     CMP_BRGEMM_FIELD(brgattr.use_uker);
     CMP_BRGEMM_FIELD(brgattr.use_interleave_stores);
+    CMP_BRGEMM_FIELD(brgattr.b_is_vnni);
     CMP_BRGEMM_FIELD(brgattr.fpmath_mode);
     CMP_BRGEMM_FIELD(brgattr.LDA2);
     CMP_BRGEMM_FIELD(brgattr.LDB2);
