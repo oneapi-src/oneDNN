@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -196,7 +197,7 @@ private:
     }
 
     void generate() override {
-        size_t simd_w_;
+        size_t simd_w_ = 0;
         switch (brg_.isa_impl) {
             case sve_512:
                 simd_w_ = cpu_isa_traits<sve_512>::vlen / sizeof(float);
@@ -204,7 +205,10 @@ private:
             case sve_256:
                 simd_w_ = cpu_isa_traits<sve_256>::vlen / sizeof(float);
                 break;
-            default: assert(!"unsupported isa");
+            default: {
+                assert(!"unsupported isa");
+                return;
+            }
         }
         preamble();
         if (simd_w_ != cpu_sveLen / sizeof(float)) {
@@ -850,7 +854,7 @@ private:
     }
 
     void generate() override {
-        size_t simd_w_;
+        size_t simd_w_ = 0;
         switch (brg.isa_impl) {
             case sve_512:
                 simd_w_ = cpu_isa_traits<sve_512>::vlen / sizeof(float);
@@ -858,7 +862,10 @@ private:
             case sve_256:
                 simd_w_ = cpu_isa_traits<sve_256>::vlen / sizeof(float);
                 break;
-            default: assert(!"unsupported isa");
+            default: {
+                assert(!"unsupported isa");
+                return;
+            }
         }
         preamble();
         if (simd_w_ != cpu_sveLen / sizeof(float)) {
