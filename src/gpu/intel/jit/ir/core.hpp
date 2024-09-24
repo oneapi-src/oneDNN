@@ -1004,6 +1004,7 @@ enum class op_kind_t {
     _eq,
 
     _and,
+    _or,
 
     // Ternary operations.
     // Parametric ReLU.
@@ -1856,6 +1857,7 @@ DECLARE_BINARY_OPERATOR(<, op_kind_t::_lt)
 DECLARE_BINARY_OPERATOR(<=, op_kind_t::_le)
 
 DECLARE_BINARY_OPERATOR(&, op_kind_t::_and)
+DECLARE_BINARY_OPERATOR(|, op_kind_t::_or)
 
 #undef DECLARE_BINARY_OPERATOR
 
