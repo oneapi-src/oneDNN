@@ -47,3 +47,7 @@
 # int4 cases
 --reset
 --batch=test_reorder_int4
+
+# fp4 cases
+--reset
+--batch=test_reorder_fp4

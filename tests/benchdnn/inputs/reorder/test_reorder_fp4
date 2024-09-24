@@ -1,0 +1,19 @@
+--reset
+--sdt=f32
+--ddt=f4_e2m1
+--stag=bax,abx
+--dtag=abx,bax 2x64x14x14 2x56x14x14
+--dtag=abx,bax 2x64x64x3x3 2x56x56x3x3
+--dtag=abx,bax 4x16x16x3x3 2x16x6x3x2 2x2x10x2x3
+--dtag=aBx16b 2x64x14x14
+--dtag=gOIhw16i16o,gOIhw2i4o2i,gOIhw2o4i2o,gOIhw4o8i2o 4x16x16x3x3
+
+--reset
+--sdt=f4_e2m1
+--ddt=f32
+--dtag=abx,bax
+--stag=bax,abx 2x64x14x14 2x56x14x14
+--stag=bax,abx 2x64x64x3x3 2x56x56x3x3
+--stag=bax,abx 4x16x16x3x3 2x16x6x3x2 2x2x10x2x3
+--stag=aBx16b 2x64x14x14
+--dtag=gOIhw16i16o,gOIhw2i4o2i,gOIhw2o4i2o,gOIhw4o8i2o 4x16x16x3x3
