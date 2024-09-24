@@ -31,3 +31,10 @@
 --reset
 --sdt=f8_e4m3 --ddt=f8_e4m3
 --stag=abcd --dtag=acdb  1x2048x14x14
+
+# stochastic rounding
+--reset
+--sdt=f32 --ddt=f8_e5m2,f8_e4m3
+--attr-scales=src:common:1.375
+--attr-rounding-mode=dst:stochastic:123
+1024x7
