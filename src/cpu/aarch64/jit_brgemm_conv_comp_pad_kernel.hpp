@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2022-2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,8 +44,7 @@ struct jit_uni_brgemm_conv_comp_pad_kernel_t : public jit_generator {
 
     using XReg = const Xbyak_aarch64::XReg;
 
-    jit_uni_brgemm_conv_comp_pad_kernel_t<isa>(
-            const jit_brgemm_conv_conf_t &ajcp);
+    jit_uni_brgemm_conv_comp_pad_kernel_t(const jit_brgemm_conv_conf_t &ajcp);
 
     ~jit_uni_brgemm_conv_comp_pad_kernel_t() = default;
 
