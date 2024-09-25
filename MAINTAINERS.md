@@ -161,7 +161,7 @@ Team: @oneapi-src/onednn-cpu-aarch64
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Crefeda Rodrigues  | @cfrod                | Arm Ltd           | Code Owner |
 | David Svantesson   | @davsva01             | Arm Ltd           | Code Owner |
-| Johnatan Deakin    | @jondea               | Arm Ltd           | Code Owner |
+| Jonathan Deakin    | @jondea               | Arm Ltd           | Code Owner |
 | Hamza Butt         | @theComputeKid        | Arm Ltd           | Code Owner |
 | Sunita Nadampalli  | @snadampal            | Amazon.com, Inc.  | Code Owner |
 
