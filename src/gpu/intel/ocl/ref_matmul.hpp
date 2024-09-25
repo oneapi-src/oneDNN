@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/memory.hpp"
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
@@ -83,18 +84,20 @@ struct ref_matmul_t : public gpu_primitive_t {
                     = (utils::one_of(src_dt_, f8_e5m2, f8_e4m3)
                               || utils::one_of(wei_dt_, f8_e5m2, f8_e4m3))
                     && utils::one_of(dst_dt_, f32, bf16, f16, src_dt_);
+            const bool is_f4 = (utils::everyone_is(f4_e2m1, src_dt_, wei_dt_)
+                    && utils::one_of(dst_dt_, f32, bf16, f16, src_dt_));
             const bool is_bf16 = src_dt_ == bf16
                     && utils::one_of(wei_dt_, bf16, s8, u8, s4, u4)
                     && utils::one_of(dst_dt_, bf16, f32);
             const bool is_int8 = utils::one_of(src_dt_, u8, s8)
                     && utils::one_of(wei_dt_, u8, s8, u4, s4)
                     && utils::one_of(dst_dt_, f32, s8, u8, s32, f16);
-            VDISPATCH_MATMUL(
-                    (is_int8
-                            || ((is_f32 || is_f64 || is_f16 || is_f8 || is_bf16)
-                                    && IMPLICATION(with_bias(),
-                                            utils::one_of(
-                                                    bia_dt_, f32, dst_dt_)))),
+            VDISPATCH_MATMUL((is_int8
+                                     || ((is_f32 || is_f64 || is_f16 || is_f8
+                                                 || is_f4 || is_bf16)
+                                             && IMPLICATION(with_bias(),
+                                                     utils::one_of(bia_dt_, f32,
+                                                             dst_dt_)))),
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_MATMUL_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
@@ -113,6 +116,17 @@ struct ref_matmul_t : public gpu_primitive_t {
                     IMPLICATION(utils::one_of(f64, src_dt_, wei_dt_, dst_dt_),
                             dev_info_->has_native(f64)),
                     VERBOSE_UNSUPPORTED_DT);
+            const bool subbyte_pack = (dst_dt_ == data_type::f4_e2m1);
+            if (subbyte_pack) {
+                using namespace dnnl::impl::memory_tracking::names;
+                const memory_desc_wrapper dst_mdw(dst_md(0));
+                const auto &padded_dims = dst_mdw.padded_dims();
+                const dim_t ndims = dst_mdw.ndims();
+                const dim_t nelems = utils::array_product(padded_dims, ndims);
+                auto scratchpad = scratchpad_registry().registrar();
+                scratchpad.book(memory_tracking::names::key_matmul_pack_space,
+                        nelems, sizeof(char), OCL_BUFFER_ALIGNMENT);
+            }
 
             non_default_attrs_ = !attr()->has_default_values();
             attr_info_ = attr_info_t::create(attr());
@@ -206,8 +220,10 @@ struct ref_matmul_t : public gpu_primitive_t {
         def_data_type(kernel_ctx,
                 pd()->attr()->scales_.get(DNNL_ARG_DST).data_type_,
                 "DST_SCALES");
-        CHECK(create_kernel(engine, &kernel_, "ref_matmul", kernel_ctx));
-        if (!kernel_) return status::runtime_error;
+        kernels_.resize(2);
+        CHECK(create_kernels(
+                engine, &kernels_, {"ref_matmul", "subbyte_pack"}, kernel_ctx));
+        if (!kernels_[0]) return status::runtime_error;
         return status::success;
     }
 
@@ -218,7 +234,7 @@ struct ref_matmul_t : public gpu_primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
-    compute::kernel_t kernel_;
+    std::vector<compute::kernel_t> kernels_;
 };
 
 } // namespace ocl

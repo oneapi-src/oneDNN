@@ -122,6 +122,11 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t wei_zp_stride_k = wei_zp_group_k < K ? wei_zp_per_n ? N : 1 : 0;
     const auto wei_zp_ngroups_k = K / wei_zp_group_k;
 
+    const bool subbyte_pack = (c_d.data_type() == data_type::f4_e2m1);
+    const dim_t nelems = c_d.nelems();
+    auto tmp = ctx.get_scratchpad_grantor().get_memory_storage(
+            memory_tracking::names::key_reorder_space);
+
     // For compute kernel, the minimal group is picked.
     const auto scale_ngroups_k
             = std::max(src_scale_ngroups_k, wei_scale_ngroups_k);
@@ -132,7 +137,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     int arg_idx = 0;
     arg_list.set(arg_idx++, a);
     arg_list.set(arg_idx++, b);
-    arg_list.set(arg_idx++, c);
+    arg_list.set(arg_idx++, subbyte_pack ? *tmp : c);
     arg_list.set(arg_idx++, bias);
     arg_list.set(arg_idx++, a0);
     arg_list.set(arg_idx++, b0);
@@ -199,10 +204,20 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     compute::range_t gws = {1, (size_t)N, (size_t)(D0 * D1 * D2 * D3)};
     auto nd_range = compute::nd_range_t(gws);
 
-    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    status_t status = parallel_for(ctx, nd_range, kernels_[0], arg_list);
 
     ctx.zero_pad_output(DNNL_ARG_DST);
-    return status;
+
+    if (!subbyte_pack) return status;
+    compute::kernel_arg_list_t repack_arg_list;
+    repack_arg_list.set(0, *tmp);
+    repack_arg_list.set(1, c);
+    repack_arg_list.set(2, gpu_utils::into<dim_t>(nelems));
+    repack_arg_list.set(3, 4);
+    compute::range_t repack_gws((nelems * 4 + 7) / 8);
+    compute::nd_range_t repack_nd_range(repack_gws);
+    return large_parallel_for(
+            ctx, repack_nd_range, kernels_[1], repack_arg_list, 4);
 }
 
 } // namespace ocl
