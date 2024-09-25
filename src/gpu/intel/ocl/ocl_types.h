@@ -1556,6 +1556,20 @@
 #endif
 #endif
 
+#ifdef SRC_ZP_DATA_T
+#if SRC_ZP_DT_S8
+#define SRC_ZP_TO_REF(zp, off) convert_int_sat_rte(zp[off])
+#elif SRC_ZP_DT_U8
+#define SRC_ZP_TO_REF(zp, off) convert_int_sat_rte(zp[off])
+#elif SRC_ZP_DT_S4
+#define SRC_ZP_TO_REF(zp, off) cvt_s4_to_s32(GET_HALF_BYTE(zp, off))
+#elif SRC_ZP_DT_U4
+#define SRC_ZP_TO_REF(zp, off) convert_int_sat_rte(GET_HALF_BYTE(zp, off))
+#else
+#define SRC_ZP_TO_REF(zp, off) (zp[off])
+#endif
+#endif
+
 #define OFF_MD_2(prefix, x0, x1, x2, x3, x4, x5) \
     ((((x0) / CONCAT2(prefix, _B0_2)) / CONCAT2(prefix, _B0_1) \
              * CONCAT2(prefix, _S0_0)) \

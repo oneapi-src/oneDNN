@@ -461,6 +461,12 @@ TEST_F(attr_quantization_test_t, TestMatmul) {
                     CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_zp(
                                     arg, (1 << 1) + (1 << 0), b_dt, {3, 1})));
+                } else if (arg == DNNL_ARG_SRC) {
+                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_zp(arg, (1 << 1) + (1 << 0))));
+                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_zp(
+                                    arg, (1 << 1) + (1 << 0), b_dt, {1, 3})));
                 } else {
                     CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_zp(arg, (1 << 1) + (1 << 0))));
