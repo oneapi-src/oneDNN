@@ -17,6 +17,7 @@
 #ifndef CPU_X64_JIT_AVX512_CORE_BF16_DW_CONV_KERNEL_HPP
 #define CPU_X64_JIT_AVX512_CORE_BF16_DW_CONV_KERNEL_HPP
 
+#include <memory>
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
@@ -133,12 +134,11 @@ struct jit_avx512_dw_conv_bwd_data_kernel_bf16 : public jit_generator {
         : jit_generator(jit_name()), jcp(ajcp), bf16_emu_(nullptr) {
 
         if (!isa_has_bf16(jcp.isa))
-            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
-                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
-                    bf16_emu_reserv_5, bf16_emu_reserv_6);
+            bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
+                    bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
+                    bf16_emu_reserv_4, bf16_emu_reserv_5, bf16_emu_reserv_6);
     }
-
-    ~jit_avx512_dw_conv_bwd_data_kernel_bf16() { delete bf16_emu_; }
+    ~jit_avx512_dw_conv_bwd_data_kernel_bf16() = default;
 
     jit_conv_conf_t jcp;
 
@@ -183,7 +183,7 @@ private:
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(29);
     Xbyak::Zmm bf16_emu_reserv_6 = Xbyak::Zmm(30);
 
-    bf16_emulation_t *bf16_emu_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     inline void ch_loop_body(int ur_ch_blocks, int unroll_w);
     inline void unroll_width_body(int ur_ch_blocks);
@@ -200,6 +200,8 @@ private:
         return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
                 format_tag::nwc);
     }
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_dw_conv_bwd_data_kernel_bf16);
 };
 
 struct jit_avx512_dw_conv_bwd_weights_kernel_bf16 : public jit_generator {
@@ -210,12 +212,11 @@ struct jit_avx512_dw_conv_bwd_weights_kernel_bf16 : public jit_generator {
         : jit_generator(jit_name()), jcp(ajcp), bf16_emu_(nullptr) {
 
         if (!isa_has_bf16(jcp.isa))
-            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
-                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
-                    bf16_emu_reserv_5, bf16_emu_reserv_6);
+            bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
+                    bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
+                    bf16_emu_reserv_4, bf16_emu_reserv_5, bf16_emu_reserv_6);
     }
-
-    ~jit_avx512_dw_conv_bwd_weights_kernel_bf16() { delete bf16_emu_; }
+    ~jit_avx512_dw_conv_bwd_weights_kernel_bf16() = default;
 
     jit_conv_conf_t jcp;
 
@@ -275,7 +276,9 @@ private:
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(29);
     Xbyak::Zmm bf16_emu_reserv_6 = Xbyak::Zmm(30);
 
-    bf16_emulation_t *bf16_emu_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_dw_conv_bwd_weights_kernel_bf16)
 
     /* Micro-kernel JIT'ing, fusing 'kw' and 'ow_block' loops into unrolled FMAs
      */
