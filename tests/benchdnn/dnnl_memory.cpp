@@ -534,9 +534,10 @@ size_t dnn_mem_t::pad_memory_size(
             || engine_kind == dnnl_cpu)
         return sz;
 
-    const int pad_size = 4096;
-    if (was_padded) *was_padded = true;
-    return sz + pad_size;
+    const size_t page_size = 4096;
+    auto padded_sz = rnd_up(sz, page_size);
+    if (was_padded) *was_padded = padded_sz != sz;
+    return padded_sz;
 }
 
 dnnl_memory_desc_t dnn_mem_t::pad_memory_desc(const_dnnl_memory_desc_t md,
