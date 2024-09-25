@@ -125,7 +125,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const bool subbyte_pack = (c_d.data_type() == data_type::f4_e2m1);
     const dim_t nelems = c_d.nelems();
     auto tmp = ctx.get_scratchpad_grantor().get_memory_storage(
-            memory_tracking::names::key_reorder_space);
+            memory_tracking::names::key_matmul_pack_space);
 
     // For compute kernel, the minimal group is picked.
     const auto scale_ngroups_k
