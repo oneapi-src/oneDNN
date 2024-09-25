@@ -90,13 +90,15 @@ private:
             arg_coffset_r_;
 
     // For bfloat16 emulation on avx512 and avx512_vnni ISAs
-    bf16_emulation_t *bf16_emu_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
     Xbyak::Reg64 scratch_;
     Xbyak::Zmm one_;
     Xbyak::Zmm even_;
     Xbyak::Zmm selector_;
     Xbyak::Zmm zmm_tmp0_;
     Xbyak::Zmm zmm_tmp1_;
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_core_gemm_bf16bf16f32_kern);
 };
 
 } // namespace x64
