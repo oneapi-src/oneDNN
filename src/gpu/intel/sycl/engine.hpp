@@ -77,7 +77,7 @@ public:
         CHECK(gpu::intel::sycl::compat::make_kernels(
                 sycl_kernels, kernel_names, this, binary));
 
-        for (int i = 0; i < kernel_names.size(); i++) {
+        for (size_t i = 0; i < kernel_names.size(); i++) {
             std::shared_ptr<gpu::intel::compute::kernel_impl_t> kernel_impl
                     = std::make_shared<sycl_interop_gpu_kernel_t>(
                             std::move(sycl_kernels[i]));
