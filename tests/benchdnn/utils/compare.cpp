@@ -336,9 +336,19 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             // function). We rely on validation of pure eltwise and let some
             // big rdiff errors slip away hoping that absolute error is good
             // enough.
-            const float experimental_eltwise_trh
+            // Note: two scenarios covered:
+            // * When rdiff is bigger due to small output values but diff is
+            //   small due to single point computation or short acc chain.
+            // * When diff is no longer small due to longer acc chain, but rdiff
+            //   is still small but greater than 0.
+            const float experimental_eltwise_trh_diff
                     = std::max(epsilon_dt(dt), 2e-5f);
-            ok = has_eltwise && args.diff <= experimental_eltwise_trh;
+            const float experimental_eltwise_trh_rel_diff
+                    = std::max(epsilon_dt(dt), 1e-6f);
+            ok = has_eltwise
+                    && (args.diff <= experimental_eltwise_trh_diff
+                            || args.rel_diff
+                                    <= experimental_eltwise_trh_rel_diff);
             if (ok) break;
 
             // For eltwise it also may happen that threshold is really small,
