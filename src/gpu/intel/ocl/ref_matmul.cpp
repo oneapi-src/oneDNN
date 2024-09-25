@@ -188,17 +188,45 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t wei_zp_stride_b1
             = b_d.ndims() > 3 ? wei_zp_strides[b_d.ndims() - 4] : 0;
 
+    int src_zp_mask = 0;
+    attr_zps.get(DNNL_ARG_SRC, &src_zp_mask);
+    const bool src_zp_per_k = src_zp_mask & pd()->src_qmask_K();
+    const auto src_zp_group_ndims = attr_zps.get_groups_ndims(DNNL_ARG_SRC);
+    const auto src_zp_group_k = src_zp_group_ndims > 0
+            ? attr_zps.get_groups(DNNL_ARG_SRC)[1]
+            : (src_zp_per_k ? 1 : K);
+    const auto src_zp_ngroups_k = K / src_zp_group_k;
+    // Identify src_zp dimensions as user may not pass them.
+    dims_t src_zp_dims {};
+    dims_t src_zp_strides {};
+    utils::copy_dims_with_mask(
+            src_zp_dims, a_d.dims(), a_d.ndims(), src_zp_mask);
+    src_zp_dims[a_d.ndims() - 1] /= src_zp_group_k;
+
+    last_zp_dim = 0;
+    last_zp_stride = 0;
+    for (int d = a_d.ndims() - 1; d >= 0; d--) {
+        if (src_zp_dims[d] == 0) continue;
+        src_zp_strides[d]
+                = last_zp_stride == 0 ? 1 : last_zp_dim * last_zp_stride;
+        last_zp_stride = src_zp_strides[d];
+        last_zp_dim = src_zp_dims[d];
+    }
+    const dim_t src_zp_stride_k = src_zp_strides[a_d.ndims() - 1];
+    const dim_t src_zp_stride_m = src_zp_strides[a_d.ndims() - 2];
+
+    // For compute kernel, the minimal group is picked.
+    const auto scale_ngroups_k
+            = std::max(src_scale_ngroups_k, wei_scale_ngroups_k);
+    const auto zp_ngroups_k = std::max(src_zp_ngroups_k, wei_zp_ngroups_k);
+    const auto ngroups_k = std::max(zp_ngroups_k, scale_ngroups_k);
+    const auto group_K = K / ngroups_k;
+
     const bool subbyte_pack
             = pd()->subbyte_pack_; //(c_d.data_type() == data_type::f4_e2m1);
     const dim_t nelems = c_d.nelems();
     auto tmp = ctx.get_scratchpad_grantor().get_memory_storage(
             memory_tracking::names::key_matmul_pack_space);
-
-    // For compute kernel, the minimal group is picked.
-    const auto scale_ngroups_k
-            = std::max(src_scale_ngroups_k, wei_scale_ngroups_k);
-    const auto ngroups_k = std::max(wei_zp_ngroups_k, scale_ngroups_k);
-    const auto group_K = K / ngroups_k;
 
     compute::kernel_arg_list_t arg_list;
     int arg_idx = 0;
@@ -207,6 +235,9 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(arg_idx++, subbyte_pack ? *tmp : c);
     arg_list.set(arg_idx++, bias);
     arg_list.set(arg_idx++, a0);
+    arg_list.set(arg_idx++, src_zp_stride_k);
+    arg_list.set(arg_idx++, src_zp_stride_m);
+    arg_list.set(arg_idx++, src_zp_group_k);
     arg_list.set(arg_idx++, b0);
     arg_list.set(arg_idx++, wei_zp_stride_n);
     arg_list.set(arg_idx++, wei_zp_stride_k);

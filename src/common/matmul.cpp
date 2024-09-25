@@ -139,8 +139,8 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         zp.get(DNNL_ARG_WEIGHTS, &mask_wei);
         zp.get(DNNL_ARG_DST, &mask_dst);
 
-        VCHECK_MATMUL_UNIMPL(mask_src == 0
-                        || (desc.src_desc.ndims == 2 && mask_src == 1 << 1),
+        VCHECK_MATMUL_UNIMPL(utils::one_of(mask_src, 0, src_qmask_K,
+                                     src_qmask_M + src_qmask_K),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
         // Masks for weights zero points can be any - skipping them.
         VCHECK_MATMUL_UNIMPL(mask_dst == 0

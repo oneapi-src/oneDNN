@@ -150,6 +150,16 @@ struct ref_matmul_t : public gpu_primitive_t {
             CHECK_BOOL(attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei));
             CHECK_BOOL(attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst));
 
+            const auto src_group_ndims
+                    = attr()->zero_points_.get_groups_ndims(DNNL_ARG_SRC);
+            const auto src_group_dims
+                    = attr()->zero_points_.get_groups(DNNL_ARG_SRC);
+            const bool src_m_group_ok
+                    = IMPLICATION(src_group_ndims == 2, src_group_dims[0] == 1);
+            const bool src_k_group_ok
+                    = IMPLICATION(src_group_ndims == 2 && src_group_dims[1] > 1,
+                            K() % src_group_dims[1] == 0);
+
             const auto wei_group_ndims
                     = attr()->zero_points_.get_groups_ndims(DNNL_ARG_WEIGHTS);
             const auto wei_group_dims
@@ -161,7 +171,8 @@ struct ref_matmul_t : public gpu_primitive_t {
                     = IMPLICATION(wei_group_ndims == 2 && wei_group_dims[1] > 1,
                             N() % wei_group_dims[1] == 0);
 
-            bool mask_src_ok = mask_src == 0;
+            bool mask_src_ok = utils::one_of(
+                    mask_src, 0, src_qmask_K(), src_qmask_M() + src_qmask_K());
             bool mask_dst_ok = mask_dst == 0;
 
             return mask_src_ok && mask_dst_ok
@@ -169,7 +180,11 @@ struct ref_matmul_t : public gpu_primitive_t {
                     && IMPLICATION(wei_group_ndims == 2,
                             utils::one_of(
                                     1, wei_group_dims[0], wei_group_dims[1])
-                                    && wei_k_group_ok && wei_n_group_ok);
+                                    && wei_k_group_ok && wei_n_group_ok)
+                    && IMPLICATION(src_group_ndims == 2,
+                            utils::one_of(
+                                    1, src_group_dims[0], src_group_dims[1])
+                                    && src_m_group_ok && src_k_group_ok);
         }
     };
 
@@ -223,6 +238,9 @@ struct ref_matmul_t : public gpu_primitive_t {
         def_data_type(kernel_ctx,
                 pd()->attr()->scales_.get(DNNL_ARG_SRC).data_type_,
                 "SRC_SCALES");
+        def_data_type(kernel_ctx,
+                pd()->attr()->zero_points_.get_data_type(DNNL_ARG_SRC),
+                "SRC_ZP");
         def_data_type(kernel_ctx,
                 pd()->attr()->scales_.get(DNNL_ARG_DST).data_type_,
                 "DST_SCALES");
