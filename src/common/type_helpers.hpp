@@ -143,6 +143,7 @@ inline T min_value(data_type_t data_type) {
         CASE(f16);
         CASE(bf16);
         CASE(f32);
+        CASE(f64);
         CASE(s32);
         CASE(s8);
         CASE(u8);
@@ -167,13 +168,14 @@ inline T max_value(data_type_t data_type) {
         CASE(f8_e5m2);
         CASE(f8_e4m3);
         CASE(f16);
-        CASE(f32);
         CASE(bf16);
+        CASE(f32);
         CASE(s32);
         CASE(s8);
         CASE(u8);
         CASE(s4);
         CASE(u4);
+        case f64: return nstl::numeric_limits<T>::max();
         case data_type::undef:
         default: assert(!"unknown data_type");
     }
@@ -212,6 +214,7 @@ inline float max_value(data_type_t data_type) {
         // approach is saturating on some integer values before it should happen
         // in the reality.
         case s32: return 2147483520.f;
+        case f64: return nstl::numeric_limits<float>::max();
         case data_type::undef:
         default: assert(!"unknown data_type");
     }
@@ -239,6 +242,7 @@ inline T lowest_value(data_type_t data_type) {
         CASE(u8);
         CASE(s4);
         CASE(u4);
+        case f64: return nstl::numeric_limits<T>::lowest();
         case data_type::undef:
         default: assert(!"unknown data_type");
     }
@@ -261,6 +265,7 @@ inline T digits(data_type_t data_type) {
         CASE(f16);
         CASE(bf16);
         CASE(f32);
+        CASE(f64);
         CASE(s32);
         CASE(s8);
         CASE(u8);
