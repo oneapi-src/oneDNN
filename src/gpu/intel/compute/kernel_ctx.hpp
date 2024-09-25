@@ -98,6 +98,7 @@ public:
             case data_type::u8: define_int("DT_U8", 1); break;
             case data_type::f8_e4m3: define_int("DT_HF8", 1); break;
             case data_type::f8_e5m2: define_int("DT_BF8", 1); break;
+            case data_type::f4_e2m1: define_int("DT_F4_E2M1", 1); break;
             case data_type::s32: define_int("DT_S32", 1); break;
             default: assert(!"unknown data type"); break;
         }

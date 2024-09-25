@@ -721,7 +721,6 @@ inline float atomic_add_global(
 #endif
 
 #if MATH_UTILS_DECLARE_S4 || MATH_UTILS_DECLARE_U4
-#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
 
 uchar __attribute__((overloadable)) cvt_f32_to_u4(float a) {
     uchar i = convert_uchar_sat_rte(a);
@@ -775,6 +774,7 @@ float __attribute__((overloadable)) cvt_f4_e2m1_to_f32(uchar a) {
 #endif
 
 #if MATH_UTILS_DECLARE_S4 || MATH_UTILS_DECLARE_U4 || MATH_UTILS_DECLARE_F4_E2M1
+#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
 
 uchar __attribute__((overloadable)) get_half_byte(__global uchar *x, off_t y) {
     uchar ret = 0;

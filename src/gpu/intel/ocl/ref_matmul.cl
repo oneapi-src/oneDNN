@@ -16,10 +16,26 @@
 
 #include "gpu/intel/ocl/ocl_post_ops.h"
 #include "gpu/intel/ocl/ocl_types.h"
+#include "gpu/intel/ocl/types_interop.h"
 
 #define offset6D(d0, d1, d2, d3, d4, d5, s0, s1, s2, s3, s4, s5) \
     ((d0) * (s0) + (d1) * (s1) + (d2) * (s2) + (d3) * (s3) + (d4) * (s4) \
             + (d5) * (s5))
+
+__kernel void subbyte_pack(__global uchar *restrict src,
+        __global uchar *restrict dst, off_t n, int bits, int64x3_t offset) {
+    const uchar mask = (1 << bits) - 1;
+
+    const off_t dst_off = get_global_id(0) + offset.array[0];
+    const off_t src_off = (8 / bits) * dst_off;
+
+    uchar packed = 0;
+    for (int i = 0, j = 0; i < 8; i += bits, ++j) {
+        uchar byte = src_off + j < n ? src[src_off + j] : 0;
+        packed |= (byte & mask) << i;
+    }
+    dst[dst_off] = packed;
+}
 
 #if WITH_DROPOUT
 // No need to enable fp64 extensions just to compute (double)p * 0xFFFFFFFFu
@@ -137,8 +153,13 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
                         wei_zp_stride_n * n
                                 + wei_zp_stride_k * (k / wei_zp_group_k));
 #endif
+#if SRC_DT_F4_E2M1
+                ACC_DATA_T s = TO_ACC(
+                        SRC_TO_REF(GET_HALF_BYTE(A, src_off)) - src_zp);
+#else
                 ACC_DATA_T s = TO_ACC(SRC_TO_REF(A[src_off]) - src_zp);
-#if WEI_DT_S4 || WEI_DT_U4
+#endif
+#if WEI_DT_S4 || WEI_DT_U4 || WEI_DT_F4_E2M1
                 ACC_DATA_T w_raw = WEI_TO_REF(GET_HALF_BYTE(B, wei_off));
 #else
                 ACC_DATA_T w_raw = WEI_TO_REF(B[wei_off]);
