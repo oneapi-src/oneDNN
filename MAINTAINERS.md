@@ -163,6 +163,8 @@ Team: @oneapi-src/onednn-cpu-aarch64
 | David Svantesson   | @davsva01             | Arm Ltd           | Code Owner |
 | Jonathan Deakin    | @jondea               | Arm Ltd           | Code Owner |
 | Hamza Butt         | @theComputeKid        | Arm Ltd           | Code Owner |
+| Radu Salavat       | @Radu2k               | Arm Ltd           | Code Owner |
+| Siddhartha Menon   | @Sqvid                | Arm Ltd           | Code Owner |
 | Sunita Nadampalli  | @snadampal            | Amazon.com, Inc.  | Code Owner |
 
 ### OpenPOWER (PPC64)
