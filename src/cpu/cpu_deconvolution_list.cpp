@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2019-2023 Intel Corporation
 * Copyright 2022 FUJITSU LIMITED
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022, 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,10 +16,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common/compiler_workarounds.hpp"
 #include "cpu/cpu_engine.hpp"
-
 #include "cpu/ref_deconvolution.hpp"
-
 #if DNNL_X64
 #include "cpu/x64/jit_avx512_core_amx_deconvolution.hpp"
 #include "cpu/x64/jit_avx512_core_x8s8s32x_1x1_deconvolution.hpp"
