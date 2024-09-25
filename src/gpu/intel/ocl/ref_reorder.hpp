@@ -144,9 +144,13 @@ struct ref_reorder_t : public gpu_primitive_t {
         if (conf.nelems == 0) return status::success;
         kernels_.resize(2);
 
-        CHECK(create_kernels(engine, &kernels_, {"ref_reorder", "subbyte_pack"},
-                kernel_ctx));
+        CHECK(create_kernel(engine, &kernels_[0], "ref_reorder", kernel_ctx));
+        if (conf.subbyte_pack)
+            CHECK(create_kernel(
+                    engine, &kernels_[1], "subbyte_pack", kernel_ctx));
+
         if (!kernels_[0]) return status::runtime_error;
+        if (conf.subbyte_pack && !kernels_[1]) return status::runtime_error;
         return status::success;
     }
 

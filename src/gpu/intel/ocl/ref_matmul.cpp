@@ -122,7 +122,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t wei_zp_stride_k = wei_zp_group_k < K ? wei_zp_per_n ? N : 1 : 0;
     const auto wei_zp_ngroups_k = K / wei_zp_group_k;
 
-    const bool subbyte_pack = (c_d.data_type() == data_type::f4_e2m1);
+    const bool subbyte_pack
+            = pd()->subbyte_pack_; //(c_d.data_type() == data_type::f4_e2m1);
     const dim_t nelems = c_d.nelems();
     auto tmp = ctx.get_scratchpad_grantor().get_memory_storage(
             memory_tracking::names::key_matmul_pack_space);

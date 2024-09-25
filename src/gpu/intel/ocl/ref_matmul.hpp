@@ -20,7 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
-#include "common/memory.hpp"
+#include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
@@ -116,8 +116,8 @@ struct ref_matmul_t : public gpu_primitive_t {
                     IMPLICATION(utils::one_of(f64, src_dt_, wei_dt_, dst_dt_),
                             dev_info_->has_native(f64)),
                     VERBOSE_UNSUPPORTED_DT);
-            const bool subbyte_pack = (dst_dt_ == data_type::f4_e2m1);
-            if (subbyte_pack) {
+            subbyte_pack_ = (dst_dt_ == data_type::f4_e2m1);
+            if (subbyte_pack_) {
                 using namespace dnnl::impl::memory_tracking::names;
                 const memory_desc_wrapper dst_mdw(dst_md(0));
                 const auto &padded_dims = dst_mdw.padded_dims();
@@ -135,6 +135,7 @@ struct ref_matmul_t : public gpu_primitive_t {
         }
 
         bool non_default_attrs_ = false;
+        bool subbyte_pack_ = false;
         data_type_t bia_dt_ = data_type::undef;
         data_type_t src_dt_ = data_type::undef;
         data_type_t dst_dt_ = data_type::undef;
@@ -221,9 +222,12 @@ struct ref_matmul_t : public gpu_primitive_t {
                 pd()->attr()->scales_.get(DNNL_ARG_DST).data_type_,
                 "DST_SCALES");
         kernels_.resize(2);
-        CHECK(create_kernels(
-                engine, &kernels_, {"ref_matmul", "subbyte_pack"}, kernel_ctx));
+        CHECK(create_kernel(engine, &kernels_[0], "ref_matmul", kernel_ctx));
+        if (pd()->subbyte_pack_)
+            CHECK(create_kernel(
+                    engine, &kernels_[1], "subbyte_pack", kernel_ctx));
         if (!kernels_[0]) return status::runtime_error;
+        if (pd()->subbyte_pack_ && !kernels_[1]) return status::runtime_error;
         return status::success;
     }
 

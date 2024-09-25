@@ -24,21 +24,6 @@
 #define GWS_GET_THREAD_ID(index) \
     (off_t)(get_global_id(index) + offset.array[index])
 
-__kernel void subbyte_pack(__global uchar *restrict src,
-        __global uchar *restrict dst, off_t n, int bits, int64x3_t offset) {
-    const uchar mask = (1 << bits) - 1;
-
-    const off_t dst_off = get_global_id(0) + offset.array[0];
-    const off_t src_off = (8 / bits) * dst_off;
-
-    uchar packed = 0;
-    for (int i = 0, j = 0; i < 8; i += bits, ++j) {
-        uchar byte = src_off + j < n ? src[src_off + j] : 0;
-        packed |= (byte & mask) << i;
-    }
-    dst[dst_off] = packed;
-}
-
 KERNEL_ATTR
 __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
         __global DST_DATA_T *restrict dst, __global float *restrict src_scales,
