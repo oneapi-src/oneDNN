@@ -265,8 +265,10 @@ struct memory_desc_wrapper : public c_compatible {
                 max_size = static_cast<size_t>(blk_size());
             }
 
-            size_t data_size = max_size * data_type_size()
-                    / sub_byte_data_type_multiplier();
+            // `div_up` guarantees a spot in memory for odd number of half-byte
+            // elements. Crucial case is `1` when simple division returns 0.
+            size_t data_size = utils::div_up(max_size * data_type_size(),
+                    sub_byte_data_type_multiplier());
             if (is_additional_buffer()) {
                 // The additional buffers, typically of data type int32_t, float
                 // are stored at the end of data. Pad the data, so that the
