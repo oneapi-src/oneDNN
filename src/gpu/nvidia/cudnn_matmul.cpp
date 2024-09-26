@@ -126,7 +126,7 @@ status_t cudnn_matmul_lt_t::execute(const exec_ctx_t &ctx) const {
         src_scale_binary_args[DNNL_ARG_SRC_1] = memory_arg_t {
                 ctx.args().at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC).mem, true};
 
-        std::unique_ptr<memory_t> scratch_mem;
+        std::unique_ptr<memory_t, memory_deleter_t> scratch_mem;
         auto scratchpad_storage
                 = ctx.get_scratchpad_grantor().get_memory_storage(
                         memory_tracking::names::key_matmul_lt_src_scale);
@@ -151,7 +151,7 @@ status_t cudnn_matmul_lt_t::execute(const exec_ctx_t &ctx) const {
                 ctx.args().at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS).mem,
                 true};
 
-        std::unique_ptr<memory_t> scratch_mem;
+        std::unique_ptr<memory_t, memory_deleter_t> scratch_mem;
         auto scratchpad_storage
                 = ctx.get_scratchpad_grantor().get_memory_storage(
                         memory_tracking::names::key_matmul_lt_wei_scale);
@@ -174,7 +174,7 @@ status_t cudnn_matmul_lt_t::execute(const exec_ctx_t &ctx) const {
     if (matmul_impl_->with_bias()) {
         // bias sycl binary
         exec_args_t binary_args;
-        std::unique_ptr<memory_t> scratch_mem;
+        std::unique_ptr<memory_t, memory_deleter_t> scratch_mem;
         if (dst_d.data_type() == dnnl_s8) {
             auto scratchpad_storage
                     = ctx.get_scratchpad_grantor().get_memory_storage(
