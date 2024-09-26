@@ -208,3 +208,6 @@
 
 # Dropout
 --batch=harness_matmul_dropout
+
+# fp4
+--batch=test_matmul_fp4
