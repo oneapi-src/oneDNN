@@ -1971,9 +1971,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<tag_i == format_tag::any
-                        && tag_o == format_tag::any && type_i == dnnl_f32
-                        && utils::one_of(
-                                type_o, dnnl_s4, dnnl_u4, dnnl_f4_e2m1),
+                        && tag_o == format_tag::any && type_i == data_type::f32
+                        && utils::one_of(type_o, data_type::s4, data_type::u4,
+                                data_type::f4_e2m1),
                 spec::reference>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -2049,8 +2049,9 @@ template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<tag_i == format_tag::any
                         && tag_o == format_tag::any
-                        && utils::one_of(type_i, dnnl_s4, dnnl_u4, dnnl_f4_e2m1)
-                        && type_o == dnnl_f32,
+                        && utils::one_of(type_i, data_type::s4, data_type::u4,
+                                data_type::f4_e2m1)
+                        && type_o == data_type::f32,
                 spec::reference>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -2223,10 +2224,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         && tag_o == format_tag::any
                         && order_keep == fmt_order::any
                         // u4/s4 requires a special implementation
-                        && !utils::one_of(
-                                type_i, dnnl_s4, dnnl_u4, dnnl_f4_e2m1)
-                        && !utils::one_of(
-                                type_o, dnnl_s4, dnnl_u4, dnnl_f4_e2m1),
+                        && !utils::one_of(type_i, data_type::s4, data_type::u4,
+                                data_type::f4_e2m1)
+                        && !utils::one_of(type_o, data_type::s4, data_type::u4,
+                                data_type::f4_e2m1),
                 spec::reference>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -2244,7 +2245,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             if (smask != 0) return false;
         }
 
-        using skip_mask_t = dnnl_primitive_attr::skip_mask_t;
+        using skip_mask_t = primitive_attr_t::skip_mask_t;
         return input_d.is_blocking_desc() && output_d.is_blocking_desc()
                 && !output_d.is_additional_buffer()
                 && !input_d.is_additional_buffer()
@@ -2299,7 +2300,7 @@ struct simple_reorder_t : public primitive_t {
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
                 const memory_desc_t *dst_md) {
-            using skip_mask_t = dnnl_primitive_attr::skip_mask_t;
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
             bool args_ok = impl::is_dense_format_kind({src_md, dst_md})
                     && src_md->data_type == type_i
                     && dst_md->data_type == type_o
