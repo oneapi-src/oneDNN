@@ -257,7 +257,6 @@ status_t jit_uni_reorder_direct_copy_t::pd_t::init(
 
     VDISPATCH_REORDER(is_dense_format_kind({src_md(), dst_md()}),
             VERBOSE_UNSUPPORTED_SPARSE_CFG);
-
     isa_ = get_max_cpu_isa();
 
     const auto src_dt = src_md()->data_type;
@@ -269,6 +268,10 @@ status_t jit_uni_reorder_direct_copy_t::pd_t::init(
             VERBOSE_RUNTIMEDIM_UNSUPPORTED);
     VDISPATCH_REORDER(!dst_d.has_runtime_dims_or_strides(),
             VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+    VDISPATCH_REORDER(
+            src_d.is_blocking_desc(), VERBOSE_UNSUPPORTED_FORMAT_KIND);
+    VDISPATCH_REORDER(
+            dst_d.is_blocking_desc(), VERBOSE_UNSUPPORTED_FORMAT_KIND);
 
     // Note: io_helper has an implicit conversion to f32 which is incorrect for
     // s32->s32. Disabling it for now.
