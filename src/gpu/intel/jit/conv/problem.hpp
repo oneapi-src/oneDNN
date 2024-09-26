@@ -29,12 +29,12 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-bool is_conv_index(const prb_dim_t &dim);
-bool is_conv_index(const prb_dim_t &dim, prop_kind_t prop);
-const std::vector<prb_dim_t> &conv_dims();
-const std::vector<prb_dim_t> &conv_index_dims(prop_kind_t prop);
+bool is_conv_index(const pvar_t &dim);
+bool is_conv_index(const pvar_t &dim, prop_kind_t prop);
+const std::vector<pvar_t> &conv_dims();
+const std::vector<pvar_t> &conv_index_dims(prop_kind_t prop);
 
-const std::vector<prb_dim_t> &conv_layout_dims(
+const std::vector<pvar_t> &conv_layout_dims(
         tensor_kind_t tensor_kind, bool src_dst_with_group = false);
 
 template <typename T>
@@ -59,9 +59,9 @@ T &&pick_c(prop_kind_t prop, T &&src, T &&wei, T &&dst) {
 }
 
 tensor_kind_t to_abc(prop_kind_t prop, tensor_kind_t tensor);
-const std::vector<prb_dim_t> &conv_stride_dims();
-const std::vector<prb_dim_t> &conv_dilation_dims();
-const std::vector<prb_dim_t> &conv_padding_dims();
+const std::vector<pvar_t> &conv_stride_dims();
+const std::vector<pvar_t> &conv_dilation_dims();
+const std::vector<pvar_t> &conv_padding_dims();
 
 class hw_t;
 
@@ -257,14 +257,13 @@ private:
     const conv_problem_t &prb_;
 };
 
-prb_dim_t to_gemm(
-        const prb_dim_t &d, prop_kind_t prop, bool is_transpose = false);
-prb_tile_t to_gemm(
-        const prb_tile_t &t, prop_kind_t prop, bool is_transpose = false);
-inline prb_dim_t to_gemm(const prb_dim_t &d, const conv_problem_t &prb) {
+pvar_t to_gemm(const pvar_t &d, prop_kind_t prop, bool is_transpose = false);
+pvar_tile_t to_gemm(
+        const pvar_tile_t &t, prop_kind_t prop, bool is_transpose = false);
+inline pvar_t to_gemm(const pvar_t &d, const conv_problem_t &prb) {
     return to_gemm(d, prb.prop_kind(), prb.ab_swap_transpose);
 }
-inline prb_tile_t to_gemm(const prb_tile_t &t, const conv_problem_t &prb) {
+inline pvar_tile_t to_gemm(const pvar_tile_t &t, const conv_problem_t &prb) {
     return to_gemm(t, prb.prop_kind(), prb.ab_swap_transpose);
 }
 

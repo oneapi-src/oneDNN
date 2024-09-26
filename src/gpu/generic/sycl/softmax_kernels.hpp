@@ -50,13 +50,6 @@ struct softmax_fwd_kernel_vec_t {
         memory_plain_t src_scale_mem(scale_src_, data_type::f32);
         memory_plain_t dst_scale_mem(scale_dst_, data_type::f32);
 
-        auto sg = item.get_sub_group();
-        size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
-        size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
-        size_t wi_offset_t = sg.get_local_id();
-        size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
-        size_t base_idx = offset_t * conf_.block_size;
-
         dims_t dst_dims;
         for (int i = 0; i < xpu::sycl::md_t::max_dims; i++) {
             if (i < dst_mem.md().ndims()) {
@@ -127,14 +120,11 @@ struct softmax_fwd_kernel_vec_t {
             }
         };
 
-        for (dim_t blk_idx = 0; blk_idx < conf_.block_size; blk_idx++) {
-            dim_t idx = base_idx + blk_idx;
-
-            if (idx < conf_.wk_size) {
-                dim_t in = (idx / (1)) % conf_.inner_size;
-                dim_t ou = (idx / (conf_.inner_size)) % conf_.outer_size;
-                operation(ou, in);
-            }
+        for (int idx = item.get_global_id(0); idx < conf_.wk_size;
+                idx += item.get_global_range(0)) {
+            dim_t in = (idx / (1)) % conf_.inner_size;
+            dim_t ou = (idx / (conf_.inner_size)) % conf_.outer_size;
+            operation(ou, in);
         }
     }
 
@@ -166,13 +156,6 @@ struct softmax_bwd_kernel_vec_t {
         memory_tensor_t dst_mem(dst_, conf_.dst_md);
         memory_tensor_t diff_src_mem(diff_src_, conf_.diff_src_md);
         memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
-
-        auto sg = item.get_sub_group();
-        size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
-        size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
-        size_t wi_offset_t = sg.get_local_id();
-        size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
-        size_t base_idx = offset_t * conf_.block_size;
 
         auto operation = [= WA_THIS_COPY_CAPTURE](
                                  dim_t &ou, dim_t &in) mutable {
@@ -214,13 +197,11 @@ struct softmax_bwd_kernel_vec_t {
             }
         };
 
-        for (dim_t i = 0; i < conf_.block_size; i++) {
-            dim_t idx = base_idx + i;
-            if (idx < conf_.wk_size) {
-                dim_t in = (idx / 1) % conf_.inner_size;
-                dim_t ou = (idx / conf_.inner_size) % conf_.outer_size;
-                operation(ou, in);
-            }
+        for (int idx = item.get_global_id(0); idx < conf_.wk_size;
+                idx += item.get_global_range(0)) {
+            dim_t in = (idx / 1) % conf_.inner_size;
+            dim_t ou = (idx / conf_.inner_size) % conf_.outer_size;
+            operation(ou, in);
         }
     }
 

@@ -174,7 +174,8 @@ private:
     inline dim_t wei_offset_int(int g, int oc_b, int ic_b, int kX) const {
         const auto &jcp = pd()->jcp_;
         const dim_t kh_offset = jcp.kw * jcp.ic_block * jcp.oc_block;
-        dim_t extra_offset = (jcp.ndims == 5) ? kX * jcp.kh : kX;
+        dim_t extra_offset
+                = (jcp.ndims == 5) ? static_cast<dim_t>(kX) * jcp.kh : kX;
         const auto res = ((dim_t)((g * jcp.nb_oc + oc_b) * jcp.nb_ic + ic_b)
                                          * jcp.kd * jcp.kh
                                  + extra_offset)
@@ -185,11 +186,16 @@ private:
     inline dim_t wei_offset_ext(int g, int oc_b, int ic_b) const {
         const auto &jcp = pd()->jcp_;
         const int vnni_granularity = data_type_vnni_granularity(jcp.wei_dt);
+        if (vnni_granularity == 0) {
+            assert("Invalid vnni granularity.");
+            return 0;
+        }
 
         const int vnni_ic_b = ic_b / vnni_granularity;
         const int vnni_ic_block = vnni_granularity * jcp.ic_block;
         const int vnni_nb_ic = utils::div_up(jcp.ic, vnni_ic_block);
-        const dim_t kh_offset = jcp.kw * jcp.oc_block * vnni_ic_block;
+        const dim_t kh_offset
+                = static_cast<dim_t>(jcp.kw) * jcp.oc_block * vnni_ic_block;
         const auto res
                 = (dim_t)((g * jcp.nb_oc + oc_b) * vnni_nb_ic + vnni_ic_b)
                 * jcp.kd * jcp.kh * kh_offset;

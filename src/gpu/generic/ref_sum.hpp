@@ -148,7 +148,7 @@ struct ref_sum_t : public gpu::primitive_t {
         const auto n = pd()->n_inputs();
         exec_args_t r_args;
 
-        std::unique_ptr<memory_t> p_temp_dst_acc;
+        std::unique_ptr<memory_t, memory_deleter_t> p_temp_dst_acc;
         if (pd()->need_output_reorder()) {
             auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                     key_sum_reduction);
@@ -161,13 +161,16 @@ struct ref_sum_t : public gpu::primitive_t {
         memory_arg_t dst_acc = {p_temp_dst_acc.get(), false};
 
         for (int i = 0; i < n; ++i) {
-            memory_t scales_mem(
-                    ctx.stream()->engine(), &pd()->scale_md_, nullptr);
-            CHECK(scales_mem.set_data_handle(
+            std::unique_ptr<memory_t, memory_deleter_t> scales_mem;
+            CHECK(safe_ptr_assign(scales_mem,
+                    new memory_t(ctx.stream()->engine(), &pd()->scale_md_,
+                            nullptr)));
+            CHECK(scales_mem->set_data_handle(
                     CTX_GPU_RES_STORAGE(i).data_handle()));
             r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
             r_args[DNNL_ARG_DST] = pd()->need_output_reorder() ? dst_acc : dst;
-            r_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC] = {&scales_mem, true};
+            r_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC]
+                    = {scales_mem.get(), true};
             exec_ctx_t r_ctx(ctx, std::move(r_args));
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + i, reorders_[i]);

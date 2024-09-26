@@ -92,7 +92,13 @@ struct gpu_primitive_t : public gpu::primitive_t {
             jit::jit_generator_base *jitter, bool register_kernel = true) {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
-        CHECK(compute_engine->create_kernel(kernel, jitter, cache_blob()));
+        if (cache_blob()) {
+            CHECK(compute_engine->create_kernel_from_cache_blob(cache_blob(),
+                    *kernel, jitter ? jitter->kernel_name() : nullptr));
+            CHECK(register_kernels({*kernel}));
+            return status::success;
+        }
+        CHECK(compute_engine->create_kernel(kernel, jitter));
         if (register_kernel) CHECK(register_kernels({*kernel}));
         return status::success;
     }
@@ -103,8 +109,14 @@ struct gpu_primitive_t : public gpu::primitive_t {
             const compute::kernel_ctx_t &kernel_ctx) {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
+        if (cache_blob()) {
+            CHECK(compute_engine->create_kernels_from_cache_blob(
+                    cache_blob(), *kernels, kernel_names));
+            CHECK(register_kernels(*kernels));
+            return status::success;
+        }
         CHECK(compute_engine->create_kernels(
-                kernels, kernel_names, kernel_ctx, cache_blob()));
+                kernels, kernel_names, kernel_ctx));
         CHECK(register_kernels(*kernels));
         return status::success;
     }
@@ -125,8 +137,10 @@ struct gpu_primitive_t : public gpu::primitive_t {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         if (cache_blob()) {
-            return compute_engine->create_kernels_from_cache_blob(
-                    cache_blob(), kernels, kernel_names);
+            CHECK(compute_engine->create_kernels_from_cache_blob(
+                    cache_blob(), kernels, kernel_names));
+            CHECK(register_kernels(kernels));
+            return status::success;
         }
 
         auto key = std::make_shared<trivial_key_container_t<T>>(

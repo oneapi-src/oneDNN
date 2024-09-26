@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,8 +39,8 @@ void compute_ref(
     auto v_po_masks = prb->attr.post_ops.get_po_masks();
 
     benchdnn_parallel_nd(nelems, [&](int64_t i) {
-        const auto idx_A = dst.get_scale_idx(i, broadcast_mask_A);
-        const auto idx_B = dst.get_scale_idx(i, broadcast_mask_B);
+        const auto idx_A = dst.get_idx(i, broadcast_mask_A);
+        const auto idx_B = dst.get_idx(i, broadcast_mask_B);
         float res = compute_binary(
                 prb->alg, scales[0] * A[idx_A], scales[1] * B[idx_B]);
         float &dst_fp = dst_ptr[i];

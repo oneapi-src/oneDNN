@@ -16,6 +16,7 @@
 
 #include "gpu/generic/sycl/ref_deconvolution.hpp"
 #include "gpu/generic/sycl/convolution_kernels.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -63,10 +64,6 @@ status_t ref_deconvolution_bwd_weights_t::pd_t::init_conf() {
 
     conf_.diff_weights_md = xpu::sycl::md_t(&diff_weights_md_copy);
 
-    // XXX: should probably be tuned.
-    conf_.block_size = 16;
-    conf_.wg_size = 32;
-
     conf_.wk_size = memory_desc_wrapper(diff_weights_md()).nelems();
 
     conf_.padding[0] = static_cast<int>(desc()->padding[0][0]);
@@ -96,13 +93,8 @@ status_t ref_deconvolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
         convolution_kernel_bwd_weights_t convolution_kernel(
                 pd()->conf_, cgh, ctx, DNNL_ARG_DIFF_DST, DNNL_ARG_SRC);
 
-        const int wg_size = pd()->conf_.wg_size;
-
-        const int t_work = pd()->conf_.wk_size;
-        const int wg_cnt = utils::div_up(t_work, wg_size);
-
-        cgh.parallel_for(::sycl::nd_range<1>(wg_cnt * wg_size, wg_size),
-                convolution_kernel);
+        cgh.parallel_for(
+                get_range(ctx, pd()->conf_.wk_size), convolution_kernel);
     });
 
     return status::success;

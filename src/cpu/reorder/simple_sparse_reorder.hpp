@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -105,12 +105,15 @@ struct simple_sparse_reorder_impl<SIMPLE_SPARSE_REORDER_TEMPL_CALL,
         const auto scratchpad = ctx.get_scratchpad_grantor();
         auto wspace_mem_storage = scratchpad.get_memory_storage(
                 memory_tracking::names::key_reorder_space);
-        memory_t wspace_mem(
-                engine, reorder->pd()->dst_md(), std::move(wspace_mem_storage));
+
+        std::unique_ptr<memory_t, memory_deleter_t> wspace_mem;
+        CHECK(safe_ptr_assign(wspace_mem,
+                new memory_t(engine, reorder->pd()->dst_md(),
+                        std::move(wspace_mem_storage))));
 
         exec_args_t r_args;
         r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_FROM);
-        r_args[DNNL_ARG_DST] = {&wspace_mem, false};
+        r_args[DNNL_ARG_DST] = {wspace_mem.get(), false};
         exec_ctx_t r_ctx(ctx, std::move(r_args));
 
         nested_scratchpad_t ns(

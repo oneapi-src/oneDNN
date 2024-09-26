@@ -48,7 +48,7 @@ struct pooling_fwd_kernel_vec_t {
         memory_tensor_t src_mem(src_, conf_.src_md);
         memory_tensor_t dst_mem(dst_, conf_.dst_md);
 
-        size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
+        size_t ithr = item.get_global_id(0);
         const bool is_max_pool = conf_.alg == alg_kind::pooling_max;
         float base_res = is_max_pool ? data_conv() : 0.f;
         dim_t MB = conf_.MB;
@@ -254,7 +254,7 @@ struct pooling_bwd_kernel_vec_t {
         memory_tensor_t diff_src_mem(diff_src_, conf_.diff_src_md);
         memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
 
-        size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
+        size_t ithr = item.get_global_id(0);
         int denom = 1;
 
         const bool is_max_pool = conf_.alg == alg_kind::pooling_max;

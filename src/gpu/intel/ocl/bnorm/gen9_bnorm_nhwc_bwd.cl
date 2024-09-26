@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 #include "gpu/intel/ocl/bnorm/gen9_bnorm.h"
+#include "gpu/intel/ocl/bnorm/gen9_bnorm_reduce.h"
 
 // BWD kernels that are that are specially optimized for NHWC layout
 // (NHWC_OPTIMIZED definition).

@@ -1,5 +1,6 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
+* Copyright 2024 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,44 +15,36 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_COMPUTE_KERNEL_LIST_HPP
-#define GPU_INTEL_COMPUTE_KERNEL_LIST_HPP
+#ifndef GPU_NVIDIA_CUDNN_MATMUL_BASE_HPP
+#define GPU_NVIDIA_CUDNN_MATMUL_BASE_HPP
 
-#include <cassert>
-#include <unordered_map>
+#include "gpu/gpu_matmul_pd.hpp"
 
-#include "gpu/intel/compute/kernel.hpp"
+#include "common/primitive.hpp"
+#include "common/primitive_desc_iterator.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/nvidia/cudnn_matmul_executor.hpp"
+#include "gpu/nvidia/cudnn_matmul_impl.hpp"
+#include "gpu/nvidia/cudnn_matmul_lt_impl.hpp"
+#include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace intel {
-namespace compute {
+namespace nvidia {
 
-class kernel_list_t {
-public:
-    void add(const char *name, kernel_t *kernel) {
-        assert(kernels_.count(name) == 0);
-        kernels_[name] = kernel;
-    }
+struct cudnn_matmul_base_t : public gpu::primitive_t {
+    using primitive_t::primitive_t;
 
-    void set(const char *name, const kernel_t &kernel) {
-        assert(kernels_.count(name) > 0);
-        *kernels_[name] = kernel;
-    }
-
-    const std::unordered_map<std::string, kernel_t *> &kernels() const {
-        return kernels_;
-    }
-
-private:
-    std::unordered_map<std::string, kernel_t *> kernels_;
+    struct pd_t : public gpu_matmul_pd_t {
+        using gpu_matmul_pd_t::gpu_matmul_pd_t;
+        virtual status_t init(impl::engine_t *engine) = 0;
+    };
 };
 
-} // namespace compute
-} // namespace intel
+} // namespace nvidia
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_COMPUTE_KERNEL_LIST_HPP
+#endif

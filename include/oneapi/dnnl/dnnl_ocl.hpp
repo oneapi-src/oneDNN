@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -236,6 +236,112 @@ inline memory_kind get_memory_kind(const memory &amemory) {
     return static_cast<memory_kind>(ckind);
 }
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+/// Creates a memory object with multiple handles.
+///
+/// @param memory_desc Memory descriptor.
+/// @param aengine Engine to use.
+/// @param kind Memory allocation kind to specify the type of handles.
+/// @param handles Handles of the memory buffers to use as underlying storages.
+///     For each element of the @p handles array the following applies:
+///     - A USM pointer to the user-allocated buffer. In this case the library
+///       doesn't own the buffer. Requires @p memory_kind to be equal to
+///       dnnl_ocl_interop_usm.
+///     - An OpenCL buffer. In this case the library doesn't own the buffer.
+///       Requires @p memory_kind be equal to be equal to dnnl_ocl_interop_buffer.
+///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+///       allocate the buffer that corresponds to the memory allocation kind
+///       @p memory_kind for the memory object. In this case the library
+///       owns the buffer.
+///     - The DNNL_MEMORY_NONE specific value. Instructs the library to
+///       create memory object without an underlying buffer.
+///
+///  If the @p handles vector is not provided the library will allocate all
+///  buffers as if all handles have the special value DNNL_MEMORY_ALLOCATE.
+///
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+inline memory make_memory(const memory::desc &memory_desc,
+        const engine &aengine, memory_kind kind,
+        std::vector<void *> handles = {}) {
+    if (handles.empty()) {
+        const int nhandles = memory_desc.get_num_handles();
+        handles.resize(nhandles, DNNL_MEMORY_ALLOCATE);
+    }
+
+    dnnl_memory_t c_memory;
+    error::wrap_c_api(
+            dnnl_ocl_interop_memory_create_v2(&c_memory, memory_desc.get(),
+                    aengine.get(), convert_to_c(kind), (int)handles.size(),
+                    handles.data()),
+            "could not create a memory");
+    return memory(c_memory);
+}
+
+/// Constructs a memory object with multiple OpenCL buffers.
+///
+/// @param memory_desc Memory descriptor.
+/// @param aengine Engine to use.
+/// @param mem_objects A vector of OpenCL buffers to use.
+///
+/// @returns Created memory object.
+inline memory make_memory(const memory::desc &memory_desc,
+        const engine &aengine, std::vector<cl_mem> mem_objects) {
+    const int nhandles = memory_desc.get_num_handles();
+    std::vector<void *> handles(nhandles, DNNL_MEMORY_NONE);
+    memory amemory(memory_desc, aengine, handles);
+    for (int i = 0; i < nhandles; i++)
+        amemory.set_data_handle(mem_objects[i], i);
+    return amemory;
+}
+
+/// Creates a memory object.
+///
+/// Unless @p handle is equal to DNNL_MEMORY_NONE or DNNL_MEMORY_ALLOCATE, the
+/// constructed memory object will have the underlying buffer set. In this
+/// case, the buffer will be initialized as if:
+/// - dnnl::memory::set_data_handle() had been called, if @p memory_kind is
+///   equal to dnnl::ocl_interop::memory_kind::usm, or
+/// - dnnl::ocl_interop::set_mem_object() has been called, if @p memory_kind is
+///   equal to dnnl::ocl_interop::memory_kind::buffer.
+///
+/// @param memory_desc Memory descriptor.
+/// @param aengine Engine to use.
+/// @param kind Memory allocation kind to specify the type of handle.
+/// @param handle Handle of the memory buffer to use as an underlying storage.
+///     - A USM pointer to the user-allocated buffer. In this case the library
+///       doesn't own the buffer. Requires @p memory_kind to be equal to
+///       dnnl::ocl_interop::memory_kind::usm.
+///     - An OpenCL buffer. In this case the library doesn't own the buffer.
+///       Requires @p memory_kind be equal to be equal to
+///       dnnl::ocl_interop::memory_kind::buffer.
+///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+///       allocate the buffer that corresponds to the memory allocation kind
+///       @p memory_kind for the memory object. In this case the library
+///       owns the buffer.
+///     - The DNNL_MEMORY_NONE specific value. Instructs the library to
+///       create memory object without an underlying buffer.
+///
+/// @returns Created memory object.
+inline memory make_memory(const memory::desc &memory_desc,
+        const engine &aengine, memory_kind kind, void *handle) {
+    return make_memory(
+            memory_desc, aengine, kind, std::vector<void *> {handle});
+}
+
+/// Constructs a memory object from an OpenCL buffer.
+///
+/// @param memory_desc Memory descriptor.
+/// @param aengine Engine to use.
+/// @param mem_object An OpenCL buffer to use.
+///
+/// @returns Created memory object.
+inline memory make_memory(const memory::desc &memory_desc,
+        const engine &aengine, cl_mem mem_object) {
+    return make_memory(memory_desc, aengine, std::vector<cl_mem> {mem_object});
+}
+#else
+
 /// Creates a memory object.
 ///
 /// Unless @p handle is equal to DNNL_MEMORY_NONE or DNNL_MEMORY_ALLOCATE, the
@@ -288,6 +394,7 @@ inline memory make_memory(const memory::desc &memory_desc,
     set_mem_object(amemory, mem_object);
     return amemory;
 }
+#endif
 
 /// Executes computations specified by the primitive in a specified stream and
 /// returns a SYCL event.

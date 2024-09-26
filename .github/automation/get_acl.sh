@@ -17,8 +17,7 @@
 # limitations under the License.
 # *******************************************************************************
 
-set -e
-# Get the script's filename
+set -o errexit -o pipefail -o noclobber
 
 WORKSPACE=${GITHUB_WORKSPACE:-$(pwd)}
 echo "github workspace $GITHUB_WORKSPACE"

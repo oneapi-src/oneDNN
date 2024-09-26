@@ -104,9 +104,6 @@ struct brgemm_matmul_conf_t {
     bool with_dst_scales;
     bool s8s8_compensation_required;
     bool packed_sparse_weights;
-    bool is_oscale_per_n;
-    bool is_oscale_per_k;
-    bool apply_scales_in_buffer_b;
     bool req_transpose_scales;
     bool with_wei_decompression;
     brgemm_broadcast_t src_zp_type;
@@ -191,6 +188,7 @@ struct brgemm_matmul_conf_t {
     int required_k_granularity;
     bool is_bf32 = false;
     bool is_bf16_with_int_wei = false;
+    bool is_f16_with_int_wei = false;
     bool is_int4_weights = false;
     bool req_wei_vnni_downconvert = false;
     bool is_runtime_M = false;
@@ -199,6 +197,9 @@ struct brgemm_matmul_conf_t {
     bool is_src_batch_layout_trivial = false;
     bool is_wei_batch_layout_trivial = false;
     bool is_dst_batch_layout_trivial = false;
+    bool is_oscale_per_n = false;
+    bool is_oscale_per_k = false;
+    bool apply_scales_in_buffer_b = false;
     inline bool lda_big_pow2() const {
         const dim_t big_stride_threshold_in_bytes = 8192;
         const dim_t big_K_threshold = big_stride_threshold_in_bytes / a_dt_sz;
@@ -229,6 +230,9 @@ struct brgemm_matmul_conf_utils_t {
         if (bgmmc.is_runtime_N) return true;
         if (bgmmc.is_bf16_with_int_wei) return true;
         if (bgmmc.apply_scales_in_buffer_b) return true;
+        if (utils::one_of(true, bgmmc.is_runtime_N, bgmmc.is_bf16_with_int_wei,
+                    bgmmc.is_f16_with_int_wei, bgmmc.apply_scales_in_buffer_b))
+            return true;
 
         if (bgmmc.is_amx)
             // use b_buffer for AMX when:
@@ -297,6 +301,8 @@ struct brgemm_matmul_conf_utils_t {
 
     inline bool is_bf16_with_int_wei() const { return bf16_with_int_wei_dt; }
 
+    inline bool is_f16_with_int_wei() const { return f16_with_int_wei_dt; }
+
     inline bool with_weights_decompression() const {
         return !utils::one_of(bgmmc.src_dt, data_type::s8, data_type::u8,
                        data_type::s4, data_type::u4)
@@ -308,7 +314,8 @@ struct brgemm_matmul_conf_utils_t {
     }
 
     inline bool wei_down_convert_to_vnni() const {
-        return (bf32_dt || bf16_with_int_wei_dt) && get_blocked_B();
+        return (bf32_dt || f16_with_int_wei_dt || bf16_with_int_wei_dt)
+                && get_blocked_B();
     }
 
     inline bool is_any_B_layout() const { return B_any_layout; }
@@ -331,7 +338,8 @@ private:
     brgemm_matmul_conf_t &bgmmc;
 
     const bool f32_dt, bf16_dt, f16_dt, f8_dt, int8_dt, bf32_dt;
-    const bool weights_decompression_support, bf16_with_int_wei_dt;
+    const bool weights_decompression_support, bf16_with_int_wei_dt,
+            f16_with_int_wei_dt;
 
     const bool A_any_layout;
     const bool B_any_layout;

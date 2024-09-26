@@ -62,7 +62,7 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
 #endif
                 POST_OP_ARGS) {
 
-#if WITH_DROUPOUT
+#if WITH_DROPOUT
     uint dropout_seed = dropout_seed_buf[0];
     uint dropout_threshold = get_dropout_threshold(dropout_p_buf[0]);
     float dropout_inv_q

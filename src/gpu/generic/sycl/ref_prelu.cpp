@@ -152,7 +152,7 @@ status_t ref_prelu_bwd_t::init(impl::engine_t *engine) {
 status_t ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     if (pd()->has_zero_dim_memory()) return status::success;
 
-    std::unique_ptr<memory_t> scratch_mem;
+    std::unique_ptr<memory_t, memory_deleter_t> scratch_mem;
     if (pd()->reduce_diff_weights_) {
         auto scratchpad_storage
                 = ctx.get_scratchpad_grantor().get_memory_storage(

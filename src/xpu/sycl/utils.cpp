@@ -96,14 +96,13 @@ bool is_host(const ::sycl::platform &plat) {
 backend_t get_backend(const ::sycl::device &dev) {
     if (is_host(dev)) return backend_t::host;
 
-    auto plat = dev.get_platform();
-    std::string plat_name = plat.get_info<::sycl::info::platform::name>();
-    if (plat_name.find("OpenCL") != std::string::npos) return backend_t::opencl;
-    if (plat_name.find("NVIDIA") != std::string::npos) return backend_t::nvidia;
-    if (plat_name.find("AMD") != std::string::npos) return backend_t::amd;
-    if (plat_name.find("Level-Zero") != std::string::npos)
-        return backend_t::level0;
-
+    switch (dev.get_backend()) {
+        case ::sycl::backend::opencl: return backend_t::opencl;
+        case ::sycl::backend::ext_oneapi_level_zero: return backend_t::level0;
+        case ::sycl::backend::ext_oneapi_cuda: return backend_t::nvidia;
+        case ::sycl::backend::ext_oneapi_hip: return backend_t::amd;
+        default: break;
+    }
     return backend_t::unknown;
 }
 

@@ -68,6 +68,9 @@ void serialize_md(serialization_stream_t &sstream, const memory_desc_t &md) {
     sstream.write(&md.format_kind);
     // format desc
     switch ((int)md.format_kind) {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+        case format_kind::sparse:
+#endif
         case format_kind::undef:
         case format_kind::any: break;
         case format_kind::blocked:
@@ -90,6 +93,11 @@ void serialize_md(serialization_stream_t &sstream, const memory_desc_t &md) {
             sstream.write(&md.format_desc.wino_desc.oc2_block);
             sstream.write(&md.format_desc.wino_desc.adj_scale);
             sstream.write(&md.format_desc.wino_desc.size);
+            break;
+        case format_kind::cublaslt_blocked:
+            sstream.write(
+                    &md.format_desc.cublaslt_blocked_desc.cublaslt_format);
+            sstream.write(&md.format_desc.cublaslt_blocked_desc.size);
             break;
         case format_kind::rnn_packed:
             sstream.write(&md.format_desc.rnn_packed_desc.format);

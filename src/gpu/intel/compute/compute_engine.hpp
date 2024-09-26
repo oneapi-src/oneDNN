@@ -56,32 +56,20 @@ public:
     const device_info_t *device_info() const { return device_info_.get(); }
 
     virtual status_t create_kernel(compute::kernel_t *kernel,
-            jit::jit_generator_base *jitter,
-            const cache_blob_t &cache_blob) const = 0;
+            jit::jit_generator_base *jitter) const = 0;
 
     virtual status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
-            const compute::kernel_ctx_t &kernel_ctx,
-            const cache_blob_t &cache_blob) const = 0;
+            const compute::kernel_ctx_t &kernel_ctx) const = 0;
 
     status_t create_kernel_bundle(kernel_bundle_t &bundle,
             const std::vector<const char *> &kernel_names,
-            const compute::kernel_ctx_t &kernel_ctx,
-            const cache_blob_t &cache_blob = cache_blob_t()) const {
+            const compute::kernel_ctx_t &kernel_ctx) const {
         std::vector<kernel_t> kernels;
-        CHECK(create_kernels(&kernels, kernel_names, kernel_ctx, cache_blob));
+        CHECK(create_kernels(&kernels, kernel_names, kernel_ctx));
         bundle = kernel_bundle_t(std::move(kernels), kernel_names);
         return status::success;
     }
-
-    virtual status_t create_kernels_from_ocl_source(
-            std::vector<compute::kernel_t> *kernels,
-            const std::vector<const char *> &kernel_names,
-            const char *source_string,
-            const compute::kernel_ctx_t &kernel_ctx) const {
-        assert(!"unexpected");
-        return status::success;
-    };
 
     virtual status_t create_kernel_from_binary(compute::kernel_t &kernel,
             const xpu::binary_t &binary, const char *kernel_name) const = 0;
@@ -90,6 +78,16 @@ public:
             const cache_blob_t &cache_blob,
             std::vector<compute::kernel_t> &kernels,
             const std::vector<const char *> &kernel_names) const = 0;
+
+    status_t create_kernel_from_cache_blob(const cache_blob_t &cache_blob,
+            compute::kernel_t &kernel, const char *kernel_name) const {
+        std::vector<compute::kernel_t> kernels;
+        CHECK(create_kernels_from_cache_blob(
+                cache_blob, kernels, {kernel_name}));
+        if (kernels.size() != 1) return status::runtime_error;
+        kernel = std::move(kernels[0]);
+        return status::success;
+    };
 
     status_t get_zero_pad_primitive(
             impl::primitive_t *&result, const resource_mapper_t *&resources) {

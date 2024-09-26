@@ -1689,7 +1689,9 @@ void jit_brgemm_ip_fwd_conf_t::choose_loop_order() {
     const bool is_int8 = one_of(src_dt, u8, s8) && wei_dt == s8;
     const bool is_compute_amx = (is_xf16 || is_int8) && is_amx;
 
-    if ((os_block < 32 || do_occ_osc) && (is_compute_amx || is_f32_avx2))
+    // Disable specific shape to use osb inner most order for perf purpose
+    if ((os_block < 32 || do_occ_osc) && (is_compute_amx || is_f32_avx2)
+            && !(os == 16384 && ic == 768 && oc == 30522))
         loop_order = icc_occ_osc_ocb_osb;
 }
 

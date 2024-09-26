@@ -831,18 +831,25 @@ rnn_matmul_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     engine_t *engine = ctx.stream()->engine();
     constexpr auto mem_flag = memory_flags_t::use_runtime_ptr;
-    memory_t src_mem(
-            engine, matmul_prim->pd()->src_md(), mem_flag, (void *)(a_));
-    memory_t wei_mem(
-            engine, matmul_prim->pd()->weights_md(), mem_flag, (void *)(b_));
-    memory_t dst_mem(
-            engine, matmul_prim->pd()->dst_md(), mem_flag, (void *)(c_));
+
+    std::unique_ptr<memory_t, memory_deleter_t> src_mem;
+    CHECK(safe_ptr_assign(src_mem,
+            new memory_t(engine, matmul_prim->pd()->src_md(), mem_flag,
+                    (void *)(a_))));
+    std::unique_ptr<memory_t, memory_deleter_t> wei_mem;
+    CHECK(safe_ptr_assign(wei_mem,
+            new memory_t(engine, matmul_prim->pd()->weights_md(), mem_flag,
+                    (void *)(b_))));
+    std::unique_ptr<memory_t, memory_deleter_t> dst_mem;
+    CHECK(safe_ptr_assign(dst_mem,
+            new memory_t(engine, matmul_prim->pd()->dst_md(), mem_flag,
+                    (void *)(c_))));
 
     exec_args_t matmul_args;
     // Note Matmul src and wei may not directly map to RNN primitive src and wei
-    matmul_args[DNNL_ARG_SRC] = {&wei_mem, true};
-    matmul_args[DNNL_ARG_WEIGHTS] = {&src_mem, true};
-    matmul_args[DNNL_ARG_DST] = {&dst_mem, false};
+    matmul_args[DNNL_ARG_SRC] = {wei_mem.get(), true};
+    matmul_args[DNNL_ARG_WEIGHTS] = {src_mem.get(), true};
+    matmul_args[DNNL_ARG_DST] = {dst_mem.get(), false};
 
     exec_ctx_t matmul_ctx(ctx, std::move(matmul_args));
     nested_scratchpad_t ns(ctx, key_nested_multiple, matmul_prim);
@@ -2132,11 +2139,13 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute(
         auto wei_iter_mem
                 = scratchpad.get_memory_storage(key_rnn_bf32_wei_iter_trans);
         {
-            memory_t reorder_dst(
-                    engine, &wei_layer_desc, std::move(wei_layer_mem));
+            std::unique_ptr<memory_t, memory_deleter_t> reorder_dst;
+            CHECK(safe_ptr_assign(reorder_dst,
+                    new memory_t(engine, &wei_layer_desc,
+                            std::move(wei_layer_mem))));
             exec_args_t reorder_args;
             reorder_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_WEIGHTS_LAYER);
-            reorder_args[DNNL_ARG_DST] = {&reorder_dst, false};
+            reorder_args[DNNL_ARG_DST] = {reorder_dst.get(), false};
             exec_ctx_t reorder_ctx(ctx, std::move(reorder_args));
             nested_scratchpad_t ns(
                     ctx, key_nested_multiple, bf32_wei_layer_reorder_);
@@ -2148,11 +2157,13 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute(
         }
 
         {
-            memory_t reorder_dst(
-                    engine, &wei_iter_desc, std::move(wei_iter_mem));
+            std::unique_ptr<memory_t, memory_deleter_t> reorder_dst;
+            CHECK(safe_ptr_assign(reorder_dst,
+                    new memory_t(
+                            engine, &wei_iter_desc, std::move(wei_iter_mem))));
             exec_args_t reorder_args;
             reorder_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_WEIGHTS_ITER);
-            reorder_args[DNNL_ARG_DST] = {&reorder_dst, false};
+            reorder_args[DNNL_ARG_DST] = {reorder_dst.get(), false};
             exec_ctx_t reorder_ctx(ctx, std::move(reorder_args));
             nested_scratchpad_t ns(
                     ctx, key_nested_multiple, bf32_wei_iter_reorder_);

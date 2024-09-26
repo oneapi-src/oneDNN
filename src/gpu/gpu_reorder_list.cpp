@@ -29,6 +29,7 @@
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
 #include "gpu/nvidia/cudnn_reorder.hpp"
+#include "gpu/nvidia/cudnn_reorder_lt.hpp"
 #endif
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
@@ -54,10 +55,11 @@ constexpr impl_list_item_t impl_list[] = REG_REORDER_P({
         GPU_REORDER_INSTANCE_INTEL(intel::ocl::custom_reorder_t::pd_t) // for specific tensor shapes
         GPU_REORDER_INSTANCE_INTEL(intel::ocl::generic_reorder_t::pd_t)// fast and quite generic
         GPU_REORDER_INSTANCE_INTEL(intel::ocl::ref_reorder_t::pd_t)    // slow but fits every use case
+        GPU_REORDER_INSTANCE_NVIDIA(nvidia::cudnn_reorder_lt_t::pd_t)
         GPU_REORDER_INSTANCE_NVIDIA(nvidia::cudnn_reorder_t::pd_t)
         GPU_REORDER_INSTANCE_AMD(amd::miopen_reorder_t::pd_t)
-        GPU_REORDER_INSTANCE_GENERIC_SYCL(generic::sycl::ref_reorder_t::pd_t)
         GPU_REORDER_INSTANCE_GENERIC(generic::cross_engine_reorder_t::pd_t)
+        GPU_REORDER_INSTANCE_GENERIC_SYCL(generic::sycl::ref_reorder_t::pd_t)
         nullptr,
 });
 // clang-format on

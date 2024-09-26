@@ -358,7 +358,6 @@ status_t mqa_decomp_config_t::record_input_offset(
 }
 
 status_t mqa_decomp_config_t::record_mqa_ops(std::shared_ptr<subgraph_t> &sg) {
-    subgraph_rewriter_t rewriter(sg);
     op_ptr reorder1, reorder2, matmul1, softmax, matmul2;
     for (const auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;

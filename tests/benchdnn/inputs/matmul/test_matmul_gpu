@@ -108,6 +108,3 @@
 # Test tf32 configuration
 --reset
 --batch=option_set_fwks_key_gpu_tf32
-
-# Dropout
---batch=harness_matmul_dropout

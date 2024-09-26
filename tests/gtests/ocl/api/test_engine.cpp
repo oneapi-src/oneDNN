@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -290,6 +290,8 @@ TEST_P(ocl_engine_test_t, BinaryKernels) {
         ASSERT_EQ(dnnl_impl_gpu_mayiuse_ngen_kernels(eng), true);
     }
 #endif
+
+    if (s == dnnl_success) { DNNL_CHECK(dnnl_engine_destroy(eng)); }
 }
 
 INSTANTIATE_TEST_SUITE_P(Simple, ocl_engine_test_t,

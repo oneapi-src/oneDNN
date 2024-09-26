@@ -126,14 +126,14 @@ public:
         set_exec_cfg(ec);
     }
 
-    prb_tile_t shape(bool pad) const override {
+    pvar_tile_t shape(bool pad) const override {
 #define SET(g_name, l_name) \
-    ret[prb_dims::g_name] = (pad) \
-            ? utils::rnd_up(prb.l_name, pad_block(prb_dims::g_name)) \
+    ret[pvars::g_name] = (pad) \
+            ? utils::rnd_up(prb.l_name, pad_block(pvars::g_name)) \
             : prb.l_name
 
         const auto &prb = pooling_problem();
-        prb_tile_t ret;
+        pvar_tile_t ret;
         SET(mb, mb);
         SET(oc, c);
         if (is_fwd()) {
@@ -153,38 +153,36 @@ public:
 #undef SET
     }
 
-    const std::vector<prb_dim_t> &index_dims() const override {
+    const std::vector<pvar_t> &index_dims() const override {
         auto get_dims = [&](bool is_fwd) {
-            std::vector<prb_dim_t> ret;
-            ret.push_back(prb_dims::mb);
-            ret.push_back(prb_dims::oc);
+            std::vector<pvar_t> ret;
+            ret.push_back(pvars::mb);
+            ret.push_back(pvars::oc);
             if (is_fwd) {
-                ret.push_back(prb_dims::od);
-                ret.push_back(prb_dims::oh);
-                ret.push_back(prb_dims::ow);
+                ret.push_back(pvars::od);
+                ret.push_back(pvars::oh);
+                ret.push_back(pvars::ow);
             } else {
-                ret.push_back(prb_dims::id);
-                ret.push_back(prb_dims::ih);
-                ret.push_back(prb_dims::iw);
+                ret.push_back(pvars::id);
+                ret.push_back(pvars::ih);
+                ret.push_back(pvars::iw);
             }
-            ret.push_back(prb_dims::kd);
-            ret.push_back(prb_dims::kh);
-            ret.push_back(prb_dims::kw);
+            ret.push_back(pvars::kd);
+            ret.push_back(pvars::kh);
+            ret.push_back(pvars::kw);
             return ret;
         };
-        static std::vector<prb_dim_t> fwd_dims = get_dims(true);
-        static std::vector<prb_dim_t> bwd_dims = get_dims(false);
+        static std::vector<pvar_t> fwd_dims = get_dims(true);
+        static std::vector<pvar_t> bwd_dims = get_dims(false);
         return (is_fwd()) ? fwd_dims : bwd_dims;
     }
 
-    int pad_block(const prb_dim_t &d) const override {
-        switch (d.kind()) {
-            default: return 1;
-            case prb_dim_kind_t::mb:
-                return src_layout().user().inner_block(0, true, false);
-            case prb_dim_kind_t::oc:
-                return src_layout().user().inner_block(1, true, false);
-        }
+    int pad_block(const pvar_t &d) const override {
+        if (d == pvars::mb)
+            return src_layout().user().inner_block(0, true, false);
+        if (d == pvars::oc)
+            return src_layout().user().inner_block(1, true, false);
+        return 1;
     }
 
     bool is_fwd() const { return !pooling_problem().is_backward; }

@@ -158,8 +158,7 @@ public:
         if (hw != HW::Unknown) {
             binary_format_kernel_t<hw> binary_format_kernel;
 
-            auto status
-                    = engine->create_kernel(&kernel, &binary_format_kernel, {});
+            auto status = engine->create_kernel(&kernel, &binary_format_kernel);
 
             if (status != status::success) return nullptr;
             *skip_check = binary_format_kernel.binaryIsZebin();

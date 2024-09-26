@@ -44,9 +44,6 @@ public:
     status_t init() override;
     status_t init(const std::vector<uint8_t> &cache_blob);
 
-    status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
-            size_t size, void *handle) override;
-
     status_t create_stream(
             impl::stream_t **stream, impl::stream_impl_t *stream_impl) override;
 
@@ -63,19 +60,15 @@ public:
             const std::vector<const char *> &kernel_names) const override;
 
     status_t create_kernel(compute::kernel_t *kernel,
-            jit::jit_generator_base *jitter,
-            const cache_blob_t &cache_blob) const override;
+            jit::jit_generator_base *jitter) const override;
 
     status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
-            const compute::kernel_ctx_t &kernel_ctx,
-            const cache_blob_t &cache_blob) const override;
-
-    status_t create_kernels_from_ocl_source(
-            std::vector<compute::kernel_t> *kernels,
-            const std::vector<const char *> &kernel_names,
-            const char *source_string,
             const compute::kernel_ctx_t &kernel_ctx) const override;
+
+    static status_t create_kernels_from_program(
+            std::vector<compute::kernel_t> *kernels,
+            const std::vector<const char *> &kernel_names, cl_program program);
 
     const impl_list_item_t *get_concat_implementation_list() const override {
         return gpu_impl_list_t::get_concat_implementation_list();
@@ -96,10 +89,6 @@ public:
         return gpu_impl_list_t::get_implementation_list(desc);
     }
 
-    cl_device_id device() const { return impl()->device(); }
-    cl_context context() const { return impl()->context(); }
-    cl_platform_id platform() const { return impl()->platform(); }
-
     gpu_utils::device_id_t device_id() const override {
         return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
     }
@@ -113,6 +102,12 @@ public:
     status_t get_cache_blob(size_t size, uint8_t *cache_blob) const override {
         return device_info_->get_cache_blob(size, cache_blob);
     }
+
+    status_t create_program(xpu::ocl::wrapper_t<cl_program> &program,
+            const std::vector<const char *> &kernel_names,
+            const compute::kernel_ctx_t &kernel_ctx) const;
+
+    DECLARE_COMMON_OCL_ENGINE_FUNCTIONS();
 
 protected:
     const xpu::ocl::engine_impl_t *impl() const {

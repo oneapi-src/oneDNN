@@ -40,11 +40,6 @@ status_t engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
     return status::success;
 }
 
-status_t engine_t::create_memory_storage(
-        memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
-    return impl()->create_memory_storage(storage, this, flags, size, handle);
-}
-
 engine_t::engine_t(
         const ::sycl::device &dev, const ::sycl::context &ctx, size_t index)
     : impl::gpu::engine_t(

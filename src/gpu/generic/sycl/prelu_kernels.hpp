@@ -50,7 +50,7 @@ struct prelu_fwd_kernel_vec_t {
         memory_tensor_t weights_mem(weights_, conf_.weights_md);
         memory_tensor_t dst_mem(dst_, conf_.dst_md);
 
-        size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
+        size_t ithr = item.get_global_id(0);
 
         const int mask = conf_.mask;
         const dim_t work_amount = conf_.work_amount;
@@ -148,7 +148,7 @@ struct prelu_bwd_kernel_vec_t {
 
     prelu_bwd_kernel_vec_t(const sycl_prelu_conf_t &conf, ::sycl::handler &cgh,
             const exec_ctx_t &ctx, bool reduce_diff_weights,
-            std::unique_ptr<memory_t> &scratch_mem)
+            std::unique_ptr<memory_t, memory_deleter_t> &scratch_mem)
         : conf_(conf)
         , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
         , diff_data_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
@@ -172,7 +172,7 @@ struct prelu_bwd_kernel_vec_t {
         memory_plain_t scratchpad_mem(
                 scratchpad_, conf_.weights_md.data_type());
 
-        size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
+        size_t ithr = item.get_global_id(0);
         switch (conf_.bcast_type) {
             case broadcasting_strategy_t::scalar:
                 calculate_scalar(data_mem, weights_mem, scratchpad_mem,
@@ -393,7 +393,7 @@ private:
             out_memory_tensor_t &diff_src_mem, size_t ith,
             ::sycl::nd_item<1> item) const {
 
-        size_t ithr = item.get_group(0) * conf_.wg_size + item.get_local_id();
+        size_t ithr = item.get_global_id(0);
         dims_t dims_d, dims_w;
         for (int i = 0; i < max_supported_ndims; i++) {
             dim_t data_dim_i = data_md().dims()[i];

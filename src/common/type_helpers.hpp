@@ -50,6 +50,14 @@ status_t safe_ptr_assign(std::unique_ptr<base_type> &lhs, derived_type *rhs) {
     return status::success;
 }
 
+template <typename base_type, typename base_type_deleter, typename derived_type>
+status_t safe_ptr_assign(
+        std::unique_ptr<base_type, base_type_deleter> &lhs, derived_type *rhs) {
+    if (rhs == nullptr) return status::out_of_memory;
+    lhs.reset(rhs);
+    return status::success;
+}
+
 template <typename T, typename U>
 struct is_subset {
     static constexpr bool value = false;
@@ -351,6 +359,10 @@ inline bool wino_desc_is_equal(const wino_desc_t &lhs, const wino_desc_t &rhs) {
             && lhs.ic_block == rhs.ic_block && lhs.oc_block == rhs.oc_block
             && lhs.ic2_block == rhs.ic2_block && lhs.oc2_block == rhs.oc2_block
             && lhs.r == rhs.r;
+}
+inline bool cublaslt_blocked_desc_is_equal(const cublaslt_blocked_desc_t &lhs,
+        const cublaslt_blocked_desc_t &rhs) {
+    return lhs.cublaslt_format == rhs.cublaslt_format && lhs.size == rhs.size;
 }
 
 inline bool rnn_packed_desc_is_equal(

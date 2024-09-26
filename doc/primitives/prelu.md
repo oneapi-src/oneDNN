@@ -62,7 +62,7 @@ For no broadcast case, results are calculated using formula:
         \diffdst(n, c, h, w) \cdot \weights(n, c, h, w) &
         \mbox{if } \src(n, c, h, w) \leq 0
         \end{cases}\\\\
-    \diff_weights(n, c, h, w) &=
+    \diffweights(n, c, h, w) &=
         \min(\src(n, c, h, w), 0) \cdot \diffdst(n, c, h, w)
 \f]
 

@@ -1,0 +1,2 @@
+--reset
+--batch=test_matmul_sparse

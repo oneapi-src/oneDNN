@@ -42,13 +42,6 @@ struct lrn_fwd_kernel_vec_t {
         memory_tensor_t src_mem(src_, conf_.src_md);
         memory_tensor_t dst_mem(dst_, conf_.dst_md);
 
-        auto sg = item.get_sub_group();
-        size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
-        size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
-        size_t wi_offset_t = sg.get_local_id();
-        size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
-        size_t base_idx = offset_t * conf_.block_size;
-
         auto data_off = [&](dim_t &mb, dim_t &c, dim_t &d, dim_t &h, dim_t &w) {
             switch (tag_) {
                 case format_tag::nchw:
@@ -112,23 +105,21 @@ struct lrn_fwd_kernel_vec_t {
                       }
                   };
 
-        for (dim_t blk_idx = 0; blk_idx < conf_.block_size; blk_idx++) {
-            dim_t idx = base_idx + blk_idx;
-            if (idx < conf_.wk_size) {
-                dim_t N = conf_.mb;
-                dim_t C = conf_.c;
-                dim_t D = conf_.d;
-                dim_t H = conf_.h;
-                dim_t W = conf_.w;
+        for (int idx = item.get_global_id(0); idx < conf_.wk_size;
+                idx += item.get_global_range(0)) {
+            dim_t N = conf_.mb;
+            dim_t C = conf_.c;
+            dim_t D = conf_.d;
+            dim_t H = conf_.h;
+            dim_t W = conf_.w;
 
-                dim_t n = (idx / (C * D * H * W)) % N;
-                dim_t c = (idx / (D * H * W)) % C;
-                dim_t d = (idx / (H * W)) % D;
-                dim_t h = (idx / (W)) % H;
-                dim_t w = (idx / (1)) % W;
+            dim_t n = (idx / (C * D * H * W)) % N;
+            dim_t c = (idx / (D * H * W)) % C;
+            dim_t d = (idx / (H * W)) % D;
+            dim_t h = (idx / (W)) % H;
+            dim_t w = (idx / (1)) % W;
 
-                operation(n, c, d, h, w);
-            }
+            operation(n, c, d, h, w);
         }
     }
 
@@ -165,13 +156,6 @@ struct lrn_bwd_kernel_vec_t {
         memory_tensor_t src_mem(src_, conf_.src_md);
         memory_tensor_t diff_src_mem(diff_src_, conf_.diff_src_md);
         memory_tensor_t diff_dst_mem(diff_dst_, conf_.diff_dst_md);
-
-        auto sg = item.get_sub_group();
-        size_t wg_offset_t = item.get_group(0) * conf_.wg_size;
-        size_t sg_offset_t = sg.get_group_id()[0] * sg.get_local_range()[0];
-        size_t wi_offset_t = sg.get_local_id();
-        size_t offset_t = wg_offset_t + sg_offset_t + wi_offset_t;
-        size_t base_idx = offset_t * conf_.block_size;
 
         auto data_off = [&](dim_t &mb, dim_t &c, dim_t &d, dim_t &h,
                                 dim_t &w) -> dim_t {
@@ -283,23 +267,21 @@ struct lrn_bwd_kernel_vec_t {
                       }
                   };
 
-        for (dim_t blk_idx = 0; blk_idx < conf_.block_size; blk_idx++) {
-            dim_t idx = base_idx + blk_idx;
-            if (idx < conf_.wk_size) {
-                dim_t N = conf_.mb;
-                dim_t C = conf_.c;
-                dim_t D = conf_.d;
-                dim_t H = conf_.h;
-                dim_t W = conf_.w;
+        for (int idx = item.get_global_id(0); idx < conf_.wk_size;
+                idx += item.get_global_range(0)) {
+            dim_t N = conf_.mb;
+            dim_t C = conf_.c;
+            dim_t D = conf_.d;
+            dim_t H = conf_.h;
+            dim_t W = conf_.w;
 
-                dim_t n = (idx / (C * D * H * W)) % N;
-                dim_t c = (idx / (D * H * W)) % C;
-                dim_t d = (idx / (H * W)) % D;
-                dim_t h = (idx / (W)) % H;
-                dim_t w = (idx / (1)) % W;
+            dim_t n = (idx / (C * D * H * W)) % N;
+            dim_t c = (idx / (D * H * W)) % C;
+            dim_t d = (idx / (H * W)) % D;
+            dim_t h = (idx / (W)) % H;
+            dim_t w = (idx / (1)) % W;
 
-                operation(n, c, d, h, w);
-            }
+            operation(n, c, d, h, w);
         }
     }
 

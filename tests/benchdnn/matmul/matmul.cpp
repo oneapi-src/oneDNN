@@ -499,16 +499,43 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_matmul);
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
-    const auto wei_encoding
-            = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
-    if (is_gpu() && !prb->sparse_options.is_def()) {
+    if ((is_nvidia_gpu() || is_amd_gpu()) && !prb->sparse_options.is_def()) {
         BENCHDNN_PRINT(2,
-                "[SKIP][%s:%d]: GPU doesn't support sparse functionality.\n",
+                "[SKIP][%s:%d]: oneDNN doesn't support sparse matmul for "
+                "NVIDIA and AMD GPUs.\n",
                 __FILE__, __LINE__);
         res->state = SKIPPED;
         res->reason = skip_reason::case_not_supported;
         return;
     }
+
+    const auto wei_encoding
+            = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
+    bool is_wei_dense = (wei_encoding == dnnl_sparse_encoding_undef);
+    bool is_src_coo_sparse
+            = (prb->sparse_options.get_encoding(DNNL_ARG_SRC) == dnnl_coo);
+    if (!prb->sparse_options.is_def() && is_gpu()
+            && (!is_wei_dense || !is_src_coo_sparse)) {
+        BENCHDNN_PRINT(2,
+                "[SKIP][%s:%d]: GPU sparse matmul only supports COO encoding "
+                "for source.\n",
+                __FILE__, __LINE__);
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
+
+    if (!prb->sparse_options.is_def() && is_cpu() && is_wei_dense
+            && prb->wtag != "any" && prb->wtag != "ab") {
+        BENCHDNN_PRINT(2,
+                "[SKIP][%s:%d]: Only `any` and `ab` tags are supported for "
+                "dense weights on CPU.\n",
+                __FILE__, __LINE__);
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
+
     if (wei_encoding == dnnl_packed) {
         BENCHDNN_PRINT(2,
                 "[SKIP][%s:%d]: Weights argument doesn't support packed "
@@ -618,19 +645,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
 }
 
 void skip_invalid_prb(const prb_t *prb, res_t *res) {
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-    if (is_sycl_engine(get_test_engine()) && !prb->sparse_options.is_def()) {
-        BENCHDNN_PRINT(2,
-                "[INVALID][%s:%d]: oneDNN doesn't provide SYCL "
-                "interoperability API for creating a sparse memory therefore "
-                "all SYCL cases must be skipped.\n",
-                __FILE__, __LINE__);
-        res->state = SKIPPED;
-        res->reason = skip_reason::case_not_supported;
-        return;
-    }
-#endif
-
     if (!prb->attr.zero_points.is_def()
             && (prb->wei_dt() != dnnl_s8 && prb->wei_dt() != dnnl_u8
                     && prb->wei_dt() != dnnl_s4 && prb->wei_dt() != dnnl_u4)) {

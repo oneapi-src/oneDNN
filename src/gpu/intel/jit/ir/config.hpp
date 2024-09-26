@@ -187,29 +187,28 @@ public:
 
 class tile_param_t : public param_t {
 public:
-    using value_t = prb_tile_t;
+    using value_t = pvar_tile_t;
 
     const value_t &get() const { return tile_; }
 
     bool is_empty() const { return tile_.is_empty(); }
 
-    int get(const prb_dim_t &dim) const { return tile_.get(dim, 1); }
+    int get(const pvar_t &pvar) const { return tile_.get(pvar, 1); }
 
-    int operator()(const prb_dim_t &dim) const { return get(dim); }
+    int operator()(const pvar_t &pvar) const { return get(pvar); }
 
     void set_from_str(const std::string &s) override {
-        tile_ = prb_tile_t();
+        tile_ = pvar_tile_t();
         for (auto &kv : ir_utils::to_string_int_pairs(s)) {
-            tile_[prb_dim_t::from_name(kv.first)] = kv.second;
+            tile_[pvar_t(kv.first)] = kv.second;
         }
     }
 
-    void set(const prb_dim_t &dim, int size) { tile_[dim] = size; }
+    void set(const pvar_t &pvar, int size) { tile_[pvar] = size; }
 
     void set(const value_t &value) { tile_ = value; }
 
-    template <typename T>
-    void set(const dim_map_t<T, int> &tile) {
+    void set(const pvar_map_t<int> &tile) {
         for (auto &d : tile) {
             set(d.str(), tile[d]);
         }
@@ -291,9 +290,9 @@ public:
     ~prim_config_t() override = default;
     std::string str() const override = 0;
 
-    virtual prb_tile_t shape(bool pad) const = 0;
-    virtual const std::vector<prb_dim_t> &index_dims() const = 0;
-    virtual int pad_block(const prb_dim_t &d) const = 0;
+    virtual pvar_tile_t shape(bool pad) const = 0;
+    virtual const std::vector<pvar_t> &index_dims() const = 0;
+    virtual int pad_block(const pvar_t &d) const = 0;
 
     void set_zp_cfg(const zero_points_config_t &zp_cfg) { zp_cfg_ = zp_cfg; }
     const zero_points_config_t &zp_cfg() const { return zp_cfg_; }
@@ -412,34 +411,34 @@ public:
 #undef DECL_PARAM
 #undef DECL_PARAM2
 
-    int iter_dim(const prb_dim_t &d) const { return iter_dims().get(d); }
+    int iter_dim(const pvar_t &d) const { return iter_dims().get(d); }
 
-    int iter_dim(std::initializer_list<prb_dim_t> dims) const {
+    int iter_dim(std::initializer_list<pvar_t> dims) const {
         int ret = 1;
         for (auto &dim : dims)
             ret *= iter_dim(dim);
         return ret;
     }
 
-    int loop_dim(const prb_dim_t &d) const { return loop_dims().get(d); }
+    int loop_dim(const pvar_t &d) const { return loop_dims().get(d); }
 
-    int thread_group_dim(const prb_dim_t &d) const {
+    int thread_group_dim(const pvar_t &d) const {
         return thread_group_dims().get(d);
     }
 
-    int padded_dim(const prb_dim_t &d) const { return padded_dims().get(d); }
+    int padded_dim(const pvar_t &d) const { return padded_dims().get(d); }
 
-    int grid_dim(const prb_dim_t &dim) const {
+    int grid_dim(const pvar_t &dim) const {
         return ir_utils::safe_divide(padded_dim(dim),
                 loop_dim(dim) * thread_group_dim(dim) * iter_dim(dim));
     }
 
-    prb_tile_t dims() const { return shape(/* pad = */ false); }
-    int dim(const prb_dim_t &d) const { return dims().get(d); }
+    pvar_tile_t dims() const { return shape(/* pad = */ false); }
+    int dim(const pvar_t &d) const { return dims().get(d); }
 
     int sort_key(const param_t *param) const override;
 
-    void init_kernel_grid(const std::array<prb_tile_t, 3> &grid) {
+    void init_kernel_grid(const std::array<pvar_tile_t, 3> &grid) {
         std::vector<int> dims(grid.size(), 1);
         for (int i = 0; i < int(grid.size()); i++) {
             for (auto &d : grid[i]) {
@@ -450,7 +449,7 @@ public:
         set_kernel_grid(grid_info_t(dims, "grid_idx"));
     }
 
-    void init_thread_group_grid(const std::array<prb_tile_t, 3> &grid) {
+    void init_thread_group_grid(const std::array<pvar_tile_t, 3> &grid) {
         std::vector<int> dims(grid.size(), 1);
         for (int i = 0; i < int(grid.size()); i++) {
             for (auto &d : grid[i])

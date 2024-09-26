@@ -18,8 +18,8 @@
 
 #include "gpu/intel/jit/v2/conv/model.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
+#include "gpu/intel/jit/v2/conv/plan_registry.hpp"
 #include "gpu/intel/jit/v2/conv/planner/bench.hpp"
-#include "gpu/intel/jit/v2/conv/planner/mkl_iface.hpp"
 #include "gpu/intel/jit/v2/conv/planner/model_fit.hpp"
 #include "gpu/intel/jit/v2/conv/planner/search.hpp"
 
@@ -103,11 +103,6 @@ void init_params(
     } else {
         params.mode = planner_mode_t::trace;
     }
-    switch (params.mode) {
-        case planner_mode_t::search:
-        case planner_mode_t::auto_search: (void)mkl_iface_t::instance(); break;
-        default: break;
-    }
     // Check if conv v2 is enabled.
     bool enable_conv_v2 = gpu_utils::dev_getenv("enable_conv_v2", false);
     if (!enable_conv_v2) {
@@ -117,15 +112,20 @@ void init_params(
         exit(1);
     }
 
-    if (params.mode != planner_mode_t::auto_search) {
-        auto iface = params.desc.parse_iface();
-        iface.parse(cmd_args, params.desc);
-        params.desc.set_defaults();
-        params.desc.hw = hw_t(bench_mger.get_engine().get());
-        problem_t prb;
-        prb_tile_t s = problem_t::default_shape();
-        prb.set_shape(s);
+    switch (params.mode) {
+        case planner_mode_t::auto_search: return;
+        case planner_mode_t::search:
+            for (auto *arg : {"--iter", "--tg"}) {
+                if (cmd_args.find(arg) == std::string::npos) {
+                    cmd_args += " " + std::string(arg) + " x";
+                }
+            }
+            break;
+        default: break;
     }
+    auto iface = params.desc.parse_iface();
+    iface.parse(cmd_args, params.desc);
+    params.desc.set_defaults();
 }
 
 void planner_main(int argc, const char **argv) {
@@ -133,20 +133,24 @@ void planner_main(int argc, const char **argv) {
     init_params(argc, argv, bench_mger);
     switch (params.mode) {
         case planner_mode_t::trace: {
-            auto plan = create_conv_plan_and_finalize_desc(params.desc);
+            plan_t plan;
+            finalize_conv_desc(params.desc, bench_mger.hw(), &plan);
             std::cout << std::endl;
             std::cout << ir_utils::add_tag("plan", plan.str()) << std::endl;
             break;
         }
         case planner_mode_t::bench: {
-            bench(bench_mger, params.desc);
+            auto bd = bench(bench_mger, params.desc);
+            auto model = model_fit(bd);
             break;
         }
         case planner_mode_t::auto_search: {
+            plan_registry() = plan_registry_t();
             auto_search(bench_mger);
             break;
         }
         case planner_mode_t::search: {
+            plan_registry() = plan_registry_t();
             search(bench_mger, params.desc);
             break;
         }

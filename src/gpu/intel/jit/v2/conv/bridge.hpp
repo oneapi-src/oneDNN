@@ -83,30 +83,30 @@ inline jit::layout_t to_ir(const layout_t &layout) {
             layout.type(), layout.desc().ndims(), layout.base(), blocks);
 }
 
-inline prb_tile_t to_shape(const convolution_pd_t *pd) {
-    prb_tile_t shape;
-    shape[prb_dims::mb] = pd->MB();
-    shape[prb_dims::ic] = ir_utils::safe_div(pd->IC(), pd->G());
-    shape[prb_dims::oc] = ir_utils::safe_div(pd->OC(), pd->G());
-    shape[prb_dims::g] = pd->G();
-    shape[prb_dims::id] = pd->ID();
-    shape[prb_dims::ih] = pd->IH();
-    shape[prb_dims::iw] = pd->IW();
-    shape[prb_dims::od] = pd->OD();
-    shape[prb_dims::oh] = pd->OH();
-    shape[prb_dims::ow] = pd->OW();
-    shape[prb_dims::kd] = pd->KD();
-    shape[prb_dims::kh] = pd->KH();
-    shape[prb_dims::kw] = pd->KW();
-    shape[prb_dims::sd] = pd->KSD();
-    shape[prb_dims::sh] = pd->KSH();
-    shape[prb_dims::sw] = pd->KSW();
-    shape[prb_dims::dd] = pd->KDD();
-    shape[prb_dims::dh] = pd->KDH();
-    shape[prb_dims::dw] = pd->KDW();
-    shape[prb_dims::pd] = pd->padFront();
-    shape[prb_dims::ph] = pd->padT();
-    shape[prb_dims::pw] = pd->padL();
+inline pvar_tile_t to_shape(const convolution_pd_t *pd) {
+    pvar_tile_t shape;
+    shape[pvars::mb] = pd->MB();
+    shape[pvars::ic] = ir_utils::safe_div(pd->IC(), pd->G());
+    shape[pvars::oc] = ir_utils::safe_div(pd->OC(), pd->G());
+    shape[pvars::g] = pd->G();
+    shape[pvars::id] = pd->ID();
+    shape[pvars::ih] = pd->IH();
+    shape[pvars::iw] = pd->IW();
+    shape[pvars::od] = pd->OD();
+    shape[pvars::oh] = pd->OH();
+    shape[pvars::ow] = pd->OW();
+    shape[pvars::kd] = pd->KD();
+    shape[pvars::kh] = pd->KH();
+    shape[pvars::kw] = pd->KW();
+    shape[pvars::sd] = pd->KSD();
+    shape[pvars::sh] = pd->KSH();
+    shape[pvars::sw] = pd->KSW();
+    shape[pvars::dd] = pd->KDD();
+    shape[pvars::dh] = pd->KDH();
+    shape[pvars::dw] = pd->KDW();
+    shape[pvars::pd] = pd->padFront();
+    shape[pvars::ph] = pd->padT();
+    shape[pvars::pw] = pd->padL();
     return shape;
 }
 

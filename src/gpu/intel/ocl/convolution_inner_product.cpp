@@ -164,7 +164,7 @@ status_t convolution_inner_product_fwd_t::execute_forward(
     auto bia = ctx.input(DNNL_ARG_BIAS);
     auto dst = ctx.output(DNNL_ARG_DST);
 
-    std::unique_ptr<memory_t> wspace_dst;
+    std::unique_ptr<memory_t, memory_deleter_t> wspace_dst;
     auto exec_reorder = [&](memory_t *in, memory_t *out,
                                 const std::shared_ptr<impl::primitive_t> &prim,
                                 int r_num) -> status_t {

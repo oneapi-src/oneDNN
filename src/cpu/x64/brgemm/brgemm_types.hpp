@@ -152,6 +152,7 @@ struct DNNL_API brgemm_attr_t {
     // interleave stores or not
     bool use_interleave_stores;
     impl::fpmath_mode_t fpmath_mode = fpmath_mode::strict;
+    bool b_is_vnni {false};
     // Second level leading dimension describing distance between 16-line
     // blocks in case of blocked layout. Used to calculate address of next
     // bd block. By default are equal to regular leading dimension parameters
@@ -393,13 +394,20 @@ struct brgemm_desc_t {
         switch (dt_b) {
             case f32: return false;
             // Note: `dt_a == f32` means implicit up-conversion of B to f32.
-            case f16: return (isa_impl != avx512_core_fp16) && (dt_a != f32);
+            case f16:
+                return brgattr.b_is_vnni
+                        || ((isa_impl != avx512_core_fp16) && (dt_a != f32));
             // Note: `dt_a == f32` means implicit up-conversion of B to f32.
             case bf16: return dt_a != f32;
             default: return true;
         }
     }
     bool is_xf16() const noexcept { return is_bf16 || is_f16; }
+
+    bool is_f16_b_non_amx_vnni() const {
+        return dt_b == data_type::f16 && brgattr.b_is_vnni
+                && !is_superset(isa_impl, avx512_core_amx_fp16);
+    }
 
     bool operator==(const brgemm_desc_t &rhs) const;
     bool operator<(const brgemm_desc_t &rhs) const;

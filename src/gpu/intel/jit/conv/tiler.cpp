@@ -47,36 +47,36 @@ std::vector<tensor_kind_t> input_tensors(const conv_problem_t &prb) {
     return ret;
 }
 
-bool is_reduction_dim(const prb_dim_t &d, const conv_problem_t &prb) {
-    return to_gemm(d, prb) == prb_dims::k;
+bool is_reduction_dim(const pvar_t &d, const conv_problem_t &prb) {
+    return to_gemm(d, prb) == pvars::k;
 }
 
-bool is_vectorized_dim(const prb_dim_t &d, const conv_problem_t &prb) {
-    if (prb.is_dw) return d == prb_dims::g;
-    return to_gemm(d, prb) == prb_dims::n;
+bool is_vectorized_dim(const pvar_t &d, const conv_problem_t &prb) {
+    if (prb.is_dw) return d == pvars::g;
+    return to_gemm(d, prb) == pvars::n;
 }
 
-int tensor_conv_dim_index(const prb_dim_t &d, tensor_kind_t t) {
-    using namespace prb_dims;
-    std::vector<prb_dim_t> src_dims = {mb, g, ic, id, ih, iw};
-    std::vector<prb_dim_t> wei_dims = {g, oc, ic, kd, kh, kw};
-    std::vector<prb_dim_t> dst_dims = {mb, g, oc, od, oh, ow};
-    std::vector<prb_dim_t> *prb_dims = nullptr;
+int tensor_conv_dim_index(const pvar_t &d, tensor_kind_t t) {
+    using namespace pvars;
+    std::vector<pvar_t> src_dims = {mb, g, ic, id, ih, iw};
+    std::vector<pvar_t> wei_dims = {g, oc, ic, kd, kh, kw};
+    std::vector<pvar_t> dst_dims = {mb, g, oc, od, oh, ow};
+    std::vector<pvar_t> *pvars = nullptr;
     switch (t) {
-        case tensor_kind_t::src: prb_dims = &src_dims; break;
-        case tensor_kind_t::wei: prb_dims = &wei_dims; break;
-        case tensor_kind_t::dst: prb_dims = &dst_dims; break;
+        case tensor_kind_t::src: pvars = &src_dims; break;
+        case tensor_kind_t::wei: pvars = &wei_dims; break;
+        case tensor_kind_t::dst: pvars = &dst_dims; break;
         default: ir_error_not_expected();
     }
-    auto it = std::find(prb_dims->begin(), prb_dims->end(), d);
-    if (it == prb_dims->end()) return -1;
-    return (int)(it - prb_dims->begin());
+    auto it = std::find(pvars->begin(), pvars->end(), d);
+    if (it == pvars->end()) return -1;
+    return (int)(it - pvars->begin());
 }
 
 // Used for fused reduction dimensions with dpas only.
 struct x2_tile_info_t {
     x2_tile_info_t() = default;
-    x2_tile_info_t(const prb_dim_t &dim0, const prb_dim_t &dim1)
+    x2_tile_info_t(const pvar_t &dim0, const pvar_t &dim1)
         : dim0(dim0), dim1(dim1) {
         ir_assert(dim0 != dim1);
     }
@@ -122,8 +122,8 @@ struct x2_tile_info_t {
         return {std::make_pair(size0, size1)};
     }
 
-    prb_dim_t dim0;
-    prb_dim_t dim1;
+    pvar_t dim0;
+    pvar_t dim1;
     tile_flags_t flags = tile_flags_t::undef;
     div_info_t d;
     div_info_t d0;
@@ -141,7 +141,7 @@ const layout_t &compute_layout(const conv_config_t &cfg, tensor_kind_t kind) {
 }
 
 int get_layout_unit(const conv_config_t &cfg, const layout_t &layout,
-        tensor_kind_t tensor_kind, const prb_dim_t &d) {
+        tensor_kind_t tensor_kind, const pvar_t &d) {
     auto &prb = cfg.prb();
     if (!is_reduction_dim(d, prb)) return 1;
     int dim_idx = tensor_conv_dim_index(d, tensor_kind);
@@ -160,7 +160,7 @@ int get_layout_unit(const conv_config_t &cfg, const layout_t &layout,
     return ret;
 }
 
-int get_layout_unit(const conv_config_t &cfg, const prb_dim_t &d) {
+int get_layout_unit(const conv_config_t &cfg, const pvar_t &d) {
     int ret = 1;
     for (auto t :
             {tensor_kind_t::src, tensor_kind_t::wei, tensor_kind_t::dst}) {
@@ -193,16 +193,16 @@ void get_level_tiles(int size0, int size1, const x2_tile_info_t &info,
                 level_tile_t t0;
                 level_tile_t t1;
                 if (any(info.flags & tile_flags_t::loop)) {
-                    t0[levels::loop] = loop.first;
-                    t1[levels::loop] = loop.second;
+                    t0[level_t::loop] = loop.first;
+                    t1[level_t::loop] = loop.second;
                 }
                 if (any(info.flags & tile_flags_t::thread_group)) {
-                    t0[levels::thread_group] = tg.first;
-                    t1[levels::thread_group] = tg.second;
+                    t0[level_t::thread_group] = tg.first;
+                    t1[level_t::thread_group] = tg.second;
                 }
                 if (any(info.flags & tile_flags_t::iter)) {
-                    t0[levels::iter] = iter.first;
-                    t1[levels::iter] = iter.second;
+                    t0[level_t::iter] = iter.first;
+                    t1[level_t::iter] = iter.second;
                 }
                 ret0.push_back(t0);
                 ret1.push_back(t1);
@@ -229,13 +229,13 @@ public:
     }
 
     level_tile_set_t make_level_tile_set(
-            const prb_tile_t &padded_shape) const override {
+            const pvar_tile_t &padded_shape) const override {
         const auto all_dims = dims();
         const int ndims = (int)all_dims.size();
         std::vector<int> deps(ndims, -1);
         std::vector<std::vector<level_tile_t>> tiles(ndims);
 
-        auto to_idx = [&](const prb_dim_t &d) {
+        auto to_idx = [&](const pvar_t &d) {
             for (int i = 0; i < ndims; i++)
                 if (all_dims[i] == d) return i;
             ir_error_not_expected();
@@ -306,7 +306,7 @@ private:
             // additional space for x8 -> s16 reorder.
             int min_m_iter_block_hint = 2;
             for (auto &d : iter_) {
-                if (to_gemm(d, prb) != prb_dims::m) continue;
+                if (to_gemm(d, prb) != pvars::m) continue;
                 auto &info = tile_info(d);
                 int blk = std::min(info.min_iter_blk, min_m_iter_block_hint);
                 int pow2_blk = utils::rnd_up_pow2(blk);
@@ -319,8 +319,8 @@ private:
         if (!cfg.is_dp_fma()) return;
         auto &prb = cfg.prb();
         int rdims = 0;
-        prb_dim_t d0;
-        prb_dim_t d1;
+        pvar_t d0;
+        pvar_t d1;
         for (auto &d : iter_) {
             if (!is_reduction_dim(d, prb)) continue;
             rdims++;
@@ -350,11 +350,11 @@ private:
         auto &prb = cfg.prb();
         if (prb.is_bwd_w) {
             struct loop_dim_t {
-                prb_dim_t dim;
+                pvar_t dim;
                 int size = 0;
 
                 static loop_dim_t *find(
-                        const prb_dim_t &dim, std::vector<loop_dim_t> &dims) {
+                        const pvar_t &dim, std::vector<loop_dim_t> &dims) {
                     for (auto &d : dims)
                         if (d.dim == dim) return &d;
                     return nullptr;
@@ -385,7 +385,7 @@ private:
                 // handle nested loops without fully unrolling them.
                 int max_loop_ndims = (cfg.hw() <= ngen::HW::XeHPG ? 1 : 2);
                 for (int i = max_loop_ndims; i < (int)loop_dims.size(); i++)
-                    loop_dims[i].dim = prb_dim_t();
+                    loop_dims[i].dim = pvar_t();
             }
 
             for (auto &d : loop_) {
@@ -402,7 +402,7 @@ protected:
 };
 
 int inner_block(const conv_config_t &cfg, tensor_kind_t tensor_kind,
-        const prb_dim_t &dim) {
+        const pvar_t &dim) {
     int dim_idx = tensor_conv_dim_index(dim, tensor_kind);
     ir_assert(dim_idx != -1);
     auto &layout = compute_layout(cfg, tensor_kind);
@@ -410,7 +410,7 @@ int inner_block(const conv_config_t &cfg, tensor_kind_t tensor_kind,
             dim_idx, /*skip_outer=*/true, /*inner_only=*/false);
 }
 
-int inner_block(const conv_config_t &cfg, const prb_dim_t &dim) {
+int inner_block(const conv_config_t &cfg, const pvar_t &dim) {
     int ret = 0;
     for (auto t : input_tensors(cfg.prb())) {
         if (tensor_conv_dim_index(dim, t) == -1) continue;
@@ -421,7 +421,7 @@ int inner_block(const conv_config_t &cfg, const prb_dim_t &dim) {
 }
 
 dim_t inner_stride(const conv_config_t &cfg, tensor_kind_t tensor_kind,
-        const prb_dim_t &dim) {
+        const pvar_t &dim) {
     int dim_idx = tensor_conv_dim_index(dim, tensor_kind);
     ir_assert(dim_idx != -1);
     auto &layout = compute_layout(cfg, tensor_kind);
@@ -431,7 +431,7 @@ dim_t inner_stride(const conv_config_t &cfg, tensor_kind_t tensor_kind,
     return 0;
 }
 
-bool is_inner_non_blocked(const conv_config_t &cfg, const prb_dim_t &dim) {
+bool is_inner_non_blocked(const conv_config_t &cfg, const pvar_t &dim) {
     for (auto t : input_tensors(cfg.prb())) {
         if (tensor_conv_dim_index(dim, t) == -1) continue;
         if (inner_block(cfg, dim) != 1) continue;
@@ -493,14 +493,14 @@ int slm_usage_bytes_for_params(
     auto &prb = cfg.prb();
     auto tg = to_gemm(params.blocking().thread_group(), prb);
     auto iter = to_gemm(params.blocking().iter(), prb);
-    int b_tg = tg.get(prb_dims::b, 1);
-    int m_tg = tg.get(prb_dims::m, 1);
-    int n_tg = tg.get(prb_dims::n, 1);
-    int k_tg = tg.get(prb_dims::k, 1);
-    int b_iter = iter.get(prb_dims::b, 1);
-    int m_iter = iter.get(prb_dims::m, 1);
-    int n_iter = iter.get(prb_dims::n, 1);
-    int k_iter = iter.get(prb_dims::k, 1);
+    int b_tg = tg.get(pvars::b, 1);
+    int m_tg = tg.get(pvars::m, 1);
+    int n_tg = tg.get(pvars::n, 1);
+    int k_tg = tg.get(pvars::k, 1);
+    int b_iter = iter.get(pvars::b, 1);
+    int m_iter = iter.get(pvars::m, 1);
+    int n_iter = iter.get(pvars::n, 1);
+    int k_iter = iter.get(pvars::k, 1);
     return slm_usage_bytes(
             cfg, b_tg, m_tg, n_tg, k_tg, b_iter, m_iter, n_iter, k_iter);
 }
@@ -576,15 +576,15 @@ private:
             auto gemm_iter = to_gemm(blk.iter(), prb);
             auto gemm_loop = to_gemm(blk.loop(), prb);
             auto gemm_tg = to_gemm(blk.thread_group(), prb);
-            b_iter = gemm_iter.get(prb_dims::b, 1);
-            m_iter = gemm_iter.get(prb_dims::m, 1);
-            n_iter = gemm_iter.get(prb_dims::n, 1);
-            k_iter = gemm_iter.get(prb_dims::k, 1);
-            k_loop = gemm_loop.get(prb_dims::k, 1);
-            b_tg = gemm_tg.get(prb_dims::b, 1);
-            m_tg = gemm_tg.get(prb_dims::m, 1);
-            n_tg = gemm_tg.get(prb_dims::n, 1);
-            k_tg = gemm_tg.get(prb_dims::k, 1);
+            b_iter = gemm_iter.get(pvars::b, 1);
+            m_iter = gemm_iter.get(pvars::m, 1);
+            n_iter = gemm_iter.get(pvars::n, 1);
+            k_iter = gemm_iter.get(pvars::k, 1);
+            k_loop = gemm_loop.get(pvars::k, 1);
+            b_tg = gemm_tg.get(pvars::b, 1);
+            m_tg = gemm_tg.get(pvars::m, 1);
+            n_tg = gemm_tg.get(pvars::n, 1);
+            k_tg = gemm_tg.get(pvars::k, 1);
             dpas_2x_depth = get_dpas_2x_depth(blk, cfg);
         }
 
@@ -736,16 +736,16 @@ private:
         switch (cfg_.bwd_d_optimize_kind()) {
             case bwd_d_optimize_kind_t::none: return true;
             case bwd_d_optimize_kind_t::skip_out_of_bound_w: {
-                int iw_iter = ctx.blk.iter().get(prb_dims::iw, 1);
-                int iw_tg = ctx.blk.thread_group().get(prb_dims::iw, 1);
+                int iw_iter = ctx.blk.iter().get(pvars::iw, 1);
+                int iw_tg = ctx.blk.thread_group().get(pvars::iw, 1);
                 if (iw_iter != 1 || iw_tg != 1) return false;
                 return true;
             }
             case bwd_d_optimize_kind_t::skip_strided_dh: return true;
             case bwd_d_optimize_kind_t::skip_strided_dhw: {
-                int iw_iter = ctx.blk.iter().get(prb_dims::iw, 1);
+                int iw_iter = ctx.blk.iter().get(pvars::iw, 1);
                 if (iw_iter > 1) return false;
-                int iw_tg = ctx.blk.thread_group().get(prb_dims::iw, 1);
+                int iw_tg = ctx.blk.thread_group().get(pvars::iw, 1);
                 if (!math::is_pow2(iw_tg)) return false;
                 if ((prb.iw / prb.sw) % iw_tg != 0) return false;
                 return true;
@@ -757,8 +757,8 @@ private:
 
     // Checks that the layout can be split based as required by level_blocks.
     static bool layout_dim_ok(prop_kind_t prop, tensor_kind_t tensor_kind,
-            const layout_t &layout, const prb_dim_t &d,
-            std::vector<std::pair<level_kind_t, int>> level_blocks) {
+            const layout_t &layout, const pvar_t &d,
+            std::vector<std::pair<level_t, int>> level_blocks) {
         if (level_blocks.empty()) return true;
         int dim_idx = tensor_conv_dim_index(d, tensor_kind);
         if (dim_idx == -1) return true;
@@ -768,7 +768,7 @@ private:
         }
         if (blocks.size() <= 1) return true;
         blocks.resize(blocks.size() - 1);
-        auto step = [&](std::pair<level_kind_t, int> &kv) {
+        auto step = [&](std::pair<level_t, int> &kv) {
             int &block = kv.second;
             for (auto &b : blocks) {
                 if (b == 1) continue;
@@ -796,14 +796,18 @@ private:
 
     static bool layout_ok(const blocking_t &blk, const layout_t &layout,
             prop_kind_t prop, tensor_kind_t tensor_kind) {
-        for (int i = 0; i < prb_dim_t::max_id(); i++) {
-            auto d = prb_dim_t::from_id(i);
-            std::vector<std::pair<level_kind_t, int>> blocks;
+        std::unordered_set<pvar_t> dims;
+        for (auto &d : blk.iter())
+            dims.insert(d);
+        for (auto &d : blk.thread_group())
+            dims.insert(d);
+        for (auto &d : dims) {
+            std::vector<std::pair<level_t, int>> blocks;
             if (blk.iter().has(d))
-                blocks.emplace_back(level_kind_t::iter, blk.iter_dim(d));
+                blocks.emplace_back(level_t::iter, blk.iter_dim(d));
             if (blk.thread_group().has(d))
                 blocks.emplace_back(
-                        level_kind_t::thread_group, blk.thread_group_dim(d));
+                        level_t::thread_group, blk.thread_group_dim(d));
             if (!layout_dim_ok(prop, tensor_kind, layout, d, std::move(blocks)))
                 return false;
         }
@@ -828,10 +832,10 @@ private:
     bool check_k_slicing_utilization_ok(const context_t &ctx) const {
         if (!is_enabled(check_kind_t::check_k_slicing_utilization)) return true;
 
-        int b = padded_gemm_shape_.get(prb_dims::b, 1);
-        int m = padded_gemm_shape_.get(prb_dims::m, 1);
-        int n = padded_gemm_shape_.get(prb_dims::n, 1);
-        int k = padded_gemm_shape_.get(prb_dims::k, 1);
+        int b = padded_gemm_shape_.get(pvars::b, 1);
+        int m = padded_gemm_shape_.get(pvars::m, 1);
+        int n = padded_gemm_shape_.get(pvars::n, 1);
+        int k = padded_gemm_shape_.get(pvars::k, 1);
 
         int64_t nthr = 1;
         nthr *= utils::div_up(b, ctx.b_iter);
@@ -845,7 +849,7 @@ private:
 
     bool check_deterministic_ok(const context_t &ctx) const {
         if (!is_enabled(check_kind_t::check_deterministic)) return true;
-        int k = padded_gemm_shape_.get(prb_dims::k, 1);
+        int k = padded_gemm_shape_.get(pvars::k, 1);
         return ctx.k_loop * ctx.k_iter >= k;
     }
 
@@ -858,7 +862,7 @@ private:
         auto &prb = cfg_.prb();
         int max_blk = 1;
         for (auto &d : ctx.blk.iter()) {
-            if (to_gemm(d, prb) == prb_dims::m) {
+            if (to_gemm(d, prb) == pvars::m) {
                 int d_blk = inner_block(cfg_, d);
                 max_blk = std::max(max_blk, d_blk);
             }
@@ -920,8 +924,8 @@ private:
     }
 
     const conv_config_t &cfg_;
-    const prb_tile_t padded_shape_;
-    const prb_tile_t padded_gemm_shape_;
+    const pvar_tile_t padded_shape_;
+    const pvar_tile_t padded_gemm_shape_;
     const int max_tg_size_ = 0;
 
     uint64_t check_mask_ = 0;
@@ -974,12 +978,12 @@ conv_blocking_scheme_t bwd_w_T_io_I_ikow("l:[mb,oh,ow],T:[oc,ic],i:[ic,kw,oc,ow]
 // clang-format on
 
 double get_iter_dim_score(
-        const prb_dim_t &dim, const conv_config_t &cfg, int dim_size) {
+        const pvar_t &dim, const conv_config_t &cfg, int dim_size) {
     auto &prb = cfg.prb();
-    if (utils::one_of(dim, prb_dims::ow, prb_dims::iw)) {
+    if (utils::one_of(dim, pvars::ow, pvars::iw)) {
         if (prb.ksp > 1 || dim_size % 16 != 0) return 16 - 1;
         return dim_size;
-    } else if (dim == prb_dims::mb) {
+    } else if (dim == pvars::mb) {
         return dim_size;
     } else {
         ir_error_not_expected() << "Unknown dimension: " << dim;
@@ -987,8 +991,8 @@ double get_iter_dim_score(
     return 0;
 }
 
-prb_dim_t select_non_blocked_iter_dim(
-        const conv_config_t &cfg, const std::vector<prb_dim_t> &dims) {
+pvar_t select_non_blocked_iter_dim(
+        const conv_config_t &cfg, const std::vector<pvar_t> &dims) {
     const auto shape = cfg.shape(/*pad=*/false);
     std::vector<double> scores;
     scores.reserve(dims.size());
@@ -998,14 +1002,14 @@ prb_dim_t select_non_blocked_iter_dim(
     return dims[max_it - scores.begin()];
 }
 
-prb_dim_t select_iter_dim(
-        const conv_config_t &cfg, const std::vector<prb_dim_t> &_dims) {
+pvar_t select_iter_dim(
+        const conv_config_t &cfg, const std::vector<pvar_t> &_dims) {
     bool is_bwd_d_w_opt = utils::one_of(cfg.bwd_d_optimize_kind(),
             bwd_d_optimize_kind_t::skip_strided_dhw,
             bwd_d_optimize_kind_t::skip_out_of_bound_w);
-    std::vector<prb_dim_t> dims;
+    std::vector<pvar_t> dims;
     for (auto &d : _dims) {
-        if (is_bwd_d_w_opt && d == prb_dims::iw) continue;
+        if (is_bwd_d_w_opt && d == pvars::iw) continue;
         dims.push_back(d);
     }
     ir_assert(!dims.empty());
@@ -1031,9 +1035,9 @@ using conv_blocking_scheme_list_t
 conv_blocking_scheme_list_t get_blocking_schemes_fwd_dw(
         const conv_config_t &cfg) {
     conv_blocking_scheme_list_t ret(conv_tune_level());
-    auto m_iter_dim = select_iter_dim(cfg, {prb_dims::mb, prb_dims::ow});
-    bool m_is_mb = (m_iter_dim == prb_dims::mb);
-    bool m_is_ow = (m_iter_dim == prb_dims::ow);
+    auto m_iter_dim = select_iter_dim(cfg, {pvars::mb, pvars::ow});
+    bool m_is_mb = (m_iter_dim == pvars::mb);
+    bool m_is_ow = (m_iter_dim == pvars::ow);
     ret.add(m_is_mb, conv_schemes::fwd_dw_T_w_I_ngk);
     ret.add(m_is_ow, conv_schemes::fwd_dw_T_w_I_wgk);
     return ret;
@@ -1042,9 +1046,9 @@ conv_blocking_scheme_list_t get_blocking_schemes_fwd_dw(
 conv_blocking_scheme_list_t get_blocking_schemes_bwd_d_dw(
         const conv_config_t &cfg) {
     conv_blocking_scheme_list_t ret(conv_tune_level());
-    auto m_iter_dim = select_iter_dim(cfg, {prb_dims::mb, prb_dims::iw});
-    bool m_is_mb = (m_iter_dim == prb_dims::mb);
-    bool m_is_iw = (m_iter_dim == prb_dims::iw);
+    auto m_iter_dim = select_iter_dim(cfg, {pvars::mb, pvars::iw});
+    bool m_is_mb = (m_iter_dim == pvars::mb);
+    bool m_is_iw = (m_iter_dim == pvars::iw);
     ret.add(m_is_mb, conv_schemes::bwd_d_dw_T_w_I_ng);
     ret.add(m_is_iw, conv_schemes::bwd_d_dw_T_w_I_wg);
     return ret;
@@ -1053,9 +1057,9 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_d_dw(
 conv_blocking_scheme_list_t get_blocking_schemes_bwd_w_dw(
         const conv_config_t &cfg) {
     conv_blocking_scheme_list_t ret(conv_tune_level());
-    auto k_iter_dim = select_iter_dim(cfg, {prb_dims::mb, prb_dims::ow});
-    bool k_is_mb = (k_iter_dim == prb_dims::mb);
-    bool k_is_ow = (k_iter_dim == prb_dims::ow);
+    auto k_iter_dim = select_iter_dim(cfg, {pvars::mb, pvars::ow});
+    bool k_is_mb = (k_iter_dim == pvars::mb);
+    bool k_is_ow = (k_iter_dim == pvars::ow);
     ret.add(k_is_mb, conv_schemes::bwd_w_dw_I_gn);
     ret.add(k_is_ow, conv_schemes::bwd_w_dw_I_gw);
     ret.add(k_is_mb && cfg.prb().deterministic, conv_schemes::bwd_w_dw_I_gn_d);
@@ -1066,11 +1070,11 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_w_dw(
 conv_blocking_scheme_list_t get_blocking_schemes_fwd(const conv_config_t &cfg) {
     conv_blocking_scheme_list_t ret(conv_tune_level());
     auto m_iter_dim = cfg.prb().ab_swap_transpose
-            ? prb_dims::oc
-            : select_iter_dim(cfg, {prb_dims::mb, prb_dims::ow});
-    bool m_is_mb = (m_iter_dim == prb_dims::mb);
-    bool m_is_ow = (m_iter_dim == prb_dims::ow);
-    bool m_is_oc = (m_iter_dim == prb_dims::oc);
+            ? pvars::oc
+            : select_iter_dim(cfg, {pvars::mb, pvars::ow});
+    bool m_is_mb = (m_iter_dim == pvars::mb);
+    bool m_is_ow = (m_iter_dim == pvars::ow);
+    bool m_is_oc = (m_iter_dim == pvars::oc);
     bool ge_xelp = (cfg.hw() >= ngen::HW::XeLP);
     bool small_ic = (is_small_ic(cfg.prb()) && cfg.prb().kw > 1);
     ret.add(m_is_mb, conv_schemes::fwd_T_wo_I_noi);
@@ -1092,11 +1096,11 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_d(
         const conv_config_t &cfg) {
     conv_blocking_scheme_list_t ret(conv_tune_level());
     auto m_iter_dim = cfg.prb().ab_swap_transpose
-            ? prb_dims::ic
-            : select_iter_dim(cfg, {prb_dims::mb, prb_dims::iw});
-    bool m_is_mb = (m_iter_dim == prb_dims::mb);
-    bool m_is_iw = (m_iter_dim == prb_dims::iw);
-    bool m_is_ic = (m_iter_dim == prb_dims::ic);
+            ? pvars::ic
+            : select_iter_dim(cfg, {pvars::mb, pvars::iw});
+    bool m_is_mb = (m_iter_dim == pvars::mb);
+    bool m_is_iw = (m_iter_dim == pvars::iw);
+    bool m_is_ic = (m_iter_dim == pvars::ic);
     bool ge_xelp = (cfg.hw() >= ngen::HW::XeLP);
     ret.add(m_is_mb, conv_schemes::bwd_d_T_ni_I_nio);
     ret.add(m_is_mb, conv_schemes::bwd_d_T_wi_I_nio);
@@ -1110,9 +1114,9 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_d(
 conv_blocking_scheme_list_t get_blocking_schemes_bwd_w(
         const conv_config_t &cfg) {
     conv_blocking_scheme_list_t ret(conv_tune_level());
-    auto k_iter_dim = select_iter_dim(cfg, {prb_dims::mb, prb_dims::ow});
-    bool k_is_mb = (k_iter_dim == prb_dims::mb);
-    bool k_is_ow = (k_iter_dim == prb_dims::ow);
+    auto k_iter_dim = select_iter_dim(cfg, {pvars::mb, pvars::ow});
+    bool k_is_mb = (k_iter_dim == pvars::mb);
+    bool k_is_ow = (k_iter_dim == pvars::ow);
     bool small_ic = is_small_ic(cfg.prb());
     ret.add(k_is_mb, conv_schemes::bwd_w_T_io_I_ion);
     ret.add(k_is_ow, conv_schemes::bwd_w_T_io_I_iow);
@@ -1158,10 +1162,10 @@ std::vector<conv_blocking_scheme_t> get_blocking_schemes(
 int grf_usage_bytes(const conv_config_t &cfg, const blocking_params_t &params) {
     auto &prb = cfg.prb();
     auto iter = to_gemm(params.blocking().iter(), prb);
-    int b_iter = iter.get(prb_dims::b, 1);
-    int m_iter = iter.get(prb_dims::m, 1);
-    int n_iter = iter.get(prb_dims::n, 1);
-    int k_iter = iter.get(prb_dims::k, 1);
+    int b_iter = iter.get(pvars::b, 1);
+    int m_iter = iter.get(pvars::m, 1);
+    int n_iter = iter.get(pvars::n, 1);
+    int k_iter = iter.get(pvars::k, 1);
     int abc_size = grf_usage_bytes(cfg.fma_kind(), b_iter, m_iter, n_iter,
             k_iter, prb.a_data_type_size, prb.b_data_type_size,
             prb.acc_data_type_size);
@@ -1281,7 +1285,7 @@ public:
             blocking_checker_t &chk,
             const std::vector<level_tile_set_t> &level_tile_sets,
             const conv_key_t &key, double ops,
-            const std::function<prb_tile_t(const prb_tile_t &)> &convert,
+            const std::function<pvar_tile_t(const pvar_tile_t &)> &convert,
             bool create_if_not_found = false) {
         std::lock_guard<std::mutex> lock(mutex_);
         auto *tuner = get_tuner(key, /*do_lock=*/false);
@@ -1290,10 +1294,10 @@ public:
 
         params_generator_t params_gen(
                 tune_level, simd_size, chk, level_tile_sets);
-        std::vector<std::vector<prb_tile_t>> tiles;
+        std::vector<std::vector<pvar_tile_t>> tiles;
         for (auto &p : params_gen.params_vec()) {
             auto &b = p.blocking();
-            std::vector<prb_tile_t> p_tiles;
+            std::vector<pvar_tile_t> p_tiles;
             p_tiles.push_back(convert(b.iter()));
             p_tiles.push_back(convert(b.thread_group()));
             p_tiles.push_back(convert(b.loop()));
@@ -1524,7 +1528,7 @@ private:
                 break;
             }
             case tiler_mode_t::tune: {
-                auto convert = [&](const prb_tile_t &tile) {
+                auto convert = [&](const pvar_tile_t &tile) {
                     return to_gemm(tile, cfg.prb());
                 };
                 tuner_ = conv_tuner_t::get_tuner(tune_level, simd_size, chk,

@@ -182,6 +182,9 @@ int calculate_ldb_params(brgemm_desc_t *brg, const int try_ld_block2) {
 
 int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
 
+    // TODO: Calculating the number of available registers should be re-factored
+    // to use one code here and in brgemm kernel generator on
+    // "max_effective_vregs" calculation
     constexpr int max_bcst_regs = 1;
     const bool req_compensation = brg->req_s8s8_compensation
             || brg->zp_type_a != brgemm_broadcast_t::none;
@@ -190,12 +193,15 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
                       || brg->brgattr.max_bottom_vpad > 0)
             && brg->zp_type_a != brgemm_broadcast_t::none;
     const int beta_regs = !one_of(brg->beta, 1.f, 0.f);
+    // To support the f16 vnni B matrix on non-AMX we need to use two Vmm
+    // registers for permutation in brgemm kernel
+    const int b_vnni_regs = brg->is_f16_b_non_amx_vnni() ? 2 : 0;
 
     const int max_isa_regs = isa_num_vregs(brg->isa_impl);
     // note: the 'adj_ld_block2' already removes the necessary registers
     // for 'embd_bcst'
     auto max_reg_count = max_isa_regs - max_bcst_regs - beta_regs
-            - req_compensation - req_zp_a_comp_pads;
+            - req_compensation - req_zp_a_comp_pads - b_vnni_regs;
     if (req_zp_a_comp_pads)
         max_reg_count
                 = nstl::min(max_reg_count, max_isa_regs - max_bcst_regs - 5);
@@ -224,6 +230,15 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
 }
 
 status_t brgemm_blocking(brgemm_desc_t *brg) {
+    const data_type_t ld_step_compute_dt
+            = get_mac_emu_data_type(brg->dt_b, brg->isa_impl,
+                    brg->isa_impl != avx2_vnni_2 && !brg->is_fp8_via_convert());
+    brg->ld_step = brg->is_f16_b_non_amx_vnni()
+            ? 2
+            : data_type_vnni_granularity(ld_step_compute_dt);
+    const data_type_t rd_step_compute_dt = get_mac_emu_data_type(
+            brg->dt_b, brg->isa_impl, !brg->is_fp8_via_convert());
+    brg->rd_step = data_type_vnni_granularity(rd_step_compute_dt);
 
     set_isa_impl(brg);
     if (brg->isa_impl == isa_undef) return status::unimplemented;
@@ -875,15 +890,6 @@ void init_brgemm_conf(brgemm_desc_t *brg, cpu_isa_t isa,
     brg->bd_block2 = 0;
     brg->bdb2 = 0;
     brg->bdb2_tail = 0;
-
-    const data_type_t ld_step_compute_dt
-            = get_mac_emu_data_type(brg->dt_b, brg->isa_impl,
-                    brg->isa_impl != avx2_vnni_2 && !brg->is_fp8_via_convert());
-    brg->ld_step = data_type_vnni_granularity(ld_step_compute_dt);
-
-    const data_type_t rd_step_compute_dt = get_mac_emu_data_type(
-            brg->dt_b, brg->isa_impl, !brg->is_fp8_via_convert());
-    brg->rd_step = data_type_vnni_granularity(rd_step_compute_dt);
 }
 
 void init_brdgmm_conf(brgemm_desc_t *brg, cpu_isa_t isa,

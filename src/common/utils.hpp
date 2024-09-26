@@ -641,6 +641,9 @@ std::string getenv_string_user(const char *name);
 bool get_jit_dump();
 unsigned get_jit_profiling_flags();
 std::string get_jit_profiling_jitdumpdir();
+// Checks if the filepath is a valid path and not a symlink to ensure
+// the application only processes secure files.
+status_t check_for_symlinks(const char *filename, bool *res);
 FILE *fopen(const char *filename, const char *mode);
 int getpagesize();
 

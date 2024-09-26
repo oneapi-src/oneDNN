@@ -16,6 +16,7 @@
 
 #include "gpu/generic/sycl/ref_binary.hpp"
 #include "gpu/generic/sycl/binary_kernels.hpp"
+#include "gpu/generic/sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,10 +31,6 @@ status_t ref_binary_t::pd_t::init_conf() {
     conf_.src1_md = xpu::sycl::md_t(src_md(1));
     conf_.dst_md = xpu::sycl::md_t(dst_md());
     conf_.ndims = ndims();
-
-    // XXX: should probably be tuned.
-    conf_.block_size = 16;
-    conf_.wg_size = 32;
 
     conf_.wk_size = memory_desc_wrapper(dst_md()).nelems();
 
@@ -65,18 +62,12 @@ status_t ref_binary_t::init(impl::engine_t *engine) {
 
 status_t ref_binary_t::execute(const exec_ctx_t &ctx) const {
 
+    ctx.zero_pad_output(DNNL_ARG_TO);
+
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         binary_kernel_vec_t binary_kernel(pd()->conf_, cgh, ctx);
 
-        const int block_size = pd()->conf_.block_size;
-        const int wg_size = pd()->conf_.wg_size;
-
-        const int t_work = pd()->conf_.wk_size;
-        const int wg_work = wg_size * block_size;
-        const int wg_cnt = utils::div_up(t_work, wg_work);
-
-        cgh.parallel_for(
-                ::sycl::nd_range<1>(wg_cnt * wg_size, wg_size), binary_kernel);
+        cgh.parallel_for(get_range(ctx, pd()->conf_.wk_size), binary_kernel);
     });
 
     return status::success;

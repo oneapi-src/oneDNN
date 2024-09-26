@@ -18,10 +18,9 @@
 #ifndef GPU_NVIDIA_CUDNN_MATMUL_HPP
 #define GPU_NVIDIA_CUDNN_MATMUL_HPP
 
-#include "gpu/gpu_primitive.hpp"
-
 #include "gpu/gpu_matmul_pd.hpp"
 
+#include "gpu/nvidia/cudnn_matmul_base.hpp"
 #include "gpu/nvidia/cudnn_matmul_executor.hpp"
 #include "gpu/nvidia/cudnn_matmul_impl.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
@@ -31,8 +30,8 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_matmul_t : public gpu::primitive_t {
-    using gpu::primitive_t::primitive_t;
+struct cudnn_matmul_t : cudnn_matmul_base_t {
+    using cudnn_matmul_base_t::cudnn_matmul_base_t;
 
     struct pd_t : public gpu_matmul_pd_t {
         using gpu_matmul_pd_t::gpu_matmul_pd_t;
@@ -80,19 +79,7 @@ struct cudnn_matmul_t : public gpu::primitive_t {
 
             if (src_md()->ndims > 3) return status::unimplemented;
 
-            init_scratchpad();
-
             return status::success;
-        }
-
-        // Use scratchpad memory and reorder from it in two scenarios:
-        // * Bias dt is different from dst dt.
-        // * Dst dt is not f32. cuBLAS only supports s8s8f32.
-        bool reorder_required() const {
-            return dst_md()->data_type != data_type::f32
-                    || (with_bias()
-                            && (weights_md(1)->data_type
-                                    != dst_md()->data_type));
         }
 
         size_t scratchpad_size(const memory_desc_t *dst_md) const {
@@ -100,25 +87,20 @@ struct cudnn_matmul_t : public gpu::primitive_t {
             return dst_nelems * sizeof(float);
         }
 
-    private:
-        void init_scratchpad() {
-            // Runtime dimensions allocate memory at execute.
-            if (has_runtime_dims_or_strides()) return;
-            if (!reorder_required()) return;
-
-            auto scratchpad = scratchpad_registry().registrar();
-            scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
-                    scratchpad_size(dst_md()), 1);
-        }
-
         bool scales_ok() const {
+            using namespace data_type;
             const auto &scales = attr()->scales_;
             const auto &supported_args
                     = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
             if (!scales.has_default_values(supported_args)) return false;
             // cuDNN does not support scaling per dimension.
-            for (auto arg : supported_args)
-                if (scales.get(arg).mask_ != 0) return false;
+            for (auto arg : supported_args) {
+                auto &s = scales.get(arg);
+                if (scales.get(arg).mask_ != 0
+                        || !utils::one_of(
+                                s.data_type_, s8, s32, f32, f16, bf16))
+                    return false;
+            }
             return true;
         }
 
@@ -138,40 +120,23 @@ struct cudnn_matmul_t : public gpu::primitive_t {
 
     status_t init(impl::engine_t *engine) override {
         matmul_impl_.reset(new cudnn_matmul_impl_t());
-        const auto status = matmul_impl_->init((matmul_pd_t *)pd());
+        auto status = matmul_impl_->init((matmul_pd_t *)pd());
         if (status != status::success) return status;
 
-        const bool with_bias = matmul_impl_->with_bias();
-        const bool has_runtime_args = matmul_impl_->has_runtime_params();
-        const bool with_scratchpad = pd()->reorder_required();
+        bool has_runtime_args = matmul_impl_->has_runtime_params();
 
-        if (with_scratchpad && has_runtime_args && with_bias) {
-            executor_.reset(new cudnn_matmul_scratch_runtime_args_bias_exec_t);
-        } else if (with_scratchpad && has_runtime_args) {
-            executor_.reset(new cudnn_matmul_runtime_args_scratch_exec_t);
-        } else if (has_runtime_args && with_bias) {
-            executor_.reset(new cudnn_matmul_runtime_args_bias_exec_t);
-        } else if (has_runtime_args) {
+        if (has_runtime_args) {
             executor_.reset(new cudnn_matmul_runtime_args_exec_t);
-        } else if (with_bias && with_scratchpad) {
-            executor_.reset(new cudnn_matmul_bias_scratch_exec_t);
-        } else if (with_scratchpad) {
-            executor_.reset(new cudnn_matmul_scratch_exec_t);
-        } else if (with_bias) {
-            executor_.reset(new cudnn_matmul_bias_exec_t);
-        } else if (!with_scratchpad && !has_runtime_args && !with_bias) {
-            executor_.reset(new cudnn_matmul_exec_t);
         } else {
-            return status::unimplemented;
+            executor_.reset(new cudnn_matmul_exec_t);
         }
-
         return status;
     }
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
     std::shared_ptr<cudnn_matmul_impl_t> matmul_impl_;
-    std::shared_ptr<cudnn_matmul_exec_base_t> executor_;
+    std::shared_ptr<cudnn_matmul_base_exec_t> executor_;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

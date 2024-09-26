@@ -109,6 +109,7 @@ void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
 
     std::vector<const memory_storage_t *> sycl_mem_storages;
     for (auto &a : exec_ctx.args()) {
+        a.second.mem->retain();
         if (a.second.mem->engine()->runtime_kind() == runtime_kind::sycl) {
             auto *mem_storage = a.second.mem->memory_storage();
             if (!mem_storage->is_null()) {

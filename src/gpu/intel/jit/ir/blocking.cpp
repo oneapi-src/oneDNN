@@ -114,12 +114,6 @@ std::vector<int> tile_info_t::get_loop_blocks(int n) {
     return ret;
 }
 
-namespace levels {
-level_t loop(level_kind_t::loop);
-level_t thread_group(level_kind_t::thread_group);
-level_t iter(level_kind_t::iter);
-} // namespace levels
-
 void get_level_tiles(
         int size, const tile_info_t &info, std::vector<level_tile_t> &ret) {
     ret.clear();
@@ -133,11 +127,11 @@ void get_level_tiles(
             for (int loop : loop_blocks) {
                 level_tile_t t;
                 if (any(info.flags & tile_flags_t::loop))
-                    t[levels::loop] = loop;
+                    t[level_t::loop] = loop;
                 if (any(info.flags & tile_flags_t::thread_group))
-                    t[levels::thread_group] = tg;
+                    t[level_t::thread_group] = tg;
                 if (any(info.flags & tile_flags_t::iter))
-                    t[levels::iter] = iter;
+                    t[level_t::iter] = iter;
                 ret.push_back(t);
             }
         }
@@ -211,11 +205,11 @@ std::vector<blocking_t> level_tile_set_t::sample(int target,
 }
 
 void level_tile_set_t::set(
-        blocking_t &blk, const prb_dim_t &dim, const level_tile_t &tile) {
-    if (tile.has(levels::loop)) blk.set_loop(dim, tile[levels::loop]);
-    if (tile.has(levels::thread_group))
-        blk.set_thread_group(dim, tile[levels::thread_group]);
-    if (tile.has(levels::iter)) blk.set_iter(dim, tile[levels::iter]);
+        blocking_t &blk, const pvar_t &dim, const level_tile_t &tile) {
+    if (tile.has(level_t::loop)) blk.set_loop(dim, tile[level_t::loop]);
+    if (tile.has(level_t::thread_group))
+        blk.set_thread_group(dim, tile[level_t::thread_group]);
+    if (tile.has(level_t::iter)) blk.set_iter(dim, tile[level_t::iter]);
 }
 
 void level_tile_set_t::product_impl(int idx, std::vector<int> &cur_idxs,
@@ -369,7 +363,7 @@ const tiler_params_t &tiler_params() {
     return params;
 }
 
-tile_to_vec_t::tile_to_vec_t(const std::vector<std::vector<prb_tile_t>> &tiles,
+tile_to_vec_t::tile_to_vec_t(const std::vector<std::vector<pvar_tile_t>> &tiles,
         const std::vector<int> &_ids) {
     if (tiles.empty()) return;
     int ntiles = (int)tiles.size();

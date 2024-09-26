@@ -150,7 +150,7 @@ struct multi_po_reorder_sum : public gpu_primitive_t {
 
         if (pd()->has_zero_dim_memory()) return status::success;
 
-        std::unique_ptr<memory_t> p_temp_dst_acc;
+        std::unique_ptr<memory_t, memory_deleter_t> p_temp_dst_acc;
         const bool need_output_reorder
                 = pd()->need_output_reorder() && (reorders_.size() > 1);
         if (need_output_reorder) {

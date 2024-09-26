@@ -42,8 +42,6 @@ struct sycl_binary_conf_t {
     int ndims;
     bool is_tensor_op;
 
-    int block_size;
-    int wg_size;
     int wk_size;
 
     sycl_post_ops_t post_ops;
@@ -75,8 +73,6 @@ struct sycl_convolution_conf_t {
 
     int ndims;
 
-    int block_size;
-    int wg_size;
     int wk_size;
     bool has_groups;
 
@@ -99,8 +95,6 @@ struct sycl_eltwise_conf_t {
     dim_t d;
     dim_t h;
     dim_t w;
-    dim_t block_size;
-    dim_t wg_size;
     dim_t wk_size;
     dim_t post_po_len;
     sycl_post_ops_t post_ops;
@@ -204,8 +198,6 @@ struct sycl_reorder_conf_t {
 
     int ndims;
 
-    int block_size;
-    int wg_size;
     int wk_size;
 
     sycl_post_ops_t post_ops;
@@ -326,8 +318,6 @@ struct sycl_softmax_conf_t {
     xpu::sycl::md_t diff_src_md;
     xpu::sycl::md_t diff_dst_md;
     alg_kind_t alg_kind;
-    dim_t block_size;
-    dim_t wg_size;
     dim_t wk_size;
 
     int po_len;
@@ -363,8 +353,6 @@ struct sycl_lrn_conf_t {
     float beta;
     float k;
 
-    int block_size;
-    int wg_size;
     int wk_size;
 };
 
@@ -413,8 +401,6 @@ struct sycl_sum_conf_t {
     xpu::sycl::md_t dst_md;
     float src_scales[DNNL_REF_SUM_MAX_NUM_TENSORS];
     int n;
-    int block_size;
-    int wg_size;
     int wk_size;
 };
 

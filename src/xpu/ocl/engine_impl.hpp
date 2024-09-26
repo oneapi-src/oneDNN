@@ -103,6 +103,9 @@ public:
         return status::success;
     }
 
+    status_t create_memory_storage(memory_storage_t **storage, engine_t *engine,
+            unsigned flags, size_t size, void *handle) const override;
+
     cl_device_id device() const { return device_; }
     cl_context context() const { return context_; }
     cl_platform_id platform() const { return platform_; }
@@ -140,6 +143,11 @@ private:
     cl_platform_id platform_ = nullptr;
     bool is_user_context_;
 };
+
+#define DECLARE_COMMON_OCL_ENGINE_FUNCTIONS() \
+    cl_device_id device() const { return impl()->device(); } \
+    cl_context context() const { return impl()->context(); } \
+    cl_platform_id platform() const { return impl()->platform(); }
 
 } // namespace ocl
 } // namespace xpu

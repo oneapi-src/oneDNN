@@ -49,32 +49,18 @@ plan_registry_t::plan_registry_t(const char **entries) {
     }
 }
 
-void plan_registry_t::merge(const plan_registry_t &other) {
-    std::unordered_map<std::string, entry_t> new_entries;
-    auto *const_this = const_cast<const plan_registry_t *>(this);
-    for (auto *entries_ptr : {&const_this->entries_, &other.entries_}) {
-        for (auto &e : *entries_ptr) {
-            auto key = jit::stringify(e);
-            new_entries[key] = e;
-        }
-    }
-    entries_.clear();
-    for (auto &kv : new_entries) {
-        entries_.push_back(kv.second);
-    }
-}
-
 kernel_desc_t plan_registry_t::find_best(const problem_t &prb) const {
     kernel_desc_t best;
     float best_eff = 0;
     for (auto &e : entries_) {
-        if (!e.desc.fits(prb)) continue;
+        if (!e.desc.can_fit(prb)) continue;
         float eff = e.model.eff(prb, e.desc);
         if (eff > best_eff) {
             best_eff = eff;
             best = e.desc;
         }
     }
+    best.fit_to(prb);
     best.spec_strategy = spec_strategy_t::min_dims;
     return best;
 }
@@ -92,12 +78,14 @@ void plan_registry_t::parse(std::istream &in) {
     entries_.clear();
     std::string line;
     while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#') continue;
         entries_.emplace_back();
         jit::parse(line, entries_.back());
     }
 }
 
 void plan_registry_t::entry_t::stringify(std::ostream &out) const {
+    ir_assert(desc.is_finalized) << "Cannot stringify non-finalized descriptor";
     jit::stringify(out, desc);
     out << " model=";
     jit::stringify(out, model);
@@ -105,6 +93,7 @@ void plan_registry_t::entry_t::stringify(std::ostream &out) const {
 
 void plan_registry_t::entry_t::parse(std::istream &in) {
     jit::parse(in, desc);
+    desc.is_finalized = true;
     stream_match(in, "model=");
     jit::parse(in, model);
 }

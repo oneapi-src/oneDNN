@@ -24,7 +24,8 @@
 #include <sstream>
 #endif
 
-#include "gpu/intel/ocl/kernel_utils.hpp"
+#include "common/verbose.hpp"
+#include "gpu/intel/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -77,10 +78,14 @@ const char *get_kernel_source(const char *name) {
 
     if (!name) return nullptr;
 
-    gpu_assert(kernel_list.count(name) == 1)
+    // Missing kernels are expected as they may be included via header files to
+    // enable better reuse between implementations.
+    gpu_assert(kernel_list.count(name) <= 1)
             << "Found " << kernel_list.count(name) << " kernels with the name "
-            << name << ". Expected 1";
-    return kernel_list.at(name);
+            << name << ". Expected at most 1.";
+
+    auto r = kernel_list.find(name);
+    return r != kernel_list.end() ? r->second : nullptr;
 }
 
 const char *get_kernel_header(const std::string &name) {

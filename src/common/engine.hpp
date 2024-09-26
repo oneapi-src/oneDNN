@@ -67,8 +67,13 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     /** create memory storage */
     virtual dnnl::impl::status_t create_memory_storage(
             dnnl::impl::memory_storage_t **storage, unsigned flags, size_t size,
-            void *handle)
-            = 0;
+            void *handle) {
+        assert(impl());
+        if (!impl()) return dnnl::impl::status::runtime_error;
+        return impl()->create_memory_storage(
+                storage, this, flags, size, handle);
+    }
+
     dnnl::impl::status_t create_memory_storage(
             dnnl::impl::memory_storage_t **storage, size_t size) {
         return create_memory_storage(

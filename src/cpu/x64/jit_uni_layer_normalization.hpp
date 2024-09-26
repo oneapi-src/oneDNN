@@ -153,24 +153,29 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
         auto scratchpad = ctx.get_scratchpad_grantor();
         auto mean_mem = scratchpad.get_memory_storage(key_lnorm_tmp_mean);
         auto variance_mem = scratchpad.get_memory_storage(key_lnorm_tmp_var);
-        memory_t mean(engine, &(pd()->reordered_stat_md_), std::move(mean_mem));
-        memory_t variance(
-                engine, &(pd()->reordered_stat_md_), std::move(variance_mem));
+        std::unique_ptr<memory_t, memory_deleter_t> mean;
+        CHECK(safe_ptr_assign(mean,
+                new memory_t(engine, &(pd()->reordered_stat_md_),
+                        std::move(mean_mem))));
+        std::unique_ptr<memory_t, memory_deleter_t> variance;
+        CHECK(safe_ptr_assign(variance,
+                new memory_t(engine, &(pd()->reordered_stat_md_),
+                        std::move(variance_mem))));
 
         // reorder input stats
         if (pd()->stats_are_src() && reorder_) {
-            reorder_stat(
-                    ctx, engine, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
+            reorder_stat(ctx, engine, ctx.args().at(DNNL_ARG_MEAN),
+                    {mean.get(), false});
             reorder_stat(ctx, engine, ctx.args().at(DNNL_ARG_VARIANCE),
-                    {&variance, false});
+                    {variance.get(), false});
         }
         status_t status = execute_forward(ctx);
         if (status != status::success) return status;
         // reorder output stats
         if (!pd()->stats_are_src() && reorder_) {
-            reorder_stat(
-                    ctx, engine, {&mean, true}, ctx.args().at(DNNL_ARG_MEAN));
-            reorder_stat(ctx, engine, {&variance, true},
+            reorder_stat(ctx, engine, {mean.get(), true},
+                    ctx.args().at(DNNL_ARG_MEAN));
+            reorder_stat(ctx, engine, {variance.get(), true},
                     ctx.args().at(DNNL_ARG_VARIANCE));
         }
 
@@ -315,14 +320,18 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
             auto mean_mem = scratchpad.get_memory_storage(key_lnorm_tmp_mean);
             auto variance_mem
                     = scratchpad.get_memory_storage(key_lnorm_tmp_var);
-            memory_t mean(
-                    engine, &(pd()->reordered_stat_md_), std::move(mean_mem));
-            memory_t variance(engine, &(pd()->reordered_stat_md_),
-                    std::move(variance_mem));
-            reorder_stat(
-                    ctx, engine, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
+            std::unique_ptr<memory_t, memory_deleter_t> mean;
+            CHECK(safe_ptr_assign(mean,
+                    new memory_t(engine, &(pd()->reordered_stat_md_),
+                            std::move(mean_mem))));
+            std::unique_ptr<memory_t, memory_deleter_t> variance;
+            CHECK(safe_ptr_assign(variance,
+                    new memory_t(engine, &(pd()->reordered_stat_md_),
+                            std::move(variance_mem))));
+            reorder_stat(ctx, engine, ctx.args().at(DNNL_ARG_MEAN),
+                    {mean.get(), false});
             reorder_stat(ctx, engine, ctx.args().at(DNNL_ARG_VARIANCE),
-                    {&variance, false});
+                    {variance.get(), false});
         }
 
         return execute_backward(ctx);

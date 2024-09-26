@@ -68,7 +68,7 @@ public:
     }
 
     status_t create_memory_storage(memory_storage_t **storage, engine_t *engine,
-            unsigned flags, size_t size, void *handle) const;
+            unsigned flags, size_t size, void *handle) const override;
 
     const ::sycl::device &device() const { return device_; }
     const ::sycl::context &context() const { return context_; }
@@ -112,6 +112,11 @@ private:
 
     backend_t backend_;
 };
+
+#define DECLARE_COMMON_SYCL_ENGINE_FUNCTIONS() \
+    const ::sycl::device &device() const { return impl()->device(); } \
+    const ::sycl::context &context() const { return impl()->context(); } \
+    xpu::sycl::backend_t backend() const { return impl()->backend(); }
 
 } // namespace sycl
 } // namespace xpu

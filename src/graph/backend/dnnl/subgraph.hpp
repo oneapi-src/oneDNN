@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -139,8 +139,6 @@ public:
 class subgraph_rewriter_t {
 public:
     subgraph_rewriter_t(std::shared_ptr<subgraph_t> &sg) : subgraph_(sg) {}
-
-    ~subgraph_rewriter_t();
 
     // Finalize the rewriting, which actually insert/remove the op to/from
     // subgraph op list

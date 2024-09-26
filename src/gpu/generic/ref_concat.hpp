@@ -155,8 +155,10 @@ struct ref_concat_t : public gpu::primitive_t {
             auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                     memory_tracking::names::key_concat_tent_dst);
 
-            memory_t tent_dst(
-                    engine, &pd()->tent_dst_md_, std::move(scratchpad));
+            std::unique_ptr<memory_t, memory_deleter_t> tent_dst;
+            CHECK(safe_ptr_assign(tent_dst,
+                    new memory_t(engine, &pd()->tent_dst_md_,
+                            std::move(scratchpad))));
 
             for (int i = 0; i < n; ++i) {
                 const auto &src_scales_arg = ctx.args().find(
@@ -167,10 +169,10 @@ struct ref_concat_t : public gpu::primitive_t {
                     src_scales = &src_scales_arg->second;
                 CHECK(execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst, false}, src_scales, i));
+                        {tent_dst.get(), false}, src_scales, i));
             }
 
-            CHECK(execute_reorder(reorders_[n], {&tent_dst, true},
+            CHECK(execute_reorder(reorders_[n], {tent_dst.get(), true},
                     ctx.args().at(DNNL_ARG_DST), nullptr, n));
         } else {
             for (int i = 0; i < n; ++i) {

@@ -62,6 +62,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             = everyone_is(f16, src_dt, wei_dt) && one_of(dst_dt, f16, f32);
     const bool is_bf16_with_int_wei = src_dt == bf16
             && one_of(wei_dt, s8, u8, s4, u4) && one_of(dst_dt, bf16, f32);
+    const bool is_f16_with_int_wei = src_dt == f16
+            && one_of(wei_dt, s8, u8, s4, u4) && one_of(dst_dt, f16, f32);
 
     auto check_bias = [&]() -> bool {
         const auto bia_dt = weights_md(1)->data_type;
@@ -86,7 +88,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             if (N() == DNNL_RUNTIME_DIM_VAL) ok = false;
         }
         // Impl suppports f32 scales only for non-weight decompression
-        if (!is_bf16_with_int_wei) {
+        if (!(is_bf16_with_int_wei || is_f16_with_int_wei)) {
             ok = ok && one_of(asc.get_data_type(DNNL_ARG_SRC), undef, f32);
             ok = ok && one_of(asc.get_data_type(DNNL_ARG_WEIGHTS), undef, f32);
             ok = ok && one_of(asc.get_data_type(DNNL_ARG_DST), undef, f32);
@@ -97,7 +99,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     auto check_attr_zero_points
             = [&]() -> bool { return attr()->zero_points_.common(); };
     const bool problem_dt_correct = one_of(true, is_int8, is_f8, is_bf16,
-            is_f32, is_f16, is_bf16_with_int_wei);
+            is_f32, is_f16, is_bf16_with_int_wei, is_f16_with_int_wei);
 
     auto src_d = memory_desc_wrapper(src_md_);
     auto weights_d = memory_desc_wrapper(weights_md_);
@@ -150,9 +152,12 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     // non-amx isa. s8s8 proplem type is exception to avoid compensations
     // processing for tail kernel
     const auto backup_isa = is_amx && bgmmc_.is_runtime_M && !is_s8s8
-            ? (is_f16 ? avx512_core_fp16
-                      : (is_bf16 ? avx512_core_bf16
-                                 : (is_int8 ? avx512_core_vnni : avx512_core)))
+            ? (is_f16 || is_f16_with_int_wei
+                            ? avx512_core_fp16
+                            : (is_bf16 || is_bf16_with_int_wei
+                                            ? avx512_core_bf16
+                                            : (is_int8 ? avx512_core_vnni
+                                                       : avx512_core)))
             : isa;
     for_(int i_bs = 0; i_bs < 2; i_bs++)
     for_(int i_init = 0; i_init < 2; i_init++)
@@ -788,7 +793,8 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
         ctx.current_K_start = k;
         ctx.current_K_iters = nstl::min(bgmmc.K_blk, bgmmc.K);
         ctx.scales_ptr = (void *)brgmm_ctx.get_oscales_ptr(n, k);
-        if (bgmmc.blocked_B && isa == avx512_core_fp16) {
+        if (bgmmc.blocked_B && !bgmmc.is_f16_with_int_wei
+                && isa == avx512_core_fp16) {
             cvt_float16_to_float((float *)ctx.tr_src, (float16_t *)ctx.src,
                     bgmmc.wei_n_blk * ctx.current_K_iters);
         } else {
@@ -805,7 +811,8 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
         ctx.current_K_start = k;
         ctx.current_K_iters = bgmmc.K % bgmmc.K_blk;
         ctx.scales_ptr = (void *)brgmm_ctx.get_oscales_ptr(n, k);
-        if (bgmmc.blocked_B && isa == avx512_core_fp16) {
+        if (bgmmc.blocked_B && !bgmmc.is_f16_with_int_wei
+                && isa == avx512_core_fp16) {
             cvt_float16_to_float((float *)ctx.tr_src, (float16_t *)ctx.src,
                     bgmmc.wei_n_blk * ctx.current_K_iters);
         } else {

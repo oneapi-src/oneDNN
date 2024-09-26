@@ -20,6 +20,8 @@
 #include "gpu/intel/jit/ir/core.hpp"
 #include "gpu/intel/jit/ir/problem.hpp"
 
+#include <set>
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -29,32 +31,32 @@ namespace jit {
 class blocking_t {
 public:
     int simd() const { return simd_; }
-    const prb_tile_t &loop() const { return loop_; }
-    const prb_tile_t &thread_group() const { return thread_group_; }
-    const prb_tile_t &iter() const { return iter_; }
+    const pvar_tile_t &loop() const { return loop_; }
+    const pvar_tile_t &thread_group() const { return thread_group_; }
+    const pvar_tile_t &iter() const { return iter_; }
 
-    int loop_dim(const prb_dim_t &d) const { return loop_[d]; }
-    int thread_group_dim(const prb_dim_t &d) const { return thread_group_[d]; }
-    int iter_dim(const prb_dim_t &d) const { return iter_[d]; }
+    int loop_dim(const pvar_t &d) const { return loop_[d]; }
+    int thread_group_dim(const pvar_t &d) const { return thread_group_[d]; }
+    int iter_dim(const pvar_t &d) const { return iter_[d]; }
 
     void set_simd(int simd) { simd_ = simd; }
-    void set_loop(const prb_dim_t &d, int value) { loop_[d] = value; }
-    void set_thread_group(const prb_dim_t &d, int value) {
+    void set_loop(const pvar_t &d, int value) { loop_[d] = value; }
+    void set_thread_group(const pvar_t &d, int value) {
         thread_group_[d] = value;
     }
-    void set_iter(const prb_dim_t &d, int value) { iter_[d] = value; }
+    void set_iter(const pvar_t &d, int value) { iter_[d] = value; }
 
     bool is_empty() const {
         return loop_.is_empty() && thread_group_.is_empty() && iter_.is_empty();
     }
     bool is_spatial() const {
-        for (auto d : {prb_dims::iw, prb_dims::ow}) {
+        for (auto d : {pvars::iw, pvars::ow}) {
             if (iter_.has(d) && iter_[d] != 1) return true;
         }
         return false;
     }
 
-    void unset(const prb_dim_t &d) {
+    void unset(const pvar_t &d) {
         if (loop_.has(d)) loop_[d] = 1;
         if (thread_group_.has(d)) thread_group_[d] = 1;
         if (iter_.has(d)) iter_[d] = 1;
@@ -107,7 +109,7 @@ public:
     }
 
     // Returns the ratio of all operations (with padding) to "useful" operations
-    float get_efficiency(const prb_tile_t &shape) const {
+    float get_efficiency(const pvar_tile_t &shape) const {
         float ret = 1;
         for (auto &d : shape) {
             int loop = loop_.get(d, 1);
@@ -124,9 +126,9 @@ public:
 
 private:
     int simd_ = 0;
-    prb_tile_t loop_;
-    prb_tile_t thread_group_;
-    prb_tile_t iter_;
+    pvar_tile_t loop_;
+    pvar_tile_t thread_group_;
+    pvar_tile_t iter_;
 };
 
 struct blocking_hash_t {
@@ -193,7 +195,7 @@ struct div_info_t {
 // Blocking restrictions for a prb dimension.
 struct tile_info_t {
     tile_info_t() = default;
-    tile_info_t(const prb_dim_t &dim) : dim(dim) {}
+    tile_info_t(const pvar_t &dim) : dim(dim) {}
     void add(tile_flags_t f) { flags = flags | f; }
     void remove(tile_flags_t f) { flags = flags & ~f; }
     void set_iter_unit(int unit) { div_info.set_iter_unit(unit); }
@@ -216,7 +218,7 @@ struct tile_info_t {
     static std::vector<int> get_factors(int n);
     static std::vector<int> get_loop_blocks(int n);
 
-    prb_dim_t dim;
+    pvar_t dim;
     tile_flags_t flags = tile_flags_t::undef;
     div_info_t div_info;
 
@@ -231,37 +233,49 @@ struct tile_info_t {
     static const int default_max_thread_group_blk = 16;
 };
 
-// Tile level kinds.
-enum class level_kind_t {
+// Tile levels.
+enum class level_t {
     undef = 0,
     loop,
     thread_group,
     iter,
-    _max,
 };
 
-inline std::string to_string(level_kind_t kind) {
-    std::ostringstream oss;
-    switch (kind) {
-#define CASE(name, value) \
-    case level_kind_t::name: return value
-        CASE(loop, "l");
-        CASE(thread_group, "T");
-        CASE(iter, "i");
-#undef CASE
-        default: ir_error_not_expected();
+class level_tile_t {
+public:
+    bool has(level_t level) const { return (*this)[level] != 0; }
+
+    const int &operator[](level_t level) const {
+        switch (level) {
+            case level_t::loop: return loop_;
+            case level_t::thread_group: return thread_group_;
+            case level_t::iter: return iter_;
+            default: ir_error_not_expected();
+        }
+        return loop_;
     }
-    return oss.str();
-}
 
-using level_t = map_key_t<level_kind_t>;
-using level_tile_t = tile_t<level_t>;
+    int &operator[](level_t level) {
+        auto *this_const = const_cast<const level_tile_t *>(this);
+        return const_cast<int &>(this_const->operator[](level));
+    }
 
-namespace levels {
-extern level_t loop;
-extern level_t thread_group;
-extern level_t iter;
-}; // namespace levels
+    std::string str() const {
+        if (utils::everyone_is(0, loop_, thread_group_, iter_)) return "x";
+        std::ostringstream oss;
+        if (loop_ != 0) oss << "l" << loop_;
+        if (thread_group_ != 0) oss << "T" << thread_group_;
+        if (iter_ != 0) oss << "i" << iter_;
+        return oss.str();
+    }
+
+    IR_DEFINE_DUMP()
+
+private:
+    int loop_ = 0;
+    int thread_group_ = 0;
+    int iter_ = 0;
+};
 
 void get_level_tiles(
         int size, const tile_info_t &info, std::vector<level_tile_t> &ret);
@@ -269,7 +283,7 @@ void get_level_tiles(
 class level_tile_set_t {
 public:
     level_tile_set_t(const std::vector<std::vector<level_tile_t>> &tiles,
-            const std::vector<int> &deps, const std::vector<prb_dim_t> &dims)
+            const std::vector<int> &deps, const std::vector<pvar_t> &dims)
         : tiles_(tiles), deps_(deps), dims_(dims) {}
 
     int count() const;
@@ -280,7 +294,7 @@ public:
 
 private:
     static void set(
-            blocking_t &blk, const prb_dim_t &dim, const level_tile_t &tile);
+            blocking_t &blk, const pvar_t &dim, const level_tile_t &tile);
 
     void product_impl(int idx, std::vector<int> &cur_idxs, blocking_t &blk,
             std::vector<blocking_t> &ret) const;
@@ -289,7 +303,7 @@ private:
 
     std::vector<std::vector<level_tile_t>> tiles_;
     std::vector<int> deps_;
-    std::vector<prb_dim_t> dims_;
+    std::vector<pvar_t> dims_;
 };
 
 // Blocking scheme describing recipes to generate blockings.
@@ -313,7 +327,7 @@ public:
     }
 
     virtual level_tile_set_t make_level_tile_set(
-            const prb_tile_t &padded_shape) const {
+            const pvar_tile_t &padded_shape) const {
         const auto all_dims = dims();
         const int ndims = int(all_dims.size());
         const std::vector<int> deps(ndims, -1);
@@ -326,32 +340,26 @@ public:
         return level_tile_set_t(tiles, deps, all_dims);
     }
 
-    tile_info_t &tile_info(const prb_dim_t &d) {
-        auto it = tile_infos_.find(d.id());
+    tile_info_t &tile_info(const pvar_t &d) {
+        auto it = tile_infos_.find(d);
         if (it != tile_infos_.end()) return it->second;
-        auto &info = tile_infos_[d.id()];
+        auto &info = tile_infos_[d];
         info = tile_info_t(d);
         return info;
     }
 
-    const tile_info_t &tile_info(const prb_dim_t &d) const {
-        return tile_infos_.at(d.id());
+    const tile_info_t &tile_info(const pvar_t &d) const {
+        return tile_infos_.at(d);
     }
 
-    std::vector<prb_dim_t> dims() const {
-        std::vector<prb_dim_t> all_dims;
-        for (int i = 0; i < prb_dim_t::max_id(); i++) {
-            auto d = prb_dim_t::from_id(i);
-            if (d.is_undef()) continue;
-            all_dims.push_back(d);
-        }
-        std::vector<prb_dim_t> ret;
-        for (auto &d : all_dims) {
-            if (loop_.has(d) || thread_group_.has(d) || iter_.has(d)) {
-                ret.push_back(d);
+    std::vector<pvar_t> dims() const {
+        std::set<pvar_t> dims;
+        for (auto *t : {&loop_, &thread_group_, &iter_}) {
+            for (auto &d : t->keys()) {
+                dims.insert(d);
             }
         }
-        return ret;
+        return std::vector<pvar_t>(dims.begin(), dims.end());
     }
 
     std::string str() const {
@@ -369,7 +377,7 @@ private:
         ir_assert(!_s_dim.empty());
         bool no_min_check = (_s_dim[0] == '#');
         auto s_dim = no_min_check ? _s_dim.substr(1) : _s_dim;
-        auto d = prb_dim_t::from_name(s_dim);
+        auto d = pvar_t(s_dim);
         if (no_min_check) ir_assert(s_tile == "i");
         if (s_tile == "i") {
             add_iter_dim(d);
@@ -387,39 +395,39 @@ private:
         }
     }
 
-    void add_loop_dim(const prb_dim_t &d) {
+    void add_loop_dim(const pvar_t &d) {
         loop_[d] = 1;
         auto &info = tile_info(d);
         info.add(tile_flags_t::loop);
     }
 
-    void add_loop_dim_with_span(const prb_dim_t &d) {
+    void add_loop_dim_with_span(const pvar_t &d) {
         add_loop_dim(d);
         tile_info(d).add(tile_flags_t::loop_span);
     }
 
-    void add_loop_dim_with_iter_unroll(const prb_dim_t &d) {
+    void add_loop_dim_with_iter_unroll(const pvar_t &d) {
         add_loop_dim(d);
         tile_info(d).add(tile_flags_t::loop_iter_unroll);
     }
 
-    void add_thread_group_dim(const prb_dim_t &d) {
+    void add_thread_group_dim(const pvar_t &d) {
         thread_group_[d] = 1;
         auto &info = tile_info(d);
         info.add(tile_flags_t::thread_group);
     }
 
-    void add_iter_dim(const prb_dim_t &d) {
+    void add_iter_dim(const pvar_t &d) {
         iter_[d] = 1;
         auto &info = tile_info(d);
         info.add(tile_flags_t::iter);
     }
 
 protected:
-    prb_tile_t loop_;
-    prb_tile_t thread_group_;
-    prb_tile_t iter_;
-    std::unordered_map<int, tile_info_t> tile_infos_;
+    pvar_tile_t loop_;
+    pvar_tile_t thread_group_;
+    pvar_tile_t iter_;
+    std::map<pvar_t, tile_info_t> tile_infos_;
 };
 
 template <class blocking_scheme_kind>
@@ -655,7 +663,7 @@ const tiler_params_t &tiler_params();
 class tile_to_vec_t {
 public:
     tile_to_vec_t() = default;
-    tile_to_vec_t(const std::vector<std::vector<prb_tile_t>> &tiles,
+    tile_to_vec_t(const std::vector<std::vector<pvar_tile_t>> &tiles,
             const std::vector<int> &ids = {});
 
     float dist(int id0, int id1) const {
@@ -674,9 +682,9 @@ private:
     struct indexed_tile_t {
         struct indexed_dim_t {
             indexed_dim_t() = default;
-            indexed_dim_t(const prb_dim_t &dim) : dim_(dim) {}
+            indexed_dim_t(const pvar_t &dim) : dim_(dim) {}
             bool is_empty() const { return values_.empty(); }
-            const prb_dim_t &dim() const { return dim_; }
+            const pvar_t &dim() const { return dim_; }
 
             void add(int value) { values_.emplace(value, -1); }
 
@@ -694,44 +702,43 @@ private:
                 return it->second;
             }
 
-            prb_dim_t dim_;
+            pvar_t dim_;
             std::map<int, int> values_;
         };
 
-        indexed_tile_t() {
-            for (int i = 0; i < prb_dim_t::max_id(); i++) {
-                auto d = prb_dim_t::from_id(i);
-                dim_mappers_[i] = indexed_dim_t(d);
+        void add(const pvar_t &d, int value) {
+            if (dim_mappers_.count(d) == 0) {
+                dim_mappers_[d] = indexed_dim_t(d);
             }
+            dim_mappers_[d].add(value);
         }
 
-        void add(prb_dim_t d, int value) { dim_mappers_[d.id()].add(value); }
-
-        void add(const prb_tile_t &t) {
+        void add(const pvar_tile_t &t) {
             for (auto &d : t) {
                 add(d, t[d]);
             }
         }
 
         void finalize() {
-            for (auto &d : dim_mappers_)
-                if (!d.is_empty()) d.finalize();
+            for (auto &kv : dim_mappers_)
+                if (!kv.second.is_empty()) kv.second.finalize();
         }
 
-        int to_index(const prb_dim_t &d, int value) const {
-            return dim_mappers_[d.id()].to_index(value);
+        int to_index(const pvar_t &d, int value) const {
+            return dim_mappers_.at(d).to_index(value);
         }
 
-        std::vector<int> to_index(const prb_tile_t &t) const {
+        std::vector<int> to_index(const pvar_tile_t &t) const {
             std::vector<int> ret;
-            for (auto &m : dim_mappers_) {
+            for (auto &kv : dim_mappers_) {
+                auto &m = kv.second;
                 if (m.is_empty()) continue;
                 ret.push_back(to_index(m.dim(), t.get(m.dim(), 1)));
             }
             return ret;
         }
 
-        std::array<indexed_dim_t, prb_dim_t::max_id()> dim_mappers_;
+        std::unordered_map<pvar_t, indexed_dim_t> dim_mappers_;
     };
 
     std::vector<std::vector<int>> vecs_;

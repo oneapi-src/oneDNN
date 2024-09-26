@@ -89,7 +89,7 @@ x64::cpu_isa_t brgemm_calc_isa(
     } else if (rnn.is_cell_dt_bf16()) {
         return x64::avx512_core_bf16;
     } else if (rnn.is_cell_dt_f16()) {
-        return isa_undef;
+        return x64::avx512_core_fp16;
     } else { // f32
         return utils::map(true, x64::isa_undef, mayiuse(avx512_core),
                 avx512_core, mayiuse(avx2), avx2);
@@ -564,6 +564,7 @@ status_t init_brgemm_kernel(x64::brgemm_desc_t *desc, x64::cpu_isa_t isa,
     brgattr.max_bs = max_bs;
     brgattr.max_top_vpad = 0;
     brgattr.max_bottom_vpad = 0;
+    brgattr.b_is_vnni = true;
     CHECK(brgemm_desc_set_attr(desc, brgattr));
 
     x64::brgemm_kernel_t *_t_ptr;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -487,9 +487,11 @@ status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
 
     // Create intermediate memory for f32 output if needed.
     auto dst = args.at(DNNL_ARG_DST);
-    memory_t tmp_memory(dst.mem->engine(), pd()->conv_pd_->diff_src_md(),
-            scratchpad.get_memory_storage(key_deconv_bias));
-    memory_arg_t tmp_conv_output = {&tmp_memory, false};
+    std::unique_ptr<memory_t, memory_deleter_t> tmp_memory;
+    CHECK(safe_ptr_assign(tmp_memory,
+            new memory_t(dst.mem->engine(), pd()->conv_pd_->diff_src_md(),
+                    scratchpad.get_memory_storage(key_deconv_bias))));
+    memory_arg_t tmp_conv_output = {tmp_memory.get(), false};
 
     conv_args[DNNL_ARG_DIFF_SRC]
             = ref_bias || non_default_attr ? tmp_conv_output : dst;

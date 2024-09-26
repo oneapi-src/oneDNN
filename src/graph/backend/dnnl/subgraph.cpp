@@ -384,10 +384,6 @@ void subgraph_rewriter_t::run() {
     to_be_inserted_ops_.clear();
 }
 
-subgraph_rewriter_t::~subgraph_rewriter_t() {
-    run();
-}
-
 void subgraph_rewriter_t::fuse_op_to_successor(const op_ptr &op) {
     assertm(op->num_inputs() == 1, "this op should have only one input value.");
     value_ptr in_val = op->get_input_value(0);

@@ -75,6 +75,35 @@ dnnl_status_t DNNL_API dnnl_ocl_interop_memory_create(dnnl_memory_t *memory,
         const_dnnl_memory_desc_t memory_desc, dnnl_engine_t engine,
         dnnl_ocl_interop_memory_kind_t memory_kind, void *handle);
 
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+/// Creates a memory object with multiple handles.
+///
+/// @param memory Output memory object.
+/// @param memory_desc Memory descriptor.
+/// @param engine Engine to use.
+/// @param memory_kind Memory allocation kind to specify the type of handles.
+/// @param nhandles Number of handles.
+/// @param handles Handles of the memory buffers to use as underlying storages.
+///     For each element of the @p handles array the following applies:
+///     - A USM pointer to the user-allocated buffer. In this case the library
+///       doesn't own the buffer. Requires @p memory_kind to be equal to
+///       dnnl_ocl_interop_usm.
+///     - An OpenCL buffer. In this case the library doesn't own the buffer.
+///       Requires @p memory_kind be equal to be equal to dnnl_ocl_interop_buffer.
+///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+///       allocate the buffer that corresponds to the memory allocation kind
+///       @p memory_kind for the memory object. In this case the library
+///       owns the buffer.
+///     - The DNNL_MEMORY_NONE specific value. Instructs the library to
+///       create memory object without an underlying buffer.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ocl_interop_memory_create_v2(dnnl_memory_t *memory,
+        const_dnnl_memory_desc_t memory_desc, dnnl_engine_t engine,
+        dnnl_ocl_interop_memory_kind_t memory_kind, int nhandles,
+        void **handles);
+#endif
+
 /// Returns the memory allocation kind associated with a memory object.
 ///
 /// @param memory Memory to query.

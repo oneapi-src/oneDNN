@@ -88,9 +88,10 @@ endmacro()
 if(DNNL_SYCL_CUDA)
     suppress_warnings_for_nvidia_target()
     find_package(cuBLAS REQUIRED)
+    find_package(cublasLt REQUIRED)
     find_package(cuDNN REQUIRED)
 
-    adjust_headers_priority("cuBLAS::cuBLAS;cuDNN::cuDNN")
+    adjust_headers_priority("cuBLAS::cuBLAS;cuDNN::cuDNN;cublasLt::cublasLt")
     add_definitions_with_host_compiler("-DCUDA_NO_HALF")
 
     list(APPEND EXTRA_SHARED_LIBS cuBLAS::cuBLAS cuDNN::cuDNN)

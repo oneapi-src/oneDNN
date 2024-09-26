@@ -30,6 +30,7 @@ using namespace dnnl::impl::memory_tracking::names;
 
 status_t ref_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
     using namespace format_tag;
+    using namespace data_type;
 
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());
@@ -52,15 +53,10 @@ status_t ref_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
     if (conf.nelems == 0) return status::success;
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
-
-    dim_t blocks[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
-
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
-    conf.subbyte_pack
-            = utils::one_of(dst_mdw.data_type(), data_type::u4, data_type::s4);
+    conf.subbyte_pack = utils::one_of(dst_mdw.data_type(), u4, s4, f4_e2m1);
 
-    blocks[2] = blocks[3] = blocks[4] = blocks[5] = 0;
-
+    dim_t blocks[MAX_NDIMS] = {1, 1, 0, 0, 0, 0};
     for (int i = 0; i < MAX_NDIMS; ++i) {
         auto dim_str = utils::format("D%d", i);
         if (i < dst_mdw.ndims()) {

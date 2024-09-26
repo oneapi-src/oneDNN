@@ -98,22 +98,24 @@ blocking_params_t conv_lookup_table_t::find(const conv_key_t &key) const {
 }
 
 void conv_lookup_table_t::stringify(std::ostream &out) const {
+    bool is_first = true;
     for (auto &kv : data_) {
         for (auto &e : kv.second) {
-            out << "\"";
+            if (!is_first) out << "\n";
             e.stringify(out);
-            out << "\",\n";
+            is_first = false;
         }
     }
 }
 
 void conv_lookup_table_t::parse(std::istream &in) {
     data_.clear();
-    while (stream_try_match(in, "\"")) {
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#') continue;
         entry_t e;
-        e.parse(in);
+        jit::parse(line, e);
         data_[e.key.desc()].push_back(e);
-        stream_match(in, "\",\n");
     }
 }
 
@@ -124,7 +126,7 @@ struct conv_lookup_table_instance_t {
         table_path = getenv_string_user(env_table_path_name);
 #endif
         if (!table_path.empty()) {
-            std::ifstream in(table_path, std::ios::binary);
+            std::ifstream in(table_path);
             if (!in.good()) return;
             conv_lookup_table_t file_table;
             file_table.parse(in);

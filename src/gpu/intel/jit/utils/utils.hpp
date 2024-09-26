@@ -133,6 +133,16 @@ size_t get_hash(const std::vector<T> &v) {
     return h;
 }
 
+template <typename Key, typename T, typename Compare, typename Allocator>
+size_t get_hash(const std::map<Key, T, Compare, Allocator> &m) {
+    size_t h = 0;
+    for (auto &kv : m) {
+        h = hash_combine(h, get_hash(kv.first));
+        h = hash_combine(h, get_hash(kv.second));
+    }
+    return h;
+}
+
 template <typename... ArgsT>
 size_t get_hash(const ArgsT &...args) {
     size_t h = 0;

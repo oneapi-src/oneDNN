@@ -105,7 +105,7 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     arg_list.set(29, scale_stride);
     arg_list.set(30, beta);
 
-    const compute::range_t gws = {1, (size_t)N, (size_t)MB};
+    const compute::range_t gws = {(size_t)N, (size_t)M, (size_t)MB};
     const auto nd_range = compute::nd_range_t(gws);
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
