@@ -129,9 +129,8 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
                     true /*sum_requires_same_params*/, bcast_set));
 }
 
-status_t check_isa_with_datatype(
-        const brgemm_matmul_conf_utils_t &bm_conf_utils) {
-    if (bm_conf_utils.is_f32() && !bm_conf_utils.is_int8()
+status_t check_datatype(const brgemm_matmul_conf_utils_t &bm_conf_utils) {
+    if (bm_conf_utils.is_f32() && !bm_conf_utils.is_bf32()
             && !bm_conf_utils.is_bf16() && !bm_conf_utils.is_f16()
             && !bm_conf_utils.is_int8())
         return status::success;
@@ -320,10 +319,6 @@ format_tag_t brgemm_matmul_conf_utils_t::pick_blocked_B_layout(
             case 16: return bgmmc.ndims == 3 ? aCB16b16c4b : BA16a16b4a;
             default: return format_tag::undef;
         }
-
-    assert(!this->is_bf16());
-    assert(!this->is_f16());
-    assert(!this->is_bf32());
 
     // Note: bf32 assumes f32 blocking
     if (this->is_f32() || this->is_bf32() || this->is_f16()) switch (n_blk) {
@@ -733,7 +728,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             dst_d.format_kind() == format_kind::any,
             bias_md.format_kind == format_kind::any);
 
-    VCHECK_BG(check_isa_with_datatype(bm_conf_utils), VERBOSE_ISA_DT_MISMATCH);
+    VCHECK_BG(check_datatype(bm_conf_utils), VERBOSE_UNSUPPORTED_DT);
 
     bgmmc.a_dt_sz = bgmmc.tr_a_dt_sz = types::data_type_size(bgmmc.src_dt);
     bgmmc.b_dt_sz = bgmmc.tr_b_dt_sz = types::data_type_size(bgmmc.wei_dt);
