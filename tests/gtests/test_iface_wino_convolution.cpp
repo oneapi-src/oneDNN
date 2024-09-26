@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
-* Copyright 2023 Arm Ltd. and affiliates
+* Copyright 2023-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,7 +68,9 @@ TEST_F(wino_conv_test_t, TestSmallPadding) {
         if (unsupported_data_type(input.dat_dt)
                 || unsupported_data_type(input.wei_dt))
             continue;
-
+#if defined(DNNL_AARCH64) && defined(DNNL_AARCH64_USE_ACL)
+        if (input.dat_dt == data_type::f16) continue;
+#endif
         memory::desc src_md {{1, 16, 7, 7}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 3, 3}, input.wei_dt, tag::any};
         memory::desc dst_md {{1, 32, 7, 7}, input.dat_dt, tag::any};
