@@ -611,6 +611,84 @@ bench_data_t bench(const bench_manager_t &bench_mger,
     return runner.bench(kernel_desc);
 }
 
+bool try_create(
+        const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc) {
+    bench_input_params_t params(kernel_desc, /*nprbs=*/1);
+    bench_task_t task(generate_problems(params)[0]);
+    auto engine = bench_mger.get_engine();
+    auto guard = plan_preset_t::instance().make_guard(kernel_desc);
+    return task.init_primitive(engine);
+}
+
+layout_tag_t &get_out_tag(kernel_desc_t &kernel_desc) {
+    switch (kernel_desc.prop) {
+        case prop_kind::forward: return kernel_desc.dst_tag;
+        case prop_kind::backward_data: return kernel_desc.src_tag;
+        case prop_kind::backward_weights: return kernel_desc.wei_tag;
+        default: ir_error_not_expected();
+    }
+    return kernel_desc.dst_tag;
+}
+
+std::vector<type_t> get_out_types(const kernel_desc_t &kernel_desc) {
+    std::vector<type_t> ret;
+    switch (kernel_desc.prop) {
+        case prop_kind::forward:
+            ret.push_back(type_t::s8());
+            ret.push_back(type_t::f16());
+            ret.push_back(type_t::f32());
+            break;
+        case prop_kind::backward_data: break;
+        case prop_kind::backward_weights:
+            ret.push_back(type_t::f32());
+            if (kernel_desc.wei_tag.type().is_bf16())
+                ret.push_back(type_t::bf16());
+        default: break;
+    }
+    return ret;
+}
+
+kernel_desc_t try_extensions(
+        const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc) {
+    auto &desc_out_type = kernel_desc.c_type();
+    std::vector<prb_reqs_t> reqs_vec({kernel_desc.reqs});
+    std::vector<int> out_type_sizes({desc_out_type.size()});
+    extensions_t ext;
+    for (auto &out_type : get_out_types(kernel_desc)) {
+        if (out_type.size() == desc_out_type.size()) continue;
+        auto d = kernel_desc;
+        auto &tag = get_out_tag(d);
+        tag = layout_tag_t(tag.desc(), out_type, tag.raw_tag());
+        d.is_finalized = false;
+        if (!finalize_conv_desc(d, bench_mger.hw())) continue;
+        if (!try_create(bench_mger, d)) continue;
+        ext.add(extensions_t::out_size(out_type.size()));
+        reqs_vec.push_back(d.reqs);
+        out_type_sizes.push_back(out_type.size());
+    }
+
+    if (kernel_desc.prop == prop_kind::backward_weights
+            && !kernel_desc.with_bias) {
+        auto d = kernel_desc;
+        d.with_bias = true;
+        d.is_finalized = false;
+        d.set_defaults();
+        if (finalize_conv_desc(d, bench_mger.hw())
+                && try_create(bench_mger, d)) {
+            ext.add(extension_kind_t::bias);
+            reqs_vec.push_back(d.reqs);
+            out_type_sizes.push_back(desc_out_type.size());
+        }
+    }
+
+    prb_reqs_t out_reqs;
+    prb_reqs_t::merge(reqs_vec, out_type_sizes, pvar_t("outsz"), out_reqs);
+    auto _kernel_desc = kernel_desc;
+    _kernel_desc.reqs = out_reqs;
+    _kernel_desc.ext = ext;
+    return _kernel_desc;
+}
+
 } // namespace planner
 } // namespace conv
 } // namespace v2

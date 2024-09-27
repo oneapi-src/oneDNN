@@ -109,6 +109,8 @@ private:
 
 bench_data_t bench(const bench_manager_t &bench_mger,
         const kernel_desc_t &kernel_desc, int nprbs = 100);
+kernel_desc_t try_extensions(
+        const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc);
 
 } // namespace planner
 } // namespace conv

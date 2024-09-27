@@ -60,8 +60,6 @@ kernel_desc_t plan_registry_t::find_best(const problem_t &prb) const {
             best = e.desc;
         }
     }
-    best.fit_to(prb);
-    best.spec_strategy = spec_strategy_t::min_dims;
     return best;
 }
 

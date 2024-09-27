@@ -220,6 +220,36 @@ struct prefetch_desc_t {
     void parse(std::istream &in);
 };
 
+enum class extension_kind_t : uint32_t {
+    undef = 0,
+    out_b1 = 1,
+    out_b2 = 2,
+    out_b4 = 4,
+    bias = 8,
+};
+
+static auto extension_kind_names = nstl::to_array({
+        make_enum_name(extension_kind_t::undef, "undef"),
+        make_enum_name(extension_kind_t::out_b1, "out_b1"),
+        make_enum_name(extension_kind_t::out_b2, "out_b2"),
+        make_enum_name(extension_kind_t::out_b4, "out_b4"),
+        make_enum_name(extension_kind_t::bias, "bias"),
+});
+GPU_DEFINE_PARSE_ENUM(extension_kind_t, extension_kind_names)
+
+struct extensions_t {
+    extension_kind_t kinds = extension_kind_t::undef;
+
+    void add(extension_kind_t kind);
+    bool has(extension_kind_t kind) const;
+    std::string str() const;
+    IR_DEFINE_DUMP()
+    void stringify(std::ostream &out) const { out << str(); }
+    void parse(std::istream &in);
+
+    static extension_kind_t out_size(int size);
+};
+
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group = false);
 layout_desc_t make_conv_algo_layout_desc(
@@ -256,6 +286,7 @@ public:
 
     prefetch_desc_t prefetch;
     prb_reqs_t reqs;
+    extensions_t ext;
 
     hw_t hw;
     bool is_finalized = false;
@@ -278,15 +309,21 @@ public:
     static void init_parse_iface(parse_iface_t<kernel_desc_t> *iface);
 
     // Helper methods.
-    const type_t &a_type() const {
-        return pick_a(prop, src_tag.type(), wei_tag.type(), dst_tag.type());
+    const layout_tag_t &layout_tag(tensor_kind_t kind) const {
+        switch (kind) {
+            case tensor_kind_t::a:
+                return pick_a(prop, src_tag, wei_tag, dst_tag);
+            case tensor_kind_t::b:
+                return pick_b(prop, src_tag, wei_tag, dst_tag);
+            case tensor_kind_t::c:
+                return pick_c(prop, src_tag, wei_tag, dst_tag);
+            default: ir_error_not_expected();
+        }
+        return src_tag;
     }
-    const type_t &b_type() const {
-        return pick_b(prop, src_tag.type(), wei_tag.type(), dst_tag.type());
-    }
-    const type_t &c_type() const {
-        return pick_c(prop, src_tag.type(), wei_tag.type(), dst_tag.type());
-    }
+    const type_t &a_type() const { return layout_tag(tensor_kind_t::a).type(); }
+    const type_t &b_type() const { return layout_tag(tensor_kind_t::b).type(); }
+    const type_t &c_type() const { return layout_tag(tensor_kind_t::c).type(); }
 
     send_kind_t access_kind(send_op_t op, tensor_kind_t tensor) const {
         if (use_2d_access) return send_kind_t::_2d;

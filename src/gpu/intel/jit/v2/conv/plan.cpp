@@ -1121,7 +1121,6 @@ bool finalize_conv_desc_impl(kernel_desc_t &desc, const hw_t &hw,
     if (desc.hw_desc.hw != hw.to_ngen()) return false;
     desc.hw = hw;
     if (!desc.is_supported()) return false;
-    if (prb) desc.specialize(*prb);
     if (desc.is_finalized) return true;
     auto plan = create_conv_plan_impl(desc, /*finalize=*/true);
     if (plan) {

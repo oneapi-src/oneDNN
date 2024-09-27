@@ -140,6 +140,8 @@ private:
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);
         }
+        _desc.spec_strategy = spec_strategy_t::min_dims;
+        _desc.fit_to(prb);
         if (!finalize_conv_desc(_desc, prb)) {
             ir_info() << "Cannot create kernel descriptor";
             return status::runtime_error;
