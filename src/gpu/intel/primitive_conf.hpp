@@ -56,6 +56,7 @@ struct memory_desc_info_t {
     int ndims;
     data_type_t data_type;
 
+    size_t size;
     dim_t offset0;
     dim_t dims[MAX_NDIMS];
     dim_t padded_dims[MAX_NDIMS];
@@ -73,6 +74,7 @@ struct memory_desc_info_t {
 
         md_info.ndims = mdw.ndims();
         md_info.data_type = mdw.data_type();
+        md_info.size = mdw.size();
         md_info.offset0 = mdw.offset0();
 
         auto &blk = mdw.blocking_desc();
@@ -1066,6 +1068,7 @@ inline void def_data_type(compute::kernel_ctx_t &kernel_ctx, data_type_t dt,
 inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
         const memory_desc_info_t &md_info, const char *prefix) {
     def_data_type(kernel_ctx, md_info.data_type, prefix);
+    kernel_ctx.register_buffer_size(md_info.size);
 
     kernel_ctx.define_int(utils::format("%s_OFFSET0", prefix), md_info.offset0);
     kernel_ctx.define_int(utils::format("%s_NDIMS", prefix), md_info.ndims);
