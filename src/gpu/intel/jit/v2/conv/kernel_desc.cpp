@@ -531,16 +531,19 @@ void init_kernel_info_div_magic(
         kernel_info.register_internal_arg(var_magic);
         kernel_info.register_internal_arg(var_size);
     }
+    auto sw_magic = var_t::make(type_t::u64(), "sw_magic");
+    kernel_info.register_internal_arg(sw_magic);
 }
 
 void init_dispatch_kernel_info_div_magic(
-        kernel_info_t &kernel_info, const pvar_tile_t &tg_dims) {
+        kernel_info_t &kernel_info, const pvar_tile_t &tg_dims, int sw) {
     for (auto &d : tg_dims) {
         uint32_t size = tg_dims.at(d);
         uint64_t magic = ir_utils::idiv_magicgu_packed(size);
         kernel_info.set_internal_arg(d.str() + "_grid_size", size);
         kernel_info.set_internal_arg(d.str() + "_magic", magic);
     }
+    kernel_info.set_internal_arg("sw_magic", ir_utils::idiv_magicgu_packed(sw));
 }
 
 compute::range_t kernel_desc_t::local_range() const {
@@ -670,17 +673,18 @@ status_t kernel_params_t::init_dispatch_kernel_info(
     auto tg_grid = create_thread_group_grid(desc);
     auto thr_grid = create_thread_grid(desc);
     CHECK(desc.init_kernel_info(kernel_info));
-    auto &dims = prb.shape();
-    for (auto &d : dims) {
-        kernel_info.set_internal_arg(d.str(), dims.at(d));
+    auto &shape = prb.shape();
+    for (auto &d : shape) {
+        kernel_info.set_internal_arg(d.str(), shape.at(d));
     }
     pvar_tile_t tg_dims;
     for (auto &d : tg_grid.all_dims()) {
         int tg_size = desc.thread_group_tile.get(d, 1);
         int iter_size = desc.iter_tile.get(d, 1);
-        tg_dims[d] = utils::div_up(dims.at(d), tg_size * iter_size);
+        tg_dims[d] = utils::div_up(shape.at(d), tg_size * iter_size);
     }
-    init_dispatch_kernel_info_div_magic(kernel_info, tg_dims);
+    init_dispatch_kernel_info_div_magic(
+            kernel_info, tg_dims, shape.at(pvars::sw));
     compute::range_t gws = compute::range_t::empty();
     compute::range_t lws = compute::range_t::empty();
     for (size_t i = 0; i < compute::range_t::max_ndims; i++) {

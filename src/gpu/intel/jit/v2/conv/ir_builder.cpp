@@ -25,6 +25,7 @@
 #include "gpu/intel/jit/ir/reorder.hpp"
 #include "gpu/intel/jit/pass/dpas.hpp"
 #include "gpu/intel/jit/pass/pass.hpp"
+#include "gpu/intel/jit/utils/trace.hpp"
 #include "gpu/intel/jit/v2/conv/bridge.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
 
@@ -720,31 +721,52 @@ stmt_t create_stmt(const send_plan_t &plan, const expr_t &mem_buf,
             pvar_coord_t<int>());
 }
 
+class idiv_fixup_mutator_t : public ir_mutator_t {
+public:
+    idiv_fixup_mutator_t(const kernel_info_t &kernel_info)
+        : kernel_info_(kernel_info) {}
+
+    object_t _mutate(const binary_op_t &obj) {
+        bool is_var_idiv = (obj.op_kind == op_kind_t::_div) && obj.type.is_int()
+                && !is_const(obj.b);
+        if (!is_var_idiv) return ir_mutator_t::_mutate(obj);
+        ir_assert(obj.b.is<const_var_t>())
+                << "Cannot handle integer division, expected const var to "
+                   "access magic value: "
+                << obj;
+        auto magic = kernel_info_.find_arg(obj.b.str() + "_magic");
+        return ternary_op_t::make(
+                op_kind_t::_idiv, obj.a, cast(obj.b, type_t::u32()), magic);
+    }
+
+private:
+    const kernel_info_t &kernel_info_;
+};
+
+stmt_t fixup_idiv(const stmt_t &s, const kernel_info_t &kernel_info,
+        ir_context_t &ir_ctx) {
+    trace_start();
+    auto ret = idiv_fixup_mutator_t(kernel_info).mutate(s);
+    trace_pass("fixup_idiv", ret, ir_ctx);
+    return ret;
+}
+
 class var_replacer_t : public ir_mutator_t {
 public:
     var_replacer_t(const kernel_info_t &kernel_info,
-            const grid_context_t &grid_ctx, const grid_t &tg_grid) {
-        for (auto &d : conv_dims()) {
-            auto &size = d.var().as<const_var_t>();
-            auto size_arg = kernel_info.find_arg(size.name);
-            var_map_.emplace(size, size_arg);
-        }
+            const grid_context_t &grid_ctx, const grid_t &tg_grid)
+        : kernel_info_(kernel_info) {
         for (int i = 0; i < grid_ctx.ndims(); i++) {
             auto tg_idx = tg_grid.index_var(i);
             var_map_.emplace(tg_idx, grid_ctx.tg_idx(i));
         }
     }
     object_t _mutate(const var_t &obj) override {
-        auto it = var_map_.find(obj);
-        if (it != var_map_.end()) return it->second;
-        return obj;
+        return map_var(obj.name, obj, /*is_const=*/false);
     }
 
     object_t _mutate(const const_var_t &obj) override {
-        auto it = var_map_.find(obj);
-        if (it != var_map_.end()) return it->second;
-        ir_error_not_expected() << "Cannot map const var: " << obj;
-        return expr_t();
+        return map_var(obj.name, obj, /*is_const_var=*/true);
     }
 
     object_t _mutate(const binary_op_t &obj) override {
@@ -755,6 +777,20 @@ public:
     }
 
 private:
+    expr_t map_var(
+            const std::string &name, const expr_t &var, bool is_const_var) {
+        auto it = var_map_.find(var);
+        if (it != var_map_.end()) return it->second;
+        auto arg = kernel_info_.find_arg(name, /*allow_empty=*/true);
+        if (arg.is_empty() && is_const_var) {
+            ir_error_not_expected() << "Cannot map const var: " << var;
+        }
+        auto value = (arg.is_empty() ? var : arg);
+        var_map_.emplace(var, value);
+        return value;
+    }
+
+    const kernel_info_t &kernel_info_;
     object_map_t<expr_t, expr_t> var_map_;
 };
 
@@ -816,6 +852,7 @@ public:
         stmt = off_ctx_.inject_let_stmts(stmt);
         stmt = inject_global_alloc(stmt);
         stmt = inject_index_let(stmt);
+        stmt = fixup_idiv(stmt, kernel_info_, ir_ctx_);
         stmt = finalize_vars(
                 stmt, kernel_info_, grid_ctx_, plan_.tg_grid, ir_ctx_);
 

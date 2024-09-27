@@ -125,7 +125,7 @@ struct sample_t {
         : prb(prb), kernel_desc(kernel_desc), time_ns(time_ns) {
         hw_cfg = hw_config_t(
                 prb.hw(), kernel_desc.fma, kernel_desc.src_tag.type());
-        pvar_tile_t padded_shape = prb.shape();
+        auto padded_shape = prb.shape();
         pad_eff = 1;
         for (auto &d : padded_shape) {
             if (!is_conv_index(d)) continue;
