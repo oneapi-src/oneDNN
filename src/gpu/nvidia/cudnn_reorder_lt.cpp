@@ -68,7 +68,7 @@ status_t cudnn_reorder_lt_t::execute(const exec_ctx_t &ctx) const {
         dst_scales = &arg_dst_scale_md->second;
     }
     if (pd()->src_float_) {
-        std::unique_ptr<memory_t> scratch_mem;
+        std::unique_ptr<memory_t, memory_deleter_t> scratch_mem;
         auto scratchpad_storage
                 = ctx.get_scratchpad_grantor().get_memory_storage(
                         memory_tracking::names::key_reorder_cublaslt_src_float);
@@ -118,7 +118,7 @@ status_t cudnn_reorder_lt_t::execute(const exec_ctx_t &ctx) const {
         });
 
         if (pd()->dst_float_) {
-            std::unique_ptr<memory_t> scratch_mem;
+            std::unique_ptr<memory_t, memory_deleter_t> scratch_mem;
             auto scratchpad_storage
                     = ctx.get_scratchpad_grantor().get_memory_storage(
                             memory_tracking::names::

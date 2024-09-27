@@ -191,13 +191,12 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
         }
     }
 
-    float sum_src;
+    ACC_DATA_T sum_src;
 #if WITH_SUM
-    sum_src = convert_float(
-            SRC_TO_REF(diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)]));
+    sum_src = TO_ACC(SRC_TO_REF(diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)]));
 #endif
 
-    float accumulator = convert_float(d);
+    ACC_DATA_T accumulator = TO_ACC(d);
 
 #if WITH_SRC_SCALES
     accumulator *= src_scales[0];
@@ -231,8 +230,8 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
     const unsigned po_d3 = 0;
     const unsigned po_d4 = 0;
 #endif
-    APPLY_POST_OPS_SERIAL(accumulator, float, sum_src, float, n, 1, g *IC + ic,
-            1, po_d2, 1, po_d3, 1, po_d4, 1, 0, 1);
+    APPLY_POST_OPS_SERIAL(accumulator, ACC_DATA_T, sum_src, float, n, 1,
+            g *IC + ic, 1, po_d2, 1, po_d3, 1, po_d4, 1, 0, 1);
 
 #if WITH_DST_SCALES
     accumulator /= dst_scales[0];
