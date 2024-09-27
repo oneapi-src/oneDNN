@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # *******************************************************************************
-# Copyright 2020-2023 Arm Limited and affiliates.
+# Copyright 2020-2024 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,45 +17,57 @@
 # limitations under the License.
 # *******************************************************************************
 
-# Compute Library build defaults
-ACL_VERSION="v23.11"
-ACL_DIR="${PWD}/ComputeLibrary"
-ACL_ARCH="armv8a"
-ACL_MULTI_ISA_SUPPORT=0
+# Build ACL from github.
 
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --version)
-        ACL_VERSION="v$2"
-        shift
-        ;;
-        --arch)
-        ACL_ARCH="$2"
-        shift
-        ;;
-        --multi_isa)
-        ACL_MULTI_ISA_SUPPORT=1
-        ;;
-        --root-dir)
-        ACL_DIR="$2"
-        shift
-        ;;
-        *)
-        echo "Unknown option: $1"
-        exit 1
-        ;;
-    esac
-    shift
-done
+set -o errexit -o pipefail -o noclobber
 
-readonly ACL_REPO="https://github.com/ARM-software/ComputeLibrary.git"
-MAKE_NP="-j$(grep -c processor /proc/cpuinfo)"
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
-git clone --branch $ACL_VERSION --depth 1 $ACL_REPO $ACL_DIR
-cd $ACL_DIR
+# Defines MP, CC, CXX and OS.
+source ${SCRIPT_DIR}/common_aarch64.sh
 
-scons --silent $MAKE_NP Werror=0 debug=0 neon=1 opencl=0 embed_kernels=0 \
-    os=linux arch=$ACL_ARCH build=native multi_isa=$ACL_MULTI_ISA_SUPPORT \
-    fixed_format_kernels=1
+ACL_CONFIG=${ACL_CONFIG:-"Release"}
+ACL_ROOT_DIR=${ACL_ROOT_DIR:-"${PWD}/ComputeLibrary"}
+ACL_VERSION=${ACL_VERSION:-v24.09}
+ACL_ARCH=${ACL_ARCH:-"armv8.2-a"}
+ACL_REPO="https://github.com/ARM-software/ComputeLibrary.git"
 
-exit $?
+if [[ "$OS" == "Linux" ]]; then
+    ACL_MULTI_ISA_SUPPORT=1
+    if [[ "$ACL_THREADING" == "OMP" ]]; then
+        ACL_OPENMP=1
+    elif [[ "$ACL_THREADING" == "SEQ" ]]; then
+        ACL_OPENMP=0
+    fi
+    ACL_OS="linux"
+elif [[ "$OS" == "Darwin" ]]; then
+    ACL_MULTI_ISA_SUPPORT=0
+    ACL_OPENMP=0
+    ACL_OS="macos"
+else
+    echo "Unknown OS: $OS"
+    exit 1
+fi
+
+if [[ "$ACL_CONFIG" == "Release" ]]; then
+    ACL_DEBUG=0
+elif [[ "$ACL_CONFIG" == "Debug" ]]; then
+    ACL_DEBUG=1
+else
+    echo "Unknown build config: $ACL_CONFIG"
+    exit 1
+fi
+
+echo "Compiler version:"
+$CC --version
+
+set -x
+git clone --branch $ACL_VERSION --depth 1 $ACL_REPO $ACL_ROOT_DIR
+
+cd $ACL_ROOT_DIR
+
+scons $MP Werror=0 debug=$ACL_DEBUG neon=1 opencl=0 embed_kernels=0 \
+    os=$ACL_OS arch=$ACL_ARCH build=native multi_isa=$ACL_MULTI_ISA_SUPPORT \
+    fixed_format_kernels=1 cppthreads=0 openmp=$ACL_OPENMP examples=0 \
+    validation_tests=0
+set +x
