@@ -3828,10 +3828,9 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
             % (req_cvtps2xf16_ ? req_cvt_bf16_k_blk_step_ : k_blk_step_);
     init_tail_mask(columns_tail, false);
 
-    auto load2bf16 = [this, nrows, columns_tail, ncolumns](
-                             int i, int base_idx) {
+    auto load2bf16 = [this, nrows, columns_tail, ncolumns](int i) {
         auto src_reg = src_vmm(i);
-        auto src_reg_next = tmp_vmm(i - base_idx);
+        auto src_reg_next = tmp_vmm(2);
 
         Label load_done;
         if (is_dynamic_N_ && nrows < n_blk_step_) {
@@ -3945,11 +3944,6 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
 
     auto transpose16x8 = [&](int base_idx) {
         assert(base_idx == 0 || base_idx == 8);
-        // If compensation compute is required - use tmp(0) ... tmp(7)
-        // to not spoil reserved registers' values
-        const int tmp_corr_idx
-                = (is_src_int4_ || do_compute_compensation_ || req_zp_b_shift_)
-                * base_idx;
 
         // swap 1
         if (req_cvtps2xf16_) {
@@ -3958,8 +3952,8 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
                 const int src_idx1 = src_idx0 + 1;
 
                 if (base_idx == 0 && i == 0) {
-                    load2bf16(src_idx0, base_idx);
-                    load2bf16(src_idx1, base_idx);
+                    load2bf16(src_idx0);
+                    load2bf16(src_idx1);
                 }
 
                 const int next_src_idx0 = src_idx0 + 2;
@@ -3967,17 +3961,17 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
 
                 const bool load_next = base_idx == 0 || i < 3;
 
-                const auto tmp0 = tmp_vmm(src_idx0 - tmp_corr_idx);
-                const auto tmp1 = tmp_vmm(src_idx1 - tmp_corr_idx);
+                const auto tmp0 = tmp_vmm(0);
+                const auto tmp1 = tmp_vmm(1);
                 const auto src0 = src_vmm(src_idx0);
                 const auto src1 = src_vmm(src_idx1);
 
                 if (valid_to_load_next(next_src_idx0, nrows) && load_next)
-                    load2bf16(next_src_idx0, base_idx);
+                    load2bf16(next_src_idx0);
                 valignd(tmp0, src0, src0, 0x1);
 
                 if (valid_to_load_next(next_src_idx1, nrows) && load_next)
-                    load2bf16(next_src_idx1, base_idx);
+                    load2bf16(next_src_idx1);
                 valignd(tmp1, src1, src1, 0xf);
 
                 vmovaps(src0 | kAAAA, tmp1);
@@ -3997,8 +3991,8 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
                     load(src_idx1);
                 }
 
-                const auto tmp0 = tmp_vmm(src_idx0 - tmp_corr_idx);
-                const auto tmp1 = tmp_vmm(src_idx1 - tmp_corr_idx);
+                const auto tmp0 = tmp_vmm(0);
+                const auto tmp1 = tmp_vmm(1);
                 const auto src0 = src_vmm(src_idx0);
                 const auto src1 = src_vmm(src_idx1);
 
@@ -4020,8 +4014,8 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
             const int src_idx0 = base_idx + i + select_half + 0;
             const int src_idx2 = src_idx0 + 2;
 
-            const auto tmp0 = tmp_vmm(src_idx0 - tmp_corr_idx);
-            const auto tmp1 = tmp_vmm(src_idx2 - tmp_corr_idx);
+            const auto tmp0 = tmp_vmm(0);
+            const auto tmp1 = tmp_vmm(1);
             const auto src0 = src_vmm(src_idx0);
             const auto src2 = src_vmm(src_idx2);
 
@@ -4035,7 +4029,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
             const int src_idx0 = base_idx + i;
             const int src_idx4 = src_idx0 + 4;
 
-            const auto tmp0 = tmp_vmm(src_idx0 - tmp_corr_idx);
+            const auto tmp0 = tmp_vmm(0);
             const auto src0 = src_vmm(src_idx0);
             const auto src4 = src_vmm(src_idx4);
 
@@ -4047,7 +4041,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
 
     auto fixup16x16 = [&]() {
         for (int i = 0; i < 8; i++) {
-            const auto tmp = tmp_vmm(i);
+            const auto tmp = tmp_vmm(0);
             const auto src0 = src_vmm(i);
             const auto src8 = src_vmm(8 + i);
             vshuff64x2(tmp, src0, src8, 0x44);
@@ -4057,7 +4051,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
         }
 
         for (int i = 0; i < 8; i++) {
-            const auto tmp = tmp_vmm(i);
+            const auto tmp = tmp_vmm(0);
             const auto src0 = src_vmm(i);
             const auto src8 = src_vmm(8 + i);
             vshuff64x2(tmp, src0, src8, 0xee);
