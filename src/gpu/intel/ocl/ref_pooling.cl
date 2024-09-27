@@ -50,14 +50,14 @@
 KERNEL_ATTR
 __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
         __global DST_DATA_T *dst POST_OP_ARGS) {
-    const int mb = GWS_GET_MB();
-    const int oc = GWS_GET_OC();
-    const int od = GWS_GET_OD();
-    const int oh = GWS_GET_OH();
-    const int ow = GWS_GET_OW();
+    const off_t mb = GWS_GET_MB();
+    const off_t oc = GWS_GET_OC();
+    const off_t od = GWS_GET_OD();
+    const off_t oh = GWS_GET_OH();
+    const off_t ow = GWS_GET_OW();
 
     if (mb >= SRC_D0 || oc >= SRC_D1) {
-        const uint dst_off = DST_OFF(mb, oc, od, oh, ow);
+        const off_t dst_off = DST_OFF(mb, oc, od, oh, ow);
         dst[dst_off] = TO_DST(0.0f);
 #if ALG_MAX && IS_TRAINING
         ws[dst_off] = 0;
@@ -65,7 +65,7 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
         return;
     }
 
-    const uint dst_off = DST_OFF(mb, oc, od, oh, ow);
+    const off_t dst_off = DST_OFF(mb, oc, od, oh, ow);
 #if ALG_MAX && IS_TRAINING
     ws[dst_off] = -1;
 #endif
@@ -80,17 +80,17 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
 #endif // DT_BF16
 #endif // ALG_MAX
 
-    for (int kd = 0; kd < KD; ++kd) {
-        const int id = od * SD - PD + kd * (DD + 1);
+    for (off_t kd = 0; kd < KD; ++kd) {
+        const off_t id = od * SD - PD + kd * (DD + 1);
         if (id < 0 || id >= ID) continue;
-        for (int kh = 0; kh < KH; ++kh) {
-            const int ih = oh * SH - PH + kh * (DH + 1);
+        for (off_t kh = 0; kh < KH; ++kh) {
+            const off_t ih = oh * SH - PH + kh * (DH + 1);
             if (ih < 0 || ih >= IH) continue;
-            for (int kw = 0; kw < KW; ++kw) {
-                const int iw = ow * SW - PW + kw * (DW + 1);
+            for (off_t kw = 0; kw < KW; ++kw) {
+                const off_t iw = ow * SW - PW + kw * (DW + 1);
                 if (iw < 0 || iw >= IW) continue;
 
-                int src_off = SRC_OFF(mb, oc, id, ih, iw);
+                off_t src_off = SRC_OFF(mb, oc, id, ih, iw);
 #if ALG_MAX
 #if IS_TRAINING
                 if (ws[dst_off] < 0) ws[dst_off] = kd * KH * KW + kh * KW + kw;
@@ -124,29 +124,29 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
 #endif
 #else
 #if ALG_AVG_P
-    const int num_summands = KD * KW * KH;
+    const off_t num_summands = KD * KW * KH;
 #else
-    const int id_start = od * SD - PD;
-    const int ih_start = oh * SH - PH;
-    const int iw_start = ow * SW - PW;
-    const int id_end = od * SD - PD + (KD - 1) * DD + KD;
-    const int ih_end = oh * SH - PH + (KH - 1) * DH + KH;
-    const int iw_end = ow * SW - PW + (KW - 1) * DW + KW;
+    const off_t id_start = od * SD - PD;
+    const off_t ih_start = oh * SH - PH;
+    const off_t iw_start = ow * SW - PW;
+    const off_t id_end = od * SD - PD + (KD - 1) * DD + KD;
+    const off_t ih_end = oh * SH - PH + (KH - 1) * DH + KH;
+    const off_t iw_end = ow * SW - PW + (KW - 1) * DW + KW;
 
-    const int id_start_excluded
+    const off_t id_start_excluded
             = id_start < 0 ? (0 - id_start - 1) / (DD + 1) + 1 : 0;
-    const int ih_start_excluded
+    const off_t ih_start_excluded
             = ih_start < 0 ? (0 - ih_start - 1) / (DH + 1) + 1 : 0;
-    const int iw_start_excluded
+    const off_t iw_start_excluded
             = iw_start < 0 ? (0 - iw_start - 1) / (DW + 1) + 1 : 0;
-    const int id_end_excluded
+    const off_t id_end_excluded
             = id_end > ID ? (id_end - ID - 1) / (DD + 1) + 1 : 0;
-    const int ih_end_excluded
+    const off_t ih_end_excluded
             = ih_end > IH ? (ih_end - IH - 1) / (DH + 1) + 1 : 0;
-    const int iw_end_excluded
+    const off_t iw_end_excluded
             = iw_end > IW ? (iw_end - IW - 1) / (DW + 1) + 1 : 0;
 
-    const int num_summands = (KD - id_start_excluded - id_end_excluded)
+    const off_t num_summands = (KD - id_start_excluded - id_end_excluded)
             * (KH - ih_start_excluded - ih_end_excluded)
             * (KW - iw_start_excluded - iw_end_excluded);
 #endif
@@ -196,67 +196,67 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
 KERNEL_ATTR
 __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
         __global DST_DATA_T *diff_dst) {
-    const int mb = GWS_GET_MB();
-    const int oc = GWS_GET_OC();
-    const int id = GWS_GET_ID();
-    const int ih = GWS_GET_IH();
-    const int iw = GWS_GET_IW();
+    const off_t mb = GWS_GET_MB();
+    const off_t oc = GWS_GET_OC();
+    const off_t id = GWS_GET_ID();
+    const off_t ih = GWS_GET_IH();
+    const off_t iw = GWS_GET_IW();
 
     DEF_ACC_DATA_T s = 0;
-    int denom = 1;
+    off_t denom = 1;
 #if ALG_AVG_P
     denom = KD * KH * KW;
 #endif
 
-    for (int kd = 0; kd < KD; ++kd) {
-        int _od = id + PD - kd * (DD + 1);
+    for (off_t kd = 0; kd < KD; ++kd) {
+        off_t _od = id + PD - kd * (DD + 1);
         if (_od % SD != 0) continue;
-        int od = _od / SD;
+        off_t od = _od / SD;
         if (od < 0 || od >= OD) continue;
 
-        for (int kh = 0; kh < KH; ++kh) {
-            int _oh = ih + PH - kh * (DH + 1);
+        for (off_t kh = 0; kh < KH; ++kh) {
+            off_t _oh = ih + PH - kh * (DH + 1);
             if (_oh % SH != 0) continue;
-            int oh = _oh / SH;
+            off_t oh = _oh / SH;
             if (oh < 0 || oh >= OH) continue;
 
-            for (int kw = 0; kw < KW; ++kw) {
-                int _ow = iw + PW - kw * (DW + 1);
+            for (off_t kw = 0; kw < KW; ++kw) {
+                off_t _ow = iw + PW - kw * (DW + 1);
                 if (_ow % SW != 0) continue;
-                int ow = _ow / SW;
+                off_t ow = _ow / SW;
                 if (ow < 0 || ow >= OW) continue;
 
-                const uint dst_off = DST_OFF(mb, oc, od, oh, ow);
+                const off_t dst_off = DST_OFF(mb, oc, od, oh, ow);
 
 #if ALG_MAX
-                const int index = ws[dst_off];
+                const off_t index = ws[dst_off];
 
-                const int hw = index % (KW * KH);
-                const int w_kd = index / (KW * KH);
-                const int w_kw = hw % KW;
-                const int w_kh = hw / KW;
+                const off_t hw = index % (KW * KH);
+                const off_t w_kd = index / (KW * KH);
+                const off_t w_kw = hw % KW;
+                const off_t w_kh = hw / KW;
                 if (w_kd != kd || w_kh != kh || w_kw != kw) continue;
 #endif
 
 #if ALG_AVG_NP
-                const int id_start = od * SD - PD;
-                const int ih_start = oh * SH - PH;
-                const int iw_start = ow * SW - PW;
-                const int id_end = od * SD - PD + (KD - 1) * DD + KD;
-                const int ih_end = oh * SH - PH + (KH - 1) * DH + KH;
-                const int iw_end = ow * SW - PW + (KW - 1) * DW + KW;
+                const off_t id_start = od * SD - PD;
+                const off_t ih_start = oh * SH - PH;
+                const off_t iw_start = ow * SW - PW;
+                const off_t id_end = od * SD - PD + (KD - 1) * DD + KD;
+                const off_t ih_end = oh * SH - PH + (KH - 1) * DH + KH;
+                const off_t iw_end = ow * SW - PW + (KW - 1) * DW + KW;
 
-                const int id_start_excluded
+                const off_t id_start_excluded
                         = id_start < 0 ? (0 - id_start - 1) / (DD + 1) + 1 : 0;
-                const int ih_start_excluded
+                const off_t ih_start_excluded
                         = ih_start < 0 ? (0 - ih_start - 1) / (DH + 1) + 1 : 0;
-                const int iw_start_excluded
+                const off_t iw_start_excluded
                         = iw_start < 0 ? (0 - iw_start - 1) / (DW + 1) + 1 : 0;
-                const int id_end_excluded
+                const off_t id_end_excluded
                         = id_end > ID ? (id_end - ID - 1) / (DD + 1) + 1 : 0;
-                const int ih_end_excluded
+                const off_t ih_end_excluded
                         = ih_end > IH ? (ih_end - IH - 1) / (DH + 1) + 1 : 0;
-                const int iw_end_excluded
+                const off_t iw_end_excluded
                         = iw_end > IW ? (iw_end - IW - 1) / (DW + 1) + 1 : 0;
 
                 denom = (KD - id_start_excluded - id_end_excluded)
@@ -277,7 +277,7 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
     s /= denom;
 #endif
 
-    uint diff_src_offset = SRC_OFF(mb, oc, id, ih, iw);
+    off_t diff_src_offset = SRC_OFF(mb, oc, id, ih, iw);
     diff_src[diff_src_offset] = CONVERT_DATA_T(s);
 }
 #endif
