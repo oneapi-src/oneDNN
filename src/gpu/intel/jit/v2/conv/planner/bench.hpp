@@ -63,7 +63,7 @@ struct bench_input_params_t {
     layout_tag_t dst_tag;
     prb_reqs_t reqs;
     bool is_dw = false;
-    prb_tile_t tile;
+    pvar_tile_t tile;
     int nprbs = 0;
 
     bench_input_params_t() = default;

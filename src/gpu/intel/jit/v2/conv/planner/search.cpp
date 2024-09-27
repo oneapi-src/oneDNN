@@ -197,10 +197,10 @@ public:
 private:
     void set(const std::string &key, const std::string &value) {
         if (key == "iter") {
-            auto dim = pvar_t::from_name(value);
+            auto dim = pvar_t(value);
             tile_infos_[dim].add(tile_flags_t::iter);
         } else if (key == "tg") {
-            auto dim = pvar_t::from_name(value);
+            auto dim = pvar_t(value);
             tile_infos_[dim].add(tile_flags_t::thread_group);
         } else {
             ir_error_not_expected();
@@ -399,9 +399,9 @@ public:
         : bench_mger_(bench_mger), base_desc_(base_desc) {
         if (base_desc_.prop == prop_kind::backward_data) {
             // XXX: No stride support in backward by data yet.
-            base_desc_.reqs.add(size_var(prb_dims::sw) == 1);
-            base_desc_.reqs.add(size_var(prb_dims::sh) == 1);
-            base_desc_.reqs.add(size_var(prb_dims::sd) == 1);
+            base_desc_.reqs.add(pvars::sw.var() == 1);
+            base_desc_.reqs.add(pvars::sh.var() == 1);
+            base_desc_.reqs.add(pvars::sd.var() == 1);
         }
     }
 
@@ -512,7 +512,7 @@ private:
             if (!utils::one_of(bmnk, pvars::m, pvars::n)) continue;
             for (int outer : {2, 4}) {
                 if (desc.iter_tile.at(d) % outer != 0) continue;
-                prb_tile_t tile_outer;
+                pvar_tile_t tile_outer;
                 tile_outer[d] = outer;
                 tiles.push_back(tile_outer);
             }
@@ -548,11 +548,11 @@ class search_sequence_t {
 public:
     search_sequence_t(const std::vector<kernel_desc_t> &descs, int max_entries)
         : max_entries_(max_entries) {
-        std::vector<std::vector<prb_tile_t>> tiles;
+        std::vector<std::vector<pvar_tile_t>> tiles;
         for (int i = 0; i < (int)descs.size(); i++) {
             auto &d = descs[i];
             entries_.emplace_back(i, d);
-            std::vector<prb_tile_t> d_tiles;
+            std::vector<pvar_tile_t> d_tiles;
             auto iter = to_gemm(d.iter_tile, d.prop);
             auto tg = to_gemm(d.thread_group_tile, d.prop);
             d_tiles.push_back(iter);
