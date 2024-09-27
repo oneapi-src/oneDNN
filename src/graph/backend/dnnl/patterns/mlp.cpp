@@ -113,6 +113,99 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gated_mlp_v1)
             return std::make_shared<larger_partition_kernel_t>();
         });
 
+/*
+//        |          |
+//       deq        deq
+//  \   /        \  /
+//  matmul (gt)  matmul (up)
+//     |          |
+//    unary*      |
+//        \      /   deq
+//         binary   /
+//           |     /
+//           matmul (down)
+//              |
+*/
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, quantized_gated_mlp)
+        .set_priority(22.1f)
+        .set_kind(partition_kind_t::matmul_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *deq_up = pgraph->append_op(
+                            graph::op_kind::DynamicDequantize);
+                    pm::pb_op_t *deq_gate = pgraph->append_op(
+                            graph::op_kind::DynamicDequantize);
+                    pm::pb_op_t *fc_up = pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(1, deq_up, 0)});
+                    pm::pb_op_t *fc_gt = pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(1, deq_gate, 0)});
+
+                    // activations after fc_gt
+                    auto alt_graph = std::make_shared<pb_graph_t>();
+                    auto palt = alt_graph->append_alternation(get_unary_ops());
+                    alt_graph->create_input_port(0, palt, 0);
+                    alt_graph->create_output_port(0, palt, 0);
+                    // The activation is optional
+                    auto act = pgraph->append_optional(
+                            alt_graph, in_edges_t {in_edge(0, fc_gt, 0)});
+
+                    // binary: add/div/mul/sub
+                    in_edges_t edges
+                            = {in_edge(0, act, 0), in_edge(1, fc_up, 0)};
+                    auto bin = pgraph->append_alternation(
+                            get_binary_ops(), edges);
+
+                    // fc_down
+                    pm::pb_op_t *deq_down = pgraph->append_op(
+                            graph::op_kind::DynamicDequantize);
+                    in_edges_t fc_down_edges
+                            = {in_edge(0, bin, 0), in_edge(1, deq_down, 0)};
+                    pgraph->append_op(graph::op_kind::MatMul, fc_down_edges);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
+
+// quantized gated mlp with swish decomposed to sigmoid and multiply.
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, quantized_gated_mlp_v1)
+        .set_priority(22.1f)
+        .set_kind(partition_kind_t::matmul_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pm::pb_op_t *deq_up = pgraph->append_op(
+                            graph::op_kind::DynamicDequantize);
+                    pm::pb_op_t *deq_gate = pgraph->append_op(
+                            graph::op_kind::DynamicDequantize);
+                    pm::pb_op_t *fc_up = pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(1, deq_up, 0)});
+                    pm::pb_op_t *fc_gt = pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(1, deq_gate, 0)});
+
+                    // swish (sigmoid + mul) after fc_gt
+                    pm::pb_op_t *swish_sig = pgraph->append_op(
+                            graph::op_kind::Sigmoid, {in_edge(0, fc_gt, 0)});
+                    in_edges_t swish_mul_edges
+                            = {in_edge(0, fc_gt, 0), in_edge(1, swish_sig, 0)};
+                    pm::pb_op_t *swish_mul = pgraph->append_op(
+                            graph::op_kind::Multiply, swish_mul_edges);
+
+                    // binary: add/div/mul/sub
+                    in_edges_t edges
+                            = {in_edge(0, swish_mul, 0), in_edge(1, fc_up, 0)};
+                    auto bin = pgraph->append_alternation(
+                            get_binary_ops(), edges);
+
+                    // fc_down
+                    pm::pb_op_t *deq_down = pgraph->append_op(
+                            graph::op_kind::DynamicDequantize);
+                    in_edges_t fc_down_edges
+                            = {in_edge(0, bin, 0), in_edge(1, deq_down, 0)};
+                    pgraph->append_op(graph::op_kind::MatMul, fc_down_edges);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
+        });
+
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
 } // namespace pattern
