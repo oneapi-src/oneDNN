@@ -69,6 +69,14 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING
         "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel RelWithAssert RelWithMDd...")
 endif()
+if (CMAKE_GENERATOR MATCHES "^Visual Studio")
+    message(STATUS
+"oneDNN build configuration is based on the CMAKE_BUILD_TYPE value, but
+ the CMake generator '${CMAKE_GENERATOR}' does not respect it and requires
+ using the --config option to choose the build type. Changing the build type
+ using the --config option requires rerunning CMake from scratch with a
+ matching CMAKE_BUILD_TYPE value.")
+endif()
 
 set(PROJECT_NAME "oneDNN")
 set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library (oneDNN)")
