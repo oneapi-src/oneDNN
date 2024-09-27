@@ -326,7 +326,8 @@ public:
     const type_t &c_type() const { return layout_tag(tensor_kind_t::c).type(); }
 
     send_kind_t access_kind(send_op_t op, tensor_kind_t tensor) const {
-        if (use_2d_access) return send_kind_t::_2d;
+        if (use_2d_access && tensor != tensor_kind_t::undef)
+            return send_kind_t::_2d;
         return send_kind_t::undef;
     }
 

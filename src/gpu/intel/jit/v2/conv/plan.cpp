@@ -865,7 +865,7 @@ private:
         }
         plan.reduce_cond = std::move(reduce_cond);
         auto bia_params = get_send_params(
-                tensor_kind_t::bia, send_op_t::store, bia_iter_view);
+                tensor_kind_t::undef, send_op_t::store, bia_iter_view);
         auto bia_store = create_send_plan(bia_params, bia_iter_view);
         auto tile = plan.tile;
         plan.bia_store = bia_store;
