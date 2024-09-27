@@ -179,6 +179,19 @@ public:
         return ret;
     }
 
+    pvar_map_t operator|(const pvar_map_t &other) const {
+        pvar_map_t ret = *this;
+        for (auto &kv : other.map_) {
+            auto it = map_.find(kv.first);
+            if (it != map_.end()) {
+                ir_assert(it->second == kv.second);
+                continue;
+            }
+            ret[kv.first] = kv.second;
+        }
+        return ret;
+    }
+
     bool operator==(const pvar_map_t &other) const {
         if (size() != other.size()) return false;
         auto it1 = map_.begin();
@@ -235,7 +248,9 @@ public:
         return oss.str();
     }
 
-    virtual std::string str() const { return str_impl(/*multiline=*/true); }
+    virtual std::string str() const {
+        return str_impl(/*multiline=*/!std::is_integral<ValueT>::value);
+    }
 
     IR_DEFINE_DUMP()
 
