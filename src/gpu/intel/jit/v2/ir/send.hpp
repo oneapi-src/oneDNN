@@ -882,7 +882,8 @@ private:
             return type_size * inner_last.elems() >= grf_size;
         };
         for (auto it = begin(layout); it != end(layout); ++it) {
-            auto _prover = prover_t(prover, /*can_update=*/!ok_to_return());
+            auto _prover
+                    = prover_t(prover, prover.can_update() && !ok_to_return());
             if (!mask_desc.is_uniform(it, _prover)) break;
             if (!it.is_dense()) break;
             if (type_size * it.elems() > params.max_entry_reg_size) break;

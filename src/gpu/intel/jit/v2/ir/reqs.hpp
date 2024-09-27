@@ -48,6 +48,7 @@ public:
         return *reqs_;
     }
     explicit operator bool() const { return reqs_; }
+    bool can_update() const { return can_update_; }
 
 private:
     const prb_reqs_t *parent_ = nullptr;
