@@ -459,7 +459,7 @@ status_t reusable_dispatch_config_t::generate(
 void dispatch_compile_params_t::def_kernel_macros(
         kernel_ctx_t &kernel_ctx, const char *suffix) const {
     kernel_ctx.define_int("GWS_WITH_RUNTIME_PARAMS", 1);
-    if (use_int32_offset) kernel_ctx.add_option("-DUSE_INT32_OFFSET");
+    kernel_ctx.use_int32_offset(use_int32_offset);
 
     // Find a unique prefix (in case there are many kernels in a file).
     std::string gws_prefix;

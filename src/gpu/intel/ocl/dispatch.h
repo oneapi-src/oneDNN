@@ -23,12 +23,6 @@
 #define GWS_GET_THREAD_ID(index) get_global_id(index)
 #endif
 
-#ifdef USE_INT32_OFFSET
-#define off_t int
-#else
-#define off_t long
-#endif
-
 #ifdef GWS_WITH_RUNTIME_PARAMS
 
 // Shortcut accessors for special cases.

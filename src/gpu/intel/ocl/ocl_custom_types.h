@@ -17,10 +17,16 @@
 #ifndef GPU_INTEL_OCL_OCL_CUSTOM_TYPES_H
 #define GPU_INTEL_OCL_OCL_CUSTOM_TYPES_H
 
-#define dim_t long // 64 bit per the OpenCL specification
+// Fixed to 64 bit per the OpenCL specification to align with same type in C++
+// source code
+typedef long dim_t;
 
-// include to get the MATH_UTILS_* macros
-#include "gpu/intel/ocl/ocl_math_utils.h"
+// Signed offset used to support the (rarely) used negative strides
+#ifdef USE_INT32_OFFSET
+typedef int off_t;
+#else
+typedef long off_t;
+#endif
 
 typedef struct {
     short data;
@@ -34,7 +40,6 @@ bf16 as_bf16(short data) {
 
 /*****************************/
 
-#ifdef MATH_UTILS_DECLARE_BF8
 typedef struct {
     char data;
 } f8_e5m2;
@@ -44,11 +49,9 @@ f8_e5m2 as_f8_e5m2(char data) {
     res.data = data;
     return res;
 }
-#endif
 
 /*****************************/
 
-#ifdef MATH_UTILS_DECLARE_HF8
 typedef struct {
     char data;
 } f8_e4m3;
@@ -58,6 +61,5 @@ f8_e4m3 as_f8_e4m3(char data) {
     res.data = data;
     return res;
 }
-#endif
 
 #endif
