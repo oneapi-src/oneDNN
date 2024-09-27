@@ -418,22 +418,19 @@ pvar_tile_t random_shape(
         return d_s | d_m | d_l;
     };
     pvar_tile_t s = problem_t::default_shape();
+    auto g = make_random_dim(pvars::g, 2, 512);
+    auto mb = make_random_dim_set(pvars::mb, 1, 16, 128);
+    auto ic = make_random_dim_set(pvars::ic, 64, 512, 2048);
+    auto oc = make_random_dim_set(pvars::oc, 64, 512, 2048);
+    auto ow = make_random_dim_set(pvars::ow, 64, 512, 2048);
+    auto iw = make_random_dim_set(pvars::iw, 64, 512, 2048);
     if (is_dw) {
-        auto g = make_random_dim(pvars::g, 2, 512);
-        auto mb = make_random_dim(pvars::mb, 1, 16);
-        auto ow = make_random_dim(pvars::ow, 1, 512);
-        auto iw = make_random_dim(pvars::iw, 1, 512);
         s[pvars::g] = g();
         s[pvars::mb] = mb();
         s[pvars::ic] = 1;
         s[pvars::oc] = 1;
         s[pvars::iw] = s[pvars::ow] = (ow.with_tile() ? ow() : iw());
     } else {
-        auto mb = make_random_dim_set(pvars::mb, 1, 16, 128);
-        auto ic = make_random_dim_set(pvars::ic, 64, 512, 2048);
-        auto oc = make_random_dim_set(pvars::oc, 64, 512, 2048);
-        auto ow = make_random_dim_set(pvars::ow, 64, 512, 2048);
-        auto iw = make_random_dim_set(pvars::iw, 64, 512, 2048);
         s[pvars::g] = 1;
         s[pvars::mb] = mb();
         s[pvars::ic] = ic();
