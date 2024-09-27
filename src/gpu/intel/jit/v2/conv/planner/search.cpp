@@ -349,7 +349,11 @@ public:
     const std::vector<kernel_desc_t> &descs() const { return descs_; }
 
     void add_desc(const kernel_desc_t &desc) {
-        ir_assert(desc.reqs.str() == reqs_.str());
+        ir_assert(desc.reqs.str() == reqs_.str())
+                << "Reqs mismatch:\n"
+                << desc.cmd_str() << "\ndesc.reqs:" << desc.reqs.str()
+                << "\nreqs:\n"
+                << reqs_.str();
         if (descs_.empty()) {
             is_dw_ = desc.is_dw;
         } else {
@@ -380,46 +384,56 @@ private:
 };
 
 bench_data_set_t bench_kernel_desc_group(const bench_manager_t &bench_mger,
-        const search_kernel_desc_group_t &desc_group, int nprbs,
-        int max_descs = 256);
+        const search_kernel_desc_group_t &desc_group, int nprbs, int max_descs);
 
 class kernel_search_manager_t {
 public:
     // Number of problems to generate to rank kernel descriptors in a kernel
     // descriptor group.
-    static const int bench_nprbs = 30;
+    static const int bench_nprbs = 50;
     // Number of problems to generate to build performance model.
     static const int model_nprbs = 250;
     // Number of top kernel descriptors in a kernel descriptor group to save to
     // registry.
-    static const int registry_top_k = 4;
+    static const int registry_top_k = 8;
+    // Number of descriptors to search through.
+    static const int max_descs = 256;
 
     kernel_search_manager_t(
             const bench_manager_t &bench_mger, const kernel_desc_t &base_desc)
         : bench_mger_(bench_mger), base_desc_(base_desc) {
-        if (base_desc_.prop == prop_kind::backward_data) {
-            // XXX: No stride support in backward by data yet.
-            base_desc_.reqs.add(pvars::sw.var() == 1);
-            base_desc_.reqs.add(pvars::sh.var() == 1);
-            base_desc_.reqs.add(pvars::sd.var() == 1);
-        }
+        reset_reqs(base_desc_);
     }
 
     void search() {
         std::cout << "Starting kernel search" << std::endl;
         auto desc_groups = gen_desc_groups();
+        auto &registry = plan_registry();
         for (auto &dg : desc_groups) {
-            auto bench_data_set
-                    = bench_kernel_desc_group(bench_mger_, dg, bench_nprbs);
+            auto bench_data_set = bench_kernel_desc_group(
+                    bench_mger_, dg, bench_nprbs, max_descs);
             auto best = bench_data_set.find_best(registry_top_k);
             for (auto &bd : best) {
-                populate_registry(bd.kernel_desc);
+                auto &d = bd.kernel_desc;
+                auto bd_model = bench(bench_mger_, d, model_nprbs);
+                if (!bd_model) continue;
+                auto model = model_fit(bd_model);
+                auto d_ext = try_extensions(bench_mger_, d);
+                registry.set(d_ext, model);
             }
         }
         std::cout << "Kernel search completed" << std::endl;
     }
 
 private:
+    static void reset_reqs(kernel_desc_t &kernel_desc) {
+        if (kernel_desc.prop != prop_kind::backward_data) return;
+        // XXX: No stride support in backward by data yet.
+        kernel_desc.reqs.add(pvars::sw.var() == 1);
+        kernel_desc.reqs.add(pvars::sh.var() == 1);
+        kernel_desc.reqs.add(pvars::sd.var() == 1);
+    }
+
     std::vector<search_kernel_desc_group_t> gen_desc_groups() const {
         std::unordered_map<std::string, kernel_desc_t> descs;
         for (auto &s : get_tile_schemes(base_desc_.prop, base_desc_.is_dw)) {
@@ -457,51 +471,6 @@ private:
         std::cout << "Generated " << ret.size()
                   << " kernel descriptor groups\n";
         return ret;
-    }
-
-    void populate_registry(const kernel_desc_t &desc) const {
-        auto &registry = plan_registry();
-        auto bd = bench(bench_mger_, desc, model_nprbs);
-        auto model = model_fit(bd);
-        registry.set(desc, model);
-
-        std::vector<type_t> dst_types;
-        std::vector<type_t> wei_types;
-        switch (desc.prop) {
-            case prop_kind::forward:
-                for (auto &dst : {type_t::s8(), type_t::f16(), type_t::f32()}) {
-                    if (dst.size() == desc.src_tag.type().size()) continue;
-                    dst_types.push_back(dst);
-                }
-                break;
-            case prop_kind::backward_weights:
-                if (desc.wei_tag.type().is_bf16()) {
-                    wei_types.push_back(type_t::f32());
-                }
-            default: break;
-        }
-        for (auto &dst : dst_types) {
-            auto d = desc;
-            d.dst_tag = layout_tag_t(
-                    desc.dst_tag.desc(), dst, desc.dst_tag.raw_tag());
-            d.is_finalized = false;
-            if (!finalize_conv_desc(d, bench_mger_.hw())) continue;
-            auto bd = bench(bench_mger_, d, /*nprbs=*/250);
-            if (!bd) continue;
-            auto model = model_fit(bd);
-            registry.set(d, model);
-        }
-        for (auto &wei : wei_types) {
-            auto d = desc;
-            d.wei_tag = layout_tag_t(
-                    desc.wei_tag.desc(), wei, desc.wei_tag.raw_tag());
-            d.is_finalized = false;
-            if (!finalize_conv_desc(d, bench_mger_.hw())) continue;
-            auto bd = bench(bench_mger_, d, /*nprbs=*/250);
-            if (!bd) continue;
-            auto model = model_fit(bd);
-            registry.set(d, model);
-        }
     }
 
     static std::vector<pvar_tile_t> generate_iter_outer_tiles(
