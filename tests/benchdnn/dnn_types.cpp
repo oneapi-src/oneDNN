@@ -669,7 +669,7 @@ std::ostream &operator<<(
 
     s << scale.policy;
     if (scale.policy == policy_t::COMMON) s << ":" << scale.scale;
-    if (scale.dt != dnnl_f32) s << ':' << scale.dt;
+    if (scale.dt != dnnl_f32 || !scale.groups.empty()) s << ':' << scale.dt;
     if (!scale.groups.empty()) s << ":" << dims2str(scale.groups);
     return s;
 }
@@ -684,7 +684,8 @@ std::ostream &operator<<(
         s << arg2str(point.first) << ":" << point.second.policy;
         if (point.second.policy == policy_t::COMMON)
             s << ":" << point.second.value;
-        if (point.second.dt != dnnl_s32) s << ':' << point.second.dt;
+        if (point.second.dt != dnnl_s32 || !point.second.groups.empty())
+            s << ':' << point.second.dt;
         if (!point.second.groups.empty())
             s << ":" << dims2str(point.second.groups);
         delim = "+";
