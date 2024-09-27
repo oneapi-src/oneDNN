@@ -463,6 +463,20 @@ private:
             auto ret = desc_groups.emplace(
                     d.reqs.str(), search_kernel_desc_group_t(d.reqs));
             ret.first->second.add_desc(d);
+            for (int dist : {1, 3}) {
+                auto _d = d;
+                _d.prefetch = prefetch_desc_t {dist, true, true};
+                reset_reqs(_d);
+                _d.is_finalized = false;
+                if (!finalize_conv_desc(_d, bench_mger_.hw())) {
+                    std::cout << d.brief_str() << ": \033[1;31mFAIL\033[0m"
+                              << std::endl;
+                    continue;
+                }
+                std::cout << _d.brief_str() << ": \033[1;32mOK\033[0m"
+                          << std::endl;
+                ret.first->second.add_desc(_d);
+            }
         }
         std::vector<search_kernel_desc_group_t> ret;
         for (auto &kv : desc_groups) {
@@ -518,6 +532,7 @@ public:
     search_sequence_t(const std::vector<kernel_desc_t> &descs, int max_entries)
         : max_entries_(max_entries) {
         std::vector<std::vector<pvar_tile_t>> tiles;
+        pvar_t prefetch_dim("p");
         for (int i = 0; i < (int)descs.size(); i++) {
             auto &d = descs[i];
             entries_.emplace_back(i, d);
@@ -526,6 +541,9 @@ public:
             auto tg = to_gemm(d.thread_group_tile, d.prop);
             d_tiles.push_back(iter);
             d_tiles.push_back(tg);
+            pvar_tile_t prefetch_tile;
+            prefetch_tile[prefetch_dim] = d.prefetch.dist;
+            d_tiles.push_back(prefetch_tile);
             tiles.push_back(std::move(d_tiles));
         }
         tile_to_vec_ = tile_to_vec_t(tiles);
