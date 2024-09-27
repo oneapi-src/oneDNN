@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2024 Intel Corporation
+# Copyright 2016-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,6 +96,7 @@ if(NOT ONEDNN_BUILD_GRAPH)
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/gqa.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/gated_mlp.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/gated_mlp_wei_combined.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/gated_mlp_int4.cpp
         )
 endif()
 
