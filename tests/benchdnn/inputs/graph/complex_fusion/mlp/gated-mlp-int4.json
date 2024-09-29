@@ -1,0 +1,605 @@
+{
+  "version": "3.7.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "fpmath_mode_apply_to_int": "true",
+  "input_ports": [
+    0, 
+    1, 
+    2, 
+    5, 
+    8, 
+    9, 
+    10, 
+    5, 
+    21, 
+    22, 
+    23
+  ],
+  "output_ports": [
+    26
+  ],
+  "graph": [
+    {
+      "id": 4,
+      "name": "deq_gate",
+      "kind": "DynamicDequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": -1
+        },
+        "group_shape": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            128
+          ]
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_group"
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "u4",
+          "shape": [
+            4096, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 1,
+          "dtype": "f16",
+          "shape": [
+            4096, 
+            112
+          ],
+          "stride": [
+            112, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 2,
+          "dtype": "u8",
+          "shape": [
+            4096, 
+            112
+          ],
+          "stride": [
+            112, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 3,
+          "dtype": "f16",
+          "shape": [
+            4096, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 7,
+      "name": "fc_gate",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_b": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 5,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            4096
+          ],
+          "stride": [
+            4096, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 3,
+          "dtype": "f16",
+          "shape": [
+            4096, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 6,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 16,
+      "name": "swish/sigmoid",
+      "kind": "Sigmoid",
+      "attrs": {},
+      "inputs": [
+        {
+          "id": 6,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 15,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 18,
+      "name": "swish/multiply",
+      "kind": "Multiply",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 6,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 15,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 17,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 12,
+      "name": "deq_up",
+      "kind": "DynamicDequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": -1
+        },
+        "group_shape": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            128
+          ]
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_group"
+        }
+      },
+      "inputs": [
+        {
+          "id": 8,
+          "dtype": "u4",
+          "shape": [
+            4096, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 9,
+          "dtype": "f16",
+          "shape": [
+            4096, 
+            112
+          ],
+          "stride": [
+            112, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 10,
+          "dtype": "u8",
+          "shape": [
+            4096, 
+            112
+          ],
+          "stride": [
+            112, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 11,
+          "dtype": "f16",
+          "shape": [
+            4096, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 14,
+      "name": "fc_up",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_b": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 5,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            4096
+          ],
+          "stride": [
+            4096, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 11,
+          "dtype": "f16",
+          "shape": [
+            4096, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 13,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 20,
+      "name": "mul",
+      "kind": "Multiply",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 17,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 13,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 19,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 25,
+      "name": "deq_down",
+      "kind": "DynamicDequantize",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": -1
+        },
+        "group_shape": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            128
+          ]
+        },
+        "qtype": {
+          "type": "string",
+          "value": "per_group"
+        }
+      },
+      "inputs": [
+        {
+          "id": 21,
+          "dtype": "u4",
+          "shape": [
+            14336, 
+            4096
+          ],
+          "stride": [
+            4096, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 22,
+          "dtype": "f16",
+          "shape": [
+            14336, 
+            32
+          ],
+          "stride": [
+            32, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 23,
+          "dtype": "u8",
+          "shape": [
+            14336, 
+            32
+          ],
+          "stride": [
+            32, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 24,
+          "dtype": "f16",
+          "shape": [
+            14336, 
+            4096
+          ],
+          "stride": [
+            4096, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 27,
+      "name": "fc_down",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_b": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 19,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            14336
+          ],
+          "stride": [
+            14336, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 24,
+          "dtype": "f16",
+          "shape": [
+            14336, 
+            4096
+          ],
+          "stride": [
+            4096, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 26,
+          "dtype": "f16",
+          "shape": [
+            1, 
+            4096
+          ],
+          "stride": [
+            4096, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}
