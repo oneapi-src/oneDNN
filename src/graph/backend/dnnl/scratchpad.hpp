@@ -85,15 +85,9 @@ public:
         size_ = 0;
     }
 
-    temporary_scratchpad_t(temporary_scratchpad_t &&other) noexcept
-        : buffer_(nullptr), size_(0) {
-        buffer_ = other.buffer_;
-        size_ = other.size_;
-        eng_ = other.eng_;
-        alloc_ = other.alloc_;
-        other.buffer_ = nullptr;
-        other.size_ = 0;
-    }
+    // Disable assignment and copy
+    temporary_scratchpad_t(const temporary_scratchpad_t &) = delete;
+    temporary_scratchpad_t &operator=(const temporary_scratchpad_t &) = delete;
 
     char *get_buffer() const override { return buffer_; }
 
