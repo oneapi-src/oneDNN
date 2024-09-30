@@ -58,7 +58,7 @@ jobs:
         uses: SimenB/github-actions-cpu-cores@97ba232459a8e02ff6121db9362b09661c875ab8 # v2.0.0
         id: cpu-cores
       - name: Checkout oneDNN
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
         with:
           path: oneDNN
       # ACL is built with clang, so we can link with it directly if we are using
@@ -78,7 +78,7 @@ jobs:
           packages: scons
       - if: contains( matrix.compiler.CC , 'gcc' )
         name: Checkout ACL
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
         with:
           repository: ARM-software/ComputeLibrary
           ref: 'v24.08.1'
