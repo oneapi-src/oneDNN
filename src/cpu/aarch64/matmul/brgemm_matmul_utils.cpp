@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -129,7 +130,7 @@ bool post_ops_ok(brgemm_matmul_conf_t &bgmmc, const primitive_attr_t &attr,
 }
 
 status_t check_isa_with_datatype(
-        const cpu_isa_t isa, const brgemm_matmul_conf_utils_t &bm_conf_utils) {
+        const brgemm_matmul_conf_utils_t &bm_conf_utils) {
     if (bm_conf_utils.is_f32() && !bm_conf_utils.is_int8()
             && !bm_conf_utils.is_bf16() && !bm_conf_utils.is_f16()
             && !bm_conf_utils.is_int8())
@@ -732,8 +733,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             dst_d.format_kind() == format_kind::any,
             bias_md.format_kind == format_kind::any);
 
-    VCHECK_BG(check_isa_with_datatype(isa, bm_conf_utils),
-            VERBOSE_ISA_DT_MISMATCH);
+    VCHECK_BG(check_isa_with_datatype(bm_conf_utils), VERBOSE_ISA_DT_MISMATCH);
 
     bgmmc.a_dt_sz = bgmmc.tr_a_dt_sz = types::data_type_size(bgmmc.src_dt);
     bgmmc.b_dt_sz = bgmmc.tr_b_dt_sz = types::data_type_size(bgmmc.wei_dt);
