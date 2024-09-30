@@ -484,9 +484,9 @@ void dispatch_compile_params_t::def_kernel_macros(
                 case (gws_op_t::SOLO_BLOCK): return "SOLO_BLOCK";
                 case (gws_op_t::FIRST_BLOCK): return "FIRST_BLOCK";
                 case (gws_op_t::MOD_BLOCK): return "MOD_BLOCK";
-                default:
-                    gpu_assert(false) << "Unexpected GWS indexing operation";
+                case (gws_op_t::UNDEF): break;
             }
+            gpu_error_not_expected() << "Unexpected GWS indexing operation";
             return nullptr;
         }();
         if (!gws_dim_op) continue; // Will not be hit due to gpu_assert above
