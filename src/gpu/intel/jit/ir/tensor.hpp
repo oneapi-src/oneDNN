@@ -150,11 +150,11 @@ class grid_info_t {
 public:
     grid_info_t() = default;
     grid_info_t(int ndims) : dims_(ndims), offs_(ndims), idxs_(ndims) {}
-    grid_info_t(const std::vector<int> &dims, const std::vector<expr_t> &idxs)
+    grid_info_t(const std::vector<dim_t> &dims, const std::vector<expr_t> &idxs)
         : grid_info_t(dims, {}, idxs) {}
-    grid_info_t(const std::vector<int> &dims, const std::string &prefix)
+    grid_info_t(const std::vector<dim_t> &dims, const std::string &prefix)
         : grid_info_t(dims, make_idxs(prefix, (int)dims.size())) {}
-    grid_info_t(const std::vector<int> &dims, const std::vector<int> &offs,
+    grid_info_t(const std::vector<dim_t> &dims, const std::vector<dim_t> &offs,
             const std::vector<expr_t> &idxs)
         : dims_(dims), offs_(offs), idxs_(idxs) {
         if (offs_.empty()) offs_.resize(dims.size());
@@ -174,8 +174,8 @@ public:
 
     bool is_empty() const { return dims_.empty(); }
 
-    int &dim(int dim_idx) { return dims_[dim_idx]; }
-    int &off(int dim_idx) { return offs_[dim_idx]; }
+    dim_t &dim(int dim_idx) { return dims_[dim_idx]; }
+    dim_t &off(int dim_idx) { return offs_[dim_idx]; }
     expr_t &idx(int dim_idx) { return idxs_[dim_idx]; }
     int dim_idx(const expr_t &idx_var) const {
         for (int i = 0; i < ndims(); i++) {
@@ -185,22 +185,22 @@ public:
         return -1;
     }
 
-    const int &dim(int dim_idx) const { return dims_[dim_idx]; }
-    const int &dim(const expr_t &idx_var) const {
+    const dim_t &dim(int dim_idx) const { return dims_[dim_idx]; }
+    const dim_t &dim(const expr_t &idx_var) const {
         return dims_[dim_idx(idx_var)];
     }
-    const int &off(int dim_idx) const { return offs_[dim_idx]; }
+    const dim_t &off(int dim_idx) const { return offs_[dim_idx]; }
     const expr_t &idx(int dim_idx) const { return idxs_[dim_idx]; }
 
-    int &operator[](int dim_idx) { return dim(dim_idx); }
-    const int &operator[](int dim_idx) const { return dim(dim_idx); }
+    dim_t &operator[](int dim_idx) { return dim(dim_idx); }
+    const dim_t &operator[](int dim_idx) const { return dim(dim_idx); }
 
     int ndims() const { return int(dims_.size()); }
-    int elems() const {
+    dim_t elems() const {
         return utils::array_product(dims_.data(), dims_.size());
     }
 
-    grid_info_t sub_grid(std::initializer_list<int> old_dim_idxs) const {
+    grid_info_t sub_grid(std::initializer_list<dim_t> old_dim_idxs) const {
         grid_info_t ret(int(old_dim_idxs.size()));
         int new_dim_idx = 0;
         for (auto old_dim_idx : old_dim_idxs) {
@@ -212,7 +212,7 @@ public:
         return ret;
     }
 
-    grid_info_t resize(const std::vector<int> &new_dims) const {
+    grid_info_t resize(const std::vector<dim_t> &new_dims) const {
         grid_info_t ret = *this;
         ret.dims_ = new_dims;
         return ret;
@@ -278,11 +278,11 @@ private:
         return ret;
     }
 
-    std::vector<int> dims_;
-    std::vector<int> offs_;
+    std::vector<dim_t> dims_;
+    std::vector<dim_t> offs_;
     std::vector<expr_t> idxs_;
 
-    std::vector<int> parent_dims_;
+    std::vector<dim_t> parent_dims_;
 };
 
 class grid_splitter_t {
@@ -796,7 +796,7 @@ public:
     tensor_t split(const grid_info_t &grid_info,
             grid_info_t *out_grid = nullptr) const {
         tensor_t min_tile;
-        std::vector<int> cur_dims(grid_info.ndims(), 1);
+        std::vector<dim_t> cur_dims(grid_info.ndims(), 1);
 
         for (int iter = 0; iter < grid_info.elems(); iter++) {
             for (int i = 0; i < grid_info.ndims(); i++) {

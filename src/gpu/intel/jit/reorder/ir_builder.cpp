@@ -321,8 +321,8 @@ void reorder_ir_builder_t::compute_grid(const layout_t &src,
     if (dim2grid) dim2grid->resize(ndims, -1);
 
     const int grid_ndims = 3;
-    std::vector<int> kernel_grid_dims(grid_ndims, 1);
-    std::vector<int> tg_grid_dims(grid_ndims, 1);
+    std::vector<dim_t> kernel_grid_dims(grid_ndims, 1);
+    std::vector<dim_t> tg_grid_dims(grid_ndims, 1);
     int grid_idx = 0;
     int max_grid_idx = grid_ndims - 1;
     for (int i = 0; i < ndims; i++) {

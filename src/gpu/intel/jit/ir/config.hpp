@@ -439,7 +439,7 @@ public:
     int sort_key(const param_t *param) const override;
 
     void init_kernel_grid(const std::array<pvar_tile_t, 3> &grid) {
-        std::vector<int> dims(grid.size(), 1);
+        std::vector<dim_t> dims(grid.size(), 1);
         for (int i = 0; i < int(grid.size()); i++) {
             for (auto &d : grid[i]) {
                 int tg_block = loop_dim(d) * thread_group_dim(d) * iter_dim(d);
@@ -450,7 +450,7 @@ public:
     }
 
     void init_thread_group_grid(const std::array<pvar_tile_t, 3> &grid) {
-        std::vector<int> dims(grid.size(), 1);
+        std::vector<dim_t> dims(grid.size(), 1);
         for (int i = 0; i < int(grid.size()); i++) {
             for (auto &d : grid[i])
                 dims[i] *= thread_group_dim(d);
