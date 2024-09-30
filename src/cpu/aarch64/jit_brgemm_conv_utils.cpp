@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -725,9 +726,9 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     const float alpha = 1.0;
     const float beta = 0.0;
     brgemm_t brg;
-    brgemm_utils::init_brgemm_conf(&brg, isa, brgemm_addr, src_dt, wei_dt,
+    CHECK(brgemm_utils::init_brgemm_conf(&brg, isa, brgemm_addr, src_dt, wei_dt,
             brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN, vK, nullptr,
-            is_bf32);
+            is_bf32));
     CHECK(brgemm_utils::brgemm_blocking(&brg));
     ur = brg.bd_block;
     ur_block = brg.bd_block;
@@ -771,9 +772,9 @@ status_t brg_blocking_t::get_brgemm_ur(
                         * rnd_up(oc, oc_block) * wei_dsz;
                 const auto strides_ptr
                         = (brg_type == brgemm_strd) ? &brg_strides : nullptr;
-                brgemm_utils::init_brgemm_conf(&brg, isa, brg_type, src_dt,
-                        wei_dt, brgemm_row_major, alpha, vbeta, LDA, LDB, LDC,
-                        vM, vN, vK, strides_ptr, is_bf32);
+                CHECK(brgemm_utils::init_brgemm_conf(&brg, isa, brg_type,
+                        src_dt, wei_dt, brgemm_row_major, alpha, vbeta, LDA,
+                        LDB, LDC, vM, vN, vK, strides_ptr, is_bf32));
                 CHECK(brgemm_utils::brgemm_blocking(&brg));
 
                 brgemm_attr_t brgattr;

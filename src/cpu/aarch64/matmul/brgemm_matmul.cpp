@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
+* Copyright 2024 Arm Ltd. and affiliates
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -642,7 +643,6 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
         ctx.current_K_start = k;
         ctx.current_K_iters = nstl::min(bgmmc.K_blk, bgmmc.K);
-        assert(isa == sve_512);
         (*copy_B_kernel_)(&ctx);
     }
 
@@ -654,7 +654,6 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
         ctx.current_K_start = k;
         ctx.current_K_iters = bgmmc.K % bgmmc.K_blk;
-        assert(isa == sve_512);
         (*copy_B_kernel_)(&ctx);
     }
 }

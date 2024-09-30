@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
 * Copyright 2023-2024 FUJITSU LIMITED
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -170,8 +171,8 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     if (brg == nullptr) return status::invalid_arguments;
     if (transA || transB) return status::unimplemented;
 
-    brgemm_utils::init_brgemm_conf(brg, isa, type, dt_a, dt_b, layout, alpha,
-            beta, LDA, LDB, LDC, M, N, K, strides);
+    CHECK(brgemm_utils::init_brgemm_conf(brg, isa, type, dt_a, dt_b, layout,
+            alpha, beta, LDA, LDB, LDC, M, N, K, strides));
 
     if (M <= 0 || N <= 0 || K <= 0) return status::invalid_arguments;
     bool ldx_check = (brg->is_row_major()) ? (LDA < K)
@@ -197,8 +198,8 @@ status_t brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     if (transA || layout != brgemm_row_major || alpha != 1.0f || beta != 0.f)
         return status::unimplemented;
 
-    brgemm_utils::init_brdgmm_conf(brg, isa, type, dt_a, dt_b, layout, alpha,
-            beta, LDA, LDC, M, N, strides);
+    CHECK(brgemm_utils::init_brdgmm_conf(brg, isa, type, dt_a, dt_b, layout,
+            alpha, beta, LDA, LDC, M, N, strides));
 
     const bool ldx_check = (LDA < N || LDC < N);
     if (ldx_check) return status::invalid_arguments;
