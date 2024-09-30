@@ -450,7 +450,17 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     // exceeds `digits_f32`.
     const int safe_digits = MAX2(0, digits_dt(dnnl_f32) - digits_dt(dt));
     const float trh_coeff = (1 << safe_digits);
+    // The following code is a workaround because a SYCL compiler bug
+    // that is causing precision issues.
+#ifdef DNNL_WITH_SYCL
+    float trh = trh_coeff
+            * ((kind == SRC || kind == DST
+                       || (kind == VAR && prb->dir & FLAG_FWD))
+                            ? 5e-7
+                            : 0);
+#else
     float trh = trh_coeff * ((kind == SRC || kind == DST) ? 5e-7 : 0);
+#endif
     if ((kind == SC || kind == SH) && prb->dir & FLAG_BWD)
         trh = trh_coeff * 5e-6;
     cmp.set_threshold(trh);
