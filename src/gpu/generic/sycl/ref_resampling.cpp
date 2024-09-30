@@ -43,14 +43,8 @@ status_t ref_resampling_fwd_t::pd_t::init_conf() {
     conf_.dst_md = xpu::sycl::md_t(dst_md());
 
     conf_.alg = desc()->alg_kind;
-    const auto *att = attr();
-    const auto &attr_po = att->post_ops_;
-    if (attr_po.len() > sycl_post_ops_t::max_post_ops) {
-        return dnnl_unimplemented;
-    }
-    conf_.po_len = attr_po.len();
 
-    conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
+    conf_.post_ops = sycl_post_ops_t(attr(), dst_md());
     return status::success;
 }
 

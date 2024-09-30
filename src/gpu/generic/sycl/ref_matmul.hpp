@@ -59,7 +59,8 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
                             | sm::zero_points_runtime_data_type)
                     && IMPLICATION(
                             !attr()->scales_.has_default_values(), scales_ok())
-                    && post_ops_ok() && md_dims_in_range(src_md())
+                    && sycl_post_ops_t::post_ops_ok(attr())
+                    && md_dims_in_range(src_md())
                     && md_dims_in_range(weights_md());
             if (!ok) return status::unimplemented;
 
@@ -119,14 +120,6 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
                         && utils::one_of(s.data_type_, s8, s32, f32, f16, bf16);
             }
             return dt_ok && attr_scales_ok(supported_args);
-        }
-
-        bool post_ops_ok() const {
-            // Dw conv post-ops are not supported.
-            return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
-                    && attr()->post_ops_.has_default_values(
-                            {primitive_kind::eltwise, primitive_kind::binary,
-                                    primitive_kind::sum});
         }
 
         static bool check_data_types(const memory_desc_wrapper &src,

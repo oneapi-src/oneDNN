@@ -38,7 +38,7 @@ status_t ref_reorder_t::pd_t::init_conf() {
     conf_.do_scale_dst
             = !attr()->scales_.get(DNNL_ARG_DST).has_default_values();
     conf_.scale_dst_mask = attr()->scales_.get(DNNL_ARG_DST).mask_;
-    conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
+    conf_.post_ops = sycl_post_ops_t(attr(), dst_md());
 
     return status::success;
 }

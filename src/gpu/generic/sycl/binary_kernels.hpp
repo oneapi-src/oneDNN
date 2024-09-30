@@ -48,7 +48,7 @@ struct binary_kernel_vec_t {
                                                         | DNNL_ARG_SRC_0)
                                                      .data_type()
                                            : data_type_t::dnnl_f32)
-        , po_args_(cgh, ctx) {}
+        , po_args_(cgh, ctx, conf_.post_ops) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         memory_tensor_t src0_mem(src0_, conf_.src0_md);

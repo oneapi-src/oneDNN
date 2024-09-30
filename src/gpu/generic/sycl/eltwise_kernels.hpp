@@ -36,7 +36,7 @@ struct eltwise_fwd_kernel_vec_t {
             ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
         , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
-        , po_args_(cgh, ctx)
+        , po_args_(cgh, ctx, conf_.post_ops)
         , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
