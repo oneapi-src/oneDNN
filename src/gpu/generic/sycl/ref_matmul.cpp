@@ -23,82 +23,8 @@ namespace gpu {
 namespace generic {
 namespace sycl {
 
-status_t ref_matmul_t::pd_t::init_conf() {
+void ref_matmul_t::pd_t::init_conf() {
     conf_ = sycl_matmul_conf_t();
-
-    int matmul_dim_1 = ndims() - 2;
-    int matmul_dim_2 = ndims() - 1;
-
-    memory_desc_t data_md_copy = *src_md();
-    auto &data_strides = data_md_copy.format_desc.blocking.strides;
-    if (data_strides[matmul_dim_1] < data_strides[matmul_dim_2]) {
-        std::swap(data_strides[matmul_dim_1], data_strides[matmul_dim_2]);
-        std::swap(data_md_copy.dims[matmul_dim_1],
-                data_md_copy.dims[matmul_dim_2]);
-        conf_.transpose_data = true;
-    }
-    conf_.data_md = xpu::sycl::md_t(&data_md_copy);
-
-    memory_desc_t weights_md_copy = *weights_md();
-    auto &weights_strides = weights_md_copy.format_desc.blocking.strides;
-    if (weights_strides[matmul_dim_1] < weights_strides[matmul_dim_2]) {
-        std::swap(weights_strides[matmul_dim_1], weights_strides[matmul_dim_2]);
-        std::swap(weights_md_copy.dims[matmul_dim_1],
-                weights_md_copy.dims[matmul_dim_2]);
-        conf_.transpose_weights = true;
-    }
-    conf_.weights_md = xpu::sycl::md_t(&weights_md_copy);
-
-    memory_desc_t dst_md_copy = *dst_md();
-    auto &dst_strides = dst_md_copy.format_desc.blocking.strides;
-    if (dst_strides[matmul_dim_1] < dst_strides[matmul_dim_2]) {
-        std::swap(dst_strides[matmul_dim_1], dst_strides[matmul_dim_2]);
-        std::swap(
-                dst_md_copy.dims[matmul_dim_1], dst_md_copy.dims[matmul_dim_2]);
-        conf_.transpose_dst = true;
-    }
-    conf_.dst_md = xpu::sycl::md_t(&dst_md_copy);
-
-    if (with_bias()) {
-        memory_desc_t bias_md_copy = *weights_md(1);
-        auto &bias_strides = bias_md_copy.format_desc.blocking.strides;
-        if (bias_strides[matmul_dim_1] < bias_strides[matmul_dim_2]) {
-            std::swap(bias_strides[matmul_dim_1], bias_strides[matmul_dim_2]);
-            std::swap(bias_md_copy.dims[matmul_dim_1],
-                    bias_md_copy.dims[matmul_dim_2]);
-            conf_.transpose_bias = true;
-        }
-        conf_.bias_md = xpu::sycl::md_t(&bias_md_copy);
-    }
-
-    dims_t dst_blocks;
-    for (int i = 0; i < matmul_kernel_fwd_t::max_supported_ndims; i++) {
-        if (i < conf_.dst_md.ndims()) {
-            dst_blocks[i] = conf_.dst_md.dims()[i];
-        } else {
-            dst_blocks[i] = 1;
-        }
-    }
-    dst_blocks[matmul_dim_1] = math::div_up(
-            dst_blocks[matmul_dim_1], matmul_kernel_fwd_t::register_block_N);
-    dst_blocks[matmul_dim_2] = math::div_up(
-            dst_blocks[matmul_dim_2], matmul_kernel_fwd_t::register_block_M);
-    int n_blocks = 1;
-    for (int i = 0; i < matmul_kernel_fwd_t::max_supported_ndims; i++) {
-        n_blocks *= dst_blocks[i];
-    }
-    conf_.wk_size = n_blocks;
-
-    int high_two_bits = 3 << (ndims() - 2);
-    // last two dimensions of data and weights are never broadcast
-    conf_.data_mask
-            = utils::get_dims_mask(dst_md()->dims, src_md()->dims, ndims())
-            | high_two_bits;
-    conf_.weights_mask
-            = utils::get_dims_mask(dst_md()->dims, weights_md(0)->dims, ndims())
-            | high_two_bits;
-    conf_.bias_mask = utils::get_dims_mask(
-            dst_md()->dims, weights_md(1)->dims, ndims());
 
     conf_.do_scale_data
             = !attr()->scales_.get(DNNL_ARG_SRC_0).has_default_values();
@@ -120,14 +46,94 @@ status_t ref_matmul_t::pd_t::init_conf() {
 
     conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
 
-    for (auto i = 0; i < conf_.post_ops.get_post_op(); ++i) {
-        const auto &e = attr()->post_ops_.entry_[i];
-        if (e.is_binary() || e.is_prelu()) {
-            conf_.binary_src_arr[i] = xpu::sycl::md_t(
-                    arg_md(DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1));
+    memory_desc_wrapper src_d = src_md();
+    memory_desc_wrapper weights_d = weights_md();
+    memory_desc_wrapper dst_d = dst_md();
+    memory_desc_wrapper bias_d = weights_md(1);
+    for (const auto &mdw : {src_d, weights_d, dst_d, bias_d}) {
+        if (mdw.has_runtime_dims()) {
+            any_runtime_params_ = true;
+            return;
         }
     }
-    return status::success;
+    init_rt_conf(conf_, src_d, weights_d, dst_d, bias_d);
+}
+
+void ref_matmul_t::pd_t::init_rt_conf(sycl_matmul_conf_t &conf,
+        const memory_desc_wrapper src_d, const memory_desc_wrapper weights_d,
+        const memory_desc_wrapper dst_d,
+        const memory_desc_wrapper bias_d) const {
+    int matmul_dim_1 = ndims() - 2;
+    int matmul_dim_2 = ndims() - 1;
+
+    memory_desc_t data_md_copy = *src_d.md_;
+    auto &data_strides = data_md_copy.format_desc.blocking.strides;
+    if (data_strides[matmul_dim_1] < data_strides[matmul_dim_2]) {
+        std::swap(data_strides[matmul_dim_1], data_strides[matmul_dim_2]);
+        std::swap(data_md_copy.dims[matmul_dim_1],
+                data_md_copy.dims[matmul_dim_2]);
+        conf.transpose_data = true;
+    }
+    conf.data_md = xpu::sycl::md_t(&data_md_copy);
+
+    memory_desc_t weights_md_copy = *weights_d.md_;
+    auto &weights_strides = weights_md_copy.format_desc.blocking.strides;
+    if (weights_strides[matmul_dim_1] < weights_strides[matmul_dim_2]) {
+        std::swap(weights_strides[matmul_dim_1], weights_strides[matmul_dim_2]);
+        std::swap(weights_md_copy.dims[matmul_dim_1],
+                weights_md_copy.dims[matmul_dim_2]);
+        conf.transpose_weights = true;
+    }
+    conf.weights_md = xpu::sycl::md_t(&weights_md_copy);
+
+    memory_desc_t dst_md_copy = *dst_d.md_;
+    auto &dst_strides = dst_md_copy.format_desc.blocking.strides;
+    if (dst_strides[matmul_dim_1] < dst_strides[matmul_dim_2]) {
+        std::swap(dst_strides[matmul_dim_1], dst_strides[matmul_dim_2]);
+        std::swap(
+                dst_md_copy.dims[matmul_dim_1], dst_md_copy.dims[matmul_dim_2]);
+        conf.transpose_dst = true;
+    }
+    conf.dst_md = xpu::sycl::md_t(&dst_md_copy);
+
+    if (with_bias()) {
+        memory_desc_t bias_md_copy = *bias_d.md_;
+        auto &bias_strides = bias_md_copy.format_desc.blocking.strides;
+        if (bias_strides[matmul_dim_1] < bias_strides[matmul_dim_2]) {
+            std::swap(bias_strides[matmul_dim_1], bias_strides[matmul_dim_2]);
+            std::swap(bias_md_copy.dims[matmul_dim_1],
+                    bias_md_copy.dims[matmul_dim_2]);
+            conf.transpose_bias = true;
+        }
+        conf.bias_md = xpu::sycl::md_t(&bias_md_copy);
+    }
+
+    dims_t dst_blocks;
+    for (int i = 0; i < matmul_kernel_fwd_t::max_supported_ndims; i++) {
+        if (i < conf.dst_md.ndims()) {
+            dst_blocks[i] = conf.dst_md.dims()[i];
+        } else {
+            dst_blocks[i] = 1;
+        }
+    }
+    dst_blocks[matmul_dim_1] = math::div_up(
+            dst_blocks[matmul_dim_1], matmul_kernel_fwd_t::register_block_N);
+    dst_blocks[matmul_dim_2] = math::div_up(
+            dst_blocks[matmul_dim_2], matmul_kernel_fwd_t::register_block_M);
+    int n_blocks = 1;
+    for (int i = 0; i < matmul_kernel_fwd_t::max_supported_ndims; i++) {
+        n_blocks *= dst_blocks[i];
+    }
+    conf.wk_size = n_blocks;
+
+    int high_two_bits = 3 << (ndims() - 2);
+    // last two dimensions of data and weights are never broadcast
+    conf.data_mask = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims())
+            | high_two_bits;
+    conf.weights_mask
+            = utils::get_dims_mask(dst_d.dims(), weights_d.dims(), ndims())
+            | high_two_bits;
+    conf.bias_mask = utils::get_dims_mask(dst_d.dims(), bias_d.dims(), ndims());
 }
 
 status_t ref_matmul_t::init(impl::engine_t *engine) {
@@ -137,14 +143,23 @@ status_t ref_matmul_t::init(impl::engine_t *engine) {
 }
 
 status_t ref_matmul_t::execute(const exec_ctx_t &ctx) const {
+    sycl_matmul_conf_t conf = pd()->conf_;
+    if (pd()->any_runtime_params_) {
+        const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
+        const auto weights_d
+                = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
+        const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
+        const auto bias_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
+        pd()->init_rt_conf(conf, src_d, weights_d, dst_d, bias_d);
+    }
 
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        matmul_kernel_fwd_t matmul_kernel(pd()->conf_, cgh, ctx);
+        matmul_kernel_fwd_t matmul_kernel(conf, cgh, ctx);
 
         const int block_size = 32;
         const int wg_size = 32;
 
-        const int t_work = pd()->conf_.wk_size;
+        const int t_work = conf.wk_size;
         const int wg_work = wg_size * block_size;
         const int wg_cnt = utils::div_up(t_work, wg_work);
 
