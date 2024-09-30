@@ -1386,7 +1386,7 @@
 #define TO_DST2(x) convert_double2(x)
 #define TO_DST4(x) convert_double4(x)
 #define TO_DST8(x) convert_double8(x)
-#define DST_DATA_FMAX convert_float(DBL_MAX)
+#define DST_DATA_FMAX convert_float(FLT_MAX)
 #define DST_DATA_FMIN -DST_DATA_FMAX
 #else
 #error "Not expected"
