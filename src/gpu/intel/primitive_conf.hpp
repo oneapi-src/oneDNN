@@ -362,14 +362,14 @@ struct conv_conf_t {
 // Pooling
 struct pool_conf_t {
     int ndims;
-    int mb, c;
-    int mb_padded;
-    int c_padded;
-    int id, ih, iw, od, oh, ow;
-    int stride_d, stride_h, stride_w;
-    int kd, kh, kw;
-    int dd, dh, dw;
-    int f_pad, t_pad, l_pad;
+    dim_t mb, c;
+    dim_t mb_padded;
+    dim_t c_padded;
+    dim_t id, ih, iw, od, oh, ow;
+    dim_t stride_d, stride_h, stride_w;
+    dim_t kd, kh, kw;
+    dim_t dd, dh, dw;
+    dim_t f_pad, t_pad, l_pad;
     data_type_t src_dt;
     data_type_t dst_dt;
     alg_kind_t alg;

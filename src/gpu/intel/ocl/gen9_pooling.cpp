@@ -140,7 +140,8 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
 
     if (conf.num_batches > 1) {
         conf.dispatch.define_dim("MB", 0,
-                nstl::min(conf.mb_block_size, conf.mb_padded),
+                nstl::min(
+                        static_cast<dim_t>(conf.mb_block_size), conf.mb_padded),
                 conf.chunks_per_mb_block);
     } else {
         conf.dispatch.define_dim("MB", 0, conf.mb_padded / conf.unroll_mb_count,
@@ -172,7 +173,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
     if (conf.num_batches > 1) {
-        kernel_ctx.define_int("MB", nstl::min(conf.mb_block_size, conf.mb));
+        kernel_ctx.define_int("MB",
+                nstl::min(static_cast<dim_t>(conf.mb_block_size), conf.mb));
     } else {
         kernel_ctx.define_int("MB", conf.mb);
     }
