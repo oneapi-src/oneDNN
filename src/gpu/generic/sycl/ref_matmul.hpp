@@ -63,13 +63,21 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
                     && md_dims_in_range(weights_md());
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            init_conf();
+            return status::success;
         }
 
         sycl_matmul_conf_t conf_;
+        bool any_runtime_params_ = false;
+
+        void init_rt_conf(sycl_matmul_conf_t &conf,
+                const memory_desc_wrapper src_d,
+                const memory_desc_wrapper weights_d,
+                const memory_desc_wrapper dst_d,
+                const memory_desc_wrapper bias_d) const;
 
     private:
-        status_t init_conf();
+        void init_conf();
 
         status_t set_default_params() {
             if (src_md_.format_kind == format_kind::any) {
@@ -144,7 +152,7 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
             using namespace format_tag;
 
             for (const auto &mdw : {src, weights, dst}) {
-                if (!mdw.is_plain() || mdw.has_runtime_dims()) { return false; }
+                if (!mdw.is_plain()) { return false; }
             }
             return true;
         }
