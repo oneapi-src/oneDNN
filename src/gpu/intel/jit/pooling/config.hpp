@@ -372,10 +372,10 @@ public:
             const int loop_space = simds_per_line / (lg[0] * lg[1])
                     * (src_type_size + acc_type_size) / src_type_size;
             lg[7] = prb.kw;
-            lg[6] = std::max(utils::max_div(dim_t(prb.kh), loop_space / lg[7]),
-                    dim_t(1));
+            lg[6] = std::max(
+                    utils::max_div(prb.kh, loop_space / lg[7]), dim_t(1));
             lg[5] = std::max(
-                    utils::max_div(dim_t(prb.kd), loop_space / (lg[7] * lg[6])),
+                    utils::max_div(prb.kd, loop_space / (lg[7] * lg[6])),
                     dim_t(1));
         } else {
             // REGULAR FILTERS
