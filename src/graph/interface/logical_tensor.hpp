@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -152,6 +152,13 @@ struct logical_tensor_wrapper_t {
     bool is_similar(const logical_tensor_wrapper_t &rhs) const {
         return is_similar(*(this->lt), *(rhs.lt), /* check_id = */ false,
                 /* check_dtype = */ true);
+    }
+
+    /** For sub-byte data types returns number of elements per byte.
+     * For the rest data types returns 1. */
+    size_t sub_byte_data_type_multiplier() const {
+        if (utils::one_of(data_type(), data_type::s4, data_type::u4)) return 2;
+        return 1;
     }
 
     // return the size of data type

@@ -311,4 +311,10 @@ TEST(APILogicalTensor, LogicalTensorSize) {
     ASSERT_EQ(lt_3.get_id(), id);
     ASSERT_EQ(lt_3.get_data_type(), data_type::s8);
     ASSERT_EQ(lt_3.get_mem_size(), num_elem * sizeof(int8_t));
+
+    logical_tensor lt_4 {id, data_type::s4, shape, layout_type::strided};
+    ASSERT_EQ(lt_4.get_id(), id);
+    ASSERT_EQ(lt_4.get_data_type(), data_type::s4);
+    // in case num_elem is not even.
+    ASSERT_EQ(lt_4.get_mem_size(), (num_elem + 1) / 2);
 }

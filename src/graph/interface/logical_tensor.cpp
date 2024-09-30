@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +38,9 @@ size_t logical_tensor_wrapper_t::size() const {
                     static_cast<size_t>(strided_pdim * effective_stride));
         }
 
-        return max_size * data_type_size();
+        size_t data_size = utils::div_up(
+                max_size * data_type_size(), sub_byte_data_type_multiplier());
+        return data_size;
     } else if (is_opaque()) {
         size_t layout_id = lt->layout.layout_id;
         auto backend
