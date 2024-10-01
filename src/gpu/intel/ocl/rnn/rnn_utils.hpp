@@ -924,9 +924,11 @@ struct scratch_t : public data_helper_t {
                 ? conf_.n_states + 1
                 : conf_.n_states;
         auto i3_size = conf_.n_iter + 1;
-        if (i0_size == 0) {
-            i3_size = 2;
-            i3 %= i3_size;
+        if (i0_size <= 1) {
+            if (i0_size <= 0) {
+                i3_size = 2;
+                i3 %= i3_size;
+            }
             return OFF5(i1, conf_.n_dir, i2, i2_size, i3, i3_size, i4, conf_.mb,
                     i5, conf_.scratch_diff_states_ld);
         }
