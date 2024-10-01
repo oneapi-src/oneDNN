@@ -931,11 +931,11 @@ struct scratch_t : public data_helper_t {
                     i5, conf_.scratch_diff_states_ld);
         }
         gpu_assert(i0 < i0_size && i0 >= 0)
-                << "Logical index " << i0 << " must be less than its size "
-                << i0_size;
+                << "Logical index " << i0 << " should be in [0, " << i0_size
+                << ")";
         gpu_assert(i2 < i2_size && i2 >= 0)
-                << "Logical index " << i2 << " must be less than its size "
-                << i2_size;
+                << "Logical index " << i2 << " should be in [0, " << i2_size
+                << ")" << i2_size;
         MAYBE_UNUSED(i0_size);
 
         return OFF6(i0, i0_size, i1, conf_.n_dir, i2, i2_size, i3, i3_size, i4,
