@@ -27,9 +27,14 @@
 // Due to JIT compilation this feature is generally desired.
 #pragma clang diagnostic ignored "-Wtautological-compare"
 
-int div_up(int a, unsigned int b) {
-    return (a + b - 1) / b;
+int __attribute__((overloadable)) div_up(int a, unsigned int b) {
+    return (a / b) + (a % b != 0);
 }
+
+long __attribute__((overloadable)) div_up(long a, unsigned int b) {
+    return (a / b) + (a % b != 0);
+}
+
 int rnd_up(int a, unsigned int b) {
     return div_up(a, b) * b;
 }
