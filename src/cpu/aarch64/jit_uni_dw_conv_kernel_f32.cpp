@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2022 Intel Corporation
 * Copyright 2021-2024 FUJITSU LIMITED
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1099,9 +1100,14 @@ void jit_uni_dw_conv_bwd_weights_kernel_f32<isa>::generate() {
     const int simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
     preamble();
     //TO DO : renaming predicate register (P_ALL_ONE)
-    if (simd_w_ != cpu_sveLen / sizeof(float))
+    if (simd_w_ != cpu_sveLen / sizeof(float)) {
         set_preg(P_ALL_ONE.s, simd_w_, X_TMP_0, X_TMP_1);
-    if (simd_w_ != 16 || simd_w_ != 8) assert(!"Unsupport: simd_w != 16, 8");
+    }
+
+    if (simd_w_ != 16 && simd_w_ != 8) {
+        assert(!"Unsupported: simd_w != 16, 8");
+    }
+
     ldr(reg_input_baddr,
             ptr(abi_param1,
                     static_cast<int32_t>(offsetof(jit_dw_conv_call_s, input))));
