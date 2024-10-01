@@ -65,7 +65,8 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt
                     | skip_mask_t::fpmath_mode;
             if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
-
+            // disabling verbose dispatch messages for unsupported isa for
+            // better readability
             if (!mayiuse(isa)) return status::unimplemented;
 
             VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
@@ -267,7 +268,8 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             auto diff_src_dt = invariant_src_md()->data_type;
             auto diff_dst_dt = invariant_dst_md()->data_type;
             auto wei_dt = invariant_wei_md()->data_type;
-
+            // disabling verbose dispatch messages for unsupported isa for
+            // better readability
             if (!mayiuse(isa)) return status::unimplemented;
             VDISPATCH_INNER_PRODUCT(
                     desc()->prop_kind == prop_kind::backward_data,
@@ -443,7 +445,8 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             auto src_dt = invariant_src_md()->data_type;
             auto diff_wei_type = invariant_wei_md()->data_type;
             auto diff_dst_type = invariant_dst_md()->data_type;
-
+            // disabling verbose dispatch messages for unsupported isa for
+            // better readability
             if (!mayiuse(isa)) return status::unimplemented;
             VDISPATCH_INNER_PRODUCT(
                     desc()->prop_kind == prop_kind::backward_weights,

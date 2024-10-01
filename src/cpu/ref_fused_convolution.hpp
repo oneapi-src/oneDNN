@@ -86,11 +86,11 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
 
         virtual status_t init(engine_t *engine) {
             using namespace primitive_kind;
-            bool ok = true && is_fwd()
-                    && attr()->post_ops_.has_default_values(
-                            {binary, eltwise, convolution});
 
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(attr()->post_ops_.has_default_values(
+                                   {binary, eltwise, convolution}),
+                    VERBOSE_UNSUPPORTED_ATTR);
 
             CHECK(init_ops(engine));
             init_name();

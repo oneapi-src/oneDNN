@@ -1268,6 +1268,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
 template <cpu_isa_t isa>
 status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
         jit_pool_conf_t &jpp, const pooling_pd_t *ppd) {
+    // disabling verbose dispatch messages for unsupported isa for
+    // better readability
     if (!mayiuse(isa)) return status::unimplemented;
 
     const auto &pd = *ppd->desc();
