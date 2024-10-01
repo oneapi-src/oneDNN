@@ -1622,9 +1622,9 @@ void brgemm_convolution_fwd_t<isa>::perform_outwork(
     const bool is_ow_tail = (OW - ow < jcp.ow_block);
 
     const auto M = is_ow_tail ? jcp.M_tail : jcp.M;
-    const auto kdh_l = kd_l * kh_l;
-    const auto ow_s = (kdh_l <= 0) ? ow : ker_ow_s;
-    const auto ow_f = (kdh_l <= 0) ? ow : ker_ow_f;
+    const auto valid_kdh_l = kd_l > 0 && kh_l > 0;
+    const auto ow_s = valid_kdh_l ? ker_ow_s : ow;
+    const auto ow_f = valid_kdh_l ? ker_ow_f : ow;
     assert(ow <= ow_s && ow_s <= ow_f && ow_f <= ow + M);
 
     brgemm_kernel_post_ops_args_t p;
@@ -2068,6 +2068,7 @@ void brgemm_convolution_fwd_t<isa>::ker_base(brgemm_thread_ctx_t &btc) const {
     MAYBE_UNUSED(is_oh_tail);
 
     int kw_s {0}, kw_full_s {0}, kw_f {0}, kw_full_f {0}, kw_b(0), kw_e(0);
+    int ow_b {0}, ow_e {0};
 
     _pd->get_kw_range(ow, kw_s, kw_full_s, kw_full_f, kw_f);
 
@@ -2105,7 +2106,6 @@ void brgemm_convolution_fwd_t<isa>::ker_base(brgemm_thread_ctx_t &btc) const {
 
     const auto kdhw_loop = [&]() {
         if (kw_e - kw_b <= 0) return;
-        int ow_b {0}, ow_e {0};
         _pd->get_ow_range(ow, kw_b, ow_b, ow_e);
         const auto do_init
                 = btc.icc == 0 && kd_b == kd_s && kh_b == kh_s && kw_b == kw_s;
@@ -2204,7 +2204,8 @@ void brgemm_convolution_fwd_t<isa>::ker_base(brgemm_thread_ctx_t &btc) const {
         const auto do_init = btc.icc == 0;
         const auto do_postwork
                 = _pd->need_postwork && btc.icc == (_pd->ic_chunks - 1);
-        perform_outwork(btc, dst_base, bias_w, ow, g_oc, is_oc_tail, ow, ow,
+        _pd->get_ow_range(ow, kw_b, ow_b, ow_e);
+        perform_outwork(btc, dst_base, bias_w, ow, g_oc, is_oc_tail, ow_b, ow_e,
                 kd_l, kh_l, do_init, do_postwork, 0, false);
     }
 }
