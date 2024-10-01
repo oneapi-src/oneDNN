@@ -24,6 +24,9 @@
 // this warning has a high false-positive rate.
 #pragma clang diagnostic ignored "-Wconstant-logical-operand"
 
+// Due to JIT compilation this feature is generally desired.
+#pragma clang diagnostic ignored "-Wtautological-compare"
+
 int div_up(int a, unsigned int b) {
     return (a + b - 1) / b;
 }
