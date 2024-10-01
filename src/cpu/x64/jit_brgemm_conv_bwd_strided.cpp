@@ -274,7 +274,7 @@ status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::add_brg_descriptor(
         brgattr.hint_expected_C_size = 0;
     }
 
-    brgattr.wary_tail_read = false;
+    brgattr.wary_k_tail_read = false;
     // use_M_mask is always 0 for brgemm_convolution_bwd_strided_t
     brgattr.bd_mask = nullptr;
     brgattr.bd_mask_level = jcp_.use_M_mask;

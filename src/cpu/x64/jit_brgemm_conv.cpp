@@ -300,7 +300,7 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::add_brg_descriptor(int vM,
         brgattr.hint_expected_C_size = 0;
     }
 
-    brgattr.wary_tail_read = false;
+    brgattr.wary_k_tail_read = false;
     brgattr.bd_mask_level = jcp_.use_M_mask;
 
     if (is_amx) {

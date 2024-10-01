@@ -133,7 +133,7 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
                 brgattr.hint_expected_B_size = 0;
                 brgattr.hint_expected_C_size = 0;
 
-                brgattr.wary_tail_read = false;
+                brgattr.wary_k_tail_read = false;
                 brgattr.bd_mask_level = jcp_.use_M_mask;
 
                 brgattr.max_top_vpad = 0;

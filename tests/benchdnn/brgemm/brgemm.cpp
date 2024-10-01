@@ -135,7 +135,8 @@ dnnl_status_t brgemm_attr_init(
         PROCESS_KEY_VAL(hint_expected_A_size);
         PROCESS_KEY_VAL(hint_expected_B_size);
         PROCESS_KEY_VAL(hint_expected_C_size);
-        PROCESS_KEY_VAL(wary_tail_read);
+        PROCESS_KEY_VAL(wary_k_tail_read);
+        PROCESS_KEY_VAL(extendable_k);
         PROCESS_KEY_VAL(generate_skip_accumulation);
         // TODO: `bd_mask` can't be passed to the kernel at this moment, that's
         // why `bd_mask_level` has to stay `0` for now until it's enabled.

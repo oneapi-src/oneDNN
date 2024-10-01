@@ -624,6 +624,8 @@ status_t brgemm_init_tiles(const brgemm_desc_t &brg, char palette[64]) {
     auto rd_block = (!brg.rdb && brg.rdb_tail) ? brg.rdb_tail : brg.rd_block;
     if (brg.is_input_convert())
         rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
+    else
+        rd_block = utils::rnd_up(rd_block, brg.rd_step);
 
     palette_config_t *buff = (palette_config_t *)(palette);
 
@@ -765,7 +767,8 @@ int brgemm_cmp(const brgemm_desc_t &lhs, const brgemm_desc_t &rhs) {
     CMP_BRGEMM_FIELD(brgattr.hint_prfB.dist2);
     CMP_BRGEMM_FIELD(brgattr.hint_prfC.dist1);
     CMP_BRGEMM_FIELD(brgattr.hint_prfC.dist2);
-    CMP_BRGEMM_FIELD(brgattr.wary_tail_read);
+    CMP_BRGEMM_FIELD(brgattr.wary_k_tail_read);
+    CMP_BRGEMM_FIELD(brgattr.extendable_k);
     CMP_BRGEMM_FIELD(brgattr.generate_skip_accumulation);
     CMP_BRGEMM_FIELD(brgattr.bd_mask_level);
     CMP_BRGEMM_FIELD(brgattr.use_uker);
