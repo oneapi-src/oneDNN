@@ -45,6 +45,13 @@
 
 --reset
 --stag=ba
+--dt=bf16:s8:bf16
+--attr-scales=wei:per_ocic:bf16:128x1
+--attr-fpmath=bf16:true
+2048x4096:4096x2048
+
+--reset
+--stag=ba
 --dt=f16:s8:f16,f16:u8:f16
 --attr-scales=wei:common:2,wei:per_oc:f16
 --attr-fpmath=f16:true
