@@ -73,12 +73,12 @@ struct const_expr_value {
 // The string can contain format specifiers which are provided in VA_ARGS
 // Note: using ##__VAR_ARGS__ is necessary to avoid trailing comma in printf call
 
-#define VFORMAT(stamp, apitype, logtype, logsubtype, msg, ...) \
+#define VFORMAT(stamp, flagkind, apitype, logtype, logsubtype, msg, ...) \
     do { \
         std::string stamp_; \
         if (dnnl::impl::get_verbose_timestamp()) \
             stamp_ = std::to_string(stamp) + ","; \
-        dnnl::impl::verbose_printf( \
+        dnnl::impl::verbose_printf(flagkind, \
                 "%s" CONCAT2(VERBOSE_, apitype) "," CONCAT2( \
                         VERBOSE_, logtype) "%s," msg "\n", \
                 stamp_.c_str(), logsubtype, ##__VA_ARGS__); \
@@ -88,7 +88,8 @@ struct const_expr_value {
 #define VINFO(apitype, logtype, logsubtype, component, msg, ...) \
     do { \
         if (dnnl::impl::get_verbose(verbose_t::logtype##_##logsubtype)) \
-            VFORMAT(get_msec(), apitype, logtype, VERBOSE_##logsubtype, \
+            VFORMAT(get_msec(), verbose_t::logtype##_##logsubtype, apitype, \
+                    logtype, VERBOSE_##logsubtype, \
                     #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
                     __LINE__); \
     } while (0)
@@ -116,8 +117,8 @@ struct const_expr_value {
 #define VERROR(apitype, component, msg, ...) \
     do { \
         if (dnnl::impl::get_verbose(verbose_t::error)) { \
-            VFORMAT(get_msec(), apitype, error, "", #component "," msg, \
-                    ##__VA_ARGS__); \
+            VFORMAT(get_msec(), verbose_t::error, apitype, error, "", \
+                    #component "," msg, ##__VA_ARGS__); \
         } \
     } while (0)
 
@@ -127,17 +128,20 @@ struct const_expr_value {
     do { \
         if (dnnl::impl::get_verbose_dev_mode(verbose_t::debuginfo) \
                 >= (level)) { \
-            VFORMAT(get_msec(), apitype, debuginfo, "", #component "," msg, \
-                    ##__VA_ARGS__); \
+            VFORMAT(get_msec(), verbose_t::debuginfo, apitype, debuginfo, "", \
+                    #component "," msg, ##__VA_ARGS__); \
         } \
     } while (0)
 
 // Special syntactic sugar for logging performance
 // NOTE: the VPROF macro does not check for verbose flags, it is the
-// responsibility of the caller do check those (it should happen
+// responsibility of the caller to check those (it should happen
 // anyway to condition collecting stamp/duration)
 #define VPROF(stamp, apitype, logtype, logsubtype, info, duration) \
-    { VFORMAT(stamp, apitype, logtype, logsubtype, "%s,%g", info, duration); }
+    { \
+        VFORMAT(stamp, dnnl::impl::verbose_t::exec_profile, apitype, logtype, \
+                logsubtype, "%s,%g", info, duration); \
+    }
 
 struct verbose_t {
     enum flag_kind : uint32_t {
@@ -279,6 +283,10 @@ inline std::string format_verbose_string(
 
 // processes fixed strings for logging and printing
 inline void verbose_printf(const char *fmt_str) {
+    // by default, verbose_t::create_check is passed to the logger
+    // so that it prints at spdlog log_level_t::info when no verbose flag
+    // is specified. This is useful for printing headers, format fields, etc.
+    // which do not correspond to a specific verbose kind.
     verbose_printf_impl(fmt_str, verbose_t::create_check);
 }
 
@@ -293,6 +301,10 @@ inline void verbose_printf(verbose_t::flag_kind kind, const char *fmt_str) {
 template <typename... str_args>
 inline void verbose_printf(const char *fmt_str, str_args... args) {
     std::string msg = format_verbose_string(fmt_str, args...);
+    // by default, verbose_t::create_check is passed to the logger
+    // so that it prints at spdlog log_level_t::info when no verbose flag
+    // is specified. This is useful for printing headers, format fields, etc.
+    // which do not correspond to a specific verbose kind.
     verbose_printf_impl(msg.c_str(), verbose_t::create_check);
 }
 

@@ -64,8 +64,8 @@ void maybe_print_build_info(const std::vector<const char *> &kernel_names,
         for (const char *name : kernel_names)
             oss << name << " ";
 
-        VFORMAT(get_msec(), primitive, exec, VERBOSE_debug,
-                "kernel options,%s,%s", oss.str().c_str(),
+        VFORMAT(get_msec(), verbose_t::debuginfo, primitive, exec,
+                VERBOSE_debug, "kernel options,%s,%s", oss.str().c_str(),
                 kernel_ctx.options().c_str());
     }
 #endif

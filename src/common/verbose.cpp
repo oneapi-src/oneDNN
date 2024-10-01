@@ -1622,10 +1622,6 @@ void verbose_printf_impl(const char *raw_fmt_str, verbose_t::flag_kind kind) {
     const auto &fmt_str = prepend_identifier_and_version(raw_fmt_str);
 
 #ifdef DNNL_EXPERIMENTAL_LOGGING
-    // by default, verbose_t::create_check is passed to the logger
-    // so that it prints at spdlog log_level_t::info when no verbose flag
-    // is specified. This is useful for printing headers, format fields, etc.
-    // which do not correspond to a specific verbose kind.
     const log_manager_t &log_manager = log_manager_t::get_log_manager();
 
     if (log_manager.is_logger_enabled())
