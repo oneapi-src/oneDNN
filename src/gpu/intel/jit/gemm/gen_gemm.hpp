@@ -120,12 +120,18 @@ struct gen_gemm_t : public gpu_gemm_t {
                         | smask_t::zero_points_runtime_groups;
             }
 
+            const int mask_scalar = 1 << 0;
+            const int mask_per_oc = 1 << 1;
+            const int mask_per_ic = 1 << 2;
+
+            bool src_zp_2d = false;
             bool wei_zp_2d = false;
             auto wei_scales_type = data_type::undef;
             auto src_scales_type = data_type::undef;
             int wei_q2d_group_k = 0;
             int src_q2d_group_k = 0;
             int a_ndims = desc()->a_desc.ndims;
+            int b_ndims = desc()->b_desc.ndims;
 
             // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
@@ -211,32 +217,64 @@ struct gen_gemm_t : public gpu_gemm_t {
                 CHECK(attr_zps.get(DNNL_ARG_B, &cmask_b));
                 CHECK(attr_zps.get(DNNL_ARG_C, &cmask_c));
 
+                src_zp_2d = attr_zps.get_groups_ndims(DNNL_ARG_B) > 1;
                 wei_zp_2d = attr_zps.get_groups_ndims(DNNL_ARG_A) > 1;
                 VDISPATCH_GEMM(
-                        (utils::one_of(cmask_a, 0, 1 << 1, 1 << 2)
+                        (utils::one_of(cmask_a, 0, mask_per_oc, mask_per_ic)
                                 || (wei_zp_2d
                                         && valid_2d_mask(cmask_a, a_ndims)))
-                                && utils::one_of(cmask_b, 0, 1 << 0)
-                                && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1),
+                                && utils::one_of(
+                                        cmask_c, 0, mask_scalar, mask_per_oc),
+                        VERBOSE_UNSUPPORTED_ZP_CFG);
+                VDISPATCH_GEMM(utils::one_of(cmask_b, 0, mask_scalar,
+                                       mask_per_oc | mask_per_ic)
+                                || (src_zp_2d
+                                        && valid_2d_mask(cmask_b, b_ndims)),
                         VERBOSE_UNSUPPORTED_ZP_CFG);
 
                 ao_dims_ = a_zp ? (cmask_a != 0 ? 1 : 0) : -1;
                 bo_dims_ = b_zp ? (cmask_b != 0 ? 1 : 0) : -1;
                 if (wei_zp_2d) ao_dims_ = 2;
+                if (src_zp_2d) bo_dims_ = 2;
                 if (swap_ab_) std::swap(ao_dims_, bo_dims_);
 
                 if (wei_zp_2d) {
-                    wei_q2d_group_k
-                            = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS) > 0
-                            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
+                    const auto idx = DNNL_ARG_WEIGHTS;
+                    auto zp_group_k = attr_zps.get_groups_ndims(idx) > 0
+                            ? attr_zps.get_groups(idx)[0]
                             : 1;
+                    if (zp_group_k >= d->k()) {
+                        wei_zp_2d = false;
+                        ao_dims_ = 1;
+                    } else {
+                        wei_q2d_group_k = zp_group_k;
+                    }
                     const auto wei_q2d_group_n
-                            = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS) > 0
-                            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[1]
+                            = attr_zps.get_groups_ndims(idx) > 0
+                            ? attr_zps.get_groups(idx)[1]
                             : 1;
                     // Non-trivial N group unsupported.
                     VDISPATCH_GEMM(
                             wei_q2d_group_n == 1, VERBOSE_UNSUPPORTED_ZP_CFG);
+                }
+                if (src_zp_2d) {
+                    const auto idx = DNNL_ARG_SRC;
+                    auto zp_group_k = attr_zps.get_groups_ndims(idx) > 0
+                            ? attr_zps.get_groups(idx)[1]
+                            : 1;
+                    if (zp_group_k >= d->k()) {
+                        src_zp_2d = false;
+                        bo_dims_ = 1;
+                    } else {
+                        src_q2d_group_k = zp_group_k;
+                    }
+                    const auto src_q2d_group_m
+                            = attr_zps.get_groups_ndims(idx) > 0
+                            ? attr_zps.get_groups(idx)[0]
+                            : 1;
+                    // Non-trivial M group unsupported.
+                    VDISPATCH_GEMM(
+                            src_q2d_group_m == 1, VERBOSE_UNSUPPORTED_ZP_CFG);
                 }
                 // Zero points with non-trivial groups only supported when
                 // target tensor is being dequantized.
@@ -245,6 +283,12 @@ struct gen_gemm_t : public gpu_gemm_t {
                                 !dy_quant_enabled_
                                         || utils::one_of(d->a_type(), s4, u4)
                                         || wei_q2d_group_k == desc()->k()),
+                        VERBOSE_UNSUPPORTED_ZP_CFG);
+                VDISPATCH_GEMM(
+                        IMPLICATION(src_zp_2d,
+                                !dy_quant_enabled_
+                                        || utils::one_of(d->b_type(), s4, u4)
+                                        || src_q2d_group_k == desc()->k()),
                         VERBOSE_UNSUPPORTED_ZP_CFG);
             }
 
@@ -256,7 +300,8 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 auto mask = attr()->scales_.get(s).mask_;
-                VDISPATCH_GEMM(utils::one_of(mask, 0, 1 << 0, 1 << 1, 1 << 2)
+                VDISPATCH_GEMM(utils::one_of(mask, 0, mask_scalar, mask_per_oc,
+                                       mask_per_ic)
                                 || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_
                                         && valid_2d_mask(mask, a_ndims))
                                 || (s == DNNL_ARG_SRC && src_scales_2d_
@@ -330,9 +375,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto ao_type = with_a_zero_points()
                     ? attr_zps.get_data_type(DNNL_ARG_A)
                     : data_type::s32;
-            auto bo_type = data_type::s32;
+            auto bo_type = with_b_zero_points()
+                    ? attr_zps.get_data_type(DNNL_ARG_B)
+                    : data_type::s32;
             if (swap_ab_) std::swap(ao_type, bo_type);
-
             bool int_acc = utils::one_of(eff_a_type(), s8, u8);
             auto co_type = with_bias() ? d->bias_type()
                     : with_sum_ab()    ? d->sum_ab_type
