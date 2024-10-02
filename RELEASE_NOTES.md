@@ -33,8 +33,8 @@ oneDNN v3.6 Release Notes
   Intel Core Ultra processors (Series 2) (formerly Lunar Lake).
   * Introduced broad production quality optimizations for future discrete GPU
   based on Xe2 architecture (code name Battlemage).
-  * Introduced support for Intel Arc Graphics for future Intel Core Ultra
-  Processor (code name Arrow Lake-H).
+  * Introduced support for Intel Arc Graphics for future 
+  Intel Core Ultra processor (code name Arrow Lake-H).
   * Improved performance of `fp8_e5m2` primitives on Intel Data Center GPU Max
   Series (formerly Ponte Vecchio).
   * Improved matmul and inner product primitives performance for shapes relevant
