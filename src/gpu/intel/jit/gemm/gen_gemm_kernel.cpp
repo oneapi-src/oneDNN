@@ -243,6 +243,7 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
 
     strategy_.kInterleaveChunk
             = std::min(strategy_.kInterleaveChunk, (int)aux_params_.k0);
+    if (strategy_.kInterleave) aux_params_.wgK = strategy_.wg[LoopK];
     update_driver_info();
 
 #ifdef DNNL_DEV_MODE
