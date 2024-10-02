@@ -786,6 +786,7 @@ struct scratch_t : public data_helper_t {
         key_gemm_iter_bwd,
         key_gemm_iter_bwd_2,
         key_gemm_layer_bwd,
+        key_gemm_layer_bwd_src,
         key_gemm_diff_wei_layer,
         key_gemm_diff_wei_layer_src,
         key_gemm_diff_wei_iter,
@@ -810,6 +811,7 @@ struct scratch_t : public data_helper_t {
         const primitive_desc_t *iter_bwd_pd;
         const primitive_desc_t *iter_bwd_2_pd;
         const primitive_desc_t *layer_bwd_pd;
+        const primitive_desc_t *layer_bwd_src_pd;
         const primitive_desc_t *diff_wei_layer_pd;
         const primitive_desc_t *diff_wei_layer_src_pd;
         const primitive_desc_t *diff_wei_iter_pd;
@@ -854,6 +856,9 @@ struct scratch_t : public data_helper_t {
                     gemms.iter_bwd_pd->scratchpad_registry());
             scratchpad.book(key_gemm_layer_bwd,
                     gemms.layer_bwd_pd->scratchpad_registry());
+            if (gemms.layer_bwd_src_pd)
+                scratchpad.book(key_gemm_layer_bwd_src,
+                        gemms.layer_bwd_src_pd->scratchpad_registry());
             scratchpad.book(key_gemm_diff_wei_layer,
                     gemms.diff_wei_layer_pd->scratchpad_registry());
             if (gemms.diff_wei_layer_src_pd)
