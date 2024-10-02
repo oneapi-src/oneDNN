@@ -26,6 +26,18 @@
 namespace dnnl {
 namespace impl {
 
+inline format_tag_t get_abx_tag(int ndims) {
+    switch (ndims) {
+        case 1: return format_tag::a;
+        case 2: return format_tag::ab;
+        case 3: return format_tag::abc;
+        case 4: return format_tag::abcd;
+        case 5: return format_tag::abcde;
+        case 6: return format_tag::abcdef;
+        default: assert(!"unexpected ndims"); return format_tag::undef;
+    }
+}
+
 enum class block_dim_t {
     _,
     _A,
