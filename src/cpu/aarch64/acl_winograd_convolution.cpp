@@ -109,7 +109,8 @@ status_t acl_wino_convolution_fwd_t::pd_t::init_conf() {
 
     const bool shape_ok
             // only unit strides allowed
-            = (acp_.padstride_info.stride() == std::pair<uint, uint> {1, 1})
+            = (acp_.padstride_info.stride()
+                      == std::pair<unsigned int, unsigned int> {1, 1})
             // Note: Compute Library supports arbitrary padding for wino kernels
             // but we only allow small padding to be consistent with oneDNN
             && (acp_.padstride_info.pad().first <= 1) // padding left/right
