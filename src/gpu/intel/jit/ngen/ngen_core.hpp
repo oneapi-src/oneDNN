@@ -222,6 +222,7 @@ enum class Core {
     XeHPC,
     Gen12p8 = XeHPC,    /* Deprecated -- will be removed in the future */
     Xe2,
+    Xe3,
 };
 
 typedef Core HW;
@@ -244,6 +245,7 @@ enum class ProductFamily : int {
     GenericXeHPC,
     PVC,
     GenericXe2,
+    GenericXe3,
 };
 
 struct Product {
@@ -269,12 +271,14 @@ static inline constexpr14 ProductFamily genericProductFamily(HW hw)
         case HW::XeHPG: return ProductFamily::GenericXeHPG;
         case HW::XeHPC: return ProductFamily::GenericXeHPC;
         case HW::Xe2:   return ProductFamily::GenericXe2;
+        case HW::Xe3:   return ProductFamily::GenericXe3;
         default:        return ProductFamily::Unknown;
     }
 }
 
 static inline constexpr14 Core getCore(ProductFamily family)
 {
+    if (family >= ProductFamily::GenericXe3)   return Core::Xe3;
     if (family >= ProductFamily::GenericXe2)   return Core::Xe2;
     if (family >= ProductFamily::GenericXeHPC) return Core::XeHPC;
     if (family >= ProductFamily::GenericXeHPG) return Core::XeHPG;
@@ -312,6 +316,7 @@ enum class DataType : uint8_t {
     vf = 0xAF,
     bf8 = 0x6C,
     tf32 = 0xB0,
+    hf8 = 0x71,
     u4 = 0x5C,
     s4 = 0x5D,
     u2 = 0x3E,
@@ -354,6 +359,9 @@ template <> inline DataType getDataType<bfloat16>() { return DataType::bf; }
 #endif
 #ifdef NGEN_BFLOAT8_TYPE
 template <> inline DataType getDataType<bfloat8>() { return DataType::bf8; }
+#endif
+#ifdef NGEN_HFLOAT8_TYPE
+template <> inline DataType getDataType<hfloat8>() { return DataType::hf8; }
 #endif
 #ifdef NGEN_TFLOAT32_TYPE
 template <> inline DataType getDataType<tfloat32>() { return DataType::tf32; }
@@ -450,6 +458,7 @@ enum class ARFType : uint8_t {
     ce   = 4,
     msg  = 5,
     sp   = 6,
+    s    = 0x16,
     sr   = 7,
     cr   = 8,
     n    = 9,
@@ -810,6 +819,7 @@ public:
     Subregister   bf(int offset = 0) const { return reinterpret(offset, DataType::bf); }
     Subregister tf32(int offset = 0) const { return reinterpret(offset, DataType::tf32); }
     Subregister  bf8(int offset = 0) const { return reinterpret(offset, DataType::bf8); }
+    Subregister  hf8(int offset = 0) const { return reinterpret(offset, DataType::hf8); }
 };
 
 // Single register.
@@ -852,7 +862,8 @@ public:
     constexpr14 Subregister   bf(int offset) const { return sub(offset, DataType::bf); }
     constexpr14 Subregister tf32(int offset) const { return sub(offset, DataType::tf32); }
     constexpr14 Subregister  bf8(int offset) const { return sub(offset, DataType::bf8); }
-
+    constexpr14 Subregister  hf8(int offset) const { return sub(offset, DataType::hf8); }
+ 
     constexpr14 Register   uq() const { return retype(DataType::uq); }
     constexpr14 Register    q() const { return retype(DataType::q);  }
     constexpr14 Register   ud() const { return retype(DataType::ud); }
@@ -871,6 +882,7 @@ public:
     constexpr14 Register   bf() const { return retype(DataType::bf); }
     constexpr14 Register tf32() const { return retype(DataType::tf32); }
     constexpr14 Register  bf8() const { return retype(DataType::bf8); }
+    constexpr14 Register  hf8() const { return retype(DataType::hf8); }
 
     constexpr14 Subregister operator[](int offset) const { return sub(offset, getType()); }
 
@@ -912,6 +924,7 @@ public:
     constexpr14 Subregister   bf(int offset) const { return sub(offset, DataType::bf); }
     constexpr14 Subregister tf32(int offset) const { return sub(offset, DataType::tf32); }
     constexpr14 Subregister  bf8(int offset) const { return sub(offset, DataType::bf8); }
+    constexpr14 Subregister  hf8(int offset) const { return sub(offset, DataType::hf8); }
 
     constexpr14 GRF   uq() const { return retype(DataType::uq); }
     constexpr14 GRF    q() const { return retype(DataType::q);  }
@@ -931,6 +944,7 @@ public:
     constexpr14 GRF   bf() const { return retype(DataType::bf); }
     constexpr14 GRF tf32() const { return retype(DataType::tf32); }
     constexpr14 GRF  bf8() const { return retype(DataType::bf8); }
+    constexpr14 GRF  hf8() const { return retype(DataType::hf8); }
 
     Align16Operand swizzle(int s0, int s1, int s2, int s3)    const { return Align16Operand(*this, s0, s1, s2, s3); }
     Align16Operand enable(bool c0, bool c1, bool c2, bool c3) const { return Align16Operand(*this, (int(c3) << 3) | (int(c2) << 2) | (int(c1) << 1) | int(c0)); }
@@ -1012,6 +1026,7 @@ public:
             if (hw == HW::Gen9)  return 0;
             if (hw == HW::XeHPG) return 0;
             if (hw == HW::Xe2)   return 0;
+            if (hw == HW::Xe3)   return 0;
         }
         if (hw >= HW::XeHP) return 4;
         return 2;
@@ -1037,7 +1052,7 @@ public:
 };
 
 constexpr14 RegData RegData::getIndirectReg() const {
-    auto type = ARFType::a;
+    auto type = (base & 0x100) ? ARFType::s : ARFType::a;
     return ARF(type, 0)[getIndirectOff()];
 }
 
@@ -1112,6 +1127,20 @@ class StackPointerRegister : public ARF
 {
 public:
     explicit constexpr StackPointerRegister(int reg_ = 0) : ARF(ARFType::sp, reg_, DataType::uq) {}
+};
+
+class ScalarRegister : public ARF
+{
+public:
+    explicit constexpr ScalarRegister(int reg_, int off_ = 0, DataType type_ = DataType::ub) : ARF(ARFType::s, reg_, type_, off_) {}
+
+    constexpr ScalarRegister operator[](int offset) const { return ScalarRegister(getARFBase(), getOffset() + offset); }
+    constexpr14 ScalarRegister uq(int offset) const { return ScalarRegister(getARFBase(), (getByteOffset() >> 3) + offset, DataType::uq); }
+    constexpr14 ScalarRegister  q(int offset) const { return ScalarRegister(getARFBase(), (getByteOffset() >> 3) + offset, DataType::q); }
+
+    RegisterRegion operator()(int vs, int width, int hs) const { return reinterpret_cast<const Subregister &>(*this)(vs, width, hs); }
+    RegisterRegion operator()(int vs, int hs) const            { return reinterpret_cast<const Subregister &>(*this)(vs, hs); }
+    RegisterRegion operator()(int hs) const                    { return reinterpret_cast<const Subregister &>(*this)(vs); }
 };
 
 class StateRegister : public ARF
@@ -1247,6 +1276,8 @@ inline Subregister Subregister::reinterpret(int offset, DataType type_) const
 class IndirectRegister : public Register {
 protected:
     explicit constexpr14 IndirectRegister(const RegData &reg) : Register(reg.getOffset(), false) {
+        if (reg.getARFType() == ARFType::s)
+            base |= 0x100;
         indirect = true;
     }
     friend class IndirectRegisterFrame;
@@ -1258,7 +1289,9 @@ class IndirectRegisterFrame {
 public:
     IndirectRegister operator[](const RegData &reg) const {
 #ifdef NGEN_SAFE
-        if (!reg.isARF() || reg.getARFType() != ARFType::a)
+        if (!reg.isARF())
+            throw invalid_arf_exception();
+        if (reg.getARFType() != ARFType::a && reg.getARFType() != ARFType::s)
             throw invalid_arf_exception();
 #endif
         return IndirectRegister(reg);
@@ -1549,6 +1582,7 @@ enum class Pipe : uint8_t {
     I = 3, Integer = I,
     L = 4, Long = L,
     M = 5, Math = M,
+    S = 6, Scalar = S,
 };
 
 class SWSBInfo
@@ -2942,8 +2976,6 @@ static inline void encodeAtomicDescriptors(HW hw, MessageDescriptor &desc, Exten
     if (dst.isNull())
         desc.parts.responseLen = 0;
 }
-
-
 } /* namespace NGEN_NAMESPACE */
 
 
