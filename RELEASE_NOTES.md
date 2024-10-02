@@ -30,7 +30,7 @@ oneDNN v3.6 Release Notes
   * Improved performance for the Intel Data Center GPU Max Series (formerly
   Ponte Vecchio).
   * Introduced broad production quality optimizations for Intel Arc Graphics for
-  Intel Core Ultra Processors (Series 2) (formerly Lunar Lake).
+  Intel Core Ultra processors (Series 2) (formerly Lunar Lake).
   * Introduced broad production quality optimizations for future discrete GPU
   based on Xe2 architecture (code name Battlemage).
   * Introduced support for Intel Arc Graphics for future Intel Core Ultra
