@@ -118,13 +118,10 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     // These are rough estimates of the latency (relative) of access to various
     // cache levels. This is enough for an estimation of data access cost.
     // TODO: Improve memory access estimates
-    static constexpr float L1_k = 1.f;
-    static constexpr float L2_k = 3.f;
-    static constexpr float L3_k = 15.f;
-    // TODO: At the moment, we are primarily evaluating the fit of the data into
-    // the L1/L2. Need to take into account the difference between the L3 and
-    // memory.
-    static constexpr float mem_k = 15.f;
+    static float L1_k;
+    static float L2_k;
+    static float L3_k;
+    static float mem_k;
     static constexpr int bench_iterations = 1;
 
     int sp, sp_block, nb_sp;
@@ -172,11 +169,22 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
         return (k > 1.f) ? (k - 1 + eff) / k : eff * koeff;
     }
 
-    static int estimate_ur(int oc_block) {
-        const auto est_ur = (oc_block == 64)
-                ? 6
-                : ((oc_block == 48) ? 9 : ((oc_block == 32) ? 14 : 28));
-        return est_ur;
+    static int estimate_ur(cpu_isa_t isa, int oc_block) {
+        if (one_of(isa, avx2, avx2_vnni, avx2_vnni_2)) {
+            switch (oc_block) {
+                case 32: return 3;
+                case 24: return 4;
+                case 16: return 6;
+                default: return 14;
+            }
+        } else {
+            switch (oc_block) {
+                case 64: return 6;
+                case 48: return 9;
+                case 32: return 14;
+                default: return 28;
+            }
+        }
     }
 
     int inp_w(int out_w, int ker_w) const {
@@ -378,6 +386,10 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
 
 unsigned brg_blocking_t::L1;
 unsigned brg_blocking_t::L2;
+float brg_blocking_t::L1_k;
+float brg_blocking_t::L2_k;
+float brg_blocking_t::L3_k;
+float brg_blocking_t::mem_k;
 
 float brg_blocking_t::io_k(dim_t src, dim_t wei, dim_t dst, float n, float pk,
         bool is_broadcast, bool is_shared) const {
@@ -460,8 +472,8 @@ void brg_blocking_t::select_ic_block() {
         }
     } else {
         const auto est_ur = sp_block > 0
-                ? nstl::min(sp_block, estimate_ur(oc_block))
-                : estimate_ur(oc_block);
+                ? nstl::min(sp_block, estimate_ur(isa, oc_block))
+                : estimate_ur(isa, oc_block);
         const auto inp_ur = is_os_blocking ? est_ur : inp_w(est_ur, kw_block);
 
         if (kw_block > 1) {
@@ -1582,8 +1594,26 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
 
-    brg_blocking_t::L1 = platform::get_per_core_cache_size(1);
+    // take L1 as 7/8 of the real size for L1
+    brg_blocking_t::L1 = (platform::get_per_core_cache_size(1) * 7) / 8;
     brg_blocking_t::L2 = platform::get_per_core_cache_size(2);
+    // here is hard-coded L2 size for avx2 performance cores
+    // TODO: get L2 size from the platform
+    if (one_of(isa, avx2, avx2_vnni, avx2_vnni_2))
+        brg_blocking_t::L2 = 2 * 1024 * 1024;
+    // take L2 as 3/4 of the real size for L2
+    brg_blocking_t::L2 = (brg_blocking_t::L2 * 3) / 4;
+
+    // These are rough estimates of the latency (relative) of access to various
+    // cache levels. This is enough for an estimation of data access cost.
+    // TODO: Improve memory access estimates
+    brg_blocking_t::L1_k = 1.f;
+    brg_blocking_t::L2_k = 2.3f;
+    brg_blocking_t::L3_k = 17.f;
+    // TODO: At the moment, we are primarily evaluating the fit of the data into
+    // the L1/L2. Need to take into account the difference between the L3 and
+    // memory.
+    brg_blocking_t::mem_k = 17.f;
 
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
