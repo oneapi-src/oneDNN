@@ -487,7 +487,8 @@ PREFIX constexpr const NGEN_NAMESPACE::InstructionModifier &CG::W;
 PREFIX constexpr NGEN_NAMESPACE::CacheSettingsLSC CG::L1C_L3CC; \
 PREFIX constexpr NGEN_NAMESPACE::CacheSettingsLSC CG::L1UC_L3CC;
 
-#define NGEN_REGISTER_DECL_EXTRA2(CG,PREFIX)
+#define NGEN_REGISTER_DECL_EXTRA2(CG,PREFIX) \
+PREFIX constexpr NGEN_NAMESPACE::ScalarRegister CG::s0;
 
 #define NGEN_REGISTER_DECL_EXTRA3(CG,PREFIX)
 
@@ -513,5 +514,6 @@ template class NGEN_NAMESPACE::BinaryCodeGenerator<NGEN_NAMESPACE::HW::XeHP>;
 template class NGEN_NAMESPACE::BinaryCodeGenerator<NGEN_NAMESPACE::HW::XeHPG>;
 template class NGEN_NAMESPACE::BinaryCodeGenerator<NGEN_NAMESPACE::HW::XeHPC>;
 template class NGEN_NAMESPACE::BinaryCodeGenerator<NGEN_NAMESPACE::HW::Xe2>;
+template class NGEN_NAMESPACE::BinaryCodeGenerator<NGEN_NAMESPACE::HW::Xe3>;
 
 #endif /* (defined(NGEN_CPP11) || defined(NGEN_CPP14)) && !defined(NGEN_GLOBAL_REGS) */

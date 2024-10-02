@@ -32,6 +32,8 @@ template <> struct EncodingTag12Dispatch<HW::XeHPC> { using tag = EncodingTagXeH
 template <> struct Instruction12Dispatch<HW::XeHPC> { using type = InstructionXeHPC; };
 template <> struct EncodingTag12Dispatch<HW::Xe2>   { using tag = EncodingTagXeHPC; };
 template <> struct Instruction12Dispatch<HW::Xe2>   { using type = InstructionXeHPC; };
+template <> struct EncodingTag12Dispatch<HW::Xe3>   { using tag = EncodingTagXeHPC; };
+template <> struct Instruction12Dispatch<HW::Xe3>   { using type = InstructionXeHPC; };
 
 class SWSBInfo12
 {
@@ -204,7 +206,7 @@ public:
                 return Pipe::Default;
             return (combined.mode == 3) ? Pipe::A : Pipe::Default;
         } else if (!scoreboard.sb) {
-            const Pipe table[8] = {Pipe::Default, Pipe::A, Pipe::F, Pipe::I, Pipe::L, Pipe::M, Pipe::A, Pipe::A};
+            const Pipe table[8] = {Pipe::Default, Pipe::A, Pipe::F, Pipe::I, Pipe::L, Pipe::M, Pipe::S, Pipe::A};
             return table[pipeline.pipe];
         } else
             return Pipe::Default;
@@ -472,6 +474,14 @@ struct InstructionXeHPC : public Instruction12 {
     bool getOperandRegion(autoswsb::DependencyRegion &region, int opNum) const {
         return Instruction12::getOperandRegion<EncodingTagXeHPC>(region, opNum);
     }
+ 
+    bool eot() const {
+        return Instruction12::eot();
+    }
+
+    bool atomic() const {
+        return Instruction12::atomic();
+    }
 };
 
 static_assert(sizeof(InstructionXeHPC) == 16, "Internal error: InstructionXeHPC has been padded by the compiler.");
@@ -481,7 +491,7 @@ static_assert(sizeof(InstructionXeHPC) == 16, "Internal error: InstructionXeHPC 
 static inline unsigned getTypecode12(DataType type)
 {
     static const uint8_t conversionTable[32] = {2,6,1,5,0,4,11,10,3,7,9,13,8,0,4,8,
-                                                14,2,2,2,2,2,2,2,2,2,2,2,0,4,0,4};
+                                                14,12,2,2,2,2,2,2,2,2,2,2,0,4,0,4};
     return conversionTable[static_cast<unsigned>(type) & 0x1F];
 }
 
@@ -812,7 +822,7 @@ static inline DataType decodeRegTypecode12(unsigned dt)
         DataType::ub,      DataType::uw,      DataType::ud,      DataType::uq,
         DataType::b,       DataType::w,       DataType::d,       DataType::q,
         DataType::bf8,     DataType::hf,      DataType::f,       DataType::df,
-        DataType::invalid, DataType::bf,      DataType::tf32,    DataType::bf8
+        DataType::hf8,     DataType::bf,      DataType::tf32,    DataType::invalid,
     };
     return conversionTable[dt & 0xF];
 }
@@ -824,7 +834,9 @@ static inline int decodeDPASTypecodeBytes12(unsigned dt)
 
 inline ARFType normalizeARFType(ARFType type, HW hw)
 {
-    return type;
+   if (hw >= HW::Xe3 && type == ARFType::sp)
+        type = ARFType::s;
+   return type;
 }
 
 template <typename Tag>
@@ -913,6 +925,19 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
         case Opcode::send:
         case Opcode::sendc: {
             int base = 0, len = 0;
+            if (send.src0RegFile == RegFileARF && hw >= HW::Xe3) switch (opNum) {
+                case 0:
+                    region = DependencyRegion(hw);
+                    return true;
+                    break;
+                case 1: {
+                    /* report s0 dependency as if it came from src1 */
+                    region = DependencyRegion(hw, send.desc25_29 & 0xF, ScalarRegister(0)[send.exDesc6_10 << 1](1));
+                    return true;
+                    break;
+                }
+                default: break;
+            }
             switch (opNum) {
                 case -1:
                     if (send.dstRegFile == RegFileARF) return false;
