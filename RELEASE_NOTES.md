@@ -44,8 +44,8 @@ oneDNN v3.6 Release Notes
   primitives via kernel reuse.
   * Improved performance of the following subgraphs with Graph API:
     - SDPA without scale, MQA, and GQA patterns. `f16` variants of these
-    patterns significantly benefit from Intel(R) Xe Matrix Extensions (Intel(R)
-    XMX) support.
+    patterns significantly benefit from Intel(R) Xe Matrix Extensions 
+    (Intel(R) XMX) support.
     - `fp8`, `convolution`, and `unary` or `binary` on the Intel Data Center GPU Max
     Series.
     - `LayerNorm`, `GroupNorm`, and `SoftMax` with `int8` quantized output and
