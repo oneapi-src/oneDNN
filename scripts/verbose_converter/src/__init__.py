@@ -1,5 +1,5 @@
 ################################################################################
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,17 +14,5 @@
 # limitations under the License.
 ################################################################################
 
-
-class Writer:
-    def __init__(self, verbose_level=0):
-        self.__verbose_level = int(verbose_level)
-        self.__file = None
-
-    def print(self, string, type):
-        if type == "WARN":
-            print(f"{type}: {string}")
-        if type == "INFO":
-            if self.__verbose_level > 0:
-                print(string)
-        if type == "STDIO":
-            print(string)
+# This file marks this directory as a package and is needed to allow relative
+# imports. See https://docs.python.org/3/tutorial/modules.html#packages.
