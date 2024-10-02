@@ -105,7 +105,7 @@ oneDNN v3.6 Release Notes
   * Added [an example][deconvolution example] for deconvolution primitive.
   * Added examples for [Vanilla RNN][Vanilla RNN example] and
   [LBR GRU][LBR GRU example] RNN cells.
-  * Introduced support for Intel DPC++/C++ Compiler 2025.0.
+  * Introduced support for Intel oneAPI DPC++/C++ Compiler 2025.0.
   * Introduced interoperability with [SYCL Graph] record/replay mode.
   * Removed dependency on OpenCL runtime for NVIDIA and AMD GPUs.
   * **[experimental]** Introduced [logging mechanism][spdlog] based on spdlog
