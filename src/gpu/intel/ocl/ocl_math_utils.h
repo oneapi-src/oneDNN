@@ -491,62 +491,6 @@ double16 __attribute__((overloadable)) cvt_bf16_to_f64(ushort16 b) {
 #endif
 #endif
 
-int __attribute__((overloadable)) idot4(char4 a, char4 b, int c) {
-    c += a[0] * b[0];
-    c += a[1] * b[1];
-    c += a[2] * b[2];
-    c += a[3] * b[3];
-    return c;
-}
-
-int __attribute__((overloadable)) idot4(uchar4 a, uchar4 b, int c) {
-    c += a[0] * b[0];
-    c += a[1] * b[1];
-    c += a[2] * b[2];
-    c += a[3] * b[3];
-    return c;
-}
-
-int __attribute__((overloadable)) idot4(char4 a, uchar4 b, int c) {
-    c += a[0] * b[0];
-    c += a[1] * b[1];
-    c += a[2] * b[2];
-    c += a[3] * b[3];
-    return c;
-}
-
-int __attribute__((overloadable)) idot4(uchar4 a, char4 b, int c) {
-    c += a[0] * b[0];
-    c += a[1] * b[1];
-    c += a[2] * b[2];
-    c += a[3] * b[3];
-    return c;
-}
-
-int __attribute__((overloadable)) idot4(int a, int b, int c) {
-    return idot4(as_char4(a), as_char4(b), c);
-}
-
-int __attribute__((overloadable)) idot4(uint a, int b, int c) {
-    return idot4(as_uchar4(a), as_char4(b), c);
-}
-
-float __attribute__((overloadable)) f16_dot2(int a, int b, float c) {
-    half2 _a = as_half2(a);
-    half2 _b = as_half2(b);
-    return c + _a[0] * _b[0] + _a[1] * _b[1];
-}
-
-#if MATH_UTILS_DECLARE_BF16
-float __attribute__((overloadable)) bf16_dot2(int a, int b, float c) {
-    ushort2 _a = as_ushort2(a);
-    ushort2 _b = as_ushort2(b);
-    c += cvt_bf16_to_f32(_a[0]) * cvt_bf16_to_f32(_b[0]);
-    c += cvt_bf16_to_f32(_a[1]) * cvt_bf16_to_f32(_b[1]);
-    return c;
-}
-#endif
-
 #define DECLARE_BLOCK_READ(suffix, func, data_type, addr_space, p_type) \
     data_type __attribute__((overloadable)) \
             block_read##suffix(const addr_space p_type *p) { \
@@ -646,40 +590,6 @@ DECLARE_BLOCK_WRITE(8, block_write8_emu, uint8, __local, uint)
 
 DECLARE_BLOCK_WRITE(_us, block_write_us_emu, ushort, __local, ushort)
 
-#endif
-
-// Matrix-matrix multiplication: ACC += A * B
-//
-// A is (m x (E * K))
-// B is ((E * K) x sub_group_size)
-// where E is 4 for s8/u8 elements and 2 for f16/bf16 elements.
-#define DECLARE_MMAD_EMU(name, dot, K, m, a_type, b_type, acc_type) \
-    acc_type __attribute__((overloadable)) \
-            name(a_type A_vectors, b_type B_vectors, acc_type acc) { \
-        for (uint i = 0; i < (m); ++i) { \
-            for (uint j = 0; j < (K); ++j) \
-                acc[i] = dot(sub_group_broadcast(A_vectors[i], j), \
-                        B_vectors[j], acc[i]); \
-        } \
-        return acc; \
-    }
-
-DECLARE_MMAD_EMU(mmad8x4, idot4, 8, 4, uint4, int8, int4)
-DECLARE_MMAD_EMU(mmad8x4, idot4, 8, 4, int4, int8, int4)
-DECLARE_MMAD_EMU(mmad8x8, idot4, 8, 8, uint8, int8, int8)
-DECLARE_MMAD_EMU(mmad8x8, idot4, 8, 8, int8, int8, int8)
-DECLARE_MMAD_EMU(mmad8x8, idot4, 8, 8, ushort8, int8, int8)
-DECLARE_MMAD_EMU(mmad8x8, idot4, 8, 8, short8, int8, int8)
-DECLARE_MMAD_EMU(mmad8x4_f16, f16_dot2, 8, 4, uint4, int8, float4)
-DECLARE_MMAD_EMU(mmad8x4_f16, f16_dot2, 8, 4, short4, int8, float4)
-DECLARE_MMAD_EMU(mmad8x8_f16, f16_dot2, 8, 8, uint8, int8, float8)
-DECLARE_MMAD_EMU(mmad8x8_f16, f16_dot2, 8, 8, short8, int8, float8)
-#if MATH_UTILS_DECLARE_BF16
-DECLARE_MMAD_EMU(mmad8x4_bf16, bf16_dot2, 8, 4, uint4, int8, float4)
-DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, uint8, int8, float8)
-DECLARE_MMAD_EMU(mmad8x4_bf16, bf16_dot2, 8, 4, ushort4, int8, float4)
-DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, ushort8, int8, float8)
-DECLARE_MMAD_EMU(mmad8x8_bf16, bf16_dot2, 8, 8, short8, int8, float8)
 #endif
 
 // Atomics
