@@ -348,7 +348,8 @@ int init_kernel(kernel_args_t &kernel_args) {
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
     const auto &wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
     if (wei_scale.policy == policy_t::PER_OC) {
-        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, 2);
+        attr_args.prepare_quant(
+                prb->attr, DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, 2);
     }
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
