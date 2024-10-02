@@ -63,8 +63,8 @@ bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMM
     auto &Tx_scaleOp = isA ? state.Ta_scaleOp   : state.Tb_scaleOp;
     auto &lateScale  = isA ? state.lateScale2DA : state.lateScale2DB;
 
-    bool Txs_bf = Txs == Type::bf16;
-    Tx_scaleOp = (Txs_bf ? Type(Tx_ext.isInt4() ? Type::f16 : Type::f32) : Txs);
+    bool Tx_bf = problem.Ta_ext ==  Type::bf16 || problem.Tb_ext == Type::bf16;
+    Tx_scaleOp = (Tx_bf ? Type(Tx_ext.isInt4() ? Type::f16 : Type::f32) : Txs);
     Txo_int    = Txo.isInteger() ? Tx.asSignedInt() : Tx;
     Txs_int    = Tx;
 
@@ -72,8 +72,13 @@ bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMM
     if (Txo_int.isInt8()) Txo_int = Type::s16, cpoDiv = 2;
 
     if (xs2D && (Txs.paddedSize() > Tx.paddedSize())) {
-        lateScale = true;
-        Txs_int = Tx_scaleOp = problem.Tc;
+        if (problem.aOffset == ABOffset::Calc || problem.bOffset == ABOffset::Calc){
+            lateScale = true;
+            Txs_int = Tx_scaleOp = problem.Tc;
+        } else if (!Tx_bf){
+            lateScale = false;
+            Txs_int = Tx_scaleOp = Type::f16;
+        }
     }
 
     bool int4SpecialPath = Tx_ext.isInt4() && one_of(Tx, Type::f16, Type::bf16, Type::f32);
@@ -169,7 +174,7 @@ bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMM
     int cpo = div_up(crosspack, cpoDiv);
 
     auto makeQRepack = [&](Type Txq, Type Txq_int, vector<RegisterBlock> &repack, vector<RegisterBlock> &src, int m, int n, int cp) {
-        if (cp > 1 || (cColMajor && (cp != src[0].crosspack)) || Txq != Txq_int)
+        if (cp > 1 || (cColMajor && (cp != src[0].crosspack)) || Txq != Txq_int || lateScale)
             makeUnbackedRegLayout(Txq_int, repack, m, n, wantCM, cp, tileR, tileC, false);
     };
 
