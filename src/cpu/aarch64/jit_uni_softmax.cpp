@@ -16,6 +16,7 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include <memory>
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -668,12 +669,10 @@ struct jit_softmax_t<sve_128> : public jit_softmax_base_t<sve_128> {
 template <cpu_isa_t isa>
 jit_uni_softmax_fwd_t<isa>::jit_uni_softmax_fwd_t(const pd_t *apd)
     : primitive_t(apd)
-    , softmax_driver_(new softmax_impl::driver_t<isa>(pd())) {}
+    , softmax_driver_(utils::make_unique<softmax_impl::driver_t<isa>>(pd())) {}
 
 template <cpu_isa_t isa>
-jit_uni_softmax_fwd_t<isa>::~jit_uni_softmax_fwd_t() {
-    delete softmax_driver_;
-}
+jit_uni_softmax_fwd_t<isa>::~jit_uni_softmax_fwd_t() = default;
 
 template <cpu_isa_t isa>
 status_t jit_uni_softmax_fwd_t<isa>::init(engine_t *engine) {
@@ -725,12 +724,10 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
 template <cpu_isa_t isa>
 jit_uni_softmax_bwd_t<isa>::jit_uni_softmax_bwd_t(const pd_t *apd)
     : primitive_t(apd)
-    , softmax_driver_(new softmax_impl::driver_t<isa>(pd())) {}
+    , softmax_driver_(utils::make_unique<softmax_impl::driver_t<isa>>(pd())) {}
 
 template <cpu_isa_t isa>
-jit_uni_softmax_bwd_t<isa>::~jit_uni_softmax_bwd_t() {
-    delete softmax_driver_;
-}
+jit_uni_softmax_bwd_t<isa>::~jit_uni_softmax_bwd_t() = default;
 
 template <cpu_isa_t isa>
 status_t jit_uni_softmax_bwd_t<isa>::init(engine_t *engine) {
