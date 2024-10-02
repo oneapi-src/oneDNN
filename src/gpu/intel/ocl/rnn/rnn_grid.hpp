@@ -47,6 +47,7 @@ enum gemm_kind_t {
     gemm_iter_bwd,
     gemm_iter_bwd_2,
     gemm_layer_bwd,
+    gemm_layer_bwd_src,
     gemm_diff_wei_iter,
     gemm_diff_wei_iter_2,
     gemm_diff_wei_layer,
@@ -98,6 +99,7 @@ struct _simple_rnn_common_t : public gpu_primitive_t {
         std::shared_ptr<primitive_desc_t> gemm_iter_bwd_pd_;
         std::shared_ptr<primitive_desc_t> gemm_iter_bwd_2_pd_;
         std::shared_ptr<primitive_desc_t> gemm_layer_bwd_pd_;
+        std::shared_ptr<primitive_desc_t> gemm_layer_bwd_src_pd_;
         std::shared_ptr<primitive_desc_t> gemm_diff_wei_layer_pd_;
         std::shared_ptr<primitive_desc_t> gemm_diff_wei_layer_src_pd_;
         std::shared_ptr<primitive_desc_t> gemm_diff_wei_iter_pd_;
@@ -118,6 +120,7 @@ struct _simple_rnn_common_t : public gpu_primitive_t {
                             gemm_iter_bwd_pd_.get(),
                             gemm_iter_bwd_2_pd_.get(),
                             gemm_layer_bwd_pd_.get(),
+                            gemm_layer_bwd_src_pd_.get(),
                             gemm_diff_wei_layer_pd_.get(),
                             gemm_diff_wei_layer_src_pd_.get(),
                             gemm_diff_wei_iter_pd_.get(),
@@ -230,6 +233,7 @@ private:
     std::shared_ptr<impl::primitive_t> gemm_iter_fwd_;
     std::shared_ptr<impl::primitive_t> gemm_iter_fwd_2_;
     std::shared_ptr<impl::primitive_t> gemm_layer_bwd_;
+    std::shared_ptr<impl::primitive_t> gemm_layer_bwd_src_;
     std::shared_ptr<impl::primitive_t> gemm_iter_bwd_;
     std::shared_ptr<impl::primitive_t> gemm_iter_bwd_2_;
     std::shared_ptr<impl::primitive_t> gemm_diff_wei_layer_;

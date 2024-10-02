@@ -207,8 +207,12 @@ cell_execution_sig((_simple_rnn_common_t<aprop>::cell_execution)) {
                 engine, ctx, wei_iter, diff_gates, diff_states, gemm_iter_bwd));
 
         if (!rnn.merge_gemm_layer) {
+
+            auto gemm_layer_cell_bwd = !rnn.copy_diff_src_layer && lay == 0
+                    ? gemm_layer_bwd_src
+                    : gemm_layer_bwd;
             CHECK(gemm_primitive(engine, ctx, wei_layer, diff_gates,
-                    diff_states1, gemm_layer_bwd));
+                    diff_states1, gemm_layer_cell_bwd));
 
             auto gemm_diff_wei_cell_layer = !rnn.copy_src_layer && lay == 0
                     ? gemm_diff_wei_layer_src

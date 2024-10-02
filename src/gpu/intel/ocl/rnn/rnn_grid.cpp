@@ -938,6 +938,19 @@ status_t _simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
                         {rnn_conf.scratch_diff_states_ld, 1}, weights_type,
                         src_type, rnn_conf.acc_data_type, 0.0f),
                 "create_gemm_pd(gemm_layer_bwd_pd_)");
+        if (!rnn_conf.copy_diff_src_layer) {
+            if (rnn_conf.scratch_diff_states_ld != off.diff_src_layer[1])
+                VDISPATCH_RNN_SC(
+                        create_gemm_pd(gemm_layer_bwd_src_pd_, slc,
+                                layer_merged_size, n_gates * dhc,
+                                {rnn_conf.scratch_diff_gates_ld, 1},
+                                {off.weights_layer[4], off.weights_layer[2]},
+                                {off.diff_src_layer[1], 1}, weights_type,
+                                src_type, rnn_conf.acc_data_type, 0.0f),
+                        "create_gemm_pd(gemm_layer_bwd_src_pd_)");
+            else
+                gemm_layer_bwd_src_pd_ = gemm_layer_bwd_pd_;
+        }
         VDISPATCH_RNN_SC(
                 create_gemm_pd(gemm_diff_wei_layer_pd_, n_gates * dhc, slc,
                         layer_merged_size, {1, rnn_conf.states_ws_ld},
@@ -1025,6 +1038,12 @@ status_t _simple_rnn_common_t<aprop>::init(impl::engine_t *engine) {
                     && utils::everyone_is(status::success,
                             create_nested_primitive(gemm_layer_bwd_,
                                     pd()->gemm_layer_bwd_pd_, engine),
+                            (pd()->gemm_layer_bwd_src_pd_
+                                            ? create_nested_primitive(
+                                                    gemm_layer_bwd_src_,
+                                                    pd()->gemm_layer_bwd_src_pd_,
+                                                    engine)
+                                            : status::success),
                             create_nested_primitive(gemm_iter_bwd_,
                                     pd()->gemm_iter_bwd_pd_, engine),
                             create_nested_primitive(gemm_diff_wei_layer_,
@@ -1150,6 +1169,11 @@ gemm_sig((_simple_rnn_common_t<aprop>::gemm_primitive)) {
             init_gemm_nested_scratchpad(
                     gemm_layer_bwd_, rnn_utils::scratch_t::key_gemm_layer_bwd);
             CHECK(gpu_gemm(gemm_layer_bwd_)->execute(gemm_ctx));
+            break;
+        case gemm_layer_bwd_src:
+            init_gemm_nested_scratchpad(gemm_layer_bwd_src_,
+                    rnn_utils::scratch_t::key_gemm_layer_bwd);
+            CHECK(gpu_gemm(gemm_layer_bwd_src_)->execute(gemm_ctx));
             break;
         case gemm_diff_wei_iter:
             init_gemm_nested_scratchpad(gemm_diff_wei_iter_,

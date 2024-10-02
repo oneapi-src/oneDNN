@@ -98,8 +98,11 @@ cell_execution_sig((_simple_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                     user_data.diff_wei_layer(lay, dir),
                     gemm_diff_wei_cell_layer));
 
+            auto gemm_layer_cell_bwd = !rnn.copy_diff_src_layer && lay == 0
+                    ? gemm_layer_bwd_src
+                    : gemm_layer_bwd;
             CHECK(gemm_primitive(engine, ctx, wei_layer, diff_gates,
-                    diff_states1, gemm_layer_bwd));
+                    diff_states1, gemm_layer_cell_bwd));
         }
 
         CHECK(gemm_primitive(engine, ctx, wei_iter, scratch_cell, diff_states,
