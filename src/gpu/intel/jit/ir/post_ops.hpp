@@ -218,7 +218,7 @@ public:
 
     virtual view_t try_create_bias_view(uint32_t mask) const { return {}; }
 
-    virtual bool is_spurious_spatial(int dim_idx) const { return false; };
+    virtual bool is_spurious_spatial(dim_idx_t dim_idx) const { return false; };
     virtual bool need_to_restore_zero_padding() const { return false; }
     virtual bool use_dst_in_sum_post_op() const { return true; }
     virtual bool can_use_scales() const { return true; }
@@ -323,9 +323,9 @@ private:
             const memory_desc_t &dst_md, const memory_desc_t &out_md,
             const zero_points_config_t &zp_cfg) const;
 
-    int cp_ndims() const { return cp_view().nvdims(); }
+    dim_idx_t cp_ndims() const { return cp_view().nvdims(); }
 
-    bool is_cp_dim_zero_padded(int idx) const {
+    bool is_cp_dim_zero_padded(dim_idx_t idx) const {
         return cp_view().is_masked_vdim(idx);
     }
 
@@ -350,7 +350,7 @@ private:
     uint32_t compute_mask(const view_t &view) const {
         ir_assert(cp_ndims() == view.nvdims());
         uint32_t mask = 0;
-        for (int i = 0; i < cp_ndims(); i++) {
+        for (dim_idx_t i = 0; i < cp_ndims(); i++) {
             if (view.vdims()[i] != 1) mask |= (1 << i);
         }
         return mask;

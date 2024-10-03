@@ -294,7 +294,8 @@ public:
         return coef.to_expr();
     }
 
-    static std::vector<expr_t> div(const std::vector<expr_t> &v, int64_t factor) {
+    static std::vector<expr_t> div(
+            const std::vector<expr_t> &v, int64_t factor) {
         std::vector<expr_t> ret;
         ret.reserve(v.size());
         for (auto &e : v)

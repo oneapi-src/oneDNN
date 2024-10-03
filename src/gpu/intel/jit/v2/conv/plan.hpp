@@ -37,7 +37,7 @@ namespace conv {
 class coord_info_t {
 public:
     void add_dim(const pvar_t &dim, bool is_loop, bool is_global_loop,
-            int tg_tile, const expr_t &thr_idx, int iter_tile,
+            dim_t tg_tile, const expr_t &thr_idx, dim_t iter_tile,
             const prb_reqs_t &reqs) {
         auto &e = entries_[dim];
         e.dim = dim;
@@ -122,8 +122,8 @@ private:
         expr_t iter_idx;
         expr_t loop_idx;
 
-        int tg_size = 0;
-        int iter_size = 0;
+        dim_t tg_size = 0;
+        dim_t iter_size = 0;
         expr_t loop_size;
         bool is_global_loop = false;
 

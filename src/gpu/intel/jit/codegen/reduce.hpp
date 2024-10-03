@@ -65,7 +65,7 @@ public:
                     ngen_register_scope_t tile_scope(
                             scope.register_allocator());
                     auto dst_start = src_start;
-                    for (int i = 0; i < dst_layout_.ndims(); i++) {
+                    for (dim_idx_t i = 0; i < dst_layout_.ndims(); i++) {
                         if (dst_layout_.dims()[i] == 1) dst_start[i] = 0;
                     }
                     int src_off = int(src_layout_(src_start) * src_type.size());

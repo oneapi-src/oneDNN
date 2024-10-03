@@ -523,7 +523,7 @@ public:
     // properly zero-padded.
     int pad_block(const pvar_t &d) const override;
 
-    int unroll(const pvar_t &d) const { return unroll()(d); }
+    int unroll(const pvar_t &d) const { return into<int>(unroll()(d)); }
 
     int reserved_regs() const;
 
@@ -631,13 +631,13 @@ public:
         gemm_loop_ = to_gemm(cfg.loop_dims().get(), prb);
     }
 
-    int iter_dim(pvar_t d) const { return gemm_iter_.get(d, 1); }
+    dim_t iter_dim(pvar_t d) const { return gemm_iter_.get(d, 1); }
 
-    int thread_group_dim(pvar_t d) const {
+    dim_t thread_group_dim(pvar_t d) const {
         return gemm_thread_group_.get(d, 1);
     }
 
-    int loop_dim(pvar_t d) const { return gemm_loop_.get(d, 1); }
+    dim_t loop_dim(pvar_t d) const { return gemm_loop_.get(d, 1); }
 
 private:
     pvar_tile_t gemm_iter_;
@@ -649,12 +649,12 @@ status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
         impl::engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr);
 status_t init_cfg(conv_config_t &cfg, const primitive_t *prim);
 status_t init_regs(conv_config_t &cfg);
-int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,
+int slm_bufs_hint(const conv_problem_t &prb, dim_t m_tg, dim_t n_tg,
         bool do_src_zp_compensation, bool enable_a, bool enable_b,
         bool do_unroll);
 tensor_config_t get_tensor_config(
         const conv_config_t &cfg, const memory_desc_t *zp_src);
-bool is_small(const type_t &type, int elems);
+bool is_small(const type_t &type, dim_t elems);
 int estimate_register_count(const conv_config_t &cfg);
 int default_regs(const conv_config_t &cfg);
 void init_kernel_grid(conv_config_t &cfg);

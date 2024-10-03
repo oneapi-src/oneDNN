@@ -399,7 +399,7 @@ struct send_1d_entry_t {
     expr_t addr_inc;
     std::vector<expr_t> mask_incs; // Per dimension mask.
     int reg_off = 0;
-    pvar_coord_t<int> coord;
+    pvar_coord_t<dim_t> coord;
 
     std::string str() const {
         using namespace ir_utils;
@@ -598,7 +598,7 @@ struct send_2d_entry_t {
     expr_t x_inc;
     expr_t y_inc;
     int reg_off = 0;
-    pvar_coord_t<int> coord;
+    pvar_coord_t<dim_t> coord;
 
     std::string str() const {
         std::ostringstream oss;
@@ -626,7 +626,7 @@ struct send_2d_plan_t : public base_plan_t {
     int nentries() const { return static_cast<int>(entries.size()); }
     explicit operator bool() const { return (bool)desc; }
 
-    bool add_entry(const pvar_coord_t<int> &coord, int reg_off,
+    bool add_entry(const pvar_coord_t<dim_t> &coord, int reg_off,
             const prover_t &prover) {
         entries.emplace_back();
         auto &e = entries.back();
@@ -862,7 +862,7 @@ private:
         int reg_off = 0;
         for (int h = 0; h < plane.h; h += desc.h) {
             for (int w = 0; w < plane.w; w += desc.w * desc.c) {
-                pvar_coord_t<int> coord;
+                pvar_coord_t<dim_t> coord;
                 coord[plane.w_dim] = w;
                 coord[plane.h_dim] = h;
                 if (!plan_2d.add_entry(coord, reg_off, prover))

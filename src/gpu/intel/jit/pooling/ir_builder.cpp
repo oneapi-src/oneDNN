@@ -56,7 +56,7 @@ public:
     }
 
     view_t create_view(const memory_desc_t &md) const override {
-        int cp_ndims = cp_view().nvdims();
+        dim_idx_t cp_ndims = cp_view().nvdims();
         ir_assert(cp_ndims >= 3);
         layout_t layout(md, /*do_normalize=*/false);
         std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
@@ -67,7 +67,7 @@ public:
         pad_dims = dims_to_3d(pad_dims);
         ir_assert(layout.ndims() == cp_ndims) << "Incompatible dimensions.";
         uint32_t bound_check_mask = 0;
-        for (int i = 0; i < cp_ndims; i++) {
+        for (dim_idx_t i = 0; i < cp_ndims; i++) {
             if (dims[i] == 1) continue; // Broadcast, no bound check needed.
             if (pad_dims[i] != cp_view().tlayout().dim(i)) {
                 bound_check_mask |= (1 << i);
@@ -81,9 +81,9 @@ public:
     bool need_to_restore_zero_padding() const override { return true; }
 
 private:
-    static void maybe_reshape_dims(int ndims, layout_t &layout,
+    static void maybe_reshape_dims(dim_idx_t ndims, layout_t &layout,
             std::vector<dim_t> &dims, std::vector<dim_t> &padded_dims) {
-        ir_assert(layout.ndims() == int(dims.size()));
+        ir_assert(layout.ndims() == dims.size());
         if (layout.ndims() < ndims) {
             layout = layout_t(layout.type(), ndims, layout.offset(),
                     layout.blocks(), /*do_normalize=*/false);
@@ -184,11 +184,11 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     const auto &kg = cfg.kernel_grid();
     const auto &tg = cfg.thread_group_grid();
     const auto &dims_grid = cfg.dims_padded();
-    std::vector<int> padded_dims(dims_grid.ndims());
+    std::vector<dim_t> padded_dims(dims_grid.ndims());
     for (int i = 0; i < int(padded_dims.size()); i++)
         padded_dims[i] = dims_grid[i];
     ir_assert(padded_dims.size() == 5);
-    std::vector<int> dims {padded_dims[0], int(src_layout.dim(1)),
+    std::vector<dim_t> dims {padded_dims[0], int(src_layout.dim(1)),
             padded_dims[2], padded_dims[3], padded_dims[4]};
 
     // Source.
@@ -258,8 +258,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             std::swap(s1, ns);
         }
 
-        const int s1_tlg_unroll = lg[s1_idx];
-        const int s1_unroll = s1_tlg_unroll * tg[s1_idx - 2];
+        const dim_t s1_tlg_unroll = lg[s1_idx];
+        const dim_t s1_unroll = s1_tlg_unroll * tg[s1_idx - 2];
         const auto ps1 = s1.str();
 
         std::vector<expr_t> s0_fuse, s1_fuse;
@@ -275,9 +275,9 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
         if (s0_idx >= 0) {
             ir_assert(s0_idx == s1_idx + 1);
-            const int s0_tlg_unroll = lg[s0_idx];
-            const int s0_unroll = s0_tlg_unroll * tg[s0_idx - 2];
-            const int s0_full = s0_unroll * kg[s0_idx - 2];
+            const dim_t s0_tlg_unroll = lg[s0_idx];
+            const dim_t s0_unroll = s0_tlg_unroll * tg[s0_idx - 2];
+            const dim_t s0_full = s0_unroll * kg[s0_idx - 2];
             const auto ps0 = s0.str();
 
             if (dims[s0_idx] > s0_full) {
@@ -288,7 +288,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                 s0 = std::move(s0_ktlg);
             } else if (dims[s0_idx] <= utils::div_up(s0_full, 2)) {
                 expr_t s1_split, s1_ktlg; // part of kg[s1] is in kg[s0]
-                const int s1_ext = utils::div_up(s0_full, dims[s0_idx]);
+                const dim_t s1_ext = utils::div_up(s0_full, dims[s0_idx]);
                 schedule.split(s1_fuse[0], s1_ext, s1_ktlg, s1_split,
                         ps1 + "_ktlg", ps1 + "_split");
                 s1_fuse[0] = std::move(s1_ktlg);
@@ -306,7 +306,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             s0_fuse.emplace_back(s0_kg);
         }
 
-        const int ns_unroll = lg[ns_idx];
+        const dim_t ns_unroll = lg[ns_idx];
         const auto pns = ns.str();
 
         expr_t ns_kg, ns_lg;
@@ -329,7 +329,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     auto kdhw_to_schedule = [&](const expr_t &k) {
         const int k_idx = src_view.vvar_index(k);
         ir_assert((k_idx >= 5) && (k_idx <= 7));
-        const int k_dim = lg[k_idx];
+        const dim_t k_dim = lg[k_idx];
         if (k_dim == schedule.var_bound(k)) {
             schedule.tensorize(k);
         } else if (k_dim < schedule.var_bound(k)) {
@@ -435,7 +435,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         stmt_t retn;
         const auto values = gen_fill_values(simd, isneg, layout.type());
         layout.for_each_tile(tile, [&](const std::vector<dim_t> &s) {
-            const int off = layout(s) * layout.type().size();
+            const dim_t off = layout(s) * layout.type().size();
             if (off >= utils::rnd_dn(layout.size(), simd * 4))
                 retn = retn.append(store_t::make(buf, off, values.first));
             else if (off % (simd * 4) == 0)
@@ -456,7 +456,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         stmt = stmt.append(read.stmt());
     } else {
         ir_assert(acc_size % simd == 0);
-        allocs.push_back(alloc_t::make(acc_buf, acc_size, alloc_kind_t::grf));
+        allocs.push_back(alloc_t::make(
+                acc_buf, into<uint32_t>(acc_size), alloc_kind_t::grf));
 
         stmt_t fill_stmt, compute_stmt = read.stmt();
         stmt = stmt_t();
@@ -468,8 +469,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         fill_stmt = gen_zero_out(simd, is_neg, read_buf, src_tile, read_layout);
 
         read_layout.for_each_tile(src_tile, [&](const std::vector<dim_t> &s) {
-            const int off_l = read_layout(s) * read_layout.type().size();
-            const int off_a = (s[0] * lg[1] + s[1]) * acc_sc_size;
+            const dim_t off_l = read_layout(s) * read_layout.type().size();
+            const dim_t off_a = (s[0] * lg[1] + s[1]) * acc_sc_size;
 
             auto load = cast_t::make(
                     acc_type, load_t::make(read_type, read_buf, off_l));
@@ -487,7 +488,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         if (!cfg.is_max()) {
             expr_t filter(prb.kd * prb.kh * prb.kw);
             if (!cfg.is_padded() && check_idhw) {
-                auto dim = [](const expr_t &o, int s, int p, int k, int i) {
+                auto dim = [](const expr_t &o, dim_t s, dim_t p, dim_t k,
+                                   dim_t i) {
                     if (k <= 1) return expr_t(1);
                     return binary_op_t::make(op_kind_t::_min, o * s - p + k, i)
                             - binary_op_t::make(op_kind_t::_max, o * s - p, 0);

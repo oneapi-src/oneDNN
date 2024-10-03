@@ -1570,7 +1570,7 @@ public:
         return make(vec, idx);
     }
 
-    static expr_t make_broadcast(const expr_t &expr, int elems) {
+    static expr_t make_broadcast(const expr_t &expr, dim_t elems) {
         if (elems == 1) return expr;
         ir_assert(expr.type().is_scalar()) << expr;
         return make({expr}, std::vector<int>(elems, 0));
@@ -1754,7 +1754,7 @@ private:
 template <typename T>
 expr_t to_expr(T value, const type_t &type) {
 #define CASE(ir_type, cpp_type) \
-    if (type == type_t::ir_type()) return expr_t((cpp_type)value)
+    if (type == type_t::ir_type()) return expr_t(static_cast<cpp_type>(value))
 
     CASE(_bool, bool);
     CASE(bf16, bfloat16_t);
@@ -2016,18 +2016,18 @@ class alloc_t : public stmt_impl_t {
 public:
     IR_DECL_STMT_TYPE_ID(alloc_t)
 
-    static stmt_t make(const expr_t &buf, int size, alloc_kind_t kind,
+    static stmt_t make(const expr_t &buf, uint32_t size, alloc_kind_t kind,
             const std::vector<alloc_attr_t> &attrs, const stmt_t &body = {}) {
         return stmt_t(new alloc_t(buf, size, kind, attrs, body));
     }
 
-    static stmt_t make(const expr_t &buf, int size, alloc_kind_t kind,
+    static stmt_t make(const expr_t &buf, uint32_t size, alloc_kind_t kind,
             const alloc_attr_t &attr, const stmt_t &body = {}) {
         std::vector<alloc_attr_t> attrs = {attr};
         return make(buf, size, kind, attrs, body);
     }
 
-    static stmt_t make(const expr_t &buf, int size, alloc_kind_t kind,
+    static stmt_t make(const expr_t &buf, uint32_t size, alloc_kind_t kind,
             const stmt_t &body = {}) {
         return make(buf, size, kind, std::vector<alloc_attr_t>(), body);
     }
@@ -2062,19 +2062,21 @@ public:
     }
 
     int register_alloc_size(int grf_size) const {
-        return (kind == alloc_kind_t::grf) ? utils::rnd_up(size, grf_size) : 0;
+        return (kind == alloc_kind_t::grf)
+                ? into<int>(utils::rnd_up(size, grf_size))
+                : 0;
     }
 
     IR_DECLARE_TRAVERSERS()
 
     expr_t buf;
-    int size;
+    uint32_t size;
     alloc_kind_t kind;
     std::vector<alloc_attr_t> attrs;
     stmt_t body;
 
 private:
-    alloc_t(const expr_t &buf, int size, alloc_kind_t kind,
+    alloc_t(const expr_t &buf, uint32_t size, alloc_kind_t kind,
             const std::vector<alloc_attr_t> &attrs, const stmt_t &body)
         : stmt_impl_t(_type_info())
         , buf(buf)

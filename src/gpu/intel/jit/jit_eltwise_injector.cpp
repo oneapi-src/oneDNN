@@ -217,7 +217,7 @@ template <gpu_gen_t hw>
 void jit_eltwise_injector_f32<hw>::soft_relu_compute_fwd_inner(int simd,
         const ngen::GRF &input, const ngen::GRF &temp, const ngen::GRF &dest,
         int phase, int off, float alpha) {
-    const float exp_overflow_bound = 88.72283172607421875;
+    const float exp_overflow_bound = 88.72283172607421875f;
     const float log2e = 1.44269502162933349609375f;
     const float reciproc_log2e = 1.f / log2e; // 1 / log_2(e)
     switch (phase) {
@@ -640,7 +640,7 @@ void jit_eltwise_injector_f32<hw>::pow_compute_fwd(
     auto temp = scratch_[off].f();
     switch (phase) {
         case 0:
-            if ((long long int)beta_ == beta_) {
+            if (float((long long int)beta_) == beta_) {
                 h->mov(simd, temp, abs(r));
             } else {
                 h->mov(simd, temp, r);

@@ -69,7 +69,8 @@ public:
     multiply_desc_t(const layout_t &a_layout, const layout_t &b_layout,
             bool force_c_upconvert)
         : a_layout_(a_layout), b_layout_(b_layout) {
-        ir_assert(a_layout.ndims() == 2 && b_layout.ndims() == 2)
+        ir_assert(a_layout.ndims() == dim_idx_t(2)
+                && b_layout.ndims() == dim_idx_t(2))
                 << "Expected 2D layouts, A layout: " << a_layout
                 << " B layout: " << b_layout;
 
@@ -83,9 +84,9 @@ public:
     const type_t &b_type() const { return b_layout_.type(); }
     const type_t &c_type() const { return c_type_; }
 
-    int m() const { return a_layout_.dims()[0]; }
-    int n() const { return b_layout_.dims()[1]; }
-    int k() const { return a_layout_.dims()[1]; }
+    dim_t m() const { return a_layout_.dims()[0]; }
+    dim_t n() const { return b_layout_.dims()[1]; }
+    dim_t k() const { return a_layout_.dims()[1]; }
 
     static type_t get_c_type(
             const type_t &a, const type_t &b, bool force_c_upconvert);
@@ -101,8 +102,8 @@ class dpas_t : public func_impl_t {
 public:
     IR_DECL_DERIVED_TYPE_ID(dpas_t, func_impl_t)
 
-    static func_t make(bool is_dpasw, int exec_size, int sdepth, int rcount,
-            const type_t &dst_type, const type_t &src1_type,
+    static func_t make(bool is_dpasw, int exec_size, uint8_t sdepth,
+            uint8_t rcount, const type_t &dst_type, const type_t &src1_type,
             const type_t &src2_type) {
         return func_t(new dpas_t(is_dpasw, exec_size, sdepth, rcount, dst_type,
                 src1_type, src2_type));
@@ -178,15 +179,15 @@ public:
     bool is_dpasw;
 
     int exec_size;
-    int sdepth;
-    int rcount;
+    uint8_t sdepth;
+    uint8_t rcount;
 
     type_t dst_type; // src0 type is same as dst_type.
     type_t src1_type;
     type_t src2_type;
 
 private:
-    dpas_t(bool is_dpasw, int exec_size, int sdepth, int rcount,
+    dpas_t(bool is_dpasw, int exec_size, uint8_t sdepth, uint8_t rcount,
             const type_t &dst_type, const type_t &src1_type,
             const type_t &src2_type)
         : func_impl_t(_type_info())

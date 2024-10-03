@@ -122,7 +122,7 @@ int get_default_mad_block(const type_t &type) {
     return 1;
 }
 
-bool is_small(const type_t &type, int elems) {
+bool is_small(const type_t &type, dim_t elems) {
     int block = get_default_mad_block(type);
     return elems <= block / 2;
 }
@@ -216,9 +216,9 @@ std::string conv_problem_t::desc_str(bool print_mb) const {
     if (g > 1) oss << "g" << g;
     oss << "ic" << ic;
 
-    std::vector<int> xd = {id, od, kd, sd, dd, pd};
-    std::vector<int> xh = {ih, oh, kh, sh, dh, ph};
-    std::vector<int> xw = {iw, ow, kw, sw, dw, pw};
+    std::vector<dim_t> xd = {id, od, kd, sd, dd, pd};
+    std::vector<dim_t> xh = {ih, oh, kh, sh, dh, ph};
+    std::vector<dim_t> xw = {iw, ow, kw, sw, dw, pw};
     std::vector<int> xdef = {1, 1, 1, 1, 0, 0};
     bool has_d = !ir_utils::is_equal(xd, xdef);
     bool has_h = !ir_utils::is_equal(xh, xdef);
@@ -267,7 +267,7 @@ int prim_config_t::sort_key(const param_t *param) const {
             nullptr,
     };
     for (const char **p = ordered_params; *p; p++) {
-        if (param->short_name() == *p) return p - ordered_params;
+        if (param->short_name() == *p) return into<int>(p - ordered_params);
     }
     return (int)(sizeof(ordered_params) / sizeof(ordered_params[0]));
 }
@@ -279,7 +279,7 @@ const bool pad_slm_param_t::default_value = true;
 std::string build_tag(const std::vector<int> &inner_blocks,
         const std::vector<int> &outer_blocks, const std::vector<char> &letters,
         const std::vector<int> &idxs) {
-    size_t n = letters.size();
+    dim_idx_t n = into<dim_idx_t>(letters.size());
     ir_assert(inner_blocks.size() == n);
     ir_assert(outer_blocks.size() == n);
     ir_assert(idxs.size() == n);
@@ -288,7 +288,7 @@ std::string build_tag(const std::vector<int> &inner_blocks,
     std::vector<bool> seen(n);
 
     // Iterate through outer blocks.
-    for (int i = (int)n - 1; i >= 0; i--) {
+    for (int i = n - 1; i >= 0; i--) {
         int idx = idxs[i];
         int blk = outer_blocks[idx];
         if (blk == 1) continue;
@@ -297,7 +297,7 @@ std::string build_tag(const std::vector<int> &inner_blocks,
     }
 
     // Iterate through inner blocks.
-    for (int i = (int)n - 1; i >= 0; i--) {
+    for (int i = n - 1; i >= 0; i--) {
         int idx = idxs[i];
         int blk = inner_blocks[idx];
         if (blk == 1) continue;
@@ -313,7 +313,7 @@ std::string build_tag(const std::vector<int> &inner_blocks,
         for (int i = (int)n - 1; i >= 0; i--) {
             char c = letters[i];
             if (c == ' ') continue;
-            if (seen[i]) c = std::toupper(c);
+            if (seen[i]) c = static_cast<char>(std::toupper(c));
             tag = c + tag;
         }
     }
@@ -321,7 +321,7 @@ std::string build_tag(const std::vector<int> &inner_blocks,
     return tag;
 }
 
-int pick_block_impl(bool prefer_rnd_up, int dim, int b0, int b1, int b2) {
+int pick_block_impl(bool prefer_rnd_up, dim_t dim, int b0, int b1, int b2) {
     int blocks[3] = {b0, b1, b2};
     int prev_blk = 1;
     for (int i = 0; i < 3; i++) {
@@ -336,19 +336,20 @@ int pick_block_impl(bool prefer_rnd_up, int dim, int b0, int b1, int b2) {
     return prev_blk;
 }
 
-int pick_block_rnd_up(int dim, int b0, int b1 = 0, int b2 = 0) {
+int pick_block_rnd_up(dim_t dim, int b0, int b1 = 0, int b2 = 0) {
     return pick_block_impl(true, dim, b0, b1, b2);
 }
 
-int pick_block(int dim, int b0, int b1 = 0, int b2 = 0) {
+int pick_block(dim_t dim, int b0, int b1 = 0, int b2 = 0) {
     return pick_block_impl(false, dim, b0, b1, b2);
 }
 
-int get_default_block(fma_kind_t fma, const type_t &type, int elems) {
+int get_default_block(fma_kind_t fma, const type_t &type, dim_t elems) {
     if (is_dp_fma(fma)) {
         if (is_small(type, elems)) {
             int packed_dword_elems = 4 / type.size();
-            return std::max(utils::rnd_up_pow2(elems), packed_dword_elems);
+            return std::max(
+                    utils::rnd_up_pow2(into<int>(elems)), packed_dword_elems);
         }
         return 32 / type.size();
     }
@@ -380,7 +381,7 @@ struct nc_block_t {
     // Ideally, this should only depend on data type, direction, mb, c, and g to
     // enable the same src/dst formats and avoid reorders between convolutions
     static nc_block_t get_default_blocking(const hw_t &hw, fma_kind_t fma,
-            type_t type, bool is_dw, int n, int c, int g,
+            type_t type, bool is_dw, dim_t n, dim_t c, dim_t g,
             bool is_output = false) {
         // Select dst layout to align with fma kind of following conv
         // for non-depthwise cases.
@@ -437,10 +438,10 @@ struct goi_block_t {
     }
 
     static goi_block_t get_default_blocking(type_t type, int vec_size,
-            fma_kind_t fma_kind, bool is_bwd_d, int g, int o, int i,
+            fma_kind_t fma_kind, bool is_bwd_d, dim_t g, dim_t o, dim_t i,
             bool ab_transpose) {
-        int x = o;
-        int y = i;
+        dim_t x = o;
+        dim_t y = i;
         int g_block = 1;
         int o_block = 1;
         int i_block = 1;
@@ -457,25 +458,26 @@ struct goi_block_t {
             std::swap(x_block_outer, y_block_outer);
         }
         get_default_blocking(type, vec_size, fma_kind, is_bwd_d, g, x, y,
-                g_block, *x_block, *y_block, *x_block_outer, *y_block_outer,
-                ab_transpose);
+                g_block, *x_block, *y_block, *y_block_outer, ab_transpose);
         return goi_block_t(fma_kind, is_dw(g, o, i), is_bwd_d, g_block, o_block,
                 i_block, o_block_outer, i_block_outer);
     }
 
     static void get_default_blocking(type_t type, int vec_size,
-            fma_kind_t fma_kind, bool is_bwd_d, int g, int x, int y,
-            int &g_block, int &x_block, int &y_block, int &x_block_outer,
-            int &y_block_outer, bool ab_transpose = false) {
+            fma_kind_t fma_kind, bool is_bwd_d, dim_t g, dim_t x, dim_t y,
+            int &g_block, int &x_block, int &y_block, int &y_block_outer,
+            bool ab_transpose = false) {
         if (is_dw(g, x, y)) {
             g_block = vec_size;
         } else if (fma_kind == fma_kind_t::mad) {
-            x_block = (ab_transpose && is_bwd_d) ? utils::rnd_up_pow2(x)
-                                                 : vec_size;
+            x_block = (ab_transpose && is_bwd_d)
+                    ? into<int>(utils::rnd_up_pow2(x))
+                    : vec_size;
             y_block = get_default_block(fma_kind, type, y);
         } else {
             int packed_dword_elems = 4 / type.size();
-            x_block = ab_transpose ? utils::rnd_up_pow2(x) : vec_size;
+            x_block = ab_transpose ? into<int>(utils::rnd_up_pow2(x))
+                                   : vec_size;
             y_block = packed_dword_elems;
             // Fixing y outer block helps to avoid extra GRF reorders however
             // in small reduction cases it may result in excessive zero
@@ -492,7 +494,7 @@ struct goi_block_t {
     }
 
 private:
-    static bool is_dw(int g, int o, int i) {
+    static bool is_dw(dim_t g, dim_t o, dim_t i) {
         return (g > 1 && o == 1 && i == 1);
     }
 
@@ -936,7 +938,7 @@ status_t init_vec_size(conv_config_t &cfg) {
     int vec_size = cfg.simd();
     if (cfg.fma_kind() == fma_kind_t::mad) {
         int grf_elems = cfg.grf_size() / prb.acc_data_type_size;
-        int vec_dim = prb.ab_swap_transpose
+        dim_t vec_dim = prb.ab_swap_transpose
                 ? ((prb.is_bwd_w) ? prb.ic : prb.mb)
                 : ((prb.is_fwd || prb.is_bwd_w) ? prb.oc : prb.ic);
         if (utils::rnd_up(vec_dim, grf_elems) < vec_size) vec_size = grf_elems;
@@ -1235,13 +1237,13 @@ void get_layout_and_dims(tensor_kind_t ab_kind, const conv_config_t &cfg,
             break;
         default: ir_error_not_expected();
     }
-    ir_assert(layout.ndims() == (int)dims.size());
+    ir_assert(layout.ndims() == dims.size());
 }
 
 // Calculates the size of the range for spatial dimensions within a tile.
 // For example, consider forward convolution with stride of 2 and tile ow8kw3.
 // After mapping (iw = ow * SW + kw), "iw" range is [0, 16] of size 17.
-int map_spatial(
+dim_t map_spatial(
         const conv_config_t &cfg, const pvar_t &dim, const pvar_tile_t &tile) {
     auto &prb = cfg.prb();
     bool is_isp = utils::one_of(dim, pvars::id, pvars::ih, pvars::iw);
@@ -1249,30 +1251,30 @@ int map_spatial(
     const pvar_t isp_dims[] = {pvars::id, pvars::ih, pvars::iw};
     const pvar_t ksp_dims[] = {pvars::kd, pvars::kh, pvars::kw};
     const pvar_t osp_dims[] = {pvars::od, pvars::oh, pvars::ow};
-    int isp[] = {prb.id, prb.ih, prb.iw};
-    int osp[] = {prb.od, prb.oh, prb.ow};
-    int padding[] = {prb.pd, prb.ph, prb.pw};
-    int stride[] = {prb.sd, prb.sh, prb.sw};
-    int dilation[] = {prb.dd, prb.dh, prb.dw};
+    dim_t isp[] = {prb.id, prb.ih, prb.iw};
+    dim_t osp[] = {prb.od, prb.oh, prb.ow};
+    dim_t padding[] = {prb.pd, prb.ph, prb.pw};
+    dim_t stride[] = {prb.sd, prb.sh, prb.sw};
+    dim_t dilation[] = {prb.dd, prb.dh, prb.dw};
     int idx = dim.spatial_index();
     ir_assert(idx != -1);
-    int O = tile.get(osp_dims[idx], 1);
-    int I = tile.get(isp_dims[idx], 1);
-    int K = tile.get(ksp_dims[idx], 1);
-    int P = padding[idx];
-    int S = stride[idx];
-    int D = dilation[idx];
+    dim_t O = tile.get(osp_dims[idx], 1);
+    dim_t I = tile.get(isp_dims[idx], 1);
+    dim_t K = tile.get(ksp_dims[idx], 1);
+    dim_t P = padding[idx];
+    dim_t S = stride[idx];
+    dim_t D = dilation[idx];
     if (is_isp) {
         // Source tensor, map ox, kx to ix.
         ir_assert(prb.is_fwd || prb.is_bwd_w);
-        int i_min = -P;
-        int i_max = (O - 1) * S - P + (K - 1) * (1 + D);
+        dim_t i_min = -P;
+        dim_t i_max = (O - 1) * S - P + (K - 1) * (1 + D);
         return std::min(isp[idx], i_max - i_min + 1);
     }
     // Destination tensor, map ix, kx to ox.
     ir_assert(is_osp && prb.is_bwd_d);
-    int os_min = P - (K - 1) * (1 + D);
-    int os_max = (I - 1) + P;
+    dim_t os_min = P - (K - 1) * (1 + D);
+    dim_t os_max = (I - 1) + P;
     return std::min(osp[idx], utils::div_up(os_max - os_min + 1, S));
 }
 
@@ -1291,7 +1293,7 @@ size_t get_memory_footprint(const tensor_kind_t &ab_kind,
     get_layout_and_dims(ab_kind, cfg, layout, dims);
     dim_t elems = 1;
     pvar_tile_t tile;
-    for (int i = 0; i < layout.ndims(); i++) {
+    for (dim_idx_t i = 0; i < layout.ndims(); i++) {
         auto &d = dims[i];
         dim_t d_size
                 = (needs_spatial_mapping(cfg, d) ? map_spatial(cfg, d, _tile)
@@ -1324,7 +1326,7 @@ size_t get_memory_footprint(const conv_config_t &cfg,
 pvar_tile_t get_grid_tile(const conv_config_t &cfg) {
     pvar_tile_t grid_tile;
     for (auto &d : conv_index_dims(cfg.prb().prop_kind())) {
-        int size = cfg.grid_dim(d);
+        dim_t size = cfg.grid_dim(d);
         if (size == 1) continue;
         grid_tile[d] = size;
     }
@@ -1403,8 +1405,8 @@ class mn_walker_t {
 public:
     struct entry_t {
         pvar_t dim;
-        int size = 1;
-        int tile_size = 1;
+        dim_t size = 1;
+        dim_t tile_size = 1;
         char mn_kind = ' ';
 
         bool has_next() const { return size < tile_size; }
@@ -1473,10 +1475,10 @@ walk_order_t compute_walk_order(const conv_config_t &cfg) {
     int tg_size = 1;
     pvar_tile_t inner;
     for (auto &d : conv_index_dims(cfg.prb().prop_kind())) {
-        int iter = cfg.iter_dim(d);
-        int tg = cfg.thread_group_dim(d);
-        int loop = cfg.loop_dim(d);
-        int size = iter * tg * loop;
+        dim_t iter = cfg.iter_dim(d);
+        dim_t tg = cfg.thread_group_dim(d);
+        dim_t loop = cfg.loop_dim(d);
+        dim_t size = iter * tg * loop;
         if (size == 1) continue;
         inner[d] = size;
         tg_size *= tg;
@@ -1508,7 +1510,7 @@ walk_order_t compute_walk_order(const conv_config_t &cfg) {
 
     // If the kernel does not require multiple waves then no L3 blocking is not
     // applied.
-    float max_tgs_per_wave = conv_config_t::get_max_threadgroups_per_wave(
+    int max_tgs_per_wave = conv_config_t::get_max_threadgroups_per_wave(
             cfg.exec_cfg(), tg_size);
     if (grid_tile.elems() <= max_tgs_per_wave) return default_walk_order;
 
@@ -1540,7 +1542,7 @@ walk_order_t compute_walk_order(const conv_config_t &cfg) {
                     break;
                 case 1:
                 case 2:
-                    int rem = utils::div_up(
+                    dim_t rem = utils::div_up(
                             grid_tile[b.dim], grid_inner.get(b.dim, 1));
                     if (rem == 1) continue;
                     auto bmnk = to_gemm(b.dim, prb);
@@ -1594,7 +1596,7 @@ int fixup_slm_bufs(const conv_problem_t &prb, int slm_bufs,
     return slm_bufs;
 }
 
-int slm_bufs_hint(const conv_problem_t &prb, int m_tg, int n_tg,
+int slm_bufs_hint(const conv_problem_t &prb, dim_t m_tg, dim_t n_tg,
         bool zp_do_src_compensation, bool enable_a, bool enable_b,
         bool do_unroll) {
     if (!enable_a && !enable_b) return 0;
@@ -1824,7 +1826,7 @@ std::string conv_config_t::str() const {
         }
         oss << std::endl;
     }
-    int kg_elems = kernel_grid().elems(), tg_elems = thread_group_grid().elems();
+    dim_t kg_elems = kernel_grid().elems(), tg_elems = thread_group_grid().elems();
     int estimated_peak_regs = estimate_register_count(*this);
     oss << blocking_brief_str();
     oss << "  Kernel grid:                " << kernel_grid() << std::endl;
@@ -1855,7 +1857,7 @@ std::string pad_str(std::string s, int pad) {
     return s;
 }
 
-std::string pad_int(int i, int pad) {
+std::string pad_int(dim_t i, int pad) {
     return pad_str(std::to_string(i), pad);
 }
 
@@ -1866,10 +1868,10 @@ conv_key_t conv_config_t::key() const {
 std::string conv_config_t::blocking_brief_str() const {
     std::ostringstream oss;
     for (auto &d : index_dims()) {
-        int iter = iter_dim(d);
-        int tg = thread_group_dim(d);
-        int loop = loop_dim(d);
-        int grid = grid_dim(d);
+        dim_t iter = iter_dim(d);
+        dim_t tg = thread_group_dim(d);
+        dim_t loop = loop_dim(d);
+        dim_t grid = grid_dim(d);
         if (iter == 1 && loop == 1 && tg == 1) continue;
         oss << "  Dimension " << d.name()
             << pad_str(":", -18 + (int)d.name().length());
@@ -1904,11 +1906,11 @@ const conv_plan_t &conv_config_t::plan() const {
 bool conv_config_t::can_skip_wei_zero_out() const {
     if (!prb().is_bwd_w) return true;
     bmnk_dim_helper_t h(*this);
-    int k_iter_dim = h.iter_dim(pvars::k);
-    int k_loop_dim = h.loop_dim(pvars::k);
-    int k_tg_dim = h.thread_group_dim(pvars::k);
-    int k_tg_block = k_iter_dim * k_loop_dim * k_tg_dim;
-    int k_padded = padded_dim(pvars::mb) * padded_dim(pvars::od)
+    dim_t k_iter_dim = h.iter_dim(pvars::k);
+    dim_t k_loop_dim = h.loop_dim(pvars::k);
+    dim_t k_tg_dim = h.thread_group_dim(pvars::k);
+    dim_t k_tg_block = k_iter_dim * k_loop_dim * k_tg_dim;
+    dim_t k_padded = padded_dim(pvars::mb) * padded_dim(pvars::od)
             * padded_dim(pvars::oh) * padded_dim(pvars::ow);
     return k_tg_block >= k_padded;
 }

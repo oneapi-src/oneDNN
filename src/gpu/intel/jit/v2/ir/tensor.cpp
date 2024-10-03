@@ -206,16 +206,16 @@ bool layout_raw_tag_t::is_blocked(char letter) const {
     return false;
 }
 
-int layout_raw_tag_t::ndims() const {
+dim_idx_t layout_raw_tag_t::ndims() const {
     ir_assert(!is_any() && !has_x());
-    int max_index = 0;
+    dim_idx_t max_index = 0;
     for (auto &e : entries_) {
         max_index = std::max(max_index, e.index());
     }
     return max_index + 1;
 }
 
-int layout_raw_tag_t::non_x_ndims() const {
+dim_idx_t layout_raw_tag_t::non_x_ndims() const {
     ir_assert(!is_any());
     std::array<bool, 'z' - 'a' + 1> seen;
     seen.fill(false);
@@ -264,12 +264,12 @@ bool layout_raw_tag_t::has_x() const {
     return false;
 }
 
-void layout_raw_tag_t::expand_x(int ndims) {
+void layout_raw_tag_t::expand_x(dim_idx_t ndims) {
     if (!has_x() || ndims == 0) return;
     std::vector<layout_raw_tag_entry_t> new_entries;
     for (auto &e : entries_) {
         if (e.is_x()) {
-            for (int i = non_x_ndims(); i < ndims; i++) {
+            for (dim_idx_t i = non_x_ndims(); i < ndims; i++) {
                 auto new_e = e;
                 new_e.letter = dim_idx::as_tag(i);
                 new_entries.push_back(new_e);
@@ -284,10 +284,10 @@ void layout_raw_tag_t::expand_x(int ndims) {
 layout_raw_tag_t layout_raw_tag_t::collapse_x() const {
     if (has_x()) return *this;
     auto tag = to_tag(entries_);
-    for (int i = 2; i < ndims() - 1; i++) {
+    for (dim_idx_t i = 2; i < ndims() - 1; i++) {
         std::string x_expanded;
         bool ok = true;
-        for (int j = i; j < ndims(); j++) {
+        for (dim_idx_t j = i; j < ndims(); j++) {
             for (auto &e : entries_) {
                 if (e.index() == j && e.is_blocked) {
                     ok = false;
@@ -317,7 +317,7 @@ std::vector<layout_raw_tag_entry_t> layout_raw_tag_t::to_entries(
     }
     std::vector<layout_raw_tag_entry_t> entries;
     for (auto &p : letter_blocks) {
-        char letter = std::tolower(p.first);
+        char letter = static_cast<char>(std::tolower(p.first));
         entries.emplace_back();
         auto &e = entries.back();
         e.letter = letter;
@@ -377,11 +377,11 @@ std::vector<std::pair<char, int>> layout_raw_tag_t::parse_letter_blocks(
     return ret;
 }
 
-static void advance(pvar_coord_t<int> &idx, const pvar_tile_t &bound,
+static void advance(pvar_coord_t<dim_t> &idx, const pvar_tile_t &bound,
         const pvar_tile_t &block) {
-    int inc = 1;
+    dim_t inc = 1;
     for (auto &d : idx) {
-        int inc_idx = (idx[d] / block[d] + inc) % bound[d];
+        dim_t inc_idx = (idx[d] / block[d] + inc) % bound[d];
         inc = (idx[d] / block[d] + inc) / bound[d];
         idx[d] = inc_idx * block[d];
         if (inc == 0) break;
@@ -389,7 +389,7 @@ static void advance(pvar_coord_t<int> &idx, const pvar_tile_t &bound,
 }
 
 static void advance(std::vector<int> &idxs, const std::vector<block_t> &blocks,
-        const std::vector<int> &block_incs) {
+        const std::vector<dim_t> &block_incs) {
     ir_assert(idxs.size() == blocks.size());
     ir_assert(idxs.size() == block_incs.size());
     for (size_t i = 0; i < idxs.size(); i++) {
@@ -521,12 +521,12 @@ expr_t layout_t::shift_in_bytes(const std::vector<int> &block_off) const {
     return ret * type_.size();
 }
 
-int layout_t::offset_in_bytes(pvar_coord_t<int> coord) const {
+dim_t layout_t::offset_in_bytes(pvar_coord_t<dim_t> coord) const {
     ir_assert(has_const_sizes() && has_const_strides());
-    int ret = to_cpp<int>(base_);
+    dim_t ret = to_cpp<dim_t>(base_);
     for (int i = 0; i < nblocks(); i++) {
         auto &b = blocks_[i];
-        int &rem_dim = coord[b.dim];
+        dim_t &rem_dim = coord[b.dim];
         ret += (rem_dim % b.int_size()) * b.int_stride();
         rem_dim /= b.int_size();
     }
@@ -608,7 +608,7 @@ void layout_t::block_by(const std::vector<block_t> &inner_blocks) {
         add_block(b.dim, b.size);
     }
     for (auto &b : old_blocks) {
-        int b_size = b.int_size();
+        dim_t b_size = b.int_size();
         bool ok = rem_sizes.try_factor(b.dim, b_size);
         if (!ok) {
             b_size = math::gcd(b_size, rem_sizes.at(b.dim));
@@ -648,7 +648,7 @@ void layout_t::normalize() {
 }
 
 layout_t layout_t::split_block(
-        const block_t *block_ptr, int inner, int outer) const {
+        const block_t *block_ptr, dim_t inner, dim_t outer) const {
     std::vector<block_t> split_blocks;
     split_blocks.reserve(blocks_.size() + 1);
     for (auto &b : blocks_) {
@@ -679,7 +679,7 @@ template <>
 struct try_div_mod<expr_t> {
     static bool call(const expr_t &a, int b, const var_range_info_t &range_info,
             expr_t &div, expr_t &mod) {
-        int factor = linear_max_pow2_divisor(a);
+        dim_t factor = linear_max_pow2_divisor(a);
         if (factor % b == 0) {
             div = linear_div(a, b);
             mod = expr_t(0);
@@ -687,14 +687,14 @@ struct try_div_mod<expr_t> {
         }
         auto _linear = to_linear(a);
         auto &linear = _linear.as<linear_t>();
-        int c_factor = linear_max_pow2_divisor(linear.c);
+        dim_t c_factor = linear_max_pow2_divisor(linear.c);
         if (c_factor % b != 0) return false;
         expr_t a_div = linear_div(linear.c, b);
         expr_t a_mod;
         for (int i = 0; i < linear.nargs(); i++) {
             auto &u = linear.u_vec[i];
             auto &v = linear.v_vec[i];
-            int u_factor = linear_max_pow2_divisor(u);
+            dim_t u_factor = linear_max_pow2_divisor(u);
             if (u_factor % b == 0) {
                 a_div += linear_div(u, b) * v;
                 continue;
@@ -727,15 +727,15 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
             auto dim = pvar_t::from_index_var(linear.v_vec[i]);
             if (!idxs.has(dim)) idxs[dim] = T(0);
             if (!rem_sizes.has(dim)) rem_sizes[dim] = 1;
-            int &cur_size = rem_sizes[dim];
-            int mapped_size = cur_size;
+            dim_t &cur_size = rem_sizes[dim];
+            dim_t mapped_size = cur_size;
             if (b.has_const_size() && cur_size != 1) {
                 ir_assert(linear.nargs() == 1);
                 int b_size = b.int_size();
                 if (cur_size % b_size != 0) {
                     if (b_size % cur_size == 0) {
-                        int inner = cur_size;
-                        int outer = b_size / cur_size;
+                        dim_t inner = cur_size;
+                        dim_t outer = b_size / cur_size;
                         return split_block(&b, inner, outer)
                                 .map(dim_mapper, coord, tile, var_range_info);
                     }
@@ -779,9 +779,10 @@ template layout_t layout_t::map<expr_t>(const dim_mapper_t &dim_mapper,
         const pvar_coord_t<expr_t> &coord, const pvar_tile_t &tile,
         const var_range_info_t &var_range_info) const;
 
-pvar_coord_t<int> layout_t::to_coord(const std::vector<int> &block_idx) const {
+pvar_coord_t<dim_t> layout_t::to_coord(
+        const std::vector<int> &block_idx) const {
     ir_assert((int)block_idx.size() == nblocks());
-    pvar_coord_t<int> ret;
+    pvar_coord_t<dim_t> ret;
     pvar_tile_t block_sizes;
     for (int i = 0; i < nblocks(); i++) {
         auto &d = blocks_[i].dim;
@@ -794,17 +795,17 @@ pvar_coord_t<int> layout_t::to_coord(const std::vector<int> &block_idx) const {
 }
 
 int layout_t::to_linear_index(
-        const pvar_tile_t &tile, const pvar_coord_t<int> &coord) const {
+        const pvar_tile_t &tile, const pvar_coord_t<dim_t> &coord) const {
     ir_assert(has_const_sizes());
-    std::vector<int> tile_blocks;
+    std::vector<dim_t> tile_blocks;
     auto rem_tile = tile;
     for (auto &b : blocks_) {
         if (!rem_tile.has(b.dim)) rem_tile[b.dim] = 1;
-        int &rem = rem_tile[b.dim];
-        int factor = 1;
+        dim_t &rem = rem_tile[b.dim];
+        dim_t factor = 1;
         if (rem != 1 && b.int_size() != 1) {
-            factor = math::gcd(b.int_size(), rem);
-            ir_assert(factor == std::min(b.int_size(), rem));
+            factor = math::gcd(to_cpp<dim_t>(b.size), rem);
+            ir_assert(factor == std::min(to_cpp<dim_t>(b.size), rem));
             rem /= factor;
         }
         tile_blocks.push_back(factor);
@@ -833,7 +834,9 @@ std::string layout_t::blocks_str() const {
             b_str = std::to_string(b.int_size());
             b_str.append(1, letter);
         } else {
-            b_str.append(1, seen[b.dim] ? std::toupper(letter) : letter);
+            b_str.append(1,
+                    seen[b.dim] ? static_cast<char>(std::toupper(letter))
+                                : letter);
         }
         if (b.has_const_stride() && b.int_stride() != to_int(stride)) {
             b_str.append(1, '*');
@@ -868,13 +871,13 @@ std::string layout_t::str_with_size(const hw_t &hw) const {
 }
 
 void for_each(const pvar_tile_t &base_tile, pvar_tile_t tile,
-        const std::function<void(const pvar_coord_t<int> &)> &func) {
+        const std::function<void(const pvar_coord_t<dim_t> &)> &func) {
     for (auto &d : tile) {
         ir_assert(base_tile.has(d));
         ir_assert(base_tile[d] % tile[d] == 0);
     }
 
-    pvar_coord_t<int> idx;
+    pvar_coord_t<dim_t> idx;
     pvar_tile_t bound;
     int ntiles = 1;
     for (auto &d : base_tile) {
@@ -1020,8 +1023,8 @@ int layout_iterator_t::offset(const pvar_t &dim) const {
     return ret;
 }
 
-pvar_coord_t<int> layout_iterator_t::coord() const {
-    pvar_coord_t<int> ret;
+pvar_coord_t<dim_t> layout_iterator_t::coord() const {
+    pvar_coord_t<dim_t> ret;
     pvar_tile_t sizes;
     for (int i = 0; i < parent_->nblocks(); i++) {
         auto &b = parent_->blocks()[i];
@@ -1062,13 +1065,13 @@ expr_t dim_mask_desc_t::to_expr(
 template expr_t dim_mask_desc_t::to_expr(
         const pvar_coord_t<expr_t> &coord, bool with_const) const;
 template expr_t dim_mask_desc_t::to_expr(
-        const pvar_coord_t<int> &coord, bool with_const) const;
+        const pvar_coord_t<dim_t> &coord, bool with_const) const;
 
 dim_mask_desc_t dim_mask_desc_t::map(const pvar_coord_t<expr_t> &coord) const {
     auto ret = *this;
     ret.base = simplify_rewrite(to_expr(coord));
     if (!is_identity()) return ret;
-    int x_div = linear_max_pow2_divisor(coord.get(x_dim, 0));
+    dim_t x_div = linear_max_pow2_divisor(coord.get(x_dim, 0));
     ret.block = math::gcd(block, x_div);
     return ret;
 }
@@ -1225,7 +1228,7 @@ plane_t::plane_t(const layout_t &layout, const mask_desc_t &mask_desc) {
     is_valid = true;
 }
 
-void grid_splitter_t::add(const expr_t &idx, int size) {
+void grid_splitter_t::add(const expr_t &idx, dim_t size) {
     ir_assert(size > 1);
     idxs_.emplace_back(idx, size);
 }
@@ -1309,7 +1312,7 @@ view_t view_t::scatterize(int stride_bytes, const prover_t &prover) const {
     if (!tile_.has(compress_dim)) return view_t();
     if (stride_bytes % type_size != 0) return view_t();
     int stride = stride_bytes / type_size;
-    int size = tile_.at(compress_dim);
+    dim_t size = tile_.at(compress_dim);
     if (size % stride != 0) return view_t();
     int compress_mask_idx = -1;
     for (int i = 0; i < mask_desc_.nmasks(); i++) {
@@ -1346,8 +1349,8 @@ view_t view_t::scatterize(int stride_bytes, const prover_t &prover) const {
     return ret;
 }
 
-layout_t split_layout(const layout_t &layout, int inner_elems, int outer_elems,
-        std::vector<int> &inner_block_idxs,
+layout_t split_layout(const layout_t &layout, dim_t inner_elems,
+        dim_t outer_elems, std::vector<int> &inner_block_idxs,
         std::vector<int> &outer_block_idxs) {
     int cur_elems = 1;
     auto in_inner = [&]() { return cur_elems < inner_elems; };
@@ -1364,7 +1367,7 @@ layout_t split_layout(const layout_t &layout, int inner_elems, int outer_elems,
         if (in_inner()) {
             inner_block_idxs.push_back(i);
             if (cur_elems * b_size > inner_elems) {
-                int b_inner = ir_utils::safe_div(inner_elems, cur_elems);
+                dim_t b_inner = ir_utils::safe_div(inner_elems, cur_elems);
                 int b_outer = ir_utils::safe_div(b_size, b_inner);
                 auto new_layout = layout.split_block(&b, b_inner, b_outer);
                 return split_layout(new_layout, inner_elems, outer_elems,
@@ -1396,7 +1399,7 @@ view_t view_t::split(const dim_mapper_t &dim_mapper,
     pvar_tile_t split_tile = tile;
     pvar_coord_t<expr_t> split_coord = coord;
     int outer_elems = grid_splitter.size();
-    int inner_elems = tile.elems() / outer_elems;
+    dim_t inner_elems = tile.elems() / outer_elems;
     std::vector<int> inner_idxs;
     std::vector<int> outer_idxs;
     auto layout = split_layout(base_layout.map(dim_mapper, coord, tile),

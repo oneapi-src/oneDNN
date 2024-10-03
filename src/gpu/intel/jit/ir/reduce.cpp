@@ -32,14 +32,14 @@ stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
     auto subtile = _subtile;
     if (subtile.is_empty()) subtile = tensor_t(src.dims());
     ir_assert(src.ndims() == subtile.ndims());
-    int ndims = src.ndims();
+    dim_idx_t ndims = src.ndims();
 
     // Align dst layout with src layout according to the mask if needed.
     layout_t dst_aligned;
     if (drop_dims) {
-        std::vector<int> dst2src(dst.ndims());
-        int dst_dim_idx = 0;
-        for (int i = 0; i < ndims; i++) {
+        std::vector<dim_idx_t> dst2src(dst.ndims());
+        dim_idx_t dst_dim_idx = 0;
+        for (dim_idx_t i = 0; i < ndims; i++) {
             if ((reduction_mask & (1 << i)) != 0) {
                 dst2src[dst_dim_idx] = i;
                 dst_dim_idx++;
@@ -59,7 +59,7 @@ stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
 
     std::vector<dim_t> dst_tile_dims = subtile.dims();
     std::vector<expr_t> dst_tile_start = subtile.start();
-    for (int i = 0; i < ndims; i++) {
+    for (dim_idx_t i = 0; i < ndims; i++) {
         if ((reduction_mask & (1 << i)) == 0) {
             dst_tile_dims[i] = 1;
             dst_tile_start[i] = expr_t(0);
@@ -76,7 +76,7 @@ stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
         const expr_t &src_buf, const expr_t &dst_buf) {
     ir_assert(src.ndims() == dst.ndims());
     uint32_t reduction_mask = 0;
-    for (int i = 0; i < src.ndims(); i++) {
+    for (dim_idx_t i = 0; i < src.ndims(); i++) {
         if (dst.dims()[i] != 1 || src.dims()[i] == 1) {
             reduction_mask |= (1 << i);
         }

@@ -35,16 +35,16 @@ public:
     const pvar_tile_t &thread_group() const { return thread_group_; }
     const pvar_tile_t &iter() const { return iter_; }
 
-    int loop_dim(const pvar_t &d) const { return loop_[d]; }
-    int thread_group_dim(const pvar_t &d) const { return thread_group_[d]; }
-    int iter_dim(const pvar_t &d) const { return iter_[d]; }
+    dim_t loop_dim(const pvar_t &d) const { return loop_[d]; }
+    dim_t thread_group_dim(const pvar_t &d) const { return thread_group_[d]; }
+    dim_t iter_dim(const pvar_t &d) const { return iter_[d]; }
 
     void set_simd(int simd) { simd_ = simd; }
-    void set_loop(const pvar_t &d, int value) { loop_[d] = value; }
-    void set_thread_group(const pvar_t &d, int value) {
+    void set_loop(const pvar_t &d, dim_t value) { loop_[d] = value; }
+    void set_thread_group(const pvar_t &d, dim_t value) {
         thread_group_[d] = value;
     }
-    void set_iter(const pvar_t &d, int value) { iter_[d] = value; }
+    void set_iter(const pvar_t &d, dim_t value) { iter_[d] = value; }
 
     bool is_empty() const {
         return loop_.is_empty() && thread_group_.is_empty() && iter_.is_empty();
@@ -109,15 +109,15 @@ public:
     }
 
     // Returns the ratio of all operations (with padding) to "useful" operations
-    float get_efficiency(const pvar_tile_t &shape) const {
-        float ret = 1;
+    double get_efficiency(const pvar_tile_t &shape) const {
+        double ret = 1;
         for (auto &d : shape) {
-            int loop = loop_.get(d, 1);
-            int tg = thread_group_.get(d, 1);
-            int iter = iter_.get(d, 1);
-            int size = shape[d];
-            int size_padded = utils::rnd_up(size, loop * tg * iter);
-            if (size_padded != size) ret *= float(size) / size_padded;
+            dim_t loop = loop_.get(d, 1);
+            dim_t tg = thread_group_.get(d, 1);
+            dim_t iter = iter_.get(d, 1);
+            dim_t size = shape[d];
+            dim_t size_padded = utils::rnd_up(size, loop * tg * iter);
+            if (size_padded != size) ret *= double(size) / size_padded;
         }
         return ret;
     }
@@ -185,7 +185,7 @@ struct div_info_t {
         unroll_unit = math::lcm(unroll_unit, new_unit);
     }
 
-    bool is_iter_ok(int blk) const {
+    bool is_iter_ok(dim_t blk) const {
         if (iter_unit != 1 && blk % iter_unit != 0) return false;
         if (iter_unit != 1 && !math::is_pow2(blk)) return false;
         return true;
@@ -205,18 +205,18 @@ struct tile_info_t {
         if (pow2_block != 0) min_iter_pow2_blk = pow2_block;
     }
 
-    std::vector<int> iter_blocks(int size) const;
-    std::vector<int> thread_group_blocks(int size) const;
-    std::vector<int> loop_blocks(int size, int iter_blk) const;
+    std::vector<int> iter_blocks(dim_t size) const;
+    std::vector<int> thread_group_blocks(dim_t size) const;
+    std::vector<dim_t> loop_blocks(dim_t size, int iter_blk) const;
 
-    static bool block_ok(int size, int blk, int target_eff) {
-        int size_padded = utils::rnd_up(size, blk);
+    static bool block_ok(dim_t size, int blk, int target_eff) {
+        dim_t size_padded = utils::rnd_up(size, blk);
         double eff = size / (double)size_padded;
         return eff * 100 >= target_eff;
     }
 
-    static std::vector<int> get_factors(int n);
-    static std::vector<int> get_loop_blocks(int n);
+    static std::vector<dim_t> get_factors(dim_t n);
+    static std::vector<dim_t> get_loop_blocks(dim_t n);
 
     pvar_t dim;
     tile_flags_t flags = tile_flags_t::undef;
@@ -243,42 +243,34 @@ enum class level_t {
 
 class level_tile_t {
 public:
-    bool has(level_t level) const { return (*this)[level] != 0; }
-
-    const int &operator[](level_t level) const {
+    bool has(level_t level) const {
         switch (level) {
-            case level_t::loop: return loop_;
-            case level_t::thread_group: return thread_group_;
-            case level_t::iter: return iter_;
+            case level_t::loop: return loop != 0;
+            case level_t::thread_group: return thread_group != 0;
+            case level_t::iter: return iter != 0;
             default: ir_error_not_expected();
         }
-        return loop_;
-    }
-
-    int &operator[](level_t level) {
-        auto *this_const = const_cast<const level_tile_t *>(this);
-        return const_cast<int &>(this_const->operator[](level));
+        return false;
     }
 
     std::string str() const {
-        if (utils::everyone_is(0, loop_, thread_group_, iter_)) return "x";
+        if (utils::everyone_is(0, loop, thread_group, iter)) return "x";
         std::ostringstream oss;
-        if (loop_ != 0) oss << "l" << loop_;
-        if (thread_group_ != 0) oss << "T" << thread_group_;
-        if (iter_ != 0) oss << "i" << iter_;
+        if (loop != 0) oss << "l" << loop;
+        if (thread_group != 0) oss << "T" << thread_group;
+        if (iter != 0) oss << "i" << iter;
         return oss.str();
     }
 
     IR_DEFINE_DUMP()
 
-private:
-    int loop_ = 0;
-    int thread_group_ = 0;
-    int iter_ = 0;
+    dim_t loop = 0;
+    int thread_group = 0;
+    int iter = 0;
 };
 
 void get_level_tiles(
-        int size, const tile_info_t &info, std::vector<level_tile_t> &ret);
+        dim_t size, const tile_info_t &info, std::vector<level_tile_t> &ret);
 
 class level_tile_set_t {
 public:
@@ -677,7 +669,7 @@ public:
         float ret = 0;
         // Use L1 distance between coordinates.
         for (int i = 0; i < (int)v0.size(); i++) {
-            ret += std::abs(v0[i] - v1[i]);
+            ret += float(std::abs(v0[i] - v1[i]));
         }
         return ret;
     }
@@ -691,27 +683,27 @@ private:
             bool is_empty() const { return values_.empty(); }
             const pvar_t &dim() const { return dim_; }
 
-            void add(int value) { values_.emplace(value, -1); }
+            void add(dim_t value) { values_.emplace(value, dim_idx::invalid); }
 
             void finalize() {
-                int idx = 0;
+                dim_idx_t idx = 0;
                 add(1);
                 for (auto &kv : values_) {
                     kv.second = idx++;
                 }
             }
 
-            int to_index(int value) const {
+            dim_idx_t to_index(dim_t value) const {
                 auto it = values_.find(value);
                 ir_assert(it != values_.end());
                 return it->second;
             }
 
             pvar_t dim_;
-            std::map<int, int> values_;
+            std::map<dim_t, dim_idx_t> values_;
         };
 
-        void add(const pvar_t &d, int value) {
+        void add(const pvar_t &d, dim_t value) {
             if (dim_mappers_.count(d) == 0) {
                 dim_mappers_[d] = indexed_dim_t(d);
             }
@@ -729,12 +721,12 @@ private:
                 if (!kv.second.is_empty()) kv.second.finalize();
         }
 
-        int to_index(const pvar_t &d, int value) const {
+        dim_idx_t to_index(const pvar_t &d, dim_t value) const {
             return dim_mappers_.at(d).to_index(value);
         }
 
-        std::vector<int> to_index(const pvar_tile_t &t) const {
-            std::vector<int> ret;
+        std::vector<dim_idx_t> to_index(const pvar_tile_t &t) const {
+            std::vector<dim_idx_t> ret;
             for (auto &kv : dim_mappers_) {
                 auto &m = kv.second;
                 if (m.is_empty()) continue;

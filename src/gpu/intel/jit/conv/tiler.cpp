@@ -85,20 +85,21 @@ struct x2_tile_info_t {
     void set_iter_unit0(int unit) { d0.set_iter_unit(unit); }
     void set_iter_unit1(int unit) { d1.set_iter_unit(unit); }
 
-    std::vector<std::pair<int, int>> iter_blocks(int size0, int size1) const {
+    std::vector<std::pair<int, int>> iter_blocks(
+            dim_t size0, dim_t size1) const {
         if (!any(flags & tile_flags_t::iter)) return {std::make_pair(1, 1)};
 
         std::vector<std::pair<int, int>> ret;
-        int lo = std::min(
-                size0 * size1, (int)tile_info_t::default_min_iter_blk);
+        int lo = into<int>(std::min(
+                size0 * size1, (dim_t)tile_info_t::default_min_iter_blk));
         int hi = tile_info_t::default_max_iter_blk;
         for (int eff = 100; eff > 0; eff--) {
             for (int ij = lo; ij <= hi; ij++) {
                 if (!d.is_iter_ok(ij)) continue;
                 auto factors = tile_info_t::get_factors(ij);
                 if (!tile_info_t::block_ok(size0 * size1, ij, eff)) continue;
-                for (int i : factors) {
-                    int j = ij / i;
+                for (dim_t i : factors) {
+                    dim_t j = ij / i;
                     if (d0.is_iter_ok(i) && d1.is_iter_ok(j)) {
                         ret.emplace_back(i, j);
                     }
@@ -110,13 +111,13 @@ struct x2_tile_info_t {
         return ret;
     }
 
-    std::vector<std::pair<int, int>> thread_group_blocks(
-            int size0, int size1) const {
+    std::vector<std::pair<int, int>> thread_group_blocks() const {
         if (any(flags & tile_flags_t::thread_group)) ir_error_not_expected();
         return {std::make_pair(1, 1)};
     }
 
-    std::vector<std::pair<int, int>> loop_blocks(int size0, int size1) const {
+    std::vector<std::pair<dim_t, dim_t>> loop_blocks(
+            dim_t size0, dim_t size1) const {
         if (!any(flags & tile_flags_t::loop)) return {std::make_pair(1, 1)};
         if (!any(flags & tile_flags_t::loop_span)) ir_error_not_expected();
         return {std::make_pair(size0, size1)};
@@ -147,7 +148,7 @@ int get_layout_unit(const conv_config_t &cfg, const layout_t &layout,
     dim_idx_t dim_idx = tensor_conv_dim_index(d, tensor_kind);
     if (dim_idx == dim_idx::invalid) return 1;
 
-    std::vector<int> blocks;
+    std::vector<dim_t> blocks;
     for (auto &b : layout.blocks()) {
         if (b.dim_idx == dim_idx) blocks.push_back(b.block);
     }
@@ -155,7 +156,7 @@ int get_layout_unit(const conv_config_t &cfg, const layout_t &layout,
     blocks.resize(blocks.size() - 1);
 
     int ret = 1;
-    for (int b : blocks)
+    for (dim_t b : blocks)
         ret *= b;
     return ret;
 }
@@ -176,33 +177,33 @@ bool is_mad_x8_non_dw(const conv_config_t &cfg) {
             && (prb.a_data_type_size == 1) && (prb.b_data_type_size == 1);
 }
 
-void get_level_tiles(int size0, int size1, const x2_tile_info_t &info,
+void get_level_tiles(dim_t size0, dim_t size1, const x2_tile_info_t &info,
         std::vector<level_tile_t> &ret0, std::vector<level_tile_t> &ret1) {
     ret0.clear();
     ret1.clear();
-    auto tg_blocks = info.thread_group_blocks(size0, size1);
+    auto tg_blocks = info.thread_group_blocks();
     for (auto &tg : tg_blocks) {
-        int iter_size1 = utils::div_up(size0, tg.first);
-        int iter_size0 = utils::div_up(size1, tg.second);
+        dim_t iter_size1 = utils::div_up(size0, tg.first);
+        dim_t iter_size0 = utils::div_up(size1, tg.second);
         auto iter_blocks = info.iter_blocks(iter_size0, iter_size1);
         for (auto &iter : iter_blocks) {
-            int loop_size0 = utils::div_up(size0, tg.first * iter.first);
-            int loop_size1 = utils::div_up(size1, tg.second * iter.second);
+            dim_t loop_size0 = utils::div_up(size0, tg.first * iter.first);
+            dim_t loop_size1 = utils::div_up(size1, tg.second * iter.second);
             auto loop_blocks = info.loop_blocks(loop_size0, loop_size1);
             for (auto &loop : loop_blocks) {
                 level_tile_t t0;
                 level_tile_t t1;
                 if (any(info.flags & tile_flags_t::loop)) {
-                    t0[level_t::loop] = loop.first;
-                    t1[level_t::loop] = loop.second;
+                    t0.loop = loop.first;
+                    t1.loop = loop.second;
                 }
                 if (any(info.flags & tile_flags_t::thread_group)) {
-                    t0[level_t::thread_group] = tg.first;
-                    t1[level_t::thread_group] = tg.second;
+                    t0.thread_group = tg.first;
+                    t1.thread_group = tg.second;
                 }
                 if (any(info.flags & tile_flags_t::iter)) {
-                    t0[level_t::iter] = iter.first;
-                    t1[level_t::iter] = iter.second;
+                    t0.iter = iter.first;
+                    t1.iter = iter.second;
                 }
                 ret0.push_back(t0);
                 ret1.push_back(t1);
@@ -351,7 +352,7 @@ private:
         if (prb.is_bwd_w) {
             struct loop_dim_t {
                 pvar_t dim;
-                int size = 0;
+                dim_t size = 0;
 
                 static loop_dim_t *find(
                         const pvar_t &dim, std::vector<loop_dim_t> &dims) {
@@ -406,8 +407,8 @@ int inner_block(const conv_config_t &cfg, tensor_kind_t tensor_kind,
     int dim_idx = tensor_conv_dim_index(dim, tensor_kind);
     ir_assert(dim_idx != -1);
     auto &layout = compute_layout(cfg, tensor_kind);
-    return layout.inner_block(
-            dim_idx, /*skip_outer=*/true, /*inner_only=*/false);
+    return into<int>(layout.inner_block(
+            dim_idx, /*skip_outer=*/true, /*inner_only=*/false));
 }
 
 int inner_block(const conv_config_t &cfg, const pvar_t &dim) {
@@ -440,16 +441,16 @@ bool is_inner_non_blocked(const conv_config_t &cfg, const pvar_t &dim) {
     return false;
 }
 
-int grf_usage_bytes(fma_kind_t fma, int b_iter, int m_iter, int n_iter,
-        int k_iter, int a_type_size, int b_type_size, int c_type_size) {
-    int a_elems = b_iter * m_iter * k_iter;
-    int b_elems = b_iter * k_iter * n_iter;
-    int c_elems = m_iter * n_iter;
-    int a_size = a_elems * a_type_size;
+dim_t grf_usage_bytes(fma_kind_t fma, dim_t b_iter, dim_t m_iter, dim_t n_iter,
+        dim_t k_iter, int a_type_size, int b_type_size, int c_type_size) {
+    dim_t a_elems = b_iter * m_iter * k_iter;
+    dim_t b_elems = b_iter * k_iter * n_iter;
+    dim_t c_elems = m_iter * n_iter;
+    dim_t a_size = a_elems * a_type_size;
     int a_reorder_size = 0;
-    int b_size = b_elems * b_type_size;
+    dim_t b_size = b_elems * b_type_size;
     int b_reorder_size = 0;
-    int c_size = c_elems * c_type_size;
+    dim_t c_size = c_elems * c_type_size;
     int dword_size = 4;
     if (fma == fma_kind_t::mad) {
         // mad/x8 case always requires x8 -> dword-strided s16 reorder.
@@ -464,8 +465,9 @@ int grf_usage_bytes(fma_kind_t fma, int b_iter, int m_iter, int n_iter,
     return abc_size;
 }
 
-int slm_usage_bytes(const conv_config_t &cfg, int b_tg, int m_tg, int n_tg,
-        int k_tg, int b_iter, int m_iter, int n_iter, int k_iter) {
+int slm_usage_bytes(const conv_config_t &cfg, dim_t b_tg, dim_t m_tg,
+        dim_t n_tg, dim_t k_tg, dim_t b_iter, dim_t m_iter, dim_t n_iter,
+        dim_t k_iter) {
     if (cfg.hw() >= ngen::HW::XeHPC) return 0;
 
     auto &prb = cfg.prb();
@@ -477,10 +479,10 @@ int slm_usage_bytes(const conv_config_t &cfg, int b_tg, int m_tg, int n_tg,
                 cfg.zp_cfg().do_src_compensation, slm_a, slm_b, do_unroll);
         max_slm_bufs = std::max(max_slm_bufs, bufs);
     }
-    int a_slm_elems = n_tg * b_iter * m_iter * k_iter;
-    int b_slm_elems = m_tg * b_iter * n_iter * k_iter;
-    int a_slm_size = a_slm_elems * prb.a_data_type_size;
-    int b_slm_size = b_slm_elems * prb.b_data_type_size;
+    dim_t a_slm_elems = n_tg * b_iter * m_iter * k_iter;
+    dim_t b_slm_elems = m_tg * b_iter * n_iter * k_iter;
+    dim_t a_slm_size = a_slm_elems * prb.a_data_type_size;
+    dim_t b_slm_size = b_slm_elems * prb.b_data_type_size;
     int ab_slm_size = 0;
     if (slm_a) ab_slm_size += a_slm_size;
     if (slm_b) ab_slm_size += b_slm_size;
@@ -493,14 +495,14 @@ int slm_usage_bytes_for_params(
     auto &prb = cfg.prb();
     auto tg = to_gemm(params.blocking().thread_group(), prb);
     auto iter = to_gemm(params.blocking().iter(), prb);
-    int b_tg = tg.get(pvars::b, 1);
-    int m_tg = tg.get(pvars::m, 1);
-    int n_tg = tg.get(pvars::n, 1);
-    int k_tg = tg.get(pvars::k, 1);
-    int b_iter = iter.get(pvars::b, 1);
-    int m_iter = iter.get(pvars::m, 1);
-    int n_iter = iter.get(pvars::n, 1);
-    int k_iter = iter.get(pvars::k, 1);
+    dim_t b_tg = tg.get(pvars::b, 1);
+    dim_t m_tg = tg.get(pvars::m, 1);
+    dim_t n_tg = tg.get(pvars::n, 1);
+    dim_t k_tg = tg.get(pvars::k, 1);
+    dim_t b_iter = iter.get(pvars::b, 1);
+    dim_t m_iter = iter.get(pvars::m, 1);
+    dim_t n_iter = iter.get(pvars::n, 1);
+    dim_t k_iter = iter.get(pvars::k, 1);
     return slm_usage_bytes(
             cfg, b_tg, m_tg, n_tg, k_tg, b_iter, m_iter, n_iter, k_iter);
 }
@@ -599,22 +601,22 @@ private:
                     if (is_inner_non_blocked(cfg, d)) return true;
 
             // Use larger reduction when M/N are small.
-            int mn = m_iter * n_iter;
+            dim_t mn = m_iter * n_iter;
             if (mn <= 128) return true;
 
             return false;
         }
 
         blocking_t blk;
-        int b_iter;
-        int m_iter;
-        int n_iter;
-        int k_iter;
-        int k_loop;
-        int b_tg;
-        int m_tg;
-        int n_tg;
-        int k_tg;
+        dim_t b_iter;
+        dim_t m_iter;
+        dim_t n_iter;
+        dim_t k_iter;
+        dim_t k_loop;
+        dim_t b_tg;
+        dim_t m_tg;
+        dim_t n_tg;
+        dim_t k_tg;
 
         bool dpas_2x_depth = false;
     };
@@ -678,8 +680,8 @@ private:
         if (!is_enabled(check_kind_t::check_tg_size)) return true;
 
         auto &tg = ctx.blk.thread_group();
-        int tg_size = 1;
-        int max_tg = 1;
+        dim_t tg_size = 1;
+        dim_t max_tg = 1;
         for (auto &d : tg) {
             tg_size *= tg[d];
             max_tg = std::max(tg[d], max_tg);
@@ -703,8 +705,8 @@ private:
         if (!is_enabled(check_kind_t::check_grf_usage)) return true;
 
         auto &prb = cfg_.prb();
-        int abc_size = grf_usage_bytes(cfg_.fma_kind(), ctx.b_iter, ctx.m_iter,
-                ctx.n_iter, ctx.k_iter, prb.a_data_type_size,
+        dim_t abc_size = grf_usage_bytes(cfg_.fma_kind(), ctx.b_iter,
+                ctx.m_iter, ctx.n_iter, ctx.k_iter, prb.a_data_type_size,
                 prb.b_data_type_size, prb.acc_data_type_size);
         auto &exec_cfg = cfg_.exec_cfg();
         int usage_limit = exec_cfg.grf_size()
@@ -720,10 +722,10 @@ private:
         if (slm_size == 0) return true;
 
         auto &exec_cfg = cfg_.exec_cfg();
-        int tg_size = ctx.b_tg * ctx.m_tg * ctx.n_tg * ctx.k_tg;
+        dim_t tg_size = ctx.b_tg * ctx.m_tg * ctx.n_tg * ctx.k_tg;
         int max_slm_size = compute::device_info_t::max_slm_size_per_tg(
-                convert_ngen_arch_to_dnnl(cfg_.hw().to_ngen()), tg_size,
-                exec_cfg.regs() > 128);
+                convert_ngen_arch_to_dnnl(cfg_.hw().to_ngen()),
+                into<int>(tg_size), exec_cfg.regs() > 128);
         if (slm_size > max_slm_size) return false;
 
         return true;
@@ -736,16 +738,16 @@ private:
         switch (cfg_.bwd_d_optimize_kind()) {
             case bwd_d_optimize_kind_t::none: return true;
             case bwd_d_optimize_kind_t::skip_out_of_bound_w: {
-                int iw_iter = ctx.blk.iter().get(pvars::iw, 1);
-                int iw_tg = ctx.blk.thread_group().get(pvars::iw, 1);
+                dim_t iw_iter = ctx.blk.iter().get(pvars::iw, 1);
+                dim_t iw_tg = ctx.blk.thread_group().get(pvars::iw, 1);
                 if (iw_iter != 1 || iw_tg != 1) return false;
                 return true;
             }
             case bwd_d_optimize_kind_t::skip_strided_dh: return true;
             case bwd_d_optimize_kind_t::skip_strided_dhw: {
-                int iw_iter = ctx.blk.iter().get(pvars::iw, 1);
+                dim_t iw_iter = ctx.blk.iter().get(pvars::iw, 1);
                 if (iw_iter > 1) return false;
-                int iw_tg = ctx.blk.thread_group().get(pvars::iw, 1);
+                dim_t iw_tg = ctx.blk.thread_group().get(pvars::iw, 1);
                 if (!math::is_pow2(iw_tg)) return false;
                 if ((prb.iw / prb.sw) % iw_tg != 0) return false;
                 return true;
@@ -762,7 +764,7 @@ private:
         if (level_blocks.empty()) return true;
         dim_idx_t dim_idx = tensor_conv_dim_index(d, tensor_kind);
         if (dim_idx == dim_idx::invalid) return true;
-        std::vector<int> blocks;
+        std::vector<dim_t> blocks;
         for (auto &b : layout.blocks()) {
             if (b.dim_idx == dim_idx) blocks.push_back(b.block);
         }
@@ -832,10 +834,10 @@ private:
     bool check_k_slicing_utilization_ok(const context_t &ctx) const {
         if (!is_enabled(check_kind_t::check_k_slicing_utilization)) return true;
 
-        int b = padded_gemm_shape_.get(pvars::b, 1);
-        int m = padded_gemm_shape_.get(pvars::m, 1);
-        int n = padded_gemm_shape_.get(pvars::n, 1);
-        int k = padded_gemm_shape_.get(pvars::k, 1);
+        dim_t b = padded_gemm_shape_.get(pvars::b, 1);
+        dim_t m = padded_gemm_shape_.get(pvars::m, 1);
+        dim_t n = padded_gemm_shape_.get(pvars::n, 1);
+        dim_t k = padded_gemm_shape_.get(pvars::k, 1);
 
         int64_t nthr = 1;
         nthr *= utils::div_up(b, ctx.b_iter);
@@ -849,7 +851,7 @@ private:
 
     bool check_deterministic_ok(const context_t &ctx) const {
         if (!is_enabled(check_kind_t::check_deterministic)) return true;
-        int k = padded_gemm_shape_.get(pvars::k, 1);
+        dim_t k = padded_gemm_shape_.get(pvars::k, 1);
         return ctx.k_loop * ctx.k_iter >= k;
     }
 
@@ -978,7 +980,7 @@ conv_blocking_scheme_t bwd_w_T_io_I_ikow("l:[mb,oh,ow],T:[oc,ic],i:[ic,kw,oc,ow]
 // clang-format on
 
 double get_iter_dim_score(
-        const pvar_t &dim, const conv_config_t &cfg, int dim_size) {
+        const pvar_t &dim, const conv_config_t &cfg, dim_t dim_size) {
     auto &prb = cfg.prb();
     if (utils::one_of(dim, pvars::ow, pvars::iw)) {
         if (prb.ksp > 1 || dim_size % 16 != 0) return 16 - 1;
@@ -1159,14 +1161,15 @@ std::vector<conv_blocking_scheme_t> get_blocking_schemes(
 
 } // namespace
 
-int grf_usage_bytes(const conv_config_t &cfg, const blocking_params_t &params) {
+dim_t grf_usage_bytes(
+        const conv_config_t &cfg, const blocking_params_t &params) {
     auto &prb = cfg.prb();
     auto iter = to_gemm(params.blocking().iter(), prb);
-    int b_iter = iter.get(pvars::b, 1);
-    int m_iter = iter.get(pvars::m, 1);
-    int n_iter = iter.get(pvars::n, 1);
-    int k_iter = iter.get(pvars::k, 1);
-    int abc_size = grf_usage_bytes(cfg.fma_kind(), b_iter, m_iter, n_iter,
+    dim_t b_iter = iter.get(pvars::b, 1);
+    dim_t m_iter = iter.get(pvars::m, 1);
+    dim_t n_iter = iter.get(pvars::n, 1);
+    dim_t k_iter = iter.get(pvars::k, 1);
+    dim_t abc_size = grf_usage_bytes(cfg.fma_kind(), b_iter, m_iter, n_iter,
             k_iter, prb.a_data_type_size, prb.b_data_type_size,
             prb.acc_data_type_size);
     return abc_size;
@@ -1195,7 +1198,7 @@ void sort_by_model_scores(params_generator_t &params_gen,
     for (auto &p : params_gen.params_vec()) {
         float score = model::get_score(cfg, p);
         float eff = p.blocking().get_efficiency(cfg.shape(/*pad=*/true));
-        int regs = utils::div_up(grf_usage_bytes(cfg, p), cfg.grf_size());
+        dim_t regs = utils::div_up(grf_usage_bytes(cfg, p), cfg.grf_size());
         int slm_size = slm_usage_bytes_for_params(cfg, p);
         table << p.str() << (int)(score * 1000) / 1000.0 << eff << regs
               << slm_size << std::endl;
@@ -1565,13 +1568,14 @@ private:
         init_walk_order(try_cfg);
         init_kernel_grid(try_cfg);
         init_thread_group_grid(try_cfg);
-        int kg_elems = try_cfg.kernel_grid().elems(),
-            tg_elems = try_cfg.thread_group_grid().elems();
+        dim_t kg_elems = try_cfg.kernel_grid().elems(),
+              tg_elems = try_cfg.thread_group_grid().elems();
         try_cfg.set_regs(128);
-        int new_wave_util = conv_config_t::get_wave_utilization(
-                try_cfg.exec_cfg(), kg_elems, tg_elems);
-        int wave_util = conv_config_t::get_wave_utilization(
-                cfg.exec_cfg(), kg_elems, tg_elems);
+        int new_wave_util
+                = static_cast<int>(conv_config_t::get_wave_utilization(
+                        try_cfg.exec_cfg(), kg_elems, tg_elems));
+        int wave_util = static_cast<int>(conv_config_t::get_wave_utilization(
+                cfg.exec_cfg(), kg_elems, tg_elems));
         if (wave_util > 90 && new_wave_util >= wave_util && !try_small_grf_
                 && cfg.regs() > 128
                 && !cfg.exec_cfg_param().is_overridden("regs")) {

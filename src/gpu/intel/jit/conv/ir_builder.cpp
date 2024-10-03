@@ -130,9 +130,9 @@ public:
     }
 
 private:
-    void check_access(const expr_t &buf, int size, const object_t &obj) {
+    void check_access(const expr_t &buf, dim_t size, const object_t &obj) {
         auto &base = (is_var(buf) ? buf : buf.as<ptr_t>().base);
-        int off = (is_var(buf) ? 0 : to_cpp<int>(buf.as<ptr_t>().off));
+        dim_t off = (is_var(buf) ? 0 : to_cpp<dim_t>(buf.as<ptr_t>().off));
         auto it = buf_sizes_.find(base);
         ir_assert(it != buf_sizes_.end())
                 << "Can't find allocation for buffer: " << buf;
@@ -155,7 +155,7 @@ void verify_buffer_access(const stmt_t &s, ir_context_t &ir_ctx) {
 expr_t add_grid_guard(
         const expr_t &_cond, const grid_info_t &tg, const grid_info_t &load) {
     auto cond = _cond;
-    for (int i = 0; i < tg.ndims(); i++) {
+    for (dim_idx_t i = 0; i < tg.ndims(); i++) {
         if (tg[i] == load[i]) continue;
         auto i_cond = (tg.idx(i) < load[i]);
         if (cond.is_empty()) {
@@ -185,9 +185,9 @@ public:
         , buf_mgr_(ir_ctx)
         , zp_dst_(zp_dst) {
         if (plan_.slm.has_a())
-            (void)buf_mgr_.get("a_slm", plan_.slm.a_layout.size());
+            (void)buf_mgr_.get("a_slm", into<int>(plan_.slm.a_layout.size()));
         if (plan_.slm.has_b())
-            (void)buf_mgr_.get("b_slm", plan_.slm.b_layout.size());
+            (void)buf_mgr_.get("b_slm", into<int>(plan_.slm.b_layout.size()));
     }
 
     // Setters for original AP/BP/CP buffers (P - problem notation).
@@ -298,7 +298,7 @@ private:
         auto g2s_buf = buf_mgr_.get(prefix + "_g2s", g2s_load.reg_buf_size());
         auto load = g2s_load.create_stmt(mem_buf, g2s_buf);
         auto reduce_buf = g2s_reduce
-                ? buf_mgr_.get("x_reduce", g2s_reduce.dst_buf_size())
+                ? buf_mgr_.get("x_reduce", into<int>(g2s_reduce.dst_buf_size()))
                 : expr_t();
         auto store_buf = g2s_reorder
                 ? buf_mgr_.get("g2s_tmp", g2s_store.reg_buf_size())
@@ -307,7 +307,8 @@ private:
             g2s_buf = buf_mgr_.get(prefix + "_g2s", g2s_store.reg_buf_size());
         }
         if (g2s_reorder) {
-            g2s_buf = buf_mgr_.get(prefix + "_g2s", g2s_reorder.src.size());
+            g2s_buf = buf_mgr_.get(
+                    prefix + "_g2s", into<int>(g2s_reorder.src.size()));
         }
         bool do_reduce = ((cfg_.prb().ab_swap_transpose && prefix == "a")
                 || (!cfg_.prb().ab_swap_transpose && prefix == "b"));
@@ -433,13 +434,13 @@ private:
         auto reg_buf = buf_mgr_.get(prefix, buf_size);
         auto load_buf = x2r_reorder ? buf_mgr_.get("x2r_tmp",
                                 std::max(x2r_load.reg_buf_size(),
-                                        x2r_reorder.src_buf_size()))
+                                        into<int>(x2r_reorder.src_buf_size())))
                                     : reg_buf;
         if (load_buf.is_same(reg_buf)) {
             reg_buf = buf_mgr_.get(prefix, x2r_load.reg_buf_size());
         }
         auto reduce_buf = x2r_reduce
-                ? buf_mgr_.get("x_reduce", x2r_reduce.dst_buf_size())
+                ? buf_mgr_.get("x_reduce", into<int>(x2r_reduce.dst_buf_size()))
                 : expr_t();
         auto load = x2r_load.create_stmt(x_buf, load_buf, subtile_idx);
         bool do_reduce = ((cfg_.prb().ab_swap_transpose && prefix == "a")

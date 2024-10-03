@@ -212,12 +212,12 @@ layout_tag_t make_conv_layout_tag(
 
 std::string blocked_to_str_tag(const memory_desc_t &md) {
     auto &blk = md.format_desc.blocking;
-    int ndims = md.ndims;
+    dim_idx_t ndims = md.ndims;
     std::vector<dim_t> full_inner_blks(ndims, 1);
     std::vector<std::string> parts;
     dim_t stride = 1;
     for (int i = blk.inner_nblks - 1; i >= 0; i--) {
-        dim_idx_t idx = blk.inner_idxs[i];
+        dim_idx_t idx = into<dim_idx_t>(blk.inner_idxs[i]);
         dim_t block = blk.inner_blks[i];
         parts.push_back(std::string(1, dim_idx::as_tag(idx)));
         parts.push_back(std::to_string(block));
@@ -226,13 +226,13 @@ std::string blocked_to_str_tag(const memory_desc_t &md) {
     }
     std::vector<bool> seen(ndims);
     dims_t rem_dims;
-    for (int i = 0; i < ndims; i++) {
+    for (dim_idx_t i = 0; i < ndims; i++) {
         rem_dims[i] = md.padded_dims[i] / full_inner_blks[i];
     }
-    for (int i = 0; i < ndims; i++) {
+    for (dim_idx_t i = 0; i < ndims; i++) {
         bool found = false;
         dim_t min_dim = std::numeric_limits<dim_t>::max();
-        for (int j = 0; j < ndims; j++) {
+        for (dim_idx_t j = 0; j < ndims; j++) {
             if (!seen[j] && blk.strides[j] == stride) {
                 min_dim = std::min(min_dim, rem_dims[j]);
             }
@@ -257,15 +257,15 @@ std::string blocked_to_str_tag(const memory_desc_t &md) {
     return oss.str();
 }
 
-layout_raw_tag_t normalize_conv_tag(tensor_kind_t tensor_kind, int conv_ndims,
-        const layout_raw_tag_t &tag) {
+layout_raw_tag_t normalize_conv_tag(tensor_kind_t tensor_kind,
+        dim_idx_t conv_ndims, const layout_raw_tag_t &tag) {
     bool is_wei = (tensor_kind == tensor_kind_t::wei);
     bool add_groups = (is_wei && tag.ndims() == conv_ndims);
     int old_sp_ndims = conv_ndims - 2;
     int new_sp_ndims = 3;
     layout_raw_tag_t ret = tag;
     if (add_groups) ret.add_dim('a', 0);
-    char sp_letter = 'c' + ret.ndims() - conv_ndims;
+    char sp_letter = dim_idx::as_tag(2u + ret.ndims() - conv_ndims);
     int entry_idx = ret.entry_index(sp_letter);
     for (int i = old_sp_ndims; i < new_sp_ndims; i++) {
         ret.add_dim(sp_letter, entry_idx);
@@ -313,13 +313,13 @@ int estimate_grf_usage_bytes(const kernel_desc_t &desc) {
     int b_type_size = desc.b_type().size();
     int c_type_size = desc.c_type().size();
     auto iter = to_gemm(desc.iter_tile, desc.prop);
-    int b_iter = iter.at(pvars::b);
-    int m_iter = iter.at(pvars::m);
-    int n_iter = iter.at(pvars::n);
-    int k_iter = iter.at(pvars::k);
-    int a_elems = b_iter * m_iter * k_iter;
-    int b_elems = b_iter * k_iter * n_iter;
-    int c_elems = m_iter * n_iter;
+    dim_t b_iter = iter.at(pvars::b);
+    dim_t m_iter = iter.at(pvars::m);
+    dim_t n_iter = iter.at(pvars::n);
+    dim_t k_iter = iter.at(pvars::k);
+    dim_t a_elems = b_iter * m_iter * k_iter;
+    dim_t b_elems = b_iter * k_iter * n_iter;
+    dim_t c_elems = m_iter * n_iter;
     auto iter_outer_dim
             = (desc.iter_outer_tile.is_empty() ? pvar_t()
                                                : *desc.iter_outer_tile.begin());
@@ -329,16 +329,16 @@ int estimate_grf_usage_bytes(const kernel_desc_t &desc) {
     } else if (bmnk == pvars::n) {
         b_elems = utils::div_up(b_elems, desc.iter_outer_tile.elems());
     }
-    int a_size = a_elems * a_type_size;
+    dim_t a_size = a_elems * a_type_size;
     int a_reorder_size = 0;
-    int b_size = b_elems * b_type_size;
+    dim_t b_size = b_elems * b_type_size;
     int b_reorder_size = 0;
-    int c_size = c_elems * c_type_size;
-    int abc_size = 0;
+    dim_t c_size = c_elems * c_type_size;
+    dim_t abc_size = 0;
     abc_size += a_size + a_reorder_size;
     abc_size += b_size + b_reorder_size;
     abc_size += c_size;
-    return abc_size;
+    return into<int>(abc_size);
 }
 
 bool is_tg_size_ok(const kernel_desc_t &desc) {
@@ -609,14 +609,15 @@ void init_kernel_info_div_magic(
 }
 
 void init_dispatch_kernel_info_div_magic(
-        kernel_info_t &kernel_info, const pvar_tile_t &tg_dims, int sw) {
+        kernel_info_t &kernel_info, const pvar_tile_t &tg_dims, dim_t sw) {
     for (auto &d : tg_dims) {
-        uint32_t size = tg_dims.at(d);
+        uint32_t size = into<uint32_t>(tg_dims.at(d));
         uint64_t magic = ir_utils::idiv_magicgu_packed(size);
         kernel_info.set_internal_arg(d.str() + "_grid_size", size);
         kernel_info.set_internal_arg(d.str() + "_magic", magic);
     }
-    kernel_info.set_internal_arg("sw_magic", ir_utils::idiv_magicgu_packed(sw));
+    kernel_info.set_internal_arg(
+            "sw_magic", ir_utils::idiv_magicgu_packed(into<uint32_t>(sw)));
 }
 
 compute::range_t kernel_desc_t::local_range() const {
@@ -752,8 +753,8 @@ status_t kernel_params_t::init_dispatch_kernel_info(
     }
     pvar_tile_t tg_dims;
     for (auto &d : tg_grid.all_dims()) {
-        int tg_size = desc.thread_group_tile.get(d, 1);
-        int iter_size = desc.iter_tile.get(d, 1);
+        dim_t tg_size = desc.thread_group_tile.get(d, 1);
+        dim_t iter_size = desc.iter_tile.get(d, 1);
         tg_dims[d] = utils::div_up(shape.at(d), tg_size * iter_size);
     }
     init_dispatch_kernel_info_div_magic(

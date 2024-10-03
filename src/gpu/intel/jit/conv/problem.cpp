@@ -316,10 +316,10 @@ void conv_problem_t::init_transpose(const hw_t &hw) {
             = gpu_utils::dev_getenv("ab_swap_transpose", ab_swap_transpose);
 }
 
-void normalize_conv_shape(int &id, int &od, int &kd, int &sd, int &dd, int &pd,
-        int &ih, int &oh, int &kh, int &sh, int &dh, int &ph, int &iw, int &ow,
-        int &kw, int &sw, int &dw, int &pw, bool can_flatten_spatial,
-        std::array<int, 3> &dhw_map) {
+void normalize_conv_shape(dim_t &id, dim_t &od, dim_t &kd, dim_t &sd, dim_t &dd,
+        dim_t &pd, dim_t &ih, dim_t &oh, dim_t &kh, dim_t &sh, dim_t &dh,
+        dim_t &ph, dim_t &iw, dim_t &ow, dim_t &kw, dim_t &sw, dim_t &dw,
+        dim_t &pw, bool can_flatten_spatial, std::array<int, 3> &dhw_map) {
     for (int i = 0; i < 3; i++)
         dhw_map[i] = -1;
     bool is_1x1 = (kd * kh * kw == 1);
@@ -337,12 +337,12 @@ void normalize_conv_shape(int &id, int &od, int &kd, int &sd, int &dd, int &pd,
     }
     // Propagate D -> H -> W. If the spatial dimension is not present, map it
     // to the next present dimension.
-    std::vector<int *> xd = {&id, &od, &kd, &sd, &dd, &pd};
-    std::vector<int *> xh = {&ih, &oh, &kh, &sh, &dh, &ph};
-    std::vector<int *> xw = {&iw, &ow, &kw, &sw, &dw, &pw};
-    std::vector<int *> x[3] = {std::move(xd), std::move(xh), std::move(xw)};
-    std::vector<int> x_old[3];
-    std::vector<int> xdef = {1, 1, 1, 1, 0, 0};
+    std::vector<dim_t *> xd = {&id, &od, &kd, &sd, &dd, &pd};
+    std::vector<dim_t *> xh = {&ih, &oh, &kh, &sh, &dh, &ph};
+    std::vector<dim_t *> xw = {&iw, &ow, &kw, &sw, &dw, &pw};
+    std::vector<dim_t *> x[3] = {std::move(xd), std::move(xh), std::move(xw)};
+    std::vector<dim_t> x_old[3];
+    std::vector<dim_t> xdef = {1, 1, 1, 1, 0, 0};
     bool has_dim[3] = {false, false, false};
     for (int i = 0; i < 3; i++) {
         x_old[i].resize(xdef.size());
@@ -351,12 +351,13 @@ void normalize_conv_shape(int &id, int &od, int &kd, int &sd, int &dd, int &pd,
             x_old[i][j] = *x[i][j];
         }
     }
-    auto set = [](const std::vector<int *> &x, const std::vector<int> &values) {
+    auto set = [](const std::vector<dim_t *> &x,
+                       const std::vector<dim_t> &values) {
         for (size_t i = 0; i < x.size(); i++)
             *x[i] = values[i];
     };
     if (!has_dim[0] && !has_dim[1] && !has_dim[2]) has_dim[2] = true;
-    int sp_count = (int)has_dim[0] + (int)has_dim[1] + (int)has_dim[2];
+    int sp_count = has_dim[0] + has_dim[1] + has_dim[2];
     int shift = 3 - sp_count;
     for (int i = 0, idx = 0; i < 3; i++) {
         if (has_dim[i]) dhw_map[i] = shift + idx++;

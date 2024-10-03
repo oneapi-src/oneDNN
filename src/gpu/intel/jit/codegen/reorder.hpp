@@ -1252,7 +1252,7 @@ public:
     template <typename GeneratorT>
     void emit(GeneratorT *host, ngen_register_scope_t &scope,
             const reg_buf_data_t &src_rd, const reg_buf_data_t &dst_rd) {
-        int a_idx, b_idx;
+        dim_idx_t a_idx, b_idx;
         int tile_a, tile_b;
         tile_to_2d_dims(tile_, a_idx, b_idx, tile_a, tile_b);
 
@@ -1460,30 +1460,30 @@ private:
 
     // Extracts dimension sizes and their indices from a multidimensional
     // tensor.
-    static void tile_to_2d_dims(
-            const tensor_t &tile, int &a_idx, int &b_idx, int &a, int &b) {
-        a_idx = -1;
-        b_idx = -1;
-        for (int i = 0; i < tile.ndims(); i++) {
+    static void tile_to_2d_dims(const tensor_t &tile, dim_idx_t &a_idx,
+            dim_idx_t &b_idx, int &a, int &b) {
+        a_idx = dim_idx::invalid;
+        b_idx = dim_idx::invalid;
+        for (dim_idx_t i = 0; i < tile.ndims(); i++) {
             if (tile.dims()[i] == 1) continue;
-            if (a_idx == -1) {
+            if (a_idx == dim_idx::invalid) {
                 a_idx = i;
                 continue;
             }
-            if (b_idx == -1) {
+            if (b_idx == dim_idx::invalid) {
                 b_idx = i;
                 continue;
             }
             ir_error_not_expected();
         }
 
-        for (int i = 0; i < tile.ndims(); i++) {
+        for (dim_idx_t i = 0; i < tile.ndims(); i++) {
             if (utils::one_of(i, a_idx, b_idx)) continue;
-            if (a_idx == -1) {
+            if (a_idx == dim_idx::invalid) {
                 a_idx = i;
                 continue;
             }
-            if (b_idx == -1) {
+            if (b_idx == dim_idx::invalid) {
                 b_idx = i;
                 continue;
             }

@@ -179,18 +179,19 @@ public:
     bool ab_swap_transpose = false;
 
     int ndims = 0;
-    int mb = 0; // Batch size.
-    int g = 0; // Groups.
-    int ic = 0, oc = 0; // Input and output channels.
-    int id = 0, ih = 0, iw = 0; // Input spatial sizes.
-    int od = 0, oh = 0, ow = 0; // Output spatial sizes.
-    int kd = 0, kh = 0, kw = 0; // Kernel sizes.
-    int sd = 0, sh = 0, sw = 0; // Strides.
-    int pd = 0, ph = 0, pw = 0; // Padding in the beginning.
-    int dd = 0, dh = 0, dw = 0; // Dilation.
+    dim_t mb = 0; // Batch size.
+    dim_t g = 0; // Groups.
+    dim_t ic = 0, oc = 0; // Input and output channels.
+    dim_t id = 0, ih = 0, iw = 0; // Input spatial sizes.
+    dim_t od = 0, oh = 0, ow = 0; // Output spatial sizes.
+    dim_t kd = 0, kh = 0, kw = 0; // Kernel sizes.
+    dim_t sd = 0, sh = 0, sw = 0; // Strides.
+    dim_t pd = 0, ph = 0, pw = 0; // Padding in the beginning.
+    dim_t dd = 0, dh = 0, dw = 0; // Dilation.
     // Mapping for spatial dimensions (e.g. when 3D convolution is reduced to 1D).
     std::array<int, 3> dhw_map = {-1, -1, -1};
-    int isp = 0, osp = 0, ksp = 0; // Combined input/output/kernel spatial size.
+    dim_t isp = 0, osp = 0,
+          ksp = 0; // Combined input/output/kernel spatial size.
 
     data_type_t a_data_type = data_type::undef;
     data_type_t b_data_type = data_type::undef;
@@ -217,10 +218,10 @@ private:
     void init_transpose(const hw_t &hw);
 };
 
-void normalize_conv_shape(int &id, int &od, int &kd, int &sd, int &dd, int &pd,
-        int &ih, int &oh, int &kh, int &sh, int &dh, int &ph, int &iw, int &ow,
-        int &kw, int &sw, int &dw, int &pw, bool can_flatten_spatial,
-        std::array<int, 3> &dhw_map);
+void normalize_conv_shape(dim_t &id, dim_t &od, dim_t &kd, dim_t &sd, dim_t &dd,
+        dim_t &pd, dim_t &ih, dim_t &oh, dim_t &kh, dim_t &sh, dim_t &dh,
+        dim_t &ph, dim_t &iw, dim_t &ow, dim_t &kw, dim_t &sw, dim_t &dw,
+        dim_t &pw, bool can_flatten_spatial, std::array<int, 3> &dhw_map);
 bool is_small_ic(const conv_problem_t &prb);
 
 class conv_arg_helper_t {

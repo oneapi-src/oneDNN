@@ -120,8 +120,8 @@ type_t to_send_type(const send_1d_desc_t &desc) {
     return type_t::oword(desc.type_size / 16);
 }
 
-int get_reg_off(const send_1d_plan_t &plan, const pvar_coord_t<int> &coord) {
-    return plan.reg_layout.offset_in_bytes(coord);
+int get_reg_off(const send_1d_plan_t &plan, const pvar_coord_t<dim_t> &coord) {
+    return into<int>(plan.reg_layout.offset_in_bytes(coord));
 }
 
 class idiv_fixup_mutator_t : public ir_mutator_t {
@@ -321,7 +321,7 @@ private:
 
         // BMNK order.
         pvar_t dims[4];
-        int blocks[4] = {1, 1, 1, 1};
+        dim_t blocks[4] = {1, 1, 1, 1};
         int sizes[4] = {1, 1, 1, 1};
         pvar_map_t<int> bmnk_map;
         bmnk_map[pvars::b] = 0;
@@ -341,7 +341,7 @@ private:
         int i2 = 2;
         int i3 = 1;
         stmt_t stmt;
-        pvar_coord_t<int> off;
+        pvar_coord_t<dim_t> off;
         bool is_a_bcast = (blocks[0] * blocks[1] * blocks[3] == 1);
         bool is_b_bcast = (blocks[0] * blocks[2] * blocks[3] == 1);
         func_t fma_func;
@@ -369,9 +369,9 @@ private:
                     off[dims[i2]] = n;
                     for (int m = 0; m < sizes[i3]; m += blocks[i3]) {
                         off[dims[i3]] = m;
-                        int a_off = a_layout.offset_in_bytes(off);
-                        int b_off = b_layout.offset_in_bytes(off);
-                        int c_off = c_layout.offset_in_bytes(off);
+                        dim_t a_off = a_layout.offset_in_bytes(off);
+                        dim_t b_off = b_layout.offset_in_bytes(off);
+                        dim_t c_off = c_layout.offset_in_bytes(off);
                         auto dst = c_buf[c_off];
                         auto src1 = a_buf[a_off];
                         auto src2 = b_buf[b_off];
@@ -444,8 +444,8 @@ private:
         auto &c_mem_buf = buf_info_.mem_buf("c");
         auto &c_reg_buf = buf_info_.reg_buf("c");
         for_each(c_layout.int_dim_sizes(), plan_.tile,
-                [&](const pvar_coord_t<int> &coord) {
-                    int off = c_layout.offset_in_bytes(coord);
+                [&](const pvar_coord_t<dim_t> &coord) {
+                    dim_t off = c_layout.offset_in_bytes(coord);
                     auto store_layout
                             = plan_.c_store.reg_layout().map(plan_.tile);
                     layout_t payload_layout = c_layout.map(plan_.tile);
@@ -468,19 +468,22 @@ private:
         auto epilogue_tile = bia_tile;
         for (auto &d : bia_tile)
             epilogue_tile[d] = plan_.tile[d];
-        for_each(bia_tile, epilogue_tile, [&](const pvar_coord_t<int> &coord) {
-            auto payload_buf = bia_reg_buf;
-            if (plan_.bia_reorder) {
-                int src_off
-                        = plan_.bia_reduced_reg_layout.offset_in_bytes(coord);
-                reorder(plan_.bia_reorder, bia_reg_buf + src_off, tmp_buf);
-                payload_buf = std::move(tmp_buf);
-            }
-            _if(plan_.reduce_cond, [&]() {
-                store(plan_.bia_store, bia_mem_buf, payload_buf, coord,
-                        epilogue_tile);
-            });
-        });
+        for_each(
+                bia_tile, epilogue_tile, [&](const pvar_coord_t<dim_t> &coord) {
+                    auto payload_buf = bia_reg_buf;
+                    if (plan_.bia_reorder) {
+                        dim_t src_off
+                                = plan_.bia_reduced_reg_layout.offset_in_bytes(
+                                        coord);
+                        reorder(plan_.bia_reorder, bia_reg_buf + src_off,
+                                tmp_buf);
+                        payload_buf = std::move(tmp_buf);
+                    }
+                    _if(plan_.reduce_cond, [&]() {
+                        store(plan_.bia_store, bia_mem_buf, payload_buf, coord,
+                                epilogue_tile);
+                    });
+                });
     }
 
     const buffer_info_t &buf_info_;
