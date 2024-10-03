@@ -418,28 +418,60 @@ std::ostream &operator<<(std::ostream &ss, const memory_extra_desc_t &extra) {
 std::string md2fmt_tag_str(const memory_desc_t *md) {
     memory_desc_wrapper mdw(md);
 
-    dims_t blocks = {0};
-    mdw.compute_blocks(blocks);
-
-    char dim_chars[DNNL_MAX_NDIMS + 1];
-    dims_t ou_blocks = {0};
-    utils::array_copy(ou_blocks, mdw.padded_dims(), mdw.ndims());
-
-    for (int d = 0; d < mdw.ndims(); ++d) {
-        dim_chars[d] = (blocks[d] == 1 ? 'a' : 'A') + (char)d;
-        ou_blocks[d] /= blocks[d];
-    }
-
     // Can't report meaningful tag for runtime dimensions.
     if (mdw.has_runtime_strides()) return "*";
 
-    dims_t strides;
+    struct sort_key_t {
+        uint64_t stride_order;
+        dim_t outer_block;
+        int idx;
+        char dim_char;
+    };
+
+    dims_t blocks = {0};
+    mdw.compute_blocks(blocks);
+
+    std::vector<sort_key_t> sort_keys(mdw.ndims());
+    const auto &pdims = mdw.padded_dims();
     const auto &blk = mdw.blocking_desc();
-    utils::array_copy(strides, blk.strides, mdw.ndims());
+    for (int i = 0; i < mdw.ndims(); ++i)
+        // Assume that any dimension with stride 0 is outer relative to other
+        // dimensions. Use (uint64_t)(stride - 1) to sort a stride of 0 highest.
+        // Multiple dimensions with stride 0 is ambiguous.
+        sort_keys[i] = {(uint64_t)(blk.strides[i] - 1), pdims[i] / blocks[i], i,
+                (char)((blocks[i] == 1 ? 'a' : 'A') + i)};
 
-    utils::simultaneous_sort(strides, ou_blocks, dim_chars, mdw.ndims(),
-            [](dim_t a, dim_t b) { return b - a; });
+    // Old approach: utils::simultaneous_sort(strides, outer_blocks, dim_chars)
+    //   input tag: acdb
+    //   dims: 5x8x0x2
+    //   strides: 0x1x16x8
+    //   output tag: cdba
+    //
+    // New approach with std::sort and sort keys:
+    //   input tag: acdb
+    //   dims: 5x8x0x2
+    //   "stride orders": (BIG NUMBER)x0x15x7
+    //   output tag: acdb
+    std::sort(sort_keys.begin(), sort_keys.end(),
+            [](const sort_key_t &left, const sort_key_t &right) {
+                if (left.stride_order < right.stride_order) return false;
+                if (left.stride_order == right.stride_order) {
+                    // WLOG, we can assume a dimension of size 1 has the same
+                    // stride as the next outermost dimension. Sort the one with
+                    // the non-unit outer block as the outer dimension. Multiple
+                    // dimensions of size 1 with the same stride is ambiguous.
+                    if (left.outer_block < right.outer_block) return false;
+                    if (left.outer_block == right.outer_block)
+                        // Sort 1x1x... outer blocks to (arbitrarily) list them
+                        // in alphabetical order.
+                        return left.idx < right.idx;
+                }
+                return true;
+            });
 
+    char dim_chars[DNNL_MAX_NDIMS + 1];
+    for (int i = 0; i < mdw.ndims(); ++i)
+        dim_chars[i] = sort_keys[i].dim_char;
     dim_chars[mdw.ndims()] = '\0';
 
     std::string s(dim_chars);
