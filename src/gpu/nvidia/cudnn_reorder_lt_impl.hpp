@@ -27,12 +27,6 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-template <typename T,
-        typename = typename std::enable_if<std::is_integral_v<T>>::type>
-T ceildiv(T n, T d) {
-    return (n + d - 1) / d;
-}
-
 struct cublaslt_reorder_t {
 public:
     bool trans;

@@ -20,9 +20,12 @@
 
 #include "gpu/gpu_matmul_pd.hpp"
 
-#include "gpu/nvidia/cudnn_matmul_base.hpp"
+#include "common/primitive.hpp"
+#include "common/primitive_desc_iterator.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/nvidia/cudnn_matmul_executor.hpp"
 #include "gpu/nvidia/cudnn_matmul_impl.hpp"
+#include "gpu/nvidia/cudnn_matmul_lt_impl.hpp"
 #include "gpu/nvidia/sycl_cuda_utils.hpp"
 
 namespace dnnl {
@@ -30,8 +33,8 @@ namespace impl {
 namespace gpu {
 namespace nvidia {
 
-struct cudnn_matmul_t : cudnn_matmul_base_t {
-    using cudnn_matmul_base_t::cudnn_matmul_base_t;
+struct cudnn_matmul_t : public gpu::primitive_t {
+    using primitive_t::primitive_t;
 
     struct pd_t : public gpu_matmul_pd_t {
         using gpu_matmul_pd_t::gpu_matmul_pd_t;
@@ -79,12 +82,15 @@ struct cudnn_matmul_t : cudnn_matmul_base_t {
 
             if (src_md()->ndims > 3) return status::unimplemented;
 
-            return status::success;
-        }
+            params_ = std::make_shared<cublas_params>();
+            CHECK(params_->init(src_md(), weights_md(), dst_md(), weights_md(1),
+                    attr(), batched(), with_bias()));
 
-        size_t scratchpad_size(const memory_desc_t *dst_md) const {
-            const auto dst_nelems = memory_desc_wrapper(dst_md).nelems(true);
-            return dst_nelems * sizeof(float);
+            if (!params_->has_runtime_params_) {
+                auto scratchpad = scratchpad_registry().registrar();
+                params_->init_scratchpad(dst_md(), scratchpad);
+            }
+            return status::success;
         }
 
         bool scales_ok() const {
@@ -116,21 +122,22 @@ struct cudnn_matmul_t : cudnn_matmul_base_t {
             }
             return true;
         }
+
+        std::shared_ptr<cublas_params> params_;
     };
 
     status_t init(impl::engine_t *engine) override {
         matmul_impl_.reset(new cudnn_matmul_impl_t());
-        auto status = matmul_impl_->init((matmul_pd_t *)pd());
-        if (status != status::success) return status;
 
-        bool has_runtime_args = matmul_impl_->has_runtime_params();
+        bool has_runtime_args = pd()->params_->has_runtime_params_;
 
         if (has_runtime_args) {
             executor_.reset(new cudnn_matmul_runtime_args_exec_t);
         } else {
             executor_.reset(new cudnn_matmul_exec_t);
+            matmul_impl_->set_non_runtime_params(pd()->params_);
         }
-        return status;
+        return status::success;
     }
 
     status_t execute(const exec_ctx_t &ctx) const override;
