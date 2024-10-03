@@ -168,7 +168,7 @@ private:
         if (ptr) {
             auto prefix = make_op_var_name(ptr->base);
             ir_assert(is_const(ptr->off));
-            int off = to_cpp<int>(ptr->off);
+            dim_t off = to_cpp<dim_t>(ptr->off);
             return prefix + "_" + std::to_string(off);
         }
 

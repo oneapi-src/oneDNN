@@ -676,8 +676,8 @@ struct mem_usage_guard_t {
 // where a and b are integer constants.
 struct linear_transform_t {
     expr_t x;
-    int a;
-    int b;
+    int64_t a;
+    int64_t b;
 
     bool is_identity() const { return a == 1 && b == 0; }
 };

@@ -772,8 +772,8 @@ private:
                         layout, next->layout, buf, next->buf);
             } else {
                 // Reuse the same GRF buffer for the next stage.
-                int this_off = to_cpp<int>(layout.offset_in_bytes());
-                int next_off = to_cpp<int>(next->layout.offset_in_bytes());
+                dim_t this_off = to_cpp<dim_t>(layout.offset_in_bytes());
+                dim_t next_off = to_cpp<dim_t>(next->layout.offset_in_bytes());
                 ir_assert(next_off == 0);
                 next->set_buf(buf[this_off]);
             }
@@ -790,15 +790,15 @@ private:
             return buf.as<ptr_t>().base;
         }
 
-        int get_buf_size(bool check_base = true) const {
+        dim_t get_buf_size(bool check_base = true) const {
             if (check_base)
                 ir_assert(buf.is_same(buf_base()))
                         << "Size must be queried from another stage.";
-            return (buf_size == 0) ? int(layout.size()) : buf_size;
+            return (buf_size == 0) ? layout.size() : buf_size;
         }
 
-        int max_off_bytes() const {
-            int l_off_bytes = (int)layout.max_off_bytes(/*ignore_offset=*/true);
+        dim_t max_off_bytes() const {
+            dim_t l_off_bytes = layout.max_off_bytes(/*ignore_offset=*/true);
             return std::max(buf_size, l_off_bytes);
         }
 
@@ -807,7 +807,7 @@ private:
         }
 
         layout_t layout;
-        int buf_size;
+        dim_t buf_size;
         expr_t buf;
         stmt_t stmt; // Statement to emit after the stage.
     };

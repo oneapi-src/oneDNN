@@ -1021,7 +1021,7 @@ bool is_linear_var_transform(const expr_t &e, linear_transform_t &t) {
     if (a.is_same(var) && is_const(b)) {
         t.x = var;
         t.a = 1;
-        t.b = (is_sub ? -1 : 1) * to_cpp<int>(b);
+        t.b = (is_sub ? -1 : 1) * to_cpp<int64_t>(b);
         return true;
     }
 
@@ -1029,7 +1029,7 @@ bool is_linear_var_transform(const expr_t &e, linear_transform_t &t) {
     if (is_const(a) && b.is_same(var)) {
         t.x = var;
         t.a = (is_sub ? -1 : 1);
-        t.b = to_cpp<int>(a);
+        t.b = to_cpp<int64_t>(a);
         return true;
     }
 
