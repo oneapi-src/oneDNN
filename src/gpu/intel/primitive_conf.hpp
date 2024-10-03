@@ -604,7 +604,7 @@ struct resampling_conf_t {
     dim_t ID, IH, IW;
     dim_t OD, OH, OW;
     float FD, FH, FW;
-    dim_t vect_size;
+    int vect_size;
     dims_t padded_strides;
     compute::range_t gws = compute::range_t::empty();
     compute::range_t lws = compute::range_t::empty();

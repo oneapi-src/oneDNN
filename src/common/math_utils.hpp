@@ -68,7 +68,8 @@ inline T gcd(T a, T b) {
     return b;
 }
 
-inline int lcm(int a, int b) {
+template <typename T>
+inline T lcm(T a, T b) {
     a = impl::nstl::abs(a);
     b = impl::nstl::abs(b);
     assert(a > 0 && b > 0);
@@ -238,7 +239,7 @@ template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U logistic_fwd(T s) {
     // Here we avoid division/inverse by infinity as some architectures have
     // non-standard behavior
-    float exp_overflow_bound = 88.72283172607421875;
+    float exp_overflow_bound = 88.72283172607421875f;
     float in = (float)-s;
     return in < exp_overflow_bound ? (U)(1.f / (1.f + ::expf(in))) : 0.f;
 }
@@ -255,7 +256,7 @@ inline U logistic_bwd_use_dst(T dd, T d) {
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline U soft_relu_fwd(T s, A alpha) {
-    float exp_overflow_bound = 88.72283172607421875;
+    float exp_overflow_bound = 88.72283172607421875f;
     float in = (float)s * (float)alpha;
     float v = (in < exp_overflow_bound ? (U)(::log1pf(::expf(in))) : (U)in);
     return (U)(v / alpha);
