@@ -1731,7 +1731,7 @@ public:
                 inv_view.set_tdim(i, tdim.expr());
                 continue;
             }
-            int buf_vdim = 0;
+            int64_t buf_vdim = 0;
             bool ok = true;
             for (int j = 0; j < tdim.nvargs(); j++) {
                 int vidx = tdim.vidx(j);
@@ -1745,7 +1745,7 @@ public:
                     ok = false;
                     break;
                 }
-                buf_vdim += to_cpp<int>(C) * (vdim - 1);
+                buf_vdim += to_cpp<int64_t>(C) * (vdim - 1);
             }
             buf_vdim++;
 
