@@ -47,7 +47,7 @@ int grfWidth(uint32_t gmdid) {
     if (decode.architecture == 12 && decode.release >= 60
             && decode.release < 70) /* XeHPC */
         return 64;
-    if (decode.architecture >= 20) /* Xe2 */
+    if (decode.architecture >= 20) /* Xe2/Xe3 */
         return 64;
 
     return 32;

@@ -167,6 +167,7 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
             break;
         case arch_t::xe_hpc:
         case arch_t::xe2:
+        case arch_t::xe3:
             config = choose_config_xehpc(d->head_size(), d->keys(), thin_q);
         default: break;
     }
