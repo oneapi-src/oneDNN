@@ -76,7 +76,7 @@ struct xe_systolic_gemm_copy_kernel_t {
                 "-cl-intel-256-GRF-per-thread"); // avoid GRF mode switch
         if (utils::one_of(arch, arch_t::xe_hp, arch_t::xe_hpg))
             kernel_ctx.add_option("-DCOPY_XE_HP");
-        if (utils::one_of(arch, arch_t::xe_hpc, arch_t::xe2))
+        if (utils::one_of(arch, arch_t::xe_hpc, arch_t::xe2, arch_t::xe3))
             kernel_ctx.add_option("-DCOPY_XE_HPC");
 
         return status::success;
@@ -89,7 +89,8 @@ struct xe_systolic_gemm_copy_kernel_t {
             case arch_t::xe_hp:
             case arch_t::xe_hpg: return "xe_hp_systolic_gemm_copy";
             case arch_t::xe_hpc:
-            case arch_t::xe2: return "xe_hpc_systolic_gemm_copy";
+            case arch_t::xe2:
+            case arch_t::xe3: return "xe_hpc_systolic_gemm_copy";
             default: assert(!"Unsupported architecture"); return "";
         }
     }
