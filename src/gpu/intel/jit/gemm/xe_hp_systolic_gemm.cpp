@@ -92,8 +92,8 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(impl::engine_t *engine) {
 
     if (dt_int_ok) attr_skip_mask |= smask_t::zero_points_runtime;
 
-    bool arch_ok = utils::one_of(
-            arch, arch_t::xe_hp, arch_t::xe_hpg, arch_t::xe_hpc, arch_t::xe2);
+    bool arch_ok = utils::one_of(arch, arch_t::xe_hp, arch_t::xe_hpg,
+            arch_t::xe_hpc, arch_t::xe2, arch_t::xe3);
 
     VDISPATCH_GEMM(limits_ok, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
     VDISPATCH_GEMM((dt_float_ok || dt_int_ok), VERBOSE_UNSUPPORTED_DT_CFG);

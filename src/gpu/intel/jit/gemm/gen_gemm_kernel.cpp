@@ -635,7 +635,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     k_ = k;
     eu_count_ = eu_count;
 
-    if (!utils::one_of(hw_, HW::XeHP, HW::XeHPG, HW::XeHPC, HW::Xe2))
+    if (!utils::one_of(hw_, HW::XeHP, HW::XeHPG, HW::XeHPC, HW::Xe2, HW::Xe3))
         return status::unimplemented;
 
     bool xehpc = (hw_ >= HW::XeHPC);
