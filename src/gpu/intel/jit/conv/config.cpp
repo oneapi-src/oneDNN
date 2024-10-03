@@ -885,8 +885,11 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
             if (!jit_eltwise_injector_f32_is_supported(po.eltwise.alg))
                 return false;
             else if (po.eltwise.alg == alg_kind::eltwise_tanh
-                    && hw == ngen::HW::XeHPG && hw.systolic_support()
-                    && hw.eu_count() <= 128)
+                    && hw == ngen::HW::XeHPG
+                    && utils::one_of(hw.product_family(),
+                            ngen::ProductFamily::GenericXeHPG,
+                            ngen::ProductFamily::DG2)
+                    && hw.systolic_support() && hw.eu_count() <= 128)
                 // Workaround for hard to reproduce issue in end to end
                 // workloads. It is unclear what the actual issue is as the
                 // kernel always works correctly in benchdnn.
