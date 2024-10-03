@@ -26,3 +26,4 @@ REG_XEHP_ISA(template class BLASKernelGenerator<HW::XeHP>);
 REG_XEHPG_ISA(template class BLASKernelGenerator<HW::XeHPG>);
 REG_XEHPC_ISA(template class BLASKernelGenerator<HW::XeHPC>);
 REG_XE2_ISA(template class BLASKernelGenerator<HW::Xe2>);
+REG_XE3_ISA(template class BLASKernelGenerator<HW::Xe3>);

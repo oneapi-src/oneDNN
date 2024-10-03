@@ -67,6 +67,7 @@ REG_XEHP_ISA(template struct jit_post_op_injector<gpu_xe_hp>);
 REG_XEHPG_ISA(template struct jit_post_op_injector<gpu_xe_hpg>);
 REG_XEHPC_ISA(template struct jit_post_op_injector<gpu_xe_hpc>);
 REG_XE2_ISA(template struct jit_post_op_injector<gpu_xe2>);
+REG_XE3_ISA(template struct jit_post_op_injector<gpu_xe3>);
 
 } // namespace jit
 } // namespace intel
