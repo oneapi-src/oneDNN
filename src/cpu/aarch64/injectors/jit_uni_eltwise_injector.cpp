@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2023 Intel Corporation
-* Copyright 2021-2023 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -918,10 +918,87 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_fwd(
     }
     h->L(exitL);
 }
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<
+        isa>::gelu_erf_minimax_approx_compute_vector_fwd(const TRegS &vmm_src) {
+    if (isa != sve_512) { // TODO: change this condition based on cpu id.
+        return;
+    }
 
+    // register mapping
+    TRegS vmm_pol = vmm_aux0;
+    TRegS vmm_src_pos = vmm_aux1;
+    TRegS vmm_indices = vmm_aux2;
+    TRegS vmm_tmp = vmm_aux3; // this is for immediate read after write
+
+    auto gather_coefficient
+            = [&](TRegS vmm_coeff, int coeff_idx, TRegS vmm_pol_idx) {
+                  // we actually have 25 polynomials but pad to avoid unaligned accesses/
+                  int gelu_erf_n_polynomials = 32;
+                  h->add_imm(h->X_TMP_1, x_table,
+                          table_off(gelu_erf_minimax_pol,
+                                  coeff_idx * gelu_erf_n_polynomials),
+                          h->X_TMP_0);
+                  h->ld1w(ZRegS(IDX(vmm_coeff)), p_all / T_z,
+                          ptr(h->X_TMP_1, ZRegS(IDX(vmm_pol_idx)), SXTW));
+              };
+
+    // we use the erf function symmetry erf(-x) = -erf(x)
+    // So we make x positive, we will reapply the sign after erf evaluation
+    h->fabs(vmm_src_pos, p_all / T_z, vmm_src);
+
+    // Compute indices for table lookup
+    h->add(vmm_indices, vmm_src_pos,
+            ZRegS(IDX(table_val(gelu_erf_idx_bias, z_tmp, 0))));
+
+    // An arithmetic shift is needed to properly map denormals to
+    // their polynomial. we shift by 21 as we use 2 bits of mantissa
+    // for indexing.
+    h->asr(ZRegS(IDX(vmm_indices)), ZRegS(IDX(vmm_indices)), 21);
+
+    // Apply special rules
+    h->smax(vmm_indices, p_all / T_z,
+            ZRegS(IDX(table_val(gelu_erf_one, z_tmp))));
+    h->smin(vmm_indices, p_all / T_z,
+            ZRegS(IDX(table_val(gelu_erf_twenty_four, z_tmp))));
+
+    // We have to check
+    //     index = x_pos > rbound ? 23 : index;
+    // for erf to return -1/1 when we should.
+    h->fcmlt(p_mask.s, p_all / T_z, vmm_src_pos,
+            ZRegS(IDX(table_val(gelu_erf_rbound, z_tmp))));
+    h->sel(vmm_indices, p_mask, vmm_indices,
+            ZRegS(IDX(table_val(gelu_erf_twenty_three, z_tmp))));
+
+    // Adjusting indices
+    h->mul(ZRegS(IDX(vmm_indices)), sizeof(float));
+
+    // Evaluate the polynomial
+    gather_coefficient(vmm_pol, 5, vmm_indices);
+    for (int deg = 4; deg >= 0; --deg) {
+        gather_coefficient(vmm_tmp, deg, vmm_indices);
+        h->fmad(vmm_pol, p_all / T_z, vmm_src_pos, vmm_tmp);
+    }
+
+    // Set the sign of vmm_pol properly
+    h->mov(ZRegD(IDX(vmm_tmp)), ZRegD(IDX(vmm_src)));
+    h->and_(ZRegD(IDX(vmm_tmp)), ZRegD(IDX(vmm_tmp)),
+            ZRegD(IDX(table_val(sign_mask, z_tmp))));
+    h->eor(ZRegD(IDX(vmm_pol)), p_all / T_z, ZRegD(IDX(vmm_tmp)));
+
+    // Compute the final output
+    h->fadd(vmm_pol, vmm_pol, ZRegS(IDX(table_val(one, z_tmp))));
+    h->fmul(vmm_src, p_all / T_z, vmm_pol);
+    h->fmul(vmm_src, vmm_src, ZRegS(IDX(table_val(half, z_tmp))));
+}
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_fwd(
         const TRegS &vmm_src) {
+
+    if (isa == sve_512) { // TODO: consider performance improvement for lower ISA
+        gelu_erf_minimax_approx_compute_vector_fwd(vmm_src);
+        return;
+    }
     // Here we approximate erf(x) using the expression by
     // Abramowitz and Stegun from ``Handbook of Mathematical
     // Functions''
@@ -1703,6 +1780,215 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
             {gelu_erf_pol, {0xbfba00e3, true}}, // p4 = -1.453152027f
             {gelu_erf_pol, {0x3f87dc22, true}}, // p5 = 1.061405429f
     };
+    // gelu_erf(x) constants for direct erf approximation (formula defined)
+    static const table_t gelu_erf_minimax_consts {
+            {gelu_erf_idx_bias, {0xc21fffff, true}},
+            {gelu_erf_rbound, {0x40b15cee, true}},
+            {gelu_erf_one, {0x00000001, true}},
+            {gelu_erf_twenty_three, {0x00000017, true}},
+            {gelu_erf_twenty_four, {0x00000018, true}},
+    };
+    // gelu_erf(x) minimax polynomials for piecewise approximaxtion
+    static const table_t gelu_erf_minimax_polynomial {
+            // coefficients of degree  0
+            {gelu_erf_minimax_pol, {0xa6f2cb94, false}}, // -0x1.e59728p-50
+            {gelu_erf_minimax_pol, {0x32827792, false}}, // 0x1.04ef24p-26
+            {gelu_erf_minimax_pol, {0x3381cc0c, false}}, // 0x1.039818p-24
+            {gelu_erf_minimax_pol, {0x34523d4a, false}}, // 0x1.a47a94p-23
+            {gelu_erf_minimax_pol, {0x351ac44d, false}}, // 0x1.35889ap-21
+            {gelu_erf_minimax_pol, {0x35f36d88, false}}, // 0x1.e6db1p-20
+            {gelu_erf_minimax_pol, {0x36ee8229, false}}, // 0x1.dd0452p-18
+            {gelu_erf_minimax_pol, {0x37b8a3bb, false}}, // 0x1.714776p-16
+            {gelu_erf_minimax_pol, {0x3867a213, false}}, // 0x1.cf4426p-15
+            {gelu_erf_minimax_pol, {0x3940033b, false}}, // 0x1.800676p-13
+            {gelu_erf_minimax_pol, {0x3a2a5a1d, false}}, // 0x1.54b43ap-11
+            {gelu_erf_minimax_pol, {0x3ae35863, false}}, // 0x1.c6b0c6p-10
+            {gelu_erf_minimax_pol, {0x3b7828f2, false}}, // 0x1.f051e4p-9
+            {gelu_erf_minimax_pol, {0x3c08b14b, false}}, // 0x1.116296p-7
+            {gelu_erf_minimax_pol, {0x3c515ed3, false}}, // 0x1.a2bda6p-7
+            {gelu_erf_minimax_pol, {0xbb503236, false}}, // -0x1.a0646cp-9
+            {gelu_erf_minimax_pol, {0xbd8d8e5e, false}}, // -0x1.1b1cbcp-4
+            {gelu_erf_minimax_pol, {0xbe8abcd9, false}}, // -0x1.1579b2p-2
+            {gelu_erf_minimax_pol, {0xbf0c19a2, false}}, // -0x1.183344p-1
+            {gelu_erf_minimax_pol, {0xbeccb328, false}}, // -0x1.99665p-2
+            {gelu_erf_minimax_pol, {0x3e176ced, false}}, // 0x1.2ed9dap-3
+            {gelu_erf_minimax_pol, {0x3f470d99, false}}, // 0x1.8e1b32p-1
+            {gelu_erf_minimax_pol, {0x3f7abb28, false}}, // 0x1.f5765p-1
+            {gelu_erf_minimax_pol, {0x3f800000, false}}, // 0x1p0
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            // coefficients of degree 1
+            {gelu_erf_minimax_pol, {0x3f4c422a, false}}, // 0x1.988454p-1
+            {gelu_erf_minimax_pol, {0x3f4c421f, false}}, // 0x1.98843ep-1
+            {gelu_erf_minimax_pol, {0x3f4c4207, false}}, // 0x1.98840ep-1
+            {gelu_erf_minimax_pol, {0x3f4c41cb, false}}, // 0x1.988396p-1
+            {gelu_erf_minimax_pol, {0x3f4c413b, false}}, // 0x1.988276p-1
+            {gelu_erf_minimax_pol, {0x3f4c3fad, false}}, // 0x1.987f5ap-1
+            {gelu_erf_minimax_pol, {0x3f4c3a2f, false}}, // 0x1.98745ep-1
+            {gelu_erf_minimax_pol, {0x3f4c2d40, false}}, // 0x1.985a8p-1
+            {gelu_erf_minimax_pol, {0x3f4c146a, false}}, // 0x1.9828d4p-1
+            {gelu_erf_minimax_pol, {0x3f4bc341, false}}, // 0x1.978682p-1
+            {gelu_erf_minimax_pol, {0x3f4ad08c, false}}, // 0x1.95a118p-1
+            {gelu_erf_minimax_pol, {0x3f48f8cf, false}}, // 0x1.91f19ep-1
+            {gelu_erf_minimax_pol, {0x3f45fac7, false}}, // 0x1.8bf58ep-1
+            {gelu_erf_minimax_pol, {0x3f404e07, false}}, // 0x1.809c0ep-1
+            {gelu_erf_minimax_pol, {0x3f3b980f, false}}, // 0x1.77301ep-1
+            {gelu_erf_minimax_pol, {0x3f48dff3, false}}, // 0x1.91bfe6p-1
+            {gelu_erf_minimax_pol, {0x3f78b21b, false}}, // 0x1.f16436p-1
+            {gelu_erf_minimax_pol, {0x3fbb0704, false}}, // 0x1.760e08p0
+            {gelu_erf_minimax_pol, {0x40019c32, false}}, // 0x1.033864p1
+            {gelu_erf_minimax_pol, {0x3fe536d6, false}}, // 0x1.ca6dacp0
+            {gelu_erf_minimax_pol, {0x3f81331e, false}}, // 0x1.02663cp0
+            {gelu_erf_minimax_pol, {0x3e6c8684, false}}, // 0x1.d90d08p-3
+            {gelu_erf_minimax_pol, {0x3c98f936, false}}, // 0x1.31f26cp-6
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0
+            {gelu_erf_minimax_pol, {0x3f800000, false}}, // 0x1p0
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            // coefficients of degree 2
+            {gelu_erf_minimax_pol, {0xb62173f4, false}}, // -0x1.42e7e8p-19
+            {gelu_erf_minimax_pol, {0x3735e4cf, false}}, // 0x1.6bc99ep-17
+            {gelu_erf_minimax_pol, {0x37f2ff89, false}}, // 0x1.e5ff12p-16
+            {gelu_erf_minimax_pol, {0x388c23be, false}}, // 0x1.18477cp-14
+            {gelu_erf_minimax_pol, {0x3917535c, false}}, // 0x1.2ea6b8p-13
+            {gelu_erf_minimax_pol, {0x39ab2ab0, false}}, // 0x1.56556p-12
+            {gelu_erf_minimax_pol, {0x3a60fadb, false}}, // 0x1.c1f5b6p-11
+            {gelu_erf_minimax_pol, {0x3af9b960, false}}, // 0x1.f372cp-10
+            {gelu_erf_minimax_pol, {0x3b6e5491, false}}, // 0x1.dca922p-9
+            {gelu_erf_minimax_pol, {0x3c0a4ec5, false}}, // 0x1.149d8ap-7
+            {gelu_erf_minimax_pol, {0x3ca5aa8c, false}}, // 0x1.4b5518p-6
+            {gelu_erf_minimax_pol, {0x3d2138d9, false}}, // 0x1.4271b2p-5
+            {gelu_erf_minimax_pol, {0x3d8737d4, false}}, // 0x1.0e6fa8p-4
+            {gelu_erf_minimax_pol, {0x3ddfb660, false}}, // 0x1.bf6ccp-4
+            {gelu_erf_minimax_pol, {0x3e0f27ab, false}}, // 0x1.1e4f56p-3
+            {gelu_erf_minimax_pol, {0x3d94004b, false}}, // 0x1.280096p-4
+            {gelu_erf_minimax_pol, {0xbe0efdeb, false}}, // -0x1.1dfbd6p-3
+            {gelu_erf_minimax_pol, {0xbf1d96c3, false}}, // -0x1.3b2d86p-1
+            {gelu_erf_minimax_pol, {0xbf89db58, false}}, // -0x1.13b6bp0
+            {gelu_erf_minimax_pol, {0xbf6d9897, false}}, // -0x1.db312ep-1
+            {gelu_erf_minimax_pol, {0xbef69fb8, false}}, // -0x1.ed3f7p-2
+            {gelu_erf_minimax_pol, {0xbdc4f8a8, false}}, // -0x1.89f15p-4
+            {gelu_erf_minimax_pol, {0xbbde6422, false}}, // -0x1.bcc844p-8
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            // coefficients of degree 3
+            {gelu_erf_minimax_pol, {0xbe081a19, false}}, // -0x1.103432p-3
+            {gelu_erf_minimax_pol, {0xbe084570, false}}, // -0x1.108aep-3
+            {gelu_erf_minimax_pol, {0xbe08639b, false}}, // -0x1.10c736p-3
+            {gelu_erf_minimax_pol, {0xbe089837, false}}, // -0x1.11306ep-3
+            {gelu_erf_minimax_pol, {0xbe08f409, false}}, // -0x1.11e812p-3
+            {gelu_erf_minimax_pol, {0xbe09ab95, false}}, // -0x1.13572ap-3
+            {gelu_erf_minimax_pol, {0xbe0b66d0, false}}, // -0x1.16cdap-3
+            {gelu_erf_minimax_pol, {0xbe0e400a, false}}, // -0x1.1c8014p-3
+            {gelu_erf_minimax_pol, {0xbe124df8, false}}, // -0x1.249bfp-3
+            {gelu_erf_minimax_pol, {0xbe1bde02, false}}, // -0x1.37bc04p-3
+            {gelu_erf_minimax_pol, {0xbe2f19c9, false}}, // -0x1.5e3392p-3
+            {gelu_erf_minimax_pol, {0xbe4931bf, false}}, // -0x1.92637ep-3
+            {gelu_erf_minimax_pol, {0xbe685fbc, false}}, // -0x1.d0bf78p-3
+            {gelu_erf_minimax_pol, {0xbe89c95f, false}}, // -0x1.1392bep-2
+            {gelu_erf_minimax_pol, {0xbe96cbca, false}}, // -0x1.2d9794p-2
+            {gelu_erf_minimax_pol, {0xbe8044aa, false}}, // -0x1.008954p-2
+            {gelu_erf_minimax_pol, {0xbe0550f2, false}}, // -0x1.0aa1e4p-3
+            {gelu_erf_minimax_pol, {0x3dcfd6a1, false}}, // 0x1.9fad42p-4
+            {gelu_erf_minimax_pol, {0x3e94c826, false}}, // 0x1.29904cp-2
+            {gelu_erf_minimax_pol, {0x3e79345f, false}}, // 0x1.f268bep-3
+            {gelu_erf_minimax_pol, {0x3decec91, false}}, // 0x1.d9d922p-4
+            {gelu_erf_minimax_pol, {0x3ca46568, false}}, // 0x1.48cadp-6
+            {gelu_erf_minimax_pol, {0x3aa1e00a, false}}, // 0x1.43c014p-10
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            // coefficients of degree 4
+            {gelu_erf_minimax_pol, {0xba3d61db, false}}, // -0x1.7ac3b6p-11
+            {gelu_erf_minimax_pol, {0x39f097a3, false}}, // 0x1.e12f46p-12
+            {gelu_erf_minimax_pol, {0x3a5845dc, false}}, // 0x1.b08bb8p-11
+            {gelu_erf_minimax_pol, {0x3ab1fa35, false}}, // 0x1.63f46ap-10
+            {gelu_erf_minimax_pol, {0x3b0cefb8, false}}, // 0x1.19df7p-9
+            {gelu_erf_minimax_pol, {0x3b653ab6, false}}, // 0x1.ca756cp-9
+            {gelu_erf_minimax_pol, {0x3bcae527, false}}, // 0x1.95ca4ep-8
+            {gelu_erf_minimax_pol, {0x3c221712, false}}, // 0x1.442e24p-7
+            {gelu_erf_minimax_pol, {0x3c6c5840, false}}, // 0x1.d8b08p-7
+            {gelu_erf_minimax_pol, {0x3cc0a703, false}}, // 0x1.814e06p-6
+            {gelu_erf_minimax_pol, {0x3d1dcc19, false}}, // 0x1.3b9832p-5
+            {gelu_erf_minimax_pol, {0x3d63656d, false}}, // 0x1.c6cadap-5
+            {gelu_erf_minimax_pol, {0x3d955907, false}}, // 0x1.2ab20ep-4
+            {gelu_erf_minimax_pol, {0x3dbf9910, false}}, // 0x1.7f322p-4
+            {gelu_erf_minimax_pol, {0x3dd53f69, false}}, // 0x1.aa7ed2p-4
+            {gelu_erf_minimax_pol, {0x3db7dcef, false}}, // 0x1.6fb9dep-4
+            {gelu_erf_minimax_pol, {0x3d639ebe, false}}, // 0x1.c73d7cp-5
+            {gelu_erf_minimax_pol, {0xba6ede48, false}}, // -0x1.ddbc9p-11
+            {gelu_erf_minimax_pol, {0xbd22be69, false}}, // -0x1.457cd2p-5
+            {gelu_erf_minimax_pol, {0xbd041cf1, false}}, // -0x1.0839e2p-5
+            {gelu_erf_minimax_pol, {0xbc64f5ab, false}}, // -0x1.c9eb56p-7
+            {gelu_erf_minimax_pol, {0xbb097a32, false}}, // -0x1.12f464p-9
+            {gelu_erf_minimax_pol, {0xb8ebf380, false}}, // -0x1.d7e7p-14
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            // coefficients of degree 5
+            {gelu_erf_minimax_pol, {0x3cb7d80c, false}}, // 0x1.6fb018p-6
+            {gelu_erf_minimax_pol, {0x3c9b6050, false}}, // 0x1.36c0ap-6
+            {gelu_erf_minimax_pol, {0x3c978d11, false}}, // 0x1.2f1a22p-6
+            {gelu_erf_minimax_pol, {0x3c92e850, false}}, // 0x1.25d0ap-6
+            {gelu_erf_minimax_pol, {0x3c8d058b, false}}, // 0x1.1a0b16p-6
+            {gelu_erf_minimax_pol, {0x3c848454, false}}, // 0x1.0908a8p-6
+            {gelu_erf_minimax_pol, {0x3c6cd623, false}}, // 0x1.d9ac46p-7
+            {gelu_erf_minimax_pol, {0x3c4c824b, false}}, // 0x1.990496p-7
+            {gelu_erf_minimax_pol, {0x3c2a7935, false}}, // 0x1.54f26ap-7
+            {gelu_erf_minimax_pol, {0x3be0b390, false}}, // 0x1.c1672p-8
+            {gelu_erf_minimax_pol, {0x3b0651ac, false}}, // 0x1.0ca358p-9
+            {gelu_erf_minimax_pol, {0xbb232f53, false}}, // -0x1.465ea6p-9
+            {gelu_erf_minimax_pol, {0xbbd42fa0, false}}, // -0x1.a85f4p-8
+            {gelu_erf_minimax_pol, {0xbc2c5366, false}}, // -0x1.58a6ccp-7
+            {gelu_erf_minimax_pol, {0xbc492c9e, false}}, // -0x1.92593cp-7
+            {gelu_erf_minimax_pol, {0xbc2a7aa6, false}}, // -0x1.54f54cp-7
+            {gelu_erf_minimax_pol, {0xbbd55d04, false}}, // -0x1.aaba08p-8
+            {gelu_erf_minimax_pol, {0xba823a76, false}}, // -0x1.0474ecp-10
+            {gelu_erf_minimax_pol, {0x3b102aa8, false}}, // 0x1.20555p-9
+            {gelu_erf_minimax_pol, {0x3ae25a7e, false}}, // 0x1.c4b4fcp-10
+            {gelu_erf_minimax_pol, {0x3a31f792, false}}, // 0x1.63ef24p-11
+            {gelu_erf_minimax_pol, {0x38b84375, false}}, // 0x1.7086eap-14
+            {gelu_erf_minimax_pol, {0x3689bb5a, false}}, // 0x1.1376b4p-18
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+            {gelu_erf_minimax_pol, {0x00000000, false}}, // 0 padd
+    };
 
     // This object takes care about which constants and polynomials to include.
     struct need_t {
@@ -1780,7 +2066,8 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     if (need.gelu_tanh()) push_entries_of(gelu_tanh_consts);
     if (need.gelu_erf()) push_entries_of(gelu_erf_consts);
     if (need.gelu_erf()) push_entries_of(gelu_erf_polynomial);
-
+    if (need.gelu_erf()) push_entries_of(gelu_erf_minimax_consts);
+    if (need.gelu_erf()) push_entries_of(gelu_erf_minimax_polynomial);
     // Now that we registered the entries, we set the offsets.  No
     // entries should be registered after this point.  This allows to
     // expect the same order when injecting the table entries in

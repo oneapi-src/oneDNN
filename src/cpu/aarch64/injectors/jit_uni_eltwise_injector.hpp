@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2023 Intel Corporation
-* Copyright 2021-2023 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -283,6 +283,12 @@ private:
         gelu_tanh_fitting_const, // 0.044715f
         gelu_tanh_fitting_const_times_three, // 0.134145f
         gelu_tanh_sqrt_two_over_pi, // sqrtf(2.f/pi) = 0.797884f
+        gelu_erf_idx_bias, // bias applied to compute table index
+        gelu_erf_rbound, // upper bound at which we clamp erf at 1
+        gelu_erf_one, // just the integer value 1, used for index clamping
+        gelu_erf_twenty_three, // just the integer value 23, used for index clamping
+        gelu_erf_twenty_four, // just the integer value 24, used for index clamping
+        gelu_erf_minimax_pol, // see correspondent table for float values
         gelu_erf_approx_const, // 0.3275911f - implementation based for approx
         gelu_erf_one_over_sqrt_two, // 1.f / sqrtf(2.f)
         gelu_erf_one_over_sqrt_pi, // 1.f / sqrtf(pi) = 0.564190f
