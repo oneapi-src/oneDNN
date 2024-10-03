@@ -823,7 +823,7 @@ struct nibble2_t {
     }
 
     // returns pair of nibbles as uint8t
-    inline uint8_t get() const { return high << 4 | low; }
+    inline uint8_t get() const { return static_cast<uint8_t>(high << 4 | low); }
 
 private:
     uint8_t low : 4;

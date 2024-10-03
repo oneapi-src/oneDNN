@@ -100,7 +100,8 @@ protected:
                 case profiling_data_kind::time: data[idx] = e.get_nsec(); break;
                 case profiling_data_kind::cycles: {
                     double freq = e.freq / e.kernel_count;
-                    data[idx] = freq * e.get_nsec() / 1e9;
+                    data[idx] = static_cast<uint64_t>(
+                            freq * static_cast<double>(e.get_nsec()) / 1e9);
                     if (callback_) callback_(kv.first, e.get_nsec());
                     break;
                 }

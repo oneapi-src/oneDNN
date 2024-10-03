@@ -138,8 +138,8 @@ status_t vectorized_resampling_bwd_t::pd_t::init_conf(impl::engine_t *engine) {
     // Padded C: multiple of sub_group_size and vect_size (subgroup padding), and at least vect_size * sub_group_size
     const int c_divisor = math::lcm(conf.sub_group_size, conf.vect_size);
     conf.padded_c = utils::rnd_up(diff_src_md()->padded_dims[1], c_divisor);
-    conf.padded_c
-            = std::max(conf.padded_c, conf.vect_size * conf.sub_group_size);
+    conf.padded_c = std::max(
+            conf.padded_c, dim_t(conf.vect_size * conf.sub_group_size));
 
     // lws: Multiple of sub_group_size
     conf.lws[0] = utils::rnd_up(conf.lws[0], conf.sub_group_size);

@@ -40,7 +40,7 @@ struct runtime_scales_t;
 const runtime_scales_t &default_runtime_scale();
 
 struct rnn_data_qparams_t : public c_compatible {
-    rnn_data_qparams_t() : scale_(1.), shift_(0.) {}
+    rnn_data_qparams_t() : scale_(1.f), shift_(0.f) {}
     bool has_default_values() const { return (scale_ == 1. && shift_ == 0.); }
     bool defined() const {
         return !is_runtime_value(scale_) && !is_runtime_value(shift_);
@@ -131,7 +131,7 @@ private:
 // Note: keep for RNN quantization
 struct rnn_create_time_scales_t : public c_compatible {
     rnn_create_time_scales_t() : count_(1), mask_(0), scales_(scales_buf_) {
-        set_single_scale(1.);
+        set_single_scale(1.f);
     }
 
     ~rnn_create_time_scales_t() { cleanup(); }
