@@ -911,6 +911,7 @@ xpu::binary_t gen_gemm_kernel_t::get_binary(
             REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
             REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
             REG_XE2_ISA(ARCH_DISPATCH(Xe2))
+            REG_XE3_ISA(ARCH_DISPATCH(Xe3))
             default: assert(!"Unsupported architecture"); break;
         }
     } catch (const std::runtime_error &err) {

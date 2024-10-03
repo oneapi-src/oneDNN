@@ -834,6 +834,7 @@ REG_XEHP_ISA(template struct jit_eltwise_injector_f32<gpu_xe_hp>);
 REG_XEHPG_ISA(template struct jit_eltwise_injector_f32<gpu_xe_hpg>);
 REG_XEHPC_ISA(template struct jit_eltwise_injector_f32<gpu_xe_hpc>);
 REG_XE2_ISA(template struct jit_eltwise_injector_f32<gpu_xe2>);
+REG_XE3_ISA(template struct jit_eltwise_injector_f32<gpu_xe3>);
 
 } // namespace jit
 } // namespace intel
