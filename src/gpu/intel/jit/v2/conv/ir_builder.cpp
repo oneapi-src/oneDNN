@@ -613,8 +613,8 @@ type_t to_send_type(const send_1d_desc_t &desc) {
     return type_t::oword(desc.type_size / 16);
 }
 
-int get_reg_off(const send_1d_plan_t &plan, const pvar_coord_t<int> &coord) {
-    return plan.reg_layout.offset_in_bytes(coord);
+int get_reg_off(const send_1d_plan_t &plan, const pvar_coord_t<dim_t> &coord) {
+    return into<int>(plan.reg_layout.offset_in_bytes(coord));
 }
 
 stmt_t create_stmt(const reduce_plan_t &plan, const expr_t &src_buf,
@@ -633,9 +633,9 @@ stmt_t create_stmt(const reorder_plan_t &plan, const expr_t &src_buf,
 
 stmt_t create_stmt(const send_1d_plan_t &plan, const expr_t &mem_buf,
         const expr_t &reg_buf, offset_ctx_t &off_ctx,
-        const pvar_coord_t<int> &coord, const pvar_tile_t &tile,
+        const pvar_coord_t<dim_t> &coord, const pvar_tile_t &tile,
         const layout_t &payload_layout,
-        const pvar_coord_t<int> &payload_coord) {
+        const pvar_coord_t<dim_t> &payload_coord) {
     for (auto &d : plan.entry_tile) {
         ir_assert(tile.at(d) % plan.entry_tile.at(d) == 0);
     }
@@ -647,7 +647,7 @@ stmt_t create_stmt(const send_1d_plan_t &plan, const expr_t &mem_buf,
             plan.hw, op, address, type, slots, /*zero_out=*/true);
     auto &send = send_func.as<send_t>();
     stmt_t ret;
-    for_each(tile, plan.entry_tile, [&](const pvar_coord_t<int> &sub_coord) {
+    for_each(tile, plan.entry_tile, [&](const pvar_coord_t<dim_t> &sub_coord) {
         int entry_idx = plan.reg_layout.to_linear_index(
                 plan.entry_tile, coord + sub_coord);
         auto &e = plan.entries[entry_idx];
@@ -669,9 +669,9 @@ stmt_t create_stmt(const send_1d_plan_t &plan, const expr_t &mem_buf,
 
 stmt_t create_stmt(const send_2d_plan_t &plan, const expr_t &mem_buf,
         const expr_t &reg_buf, offset_ctx_t &off_ctx,
-        const pvar_coord_t<int> &coord, const pvar_tile_t &tile,
+        const pvar_coord_t<dim_t> &coord, const pvar_tile_t &tile,
         const layout_t &payload_layout,
-        const pvar_coord_t<int> &payload_coord) {
+        const pvar_coord_t<dim_t> &payload_coord) {
     auto op = to_ir(plan.desc.op, /*is_2d=*/true);
     auto &type = plan.desc.type;
     auto &desc = plan.desc;
@@ -679,7 +679,7 @@ stmt_t create_stmt(const send_2d_plan_t &plan, const expr_t &mem_buf,
             desc.c, desc.vnni, desc.transpose, /*zero_out=*/true);
     auto &send = send_func.as<send_t>();
     stmt_t ret;
-    for_each(tile, plan.entry_tile, [&](const pvar_coord_t<int> &sub_coord) {
+    for_each(tile, plan.entry_tile, [&](const pvar_coord_t<dim_t> &sub_coord) {
         int entry_idx = plan.reg_layout.to_linear_index(
                 plan.entry_tile, coord + sub_coord);
         auto &e = plan.entries[entry_idx];
@@ -701,9 +701,9 @@ stmt_t create_stmt(const send_2d_plan_t &plan, const expr_t &mem_buf,
 
 stmt_t create_stmt(const send_plan_t &plan, const expr_t &mem_buf,
         const expr_t &reg_buf, offset_ctx_t &off_ctx,
-        const pvar_coord_t<int> &coord, const pvar_tile_t &tile,
+        const pvar_coord_t<dim_t> &coord, const pvar_tile_t &tile,
         const layout_t &payload_layout,
-        const pvar_coord_t<int> &payload_coord) {
+        const pvar_coord_t<dim_t> &payload_coord) {
     if (plan.is_1d())
         return create_stmt(plan._1d, mem_buf, reg_buf, off_ctx, coord, tile,
                 payload_layout, payload_coord);
@@ -716,9 +716,9 @@ stmt_t create_stmt(const send_plan_t &plan, const expr_t &mem_buf,
 
 stmt_t create_stmt(const send_plan_t &plan, const expr_t &mem_buf,
         const expr_t &reg_buf, offset_ctx_t &off_ctx) {
-    return create_stmt(plan, mem_buf, reg_buf, off_ctx, pvar_coord_t<int>(),
+    return create_stmt(plan, mem_buf, reg_buf, off_ctx, pvar_coord_t<dim_t>(),
             plan.reg_layout().int_dim_sizes(), plan.reg_layout(),
-            pvar_coord_t<int>());
+            pvar_coord_t<dim_t>());
 }
 
 class idiv_fixup_mutator_t : public ir_mutator_t {
@@ -1017,7 +1017,7 @@ private:
 
         // BMNK order.
         pvar_t dims[4];
-        int blocks[4] = {1, 1, 1, 1};
+        dim_t blocks[4] = {1, 1, 1, 1};
         int sizes[4] = {1, 1, 1, 1};
         pvar_map_t<int> bmnk_map;
         bmnk_map[pvars::b] = 0;
@@ -1037,7 +1037,7 @@ private:
         int i2 = 2;
         int i3 = 1;
         stmt_t stmt;
-        pvar_coord_t<int> off;
+        pvar_coord_t<dim_t> off;
         bool is_a_bcast = (blocks[0] * blocks[1] * blocks[3] == 1);
         bool is_b_bcast = (blocks[0] * blocks[2] * blocks[3] == 1);
         func_t fma_func;
@@ -1064,9 +1064,9 @@ private:
                     off[dims[i2]] = n;
                     for (int m = 0; m < sizes[i3]; m += blocks[i3]) {
                         off[dims[i3]] = m;
-                        int a_off = a_layout.offset_in_bytes(off);
-                        int b_off = b_layout.offset_in_bytes(off);
-                        int c_off = c_layout.offset_in_bytes(off);
+                        dim_t a_off = a_layout.offset_in_bytes(off);
+                        dim_t b_off = b_layout.offset_in_bytes(off);
+                        dim_t c_off = c_layout.offset_in_bytes(off);
                         auto dst = c_buf[c_off];
                         auto src1 = a_buf[a_off];
                         auto src2 = b_buf[b_off];
@@ -1116,27 +1116,29 @@ private:
         auto epilogue_tile = bia_tile;
         for (auto &d : bia_tile)
             epilogue_tile[d] = epilogue.tile[d];
-        for_each(bia_tile, epilogue_tile, [&](const pvar_coord_t<int> &coord) {
-            auto bia_payload_buf = bia_buf;
-            auto bia_payload_layout = epilogue.bia_store.reg_layout();
-            auto payload_coord = coord;
-            if (epilogue.bia_reorder) {
-                auto bia_tmp_buf = buf_mgr_.get(
-                        "bia_tmp", epilogue.bia_reorder.dst.size());
-                int src_off = fma.bia_layout.offset_in_bytes(coord);
-                auto stmt = create_stmt(
-                        epilogue.bia_reorder, bia_buf + src_off, bia_tmp_buf);
-                epilogue_stmt_ = epilogue_stmt_.append(stmt);
-                bia_payload_buf = std::move(bia_tmp_buf);
-                bia_payload_layout = epilogue.bia_reorder.dst;
-                payload_coord = pvar_coord_t<int>();
-            }
-            auto bia_stmt = create_stmt(epilogue.bia_store, bia_mem_buf(),
-                    bia_payload_buf, epilogue_off_ctx_, coord, epilogue_tile,
-                    bia_payload_layout, payload_coord);
-            bia_stmt = if_t::make(epilogue.reduce_cond, bia_stmt);
-            epilogue_stmt_ = epilogue_stmt_.append(bia_stmt);
-        });
+        for_each(
+                bia_tile, epilogue_tile, [&](const pvar_coord_t<dim_t> &coord) {
+                    auto bia_payload_buf = bia_buf;
+                    auto bia_payload_layout = epilogue.bia_store.reg_layout();
+                    auto payload_coord = coord;
+                    if (epilogue.bia_reorder) {
+                        auto bia_tmp_buf = buf_mgr_.get(
+                                "bia_tmp", epilogue.bia_reorder.dst.size());
+                        dim_t src_off = fma.bia_layout.offset_in_bytes(coord);
+                        auto stmt = create_stmt(epilogue.bia_reorder,
+                                bia_buf + src_off, bia_tmp_buf);
+                        epilogue_stmt_ = epilogue_stmt_.append(stmt);
+                        bia_payload_buf = std::move(bia_tmp_buf);
+                        bia_payload_layout = epilogue.bia_reorder.dst;
+                        payload_coord = pvar_coord_t<dim_t>();
+                    }
+                    auto bia_stmt = create_stmt(epilogue.bia_store,
+                            bia_mem_buf(), bia_payload_buf, epilogue_off_ctx_,
+                            coord, epilogue_tile, bia_payload_layout,
+                            payload_coord);
+                    bia_stmt = if_t::make(epilogue.reduce_cond, bia_stmt);
+                    epilogue_stmt_ = epilogue_stmt_.append(bia_stmt);
+                });
     }
 
     void build_slm_reduce() {
@@ -1166,20 +1168,20 @@ private:
         auto &store = epilogue.c_store;
         auto c_tile = store.reg_layout().int_dim_sizes();
         auto &c_buf = buf_mgr_.find_buf("c");
-        for_each(c_tile, epilogue.tile, [&](const pvar_coord_t<int> &coord) {
+        for_each(c_tile, epilogue.tile, [&](const pvar_coord_t<dim_t> &coord) {
             auto payload_buf = c_buf;
             auto payload_layout = c_layout;
             auto payload_coord = coord;
             if (epilogue.reorder) {
                 auto c_tmp_buf
                         = buf_mgr_.get("c_tmp", epilogue.reorder.dst.size());
-                int src_off = c_layout.offset_in_bytes(coord);
+                dim_t src_off = c_layout.offset_in_bytes(coord);
                 auto stmt = create_stmt(
                         epilogue.reorder, c_buf + src_off, c_tmp_buf);
                 epilogue_stmt_ = epilogue_stmt_.append(stmt);
                 payload_buf = std::move(c_tmp_buf);
                 payload_layout = epilogue.reorder.dst;
-                payload_coord = pvar_coord_t<int>();
+                payload_coord = pvar_coord_t<dim_t>();
             }
             auto stmt = create_stmt(store, c_mem_buf(), payload_buf,
                     epilogue_off_ctx_, coord, epilogue.tile, payload_layout,

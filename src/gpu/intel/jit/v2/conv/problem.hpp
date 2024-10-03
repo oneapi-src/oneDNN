@@ -51,11 +51,11 @@ public:
         return src_tag_;
     }
     const pvar_tile_t &shape() const { return shape_; }
-    pvar_map_t<int> vars() const;
+    pvar_map_t<dim_t> vars() const;
     bool is_depthwise() const {
-        int g = shape_.at(pvars::g);
-        int ic = shape_.at(pvars::ic);
-        int oc = shape_.at(pvars::oc);
+        dim_t g = shape_.at(pvars::g);
+        dim_t ic = shape_.at(pvars::ic);
+        dim_t oc = shape_.at(pvars::oc);
         return (g > 1) && (ic == 1) && (oc == 1);
     }
     const type_t &out_type() const;

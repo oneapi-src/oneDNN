@@ -425,7 +425,7 @@ struct uniform_send_idiom_t final {
                     return std::vector<hint_t> {};
                 }();
 
-                int new_surface_width = i->size * i_stride_bytes;
+                dim_t new_surface_width = i->size * i_stride_bytes;
                 if (new_surface_width % surface_width_alignment) {
                     // Surface width must be aligned to max(4,
                     // elem_size). The elem_size requirement is

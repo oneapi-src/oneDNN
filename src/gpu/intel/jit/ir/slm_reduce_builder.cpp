@@ -31,7 +31,7 @@ namespace jit {
 
 slm_reduce_builder_t::slm_reduce_builder_t(ir_context_t &ir_ctx,
         const grid_info_t &tg_grid, const expr_t &reg_buf,
-        const layout_t &reg_layout, const tensor_t &thr_tile, int dim)
+        const layout_t &reg_layout, const tensor_t &thr_tile, dim_idx_t dim)
     : ir_ctx_(&ir_ctx)
     , tg_grid_(tg_grid)
     , reg_buf_(reg_buf)
@@ -43,7 +43,7 @@ slm_reduce_builder_t::slm_reduce_builder_t(ir_context_t &ir_ctx,
 
     tmp_reg_buf_ = ir_ctx.create_tmp_var(type_t::byte_ptr());
     slm_buf_ = ir_ctx.create_tmp_var(type_t::byte_ptr(), "reduce_slm");
-    tg_ndims_ = (dim_ != 2) ? dim_ + 1 : tg_grid_.ndims();
+    tg_ndims_ = (dim_ != dim_idx_t(2)) ? dim_ + 1 : tg_grid_.ndims();
 
     build();
 }
@@ -59,7 +59,7 @@ void slm_reduce_builder_t::build() {
         slm_layout = slm_layout.add_outer_block(ndims + i, tg_grid_.dim(i));
     }
 
-    slm_buf_size_ = slm_layout.size();
+    slm_buf_size_ = into<int>(slm_layout.size());
 
     // Write thread tile to SLM.
     std::vector<dim_t> write_dims = reg_layout_.dims();
@@ -85,7 +85,7 @@ void slm_reduce_builder_t::build() {
     reg_layout_ = reg_layout_.map(tensor_t(local_thr_tile.dims()));
 
     if (split_grid.elems() != full_grid.elems()) {
-        for (int i = 0; i < full_grid.ndims(); i++) {
+        for (dim_idx_t i = 0; i < full_grid.ndims(); i++) {
             if (split_grid.dim(i) == full_grid.dim(i)) continue;
             auto cond = full_grid.idx(i) < split_grid.dim(i);
             if (reduce_cond_.is_empty())
@@ -107,7 +107,7 @@ void slm_reduce_builder_t::build() {
             reduce_cond_ &= cond;
     }
     read_dims[ndims + dim_] = tg_grid_.dim(dim_);
-    for (int i = 0; i < tg_ndims_; i++) {
+    for (dim_idx_t i = 0; i < tg_ndims_; i++) {
         read_start[ndims + i] = (i == dim_) ? 0 : tg_grid_.idx(i);
     }
     tensor_t read_tile(read_dims, read_start);

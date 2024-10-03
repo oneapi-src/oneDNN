@@ -172,8 +172,8 @@ public:
 
     void erase(const pvar_t &key) { map_.erase(key); }
 
-    std::unordered_map<std::string, int> to_string_map() const {
-        std::unordered_map<std::string, int> ret;
+    std::unordered_map<std::string, dim_t> to_string_map() const {
+        std::unordered_map<std::string, dim_t> ret;
         for (auto &kv : map_)
             ret[kv.first.name()] = kv.second;
         return ret;
@@ -258,26 +258,26 @@ private:
     std::map<pvar_t, ValueT> map_;
 };
 
-class pvar_tile_t : public pvar_map_t<int> {
+class pvar_tile_t : public pvar_map_t<dim_t> {
 public:
-    using pvar_map_t<int>::at;
-    using pvar_map_t<int>::pvar_map_t;
-    using pvar_map_t<int>::has;
-    using pvar_map_t<int>::operator[];
-    using pvar_map_t<int>::str_impl;
-    using pvar_map_t<int>::get_hash;
+    using pvar_map_t<dim_t>::at;
+    using pvar_map_t<dim_t>::pvar_map_t;
+    using pvar_map_t<dim_t>::has;
+    using pvar_map_t<dim_t>::operator[];
+    using pvar_map_t<dim_t>::str_impl;
+    using pvar_map_t<dim_t>::get_hash;
 
-    int elems() const {
-        int ret = 1;
+    dim_t elems() const {
+        dim_t ret = 1;
         for (auto &d : *this)
             ret *= at(d);
         return ret;
     }
 
-    bool try_factor(const pvar_t &key, int factor) {
+    bool try_factor(const pvar_t &key, dim_t factor) {
         if (factor == 1) return true;
         if (!has(key)) return false;
-        int &value = operator[](key);
+        dim_t &value = operator[](key);
         if (value % factor != 0) return false;
         value /= factor;
         return true;
@@ -303,6 +303,21 @@ struct coord_add_type_t {
 template <>
 struct coord_add_type_t<int, int> {
     using type = int;
+};
+
+template <>
+struct coord_add_type_t<dim_t, dim_t> {
+    using type = dim_t;
+};
+
+template <>
+struct coord_add_type_t<dim_t, int> {
+    using type = dim_t;
+};
+
+template <>
+struct coord_add_type_t<int, dim_t> {
+    using type = dim_t;
 };
 
 template <typename T1, typename T2,

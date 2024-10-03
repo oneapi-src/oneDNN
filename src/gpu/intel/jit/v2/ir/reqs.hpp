@@ -66,8 +66,8 @@ public:
 
     void add(const expr_t &e);
     void add(const prb_reqs_t &other);
-    void add(const pvar_map_t<int> &sizes);
-    void set(const pvar_t &dim, int value);
+    void add(const pvar_map_t<dim_t> &sizes);
+    void set(const pvar_t &dim, dim_t value);
     // Mark the dimension as being divisible by any number - this changes
     // behavior of methods like can_prove() and max_factor().
     void set_any_mod(const pvar_t &dim);
@@ -75,18 +75,18 @@ public:
 
     explicit operator bool() const { return !reqs_.empty(); }
     // Checks if the requirements are satisfied for the given problem sizes .
-    bool fits(const pvar_map_t<int> &sizes) const;
+    bool fits(const pvar_map_t<dim_t> &sizes) const;
     // Simplifies and eliminates redundant requirements.
     void simplify();
-    void substitute(const pvar_map_t<int> &values);
+    void substitute(const pvar_map_t<dim_t> &values);
     // Checks if an expression/condition is an implication of the requirements.
     // For example: prb_reqs_t(oc % 64 == 0) implies (oc % 16) == 0 so the
     // latter can be proven from the original requirements.
     bool can_prove(const expr_t &to_prove) const;
     bool can_prove(const req_impl_t &to_prove, bool use_any_mod = false) const;
-    bool get_value(const pvar_t &dim, int &value) const;
-    int max_factor(const pvar_t &dim) const;
-    bool is_equal(const pvar_t &dim, int value) const;
+    bool get_value(const pvar_t &dim, dim_t &value) const;
+    dim_t max_factor(const pvar_t &dim) const;
+    bool is_equal(const pvar_t &dim, dim_t value) const;
     // Checks if other prb_reqs_t object is fully implied from the requirements
     // of this object.
     bool implies(const prb_reqs_t &other) const;

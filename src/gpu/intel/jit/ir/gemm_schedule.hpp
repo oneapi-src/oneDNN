@@ -473,7 +473,7 @@ public:
 
     void set_view(const view_t &view) {
         // Create missing loops.
-        for (int i = 0; i < view.nvdims(); i++) {
+        for (dim_idx_t i = 0; i < view.nvdims(); i++) {
             auto &v = view.vvars()[i];
             dim_t bound = view.vdims()[i];
             if (has_loop(v)) {
@@ -536,7 +536,7 @@ public:
         return to_cpp<dim_t>(find_loop(var).bound());
     }
 
-    void set_var_bound(const expr_t &var, int bound) {
+    void set_var_bound(const expr_t &var, dim_t bound) {
         return find_loop(var).set_bound(bound);
     }
 
@@ -549,7 +549,7 @@ public:
     //       ...
     //     }
     //   }
-    void split(const expr_t &var, int factor, expr_t &outer_var,
+    void split(const expr_t &var, dim_t factor, expr_t &outer_var,
             expr_t &inner_var, const std::string &outer_name = {},
             const std::string &inner_name = {}) {
         auto &loop = find_loop(var);
@@ -939,10 +939,10 @@ private:
     }
 
     loop_kind_t bound_var_to_loop_kind(const expr_t &v) const {
-        for (int i = 0; i < kernel_grid_.ndims(); i++) {
+        for (dim_idx_t i = 0; i < kernel_grid_.ndims(); i++) {
             if (kernel_grid_.idx(i).is_same(v)) return loop_kind_t::kernel_grid;
         }
-        for (int i = 0; i < tg_grid_.ndims(); i++) {
+        for (dim_idx_t i = 0; i < tg_grid_.ndims(); i++) {
             if (tg_grid_.idx(i).is_same(v)) return loop_kind_t::tg_grid;
         }
         if (kernel_grid_walk_order_.is_grid_var(v))
@@ -952,10 +952,10 @@ private:
     }
 
     dim_t bound_var_to_dim(const expr_t &v) const {
-        for (int i = 0; i < kernel_grid_.ndims(); i++) {
+        for (dim_idx_t i = 0; i < kernel_grid_.ndims(); i++) {
             if (kernel_grid_.idx(i).is_same(v)) return kernel_grid_.dim(i);
         }
-        for (int i = 0; i < tg_grid_.ndims(); i++) {
+        for (dim_idx_t i = 0; i < tg_grid_.ndims(); i++) {
             if (tg_grid_.idx(i).is_same(v)) return tg_grid_.dim(i);
         }
         if (kernel_grid_walk_order_.is_grid_var(v))

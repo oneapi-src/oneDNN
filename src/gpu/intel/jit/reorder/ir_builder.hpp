@@ -64,7 +64,7 @@ public:
             const std::vector<int> &iter_blocks,
             const std::vector<int> &loop_blocks,
             const std::vector<int> &tg_blocks, grid_info_t &kernel_grid,
-            grid_info_t &tg_grid, std::vector<int> *dim2grid = nullptr);
+            grid_info_t &tg_grid, std::vector<dim_idx_t> *dim2grid = nullptr);
 
     static compute::nd_range_t nd_range(
             const exec_config_t &exec_cfg, layout_t src, layout_t dst);

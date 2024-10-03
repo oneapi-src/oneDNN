@@ -23,7 +23,7 @@
 
 #ifdef ENABLE_LLVM_WCONVERSION
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
 #endif
 
 #if defined(NGEN_DEBUG) || defined(NGEN_DEBUG_PROPAGATE) || defined(NGEN_DEBUG_BB)

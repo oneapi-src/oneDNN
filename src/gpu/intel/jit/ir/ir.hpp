@@ -18,6 +18,7 @@
 #define GPU_INTEL_JIT_IR_IR_HPP
 
 #include <algorithm>
+#include <cstdint>
 #include <map>
 #include <vector>
 
@@ -407,7 +408,7 @@ public:
         return ret;
     }
 
-    int alloc_size(const expr_t &buf) const {
+    uint32_t alloc_size(const expr_t &buf) const {
         auto *a = find_alloc(buf);
         ir_assert(a) << buf;
         return a->size;
@@ -419,8 +420,8 @@ public:
         return a->kind;
     }
 
-    int total_size(alloc_kind_t kind) const {
-        int ret = 0;
+    uint32_t total_size(alloc_kind_t kind) const {
+        uint32_t ret = 0;
         for (auto &kv : buf2alloc_) {
             auto &a = kv.second.as<alloc_t>();
             if (a.kind == kind) ret += a.size;
@@ -990,7 +991,7 @@ inline func_t zero_out_func() {
     return f;
 }
 
-inline stmt_t zero_out(const expr_t &buf, int size) {
+inline stmt_t zero_out(const expr_t &buf, dim_t size) {
     return zero_out_func().call({buf, expr_t(size)});
 }
 

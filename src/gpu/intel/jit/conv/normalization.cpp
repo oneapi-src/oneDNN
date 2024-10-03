@@ -34,11 +34,11 @@ layout_t insert_dimension(const layout_t &layout, dim_idx_t dim_idx) {
             /*do_normalize=*/false);
 }
 
-layout_t remove_size_1_dimension(const layout_t &layout, int dim_idx) {
+layout_t remove_size_1_dimension(const layout_t &layout, dim_idx_t dim_idx) {
     ir_assert(0 <= dim_idx && dim_idx < layout.ndims());
     ir_assert(layout.dim(dim_idx) == 1);
     dim_assignment_t a(layout.ndims(), layout.ndims() - 1);
-    for (int i = 0; i < layout.ndims(); i++) {
+    for (dim_idx_t i = 0; i < layout.ndims(); i++) {
         if (i == dim_idx) continue;
         a.assign(i, i < dim_idx ? i : i - 1);
     }
@@ -46,8 +46,8 @@ layout_t remove_size_1_dimension(const layout_t &layout, int dim_idx) {
 }
 
 layout_t split_dimension(
-        const layout_t &_layout, dim_idx_t dim_idx, int outer_block) {
-    int rem_inner_block
+        const layout_t &_layout, dim_idx_t dim_idx, dim_t outer_block) {
+    dim_t rem_inner_block
             = ir_utils::safe_divide(_layout.dim(dim_idx), outer_block);
     auto layout = insert_dimension(_layout, dim_idx);
     std::vector<block_t> new_blocks;
@@ -82,7 +82,7 @@ layout_t split_dimension(
 }
 
 layout_t normalize_conv_groups(const layout_t &layout, bool with_groups,
-        int groups, bool is_dw, bool add_groups, bool is_wei) {
+        dim_t groups, bool is_dw, bool add_groups, bool is_wei) {
     if (with_groups == add_groups) return layout;
     if (is_wei) {
         ir_assert(groups == 1)
@@ -98,7 +98,7 @@ layout_t normalize_conv_groups(const layout_t &layout, bool with_groups,
 }
 
 layout_t normalize_conv_layout(const layout_t &_layout, bool with_groups,
-        int groups, bool is_dw, const std::array<int, 3> &dhw_map,
+        dim_t groups, bool is_dw, const std::array<int, 3> &dhw_map,
         bool add_groups, bool is_wei) {
     layout_t layout = _layout;
     layout = spatials_to_3d(layout, with_groups, dhw_map);
@@ -109,7 +109,7 @@ layout_t normalize_conv_layout(const layout_t &_layout, bool with_groups,
 }
 
 std::vector<dim_t> normalize_conv_dims(std::vector<dim_t> &dims,
-        bool with_groups, int groups, bool is_dw,
+        bool with_groups, dim_t groups, bool is_dw,
         const std::array<int, 3> &dhw_map, bool add_groups, bool is_wei) {
     layout_t dummy_layout(type_t::u8(), 0, dims);
     return normalize_conv_layout(dummy_layout, with_groups, groups, is_dw,
@@ -118,8 +118,8 @@ std::vector<dim_t> normalize_conv_dims(std::vector<dim_t> &dims,
 }
 
 void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
-        layout_t &dst_layout, layout_t &bia_layout, bool with_groups, int g,
-        int ic, int oc, bool is_dw, const std::array<int, 3> &dhw_map,
+        layout_t &dst_layout, layout_t &bia_layout, bool with_groups, dim_t g,
+        dim_t ic, dim_t oc, bool is_dw, const std::array<int, 3> &dhw_map,
         bool add_groups) {
     src_layout = normalize_conv_layout(src_layout, /*with_groups=*/false,
             g > 1 ? src_layout.dim(1) / ic : 1, is_dw, dhw_map, add_groups,
@@ -136,7 +136,7 @@ void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
 }
 
 uint32_t conv_post_op_view_mapper_t::normalize_mask(uint32_t orig_mask) const {
-    int cp_ndims = cp_view().nvdims();
+    dim_idx_t cp_ndims = cp_view().nvdims();
     ir_assert(cp_ndims >= 3);
     // Add groups to match ngcdhw layout.
     bool add_groups = (cp_view().vvars()[1].as<var_t>().name == "g");
@@ -152,18 +152,18 @@ uint32_t conv_post_op_view_mapper_t::normalize_mask(uint32_t orig_mask) const {
             /*add_groups=*/false, /*is_wei=*/false);
     // Split channels into groups and channels to match ngcdhw layout.
     if (add_groups) cvt_dims.insert(cvt_dims.begin() + 1, cvt_dims[1]);
-    ir_assert(int(cvt_dims.size()) == cp_ndims);
+    ir_assert(cvt_dims.size() == cp_ndims);
 
     uint32_t mask = 0;
-    for (int i = 0; i < cp_ndims; i++) {
+    for (dim_idx_t i = 0; i < cp_ndims; i++) {
         if (cvt_dims[i] == mask_set_value) mask = mask | (1 << i);
     }
     return mask;
 }
 
-void maybe_reshape_dims(int ndims, layout_t &layout, std::vector<dim_t> &dims,
-        std::vector<dim_t> &padded_dims) {
-    ir_assert(layout.ndims() == int(dims.size()));
+void maybe_reshape_dims(dim_idx_t ndims, layout_t &layout,
+        std::vector<dim_t> &dims, std::vector<dim_t> &padded_dims) {
+    ir_assert(layout.ndims() == dim_idx_t(dims.size()));
     if (layout.ndims() < ndims) {
         layout = layout_t(layout.type(), ndims, layout.offset(),
                 layout.blocks(), /*do_normalize=*/false);
@@ -175,14 +175,15 @@ void maybe_reshape_dims(int ndims, layout_t &layout, std::vector<dim_t> &dims,
 // this method only gets called when ZP precompute is in order;
 // in all other cases ZPs are applied ad-hoc, without a post-op
 view_t conv_post_op_view_mapper_t::create_src_zp_view(uint32_t mask) const {
-    auto map_o2k = [](view_t &v, int idx, int O, int I, int KD, int P, int S) {
+    auto map_o2k = [](view_t &v, dim_idx_t idx, dim_t O, dim_t I, dim_t KD,
+                           dim_t P, dim_t S) {
         const bool needs_right_bound = ((O - 1) * S + (KD - P) >= I);
         expr_t o = v.vvars()[idx];
         if (KD >= I) {
             o = o * S;
         } else {
             expr_t l, r;
-            int32_t off = P;
+            dim_t off = P;
             if (P > 0) l = binary_op_t::make(op_kind_t::_min, o * S - P, 0);
             if (needs_right_bound) {
                 r = binary_op_t::make(op_kind_t::_max, o * S + (KD - P), I);
@@ -193,7 +194,7 @@ view_t conv_post_op_view_mapper_t::create_src_zp_view(uint32_t mask) const {
             o = (off != 0) ? o + off : o;
         }
         const auto &x = view_t::placeholder_var();
-        int32_t L = ir_utils::max_unique_pad_states(O, I, KD, P, S, true);
+        dim_t L = ir_utils::max_unique_pad_states(O, I, KD, P, S, true);
         bool mask = L < ir_utils::max_unique_pad_states(O, I, KD, P, S, false);
         v.set_vdim(v.vvars()[idx], (needs_right_bound) ? O : 1);
         v.set_tdim(idx, o, (mask) ? x < L : expr_t());
@@ -235,7 +236,7 @@ view_t conv_post_op_view_mapper_t::create_src_zp_view(uint32_t mask) const {
 }
 
 view_t conv_post_op_view_mapper_t::create_view(const memory_desc_t &md) const {
-    int cp_ndims = cp_view().nvdims();
+    dim_idx_t cp_ndims = cp_view().nvdims();
     ir_assert(cp_ndims >= 3);
     // Add groups to match ngcdhw layout.
     bool add_groups = (cp_view().vvars()[1].as<var_t>().name == "g");
@@ -253,7 +254,7 @@ view_t conv_post_op_view_mapper_t::create_view(const memory_desc_t &md) const {
             /*is_wei=*/false);
     ir_assert(layout.ndims() == cp_ndims) << "Incompatible dimensions.";
     uint32_t bound_check_mask = 0;
-    for (int i = 0; i < cp_ndims; i++) {
+    for (dim_idx_t i = 0; i < cp_ndims; i++) {
         if (dims[i] == 1) continue; // Broadcast, no bound check needed.
         if (padded_dims[i] != cp_view().tlayout().dim(i)) {
             bound_check_mask |= (1 << i);
@@ -270,7 +271,7 @@ view_t conv_post_op_view_mapper_t::try_create_bias_view(uint32_t mask) const {
     return {};
 }
 
-bool conv_post_op_view_mapper_t::is_spurious_spatial(int dim_idx) const {
+bool conv_post_op_view_mapper_t::is_spurious_spatial(dim_idx_t dim_idx) const {
     auto &var = cp_view().vvars()[dim_idx].as<var_t>();
 
     int sp_idx = -1;
@@ -284,30 +285,30 @@ bool conv_post_op_view_mapper_t::is_spurious_spatial(int dim_idx) const {
         return false;
     }
 
-    int p = utils::pick(sp_idx, prb_.pd, prb_.ph, prb_.pw);
-    int s = utils::pick(sp_idx, prb_.sd, prb_.sh, prb_.sw);
-    int k = utils::pick(sp_idx, prb_.kd, prb_.kh, prb_.kw);
-    int d = utils::pick(sp_idx, prb_.dd, prb_.dh, prb_.dw);
+    dim_t p = utils::pick(sp_idx, prb_.pd, prb_.ph, prb_.pw);
+    dim_t s = utils::pick(sp_idx, prb_.sd, prb_.sh, prb_.sw);
+    dim_t k = utils::pick(sp_idx, prb_.kd, prb_.kh, prb_.kw);
+    dim_t d = utils::pick(sp_idx, prb_.dd, prb_.dh, prb_.dw);
 
     if (prb_.is_fwd) {
-        int o_value = utils::pick(sp_idx, prb_.od, prb_.oh, prb_.ow);
-        int o_bound = schedule_.var_bound(var);
-        int i = utils::pick(sp_idx, prb_.id, prb_.ih, prb_.iw);
+        dim_t o_value = utils::pick(sp_idx, prb_.od, prb_.oh, prb_.ow);
+        dim_t o_bound = schedule_.var_bound(var);
+        dim_t i = utils::pick(sp_idx, prb_.id, prb_.ih, prb_.iw);
 
-        for (int o = o_value; o < o_bound; o++) {
-            int i_min = o * s - p;
+        for (dim_t o = o_value; o < o_bound; o++) {
+            dim_t i_min = o * s - p;
             if (i_min < i) return true;
         }
         return false;
     }
 
     if (prb_.is_bwd_d) {
-        int i_value = utils::pick(sp_idx, prb_.id, prb_.ih, prb_.iw);
-        int i_bound = schedule_.var_bound(var);
-        int o = utils::pick(sp_idx, prb_.od, prb_.oh, prb_.ow);
+        dim_t i_value = utils::pick(sp_idx, prb_.id, prb_.ih, prb_.iw);
+        dim_t i_bound = schedule_.var_bound(var);
+        dim_t o = utils::pick(sp_idx, prb_.od, prb_.oh, prb_.ow);
 
-        for (int i = i_value; i < i_bound; i++) {
-            int os_min = i - (k - 1) * (d + 1) + p;
+        for (dim_t i = i_value; i < i_bound; i++) {
+            dim_t os_min = i - (k - 1) * (d + 1) + p;
             if (os_min < o * s) return true;
         }
         return false;

@@ -30,8 +30,8 @@ problem_t::problem_t(const std::string &line) {
     set_shape(s_desc);
 }
 
-pvar_map_t<int> problem_t::vars() const {
-    pvar_map_t<int> map;
+pvar_map_t<dim_t> problem_t::vars() const {
+    pvar_map_t<dim_t> map;
     map[pvar_t("outsz")] = out_type().size();
     return map;
 }
@@ -92,37 +92,37 @@ void problem_t::normalize() {
 }
 
 std::string problem_t::desc_str() const {
-    int g = shape_[pvars::g];
-    int mb = shape_[pvars::mb];
-    int oc = shape_[pvars::oc];
-    int ic = shape_[pvars::ic];
-    int id = shape_[pvars::id];
-    int ih = shape_[pvars::ih];
-    int iw = shape_[pvars::iw];
-    int od = shape_[pvars::od];
-    int oh = shape_[pvars::oh];
-    int ow = shape_[pvars::ow];
-    int kd = shape_[pvars::kd];
-    int kh = shape_[pvars::kh];
-    int kw = shape_[pvars::kw];
-    int sd = shape_[pvars::sd];
-    int sh = shape_[pvars::sh];
-    int sw = shape_[pvars::sw];
-    int pd = shape_[pvars::pd];
-    int ph = shape_[pvars::ph];
-    int pw = shape_[pvars::pw];
-    int dd = shape_[pvars::dd];
-    int dh = shape_[pvars::dh];
-    int dw = shape_[pvars::dw];
+    dim_t g = shape_[pvars::g];
+    dim_t mb = shape_[pvars::mb];
+    dim_t oc = shape_[pvars::oc];
+    dim_t ic = shape_[pvars::ic];
+    dim_t id = shape_[pvars::id];
+    dim_t ih = shape_[pvars::ih];
+    dim_t iw = shape_[pvars::iw];
+    dim_t od = shape_[pvars::od];
+    dim_t oh = shape_[pvars::oh];
+    dim_t ow = shape_[pvars::ow];
+    dim_t kd = shape_[pvars::kd];
+    dim_t kh = shape_[pvars::kh];
+    dim_t kw = shape_[pvars::kw];
+    dim_t sd = shape_[pvars::sd];
+    dim_t sh = shape_[pvars::sh];
+    dim_t sw = shape_[pvars::sw];
+    dim_t pd = shape_[pvars::pd];
+    dim_t ph = shape_[pvars::ph];
+    dim_t pw = shape_[pvars::pw];
+    dim_t dd = shape_[pvars::dd];
+    dim_t dh = shape_[pvars::dh];
+    dim_t dw = shape_[pvars::dw];
     std::ostringstream oss;
     oss << "mb" << mb;
     if (g > 1) oss << "g" << g;
     oss << "ic" << g * ic;
 
-    std::vector<int> xd = {id, od, kd, sd, dd, pd};
-    std::vector<int> xh = {ih, oh, kh, sh, dh, ph};
-    std::vector<int> xw = {iw, ow, kw, sw, dw, pw};
-    std::vector<int> xdef = {1, 1, 1, 1, 0, 0};
+    std::vector<dim_t> xd = {id, od, kd, sd, dd, pd};
+    std::vector<dim_t> xh = {ih, oh, kh, sh, dh, ph};
+    std::vector<dim_t> xw = {iw, ow, kw, sw, dw, pw};
+    std::vector<dim_t> xdef = {1, 1, 1, 1, 0, 0};
     bool has_d = (xd != xdef);
     bool has_h = (xh != xdef);
     bool is_square = !has_d && (xh == xw);

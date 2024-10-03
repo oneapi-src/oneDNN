@@ -14,6 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#endif
+
 #include "gpu/intel/jit/codegen/bank_conflict_allocation.hpp"
 #include "gpu/intel/jit/codegen/kernel.hpp"
 #include "gpu/intel/jit/codegen/reduce.hpp"
@@ -1549,3 +1554,7 @@ REG_XE3_ISA(template void convert_ir_to_ngen(const stmt_t &body,
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic pop
+#endif

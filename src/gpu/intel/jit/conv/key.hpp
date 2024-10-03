@@ -56,7 +56,7 @@ public:
     // Computes the distance between this key and other key (must be
     // non-filter), a filter with a smaller distance is a better match for the
     // key.
-    int distance(const conv_key_t &other) const;
+    dim_t distance(const conv_key_t &other) const;
     bool operator==(const conv_key_t &other) const;
     bool matches(const conv_key_t &other) const;
     size_t get_hash() const;

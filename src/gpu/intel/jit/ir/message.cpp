@@ -14,6 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#endif
+
 #include "gpu/intel/jit/ir/message.hpp"
 
 #include "gpu/intel/jit/ir/block_2d_utils.hpp"
@@ -519,11 +524,11 @@ void access_builder_t::build() {
 }
 
 static bool stride_dimension_ok(const view_t &view, int stride_tidx,
-        int stride_vidx, const std::vector<expr_t> &vstart) {
+        dim_idx_t stride_vidx, const std::vector<expr_t> &vstart) {
     auto &tdim = view.tdim(stride_tidx);
     auto e = tdim.expr();
-    for (int i = 0; i < tdim.nvargs(); i++) {
-        int vidx = tdim.vidx(i);
+    for (dim_idx_t i = 0; i < tdim.nvargs(); i++) {
+        dim_idx_t vidx = tdim.vidx(i);
         auto &vvar = view.vvars()[vidx];
         if (vidx == stride_vidx) {
             e = substitute(e, vvar, expr_t(0));
@@ -591,13 +596,13 @@ bool access_builder_t::try_build_2d(send_params_t &send_params) {
     if (b0.stride != stride_t(1)) return false;
     if (!b1.stride.is_fixed()) return false;
 
-    auto get_tdim_idx = [&](int vdim_idx, int &stride) {
-        int ret = -1;
-        for (int i = 0; i < mem_view_.ntdims(); i++) {
+    auto get_tdim_idx = [&](dim_idx_t vdim_idx, int &stride) {
+        dim_idx_t ret = dim_idx::invalid;
+        for (dim_idx_t i = 0; i < mem_view_.ntdims(); i++) {
             auto &tdim = mem_view_.tdim(i);
-            for (int j = 0; j < tdim.nvargs(); j++) {
+            for (dim_idx_t j = 0; j < tdim.nvargs(); j++) {
                 if (tdim.vidx(j) == vdim_idx) {
-                    ir_assert(ret == -1);
+                    ir_assert(ret == dim_idx::invalid);
                     stride = (int)tdim.vstride(j);
                     ret = i;
                 }
@@ -608,13 +613,13 @@ bool access_builder_t::try_build_2d(send_params_t &send_params) {
 
     int w_tstride = 0;
     int h_tstride = 0;
-    int w_dim_idx = get_tdim_idx(b0.dim_idx, w_tstride);
-    int h_dim_idx = get_tdim_idx(b1.dim_idx, h_tstride);
+    dim_idx_t w_dim_idx = get_tdim_idx(b0.dim_idx, w_tstride);
+    dim_idx_t h_dim_idx = get_tdim_idx(b1.dim_idx, h_tstride);
 
     if (w_tstride != 1) return false;
 
     auto &tlayout = mem_view_.tlayout();
-    auto get_2d_dim = [&](int tidx) {
+    auto get_2d_dim = [&](dim_idx_t tidx) {
         return tlayout.inner_block(tidx, /*skip_outer=*/false);
     };
 
@@ -861,7 +866,7 @@ bool access_builder_t::fixup_send_2d_params(const type_t &send_type, bool vnni,
 }
 
 bool access_builder_t::check_2d_mask(const tensor_t &tile,
-        bool use_virtual_surface, int w_dim_idx, int h_dim_idx,
+        bool use_virtual_surface, dim_idx_t w_dim_idx, dim_idx_t h_dim_idx,
         expr_t &mask) const {
     auto sub_view = mem_view_.create_sub_view(tile);
     auto mask_tensor = sub_view.create_mask_tensor(ir_ctx_->cset());
@@ -873,11 +878,11 @@ bool access_builder_t::check_2d_mask(const tensor_t &tile,
 
     // Remove bound conditions that are covered by out-of-bound send checks.
     uint32_t tmask = 0xFFFFFFFF;
-    for (int i = 0; i < sub_view.nvdims(); i++) {
+    for (dim_idx_t i = 0; i < sub_view.nvdims(); i++) {
         if (!utils::one_of(i, w_dim_idx, h_dim_idx)) continue;
-        for (int j = 0; j < sub_view.ntdims(); j++) {
+        for (dim_idx_t j = 0; j < sub_view.ntdims(); j++) {
             auto &tdim = sub_view.tdim(j);
-            for (int k = 0; k < tdim.nvargs(); k++) {
+            for (dim_idx_t k = 0; k < tdim.nvargs(); k++) {
                 if (tdim.vidx(k) == i) {
                     // TODO: Check if tdim mask is a bound mask.
                     tmask &= ~(1U << i);
@@ -1241,3 +1246,7 @@ send_params_t get_send_params(const exec_config_t &exec_cfg, send_op_t send_op,
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic pop
+#endif

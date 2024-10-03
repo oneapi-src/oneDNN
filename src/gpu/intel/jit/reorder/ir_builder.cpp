@@ -141,9 +141,9 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
         max_thr_tile_bytes = max_tile_size(exec_cfg.hw(), dst, src);
 
     ir_assert(src.ndims() == dst.ndims());
-    int ndims = src.ndims();
+    dim_idx_t ndims = src.ndims();
     std::vector<dim_t> dims(ndims);
-    for (int i = 0; i < ndims; i++) {
+    for (dim_idx_t i = 0; i < ndims; i++) {
         dims[i] = std::max(src.dim(i), dst.dim(i));
     }
 
@@ -207,7 +207,7 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
     auto merge_tiles = [](const tile_pair_t &p) {
         auto ndims = p[0].ndims() - 1;
         std::vector<dim_t> dims(ndims);
-        for (int i = 0; i < ndims; ++i)
+        for (dim_idx_t i = 0; i < ndims; ++i)
             dims[i] = std::max(p[0](i), p[1](i));
         return tensor_t(dims);
     };
@@ -275,7 +275,7 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
 
     // Initialize loop blocks.
     loop_blocks.resize(ndims, 1);
-    for (int i = 0; i < ndims; i++) {
+    for (dim_idx_t i = 0; i < ndims; i++) {
         loop_blocks[i] = ir_utils::safe_divide(thr_blocks[i], iter_blocks[i]);
     }
 
@@ -285,8 +285,8 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
     // bandwidth utilization on XeHP/XeHPG.
     tg_blocks.resize(ndims, 1);
     const int tg_factor = 2;
-    for (int i = 0; i < ndims; i++) {
-        int outer = utils::div_up(dims[i], thr_blocks[i]);
+    for (dim_idx_t i = 0; i < ndims; i++) {
+        dim_t outer = utils::div_up(dims[i], thr_blocks[i]);
         if (outer % tg_factor == 0) {
             tg_blocks[i] = tg_factor;
             break;
@@ -311,23 +311,23 @@ void reorder_ir_builder_t::compute_grid(const layout_t &src,
         const layout_t &dst, const std::vector<int> &iter_blocks,
         const std::vector<int> &loop_blocks, const std::vector<int> &tg_blocks,
         grid_info_t &kernel_grid, grid_info_t &tg_grid,
-        std::vector<int> *dim2grid) {
-    int ndims = src.ndims();
+        std::vector<dim_idx_t> *dim2grid) {
+    dim_idx_t ndims = src.ndims();
     std::vector<dim_t> dims(ndims);
-    for (int i = 0; i < ndims; i++) {
+    for (dim_idx_t i = 0; i < ndims; i++) {
         dims[i] = std::max(src.dim(i), dst.dim(i));
     }
 
-    if (dim2grid) dim2grid->resize(ndims, -1);
+    if (dim2grid) dim2grid->resize(ndims, dim_idx::invalid);
 
     const int grid_ndims = 3;
     std::vector<dim_t> kernel_grid_dims(grid_ndims, 1);
     std::vector<dim_t> tg_grid_dims(grid_ndims, 1);
-    int grid_idx = 0;
-    int max_grid_idx = grid_ndims - 1;
-    for (int i = 0; i < ndims; i++) {
+    dim_idx_t grid_idx = 0;
+    dim_idx_t max_grid_idx = grid_ndims - 1;
+    for (dim_idx_t i = 0; i < ndims; i++) {
         if (dim2grid) (*dim2grid)[i] = grid_idx;
-        int outer = utils::div_up(
+        dim_t outer = utils::div_up(
                 dims[i], iter_blocks[i] * loop_blocks[i] * tg_blocks[i]);
         tg_grid_dims[grid_idx] *= tg_blocks[i];
         kernel_grid_dims[grid_idx] *= outer;
@@ -351,7 +351,7 @@ compute::nd_range_t reorder_ir_builder_t::nd_range(
             tg_grid);
     compute::range_t global = compute::range_t::empty(kernel_grid.ndims());
     compute::range_t local = compute::range_t::empty(kernel_grid.ndims());
-    for (int i = 0; i < kernel_grid.ndims(); i++) {
+    for (dim_idx_t i = 0; i < kernel_grid.ndims(); i++) {
         global[i] = kernel_grid[i] * tg_grid[i];
         local[i] = tg_grid[i];
         if (i == 0) {
@@ -600,7 +600,7 @@ void reorder_ir_builder_t::build() {
             loop_blocks, tg_blocks);
 
     int max_iters = 10;
-    int cur_iter_bytes
+    dim_t cur_iter_bytes
             = max_tile_size(cfg_.exec_cfg().hw(), dst_layout_, src_layout_);
     for (int i = 0; i < max_iters; i++) {
         if (try_build(iter_blocks, loop_blocks, tg_blocks)) {
@@ -648,7 +648,7 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
         vars.push_back(var_t::make(type_t::s32(), std::string(1, letter)));
     }
 
-    std::vector<int> dim2grid;
+    std::vector<dim_idx_t> dim2grid;
     compute_grid(src_layout_, dst_layout_, iter_blocks, loop_blocks, tg_blocks,
             kernel_grid_, tg_grid_, &dim2grid);
 
@@ -657,16 +657,16 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
             init_stmts);
 
     std::vector<dim_t> vdims(ndims);
-    for (int i = 0; i < ndims; i++) {
+    for (dim_idx_t i = 0; i < ndims; i++) {
         vdims[i] = std::max(src_layout_.dim(i), dst_layout_.dim(i));
     }
-    std::unordered_map<std::string, int> vdim_map;
-    for (int i = 0; i < ndims; i++) {
+    std::unordered_map<std::string, dim_t> vdim_map;
+    for (dim_idx_t i = 0; i < ndims; i++) {
         vdim_map[vars[i].as<var_t>().name] = vdims[i];
     }
 
     view_t src_view(vars, ndims);
-    for (int i = 0; i < ndims; i++) {
+    for (dim_idx_t i = 0; i < ndims; i++) {
         src_view.set_vdim(vars[i], vdims[i]);
         src_view.set_tdim(i, vars[i]);
     }
@@ -674,7 +674,7 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     src_view.set_tmasks(vdim_map);
 
     view_t dst_view(vars, ndims);
-    for (int i = 0; i < ndims; i++) {
+    for (dim_idx_t i = 0; i < ndims; i++) {
         dst_view.set_vdim(vars[i], vdims[i]);
         dst_view.set_tdim(i, vars[i]);
     }
@@ -687,7 +687,7 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     schedule.set_view(dst_view);
 
     std::array<std::vector<expr_t>, 3> fused_idxs;
-    for (int i = 0; i < ndims; i++) {
+    for (dim_idx_t i = 0; i < ndims; i++) {
         std::vector<expr_t> ordered;
         auto v = vars[i];
         if (iter_blocks[i] != 1) {

@@ -70,12 +70,12 @@ static dim_tile_t create_tile(gemm_schedule_t &gemm_schedule,
     dim_tile_t tile;
     auto &name = dim.as<var_t>().name;
     auto conv_dim = pvar_t(name);
-    int loop_dim = cfg.loop_dim(conv_dim);
-    int tg_dim = cfg.thread_group_dim(conv_dim);
-    int iter_dim = cfg.iter_dim(conv_dim);
+    dim_t loop_dim = cfg.loop_dim(conv_dim);
+    dim_t tg_dim = cfg.thread_group_dim(conv_dim);
+    dim_t iter_dim = cfg.iter_dim(conv_dim);
 
-    std::vector<int> dims = {1, loop_dim, tg_dim, iter_dim};
-    int ndims = (int)dims.size();
+    std::vector<dim_t> dims = {1, loop_dim, tg_dim, iter_dim};
+    dim_idx_t ndims = into<dim_idx_t>(dims.size());
     std::vector<expr_t> idxs(ndims);
 
     static const char *suffixes[]
@@ -267,7 +267,7 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     gemm_schedule.set_k_vars({ic, kd, kh, kw});
 
     gemm_schedule.for_each_var([&](const expr_t &var) {
-        int bound = cfg_.padded_dim(pvar_t(var.as<var_t>().name));
+        dim_t bound = cfg_.padded_dim(pvar_t(var.as<var_t>().name));
         gemm_schedule.set_var_bound(var, bound);
     });
 
@@ -346,10 +346,10 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
         // Apply mapping to iw to ensure each thread group has the same
         // stride condition when evaluating skip conditions.
         iw_mapping = [&](const expr_t &e) {
-            int iw_tg_blk = cfg_.thread_group_dim(pvars::iw)
+            dim_t iw_tg_blk = cfg_.thread_group_dim(pvars::iw)
                     * cfg_.iter_dim(pvars::iw);
-            int iw_bound = utils::rnd_up(prb_.iw, iw_tg_blk);
-            int iw_same_mod_blk = ir_utils::safe_divide(iw_bound, prb_.sw);
+            dim_t iw_bound = utils::rnd_up(prb_.iw, iw_tg_blk);
+            dim_t iw_same_mod_blk = ir_utils::safe_divide(iw_bound, prb_.sw);
             return (e % iw_same_mod_blk) * prb_.sw + (e / iw_same_mod_blk);
         };
     } else {
@@ -451,7 +451,7 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     gemm_schedule.set_k_vars({oc, kd, kh, kw});
 
     gemm_schedule.for_each_var([&](const expr_t &var) {
-        int bound = cfg_.padded_dim(pvar_t(var.as<var_t>().name));
+        dim_t bound = cfg_.padded_dim(pvar_t(var.as<var_t>().name));
         gemm_schedule.set_var_bound(var, bound);
     });
 
@@ -643,7 +643,7 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     gemm_schedule.set_k_vars({mb, od, oh, ow});
 
     gemm_schedule.for_each_var([&](const expr_t &var) {
-        int bound = cfg_.padded_dim(pvar_t(var.as<var_t>().name));
+        dim_t bound = cfg_.padded_dim(pvar_t(var.as<var_t>().name));
         gemm_schedule.set_var_bound(var, bound);
     });
 
@@ -721,16 +721,16 @@ stmt_t reorder_plan_t::create_stmt(
     return stmt;
 }
 
-int reorder_plan_t::src_buf_size() const {
-    int src_size = utils::div_up(src.size(), split_factor);
+dim_t reorder_plan_t::src_buf_size() const {
+    dim_t src_size = utils::div_up(src.size(), split_factor);
     return src_size;
 }
 
-int reorder_plan_t::estimate_regs() const {
+dim_t reorder_plan_t::estimate_regs() const {
     if (!*this) return 0;
 
-    int dst_size = utils::div_up(dst.size(), split_factor);
-    int ret = 0;
+    dim_t dst_size = utils::div_up(dst.size(), split_factor);
+    dim_t ret = 0;
     ret += utils::rnd_up(dst_size, grf_size());
     return utils::div_up(ret, grf_size());
 }
@@ -744,8 +744,8 @@ reduce_plan_t create_reduce_plan(const hw_t &hw, const layout_t &src,
     return ret;
 }
 
-int reduce_plan_t::dst_buf_size() const {
-    int dst_size = utils::div_up(dst.size(), split_factor);
+dim_t reduce_plan_t::dst_buf_size() const {
+    dim_t dst_size = utils::div_up(dst.size(), split_factor);
     return utils::rnd_up(dst_size, grf_size());
 }
 
@@ -755,7 +755,7 @@ bool reduce_plan_t::can_split(int factor) const {
     if (split_src.is_empty()) return false;
 
     // Do not split by reduction dims.
-    for (int i = 0; i < src.ndims(); i++) {
+    for (dim_idx_t i = 0; i < src.ndims(); i++) {
         if ((mask & (1 << i)) != 0 && split_src.dim(i) != src.dim(i))
             return false;
     }
@@ -926,14 +926,14 @@ void fma_plan_t::set_split(abc_kind_t abc, int factor) {
 }
 
 int fma_plan_t::a_buf_size() const {
-    int a_size = a_layout.size();
+    int a_size = into<int>(a_layout.size());
     if (split_abc == abc_kind_t::a)
         a_size = utils::div_up(a_size, split_factor);
     return utils::rnd_up(a_size, grf_size());
 }
 
 int fma_plan_t::b_buf_size() const {
-    int b_size = b_layout.size();
+    int b_size = into<int>(b_layout.size());
     if (split_abc == abc_kind_t::b)
         b_size = utils::div_up(b_size, split_factor);
     return utils::rnd_up(b_size, grf_size());
@@ -941,12 +941,12 @@ int fma_plan_t::b_buf_size() const {
 
 int fma_plan_t::bmnk_split_idx(
         bmnk_kind_t bmnk, int split_off, bool is_start) const {
-    int B = (int)a_layout.dim(0);
-    int M = (int)a_layout.dim(1);
-    int N = (int)b_layout.dim(2);
-    int K = (int)a_layout.dim(2);
+    dim_t B = a_layout.dim(0);
+    dim_t M = a_layout.dim(1);
+    dim_t N = b_layout.dim(2);
+    dim_t K = a_layout.dim(2);
     int start[4] = {0, 0, 0, 0};
-    int stop[4] = {B, M, N, K};
+    dim_t stop[4] = {B, M, N, K};
     bool split_a = (split_abc == abc_kind_t::a);
     bool split_b = (split_abc == abc_kind_t::b);
     bool is_m = (bmnk == bmnk_kind_t::m);
@@ -958,7 +958,7 @@ int fma_plan_t::bmnk_split_idx(
         off = split_off;
     }
     int i0 = start[(int)bmnk];
-    int i1 = stop[(int)bmnk];
+    int i1 = into<int>(stop[(int)bmnk]);
     ir_assert((i1 - i0) % factor == 0);
     int step = (i1 - i0) / factor;
     int idx = i0 + off * step;
@@ -976,7 +976,8 @@ int fma_plan_t::bmnk_stop_idx(bmnk_kind_t bmnk, int subtile_idx) const {
 stmt_t fma_plan_t::create_stmt(ir_context_t &ir_ctx, buffer_manager_t &buf_mgr,
         const std::string &a, const std::string &b, const std::string &c,
         int subtile_idx) const {
-    int c_buf_size = utils::rnd_up(c_layout.size(), ir_ctx.grf_size());
+    int c_buf_size
+            = into<int>(utils::rnd_up(c_layout.size(), ir_ctx.grf_size()));
     auto a_buf = buf_mgr.get(a);
     auto b_buf = buf_mgr.get(b);
     auto c_buf = buf_mgr.get(c, c_buf_size);
@@ -989,9 +990,9 @@ stmt_t fma_plan_t::create_stmt(ir_context_t &ir_ctx, buffer_manager_t &buf_mgr,
     int k0 = bmnk_start_idx(bmnk_kind_t::k, subtile_idx);
     int k1 = bmnk_stop_idx(bmnk_kind_t::k, subtile_idx);
 
-    std::vector<int> a_idx(3);
-    std::vector<int> b_idx(3);
-    std::vector<int> c_idx(3);
+    std::vector<dim_t> a_idx(3);
+    std::vector<dim_t> b_idx(3);
+    std::vector<dim_t> c_idx(3);
 
     auto fma_funcs = create_fma_funcs(ir_ctx.hw());
 
@@ -1004,9 +1005,9 @@ stmt_t fma_plan_t::create_stmt(ir_context_t &ir_ctx, buffer_manager_t &buf_mgr,
                 b_idx[2] = c_idx[2] = n;
                 for (int m = m0; m < m1; m += m_blk) {
                     a_idx[1] = c_idx[1] = m;
-                    int a_off = a_layout.offset_in_bytes(a_idx);
-                    int b_off = b_layout.offset_in_bytes(b_idx);
-                    int c_off = c_layout.offset_in_bytes(c_idx);
+                    dim_t a_off = a_layout.offset_in_bytes(a_idx);
+                    dim_t b_off = b_layout.offset_in_bytes(b_idx);
+                    dim_t c_off = c_layout.offset_in_bytes(c_idx);
                     a_off = a_off % a_buf_size();
                     b_off = b_off % b_buf_size();
                     stmt = stmt.append(create_fma_block(fma_funcs, a_buf[a_off],
@@ -1062,8 +1063,9 @@ std::vector<func_t> fma_plan_t::create_fma_funcs(const hw_t &hw) const {
             int sdepth = ir_utils::safe_divide(k_blk * a.type().size(), 4);
             for (int r = 0; r < block_rcount;) {
                 int rcount = std::min(max_rcount, block_rcount - r);
-                auto dpas = dpas_t::make(/*is_dpasw=*/false, simd, sdepth,
-                        rcount, c.type(), b.type(), a.type());
+                auto dpas = dpas_t::make(/*is_dpasw=*/false, simd,
+                        into<uint8_t>(sdepth), into<uint8_t>(rcount), c.type(),
+                        b.type(), a.type());
                 ret.push_back(dpas);
                 r += rcount;
             }
@@ -1075,7 +1077,7 @@ std::vector<func_t> fma_plan_t::create_fma_funcs(const hw_t &hw) const {
 }
 
 int fma_plan_t::estimate_regs() const {
-    return utils::div_up(c_layout.size(), grf_size());
+    return into<int>(utils::div_up(c_layout.size(), grf_size()));
 }
 
 std::string fma_plan_t::str() const {
@@ -1341,7 +1343,7 @@ struct fma_context_t {
             if (is_b && ab_swap_transpose_) {
                 if (layout.blocks().size() > 1) {
                     std::vector<block_t> blocks;
-                    int new_inner_stride = 1;
+                    dim_t new_inner_stride = 1;
                     int nblocks = (int)layout.blocks().size();
                     auto inner_most_block = layout.blocks()[0];
                     for (int i = nblocks - 1; i >= 0; --i) {
@@ -1616,7 +1618,7 @@ tensor_t to_reduce_tensor(const tensor_t &tile, uint32_t mask) {
     auto map = get_reduce_dim_map(mask, reduce_ndims);
     std::vector<dim_t> reduce_dims(reduce_ndims);
     std::vector<expr_t> reduce_start(reduce_ndims);
-    for (int i = 0; i < tile.ndims(); i++) {
+    for (dim_idx_t i = 0; i < tile.ndims(); i++) {
         if (map[i] == -1) continue;
         reduce_dims[map[i]] = tile(i);
         reduce_start[map[i]] = tile.start(i);
@@ -1671,7 +1673,7 @@ public:
             }
             if (seen) return layout_t();
             seen = true;
-            for (int i = 0; i < tdim.nvargs(); i++) {
+            for (dim_idx_t i = 0; i < tdim.nvargs(); i++) {
                 int vidx = tdim.vidx(i);
                 dim_t vstride = (dim_t)tdim.vstride(i);
                 auto vb = b;
@@ -1688,11 +1690,11 @@ public:
 private:
     bool check_tdims(dim_idx_t &fused_tidx) const {
         int nfused = 0;
-        for (int tidx = 0; tidx < view_.ntdims(); tidx++) {
+        for (dim_idx_t tidx = 0; tidx < view_.ntdims(); tidx++) {
             auto &tdim = view_.tdim(tidx);
             if (tdim.is_identity()) continue;
             int nvars = 0;
-            for (int i = 0; i < tdim.nvargs(); i++) {
+            for (dim_idx_t i = 0; i < tdim.nvargs(); i++) {
                 auto vdim = view_.vdims()[tdim.vidx(i)];
                 if (vdim == 1) continue;
                 if (tdim.vstride(i).is_unknown()) return false;
@@ -1708,7 +1710,7 @@ private:
     }
 
     bool check_masks() const {
-        for (int tidx = 0; tidx < view_.ntdims(); tidx++) {
+        for (dim_idx_t tidx = 0; tidx < view_.ntdims(); tidx++) {
             auto &tdim = view_.tdim(tidx);
             for (auto &v : view_.vvars())
                 if (contains_object(tdim.mask(), v)) return false;
@@ -1734,7 +1736,7 @@ private:
     void init_direct_view() {
         std::vector<dim_t> tdim_extents(view_.ntdims());
         std::vector<expr_t> tdim_starts(view_.ntdims());
-        for (int tidx = 0; tidx < view_.ntdims(); tidx++) {
+        for (dim_idx_t tidx = 0; tidx < view_.ntdims(); tidx++) {
             auto &tdim = view_.tdim(tidx);
             auto &textent = tdim_extents[tidx];
             auto &tstart = tdim_starts[tidx];
@@ -1745,7 +1747,7 @@ private:
             }
             textent = 1;
             tstart = tdim.expr();
-            for (int i = 0; i < tdim.nvargs(); i++) {
+            for (dim_idx_t i = 0; i < tdim.nvargs(); i++) {
                 auto vidx = tdim.vidx(i);
                 auto vdim = view_.vdims()[vidx];
                 textent += (dim_t)tdim.vstride(i) * (vdim - 1);
@@ -1756,7 +1758,7 @@ private:
 
         direct_view_ = view_t(create_vvars(view_.ntdims()), view_.ntdims());
         direct_view_.set_tlayout(view_.tlayout());
-        for (int tidx = 0; tidx < view_.ntdims(); tidx++) {
+        for (dim_idx_t tidx = 0; tidx < view_.ntdims(); tidx++) {
             auto &tdim = view_.tdim(tidx);
             direct_view_.set_vdim(direct_view_.vvars()[tidx],
                     tdim_extents[tidx], tdim_starts[tidx]);
@@ -2047,7 +2049,7 @@ private:
                 && cfg_.is_dp_fma())
             return false;
         bmnk_dim_helper_t h(cfg_);
-        int k_tg = h.thread_group_dim(pvars::k);
+        dim_t k_tg = h.thread_group_dim(pvars::k);
         if (k_tg != 1) return false;
         return true;
     }
@@ -2236,7 +2238,7 @@ private:
 
     plan_status_t verify_slm_k_slicing() const {
         bmnk_dim_helper_t h(cfg_);
-        int k_tg = h.thread_group_dim(pvars::k);
+        dim_t k_tg = h.thread_group_dim(pvars::k);
         if (k_tg == 1) return plan_status_t::success;
 
         auto l = plan_.fma.c_prb_layout;

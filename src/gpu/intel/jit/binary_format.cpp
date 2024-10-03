@@ -14,6 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#endif
+
 #include "gpu/intel/jit/binary_format.hpp"
 
 #include "common/utils.hpp"
@@ -304,3 +309,7 @@ status_t gpu_supports_binary_format(bool *ok, impl::engine_t *engine) {
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic pop
+#endif

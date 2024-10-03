@@ -457,9 +457,9 @@ private:
                             scratchpad_key, /*is_input=*/true, compute_size);
                     const auto &dim = ir_utils::max_unique_pad_states;
                     const auto &prb = cfg.prb();
-                    const int KDD = (prb.kd - 1) * (prb.dd + 1) + 1;
-                    const int KDH = (prb.kh - 1) * (prb.dh + 1) + 1;
-                    const int KDW = (prb.kw - 1) * (prb.dw + 1) + 1;
+                    const dim_t KDD = (prb.kd - 1) * (prb.dd + 1) + 1;
+                    const dim_t KDH = (prb.kh - 1) * (prb.dh + 1) + 1;
+                    const dim_t KDW = (prb.kw - 1) * (prb.dw + 1) + 1;
                     compute_size = int64_t(compute_size) * sizeof(int32_t)
                             * dim(prb.od, prb.id, KDD, prb.pd, prb.sd, true)
                             * dim(prb.oh, prb.ih, KDH, prb.ph, prb.sh, true)

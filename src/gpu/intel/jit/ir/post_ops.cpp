@@ -202,7 +202,7 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
             continue;
         }
 
-        for (int i = 0; i < cp_ndims(); i++) {
+        for (dim_idx_t i = 0; i < cp_ndims(); i++) {
             if (!(info.mask() & (1 << i)) && po_vm_.is_spurious_spatial(i)) {
                 info.require_masked_update();
                 break;
@@ -222,14 +222,14 @@ bool post_op_context_t::init_need_to_restore_zero_padding(
         } else if (po.is_sum(/*require_scale_one=*/false,
                            /*require_zp_zero=*/false)) {
             if (po.sum.zero_point != 0) return true;
-            for (int j = 0; j < cp_ndims(); j++) {
+            for (dim_idx_t j = 0; j < cp_ndims(); j++) {
                 if (!is_cp_dim_zero_padded(j)) continue;
                 // Size one dimensions are treated as broadcast which does
                 // not preserve zero padding with block updates.
                 if (cp_view().vdims()[j] == 1) return true;
             }
         } else if (po.is_binary()) {
-            for (int j = 0; j < cp_ndims(); j++) {
+            for (dim_idx_t j = 0; j < cp_ndims(); j++) {
                 if (!is_cp_dim_zero_padded(j)) continue;
                 // Check if binary preserves zeros: (0 op X == 0) or (0 op 0 == 0).
                 bool zero_op_x_ok = (po.binary.alg == alg_kind::binary_mul);

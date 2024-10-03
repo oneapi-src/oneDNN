@@ -238,10 +238,10 @@ struct bmnk_conv_sample_t {
     type_t src_type;
     type_t dst_type;
     hw_config_t hw_cfg;
-    int b, m, n, k;
-    int bt, mt, nt, kt;
-    int bl, ml, nl, kl;
-    int bi, mi, ni, ki;
+    dim_t b, m, n, k;
+    dim_t bt, mt, nt, kt;
+    dim_t bl, ml, nl, kl;
+    dim_t bi, mi, ni, ki;
     float sec = 0;
     float gops_sec = 0;
     float weight = 1;
@@ -286,8 +286,8 @@ struct bmnk_conv_sample_t {
     }
 
     float with_atomic() const {
-        int k_tg = kl * kt * ki;
-        int k_rounded = utils::rnd_up(k, k_tg);
+        dim_t k_tg = kl * kt * ki;
+        dim_t k_rounded = utils::rnd_up(k, k_tg);
         return k_rounded > k_tg ? 1.0f : 0.0f;
     }
 
@@ -324,9 +324,9 @@ struct bmnk_conv_sample_t {
         ret.push_back(wave_util());
         ret.push_back(tg_util());
         ret.push_back(ops());
-        int bg = b / (bl * bt * bi);
-        int mg = m / (ml * mt * mi);
-        int ng = n / (nl * nt * ni);
+        dim_t bg = b / (bl * bt * bi);
+        dim_t mg = m / (ml * mt * mi);
+        dim_t ng = n / (nl * nt * ni);
         ret.push_back(bg * mg * ng);
         ret.push_back(k / (kl * kt * ki));
         ret.push_back(mt);
@@ -361,11 +361,11 @@ struct bmnk_conv_sample_t {
 // Convolution training sample.
 struct conv_sample_t {
     struct tile_t {
-        int g, mb;
-        int oc, ic;
-        int id, ih, iw;
-        int od, oh, ow;
-        int kd, kh, kw;
+        dim_t g, mb;
+        dim_t oc, ic;
+        dim_t id, ih, iw;
+        dim_t od, oh, ow;
+        dim_t kd, kh, kw;
     };
 
     prop_t prop;
@@ -401,7 +401,7 @@ struct conv_sample_t {
     }
 
     void pad() {
-        auto pad_dim = [](int &dim, int loop, int tg, int iter) {
+        auto pad_dim = [](dim_t &dim, dim_t loop, dim_t tg, dim_t iter) {
             if (iter == -1) return;
             dim = utils::rnd_up(dim, loop * tg * iter);
         };
@@ -423,7 +423,7 @@ struct conv_sample_t {
     }
 
     float eff() const {
-        int b, m, n, k;
+        dim_t b, m, n, k;
         to_gemm_tile(shape, b, m, n, k);
         float ops = 2.0f * b * m * n * k;
         return ops / 1e9 / sec / hw_cfg.max_gops_per_sec();
@@ -473,7 +473,7 @@ struct conv_sample_t {
         ret.kh = parse_dim(s, "kh");
         ret.kw = parse_dim(s, "kw");
         // Promote missing spatial dimensions based on others.
-        auto promote = [](int &d, int &h, int &w) {
+        auto promote = [](dim_t &d, dim_t &h, dim_t &w) {
             if (d != -1 && h == -1 && w == -1) {
                 h = w = d;
             } else if (d == -1 && h != -1 && w == -1) {
@@ -488,7 +488,8 @@ struct conv_sample_t {
         return normalize_tile(ret);
     }
 
-    void to_gemm_tile(const tile_t &t, int &b, int &m, int &n, int &k) const {
+    void to_gemm_tile(
+            const tile_t &t, dim_t &b, dim_t &m, dim_t &n, dim_t &k) const {
         b = t.g;
         switch (prop) {
             case prop_t::fwd:
@@ -514,7 +515,7 @@ struct conv_sample_t {
     // Initializes missing dimensions to one.
     tile_t normalize_tile(const tile_t &t) const {
         tile_t ret = t;
-        std::vector<int *> dims = {
+        std::vector<dim_t *> dims = {
                 &ret.g, &ret.mb, &ret.oc, &ret.ic, &ret.kd, &ret.kh, &ret.kw};
         switch (prop) {
             case prop_t::fwd:
@@ -575,8 +576,8 @@ public:
         auto &b = buckets_[idx];
         int n = (int)b.size();
         for (int i = 0; i < n; i++)
-            if (b[i] >= value) return i;
-        return (T)n;
+            if (b[i] >= value) return into<T>(i);
+        return into<T>(n);
     }
 
     template <typename T>
@@ -843,7 +844,7 @@ private:
             if (err < min_err) {
                 min_err = err;
                 feature_idx = f;
-                threshold = v;
+                threshold = into<x_type>(v);
             }
         }
     }

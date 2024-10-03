@@ -25,10 +25,10 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-std::vector<int> tile_info_t::iter_blocks(int size) const {
+std::vector<int> tile_info_t::iter_blocks(dim_t size) const {
     if (!any(flags & tile_flags_t::iter)) return {1};
     std::vector<int> ret;
-    int lo = std::min(size, (int)min_iter_blk);
+    int lo = static_cast<int>(std::min<dim_t>(size, min_iter_blk));
     int hi = max_iter_blk;
     uint32_t pow2_seen = 0;
     // Step 1. Check the divisors.
@@ -54,19 +54,19 @@ std::vector<int> tile_info_t::iter_blocks(int size) const {
     return ret;
 }
 
-std::vector<int> tile_info_t::thread_group_blocks(int size) const {
+std::vector<int> tile_info_t::thread_group_blocks(dim_t size) const {
     std::vector<int> ret;
     int bound = any(flags & tile_flags_t::thread_group) ? max_thread_group_blk
                                                         : 1;
     for (int i = 1; i <= bound; i *= 2) {
-        int size_padded = utils::rnd_up(size, i);
+        dim_t size_padded = utils::rnd_up(size, i);
         double eff = (double)size / size_padded;
         if (eff >= 0.75) ret.push_back(i);
     }
     return ret;
 }
 
-std::vector<int> tile_info_t::loop_blocks(int size, int iter_blk) const {
+std::vector<dim_t> tile_info_t::loop_blocks(dim_t size, int iter_blk) const {
     if (!any(flags & tile_flags_t::loop)) return {1};
     if (any(flags & tile_flags_t::loop_span)) return {size};
     if (any(flags & tile_flags_t::loop_iter_unroll)) {
@@ -76,9 +76,9 @@ std::vector<int> tile_info_t::loop_blocks(int size, int iter_blk) const {
     return get_loop_blocks(size);
 }
 
-std::vector<int> tile_info_t::get_factors(int n) {
-    std::vector<int> ret;
-    int n_sqrt = (int)std::sqrt(n);
+std::vector<dim_t> tile_info_t::get_factors(dim_t n) {
+    std::vector<dim_t> ret;
+    int n_sqrt = std::sqrt(n);
     for (int i = 1; i <= n_sqrt; i++) {
         if (n % i == 0) ret.push_back(i);
     }
@@ -90,19 +90,19 @@ std::vector<int> tile_info_t::get_factors(int n) {
     return ret;
 }
 
-std::vector<int> tile_info_t::get_loop_blocks(int n) {
+std::vector<dim_t> tile_info_t::get_loop_blocks(dim_t n) {
     const int step = 4;
     int steps = (int)(std::log((float)n) / std::log((float)step));
     auto factors = get_factors(n);
     if (factors.size() >= (size_t)steps) return factors;
 
-    std::vector<int> ret;
+    std::vector<dim_t> ret;
     ret.reserve(steps);
     for (int i = 1; i <= n; i *= step) {
         int a = i;
         int b = i * step;
         bool found = false;
-        for (int j : factors) {
+        for (dim_t j : factors) {
             if (a <= j && j < b) {
                 found = true;
                 ret.push_back(j);
@@ -115,23 +115,21 @@ std::vector<int> tile_info_t::get_loop_blocks(int n) {
 }
 
 void get_level_tiles(
-        int size, const tile_info_t &info, std::vector<level_tile_t> &ret) {
+        dim_t size, const tile_info_t &info, std::vector<level_tile_t> &ret) {
     ret.clear();
     auto iter_blocks = info.iter_blocks(size);
     for (int iter : iter_blocks) {
-        int tg_size = utils::div_up(size, iter);
+        dim_t tg_size = utils::div_up(size, iter);
         auto tg_blocks = info.thread_group_blocks(tg_size);
         for (int tg : tg_blocks) {
-            int loop_size = utils::div_up(size, tg * iter);
+            dim_t loop_size = utils::div_up(size, tg * iter);
             auto loop_blocks = info.loop_blocks(loop_size, iter);
-            for (int loop : loop_blocks) {
+            for (dim_t loop : loop_blocks) {
                 level_tile_t t;
-                if (any(info.flags & tile_flags_t::loop))
-                    t[level_t::loop] = loop;
+                if (any(info.flags & tile_flags_t::loop)) t.loop = loop;
                 if (any(info.flags & tile_flags_t::thread_group))
-                    t[level_t::thread_group] = tg;
-                if (any(info.flags & tile_flags_t::iter))
-                    t[level_t::iter] = iter;
+                    t.thread_group = tg;
+                if (any(info.flags & tile_flags_t::iter)) t.iter = iter;
                 ret.push_back(t);
             }
         }
@@ -206,10 +204,10 @@ std::vector<blocking_t> level_tile_set_t::sample(int target,
 
 void level_tile_set_t::set(
         blocking_t &blk, const pvar_t &dim, const level_tile_t &tile) {
-    if (tile.has(level_t::loop)) blk.set_loop(dim, tile[level_t::loop]);
+    if (tile.has(level_t::loop)) blk.set_loop(dim, tile.loop);
     if (tile.has(level_t::thread_group))
-        blk.set_thread_group(dim, tile[level_t::thread_group]);
-    if (tile.has(level_t::iter)) blk.set_iter(dim, tile[level_t::iter]);
+        blk.set_thread_group(dim, tile.thread_group);
+    if (tile.has(level_t::iter)) blk.set_iter(dim, tile.iter);
 }
 
 void level_tile_set_t::product_impl(int idx, std::vector<int> &cur_idxs,

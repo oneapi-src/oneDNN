@@ -55,7 +55,7 @@ public:
     // bounds) convolution computes an out-of-bound element which is not
     // generally zero. This requires special handling if there are post-ops
     // followed the convolution.
-    bool is_spurious_spatial(int dim_idx) const override;
+    bool is_spurious_spatial(dim_idx_t dim_idx) const override;
     bool need_to_restore_zero_padding() const override;
     bool use_dst_in_sum_post_op() const override;
     bool can_use_scales() const override;
@@ -73,8 +73,8 @@ private:
 };
 
 void normalize_conv_layouts(layout_t &src_layout, layout_t &wei_layout,
-        layout_t &dst_layout, layout_t &bia_layout, bool with_groups, int g,
-        int ic, int oc, bool is_dw, const std::array<int, 3> &dhw_map,
+        layout_t &dst_layout, layout_t &bia_layout, bool with_groups, dim_t g,
+        dim_t ic, dim_t oc, bool is_dw, const std::array<int, 3> &dhw_map,
         bool add_groups);
 
 } // namespace jit

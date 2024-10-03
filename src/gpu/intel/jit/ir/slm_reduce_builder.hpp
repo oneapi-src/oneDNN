@@ -36,7 +36,7 @@ public:
 
     slm_reduce_builder_t(ir_context_t &ir_ctx, const grid_info_t &tg_grid,
             const expr_t &reg_buf, const layout_t &reg_layout,
-            const tensor_t &thr_tile, int dim = 2);
+            const tensor_t &thr_tile, dim_idx_t dim = 2);
 
     bool is_empty() const { return reg_buf_.is_empty(); }
 
@@ -67,7 +67,7 @@ private:
 
     uint32_t reduction_mask() const {
         uint32_t mask = 0xFFFFFFFF;
-        for (int i = 0; i < tg_ndims_; i++) {
+        for (dim_idx_t i = 0; i < tg_ndims_; i++) {
             int k_dim_idx = reg_layout_.ndims() + i;
             mask &= ~(1 << k_dim_idx);
         }
@@ -81,7 +81,7 @@ private:
     layout_t reg_layout_;
     tensor_t thr_tile_;
 
-    int dim_ = -1;
+    dim_idx_t dim_ = -1;
 
     expr_t tmp_reg_buf_;
     int tmp_reg_buf_size_ = 0;
@@ -89,7 +89,7 @@ private:
     expr_t slm_buf_;
     int slm_buf_size_ = 0;
 
-    int tg_ndims_ = 0;
+    dim_idx_t tg_ndims_ = 0;
 
     stmt_t store_stmt_;
     stmt_t load_stmt_;
