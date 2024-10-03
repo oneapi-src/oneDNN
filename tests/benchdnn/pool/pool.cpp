@@ -41,6 +41,10 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     if (has_bench_mode_bit(mode_bit_t::bitwise)) {
         return fill_random_real(mem_dt, mem_fp, res);
     }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, res, get_perf_fill_cfg(mem_dt.dt()));
+    }
 
     /* Do fixed partitioning to have same filling for any number of threads */
     const int64_t chunk_size = 64;

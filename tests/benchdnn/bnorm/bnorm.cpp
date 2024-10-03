@@ -44,6 +44,10 @@ int fill_mean(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
 
         return fill_random_real(mem_dt, mem_fp, nullptr);
     }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, nullptr, get_perf_fill_cfg(mem_dt.dt()));
+    }
 
     benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
         float val = 0.f;
@@ -62,6 +66,10 @@ int fill_src(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
     // Refer to modes documentation for filling principles.
     if (has_bench_mode_bit(mode_bit_t::bitwise)) {
         return fill_random_real(mem_dt, mem_fp, res);
+    }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, res, get_perf_fill_cfg(mem_dt.dt()));
     }
 
     benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
@@ -120,6 +128,10 @@ int fill_variance(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
                 attr_t::post_ops_t::kind_t::ADD, "variance");
         return fill_random_real(mem_dt, mem_fp, nullptr, fill_cfg);
     }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, nullptr, get_perf_fill_cfg(mem_dt.dt()));
+    }
 
     benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
         float val = 0.f;
@@ -157,6 +169,10 @@ int fill_src_add(const prb_t *prb, const cfg_t &cfg, dnn_mem_t &mem_fp,
     // Refer to modes documentation for filling principles.
     if (has_bench_mode_bit(mode_bit_t::bitwise)) {
         return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, nullptr, get_perf_fill_cfg(mem_dt.dt()));
     }
 
     benchdnn_parallel_nd(prb->ic, prb->mb, prb->id, prb->ih, prb->iw,
@@ -205,6 +221,10 @@ int fill_scale(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
     if (has_bench_mode_bit(mode_bit_t::bitwise)) {
         return fill_random_real(mem_dt, mem_fp, nullptr);
     }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, nullptr, get_perf_fill_cfg(mem_dt.dt()));
+    }
 
     benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
         float val = (1.f / 8) * (1 << (c % 7));
@@ -224,6 +244,10 @@ int fill_shift(const prb_t *prb, dnn_mem_t &mem_fp, dnn_mem_t &mem_dt) {
     // Refer to modes documentation for filling principles.
     if (has_bench_mode_bit(mode_bit_t::bitwise)) {
         return fill_random_real(mem_dt, mem_fp, nullptr);
+    }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, nullptr, get_perf_fill_cfg(mem_dt.dt()));
     }
 
     benchdnn_parallel_nd(prb->ic, [&](int64_t c) {
@@ -295,6 +319,10 @@ int prepare_bwd(
         }
 
         return OK;
+    }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, nullptr, get_perf_fill_cfg(mem_dt.dt()));
     }
 
     // Idea behind filling: integer diff_dst values decrease norms unlike fp32

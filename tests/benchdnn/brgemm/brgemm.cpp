@@ -221,6 +221,11 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
 
     assert(mem_dt.nelems() == mem_fp.nelems());
 
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, res, get_perf_fill_cfg(mem_dt.dt()));
+    }
+
     cfg_t::density_args_t density_args;
     density_args.data_kind = kind;
     density_args.n_acc = prb->k;

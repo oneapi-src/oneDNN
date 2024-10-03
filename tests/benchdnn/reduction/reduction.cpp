@@ -115,6 +115,10 @@ int fill_mem(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     if (has_bench_mode_bit(mode_bit_t::bitwise) && prb->alg != alg_t::mul) {
         return fill_random_real(mem_dt, mem_fp, nullptr);
     }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, nullptr, get_perf_fill_cfg(mem_dt.dt()));
+    }
 
     const auto sdt = mem_dt.dt();
     const auto ddt = prb->ddt;

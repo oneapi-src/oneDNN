@@ -88,6 +88,15 @@ const fill_cfg_t &get_default_fill_cfg() {
     return fill_cfg;
 }
 
+const fill_cfg_t &get_perf_fill_cfg(dnnl_data_type_t dt) {
+    assert(has_bench_mode_bit(mode_bit_t::perf));
+    static const fill_cfg_t fill_cfg(dt, MAX2(-1024.f, lowest_dt(dt)),
+            MIN2(1024.f, max_dt(dt)),
+            /* only_int = */ false, attr_t::post_ops_t::kind_t::ADD,
+            "perf_mode_fill");
+    return fill_cfg;
+}
+
 int fill_scales(
         const attr_t &attr, int arg, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto &e = attr.scales.get(arg);
