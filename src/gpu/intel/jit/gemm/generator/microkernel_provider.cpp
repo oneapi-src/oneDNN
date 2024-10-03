@@ -138,9 +138,9 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo, SizeP
         adjustStrategy(hw, problem, strategy);
         modifyStrategy(strategy, auxParams);
 
-        /* Xe2-XeHPC compatibility logic */
-        if (hw == ngen::HW::Xe2) {
-            // Use XeHPC register banking on Xe2, in order
+        /* Xe2/Xe3-XeHPC compatibility logic */
+        if (hw == ngen::HW::Xe2 || hw == ngen::HW::Xe3) {
+            // Use XeHPC register banking on Xe2/Xe3, in order
             //   to successfully reuse XeHPC strategies.
             strategy.raHW = ngen::HW::XeHPC;
 
@@ -226,6 +226,7 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo, SizeP
         REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
         REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
         REG_XE2_ISA(ARCH_DISPATCH(Xe2))
+        REG_XE3_ISA(ARCH_DISPATCH(Xe3))
         default: throw std::runtime_error("Unsupported architecture");
     }
 #undef ARCH_DISPATCH
