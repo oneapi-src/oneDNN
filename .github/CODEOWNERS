@@ -41,10 +41,6 @@
 # Graph API
 /src/graph/ @oneapi-src/onednn-graph @intel-innersource/dnn-graph
 
-# Graph compiler
-/src/graph/backend/graph_compiler/ @intel-innersource/dnn-compiler
-/tests/gtests/graph/unit/backend/graph_compiler/ @intel-innersource/dnn-compiler
-
 # Documentation
 *.md  @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
 /doc/ @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
