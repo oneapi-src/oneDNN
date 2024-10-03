@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
-* Copyright 2021-2023 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@
 #include "cpu/platform.hpp"
 
 #include "cpu/aarch64/cpu_reducer.hpp"
-#include "cpu/aarch64/jit_sve_512_1x1_conv_kernel.hpp"
+#include "cpu/aarch64/jit_sve_1x1_conv_kernel.hpp"
 #include "cpu/aarch64/jit_uni_1x1_conv_utils.hpp"
 #include "cpu/aarch64/jit_uni_dw_convolution.hpp"
 
@@ -40,8 +40,8 @@ namespace cpu {
 namespace aarch64 {
 
 template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
-        impl::data_type_t dst_type = src_type>
-struct jit_sve_512_1x1_convolution_fwd_t : public primitive_t {
+        impl::data_type_t dst_type = src_type, cpu_isa_t isa_ = isa_undef>
+struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
@@ -52,8 +52,8 @@ struct jit_sve_512_1x1_convolution_fwd_t : public primitive_t {
             if (copy(other) != status::success) is_initialized_ = false;
         }
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", sve_512, ""),
-                jit_sve_512_1x1_convolution_fwd_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", isa_, ""),
+                jit_sve_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace utils;
@@ -66,19 +66,19 @@ struct jit_sve_512_1x1_convolution_fwd_t : public primitive_t {
                             primitive_attr_t::skip_mask_t::post_ops, dst_type)
                     && !has_zero_dim_memory() && set_default_formats()
                     && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            if (!ok) { return status::unimplemented; }
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, dst_md());
 
-            CHECK(jit_sve_512_1x1_conv_kernel::init_conf(jcp_, *conv_d, *src_d,
-                    *weights_md(), *dst_md(), *attr(), dnnl_get_max_threads(),
-                    rtus_.reduce_src_));
+            CHECK(jit_sve_1x1_conv_kernel<isa_>::init_conf(jcp_, *conv_d,
+                    *src_d, *weights_md(), *dst_md(), *attr(),
+                    dnnl_get_max_threads(), rtus_.reduce_src_));
             if (jcp_.with_dw_conv) CHECK(depthwise_po_init(engine));
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_sve_512_1x1_conv_kernel::init_scratchpad(scratchpad, jcp_);
+            jit_sve_1x1_conv_kernel<isa_>::init_scratchpad(scratchpad, jcp_);
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
@@ -132,23 +132,51 @@ struct jit_sve_512_1x1_convolution_fwd_t : public primitive_t {
             const memory_desc_wrapper dst_d(&dst_md_);
 
             const auto dat_tag_nxc = utils::pick(ndims() - 3, nwc, nhwc, ndhwc);
-            const auto dat_tag_nCx16c
-                    = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-            const auto curr_src_tag
-                    = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
-            const auto curr_dst_tag
-                    = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
-            const auto is_data_layout_nxc
-                    = IMPLICATION(curr_src_tag != dat_tag_nxc,
-                              src_d.format_kind() == format_kind::any)
-                    && IMPLICATION(curr_dst_tag != dat_tag_nxc,
-                            dst_d.format_kind() == format_kind::any)
-                    && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
-            auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
-            auto wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
-                    OIw16i16o, gOIw16i16o, OIhw16i16o, gOIhw16i16o, OIdhw16i16o,
-                    gOIdhw16i16o);
+            format_tag_t dat_tag, wei_tag;
 
+            switch (isa_) {
+                case sve_512: {
+                    const auto dat_tag_nCx16c = utils::pick(
+                            ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+                    const auto curr_src_tag = src_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx16c);
+                    const auto curr_dst_tag = dst_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx16c);
+                    const auto is_data_layout_nxc
+                            = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                                      src_d.format_kind() == format_kind::any)
+                            && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                                    dst_d.format_kind() == format_kind::any)
+                            && utils::one_of(
+                                    dat_tag_nxc, curr_src_tag, curr_dst_tag);
+                    dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
+                    wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
+                            OIw16i16o, gOIw16i16o, OIhw16i16o, gOIhw16i16o,
+                            OIdhw16i16o, gOIdhw16i16o);
+                    break;
+                }
+                case sve_256: {
+                    const auto dat_tag_nCx8c
+                            = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+                    const auto curr_src_tag = src_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx8c);
+                    const auto curr_dst_tag = dst_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx8c);
+                    const auto is_data_layout_nxc
+                            = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                                      src_d.format_kind() == format_kind::any)
+                            && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                                    dst_d.format_kind() == format_kind::any)
+                            && utils::one_of(
+                                    dat_tag_nxc, curr_src_tag, curr_dst_tag);
+                    dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx8c;
+                    wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
+                            OIw8i8o, gOIw8i8o, OIhw8i8o, gOIhw8i8o, OIdhw8i8o,
+                            gOIdhw8i8o);
+                    break;
+                }
+                default: break;
+            }
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
         status_t copy(const pd_t &other) {
@@ -249,8 +277,8 @@ struct jit_sve_512_1x1_convolution_fwd_t : public primitive_t {
                     dw_conv_buffer_size_,
                     types::data_type_size(dw_conv_pd_->src_md()->data_type));
 
-            jit_uni_dw_conv_fwd_kernel<sve_512,
-                    data_type::f32>::init_scratchpad(dw_scratchpad, jcp_dw);
+            jit_uni_dw_conv_fwd_kernel<isa_, data_type::f32>::init_scratchpad(
+                    dw_scratchpad, jcp_dw);
 
             return status::success;
         }
@@ -259,7 +287,7 @@ struct jit_sve_512_1x1_convolution_fwd_t : public primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend status_t init_rtus_driver(conv_t *self);
 
-    jit_sve_512_1x1_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    jit_sve_1x1_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -267,7 +295,7 @@ struct jit_sve_512_1x1_convolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
-                new jit_sve_512_1x1_conv_kernel(
+                new jit_sve_1x1_conv_kernel<isa_>(
                         pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
         CHECK(kernel_->create_kernel());
 
@@ -276,8 +304,7 @@ struct jit_sve_512_1x1_convolution_fwd_t : public primitive_t {
                     kernel_dw_, new dw_conv_kernel_t(pd()->dw_conv_pd_->jcp_)));
             CHECK(kernel_dw_->create_kernel());
         }
-
-        CHECK(init_rtus_driver<sve_512>(this));
+        CHECK(init_rtus_driver<isa_>(this));
         return status::success;
     }
 
@@ -297,27 +324,32 @@ private:
             const void *post_ops_binary_rhs_arg_vec_dw) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<jit_sve_512_1x1_conv_kernel> kernel_;
-    std::unique_ptr<rtus_driver_t<sve_512>> rtus_driver_;
-    using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<sve_512>;
+    std::unique_ptr<jit_sve_1x1_conv_kernel<isa_>> kernel_;
+    std::unique_ptr<rtus_driver_t<isa_>> rtus_driver_;
+    using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<isa_>;
     std::unique_ptr<dw_conv_kernel_t> kernel_dw_;
 };
 
+using jit_sve_256_1x1_convolution_fwd_f32_t
+        = jit_sve_1x1_convolution_fwd_t<data_type::f32, data_type::f32,
+                data_type::f32, sve_256>;
 using jit_sve_512_1x1_convolution_fwd_f32_t
-        = jit_sve_512_1x1_convolution_fwd_t<data_type::f32>;
+        = jit_sve_1x1_convolution_fwd_t<data_type::f32, data_type::f32,
+                data_type::f32, sve_512>;
 
 template <impl::data_type_t diff_dst_type,
         impl::data_type_t wei_type = diff_dst_type,
-        impl::data_type_t diff_src_type = diff_dst_type>
-struct jit_sve_512_1x1_convolution_bwd_data_t : public primitive_t {
+        impl::data_type_t diff_src_type = diff_dst_type,
+        cpu_isa_t isa_ = isa_undef>
+struct jit_sve_1x1_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_()
             , rtus_() {}
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", sve_512, ""),
-                jit_sve_512_1x1_convolution_bwd_data_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", isa_, ""),
+                jit_sve_1x1_convolution_bwd_data_t);
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
@@ -332,13 +364,13 @@ struct jit_sve_512_1x1_convolution_bwd_data_t : public primitive_t {
             const memory_desc_t *diff_src_d = diff_src_md();
             rtus_prepare(this, conv_d, diff_src_d, diff_dst_md());
 
-            status_t status = jit_sve_512_1x1_conv_kernel::init_conf(jcp_,
+            status_t status = jit_sve_1x1_conv_kernel<isa_>::init_conf(jcp_,
                     *conv_d, *diff_src_d, *weights_md(), *diff_dst_md(),
                     *attr(), dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_sve_512_1x1_conv_kernel::init_scratchpad(scratchpad, jcp_);
+            jit_sve_1x1_conv_kernel<isa_>::init_scratchpad(scratchpad, jcp_);
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
@@ -357,23 +389,55 @@ struct jit_sve_512_1x1_convolution_bwd_data_t : public primitive_t {
             const memory_desc_wrapper diff_dst_d(&diff_dst_md_);
 
             const auto dat_tag_nxc = utils::pick(ndims() - 3, nwc, nhwc, ndhwc);
-            const auto dat_tag_nCx16c
-                    = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-            const auto curr_src_tag = diff_src_d.matches_one_of_tag(
-                    dat_tag_nxc, dat_tag_nCx16c);
-            const auto curr_dst_tag = diff_dst_d.matches_one_of_tag(
-                    dat_tag_nxc, dat_tag_nCx16c);
-            const auto is_data_layout_nxc
-                    = IMPLICATION(curr_src_tag != dat_tag_nxc,
-                              diff_src_d.format_kind() == format_kind::any)
-                    && IMPLICATION(curr_dst_tag != dat_tag_nxc,
-                            diff_dst_d.format_kind() == format_kind::any)
-                    && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
-            auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
-            auto wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
-                    IOw16o16i, gIOw16o16i, IOhw16o16i, gIOhw16o16i, IOdhw16o16i,
-                    gIOdhw16o16i);
+            format_tag_t dat_tag, wei_tag;
 
+            switch (isa_) {
+                case sve_512: {
+                    const auto dat_tag_nCx16c = utils::pick(
+                            ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+                    const auto curr_src_tag = diff_src_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx16c);
+                    const auto curr_dst_tag = diff_dst_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx16c);
+                    const auto is_data_layout_nxc
+                            = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                                      diff_src_d.format_kind()
+                                              == format_kind::any)
+                            && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                                    diff_dst_d.format_kind()
+                                            == format_kind::any)
+                            && utils::one_of(
+                                    dat_tag_nxc, curr_src_tag, curr_dst_tag);
+                    dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
+                    wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
+                            IOw16o16i, gIOw16o16i, IOhw16o16i, gIOhw16o16i,
+                            IOdhw16o16i, gIOdhw16o16i);
+                    break;
+                }
+                case sve_256: {
+                    const auto dat_tag_nCx8c
+                            = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+                    const auto curr_src_tag = diff_src_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx8c);
+                    const auto curr_dst_tag = diff_dst_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx8c);
+                    const auto is_data_layout_nxc
+                            = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                                      diff_src_d.format_kind()
+                                              == format_kind::any)
+                            && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                                    diff_dst_d.format_kind()
+                                            == format_kind::any)
+                            && utils::one_of(
+                                    dat_tag_nxc, curr_src_tag, curr_dst_tag);
+                    dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx8c;
+                    wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
+                            IOw8o8i, gIOw8o8i, IOhw8o8i, gIOhw8o8i, IOdhw8o8i,
+                            gIOdhw8o8i);
+                    break;
+                }
+                default: break;
+            }
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
     };
@@ -381,8 +445,7 @@ struct jit_sve_512_1x1_convolution_bwd_data_t : public primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend status_t init_rtus_driver(conv_t *self);
 
-    jit_sve_512_1x1_convolution_bwd_data_t(const pd_t *apd)
-        : primitive_t(apd) {}
+    jit_sve_1x1_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -390,10 +453,10 @@ struct jit_sve_512_1x1_convolution_bwd_data_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
-                new jit_sve_512_1x1_conv_kernel(
+                new jit_sve_1x1_conv_kernel<isa_>(
                         pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
         CHECK(kernel_->create_kernel());
-        CHECK(init_rtus_driver<sve_512>(this));
+        CHECK(init_rtus_driver<isa_>(this));
         return status::success;
     }
 
@@ -405,15 +468,23 @@ struct jit_sve_512_1x1_convolution_bwd_data_t : public primitive_t {
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::unique_ptr<jit_sve_512_1x1_conv_kernel> kernel_;
-    std::unique_ptr<rtus_driver_t<sve_512>> rtus_driver_;
+    std::unique_ptr<jit_sve_1x1_conv_kernel<isa_>> kernel_;
+    std::unique_ptr<rtus_driver_t<isa_>> rtus_driver_;
 };
+using jit_sve_256_1x1_convolution_bwd_data_f32_t
+        = jit_sve_1x1_convolution_bwd_data_t<data_type::f32, data_type::f32,
+                data_type::f32, sve_256>;
 
 using jit_sve_512_1x1_convolution_bwd_data_f32_t
-        = jit_sve_512_1x1_convolution_bwd_data_t<data_type::f32>;
+        = jit_sve_1x1_convolution_bwd_data_t<data_type::f32, data_type::f32,
+                data_type::f32, sve_512>;
 
 /* Backward weight */
-struct jit_sve_512_1x1_convolution_bwd_weights_t : public primitive_t {
+template <impl::data_type_t diff_dst_type,
+        impl::data_type_t wei_type = diff_dst_type,
+        impl::data_type_t diff_src_type = diff_dst_type,
+        cpu_isa_t isa_ = isa_undef>
+struct jit_sve_1x1_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
@@ -421,8 +492,8 @@ struct jit_sve_512_1x1_convolution_bwd_weights_t : public primitive_t {
             , jcp_()
             , rtus_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", sve_512, ""),
-                jit_sve_512_1x1_convolution_bwd_weights_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", isa_, ""),
+                jit_sve_1x1_convolution_bwd_weights_t);
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
@@ -431,13 +502,13 @@ struct jit_sve_512_1x1_convolution_bwd_weights_t : public primitive_t {
                             data_type::f32, data_type::f32, data_type::f32)
                     && attr()->has_default_values() && !has_zero_dim_memory()
                     && set_default_formats();
-            if (!ok) return status::unimplemented;
+            if (!ok) { return status::unimplemented; }
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, diff_dst_md());
 
-            status_t status = jit_sve_512_1x1_conv_kernel::init_conf(jcp_,
+            status_t status = jit_sve_1x1_conv_kernel<isa_>::init_conf(jcp_,
                     *conv_d, *src_d, *diff_weights_md(), *diff_dst_md(),
                     *attr(), dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
@@ -445,7 +516,7 @@ struct jit_sve_512_1x1_convolution_bwd_weights_t : public primitive_t {
             init_balancers();
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_sve_512_1x1_conv_kernel::init_scratchpad(scratchpad, jcp_);
+            jit_sve_1x1_conv_kernel<isa_>::init_scratchpad(scratchpad, jcp_);
 
             auto reducer_bia_scratchpad = memory_tracking::registrar_t(
                     scratchpad, memory_tracking::names::prefix_reducer_bia);
@@ -457,7 +528,7 @@ struct jit_sve_512_1x1_convolution_bwd_weights_t : public primitive_t {
 
         // TODO (Roma): structs conf header cleanup
         jit_1x1_conv_conf_t jcp_;
-        cpu_reducer_t<data_type::f32>::conf_t reducer_bia_conf_;
+        typename cpu_reducer_t<data_type::f32, isa_>::conf_t reducer_bia_conf_;
         reduce_to_unit_stride_t rtus_;
 
     protected:
@@ -468,24 +539,56 @@ struct jit_sve_512_1x1_convolution_bwd_weights_t : public primitive_t {
             const memory_desc_wrapper diff_dst_d(&diff_dst_md_);
 
             const auto dat_tag_nxc = utils::pick(ndims() - 3, nwc, nhwc, ndhwc);
-            const auto dat_tag_nCx16c
-                    = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-            const auto curr_src_tag
-                    = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
-            const auto curr_dst_tag = diff_dst_d.matches_one_of_tag(
-                    dat_tag_nxc, dat_tag_nCx16c);
-            const auto is_data_layout_nxc
-                    = IMPLICATION(curr_src_tag != dat_tag_nxc,
-                              src_d.format_kind() == format_kind::any)
-                    && IMPLICATION(curr_dst_tag != dat_tag_nxc,
-                            diff_dst_d.format_kind() == format_kind::any)
-                    && utils::one_of(dat_tag_nxc, curr_src_tag, curr_dst_tag);
 
-            auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
-            auto wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
-                    OIw16i16o, gOIw16i16o, OIhw16i16o, gOIhw16i16o, OIdhw16i16o,
-                    gOIdhw16i16o);
+            format_tag_t dat_tag, wei_tag;
 
+            switch (isa_) {
+                case sve_512: {
+                    auto dat_tag_nCx16c = utils::pick(
+                            ndims() - 3, nCw16c, nChw16c, nCdhw16c);
+                    const auto curr_src_tag = src_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx16c);
+                    const auto curr_dst_tag = diff_dst_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx16c);
+                    const auto is_data_layout_nxc
+                            = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                                      src_d.format_kind() == format_kind::any)
+                            && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                                    diff_dst_d.format_kind()
+                                            == format_kind::any)
+                            && utils::one_of(
+                                    dat_tag_nxc, curr_src_tag, curr_dst_tag);
+
+                    dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
+                    wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
+                            OIw16i16o, gOIw16i16o, OIhw16i16o, gOIhw16i16o,
+                            OIdhw16i16o, gOIdhw16i16o);
+                    break;
+                }
+                case sve_256: {
+                    const auto dat_tag_nCx8c
+                            = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+                    const auto curr_src_tag = src_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx8c);
+                    const auto curr_dst_tag = diff_dst_d.matches_one_of_tag(
+                            dat_tag_nxc, dat_tag_nCx8c);
+                    const auto is_data_layout_nxc
+                            = IMPLICATION(curr_src_tag != dat_tag_nxc,
+                                      src_d.format_kind() == format_kind::any)
+                            && IMPLICATION(curr_dst_tag != dat_tag_nxc,
+                                    diff_dst_d.format_kind()
+                                            == format_kind::any)
+                            && utils::one_of(
+                                    dat_tag_nxc, curr_src_tag, curr_dst_tag);
+
+                    dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx8c;
+                    wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
+                            OIw8i8o, gOIw8i8o, OIhw8i8o, gOIhw8i8o, OIdhw8i8o,
+                            gOIdhw8i8o);
+                    break;
+                }
+                default: break;
+            }
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
@@ -503,8 +606,7 @@ struct jit_sve_512_1x1_convolution_bwd_weights_t : public primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend status_t init_rtus_driver(conv_t *self);
 
-    jit_sve_512_1x1_convolution_bwd_weights_t(const pd_t *apd)
-        : primitive_t(apd) {}
+    jit_sve_1x1_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -519,12 +621,20 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<jit_sve_512_1x1_conv_kernel> kernel_;
-    std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
-    std::unique_ptr<cpu_reducer_t<data_type::f32>> reducer_bias_;
+    std::unique_ptr<jit_sve_1x1_conv_kernel<isa_>> kernel_;
+    std::unique_ptr<cpu_accumulator_1d_t<data_type::f32, isa_>> acc_ker_;
+    std::unique_ptr<cpu_reducer_t<data_type::f32, isa_>> reducer_bias_;
     // std::unique_ptr<jit_transpose4x16_src> trans_kernel_;
-    std::unique_ptr<rtus_driver_t<sve_512>> rtus_driver_;
+    std::unique_ptr<rtus_driver_t<isa_>> rtus_driver_;
 };
+
+using jit_sve_256_1x1_convolution_bwd_weights_t
+        = jit_sve_1x1_convolution_bwd_weights_t<data_type::f32, data_type::f32,
+                data_type::f32, sve_256>;
+
+using jit_sve_512_1x1_convolution_bwd_weights_t
+        = jit_sve_1x1_convolution_bwd_weights_t<data_type::f32, data_type::f32,
+                data_type::f32, sve_512>;
 
 } // namespace aarch64
 } // namespace cpu

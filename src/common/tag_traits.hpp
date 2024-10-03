@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2018-2024 Intel Corporation
+* Copyright 2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -767,7 +768,9 @@ DECL_TRAITS(AcB16a4b, _AB, _16a4b, 3);
 DECL_TRAITS(Acb8a, _A, _8a, 3);
 DECL_TRAITS(AcB8a2b, _AB, _8a2b, 3);
 DECL_TRAITS(AcB8a4b, _AB, _8a4b, 3);
+DECL_TRAITS(aCBd8b8c, _BC, _8b8c, 4);
 DECL_TRAITS(aCBd16b16c, _BC, _16b16c, 4);
+DECL_TRAITS(aCBde8b8c, _BC, _8b8c, 5);
 DECL_TRAITS(aCBde16b16c, _BC, _16b16c, 5);
 DECL_TRAITS(Acdb16a, _A, _16a, 4);
 DECL_TRAITS(AcdB16a2b, _AB, _16a2b, 4);
@@ -783,8 +786,11 @@ DECL_TRAITS(AcdeB8a2b, _AB, _8a2b, 5);
 DECL_TRAITS(AcdeB8a4b, _AB, _8a4b, 5);
 DECL_TRAITS(Acedb16a, _A, _16a, 5);
 DECL_TRAITS(Adcb16a, _A, _16a, 4);
+DECL_TRAITS(BAc8a8b, _AB, _8a8b, 3);
 DECL_TRAITS(BAc16a16b, _AB, _16a16b, 3);
+DECL_TRAITS(BAcd8a8b, _AB, _8a8b, 4);
 DECL_TRAITS(BAcd16a16b, _AB, _16a16b, 4);
+DECL_TRAITS(BAcde8a8b, _AB, _8a8b, 5);
 DECL_TRAITS(BAcde16a16b, _AB, _16a16b, 5);
 DECL_TRAITS(ABcd32a32b, _AB, _32a32b, 4);
 DECL_TRAITS(BAcde16b16a, _AB, _16b16a, 5);
@@ -794,6 +800,7 @@ DECL_TRAITS(aBCde4b8c8b4c, _BC, _4b8c8b4c, 5);
 DECL_TRAITS(aBCde2b8c8b2c, _BC, _2b8c8b2c, 5);
 DECL_TRAITS(aBdec32b, _B, _32b, 5);
 DECL_TRAITS(aCBdef16c16b, _BC, _16c16b, 6);
+DECL_TRAITS(aCBdef8b8c, _BC, _8b8c, 6);
 DECL_TRAITS(aCBdef16b16c, _BC, _16b16c, 6);
 DECL_TRAITS(Abcdef16a, _A, _16a, 6);
 DECL_TRAITS(aCBd16c16b, _BC, _16c16b, 4);

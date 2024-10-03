@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
-* Copyright 2021-2023 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ struct reduce_to_unit_stride_t {
 
 /* 1x1-kernel does not support non-unit strides so far, so the idea is:
  *  - for fwd or bwd_weights: to copy src to a scratch memory (with strides
- *    equal to 1) and then call the kernel
+ *    equal to 1) and then call the kernel  
  *  - for bwd_data: reduce the problem to the one with unit stride by
  *    performing computations in a scratch memory (with strides equal to 1)
  *    and then copy the result to diff_src */
@@ -50,7 +50,6 @@ template <typename conv_pd_t>
 inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
         const memory_desc_t *&src_d, const memory_desc_t *dst_d) {
     const int ndims = src_d->ndims;
-
     bool rtus_applicable = utils::one_of(ndims, 3, 4);
     if (ndims == 3)
         rtus_applicable = rtus_applicable && conv_d->strides[0] != 1
@@ -182,13 +181,15 @@ struct rtus_driver_t : public jit_generator {
             ZReg res = ZReg(idx);
             if (is_nspc_) {
                 switch (isa) {
-                    case sve_512: res = ZReg(idx); break;
+                    case sve_512:
+                    case sve_256: res = ZReg(idx); break;
                     default: assert(!"Not supported isa"); res = ZReg(idx);
                 }
                 return res;
             }
             switch (isa) {
                 case sve_512:
+                case sve_256:
                     switch (typesize) {
                         case 4: res = ZReg(idx); break;
                         default:
@@ -202,7 +203,7 @@ struct rtus_driver_t : public jit_generator {
         reg_zero = Vmm(0, typesize);
         reg_v = Vmm(1, typesize);
 
-        vlen_ = reg_v.getBit() / 8;
+        vlen_ = cpu_isa_traits<isa>::vlen;
         vlen_shift_ = 0;
 
         int tvlen = is_nspc_ ? typesize_ : vlen_;
@@ -217,7 +218,6 @@ struct rtus_driver_t : public jit_generator {
 
     void loop_is() {
         using namespace Xbyak_aarch64;
-
         mov(reg_cur_src, reg_src);
         mov(reg_cur_iw, reg_iw_start);
         mov(reg_cur_os, reg_os);
@@ -285,7 +285,7 @@ struct rtus_driver_t : public jit_generator {
         mov(reg_cur_src, reg_src);
         mov(reg_cur_iw, reg_iw_start);
 
-        if (isa == sve_512) {
+        if (isa == sve_256 || isa == sve_512) {
             and_(reg_icb_remainder, reg_icb, (vlen_ / typesize_) - 1);
             mov_imm(X_TMP_0, 0);
             whilelt(tail_mask.s, X_TMP_0, reg_icb_remainder);
@@ -356,8 +356,9 @@ struct rtus_driver_t : public jit_generator {
 
         const size_t w_step_factor = ic_ * typesize_;
         const size_t max_load_store_bytes = typesize_ == 4 ? 32 : 16;
-        const size_t load_store_size
-                = isa == sve_512 ? vlen_ : max_load_store_bytes;
+        const size_t load_store_size = (isa == sve_256 || isa == sve_512)
+                ? vlen_
+                : max_load_store_bytes;
 
         Label is_loop, ic_loop, ic_loop_tail, ic_loop_finish;
         L(is_loop);
@@ -467,7 +468,7 @@ struct rtus_driver_t : public jit_generator {
 
     void generate() override {
         using namespace Xbyak_aarch64;
-        assert(isa == sve_512);
+        assert(isa == sve_256 || isa == sve_512);
 
         preamble();
 #define READ_PARAM(what) \

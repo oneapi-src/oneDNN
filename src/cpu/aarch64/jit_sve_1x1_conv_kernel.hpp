@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
-* Copyright 2021-2023 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,14 +33,15 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-/* Get vector offsets, ofs / VL(VL: 512bits = 64Bytes) */
-#define VL64_OFS(ofs) ((ofs) >> 6)
+/* Get vector offsets, ofs / VL(eg VL: 512bits = 64Bytes ) */
+#define VL64_OFS(ofs) (ofs >> cpu_isa_traits<isa_>::vlen_shift)
 
-struct jit_sve_512_1x1_conv_kernel : public jit_generator {
-    jit_sve_512_1x1_conv_kernel(const jit_1x1_conv_conf_t &ajcp,
+template <cpu_isa_t isa_ = isa_undef>
+struct jit_sve_1x1_conv_kernel : public jit_generator {
+    jit_sve_1x1_conv_kernel(const jit_1x1_conv_conf_t &ajcp,
             const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_512_1x1_conv_kernel)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_1x1_conv_kernel)
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -89,11 +90,11 @@ private:
 
     reg64_t reg_load_dim_tail_mask = aux_reg_load_data;
 
-    std::unique_ptr<injector::jit_uni_postops_injector_t<sve_512>>
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa_>>
             postops_injector_;
 
     constexpr static int isa_simd_width_
-            = cpu_isa_traits<sve_512>::vlen / sizeof(float);
+            = cpu_isa_traits<isa_>::vlen / sizeof(float);
 
     ZReg vreg_bcast = ZReg(31);
     PReg k_load_dim_mask = p2;

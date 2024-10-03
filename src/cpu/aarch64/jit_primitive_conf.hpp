@@ -36,6 +36,7 @@ enum conv_version_t {
     ver_unused,
     ver_fma,
     ver_sve_512,
+    ver_sve_256,
 };
 
 enum conv_loop_order_t {
