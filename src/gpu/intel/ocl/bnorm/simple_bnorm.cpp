@@ -17,9 +17,6 @@
 #include "gpu/intel/ocl/bnorm/simple_bnorm.hpp"
 
 #include "common/c_types_map.hpp"
-#include "common/dnnl_traits.hpp"
-#include "common/math_utils.hpp"
-#include "common/scratchpad.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 

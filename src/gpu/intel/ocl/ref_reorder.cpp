@@ -14,11 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <algorithm>
 #include "gpu/intel/ocl/ref_reorder.hpp"
 
 #include "common/utils.hpp"
-#include "gpu/intel/ocl/ocl_stream.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 namespace dnnl {
 namespace impl {
