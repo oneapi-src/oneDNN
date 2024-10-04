@@ -107,7 +107,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
 
         // Block size for head_size, which must be hard-coded into the kernel.
         int d_max() const {
-            int head_size = desc()->head_size();
+            int head_size = into<int>(desc()->head_size());
             for (int i = 32; i <= 1024; i *= 2)
                 if (head_size <= i) return i;
             return head_size;

@@ -114,7 +114,7 @@ dimensions_t query_dims_and_blocks(const memory_desc_wrapper &mdw) {
 
     // Calculate info for inner blocks
     dimensions_t inner_blks(nblks);
-    std::vector<int> steps(ndims, 1);
+    std::vector<dim_t> steps(ndims, 1);
     dim_t blks_size = 1;
     for (int i = nblks - 1; i >= 0; --i) {
         auto &blk = inner_blks[i];
@@ -497,7 +497,7 @@ bool fill_to_vect(
     subset.clear();
     for (auto &dim : all) {
         dim_t next_size = current_size * dim.size;
-        int next_full_vecs = next_size / simd_size;
+        dim_t next_full_vecs = next_size / simd_size;
         if (next_full_vecs >= min_full_vecs || next_size % simd_size == 0) {
             // Vectorize innermost dim(s). If it's not divisible by simd size,
             // they will need to be padded. And for that the vectorised dim(s)
@@ -547,7 +547,7 @@ dimensions_t fix_order_to(dimensions_t input, dimensions_t ref) {
         for (size_t j = 0; j < input.size(); j++) {
             if (ref[i].size != 1 && input[j].size != 1
                     && ref[i].idx == input[j].idx) {
-                int smaller = std::min(ref[i].size, input[j].size);
+                dim_t smaller = std::min(ref[i].size, input[j].size);
                 if (no_more_such_idx(ref, i) || j == input.size() - 1) {
                     smaller = input[j].size;
                 }
@@ -718,31 +718,31 @@ bool fill_conf_vld(const memory_desc_wrapper &src,
         cfg.src_blk[i].dim_idx = 0;
         cfg.dst_blk[i].dim_idx = 0;
     }
-    cfg.src_vct[0].blk_size = src_packet[0].size;
+    cfg.src_vct[0].blk_size = into<int>(src_packet[0].size);
     cfg.src_vct[0].dim_idx = src_packet[0].idx;
-    cfg.dst_vct[0].blk_size = dst_packet[0].size;
+    cfg.dst_vct[0].blk_size = into<int>(dst_packet[0].size);
     cfg.dst_vct[0].dim_idx = dst_packet[0].idx;
     for (size_t i = 0; i < src_packet.size(); i++) {
         cfg.src_vct[i].dim_idx = src_packet[i].idx;
-        cfg.src_vct[i].blk_size = src_packet[i].size;
-        cfg.src_vct[i].step_size = src_packet[i].step;
+        cfg.src_vct[i].blk_size = into<int>(src_packet[i].size);
+        cfg.src_vct[i].step_size = into<int>(src_packet[i].step);
     }
     for (size_t i = 0; i < dst_packet.size(); i++) {
         cfg.dst_vct[i].dim_idx = dst_packet[i].idx;
-        cfg.dst_vct[i].blk_size = dst_packet[i].size;
-        cfg.dst_vct[i].step_size = dst_packet[i].step;
+        cfg.dst_vct[i].blk_size = into<int>(dst_packet[i].size);
+        cfg.dst_vct[i].step_size = into<int>(dst_packet[i].step);
     }
 
     // fill src's and dst's loop recipe
     for (size_t i = 0; i < src_block.size(); i++) {
         cfg.src_blk[i].dim_idx = src_block[i].idx;
-        cfg.src_blk[i].blk_size = src_block[i].size;
-        cfg.src_blk[i].step_size = src_block[i].step;
+        cfg.src_blk[i].blk_size = into<int>(src_block[i].size);
+        cfg.src_blk[i].step_size = into<int>(src_block[i].step);
     }
     for (size_t i = 0; i < dst_block.size(); i++) {
         cfg.dst_blk[i].dim_idx = dst_block[i].idx;
-        cfg.dst_blk[i].blk_size = dst_block[i].size;
-        cfg.dst_blk[i].step_size = dst_block[i].step;
+        cfg.dst_blk[i].blk_size = into<int>(dst_block[i].size);
+        cfg.dst_blk[i].step_size = into<int>(dst_block[i].step);
     }
     cfg.vector_dim = dst_packet[0].idx;
     vect_dim = dst_packet[0].idx;

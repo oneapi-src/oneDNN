@@ -477,14 +477,14 @@ private:
 
     void remove_blocking(dim_idx_t dim) {
         auto &blk = format_desc.blocking;
-        size_t dim_idx = get_dim_idx(dim);
+        dim_idx_t dim_idx = get_dim_idx(dim);
         if (dim_idx == dim_not_found) return;
 
         // Tally up inner blocks that will be removed
         std::vector<block_t> blocks;
         dim_t stride = 1;
         for (int i = blk.inner_nblks - 1; i >= 0; i--) {
-            if (static_cast<size_t>(blk.inner_idxs[i]) == dim_idx)
+            if (blk.inner_idxs[i] == dim_idx)
                 blocks.emplace_back(dim_idx, blk.inner_blks[i], stride);
             stride *= blk.inner_blks[i];
         }

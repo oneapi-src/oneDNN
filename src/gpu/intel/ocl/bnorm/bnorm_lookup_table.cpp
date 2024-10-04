@@ -628,7 +628,8 @@ int params_t::sort_key(const param_t *param) const {
             nullptr,
     };
     for (const char **p = ordered_params; *p; p++) {
-        if (param->short_name() == *p) return p - ordered_params;
+        if (param->short_name() == *p)
+            return static_cast<int>(p - ordered_params);
     }
     return (int)(sizeof(ordered_params) / sizeof(ordered_params[0]));
 }

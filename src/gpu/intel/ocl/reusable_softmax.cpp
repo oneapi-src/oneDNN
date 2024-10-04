@@ -118,7 +118,7 @@ status_t reusable_softmax_fwd_t::pd_t::init_dispatch_workgroup_per_reduction(
     std::vector<dim_idx_t> dims_ids = get_dims(src_mdw.ndims());
     auto sizes = src_mdw.dims(); // TODO: dynamic worker policy
     const size_t softmax_axis = static_cast<size_t>(desc()->softmax_axis);
-    const int softmax_axis_size = sizes[desc()->softmax_axis];
+    const dim_t softmax_axis_size = sizes[desc()->softmax_axis];
 
     // set number of work items per reduction block
     rt_conf.softmax_chunk_size = dnnl::impl::utils::div_up(

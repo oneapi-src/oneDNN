@@ -133,17 +133,17 @@ static status_t init_conf_common(
     conf.dst_offset0 = dst_md.offset0 * data_type_size / info.type_size;
     conf.read_block = info.block;
     conf.write_block = std::min(info.block, max_write_size / info.type_size);
-    // TODO: Fix math::lcm overflow
-    dim_t shared_read = math::gcd(inner_axis, conf.read_block);
-    conf.gws0_block = inner_axis * conf.read_block / shared_read;
+    conf.gws0_block = math::lcm(inner_axis, conf.read_block);
     conf.read_overlap = conf.gws0_block / inner_axis;
     conf.gws_d[0] = conf.gws0_block * conf.simd / conf.read_block;
     conf.gws_d[1] = extern_axis / conf.read_overlap;
     conf.gws_d[2] = concat_dim_size;
 
     // Bound estimates based on limited empirical evidence
-    int coalesced_writes = ((max_write_size ^ (max_write_size - 1)) >> 1) + 1;
-    size_t extern_axis_bound = 256 * 512 * std::min(coalesced_writes, 8);
+    size_t coalesced_writes
+            = ((max_write_size ^ (max_write_size - 1)) >> 1) + 1;
+    size_t extern_axis_bound
+            = 256 * 512 * std::min(coalesced_writes, into<size_t>(8));
     if (conf.simd == 1 && conf.gws_d[2] > 64) return status::unimplemented;
     if (conf.simd == 1 && conf.gws_d[1] > extern_axis_bound)
         return status::unimplemented;

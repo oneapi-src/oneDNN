@@ -23,14 +23,14 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-int calculate_spatial_chunk(const pool_conf_t &conf, impl::engine_t *engine) {
+dim_t calculate_spatial_chunk(const pool_conf_t &conf, impl::engine_t *engine) {
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     const int hw_threads = compute_engine->device_info()->hw_threads();
     const bool is_xe_hp_plus = compute_engine->is_xe_hp()
             || compute_engine->is_xe_hpg() || compute_engine->is_xe_hpc();
 
-    const int spatial_dim = conf.id * conf.ih * conf.iw;
-    int chunk_size = spatial_dim;
+    const dim_t spatial_dim = conf.id * conf.ih * conf.iw;
+    dim_t chunk_size = spatial_dim;
 
     // Experimentally selected values for XeHP family
     const int desired_wi_per_thread = is_xe_hp_plus && conf.is_plain ? 1024 : 4;
@@ -84,7 +84,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     conf.is_plain = src_mdw.is_plain();
     conf.global_pool_spatial_chunk = calculate_spatial_chunk(conf, engine);
 
-    const int spatial_dim_padded = utils::rnd_up(
+    const dim_t spatial_dim_padded = utils::rnd_up(
             conf.id * conf.ih * conf.iw, conf.global_pool_spatial_chunk);
     conf.dispatch = compute_engine->create_dispatch(src_mdw.md_);
     conf.dispatch.define_dim("MB", 0, conf.mb_padded);

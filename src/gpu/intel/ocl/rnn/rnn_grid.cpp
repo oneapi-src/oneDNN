@@ -236,8 +236,8 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
 
         std::array<dim_t, 9> dhc_hw_threads = {1, 2, 3, 4, 5, 6, 7, 8, 16};
         std::array<dim_t, 3> mb_hw_threads = {1, 2, 4};
-        int dhc_tg_best = 1;
-        int mb_tg_best = 1;
+        dim_t dhc_tg_best = 1;
+        dim_t mb_tg_best = 1;
         double best_score = 0;
         for (auto b_thread : mb_hw_threads) {
             for (auto d_thread : dhc_hw_threads) {
@@ -296,8 +296,8 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
             }
         }
 
-        int dhc_tg = dev_getenv("dhc_tg", dhc_tg_best);
-        int mb_tg = dev_getenv("mb_tg", mb_tg_best);
+        dim_t dhc_tg = dev_getenv("dhc_tg", into<int>(dhc_tg_best));
+        dim_t mb_tg = dev_getenv("mb_tg", into<int>(mb_tg_best));
 
         int mb_tail = dev_getenv("mb_tail",
                 rnn.mb % (mb_tg * mb_thr) != 0
@@ -318,9 +318,9 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
         ocl_conf.cell_comp.mb_tail = mb_tail;
         ocl_conf.cell_comp.enable_iter_block = rnn.iter_loop != 1;
         ocl_conf.cell_comp.dhc_thr = dhc_thr;
-        ocl_conf.cell_comp.dhc_tg = dhc_tg;
+        ocl_conf.cell_comp.dhc_tg = into<int>(dhc_tg);
         ocl_conf.cell_comp.mb_thr = mb_thr;
-        ocl_conf.cell_comp.mb_tg = mb_tg;
+        ocl_conf.cell_comp.mb_tg = into<int>(mb_tg);
     }
 
     return status::success;

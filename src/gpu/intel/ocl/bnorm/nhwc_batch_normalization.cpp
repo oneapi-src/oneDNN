@@ -100,7 +100,7 @@ static void adjust_lws_calc_kernel(int ic_block, nhwc_bnorm_params_t &conf,
 }
 
 static int get_reduce_sub_group_count(
-        const int reduce_stat_nblocks, const int sub_group_size) {
+        const dim_t reduce_stat_nblocks, const int sub_group_size) {
     int reduce_sub_group_count = 1;
     while (reduce_stat_nblocks % (2 * reduce_sub_group_count) == 0
             && 2 * reduce_sub_group_count * sub_group_size <= 256) {
@@ -124,7 +124,7 @@ status_t nhwc_bnorm_kernel_dispatching(kernel_kind_t kernel,
             = rnd_dn(conf.sp, conf.update_sp_block()) / conf.update_sp_block();
     conf.reduce_stat_nblocks = conf.stat_sp_nblocks;
 
-    const int calc_stat_ic = get_nhwc_calc_stat_ic(
+    const dim_t calc_stat_ic = get_nhwc_calc_stat_ic(
             conf.ic, conf.ic_block(), conf.sub_group_size);
 
     switch (kernel) {

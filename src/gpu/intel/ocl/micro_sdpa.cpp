@@ -83,7 +83,7 @@ sdpa_config_t xehpc_h256 = {16, 32, 32, 32, 8, 4, 8, 4};
 sdpa_config_t xehpc_h256_s64 = {16, 32, 32, 32, 8, 1, 8, 1};
 sdpa_config_t xehpc_h256_2nd = {16, 16, 16, 16, 16, 1, 16, 1};
 
-sdpa_config_t *choose_config_xehpg(int head_size, int seq, bool thin_q) {
+sdpa_config_t *choose_config_xehpg(dim_t head_size, dim_t seq, dim_t thin_q) {
     if (head_size <= 32) {
         if (thin_q) return &xehpg_h32_2nd;
         if (seq <= 32) return &xehpg_h32_s32;
@@ -115,7 +115,7 @@ sdpa_config_t *choose_config_xehpg(int head_size, int seq, bool thin_q) {
     return nullptr;
 }
 
-sdpa_config_t *choose_config_xehpc(int head_size, int seq, bool thin_q) {
+sdpa_config_t *choose_config_xehpc(dim_t head_size, dim_t seq, bool thin_q) {
     if (head_size <= 32) {
         if (thin_q) return &xehpc_h32_2nd;
         if (seq <= 32) return &xehpc_h32_s32;
@@ -206,8 +206,8 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     problem_kq.A.setAlignment(alignmentForLD(d->head_size() * problem.Ta));
     problem_kq.B.setAlignment(64); // Q is packed in VNNI format in SLM
     problem_kq.B.crosspack = 2;
-    problem_kq.B.tileR = d_max();
-    problem_kq.B.tileC = sg_size_;
+    problem_kq.B.tileR = into<uint16_t>(d_max());
+    problem_kq.B.tileC = into<uint16_t>(sg_size_);
 
     /* Set up problem size information */
     SizeParams sizes;

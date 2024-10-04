@@ -68,7 +68,7 @@ struct MatrixAddressing {
     uint8_t padA[1] = {};
     uint16_t tileR = 0, tileC = 0;  // Tiling (0 if none) for packed layouts.
 
-    void setAlignment(int align) { alignment = sanitizeAlign(align); }
+    void setAlignment(int align) { alignment = static_cast<uint8_t>(sanitizeAlign(align)); }
     int defaultAlignment(Type T) const {
         return sanitizeAlign((isPacked(layout) ? (packSize * crosspack) : 1) * T);
     }

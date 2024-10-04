@@ -109,20 +109,20 @@ static void adjust_lws_calc_kernel(bn_lookup_table::params_t &conf,
     dispatch.set_lws(tuned_lws);
 }
 
-static int get_block_size(bool is_backward, int hw_threads, int nn, int ic,
-        int work_size, int simd = 16) {
-    int block_size = 256;
+static dim_t get_block_size(bool is_backward, int hw_threads, dim_t nn,
+        dim_t ic, dim_t work_size, int simd = 16) {
+    dim_t block_size = 256;
     float thread_efficiency = 0;
     int hw_thread_mult = hw_threads;
     const int align_size = is_backward ? 8 : 16;
     while (true) {
         const int nof_blocks
-                = nstl::max(rnd_dn(hw_thread_mult * simd, ic) / ic, 1);
-        const int min_block_size = rnd_up(work_size, nof_blocks) / nof_blocks;
-        const int curr_block_size = rnd_up(min_block_size, align_size);
-        const int nof_blocks_generated
+                = nstl::max(into<int>((hw_thread_mult * simd) / ic), 1);
+        const dim_t min_block_size = rnd_up(work_size, nof_blocks) / nof_blocks;
+        const dim_t curr_block_size = rnd_up(min_block_size, align_size);
+        const dim_t nof_blocks_generated
                 = rnd_up(work_size, curr_block_size) / curr_block_size;
-        const int threads_generated = nof_blocks_generated * ic / simd;
+        const dim_t threads_generated = nof_blocks_generated * ic / simd;
         const float curr_thread_efficiency = float(threads_generated * nn)
                 / float(rnd_up(threads_generated * nn, hw_threads));
         if (curr_thread_efficiency > thread_efficiency) {
@@ -303,7 +303,7 @@ static status_t init_conf_common(bn_lookup_table::params_t &conf,
     dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
     dispatch_reduce_stat.generate();
 
-    const int sp_pad = rnd_up(conf.sp, conf.vect_size);
+    const dim_t sp_pad = rnd_up(conf.sp, conf.vect_size);
     conf.sp_tail = rnd_dn(conf.sp, conf.vect_size);
 
     dispatch = compute_engine->create_dispatch(data_mdw.md_);

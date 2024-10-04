@@ -58,7 +58,7 @@ status_t ref_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
     for (int i = 0; i < MAX_NDIMS; ++i) {
         auto dim_str = utils::format("D%d", i);
         if (i < dst_mdw.ndims()) {
-            int dim = padded_dims[i];
+            dim_t dim = padded_dims[i];
             // if needed to align vectorized dim with vector size, pad that dim again
             conf.dispatch.define_dim(dim_str, i, dim, blocks[i]);
         } else {

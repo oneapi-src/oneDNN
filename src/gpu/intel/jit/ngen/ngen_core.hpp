@@ -17,6 +17,11 @@
 #ifndef NGEN_CORE_HPP
 #define NGEN_CORE_HPP
 
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+#endif
+
 
 #include <cstdint>
 #include <cstring>
@@ -2978,5 +2983,9 @@ static inline void encodeAtomicDescriptors(HW hw, MessageDescriptor &desc, Exten
 }
 } /* namespace NGEN_NAMESPACE */
 
+
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic pop
+#endif
 
 #endif /* header guard */

@@ -17,6 +17,11 @@
 #ifndef NGEN_REGISTER_ALLOCATOR_HPP
 #define NGEN_REGISTER_ALLOCATOR_HPP
 
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+#endif
+
 #include "ngen.hpp"
 #include <cstdint>
 #include <stdexcept>
@@ -664,5 +669,9 @@ void RegisterAllocator::dump(std::ostream &str)
 #endif /* NGEN_ENABLE_RA_DUMP */
 
 } /* namespace NGEN_NAMESPACE */
+
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic pop
+#endif
 
 #endif /* include guard */

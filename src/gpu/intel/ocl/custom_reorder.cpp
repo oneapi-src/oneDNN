@@ -93,7 +93,7 @@ dimension get_Nth_last_dim_or_block(
 
 int innermost_block(const blocking_desc_t &blk) {
     int last = blk.inner_nblks - 1;
-    return blk.inner_blks[last];
+    return into<int>(blk.inner_blks[last]);
 }
 
 bool is_alt_faster_than_ref(const memory_desc_wrapper &src_mdw,
@@ -243,7 +243,8 @@ bool matches_ABxxxx8ayb_layout(const blocking_desc_t &blk, int ndims) {
     // used for calculation of dst address return wrong values.
     for (int d = last - 2; d >= 0; d--) {
         if (blk.inner_idxs[d] == ndims - 1) {
-            int double_block = blk.inner_blks[last] * blk.inner_blks[d];
+            int double_block
+                    = into<int>(blk.inner_blks[last] * blk.inner_blks[d]);
             if (double_block < 16) {
                 return false;
             } else {
@@ -599,8 +600,8 @@ status_t custom_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
             break;
         case plain_to_ABcd84a42b: {
             auto &blk = dst_mdw.blocking_desc();
-            int inner_block = blk.inner_blks[blk.inner_nblks - 1];
-            int outer_block = blk.inner_blks[blk.inner_nblks - 2];
+            int inner_block = into<int>(blk.inner_blks[blk.inner_nblks - 1]);
+            int outer_block = into<int>(blk.inner_blks[blk.inner_nblks - 2]);
             conf.sub_group_size = inner_block * outer_block;
             blocks[0] = outer_block;
             blocks[1] = inner_block;
@@ -632,11 +633,11 @@ status_t custom_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
             auto last_dim_dst = get_Nth_last_dim_or_block(dst_mdw);
             auto nextlast_dim_dst = get_Nth_last_dim_or_block(dst_mdw, 1);
 
-            int min_common_size
+            dim_t min_common_size
                     = std::min(last_dim_src.size, last_dim_dst.size);
-            int max_common_size
+            dim_t max_common_size
                     = std::max(last_dim_src.size, last_dim_dst.size);
-            conf.sub_group_size = max_common_size;
+            conf.sub_group_size = into<int>(max_common_size);
             if (!may_use_sg8 && conf.sub_group_size == 8) {
                 return status_t::dnnl_unimplemented;
             }
@@ -652,7 +653,7 @@ status_t custom_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
             conf.aux_data.vg.vector_dim = last_dim_src.idx;
             conf.aux_data.vg.src_loop_dim = nextlast_dim_dst.idx;
             conf.aux_data.vg.dst_loop_dim = nextlast_dim_src.idx;
-            conf.aux_data.vg.innermost_size = min_common_size;
+            conf.aux_data.vg.innermost_size = into<int>(min_common_size);
 
             blocks[conf.aux_data.vg.src_loop_dim] = max_group_size;
             blocks[conf.aux_data.vg.dst_loop_dim] = max_group_size;
@@ -673,7 +674,7 @@ status_t custom_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
             auto nextlast_dim_src = get_Nth_last_dim_or_block(src_mdw, 1);
             auto last_dim_dst = get_Nth_last_dim_or_block(dst_mdw);
             auto nextlast_dim_dst = get_Nth_last_dim_or_block(dst_mdw, 1);
-            int min_common_size
+            dim_t min_common_size
                     = std::min(last_dim_src.size, last_dim_dst.size);
             vect_size = (min_common_size % 16 == 0) ? 16 : 8;
             vect_dim = last_dim_src.idx;
@@ -684,7 +685,7 @@ status_t custom_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
             assert(last_dim_src.size % vect_size == 0
                     && last_dim_dst.size % vect_size == 0);
             assert(last_dim_src.idx == last_dim_dst.idx);
-            int src_chunks;
+            dim_t src_chunks;
             if (last_dim_src.size / vect_size > 1) {
                 src_chunks = last_dim_src.size / vect_size;
                 conf.aux_data.vg.dst_loop_dim = last_dim_src.idx;
@@ -692,7 +693,7 @@ status_t custom_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
                 src_chunks = nextlast_dim_src.size;
                 conf.aux_data.vg.dst_loop_dim = nextlast_dim_src.idx;
             }
-            int dst_chunks;
+            dim_t dst_chunks;
             if (last_dim_dst.size / vect_size > 1) {
                 dst_chunks = last_dim_dst.size / vect_size;
                 conf.aux_data.vg.src_loop_dim = last_dim_dst.idx;
@@ -770,7 +771,7 @@ status_t custom_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
         for (dim_idx_t i = 0; i < MAX_NDIMS; ++i) {
             auto dim_str = utils::format("D%d", i);
             if (i < into<dim_idx_t>(dst_mdw.ndims())) {
-                int dim = padded_dims[i];
+                dim_t dim = padded_dims[i];
                 // if needed to align vectorized dim with vector size, pad that dim again
                 if (i == vect_dim) { dim = utils::rnd_up(dim, vect_size); }
                 conf.dispatch.define_dim(dim_str, i, dim, blocks[i]);

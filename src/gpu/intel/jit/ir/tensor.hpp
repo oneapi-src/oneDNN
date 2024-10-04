@@ -457,8 +457,8 @@ public:
 
     const std::vector<block_t> &blocks() const { return blocks_; }
 
-    dim_t inner_block(
-            dim_idx_t dim_idx, bool skip_outer = true, bool inner_only = true) const {
+    dim_t inner_block(dim_idx_t dim_idx, bool skip_outer = true,
+            bool inner_only = true) const {
         std::vector<dim_t> dim_blocks;
         for (auto &b : blocks_) {
             if (b.dim_idx == dim_idx) dim_blocks.push_back(b.block);
@@ -979,7 +979,8 @@ public:
         if (block == 1) return true;
         if (blocks().empty()) return false;
         auto &b = blocks().back();
-        if (dim_idx != static_cast<dim_idx_t>(-1) && b.dim_idx != dim_idx) return false;
+        if (dim_idx != static_cast<dim_idx_t>(-1) && b.dim_idx != dim_idx)
+            return false;
         if (b.block % block != 0) return false;
         return true;
     }
