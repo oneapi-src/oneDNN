@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
+* Copyright 2023-2024 FUJITSU LIMITED
 * Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,7 +49,8 @@ using namespace dnnl::impl::utils;
 using namespace data_type;
 using namespace format_tag;
 
-int get_default_n_block(format_tag_t matrix_b_tag) {
+int get_default_n_block(
+        format_tag_t matrix_b_tag, brgemm_matmul_conf_t &bgmmc) {
     // Note: consider using weights mem_descriptor 'inner_blks' to
     // return B's inner block for non-default cases.
     switch (matrix_b_tag) {
@@ -76,7 +78,23 @@ int get_default_n_block(format_tag_t matrix_b_tag) {
         case BA16a16b:
         case BA16a16b2a:
         case BA16a16b4a: return 16;
-        default: return 64;
+        default: {
+            if (bgmmc.N == 16 || bgmmc.N == 32 || bgmmc.N == 64) return bgmmc.N;
+            if (!mayiuse(sve_512)) {
+                if (bgmmc.N <= 16)
+                    return 16;
+                else {
+                    // It is observed that for M,K>512, N block of 64 works better provided that thread distribution is not hindered.
+                    if (bgmmc.N / 64 >= bgmmc.nthr && bgmmc.K > 512
+                            && bgmmc.M > 512)
+                        return 64;
+                    else
+                        return 32;
+                }
+
+            } else
+                return 64;
+        }
     }
 }
 
@@ -178,7 +196,7 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(
 
     if (B_any_layout) {
         const int default_n_block = init_n_tag
-                ? get_default_n_block(format_tag::undef)
+                ? get_default_n_block(format_tag::undef, bgmmc)
                 : bgmmc.N_blk;
         bgmmc.wei_tag = blocked_B_layouts_allowed
                 ? this->pick_blocked_B_layout(default_n_block)
@@ -576,14 +594,17 @@ float compute_blocking_heuristic_sve_256(brgemm_matmul_conf_t &bgmmc,
     const int nthr = bgmmc.nthr;
 
     const int max_m_blk = nstl::min(/*64*/ 256, matmul.M);
-    int min_m_blk = nstl::min(32, matmul.M); // max_m_blk
+    // It is found that for 2d shapes min_m_blk = 128 works better than 32 for most of the shapes.
+    int min_m = (matmul.batch > 1) ? 32 : 128;
+    int min_m_blk = nstl::min(min_m, matmul.M); // max_m_blk
 
     int n_blk = bgmmc.N_blk;
     const int n_chunks = div_up(matmul.N, n_blk);
     const int max_n_chunks = bgmmc.use_buffer_a ? 16 : 1;
     const int n_chunks_start = nstl::min(max_n_chunks, n_chunks);
 
-    int default_k_blk = 1024;
+    //It is found that for M<512 k_blk of 128 works better than 1024 for most of the shapes.
+    int default_k_blk = (matmul.M >= 512) ? 1024 : 128;
     int k_blk = nstl::min(matmul.K, default_k_blk);
     int start_nthr_k = 1;
 
@@ -593,7 +614,22 @@ float compute_blocking_heuristic_sve_256(brgemm_matmul_conf_t &bgmmc,
     const bool low_parallel_work = static_cast<size_t>(nthr) > max_parallel;
     if (low_parallel_work) {
 
-        min_m_blk = nstl::min(matmul.M, 16);
+        int best_m_blk = 0;
+        float scr = 0, best_scr = 16 * nthr;
+        for (int i = 16; i >= 4; i--) {
+            scr = 0.7 * (matmul.M % i)
+                    + 0.3 * std::abs(nthr - ((float)matmul.M / (float)i));
+            if (scr < best_scr) {
+                best_scr = scr;
+                best_m_blk = i;
+            }
+        }
+        min_m_blk = nstl::min(matmul.M, best_m_blk);
+        // Here min_m_blk is set based on M value and no.of threads. Decreasing m_blk size will
+        // increase no.of m blocks which might make better utilisation of threads. But it is found
+        // that m_blk being a factor of M is more important than max thread utilisation.Therefore
+        // in scoring that has been given more weightage(0.7). This was experimentally verified to
+        // be the best hueristics with multiple shapes.
 
         bool low_spatial_work = matmul.M <= 40;
         if (low_spatial_work) {
@@ -829,7 +865,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     VCHECK_BG(attr.set_default_formats(&dst_md), VERBOSE_UNSUPPORTED_TAG);
 
-    bgmmc.wei_n_blk = get_default_n_block(bgmmc.wei_tag);
+    bgmmc.wei_n_blk = get_default_n_block(bgmmc.wei_tag, bgmmc);
 
     bgmmc.blocked_B = bm_conf_utils.get_blocked_B();
     bgmmc.use_buffer_b = bm_conf_utils.use_buffer_b();

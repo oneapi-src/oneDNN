@@ -767,10 +767,38 @@ void jit_brgemm_kernel_t::read_params() {
 void jit_brgemm_kernel_t::zero_accumulators(int bd_block2, bool is_bdb_tail,
         int ld_block2, bool is_ld_tail, bool skip_accumulation) {
     int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
+    const bool need_to_apply_beta = brg.beta != 0.f;
     for_(int bd = 0; bd < bd_block; bd++)
     for (int ld = 0; ld < ld_block2; ld++) {
         auto zmm = accm(ld_block2, bd, ld);
-        eor(zmm.d, zmm.d, zmm.d);
+        // This part is moved here from apply_alpha_beta function so that fadd instruction can be avoided.
+        // This is also required only when K is blocked.
+        if (need_to_apply_beta) {
+            const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
+            const auto k_mask = is_tail ? ld_tail_mask : ld_full_mask;
+
+            const int offset = C_offset(bd, ld);
+
+            int base_offset = 0;
+            auto x_addr = reg_aux_C;
+
+            if ((unsigned)(offset - base_offset) > cpu_sveLen * 7) {
+                add_imm(reg_tmp_, reg_aux_C, offset, X_TMP_0);
+                base_offset = offset;
+                x_addr = reg_tmp_;
+            }
+            LD_MUL_VL(ld1w, zmm.s, k_mask, x_addr, offset - base_offset, 4);
+
+            const bool need_init_beta_vmm = brg.beta != 1.f;
+            auto vmm_beta = z_tail_mask();
+            if (need_init_beta_vmm) {
+                auto wreg_tmp = WReg(reg_tmp_gpr.getIdx());
+                mov_imm(wreg_tmp, float2int(static_cast<float>(brg.beta)));
+                dup(vmm_beta.s, wreg_tmp);
+                fmul(zmm.s, zmm.s, vmm_beta.s);
+            }
+        } else
+            eor(zmm.d, zmm.d, zmm.d);
     }
 }
 
@@ -790,58 +818,6 @@ void jit_brgemm_kernel_t::apply_alpha_beta(
         auto vmm = accm(ld_block2, bd, ld);
         if (dq2ps_required) { scvtf(vmm.s, P_ALL_ONE / T_m, vmm.s); }
         if (apply_alpha) { fmul(vmm.s, vmm.s, vmm_alpha.s); }
-    }
-
-    if (brg.beta == 0.f) return;
-    const bool use_vadd_for_beta = brg.beta == 1.f && !dq2ps_required;
-    const bool need_init_beta_vmm = brg.beta != 1.f;
-    auto vmm_prev_dst = z_tmp_1();
-    auto vmm_beta = z_tail_mask();
-    if (need_init_beta_vmm) {
-        auto wreg_tmp = WReg(reg_tmp_gpr.getIdx());
-        mov_imm(wreg_tmp, float2int(static_cast<float>(brg.beta)));
-        dup(vmm_beta.s, wreg_tmp);
-    }
-
-    int base_offset = 0;
-    auto x_addr = reg_aux_C;
-    for_(int bd = 0; bd < bd_block; bd++)
-    for (int ld = 0; ld < ld_block2; ld++) {
-        const bool is_tail = is_ld_tail && ld + 1 == ld_block2;
-        const auto k_mask = is_tail ? ld_tail_mask : ld_full_mask;
-        auto vmm = accm(ld_block2, bd, ld);
-        if (use_vadd_for_beta) {
-            if (brg.is_int8) {
-                assert(!"unsupported\n");
-            } else {
-                ZRegS z_masked = vmm.s;
-                ZRegS z(vmm.getIdx());
-
-                const int offset = C_offset(bd, ld);
-
-                if ((unsigned)(offset - base_offset) > cpu_sveLen * 7) {
-                    add_imm(reg_tmp_, reg_aux_C, offset, X_TMP_0);
-                    base_offset = offset;
-                    x_addr = reg_tmp_;
-                }
-                LD_MUL_VL(ld1w, vmm_prev_dst.s, k_mask, x_addr,
-                        offset - base_offset, 4);
-                if (is_ld_tail) {
-                    movprfx(z_masked, k_mask / T_z, z);
-                    fadd(z_masked, k_mask / T_m, vmm_prev_dst.s);
-                } else {
-                    fadd(z_masked, z_masked, vmm_prev_dst.s);
-                }
-            }
-        } else {
-            add_imm(X_DEFAULT_ADDR, reg_aux_C, C_offset(bd, ld), X_TMP_0);
-            ld1w(vmm_prev_dst.s, k_mask / T_z, ptr(X_DEFAULT_ADDR));
-            if (brg.beta == 1.f) {
-                fadd(vmm.s, vmm.s, vmm_prev_dst.s);
-            } else {
-                fmla(vmm.s, P_ALL_ONE / T_m, vmm_prev_dst.s, vmm_beta.s);
-            }
-        }
     }
 }
 
@@ -1465,7 +1441,6 @@ void jit_brgemm_kernel_t::gemm_microkernel_sve512(int bd_block2,
         int base_offset = 0;
 
         for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
-            int prefetch_count_B = 0;
             for (int ld = 0; ld < ld_block2; ld++) {
                 const auto mask = is_ld_tail ? ld_tail_mask : P_ALL_ONE;
                 if (brg.dt_b == data_type::f16) {
@@ -1497,13 +1472,7 @@ void jit_brgemm_kernel_t::gemm_microkernel_sve512(int bd_block2,
                     broadcast(bcst(), A_offset(bd, rd),
                             have_to_load_bytes && bd_by_load_bytes, brg.dt_a);
                 }
-                if (prefetch_count_B < ld_block2) {
-                    add_imm(X_DEFAULT_ADDR, reg_aux_B,
-                            B_offset(prefetch_count_B++, rd)
-                                    + brg.LDB * brg.rd_block * brg.typesize_B,
-                            X_TMP_0);
-                    prfm(PLDL1KEEP, ptr(X_DEFAULT_ADDR));
-                }
+                //The current implementaion of prefetch is not giving any gain in performance but is rather introducing some latency. Therefore it is removed util a new useful implementation is deviced.
                 for (int ld = 0; ld < ld_block2; ld++) {
                     auto zmm = accm(ld_block2, bd, ld);
                     if (is_emdbd) {
