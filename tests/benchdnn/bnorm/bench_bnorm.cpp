@@ -147,13 +147,7 @@ int bench(int argc, char **argv) {
                 || parse_single_value_option(s.debug_check_ws,
                         def.debug_check_ws, str2bool, argv[0], "debug-check-ws",
                         help_debug_check_ws)
-                || parse_attributes(s, def, argv[0])
-                || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
-                || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
-                || parse_test_pattern_match(s.pattern, argv[0])
-                || parse_perf_template(s.perf_template, s.perf_template_def,
-                        s.perf_template_csv(), argv[0])
-                || parse_reset(s, argv[0]) || parse_help(argv[0]);
+                || parse_driver_shared_settings(s, def, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 

@@ -282,6 +282,17 @@ void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str);
 // service functions
 bool parse_bench_settings(const char *str);
 
+template <typename S>
+bool parse_driver_shared_settings(S &s, const S &def, const char *str) {
+    return parse_attributes(s, def, str)
+            || parse_ctx_init(s.ctx_init, def.ctx_init, str)
+            || parse_ctx_exe(s.ctx_exe, def.ctx_exe, str)
+            || parse_test_pattern_match(s.pattern, str)
+            || parse_perf_template(s.perf_template, s.perf_template_def,
+                    s.perf_template_csv(), str)
+            || parse_reset(s, str) || parse_help(str);
+}
+
 void catch_unknown_options(const char *str);
 
 int parse_last_argument();

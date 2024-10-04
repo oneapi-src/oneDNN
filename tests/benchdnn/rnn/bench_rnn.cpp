@@ -180,12 +180,7 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(s.with_projection, def.with_projection,
                         str2bool, argv[0], "with-projection",
                         help_with_projection)
-                || parse_attributes(s, def, argv[0])
-                || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
-                || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
-                || parse_perf_template(s.perf_template, s.perf_template_def,
-                        s.perf_template_csv(), argv[0])
-                || parse_reset(s, argv[0]) || parse_help(argv[0]);
+                || parse_driver_shared_settings(s, def, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
