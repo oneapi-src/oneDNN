@@ -209,7 +209,10 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns, c
 
     /* Temporarily reuse XeHPC strategies for Xe2 until more Xe2 strategies are
        in the catalog*/
-    if (!bestEntry && patterns[0].selector.hw == kcatalog::HWTagXe2) {
+    if (!bestEntry
+            && (patterns[0].selector.hw == kcatalog::HWTagXe2
+                    || patterns[0].selector.hw == kcatalog::HWTagXe3
+                    )) {
         std::vector<MatchParams> override_patterns;
         override_patterns.reserve(npatterns);
         for (int i = 0; i < npatterns; i++) {
@@ -270,6 +273,7 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, bool systolicAvailable, const GEMM
         case ngen::HW::XeHPG:   selector.hw = kcatalog::HWTagXeHPG;   break;
         case ngen::HW::XeHPC:   selector.hw = kcatalog::HWTagXeHPC;   break;
         case ngen::HW::Xe2:     selector.hw = kcatalog::HWTagXe2;     break;
+        case ngen::HW::Xe3:     selector.hw = kcatalog::HWTagXe3;     break;
     }
 
     auto &C = problem.C;
@@ -339,8 +343,8 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, bool systolicAvailable, const GEMM
     if (problem.needsASums() && !problem.sumA) *tagPtr++ = ReqSumA;
     if (problem.needsBSums() && !problem.sumB) *tagPtr++ = ReqSumB;
 
-    if (hw == ngen::HW::Xe2)
-        *tagPtr++ = ReqXe2Block2D;
+    if (hw == ngen::HW::Xe2) *tagPtr++ = ReqXe2Block2D;
+    if (hw == ngen::HW::Xe3) *tagPtr++ = ReqXe2Block2D;
 
     sizes.batch = sizes.m = sizes.n = sizes.k = 0;
 }

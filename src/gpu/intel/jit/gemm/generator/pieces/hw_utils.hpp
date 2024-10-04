@@ -94,7 +94,8 @@ static inline size_t slmCapacity(ngen::HW hw)
         case HW::XeHP:
         case HW::XeHPG:
         case HW::XeHPC:     return 131072;
-        case HW::Xe2:       return 131072;
+        case HW::Xe2:
+        case HW::Xe3:       return 131072;
         default:
             return 0;
     }
@@ -124,6 +125,7 @@ static inline int eusPerSubslice(ngen::HW hw)
         case HW::Gen11:
         case HW::XeHPC:
         case HW::Xe2:
+        case HW::Xe3:
             return 8;
         case HW::Gen12LP:
         case HW::XeHP:
@@ -155,7 +157,7 @@ static inline int block2DMinAlignment(ngen::HW hw, const MatrixAddressing &atype
 {
     using namespace ngen;
     if (!isBlock2D(astrategy.accessType) && !asIfBlock2D) return 0;
-    if (hw == HW::Xe2) return 16;
+    if (hw == HW::Xe2 || hw == HW::Xe3) return 16;
     return (isTransposing(astrategy.accessType) || astrategy.prefetch) ? 4 : 8;
 }
 
