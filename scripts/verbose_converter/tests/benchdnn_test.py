@@ -184,9 +184,48 @@ def compare(driver, ref_v, comp_v):
             if driver in line:
                 yield line
 
+    def without_impl(verbose_line):
+        parts = verbose_line.split(",")
+        return ",".join(parts[:6] + parts[7:])
+
+    def find_named_entry(name, entries):
+        for entry in entries:
+            entry_name, *entry_args = entry.split(":")
+            if entry_name == name:
+                return entry_args
+        return None
+
+    def is_ambiguous(r, c):
+        # TODO: Handle cases with non-unique md tags
+        #  * multiple size-1 dimensions with the same stride
+        #  * multiple dimensions with 0 stride
+        if driver != "matmul":
+            return False
+        # XXX: In matmul cases with runtime dims that resolve to ones, the bias
+        # memory descriptor will potentially have the wrong mask printed in the
+        # verbose line. We do not maintain enough information to always print
+        # the correct mask, but the reference and computed verbose lines will
+        # match, up to implementation name.
+        parts = r.split(",")
+        mds = parts[8].split()
+        aux = parts[10].split()
+        shapes = parts[11].split(":", 1)
+        wei, act = list(map(lambda x: list(map(int, x.split("x"))), shapes))
+        if find_named_entry("bia", mds) is None:
+            return False
+        rt_dim_mask = find_named_entry("runtime_dims_masks", aux)
+        if rt_dim_mask is None:
+            return False
+        wei_mask, act_mask = list(map(int, rt_dim_mask))
+        if wei[-2] == 1 and wei_mask & (1 << (len(wei) - 2)):
+            return without_impl(r) == without_impl(c)
+        if act[-1] == 1 and act_mask & (1 << (len(act) - 1)):
+            return without_impl(r) == without_impl(c)
+        return False
+
     file_map = {"reference": ref_v, "computed": comp_v}
     for r, c in zip(filter_lines(ref_v), filter_lines(comp_v)):
-        if r == c:
+        if r == c or is_ambiguous(r, c):
             continue
         for log_type, content in file_map.items():
             with open(f"{driver}.{log_type}.log", "w") as fd:
