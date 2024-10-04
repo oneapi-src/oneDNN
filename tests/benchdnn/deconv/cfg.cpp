@@ -63,8 +63,7 @@ float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
     const data_kind_t allowed_non_dense_kind
             = output_data_kind_ == DST ? SRC : DST;
 
-    if (has_bench_mode_bit(mode_bit_t::corr)
-            && density_args.data_kind == allowed_non_dense_kind) {
+    if (density_args.data_kind == allowed_non_dense_kind) {
         int64_t safe_n_acc = get_safe_n_acc();
         assert(safe_n_acc > 0);
         safe_n_acc_str = std::to_string(safe_n_acc);
