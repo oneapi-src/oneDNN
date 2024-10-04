@@ -626,7 +626,7 @@ compute::range_t kernel_desc_t::local_range() const {
     compute::range_t lws = compute::range_t::empty();
     for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
         size_t tg_dim = thr_grid.size(i, thread_group_tile);
-        lws[i] = tg_dim * (i == 0 ? gpu_utils::into<size_t>(simd) : 1);
+        lws[i] = tg_dim * (i == 0 ? into<size_t>(simd) : 1);
     }
     return lws;
 }
@@ -764,7 +764,7 @@ status_t kernel_params_t::init_dispatch_kernel_info(
     compute::range_t lws = compute::range_t::empty();
     for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
         size_t tg_dim = thr_grid.size(i, desc.thread_group_tile);
-        lws[i] = tg_dim * (i == 0 ? gpu_utils::into<size_t>(desc.simd) : 1);
+        lws[i] = tg_dim * (i == 0 ? into<size_t>(desc.simd) : 1);
         gws[i] = tg_grid.size(i, tg_dims) * lws[i];
     }
     auto nd_range = compute::nd_range_t(gws, lws);

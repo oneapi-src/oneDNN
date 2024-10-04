@@ -165,8 +165,8 @@ private:
 
         ir_assert(tile_size % hword_size == 0);
 
-        slm_size_ = std::max(slm_size_,
-                slm_thr_size * gpu_utils::into<int>(tg_grid_.elems()));
+        slm_size_ = std::max(
+                slm_size_, slm_thr_size * into<int>(tg_grid_.elems()));
 
         auto store_send = send_t::make(hw_, send_op_t::store,
                 send_address_t::slm, type_t::dword(vect_size), simd, true);

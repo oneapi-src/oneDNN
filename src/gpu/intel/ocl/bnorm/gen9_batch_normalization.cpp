@@ -75,8 +75,8 @@ static void adjust_lws_calc_kernel(bn_lookup_table::params_t &conf,
     const compute::range_t &base_lws = generated_nd.local_range();
     gpu_assert(base_lws) << "lws is missing";
 
-    compute::range_t tuned_lws = {gpu_utils::into<size_t>(conf.sub_group_size),
-            base_lws[1], base_lws[2]};
+    compute::range_t tuned_lws
+            = {into<size_t>(conf.sub_group_size), base_lws[1], base_lws[2]};
     compute::range_t curr_lws = tuned_lws;
 
     // The search is based on subslice utilization which calculated as the ratio

@@ -284,7 +284,7 @@ status_t reusable_batch_normalization_fwd_t::execute_forward(
                 = [use_int32_offset](
                           compute::kernel_arg_list_t &arg_list, dim_t off) {
                       if (use_int32_offset) {
-                          arg_list.append(gpu_utils::into<int32_t>(off));
+                          arg_list.append(into<int32_t>(off));
                       } else {
                           arg_list.append(off);
                       }
@@ -408,7 +408,7 @@ status_t reusable_batch_normalization_bwd_t::execute_backward(
             = [use_int32_offset](
                       compute::kernel_arg_list_t &arg_list, dim_t off) {
                   if (use_int32_offset) {
-                      arg_list.append(gpu_utils::into<int32_t>(off));
+                      arg_list.append(into<int32_t>(off));
                   } else {
                       arg_list.append(off);
                   }

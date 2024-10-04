@@ -181,11 +181,11 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
             // XXX: This encodes the reduction loop size directly into the kernel,
             // which limits reusability for these cases (small reduction sizes) in
             // exchange for fast execution time.
-            unroll = gpu_utils::into<int>(loop_size);
+            unroll = into<int>(loop_size);
         } else {
             int min_iters = std::numeric_limits<int>::max();
             for (int u = max_unroll; u > 0; u--) {
-                const int unroll_iters = gpu_utils::into<int>(loop_size / u);
+                const int unroll_iters = into<int>(loop_size / u);
                 const int extra_iters = loop_size % u;
                 const int total_iters = unroll_iters + extra_iters;
 

@@ -981,7 +981,7 @@ struct arg_list_t {
     }
     void append(const rnn_utils::sub_buffer_t &buffer, data_type_t dt) {
         args.append(buffer.get_storage());
-        args.append(gpu_utils::into<dim_t>(buffer.offset(dt)));
+        args.append(into<dim_t>(buffer.offset(dt)));
     }
     compute::kernel_arg_list_t args;
 };

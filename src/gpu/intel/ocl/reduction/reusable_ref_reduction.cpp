@@ -59,7 +59,7 @@ ref_reduction_conf_t::ref_reduction_conf_t(const reduction_subproblem_t &subprb,
         gpu_primitive_attr_t *gpu_attr)
     : reduction_stride(subprb.reduction_block.stride)
     , reduction_size(subprb.reduction_block.block)
-    , num_dst_elems(gpu_utils::into<size_t>(
+    , num_dst_elems(into<size_t>(
               subprb.outer_block.block * subprb.inner_block.block)) {
     conf.alg = alg;
     conf.src_dt = src_dt;
@@ -242,7 +242,7 @@ status_t reusable_ref_reduction_t::execute(const exec_ctx_t &ctx) const {
                 = [use_int32_offset](
                           compute::kernel_arg_list_t &arg_list, dim_t off) {
                       if (use_int32_offset) {
-                          arg_list.append(gpu_utils::into<int32_t>(off));
+                          arg_list.append(into<int32_t>(off));
                       } else {
                           arg_list.append(off);
                       }
@@ -258,8 +258,7 @@ status_t reusable_ref_reduction_t::execute(const exec_ctx_t &ctx) const {
         reduction_arg_list.append(src_mem);
         reduction_arg_list.append(dst_mem);
         append_off(reduction_arg_list, phase.reduction_stride);
-        append_off(reduction_arg_list,
-                gpu_utils::into<dim_t>(phase.reduction_size));
+        append_off(reduction_arg_list, into<dim_t>(phase.reduction_size));
         reduction_arg_list.append(pd()->div);
         reduction_arg_list.append(pd()->desc()->p);
         reduction_arg_list.append(pd()->desc()->eps);

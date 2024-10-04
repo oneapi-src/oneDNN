@@ -531,7 +531,7 @@ public:
             const std::vector<std::vector<size_t>> &buffer_term_map) {
         assert(buffers.size() == buffer_term_map.size());
 
-        compile_params.num_terms = gpu_utils::into<int>(term_list.terms.size());
+        compile_params.num_terms = into<int>(term_list.terms.size());
         for (size_t i = 0; i < term_list.terms.size(); i++) {
             compile_params.terms[i] = term_list.terms[i].compile_params();
         }

@@ -123,7 +123,7 @@ float get_used_ss_thr_utilization(hw_params_t &hw_params, int sg_size,
     return (float)num_thrs_generated
             / std::min(
                     num_wgs * hw_params.eus_per_ss * hw_params.threads_per_eu,
-                    gpu_utils::into<size_t>(
+                    into<size_t>(
                             hw_params.eu_count * hw_params.threads_per_eu));
 }
 

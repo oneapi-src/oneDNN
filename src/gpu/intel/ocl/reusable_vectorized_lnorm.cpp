@@ -101,7 +101,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
 
     // We require that the lnorm axis is a single dense block, so that it can
     // be represented by a stride + size alone.
-    size_t ndims = gpu_utils::into<size_t>(input_buf.ndims);
+    size_t ndims = into<size_t>(input_buf.ndims);
     vector<compute::dim_id_t> dims = get_dims(ndims);
 
     memory_desc_wrapper src_mdw(pd->src_md());

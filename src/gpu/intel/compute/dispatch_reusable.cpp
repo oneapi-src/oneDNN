@@ -473,7 +473,7 @@ void dispatch_compile_params_t::def_kernel_macros(
     kernel_ctx.define_int(utils::format("%s_DEF", gws_prefix.c_str()), 1);
 
     // For each term, define each parameter
-    for (size_t i = 0; i < gpu_utils::into<size_t>(num_terms); i++) {
+    for (size_t i = 0; i < into<size_t>(num_terms); i++) {
         const gws_indexing_term_t::compile_params_t &term = terms[i];
         const char *gws_dim_op = [term]() -> const char * {
             switch (term.op) {
@@ -496,12 +496,12 @@ void dispatch_compile_params_t::def_kernel_macros(
                 "-D%s_OP%zu=GWS_OP_%s", gws_prefix, i, gws_dim_op));
 
         // GWS<X>_RT_IDX<Y>
-        kernel_ctx.define_int(utils::format("%s_RT_IDX%zu", gws_prefix, i),
-                gpu_utils::into<dim_t>(i));
+        kernel_ctx.define_int(
+                utils::format("%s_RT_IDX%zu", gws_prefix, i), into<dim_t>(i));
 
         // GWS<X>_IDX<Y>
         kernel_ctx.define_int(utils::format("%s_IDX%zu", gws_prefix, i),
-                gpu_utils::into<dim_t>(term.gws_idx));
+                into<dim_t>(term.gws_idx));
     }
 
     // Define data types for conversion (Ignore the default suffix)

@@ -108,9 +108,8 @@ status_t gen9_eltwise_fwd_t::execute_forward_dense(
     arg_list.set(3, alpha);
     arg_list.set(4, beta);
 
-    size_t lws = gpu_utils::into<size_t>(conf.work_group_size);
-    size_t total_wi
-            = gpu_utils::into<size_t>(utils::div_up(nelems, conf.vector_size));
+    size_t lws = into<size_t>(conf.work_group_size);
+    size_t total_wi = into<size_t>(utils::div_up(nelems, conf.vector_size));
     compute::nd_range_t nd_range({utils::rnd_up(total_wi, lws)}, {lws});
 
     status = parallel_for(ctx, nd_range, kernel_, arg_list);
@@ -158,9 +157,8 @@ status_t gen9_eltwise_bwd_t::execute_backward_dense(
     arg_list.set(4, alpha);
     arg_list.set(5, beta);
 
-    size_t lws = gpu_utils::into<size_t>(conf.work_group_size);
-    size_t total_wi
-            = gpu_utils::into<size_t>(utils::div_up(nelems, conf.vector_size));
+    size_t lws = into<size_t>(conf.work_group_size);
+    size_t total_wi = into<size_t>(utils::div_up(nelems, conf.vector_size));
     compute::nd_range_t nd_range({utils::rnd_up(total_wi, lws)}, {lws});
 
     status = parallel_for(ctx, nd_range, kernel_, arg_list);
