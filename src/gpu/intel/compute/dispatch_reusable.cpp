@@ -56,7 +56,7 @@ status_t reusable_dispatch_config_t::use_subgroup(
 }
 
 status_t reusable_dispatch_config_t::define_dim_index(
-        const char *dim_name, dim_id_t dim_id, dim_t size) {
+        const char *dim_name, dim_idx_t dim_id, dim_t size) {
     memory_desc_t md = types::zero_md();
     md.ndims = 1;
     md.dims[0] = size;
@@ -88,7 +88,7 @@ status_t reusable_dispatch_config_t::register_buffer(
     if (has_zero_padding) return status::unimplemented;
 
     // Validate dim sizes
-    std::unordered_map<dim_id_t, bool, dim_id_hash_t> dim_seen;
+    std::unordered_map<dim_idx_t, bool, dim_id_hash_t> dim_seen;
     for (const auto &dim : dispatched_dims) {
         size_t canonical_idx = buffer.get_dim_idx(dim);
         if (canonical_idx == dim_not_found) {
@@ -226,9 +226,7 @@ public:
                 if (is_mapped_to[j]) continue;
 
                 mapped_block_t &master_block = master_layout[j];
-                if (master_block.get_dim_idx()
-                        != static_cast<size_t>(block.dim_idx))
-                    continue;
+                if (master_block.get_dim_idx() != block.dim_idx) continue;
 
                 size_t master_size = master_block.get_size();
                 if (master_size == block_size) {
@@ -395,7 +393,7 @@ status_t reusable_dispatch_config_t::generate(
     gpu_assert(!buffers.empty());
 
     // Every dispatched dim must have a defined size
-    for (dim_id_t id : dispatched_dims) {
+    for (dim_idx_t id : dispatched_dims) {
         if (dim_sizes.find(id) == dim_sizes.end()) {
             return status::unimplemented;
         }
@@ -403,7 +401,7 @@ status_t reusable_dispatch_config_t::generate(
 
     std::array<bool, DNNL_MAX_NDIMS> is_dispatched;
     is_dispatched.fill(false);
-    for (dim_id_t dim : dispatched_dims) {
+    for (dim_idx_t dim : dispatched_dims) {
         is_dispatched[dim] = true;
     }
 

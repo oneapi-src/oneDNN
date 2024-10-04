@@ -31,7 +31,7 @@ std::vector<zero_padding_t> calc_zero_padding(
     const dim_t *dims = mdw.dims();
     for (int i = 0; i < src_blocking.inner_nblks; i++) {
         // Check if this needs zero-padding
-        const dim_t dim_idx = src_blocking.inner_idxs[i];
+        const dim_idx_t dim_idx = into<dim_idx_t>(src_blocking.inner_idxs[i]);
         const dim_t blk_size = src_blocking.inner_blks[i];
         if (dims[dim_idx] % blk_size != 0) {
             // Needs zero-padding: Find the 1 or 2 blocks related to this zero-padding
@@ -193,7 +193,7 @@ status_t generate_reduction_phases(const memory_desc_t *src,
     reduction_subproblem_t &last_subprb = subprbs.back();
     const auto &dst_blk = dst_mdw.blocking_desc();
     for (size_t i = 0; i < static_cast<size_t>(dst_blk.inner_nblks); i++) {
-        const dim_t dim_idx = dst_blk.inner_idxs[i];
+        const dim_idx_t dim_idx = into<dim_idx_t>(dst_blk.inner_idxs[i]);
         const bool needs_zero_padding
                 = (dst_mdw.dims()[dim_idx] < dst_mdw.padded_dims()[dim_idx]);
         bool accounted_for = false;
@@ -204,8 +204,7 @@ status_t generate_reduction_phases(const memory_desc_t *src,
             }
         }
         if (needs_zero_padding && !accounted_for) {
-            const block_t default_outer(
-                    static_cast<int>(dim_idx), 1, dst_mdw.strides()[dim_idx]);
+            const block_t default_outer(dim_idx, 1, dst_mdw.strides()[dim_idx]);
 
             // Get the first (inner) and second (outer) block for this dim
             const block_t *inner = nullptr;

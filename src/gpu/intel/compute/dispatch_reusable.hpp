@@ -354,25 +354,15 @@ struct default_lws_strategy_t : public lws_strategy_t {
     }
 };
 
-struct dim_id_t {
-    dim_id_t() = default;
-    constexpr dim_id_t(size_t id) : id(id) {};
-    size_t id;
-
-    bool operator==(const dim_id_t &other) const { return id == other.id; }
-    bool operator==(size_t other) const { return id == other; }
-    operator size_t() const { return id; }
-};
-
 struct dim_id_hash_t {
-    size_t operator()(const dim_id_t &id) const noexcept { return id.id; }
+    size_t operator()(const dim_idx_t &id) const noexcept { return id; }
 };
 
-constexpr size_t dim_not_found = std::numeric_limits<size_t>::max();
+constexpr dim_idx_t dim_not_found = std::numeric_limits<dim_idx_t>::max();
 
 struct named_buffer_t : public memory_desc_t {
     named_buffer_t(const char *name, const memory_desc_t &md,
-            const std::vector<dim_id_t> &dims)
+            const std::vector<dim_idx_t> &dims)
         : memory_desc_t(md), name(name), dim_ids(dims) {
         gpu_assert(this->name.size() <= MAX_BUFFER_NAME_LENGTH);
         gpu_assert(format_kind == format_kind::blocked);
@@ -392,9 +382,9 @@ struct named_buffer_t : public memory_desc_t {
     }
 
     const std::string &get_name() const { return name; }
-    const std::vector<dim_id_t> &get_dim_ids() const { return dim_ids; }
+    const std::vector<dim_idx_t> &get_dim_ids() const { return dim_ids; }
 
-    void remove_dim(dim_id_t dim, bool update_strides = true) {
+    void remove_dim(dim_idx_t dim, bool update_strides = true) {
         size_t dim_idx = get_dim_idx(dim);
         if (dim_idx == dim_not_found) return;
 
@@ -433,7 +423,7 @@ struct named_buffer_t : public memory_desc_t {
 
     // Appends a block for the given dimension, of the given size.
     // Will change dimension size, strides, and block layout
-    void append_block(dim_id_t dim, dim_t size) {
+    void append_block(dim_idx_t dim, dim_t size) {
         auto &blk = format_desc.blocking;
 
         size_t dim_idx = get_dim_idx(dim);
@@ -464,8 +454,8 @@ struct named_buffer_t : public memory_desc_t {
         padded_dims[dim_idx] *= size;
     }
 
-    size_t get_dim_idx(dim_id_t dim) const {
-        for (size_t i = 0; i < dim_ids.size(); i++) {
+    dim_idx_t get_dim_idx(dim_idx_t dim) const {
+        for (dim_idx_t i = 0; i < into<dim_idx_t>(dim_ids.size()); i++) {
             if (dim_ids[i] == dim) { return i; }
         }
         return dim_not_found;
@@ -476,17 +466,16 @@ struct named_buffer_t : public memory_desc_t {
         block_layout_t layout(*this);
         for (auto &block : layout) {
             // Re-index the layout according to the included dims
-            block.dim_idx = static_cast<dim_t>(
-                    get_dim_ids()[static_cast<size_t>(block.dim_idx)]);
+            block.dim_idx = get_dim_ids()[static_cast<size_t>(block.dim_idx)];
         }
         return layout;
     }
 
 private:
     std::string name;
-    std::vector<dim_id_t> dim_ids;
+    std::vector<dim_idx_t> dim_ids;
 
-    void remove_blocking(dim_id_t dim) {
+    void remove_blocking(dim_idx_t dim) {
         auto &blk = format_desc.blocking;
         size_t dim_idx = get_dim_idx(dim);
         if (dim_idx == dim_not_found) return;
@@ -657,19 +646,19 @@ private:
 class reusable_dispatch_config_t {
 public:
     reusable_dispatch_config_t(
-            const compute_engine_t *engine, std::vector<dim_id_t> dims)
+            const compute_engine_t *engine, std::vector<dim_idx_t> dims)
         : dispatched_dims(std::move(dims)), engine(engine) {};
     status_t generate(
             reusable_dispatch_t &dispatch, const lws_strategy_t &lws_strategy);
     status_t register_buffer(const named_buffer_t &buffer);
     status_t define_dim_index(
-            const char *dim_name, dim_id_t dim_id, dim_t size);
+            const char *dim_name, dim_idx_t dim_id, dim_t size);
     status_t use_subgroup(const std::string &buf_name, size_t size);
 
 private:
     std::vector<named_buffer_t> buffers;
-    std::vector<dim_id_t> dispatched_dims;
-    std::unordered_map<dim_id_t, dim_t, dim_id_hash_t> dim_sizes;
+    std::vector<dim_idx_t> dispatched_dims;
+    std::unordered_map<dim_idx_t, dim_t, dim_id_hash_t> dim_sizes;
 
     subgroup_data_t subgroup;
     const compute_engine_t *engine;

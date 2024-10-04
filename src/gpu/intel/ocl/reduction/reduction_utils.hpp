@@ -128,7 +128,7 @@ inline void def_reduction_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
 // zeros. This is a kind of reorder that can be used
 // to short-circuit calculations to avoid reading/writing zeros.
 struct zero_padding_t {
-    zero_padding_t(const int dim_idx, const dim_t data_size,
+    zero_padding_t(const dim_idx_t dim_idx, const dim_t data_size,
             const dim_t outer_stride, const dim_t outer_size,
             const dim_t inner_stride, const dim_t inner_size)
         : dim_idx(dim_idx)
@@ -161,7 +161,7 @@ struct zero_padding_t {
         return os.str();
     }
 
-    dim_t dim_idx;
+    dim_idx_t dim_idx;
     dim_t data_size;
     dim_t outer_stride, outer_size;
     dim_t inner_stride, inner_size;

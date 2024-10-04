@@ -24,7 +24,7 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-layout_t insert_dimension(const layout_t &layout, int dim_idx) {
+layout_t insert_dimension(const layout_t &layout, dim_idx_t dim_idx) {
     auto new_blocks = layout.blocks();
     for (auto &b : new_blocks) {
         if (b.dim_idx >= dim_idx) b.dim_idx++;
@@ -46,7 +46,7 @@ layout_t remove_size_1_dimension(const layout_t &layout, int dim_idx) {
 }
 
 layout_t split_dimension(
-        const layout_t &_layout, int dim_idx, int outer_block) {
+        const layout_t &_layout, dim_idx_t dim_idx, int outer_block) {
     int rem_inner_block
             = ir_utils::safe_divide(_layout.dim(dim_idx), outer_block);
     auto layout = insert_dimension(_layout, dim_idx);

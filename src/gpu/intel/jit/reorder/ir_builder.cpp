@@ -440,7 +440,7 @@ struct layout_normalization_t {
     const blocks_t &blocks() const { return blocks_; }
 
     bool empty() const { return begin() == end(); }
-    bool contains_dim(int dim_idx) const {
+    bool contains_dim(dim_idx_t dim_idx) const {
         for (auto &blk : blocks_)
             if (blk.dim_idx == dim_idx) return true;
         return false;
@@ -545,7 +545,7 @@ void reorder_ir_builder_t::normalize_reorder_layouts(layout_t &a, layout_t &b) {
                        const normalization_stage_t &b) {
         return a.elems() <= b.elems();
     };
-    auto dim_blocks = [](int dim_idx) {
+    auto dim_blocks = [](dim_idx_t dim_idx) {
         return [=](const normalization_stage_t &s) {
             return s.curr.dim_idx == dim_idx;
         };

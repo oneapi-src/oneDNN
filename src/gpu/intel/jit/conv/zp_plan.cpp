@@ -74,7 +74,7 @@ inline std::ostream &operator<<(std::ostream &out, zp_comp_kind_t kind) {
 }
 
 static bool ends_with(
-        const layout_t &layout, int i0, int b0, bool strict = false) {
+        const layout_t &layout, dim_idx_t i0, int b0, bool strict = false) {
     if (layout.nblocks() < 1) return false;
     auto &blocks = layout.blocks();
     if (blocks[0].dim_idx != i0) return false;
@@ -83,7 +83,8 @@ static bool ends_with(
     return true;
 }
 
-static bool ends_with(const layout_t &layout, int i1, int b1, int i0, int b0) {
+static bool ends_with(
+        const layout_t &layout, dim_idx_t i1, int b1, int i0, int b0) {
     if (!ends_with(layout, i0, b0, /*strict=*/true)) return false;
     if (layout.nblocks() < 2) return false;
     auto &blocks = layout.blocks();
@@ -199,7 +200,7 @@ private:
     public:
         split_t() = default;
         split_t(const layout_t &c, const bmnk_mapper_t &mapper, abc_kind_t abc,
-                int factor, int simd_dim_idx, int simd) {
+                int factor, dim_idx_t simd_dim_idx, int simd) {
             ir_assert(factor > 1);
             bmnk_kind_t split_mn
                     = (abc == abc_kind_t::a ? bmnk_kind_t::m : bmnk_kind_t::n);
@@ -215,9 +216,9 @@ private:
             if (dim % factor != 0) return;
             dim_t subtile_dim = dim / factor;
             dim_t cur_dim = 1;
-            int cur_idx = -1;
+            dim_idx_t cur_idx = static_cast<dim_idx_t>(-1);
             for (auto &b : mn_blocks) {
-                if (cur_idx == -1) {
+                if (cur_idx == static_cast<dim_idx_t>(-1)) {
                     cur_idx = b.dim_idx;
                 } else if (b.dim_idx != cur_idx) {
                     return;
@@ -336,7 +337,7 @@ public:
         kw_var = simd_bcast(kw_var);
 
         bool small_ic = is_small(data_type_, ic);
-        int kw_idx = 5; // TODO: support non-forward kw!
+        dim_idx_t kw_idx = 5; // TODO: support non-forward kw!
 
         std::vector<dim_t> tile_dim(b_layout_.ndims(), 1);
         for (auto &b : b_layout_.blocks()) {
@@ -722,9 +723,9 @@ private:
         return mad.call({comp, comp, zp, wei});
     }
 
-    int g_idx_ = -1;
-    int cn_idx_ = -1;
-    int ck_idx_ = -1;
+    dim_idx_t g_idx_ = -1;
+    dim_idx_t cn_idx_ = -1;
+    dim_idx_t ck_idx_ = -1;
 
     layout_t zp_layout_;
     layout_t wei_layout_;

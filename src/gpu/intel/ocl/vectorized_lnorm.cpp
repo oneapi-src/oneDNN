@@ -190,12 +190,12 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     memory_desc_wrapper dst_mdw(
             pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md());
 
-    int ndims = src_mdw.ndims();
+    dim_idx_t ndims = into<dim_idx_t>(src_mdw.ndims());
 
     conf.src_dt = src_mdw.data_type();
     conf.ndims = ndims;
-    conf.norm_axis = pd->norm_axis();
-    conf.across_axis = pd->across_axis();
+    conf.norm_axis = into<dim_idx_t>(pd->norm_axis());
+    conf.across_axis = into<dim_idx_t>(pd->across_axis());
     conf.use_scale = pd->use_scale();
     conf.use_shift = pd->use_shift();
     conf.calculate_stats = !pd->stats_are_src();
@@ -341,8 +341,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         assert(norm_gws <= max_wg_size);
         MAYBE_UNUSED(max_wg_size);
 
-        for (int i = 0; i < 4; i++) {
-            int md_hint_idx = nstl::min(i, ndims - 1);
+        for (dim_idx_t i = 0; i < 4; i++) {
+            dim_idx_t md_hint_idx = nstl::min(i, ndims - 1);
             size_t dim = (i < ndims - 1) ? dims[i] : 1;
             if (i == ndims - 1) {
                 dim = norm_gws;
@@ -392,8 +392,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             conf.vect_dt_n /= 2;
         }
 
-        for (int i = 0; i < 4; i++) {
-            int md_hint_idx = nstl::min(i, ndims - 1);
+        for (dim_idx_t i = 0; i < 4; i++) {
+            dim_idx_t md_hint_idx = nstl::min(i, ndims - 1);
             int dim = (i < ndims - 1) ? dims[i] : 1;
             if (i == ndims - 1) {
                 conf.dispatch.define_dim(utils::format("X%d", i), md_hint_idx,
