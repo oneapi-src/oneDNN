@@ -323,6 +323,36 @@ struct matmul_kernel_fwd_t {
                 }
             }
         }
+
+        void apply_post_ops_edge(sycl_post_ops_t post_ops,
+                register_block<Rows, Cols> prev_dst, dims_t off_po, int dim1,
+                const matmul_kernel_fwd_t *kernel, int rows, int cols) {
+            for (int row = 0; row < rows; row++) {
+                int col;
+                for (col = 0; col < cols / vec_len; col++) {
+                    for (int v_el = 0; v_el < vec_len; v_el++) {
+                        off_po[dim1] += row;
+                        off_po[dim1 + 1] += col * vec_len + v_el;
+                        data[row][col][v_el]
+                                = post_ops.apply(data[row][col][v_el],
+                                        prev_dst.data[row][col][v_el],
+                                        kernel->po_args_, off_po);
+                        off_po[dim1] -= row;
+                        off_po[dim1 + 1] -= col * vec_len + v_el;
+                    }
+                }
+                int n_remaining = cols - col * vec_len;
+                for (int v_el = 0; v_el < n_remaining; v_el++) {
+                    off_po[dim1] += row;
+                    off_po[dim1 + 1] += col * vec_len + v_el;
+                    data[row][col][v_el] = post_ops.apply(data[row][col][v_el],
+                            prev_dst.data[row][col][v_el], kernel->po_args_,
+                            off_po);
+                    off_po[dim1] -= row;
+                    off_po[dim1 + 1] -= col * vec_len + v_el;
+                }
+            }
+        }
     };
 
     matmul_kernel_fwd_t(const sycl_matmul_conf_t &conf, ::sycl::handler &cgh,
@@ -377,7 +407,7 @@ struct matmul_kernel_fwd_t {
         , dropout_seed_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_ATTR_DROPOUT_SEED))
         , dropout_probability_(
                   CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_ATTR_DROPOUT_PROBABILITY))
-        , po_args_(cgh, ctx) {}
+        , po_args_(cgh, ctx, conf_.post_ops) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         using data_block_t = register_block<register_block_M, register_block_K>;
@@ -597,8 +627,13 @@ struct matmul_kernel_fwd_t {
             if (conf_.transpose_dst) {
                 std::swap(off_po[matmul_dim_1], off_po[matmul_dim_2]);
             }
-            dst_block.apply_post_ops(
-                    conf_.post_ops, prev_dst, off_po, matmul_dim_1, this);
+            if (is_dst_edge_block) {
+                dst_block.apply_post_ops_edge(conf_.post_ops, prev_dst, off_po,
+                        matmul_dim_1, this, remaining_m, remaining_n);
+            } else {
+                dst_block.apply_post_ops(
+                        conf_.post_ops, prev_dst, off_po, matmul_dim_1, this);
+            }
 
             if (conf_.do_scale_dst) {
                 dst_block.eltwise([=](float &el) { el /= dst_scale; });

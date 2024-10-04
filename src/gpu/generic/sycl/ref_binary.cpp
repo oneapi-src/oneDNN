@@ -49,7 +49,7 @@ status_t ref_binary_t::pd_t::init_conf() {
                 = conf_.src0_md.dims()[i] != 1 && conf_.src1_md.dims()[i] == 1;
     }
 
-    conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
+    conf_.post_ops = sycl_post_ops_t(attr(), dst_md());
 
     return status::success;
 }

@@ -43,8 +43,7 @@ void ref_matmul_t::pd_t::init_conf() {
             = !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
 
     conf_.use_dropout = !attr()->dropout_.has_default_values();
-
-    conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
+    conf_.post_ops = sycl_post_ops_t(attr(), dst_md());
 
     memory_desc_wrapper src_d = src_md();
     memory_desc_wrapper weights_d = weights_md();

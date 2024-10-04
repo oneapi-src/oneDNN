@@ -39,7 +39,7 @@ struct resampling_kernel_fwd_vec_t {
         : conf_(conf)
         , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
         , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
-        , po_args_(cgh, ctx) {}
+        , po_args_(cgh, ctx, conf_.post_ops) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         memory_tensor_t src_mem(src_, conf_.src_md);
