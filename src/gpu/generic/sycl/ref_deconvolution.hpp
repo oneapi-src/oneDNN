@@ -59,7 +59,8 @@ struct ref_deconvolution_bwd_weights_t
                             data_d, diff_weights_d, diff_dst_d)
                     && attr()->has_default_values(sm::scales_runtime
                             | sm::zero_points_runtime | sm::post_ops
-                            | sm::sum_dt);
+                            | sm::sum_dt)
+                    && desc()->alg_kind == alg_kind::deconvolution_direct;
             if (!ok) return status::unimplemented;
 
             return init_conf();
