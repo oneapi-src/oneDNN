@@ -54,8 +54,8 @@ struct ref_binary_t : public gpu::generic::sycl::primitive_t {
                     && check_formats(src0_d, src1_d, dst_d)
                     && attr()->has_default_values(
                             sm::scales_runtime | sm::post_ops)
-                    && IMPLICATION(!attr()->scales_.has_default_values(),
-                            check_scales_mask())
+                    && IMPLICATION(
+                            !attr()->scales_.has_default_values(), scales_ok())
                     && sycl_post_ops_t::post_ops_ok(attr())
                     && md_dims_in_range(src_md(0))
                     && md_dims_in_range(src_md(1))
@@ -70,10 +70,17 @@ struct ref_binary_t : public gpu::generic::sycl::primitive_t {
     private:
         status_t init_conf();
 
-        bool check_scales_mask() const {
+        bool scales_ok() const {
             const std::vector<int> supported_args
                     = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
-            return attr_scales_ok(supported_args);
+
+            const auto &scales = attr()->scales_;
+            bool dt_ok = true;
+            for (auto arg : supported_args) {
+                auto &s = scales.get(arg);
+                dt_ok = dt_ok && is_supported_type(s.data_type_);
+            }
+            return dt_ok && attr_scales_ok(supported_args);
         }
 
         static bool check_data_types(const memory_desc_wrapper &src0,

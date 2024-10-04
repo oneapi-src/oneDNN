@@ -99,7 +99,6 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
         }
 
         bool scales_ok() const {
-            using namespace data_type;
             const std::vector<int> supported_args
                     = {DNNL_ARG_SRC_0, DNNL_ARG_WEIGHTS_0, DNNL_ARG_DST};
 
@@ -107,8 +106,7 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
             bool dt_ok = true;
             for (auto arg : supported_args) {
                 auto &s = scales.get(arg);
-                dt_ok = dt_ok
-                        && utils::one_of(s.data_type_, s8, s32, f32, f16, bf16);
+                dt_ok = dt_ok && is_supported_type(s.data_type_);
             }
             return dt_ok && attr_scales_ok(supported_args);
         }
