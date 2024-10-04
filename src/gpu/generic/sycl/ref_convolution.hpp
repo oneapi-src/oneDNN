@@ -93,7 +93,8 @@ struct ref_convolution_fwd_t : public gpu::generic::sycl::primitive_t {
                             | sm::sum_dt)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             attr_scales_ok())
-                    && sycl_post_ops_t::post_ops_ok(attr(), false);
+                    && sycl_post_ops_t::post_ops_ok(attr(), false)
+                    && set_default_alg_kind(alg_kind::convolution_direct);
             if (!ok) return status::unimplemented;
 
             return init_conf();
@@ -148,7 +149,8 @@ struct ref_convolution_bwd_data_t : public gpu::generic::sycl::primitive_t {
                     && attr()->has_default_values(sm::scales_runtime
                             | sm::zero_points_runtime | sm::sum_dt)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
-                            attr_scales_ok());
+                            attr_scales_ok())
+                    && set_default_alg_kind(alg_kind::convolution_direct);
             if (!ok) return status::unimplemented;
 
             return init_conf();
@@ -203,7 +205,8 @@ struct ref_convolution_bwd_weights_t : public gpu::generic::sycl::primitive_t {
                     && attr()->has_default_values(sm::scales_runtime
                             | sm::zero_points_runtime | sm::sum_dt)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
-                            attr_scales_ok());
+                            attr_scales_ok())
+                    && set_default_alg_kind(alg_kind::convolution_direct);
             if (!ok) return status::unimplemented;
 
             return init_conf();
