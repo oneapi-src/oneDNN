@@ -197,7 +197,6 @@ struct ref_convolution_bwd_weights_t : public gpu::generic::sycl::primitive_t {
 
         status_t init(impl::engine_t *engine) {
             using namespace data_type;
-            using sm = primitive_attr_t::skip_mask_t;
 
             const memory_desc_wrapper data_d(src_md());
             const memory_desc_wrapper diff_weights_d(diff_weights_md());
@@ -210,11 +209,7 @@ struct ref_convolution_bwd_weights_t : public gpu::generic::sycl::primitive_t {
                             data_d, diff_weights_d, diff_dst_d)
                     && check_convolution_formats(
                             data_d, diff_weights_d, diff_dst_d)
-                    && attr()->has_default_values(sm::scales_runtime
-                            | sm::zero_points_runtime | sm::sum_dt)
-                    && IMPLICATION(!attr()->scales_.has_default_values(),
-                            attr_scales_ok()
-                                    && check_convolution_scales_types(attr()))
+                    && attr()->has_default_values()
                     && set_default_alg_kind(alg_kind::convolution_direct);
             if (!ok) return status::unimplemented;
 
