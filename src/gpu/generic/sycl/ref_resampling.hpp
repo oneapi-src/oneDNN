@@ -41,18 +41,14 @@ struct ref_resampling_fwd_t : public gpu::generic::sycl::primitive_t {
         DECLARE_COMMON_PD_T("dpcpp:ref:any", ref_resampling_fwd_t);
 
         status_t init(impl::engine_t *engine) {
-            using namespace data_type;
             using namespace prop_kind;
             using namespace alg_kind;
             using sm = primitive_attr_t::skip_mask_t;
             const memory_desc_wrapper src_d(src_md(0));
             const memory_desc_wrapper dst_d(dst_md(0));
 
-            const bool ok = is_fwd()
-                    && utils::one_of(
-                            src_md(0)->data_type, f32, bf16, f16, s32, s8, u8)
-                    && utils::one_of(
-                            dst_md(0)->data_type, f32, bf16, f16, s32, s8, u8)
+            const bool ok = is_fwd() && is_supported_type(src_md(0)->data_type)
+                    && is_supported_type(dst_md(0)->data_type)
                     && attr()->has_default_values(sm::post_ops)
                     && set_default_params() == status::success
                     && attr_.set_default_formats(dst_md(0)) == status::success
@@ -92,7 +88,9 @@ struct ref_resampling_bwd_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper diff_dst_d(diff_dst_md(0));
             const memory_desc_wrapper diff_src_d(diff_src_md(0));
 
-            bool ok = !is_fwd() && set_default_params() == status::success
+            bool ok = !is_fwd() && is_supported_type(src_md(0)->data_type)
+                    && is_supported_type(dst_md(0)->data_type)
+                    && set_default_params() == status::success
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)
                     && (diff_dst_md(0)->format_desc.blocking.inner_nblks == 0)
                     && attr()->has_default_values()

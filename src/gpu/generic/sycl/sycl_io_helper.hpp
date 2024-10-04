@@ -28,6 +28,11 @@ namespace gpu {
 namespace generic {
 namespace sycl {
 
+inline bool is_supported_type(data_type_t dt) {
+    using namespace data_type;
+    return utils::one_of(dt, f32, f16, bf16, s32, s8, u8);
+}
+
 inline int load_int_value(data_type_t dt, const void *ptr, dim_t idx) {
 #define CASE(dt) \
     case dt: \
