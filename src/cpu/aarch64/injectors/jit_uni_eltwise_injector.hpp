@@ -215,6 +215,7 @@ private:
     void relu_zero_ns_compute_vector_fwd(const TRegS &vmm_src);
     void elu_compute_vector_fwd(const TRegS &vmm_src);
     void tanh_compute_vector_fwd(const TRegS &vmm_src);
+    void tanh_polynomial_approx_compute_vector_fwd(const TRegS &vmm_src);
     void square_compute_vector_fwd(const TRegS &vmm_src);
     void abs_compute_vector_fwd(const TRegS &vmm_src);
     void sqrt_compute_vector_fwd(const TRegS &vmm_src);
@@ -277,6 +278,11 @@ private:
         bwd_mish_max_x_for_equation_f,
         tanh_range, // tanh(x) = x - x^3/3 for |x| < tanh_range
         tanh_m1d3, // -1/3
+        tanh_idx_bias, // bias applied during index computation
+        tanh_idx_mask, // mask applied to extract index
+        tanh_linear_ubound, // arg below which tanh(x) = x
+        tanh_saturation_lbound, // arg after which tanh(x) = 1.f
+        tanh_pol_table, // table of polynomial coefficients
         soft_relu_one_twenty_six, // 126.f
         soft_relu_mantissa_sign_mask, // mask for mantissa bits and sign
         soft_relu_pol, // see correspondent table for float values
