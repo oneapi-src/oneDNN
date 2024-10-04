@@ -54,6 +54,7 @@ struct ref_prelu_fwd_t : public gpu::generic::sycl::primitive_t {
             const bool ok = is_fwd() && set_default_formats()
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)
                     && (weights_md(0)->format_desc.blocking.inner_nblks == 0)
+                    && check_data_types(data_d, weights_d, dst_d)
                     && md_dims_in_range(src_md())
                     && md_dims_in_range(weights_md());
 
@@ -63,6 +64,15 @@ struct ref_prelu_fwd_t : public gpu::generic::sycl::primitive_t {
 
         status_t init_conf();
         sycl_prelu_conf_t conf_;
+
+        static bool check_data_types(const memory_desc_wrapper &src,
+                const memory_desc_wrapper &wei,
+                const memory_desc_wrapper &dst) {
+            for (const auto &mdw : {src, wei, dst}) {
+                if (!is_supported_type(mdw.data_type())) return false;
+            }
+            return true;
+        }
     };
 
     status_t init(impl::engine_t *engine) override;
@@ -97,6 +107,7 @@ struct ref_prelu_bwd_t : public gpu::generic::sycl::primitive_t {
                     && (weights_md(0)->format_desc.blocking.inner_nblks == 0)
                     && diff_src_md(0)->data_type == src_md(0)->data_type
                     && diff_weights_md(0)->data_type == weights_md(0)->data_type
+                    && check_data_types(data_d, weights_d, diff_dst_d)
                     && md_dims_in_range(diff_src_md())
                     && md_dims_in_range(weights_md());
 
@@ -112,6 +123,16 @@ struct ref_prelu_bwd_t : public gpu::generic::sycl::primitive_t {
         status_t init_conf();
         status_t init_reduction(impl::engine_t *engine);
         void init_scratchpad();
+
+        static bool check_data_types(const memory_desc_wrapper &src,
+                const memory_desc_wrapper &wei,
+                const memory_desc_wrapper &dst) {
+            for (const auto &mdw : {src, wei, dst}) {
+                if (!is_supported_type(mdw.data_type())) return false;
+            }
+
+            return true;
+        }
 
         sycl_prelu_conf_t conf_;
         bool reduce_diff_weights_ = false;
