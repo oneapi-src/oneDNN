@@ -214,10 +214,10 @@ status_t simple_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
         const cl_ulong s2most_inner_block_stride = mem_dt_size
                 * blocking_desc.strides[blocking_desc.inner_idxs[most_inner_nblk
                         - 1]];
-        const unsigned most_inner_block_write_multiplier
-                = (pdims[blocking_desc.inner_idxs[most_inner_nblk]]
-                          - dims[blocking_desc.inner_idxs[most_inner_nblk]])
-                / 16;
+        const unsigned most_inner_block_write_multiplier = into<unsigned>(
+                (pdims[blocking_desc.inner_idxs[most_inner_nblk]]
+                        - dims[blocking_desc.inner_idxs[most_inner_nblk]])
+                / 16);
 
         arg_list.set(2, most_inner_block_base_offset);
         arg_list.set(4, s2most_inner_block_stride);
@@ -265,8 +265,9 @@ status_t simple_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
     const cl_ulong most_inner_block_offset = mem_dt_size
             * blocking_desc.strides[blocking_desc.inner_idxs[most_inner_nblk]];
 
-    const unsigned most_inner_block_write_multiplier = nstl::max<dnnl_dim_t>(
-            blocking_desc.inner_blks[most_inner_nblk] / 16, 1);
+    const unsigned most_inner_block_write_multiplier
+            = into<unsigned>(nstl::max<dnnl_dim_t>(
+                    blocking_desc.inner_blks[most_inner_nblk] / 16, 1));
 
     arg_list.set(2, s2most_inner_block_base_offset);
     arg_list.set(4, most_inner_block_offset);
@@ -312,8 +313,8 @@ status_t simple_zero_pad_t::execute_subg_16_mask_and_clear_dt_1B(
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, *mem_storage);
 
-    const unsigned mask
-            = dims[blocking_desc.inner_idxs[0]] % blocking_desc.inner_blks[0];
+    const unsigned mask = into<unsigned>(
+            dims[blocking_desc.inner_idxs[0]] % blocking_desc.inner_blks[0]);
     arg_list.set(1, mask);
 
     const unsigned block_size = 16 * 8; // SIMD * block_size

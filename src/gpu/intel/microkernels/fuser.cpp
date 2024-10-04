@@ -32,7 +32,7 @@ namespace micro {
 static void fixupJumpTargets(uint8_t *start, size_t len, ptrdiff_t adjust);
 
 void fuseMicrokernel(std::vector<uint8_t> &binary,
-        const std::vector<uint8_t> &microkernel, int id) {
+        const std::vector<uint8_t> &microkernel, long id) {
     auto base = binary.data();
     auto bytes = binary.size();
 
@@ -185,11 +185,12 @@ void fuseMicrokernels(std::vector<uint8_t> &binary, const char *source) {
             s = std::strstr(s, sigilBinary)) {
         s += sigilLen;
         char *after;
-        int id = strtol(s, &after, 10);
+        long id = strtol(s, &after, 10);
         microkernel.clear();
         for (s = after + 1; *s != '\n'; s += 2) {
             if (!s[0] || !s[1]) break;
-            microkernel.push_back((toNybble(s[0]) << 4) | toNybble(s[1]));
+            microkernel.push_back(static_cast<uint8_t>(
+                    (toNybble(s[0]) << 4) | toNybble(s[1])));
         }
         fuseMicrokernel(binary, microkernel, id);
     }

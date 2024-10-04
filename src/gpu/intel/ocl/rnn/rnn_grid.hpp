@@ -150,8 +150,8 @@ private:
         std::vector<dim_t> lws;
         lws.reserve(gws.size());
         for (size_t i = 0; i < gws.size(); i++) {
-            int l_dim = 2 * gws[i] <= lws_max ? utils::rnd_up_pow2(gws[i])
-                                              : lws_max;
+            dim_t l_dim = 2 * gws[i] <= lws_max ? utils::rnd_up_pow2(gws[i])
+                                                : lws_max;
             if (i == 0 && l_dim < subgroup_size) l_dim = subgroup_size;
             lws.emplace_back(l_dim);
             gws[i] = utils::rnd_up(gws[i], l_dim);

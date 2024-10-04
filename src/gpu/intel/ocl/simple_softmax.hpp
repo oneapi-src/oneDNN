@@ -85,7 +85,7 @@ struct simple_softmax_fwd_t : public gpu_primitive_t {
             VDISPATCH_SOFTMAX_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
-            int nelems = axis_size(true);
+            dim_t nelems = axis_size(true);
 
             if (nelems < subgroup_size) {
                 group_size = subgroup_size = 1;
@@ -251,7 +251,7 @@ struct simple_softmax_bwd_t : public gpu_primitive_t {
                 }
             }
 
-            int nelems = axis_size(true);
+            dim_t nelems = axis_size(true);
             if (nelems <= 100) {
                 group_size = 16;
             } else if (nelems <= 1000) {

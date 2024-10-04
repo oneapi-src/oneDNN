@@ -38,15 +38,15 @@ static bool is_impl_optimal(conv_conf_t &conf, const convolution_desc_t &cd,
         const compute::gpu_arch_t arch) {
     if (cd.alg_kind == alg_kind::convolution_winograd) return true;
 
-    int ow_blocks = conf.wino_ow / conf.ow_block;
+    dim_t ow_blocks = conf.wino_ow / conf.ow_block;
     float ow_util = (float)conf.ow / conf.wino_ow;
-    int oh_blocks = conf.wino_oh / conf.oh_block;
+    dim_t oh_blocks = conf.wino_oh / conf.oh_block;
     float oh_util = (float)conf.oh / conf.wino_oh;
-    int oc_blocks = conf.ocb;
+    dim_t oc_blocks = conf.ocb;
     float oc_util = (float)conf.oc_without_padding / conf.wino_oc;
     float ic_util = (float)conf.ic_without_padding / conf.wino_ic;
 
-    int blocks = ow_blocks * oh_blocks * oc_blocks;
+    dim_t blocks = ow_blocks * oh_blocks * oc_blocks;
     float utilization = ow_util * oh_util * oc_util * ic_util;
     float score;
 
@@ -95,7 +95,7 @@ static void fwd_compute_block_sizes(
             ? static_cast<int>(16 / types::data_type_size(conf.src_data_type))
             : 8;
     conf.oc_block = 16;
-    conf.ic_block = nstl::min(conf.ic, 16);
+    conf.ic_block = into<int>(nstl::min<dim_t>(conf.ic, 16));
     if (conf.src_data_type == data_type::f16)
         conf.wino_ic_block = 32;
     else if (is_pre_gen12 && conf.ow * conf.oh <= 256)
@@ -111,7 +111,8 @@ static void fwd_compute_block_sizes(
     if (conf.is_fused) {
         conf.wino_oc_block = 16;
         conf.oh_block = conf.wino_m;
-        conf.ow_block = conf.ow > 14 ? 14 : utils::rnd_up(conf.ow, 2);
+        conf.ow_block
+                = conf.ow > 14 ? 14 : into<int>(utils::rnd_up(conf.ow, 2));
     } else {
         conf.wino_oc_block = 32;
         conf.oh_block = 8;

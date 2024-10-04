@@ -76,7 +76,7 @@ block_layout_t::block_layout_t(
     if (!inner_only) {
         for (dim_idx_t i = 0; i < ndims; i++) {
             dim_t block = padded_dims[i] / full_blocks[i];
-            append(block_t(static_cast<dim_t>(i), block, blocking.strides[i]));
+            append(block_t(i, block, blocking.strides[i]));
         }
 
         // Sort outer blocks by their stride.

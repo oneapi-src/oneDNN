@@ -220,8 +220,9 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     int c_block = 1;
     bool c_is_last_physical = false;
     if (src_mdw.blocking_desc().inner_nblks > 0) {
-        c_block = src_mdw.blocking_desc()
-                          .inner_blks[src_mdw.blocking_desc().inner_nblks - 1];
+        c_block = into<int>(
+                src_mdw.blocking_desc()
+                        .inner_blks[src_mdw.blocking_desc().inner_nblks - 1]);
         c_is_last_physical
                 = src_mdw.blocking_desc().inner_idxs[ndims - 1] == ndims - 1;
     } else {
@@ -337,13 +338,13 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         assert(conf.norm_axis % conf.norm_block == 0);
         assert(conf.norm_block % (conf.sub_group_size * conf.vect_dt_n) == 0);
 
-        const size_t norm_gws = conf.sub_group_size * conf.num_norm_blocks;
+        const dim_t norm_gws = conf.sub_group_size * conf.num_norm_blocks;
         assert(norm_gws <= max_wg_size);
         MAYBE_UNUSED(max_wg_size);
 
         for (dim_idx_t i = 0; i < 4; i++) {
             dim_idx_t md_hint_idx = nstl::min(i, ndims - 1);
-            size_t dim = (i < ndims - 1) ? dims[i] : 1;
+            dim_t dim = (i < ndims - 1) ? dims[i] : 1;
             if (i == ndims - 1) {
                 dim = norm_gws;
                 conf.dispatch.define_dim(
@@ -355,7 +356,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                         utils::format("X%d", i), md_hint_idx, dim);
         }
         conf.dispatch.generate();
-        const compute::range_t tuned_lws = {norm_gws, 1, 1};
+        const compute::range_t tuned_lws = {into<size_t>(norm_gws), 1, 1};
         conf.dispatch.set_lws(tuned_lws);
 
     } else { // bwd
@@ -394,7 +395,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
         for (dim_idx_t i = 0; i < 4; i++) {
             dim_idx_t md_hint_idx = nstl::min(i, ndims - 1);
-            int dim = (i < ndims - 1) ? dims[i] : 1;
+            dim_t dim = (i < ndims - 1) ? dims[i] : 1;
             if (i == ndims - 1) {
                 conf.dispatch.define_dim(utils::format("X%d", i), md_hint_idx,
                         conf.sub_group_size);
@@ -423,7 +424,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         if ((conf.use_scale || conf.use_shift) && !vectorize_bwd_scaleshift)
             return status::unimplemented;
 
-        const int first_dim = ndims == 2 ? dims[0] : dims[1];
+        const dim_t first_dim = ndims == 2 ? dims[0] : dims[1];
         const int max_n_chunk_size = 16; // Experimentally selected values
         const int min_n_chunk_size = 4;
         int best_n_chunk_size = max_n_chunk_size;
@@ -448,7 +449,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                 "C_finalize", conf.norm_axis);
         const int max_n_finalize = 256; // Experimentally selected values
 
-        int n_finalize = conf.n_chunks;
+        dim_t n_finalize = conf.n_chunks;
         while (n_finalize > max_n_finalize) {
             n_finalize = utils::div_up(n_finalize, 2);
         }

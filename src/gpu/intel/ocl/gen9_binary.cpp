@@ -92,7 +92,8 @@ status_t gen9_binary_t::pd_t::init_conf(impl::engine_t *engine) {
                 && src0_d.dims()[i] != src1_d.dims()[i]) {
             return status::unimplemented;
         }
-        conf.src1_bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;
+        conf.src1_bcast_dims[i]
+                = i < ndims ? into<int>(broadcast_dims()[i]) : 1;
     }
 
     if (conf.src1_bcast_dims[1] && !conf.src1_bcast_dims[ndims - 1]) {
@@ -137,7 +138,7 @@ status_t gen9_binary_t::pd_t::init_conf(impl::engine_t *engine) {
     if (plain_and_X4a4b) {
         dim_t blocks[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
         auto &blk = dst_d.blocking_desc();
-        int b_block = blk.inner_blks[blk.inner_nblks - 1];
+        int b_block = into<int>(blk.inner_blks[blk.inner_nblks - 1]);
         int sub_group_size = (b_block == 2 ? 8 : 16);
         blocks[0] = 4;
         blocks[1] = b_block;
@@ -160,8 +161,9 @@ status_t gen9_binary_t::pd_t::init_conf(impl::engine_t *engine) {
         conf.nvect = 8;
         int channel_blk = 16;
         const int vect_dim_size = 16;
-        const int padded_channels = padded_dims[1];
-        conf.mb_block = dst_d.md_->format_desc.blocking.inner_blks[0];
+        const dim_t padded_channels = padded_dims[1];
+        conf.mb_block
+                = into<int>(dst_d.md_->format_desc.blocking.inner_blks[0]);
         while (padded_channels % (vect_dim_size * channel_blk) != 0) {
             channel_blk /= 2;
         }
@@ -187,7 +189,7 @@ status_t gen9_binary_t::pd_t::init_conf(impl::engine_t *engine) {
                     "D0", ndims, dst_d.dims()[0], 1);
         }
         for (int i = idx; i < MAX_NDIMS; ++i) {
-            int dim = i < ndims ? dst_d.dims()[i] : 1;
+            dim_t dim = i < ndims ? dst_d.dims()[i] : 1;
             if (i == 1) {
                 conf.dispatch.define_dim(utils::format("D%d", i),
                         nstl::min(i, ndims - 1), dim, 1);
@@ -216,7 +218,7 @@ status_t gen9_binary_t::pd_t::init_conf(impl::engine_t *engine) {
         }
         if (!size_check) return status::unimplemented;
         for (int i = 0; i < MAX_NDIMS; ++i) {
-            int dim = i < ndims ? dst_d.dims()[i] : 1;
+            dim_t dim = i < ndims ? dst_d.dims()[i] : 1;
             if (i == 1) {
                 conf.dispatch.define_dim(utils::format("D%d", i),
                         nstl::min(i, ndims - 1), dim, 1);
@@ -248,7 +250,7 @@ status_t gen9_binary_t::pd_t::init_conf(impl::engine_t *engine) {
 
         if (rem && !all_dims_broadcast) { return status::unimplemented; }
 
-        int rounded_last_dim = utils::rnd_up(last_dim, subgroup_size);
+        dim_t rounded_last_dim = utils::rnd_up(last_dim, subgroup_size);
 
         dim_t mixed_dim = 1;
         for (int i = 0; i < (ndims - 1); ++i) {

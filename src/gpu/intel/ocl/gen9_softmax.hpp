@@ -103,7 +103,7 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
             }
 
             if (is_nhwc) {
-                int axis_padded = utils::rnd_up(axis_size(), subgroup_size);
+                dim_t axis_padded = utils::rnd_up(axis_size(), subgroup_size);
                 group_size = subgroup_size
                         * utils::div_up(axis_padded, buffer_size);
                 if (group_size > (size_t)max_lws) {

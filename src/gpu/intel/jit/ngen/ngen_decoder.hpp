@@ -17,6 +17,11 @@
 #ifndef NGEN_DECODER_HPP
 #define NGEN_DECODER_HPP
 
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+#endif
+
 #include "ngen_core.hpp"
 #include "ngen_auto_swsb.hpp"
 
@@ -86,5 +91,9 @@ bool Decoder::getOperandRegion(autoswsb::DependencyRegion &region, int opNum) co
 }
 
 } /* namespace NGEN_NAMESPACE */
+
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic pop
+#endif
 
 #endif /* header guard */

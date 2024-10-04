@@ -139,7 +139,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
             bool sg_and_vector_size_ok = is_sg_and_vector_size_compatible(
                     compute_engine, sg_size, vector_size);
             bool sg_stride_ok = is_sg_stride_compatible(
-                    pd->norm_axis(), sg_size * vector_size);
+                    into<dim_idx_t>(pd->norm_axis()), sg_size * vector_size);
 
             if (sg_and_vector_size_ok && sg_stride_ok) {
                 conf->sg_size = sg_size;

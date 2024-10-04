@@ -121,8 +121,8 @@ struct ref_lrn_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("IH", pd()->H());
         kernel_ctx.define_int("IW", pd()->W());
 
-        const uint32_t round_norm_size = desc->local_size;
-        uint32_t num_elements = pow(round_norm_size, nstl::max(0, ndims - 2));
+        const dim_t round_norm_size = desc->local_size;
+        dim_t num_elements = pow(round_norm_size, nstl::max(0, ndims - 2));
         if (desc->alg_kind == lrn_across_channels) {
             num_elements = round_norm_size;
         }
@@ -246,8 +246,8 @@ struct ref_lrn_bwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("IH", pd()->H());
         kernel_ctx.define_int("IW", pd()->W());
 
-        const uint32_t round_norm_size = desc->local_size;
-        uint32_t num_elements = pow(round_norm_size, nstl::max(0, ndims - 2));
+        const dim_t round_norm_size = desc->local_size;
+        dim_t num_elements = pow(round_norm_size, nstl::max(0, ndims - 2));
         if (desc->alg_kind == lrn_across_channels) {
             num_elements = round_norm_size;
         }

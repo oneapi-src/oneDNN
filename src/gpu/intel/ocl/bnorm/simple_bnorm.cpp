@@ -145,7 +145,7 @@ status_t simple_batch_normalization_fwd_t::pd_t::init_conf(
     // Translate reduce_dim_idx from being an index in calc_dims to dims array
     const dim_idx_t base_reduce_dim_idx
             = reduce_dim_idx == 0 ? 0 : reduce_dim_idx - (5 - ndims);
-    const int reduce_dim_stride
+    const dim_t reduce_dim_stride
             = data_mdw.blocking_desc().strides[base_reduce_dim_idx];
     const bool can_vectorize_calc_stats
             = conf.reduce_dim % 16 == 0 && reduce_dim_stride == 1;
@@ -157,7 +157,7 @@ status_t simple_batch_normalization_fwd_t::pd_t::init_conf(
     // for the experimental flag. This should be updated to follow the API.
     if (!conf.skip_reduce_stat) return status::unimplemented;
 
-    int calc_dims_blocks[5] = {1, 1, 1, 1, 1};
+    dim_t calc_dims_blocks[5] = {1, 1, 1, 1, 1};
 
     // Calculations over reduce dimension will be split
     // between work items in the single subgroup.
@@ -311,12 +311,12 @@ status_t simple_batch_normalization_bwd_t::pd_t::init_conf(
     }
 
     const int max_stat_nblocks = 256;
-    int stat_mb_nblocks = conf.mb / conf.mb_block;
-    int stat_sp_nblocks = utils::max_div(conf.id * conf.ih * conf.iw,
-            nstl::max(1, max_stat_nblocks / stat_mb_nblocks));
+    dim_t stat_mb_nblocks = conf.mb / conf.mb_block;
+    dim_t stat_sp_nblocks = utils::max_div(conf.id * conf.ih * conf.iw,
+            nstl::max<dim_t>(1, max_stat_nblocks / stat_mb_nblocks));
     assert(stat_mb_nblocks * stat_sp_nblocks <= max_stat_nblocks);
 
-    int stat_sp_block = conf.id * conf.ih * conf.iw / stat_sp_nblocks;
+    dim_t stat_sp_block = conf.id * conf.ih * conf.iw / stat_sp_nblocks;
 
     conf.reduce_stat_nblocks = stat_mb_nblocks * stat_sp_nblocks;
 

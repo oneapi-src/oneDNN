@@ -118,11 +118,11 @@ std::string get_desc_str(const batch_normalization_pd_t *pd) {
     const memory_desc_wrapper data_mdw(
             pd->is_fwd() ? pd->src_md() : pd->diff_src_md());
     const int ndims = data_mdw.ndims();
-    const int mb = data_mdw.dims()[0];
-    const int ic = data_mdw.dims()[1];
-    const int id = (ndims == 5) ? data_mdw.dims()[2] : 1;
-    const int ih = (ndims == 3) ? 1 : data_mdw.dims()[ndims - 2];
-    const int iw = data_mdw.dims()[ndims - 1];
+    const dim_t mb = data_mdw.dims()[0];
+    const dim_t ic = data_mdw.dims()[1];
+    const dim_t id = (ndims == 5) ? data_mdw.dims()[2] : 1;
+    const dim_t ih = (ndims == 3) ? 1 : data_mdw.dims()[ndims - 2];
+    const dim_t iw = data_mdw.dims()[ndims - 1];
     std::string s;
     s += std::to_string(mb) + ",";
     s += std::to_string(ic) + ",";

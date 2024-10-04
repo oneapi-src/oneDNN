@@ -27,6 +27,11 @@
 #ifndef NGEN_HPP
 #define NGEN_HPP
 
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+#endif
+
 #include "ngen_config.hpp"
 
 #include <array>
@@ -2632,5 +2637,9 @@ void BinaryCodeGenerator<hw>::opNop(Opcode op)
 }
 
 } /* namespace NGEN_NAMESPACE */
+
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic pop
+#endif
 
 #endif /* header guard */

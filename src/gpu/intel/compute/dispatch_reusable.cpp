@@ -221,22 +221,21 @@ public:
         std::vector<bool> is_mapped_to(master_layout.size(), false);
         for (size_t i = 0; i < res.size(); i++) {
             block_t &block = res[i];
-            size_t block_size = static_cast<size_t>(block.block);
+            dim_t block_size = block.block;
             for (size_t j = 0; j < master_layout.size(); j++) {
                 if (is_mapped_to[j]) continue;
 
                 mapped_block_t &master_block = master_layout[j];
                 if (master_block.get_dim_idx() != block.dim_idx) continue;
 
-                size_t master_size = master_block.get_size();
+                dim_t master_size = master_block.get_size();
                 if (master_size == block_size) {
                     // Nothing to do, already matches
                 } else if (block_size % master_size == 0) {
                     // subdivide block
-                    block.block = static_cast<dim_t>(master_size);
-                    block_t next_block(block.dim_idx,
-                            static_cast<dim_t>(block_size / master_size),
-                            block.stride * static_cast<dim_t>(master_size));
+                    block.block = master_size;
+                    block_t next_block(block.dim_idx, block_size / master_size,
+                            block.stride * master_size);
                     res.insert(i + 1, next_block);
                 } else if (master_size % block_size == 0) {
                     // subdivide master block

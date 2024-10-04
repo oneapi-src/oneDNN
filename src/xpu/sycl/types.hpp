@@ -121,7 +121,7 @@ struct md_t {
         data_type_ = mdw.data_type();
 #define CHECK_AND_ASSIGN(lhs, rhs) \
     assert((rhs) <= INT32_MAX); \
-    (lhs) = (rhs)
+    (lhs) = static_cast<dim32_t>(rhs)
 
         CHECK_AND_ASSIGN(ndims_, mdw.ndims());
         CHECK_AND_ASSIGN(offset0_, mdw.offset0());

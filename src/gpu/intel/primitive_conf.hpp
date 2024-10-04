@@ -37,9 +37,6 @@ namespace impl {
 namespace gpu {
 namespace intel {
 
-#define MAX_NDIMS 6
-#define MAX_POST_OPS_SUPPORTED 32
-
 inline bool memory_desc_ndims_ok(const memory_desc_t *md) {
     return md->ndims > MAX_NDIMS;
 }
@@ -94,7 +91,7 @@ struct memory_desc_info_t {
 
         int levels[MAX_NDIMS] = {0};
         for (int iblk = 0; iblk < blk.inner_nblks; ++iblk) {
-            int d = blk.inner_idxs[iblk];
+            dim_t d = blk.inner_idxs[iblk];
             ++levels[d];
 
             md_info.blocks[d][levels[d]] = blk.inner_blks[iblk];
@@ -289,25 +286,20 @@ struct conv_conf_t {
     prop_kind_t prop_kind;
 
     int ndims;
-    int mb;
-    int ngroups, ic, oc;
-    int ngroups_without_padding, oc_without_padding, ic_without_padding;
-    int id, ih, iw, od, oh, ow;
-    int f_pad, l_pad, t_pad;
-    int back_pad, r_pad, b_pad;
-    int kd, kh, kw, kwb;
-    int stride_d, stride_h, stride_w;
-    int dilate_d, dilate_h, dilate_w;
+    dim_t mb;
+    dim_t ngroups, ic, oc;
+    dim_t ngroups_without_padding, oc_without_padding, ic_without_padding;
+    dim_t id, ih, iw, od, oh, ow;
+    dim_t f_pad, l_pad, t_pad;
+    dim_t back_pad, r_pad, b_pad;
+    dim_t kd, kh, kw, kwb;
+    dim_t stride_d, stride_h, stride_w;
+    dim_t dilate_d, dilate_h, dilate_w;
 
-    int sp_block, sp;
-    int od_block, oh_block, ow_block;
-    int id_block, ih_block, iw_block;
-    int oc_block, ic_block, nchunk;
-    int omb;
-    int odb, ohb, owb;
-    int icb;
-    int ocb;
-    int osp_chunk, mb_chunk, mb_block;
+    int oh_block, ow_block;
+    int oc_block, ic_block;
+    dim_t ocb;
+    int mb_block;
     int iw_tail;
     size_t wei_slm_size, src_slm_size, dst_slm_size;
     int sub_group_size;
@@ -333,10 +325,10 @@ struct conv_conf_t {
     int tile_size;
     int wino_m;
     int wino_r;
-    int wino_ih, wino_oh;
-    int wino_iw, wino_ow;
-    int wino_ic;
-    int wino_oc;
+    dim_t wino_ih, wino_oh;
+    dim_t wino_iw, wino_ow;
+    dim_t wino_ic;
+    dim_t wino_oc;
     int wino_ic_block;
     int wino_oc_block;
     int vect_size;
@@ -383,8 +375,8 @@ struct pool_conf_t {
     int nvect;
     compute::dispatch_t dispatch;
     int sub_group_size;
-    int global_pool_spatial_chunk;
-    int num_batches = 1;
+    dim_t global_pool_spatial_chunk;
+    dim_t num_batches = 1;
     int mb_block_size = 16;
 
     attr_info_t attr_info;
@@ -408,11 +400,11 @@ struct prelu_conf_t {
 
 // Inner Product
 struct inner_product_conf_t {
-    int ndims;
-    int src_ndims, wei_ndims, dst_ndims;
-    int mb, oc, ic, ic_total;
-    int id, ih, iw, od, oh, ow;
-    int kd, kh, kw;
+    dim_idx_t ndims;
+    dim_idx_t src_ndims, wei_ndims, dst_ndims;
+    dim_t mb, oc, ic, ic_total;
+    dim_t id, ih, iw, od, oh, ow;
+    dim_t kd, kh, kw;
     bool with_bias, has_spatial;
     bool is_forward, is_backward_data, is_backward_weights;
     compute::dispatch_t dispatch;
@@ -458,11 +450,11 @@ struct bnorm_conf_t {
     int mb_block;
     dim_idx_t reduce_dim_idx;
     dim_t reduce_dim;
-    dim_t nn, sp;
-    int sp_tail, vect_size;
-    int stat_sp_nblocks, stat_sp_tail;
-    int update_sp_nblocks, update_sp_tail;
-    int reduce_stat_nblocks;
+    dim_t nn, sp, sp_tail;
+    int vect_size;
+    dim_t stat_sp_nblocks, stat_sp_tail;
+    dim_t update_sp_nblocks, update_sp_tail;
+    dim_t reduce_stat_nblocks;
     bool with_relu;
     dim_t stat_ic;
     bool is_forward, is_backward;
@@ -474,7 +466,7 @@ struct bnorm_conf_t {
     int sub_group_size;
     bool skip_reduce_stat;
     bool use_stats_one_pass;
-    int calc_stat_ic;
+    dim_t calc_stat_ic;
     int max_ic_block;
     bn_impl_t impl = bn_impl_t::unknown;
 };
@@ -513,8 +505,8 @@ struct lnorm_conf_t {
     int vect_size_fused;
     int shift_off;
     int n_chunk_size;
-    int finalize_n_chunks;
-    int n_chunks;
+    dim_t finalize_n_chunks;
+    dim_t n_chunks;
     int vector_size_scaleshift;
     bool use_src_buffer;
 
@@ -598,7 +590,7 @@ enum reorder_kernel_t {
 
 // Resampling
 struct resampling_conf_t {
-    dim_t ndims;
+    dim_idx_t ndims;
     offsets_t off;
     dim_t MB, C;
     dim_t ID, IH, IW;
@@ -749,9 +741,9 @@ struct concat_conf_t {
 // Shuffle
 struct shuffle_conf_t {
     data_type_t data_type;
-    int axis;
-    int transpose_row;
-    int transpose_col;
+    dim_idx_t axis;
+    dim_t transpose_row;
+    dim_t transpose_col;
     compute::dispatch_t dispatch;
     memory_desc_info_t src_md_info;
     memory_desc_info_t dst_md_info;
@@ -967,7 +959,8 @@ inline block_layout_t get_inner_layout(const memory_desc_wrapper &md) {
 }
 
 inline void def_offsets(const dim_t offs[4][MAX_NDIMS],
-        compute::kernel_ctx_t &kernel_ctx, const char *str, const dim_idx_t ndims) {
+        compute::kernel_ctx_t &kernel_ctx, const char *str,
+        const dim_idx_t ndims) {
 
     for (dim_idx_t d = 0; d < MAX_NDIMS; d++) {
         kernel_ctx.define_int(
@@ -1421,7 +1414,7 @@ inline status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("WITH_SUM", attr_info.with_sum);
     kernel_ctx.define_int("SUM_IDX", attr_info.sum_idx);
-    kernel_ctx.define_int("SUM_SCALE", attr_info.sum_scale);
+    kernel_ctx.define_float("SUM_SCALE", attr_info.sum_scale);
     kernel_ctx.define_int("SUM_SCALE1", attr_info.sum_scale == 1.0f);
 
     kernel_ctx.define_int("WITH_SRC0_SCALE", attr_info.with_src0_scale);
