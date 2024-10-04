@@ -50,14 +50,14 @@ impl::data_type_t get_accum_datatype(brgemm_t *brg) {
 
 status_t init_kernel_datatype(
         brgemm_t *brg, impl::data_type_t dt_a, impl::data_type_t dt_b) {
-    if (dt_a != data_type::undef && dt_b != data_type::undef)
+    if (!(dt_a != data_type::undef && dt_b != data_type::undef))
         return status::unimplemented;
     brg->is_int8 = utils::one_of(dt_a, data_type::u8, data_type::s8)
             && utils::one_of(dt_b, data_type::u8, data_type::s8);
     brg->is_bf16 = (dt_a == data_type::bf16) && (dt_b == data_type::bf16);
     brg->is_f32 = (dt_a == data_type::f32) && (dt_b == data_type::f32);
     brg->is_f16 = utils::one_of(data_type::f16, dt_a, dt_b);
-    if (brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16)
+    if (!(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16))
         return status::unimplemented;
     return status::success;
 }
