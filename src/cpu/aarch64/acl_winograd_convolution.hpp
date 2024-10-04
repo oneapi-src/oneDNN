@@ -59,7 +59,7 @@ struct acl_wino_convolution_fwd_t : public primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::unique_ptr<acl_obj_t<Op>> acl_obj_;
+    mutable std::unique_ptr<acl_obj_t<Op>> acl_obj_;
 }; // acl_wino_convolution_fwd_t
 
 } // namespace aarch64
