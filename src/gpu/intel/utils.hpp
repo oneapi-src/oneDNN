@@ -29,6 +29,12 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace intel {
+
+#define MAX_NDIMS 6
+#define MAX_POST_OPS_SUPPORTED 32
+
+using dim_idx_t = uint32_t;
+
 namespace gpu_utils {
 
 // Replacement implementation of std::enable_if_t from C++14, included here for

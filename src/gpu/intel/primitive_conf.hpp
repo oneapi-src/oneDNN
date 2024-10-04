@@ -453,10 +453,10 @@ enum bn_impl_t {
 struct bnorm_conf_t {
     data_type_t data_type;
     size_t elsz;
-    int ndims;
+    dim_idx_t ndims;
     dim_t mb, ic, id, ih, iw;
     int mb_block;
-    int reduce_dim_idx;
+    dim_idx_t reduce_dim_idx;
     dim_t reduce_dim;
     dim_t nn, sp;
     int sp_tail, vect_size;
@@ -485,9 +485,9 @@ struct lnorm_conf_t {
     data_type_t weights_data_type = data_type::f32;
 
     bool is_fwd;
-    int ndims;
-    int norm_axis;
-    int across_axis;
+    dim_idx_t ndims;
+    dim_idx_t norm_axis;
+    dim_idx_t across_axis;
     int norm_block;
     int num_norm_blocks;
     int norm_block_fused;
@@ -615,14 +615,14 @@ struct resampling_conf_t {
 };
 
 struct block_desc_t {
-    int dim_idx;
+    dim_idx_t dim_idx;
     int blk_size;
     int step_size;
 };
 
 #define LOOP_NEST_LEVEL 4
 struct vectorize_last_dim_t {
-    int vector_dim;
+    dim_idx_t vector_dim;
     int rescale_coeff;
     // composition of data within 16-item packet
     block_desc_t src_vct[LOOP_NEST_LEVEL];
@@ -637,20 +637,20 @@ struct vectorize_last_dim_t {
 };
 
 struct vectorize_group_t {
-    int vector_dim;
-    int src_loop_dim;
-    int dst_loop_dim;
+    dim_idx_t vector_dim;
+    dim_idx_t src_loop_dim;
+    dim_idx_t dst_loop_dim;
     int group_size;
     int innermost_size;
 };
 
 struct xb_to_xab_xba_t {
     int vd;
-    int blk_size;
-    int src_blk_dim;
-    int src_blk_coeff;
-    int dst_blk_dim;
-    int dst_blk_coeff;
+    dim_t blk_size;
+    dim_idx_t src_blk_dim;
+    dim_t src_blk_coeff;
+    dim_idx_t dst_blk_dim;
+    dim_t dst_blk_coeff;
 };
 
 union reorder_implementation {
@@ -967,9 +967,9 @@ inline block_layout_t get_inner_layout(const memory_desc_wrapper &md) {
 }
 
 inline void def_offsets(const dim_t offs[4][MAX_NDIMS],
-        compute::kernel_ctx_t &kernel_ctx, const char *str, const int ndims) {
+        compute::kernel_ctx_t &kernel_ctx, const char *str, const dim_idx_t ndims) {
 
-    for (int d = 0; d < MAX_NDIMS; d++) {
+    for (dim_idx_t d = 0; d < MAX_NDIMS; d++) {
         kernel_ctx.define_int(
                 utils::format("%s_B%d", str, d), (d < ndims) ? offs[0][d] : 1);
         kernel_ctx.define_int(

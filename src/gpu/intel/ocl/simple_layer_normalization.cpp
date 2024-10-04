@@ -36,12 +36,12 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     memory_desc_wrapper dst_mdw(
             pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md());
 
-    int ndims = src_mdw.ndims();
+    dim_idx_t ndims = into<dim_idx_t>(src_mdw.ndims());
 
     conf.src_dt = src_mdw.data_type();
     conf.dst_dt = dst_mdw.data_type();
     conf.ndims = ndims;
-    conf.norm_axis = pd->norm_axis();
+    conf.norm_axis = into<dim_idx_t>(pd->norm_axis());
     conf.src_md_info = memory_desc_info_t::create(src_mdw);
     conf.dst_md_info = memory_desc_info_t::create(dst_mdw);
     conf.stat_md_info = memory_desc_info_t::create(stat_mdw);
@@ -113,8 +113,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         } else {
             return status::unimplemented;
         }
-        for (int i = 0; i < 4; i++) {
-            int md_hint_idx = nstl::min(i, ndims - 1);
+        for (dim_idx_t i = 0; i < 4; i++) {
+            dim_idx_t md_hint_idx = nstl::min(i, ndims - 1);
             int dim = (i < ndims - 1) ? dims[i] : 1;
             if (conf.vectorize_calc_stats && (i == ndims - 1)) {
                 dim = sg_size;
@@ -154,8 +154,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                 conf.vect_dt_n /= 2;
             }
         }
-        for (int i = 0; i < 4; i++) {
-            int md_hint_idx = nstl::min(i, ndims - 1);
+        for (dim_idx_t i = 0; i < 4; i++) {
+            dim_idx_t md_hint_idx = nstl::min(i, ndims - 1);
             int dim = (i < ndims - 1) ? dims[i] : 1;
             if (conf.vectorize_bwd && (i == ndims - 1)) {
                 conf.dispatch.define_dim(utils::format("X%d", i), md_hint_idx,

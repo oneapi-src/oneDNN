@@ -163,7 +163,7 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
             // run-time configuration setup
             rt_conf.softmax_axis_size = src_mdw.dims()[desc()->softmax_axis];
             for (const auto &block : layout) {
-                if (block.dim_idx == desc()->softmax_axis) {
+                if (block.dim_idx == into<dim_idx_t>(desc()->softmax_axis)) {
                     rt_conf.softmax_axis_stride = block.stride;
                     break;
                 }

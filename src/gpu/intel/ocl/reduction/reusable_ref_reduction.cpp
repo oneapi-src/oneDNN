@@ -38,17 +38,17 @@ using namespace gpu_utils;
 
 namespace { // Use an anonymous namespace to avoid collisions with ocl:atomic
 namespace reduction_dims {
-compute::dim_id_t outer = 0;
-compute::dim_id_t reduction = 1;
-compute::dim_id_t inner = 2;
+dim_idx_t outer = 0;
+dim_idx_t reduction = 1;
+dim_idx_t inner = 2;
 } // namespace reduction_dims
 } // namespace
-static const std::vector<compute::dim_id_t> dims {
+static const std::vector<dim_idx_t> dims {
         reduction_dims::outer,
         reduction_dims::reduction,
         reduction_dims::inner,
 };
-static const std::vector<compute::dim_id_t> dispatch_dims {
+static const std::vector<dim_idx_t> dispatch_dims {
         reduction_dims::outer,
         reduction_dims::inner,
 };

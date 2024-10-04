@@ -445,7 +445,7 @@ public:
         return dims;
     }
 
-    dim_t dim(int dim_idx) const {
+    dim_t dim(dim_idx_t dim_idx) const {
         dim_t ret = 1;
         for (auto &b : blocks_) {
             if (b.dim_idx == dim_idx) ret *= b.block;
@@ -458,7 +458,7 @@ public:
     const std::vector<block_t> &blocks() const { return blocks_; }
 
     dim_t inner_block(
-            int dim_idx, bool skip_outer = true, bool inner_only = true) const {
+            dim_idx_t dim_idx, bool skip_outer = true, bool inner_only = true) const {
         std::vector<dim_t> dim_blocks;
         for (auto &b : blocks_) {
             if (b.dim_idx == dim_idx) dim_blocks.push_back(b.block);
@@ -583,7 +583,7 @@ public:
         return ret;
     }
 
-    std::vector<dim_t> strides(int dim_idx) const {
+    std::vector<dim_t> strides(dim_idx_t dim_idx) const {
         std::vector<dim_t> ret;
         for (auto &b : blocks_)
             if (b.dim_idx == dim_idx) ret.push_back(b.stride);
@@ -656,7 +656,7 @@ public:
         return true;
     }
 
-    bool is_blocked_by(int dim_idx, int block) const {
+    bool is_blocked_by(dim_idx_t dim_idx, int block) const {
         if (block == 1) return true;
         if (nblocks() == 0) return false;
         auto &b0 = blocks()[0];
@@ -928,7 +928,7 @@ public:
         for (int i = 0; i < nblocks; i++)
             sub_blocks[i] = blocks()[i].block;
 
-        for (int i = 0; i < ndims(); i++) {
+        for (dim_idx_t i = 0; i < into<dim_idx_t>(ndims()); i++) {
             dim_t dim = tile.dims()[i];
             for (auto &eb : enumerated_blocks()) {
                 auto &b = eb.second;
@@ -975,11 +975,11 @@ public:
         }
     }
 
-    bool has_outer_block(dim_t block, int dim_idx = -1) const {
+    bool has_outer_block(dim_t block, dim_idx_t dim_idx = -1) const {
         if (block == 1) return true;
         if (blocks().empty()) return false;
         auto &b = blocks().back();
-        if (dim_idx != -1 && b.dim_idx != dim_idx) return false;
+        if (dim_idx != static_cast<dim_idx_t>(-1) && b.dim_idx != dim_idx) return false;
         if (b.block % block != 0) return false;
         return true;
     }
@@ -992,7 +992,7 @@ public:
     // eb is <block index, block> pair, see enumerated_blocks().
     static bool is_outermost(const std::pair<int, block_t> &eb,
             const std::vector<block_t> &blocks) {
-        int dim_idx = eb.second.dim_idx;
+        dim_idx_t dim_idx = eb.second.dim_idx;
         for (int i = 0; i < int(blocks.size()); i++) {
             if (blocks[i].dim_idx == dim_idx && i > eb.first) return false;
         }

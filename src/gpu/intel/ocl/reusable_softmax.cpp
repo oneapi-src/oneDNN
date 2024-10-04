@@ -29,15 +29,13 @@ class softmax_lws_strategy_t : public compute::lws_strategy_t {
 public:
     bool is_included(const compute::mapped_block_t &blocks) const override {
         for (const block_t &block : inc_blocks) {
-            if (blocks.get_dim_idx() == into<size_t>(block.dim_idx)) {
-                return true;
-            }
+            if (blocks.get_dim_idx() == block.dim_idx) { return true; }
         }
         return false;
     };
 
-    void include(compute::dim_id_t dim, size_t size) {
-        inc_blocks.emplace_back(into<dim_t>(dim), into<dim_t>(size), 1);
+    void include(dim_idx_t dim, size_t size) {
+        inc_blocks.emplace_back(dim, into<dim_t>(size), 1);
     }
 
 private:
@@ -50,7 +48,7 @@ private:
             const auto &bins = mapper.get_bins(i);
             if (bins.empty()) continue;
             for (const block_t &inc_block : inc_blocks) {
-                if (bins[0].get_dim_idx() == into<size_t>(inc_block.dim_idx)) {
+                if (bins[0].get_dim_idx() == inc_block.dim_idx) {
                     lws[i] *= into<size_t>(inc_block.block);
                 }
             }
@@ -63,16 +61,16 @@ private:
 };
 
 namespace softmax_dims_t {
-compute::dim_id_t mb = 0;
-compute::dim_id_t ic = 1;
-compute::dim_id_t sp0 = 2;
-compute::dim_id_t sp1 = 3;
-compute::dim_id_t sp2 = 4;
-compute::dim_id_t workers = 5; // artificial dimension partitions reductions
+dim_idx_t mb = 0;
+dim_idx_t ic = 1;
+dim_idx_t sp0 = 2;
+dim_idx_t sp1 = 3;
+dim_idx_t sp2 = 4;
+dim_idx_t workers = 5; // artificial dimension partitions reductions
 }; // namespace softmax_dims_t
 
-static std::vector<compute::dim_id_t> get_dims(size_t ndims) {
-    std::vector<compute::dim_id_t> ret(ndims);
+static std::vector<dim_idx_t> get_dims(size_t ndims) {
+    std::vector<dim_idx_t> ret(ndims);
     uint8_t idx = 0;
     ret[idx++] = softmax_dims_t::mb;
     ret[idx++] = softmax_dims_t::ic;
@@ -84,7 +82,7 @@ static std::vector<compute::dim_id_t> get_dims(size_t ndims) {
 
 status_t reusable_softmax_fwd_t::pd_t::init_dispatch_default_reusable(
         engine_t *engine) {
-    using dims_vec_t = std::vector<compute::dim_id_t>;
+    using dims_vec_t = std::vector<dim_idx_t>;
 
     dims_vec_t src_dim_ids(memory_desc_wrapper(src_md()).ndims());
     std::iota(src_dim_ids.begin(), src_dim_ids.end(), 0);
@@ -117,7 +115,7 @@ status_t reusable_softmax_fwd_t::pd_t::init_dispatch_workgroup_per_reduction(
         engine_t *engine, const size_t num_workers_per_workgroup) {
 
     const memory_desc_wrapper src_mdw(src_md());
-    std::vector<compute::dim_id_t> dims_ids = get_dims(src_mdw.ndims());
+    std::vector<dim_idx_t> dims_ids = get_dims(src_mdw.ndims());
     auto sizes = src_mdw.dims(); // TODO: dynamic worker policy
     const size_t softmax_axis = static_cast<size_t>(desc()->softmax_axis);
     const int softmax_axis_size = sizes[desc()->softmax_axis];
@@ -163,7 +161,7 @@ status_t reusable_softmax_fwd_t::pd_t::init_dispatch_workgroup_per_reduction(
     compute::named_buffer_t dst_buf("DST", src_buf);
 
     // dispatch: all dims except reduction dimension plus workers dimension
-    std::vector<compute::dim_id_t> dispatch_dims = std::move(dims_ids);
+    std::vector<dim_idx_t> dispatch_dims = std::move(dims_ids);
     dispatch_dims[softmax_axis] = softmax_dims_t::workers;
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);

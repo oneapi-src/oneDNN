@@ -102,7 +102,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     // We require that the lnorm axis is a single dense block, so that it can
     // be represented by a stride + size alone.
     size_t ndims = into<size_t>(input_buf.ndims);
-    vector<compute::dim_id_t> dims = get_dims(ndims);
+    vector<dim_idx_t> dims = get_dims(ndims);
 
     memory_desc_wrapper src_mdw(pd->src_md());
     memory_desc_wrapper dst_mdw(pd->dst_md());
@@ -184,8 +184,8 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
 status_t reusable_vectorized_layer_normalization_fwd_t::pd_t::init_conf(
         impl::engine_t *engine) {
     size_t ndims = static_cast<size_t>(src_md()->ndims);
-    vector<compute::dim_id_t> dims = get_dims(ndims);
-    vector<compute::dim_id_t> stat_dims = get_dims(ndims, true);
+    vector<dim_idx_t> dims = get_dims(ndims);
+    vector<dim_idx_t> stat_dims = get_dims(ndims, true);
 
     //init_scratchpad();
     // FWD buffers:

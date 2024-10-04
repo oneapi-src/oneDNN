@@ -40,7 +40,7 @@ class compute_engine_t;
 class dispatch_t {
 public:
     static constexpr int min_nesting_level = -1;
-    static constexpr int dim_not_found = -1;
+    static constexpr dim_idx_t dim_not_found = -1;
 
     // md - memory descriptor hint to extract nesting levels based on the layout.
     dispatch_t(const compute_engine_t *engine = nullptr,
@@ -53,7 +53,7 @@ public:
 
     std::string str() const;
 
-    void define_dim(const std::string &name, int md_hint_idx, dim_t size,
+    void define_dim(const std::string &name, dim_idx_t md_hint_idx, dim_t size,
             dim_t block = 1) {
         define_dim_with_md_hint(name, md_hint_idx, size, block);
     }
@@ -107,12 +107,12 @@ public:
     };
 
 protected:
-    void define_dim_with_md_hint(const std::string &name, int md_hint_index,
-            dim_t size, dim_t block = 1);
+    void define_dim_with_md_hint(const std::string &name,
+            dim_idx_t md_hint_index, dim_t size, dim_t block = 1);
 
-    int find_vectorized_dim() const {
-        int vec_dim_idx = dim_not_found;
-        for (int i = 0; i < ndims_; ++i) {
+    dim_idx_t find_vectorized_dim() const {
+        dim_idx_t vec_dim_idx = dim_not_found;
+        for (dim_idx_t i = 0; i < ndims_; ++i) {
             if (dims_[i].vector_size != 1) {
                 assert(vec_dim_idx == dim_not_found);
                 assert(dims_[i].block > 0);
@@ -134,10 +134,10 @@ protected:
 
     const compute_engine_t *engine_;
 
-    int md_ndims_ = 0;
+    dim_idx_t md_ndims_ = 0;
     int md_nesting_levels_[DNNL_MAX_NDIMS];
 
-    int ndims_ = 0;
+    dim_idx_t ndims_ = 0;
     dim_info_t dims_[DNNL_MAX_NDIMS];
 
     std::string attr_suffix_ = "DEFAULT";

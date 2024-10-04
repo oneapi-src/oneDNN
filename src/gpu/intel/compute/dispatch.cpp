@@ -105,7 +105,7 @@ dispatch_t::dispatch_t(const compute_engine_t *engine, const memory_desc_t *md)
 
 std::string dispatch_t::str() const {
     std::ostringstream oss;
-    for (int i = 0; i < ndims_; ++i) {
+    for (dim_idx_t i = 0; i < ndims_; ++i) {
         auto &d = dims_[i];
         oss << "    "
             << "dim #" << i << " name: " << std::setw(10) << d.name
@@ -139,7 +139,7 @@ void dispatch_t::define_dim_with_nesting_level(
 status_t dispatch_t::vectorize_dim(const std::string &name, int vector_size) {
     if (!engine_->mayiuse_sub_group(vector_size)) return status::unimplemented;
     assert(vector_size > 1);
-    for (int i = 0; i < ndims_; ++i) {
+    for (dim_idx_t i = 0; i < ndims_; ++i) {
         if (dims_[i].name == name) {
             assert(dims_[i].size % vector_size == 0);
             assert(dims_[i].size % (vector_size * dims_[i].block) == 0);
@@ -167,7 +167,7 @@ void dispatch_t::def_kernel_macros(kernel_ctx_t &kernel_ctx) const {
 
     kernel_ctx.define_int(utils::format("%s_DEF", gws_prefix.c_str()), 1);
 
-    for (int i = 0; i < ndims_; ++i) {
+    for (dim_idx_t i = 0; i < ndims_; ++i) {
         auto get_dim_str = utils::format("-DGWS_GET_%s=%s_GET_ID%d",
                 dims_[i].name.c_str(), gws_prefix.c_str(), i);
         kernel_ctx.add_option(get_dim_str);
@@ -201,7 +201,7 @@ void dispatch_t::def_kernel_macros(kernel_ctx_t &kernel_ctx) const {
     }
 
     // Local work size and subgroup sizes.
-    int vec_dim_idx = find_vectorized_dim();
+    dim_idx_t vec_dim_idx = find_vectorized_dim();
     kernel_ctx.define_int(utils::format("GWS_WITH_SG_%s", attr_suffix_),
             vec_dim_idx != dim_not_found);
 
@@ -229,7 +229,7 @@ void dispatch_t::generate(bool generate_lws) {
     // XXX: Move dimensions with size = 1 to the end.
     for (int i = ndims_ - 2; i >= 0; --i) {
         if (dims_[i].size == 1) {
-            for (int j = i; j < ndims_ - 1; ++j) {
+            for (dim_idx_t j = i; j < ndims_ - 1; ++j) {
                 if (dims_[j + 1].size == 1) break;
                 std::swap(dims_[j], dims_[j + 1]);
             }
@@ -237,18 +237,18 @@ void dispatch_t::generate(bool generate_lws) {
     }
 
     // Find vectorized dimension (if any).
-    int vec_dim_idx = find_vectorized_dim();
+    dim_idx_t vec_dim_idx = find_vectorized_dim();
 
     // Compute GWS indices.
-    for (int i = 0; i < ndims_; ++i) {
+    for (dim_idx_t i = 0; i < ndims_; ++i) {
         if (vec_dim_idx == dim_not_found) {
             // Keep up to 4 dims in gws[0] to have bigger choice for work group
             // size.
-            dims_[i].gws_index = std::min(2, std::max(0, i - 3));
+            dims_[i].gws_index = std::min(2, std::max(0, into<int>(i) - 3));
         } else {
             // With vectorized dimension, work group size choices are more
             // limited so no need to group dimensions together.
-            dims_[i].gws_index = std::min(2, i);
+            dims_[i].gws_index = std::min(2, into<int>(i));
         }
     }
 
@@ -265,7 +265,7 @@ void dispatch_t::generate(bool generate_lws) {
     size_t hw_threads = dev_info->hw_threads();
 
     // Calculate block sizes for the dimensions with flexible blocking.
-    for (int i = 0; i < ndims_; ++i) {
+    for (dim_idx_t i = 0; i < ndims_; ++i) {
         if (dims_[i].block == 0) {
             int gws_index = dims_[i].gws_index;
             // Heuristic: use max blocking but keep at least eu_count work items.
@@ -296,9 +296,9 @@ void dispatch_t::generate(bool generate_lws) {
                     * vec_size;
 
             // Move the vectorized dimension to the first place in the group.
-            int group_beg = ndims_ - 1;
-            int group_end = 0;
-            for (int i = 0; i < ndims_; ++i) {
+            dim_idx_t group_beg = ndims_ - 1;
+            dim_idx_t group_end = 0;
+            for (dim_idx_t i = 0; i < ndims_; ++i) {
                 if (dims_[i].gws_index == gws_index) {
                     group_beg = std::min(group_beg, i);
                     group_end = std::max(group_end, i);
@@ -307,7 +307,7 @@ void dispatch_t::generate(bool generate_lws) {
 
             if (vec_dim_idx != group_beg) {
                 auto vec_dim_info = dims_[vec_dim_idx];
-                for (int i = vec_dim_idx - 1; i >= group_beg; --i) {
+                for (int i = vec_dim_idx - 1; i >= into<int>(group_beg); --i) {
                     dims_[i + 1] = dims_[i];
                 }
                 dims_[group_beg] = std::move(vec_dim_info);
@@ -322,7 +322,9 @@ void dispatch_t::generate(bool generate_lws) {
         if (!lws) {
             // Compute the best lws.
             lws = get_optimal_lws(gws,
-                    vec_dim_idx != -1 ? dims_[vec_dim_idx].gws_index : -1,
+                    vec_dim_idx != static_cast<dim_idx_t>(-1)
+                            ? dims_[vec_dim_idx].gws_index
+                            : static_cast<dim_idx_t>(-1),
                     dev_info->gpu_arch());
         }
         gpu_assert(lws) << "Unexpected missing lws";
@@ -350,8 +352,8 @@ void dispatch_t::set_lws(const compute::range_t &lrange) {
     nd_range_ = nd_range_t(grange, lrange);
 }
 
-void dispatch_t::define_dim_with_md_hint(
-        const std::string &name, int md_hint_index, dim_t size, dim_t block) {
+void dispatch_t::define_dim_with_md_hint(const std::string &name,
+        dim_idx_t md_hint_index, dim_t size, dim_t block) {
     int nesting_level = min_nesting_level;
     if (md_ndims_ > 0) {
         assert(md_hint_index >= 0 && md_hint_index < md_ndims_);
