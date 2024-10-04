@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 #include "gpu/intel/ocl/bnorm/bnorm_model.hpp"
-#include <climits>
 #include <cmath>
 #include "common/utils.hpp"
 #include "gpu/intel/compute/utils.hpp"
