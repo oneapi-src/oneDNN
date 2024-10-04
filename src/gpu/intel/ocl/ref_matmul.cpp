@@ -213,7 +213,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     compute::kernel_arg_list_t repack_arg_list;
     repack_arg_list.set(0, *tmp);
     repack_arg_list.set(1, c);
-    repack_arg_list.set(2, gpu_utils::into<dim_t>(nelems));
+    repack_arg_list.set(2, into<dim_t>(nelems));
     repack_arg_list.set(3, 4);
     compute::range_t repack_gws((nelems * 4 + 7) / 8);
     compute::nd_range_t repack_nd_range(repack_gws);

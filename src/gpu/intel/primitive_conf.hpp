@@ -924,7 +924,7 @@ struct outer_strides_getter_t {
     template <size_t ndims>
     operator strides_t<ndims>() const {
         strides_t<ndims> ret;
-        gpu_assert(gpu_utils::into<dim_t>(ndims) >= md.ndims());
+        gpu_assert(into<dim_t>(ndims) >= md.ndims());
         for (int d = ndims - 1; d >= 0; d--) {
             // Assumes size 1 dimensions are dense with respect to the neighboring
             // dimension so they can be used for size calculations in some layouts

@@ -214,7 +214,7 @@ void dispatch_t::def_kernel_macros(kernel_ctx_t &kernel_ctx) const {
         for (size_t i = 0; i < r.global_range().ndims(); i++) {
             kernel_ctx.define_int(
                     utils::format("GWS_LWS%zu_%s", i, attr_suffix_),
-                    gpu_utils::into<int64_t>(r.local_range()[i]));
+                    into<int64_t>(r.local_range()[i]));
         }
     }
 }
@@ -284,9 +284,8 @@ void dispatch_t::generate(bool generate_lws) {
         if (vec_dim_idx != dim_not_found) {
             lws = compute::range_t::one(gws.ndims());
             int gws_index = dims_[vec_dim_idx].gws_index;
-            size_t vec_size
-                    = gpu_utils::into<size_t>(dims_[vec_dim_idx].vector_size);
-            size_t nblocks = gpu_utils::into<size_t>(
+            size_t vec_size = into<size_t>(dims_[vec_dim_idx].vector_size);
+            size_t nblocks = into<size_t>(
                     dims_[vec_dim_idx].size / dims_[vec_dim_idx].block);
             // XXX: max 256 work items per group
             lws[gws_index]

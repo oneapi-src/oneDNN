@@ -271,8 +271,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     const bool is_fwd = rnn.is_fwd;
     const bool is_bwd = !rnn.is_fwd;
 
-    dim_t aux_elsz
-            = gpu_utils::into<dim_t>(types::data_type_size(rnn.aux_data_type));
+    dim_t aux_elsz = into<dim_t>(types::data_type_size(rnn.aux_data_type));
     rnn.ws_states_elsz = types::data_type_size(rnn.src_data_type);
 
     rnn.scratch_gates_elsz = types::data_type_size(rnn.acc_data_type);

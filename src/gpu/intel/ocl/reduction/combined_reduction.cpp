@@ -106,8 +106,7 @@ reduction_phase_conf_t::reduction_phase_conf_t(
     slm_reductions = [this, &num_packed_inner_dims, &max_slm]() {
         const dim_t rem_red = reduction_block.block / num_packed_inner_dims;
         // XXX: max_div no longer required
-        int n_slm = gpu_utils::into<int>(
-                nstl::min(rem_red, gpu_utils::into<dim_t>(max_slm)));
+        int n_slm = into<int>(nstl::min(rem_red, into<dim_t>(max_slm)));
         return gpu_utils::dev_getenv("combined_reduction_n_slm", n_slm);
     }();
     dim_t num_subgroups
@@ -122,18 +121,16 @@ reduction_phase_conf_t::reduction_phase_conf_t(
             block_size = num_subgroups / num_threads;
             block_size = get_previous_factor(outer_block.block, block_size);
         }
-        return gpu_utils::dev_getenv("combined_reduction_num_outer",
-                gpu_utils::into<int>(block_size));
+        return gpu_utils::dev_getenv(
+                "combined_reduction_num_outer", into<int>(block_size));
     }();
     gpu_assert(outer_block.block % outer_tile_size == 0)
             << "Invalid choice of persistent thread outer idxs";
     num_subgroups /= outer_tile_size;
 
     // Compute the nd_range for this phase
-    compute::range_t gws(
-            gpu_utils::into<size_t>(num_subgroups * subgroup_size));
-    compute::range_t lws(
-            gpu_utils::into<size_t>(slm_reductions * subgroup_size));
+    compute::range_t gws(into<size_t>(num_subgroups * subgroup_size));
+    compute::range_t lws(into<size_t>(slm_reductions * subgroup_size));
     nd_range = compute::nd_range_t(gws, lws);
 
     is_first = false;
@@ -201,14 +198,13 @@ status_t split_into_phases(const reduction_subproblem_t &subprb,
         const int min_threads = gpu_utils::dev_getenv(
                 "combined_reduction_occ_thresh", threads_per_EU * num_EU / 2);
         const int dispatched_threads
-                = gpu_utils::into<int>(try_phase.nd_range.global_range()[0]
-                        / gpu_utils::into<size_t>(try_phase.subgroup_size));
+                = into<int>(try_phase.nd_range.global_range()[0]
+                        / into<size_t>(try_phase.subgroup_size));
         return dispatched_threads < min_threads;
     }();
     const bool large_reduction = [&try_phase]() {
-        const int slm_red
-                = gpu_utils::into<int>(try_phase.nd_range.local_range()[0]
-                        / gpu_utils::into<size_t>(try_phase.subgroup_size));
+        const int slm_red = into<int>(try_phase.nd_range.local_range()[0]
+                / into<size_t>(try_phase.subgroup_size));
         const dim_t sg_red = nstl::clamp(
                 try_phase.subgroup_size / try_phase.inner_block.block,
                 dim_t {1}, try_phase.reduction_block.block);

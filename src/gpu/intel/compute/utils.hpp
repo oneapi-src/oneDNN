@@ -48,7 +48,7 @@ public:
                 << "Too many dimensions for range_t";
         ndims_ = dims.size();
         for (size_t i = 0; i < dims.size(); i++) {
-            dims_[i] = gpu_utils::into<size_t>(dims[i]);
+            dims_[i] = into<size_t>(dims[i]);
         }
     }
 

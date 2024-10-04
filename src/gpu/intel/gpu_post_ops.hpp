@@ -126,7 +126,7 @@ struct relative_md_t {
         return ndims - 1 - idx.as_int();
     }
     static idx_t from_md_idx(int idx, int ndims) {
-        return {gpu_utils::into<int8_t>(ndims - 1 - idx)};
+        return {into<int8_t>(ndims - 1 - idx)};
     }
 
     // A compressed representation of the inner block. This cannot represent all
@@ -163,8 +163,7 @@ struct relative_md_t {
 
         for (size_t i = 0; i < layout.size(); i++) {
             rmd.inner_layout.idxs[i] = from_md_idx(layout[i].dim_idx, ndims);
-            rmd.inner_layout.blocks[i]
-                    = gpu_utils::into<uint8_t>(layout[i].block);
+            rmd.inner_layout.blocks[i] = into<uint8_t>(layout[i].block);
         }
 
         // Default all dimensions to broadcast
@@ -372,7 +371,7 @@ struct gpu_post_ops_t {
             post_op::specializations_t opts = {}) {
         auto &ops = gpu_post_ops.ops_;
         ops.clear();
-        ops.reserve(gpu_utils::into<size_t>(post_ops.len()));
+        ops.reserve(into<size_t>(post_ops.len()));
         using namespace post_op;
         for (auto &entry : post_ops.entry_) {
             switch (entry.kind) {

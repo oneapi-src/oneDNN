@@ -411,18 +411,17 @@ private:
                     ki.register_user_arg(buf, compute_arg_key, is_input);
             };
             auto scratchpad_book = [&](int key) {
-                pd->scratchpad_registry().registrar().book(
-                        gpu_utils::into<uint32_t>(key), compute_size, 1,
-                        ocl::OCL_BUFFER_ALIGNMENT);
+                pd->scratchpad_registry().registrar().book(into<uint32_t>(key),
+                        compute_size, 1, ocl::OCL_BUFFER_ALIGNMENT);
             };
             auto create_zero_out_info = [&]() -> kernel_info_t & {
                 auto &zero_out_info
                         = create_kernel_info(pd, kernel_id_t::zero_out);
                 auto size_var = var_t::make(type_t::u32(), "size");
                 zero_out_info.register_internal_arg(
-                        size_var, gpu_utils::into<uint32_t>(compute_size));
+                        size_var, into<uint32_t>(compute_size));
                 zero_out_info.set_nd_range(zero_out_kernel_t<>::nd_range(
-                        cfg.simd(), gpu_utils::into<int>(compute_size)));
+                        cfg.simd(), into<int>(compute_size)));
                 return zero_out_info;
             };
 

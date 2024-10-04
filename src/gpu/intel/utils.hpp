@@ -127,14 +127,6 @@ inline bool validate_into(bool b) {
     return std::is_integral<out_type>::value;
 }
 
-template <typename out_type, typename in_type>
-inline out_type into(in_type in) {
-    gpu_assert(validate_into<out_type>(in))
-            << "Value " << in << " cannot be converted into type "
-            << typeid(out_type).name();
-    return static_cast<out_type>(in);
-}
-
 inline int dev_getenv(const char *name, int default_value) {
 #ifdef DNNL_DEV_MODE
     return getenv_int(name, default_value);
@@ -246,6 +238,15 @@ struct device_id_hash_t {
 };
 
 } // namespace gpu_utils
+
+template <typename out_type, typename in_type>
+inline out_type into(in_type in) {
+    gpu_assert(gpu_utils::validate_into<out_type>(in))
+            << "Value " << in << " cannot be converted into type "
+            << typeid(out_type).name();
+    return static_cast<out_type>(in);
+}
+
 } // namespace intel
 } // namespace gpu
 } // namespace impl

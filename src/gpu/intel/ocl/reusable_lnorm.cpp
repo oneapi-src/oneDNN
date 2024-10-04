@@ -54,13 +54,13 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
 
     // We require that the lnorm axis is a single dense block, so that it can
     // be represented by a stride + size alone.
-    size_t ndims = gpu_utils::into<size_t>(src_buf.ndims);
+    size_t ndims = into<size_t>(src_buf.ndims);
     std::vector<compute::dim_id_t> dims = get_dims(ndims);
     block_layout_t layout = src_buf.layout();
     const block_t *norm_block = [&layout, &dims]() -> const block_t * {
         const block_t *ret = nullptr;
         for (const block_t &block : layout) {
-            if (gpu_utils::into<size_t>(block.dim_idx) == dims.back()) {
+            if (into<size_t>(block.dim_idx) == dims.back()) {
                 if (ret) return nullptr;
                 ret = &block;
             }
@@ -109,10 +109,8 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
         // We need to reduce over all but the last dimension as well. Make sure
         // this is a single block by ensuring that the last dimension's block
         // is either the innermost or outermost block.
-        bool is_innermost = gpu_utils::into<size_t>(layout.front().dim_idx)
-                == dims.back();
-        bool is_outermost
-                = gpu_utils::into<size_t>(layout.back().dim_idx) == dims.back();
+        bool is_innermost = into<size_t>(layout.front().dim_idx) == dims.back();
+        bool is_outermost = into<size_t>(layout.back().dim_idx) == dims.back();
         if (is_innermost) {
             rt_conf->stat_stride = layout.front().block;
         } else if (is_outermost) {
@@ -141,8 +139,7 @@ void init_scratchpad_common(
         memory_tracking::registrar_t &scratchpad, dim_t nelems) {
     using namespace memory_tracking::names;
     for (auto key : {key_lnorm_tmp_mean, key_lnorm_tmp_var}) {
-        scratchpad.book<float>(
-                key, gpu_utils::into<size_t>(nelems), OCL_BUFFER_ALIGNMENT);
+        scratchpad.book<float>(key, into<size_t>(nelems), OCL_BUFFER_ALIGNMENT);
     }
 }
 

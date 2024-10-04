@@ -441,7 +441,7 @@ public:
         ir_assert(idx < N);
         size_t ret = 1;
         for (auto &d : entries_[idx].dims) {
-            ret *= gpu_utils::into<size_t>(tile.get(d, 1));
+            ret *= into<size_t>(tile.get(d, 1));
         }
         return ret;
     }
