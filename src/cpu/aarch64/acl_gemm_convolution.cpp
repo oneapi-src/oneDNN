@@ -100,9 +100,24 @@ status_t acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::init(
 
 template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
         data_type_t bia_t>
+void acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t,
+        bia_t>::reinitialize_acl_obj() const {
+    auto acp = pd()->acp_;
+    std::lock_guard<std::mutex> _lock {this->mtx};
+    acl_obj_ = std::make_unique<acl_obj_t<Op>>();
+    acl_obj_->conv.configure(&acp.src_tensor_info, &acp.wei_tensor_info,
+            acp.with_bias ? &acp.bia_tensor_info : nullptr,
+            &acp.dst_tensor_info, acp.padstride_info, acp.weights_info,
+            acp.dilation_info, acp.act_info, acp.fast_math);
+    acl_obj_->aux_mem_req = acl_obj_->conv.workspace();
+}
+
+template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
+        data_type_t bia_t>
 status_t
 acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::execute_forward(
         const exec_ctx_t &ctx) const {
+    reinitialize_acl_obj();
     return execute_forward_conv_acl<acl_obj_t<Op>, pd_t, src_data_t, wei_data_t,
             dst_data_t, bia_data_t>(ctx, acl_obj_.get(), pd(), gemm_conv_keys);
 }

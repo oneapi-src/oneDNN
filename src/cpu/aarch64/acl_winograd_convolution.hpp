@@ -58,6 +58,11 @@ struct acl_wino_convolution_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
+
+    // hot fix solution for stateless API which should be replaced soon.
+    mutable std::mutex mtx;
+    void reinitialize_acl_obj() const;
+
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     mutable std::unique_ptr<acl_obj_t<Op>> acl_obj_;
 }; // acl_wino_convolution_fwd_t
