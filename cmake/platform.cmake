@@ -227,6 +227,9 @@ elseif(UNIX OR MINGW)
         append(CMAKE_CCXX_NOWARN_FLAGS "-Wno-recommended-option")
         # Older compiler versions may not support "-Wno-recommended-option".
         append(CMAKE_CCXX_FLAGS "-Wno-unknown-warning-option")
+
+        # Align with GCC -Wall
+        append(CMAKE_CCXX_FLAGS "-Wsign-compare")
     endif()
 
     platform_unix_and_mingw_common_ccxx_flags(CMAKE_CCXX_FLAGS)
