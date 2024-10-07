@@ -129,17 +129,21 @@ status_t acl_wino_convolution_fwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-status_t acl_wino_convolution_fwd_t::execute_forward(
-        const exec_ctx_t &ctx) const {
-    acl_obj_ = std::make_unique<acl_obj_t<Op>>();
+void acl_wino_convolution_fwd_t::reinitialize_acl_obj() const {
     auto acp = pd()->acp_;
+    std::lock_guard<std::mutex> _lock {this->mtx};
+    acl_obj_ = std::make_unique<acl_obj_t<Op>>();
     acl_obj_->conv.configure(&acp.src_tensor_info, &acp.wei_tensor_info,
             acp.with_bias ? &acp.bia_tensor_info : nullptr,
             &acp.dst_tensor_info, acp.padstride_info, acp.act_info,
             true); // to support 5x5, 7x7 filter shapes in addition to 3x3
 
     acl_obj_->aux_mem_req = acl_obj_->conv.workspace();
+}
 
+status_t acl_wino_convolution_fwd_t::execute_forward(
+        const exec_ctx_t &ctx) const {
+    reinitialize_acl_obj();
     return execute_forward_conv_acl<acl_obj_t<Op>, pd_t, data_t>(
             ctx, acl_obj_.get(), pd(), wino_conv_keys);
 }
