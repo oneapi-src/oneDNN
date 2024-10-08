@@ -2,6 +2,7 @@
 
 # *******************************************************************************
 # Copyright 2024 Arm Limited and affiliates.
+# Copyright 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +19,7 @@
 # *******************************************************************************
 
 import argparse
-
+import subprocess
 
 # * Ensuring the scopes end in colon and same level scopes are comma delimited.
 # TODO: Limit scopes to an acceptable list of tags.
@@ -61,12 +62,20 @@ def __numCharacterCheck(msg: str):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("msg", help="Commit message to check.")
+    parser.add_argument("head", help="Head commit of PR branch")
+    parser.add_argument("base", help="Base commit of PR branch")
     args = parser.parse_args()
-    msg: str = args.msg
-    print(f"msg: {msg}")
-    __numCharacterCheck(msg)
-    __scopeCheck(msg)
+    base: str = args.base
+    head: str = args.head
+
+    commit_range = base + ".." + head
+    messages = subprocess.run(["git", "rev-list", "--ancestry-path", commit_range, "--format=oneline"], capture_output=True, text=True).stdout
+
+    for i in messages.splitlines():
+      commit_msg=i.split(' ', 1)[1]
+      print(f"msg: {commit_msg}")
+      __numCharacterCheck(commit_msg)
+      __scopeCheck(commit_msg)
 
 
 if __name__ == "__main__":
