@@ -42,6 +42,8 @@ public:
     int configs() const;
     bool is_tuning_mode() const;
     bool can_move_next() const;
+    int cur_index() const;
+    void set_cur_index(int idx);
     void set_params(conv_config_t &cfg);
     void notify_out_of_registers(const conv_config_t &cfg);
     bool is_grf_limit_ok(const conv_config_t &cfg) const;

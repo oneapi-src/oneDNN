@@ -1256,6 +1256,8 @@ public:
         params_gen_.move_next();
     }
 
+    int cur_index() const { return params_gen_.cur_index(); }
+
     void print_all() const { params_gen_.print_all(); }
 
     static const primitive_info_t &get_primitive_info(
@@ -1432,6 +1434,16 @@ public:
         return params_gen_.can_move_next();
     }
 
+    int cur_index() const {
+        if (is_tuning_mode()) return tuner_->cur_index();
+        return params_gen_.cur_index();
+    }
+
+    void set_cur_index(int idx) {
+        ir_assert(!is_tuning_mode());
+        return params_gen_.set_cur_index(idx);
+    }
+
     void set_params(conv_config_t &cfg) {
         init_regs(cfg);
         if (is_tuning_mode()) {
@@ -1575,6 +1587,14 @@ bool conv_tiler_t::is_tuning_mode() const {
 
 bool conv_tiler_t::can_move_next() const {
     return impl_->can_move_next();
+}
+
+int conv_tiler_t::cur_index() const {
+    return impl_->cur_index();
+}
+
+void conv_tiler_t::set_cur_index(int idx) {
+    impl_->set_cur_index(idx);
 }
 
 void conv_tiler_t::set_params(conv_config_t &cfg) {
