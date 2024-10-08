@@ -210,8 +210,8 @@ public:
     }
 
     void _visit(const stmt_seq_t &obj) override {
-        visit(obj.head);
-        visit(obj.tail);
+        for (auto &s : obj.vec)
+            visit(s);
     }
 
     void _visit(const store_t &obj) override {

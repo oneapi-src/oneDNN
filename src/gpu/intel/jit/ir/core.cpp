@@ -582,17 +582,13 @@ void ir_visitor_t::_visit(const stmt_group_t &obj) {
 }
 
 object_t ir_mutator_t::_mutate(const stmt_seq_t &obj) {
-    auto head = mutate(obj.head);
-    auto tail = mutate(obj.tail);
-
-    if (head.is_same(obj.head) && tail.is_same(obj.tail)) return obj;
-
-    return stmt_seq_t::make(head, tail);
+    auto vec = mutate(obj.vec);
+    if (ir_utils::is_same(vec, obj.vec)) return obj;
+    return stmt_seq_t::make(vec);
 }
 
 void ir_visitor_t::_visit(const stmt_seq_t &obj) {
-    visit(obj.head);
-    visit(obj.tail);
+    visit(obj.vec);
 }
 
 object_t ir_mutator_t::_mutate(const store_t &obj) {

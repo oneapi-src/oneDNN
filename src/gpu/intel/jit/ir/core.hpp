@@ -2426,42 +2426,60 @@ private:
         : stmt_impl_t(_type_info()), label(label), body(body) {}
 };
 
-// Statement sequence, allows combining two statements.
+// Statement sequence, allows combining multiple statements.
 // C++ equivalent:
 //     {
-//         head;
-//         tail;
+//         vec[0];
+//         vec[1];
+//         ...
 //     }
 class stmt_seq_t : public stmt_impl_t {
 public:
     IR_DECL_STMT_TYPE_ID(stmt_seq_t)
 
+    static stmt_t make(const std::vector<stmt_t> &vec) {
+        return stmt_t(new stmt_seq_t(vec));
+    }
+
     static stmt_t make(const stmt_t &head, const stmt_t &tail) {
-        return stmt_t(new stmt_seq_t(head, tail));
+        return head.append(tail);
     }
 
     bool is_equal(const object_impl_t &obj) const override {
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
 
-        return head.is_equal(other.head) && tail.is_equal(other.tail);
+        return ir_utils::is_equal(vec, other.vec);
     }
 
-    size_t get_hash() const override { return ir_utils::get_hash(head, tail); }
+    size_t get_hash() const override { return ir_utils::get_hash(vec); }
 
     IR_DECLARE_TRAVERSERS()
 
-    stmt_t head;
-    stmt_t tail;
+    std::vector<stmt_t> vec;
 
 private:
-    stmt_seq_t(const stmt_t &head, const stmt_t &tail)
-        : stmt_impl_t(_type_info()), head(head), tail(tail) {}
+    stmt_seq_t(const std::vector<stmt_t> &vec)
+        : stmt_impl_t(_type_info()), vec(vec) {}
 };
 
 inline stmt_t stmt_t::append(const stmt_t &s) const {
     if (is_empty()) return s;
-    return stmt_seq_t::make(*this, s);
+    if (s.is_empty()) return *this;
+    auto *seq1 = this->as_ptr<stmt_seq_t>();
+    auto *seq2 = s.as_ptr<stmt_seq_t>();
+    std::vector<stmt_t> vec;
+    if (seq1) {
+        vec.insert(vec.end(), seq1->vec.begin(), seq1->vec.end());
+    } else {
+        vec.push_back(*this);
+    }
+    if (seq2) {
+        vec.insert(vec.end(), seq2->vec.begin(), seq2->vec.end());
+    } else {
+        vec.push_back(s);
+    }
+    return stmt_seq_t::make(vec);
 }
 
 // Function call attribute.
