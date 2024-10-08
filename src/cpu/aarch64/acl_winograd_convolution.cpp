@@ -79,13 +79,14 @@ status_t acl_wino_convolution_fwd_t::pd_t::init(engine_t *engine) {
 }
 
 status_t acl_wino_convolution_fwd_t::init(engine_t *engine) {
-    auto acp = pd()->acp_;
-    acl_obj_->conv.configure(&acp.src_tensor_info, &acp.wei_tensor_info,
-            acp.with_bias ? &acp.bia_tensor_info : nullptr,
-            &acp.dst_tensor_info, acp.padstride_info, acp.act_info,
-            true); // to support 5x5, 7x7 filter shapes in addition to 3x3
+    // commented due to hot fix solution for stateless API which should be replaced soon.
+    //     auto acp = pd()->acp_;
+    //     acl_obj_->conv.configure(&acp.src_tensor_info, &acp.wei_tensor_info,
+    //             acp.with_bias ? &acp.bia_tensor_info : nullptr,
+    //             &acp.dst_tensor_info, acp.padstride_info, acp.act_info,
+    //             true); // to support 5x5, 7x7 filter shapes in addition to 3x3
 
-    acl_obj_->aux_mem_req = acl_obj_->conv.workspace();
+    //     acl_obj_->aux_mem_req = acl_obj_->conv.workspace();
     return status::success;
 }
 
@@ -129,23 +130,27 @@ status_t acl_wino_convolution_fwd_t::pd_t::init_conf() {
     return status::success;
 }
 
-void acl_wino_convolution_fwd_t::reinitialize_acl_obj() const {
+std::unique_ptr<acl_obj_t<acl_wino_convolution_fwd_t::Op>>
+acl_wino_convolution_fwd_t::reinitialize_acl_obj() const {
     auto acp = pd()->acp_;
-    std::lock_guard<std::mutex> _lock {this->mtx};
-    acl_obj_ = std::make_unique<acl_obj_t<Op>>();
-    acl_obj_->conv.configure(&acp.src_tensor_info, &acp.wei_tensor_info,
+    std::unique_ptr<acl_obj_t<Op>> acl_obj = std::make_unique<acl_obj_t<Op>>();
+    acl_obj->conv.configure(&acp.src_tensor_info, &acp.wei_tensor_info,
             acp.with_bias ? &acp.bia_tensor_info : nullptr,
             &acp.dst_tensor_info, acp.padstride_info, acp.act_info,
             true); // to support 5x5, 7x7 filter shapes in addition to 3x3
 
-    acl_obj_->aux_mem_req = acl_obj_->conv.workspace();
+    acl_obj->aux_mem_req = acl_obj->conv.workspace();
+    return acl_obj;
 }
 
 status_t acl_wino_convolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
-    reinitialize_acl_obj();
+    // Temporary hotfix: We're using a local acl_obj instance in this method
+    // instead of the class member acl_obj_. This hotfix is to bypass persistent aux mem requirements but is not the ideal solution.
+    // It should be refactored or removed in the future when a more permanent fix is implemented.
+    const auto acl_obj = reinitialize_acl_obj();
     return execute_forward_conv_acl<acl_obj_t<Op>, pd_t, data_t>(
-            ctx, acl_obj_.get(), pd(), wino_conv_keys);
+            ctx, acl_obj.get(), pd(), wino_conv_keys);
 }
 } // namespace aarch64
 } // namespace cpu
