@@ -47,8 +47,10 @@ struct acl_wino_convolution_fwd_t : public primitive_t {
         status_t init_conf();
     };
 
-    acl_wino_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd), acl_obj_(std::make_unique<acl_obj_t<Op>>()) {}
+    // hot fix solution for stateless API which should be replaced soon.
+    // acl_wino_convolution_fwd_t(const pd_t *apd)
+    //     : primitive_t(apd), acl_obj_(std::make_unique<acl_obj_t<Op>>()) {}
+    acl_wino_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override;
 
@@ -60,11 +62,11 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
 
     // hot fix solution for stateless API which should be replaced soon.
-    mutable std::mutex mtx;
-    void reinitialize_acl_obj() const;
+    std::unique_ptr<acl_obj_t<Op>> reinitialize_acl_obj() const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    mutable std::unique_ptr<acl_obj_t<Op>> acl_obj_;
+    // commented due to hot fix solution for stateless API which should be replaced soon.
+    // std::unique_ptr<acl_obj_t<Op>> acl_obj_;
 }; // acl_wino_convolution_fwd_t
 
 } // namespace aarch64
