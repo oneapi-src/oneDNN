@@ -2437,9 +2437,7 @@ class stmt_seq_t : public stmt_impl_t {
 public:
     IR_DECL_STMT_TYPE_ID(stmt_seq_t)
 
-    static stmt_t make(const std::vector<stmt_t> &vec) {
-        return stmt_t(new stmt_seq_t(vec));
-    }
+    static stmt_t make(const std::vector<stmt_t> &vec);
 
     static stmt_t make(const stmt_t &head, const stmt_t &tail) {
         return head.append(tail);
@@ -2462,25 +2460,6 @@ private:
     stmt_seq_t(const std::vector<stmt_t> &vec)
         : stmt_impl_t(_type_info()), vec(vec) {}
 };
-
-inline stmt_t stmt_t::append(const stmt_t &s) const {
-    if (is_empty()) return s;
-    if (s.is_empty()) return *this;
-    auto *seq1 = this->as_ptr<stmt_seq_t>();
-    auto *seq2 = s.as_ptr<stmt_seq_t>();
-    std::vector<stmt_t> vec;
-    if (seq1) {
-        vec.insert(vec.end(), seq1->vec.begin(), seq1->vec.end());
-    } else {
-        vec.push_back(*this);
-    }
-    if (seq2) {
-        vec.insert(vec.end(), seq2->vec.begin(), seq2->vec.end());
-    } else {
-        vec.push_back(s);
-    }
-    return stmt_seq_t::make(vec);
-}
 
 // Function call attribute.
 class func_call_attr_impl_t : public object_impl_t {

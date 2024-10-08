@@ -374,15 +374,14 @@ public:
 
 class alloc_injector_t : public ir_mutator_t {
 public:
-    alloc_injector_t(const stmt_t &root, const std::vector<stmt_t> &allocs,
-            bool put_innermost)
-        : root_(root), put_innermost_(put_innermost), allocs_(allocs) {
+    alloc_injector_t(const stmt_t &root, const std::vector<stmt_t> &allocs)
+        : allocs_(allocs) {
         for (auto &_a : allocs) {
             auto &a = _a.as<alloc_t>();
             if (a.kind != alloc_kind_t::global) ir_assert(a.size > 0) << _a;
             alloc_map_.insert({a.buf, _a});
         }
-        mutate(root_);
+        mutate(root);
         buf_total_refs_ = buf_cur_refs_;
         for (auto &kv : buf_cur_refs_)
             kv.second = 0;
@@ -404,39 +403,127 @@ private:
     template <typename T>
     object_t mutate_stmt(const T &obj) {
         if (in_ctor_) return ir_mutator_t::_mutate(obj);
-        object_t new_obj = obj;
-        object_set_t<expr_t> undef_bufs;
-        if (put_innermost_) {
-            for (auto &kv : buf_cur_refs_)
-                if (kv.second == 0) undef_bufs.insert(kv.first);
-            new_obj = ir_mutator_t::_mutate(obj);
+        if (T::_type_id() == ir_type_id_t::stmt_seq_t) {
+            return mutate_stmt_seq(obj);
         }
-        for (auto &a : allocs_) {
-            auto it = alloc_map_.find(a.as<alloc_t>().buf);
-            auto &buf = it->first;
-            if (it->second.is_empty()) continue; // Already injected.
-            bool do_inject = false;
-            if (put_innermost_) {
-                int cur_refs = buf_cur_refs_[buf];
-                int total_refs = buf_total_refs_[buf];
-                bool was_undef = (undef_bufs.count(buf) != 0);
-                do_inject = was_undef && (cur_refs == total_refs);
-            } else {
-                do_inject = root_.is_same(obj);
+        auto undef_bufs = get_undef_bufs();
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        new_obj = maybe_inject(new_obj, undef_bufs);
+        return new_obj;
+    }
+
+    // Handle stmt_seq_t in a special way:
+    // 1. Walk through the sequence and record the first and the last statement
+    //    where a buffer is referenced
+    // 2. Inject alloc statements according to the usage
+    object_t mutate_stmt_seq(const object_t &obj) {
+        auto stmt_vec = obj.as<stmt_seq_t>().vec;
+        ir_assert(!stmt_vec.empty());
+        int nstmts = (int)stmt_vec.size();
+        // Mutate statments and record buffer usage in the form: buf: [first, last].
+        object_map_t<expr_t, int> last_undef;
+        object_map_t<expr_t, std::pair<int, int>> entries;
+        for (int i = 0; i < nstmts; i++) {
+            auto &s = stmt_vec[i];
+            for (auto &b : get_undef_bufs()) {
+                auto it = alloc_map_.find(b);
+                if (it == alloc_map_.end() || it->second.is_empty()) continue;
+                last_undef[b] = i;
             }
-            if (do_inject) {
-                auto &a = it->second.as<alloc_t>();
+            s = mutate(s);
+            for (auto &kv : last_undef) {
+                auto &buf = kv.first;
+                if (entries.count(buf) != 0) continue;
+                if (buf_cur_refs_[buf] == buf_total_refs_[buf]) {
+                    entries[buf] = std::make_pair(kv.second, i);
+                }
+            }
+        }
+        // Sort buffers based on the number of statements they span. This is to
+        // inject more local allocations first.
+        std::vector<expr_t> bufs;
+        for (auto &kv : entries) {
+            if (alloc_map_.at(kv.first).is_empty()) continue;
+            bufs.push_back(kv.first);
+        }
+        std::sort(bufs.begin(), bufs.end(),
+                [&](const expr_t &a, const expr_t &b) {
+                    auto &ea = entries.at(a);
+                    auto &eb = entries.at(b);
+                    return (ea.second - ea.first) < (eb.second - eb.first);
+                });
+        // Use union-find to incrementally merge statements based on the common
+        // buffers.
+        std::vector<int> parent(nstmts);
+        std::iota(parent.begin(), parent.end(), 0);
+        std::function<int(int)> _find;
+        std::function<void(int, int)> _union;
+        _find = [&](int i) {
+            if (parent[i] == i) return i;
+            return parent[i] = _find(parent[i]);
+        };
+        _union = [&](int i, int j) {
+            i = _find(i);
+            j = _find(j);
+            parent[j] = i;
+        };
+        std::vector<stmt_t> new_stmt_seq = stmt_vec;
+        for (auto &buf : bufs) {
+            auto &e = entries.at(buf);
+            stmt_t stmt;
+            for (int i = e.first; i <= e.second; i++) {
+                int idx = _find(i);
+                stmt = stmt.append(new_stmt_seq[idx]);
+                new_stmt_seq[idx] = stmt_t();
+                _union(e.first, i);
+            }
+            auto it = alloc_map_.find(buf);
+            auto &a = it->second.as<alloc_t>();
+            stmt = alloc_t::make(a.buf, a.size, a.kind, a.attrs, stmt);
+            new_stmt_seq[_find(e.first)] = stmt;
+            it->second = stmt_t();
+        }
+        stmt_t new_obj;
+        for (auto &s : new_stmt_seq) {
+            if (s.is_empty()) continue;
+            new_obj = new_obj.append(s);
+        }
+        return std::move(new_obj);
+    }
+
+    object_set_t<expr_t> get_undef_bufs() const {
+        object_set_t<expr_t> ret;
+        for (auto &kv : buf_cur_refs_)
+            if (kv.second == 0) ret.insert(kv.first);
+        return ret;
+    }
+
+    object_t maybe_inject(
+            const object_t &obj, const object_set_t<expr_t> &undef_bufs) {
+        auto new_obj = obj;
+        for (auto &kv : alloc_map_) {
+            if (kv.second.is_empty()) continue;
+            auto &buf = kv.first;
+            auto &a = kv.second.as<alloc_t>();
+            if (do_inject(buf, undef_bufs)) {
                 new_obj = alloc_t::make(
                         a.buf, a.size, a.kind, a.attrs, new_obj);
-                it->second = stmt_t();
+                kv.second = stmt_t();
             }
         }
         return new_obj;
     }
 
+    bool do_inject(
+            const expr_t &buf, const object_set_t<expr_t> &undef_bufs) const {
+        if (buf.is_empty()) return false; // Already injected.
+        int cur_refs = buf_cur_refs_.at(buf);
+        int total_refs = buf_total_refs_.at(buf);
+        bool was_undef = (undef_bufs.count(buf) != 0);
+        return was_undef && (cur_refs == total_refs);
+    }
+
     bool in_ctor_ = true;
-    const stmt_t &root_;
-    bool put_innermost_;
     std::vector<stmt_t> allocs_;
     object_map_t<expr_t, stmt_t> alloc_map_;
     object_map_t<expr_t, int> buf_total_refs_;
@@ -480,7 +567,15 @@ std::vector<stmt_t> flatten_statements(const stmt_t &root) {
 
 stmt_t inject_alloc_stmts(const stmt_t &stmt, const std::vector<stmt_t> &allocs,
         bool put_innermost) {
-    alloc_injector_t injector(stmt, allocs, put_innermost);
+    if (!put_innermost) {
+        auto ret = stmt;
+        for (auto &_a : allocs) {
+            auto &a = _a.as<alloc_t>();
+            ret = alloc_t::make(a.buf, a.size, a.kind, a.attrs, ret);
+        }
+        return ret;
+    }
+    alloc_injector_t injector(stmt, allocs);
     return injector.mutate(stmt);
 }
 

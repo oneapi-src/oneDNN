@@ -307,6 +307,30 @@ expr_t linear_t::to_expr() const {
     return simplify_rewrite(ret);
 }
 
+void stmt_seq_flatten(std::vector<stmt_t> &out, const stmt_t &s) {
+    if (auto *seq = s.as_ptr<stmt_seq_t>()) {
+        out.insert(out.end(), seq->vec.begin(), seq->vec.end());
+        return;
+    }
+    out.push_back(s);
+}
+
+stmt_t stmt_seq_t::make(const std::vector<stmt_t> &_vec) {
+    std::vector<stmt_t> vec;
+    for (auto &s : _vec)
+        stmt_seq_flatten(vec, s);
+    return stmt_t(new stmt_seq_t(vec));
+}
+
+stmt_t stmt_t::append(const stmt_t &s) const {
+    if (is_empty()) return s;
+    if (s.is_empty()) return *this;
+    std::vector<stmt_t> vec;
+    stmt_seq_flatten(vec, *this);
+    stmt_seq_flatten(vec, s);
+    return stmt_seq_t::make(vec);
+}
+
 expr_t expr_t::operator[](const expr_t &off) const {
     if (is<shuffle_t>()) {
         ir_assert(is_const(off)) << "Offset is not constant.";
