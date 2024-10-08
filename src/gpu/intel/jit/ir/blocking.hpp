@@ -557,6 +557,11 @@ public:
 
     int cur_index() const { return cur_idx_; }
 
+    void set_cur_index(int idx) {
+        ir_assert(idx < configs());
+        cur_idx_ = idx;
+    }
+
     const blocking_params_t &cur_params() const { return at(cur_idx_); }
 
     const blocking_params_t &at(int idx) const {
