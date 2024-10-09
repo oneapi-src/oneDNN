@@ -63,6 +63,9 @@ protected:
                 "unsupported format");
         SKIP_IF_HIP((p.expected_src_fmt == BLK || p.expected_dst_fmt == BLK),
                 "unsupported format");
+        SKIP_IF_GENERIC(
+                (p.expected_src_fmt == BLK || p.expected_dst_fmt == BLK),
+                "unsupported format");
         ASSERT_EQ(data_type, dnnl::memory::data_type::f32);
 
         test_convolution_sizes_t cd = p.test_cd;

@@ -114,6 +114,7 @@ TEST_F(pd_iter_test_t, UnsupportedPrimitives) {
 TEST(pd_next_impl, TestEltwiseImpl) {
     SKIP_IF_CUDA(true, "Unsupported memory format for CUDA");
     SKIP_IF_HIP(true, "Unsupported memory format for HIP");
+    SKIP_IF_GENERIC(true, "Unsupported memory format for Generic");
     auto eng = get_test_engine();
     memory::desc md(
             {8, 32, 4, 4}, memory::data_type::f32, memory::format_tag::nChw8c);

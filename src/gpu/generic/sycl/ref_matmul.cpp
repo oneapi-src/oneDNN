@@ -142,6 +142,8 @@ status_t ref_matmul_t::init(impl::engine_t *engine) {
 }
 
 status_t ref_matmul_t::execute(const exec_ctx_t &ctx) const {
+    if (memory_desc_wrapper(pd()->dst_md()).size() == 0) return status::success;
+
     sycl_matmul_conf_t conf = pd()->conf_;
     if (pd()->any_runtime_params_) {
         const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
