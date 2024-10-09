@@ -61,6 +61,13 @@ bool hip_check_format_tag(tag first_tag, Rest... rest_tags) {
     return hip_check_format_tag(rest_tags...);
 }
 
+template <typename... Rest>
+bool generic_check_format_tag(tag first_tag, Rest... rest_tags) {
+    const bool ok = cuda_check_format_tag(first_tag);
+    if (!ok) return ok;
+    return cuda_check_format_tag(rest_tags...);
+}
+
 class lrn_test_t : public ::testing::TestWithParam<lrn_test_params_t> {
 private:
     lrn_test_params_t p;
@@ -82,6 +89,8 @@ protected:
         SKIP_IF_CUDA(!cuda_check_format_tag(p.src_tag, p.dst_tag),
                 "Unsupported format tag");
         SKIP_IF_HIP(!hip_check_format_tag(p.src_tag, p.dst_tag),
+                "Unsupported format tag");
+        SKIP_IF_GENERIC(!generic_check_format_tag(p.src_tag, p.dst_tag),
                 "Unsupported format tag");
 
         SKIP_IF_CUDA(p.src_dt != p.dst_dt && p.src_dt != dt::undef

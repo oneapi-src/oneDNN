@@ -162,6 +162,8 @@ TEST_F(runtime_dim_test_t, TestEltwise) {
 }
 
 TEST_F(runtime_dim_test_t, TestInnerProduct) {
+    SKIP_IF_GENERIC(true, "InnerProduct is not implemented in Generic");
+
     memory::desc src_md {
             {DNNL_RUNTIME_DIM_VAL, 16, 7, 7}, data_type::f32, tag::abcd};
     memory::desc wei_md {{32, 16, 7, 7}, data_type::f32, tag::abcd};

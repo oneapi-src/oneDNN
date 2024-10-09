@@ -374,6 +374,7 @@ TEST_F(attr_quantization_test_t, TestInnerProduct) {
     SKIP_IF_CUDA(true, "Unsupported datatype for CUDA");
     // src, wei needs to be s8 and dst be s32.
     SKIP_IF_HIP(true, "Unsupported datatype for HIP");
+    SKIP_IF_GENERIC(true, "InnerProduct is not supported for Generic");
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
     memory::desc wei_md {{32, 16, 7, 7}, data_type::s8, tag::any};
     memory::desc dst_md {{1, 32}, data_type::s32, tag::any};
@@ -640,6 +641,7 @@ CPU_TEST_F(attr_quantization_test_t, TestReorder) {
 TEST_F(attr_quantization_test_t, TestRNN) {
     SKIP_IF_CUDA(true, "RNN primitive not supported for CUDA");
     SKIP_IF_HIP(true, "RNN primitive not supported for HIP");
+    SKIP_IF_GENERIC(true, "RNN primitive not supported for Generic");
     // Int8 RNN relies on packed API solely which is available only for X64.
 #if !DNNL_X64
     return;

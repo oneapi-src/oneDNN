@@ -92,6 +92,7 @@ protected:
                              p.bias_format, p.dst_format),
                 "Unsupported format tag");
         SKIP_IF_CUDA(p.ndims > 5, "Unsupported number of dimensions");
+        SKIP_IF_GENERIC(true, "Primitive not implemented");
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }

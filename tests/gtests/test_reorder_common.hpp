@@ -87,6 +87,9 @@ protected:
                             && (supported_format(p.fmt_o)
                                     || supported_blocking(prec_o, p.fmt_o))),
                 "Unsupported cuda format tag/ data type");
+        SKIP_IF_GENERIC(
+                !(supported_format(p.fmt_i) && supported_format(p.fmt_o)),
+                "Unsupported generic format tag");
 
         catch_expected_failures(
                 [&]() {
@@ -137,6 +140,10 @@ protected:
                         && (supported_format(p.fmt_o)
                                 || supported_blocking(prec_o, p.fmt_o))),
                 "Unsupported hip format tag/ data type");
+#endif
+#ifdef DNNL_SYCL_GENERIC
+        SKIP_IF(!(supported_format(p.fmt_i) && supported_format(p.fmt_o)),
+                "Unsupported generic format tag");
 #endif
 
         catch_expected_failures([&]() { RunTest(eng_i, eng_o); },

@@ -57,11 +57,19 @@ protected:
         SKIP_IF_HIP(!hip_check_format_tag(p.src_tag), "Unsupported format tag");
         SKIP_IF_HIP(!hip_check_format_tag(p.dst_tag), "Unsupported format tag");
 
+        SKIP_IF_GENERIC(
+                !generic_check_format_tag(p.src_tag), "Unsupported format tag");
+        SKIP_IF_GENERIC(
+                !generic_check_format_tag(p.dst_tag), "Unsupported format tag");
+
         if (!is_fwd(p.aprop_kind)) {
             SKIP_IF_CUDA(!cuda_check_format_tag(p.diff_dst_tag),
                     "Unsupported format tag");
 
             SKIP_IF_HIP(!hip_check_format_tag(p.diff_dst_tag),
+                    "Unsupported format tag");
+
+            SKIP_IF_GENERIC(!generic_check_format_tag(p.diff_dst_tag),
                     "Unsupported format tag");
         }
         SKIP_IF_CUDA((p.src_dt == dt::bf16 || p.dst_dt == dt::bf16),
@@ -99,6 +107,10 @@ protected:
                         && p.src_dt != dt::undef && p.diff_dst_dt != dt::undef,
                 "Unsupported different data types for diff_source and "
                 "diff_destination");
+        SKIP_IF_GENERIC(!is_fwd(p.aprop_kind) && p.src_dt != p.diff_dst_dt
+                        && p.src_dt != dt::undef && p.diff_dst_dt != dt::undef,
+                "Unsupported different data types for diff_source and "
+                "diff_destination");
 
         SKIP_IF_CUDA(p.src_tag != p.dst_tag && p.src_tag != tag::any
                         && p.dst_tag != tag::any,
@@ -120,6 +132,9 @@ protected:
                 "Unsupported int8 destination data type");
         SKIP_IF_HIP(p.dst_dt == dt::u8 || p.dst_dt == dt::s8,
                 "Unsupported int8 destination data type");
+        SKIP_IF_GENERIC(!is_fwd(p.aprop_kind)
+                        && (p.dst_dt == dt::u8 || p.dst_dt == dt::s8),
+                "Unsupported int8 destination data type");
 
         SKIP_IF_HIP(p.axis != 1, "Unsupported axis for HIP");
 
@@ -135,6 +150,13 @@ protected:
                 || tag == memory::format_tag::abc
                 || tag == memory::format_tag::abcd
                 || tag == memory::format_tag::abcde);
+    }
+    bool generic_check_format_tag(memory::format_tag tag) {
+        return impl::utils::one_of(tag, memory::format_tag::a,
+                memory::format_tag::ab, memory::format_tag::abc,
+                memory::format_tag::abcd, memory::format_tag::abcde,
+                memory::format_tag::acb, memory::format_tag::acdb,
+                memory::format_tag::acdeb, memory::format_tag::any);
     }
     void Forward() {
         // softmax specific types and values
@@ -158,6 +180,12 @@ protected:
 
         if (is_int8 && !(is_nvidia_gpu(eng) || is_amd_gpu(eng)))
             aa.scales = true;
+
+#ifdef DNNL_SYCL_GENERIC
+        aa.po_eltwise = true;
+        aa.po_binary = true;
+        if (is_int8) aa.scales = true;
+#endif
 
         // To validate backward on valid tag::any settings reuse dst tag.
         const bool src_bwd_any = !is_fwd(p.aprop_kind) && p.src_tag == tag::any;
