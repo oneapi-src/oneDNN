@@ -680,6 +680,16 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                 block.byteGlue = true;
                 block.crosspack /= T.perByte();
             }
+
+            // Xe2: manually mask in the height dimension to work around slow LSC
+            //      out-of-bounds checks.
+            bool remainderH = memCM ? remainderC : remainderR;
+            if (hw >= HW::Xe2 && remainderH) {
+                auto &vymask = memCM ? block.colMask.variable : block.rowMask.variable;
+                vymask.isFixed = false;
+                vymask.bitRep = vymask.maskRep = vymask.rsize = 1;
+                vymask.rshift = 0;
+            }
             break;
         }
         case AccessType::CacheLine: {
