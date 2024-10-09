@@ -75,7 +75,7 @@ jobs:
         id: cache-acl-restore
         uses: actions/cache/restore@v4
         with:
-          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.toolset }}-${{ matrix.config }}-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
+          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.toolset }}-${{ matrix.config }}-SEQ-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
           path: ${{ github.workspace }}/ComputeLibrary/build
 
       - name: Build ACL
@@ -87,6 +87,7 @@ jobs:
           BUILD_TOOLSET: ${{ matrix.toolset }}
           ACL_CONFIG: ${{ matrix.config }}
           GCC_VERSION: 13
+          ACL_THREADING: SEQ
 
       - name: Save ACL in cache
         if:  ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
@@ -104,28 +105,24 @@ jobs:
           BUILD_TOOLSET: ${{ matrix.toolset }}
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
           GCC_VERSION: 13
-    
-      - if: matrix.toolset == 'clang'
-        name: Run oneDNN smoke tests
+          WORKSPACE: ${{ github.workspace }}/oneDNN
+
+      - name: Run oneDNN smoke tests
         run: ${{ github.workspace }}/oneDNN/.github/automation/test_aarch64.sh
         working-directory: ${{ github.workspace }}/oneDNN/build
         env:
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
-  
-  # We only run the linux aarch64 runners if macos smoke tests pass.
+    
+  # We only run the linux aarch64 runners if macOS smoke tests pass.
   linux:
     needs: macos
     strategy:
       matrix:
-        threading: [OMP]
         toolset: [clang, gcc]
         config: [Debug, Release]
-        host: [
-          { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50 }, 
-          { name: c7g, label: ah-ubuntu_22_04-c7g_2x-50 }
-        ]
-
+        threading: [OMP, TP]
+        host: [ { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50 }, { name: c7g, label: ah-ubuntu_22_04-c7g_2x-50 }]
     name: ${{ matrix.host.name }}, ${{ matrix.toolset }}, ${{ matrix.threading }}, ${{ matrix.config }}
     runs-on: ${{ matrix.host.label }}
     steps:
@@ -178,7 +175,7 @@ jobs:
         id: cache-acl-restore
         uses: actions/cache/restore@v4
         with:
-          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.toolset }}-${{ matrix.config }}-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
+          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.toolset }}-${{ matrix.config }}-${{ matrix.threading }}-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
           path: ${{ github.workspace }}/ComputeLibrary/build
 
       - name: Build ACL
@@ -209,12 +206,14 @@ jobs:
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
           GCC_VERSION: 13
           ONEDNN_THREADING: ${{ matrix.threading }}
+          WORKSPACE: ${{ github.workspace }}/oneDNN
 
-      - name: Run oneDNN tests
+      - if: (matrix.threading == 'OMP') || (matrix.threading == 'TP' && matrix.toolset == 'clang' && matrix.config == 'Release' && matrix.host.name == 'c6g')
+        name: Run oneDNN tests
         run: ${{ github.workspace }}/oneDNN/.github/automation/test_aarch64.sh
         working-directory: ${{ github.workspace }}/oneDNN/build
         env:
           BUILD_TOOLSET: ${{ matrix.toolset }}
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
-          ONEDNN_THREADING: ${{ matrix.threading }}     
+          ONEDNN_THREADING: ${{ matrix.threading }}
