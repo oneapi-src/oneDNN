@@ -54,11 +54,8 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
 
         if (pd()->use_temp_dst()) {
             memory_storage_t *temp_dst_mem = scratch_storage.get();
-            memory_storage_t *temp_reorder_mem = scratch_storage_2.get();
             temp_dst = xpu::sycl::interop_memory_arg_t<
                     ::sycl::access::mode::read_write>(temp_dst_mem, cgh);
-            temp_reorder = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>(temp_reorder_mem, cgh);
         }
 
         xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read_write>
@@ -85,7 +82,6 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
             args.push_back(arg_scratch.get_native_pointer(ih));
             args.push_back(arg_filter_scratch.get_native_pointer(ih));
             args.push_back(temp_dst.get_native_pointer(ih));
-            args.push_back(temp_reorder.get_native_pointer(ih));
             args.push_back(arg_src_scale.get_native_pointer(ih));
             args.push_back(arg_wei_scale.get_native_pointer(ih));
             args.push_back(arg_dst_scale.get_native_pointer(ih));
