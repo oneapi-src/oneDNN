@@ -507,8 +507,8 @@ jit_avx512_core_gemm_bf16bf16f32_kern::jit_avx512_core_gemm_bf16bf16f32_kern(
                 this, one_, even_, selector_, scratch_, zmm_tmp0_, zmm_tmp1_);
 }
 
-jit_avx512_core_gemm_bf16bf16f32_kern::
-        ~jit_avx512_core_gemm_bf16bf16f32_kern() {}
+jit_avx512_core_gemm_bf16bf16f32_kern::~jit_avx512_core_gemm_bf16bf16f32_kern()
+        = default;
 } // namespace x64
 } // namespace cpu
 } // namespace impl
