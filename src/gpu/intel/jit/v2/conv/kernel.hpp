@@ -23,7 +23,7 @@
 #include "gpu/intel/jit/codegen/kernel.hpp"
 #include "gpu/intel/jit/ir/ir.hpp"
 #include "gpu/intel/jit/ir/kernel_info.hpp"
-#include "gpu/intel/jit/v2/conv/ir_builder.hpp"
+#include "gpu/intel/jit/v2/conv/builder.hpp"
 #include "gpu/intel/jit/v2/conv/kernel_desc.hpp"
 
 namespace dnnl {

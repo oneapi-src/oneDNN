@@ -121,6 +121,10 @@ public:
         return entry_ptr->buf;
     }
 
+    bool has(const std::string &name) const {
+        return entries_.find(name) != entries_.end();
+    }
+
     entry_t find(const std::string &name, bool allow_empty = false) const {
         auto it = entries_.find(name);
         if (it != entries_.end()) return it->second;

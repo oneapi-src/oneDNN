@@ -675,6 +675,10 @@ struct send_plan_t : public base_plan_t {
     const send_1d_plan_t &get_1d() const { return _1d; }
     send_2d_plan_t &get_2d() { return _2d; }
     const send_2d_plan_t &get_2d() const { return _2d; }
+    send_op_t op() const {
+        if (is_1d()) return _1d.desc.op;
+        return _2d.desc.op;
+    }
 
     const prb_reqs_t &reqs() const {
         if (is_1d()) return _1d.reqs;
@@ -923,6 +927,7 @@ private:
 
 inline send_plan_t create_send_plan(const send_params_t &params,
         const view_t &view, bool allow_fail = false) {
+    ir_assert(params.max_entry_reg_size > 0);
     send_plan_builder_t spb(params, view);
     auto plan = spb.build();
     if (!plan) {

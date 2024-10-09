@@ -19,7 +19,7 @@
 
 #include "gpu/intel/jit/v2/conv/kernel_desc.hpp"
 #include "gpu/intel/jit/v2/conv/problem.hpp"
-#include "gpu/intel/jit/v2/ir/plan_utils.hpp"
+#include "gpu/intel/jit/v2/ir/plan.hpp"
 #include "gpu/intel/jit/v2/ir/reqs.hpp"
 #include "gpu/intel/jit/v2/ir/send.hpp"
 #include "gpu/intel/jit/v2/ir/tensor.hpp"
@@ -154,60 +154,6 @@ public:
 
 private:
     object_map_t<expr_t, expr_t> idxs_;
-};
-
-struct reduce_plan_t : public base_plan_t {
-    layout_t src;
-    layout_t dst;
-
-    using base_plan_t::base_plan_t;
-
-    reduce_plan_t() = default;
-    reduce_plan_t(const hw_t &hw, const layout_t &src, const layout_t &dst)
-        : base_plan_t(hw), src(src), dst(dst) {}
-
-    int grf_usage_bytes() const {
-        int ret = 0;
-        ret += utils::rnd_up(dst.size(), grf_size());
-        return ret;
-    }
-
-    std::string str() const {
-        if (!*this) return "(empty)";
-        std::ostringstream oss;
-        oss << "src_layout: " << src.str() << std::endl;
-        oss << "dst_layout: " << dst.str();
-        return oss.str();
-    }
-
-    IR_DEFINE_DUMP()
-};
-
-struct reorder_plan_t : public base_plan_t {
-    layout_t src;
-    layout_t dst;
-
-    using base_plan_t::base_plan_t;
-
-    reorder_plan_t() = default;
-    reorder_plan_t(const hw_t &hw, const layout_t &src, const layout_t &dst)
-        : base_plan_t(hw), src(src), dst(dst) {}
-
-    int grf_usage_bytes() const {
-        int ret = 0;
-        ret += utils::rnd_up(dst.size(), grf_size());
-        return ret;
-    }
-
-    std::string str() const {
-        if (!*this) return "(empty)";
-        std::ostringstream oss;
-        oss << "src_layout: " << src.str() << std::endl;
-        oss << "dst_layout: " << dst.str();
-        return oss.str();
-    }
-
-    IR_DEFINE_DUMP()
 };
 
 struct prefetch_plan_t : public base_plan_t {
@@ -422,6 +368,8 @@ struct epilogue_plan_t : public base_plan_t {
     reorder_plan_t reorder;
     reorder_plan_t bia_reorder;
     layout_t c_reg_layout;
+    pvar_coord_t<expr_t> c_coord;
+    layout_t bia_reduced_reg_layout;
     send_plan_t c_store;
     send_plan_t bia_store;
     expr_t reduce_cond;

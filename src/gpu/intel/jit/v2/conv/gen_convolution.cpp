@@ -27,7 +27,7 @@
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
 #include "gpu/intel/jit/v2/conv/bridge.hpp"
-#include "gpu/intel/jit/v2/conv/ir_builder.hpp"
+#include "gpu/intel/jit/v2/conv/builder.hpp"
 #include "gpu/intel/jit/v2/conv/kernel.hpp"
 #include "gpu/intel/jit/v2/conv/plan_preset.hpp"
 #include "gpu/intel/jit/v2/conv/plan_registry.hpp"

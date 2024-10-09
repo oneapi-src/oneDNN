@@ -590,6 +590,10 @@ private:
         return plan;
     }
 
+    bool with_bias_reduce() const {
+        return (desc_.prop == prop_kind::backward_weights && desc_.with_bias);
+    }
+
     void add_align_req(const pvar_t &dim, const type_t &type,
             const align_desc_t::align_t &align) {
         if (align.value == 0) {
@@ -760,7 +764,7 @@ private:
         plan.load = std::move(load);
         plan.reorder = std::move(reorder);
         plan.layout = std::move(reg_layout);
-        if (abc == tensor_kind_t::b) {
+        if (with_bias_reduce() && abc == tensor_kind_t::b) {
             auto bia_layout = mul_info_.bia_layout(plan.layout, bia_layout_);
             plan.bia_layout = std::move(bia_layout);
         }
@@ -818,10 +822,12 @@ private:
                 x2r_plan_t b;
                 ir_check(init_x2r_plan(tensor_kind_t::b, b_sub_view, b));
                 b_prev_layout = b.layout;
-                bia_prev_layout = b.bia_layout;
-                b.bia_layout.set_base(bia_off_elems);
-                bia_off_elems += ir_utils::safe_div(
-                        b.bia_layout.size(), b.bia_layout.type().size());
+                if (with_bias_reduce()) {
+                    bia_prev_layout = b.bia_layout;
+                    b.bia_layout.set_base(bia_off_elems);
+                    bia_off_elems += ir_utils::safe_div(
+                            b.bia_layout.size(), b.bia_layout.type().size());
+                }
                 plan.add_stage(b);
             }
 
@@ -837,16 +843,21 @@ private:
             plan.add_stage(fma);
         }
         plan.c_layout = c_prev_layout;
-        plan.bia_layout = bia_prev_layout;
-        auto &bia_mapper = dim_mapper_manager_.mapper(tensor_kind_t::bia);
+        if (with_bias_reduce()) plan.bia_layout = bia_prev_layout;
+
         if (!outer_dim.is_undef()) {
             int stride = ir_utils::safe_div(
                     c_prev_layout.size(), c_prev_layout.type().size());
             plan.c_layout.add_block(outer_dim, outer_size, stride);
-            if (bia_mapper.has(outer_dim)) {
-                int bia_stride = ir_utils::safe_div(
-                        bia_prev_layout.size(), bia_prev_layout.type().size());
-                plan.bia_layout.add_block(outer_dim, outer_size, bia_stride);
+            if (with_bias_reduce()) {
+                auto &bia_mapper
+                        = dim_mapper_manager_.mapper(tensor_kind_t::bia);
+                if (bia_mapper.has(outer_dim)) {
+                    int bia_stride = ir_utils::safe_div(bia_prev_layout.size(),
+                            bia_prev_layout.type().size());
+                    plan.bia_layout.add_block(
+                            outer_dim, outer_size, bia_stride);
+                }
             }
         }
         reqs.add(plan.reqs());
@@ -876,6 +887,7 @@ private:
                 << "Bias store needs additional requirements.";
         auto tile = plan.tile;
         plan.bia_store = bia_store;
+        plan.bia_reduced_reg_layout = bia_layout;
         if (bia_layout != bia_store.reg_layout()) {
             auto fma_layout = bia_layout.map(tile);
             auto store_layout = bia_store.reg_layout().map(tile);
@@ -999,6 +1011,8 @@ private:
         auto &tile = c_store.entry_tile();
         plan.tile = tile;
         plan.c_store = c_store;
+        plan.c_reg_layout = c_reg_layout;
+        plan.c_coord = c_coord;
         auto c_reg_tile_layout = c_reg_layout.map(tile);
         auto store_layout = c_store.reg_layout().map(tile);
         if (c_reg_tile_layout != store_layout) {
