@@ -398,25 +398,22 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
 
-    bool is_src_sparse_csr_coo = false;
-    bool is_wei_sparse_csr_coo = false;
-    bool is_wei_sparse_packed = false;
+    bool is_sparse_packed = false;
+    bool is_any_sparse = false;
+    std::vector<bool> nnz_mask;
 #ifdef DNNL_EXPERIMENTAL_SPARSE
-    auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
-    auto wei_encoding = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
-    is_src_sparse_csr_coo = kind == SRC
-            && (src_encoding == dnnl_csr || src_encoding == dnnl_coo);
-    is_wei_sparse_csr_coo = kind == WEI
-            && (wei_encoding == dnnl_csr || wei_encoding == dnnl_coo);
+    const auto sparse_encoding = prb->sparse_options.get_encoding(kind);
+    const bool is_sparse_csr_coo
+            = sparse_encoding == dnnl_csr || sparse_encoding == dnnl_coo;
+    is_sparse_packed = sparse_encoding == dnnl_packed;
+    is_any_sparse = sparse_encoding != sparse_options_t::def_encoding;
 
-    if (is_src_sparse_csr_coo || is_wei_sparse_csr_coo) {
-        return fill_sparse_data(kind, prb, mem_dt, mem_fp, res,
-                kind == SRC ? src_encoding : wei_encoding);
+    if (is_sparse_csr_coo) {
+        return fill_sparse_data(
+                kind, prb, mem_dt, mem_fp, res, sparse_encoding);
     }
 
-    is_wei_sparse_packed = kind == WEI && wei_encoding == dnnl_packed;
-    std::vector<bool> nnz_mask;
-    if (is_wei_sparse_packed) {
+    if (is_sparse_packed) {
         nnz_mask.resize(nelems, false);
         const dnnl_dim_t nnz = query_md_nnz(mem_dt.md_);
         assert(nnz > 0);
@@ -427,11 +424,9 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     }
 #endif
 
-    const bool is_any_sparse = is_src_sparse_csr_coo || is_wei_sparse_csr_coo
-            || is_wei_sparse_packed;
     // Refer to modes documentation for filling principles.
     // Note: sparse filling is more complex than a general one in a sense that
-    // it requires indices in addition to data. To have reasonable bitwise
+    // it requires metadata in addition to data. To have reasonable bitwise
     // validation for sparse, only data must be random and indices should remain
     // identical between runs. So far, simply don't support bitwise mode for
     // sparse problems. `CSR`/`COO` will utilize their `fill_sparse_data`
@@ -467,7 +462,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
         std::bernoulli_distribution b_dist(density);
 
         // make sure the first element is positive
-        if (idx_start == 0 && !is_wei_sparse_packed) {
+        if (idx_start == 0 && !is_sparse_packed) {
             float val = 0;
             while (val <= 0)
                 val = gen(int_seed);
@@ -478,9 +473,8 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             bool is_one = density == 1.f ? true : b_dist(b_seed);
-#ifdef DNNL_EXPERIMENTAL_SPARSE
             float val = 0.0f;
-            if (is_wei_sparse_packed && kind == WEI) {
+            if (is_sparse_packed) {
                 is_one = nnz_mask[idx];
                 while (val == 0.0f)
                     val = gen(int_seed);
@@ -488,9 +482,6 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
             } else {
                 val = is_one * gen(int_seed);
             }
-#else
-            float val = is_one * gen(int_seed);
-#endif
             mem_fp.set_elem(
                     idx, round_to_nearest_representable(cfg.get_dt(kind), val));
         }

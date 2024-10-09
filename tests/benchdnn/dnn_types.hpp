@@ -503,6 +503,17 @@ struct sparse_options_t {
         if (options_.count(arg) == 0) return dnnl_sparse_encoding_undef;
         return options_.at(arg).first;
     }
+    dnnl_sparse_encoding_t get_encoding(data_kind_t kind) const {
+        // Note: the commented code doesn't work as `arg` returned is a
+        // backward exec_arg. See the function comment.
+        // const auto arg = data_kind2exec_arg(kind);
+        // return get_encoding(arg);
+        switch (kind) {
+            case SRC: return get_encoding(DNNL_ARG_SRC);
+            case WEI: return get_encoding(DNNL_ARG_WEIGHTS);
+            default: return def_encoding;
+        }
+    }
 
     float get_sparsity(int arg) const {
         if (options_.count(arg) == 0) return 0.0f;
