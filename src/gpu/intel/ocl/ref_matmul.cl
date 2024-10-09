@@ -137,8 +137,13 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
                         wei_zp_stride_n * n
                                 + wei_zp_stride_k * (k / wei_zp_group_k));
 #endif
+#if SRC_DT_F4_E2M1
+                ACC_DATA_T s = TO_ACC(
+                        SRC_TO_REF(GET_HALF_BYTE(A, src_off)) - src_zp);
+#else
                 ACC_DATA_T s = TO_ACC(SRC_TO_REF(A[src_off]) - src_zp);
-#if WEI_DT_S4 || WEI_DT_U4
+#endif
+#if WEI_DT_S4 || WEI_DT_U4 || WEI_DT_F4_E2M1
                 ACC_DATA_T w_raw = WEI_TO_REF(GET_HALF_BYTE(B, wei_off));
 #else
                 ACC_DATA_T w_raw = WEI_TO_REF(B[wei_off]);
@@ -194,83 +199,15 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
 
         float po_acc = convert_float(temp);
 
-#if WITH_DROPOUT || WITH_SROUND
-
-#define PHILOX_4UINT_ROUND(mul, ctr, key) \
-    as_uint4(convert_ulong2(ctr.s31) * mul) ^ (uint4)(ctr.s20 ^ key, 0, 0).s3120
-
-#define PHILOX_4X32(idx, seed, ctr, bias) \
-    const ulong2 ctr_mul = (ulong2)(0xD2511F53uL, 0xCD9E8D57uL); \
-    const ulong key_add = as_ulong((uint2)(0x9E3779B9u, 0xBB67AE85u)); \
-    const uint16 key0 = (uint16)(seed) \
-            + as_uint16((ulong8)(key_add)) \
-                    * (uint16)( \
-                            0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7); \
-    const uint4 key1 = (uint4)(seed) \
-            + as_uint4((ulong2)(key_add)) * (uint4)(8, 8, 9, 9); \
-    ctr = (uint4)(idx & ~3L) + (uint4)(3, 2, 1, 0); \
-    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s01); \
-    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s23); \
-    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s45); \
-    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s67); \
-    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s89); \
-    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.sAB); \
-    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.sCD); \
-    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.sEF); \
-    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key1.s01); \
-    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key1.s23); \
-    bias = ctr[~idx & 3L];
-
-        uint4 ctr = 0;
-        uint res = 0;
-#endif
-
 #if WITH_DROPOUT
-        PHILOX_4X32(dst_off, dropout_seed, ctr, res);
+        uint res = philox_4x32(dst_off, dropout_seed);
         uchar dropout = res > dropout_threshold;
         po_acc = (dropout) ? po_acc * dropout_inv_q : 0;
         dropout_mask_buf[dst_off] = dropout;
 #endif
 
 #if WITH_SROUND
-
-#if DST_DT_F32
-#define RND_BIAS_T ushort
-#else
-#define RND_BIAS_T uchar
-#endif
-
-#define PHILOX_8X16(idx, seed, ctr, bias, res) \
-    PHILOX_4X32(idx >> 1, seed, ctr, res); \
-    bias = (ushort)(res >> ((idx & 1) * sizeof(ushort)));
-
-#define PHILOX_16X8(idx, seed, ctr, bias, res) \
-    PHILOX_4X32(idx >> 2, seed, ctr, res); \
-    bias = (uchar)(res >> ((idx & 3) * sizeof(uchar)));
-
-#define STOCHASTIC_ROUND_FWD(s, idx, seed, ctr, res) \
-    uint truncation_mask = 0xffffffff << (24 - DST_DT_DIGITS); \
-    uint rnd_bias = 0; \
-    uint x = (idx & ~3L); \
-    if (!isnan(s)) { \
-        RND_BIAS_T bias_val = 0; \
-        if (sizeof(DST_DATA_T) == 4) { \
-            PHILOX_16X8(idx, seed, ctr, bias_val, res); \
-        } else { \
-            PHILOX_8X16(idx, seed, ctr, bias_val, res); \
-        } \
-        rnd_bias = (uint)(bias_val & ~truncation_mask); \
-        uint s_u = as_uint(s); \
-        uint r_u = (s_u + rnd_bias) & truncation_mask; \
-        float r = as_float(r_u); \
-        r = fmin(fmax((float)DST_DATA_FMIN, r), (float)DST_DATA_FMAX); \
-        if (r > 0 && r < FLT_MIN) r = 0; \
-        if (r < 0 && r > -FLT_MIN) r = 0; \
-        s = r; \
-    }
-
-        STOCHASTIC_ROUND_FWD(po_acc, dst_off, sround_seed, ctr, res);
-
+        po_acc = stochastic_round_fwd(po_acc, dst_off, sround_seed);
 #endif
 
         if (DST_NDIMS == 2)

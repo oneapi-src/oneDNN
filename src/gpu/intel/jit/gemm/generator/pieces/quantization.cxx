@@ -320,13 +320,14 @@ void BLASKernelGenerator<hw>::gemmDequantizeOperation(bool doA, Type T, Type To,
                 ne = std::min(ne, xqGroupMN - (l0 % xqGroupMN));
             } else if (colMajor == doA) {
                 ne = std::min(ne, neq);
-                if (qblock->crosspack * To != crosspack * T) stub();
+                if (qblock->crosspack * To < crosspack * T) stub();
             } else {
                 ne = std::min(ne, xqGroupK);
                 strideq = 0;
             }
 
             int maxSIMD = (op == BinaryOp::Sub && T.isInt8()) ? 64 : 32;
+            if(To == Type::f32) maxSIMD = 16;
             int simd = std::min({ne * crosspack / strided, 2 * elementsPerGRF(hw, T) / strided, maxSIMD});
             switch (op) {
                 case BinaryOp::Sub:

@@ -150,24 +150,21 @@ struct primitive_desc_t : public c_compatible {
     enum class arg_usage_t { unused, input, output };
     virtual arg_usage_t arg_usage(int arg) const {
         using types::is_zero_md;
-        if (arg == DNNL_ARG_ATTR_OUTPUT_SCALES
-                && !attr()->output_scales_.defined())
-            return arg_usage_t::input;
         if (arg & DNNL_ARG_ATTR_ZERO_POINTS) {
             int zp_arg = arg & ~DNNL_ARG_ATTR_ZERO_POINTS;
-            if (!attr()->zero_points_.defined(zp_arg))
+            if (!attr()->zero_points_.has_default_values(zp_arg))
                 return arg_usage_t::input;
         }
         if (arg & DNNL_ARG_ATTR_SCALES) {
             int scale_arg = arg & ~DNNL_ARG_ATTR_SCALES;
-            if (!attr()->scales_.get(scale_arg).defined())
+            if (!attr()->scales_.get(scale_arg).has_default_values())
                 return arg_usage_t::input;
         }
         if ((arg == (DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
-                && !attr()->scales_.get(DNNL_ARG_SRC_0).defined())
+                && !attr()->scales_.get(DNNL_ARG_SRC_0).has_default_values())
             return arg_usage_t::input;
         if ((arg == (DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1))
-                && !attr()->scales_.get(DNNL_ARG_SRC_1).defined())
+                && !attr()->scales_.get(DNNL_ARG_SRC_1).has_default_values())
             return arg_usage_t::input;
         if (arg == DNNL_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
             return arg_usage_t::output;

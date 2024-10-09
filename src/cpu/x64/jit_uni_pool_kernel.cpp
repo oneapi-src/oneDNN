@@ -264,6 +264,8 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
             : ((jpp.is_fp8 && mayiuse(avx512_core_fp16)) ? avx512_core_fp16
                                                          : isa);
 
+    // disabling verbose dispatch messages for unsupported isa for
+    // better readability
     if (!mayiuse(isa)) return status::unimplemented;
 
     VDISPATCH_POOLING_IC(

@@ -602,12 +602,13 @@ std::ostream &operator<<(std::ostream &ss, const runtime_scales_t &scale) {
     return ss;
 }
 
-std::ostream &operator<<(std::ostream &ss, const scales_t &oscale) {
-    ss << oscale.mask_;
-    const float val = oscale.scales_[0];
+std::ostream &operator<<(
+        std::ostream &ss, const rnn_create_time_scales_t &rnn_scales) {
+    ss << rnn_scales.mask_;
+    const float val = rnn_scales.scales_[0];
     // Can't use scientific flags since it breaks parsing on converter and
     // benchdnn side.
-    if (oscale.mask_ == 0 || is_runtime_value(val))
+    if (rnn_scales.mask_ == 0 || is_runtime_value(val))
         ss << ":" << get_val_str(val);
     return ss;
 }
@@ -713,11 +714,6 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
         ss << field_delim() << "attr-deterministic:" << deterministic;
     }
     if (attr->has_default_values()) return ss;
-
-    const runtime_scales_t &os = attr->output_scales_;
-    if (!os.has_default_values()) {
-        ss << field_delim() << "attr-oscale:" << os;
-    }
 
     const arg_scales_t &as = attr->scales_;
     if (!as.has_default_values()) {
@@ -1622,10 +1618,6 @@ void verbose_printf_impl(const char *raw_fmt_str, verbose_t::flag_kind kind) {
     const auto &fmt_str = prepend_identifier_and_version(raw_fmt_str);
 
 #ifdef DNNL_EXPERIMENTAL_LOGGING
-    // by default, verbose_t::create_check is passed to the logger
-    // so that it prints at spdlog log_level_t::info when no verbose flag
-    // is specified. This is useful for printing headers, format fields, etc.
-    // which do not correspond to a specific verbose kind.
     const log_manager_t &log_manager = log_manager_t::get_log_manager();
 
     if (log_manager.is_logger_enabled())

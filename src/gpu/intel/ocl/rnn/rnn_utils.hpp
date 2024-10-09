@@ -786,6 +786,7 @@ struct scratch_t : public data_helper_t {
         key_gemm_iter_bwd,
         key_gemm_iter_bwd_2,
         key_gemm_layer_bwd,
+        key_gemm_layer_bwd_src,
         key_gemm_diff_wei_layer,
         key_gemm_diff_wei_layer_src,
         key_gemm_diff_wei_iter,
@@ -810,6 +811,7 @@ struct scratch_t : public data_helper_t {
         const primitive_desc_t *iter_bwd_pd;
         const primitive_desc_t *iter_bwd_2_pd;
         const primitive_desc_t *layer_bwd_pd;
+        const primitive_desc_t *layer_bwd_src_pd;
         const primitive_desc_t *diff_wei_layer_pd;
         const primitive_desc_t *diff_wei_layer_src_pd;
         const primitive_desc_t *diff_wei_iter_pd;
@@ -854,6 +856,9 @@ struct scratch_t : public data_helper_t {
                     gemms.iter_bwd_pd->scratchpad_registry());
             scratchpad.book(key_gemm_layer_bwd,
                     gemms.layer_bwd_pd->scratchpad_registry());
+            if (gemms.layer_bwd_src_pd)
+                scratchpad.book(key_gemm_layer_bwd_src,
+                        gemms.layer_bwd_src_pd->scratchpad_registry());
             scratchpad.book(key_gemm_diff_wei_layer,
                     gemms.diff_wei_layer_pd->scratchpad_registry());
             if (gemms.diff_wei_layer_src_pd)
@@ -924,18 +929,20 @@ struct scratch_t : public data_helper_t {
                 ? conf_.n_states + 1
                 : conf_.n_states;
         auto i3_size = conf_.n_iter + 1;
-        if (i0_size == 0) {
-            i3_size = 2;
-            i3 %= i3_size;
+        if (i0_size <= 1) {
+            if (i0_size <= 0) {
+                i3_size = 2;
+                i3 %= i3_size;
+            }
             return OFF5(i1, conf_.n_dir, i2, i2_size, i3, i3_size, i4, conf_.mb,
                     i5, conf_.scratch_diff_states_ld);
         }
         gpu_assert(i0 < i0_size && i0 >= 0)
-                << "Logical index " << i0 << " must be less than its size "
-                << i0_size;
+                << "Logical index " << i0 << " should be in [0, " << i0_size
+                << ")";
         gpu_assert(i2 < i2_size && i2 >= 0)
-                << "Logical index " << i2 << " must be less than its size "
-                << i2_size;
+                << "Logical index " << i2 << " should be in [0, " << i2_size
+                << ")" << i2_size;
         MAYBE_UNUSED(i0_size);
 
         return OFF6(i0, i0_size, i1, conf_.n_dir, i2, i2_size, i3, i3_size, i4,

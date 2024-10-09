@@ -40,7 +40,7 @@ const runtime_scales_t &default_runtime_scale() {
     return default_runtime_scale_instance;
 }
 
-void scales_t::set_single_scale(float scale) {
+void rnn_create_time_scales_t::set_single_scale(float scale) {
     count_ = 1;
     mask_ = 0;
     scales_ = scales_buf_;
@@ -51,7 +51,8 @@ void scales_t::set_single_scale(float scale) {
     }
 }
 
-status_t scales_t::set(dim_t count, int mask, const float *scales) {
+status_t rnn_create_time_scales_t::set(
+        dim_t count, int mask, const float *scales) {
     cleanup();
 
     count_ = count;
@@ -130,8 +131,6 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
     using smask_t = skip_mask_t;
     // prepare mask for runtime-parameters check
     smask_t defined_mask = smask_t::none;
-    if ((mask & smask_t::oscale_runtime) == smask_t::oscale_runtime)
-        defined_mask |= smask_t::oscale;
     if ((mask & smask_t::scales_runtime) == smask_t::scales_runtime)
         defined_mask |= smask_t::scales;
     if ((mask & smask_t::zero_points_runtime) == smask_t::zero_points_runtime)
@@ -142,7 +141,6 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
 #define CHECK_MASK(mask_name, mask_field) \
     CHECK_ARG(IMPLICATION( \
             (bool)(~mask & (mask_name)), (mask_field).has_default_values()))
-    CHECK_MASK(smask_t::oscale_runtime, output_scales_);
     CHECK_MASK(smask_t::scales, scales_);
     CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::scales_runtime_groups),
             scales_.has_default_groups()));
@@ -188,10 +186,6 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
 #define CHECK_ARG(x) ok = ok && (x)
 #define CHECK_MASK(mask_name, mask_field) \
     CHECK_ARG(IMPLICATION((bool)(~mask & (mask_name)), (mask_field).defined()))
-    CHECK_MASK(smask_t::oscale, output_scales_);
-    CHECK_MASK(smask_t::scales, scales_);
-    CHECK_MASK(smask_t::zero_points, zero_points_);
-    CHECK_MASK(smask_t::post_ops, post_ops_);
     CHECK_MASK(smask_t::rnn_data_qparams, rnn_data_qparams_);
     CHECK_MASK(smask_t::rnn_weights_qparams, rnn_weights_qparams_);
     CHECK_MASK(smask_t::rnn_weights_projection_qparams,
@@ -203,6 +197,8 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
 
 status_t post_ops_t::append_sum(
         float scale, int32_t zero_point, data_type_t dt) {
+    if (is_runtime_value(scale)) return invalid_arguments;
+
     entry_.emplace_back();
     auto &e = entry_.back();
     e.kind = primitive_kind::sum;
@@ -216,6 +212,9 @@ status_t post_ops_t::append_eltwise(
         float scale, alg_kind_t alg, float alpha, float beta) {
     if (!math::is_eltwise_ok(data_type::f32, alg, alpha, beta))
         return invalid_arguments;
+    if (is_runtime_value(scale)) return invalid_arguments;
+    if (is_runtime_value(alpha)) return invalid_arguments;
+    if (is_runtime_value(beta)) return invalid_arguments;
 
     entry_.emplace_back();
     auto &e = entry_.back();
@@ -311,27 +310,6 @@ status_t post_ops_t::append_prelu(int mask) {
     it_entry->prelu.mask = mask;
 
     return success;
-}
-
-bool post_ops_t::defined() const {
-    for (int idx = 0; idx < len(); ++idx) {
-        auto kind = entry_[idx].kind;
-        if (kind == primitive_kind::sum) {
-            if (is_runtime_value(entry_[idx].sum.scale)) return false;
-        } else if (kind == primitive_kind::eltwise) {
-            const auto &e = entry_[idx].eltwise;
-            if (is_runtime_value(e.scale) || is_runtime_value(e.alpha)
-                    || is_runtime_value(e.beta))
-                return false;
-        } else if (utils::one_of(kind, primitive_kind::binary,
-                           primitive_kind::prelu,
-                           primitive_kind::convolution)) {
-            // binary is always defined
-        } else {
-            assert(!"unreachable");
-        }
-    }
-    return true;
 }
 
 status_t post_ops_t::set_default_formats(const memory_desc_t *dst_md) {
@@ -594,17 +572,23 @@ status_t dnnl_primitive_attr_set_zero_points_mask(
     return attr->zero_points_.set(arg, mask);
 }
 
-dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
-        dnnl_primitive_attr_t attr, int arg, int mask, int ndims,
-        const dnnl_dims_t group_dims, dnnl_data_type_t data_type) {
+status_t dnnl_primitive_attr_set_zero_points(dnnl_primitive_attr_t attr,
+        int arg, int mask, int ndims, const dnnl_dims_t group_dims,
+        dnnl_data_type_t data_type) {
     using namespace data_type;
-    bool ok = attr && arg >= 0 && mask >= 0 && ndims >= 0
-            && utils::one_of(data_type, s32, s8, u8, s4, u4)
-            && IMPLICATION(
-                    arg != DNNL_ARG_WEIGHTS, data_type == s32 && ndims == 0)
-            && IMPLICATION(utils::one_of(data_type, s4, u4), mask > 0)
-            && IMPLICATION(ndims, validate_dims(ndims, group_dims));
-    if (!ok) return invalid_arguments;
+    VCHECK_ATTR(attr, VERBOSE_NULL_ARG);
+    VCHECK_ATTR(mask >= 0, VERBOSE_BAD_PARAM, "mask");
+    VCHECK_ATTR(arg >= 0, VERBOSE_BAD_PARAM, "arg");
+    VCHECK_ATTR(ndims >= 0, VERBOSE_BAD_PARAM, "ndims");
+    VCHECK_ATTR(utils::one_of(data_type, s32, s8, u8, s4, u4),
+            VERBOSE_INVALID_DATATYPE, "zero points");
+    VCHECK_ATTR(IMPLICATION(utils::one_of(data_type, s4, u4), mask > 0),
+            VERBOSE_BAD_PARAM, "mask with int4 data type");
+    VCHECK_ATTR(IMPLICATION(arg != DNNL_ARG_WEIGHTS,
+                        data_type == s32 && ndims == 0),
+            VERBOSE_INVALID_DATATYPE, "zero points");
+    VCHECK_ATTR(IMPLICATION(ndims, validate_dims(ndims, group_dims)),
+            VERBOSE_BAD_PARAM, "group_dims");
 
     return attr->zero_points_.set(arg, mask, ndims, group_dims, data_type);
 }

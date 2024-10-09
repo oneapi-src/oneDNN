@@ -41,8 +41,7 @@ status_t ref_sycl_softmax_fwd_t::pd_t::init_conf() {
     conf_.do_scale_dst
             = !attr()->scales_.get(DNNL_ARG_DST).has_default_values();
 
-    conf_.post_ops = sycl_post_ops_t(attr(), dst_md()->data_type);
-    conf_.po_len = attr()->post_ops_.len();
+    conf_.post_ops = sycl_post_ops_t(attr(), dst_md());
 
     return status::success;
 }

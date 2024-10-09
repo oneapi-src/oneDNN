@@ -252,6 +252,7 @@ enum {
     key_lnorm_tmp_var,
     key_lnorm_tmp_diff_ss,
     key_lnorm_reduction,
+    key_matmul_pack_space,
     key_matmul_dst_in_acc_dt,
     key_matmul_lt_algo_scratch,
     key_matmul_lt_block_c,

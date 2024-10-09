@@ -49,25 +49,36 @@ struct ref_matmul_t : public primitive_t {
             const auto bia_type = weights_md(1)->data_type;
             const auto dst_type = dst_md(0)->data_type;
 
-            bool ok = is_dense_format_kind()
-                    && utils::one_of(
-                            src_type, f32, bf16, f16, f8_e5m2, f8_e4m3, f4_e2m1)
-                    && utils::one_of(wei_type, f32, bf16, f16, f8_e5m2, f8_e4m3,
-                            f4_e2m1, u8, s8, u4, s4)
-                    && utils::one_of(
-                            dst_type, f32, bf16, f16, f8_e5m2, f8_e4m3, f4_e2m1)
-                    && (src_type == wei_type
-                            || utils::one_of(wei_type, u8, s8, u4, s4))
-                    /* int8 weights decompression support */
-                    && IMPLICATION(utils::one_of(wei_type, u8, s8),
-                            attr_.mayiconvert(wei_type, src_type))
-                    && IMPLICATION(src_type == f32, dst_type == f32)
-                    && IMPLICATION(src_type == bf16,
-                            utils::one_of(dst_type, f32, bf16))
-                    && IMPLICATION(
-                            src_type == f16, utils::one_of(dst_type, f32, f16))
-                    // TODO: any implication on allowed dst data type for fp8?
-                    && IMPLICATION(with_bias(),
+            VDISPATCH_MATMUL(
+                    is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
+            VDISPATCH_MATMUL(utils::one_of(src_type, f32, bf16, f16, f8_e5m2,
+                                     f8_e4m3, f4_e2m1),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(utils::one_of(wei_type, f32, bf16, f16, f8_e5m2,
+                                     f8_e4m3, f4_e2m1, u8, s8, u4, s4),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(utils::one_of(dst_type, f32, bf16, f16, f8_e5m2,
+                                     f8_e4m3, f4_e2m1),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(
+                    (src_type == wei_type
+                            || utils::one_of(wei_type, u8, s8, u4, s4)),
+                    VERBOSE_UNSUPPORTED_DT);
+            /* int8 weights decompression support */
+            VDISPATCH_MATMUL(IMPLICATION(utils::one_of(wei_type, u8, s8),
+                                     attr_.mayiconvert(wei_type, src_type)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(IMPLICATION(src_type == f32, dst_type == f32),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(IMPLICATION(src_type == bf16,
+                                     utils::one_of(dst_type, f32, bf16)),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(IMPLICATION(src_type == f16,
+                                     utils::one_of(dst_type, f32, f16)),
+                    VERBOSE_UNSUPPORTED_DT);
+            // TODO: any implication on allowed dst data type for fp8?
+            VDISPATCH_MATMUL(
+                    IMPLICATION(with_bias(),
                             utils::one_of(
                                     bia_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
                                     && IMPLICATION(
@@ -78,31 +89,45 @@ struct ref_matmul_t : public primitive_t {
                                             utils::one_of(bia_type, f32, bf16))
                             // TODO: any implication on allowed bias
                             // data type for fp8?
-                            )
-                    && platform::has_data_type_support(src_type)
-                    && attr()->has_default_values(
-                            smask_t::scales_runtime_data_type
+                            ),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
+            VDISPATCH_MATMUL(platform::has_data_type_support(src_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(
+                    attr()->has_default_values(smask_t::scales_runtime_data_type
                                     | smask_t::scales_runtime_groups
                                     | smask_t::zero_points_runtime_data_type
                                     | smask_t::zero_points_runtime_groups
                                     | smask_t::post_ops | smask_t::sum_dt
                                     | smask_t::fpmath_mode | smask_t::dropout
                                     | smask_t::rounding_mode,
-                            dst_type)
-                    && attr_.post_ops_.check_sum_consistency(dst_type,
-                            /* is_int8 */ false)
-                    && ref_post_ops_t::primitive_kind_ok(attr()->post_ops_)
-                    && attr_scales_ok() && set_default_formats()
-                    && zero_points_ok()
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && IMPLICATION(!attr_.dropout_.has_default_values(),
+                            dst_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_MATMUL(attr_.post_ops_.check_sum_consistency(dst_type,
+                                     /* is_int8 */ false),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_MATMUL(
+                    ref_post_ops_t::primitive_kind_ok(attr()->post_ops_),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_MATMUL(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_MATMUL(zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
+            VDISPATCH_MATMUL(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_MATMUL(
+                    IMPLICATION(!attr_.dropout_.has_default_values(),
                             utils::one_of(
                                     attr_.dropout_.dropout_desc_.data_type, u8,
-                                    s8))
-                    && IMPLICATION(!attr_.dropout_.has_default_values(),
+                                    s8)),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_MATMUL(
+                    IMPLICATION(!attr_.dropout_.has_default_values(),
                             memory_desc_wrapper(dst_md(0)).similar_to(
-                                    attr_.dropout_.dropout_desc_, true, false));
-            return ok ? status::success : status::unimplemented;
+                                    attr_.dropout_.dropout_desc_, true, false)),
+                    VERBOSE_UNSUPPORTED_ATTR);
+
+            return status::success;
         }
 
     private:

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,21 +14,21 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_GEMM_OCL_GEMM_ATTRS_H
-#define GPU_INTEL_OCL_GEMM_OCL_GEMM_ATTRS_H
+#define DT_UNDEF 1
+#include "gpu/intel/ocl/ocl_types.h"
+#include "gpu/intel/ocl/types_interop.h"
 
-#define ATTR_ALPHA 1.0f
+__kernel void subbyte_pack(__global uchar *restrict src,
+        __global uchar *restrict dst, off_t n, int bits, int64x3_t offset) {
+    const uchar mask = (1 << bits) - 1;
 
-#if WITH_SRC_ZPOINTS
-#define ATTR_A0 ao[0]
-#else
-#define ATTR_A0 0
-#endif
+    const off_t dst_off = get_global_id(0) + offset.array[0];
+    const off_t src_off = (8 / bits) * dst_off;
 
-#if WITH_WEI_ZPOINTS
-#define ATTR_B0 bo[0]
-#else
-#define ATTR_B0 0
-#endif
-
-#endif // GPU_INTEL_OCL_GEMM_OCL_GEMM_ATTRS_H
+    uchar packed = 0;
+    for (int i = 0, j = 0; i < 8; i += bits, ++j) {
+        uchar byte = src_off + j < n ? src[src_off + j] : 0;
+        packed |= (byte & mask) << i;
+    }
+    dst[dst_off] = packed;
+}

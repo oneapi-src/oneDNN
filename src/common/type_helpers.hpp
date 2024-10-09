@@ -143,6 +143,7 @@ inline T min_value(data_type_t data_type) {
         CASE(f16);
         CASE(bf16);
         CASE(f32);
+        CASE(f64);
         CASE(s32);
         CASE(s8);
         CASE(u8);
@@ -167,13 +168,14 @@ inline T max_value(data_type_t data_type) {
         CASE(f8_e5m2);
         CASE(f8_e4m3);
         CASE(f16);
-        CASE(f32);
         CASE(bf16);
+        CASE(f32);
         CASE(s32);
         CASE(s8);
         CASE(u8);
         CASE(s4);
         CASE(u4);
+        case f64: return nstl::numeric_limits<T>::max();
         case data_type::undef:
         default: assert(!"unknown data_type");
     }
@@ -212,6 +214,7 @@ inline float max_value(data_type_t data_type) {
         // approach is saturating on some integer values before it should happen
         // in the reality.
         case s32: return 2147483520.f;
+        case f64: return nstl::numeric_limits<float>::max();
         case data_type::undef:
         default: assert(!"unknown data_type");
     }
@@ -239,6 +242,7 @@ inline T lowest_value(data_type_t data_type) {
         CASE(u8);
         CASE(s4);
         CASE(u4);
+        case f64: return nstl::numeric_limits<T>::lowest();
         case data_type::undef:
         default: assert(!"unknown data_type");
     }
@@ -261,6 +265,7 @@ inline T digits(data_type_t data_type) {
         CASE(f16);
         CASE(bf16);
         CASE(f32);
+        CASE(f64);
         CASE(s32);
         CASE(s8);
         CASE(u8);
@@ -657,11 +662,12 @@ inline bool operator==(const concat_desc_t &lhs, const concat_desc_t &rhs) {
     return ret;
 }
 
-inline bool operator==(
-        const convolution_desc_t &lhs, const convolution_desc_t &rhs) {
+// This function can only be used to compare the opdescs in the primitive cache.
+// For comparing the opdescs outside the primitive cache please use the regular
+// comparison operator (==).
+inline bool compare_conv_opdesc(const convolution_desc_t &lhs, const convolution_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
-            && COMPARE_DESC_MEMBERS(alg_kind)
             && COMPARE_DESC_MEMBERS(src_desc)
             && COMPARE_DESC_MEMBERS(diff_src_desc)
             && COMPARE_DESC_MEMBERS(weights_desc)
@@ -676,7 +682,29 @@ inline bool operator==(
             && COMPARE_DESC_ARRAY_MEMBERS(padding[1], DNNL_MAX_NDIMS)
             && COMPARE_DESC_MEMBERS(accum_data_type)
             && COMPARE_DESC_MEMBERS(use_inversion);
+
+      // The `alg_kind` can be `auto` only if this function is called for the
+      // primitive descriptor cache scenario. In this case, we ignore `alg_kind`
+      // and rely on `pd_iterator_offset` to fetch the first suitable
+      // implementation.
+      //
+      // Background: when a convolution primitive descriptor is created for
+      // the algorithm `auto` we overwrite `alg_kind` field in `op_desc` when
+      // store it in the primitive descriptor. Because of that, the `op_desc`
+      // stored in the primitive descriptor is different from the one user
+      // passed to oneDNN API. Because of the difference the requested
+      // primitive descriptor cannot be found in the cache if we compare
+      // `alg_kind`.
+      if (!utils::one_of(alg_kind::convolution_auto, lhs.alg_kind, rhs.alg_kind))
+          ret = ret && COMPARE_DESC_MEMBERS(alg_kind);
+
     return ret;
+}
+
+inline bool operator==(
+        const convolution_desc_t &lhs, const convolution_desc_t &rhs) {
+        if (!(COMPARE_DESC_MEMBERS(alg_kind))) return false;
+        return compare_conv_opdesc(lhs, rhs);
 }
 
 inline bool operator==(const eltwise_desc_t &lhs, const eltwise_desc_t &rhs) {

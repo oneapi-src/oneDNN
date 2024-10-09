@@ -721,7 +721,6 @@ inline float atomic_add_global(
 #endif
 
 #if MATH_UTILS_DECLARE_S4 || MATH_UTILS_DECLARE_U4
-#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
 
 uchar __attribute__((overloadable)) cvt_f32_to_u4(float a) {
     uchar i = convert_uchar_sat_rte(a);
@@ -775,6 +774,7 @@ float __attribute__((overloadable)) cvt_f4_e2m1_to_f32(uchar a) {
 #endif
 
 #if MATH_UTILS_DECLARE_S4 || MATH_UTILS_DECLARE_U4 || MATH_UTILS_DECLARE_F4_E2M1
+#define GET_HALF_BYTE(x, y) get_half_byte(x, y)
 
 uchar __attribute__((overloadable)) get_half_byte(__global uchar *x, off_t y) {
     uchar ret = 0;
@@ -805,5 +805,39 @@ set_double_half_byte(__global char *x, off_t y, uchar z) {
 }
 
 #endif
+
+uint philox_4x32(long idx, uint seed) {
+#define PHILOX_4UINT_ROUND(mul, ctr, key) \
+    as_uint4(convert_ulong2(ctr.s31) * mul) ^ (uint4)(ctr.s20 ^ key, 0, 0).s3120
+
+    uint4 ctr = 0;
+    const ulong2 ctr_mul = (ulong2)(0xD2511F53uL, 0xCD9E8D57uL);
+    const ulong key_add = as_ulong((uint2)(0x9E3779B9u, 0xBB67AE85u));
+    const uint16 key0 = (uint16)(seed)
+            + as_uint16((ulong8)(key_add))
+                    * (uint16)(0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7);
+    const uint4 key1
+            = (uint4)(seed) + as_uint4((ulong2)(key_add)) * (uint4)(8, 8, 9, 9);
+    ctr = (uint4)(idx & ~3L) + (uint4)(3, 2, 1, 0);
+    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s01);
+    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s23);
+    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s45);
+    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s67);
+    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.s89);
+    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.sAB);
+    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.sCD);
+    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key0.sEF);
+    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key1.s01);
+    ctr = PHILOX_4UINT_ROUND(ctr_mul, ctr, key1.s23);
+    return ctr[~idx & 3L];
+}
+
+ushort philox_8x16(long idx, uint seed) {
+    return as_ushort2(philox_4x32(idx >> 1, seed))[idx & 1];
+}
+
+uchar philox_16x8(long idx, uint seed) {
+    return as_uchar4(philox_4x32(idx >> 2, seed))[idx & 3];
+}
 
 #endif

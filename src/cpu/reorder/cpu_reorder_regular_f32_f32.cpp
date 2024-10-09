@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2020-2024 Intel Corporation
-* Copyright 2022 FUJITSU LIMITED
+* Copyright 2022-2024 FUJITSU LIMITED
 * Copyright 2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,6 +70,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, OIw16o16i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, OIw16i16o))
+            DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, IOw8o8i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, IOw16o16i))
 
             REG_SR(f32, any, f32, any, fmt_order::any, spec::reference)
@@ -103,6 +104,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gOIw16o16i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gOIw16i16o))
+            DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gIOw8o8i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gIOw16o16i))
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, OIhw4i4o))
@@ -118,6 +120,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, Ohwi16o))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, OIhw16o16i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, OIhw16i16o))
+            DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, IOhw8o8i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, IOhw16o16i))
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, OIhw4i16o4i))
@@ -157,6 +160,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gOhwi16o))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gOIhw16o16i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gOIhw16i16o))
+            DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gIOhw8o8i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gIOhw16o16i))
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, OIdhw4i4o))
@@ -170,6 +174,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, Odhwi16o))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, OIdhw16o16i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, OIdhw16i16o))
+            DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, IOdhw8o8i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, IOdhw16o16i))
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gOIhw4i16o4i))
@@ -199,6 +204,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gOdhwi16o))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gOIdhw16o16i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gOIdhw16i16o))
+            DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gIOdhw8o8i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gIOdhw16o16i))
 
             REG_SR(f32, any, f32, any, fmt_order::any, spec::reference)

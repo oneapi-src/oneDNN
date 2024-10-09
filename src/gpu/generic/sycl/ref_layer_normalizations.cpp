@@ -40,7 +40,7 @@ status_t ref_layer_normalization_fwd_t::pd_t::init_conf() {
     conf_.wk_size = memory_desc_wrapper(src_md(0)).nelems();
     conf_.block_size = 16;
 
-    conf_.rt_scaling = !attr()->scales_.defined();
+    conf_.rt_scaling = !attr()->scales_.has_default_values();
     conf_.src_def = attr()->scales_.get(DNNL_ARG_SRC).has_default_values();
     conf_.dst_def = attr()->scales_.get(DNNL_ARG_DST).has_default_values();
 

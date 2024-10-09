@@ -140,18 +140,6 @@ struct attr_info_t {
         attr_info.with_sum
                 = (attr_info.sum_idx != -1) && (attr_info.sum_scale != 0.0f);
 
-        // Output scales
-        attr_info.with_oscales
-                = !attr->scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
-
-        const auto &scales_mask = attr->scales_.get(DNNL_ARG_WEIGHTS).mask_;
-        attr_info.with_common_oscales
-                = attr_info.with_oscales && (scales_mask == 0);
-        attr_info.with_per_oc_oscales
-                = attr_info.with_oscales && (scales_mask == (1 << 1));
-
-        attr_info.with_runtime_oscales = !attr->output_scales_.defined();
-
         const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
         attr_info.with_src_scales = !src_scales.has_default_values();
         attr_info.with_src0_scale = !src_scales.has_default_values();
@@ -179,10 +167,12 @@ struct attr_info_t {
         attr_info.dst_zpoints_data_type = zp.get_data_type(DNNL_ARG_DST);
 
         attr_info.with_per_ic_src_zpoints = attr_info.with_src_zpoints
-                && !zp.defined(DNNL_ARG_SRC) && !zp.common(DNNL_ARG_SRC);
+                && !zp.has_default_values(DNNL_ARG_SRC)
+                && !zp.common(DNNL_ARG_SRC);
 
         attr_info.with_per_oc_dst_zpoints = attr_info.with_dst_zpoints
-                && !zp.defined(DNNL_ARG_DST) && !zp.common(DNNL_ARG_DST);
+                && !zp.has_default_values(DNNL_ARG_DST)
+                && !zp.common(DNNL_ARG_DST);
 
         attr_info.initialized = true;
         return attr_info;
@@ -203,11 +193,6 @@ struct attr_info_t {
     int sum_idx;
     float sum_scale;
     data_type_t sum_data_type;
-
-    bool with_oscales;
-    bool with_common_oscales;
-    bool with_per_oc_oscales;
-    bool with_runtime_oscales;
 
     bool with_src0_scale;
     bool with_src1_scale;
@@ -1438,12 +1423,6 @@ inline status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("WITH_SRC0_SCALE", attr_info.with_src0_scale);
     kernel_ctx.define_int("WITH_SRC1_SCALE", attr_info.with_src1_scale);
-
-    kernel_ctx.define_int("WITH_SCALES", attr_info.with_oscales);
-    kernel_ctx.define_int(
-            "WITH_RUNTIME_SCALES", attr_info.with_runtime_oscales);
-    kernel_ctx.define_int("SCALES_PER_OC", attr_info.with_per_oc_oscales);
-    kernel_ctx.define_int("SCALES_COMMON", attr_info.with_common_oscales);
 
     kernel_ctx.define_int("WITH_SRC_SCALES", attr_info.with_src_scales);
     kernel_ctx.define_int("WITH_WEI_SCALES", attr_info.with_wei_scales);

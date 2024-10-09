@@ -129,14 +129,14 @@ private:
 };
 
 // Note: keep for RNN quantization
-struct scales_t : public c_compatible {
-    scales_t() : count_(1), mask_(0), scales_(scales_buf_) {
+struct rnn_create_time_scales_t : public c_compatible {
+    rnn_create_time_scales_t() : count_(1), mask_(0), scales_(scales_buf_) {
         set_single_scale(1.);
     }
 
-    ~scales_t() { cleanup(); }
+    ~rnn_create_time_scales_t() { cleanup(); }
 
-    bool operator==(const scales_t &rhs) const {
+    bool operator==(const rnn_create_time_scales_t &rhs) const {
         bool ret = count_ == rhs.count_ && mask_ == rhs.mask_
                 && !utils::any_null(scales_, rhs.scales_)
                 && defined() == rhs.defined()
@@ -162,7 +162,7 @@ struct scales_t : public c_compatible {
         return status::success;
     }
 
-    status_t copy_from(const scales_t &other) {
+    status_t copy_from(const rnn_create_time_scales_t &other) {
         return set(other.count_, other.mask_, other.scales_);
     }
 
@@ -182,7 +182,7 @@ private:
         scales_ = scales_buf_;
     }
 
-    DNNL_DISALLOW_COPY_AND_ASSIGN(scales_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(rnn_create_time_scales_t);
 };
 
 struct runtime_scales_t : public c_compatible {
@@ -224,10 +224,6 @@ struct runtime_scales_t : public c_compatible {
 
     bool has_default_groups() const { return 0 == ndims_; }
     bool has_default_data_type() const { return data_type_ == data_type::f32; }
-
-    bool defined() const { return has_default_values(); }
-
-    void reset() { *this = default_runtime_scale(); }
 
     // TODO: replace with `-1` to remove `is_set_`.
     // Hide `mask_` under `private:` to force interface usage.
@@ -318,8 +314,6 @@ struct arg_scales_t : public c_compatible {
         return status::success;
     }
 
-    bool defined() const { return has_default_values(); }
-
     status_t copy_from(const arg_scales_t &other) {
         for (auto it = other.scales_.begin(); it != other.scales_.end(); ++it) {
             // Find an entry that can match the arguments without constructing a
@@ -387,7 +381,6 @@ struct zero_points_t : public c_compatible {
 
     // arg-specific checks
     bool common(int arg) const { return get_mask(arg) == 0; }
-    bool defined(int arg) const { return has_default_values(arg); }
     bool has_default_values(int arg) const {
         return is_set(arg) == false && has_default_data_type(arg);
     }
@@ -399,7 +392,6 @@ struct zero_points_t : public c_compatible {
     }
     // same checks but for all supported arguments at once
     bool common() const { return check_all(&zero_points_t::common); }
-    bool defined() const { return has_default_values(); }
     bool has_default_values() const {
         return check_all(&zero_points_t::has_default_values);
     }
@@ -743,7 +735,6 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         return dst_dt;
     }
 
-    bool defined() const;
     int len() const { return (int)entry_.size(); }
     bool has_default_values(
             const std::vector<dnnl::impl::primitive_kind_t> &skip_pk
@@ -828,7 +819,6 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::status_t copy_from(const dnnl_primitive_attr &other) {
         using namespace dnnl::impl;
 
-        output_scales_ = other.output_scales_;
         scales_ = other.scales_;
         zero_points_ = other.zero_points_;
         rounding_mode_ = other.rounding_mode_;
@@ -852,8 +842,6 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
 
     enum class skip_mask_t : unsigned {
         none = 0,
-        oscale = 1u << 0,
-        oscale_runtime = 1u << 1,
         scales = 1u << 2,
         scales_runtime = (unsigned)scales | (1u << 3),
         zero_points = 1u << 4,
@@ -889,7 +877,6 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         bool ret = scratchpad_mode_ == rhs.scratchpad_mode_
                 && fpmath_ == rhs.fpmath_ && acc_mode_ == rhs.acc_mode_
                 && deterministic_ == rhs.deterministic_
-                && output_scales_ == rhs.output_scales_
                 && scales_ == rhs.scales_ && zero_points_ == rhs.zero_points_
                 && post_ops_ == rhs.post_ops_
                 && rnn_data_qparams_ == rhs.rnn_data_qparams_
@@ -964,7 +951,6 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     }
 
     // NOTE: make sure that the types below have overloaded comparison operator
-    dnnl::impl::runtime_scales_t output_scales_;
     dnnl::impl::arg_scales_t scales_;
     dnnl::impl::zero_points_t zero_points_;
     dnnl::impl::scratchpad_mode_t scratchpad_mode_;
@@ -973,8 +959,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     bool deterministic_;
     dnnl::impl::post_ops_t post_ops_;
     dnnl::impl::rnn_data_qparams_t rnn_data_qparams_;
-    dnnl::impl::scales_t rnn_weights_qparams_;
-    dnnl::impl::scales_t rnn_weights_projection_qparams_;
+    dnnl::impl::rnn_create_time_scales_t rnn_weights_qparams_;
+    dnnl::impl::rnn_create_time_scales_t rnn_weights_projection_qparams_;
     dnnl::impl::rnn_tparams_t rnn_tparams_;
     dnnl::impl::dropout_t dropout_;
     dnnl::impl::rnd_mode_t rounding_mode_;

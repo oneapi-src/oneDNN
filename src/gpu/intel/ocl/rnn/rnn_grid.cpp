@@ -29,21 +29,11 @@
 #include "gpu/intel/ocl/rnn/rnn_grid.hpp"
 
 #include "common/c_types_map.hpp"
-#include "common/dnnl_traits.hpp"
 #include "common/gemm_utils.hpp"
-#include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/intel/gemm/gpu_gemm.hpp"
 #include "gpu/intel/gpu_primitive_attr.hpp"
 #include "gpu/intel/utils.hpp"
-
-#define DPRINT(fmt, ...) \
-    do { \
-        if (get_verbose_dev_mode(verbose_t::debuginfo) >= 2) { \
-            printf(fmt, __VA_ARGS__); \
-            fflush(nullptr); \
-        } \
-    } while (0)
 
 namespace dnnl {
 namespace impl {
@@ -53,7 +43,6 @@ namespace ocl {
 
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::gpu::intel::gpu_utils;
-using namespace dnnl::impl::math;
 using namespace prop_kind;
 using namespace alg_kind;
 using namespace rnn_utils;
@@ -938,6 +927,19 @@ status_t _simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
                         {rnn_conf.scratch_diff_states_ld, 1}, weights_type,
                         src_type, rnn_conf.acc_data_type, 0.0f),
                 "create_gemm_pd(gemm_layer_bwd_pd_)");
+        if (!rnn_conf.copy_diff_src_layer) {
+            if (rnn_conf.scratch_diff_states_ld != off.diff_src_layer[1])
+                VDISPATCH_RNN_SC(
+                        create_gemm_pd(gemm_layer_bwd_src_pd_, slc,
+                                layer_merged_size, n_gates * dhc,
+                                {rnn_conf.scratch_diff_gates_ld, 1},
+                                {off.weights_layer[4], off.weights_layer[2]},
+                                {off.diff_src_layer[1], 1}, weights_type,
+                                src_type, rnn_conf.acc_data_type, 0.0f),
+                        "create_gemm_pd(gemm_layer_bwd_src_pd_)");
+            else
+                gemm_layer_bwd_src_pd_ = gemm_layer_bwd_pd_;
+        }
         VDISPATCH_RNN_SC(
                 create_gemm_pd(gemm_diff_wei_layer_pd_, n_gates * dhc, slc,
                         layer_merged_size, {1, rnn_conf.states_ws_ld},
@@ -1025,6 +1027,12 @@ status_t _simple_rnn_common_t<aprop>::init(impl::engine_t *engine) {
                     && utils::everyone_is(status::success,
                             create_nested_primitive(gemm_layer_bwd_,
                                     pd()->gemm_layer_bwd_pd_, engine),
+                            (pd()->gemm_layer_bwd_src_pd_
+                                            ? create_nested_primitive(
+                                                    gemm_layer_bwd_src_,
+                                                    pd()->gemm_layer_bwd_src_pd_,
+                                                    engine)
+                                            : status::success),
                             create_nested_primitive(gemm_iter_bwd_,
                                     pd()->gemm_iter_bwd_pd_, engine),
                             create_nested_primitive(gemm_diff_wei_layer_,
@@ -1150,6 +1158,11 @@ gemm_sig((_simple_rnn_common_t<aprop>::gemm_primitive)) {
             init_gemm_nested_scratchpad(
                     gemm_layer_bwd_, rnn_utils::scratch_t::key_gemm_layer_bwd);
             CHECK(gpu_gemm(gemm_layer_bwd_)->execute(gemm_ctx));
+            break;
+        case gemm_layer_bwd_src:
+            init_gemm_nested_scratchpad(gemm_layer_bwd_src_,
+                    rnn_utils::scratch_t::key_gemm_layer_bwd);
+            CHECK(gpu_gemm(gemm_layer_bwd_src_)->execute(gemm_ctx));
             break;
         case gemm_diff_wei_iter:
             init_gemm_nested_scratchpad(gemm_diff_wei_iter_,
@@ -1575,8 +1588,6 @@ status_t _simple_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto rnn_pd = this->pd();
-
     const conf_t &rnn = this->pd()->rnn_conf;
 
     dim_t n_layer = rnn.n_layer;
@@ -1589,10 +1600,8 @@ status_t _simple_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     dim_t slc = rnn.slc;
     dim_t sic = rnn.sic;
     dim_t dhc = rnn.dhc;
-    dim_t dlc = rnn.dlc;
 
     bool is_fwd = rnn.is_fwd;
-    bool is_vanilla_gru = rnn.is_vanilla_gru;
 
     auto &src_layer_native_ = CTX_IN_STORAGE(DNNL_ARG_SRC_LAYER);
     auto &src_iter_native_ = CTX_IN_STORAGE(DNNL_ARG_SRC_ITER);
@@ -1638,36 +1647,6 @@ status_t _simple_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             wei_iter_native_, bias_native_, diff_src_layer_native_,
             diff_dst_layer_native_, diff_weights_layer_native_,
             diff_weights_iter_native_, rnn, pd()->off);
-
-    DPRINT("\n%s\n", "+++++++++++++++");
-    DPRINT(" aprop = %d\n", (int)aprop);
-    DPRINT("%s\n", "+++++++++++++++");
-    DPRINT("  n_layer         = %lld\n", into<long long>(n_layer));
-    DPRINT("  n_dir           = %lld\n", into<long long>(n_dir));
-    DPRINT("  n_iter          = %lld\n", into<long long>(n_iter));
-    DPRINT("  n_gates         = %lld\n", into<long long>(n_gates));
-    DPRINT("  n_bias          = %lld\n", into<long long>(n_bias));
-    DPRINT("  n_states        = %lld\n", into<long long>(n_states));
-    DPRINT("  n_weights_layer = %lld\n", into<long long>(rnn_pd->SLC()));
-    DPRINT("  n_weights_iter  = %lld\n", into<long long>(rnn_pd->SIC()));
-    DPRINT("  batch           = %lld\n", into<long long>(batch));
-    DPRINT("  slc             = %lld\n", into<long long>(slc));
-    DPRINT("  sic             = %lld\n", into<long long>(sic));
-    DPRINT("  dhc             = %lld\n", into<long long>(dhc));
-    DPRINT("  dlc             = %lld\n", into<long long>(dlc));
-    DPRINT("%s\n", "+++++++++++++++");
-    DPRINT("  is_fwd          = %s\n", is_fwd ? "yes" : "no");
-    DPRINT("  is_vanilla_gru  = %s\n", is_vanilla_gru ? "yes" : "no");
-    DPRINT("  use_workspace   = %s\n", rnn.use_workspace ? "yes" : "no");
-    DPRINT("%s\n", "+++++++++++++++");
-    DPRINT("  with_src_iter   = %s\n", rnn_pd->with_src_iter() ? "yes" : "no");
-    DPRINT("  with_src_iter_c = %s\n",
-            rnn_pd->with_src_iter_c() ? "yes" : "no");
-    DPRINT("  with_bias       = %s\n", rnn_pd->with_bias() ? "yes" : "no");
-    DPRINT("  with_dst_iter   = %s\n", rnn_pd->with_dst_iter() ? "yes" : "no");
-    DPRINT("  with_dst_iter_c = %s\n",
-            rnn_pd->with_dst_iter_c() ? "yes" : "no");
-    DPRINT("%s\n", "+++++++++++++++");
 
     // TODO: implement without copies
     bool is_lr = !one_of(rnn.exec_dir, r2l, r2l);

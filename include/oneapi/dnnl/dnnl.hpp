@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2024 Intel Corporation
+* Copyright 2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1412,6 +1413,7 @@ struct memory : public handle<dnnl_memory_t> {
         aBdeC8b4c = dnnl_aBdeC8b4c,
         aBdefc16b = dnnl_aBdefc16b,
         aCBdef16c16b = dnnl_aCBdef16c16b,
+        aCBdef8b8c = dnnl_aCBdef8b8c,
         aCBdef16b16c = dnnl_aCBdef16b16c,
         aBdefc4b = dnnl_aBdefc4b,
         aBdefc8b = dnnl_aBdefc8b,
@@ -1422,8 +1424,10 @@ struct memory : public handle<dnnl_memory_t> {
         Acb8a = dnnl_Acb8a,
         AcB8a2b = dnnl_AcB8a2b,
         AcB8a4b = dnnl_AcB8a4b,
+        aCBd8b8c = dnnl_aCBd8b8c,
         aCBd16b16c = dnnl_aCBd16b16c,
         aCBd16c16b = dnnl_aCBd16c16b,
+        aCBde8b8c = dnnl_aCBde8b8c,
         aCBde16b16c = dnnl_aCBde16b16c,
         aCBde16c16b = dnnl_aCBde16c16b,
         Acdb16a = dnnl_Acdb16a,
@@ -1436,12 +1440,15 @@ struct memory : public handle<dnnl_memory_t> {
         Acdeb8a = dnnl_Acdeb8a,
         AcdeB8a2b = dnnl_AcdeB8a2b,
         AcdeB8a4b = dnnl_AcdeB8a4b,
+        BAc8a8b = dnnl_BAc8a8b,
         BAc16a16b = dnnl_BAc16a16b,
         BAc16b16a = dnnl_BAc16b16a,
+        BAcd8a8b = dnnl_BAcd8a8b,
         BAcd16a16b = dnnl_BAcd16a16b,
         BAcd16b16a = dnnl_BAcd16b16a,
         ABcd32a32b = dnnl_ABcd32a32b,
         BAcde16b16a = dnnl_BAcde16b16a,
+        BAcde8a8b = dnnl_BAcde8a8b,
         BAcde16a16b = dnnl_BAcde16a16b,
         aBdec32b = dnnl_aBdec32b,
         Abcdef16a = dnnl_Abcdef16a,
@@ -1692,6 +1699,7 @@ struct memory : public handle<dnnl_memory_t> {
         gIOhw16i16o = dnnl_gIOhw16i16o,
         gOhwi32o = dnnl_gOhwi32o,
         Goidhw16g = dnnl_Goidhw16g,
+        IOw8o8i = dnnl_IOw8o8i,
         IOw16o16i = dnnl_IOw16o16i,
         OIw16i16o = dnnl_OIw16i16o,
         OwI16i16o = dnnl_OwI16i16o,
@@ -1748,6 +1756,7 @@ struct memory : public handle<dnnl_memory_t> {
         Owi8o = dnnl_Owi8o,
         OwI8o2i = dnnl_OwI8o2i,
         OwI8o4i = dnnl_OwI8o4i,
+        IOhw8o8i = dnnl_IOhw8o8i,
         IOhw16o16i = dnnl_IOhw16o16i,
         Ohwi16o = dnnl_Ohwi16o,
         OhwI16o2i = dnnl_OhwI16o2i,
@@ -1793,6 +1802,7 @@ struct memory : public handle<dnnl_memory_t> {
         OIhw8o8i = dnnl_OIhw8o8i,
         OIhw8o4i = dnnl_OIhw8o4i,
         OIhw2i8o4i = dnnl_OIhw2i8o4i,
+        IOdhw8o8i = dnnl_IOdhw8o8i,
         IOdhw16o16i = dnnl_IOdhw16o16i,
         Odhwi16o = dnnl_Odhwi16o,
         OdhwI16o2i = dnnl_OdhwI16o2i,
@@ -1846,6 +1856,7 @@ struct memory : public handle<dnnl_memory_t> {
         OdhwI8i8o = dnnl_OdhwI8i8o,
         OIdhw8o8i = dnnl_OIdhw8o8i,
         OIdhw8o4i = dnnl_OIdhw8o4i,
+        gIOw8o8i = dnnl_gIOw8o8i,
         gIOw16o16i = dnnl_gIOw16o16i,
         gOIw16i16o = dnnl_gOIw16i16o,
         gOIw16o16i = dnnl_gOIw16o16i,
@@ -1874,6 +1885,7 @@ struct memory : public handle<dnnl_memory_t> {
         gOwI8o4i = dnnl_gOwI8o4i,
         Goiw8g = dnnl_Goiw8g,
         Goiw16g = dnnl_Goiw16g,
+        gIOhw8o8i = dnnl_gIOhw8o8i,
         gIOhw16o16i = dnnl_gIOhw16o16i,
         gOhwi16o = dnnl_gOhwi16o,
         gOhwI16o2i = dnnl_gOhwI16o2i,
@@ -1920,6 +1932,7 @@ struct memory : public handle<dnnl_memory_t> {
         gOIhw8o8i = dnnl_gOIhw8o8i,
         gOIhw8o4i = dnnl_gOIhw8o4i,
         gIOdhw16i16o = dnnl_gIOdhw16i16o,
+        gIOdhw8o8i = dnnl_gIOdhw8o8i,
         gIOdhw16o16i = dnnl_gIOdhw16o16i,
         gOdhwi16o = dnnl_gOdhwi16o,
         gOdhwI16o2i = dnnl_gOdhwI16o2i,
@@ -4801,6 +4814,13 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
         return id;
     }
 
+    std::string get_error_creation_message(const char *prim) const {
+        return "could not create a primitive descriptor for a "
+                + std::string(prim) + " primitive. Run workload with "
+                "environment variable ONEDNN_VERBOSE=all to get additional " 
+                "diagnostic information.";
+    }
+
 protected:
     /// Returns a float value.
     /// @param what The value to query.
@@ -5038,9 +5058,8 @@ struct reorder : public primitive {
                     src_md.get(), src_engine.get(), dst_md.get(),
                     dst_engine.get(), attr.get());
             if (!allow_empty)
-                error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a reorder "
-                        "primitive");
+                error::wrap_c_api(
+                        status, get_error_creation_message("reorder").c_str());
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5066,9 +5085,8 @@ struct reorder : public primitive {
                     src_md.get(), src.get_engine().get(), dst_md.get(),
                     dst.get_engine().get(), attr.get());
             if (!allow_empty)
-                error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a reorder "
-                        "primitive");
+                error::wrap_c_api(
+                        status, get_error_creation_message("reorder").c_str());
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5191,9 +5209,8 @@ struct concat : public primitive {
                     aengine.get(), dst.get(), (int)c_srcs.size(),
                     concat_dimension, c_srcs.data(), attr.get());
             if (!allow_empty)
-                error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a concat "
-                        "primitive");
+                error::wrap_c_api(
+                        status, get_error_creation_message("concat").c_str());
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5225,9 +5242,8 @@ struct concat : public primitive {
                     aengine.get(), nullptr, (int)c_api_srcs.size(),
                     concat_dimension, c_api_srcs.data(), attr.get());
             if (!allow_empty)
-                error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a concat "
-                        "primitive");
+                error::wrap_c_api(
+                        status, get_error_creation_message("concat").c_str());
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5307,9 +5323,8 @@ struct sum : public primitive {
                     aengine.get(), dst.get(), (int)c_api_srcs.size(),
                     scales.data(), c_api_srcs.data(), attr.get());
             if (!allow_empty)
-                error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a sum "
-                        "primitive");
+                error::wrap_c_api(
+                        status, get_error_creation_message("sum").c_str());
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5342,9 +5357,8 @@ struct sum : public primitive {
                     aengine.get(), nullptr, (int)c_api_srcs.size(),
                     scales.data(), c_api_srcs.data(), attr.get());
             if (!allow_empty)
-                error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a sum "
-                        "primitive");
+                error::wrap_c_api(
+                        status, get_error_creation_message("sum").c_str());
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5684,8 +5698,9 @@ struct convolution_forward : public primitive {
                             &padding_l[0], &padding_r[0], attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a "
-                        "convolution forward propagation primitive");
+                        get_error_creation_message(
+                                "convolution forward propagation")
+                                .c_str());
             reset(pd);
         }
     };
@@ -5876,8 +5891,9 @@ struct convolution_backward_data : public primitive {
                             hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a "
-                        "convolution backward propagation primitive");
+                        get_error_creation_message(
+                                "convolution backward propagation")
+                                .c_str());
             reset(pd);
         }
     };
@@ -6182,8 +6198,8 @@ struct convolution_backward_weights : public primitive {
                             &padding_r[0], hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a "
-                        "convolution weights update primitive");
+                        get_error_creation_message("convolution weights update")
+                                .c_str());
             reset(pd);
         }
     };
@@ -6478,8 +6494,9 @@ struct deconvolution_forward : public primitive {
                             &padding_l[0], &padding_r[0], attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a "
-                        "deconvolution forward propagation primitive");
+                        get_error_creation_message(
+                                "deconvolution forward propagation")
+                                .c_str());
             reset(pd);
         }
     };
@@ -6668,8 +6685,9 @@ struct deconvolution_backward_data : public primitive {
                             hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a "
-                        "deconvolution backward propagation primitive");
+                        get_error_creation_message(
+                                "deconvolution backward propagation")
+                                .c_str());
             reset(pd);
         }
     };
@@ -6967,8 +6985,9 @@ struct deconvolution_backward_weights : public primitive {
                             &padding_r[0], hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a "
-                        "deconvolution weights update primitive");
+                        get_error_creation_message(
+                                "deconvolution weights update")
+                                .c_str());
             reset(pd);
         }
     };
@@ -7046,8 +7065,8 @@ struct lrn_forward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a lrn "
-                        "forward propagation primitive");
+                        get_error_creation_message("lrn forward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -7153,8 +7172,8 @@ struct lrn_backward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a lrn "
-                        "backward propagation primitive");
+                        get_error_creation_message("lrn backward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -7366,8 +7385,9 @@ struct eltwise_forward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for an "
-                        "eltwise forward propagation primitive");
+                        get_error_creation_message(
+                                "eltwise forward propagation")
+                                .c_str());
             reset(pd);
         }
     };
@@ -7543,8 +7563,9 @@ struct eltwise_backward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for an "
-                        "eltwise backward propagation primitive");
+                        get_error_creation_message(
+                                "eltwise backward propagation")
+                                .c_str());
             reset(pd);
         }
     };
@@ -7616,8 +7637,9 @@ struct softmax_forward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a softmax "
-                        "forward propagation primitive");
+                        get_error_creation_message(
+                                "softmax forward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -7707,8 +7729,9 @@ struct softmax_backward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a softmax "
-                        "backward propagation primitive");
+                        get_error_creation_message(
+                                "softmax backward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -7825,8 +7848,9 @@ struct batch_normalization_forward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a batch "
-                        "normalization forward propagation primitive");
+                        get_error_creation_message(
+                                "batch normalization forward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -7953,8 +7977,9 @@ struct batch_normalization_backward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a batch "
-                        "normalization backward propagation primitive");
+                        get_error_creation_message(
+                                "batch normalization backward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -8098,8 +8123,9 @@ struct group_normalization_forward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a group "
-                        "normalization forward propagation primitive");
+                        get_error_creation_message(
+                                "group normalization forward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -8230,8 +8256,9 @@ struct group_normalization_backward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a group "
-                        "normalization backward propagation primitive");
+                        get_error_creation_message(
+                                "group normalization backward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -8536,8 +8563,9 @@ struct layer_normalization_forward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a layer "
-                        "normalization forward propagation primitive");
+                        get_error_creation_message(
+                                "layer normalization forward propagation")
+                                .c_str());
             reset(pd);
         }
     };
@@ -8805,8 +8833,9 @@ struct layer_normalization_backward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a layer "
-                        "normalization backward propagation primitive");
+                        get_error_creation_message(
+                                "layer normalization backward propagation")
+                                .c_str());
             reset(pd);
         }
     };
@@ -8945,8 +8974,9 @@ struct inner_product_forward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for an inner "
-                        "product forward propagation primitive");
+                        get_error_creation_message(
+                                "inner product forward propagation")
+                                .c_str());
             reset(pd);
         }
     };
@@ -9012,8 +9042,9 @@ struct inner_product_backward_data : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for an inner "
-                        "product backward propagation primitive");
+                        get_error_creation_message(
+                                "inner product backward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -9173,8 +9204,9 @@ struct inner_product_backward_weights : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for an inner "
-                        "product weights gradient primitive");
+                        get_error_creation_message(
+                                "inner product weights gradient")
+                                .c_str());
             reset(pd);
         }
     };
@@ -9460,7 +9492,7 @@ protected:
             float beta, const primitive_attr &attr, bool allow_empty) {
 
         dnnl_status_t status = dnnl_success;
-        const char *msg
+        std::string msg
                 = "could not create a primitive descriptor for a requested "
                   "cell kind";
 
@@ -9475,8 +9507,8 @@ protected:
                         weights_iter_desc.get(), bias_desc.get(),
                         dst_layer_desc.get(), dst_iter_desc.get(),
                         convert_to_c(flags), alpha, beta, attr.get());
-                msg = "could not create a primitive descriptor for a vanilla "
-                      "RNN forward propagation primitive";
+                msg = get_error_creation_message(
+                        "vanilla RNN forward propagation");
                 break;
             case algorithm::vanilla_lstm:
                 status = dnnl_lstm_forward_primitive_desc_create(&pd,
@@ -9489,8 +9521,7 @@ protected:
                         dst_layer_desc.get(), dst_iter_desc.get(),
                         optional_arg(dst_iter_c_desc), convert_to_c(flags),
                         attr.get());
-                msg = "could not create a primitive descriptor for an LSTM "
-                      "forward propagation primitive";
+                msg = get_error_creation_message("LSTM forward propagation");
                 break;
             case algorithm::vanilla_gru:
                 status = dnnl_gru_forward_primitive_desc_create(&pd,
@@ -9500,8 +9531,7 @@ protected:
                         weights_iter_desc.get(), bias_desc.get(),
                         dst_layer_desc.get(), dst_iter_desc.get(),
                         convert_to_c(flags), attr.get());
-                msg = "could not create a primitive descriptor for a GRU "
-                      "forward propagation primitive";
+                msg = get_error_creation_message("GRU forward propagation");
                 break;
             case algorithm::lbr_gru:
                 status = dnnl_lbr_gru_forward_primitive_desc_create(&pd,
@@ -9511,8 +9541,7 @@ protected:
                         weights_iter_desc.get(), bias_desc.get(),
                         dst_layer_desc.get(), dst_iter_desc.get(),
                         convert_to_c(flags), attr.get());
-                msg = "could not create a primitive descriptor for an LBR GRU "
-                      "forward propagation primitive";
+                msg = get_error_creation_message("LBR GRU forward propagation");
                 break;
             case algorithm::vanilla_augru:
                 status = dnnl_augru_forward_primitive_desc_create(&pd,
@@ -9522,8 +9551,7 @@ protected:
                         weights_layer_desc.get(), weights_iter_desc.get(),
                         bias_desc.get(), dst_layer_desc.get(),
                         dst_iter_desc.get(), convert_to_c(flags), attr.get());
-                msg = "could not create a primitive descriptor for an AUGRU "
-                      "forward propagation primitive";
+                msg = get_error_creation_message("AUGRU forward propagation");
                 break;
             case algorithm::lbr_augru:
                 status = dnnl_lbr_augru_forward_primitive_desc_create(&pd,
@@ -9533,13 +9561,13 @@ protected:
                         weights_layer_desc.get(), weights_iter_desc.get(),
                         bias_desc.get(), dst_layer_desc.get(),
                         dst_iter_desc.get(), convert_to_c(flags), attr.get());
-                msg = "could not create a primitive descriptor for an LBR "
-                      "AUGRU forward propagation primitive";
+                msg = get_error_creation_message(
+                        "LBR AUGRU forward propagation");
                 break;
             default: status = dnnl_unimplemented;
         }
 
-        if (!allow_empty) error::wrap_c_api(status, msg);
+        if (!allow_empty) error::wrap_c_api(status, msg.c_str());
         reset(pd);
     }
 
@@ -9574,7 +9602,7 @@ protected:
             const primitive_attr &attr, bool allow_empty) {
 
         dnnl_status_t status = dnnl_success;
-        const char *msg = "";
+        std::string msg = "";
 
         dnnl_primitive_desc_t pd = nullptr;
         switch (cell_kind) {
@@ -9592,8 +9620,8 @@ protected:
                         diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), alpha, beta, hint_fwd_pd.get(),
                         attr.get());
-                msg = "could not create a primitive descriptor for a vanilla "
-                      "RNN backward propagation primitive";
+                msg = get_error_creation_message(
+                        "vanilla RNN backward propagation");
                 break;
             case algorithm::vanilla_lstm:
                 status = dnnl_lstm_backward_primitive_desc_create(&pd,
@@ -9615,8 +9643,7 @@ protected:
                         diff_dst_iter_desc.get(),
                         optional_arg(diff_dst_iter_c_desc), convert_to_c(flags),
                         hint_fwd_pd.get(), attr.get());
-                msg = "could not create a primitive descriptor for an LSTM "
-                      "backward propagation primitive";
+                msg = get_error_creation_message("LSTM backward propagation");
                 break;
             case algorithm::vanilla_gru:
                 status = dnnl_gru_backward_primitive_desc_create(&pd,
@@ -9630,8 +9657,7 @@ protected:
                         diff_weights_iter_desc.get(), diff_bias_desc.get(),
                         diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
-                msg = "could not create a primitive descriptor for a GRU "
-                      "backward propagation primitive";
+                msg = get_error_creation_message("GRU backward propagation");
                 break;
             case algorithm::lbr_gru:
                 status = dnnl_lbr_gru_backward_primitive_desc_create(&pd,
@@ -9645,8 +9671,8 @@ protected:
                         diff_weights_iter_desc.get(), diff_bias_desc.get(),
                         diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
-                msg = "could not create a primitive descriptor for an LBR GRU "
-                      "backward propagation primitive";
+                msg = get_error_creation_message(
+                        "LBR GRU backward propagation");
                 break;
             case algorithm::vanilla_augru:
                 status = dnnl_augru_backward_primitive_desc_create(&pd,
@@ -9662,8 +9688,7 @@ protected:
                         diff_weights_iter_desc.get(), diff_bias_desc.get(),
                         diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
-                msg = "could not create a primitive descriptor for an AUGRU "
-                      "backward propagation primitive";
+                msg = get_error_creation_message("AUGRU backward propagation");
                 break;
             case algorithm::lbr_augru:
                 status = dnnl_lbr_augru_backward_primitive_desc_create(&pd,
@@ -9679,12 +9704,12 @@ protected:
                         diff_weights_iter_desc.get(), diff_bias_desc.get(),
                         diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
-                msg = "could not create a primitive descriptor for an LBR "
-                      "AUGRU backward propagation primitive";
+                msg = get_error_creation_message(
+                        "LBR AUGRU backward propagation");
                 break;
             default: status = dnnl_unimplemented;
         }
-        if (!allow_empty) error::wrap_c_api(status, msg);
+        if (!allow_empty) error::wrap_c_api(status, msg.c_str());
         reset(pd);
     }
 };
@@ -12418,8 +12443,9 @@ struct shuffle_forward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a shuffle "
-                        "forward propagation primitive");
+                        get_error_creation_message(
+                                "shuffle forward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -12505,8 +12531,9 @@ struct shuffle_backward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a shuffle "
-                        "backward propagation primitive");
+                        get_error_creation_message(
+                                "shuffle backward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -12597,8 +12624,7 @@ struct binary : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a binary "
-                        "operation primitive");
+                        get_error_creation_message("binary operation").c_str());
             reset(pd);
         }
 
@@ -12736,9 +12762,8 @@ struct matmul : public primitive {
                     optional_arg(bias_desc), dst_desc.get(), attr.get());
 
             if (!allow_empty)
-                error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a matmul "
-                        "primitive");
+                error::wrap_c_api(
+                        status, get_error_creation_message("matmul").c_str());
             reset(pd);
         }
     };
@@ -12900,8 +12925,9 @@ struct resampling_forward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a "
-                        "resampling forward propagation primitive");
+                        get_error_creation_message(
+                                "resampling forward propagation")
+                                .c_str());
             reset(pd);
         }
     };
@@ -13024,8 +13050,9 @@ struct resampling_backward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a "
-                        "resampling backward propagation primitive");
+                        get_error_creation_message(
+                                "resampling backward propagation")
+                                .c_str());
             reset(pd);
         }
     };
@@ -13361,8 +13388,8 @@ struct prelu_forward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a prelu "
-                        "forward propagation primitive");
+                        get_error_creation_message("prelu forward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -13446,8 +13473,8 @@ struct prelu_backward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a prelu "
-                        "backward propagation primitive");
+                        get_error_creation_message("prelu backward propagation")
+                                .c_str());
             reset(pd);
         }
 
@@ -13546,8 +13573,7 @@ struct reduction : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        "could not create a primitive descriptor for a "
-                        "reduction primitive descriptor");
+                        get_error_creation_message("reduction").c_str());
             reset(pd);
         }
 

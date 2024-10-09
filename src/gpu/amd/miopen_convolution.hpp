@@ -50,7 +50,7 @@ struct miopen_convolution_fwd_t : public gpu::primitive_t {
             using namespace data_type;
 
             using sm_t = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm_t::oscale_runtime | sm_t::post_ops;
+            const auto attr_skip_mask = sm_t::post_ops;
 
             bool ok = utils::one_of(desc()->prop_kind,
                     prop_kind::forward_training, prop_kind::forward_inference);
@@ -81,10 +81,6 @@ struct miopen_convolution_fwd_t : public gpu::primitive_t {
                     && IMPLICATION(
                             desc()->alg_kind == dnnl_convolution_winograd,
                             ndims() < 5 && src_md_.data_type != s8);
-            ok = ok
-                    && IMPLICATION(!attr()->output_scales_.has_default_values(),
-                            src_md_.data_type == s8
-                                    && attr()->output_scales_.mask_ == 0);
             ok = ok
                     && IMPLICATION(
                             src_md_.data_type == s8, check_s8_configuration())

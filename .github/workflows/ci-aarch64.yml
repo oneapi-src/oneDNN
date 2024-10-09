@@ -70,7 +70,8 @@ jobs:
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
           GCC_VERSION: 14
 
-      - name: Run oneDNN smoke tests
+      - if: matrix.toolset == 'clang'
+        name: Run oneDNN smoke tests
         run: ${{ github.workspace }}/oneDNN/.github/automation/test_aarch64.sh
         working-directory: ${{ github.workspace }}/oneDNN/build
         env:
@@ -82,7 +83,7 @@ jobs:
     needs: macos
     strategy:
       matrix:
-        threading: [SEQ, OMP]
+        threading: [OMP]
         toolset: [clang, gcc]
         config: [Debug, Release]
         host: [

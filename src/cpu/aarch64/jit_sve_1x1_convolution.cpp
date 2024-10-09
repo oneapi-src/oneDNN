@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
-* Copyright 2021-2023 FUJITSU LIMITED
+* Copyright 2021-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 
 #include "cpu/aarch64/jit_generator.hpp"
 
-#include "cpu/aarch64/jit_sve_512_1x1_convolution.hpp"
+#include "cpu/aarch64/jit_sve_1x1_convolution.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -39,9 +39,10 @@ using namespace dnnl::impl::utils;
                                   : (f).blk_off(n, c, d, h, w)))
 /* convolution forward */
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_sve_512_1x1_convolution_fwd_t<src_type, wei_type,
-        dst_type>::execute_forward(const exec_ctx_t &ctx) const {
+template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
+        cpu_isa_t isa_>
+void jit_sve_1x1_convolution_fwd_t<src_type, wei_type, dst_type,
+        isa_>::execute_forward(const exec_ctx_t &ctx) const {
     const auto &jcp = kernel_->jcp;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -79,9 +80,10 @@ void jit_sve_512_1x1_convolution_fwd_t<src_type, wei_type,
     if (pd()->wants_zero_pad_dst()) ctx.zero_pad_output(DNNL_ARG_DST);
 }
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_sve_512_1x1_convolution_fwd_t<src_type, wei_type,
-        dst_type>::execute_forward_thr(const int ithr, const int nthr,
+template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
+        cpu_isa_t isa_>
+void jit_sve_1x1_convolution_fwd_t<src_type, wei_type, dst_type,
+        isa_>::execute_forward_thr(const int ithr, const int nthr,
         const src_data_t *src, const wei_data_t *weights,
         const dst_data_t *bias, const wei_data_t *weights_dw,
         const dst_data_t *bias_dw, dst_data_t *dst,
@@ -112,8 +114,7 @@ void jit_sve_512_1x1_convolution_fwd_t<src_type, wei_type,
     };
 
     auto p = jit_1x1_conv_call_s();
-
-    auto rp = rtus_driver_t<sve_512>::call_params_t();
+    auto rp = typename rtus_driver_t<isa_>::call_params_t();
     const int nb_oc = jcp.nb_load;
     const int nb_ic = jcp.nb_reduce;
     const int nb_ic_blocking = jcp.nb_reduce_blocking;
@@ -438,13 +439,16 @@ void jit_sve_512_1x1_convolution_fwd_t<src_type, wei_type,
     }
 }
 
-template struct jit_sve_512_1x1_convolution_fwd_t<data_type::f32>;
+template struct jit_sve_1x1_convolution_fwd_t<data_type::f32, data_type::f32,
+        data_type::f32, sve_256>;
+template struct jit_sve_1x1_convolution_fwd_t<data_type::f32, data_type::f32,
+        data_type::f32, sve_512>;
 
 /* convolution backward wtr data */
 template <data_type_t diff_dst_type, data_type_t wei_type,
-        data_type_t diff_src_type>
-void jit_sve_512_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
-        diff_src_type>::execute_backward_data(const exec_ctx_t &ctx) const {
+        data_type_t diff_src_type, cpu_isa_t isa_>
+void jit_sve_1x1_convolution_bwd_data_t<diff_dst_type, wei_type, diff_src_type,
+        isa_>::execute_backward_data(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
@@ -481,7 +485,7 @@ void jit_sve_512_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         auto p = jit_1x1_conv_call_s();
-        auto rp = rtus_driver_t<sve_512>::call_params_t();
+        auto rp = typename rtus_driver_t<isa_>::call_params_t();
 
         int bcast_start {0}, bcast_end {0}, icb_start {0}, icb_end {0};
         balance2D(nthr, ithr, work_amount, bcast_start, bcast_end, jcp.nb_load,
@@ -587,7 +591,10 @@ void jit_sve_512_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
     });
 }
 
-template struct jit_sve_512_1x1_convolution_bwd_data_t<data_type::f32>;
+template struct jit_sve_1x1_convolution_bwd_data_t<data_type::f32,
+        data_type::f32, data_type::f32, sve_256>;
+template struct jit_sve_1x1_convolution_bwd_data_t<data_type::f32,
+        data_type::f32, data_type::f32, sve_512>;
 
 /* convolution backward wtr weights */
 
@@ -595,25 +602,30 @@ template struct jit_sve_512_1x1_convolution_bwd_data_t<data_type::f32>;
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
 
-status_t jit_sve_512_1x1_convolution_bwd_weights_t ::init(engine_t *engine) {
+template <data_type_t diff_dst_type, data_type_t wei_type,
+        data_type_t diff_src_type, cpu_isa_t isa_>
+status_t jit_sve_1x1_convolution_bwd_weights_t<diff_dst_type, wei_type,
+        diff_src_type, isa_>::init(engine_t *engine) {
 
     CHECK(safe_ptr_assign(kernel_,
-            new jit_sve_512_1x1_conv_kernel(
+            new jit_sve_1x1_conv_kernel<isa_>(
                     pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
     CHECK(safe_ptr_assign(
-            acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
+            acc_ker_, new cpu_accumulator_1d_t<data_type::f32, isa_>()));
     CHECK(safe_ptr_assign(reducer_bias_,
-            new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_)));
+            new cpu_reducer_t<data_type::f32, isa_>(pd()->reducer_bia_conf_)));
     CHECK(kernel_->create_kernel());
     CHECK(acc_ker_->create_kernel());
     CHECK(reducer_bias_->create_kernel());
 
-    CHECK(init_rtus_driver<sve_512>(this));
+    CHECK(init_rtus_driver<isa_>(this));
     return status::success;
 }
-
-void jit_sve_512_1x1_convolution_bwd_weights_t::execute_backward_weights(
-        const exec_ctx_t &ctx) const {
+template <data_type_t diff_dst_type, data_type_t wei_type,
+        data_type_t diff_src_type, cpu_isa_t isa_>
+void jit_sve_1x1_convolution_bwd_weights_t<diff_dst_type, wei_type,
+        diff_src_type, isa_>::execute_backward_weights(const exec_ctx_t &ctx)
+        const {
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto diff_weights = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_WEIGHTS);
@@ -785,7 +797,7 @@ void jit_sve_512_1x1_convolution_bwd_weights_t::execute_backward_weights(
                         const data_t *local_src = diff_src;
 
                         auto p = jit_1x1_conv_call_s();
-                        auto rp = rtus_driver_t<sve_512>::call_params_t();
+                        auto rp = typename rtus_driver_t<isa_>::call_params_t();
                         p.output_stride = utils::rnd_up(jcp.ic, jcp.ic_block)
                                 * jcp.oc_block * jcp.typesize_out;
 
@@ -923,7 +935,7 @@ void jit_sve_512_1x1_convolution_bwd_weights_t::execute_backward_weights(
                 const auto max_oc = this_block_size(
                         ocb * jcp.oc_block, jcp.oc, jcp.oc_block);
                 if (img == img_start)
-                    for (int o = 0; o < 16; ++o)
+                    for (int o = 0; o < jcp.oc_block; ++o)
                         d_bias[o] = 0.;
 
                 for (int os = 0; os < jcp.os; ++os) {
@@ -1033,6 +1045,11 @@ void jit_sve_512_1x1_convolution_bwd_weights_t::execute_backward_weights(
         }
     }
 }
+
+template struct jit_sve_1x1_convolution_bwd_weights_t<data_type::f32,
+        data_type::f32, data_type::f32, sve_256>;
+template struct jit_sve_1x1_convolution_bwd_weights_t<data_type::f32,
+        data_type::f32, data_type::f32, sve_512>;
 
 } // namespace aarch64
 } // namespace cpu

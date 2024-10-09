@@ -192,14 +192,12 @@ protected:
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::write>
                     arg_scale,
             float val, const size_t n) const {
-        cuda_stream->interop_task([&](::sycl::handler &cgh) {
-            T *scale_ptr = static_cast<T *>(arg_scale.get_native_pointer(ih));
-            CUDA_EXECUTE_FUNC(cuMemsetD32Async,
-                    reinterpret_cast<CUdeviceptr>(scale_ptr),
-                    reinterpret_cast<int &>(val), n,
-                    cuda_stream->get_underlying_stream());
-            cudaDeviceSynchronize();
-        });
+        T *scale_ptr = static_cast<T *>(arg_scale.get_native_pointer(ih));
+        CUDA_EXECUTE_FUNC(cuMemsetD32Async,
+                reinterpret_cast<CUdeviceptr>(scale_ptr),
+                reinterpret_cast<int &>(val), n,
+                cuda_stream->get_underlying_stream());
+        sync_device();
     }
 
     // Handle the cases when mean and var are read-only accessors or nullptr
@@ -216,17 +214,15 @@ protected:
             xpu::sycl::interop_memory_arg_t<::sycl::access_mode::write> arg_var,
             const size_t n) const {
         constexpr T mean_var_val = 0;
-        cuda_stream->interop_task([&](::sycl::handler &cgh) {
-            T *mean_ptr = static_cast<T *>(arg_mean.get_native_pointer(ih));
-            T *var_ptr = static_cast<T *>(arg_var.get_native_pointer(ih));
-            CUDA_EXECUTE_FUNC(cuMemsetD32Async,
-                    reinterpret_cast<CUdeviceptr>(mean_ptr), mean_var_val, n,
-                    cuda_stream->get_underlying_stream());
-            CUDA_EXECUTE_FUNC(cuMemsetD32Async,
-                    reinterpret_cast<CUdeviceptr>(var_ptr), mean_var_val, n,
-                    cuda_stream->get_underlying_stream());
-            cudaDeviceSynchronize();
-        });
+        T *mean_ptr = static_cast<T *>(arg_mean.get_native_pointer(ih));
+        T *var_ptr = static_cast<T *>(arg_var.get_native_pointer(ih));
+        CUDA_EXECUTE_FUNC(cuMemsetD32Async,
+                reinterpret_cast<CUdeviceptr>(mean_ptr), mean_var_val, n,
+                cuda_stream->get_underlying_stream());
+        CUDA_EXECUTE_FUNC(cuMemsetD32Async,
+                reinterpret_cast<CUdeviceptr>(var_ptr), mean_var_val, n,
+                cuda_stream->get_underlying_stream());
+        sync_device();
     }
 };
 

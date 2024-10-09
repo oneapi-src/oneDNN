@@ -24,26 +24,15 @@
 #define GWS_GET_THREAD_ID(index) \
     (off_t)(get_global_id(index) + offset.array[index])
 
-__kernel void subbyte_pack(__global uchar *restrict src,
-        __global uchar *restrict dst, off_t n, int bits, int64x3_t offset) {
-    const uchar mask = (1 << bits) - 1;
-
-    const off_t dst_off = get_global_id(0) + offset.array[0];
-    const off_t src_off = (8 / bits) * dst_off;
-
-    uchar packed = 0;
-    for (int i = 0, j = 0; i < 8; i += bits, ++j) {
-        uchar byte = src_off + j < n ? src[src_off + j] : 0;
-        packed |= (byte & mask) << i;
-    }
-    dst[dst_off] = packed;
-}
-
 KERNEL_ATTR
 __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
         __global DST_DATA_T *restrict dst, __global float *restrict src_scales,
         __global int *restrict src_zps, __global float *restrict dst_scales,
-        __global int *dst_zps, float sum_scale, int sum_zp, int64x3_t offset) {
+        __global int *dst_zps, float sum_scale, int sum_zp,
+#if WITH_SROUND
+        __global uint *sround_seed_buf,
+#endif
+        int64x3_t offset) {
 
     const int src_zp = GET_SRC_ZP(src_zps);
     const int dst_zp = GET_DST_ZP(dst_zps);
@@ -66,6 +55,10 @@ __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
     const off_t d3_blk_end = d3_blk_start + GWS_GET_D3_BLOCK();
     const off_t d4_blk_end = d4_blk_start + GWS_GET_D4_BLOCK();
     const off_t d5_blk_end = d5_blk_start + GWS_GET_D5_BLOCK();
+
+#if WITH_SROUND
+    const uint sround_seed = *sround_seed_buf;
+#endif
 
     for_(off_t d0 = d0_blk_start; d0 < d0_blk_end; ++d0)
     for_(off_t d1 = d1_blk_start; d1 < d1_blk_end; ++d1)
@@ -98,7 +91,13 @@ __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
 #else
         SRC_DATA_T src_value = src[src_off];
 #endif
-        REORDER(dst[dst_off], src_value, src_scale, dst_scale, sum_scale,
+#if WITH_SROUND
+#define ROUND(f) stochastic_round_fwd(f, dst_off, sround_seed)
+#else
+#define ROUND DEFAULT_ROUND
+#endif
+
+        REORDER(ROUND, dst[dst_off], src_value, src_scale, dst_scale, sum_scale,
                 src_zp, dst_zp, sum_zp);
     }
 }

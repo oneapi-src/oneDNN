@@ -508,7 +508,17 @@ int64_t div_up(const int64_t a, const int64_t b) {
     return (a + b - 1) / b;
 }
 
+size_t div_up(const size_t a, const size_t b) {
+    SAFE_V(b != 0 ? OK : FAIL);
+    return (a + b - 1) / b;
+}
+
 int64_t rnd_up(const int64_t a, const int64_t b) {
+    SAFE_V(b != 0 ? OK : FAIL);
+    return div_up(a, b) * b;
+}
+
+size_t rnd_up(const size_t a, const size_t b) {
     SAFE_V(b != 0 ? OK : FAIL);
     return div_up(a, b) * b;
 }

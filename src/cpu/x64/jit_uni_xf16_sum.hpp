@@ -258,6 +258,8 @@ struct jit_xf16_sum_t : public primitive_t {
         status_t init(engine_t *engine) {
 
             unsigned int max_num_arrs;
+            // disabling verbose dispatch messages for unsupported isa for
+            // better readability
             if (!mayiuse(isa)) return status::unimplemented;
             if (is_superset(isa, avx512_core)) {
                 max_num_arrs = jit_avx512_core_bf16_sum_kernel_t::max_num_arrs;

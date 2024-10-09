@@ -186,10 +186,7 @@ void serialize_attr(
     // acc_mode
     sstream.write(&attr.acc_mode_);
 
-    if (!attr.output_scales_.has_default_values()) {
-        // output_scales: mask
-        sstream.write(&attr.output_scales_.mask_);
-    } else if (!attr.scales_.has_default_values()) {
+    if (!attr.scales_.has_default_values()) {
         sstream.write("scale:");
         // go through scales for all arguments
         for (const auto &p : attr.scales_.scales_) {

@@ -43,7 +43,6 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             ? bias.offset() / types::data_type_size(exec_d->bias_type())
             : 0;
 
-    const auto &scales = memory_storage_t::empty_storage();
     const auto &a0 = GEMM_CTX_ARG_STORAGE(a_zero_point);
     const auto &b0 = GEMM_CTX_ARG_STORAGE(b_zero_point);
     const auto &c0 = GEMM_CTX_ARG_STORAGE(c_zero_point);
@@ -62,7 +61,6 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     const dim_t ldb = exec_d->ldb();
     const dim_t ldc = exec_d->ldc();
 
-    const dim_t scale_stride = 1;
     const float eltwise_alpha = pd()->attr_info.eltwise_alpha;
     const float eltwise_beta = pd()->attr_info.eltwise_beta;
     const float eltwise_scale = pd()->attr_info.eltwise_scale;
@@ -101,9 +99,7 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     arg_list.set(25, b0);
     arg_list.set(26, c0);
     arg_list.set(27, c0_mask);
-    arg_list.set(28, scales);
-    arg_list.set(29, scale_stride);
-    arg_list.set(30, beta);
+    arg_list.set(28, beta);
 
     const compute::range_t gws = {(size_t)N, (size_t)M, (size_t)MB};
     const auto nd_range = compute::nd_range_t(gws);

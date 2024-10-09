@@ -428,14 +428,14 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     p.beta = sum_idx == -1 ? 0.f : attr->post_ops_.entry_[sum_idx].sum.scale;
 
     DEBUG({
-        verbose_printf(verbose_t::debuginfo, "init : ");
-        prb_dump(p);
+        verbose_printf(
+                verbose_t::debuginfo, "init : %s\n", prb_dump(p).c_str());
     });
 
     prb_normalize(p);
     DEBUG({
-        verbose_printf(verbose_t::debuginfo, "norm : ");
-        prb_dump(p);
+        verbose_printf(
+                verbose_t::debuginfo, "norm : %s\n", prb_dump(p).c_str());
     });
 
     // compensation strides require prb_normalized
@@ -443,8 +443,8 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
     prb_simplify(p);
     DEBUG({
-        verbose_printf(verbose_t::debuginfo, "smpl : ");
-        prb_dump(p);
+        verbose_printf(
+                verbose_t::debuginfo, "smpl : %s\n", prb_dump(p).c_str());
     });
 
     return success;
@@ -596,19 +596,20 @@ void prb_node_move(prb_t &p, int d0, int d1) {
     p.nodes[d1] = node;
 }
 
-void prb_dump(const prb_t &p) {
-    verbose_printf(verbose_t::debuginfo, "@@@ type:%s:%s ndims:%d ",
-            dnnl_dt2str(p.itype), dnnl_dt2str(p.otype), p.ndims);
+std::string prb_dump(const prb_t &p) {
+    std::stringstream ss;
+    ss << "@@@ type:" << dnnl_dt2str(p.itype) << ':' << dnnl_dt2str(p.otype)
+       << " ndims:" << p.ndims;
     for (int d = 0; d < p.ndims; ++d) {
-        if (d != 0) verbose_printf(verbose_t::debuginfo, "x");
-        verbose_printf(verbose_t::debuginfo,
-                "[%zu:%zu:%d:%d:%s:%td:%td:%td:%td]", p.nodes[d].n,
-                p.nodes[d].tail_size, p.nodes[d].dim_id,
-                p.nodes[d].parent_node_id,
-                p.nodes[d].is_zero_pad_needed ? "true" : "false", p.nodes[d].is,
-                p.nodes[d].os, p.nodes[d].ss, p.nodes[d].cs);
+        if (d != 0) ss << 'x';
+        const auto &node = p.nodes[d];
+        ss << '[' << node.n << ':' << node.tail_size << ':' << node.dim_id
+           << ':' << node.parent_node_id << ':'
+           << (node.is_zero_pad_needed ? "true" : "false") << ':' << node.is
+           << ':' << node.os << ':' << node.ss << ':' << node.cs << ']';
     }
-    verbose_printf(verbose_t::debuginfo, " off:%zu:%zu\n", p.ioff, p.ooff);
+    ss << " off:" << p.ioff << ':' << p.ooff;
+    return ss.str();
 }
 
 } // namespace tr

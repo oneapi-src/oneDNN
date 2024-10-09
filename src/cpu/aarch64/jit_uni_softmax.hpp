@@ -19,6 +19,7 @@
 #define CPU_AARCH64_JIT_UNI_SOFTMAX_HPP
 
 #include <assert.h>
+#include <memory>
 
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
@@ -119,7 +120,9 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    softmax_impl::driver_t<isa> *softmax_driver_;
+    std::unique_ptr<softmax_impl::driver_t<isa>> softmax_driver_;
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_softmax_fwd_t);
 };
 
 template <cpu_isa_t isa>
@@ -191,7 +194,9 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    softmax_impl::driver_t<isa> *softmax_driver_;
+    std::unique_ptr<softmax_impl::driver_t<isa>> softmax_driver_;
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_softmax_bwd_t);
 };
 
 } // namespace aarch64

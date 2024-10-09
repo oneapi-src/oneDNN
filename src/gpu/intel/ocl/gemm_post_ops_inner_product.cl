@@ -34,7 +34,7 @@
 
 __kernel void gemm_post_ops_inner_product(__global SRC_DATA_T *src,
         __global BIAS_DATA_T *bias, __global DST_DATA_T *dst POST_OP_ARGS,
-        __global SPAD_DATA_T *scratchpad, global float *scales) {
+        __global SPAD_DATA_T *scratchpad) {
     const size_t mb = get_global_id(0) / OC;
     const size_t oc = get_global_id(0) % OC;
 
@@ -47,17 +47,6 @@ __kernel void gemm_post_ops_inner_product(__global SRC_DATA_T *src,
 
 #if WITH_BIAS == 1
     acc += BIAS_TO_ACC(bias[oc]);
-#endif
-
-#if WITH_SCALES
-#if SCALES_COMMON
-    const float scale = scales[0];
-#elif SCALES_PER_OC
-    const float scale = scales[oc];
-#else
-#error "Unsupported scale type"
-#endif
-    acc *= scale;
 #endif
 
     // Apply postops

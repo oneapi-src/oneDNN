@@ -205,7 +205,7 @@ struct memory_desc_wrapper : public c_compatible {
         return 0;
     }
 
-    int blk_size() const {
+    dim_t blk_size() const {
         assert(is_blocking_desc() || is_sparse_packed_desc());
         const auto &bd = blocking_desc();
         return utils::array_product(bd.inner_blks, bd.inner_nblks);
@@ -262,7 +262,7 @@ struct memory_desc_wrapper : public c_compatible {
             }
 
             if (max_size == 1 && bd.inner_nblks != 0) {
-                max_size = utils::array_product(bd.inner_blks, bd.inner_nblks);
+                max_size = static_cast<size_t>(blk_size());
             }
 
             size_t data_size = max_size * data_type_size()

@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -53,7 +54,7 @@ bool key_t::operator==(const key_t &rhs) const {
         && hint_mds_.size() == rhs.hint_mds_.size()
         && pd_iterator_offset_ == rhs.pd_iterator_offset_
         && impl_nthr_ == rhs.impl_nthr_
-	&& skip_idx_ == rhs.skip_idx_
+        && skip_idx_ == rhs.skip_idx_
         && (*attr_) == (*rhs.attr_);
 
     if (!ret) return false;
@@ -68,7 +69,11 @@ bool key_t::operator==(const key_t &rhs) const {
             CASE(batch_normalization)
             CASE(binary)
             CASE(concat)
-            CASE(convolution)
+            // Use a custom comparison function that ignores alg_kind.
+            case primitive_kind::convolution:
+                ret = compare_conv_opdesc(cast_to_desc<convolution_desc_t>(op_desc_),
+                cast_to_desc<convolution_desc_t>(rhs.op_desc_));
+            break;
             CASE(deconvolution)
             CASE(eltwise)
             CASE(gemm)
@@ -95,10 +100,8 @@ bool key_t::operator==(const key_t &rhs) const {
 
     if (!ret) return false;
 
-    for (size_t i = 0; i < hint_mds_.size(); ++i)
-        if (hint_mds_[i] != rhs.hint_mds_[i]) return false;
-
-    return true;
+    return std::equal(
+            hint_mds_.begin(), hint_mds_.end(), rhs.hint_mds_.begin());
 }
 
 // Combine hash of each memory_desc_t data member
@@ -223,10 +226,7 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
         }
     }
 
-    if (!attr.output_scales_.has_default_values()) {
-        // output_scales: mask
-        seed = hash_combine(seed, attr.output_scales_.mask_);
-    } else if (!attr.scales_.has_default_values()) {
+    if (!attr.scales_.has_default_values()) {
         // go through scales for all arguments
         for (const auto &p : attr.scales_.scales_) {
             // scales: arg
@@ -384,7 +384,18 @@ size_t get_desc_hash(const convolution_desc_t &desc) {
     // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
     seed = hash_combine(seed, static_cast<size_t>(desc.prop_kind));
-    seed = hash_combine(seed, static_cast<size_t>(desc.alg_kind));
+
+    // Ignore `alg_kind` to keep hash value consistent for any algorithm.
+    //
+    // Background: when a convolution primitive descriptor is created for
+    // the algorithm `auto` we overwrite `alg_kind` field in `op_desc` when
+    // store it in the primitive descriptor. Because of that, the `op_desc`
+    // stored in the primitive descriptor is different from the one user
+    // passed to oneDNN API. Because of the difference the requested
+    // primitive descriptor cannot be found in the cache if we hash/compare
+    // `alg_kind`.
+    //seed = hash_combine(seed, static_cast<size_t>(desc.alg_kind));
+
     // Memory descriptors
     seed = hash_combine(seed, get_md_hash(desc.src_desc));
     seed = hash_combine(seed, get_md_hash(desc.diff_src_desc));

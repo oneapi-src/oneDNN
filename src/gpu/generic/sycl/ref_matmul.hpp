@@ -59,17 +59,26 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
                             | sm::zero_points_runtime_data_type)
                     && IMPLICATION(
                             !attr()->scales_.has_default_values(), scales_ok())
-                    && post_ops_ok() && md_dims_in_range(src_md())
+                    && sycl_post_ops_t::post_ops_ok(attr())
+                    && md_dims_in_range(src_md())
                     && md_dims_in_range(weights_md());
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            init_conf();
+            return status::success;
         }
 
         sycl_matmul_conf_t conf_;
+        bool any_runtime_params_ = false;
+
+        void init_rt_conf(sycl_matmul_conf_t &conf,
+                const memory_desc_wrapper src_d,
+                const memory_desc_wrapper weights_d,
+                const memory_desc_wrapper dst_d,
+                const memory_desc_wrapper bias_d) const;
 
     private:
-        status_t init_conf();
+        void init_conf();
 
         status_t set_default_params() {
             if (src_md_.format_kind == format_kind::any) {
@@ -113,14 +122,6 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
             return dt_ok && attr_scales_ok(supported_args);
         }
 
-        bool post_ops_ok() const {
-            // Dw conv post-ops are not supported.
-            return attr()->post_ops_.len() <= sycl_post_ops_t::max_post_ops
-                    && attr()->post_ops_.has_default_values(
-                            {primitive_kind::eltwise, primitive_kind::binary,
-                                    primitive_kind::sum});
-        }
-
         static bool check_data_types(const memory_desc_wrapper &src,
                 const memory_desc_wrapper &weights,
                 const memory_desc_wrapper &dst) {
@@ -144,7 +145,7 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
             using namespace format_tag;
 
             for (const auto &mdw : {src, weights, dst}) {
-                if (!mdw.is_plain() || mdw.has_runtime_dims()) { return false; }
+                if (!mdw.is_plain()) { return false; }
             }
             return true;
         }

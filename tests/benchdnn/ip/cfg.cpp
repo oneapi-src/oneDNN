@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,9 +36,13 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
             && dnnl_data_type_size(this->get_dt(DST)) >= 4;
     if (is_int8_and_wide_dst) { set_range_max(SRC, 160); }
 
-    // Wider ranges make Nvidia bf16 test cases to fail by accuracy, likely due
-    // to internal dispatch into lower precision code.
-    if (is_nvidia_gpu() && this->get_dt(WEI) == dnnl_bf16) {
+    // Wider ranges make Nvidia/AMD bf16/f16 test cases to fail by accuracy,
+    // likely due to internal dispatch into lower precision accumulation code.
+    if ((is_nvidia_gpu() || is_amd_gpu())
+            && (this->get_dt(WEI) == dnnl_bf16
+                    || this->get_dt(WEI) == dnnl_f16)) {
+        set_range_min(SRC, -2);
+        set_range_max(SRC, 2);
         set_range_min(WEI, -2);
         set_range_max(WEI, 2);
         set_range_min(DST, -2);

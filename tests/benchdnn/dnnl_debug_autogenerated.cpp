@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2017-2024 Intel Corporation
+* Copyright 2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,8 +67,8 @@ dnnl_sparse_encoding_t str2sparse_encoding(const char *str) {
         return CONCAT2(dnnl_, _case); \
 } while (0)
     CASE(csr);
-    CASE(coo);
     CASE(packed);
+    CASE(coo);
 #undef CASE
     if (!strcmp("undef", str) || !strcmp("dnnl_sparse_encoding_undef", str))
         return dnnl_sparse_encoding_undef;
@@ -904,7 +905,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(AcdeB4b8a4b);
     CASE(Ab4a);
     CASE(Ab8a);
-    CASE(Ab32a);
     CASE(BA4b4a);
     CASE(BA8b4a);
     CASE(BA2a24b);
@@ -920,6 +920,13 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(bcad);
     CASE(cabd);
     CASE(dabc);
+    CASE(Ab32a);
+    CASE(aCBd8b8c);
+    CASE(aCBde8b8c);
+    CASE(BAc8a8b);
+    CASE(BAcd8a8b);
+    CASE(BAcde8a8b);
+    CASE(aCBdef8b8c);
     CASE(x);
     CASE(nc);
     CASE(cn);
@@ -1024,6 +1031,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(OI8i24o);
     CASE(OI8i16o);
     CASE(OI8i8o);
+    CASE(IOw8o8i);
     CASE(IOw16o16i);
     CASE(IOw16i16o);
     CASE(OIw16i16o);
@@ -1092,6 +1100,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(OwI8i16o);
     CASE(OwI8o4i);
     CASE(IOhw16i16o);
+    CASE(IOhw8o8i);
     CASE(IOhw16o16i);
     CASE(Ohwi16o);
     CASE(OhwI16o2i);
@@ -1222,6 +1231,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(OIdhw8o4i);
     CASE(IOdhw16i16o);
     CASE(OIdhw4o8i8o4i);
+    CASE(IOdhw8o8i);
     CASE(IOdhw16o16i);
     CASE(OIdhw16o16i2o);
     CASE(OIdhw8i32o);
@@ -1233,6 +1243,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(Goiw16g);
     CASE(Goiw8g);
     CASE(Goiw4g);
+    CASE(gIOw8o8i);
     CASE(gIOw16o16i);
     CASE(gIOw16i16o);
     CASE(gOIw16i16o);
@@ -1276,6 +1287,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(goIw4i);
     CASE(goIw32i);
     CASE(gIOhw16i16o);
+    CASE(gIOhw8o8i);
     CASE(gIOhw16o16i);
     CASE(gOhwi16o);
     CASE(gOhwI16o2i);
@@ -1339,6 +1351,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(gOIhw4i8o2i);
     CASE(gOIhw4o8i2o);
     CASE(gIOdhw16i16o);
+    CASE(gIOdhw8o8i);
     CASE(gIOdhw16o16i);
     CASE(gOdhwi16o);
     CASE(gOdhwI16o2i);

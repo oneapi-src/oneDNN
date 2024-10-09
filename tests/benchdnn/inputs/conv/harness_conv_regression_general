@@ -408,3 +408,7 @@ mb1_g50ic50oc50_ih28oh26_kh3sh1ph0_n"dw_post-op_ngroups-tail"
 --reset
 --skip-impl=ref,x64:gemm
 --dir=FWD_I --dt=bf16:bf16:bf16 mb1_ic8oc128_ih1oh1kh1sh1dh0ph0_iw1048576ow2097kw500sw500dw0pw0_n"dimensions_transformation"
+
+# test peform_outwork for brgemm kernel
+--reset
+--dir=FWD_I --dt=f32:f32:f32 --stag=acdb --wtag=any --dtag=acdb ic48oc134_ih23oh12kh2sh2dh0ph1_iw12ow4kw1sw13dw0pw14_n"brgemm_perform_outwork"

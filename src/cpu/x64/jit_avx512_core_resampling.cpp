@@ -820,6 +820,8 @@ data_type_t jit_avx512_core_resampling_kernel_base_t::dst_data_type() const {
 status_t jit_avx512_core_resampling_bwd_t::pd_t::init(engine_t *engine) {
     using namespace format_tag;
     using namespace data_type;
+    // disabling verbose dispatch messages for unsupported isa for
+    // better readability
     if (!mayiuse(avx512_core)) return status::unimplemented;
     VDISPATCH_RESAMPLING(!is_fwd(), VERBOSE_BAD_PROPKIND);
     VDISPATCH_RESAMPLING(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");

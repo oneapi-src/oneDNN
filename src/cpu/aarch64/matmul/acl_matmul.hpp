@@ -43,12 +43,6 @@ struct acl_matmul_t : public primitive_t {
         acl_matmul_conf_t amp_;
         acl_post_ops_t acl_post_ops;
         dnnl::impl::format_kind_t weights_format_kind_;
-
-    protected:
-        bool attr_oscale_ok() const {
-            const auto &oscale = attr()->output_scales_;
-            return oscale.mask_ == 0;
-        }
     };
 
     acl_matmul_t(const pd_t *apd)

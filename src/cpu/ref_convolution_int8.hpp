@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,22 +45,35 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
             const auto bia_type = weights_md(1)->data_type;
             const auto dst_type = dst_md(0)->data_type;
 
-            bool ok = is_fwd()
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && utils::one_of(src_type, s8, u8) && wei_type == s8
-                    && IMPLICATION(with_bias(),
-                            utils::one_of(bia_type, f32, bf16, s32, s8, u8))
-                    && utils::one_of(dst_type, f32, bf16, s32, s8, u8)
-                    && set_default_formats()
-                    && attr()->has_default_values(smask_t::scales_runtime
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(
+                    utils::one_of(src_type, s8, u8), VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(wei_type == s8, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(
+                    IMPLICATION(with_bias(),
+                            utils::one_of(bia_type, f32, bf16, s32, s8, u8)),
+                    VERBOSE_UNSUPPORTED_BIAS_CFG);
+            VDISPATCH_CONV(utils::one_of(dst_type, f32, bf16, s32, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(
+                    attr()->has_default_values(smask_t::scales_runtime
                                     | smask_t::zero_points_runtime
                                     | smask_t::post_ops | smask_t::sum_dt,
-                            dst_type)
-                    && attr()->post_ops_.check_sum_consistency(dst_type,
-                            /* is_int8 */ true)
-                    && attr_scales_ok() && zero_points_ok() && post_ops_ok()
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            return ok ? status::success : status::unimplemented;
+                            dst_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(attr()->post_ops_.check_sum_consistency(dst_type,
+                                   /* is_int8 */ true),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_CONV(zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
+            VDISPATCH_CONV(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            return status::success;
         }
 
     protected:
@@ -120,16 +133,23 @@ struct ref_convolution_int8_bwd_data_t : public primitive_t {
             const auto wei_type = weights_md(0)->data_type;
             const auto diff_dst_type = diff_dst_md(0)->data_type;
 
-            bool ok = desc()->prop_kind == prop_kind::backward_data
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && utils::one_of(diff_dst_type, s8, u8) && wei_type == s8
-                    && utils::one_of(diff_src_type, f32, bf16, s32, s8, u8)
-                    && set_default_formats()
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::scales_runtime)
-                    && attr_scales_ok();
+            VDISPATCH_CONV(desc()->prop_kind == prop_kind::backward_data,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(utils::one_of(diff_dst_type, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(wei_type == s8, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(utils::one_of(diff_src_type, f32, bf16, s32, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(
+                    attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::scales_runtime),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 
-            return ok ? status::success : status::unimplemented;
+            return status::success;
         }
 
     protected:

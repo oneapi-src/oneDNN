@@ -79,8 +79,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_DST_SCALE && DST_NUM_SCALES > 1
         dst_scale = dst_scales[SCALE_OFF(DST, d0, d1, d2, d3, d4, d5)];
 #endif
-        REORDER(dst[dst_off], src[src_off], src_scale, dst_scale, sum_scale,
-                src_zp, dst_zp, sum_zp);
+        REORDER(DEFAULT_ROUND, dst[dst_off], src[src_off], src_scale, dst_scale,
+                sum_scale, src_zp, dst_zp, sum_zp);
     }
 
 #elif ALT_OFFSETS
@@ -105,8 +105,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
     for (int db = 0; db < BLK; ++db) {
         const int src_off = src_base + db * SB;
         const int dst_off = dst_base + db * DB;
-        REORDER(dst[dst_off], src[src_off], src_scale, dst_scale, sum_scale,
-                src_zp, dst_zp, sum_zp);
+        REORDER(DEFAULT_ROUND, dst[dst_off], src[src_off], src_scale, dst_scale,
+                sum_scale, src_zp, dst_zp, sum_zp);
     }
 
 #elif PLAIN_xFxE_TO_ABCDEF
@@ -148,8 +148,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
             if (block_size >= 16) \
                 dst_off = DST_OFF(d0, d1, d2, d3, d4 + sidx, src_offset); \
             if (SUM_OUTPUT) dst_tmp = DST_BLOCK_READ(&dst[dst_off]); \
-            REORDER(dst_tmp, src_swap[sidx][sglid], src_scale, dst_scale, \
-                    sum_scale, src_zp, dst_zp, sum_zp); \
+            REORDER(DEFAULT_ROUND, dst_tmp, src_swap[sidx][sglid], src_scale, \
+                    dst_scale, sum_scale, src_zp, dst_zp, sum_zp); \
             DST_BLOCK_WRITE(&dst[dst_off], dst_tmp); \
             if (block_size < 16) dst_off += SUB_GROUP_SIZE; \
         } \
@@ -282,12 +282,12 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
             dst_scale = dst_scales[SCALE_OFF(DST, d0, d1, d2, d3, d4, d5)];
 #endif
 #ifdef TRANSPOSE_NXN
-            REORDER(dst_tmp, dst_buf[iter], src_scale, dst_scale, sum_scale,
-                    src_zp, dst_zp, sum_zp);
+            REORDER(DEFAULT_ROUND, dst_tmp, dst_buf[iter], src_scale, dst_scale,
+                    sum_scale, src_zp, dst_zp, sum_zp);
 #else
             send_buf = tmp[sg_off + sgId * SUB_GROUP_SIZE + iter];
-            REORDER(dst_tmp, send_buf, src_scale, dst_scale, sum_scale, src_zp,
-                    dst_zp, sum_zp);
+            REORDER(DEFAULT_ROUND, dst_tmp, send_buf, src_scale, dst_scale,
+                    sum_scale, src_zp, dst_zp, sum_zp);
 #endif
         } else {
             dst_tmp = 0;
@@ -351,8 +351,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_SUM_SCALE || WITH_SUM_ZPOINT
         dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
 #endif
-        REORDER(dst_tmp, dst_buf[i], src_scale, dst_scale, sum_scale, src_zp,
-                dst_zp, sum_zp);
+        REORDER(DEFAULT_ROUND, dst_tmp, dst_buf[i], src_scale, dst_scale,
+                sum_scale, src_zp, dst_zp, sum_zp);
         DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
     }
 
@@ -415,8 +415,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
                 dst_tmp[n] = dst[dst_off + sglid + n * SUB_GROUP_SIZE];
             }
 #endif // WITH_SUM_SCALE || WITH_SUM_ZPOINT
-            REORDER8(dst_tmp, src_tmp, src_scale, dst_scale, sum_scale, src_zp,
-                    dst_zp, sum_zp);
+            REORDER8(DEFAULT_ROUND, dst_tmp, src_tmp, src_scale, dst_scale,
+                    sum_scale, src_zp, dst_zp, sum_zp);
             for (int n = 0; n < 8; n++) {
                 dst[dst_off + sglid + n * SUB_GROUP_SIZE] = dst_tmp[n];
             }
@@ -430,8 +430,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_SUM_SCALE || WITH_SUM_ZPOINT
                 dst_tmp[n] = dst[dst_off + sglid];
 #endif // WITH_SUM_SCALE || WITH_SUM_ZPOINT
-                REORDER(dst_tmp, src_tmp, src_scale, dst_scale, sum_scale,
-                        src_zp, dst_zp, sum_zp);
+                REORDER(DEFAULT_ROUND, dst_tmp, src_tmp, src_scale, dst_scale,
+                        sum_scale, src_zp, dst_zp, sum_zp);
                 dst[dst_off + sglid] = dst_tmp;
             }
         }
@@ -490,8 +490,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_SUM_SCALE || WITH_SUM_ZPOINT
         dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
 #endif
-        REORDER(dst_tmp, dst_buf[d0i], src_scale, dst_scale, sum_scale, src_zp,
-                dst_zp, sum_zp);
+        REORDER(DEFAULT_ROUND, dst_tmp, dst_buf[d0i], src_scale, dst_scale,
+                sum_scale, src_zp, dst_zp, sum_zp);
         DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
     }
 
@@ -526,8 +526,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_SUM_SCALE || WITH_SUM_ZPOINT
         dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
 #endif
-        REORDER(dst_tmp, src_tmp, src_scale, dst_scale, sum_scale, src_zp,
-                dst_zp, sum_zp);
+        REORDER(DEFAULT_ROUND, dst_tmp, src_tmp, src_scale, dst_scale,
+                sum_scale, src_zp, dst_zp, sum_zp);
         DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
     }
 
@@ -601,8 +601,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_SUM_SCALE || WITH_SUM_ZPOINT
             dst_tmp = dst[doff + sgId * DST_INNERMOST_STRIDE];
 #endif
-            REORDER(dst_tmp, cache[coff + sgId], src_scale, dst_scale,
-                    sum_scale, src_zp, dst_zp, sum_zp);
+            REORDER(DEFAULT_ROUND, dst_tmp, cache[coff + sgId], src_scale,
+                    dst_scale, sum_scale, src_zp, dst_zp, sum_zp);
             dst[doff + sgId * DST_INNERMOST_STRIDE] = dst_tmp;
         }
     }
@@ -690,8 +690,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
                     d[2] + b[2], d[3] + b[3], d[4] + b[4], d[5] + b[5])];
 #endif
 
-            REORDER(dst_tmp, cache[cidx], src_scale, dst_scale, sum_scale,
-                    src_zp, dst_zp, sum_zp);
+            REORDER(DEFAULT_ROUND, dst_tmp, cache[cidx], src_scale, dst_scale,
+                    sum_scale, src_zp, dst_zp, sum_zp);
             DST_BLOCK_WRITE(&dst[didx], dst_tmp);
         }
     }
@@ -705,8 +705,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_SUM_SCALE || WITH_SUM_ZPOINT
         dst_tmp = DST_BLOCK_READ8(&dst[d0]);
 #endif
-        REORDER8(dst_tmp, src_tmp, src_scale, dst_scale, sum_scale, src_zp,
-                dst_zp, sum_zp);
+        REORDER8(DEFAULT_ROUND, dst_tmp, src_tmp, src_scale, dst_scale,
+                sum_scale, src_zp, dst_zp, sum_zp);
         DST_BLOCK_WRITE8(&dst[d0], dst_tmp);
     }
 
@@ -784,8 +784,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_SUM_SCALE || WITH_SUM_ZPOINT
         dst_tmp = dst[dst_off + sgId];
 #endif
-        REORDER(dst_tmp, data, src_scale, dst_scale, sum_scale, src_zp, dst_zp,
-                sum_zp);
+        REORDER(DEFAULT_ROUND, dst_tmp, data, src_scale, dst_scale, sum_scale,
+                src_zp, dst_zp, sum_zp);
         dst[dst_off + sgId] = dst_tmp;
     }
 
@@ -907,8 +907,8 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #endif // WITH_SUM_SCALE || WITH_SUM_ZPOINT
 #endif // DST_16B
 
-    REORDER(dst_tmp, src_tmp, src_scale, dst_scale, sum_scale, src_zp, dst_zp,
-            sum_zp);
+    REORDER(DEFAULT_ROUND, dst_tmp, src_tmp, src_scale, dst_scale, sum_scale,
+            src_zp, dst_zp, sum_zp);
 
 #if DST_16B
     DST_BLOCK_WRITE(&dst[0], dst_tmp);

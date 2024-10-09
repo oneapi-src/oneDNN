@@ -53,9 +53,7 @@ struct jit_sve_512_x8s8s32x_convolution_fwd_t : public primitive_t {
                             utils::one_of(bias_md_.data_type, data_type::f32,
                                     data_type::s32, data_type::s8,
                                     data_type::u8))
-                    && attr()->has_default_values(
-                            smask_t::oscale_runtime | smask_t::post_ops,
-                            dst_type)
+                    && attr()->has_default_values(smask_t::post_ops, dst_type)
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
