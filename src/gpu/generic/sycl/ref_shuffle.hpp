@@ -55,6 +55,8 @@ struct ref_shuffle_t : public gpu::generic::sycl::primitive_t {
                     && IMPLICATION(is_fwd(),
                             src_md(0)->format_desc.blocking.inner_nblks == 0)
                     && attr()->has_default_values()
+                    && memory_desc_wrapper(src_data_md)
+                            == memory_desc_wrapper(dst_data_md)
                     && md_dims_in_range(src_md());
             if (!ok) return status::unimplemented;
             return init_conf();

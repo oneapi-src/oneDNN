@@ -48,6 +48,8 @@ protected:
     void SetUp() override {
         SKIP_IF_HIP(
                 true, "Group Normalization operator is not supported in HIP");
+        SKIP_IF_GENERIC(true,
+                "Group Normalization operator is not supported in generic");
         p = ::testing::TestWithParam<
                 group_normalization_test_params_t>::GetParam();
 
