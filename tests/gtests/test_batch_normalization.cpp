@@ -59,6 +59,11 @@ bool hip_check_format_tag(tag first_tag, Rest... rest_tags) {
     return hip_check_format_tag(rest_tags...);
 }
 
+bool generic_check_format_tag(tag atag) {
+    return impl::utils::one_of(atag, tag::ncw, tag::nchw, tag::ncdhw, tag::nwc,
+            tag::nhwc, tag::ndhwc, tag::any);
+}
+
 class batch_normalization_test_t
     : public ::testing::TestWithParam<batch_normalization_test_params_t> {
 private:
@@ -79,6 +84,11 @@ protected:
 
         SKIP_IF_HIP(!hip_check_format_tag(p.src_tag, p.dst_tag),
                 "Unsupported format tag");
+
+        SKIP_IF_GENERIC(
+                !generic_check_format_tag(p.src_tag), "Unsupported format tag");
+        SKIP_IF_GENERIC(
+                !generic_check_format_tag(p.dst_tag), "Unsupported format tag");
 
         SKIP_IF_CUDA(p.src_dt != p.dst_dt && p.src_dt != dt::undef
                         && p.dst_dt != dt::undef,

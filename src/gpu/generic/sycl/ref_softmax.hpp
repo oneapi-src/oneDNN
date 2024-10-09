@@ -111,20 +111,13 @@ struct ref_sycl_softmax_bwd_t : public gpu::generic::sycl::primitive_t {
                     && dst_md()->data_type == diff_dst_md()->data_type
                     && attr()->has_default_values()
                     && set_default_formats() == status::success
-                    && check_formats(diff_src_md(), diff_dst_md())
+                    && memory_desc_wrapper(diff_src_md()).is_plain()
+                    && memory_desc_wrapper(diff_dst_md()).is_plain()
+                    && memory_desc_wrapper(dst_md()).is_plain()
                     && md_dims_in_range(diff_dst_md());
 
             if (!ok) return status::unimplemented;
             return init_conf();
-        }
-
-        static bool check_formats(const memory_desc_wrapper &src,
-                const memory_desc_wrapper &dst) {
-            for (const auto &mdw : {src, dst}) {
-                if (!mdw.is_plain()) return false;
-            }
-
-            return true;
         }
 
         sycl_softmax_conf_t conf_;
