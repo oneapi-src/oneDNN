@@ -24,11 +24,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+# TODO: Fix job cancellation.
 #* Stop stale workflows when pull requests are updated: https://stackoverflow.com/a/70972844
 #* Does not apply to the main branch.
-concurrency:
-  group: ${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+# concurrency:
+#   group: ${{ github.ref }}
+#   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Declare default permissions as read only.
 permissions: read-all
@@ -53,13 +54,47 @@ jobs:
         with:
           packages: scons
 
-      - name: Build ACL
+      - name: Clone ACL
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
         env:
+          ACL_ACTION: clone
+          ACL_CONFIG: ${{ matrix.config }}
+          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
+          BUILD_TOOLSET: ${{ matrix.toolset }}
+          GCC_VERSION: 13
+
+      - name: Get ACL commit hash for cache key
+        id: get_acl_commit_hash
+        run: (cd ${{ github.workspace }}/ComputeLibrary && echo "ACLCommitHash=$(git rev-parse --short HEAD)") >> $GITHUB_OUTPUT
+
+      - name: Get system name
+        id: get_system_name
+        run: (echo "SystemName=$(uname)") >> $GITHUB_OUTPUT
+
+      - name: Restore cached ACL
+        id: cache-acl-restore
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.toolset }}-${{ matrix.config }}-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
+          path: ${{ github.workspace }}/ComputeLibrary/build
+
+      - name: Build ACL
+        if:  ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
+        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
+        env:
+          ACL_ACTION: build
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
           BUILD_TOOLSET: ${{ matrix.toolset }}
           ACL_CONFIG: ${{ matrix.config }}
-          GCC_VERSION: 14
+          GCC_VERSION: 13
+
+      - name: Save ACL in cache
+        if:  ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
+        id: cache-acl_build-save
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.cache-acl-restore.outputs.cache-primary-key }}
+          path: ${{ github.workspace }}/ComputeLibrary/build
 
       - name: Build oneDNN
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
@@ -68,8 +103,8 @@ jobs:
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
           BUILD_TOOLSET: ${{ matrix.toolset }}
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
-          GCC_VERSION: 14
-
+          GCC_VERSION: 13
+    
       - if: matrix.toolset == 'clang'
         name: Run oneDNN smoke tests
         run: ${{ github.workspace }}/oneDNN/.github/automation/test_aarch64.sh
@@ -77,7 +112,7 @@ jobs:
         env:
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
-
+  
   # We only run the linux aarch64 runners if macos smoke tests pass.
   linux:
     needs: macos
@@ -122,14 +157,48 @@ jobs:
         with:
           version: "17"
 
-      - name: Build ACL
+      - name: Clone ACL
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
         env:
+          ACL_ACTION: clone
           ACL_CONFIG: ${{ matrix.config }}
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
           BUILD_TOOLSET: ${{ matrix.toolset }}
           GCC_VERSION: 13
+
+      - name: Get ACL commit hash for cache key
+        id: get_acl_commit_hash
+        run: (cd ${{ github.workspace }}/ComputeLibrary && echo "ACLCommitHash=$(git rev-parse --short HEAD)") >> $GITHUB_OUTPUT
+  
+      - name: Get system name
+        id: get_system_name
+        run: (echo "SystemName=$(uname)") >> $GITHUB_OUTPUT
+
+      - name: Restore cached ACL
+        id: cache-acl-restore
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.toolset }}-${{ matrix.config }}-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
+          path: ${{ github.workspace }}/ComputeLibrary/build
+
+      - name: Build ACL
+        if:  ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
+        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
+        env:
+          ACL_ACTION: build
+          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
+          BUILD_TOOLSET: ${{ matrix.toolset }}
+          ACL_CONFIG: ${{ matrix.config }}
+          GCC_VERSION: 13
           ACL_THREADING: ${{ matrix.threading }}
+
+      - name: Save ACL in cache
+        if:  ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
+        id: cache-acl_build-save
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.cache-acl-restore.outputs.cache-primary-key }}
+          path: ${{ github.workspace }}/ComputeLibrary/build
 
       - name: Build oneDNN
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
