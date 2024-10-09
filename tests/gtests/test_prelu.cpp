@@ -17,6 +17,7 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
+#include "dnnl_test_macros.hpp"
 #include "oneapi/dnnl/dnnl.hpp"
 
 namespace dnnl {
@@ -37,6 +38,18 @@ struct prelu_test_params_t {
     dnnl_status_t expected_status;
 };
 
+bool generic_check_dt(memory::format_tag tag) {
+    return impl::utils::one_of(tag, tag::ncdhw, tag::nchw, tag::ncw, tag::nhwc,
+            tag::nwc, tag::any);
+}
+
+bool generic_reduce_diff_weights(
+        const memory::dims &src_dims, const memory::dims &diff_wei_dims) {
+    return impl::utils::array_product(src_dims.data(), src_dims.size())
+            != impl::utils::array_product(
+                    diff_wei_dims.data(), diff_wei_dims.size());
+}
+
 class prelu_test_t : public ::testing::TestWithParam<prelu_test_params_t> {
 private:
     prelu_test_params_t p;
@@ -52,6 +65,15 @@ protected:
 
         SKIP_IF(unsupported_data_type(p.src_dt, p.wei_dt, p.dst_dt),
                 "Engine does not support this data type.");
+
+        SKIP_IF_GENERIC(!generic_check_dt(p.src_tag), "Unsupported format tag");
+        SKIP_IF_GENERIC(!generic_check_dt(p.dst_tag), "Unsupported format tag");
+        SKIP_IF_GENERIC(!generic_check_dt(p.wei_tag), "Unsupported format tag");
+        // XXX: Enable these cases when generic reduction is implemented
+        SKIP_IF_GENERIC(generic_reduce_diff_weights(p.src_dims, p.wei_dims),
+                "Unsupported configuration");
+        SKIP_IF_GENERIC(p.expected_status == dnnl_unimplemented,
+                "Test case not supported");
 
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);

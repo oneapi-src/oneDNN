@@ -138,6 +138,23 @@ protected:
                                     p.formats.weights_format, p.aalgorithm)),
                 "Format is not supported.");
 
+        SKIP_IF_GENERIC(
+                !(generic_check_format_tags(p.formats.src_format)
+                        && generic_check_format_tags(p.formats.dst_format)
+                        && (generic_check_format_tags(p.formats.weights_format)
+                                || (impl::utils::one_of(
+                                        p.formats.weights_format,
+                                        memory::format_tag::goiw,
+                                        memory::format_tag::goihw,
+                                        memory::format_tag::goidhw,
+                                        memory::format_tag::oiw,
+                                        memory::format_tag::oihw,
+                                        memory::format_tag::oidhw)))
+                        && check_generic_dt<data_t_diff_src>()
+                        && check_generic_dt<data_t_diff_dst>()
+                        && check_generic_dt<data_t_wei>()),
+                "Format is not supported.");
+
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -154,6 +171,14 @@ protected:
                 memory::format_tag::abcde, memory::format_tag::abcdef,
                 memory::format_tag::acb, memory::format_tag::acdb,
                 memory::format_tag::acdeb);
+    }
+
+    bool generic_check_format_tags(memory::format_tag tag) {
+        return impl::utils::one_of(tag, memory::format_tag::ab,
+                memory::format_tag::abc, memory::format_tag::abcd,
+                memory::format_tag::abcde, memory::format_tag::abcdef,
+                memory::format_tag::acb, memory::format_tag::acdb,
+                memory::format_tag::acdeb, memory::format_tag::any);
     }
 
     bool check_cuda_alg_format(memory::format_tag dst_fmt,
@@ -180,6 +205,14 @@ protected:
                             memory::format_tag::abcdef);
         }
         return res;
+    }
+
+    template <typename dt>
+    bool check_generic_dt() {
+        return impl::utils::one_of(data_traits<dt>::data_type,
+                memory::data_type::f32, memory::data_type::bf16,
+                memory::data_type::f16, memory::data_type::s32,
+                memory::data_type::s8, memory::data_type::u8);
     }
 
     void Test() {

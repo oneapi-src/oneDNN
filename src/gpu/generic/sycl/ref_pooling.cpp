@@ -74,6 +74,11 @@ status_t ref_pooling_fwd_t::init(impl::engine_t *engine) {
 }
 
 status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+    // XXX: Add support for 0-dim src
+    for (auto &md : {pd()->src_md(), pd()->dst_md()}) {
+        if (memory_desc_wrapper(md).size() == 0) return status::success;
+    }
+
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         auto nelems_A = memory_desc_wrapper(pd()->src_md(0)).nelems();
         pooling_fwd_kernel_vec_t pooling_fwd_kernel(pd()->conf_, cgh, ctx);
@@ -135,6 +140,10 @@ status_t ref_pooling_bwd_t::init(impl::engine_t *engine) {
 }
 
 status_t ref_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
+    for (auto &md : {pd()->diff_src_md(), pd()->diff_dst_md()}) {
+        if (memory_desc_wrapper(md).size() == 0) return status::success;
+    }
+
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         auto nelems_A = memory_desc_wrapper(pd()->diff_src_md(0)).nelems();
         pooling_bwd_kernel_vec_t pooling_bwd_kernel(pd()->conf_, cgh, ctx);

@@ -36,6 +36,11 @@ struct shuffle_test_params_t {
     dnnl_status_t expected_status;
 };
 
+bool generic_check_format(memory::format_tag tag) {
+    return impl::utils::one_of(
+            tag, dnnl_abc, dnnl_abcd, dnnl_acbde, dnnl_acb, dnnl_acdb);
+}
+
 class shuffle_test_t : public ::testing::TestWithParam<shuffle_test_params_t> {
 private:
     shuffle_test_params_t p;
@@ -50,6 +55,8 @@ protected:
 
         SKIP_IF(unsupported_data_type(p.src_dt, p.dst_dt),
                 "Engine does not support this data type.");
+        SKIP_IF_GENERIC(!generic_check_format(p.src_tag), "Unsupported format");
+        SKIP_IF_GENERIC(!generic_check_format(p.dst_tag), "Unsupported format");
 
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);
