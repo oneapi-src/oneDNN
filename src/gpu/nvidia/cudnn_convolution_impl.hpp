@@ -511,14 +511,14 @@ public:
         const float beta = 0.0f;
         if (flip_formats) {
             CUDNN_EXECUTE_FUNC_V(cudnnTransformTensor, handle, &alpha,
-                    reorder_dst_desc, src, &beta, descs[y], dst);
+                    reorder_dst_desc, src, &beta, y_fp32_desc, dst);
         } else {
-            CUDNN_EXECUTE_FUNC_V(cudnnTransformTensor, handle, &alpha, descs[y],
-                    src, &beta, reorder_dst_desc, dst);
+            CUDNN_EXECUTE_FUNC_V(cudnnTransformTensor, handle, &alpha,
+                    y_fp32_desc, src, &beta, reorder_dst_desc, dst);
         }
     }
 
-    void execute_f32_sum(cudnnHandle_t handle, void *y, void *y_fp32_data,
+    void execute_f32_dst_sum(cudnnHandle_t handle, void *y, void *y_fp32_data,
             float alpha_, float beta_) const {
         float alpha1 = 0.0f;
         float alpha2 = alpha_;
@@ -526,6 +526,14 @@ public:
         CUDNN_EXECUTE_FUNC(cudnnOpTensor, handle, op_tensor_desc, &alpha1,
                 descs[io::y], y, &alpha2, descs[io::y], y, &beta, y_fp32_desc,
                 y_fp32_data);
+    }
+
+    void execute_f32_src_sum(cudnnHandle_t handle, void *x, void *y,
+            float alpha_, float beta_) const {
+        float alpha = alpha_;
+        float beta = beta_;
+        CUDNN_EXECUTE_FUNC_V(cudnnAddTensor, handle, &alpha, descs[io::y], x,
+                &beta, y_fp32_desc, y);
     }
 
     void execute_eltwise(cudnnHandle_t handle, void *src, void *dst) const {
@@ -551,8 +559,7 @@ public:
             const std::vector<void *> &args) const override {
         auto x = args[0], weights = args[1], y = args[2], bias = args[3],
              scratchpad = args[4], post_op_scratch = args[6],
-             post_op_reorder = args[7], src_scale = args[8],
-             wei_scale = args[9], dst_scale = args[10];
+             src_scale = args[7], wei_scale = args[8], dst_scale = args[9];
         void *output = use_temp_dst_ ? post_op_scratch : y;
         if (using_transformed_filter()) {
             auto w_scratch = args[5];
@@ -561,7 +568,7 @@ public:
         }
 
         float *y_fp32_data = nullptr;
-        if (y_f32_is_required()) { y_fp32_data = (float *)args[11]; }
+        if (y_f32_is_required()) { y_fp32_data = (float *)args[10]; }
 
         bool fused = conv_bias || conv_bias_eltwise;
 
@@ -581,7 +588,8 @@ public:
             }
         }
 
-        auto &y_desc = y_f32_is_required() ? y_fp32_desc : descs[io::y];
+        auto &y_desc = (y_f32_is_required() || use_temp_dst_) ? y_fp32_desc
+                                                              : descs[io::y];
         void *y_data = y_f32_is_required() ? y_fp32_data : output;
 
         if (fused) {
@@ -619,12 +627,11 @@ public:
             switch (post_ops[i]) {
                 case dnnl_sum:
                     if (need_reorder) {
-                        execute_reorder(handle, y, post_op_reorder, true);
-                        execute_sum(handle, post_op_reorder, post_op_scratch,
-                                sum_scale, 1.0f);
+                        execute_f32_src_sum(
+                                handle, y, post_op_scratch, sum_scale, 1.0f);
                     } else if (last_op) {
                         if (y_f32_is_required()) {
-                            execute_f32_sum(
+                            execute_f32_dst_sum(
                                     handle, y, y_fp32_data, 1.0f, sum_scale);
                         } else {
                             execute_sum(handle, post_op_scratch, y, 1.0f,
@@ -687,7 +694,7 @@ public:
         // The scratchpad size will need to be modified in
         // cases where the dst_scaling is used and the output
         // uses s8 values.
-        if (use_scales_dst_) {
+        if (use_scales_dst_ || use_temp_dst_) {
             CHECK(create_and_set_tensor_descriptor(&y_fp32_desc,
                     CUDNN_DATA_FLOAT, ndims[y], dims[y], strides[y]));
             CHECK(CUDNN_EXECUTE_FUNC_S(cudnnGetConvolutionForwardWorkspaceSize,
