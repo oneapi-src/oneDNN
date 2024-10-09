@@ -70,27 +70,31 @@ jobs:
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
           GCC_VERSION: 14
 
-      - if: matrix.toolset == 'clang'
-        name: Run oneDNN smoke tests
+      - name: Run oneDNN smoke tests
         run: ${{ github.workspace }}/oneDNN/.github/automation/test_aarch64.sh
         working-directory: ${{ github.workspace }}/oneDNN/build
         env:
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
-
-  # We only run the linux aarch64 runners if macos smoke tests pass.
+    
+  # We only run the linux aarch64 runners if macOS smoke tests pass.
   linux:
     needs: macos
     strategy:
       matrix:
-        threading: [OMP]
         toolset: [clang, gcc]
         config: [Debug, Release]
-        host: [
-          { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50 }, 
-          { name: c7g, label: ah-ubuntu_22_04-c7g_2x-50 }
-        ]
-
+        threading: [ OMP ]
+        host: [ { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50 }, { name: c7g, label: ah-ubuntu_22_04-c7g_2x-50 }]
+        include:
+          - toolset: clang
+            config: Release
+            threading: TP
+            host: { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50 }
+          - toolset: clang
+            config: Release
+            threading: TP
+            host: { name: c7g, label: ah-ubuntu_22_04-c7g_2x-50 }
     name: ${{ matrix.host.name }}, ${{ matrix.toolset }}, ${{ matrix.threading }}, ${{ matrix.config }}
     runs-on: ${{ matrix.host.label }}
     steps:
@@ -140,6 +144,8 @@ jobs:
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
           GCC_VERSION: 13
           ONEDNN_THREADING: ${{ matrix.threading }}
+          EIGEN_INSTALL_PATH: ${{ github.workspace }}
+          SCHEDULER: ${{ matrix.threading }}
 
       - name: Run oneDNN tests
         run: ${{ github.workspace }}/oneDNN/.github/automation/test_aarch64.sh
@@ -148,4 +154,4 @@ jobs:
           BUILD_TOOLSET: ${{ matrix.toolset }}
           CMAKE_BUILD_TYPE: ${{ matrix.config }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
-          ONEDNN_THREADING: ${{ matrix.threading }}     
+          ONEDNN_THREADING: ${{ matrix.threading }}
