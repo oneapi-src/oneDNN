@@ -74,6 +74,8 @@ status_t ref_convolution_fwd_t::init(impl::engine_t *engine) {
 }
 
 status_t ref_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
+    if (memory_desc_wrapper(pd()->dst_md()).size() == 0) return status::success;
+
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         convolution_kernel_fwd_t convolution_kernel(pd()->conf_, cgh, ctx);
 
@@ -134,6 +136,8 @@ status_t ref_convolution_bwd_data_t::init(impl::engine_t *engine) {
 }
 
 status_t ref_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
+    if (memory_desc_wrapper(pd()->dst_md()).size() == 0) return status::success;
+
     parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         convolution_kernel_bwd_data_t convolution_kernel(pd()->conf_, cgh, ctx);
 

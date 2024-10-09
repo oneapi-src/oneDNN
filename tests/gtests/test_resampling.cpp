@@ -222,6 +222,10 @@ protected:
         return impl::utils::one_of(
                 tag, dnnl_abc, dnnl_abcd, dnnl_acb, dnnl_acdb);
     }
+    bool generic_supported_format_tag(memory::format_tag tag) {
+        return impl::utils::one_of(tag, dnnl_abc, dnnl_abcd, dnnl_acb,
+                dnnl_acdb, dnnl_format_tag_any);
+    }
     void SetUp() override {
         SKIP_IF_HIP(
                 true, "Resampling operator is not supported by hip backend");
@@ -231,6 +235,8 @@ protected:
         SKIP_IF_CUDA(p.ndims == 5,
                 "cudnn resampling backend does not support 5d tensor");
         SKIP_IF_CUDA(!cuda_supported_format_tag(p.src_format),
+                "Unsupported format tag");
+        SKIP_IF_GENERIC(!generic_supported_format_tag(p.src_format),
                 "Unsupported format tag");
 
         catch_expected_failures(
