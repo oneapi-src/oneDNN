@@ -191,7 +191,7 @@ inline status_t get_quant_md(memory_desc_t &md, const int ndims,
 //
 // Offset is always concide with logical index because quantization entries
 // don't have a notion of physical formats.
-inline dim_t get_quant_off(const dims_t &input_idx, const int ndims,
+inline dim_t get_quant_off(const dims_t &input_idx, const size_t ndims,
         const int quant_mask, const dim_t g0, const dim_t g1,
         const memory_desc_t &quant_md) {
     dims_t quant_idx {};
@@ -2328,7 +2328,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         if (!need_second_pass) return status::success;
 
-        const int ndims = input_d.ndims();
+        const size_t ndims = input_d.ndims();
         // Applied to the pre-last dimension.
         const auto src_scales_group0
                 = sc_src.ndims_ > 0 ? sc_src.group_dims_[0] : 1;
