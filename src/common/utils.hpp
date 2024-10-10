@@ -209,6 +209,13 @@ constexpr bool any_null(Args... ptrs) {
     return one_of(nullptr, ptrs...);
 }
 
+// Workaround on macos/gcc14.2 build error for static arrays
+template <typename T, size_t ndims>
+inline void array_copy(T dst[ndims], const T src[ndims], size_t size) {
+    assert(size < ndims);
+    for (size_t i = 0; i < size; ++i)
+        dst[i] = src[i];
+}
 template <typename T>
 inline void array_copy(T *dst, const T *src, size_t size) {
     for (size_t i = 0; i < size; ++i)

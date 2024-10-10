@@ -195,7 +195,7 @@ inline dim_t get_quant_off(const dims_t &input_idx, const int ndims,
         const int quant_mask, const dim_t g0, const dim_t g1,
         const memory_desc_t &quant_md) {
     dims_t quant_idx {};
-    utils::array_copy(quant_idx, input_idx, ndims);
+    utils::array_copy<dim_t, DNNL_MAX_NDIMS>(quant_idx, input_idx, ndims);
     utils::apply_mask_on_dims(quant_idx, ndims, quant_mask);
     // Note: an `idx` must divide by a group value as grouped quantization
     // applies to consecutive points.
