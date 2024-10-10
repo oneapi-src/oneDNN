@@ -283,32 +283,6 @@ status_t get_kernel_arg_types(cl_kernel ocl_kernel,
     return status::success;
 }
 
-static status_t get_ocl_device_eu_count_intel(cl_device_id device,
-        gpu::intel::compute::gpu_arch_t arch, int32_t *eu_count) {
-    cl_uint num_slices = 0;
-    cl_uint num_sub_slices_per_slice = 0;
-    cl_uint num_eus_per_sub_slice = 0;
-
-    OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_NUM_SLICES_INTEL,
-            sizeof(num_slices), &num_slices, nullptr));
-    OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_NUM_SUB_SLICES_PER_SLICE_INTEL,
-            sizeof(num_sub_slices_per_slice), &num_sub_slices_per_slice,
-            nullptr));
-    OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_NUM_EUS_PER_SUB_SLICE_INTEL,
-            sizeof(num_eus_per_sub_slice), &num_eus_per_sub_slice, nullptr));
-
-    if (arch == gpu::intel::compute::gpu_arch_t::xe2) {
-#ifdef _WIN32
-        return status::unimplemented; /* cannot rely on these queries */
-#endif
-        num_eus_per_sub_slice = 8; /* runtime reports incorrect value */
-    }
-
-    *eu_count = (int32_t)(
-            num_slices * num_sub_slices_per_slice * num_eus_per_sub_slice);
-    return status::success;
-}
-
 status_t get_ocl_device_enabled_systolic_intel(
         cl_device_id device, bool &enabled_systolic) {
     cl_bitfield res;
@@ -383,14 +357,37 @@ status_t get_ocl_device_enabled_native_float_atomics(
 
 status_t get_ocl_device_eu_count(cl_device_id device,
         gpu::intel::compute::gpu_arch_t arch, int32_t *eu_count) {
-    // Try to use Intel-specific slices/sub-slices to deduce EU count.
-    auto status = get_ocl_device_eu_count_intel(device, arch, eu_count);
-    if (status == status::success) return status;
-
-    // If failed, fall back to common OpenCL query.
+    // Start with standard OpenCL query.
     cl_uint max_compute_units = 0;
     OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS,
             sizeof(max_compute_units), &max_compute_units, nullptr));
+
+    // Try to use Intel-specific slice/sub-slice queries to correct EU count
+    //   for certain buggy drivers.
+    bool ok = true;
+
+    auto do_query = [&](cl_uint query) -> cl_uint {
+        cl_uint val = 0;
+        ok = ok
+                && (clGetDeviceInfo(device, query, sizeof(val), &val, nullptr)
+                        == CL_SUCCESS);
+        return val;
+    };
+
+    cl_uint num_slices = do_query(CL_DEVICE_NUM_SLICES_INTEL);
+    cl_uint num_sub_slices_per_slice
+            = do_query(CL_DEVICE_NUM_SUB_SLICES_PER_SLICE_INTEL);
+    cl_uint num_eus_per_sub_slice
+            = do_query(CL_DEVICE_NUM_EUS_PER_SUB_SLICE_INTEL);
+
+    if (ok) {
+        /* Some drivers report incorrect values on Xe2 */
+        if (arch == gpu::intel::compute::gpu_arch_t::xe2)
+            num_eus_per_sub_slice = 8;
+        max_compute_units = std::min(max_compute_units,
+                num_slices * num_sub_slices_per_slice * num_eus_per_sub_slice);
+    }
+
     *eu_count = (int32_t)max_compute_units;
 
     return status::success;
