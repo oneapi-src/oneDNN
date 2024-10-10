@@ -21,11 +21,7 @@
 
 #include "backend/dnnl/utils.hpp"
 
-#include "cpp/unit/unit_test_common.hpp"
-#include "cpp/unit/utils.hpp"
-
 namespace graph = dnnl::impl::graph;
-namespace utils = dnnl::graph::tests::unit::utils;
 
 TEST(test_dnnl_utils, TryReverseAxis) {
     auto par1 = std::make_pair<bool, int64_t>(true, 0);
