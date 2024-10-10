@@ -38,7 +38,7 @@ struct eltwise_param_t {
     std::vector<std::pair<graph::op_attr_t, float>> attrs;
 };
 
-TEST(test_conv_compile, ConvolutionFp32) {
+TEST(test_convolution_compile, ConvolutionFp32) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();
@@ -92,7 +92,7 @@ TEST(test_conv_compile, ConvolutionFp32) {
                     : graph::layout_type::strided);
 }
 
-TEST(test_conv_compile, ConvolutionBackwardDataFp32) {
+TEST(test_convolution_compile, ConvolutionBackwardDataFp32) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     graph::engine_t *eng = get_engine();
@@ -143,7 +143,7 @@ TEST(test_conv_compile, ConvolutionBackwardDataFp32) {
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 }
 
-TEST(test_conv_compile, ConvolutionBackwardFilterFp32) {
+TEST(test_convolution_compile, ConvolutionBackwardFilterFp32) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     graph::engine_t *eng = get_engine();
@@ -188,7 +188,7 @@ TEST(test_conv_compile, ConvolutionBackwardFilterFp32) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 }
 
-TEST(test_conv_compile,
+TEST(test_convolution_compile,
         ConvolutionBackwardWeightsWithGroupsAndFiltersAnyLayout) {
     using dims = graph::dnnl_impl::dims;
 
@@ -254,7 +254,7 @@ TEST(test_conv_compile,
             || lt.layout_type == graph::layout_type::strided);
 }
 
-TEST(test_conv_partition, InvalidInputNumForConvolutionBackwardData) {
+TEST(test_convolution_partition, InvalidInputNumForConvolutionBackwardData) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     graph::engine_t *eng = get_engine();
@@ -296,7 +296,7 @@ TEST(test_conv_partition, InvalidInputNumForConvolutionBackwardData) {
     ASSERT_EQ(g.get_num_partitions(), 0U);
 }
 
-TEST(test_conv_partition, InvalidInputNumForConvolutionBackwardWeights) {
+TEST(test_convolution_partition, InvalidInputNumForConvolutionBackwardWeights) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     graph::engine_t *eng = get_engine();
@@ -337,7 +337,7 @@ TEST(test_conv_partition, InvalidInputNumForConvolutionBackwardWeights) {
     ASSERT_EQ(g.get_num_partitions(), 0U);
 }
 
-TEST(test_conv_execute, ConvolutionNcxOix) {
+TEST(test_convolution_execute, ConvolutionNcxOix) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -405,7 +405,7 @@ TEST(test_conv_execute, ConvolutionNcxOix) {
     }
 }
 
-TEST(test_conv_execute, ConvtransposeWithGroups) {
+TEST(test_convolution_execute, ConvtransposeWithGroups) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -472,7 +472,7 @@ TEST(test_conv_execute, ConvtransposeWithGroups) {
     }
 }
 
-TEST(test_conv_execute, Convolution3DNcxOix) {
+TEST(test_convolution_execute, Convolution3DNcxOix) {
     using dims = std::vector<int64_t>;
 
     // default engine kind is cpu.
@@ -540,7 +540,7 @@ TEST(test_conv_execute, Convolution3DNcxOix) {
     }
 }
 
-TEST(test_conv_execute, ConvolutionNcxXio) {
+TEST(test_convolution_execute, ConvolutionNcxXio) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -608,7 +608,7 @@ TEST(test_conv_execute, ConvolutionNcxXio) {
     }
 }
 
-TEST(test_conv_execute, Convolution3DNcxXio) {
+TEST(test_convolution_execute, Convolution3DNcxXio) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -676,7 +676,7 @@ TEST(test_conv_execute, Convolution3DNcxXio) {
     }
 }
 
-TEST(test_conv_execute, ConvolutionNxcXio) {
+TEST(test_convolution_execute, ConvolutionNxcXio) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -745,7 +745,7 @@ TEST(test_conv_execute, ConvolutionNxcXio) {
     }
 }
 
-TEST(test_conv_execute, Convolution3DNxcXio) {
+TEST(test_convolution_execute, Convolution3DNxcXio) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -814,7 +814,7 @@ TEST(test_conv_execute, Convolution3DNxcXio) {
     }
 }
 
-TEST(test_conv_execute, ConvolutionNxcOix) {
+TEST(test_convolution_execute, ConvolutionNxcOix) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -882,7 +882,7 @@ TEST(test_conv_execute, ConvolutionNxcOix) {
     }
 }
 
-TEST(test_conv_execute, Convolution3DNxcOix) {
+TEST(test_convolution_execute, Convolution3DNxcOix) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -950,7 +950,7 @@ TEST(test_conv_execute, Convolution3DNxcOix) {
     }
 }
 
-TEST(test_conv_execute, ConvolutionF16F16F16_GPU) {
+TEST(test_convolution_execute, ConvolutionF16F16F16_GPU) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *eng = get_engine();
@@ -1015,7 +1015,7 @@ TEST(test_conv_execute, ConvolutionF16F16F16_GPU) {
     strm->wait();
 }
 
-TEST(test_conv_execute, ConvolutionBf16Bf16Bf16) {
+TEST(test_convolution_execute, ConvolutionBf16Bf16Bf16) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *eng = get_engine();
@@ -1085,7 +1085,7 @@ TEST(test_conv_execute, ConvolutionBf16Bf16Bf16) {
     strm->wait();
 }
 
-TEST(test_conv_compile, ConvAddSharedInputs) {
+TEST(test_convolution_compile, ConvAddSharedInputs) {
     /*      /\  /
            / Conv
            \  /
@@ -1147,7 +1147,7 @@ TEST(test_conv_compile, ConvAddSharedInputs) {
     ASSERT_EQ(inplace_pairs.size(), 0U);
 }
 
-TEST(test_conv_compile, ConvAddInplace) {
+TEST(test_convolution_compile, ConvAddInplace) {
     /*      \  /
              Conv
            \  /
@@ -1218,7 +1218,7 @@ TEST(test_conv_compile, ConvAddInplace) {
     ASSERT_EQ(inplace_pairs[0].output_id, add_dst_lt.id);
 }
 
-TEST(test_conv_execute, GroupConvolution) {
+TEST(test_convolution_execute, GroupConvolution) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -1286,7 +1286,7 @@ TEST(test_conv_execute, GroupConvolution) {
     }
 }
 
-TEST(test_conv_execute, ConvolutionBackwardData) {
+TEST(test_convolution_execute, ConvolutionBackwardData) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     graph::engine_t *eng = get_engine();
@@ -1357,7 +1357,7 @@ TEST(test_conv_execute, ConvolutionBackwardData) {
     }
 }
 
-TEST(test_conv_execute, ConvolutionBnFp32) {
+TEST(test_convolution_execute, ConvolutionBnFp32) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -1484,7 +1484,7 @@ TEST(test_conv_execute, ConvolutionBnFp32) {
     ASSERT_LT(max_diff, 1e-6f);
 }
 
-TEST(test_conv_compile, ConvBnSharedInputs) {
+TEST(test_convolution_compile, ConvBnSharedInputs) {
     // bn has shared gamma/beta/mean/var
     using dims = graph::dnnl_impl::dims;
 
@@ -1592,7 +1592,7 @@ TEST(test_conv_compile, ConvBnSharedInputs) {
             allclose<float>(bn_dst_ts, convbn_dst_ts, /*rtol*/ 0.1f, 1e-6f));
 }
 
-TEST(test_conv_execute, ConvAdd) {
+TEST(test_convolution_execute, ConvAdd) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -1687,7 +1687,7 @@ TEST(test_conv_execute, ConvAdd) {
     }
 }
 
-TEST(test_conv_execute, ConvAddPerTensorBroadcast) {
+TEST(test_convolution_execute, ConvAddPerTensorBroadcast) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -1773,7 +1773,7 @@ TEST(test_conv_execute, ConvAddPerTensorBroadcast) {
     }
 }
 
-TEST(test_conv_execute, ConvAddExpandedPerTensorBroadcast) {
+TEST(test_convolution_execute, ConvAddExpandedPerTensorBroadcast) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -1857,7 +1857,7 @@ TEST(test_conv_execute, ConvAddExpandedPerTensorBroadcast) {
     }
 }
 
-TEST(test_conv_execute, ConvAddPerChannelBroadcast) {
+TEST(test_convolution_execute, ConvAddPerChannelBroadcast) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -1942,7 +1942,7 @@ TEST(test_conv_execute, ConvAddPerChannelBroadcast) {
     }
 }
 
-TEST(test_conv_execute, ConvAddPerChannelBroadcastNxc) {
+TEST(test_convolution_execute, ConvAddPerChannelBroadcastNxc) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -2027,7 +2027,7 @@ TEST(test_conv_execute, ConvAddPerChannelBroadcastNxc) {
     }
 }
 
-TEST(test_conv_compile, ConvAddBroadcast) {
+TEST(test_convolution_compile, ConvAddBroadcast) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -2092,7 +2092,7 @@ TEST(test_conv_compile, ConvAddBroadcast) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 }
 
-TEST(test_conv_execute, ConvAddRelu) {
+TEST(test_convolution_execute, ConvAddRelu) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -2184,7 +2184,7 @@ TEST(test_conv_execute, ConvAddRelu) {
     }
 }
 
-TEST(test_conv_execute, ConvMultiplePostOps) {
+TEST(test_convolution_execute, ConvMultiplePostOps) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -2313,7 +2313,7 @@ TEST(test_conv_execute, ConvMultiplePostOps) {
     }
 }
 
-TEST(test_conv_execute, ConvBiasEltwise) {
+TEST(test_convolution_execute, ConvBiasEltwise) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -2432,7 +2432,7 @@ TEST(test_conv_execute, ConvBiasEltwise) {
     }
 }
 
-TEST(test_conv_execute, ConvBiasAddEltwise) {
+TEST(test_convolution_execute, ConvBiasAddEltwise) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -2560,7 +2560,7 @@ TEST(test_conv_execute, ConvBiasAddEltwise) {
     }
 }
 
-TEST(test_conv_execute, ConvAddEltwise) {
+TEST(test_convolution_execute, ConvAddEltwise) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -2671,7 +2671,7 @@ TEST(test_conv_execute, ConvAddEltwise) {
     }
 }
 
-TEST(test_conv_execute_subgraph_fp32, ConvDepthwise_CPU) {
+TEST(test_convolution_execute_subgraph_fp32, ConvDepthwise_CPU) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -2778,7 +2778,7 @@ TEST(test_conv_execute_subgraph_fp32, ConvDepthwise_CPU) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, Conv1dConv2dConv3d) {
+TEST(test_convolution_execute_subgraph_int8, Conv1dConv2dConv3d) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();
@@ -3137,23 +3137,23 @@ static inline void quantized_conv2d_eltwise(
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, Conv2dRelu) {
+TEST(test_convolution_execute_subgraph_int8, Conv2dRelu) {
     const graph::op_kind_t opk = graph::op_kind::ReLU;
     quantized_conv2d_eltwise(opk, nullptr, nullptr);
 }
 
-TEST(test_conv_execute_subgraph_int8, Conv2dLeakyRelu) {
+TEST(test_convolution_execute_subgraph_int8, Conv2dLeakyRelu) {
     const graph::op_kind_t opk = graph::op_kind::LeakyReLU;
     const float alpha = 0.02f;
     quantized_conv2d_eltwise(opk, &alpha, nullptr);
 }
 
-TEST(test_conv_execute_subgraph_int8, Conv2dMish) {
+TEST(test_convolution_execute_subgraph_int8, Conv2dMish) {
     const graph::op_kind_t opk = graph::op_kind::Mish;
     quantized_conv2d_eltwise(opk, nullptr, nullptr);
 }
 
-TEST(test_conv_execute_subgraph_int8, Conv2dSumRelu) {
+TEST(test_convolution_execute_subgraph_int8, Conv2dSumRelu) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();
@@ -3388,7 +3388,7 @@ TEST(test_conv_execute_subgraph_int8, Conv2dSumRelu) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8,
+TEST(test_convolution_execute_subgraph_int8,
         Conv2dSumReluWithDifferentSrc1AndDstType_GPU) {
     using dims = graph::dnnl_impl::dims;
 
@@ -3579,7 +3579,7 @@ TEST(test_conv_execute_subgraph_int8,
             /*atol*/ 1.f));
 }
 
-TEST(test_conv_execute_subgraph_int8, Conv2dSumReluNxc) {
+TEST(test_convolution_execute_subgraph_int8, Conv2dSumReluNxc) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();
@@ -3802,7 +3802,7 @@ TEST(test_conv_execute_subgraph_int8, Conv2dSumReluNxc) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, Conv1d2d3dX8s8f32) {
+TEST(test_convolution_execute_subgraph_int8, Conv1d2d3dX8s8f32) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();
@@ -3978,7 +3978,7 @@ TEST(test_conv_execute_subgraph_int8, Conv1d2d3dX8s8f32) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, Conv2dReluX8s8f32) {
+TEST(test_convolution_execute_subgraph_int8, Conv2dReluX8s8f32) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();
@@ -4144,7 +4144,7 @@ TEST(test_conv_execute_subgraph_int8, Conv2dReluX8s8f32) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, Conv2dSumReluGetInplacePair) {
+TEST(test_convolution_execute_subgraph_int8, Conv2dSumReluGetInplacePair) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();
@@ -4350,7 +4350,7 @@ TEST(test_conv_execute_subgraph_int8, Conv2dSumReluGetInplacePair) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, ConvolutionBiasU8s8u8MixBf16) {
+TEST(test_convolution_execute_subgraph_int8, ConvolutionBiasU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
@@ -4513,7 +4513,7 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionBiasU8s8u8MixBf16) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, ConvolutionBiasaddU8s8u8MixBf16) {
+TEST(test_convolution_execute_subgraph_int8, ConvolutionBiasaddU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
@@ -4705,7 +4705,7 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionBiasaddU8s8u8MixBf16) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, ConvolutionBiasGeluU8s8u8MixBf16) {
+TEST(test_convolution_execute_subgraph_int8, ConvolutionBiasGeluU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
@@ -4880,7 +4880,7 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionBiasGeluU8s8u8MixBf16) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, ConvolutionReluMulS8Bf16Accuracy) {
+TEST(test_convolution_execute_subgraph_int8, ConvolutionReluMulS8Bf16Accuracy) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
@@ -5021,7 +5021,8 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionReluMulS8Bf16Accuracy) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
+TEST(test_convolution_execute_subgraph_int8,
+        ConvolutionBiasaddGeluU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
@@ -5221,7 +5222,7 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionBiasaddGeluU8s8u8MixBf16) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, ConvolutionSwishU8s8u8MixBf16) {
+TEST(test_convolution_execute_subgraph_int8, ConvolutionSwishU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *engine = get_engine();
 
@@ -5337,7 +5338,7 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionSwishU8s8u8MixBf16) {
     ASSERT_EQ(part->get_ops().size(), 10U);
 }
 
-TEST(test_conv_execute_subgraph_int8, ConvolutionSumU8s8u8MixBf16) {
+TEST(test_convolution_execute_subgraph_int8, ConvolutionSumU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *engine = get_engine();
 
@@ -5522,7 +5523,7 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionSumU8s8u8MixBf16) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8,
+TEST(test_convolution_execute_subgraph_int8,
         ConvolutionBinaryAddFailToFuseAsConvSumU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *engine = get_engine();
@@ -5685,7 +5686,7 @@ TEST(test_conv_execute_subgraph_int8,
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
+TEST(test_convolution_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
@@ -5848,7 +5849,7 @@ TEST(test_conv_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
     strm->wait();
 }
 
-TEST(test_conv_execute, ConvSumSum) {
+TEST(test_convolution_execute, ConvSumSum) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     // default engine kind is cpu.
     graph::engine_t *eng = get_engine();
@@ -5950,7 +5951,7 @@ TEST(test_conv_execute, ConvSumSum) {
     strm->wait();
 }
 
-TEST(test_conv_execute, ConvolutionBf16InFp32Out) {
+TEST(test_convolution_execute, ConvolutionBf16InFp32Out) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -6052,7 +6053,7 @@ TEST(test_conv_execute, ConvolutionBf16InFp32Out) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, QuantWeiConv2dSumRelu) {
+TEST(test_convolution_execute_subgraph_int8, QuantWeiConv2dSumRelu) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();
@@ -6293,7 +6294,7 @@ TEST(test_conv_execute_subgraph_int8, QuantWeiConv2dSumRelu) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, QuantWeiConv2dSumS8Relu) {
+TEST(test_convolution_execute_subgraph_int8, QuantWeiConv2dSumS8Relu) {
     static auto isa = dnnl_get_effective_cpu_isa();
     using dims = graph::dnnl_impl::dims;
 
@@ -6534,7 +6535,7 @@ TEST(test_conv_execute_subgraph_int8, QuantWeiConv2dSumS8Relu) {
     }
 }
 
-TEST(test_conv_execute, ConvReluUnfused) {
+TEST(test_convolution_execute, ConvReluUnfused) {
     using dims = graph::dnnl_impl::dims;
 
     // default engine kind is cpu.
@@ -6591,7 +6592,7 @@ TEST(test_conv_execute, ConvReluUnfused) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, ConvDepthwise) {
+TEST(test_convolution_execute_subgraph_int8, ConvDepthwise) {
     graph::engine_t *eng = get_engine();
     graph::stream_t *strm = get_stream();
 
@@ -6771,7 +6772,7 @@ TEST(test_conv_execute_subgraph_int8, ConvDepthwise) {
     }
 }
 
-TEST(test_conv_execute_subgraph_int8, ShareCachedWeights) {
+TEST(test_convolution_execute_subgraph_int8, ShareCachedWeights) {
     using dims = graph::dnnl_impl::dims;
 
     graph::engine_t *engine = get_engine();

@@ -52,7 +52,7 @@ FILE(GLOB DNNL_OP_EXECUTION_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test_bmm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_compiled_partition.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_concat.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_conv.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_convolution.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_convtranspose.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_dequantize.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_eltwise.cpp
