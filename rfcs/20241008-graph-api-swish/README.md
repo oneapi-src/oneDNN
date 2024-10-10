@@ -27,7 +27,7 @@ networks. For examples:
 
 - PyTorch supports Swish via the SiLU operation [[#7]][7]. The operation does
   not support specifying `factor` in the formula.
-- OpenVINO support Swish via the Swish operation [[#8]][8]. Unlike PyTorch's
+- OpenVINO supports Swish via the Swish operation [[#8]][8]. Unlike PyTorch's
   SiLU operation, OpenVINO's Swish also accepts a scalar input `Beta` as the
   multiplication `factor` for Sigmoid.
 - For ONNX, a PR is working in progress to add Swish operation [[#9]][9].
@@ -37,6 +37,9 @@ networks. For examples:
 - cuDNN backend API supports Swish as a mode (`CUDNN_POINTWISE_SWISH_FWD`) of
   its Pointwise operation [[#11]][11] and accepts attribute
   `CUDNN_ATTR_POINTWISE_SWISH_BETA` as the multiplication `factor`.
+- Please note that, even PyTorch has SiLU operation, there are still many model
+  scripts choosing to implement swish with a composition of smaller operations
+  [[#12]][12].
 
 ## Proposals
 
@@ -76,6 +79,10 @@ swish.finalize();
 Pros:
 
 - There is no need to define and maintain a new operation in oneDNN Graph API.
+- Composition of smaller operations makes it possible and scalable to extend whe
+  the activation has more variants or flavors in the future.
+- The approach of composition of Multiply and Sigmoid is also adopted in models
+  as mentioned above.
 
 Cons:
 
@@ -98,7 +105,8 @@ in oneDNN Graph API. The proposed operation schema is as follow:
 
 - Operation Kind: `Swish` (C++), `dnnl_graph_op_swish` (C).
 - Input/output: Single input, single output.
-- Attribute: `beta` (optional). `beta = 1.f` if not provided.
+- Attribute: `alpha` (optional) for the multiplication factor in the formula.
+  `alpha = 1.f` if not provided.
 - Data types: f32, bf16, f16.
 
 With the new operation being defined, a Swish operation can be programed as
@@ -113,7 +121,7 @@ logical_tensor src = logical_tensor(ID_SRC, dt, shape);
 logical_tensor dst = logical_tensor(ID_DST, dt, shape);
 
 op swi = op(ID_SWI, op::kind::Swish, "swi");
-swi.set_attr<float>(op::attr::beta, 0.5f); // optional
+swi.set_attr<float>(op::attr::alpha, 0.5f); // optional
 swi.add_input(src);
 swi.add_output(dst);
 
@@ -139,16 +147,14 @@ Cons:
   maintenance effort.
 - To some extend, supporting all Sigmoid, Multiply, and Swish operations is kind
   of duplication.
+- We will need to break the API or add a new operation if the operation formula
+  changes (eg. the `factor` is extended from a scalar to a vector or full
+  tensor) in the future. But with option 1, we just need to define a new pattern
+  without bloating the API.
 
 ## Conclusions
 
-Option 2 is recommended.
-
-oneDNN eltwise primitive and post-op can be used as the implementation of this
-operation and fusions.
-
-Benchdnn graph driver needs to be extended to support the validation of this new
-operation with reusing eltwise driver as the reference.
+(TBD.)
 
 ## References
 
@@ -163,6 +169,7 @@ operation with reusing eltwise driver as the reference.
 9. PR for Swish operation in ONNX, https://github.com/onnx/onnx/pull/5964
 10. Swish in oneDNN, https://oneapi-src.github.io/oneDNN/dev_guide_eltwise.html
 11. Swish in cuDNN, https://docs.nvidia.com/deeplearning/cudnn/latest/api/cudnn-graph-library.html#cudnnpointwisemode-t
+12. Swish implementation in Huggingface repository, https://github.com/search?q=org%3Ahuggingface%20swish&type=code
 
 [1]: https://arxiv.org/abs/1710.05941v1
 [2]: https://arxiv.org/abs/1606.08415
@@ -175,3 +182,4 @@ operation with reusing eltwise driver as the reference.
 [9]: https://github.com/onnx/onnx/pull/5964
 [10]: https://oneapi-src.github.io/oneDNN/dev_guide_eltwise.html
 [11]: https://docs.nvidia.com/deeplearning/cudnn/latest/api/cudnn-graph-library.html#cudnnpointwisemode-t
+[12]: https://github.com/search?q=org%3Ahuggingface%20swish&type=code
