@@ -61,13 +61,19 @@ fi
 echo "Compiler version:"
 $CC --version
 
-set -x
-git clone --branch $ACL_VERSION --depth 1 $ACL_REPO $ACL_ROOT_DIR
-
-cd $ACL_ROOT_DIR
-
-scons $MP Werror=0 debug=$ACL_DEBUG neon=1 opencl=0 embed_kernels=0 \
-    os=$ACL_OS arch=$ACL_ARCH build=native multi_isa=$ACL_MULTI_ISA_SUPPORT \
-    fixed_format_kernels=1 cppthreads=0 openmp=$ACL_OPENMP examples=0 \
-    validation_tests=0
-set +x
+if [[ "$ACL_ACTION" == "clone" ]]; then
+    set -x
+    git clone --branch $ACL_VERSION --depth 1 $ACL_REPO $ACL_ROOT_DIR
+    set +x
+elif [[ "$ACL_ACTION" == "build" ]]; then
+    cd $ACL_ROOT_DIR
+    set -x
+    scons $MP Werror=0 debug=$ACL_DEBUG neon=1 opencl=0 embed_kernels=0 \
+        os=$ACL_OS arch=$ACL_ARCH build=native multi_isa=$ACL_MULTI_ISA_SUPPORT \
+        fixed_format_kernels=1 cppthreads=0 openmp=$ACL_OPENMP examples=0 \
+        validation_tests=0
+    set +x
+else
+    echo "Unknown action: $ACL_ACTION"
+    exit 1
+fi
