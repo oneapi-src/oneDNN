@@ -24,8 +24,10 @@
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
+#include "graph/unit/unit_test_common.hpp"
 
 using namespace dnnl::impl::graph;
+using namespace dnnl::graph::tests::unit::utils;
 
 TEST(test_partition, CreateSimple) {
     dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(
@@ -125,4 +127,24 @@ TEST(test_partition, SetFpmathMode) {
                 eng->kind(), m, partition_kind_t::undef);
         ASSERT_EQ(p.get_fpmath_mode(), m);
     }
+}
+
+TEST(test_partition, InferShape) {
+    graph::engine_t &engine = *get_engine();
+    size_t id = 0;
+
+    graph::logical_tensor_t lt1
+            = logical_tensor_init(id++, graph::data_type::f32);
+    graph::logical_tensor_t lt2
+            = logical_tensor_init(id++, graph::data_type::f32);
+    graph::logical_tensor_t lt3
+            = logical_tensor_init(id++, graph::data_type::f32);
+
+    std::vector<const graph::logical_tensor_t *> inputs {&lt1, &lt2};
+    std::vector<graph::logical_tensor_t *> outputs {&lt3};
+
+    auto par = std::make_shared<
+            dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t>(engine.kind(),
+            graph::fpmath_mode::strict, graph::partition_kind_t::undef);
+    ASSERT_EQ(par->infer_shape(inputs, outputs), graph::status::success);
 }

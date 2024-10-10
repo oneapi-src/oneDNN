@@ -25,7 +25,6 @@ FILE(GLOB DNNL_COMMON_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test_common.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_constant_cache.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_dnnl_infer_shape.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_dnnl_partition_impl.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_fusion_info.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_insert_ops.cpp
