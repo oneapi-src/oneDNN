@@ -36,7 +36,7 @@ if [[ "$OS" == "Linux" ]]; then
     ACL_MULTI_ISA_SUPPORT=1
     if [[ "$ACL_THREADING" == "OMP" ]]; then
         ACL_OPENMP=1
-    elif [[ "$ACL_THREADING" == "SEQ" ]]; then
+    elif [[ "$ACL_THREADING" == "SEQ" || "$ACL_THREADING" == "TP" ]]; then
         ACL_OPENMP=0
     fi
     ACL_OS="linux"
