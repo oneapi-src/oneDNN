@@ -69,6 +69,10 @@ TEST(test_subgraph_pass, Kind2Str) {
             "Dnnl_add_zps");
 }
 
+TEST(test_subgraph_pass, LargerPartitionKernelCreator) {
+    ASSERT_NO_THROW(graph::dnnl_impl::large_partition_kernel_creator());
+}
+
 TEST(test_subgraph_pass, LowerDownToInt8Conv) {
     /*
         | (u8/s8)  | (s8)
