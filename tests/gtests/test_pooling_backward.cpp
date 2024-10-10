@@ -60,6 +60,13 @@ bool hip_check_format_tags(memory::format_tag format) {
     return format_ok;
 }
 
+bool generic_check_format_tags(memory::format_tag format) {
+    return impl::utils::one_of(format, memory::format_tag::a,
+            memory::format_tag::nchw, memory::format_tag::ncdhw,
+            memory::format_tag::nhwc, memory::format_tag::ndhwc,
+            memory::format_tag::any);
+}
+
 template <typename data_t>
 class pooling_bwd_test_t
     : public ::testing::TestWithParam<pool_bwd_test_params_t> {
@@ -96,6 +103,11 @@ protected:
         SKIP_IF_HIP(p.aalgorithm == algorithm::pooling_max,
                 "Test is not designed to test non-intel implementations of max "
                 "algorithm");
+
+        SKIP_IF_GENERIC(!generic_check_format_tags(p.diff_src_format),
+                "Unsupported format tag");
+        SKIP_IF_GENERIC(!generic_check_format_tags(p.diff_dst_format),
+                "Unsupported format tag");
 
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);

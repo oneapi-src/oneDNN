@@ -270,6 +270,11 @@ protected:
                 memory::data_type::s8, memory::data_type::u8);
         if (is_int8) aa.zp = true;
 
+#ifdef DNNL_SYCL_GENERIC
+        aa.po_prelu = true;
+        aa.po_binary = true;
+#endif
+
         test_fwd_pd_constructors<pd_t>(
                 matmul_pd, aa, src_md, weights_md, bia_md, dst_md);
 

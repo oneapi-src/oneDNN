@@ -69,6 +69,8 @@ protected:
                     "Unsupported source format tag");
             SKIP_IF_HIP(!hip_check_format_tag(tag),
                     "Unsupported source format tag");
+            SKIP_IF_GENERIC(!generic_check_format_tag(tag),
+                    "Unsupported source format tag");
         }
         SKIP_IF_CUDA(!cuda_check_format_tag(p.dst_format),
                 "Unsupported destination format tag");
@@ -101,6 +103,14 @@ protected:
         return atag == tag::abcd || atag == tag::acdb;
     }
     bool hip_check_format_tag(tag atag) { return atag == tag::abcd; }
+    bool generic_check_format_tag(tag atag) {
+        return impl::utils::one_of(atag, tag::a, tag::ab, tag::abc, tag::abcd,
+                tag::abcde, tag::abcdef, tag::abdec, tag::acb, tag::acbde,
+                tag::acbdef, tag::acdb, tag::acdeb, tag::ba, tag::bac,
+                tag::bacd, tag::bca, tag::bcda, tag::bcdea, tag::cba, tag::cdba,
+                tag::cdeba, tag::decab, tag::defcab, tag::Ab32a, tag::aBc32b,
+                tag::any);
+    }
 
     void Test() {
         auto eng = get_test_engine();
