@@ -86,11 +86,11 @@ set_property(GLOBAL APPEND PROPERTY GRAPH_UNIT_TEST_DEPS $<TARGET_OBJECTS:${OBJ_
 foreach(TEST_FILE ${DNNL_COMMON_TEST_SOURCES})
     get_filename_component(file_name ${TEST_FILE} NAME_WE)
     string(REPLACE "test_" "test_graph_unit_dnnl_" test_suite_name ${file_name})
-    register_graph_test_suite(${test_suite_name}_cpu "${file_name}_*")
+    register_graph_test_suite(${test_suite_name}_cpu "${file_name}*")
 endforeach()
 
 foreach(TEST_FILE ${DNNL_OP_EXECUTION_TEST_SOURCES})
     get_filename_component(file_name ${TEST_FILE} NAME_WE)
     string(REPLACE "test_" "test_graph_unit_dnnl_" test_suite_name ${file_name})
-    register_graph_test_suite(${test_suite_name} "${file_name}_*")
+    register_graph_test_suite(${test_suite_name} "${file_name}*")
 endforeach()

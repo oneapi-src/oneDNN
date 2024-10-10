@@ -29,7 +29,7 @@
 #include "graph/unit/unit_test_common.hpp"
 #include "graph/unit/utils.hpp"
 
-TEST(test_graph_graph, GetDnnlPartitions) {
+TEST(test_graph, GetDnnlPartitions) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests::unit::utils;
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 namespace dnnl_impl = graph::dnnl_impl;
 
-TEST(test_memory_planning_memory_planning, GetMemoryInfo) {
+TEST(test_memory_planning, GetMemoryInfo) {
     dnnl_impl::memory_planner_t mp;
     graph::op_t op {0, graph::op_kind::Abs, "abs"};
     auto lt = utils::logical_tensor_init(

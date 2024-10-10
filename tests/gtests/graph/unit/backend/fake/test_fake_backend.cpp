@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(test_fake_fake_backend, GetMemSize) {
+TEST(test_fake_backend, GetMemSize) {
     graph::logical_tensor_t lt = utils::logical_tensor_init(
             /* tid= */ 1, {1, 1, 3, 3}, graph::data_type::f32);
     auto &fake_backend = graph::fake_impl::fake_backend_t::get_singleton();

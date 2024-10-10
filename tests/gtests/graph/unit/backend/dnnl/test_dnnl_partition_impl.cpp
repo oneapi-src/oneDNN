@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(test_dnnl_partition_impl_dnnl_partition_impl, InferShape) {
+TEST(test_dnnl_partition_impl, InferShape) {
     graph::engine_t &engine = *get_engine();
     size_t id = 0;
 

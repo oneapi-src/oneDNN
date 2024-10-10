@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 
 namespace graph = dnnl::impl::graph;
 
-TEST(test_fusion_info_fusion_info, GetMutableZeroPoints) {
+TEST(test_fusion_info, GetMutableZeroPoints) {
     auto zp_op = std::make_shared<graph::op_t>(
             graph::dnnl_impl::op_kind::dnnl_add_zps, "zps_op");
 
