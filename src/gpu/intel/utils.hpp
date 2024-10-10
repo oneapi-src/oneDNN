@@ -34,6 +34,15 @@ namespace intel {
 #define MAX_POST_OPS_SUPPORTED 32
 
 using dim_idx_t = uint32_t;
+namespace dim_idx {
+
+constexpr dim_idx_t invalid = static_cast<dim_idx_t>(-1);
+
+inline char as_tag(dim_idx_t idx, bool is_outer = false) {
+    return (is_outer ? 'A' : 'a') + static_cast<char>(idx);
+}
+
+} // namespace dim_idx
 
 namespace gpu_utils {
 

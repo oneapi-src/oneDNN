@@ -145,7 +145,7 @@ int get_layout_unit(const conv_config_t &cfg, const layout_t &layout,
     auto &prb = cfg.prb();
     if (!is_reduction_dim(d, prb)) return 1;
     dim_idx_t dim_idx = tensor_conv_dim_index(d, tensor_kind);
-    if (dim_idx == static_cast<dim_idx_t>(-1)) return 1;
+    if (dim_idx == dim_idx::invalid) return 1;
 
     std::vector<int> blocks;
     for (auto &b : layout.blocks()) {
@@ -423,7 +423,7 @@ int inner_block(const conv_config_t &cfg, const pvar_t &dim) {
 dim_t inner_stride(const conv_config_t &cfg, tensor_kind_t tensor_kind,
         const pvar_t &dim) {
     dim_idx_t dim_idx = tensor_conv_dim_index(dim, tensor_kind);
-    ir_assert(dim_idx != static_cast<dim_idx_t>(-1));
+    ir_assert(dim_idx != dim_idx::invalid);
     auto &layout = compute_layout(cfg, tensor_kind);
     for (auto &b : layout.blocks()) {
         if (b.dim_idx == dim_idx) return (dim_t)b.stride;
@@ -761,7 +761,7 @@ private:
             std::vector<std::pair<level_t, int>> level_blocks) {
         if (level_blocks.empty()) return true;
         dim_idx_t dim_idx = tensor_conv_dim_index(d, tensor_kind);
-        if (dim_idx == static_cast<dim_idx_t>(-1)) return true;
+        if (dim_idx == dim_idx::invalid) return true;
         std::vector<int> blocks;
         for (auto &b : layout.blocks()) {
             if (b.dim_idx == dim_idx) blocks.push_back(b.block);

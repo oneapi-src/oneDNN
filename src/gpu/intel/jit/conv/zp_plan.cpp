@@ -216,9 +216,9 @@ private:
             if (dim % factor != 0) return;
             dim_t subtile_dim = dim / factor;
             dim_t cur_dim = 1;
-            dim_idx_t cur_idx = static_cast<dim_idx_t>(-1);
+            dim_idx_t cur_idx = dim_idx::invalid;
             for (auto &b : mn_blocks) {
-                if (cur_idx == static_cast<dim_idx_t>(-1)) {
+                if (cur_idx == dim_idx::invalid) {
                     cur_idx = b.dim_idx;
                 } else if (b.dim_idx != cur_idx) {
                     return;

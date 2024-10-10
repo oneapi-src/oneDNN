@@ -1190,7 +1190,7 @@ struct layout_2d_wrapper_t {
         int ret = 0;
         for (auto &b : l.blocks()) {
             if (b.block == 1) continue;
-            if (idx == static_cast<dim_idx_t>(-1) || b.dim_idx == idx) ret++;
+            if (idx == dim_idx::invalid || b.dim_idx == idx) ret++;
         }
         return ret;
     }

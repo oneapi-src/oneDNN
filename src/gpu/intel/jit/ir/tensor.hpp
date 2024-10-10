@@ -540,10 +540,10 @@ public:
             auto &b = eb.second;
             std::string b_str;
             if (dnnl_style && is_outermost(eb)) {
-                b_str.append(1, (seen[b.dim_idx] ? 'A' : 'a') + b.dim_idx);
+                b_str.append(1, dim_idx::as_tag(b.dim_idx, seen[b.dim_idx]));
             } else {
                 b_str = std::to_string(b.block);
-                b_str.append(1, 'a' + b.dim_idx);
+                b_str.append(1, dim_idx::as_tag(b.dim_idx));
             }
             if (!dnnl_style) {
                 if (b.stride.is_unknown()) {
@@ -979,8 +979,7 @@ public:
         if (block == 1) return true;
         if (blocks().empty()) return false;
         auto &b = blocks().back();
-        if (dim_idx != static_cast<dim_idx_t>(-1) && b.dim_idx != dim_idx)
-            return false;
+        if (dim_idx != dim_idx::invalid && b.dim_idx != dim_idx) return false;
         if (b.block % block != 0) return false;
         return true;
     }

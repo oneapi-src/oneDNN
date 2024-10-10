@@ -217,10 +217,9 @@ std::string blocked_to_str_tag(const memory_desc_t &md) {
     std::vector<std::string> parts;
     dim_t stride = 1;
     for (int i = blk.inner_nblks - 1; i >= 0; i--) {
-        int idx = blk.inner_idxs[i];
+        dim_idx_t idx = blk.inner_idxs[i];
         dim_t block = blk.inner_blks[i];
-        char letter = 'a' + idx;
-        parts.push_back(std::string(1, letter));
+        parts.push_back(std::string(1, dim_idx::as_tag(idx)));
         parts.push_back(std::to_string(block));
         full_inner_blks[idx] *= block;
         stride *= block;
@@ -243,8 +242,7 @@ std::string blocked_to_str_tag(const memory_desc_t &md) {
                 // Size-one blocks have to be added first.
                 if (min_dim == 1 && rem_dims[j] != min_dim) continue;
                 bool is_blocked = (full_inner_blks[j] != 1);
-                char letter = (is_blocked ? 'A' : 'a') + j;
-                parts.push_back(std::string(1, letter));
+                parts.push_back(std::string(1, dim_idx::as_tag(j, is_blocked)));
                 stride *= rem_dims[j];
                 seen[j] = true;
                 found = true;

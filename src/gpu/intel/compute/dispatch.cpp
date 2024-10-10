@@ -321,9 +321,9 @@ void dispatch_t::generate(bool generate_lws) {
         if (!lws) {
             // Compute the best lws.
             lws = get_optimal_lws(gws,
-                    vec_dim_idx != static_cast<dim_idx_t>(-1)
+                    vec_dim_idx != dim_idx::invalid
                             ? dims_[vec_dim_idx].gws_index
-                            : static_cast<dim_idx_t>(-1),
+                            : dim_idx::invalid,
                     dev_info->gpu_arch());
         }
         gpu_assert(lws) << "Unexpected missing lws";
