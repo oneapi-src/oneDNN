@@ -380,6 +380,7 @@ public:
             auto &a = _a.as<alloc_t>();
             if (a.kind != alloc_kind_t::global) ir_assert(a.size > 0) << _a;
             alloc_map_.insert({a.buf, _a});
+            buf_cur_refs_[a.buf] = 0;
         }
         mutate(root);
         buf_total_refs_ = buf_cur_refs_;
