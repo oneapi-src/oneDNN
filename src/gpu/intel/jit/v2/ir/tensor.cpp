@@ -118,8 +118,9 @@ std::string layout_desc_t::to_abx_tag(const std::string &tag) const {
         bool found = false;
         for (int i = 0; i < (int)std::strlen(tensor_map); i++) {
             if (tensor_map[i] == c_lower) {
-                char ab = 'a' + i;
-                ret += (c == c_lower ? ab : std::toupper(ab));
+                char ab = dim_idx::as_tag(i);
+                ret += (c == c_lower ? ab
+                                     : static_cast<char>(std::toupper(ab)));
                 found = true;
                 break;
             }
@@ -270,7 +271,7 @@ void layout_raw_tag_t::expand_x(int ndims) {
         if (e.is_x()) {
             for (int i = non_x_ndims(); i < ndims; i++) {
                 auto new_e = e;
-                new_e.letter = 'a' + i;
+                new_e.letter = dim_idx::as_tag(i);
                 new_entries.push_back(new_e);
             }
         } else {
@@ -293,7 +294,7 @@ layout_raw_tag_t layout_raw_tag_t::collapse_x() const {
                     break;
                 }
             }
-            x_expanded += 'a' + j;
+            x_expanded += dim_idx::as_tag(j);
         }
         if (!ok) continue;
         auto pos = tag.find(x_expanded);

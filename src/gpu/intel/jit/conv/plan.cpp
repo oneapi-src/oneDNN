@@ -1657,7 +1657,7 @@ public:
 
     layout_t transform(const layout_t &layout) const {
         ir_assert((bool)*this);
-        ir_assert(fused_tidx_ != static_cast<dim_idx_t>(-1));
+        ir_assert(fused_tidx_ != dim_idx::invalid);
         std::vector<block_t> blocks;
         bool seen = false;
         for (auto &b : layout.blocks()) {

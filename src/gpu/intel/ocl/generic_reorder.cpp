@@ -346,7 +346,7 @@ private:
     predicate_t pred;
 };
 
-#define NO_IDX static_cast<dim_idx_t>(-1)
+#define NO_IDX dim_idx::invalid
 // Find the index of the dimension that always and only follows the dimension
 // with index idx. If none exists, return NO_IDX. If no dimension with index idx
 // is present in the given block representation, return idx to delete the

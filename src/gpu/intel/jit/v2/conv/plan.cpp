@@ -65,7 +65,7 @@ layout_tag_t append_groups(
     bool is_bia = (tensor_kind == tensor_kind_t::bia);
     if (!is_src && !is_dst && !is_bia) return layout_tag;
     auto xc_dim = (is_src ? pvars::ic : pvars::oc);
-    auto xc_letter = 'a' + layout_tag.desc().dim_index(xc_dim);
+    auto xc_letter = dim_idx::as_tag(layout_tag.desc().dim_index(xc_dim));
     auto new_g_letter = xc_letter;
     auto new_xc_letter = xc_letter + 1;
     auto &raw_tag = layout_tag.raw_tag();

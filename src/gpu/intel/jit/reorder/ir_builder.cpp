@@ -641,10 +641,10 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
         const std::vector<int> &tg_blocks) {
     constraint_set_t init_cset;
 
-    int ndims = src_layout_.ndims();
+    dim_idx_t ndims = src_layout_.ndims();
     std::vector<expr_t> vars;
-    for (int i = 0; i < ndims; i++) {
-        char letter = 'a' + i;
+    for (dim_idx_t i = 0; i < ndims; i++) {
+        char letter = dim_idx::as_tag(i);
         vars.push_back(var_t::make(type_t::s32(), std::string(1, letter)));
     }
 
