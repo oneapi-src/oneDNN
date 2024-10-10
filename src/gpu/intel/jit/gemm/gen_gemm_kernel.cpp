@@ -590,10 +590,11 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 
     if (!entry_) return status::unimplemented;
 
-    // Update A/B types from entry.
-    Type Ta_new, Ta_ext_new, Tb_new, Tb_ext_new;
+    // Update A/B/C types from entry.
+    Type Ta_new, Ta_ext_new, Tb_new, Tb_ext_new, Tc_new;
     parsePrecisions(entry_->selector.precisions[0], Ta_ext_new, Ta_new);
     parsePrecisions(entry_->selector.precisions[1], Tb_ext_new, Tb_new);
+    Tc_new = charToType(entry_->selector.precisions[2][0]);
 
     auto update_type = [](Type &T, Type T_new, bool sz_change = false) {
         if ((T.bits() != T_new.bits()) && !sz_change) return;
@@ -602,8 +603,11 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     };
     update_type(problem_.Ta, Ta_new, true);
     update_type(problem_.Tb, Tb_new, true);
+    update_type(problem_.Tc, Tc_new, true);
     update_type(problem_.Ta_ext, Ta_ext_new);
     update_type(problem_.Tb_ext, Tb_ext_new);
+
+    if (problem_.Ts == Type::invalid) problem_.Ts = problem_.Tc;
 
     auto block_k = entry_->driverInfo.blocking[LoopK];
     if (block_k > 0 && k > block_k && beta != 1.0f) problem_.beta = Scalar();

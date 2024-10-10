@@ -57,7 +57,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             // LIMITATIONS:
             // - runtime dims are not supported
             auto attr_skip_mask = smask_t::scales_runtime | smask_t::post_ops
-                    | smask_t::fpmath_mode;
+                    | smask_t::fpmath_mode | smask_t::accumulation_mode;
             auto &attr_zps = attr()->zero_points_;
 
             dev_info_ = compute_engine->device_info();
@@ -294,7 +294,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                     || (post_ops_.find(prelu) != -1);
             bool with_eltwise = (post_ops_.find(eltwise) != -1);
 
-            // check GPU architecture
+            // Check GPU architecture.
             bool arch_ok = utils::one_of(arch_, arch_t::gen9, arch_t::gen11,
                     arch_t::xe_lp, arch_t::xe_hp, arch_t::xe_hpg,
                     arch_t::xe_hpc, arch_t::xe2);
@@ -309,7 +309,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                     || compute_engine->mayiuse(compute::device_ext_t::
                                     intel_subgroup_split_matrix_multiply_accumulate);
 
-            // size checks for fused reduction kernels
+            // Size checks for fused reduction kernels.
             if (with_sum_ab()) {
                 auto mnk = d->m() * d->n() * d->k();
                 if (arch_ == arch_t::xe_hpc && d->a_type() == f32)
@@ -317,35 +317,42 @@ struct gen_gemm_t : public gpu_gemm_t {
                             (mnk <= 256 * 1024 * 1024), VERBOSE_LARGE_SHAPES);
             }
 
-            // choose kernel
+            // Wrangle data types.
             auto ao_type = with_a_zero_points()
                     ? attr_zps.get_data_type(DNNL_ARG_A)
                     : data_type::s32;
             auto bo_type = data_type::s32;
+            if (swap_ab_) std::swap(ao_type, bo_type);
+
             bool int_acc = utils::one_of(eff_a_type(), s8, u8);
             auto co_type = with_bias() ? d->bias_type()
                     : with_sum_ab()    ? d->sum_ab_type
                     : int_acc          ? s32
                                        : d->c_type();
 
+            // Choose accumulation data type.
             auto acc_type = int_acc
                     ? s32
                     : (utils::one_of(f64, eff_a_type(), eff_b_type()) ? f64
                                                                       : f32);
-
-            if (swap_ab_) std::swap(ao_type, bo_type);
-            if (d->c_type() == f16 && !has_systolic) acc_type = data_type::f16;
             VDISPATCH_GEMM(
                     IMPLICATION(acc_type == f64, !with_eltwise && !with_binary),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
-            if (types::data_type_size(acc_type) < 4) {
-                // Limited post-op support for low-precision accumulation.
-                VDISPATCH_GEMM(
-                        !with_binary && IMPLICATION(with_sum_, sum_at_begin_),
-                        VERBOSE_UNSUPPORTED_POSTOP);
+            bool need_x32_acc
+                    = with_binary || !IMPLICATION(with_sum_, sum_at_begin_);
+
+            switch (attr()->acc_mode_) {
+                case accumulation_mode::any:
+                    if (!need_x32_acc) acc_type = data_type::undef;
+                    break;
+                case accumulation_mode::f16: acc_type = data_type::f16; break;
+                case accumulation_mode::f32: acc_type = data_type::f32; break;
+                case accumulation_mode::s32: acc_type = data_type::s32; break;
+                default: break;
             }
 
+            // Handle special compute modes.
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
 
             if (attr()->mayiconvert(f32, tf32))
@@ -362,6 +369,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 set_mode(mode, kernel_desc_t::mode_w_decomp);
             }
 
+            // Call kernel selector to choose a kernel.
             gpu_post_ops_t gpu_post_ops;
             CHECK(gpu_post_ops_t::make(gpu_post_ops, post_ops_, dst_md(),
                     get_post_op_specializations()));
@@ -385,6 +393,11 @@ struct gen_gemm_t : public gpu_gemm_t {
                 VDISPATCH_GEMM(!with_eltwise && !with_binary
                                 && utils::one_of(d->c_type(), f32, s32),
                         VERBOSE_UNSUPPORTED_POSTOP);
+            }
+
+            // Limited post-op support for low-precision accumulation.
+            if (kernel_desc_.problem()->Tc.size() < 4) {
+                VDISPATCH_GEMM(!need_x32_acc, VERBOSE_UNSUPPORTED_POSTOP);
             }
 
             // Ensure kernel can be run deterministically if required.
