@@ -67,6 +67,12 @@ dnnl_engine_t query_engine(
     return engine;
 }
 
+dnnl_engine_t query_engine(const_dnnl_memory_t memory) {
+    dnnl_engine_t engine;
+    dnnl_memory_get_engine(memory, &engine);
+    return engine;
+}
+
 int64_t query_mem_consumption(const_dnnl_primitive_desc_t pd) {
     int64_t size = 0;
     dnnl_primitive_desc_query(pd, dnnl_query_memory_consumption_s64, 0, &size);
