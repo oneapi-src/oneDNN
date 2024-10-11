@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -665,7 +665,8 @@ struct test_convolution_eltwise_params_t {
 
 template <typename F>
 bool catch_expected_failures(const F &f, bool expect_to_fail,
-        dnnl_status_t expected_status, bool ignore_unimplemented = false) {
+        dnnl_status_t expected_status, bool ignore_unimplemented = false,
+        const char *filename = __FILE__, int64_t line_num = __LINE__) {
     try {
         f();
     } catch (const dnnl::error &e) {
@@ -675,7 +676,8 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
             // Ignore unimplemented
             if (ignore_unimplemented && (e.status == dnnl_unimplemented)) {
                 // Print unimplemented but do not treat as error
-                std::cout << "[  UNIMPL  ] "
+                std::cout << "(" << filename << ":" << line_num << ") "
+                          << "[  UNIMPL  ] "
                           << "Implementation not found" << std::endl;
                 reset_failed_malloc_counter();
                 return true;
@@ -694,7 +696,8 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
                         expected_status, ignore_unimplemented);
             } else {
                 if (expect_to_fail && (e.status != expected_status))
-                    std::cout << "expect failure status mismatch: expect("
+                    std::cout << "(" << filename << ":" << line_num << ") "
+                              << "Expect failure status mismatch: expect("
                               << dnnl_status2str(expected_status) << ") get("
                               << dnnl_status2str(e.status)
                               << "). Re-throwing...\n";
@@ -711,7 +714,8 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
 
     // Throw an exception if the failure is expected but did not happen
     if (expect_to_fail) {
-        std::cout << "expect failure with status("
+        std::cout << "(" << filename << ":" << line_num << ") "
+                  << "Expect failure with status("
                   << dnnl_status2str(expected_status) << "), "
                   << "but operation succeed. Throwing an exception...\n";
         throw std::exception();

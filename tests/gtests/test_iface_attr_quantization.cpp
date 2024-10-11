@@ -55,11 +55,14 @@ protected:
     }
 
     template <typename F>
-    static void check_status(const F &f, dnnl_status_t status) {
-        catch_expected_failures(f, status != dnnl_success, status, false);
+    static void check_status(const F &f, dnnl_status_t status,
+            const char *filename, int64_t line_num) {
+        catch_expected_failures(
+                f, status != dnnl_success, status, false, filename, line_num);
     }
 };
-#define CHECK_STATUs(status, ...) check_status([&]() { __VA_ARGS__; }, status)
+#define CHECK_STATUs(status, ...) \
+    check_status([&]() { __VA_ARGS__; }, status, __FILE__, __LINE__)
 #define CHECK_STATUS(status, ...) CHECK_STATUs(status, __VA_ARGS__)
 
 #define CHECK_OK(...) CHECK_STATUS(dnnl_success, __VA_ARGS__)
