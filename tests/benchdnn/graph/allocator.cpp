@@ -129,7 +129,7 @@ void graph_mem_manager_t::sycl_free_wrapper(
         void *ptr, const void *device, const void *context, void *event) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
     if (!has_bench_mode_bit(mode_bit_t::corr) && is_gpu())
-        mem_pool_.deallocate(ptr, device, context, event);
+        mem_pool_.deallocate(ptr);
     else
 #endif
         default_sycl_free(ptr, device, context, event);
@@ -162,7 +162,7 @@ void *graph_mem_manager_t::ocl_malloc_wrapper(size_t size, size_t alignment,
 
 void graph_mem_manager_t::ocl_free_wrapper(
         void *buf, cl_device_id device, cl_context context, cl_event event) {
-    mem_pool_.deallocate(buf, device, context, event);
+    mem_pool_.deallocate(buf);
 }
 
 void *ocl_allocator(size_t size, size_t alignment, cl_device_id device,
