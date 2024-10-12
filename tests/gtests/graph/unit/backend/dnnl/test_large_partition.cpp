@@ -927,12 +927,12 @@ TEST(test_large_partition_execute, F32JaxMqa) {
     }
 
     // Enable large partition test
-    custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+    custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
     // Set back to avoid affecting other tests
-    custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+    custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
 
     std::vector<test_tensor> inputs_ts, outputs_ts;
 

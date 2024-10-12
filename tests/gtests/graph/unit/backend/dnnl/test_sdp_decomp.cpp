@@ -623,7 +623,7 @@ TEST(test_sdp_decomp_execute, F32SdpCorr_CPU) {
             }
 
             // -------------------------case 1----------------------------------
-            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+            custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
             graph::compiled_partition_t cp1(p);
             ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
                     graph::status::success);
@@ -639,7 +639,7 @@ TEST(test_sdp_decomp_execute, F32SdpCorr_CPU) {
             strm->wait();
 
             // -------------------------case 2----------------------------------
-            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+            custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
             graph::compiled_partition_t cp2(p);
             ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
                     graph::status::success);
@@ -739,7 +739,7 @@ TEST(test_sdp_decomp_execute, F32DistilBertSdpCorr_CPU) {
         }
 
         // -------------------------case 1----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+        custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
         graph::compiled_partition_t cp1(p);
         ASSERT_EQ(
                 p.compile(&cp1, inputs, outputs, eng), graph::status::success);
@@ -755,7 +755,7 @@ TEST(test_sdp_decomp_execute, F32DistilBertSdpCorr_CPU) {
         strm->wait();
 
         // -------------------------case 2----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+        custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
         graph::compiled_partition_t cp2(p);
         ASSERT_EQ(
                 p.compile(&cp2, inputs, outputs, eng), graph::status::success);
@@ -864,7 +864,7 @@ TEST(test_sdp_decomp_execute, Bf16SdpCorr_CPU) {
             }
 
             // -------------------------case 1----------------------------------
-            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+            custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
             graph::compiled_partition_t cp1(p);
             ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
                     graph::status::success);
@@ -880,7 +880,7 @@ TEST(test_sdp_decomp_execute, Bf16SdpCorr_CPU) {
             strm->wait();
 
             // -------------------------case 2----------------------------------
-            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+            custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
             graph::compiled_partition_t cp2(p);
             ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
                     graph::status::success);
@@ -985,7 +985,7 @@ TEST(test_sdp_decomp_execute, Bf16DistilBertSdpCorr_CPU) {
         }
 
         // -------------------------case 1----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+        custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
         graph::compiled_partition_t cp1(p);
         ASSERT_EQ(
                 p.compile(&cp1, inputs, outputs, eng), graph::status::success);
@@ -1001,7 +1001,7 @@ TEST(test_sdp_decomp_execute, Bf16DistilBertSdpCorr_CPU) {
         strm->wait();
 
         // -------------------------case 2----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+        custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
         graph::compiled_partition_t cp2(p);
         ASSERT_EQ(
                 p.compile(&cp2, inputs, outputs, eng), graph::status::success);
@@ -1094,7 +1094,7 @@ TEST(test_sdp_decomp_execute, Int8SdpCorr_CPU) {
                 inputs_ts.back().fill<uint8_t>();
             }
             // -------------------------case 1----------------------------------
-            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+            custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
             graph::compiled_partition_t cp1(p);
             ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
                     graph::status::success);
@@ -1110,7 +1110,7 @@ TEST(test_sdp_decomp_execute, Int8SdpCorr_CPU) {
             strm->wait();
 
             // -------------------------case 2----------------------------------
-            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+            custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
             graph::compiled_partition_t cp2(p);
             ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
                     graph::status::success);
@@ -1209,7 +1209,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpCorr_CPU) {
                 inputs_ts.back().fill<uint8_t>();
             }
             // -------------------------case 1----------------------------------
-            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+            custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
             graph::compiled_partition_t cp1(p);
             ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
                     graph::status::success);
@@ -1225,7 +1225,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpCorr_CPU) {
             strm->wait();
 
             // -------------------------case 2----------------------------------
-            custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+            custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
             graph::compiled_partition_t cp2(p);
             ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
                     graph::status::success);
@@ -1316,7 +1316,7 @@ TEST(test_sdp_decomp_execute, Int8DistilBertSdpCorr_CPU) {
             inputs_ts.back().fill<uint8_t>();
         }
         // -------------------------case 1----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+        custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
         graph::compiled_partition_t cp1(p);
         ASSERT_EQ(
                 p.compile(&cp1, inputs, outputs, eng), graph::status::success);
@@ -1332,7 +1332,7 @@ TEST(test_sdp_decomp_execute, Int8DistilBertSdpCorr_CPU) {
         strm->wait();
 
         // -------------------------case 2----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+        custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
         graph::compiled_partition_t cp2(p);
         ASSERT_EQ(
                 p.compile(&cp2, inputs, outputs, eng), graph::status::success);
@@ -1428,7 +1428,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16DistilBertSdpCorr_CPU) {
             inputs_ts.back().fill<uint8_t>();
         }
         // -------------------------case 1----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+        custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
         graph::compiled_partition_t cp1(p);
         ASSERT_EQ(
                 p.compile(&cp1, inputs, outputs, eng), graph::status::success);
@@ -1444,7 +1444,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16DistilBertSdpCorr_CPU) {
         strm->wait();
 
         // -------------------------case 2----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+        custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
         graph::compiled_partition_t cp2(p);
         ASSERT_EQ(
                 p.compile(&cp2, inputs, outputs, eng), graph::status::success);
@@ -1541,7 +1541,7 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecompCorr_CPU) {
         }
 
         // -------------------------case 1----------------------------------
-        custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+        custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
         graph::compiled_partition_t cp1(p);
         ASSERT_EQ(
                 p.compile(&cp1, inputs, outputs, eng), graph::status::success);

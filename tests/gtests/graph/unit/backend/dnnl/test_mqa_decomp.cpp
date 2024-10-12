@@ -81,8 +81,7 @@ TEST(test_mqa_decomp_execute, F32MqaDecomp_CPU) {
         outputs.emplace_back(&lt);
     }
 
-    // Force enable to avoid some unexpected env settings
-    custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+    custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
@@ -147,8 +146,7 @@ TEST(test_mqa_decomp_execute, Bf16MqaDecomp_CPU) {
         outputs.emplace_back(&lt);
     }
 
-    // Force enable to avoid some unexpected env settings
-    custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+    custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
@@ -208,8 +206,7 @@ TEST(test_mqa_decomp_execute, MultithreaMqaDecomp_CPU) {
         outputs.emplace_back(&lt);
     }
 
-    // Force enable to avoid some unexpected env settings
-    custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+    custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
@@ -294,7 +291,7 @@ TEST(test_mqa_decomp_execute, F32MqaCorr_CPU) {
     }
 
     // ---------------------------case1-----------------------------------------
-    custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+    custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
     graph::compiled_partition_t cp1(p);
     ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng), graph::status::success);
 
@@ -310,7 +307,7 @@ TEST(test_mqa_decomp_execute, F32MqaCorr_CPU) {
     strm->wait();
 
     // ---------------------------case2-----------------------------------------
-    custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+    custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
     graph::compiled_partition_t cp2(p);
     ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng), graph::status::success);
 
@@ -382,7 +379,7 @@ TEST(test_mqa_decomp_execute, Bf16MqaCorr_CPU) {
     }
 
     // ---------------------------case1-----------------------------------------
-    custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "0", 1);
+    custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "1", 1);
     graph::compiled_partition_t cp1(p);
     ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng), graph::status::success);
 
@@ -398,7 +395,7 @@ TEST(test_mqa_decomp_execute, Bf16MqaCorr_CPU) {
     strm->wait();
 
     // ---------------------------case2-----------------------------------------
-    custom_setenv("_ONEDNN_ENABLE_SDP_DECOMP", "1", 1);
+    custom_setenv("_ONEDNN_GRAPH_SDPA_FORCE_PRIMITIVE", "0", 1);
     graph::compiled_partition_t cp2(p);
     ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng), graph::status::success);
 
