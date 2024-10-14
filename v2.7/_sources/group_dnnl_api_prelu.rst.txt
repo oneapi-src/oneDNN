@@ -1,0 +1,172 @@
+.. index:: pair: group; PReLU
+.. _doxid-group__dnnl__api__prelu:
+
+PReLU
+=====
+
+.. toctree::
+	:hidden:
+
+	struct_dnnl_prelu_desc_t.rst
+	struct_dnnl_prelu_backward.rst
+	struct_dnnl_prelu_forward.rst
+
+Overview
+~~~~~~~~
+
+PReLU primitive A primitive to perform PReLU (leaky ReLU with trainable alpha parameter) :ref:`More...<details-group__dnnl__api__prelu>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	// structs
+
+	struct :ref:`dnnl_prelu_desc_t<doxid-structdnnl__prelu__desc__t>`;
+	struct :ref:`dnnl::prelu_backward<doxid-structdnnl_1_1prelu__backward>`;
+	struct :ref:`dnnl::prelu_forward<doxid-structdnnl_1_1prelu__forward>`;
+
+	// global functions
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_prelu_forward_desc_init<doxid-group__dnnl__api__prelu_1ga143df3dad4af0d1108a644601f873798>`(
+		dnnl_prelu_desc_t* prelu_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_prelu_backward_desc_init<doxid-group__dnnl__api__prelu_1ga2d2899ecb2749974a483f049ea5b111a>`(
+		dnnl_prelu_desc_t* prelu_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_data_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_weights_desc
+		);
+
+.. _details-group__dnnl__api__prelu:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+PReLU primitive A primitive to perform PReLU (leaky ReLU with trainable alpha parameter)
+
+
+
+.. rubric:: See also:
+
+:ref:`PReLU <doxid-dev_guide_prelu>` in developer guide
+
+Global Functions
+----------------
+
+.. index:: pair: function; dnnl_prelu_forward_desc_init
+.. _doxid-group__dnnl__api__prelu_1ga143df3dad4af0d1108a644601f873798:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_prelu_forward_desc_init(
+		dnnl_prelu_desc_t* prelu_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc
+		)
+
+Initializes a descriptor for PReLU (leaky ReLU with trainable alpha parameter) forward propagation primitive.
+
+.. note:: 
+
+   weights descriptor is allowed to be initialized with :ref:`dnnl_format_tag_any <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dafee39ac6fff0325cae43cd66495c18ac>` or with format_kind set to :ref:`dnnl_format_kind_any <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367da77ae35388e04dc3e98d90675a7110c83>`.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- prelu_desc
+
+		- Output descriptor for a prelu primitive.
+
+	*
+		- prop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>` and :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`.
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptor.
+
+	*
+		- weights_desc
+
+		- Alpha parameters memory descriptor.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_prelu_backward_desc_init
+.. _doxid-group__dnnl__api__prelu_1ga2d2899ecb2749974a483f049ea5b111a:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_prelu_backward_desc_init(
+		dnnl_prelu_desc_t* prelu_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_data_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_weights_desc
+		)
+
+Initializes a descriptor for PReLU (leaky ReLU with trainable alpha parameter) backward propagation primitive.
+
+.. note:: 
+
+   weights descriptor and diff_weights descriptor are allowed to be initialized with :ref:`dnnl_format_tag_any <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dafee39ac6fff0325cae43cd66495c18ac>` or with format_kind set to :ref:`dnnl_format_kind_any <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367da77ae35388e04dc3e98d90675a7110c83>`.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- prelu_desc
+
+		- Output descriptor for a prelu primitive.
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptor.
+
+	*
+		- weights_desc
+
+		- Alpha parameters memory descriptor.
+
+	*
+		- diff_data_desc
+
+		- Diff source and destination memory descriptor.
+
+	*
+		- diff_weights_desc
+
+		- Diff alpha parameters memory descriptor.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+

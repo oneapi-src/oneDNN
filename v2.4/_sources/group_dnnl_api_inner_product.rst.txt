@@ -1,0 +1,247 @@
+.. index:: pair: group; Inner Product
+.. _doxid-group__dnnl__api__inner__product:
+
+Inner Product
+=============
+
+.. toctree::
+	:hidden:
+
+	struct_dnnl_inner_product_desc_t.rst
+	struct_dnnl_inner_product_backward_data.rst
+	struct_dnnl_inner_product_backward_weights.rst
+	struct_dnnl_inner_product_forward.rst
+
+Overview
+~~~~~~~~
+
+A primitive to compute an inner product. :ref:`More...<details-group__dnnl__api__inner__product>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	// structs
+
+	struct :ref:`dnnl_inner_product_desc_t<doxid-structdnnl__inner__product__desc__t>`;
+	struct :ref:`dnnl::inner_product_backward_data<doxid-structdnnl_1_1inner__product__backward__data>`;
+	struct :ref:`dnnl::inner_product_backward_weights<doxid-structdnnl_1_1inner__product__backward__weights>`;
+	struct :ref:`dnnl::inner_product_forward<doxid-structdnnl_1_1inner__product__forward>`;
+
+	// global functions
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_inner_product_forward_desc_init<doxid-group__dnnl__api__inner__product_1ga76a8a2479455d46599e221febfc8f418>`(
+		:ref:`dnnl_inner_product_desc_t<doxid-structdnnl__inner__product__desc__t>`* ip_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_inner_product_backward_data_desc_init<doxid-group__dnnl__api__inner__product_1gaf5baf96b3cbc1edc0bd42aadd7848556>`(
+		:ref:`dnnl_inner_product_desc_t<doxid-structdnnl__inner__product__desc__t>`* ip_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_inner_product_backward_weights_desc_init<doxid-group__dnnl__api__inner__product_1ga99aa7376c6b091aed5d99e3b702df40f>`(
+		:ref:`dnnl_inner_product_desc_t<doxid-structdnnl__inner__product__desc__t>`* ip_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc
+		);
+
+.. _details-group__dnnl__api__inner__product:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A primitive to compute an inner product.
+
+
+
+.. rubric:: See also:
+
+:ref:`Inner Product <doxid-dev_guide_inner_product>` in developer guide
+
+Global Functions
+----------------
+
+.. index:: pair: function; dnnl_inner_product_forward_desc_init
+.. _doxid-group__dnnl__api__inner__product_1ga76a8a2479455d46599e221febfc8f418:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_inner_product_forward_desc_init(
+		:ref:`dnnl_inner_product_desc_t<doxid-structdnnl__inner__product__desc__t>`* ip_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc
+		)
+
+Initializes descriptor for inner product forward propagation.
+
+.. note:: 
+
+   Memory descriptors can be initialized with :ref:`dnnl_format_tag_any <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dafee39ac6fff0325cae43cd66495c18ac>` or with format_kind set to :ref:`dnnl_format_kind_any <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367da77ae35388e04dc3e98d90675a7110c83>`.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- ip_desc
+
+		- Output descriptor for inner product primitive.
+
+	*
+		- prop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>` and :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`.
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+	*
+		- weights_desc
+
+		- Weights memory descriptor.
+
+	*
+		- bias_desc
+
+		- Bias memory descriptor. Passing NULL, a zero memory descriptor, or a memory descriptor with format_kind set to :ref:`dnnl_format_kind_undef <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367dac86d377bba856ea7aa9679ecf65c8364>` disables the bias term.
+
+	*
+		- dst_desc
+
+		- Destination memory descriptor.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_inner_product_backward_data_desc_init
+.. _doxid-group__dnnl__api__inner__product_1gaf5baf96b3cbc1edc0bd42aadd7848556:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_inner_product_backward_data_desc_init(
+		:ref:`dnnl_inner_product_desc_t<doxid-structdnnl__inner__product__desc__t>`* ip_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc
+		)
+
+Initializes descriptor for inner product backward propagation.
+
+.. note:: 
+
+   Memory descriptors can be initialized with :ref:`dnnl_format_tag_any <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dafee39ac6fff0325cae43cd66495c18ac>` or with format_kind set to :ref:`dnnl_format_kind_any <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367da77ae35388e04dc3e98d90675a7110c83>`.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- ip_desc
+
+		- Output descriptor for inner product primitive.
+
+	*
+		- diff_src_desc
+
+		- Diff source memory descriptor.
+
+	*
+		- weights_desc
+
+		- Weights memory descriptor.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_inner_product_backward_weights_desc_init
+.. _doxid-group__dnnl__api__inner__product_1ga99aa7376c6b091aed5d99e3b702df40f:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_inner_product_backward_weights_desc_init(
+		:ref:`dnnl_inner_product_desc_t<doxid-structdnnl__inner__product__desc__t>`* ip_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc
+		)
+
+Initializes descriptor for inner product weights gradient primitive.
+
+.. note:: 
+
+   Memory descriptors can be initialized with :ref:`dnnl_format_tag_any <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dafee39ac6fff0325cae43cd66495c18ac>` or with format_kind set to :ref:`dnnl_format_kind_any <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367da77ae35388e04dc3e98d90675a7110c83>`.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- ip_desc
+
+		- Output descriptor for inner product primitive.
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+	*
+		- diff_weights_desc
+
+		- Diff weights memory descriptor.
+
+	*
+		- diff_bias_desc
+
+		- Diff bias memory descriptor. Passing NULL, a zero memory descriptor, or a memory descriptor with format_kind set to :ref:`dnnl_format_kind_undef <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367dac86d377bba856ea7aa9679ecf65c8364>` disables the bias term.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+

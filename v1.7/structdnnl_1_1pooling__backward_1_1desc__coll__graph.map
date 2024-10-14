@@ -1,0 +1,8 @@
+<map id="dnnl::pooling_backward::desc" name="dnnl::pooling_backward::desc">
+<area shape="rect" id="node2" href="$structdnnl__pooling__desc__t.html" title="A descriptor of a pooling operation. " alt="" coords="672,81,827,108"/>
+<area shape="rect" id="node3" href="$structdnnl__memory__desc__t.html" title="Memory descriptor. " alt="" coords="373,81,535,108"/>
+<area shape="rect" id="node4" href="$structdnnl__wino__desc__t.html" title="Description of tensor of weights for winograd 2x3 convolution. " alt="" coords="38,5,175,32"/>
+<area shape="rect" id="node5" href="$structdnnl__blocking__desc__t.html" title="Generic description of blocked data layout for most memory formats. " alt="" coords="26,56,187,83"/>
+<area shape="rect" id="node6" href="$structdnnl__rnn__packed__desc__t.html" title="Description of tensor of packed weights for rnn. " alt="" coords="16,107,197,133"/>
+<area shape="rect" id="node7" href="$structdnnl__memory__extra__desc__t.html" title="Description of extra information stored in memory. " alt="" coords="5,157,208,184"/>
+</map>
