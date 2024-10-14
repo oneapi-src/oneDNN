@@ -96,7 +96,7 @@ static bool isSubsetOf(DataType dt1, DataType dt2)
     if (dt1 == dt2) return true;
     if (isFP(dt1) && isInt(dt2)) return false;
     if (isW(dt1) && dt2 == DataType::tf32) return false;
-    if (is4(dt1) && (isB(dt2) || dt2 == Type::ngen_hf8())) return true;
+    if (is4(dt1) && (isB(dt2) || dt2 == DataType::hf8)) return true;
     if (dt1 == DataType::s4 && dt2 == DataType::bf8) return true;
     return getBytes(dt1) < getBytes(dt2);
 }
@@ -733,9 +733,9 @@ void CopyPlan::planTypeConversions()
                 } else
                     planEmulatedHalveFloat(i);
             }
-        } else if (st == Type::ngen_hf8() && dt == DataType::hf) {
+        } else if (st == DataType::hf8 && dt == DataType::hf && hw < HW::Xe3) {
                 planEmulatedHF8ToHF(i);
-        } else if (st == DataType::hf && dt == Type::ngen_hf8()) {
+        } else if (st == DataType::hf && dt == DataType::hf8 && hw < HW::Xe3) {
                 planEmulatedHFToHF8(i);
         } else if (st != dt && (isFP8(st) || isFP8(dt))) {
             copyThrough(i, DataType::hf, 1);

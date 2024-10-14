@@ -30,11 +30,11 @@ static inline bool isB(ngen::DataType dt) { return one_of(dt, ngen::DataType::ub
 static inline bool isW(ngen::DataType dt) { return one_of(dt, ngen::DataType::uw, ngen::DataType::w); }
 static inline bool isD(ngen::DataType dt) { return one_of(dt, ngen::DataType::ud, ngen::DataType::d); }
 static inline bool isQ(ngen::DataType dt) { return one_of(dt, ngen::DataType::uq, ngen::DataType::q); }
-static inline bool isFP8(ngen::DataType dt) { return one_of(dt, ngen::DataType::bf8, Type::ngen_hf8()); }
+static inline bool isFP8(ngen::DataType dt) { return one_of(dt, ngen::DataType::bf8, ngen::DataType::hf8); }
 
 static inline bool isFP(ngen::DataType dt) {
     using namespace ngen;
-    return one_of(dt, DataType::bf8, Type::ngen_hf8(), DataType::bf, DataType::hf, DataType::tf32, DataType::f, DataType::df);
+    return one_of(dt, DataType::bf8, DataType::hf8, DataType::bf, DataType::hf, DataType::tf32, DataType::f, DataType::df);
 }
 static inline bool isInt(ngen::DataType dt) { return !isFP(dt); }
 
