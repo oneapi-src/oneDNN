@@ -108,9 +108,6 @@ public:
         return t.isInt4() ? int(a * 2) : int(a / (U(1) << t.log2Size()));
     }
 
-    /* Not a valid nGEN DataType, just a stand-in to represent hf8 data */
-    static constexpr ngen::DataType ngen_hf8() { return static_cast<ngen::DataType>(0x71); }
-
     ngen::DataType ngen() const
     {
         using DT = ngen::DataType;
@@ -118,7 +115,7 @@ public:
         static const DT table[32] = {DT::hf,   DT::f,    DT::df,    none,
                                      none,     none,     none,      none,
                                      none,     none,     none,      none,
-                                     DT::bf,   DT::tf32, DT::bf8,   ngen_hf8(),
+                                     DT::bf,   DT::tf32, DT::bf8,   DT::hf8,
                                      none,     none,     DT::u4,    DT::s4,
                                      DT::ub,   DT::b,    DT::uw,    DT::w,
                                      DT::ud,   DT::d,    DT::uq,    DT::q,
