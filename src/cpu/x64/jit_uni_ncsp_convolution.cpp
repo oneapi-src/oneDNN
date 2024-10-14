@@ -164,6 +164,11 @@ status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
             VERBOSE_UNSUPPORTED_TAG);
     VCHECK_CONV(memory_desc_matches_tag(*dst_md(), get_ncsp_tag(ndims())),
             VERBOSE_UNSUPPORTED_TAG);
+    VCHECK_CONV(everyone_is(f32, src_md()->data_type, dst_md()->data_type,
+                        weights_md(0)->data_type,
+                        with_bias() ? weights_md(1)->data_type : f32),
+            VERBOSE_UNSUPPORTED_DT);
+    VCHECK_CONV(mayiuse(avx512_core), VERBOSE_UNSUPPORTED_ISA);
 
     if (is_matmul_)
         CHECK(init_matmul(engine));
@@ -336,10 +341,12 @@ status_t jit_uni_ncsp_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
             VERBOSE_UNSUPPORTED_TAG);
     VCHECK_CONV(memory_desc_matches_tag(*diff_dst_md(), get_ncsp_tag(ndims())),
             VERBOSE_UNSUPPORTED_TAG);
-
-    if (one_of(data_type::bf16, diff_dst_md_.data_type, src_md_.data_type)
-            && !mayiuse(avx512_core_bf16))
-        return status::unimplemented;
+    VCHECK_CONV(everyone_is(data_type::f32, src_md()->data_type,
+                        diff_dst_md()->data_type, diff_weights_md(0)->data_type,
+                        with_bias() ? diff_weights_md(1)->data_type
+                                    : data_type::f32),
+            VERBOSE_UNSUPPORTED_DT);
+    VCHECK_CONV(mayiuse(avx512_core), VERBOSE_UNSUPPORTED_ISA);
 
     CHECK(init_convolution(engine));
     init_name();
@@ -481,6 +488,10 @@ status_t jit_uni_ncsp_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
             VERBOSE_UNSUPPORTED_TAG);
     VCHECK_CONV(memory_desc_matches_tag(*diff_dst_md(), get_ncsp_tag(ndims())),
             VERBOSE_UNSUPPORTED_TAG);
+    VCHECK_CONV(everyone_is(data_type::f32, diff_src_md()->data_type,
+                        diff_dst_md()->data_type, weights_md(0)->data_type),
+            VERBOSE_UNSUPPORTED_DT);
+    VCHECK_CONV(mayiuse(avx512_core), VERBOSE_UNSUPPORTED_ISA);
 
     if (one_of(data_type::bf16, diff_dst_md_.data_type, weights_md_.data_type)
             && !mayiuse(avx512_core_bf16))
