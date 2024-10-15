@@ -38,7 +38,7 @@ struct resampling_kernel_fwd_vec_t {
             ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
         , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
-        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , dst_(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
         , po_args_(cgh, ctx, conf_.post_ops) {}
 
     void operator()(::sycl::nd_item<1> item) const {
@@ -142,7 +142,7 @@ private:
     sycl_resampling_conf_t conf_;
 
     xpu::sycl::in_memory_arg_t src_;
-    xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::inout_memory_arg_t dst_;
     post_op_input_args po_args_;
 };
 

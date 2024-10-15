@@ -48,6 +48,14 @@ namespace sycl {
                     &CTX_OUT_STORAGE(arg)) \
                       ->get_out_memory_arg(ctx.stream(), cgh)
 
+#define CTX_INOUT_SYCL_KERNEL_MEMORY(arg) \
+    CTX_OUT_STORAGE(arg).is_null() \
+            ? xpu::sycl::memory_storage_base_t::empty_inout_memory_arg( \
+                    ctx.stream(), cgh) \
+            : utils::downcast<const xpu::sycl::memory_storage_base_t *>( \
+                    &CTX_OUT_STORAGE(arg)) \
+                      ->get_inout_memory_arg(ctx.stream(), cgh)
+
 #define CHECK_SYCL_KERNEL_ARG_TYPE(type) \
     static_assert(::sycl::is_device_copyable_v<type>)
 

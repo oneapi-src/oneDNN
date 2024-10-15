@@ -39,7 +39,7 @@ struct convolution_kernel_fwd_t {
         , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0))
         , weights_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS))
         , bias_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_BIAS))
-        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , dst_(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
         , data_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
                   DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
         , weights_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
@@ -232,7 +232,7 @@ private:
     xpu::sycl::in_memory_arg_t data_;
     xpu::sycl::in_memory_arg_t weights_;
     xpu::sycl::in_memory_arg_t bias_;
-    xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::inout_memory_arg_t dst_;
     xpu::sycl::in_memory_arg_t data_scale_;
     xpu::sycl::in_memory_arg_t weights_scale_;
     xpu::sycl::in_memory_arg_t dst_scale_;
@@ -250,7 +250,7 @@ struct convolution_kernel_bwd_data_t {
     convolution_kernel_bwd_data_t(const sycl_convolution_conf_t &conf,
             ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
-        , diff_data_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
+        , diff_data_(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
         , weights_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS))
         , bias_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_BIAS))
         , diff_dst_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
@@ -461,7 +461,7 @@ private:
 
     sycl_convolution_conf_t conf_;
 
-    xpu::sycl::out_memory_arg_t diff_data_;
+    xpu::sycl::inout_memory_arg_t diff_data_;
     xpu::sycl::in_memory_arg_t weights_;
     xpu::sycl::in_memory_arg_t bias_;
     xpu::sycl::in_memory_arg_t diff_dst_;

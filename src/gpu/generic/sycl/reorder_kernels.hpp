@@ -38,7 +38,7 @@ struct reorder_kernel_t {
             const exec_ctx_t &ctx)
         : conf_(conf)
         , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0))
-        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , dst_(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
         , src_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
                   DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
         , dst_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
@@ -143,7 +143,7 @@ private:
     sycl_reorder_conf_t conf_;
 
     xpu::sycl::in_memory_arg_t src_;
-    xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::inout_memory_arg_t dst_;
     xpu::sycl::in_memory_arg_t src_scale_;
     xpu::sycl::in_memory_arg_t dst_scale_;
     data_type_t scales_src_dt_;

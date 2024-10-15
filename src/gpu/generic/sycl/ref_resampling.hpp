@@ -50,6 +50,7 @@ struct ref_resampling_fwd_t : public gpu::generic::sycl::primitive_t {
             const bool ok = is_fwd() && is_supported_type(src_md(0)->data_type)
                     && is_supported_type(dst_md(0)->data_type)
                     && attr()->has_default_values(sm::post_ops)
+                    && sycl_post_ops_t::post_ops_ok(attr())
                     && set_default_params() == status::success
                     && attr_.set_default_formats(dst_md(0)) == status::success
                     && (src_md(0)->format_desc.blocking.inner_nblks == 0)

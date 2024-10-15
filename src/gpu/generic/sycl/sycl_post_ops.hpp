@@ -224,7 +224,7 @@ struct ref_sum_op_t {
     ref_sum_op_t(float scale, float zeropoint)
         : scale_(scale), zeropoint_(zeropoint) {}
 
-    float load_and_compute(float acc, const xpu::sycl::out_memory_arg_t &dst,
+    float load_and_compute(float acc, const xpu::sycl::inout_memory_arg_t &dst,
             dnnl::impl::data_type_t sum_dt_,
             dim_t offset) const { // TODO dims32_t
         memory_plain_t dst_mem(dst, sum_dt_);
@@ -321,14 +321,14 @@ struct sycl_post_ops_t {
         n_post_ops_ = attr_po.len();
     }
 
-    inline float apply(float acc, const xpu::sycl::out_memory_arg_t &dst,
+    inline float apply(float acc, const xpu::sycl::inout_memory_arg_t &dst,
             dim_t dst_offset, const post_op_input_args &po_args,
             dims_t src_offset) const;
     inline float apply(float acc, float dst, const post_op_input_args &po_args,
             dims_t src_offset) const;
     inline float apply(float acc, const post_op_input_args &po_args,
             dims_t src_offset) const;
-    inline float apply(float acc, const xpu::sycl::out_memory_arg_t &dst,
+    inline float apply(float acc, const xpu::sycl::inout_memory_arg_t &dst,
             dim_t dst_offset) const;
 
     inline int get_post_op() const { return n_post_ops_; }
@@ -369,9 +369,9 @@ struct post_op_input_args {
     xpu::sycl::in_memory_arg_t args_[sycl_post_ops_t::max_post_ops];
 };
 
-float sycl_post_ops_t::apply(float acc, const xpu::sycl::out_memory_arg_t &dst,
-        dim_t dst_offset, const post_op_input_args &po_args,
-        dims_t src_offset) const {
+float sycl_post_ops_t::apply(float acc,
+        const xpu::sycl::inout_memory_arg_t &dst, dim_t dst_offset,
+        const post_op_input_args &po_args, dims_t src_offset) const {
     using namespace primitive_kind;
 
     for (auto i = 0; i < n_post_ops_; ++i) {
@@ -438,8 +438,8 @@ float sycl_post_ops_t::apply(
     return acc;
 }
 
-float sycl_post_ops_t::apply(float acc, const xpu::sycl::out_memory_arg_t &dst,
-        dim_t dst_offset) const {
+float sycl_post_ops_t::apply(float acc,
+        const xpu::sycl::inout_memory_arg_t &dst, dim_t dst_offset) const {
     using namespace primitive_kind;
 
     for (auto i = 0; i < n_post_ops_; ++i) {
