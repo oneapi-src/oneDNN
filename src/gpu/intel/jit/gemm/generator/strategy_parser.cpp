@@ -468,9 +468,15 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
                 strategy.splitBarrier = true;
             } else if (mod.substr(0, 2) == "pk")
                 strategy.kPadding = stoi(mod.substr(2));
-            else if (mod.substr(0, 2) == "cr")
+            else if (mod.substr(0, 2) == "cr") {
                 strategy.cRepackPanel = stoi(mod.substr(2));
-            else if (mod.substr(0, 2) == "wx") {
+                if (strategy.cRepackPanel == 0)
+                    strategy.cRepackPanel = 1024;   /* arbitrary large value */
+            } else if (mod.substr(0, 2) == "rc") {
+                strategy.repackC = stoi(mod.substr(2));
+                if (strategy.cRepackPanel == 0)
+                    strategy.cRepackPanel = 1024;   /* arbitrary large value */
+            } else if (mod.substr(0, 2) == "wx") {
                 strategy.wgPadFactor = stoi(mod.substr(2));
                 strategy.forceWGUpdate = WGFixed;
             } else if (mod.substr(0, 2) == "ql") {

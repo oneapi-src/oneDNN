@@ -1010,7 +1010,7 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
         auto &regsA = Ar_regs(h);
         auto &regsB = Br_regs(h);
 
-            outerProduct(h, ha, hb, oc, layoutA, layoutB, regsA, regsB, problem, strategy, state);
+            outerProduct(h, ha, hb, oc, opRemActive(h), layoutA, layoutB, regsA, regsB, problem, strategy, state);
 
         if (calcASums && !slmASums && !state.systolicSumA) {
             int ka_sum = (curPhase == LoopSequencer::PhaseMainLoop) ? ka_sumMain : oc;

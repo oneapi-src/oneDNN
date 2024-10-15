@@ -33,7 +33,7 @@ using std::vector;
 //  ha and hb are the k indices within the A and B chunks, respectively.
 //  A_copy, B_copy are the indices of the A, B copies to use.
 template <HW hw>
-void BLASKernelGenerator<hw>::outerProduct(int h, int ha, int hb, int opCount,
+void BLASKernelGenerator<hw>::outerProduct(int h, int ha, int hb, int opCount, bool rem,
                                            const vector<RegisterBlock> &A_layout, const vector<RegisterBlock> &B_layout,
                                            const GRFMultirange &A_regs, const GRFMultirange &B_regs,
                                            const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
@@ -41,7 +41,7 @@ void BLASKernelGenerator<hw>::outerProduct(int h, int ha, int hb, int opCount,
     if (strategy.dotVL)
         innerProductFMA(h, ha, hb, opCount, A_layout, B_layout, A_regs, B_regs, problem, strategy, state);
     else if (strategy.systolic)
-        outerProductSystolic(h, ha, hb, opCount, A_layout, B_layout, A_regs, B_regs, problem, strategy, state);
+        outerProductSystolic(h, ha, hb, opCount, rem, A_layout, B_layout, A_regs, B_regs, problem, strategy, state);
     else if (hw < HW::Gen12LP && problem.isIGEMM())
         outerProductGen9IGEMM(ha, hb, A_layout, B_layout, A_regs, B_regs, problem, strategy, state);
     else
@@ -475,7 +475,7 @@ void BLASKernelGenerator<hw>::outerProductGen9IGEMM(int ha, int hb, const vector
 
 // Accumulate multiple outer products using the systolic array.
 template <HW hw>
-void BLASKernelGenerator<hw>::outerProductSystolic(int h, int ha, int hb, int opCount,
+void BLASKernelGenerator<hw>::outerProductSystolic(int h, int ha, int hb, int opCount, bool rem,
                                                    const vector<RegisterBlock> &A_layout, const vector<RegisterBlock> &B_layout,
                                                    const GRFMultirange &A_regs, const GRFMultirange &B_regs,
                                                    const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
@@ -494,9 +494,14 @@ void BLASKernelGenerator<hw>::outerProductSystolic(int h, int ha, int hb, int op
                         : state.systolicSumB;
     bool snake = strategy.fmaBoustrophedon && !sum;
     bool repackC = !state.Cr_layout.empty();
+    bool startRepackC = false, endRepackC = false;
     int Cr_unrollM = 0, Cr_unrollN = 0;
-    if (repackC)
+    if (repackC) {
         getLayoutDims(state.Cr_layout, Cr_unrollM, Cr_unrollN);
+        auto rphase = align_down(h, opCount) % state.cRepackPeriod;
+        startRepackC = rem || (rphase == 0);
+        endRepackC = rem || (rphase + opCount >= state.cRepackPeriod);
+    }
 
     RegisterBlock sumBlock;
     sumBlock.colMajor = globalCM;
@@ -547,7 +552,7 @@ void BLASKernelGenerator<hw>::outerProductSystolic(int h, int ha, int hb, int op
                 if (rc != 8 && strategy.extendedAtomicFMA) hw_unsupported();
             }
 
-            if (repackC && hhbase == 0)
+            if (startRepackC && hhbase == 0)
                 srcC0 = null.retype(C0.getType());
 
             useDPASW ? dpasw(mod, sdepth, rc, C0, srcC0, V0, N0)
@@ -653,14 +658,14 @@ void BLASKernelGenerator<hw>::outerProductSystolic(int h, int ha, int hb, int op
         bool finishChain = !strategy.extendedAtomicFMA || (x + osys >= nx) || (repackC && x >= (Cr_unrollM - 2*xinc));
         issueDPAS(finishChain);
 
-        if (repackC) {
+        if (endRepackC) {
             int xr = x - Cr_unrollM + xinc;
             if (xr >= 0)
                 outerProductRepackC(xr, xr % Cr_unrollM, xinc, h, problem, strategy, state);
         }
     } /* x loop */
 
-    if (repackC) for (int xr = nx - Cr_unrollM + xinc; xr < nx; xr += xinc)
+    if (endRepackC) for (int xr = nx - Cr_unrollM + xinc; xr < nx; xr += xinc)
         outerProductRepackC(xr, xr % Cr_unrollM, xinc, h, problem, strategy, state);
 
 }

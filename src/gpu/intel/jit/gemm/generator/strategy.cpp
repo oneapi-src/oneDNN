@@ -382,6 +382,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     ukAlign = align_up(ukAlign, minUnrollKSLM * slmVersions);
 
     if (kInterleave) ukAlign = lcm(ukAlign, kInterleaveChunk);
+    if (repackC) ukAlign = lcm(ukAlign, repackC);
 
     if (problem.quantized2DA()) ukAlign = lcm(ukAlign, problem.aqGroupK);
     if (problem.quantized2DB()) ukAlign = lcm(ukAlign, problem.bqGroupK);

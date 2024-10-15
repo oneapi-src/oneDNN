@@ -270,6 +270,7 @@ struct GEMMStrategyPOD : public CommonStrategy {
     bool block2DCRemainder = false;              // Generate block 2D C remainder path?
     bool block2DCFull = false;                   //   Use block 2D C remainder path even for full tiles?
     int cRepackPanel = 0;                        // Size of panels for repacking C (0 = automatic)
+    int repackC = 0;                             // Repack C every repackC k loops.
     bool cAccumulators = false;                  // Use accumulator registers for part of C (to save a few registers)?
     bool cLoadAhead = false;                     // Load C before doing FMAs?
     bool autoatomic = true;                      // Automatically use C atomics for beta = 1 kernels?
