@@ -37,7 +37,7 @@ struct eltwise_fwd_kernel_vec_t {
         : conf_(conf)
         , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
         , po_args_(cgh, ctx)
-        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST)) {}
+        , dst_(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST)) {}
 
     void operator()(::sycl::nd_item<1> item) const {
         memory_tensor_t src_mem(src_, conf_.src_md);
@@ -204,7 +204,7 @@ private:
     sycl_eltwise_conf_t conf_;
     xpu::sycl::in_memory_arg_t src_;
     post_op_input_args po_args_;
-    xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::inout_memory_arg_t dst_;
 };
 
 struct eltwise_bwd_kernel_vec_t {
