@@ -1531,13 +1531,16 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
     if (Tc != Tc_compute) {
         auto &period = state.cRepackPeriod;
         int panel = strategy.cRepackPanel;
-        if (panel == 0)
+        bool fullTileRepack = true;
+        if (panel == 0){
+            fullTileRepack = false;
             panel = 2 * elementsPerGRF(hw, Tc_compute);
+        }
 
         int Cr_unrollM = unrollM, Cr_unrollN = unrollN;
         auto &Cr_unrollX = globalCM ? Cr_unrollM : Cr_unrollN;
 
-        if (Cr_unrollX <= panel) {
+        if (Cr_unrollX <= panel && fullTileRepack) {
             // Repack full tiles.
             if (problem.aScale2D && problem.bScale2D)
                 period = gcd(problem.aqGroupK, problem.bqGroupK);
