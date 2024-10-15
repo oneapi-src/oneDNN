@@ -39,7 +39,7 @@ struct binary_kernel_vec_t {
         : conf_(conf)
         , src0_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0))
         , src1_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_1))
-        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , dst_(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
         , src0_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
                   DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
         , src1_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
@@ -200,7 +200,7 @@ private:
 
     xpu::sycl::in_memory_arg_t src0_;
     xpu::sycl::in_memory_arg_t src1_;
-    xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::inout_memory_arg_t dst_;
     xpu::sycl::in_memory_arg_t src0_scale_;
     xpu::sycl::in_memory_arg_t src1_scale_;
     data_type_t scales_dt_;
