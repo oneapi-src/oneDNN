@@ -633,15 +633,15 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     maybe_set_plain_weights(
             cfg, src_axb && dst_axb, user_wei_req, wei_tag, user_wei_tag);
 
-    // Use plain tag for output to avoid extra reorders.
-    if (!user_src_tag.empty() && src_output) src_tag = user_src_tag;
-    if (!user_dst_tag.empty() && dst_output) dst_tag = user_dst_tag;
-
     if (user_src_tag.empty()) user_src_tag = src_tag;
     if (user_wei_tag.empty()) user_wei_tag = wei_tag;
     if (user_dst_tag.empty()) user_dst_tag = dst_tag;
     if (src_abx && !src_matches) user_src_tag = "abx";
     if (dst_abx && !dst_matches) user_dst_tag = "abx";
+
+    // Use plain tag for output to avoid extra reorders.
+    if (src_output) src_tag = user_src_tag;
+    if (dst_output) dst_tag = user_dst_tag;
 }
 
 status_t init_tensor_layouts(
