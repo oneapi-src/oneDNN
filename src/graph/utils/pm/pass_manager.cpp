@@ -126,12 +126,12 @@ impl::status_t pass_manager_t::run_passes(graph_t &agraph, std::istream *fs,
         }
         if (read_json) {
             verbose_printf(
-                    "onednn_graph_verbose,warn,pattern,ignore config file for "
-                    "incompatible hash id\n");
+                    "graph,warn,pattern,ignore config file for incompatible "
+                    "hash id\n");
         } else {
             verbose_printf(
-                    "onednn_graph_verbose,warn,pattern,ignore config file for "
-                    "missing json filed\n");
+                    "graph,warn,pattern,ignore config file for missing json "
+                    "field\n");
         }
     }
 
