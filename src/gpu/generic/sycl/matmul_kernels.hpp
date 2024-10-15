@@ -83,7 +83,7 @@ struct matmul_kernel_fwd_t {
         }
 
         static void store_vec_helper(
-                out_memory_tensor_t &output, Vec data, int offset) {
+                inout_memory_tensor_t &output, Vec data, int offset) {
             data_type_t type = output.md().data_type();
             char *offset_ptr = static_cast<char *>(output.ptr())
                     + data_type_size(type) * offset;
@@ -189,7 +189,7 @@ struct matmul_kernel_fwd_t {
             }
         }
 
-        void store(out_memory_tensor_t &output, int offset, int row_stride) {
+        void store(inout_memory_tensor_t &output, int offset, int row_stride) {
             for (int row = 0; row < Rows; row++) {
                 for (int col = 0; col < Cols / vec_len; col++) {
                     store_vec_helper(output, data[row][col],
@@ -198,8 +198,8 @@ struct matmul_kernel_fwd_t {
             }
         }
 
-        void store_edge(out_memory_tensor_t &output, int offset, int row_stride,
-                int rows, int cols) {
+        void store_edge(inout_memory_tensor_t &output, int offset,
+                int row_stride, int rows, int cols) {
             for (int row = 0; row < rows; row++) {
                 int col;
                 for (col = 0; col < cols / vec_len; col++) {
@@ -215,7 +215,7 @@ struct matmul_kernel_fwd_t {
             }
         }
 
-        void store_generic(out_memory_tensor_t &output, int offset,
+        void store_generic(inout_memory_tensor_t &output, int offset,
                 int row_stride, bool transpose, bool is_edge_block, int rows,
                 int cols) {
             if (is_edge_block) {
@@ -361,7 +361,7 @@ struct matmul_kernel_fwd_t {
         , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0))
         , weights_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_WEIGHTS))
         , bias_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_BIAS))
-        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , dst_(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
         , data_scale_(CTX_IN_SYCL_KERNEL_MEMORY(
                   DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
         , data_scales_dt_((conf_.do_scale_data)
@@ -653,7 +653,7 @@ private:
     xpu::sycl::in_memory_arg_t data_;
     xpu::sycl::in_memory_arg_t weights_;
     xpu::sycl::in_memory_arg_t bias_;
-    xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::inout_memory_arg_t dst_;
     xpu::sycl::in_memory_arg_t data_scale_;
     data_type_t data_scales_dt_;
     xpu::sycl::in_memory_arg_t weights_scale_;
