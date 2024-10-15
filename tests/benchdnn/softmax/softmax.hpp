@@ -75,16 +75,16 @@ struct prb_t : public prb_dims_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
         : prb_t(s.prb_dims, s.dir[0], s.sdt[0], s.ddt[0], s.stag[0], s.dtag[0],
-                s.alg[0], s.axis[0], s.inplace[0], s.attributes.front(),
-                s.ctx_init[0], s.ctx_exe[0], s.mb[0]) {
+                s.alg[0], s.axis[0], s.mb[0], s.inplace[0],
+                s.attributes.front(), s.ctx_init[0], s.ctx_exe[0]) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
     prb_t(const prb_dims_t &prb_dims, dir_t dir, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::string &stag,
-            const std::string &dtag, alg_t alg, int axis, bool inplace,
-            const attr_t &attr, const thr_ctx_t &ctx_init,
-            const thr_ctx_t &ctx_exe, int64_t mb = 0)
+            const std::string &dtag, alg_t alg, int axis, int64_t mb,
+            bool inplace, const attr_t &attr, const thr_ctx_t &ctx_init,
+            const thr_ctx_t &ctx_exe)
         : prb_dims_t(prb_dims)
         , dir(dir)
         , sdt(sdt)
@@ -93,11 +93,11 @@ struct prb_t : public prb_dims_t {
         , dtag(dtag)
         , alg(alg)
         , axis(axis)
+        , user_mb(mb)
         , inplace(inplace)
         , attr(attr)
         , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe)
-        , user_mb(mb) {
+        , ctx_exe(ctx_exe) {
         if (mb) dims[0] = mb;
         repro = set_repro_line(); // must be last in ctor to collect right info
     }
@@ -107,10 +107,10 @@ struct prb_t : public prb_dims_t {
     std::string stag, dtag;
     alg_t alg;
     int axis;
+    int64_t user_mb;
     bool inplace;
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
-    int64_t user_mb;
 
     // Used to construct memory desc when dimensions are runtime since such mds
     // can't be used directly from query and memory objects can't be constructed.

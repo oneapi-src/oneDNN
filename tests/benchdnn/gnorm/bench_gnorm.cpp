@@ -48,8 +48,8 @@ void check_correctness(
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_inplace : s.inplace) {
-        const prb_t prb(s.desc, i_mb, i_dir, i_dt, i_tag, i_flags, i_inplace,
-                i_attr, i_ctx_init, i_ctx_exe, s.check_alg);
+        const prb_t prb(s.desc, i_dir, i_dt, i_tag, i_flags, s.check_alg, i_mb,
+                i_inplace, i_attr, i_ctx_init, i_ctx_exe);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(

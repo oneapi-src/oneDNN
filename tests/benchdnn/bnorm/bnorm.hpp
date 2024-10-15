@@ -97,46 +97,45 @@ struct settings_t : public base_settings_t {
 struct prb_t : public desc_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
-        : prb_t(s.desc, s.mb[0], s.dir[0], s.dt[0], s.tag[0], s.strides[0],
-                s.flags[0], s.inplace[0], s.attributes.front(), s.ctx_init[0],
-                s.ctx_exe[0], s.check_alg, s.debug_check_ws) {
+        : prb_t(s.desc, s.dir[0], s.dt[0], s.tag[0], s.strides[0], s.flags[0],
+                s.check_alg, s.debug_check_ws, s.mb[0], s.inplace[0],
+                s.attributes.front(), s.ctx_init[0], s.ctx_exe[0]) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
-    prb_t(const desc_t &desc, int64_t mb, dir_t dir, dnnl_data_type_t dt,
+    prb_t(const desc_t &desc, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, const vdims_t &strides, flags_t flags,
+            check_alg_t check_alg, bool debug_check_ws, int64_t mb,
             bool inplace, const attr_t &attr, const thr_ctx_t &ctx_init,
-            const thr_ctx_t &ctx_exe, check_alg_t check_alg,
-            bool debug_check_ws)
+            const thr_ctx_t &ctx_exe)
         : desc_t(desc)
-        , check_alg(check_alg)
-        , debug_check_ws(debug_check_ws)
         , dir(dir)
         , dt(dt)
         , tag(tag)
         , strides(strides)
         , flags(flags)
+        , check_alg(check_alg)
+        , debug_check_ws(debug_check_ws)
+        , user_mb(mb)
         , inplace(inplace)
         , attr(attr)
         , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe)
-        , user_mb(mb) {
+        , ctx_exe(ctx_exe) {
         if (mb) this->mb = mb;
         repro = set_repro_line(); // must be last in ctor to collect right info
     }
-
-    check_alg_t check_alg;
-    bool debug_check_ws;
 
     dir_t dir;
     dnnl_data_type_t dt;
     std::string tag;
     vdims_t strides;
     flags_t flags;
+    check_alg_t check_alg;
+    bool debug_check_ws;
+    int64_t user_mb;
     bool inplace;
     attr_t attr;
-    const thr_ctx_t ctx_init, ctx_exe;
-    int64_t user_mb;
+    thr_ctx_t ctx_init, ctx_exe;
 
     bool need_ws() const {
         return (flags & (FUSE_NORM_RELU | FUSE_NORM_ADD_RELU))

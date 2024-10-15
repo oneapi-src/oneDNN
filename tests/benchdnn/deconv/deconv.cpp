@@ -318,8 +318,8 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
 
     for (const auto &prim_ref_dt_i : prim_ref_dt) {
         prb_t prb_cpu {*prb, prb->dir, prim_ref_dt_i, tag::any, tag::any,
-                tag::any, DIRECT, cpu_attr, prb->ctx_init, prb->ctx_exe,
-                prb->mb};
+                tag::any, DIRECT, prb->mb, cpu_attr, prb->ctx_init,
+                prb->ctx_exe};
 
         init_pd_args_t<prb_t> init_pd_args(
                 /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,

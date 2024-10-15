@@ -52,7 +52,7 @@ void check_correctness(
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_inplace : s.inplace) {
         const prb_t prb(s.prb_dims, i_dir, i_sdt, i_ddt, i_stag, i_dtag, i_alg,
-                i_axis, i_inplace, i_attr, i_ctx_init, i_ctx_exe, i_mb);
+                i_axis, i_mb, i_inplace, i_attr, i_ctx_init, i_ctx_exe);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(

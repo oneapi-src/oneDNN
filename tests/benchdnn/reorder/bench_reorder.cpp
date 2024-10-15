@@ -50,8 +50,8 @@ void check_correctness(
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
         const prb_t prb(s.prb_dims, i_sdt, i_ddt, i_stag, i_dtag, i_strides,
-                i_attr, i_ctx_init, i_ctx_exe, i_oflag, i_cross_engine,
-                i_runtime_dim_mask);
+                i_oflag, i_cross_engine, i_runtime_dim_mask, i_attr, i_ctx_init,
+                i_ctx_exe);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(

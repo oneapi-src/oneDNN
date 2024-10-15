@@ -286,10 +286,10 @@ struct prb_t : public desc_t {
         : prb_t(s.desc, dt_conf_t::create(s.cfg[0], s.attributes.front()),
                 s.tag[0], s.prop[0], s.alg[0], s.with_peephole[0],
                 s.with_projection[0], s.direction[0], s.scale_policy[0],
-                s.scale_proj_policy[0], s.flags[0], s.activation[0],
-                s.attributes.front(), s.ctx_init[0], s.ctx_exe[0], s.alpha,
+                s.scale_proj_policy[0], s.flags[0], s.activation[0], s.alpha,
                 s.beta, s.skip_nonlinear[0], s.trivial_strides[0], s.n_layer[0],
-                s.n_iter[0], s.mb[0]) {
+                s.n_iter[0], s.mb[0], s.attributes.front(), s.ctx_init[0],
+                s.ctx_exe[0]) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
@@ -298,10 +298,10 @@ struct prb_t : public desc_t {
             bool with_peephole, bool with_projection,
             dnnl_rnn_direction_t direction, policy_t scale_policy,
             policy_t scale_proj_policy, unsigned int flags,
-            activation_t activation, const attr_t &attr,
-            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe, float alpha,
-            float beta, bool skip_nonlinear, bool trivial_strides,
-            int64_t n_layer, int64_t n_iter, int64_t mb = 0)
+            activation_t activation, float alpha, float beta,
+            bool skip_nonlinear, bool trivial_strides, int64_t n_layer,
+            int64_t n_iter, int64_t mb, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe)
         : desc_t(desc)
         , cfg(cfg)
         , tag(tag)
@@ -315,16 +315,16 @@ struct prb_t : public desc_t {
         , wei_proj_scales_policy(scale_proj_policy)
         , flags(flags)
         , activation(activation)
-        , attr(attr)
-        , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe)
-        , user_mb(mb)
         , alpha(alpha)
         , beta(beta)
         , skip_nonlinear(skip_nonlinear)
         , trivial_strides(trivial_strides)
+        , user_mb(mb)
         , ops(0.0)
-        , linear_cscale(0.0f) {
+        , linear_cscale(0.0f)
+        , attr(attr)
+        , ctx_init(ctx_init)
+        , ctx_exe(ctx_exe) {
 
         if (n_layer) this->n_layer = n_layer;
         if (n_iter) this->n_iter = n_iter;
@@ -459,12 +459,16 @@ struct prb_t : public desc_t {
     policy_t wei_proj_scales_policy;
     unsigned int flags;
     activation_t activation;
+    float alpha;
+    float beta;
+    bool skip_nonlinear;
+    bool trivial_strides;
+    int64_t user_mb;
+    double ops;
+    float linear_cscale;
     bool inplace = false; // Lacks placement, always considered `false`.
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
-    int64_t user_mb;
-    float alpha;
-    float beta;
 
     float data_scale, data_shift;
 
@@ -476,11 +480,7 @@ struct prb_t : public desc_t {
     int wei_proj_nscales;
     int wei_proj_scales_mask;
 
-    bool skip_nonlinear;
-    bool trivial_strides;
-    double ops;
     float *linear_scales;
-    float linear_cscale;
 
 private:
     std::string repro;
