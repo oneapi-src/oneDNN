@@ -1529,13 +1529,29 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
 
     // Prepare to repack C if needed, and choose repack tile size.
     if (Tc != Tc_compute) {
+        auto &period = state.cRepackPeriod;
         int panel = strategy.cRepackPanel;
         if (panel == 0)
             panel = 2 * elementsPerGRF(hw, Tc_compute);
 
         int Cr_unrollM = unrollM, Cr_unrollN = unrollN;
         auto &Cr_unrollX = globalCM ? Cr_unrollM : Cr_unrollN;
-        Cr_unrollX = std::min(Cr_unrollX, panel);
+
+        if (Cr_unrollX <= panel) {
+            // Repack full tiles.
+            if (problem.aScale2D && problem.bScale2D)
+                period = gcd(problem.aqGroupK, problem.bqGroupK);
+            else if (problem.aScale2D)
+                period = problem.aqGroupK;
+            else if (problem.bScale2D)
+                period = problem.bqGroupK;
+            else
+                period = strategy.repackC ? strategy.repackC : strategy.unroll[LoopK];
+        } else {
+            // Repack partial tiles, interleaved with computation.
+            Cr_unrollX = panel;
+            period = outerProductCount(hw, problem, strategy);
+        }
 
         makeUnbackedRegLayout(Tc_compute, state.Cr_layout, Cr_unrollM, Cr_unrollN, globalCM, 1, strategy.C.tileR, strategy.C.tileC, true);
     }
