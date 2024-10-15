@@ -114,6 +114,15 @@ struct resampling_kernel_fwd_vec_t {
             }
 
             dims_t off {mb, c, od, oh, ow};
+            if (dst_ndims == 3) {
+                off[2] = ow;
+                off[3] = 0;
+                off[4] = 0;
+            } else if (dst_ndims == 4) {
+                off[2] = oh;
+                off[3] = ow;
+                off[4] = 0;
+            }
             dst = conf_.post_ops.apply(dst, dst_, data_p_off, po_args_, off);
             dst_mem.store(dst, data_p_off);
             utils::nd_iterator_step(mb, MB, c, C, od, OD, oh, OH, ow, OW);
