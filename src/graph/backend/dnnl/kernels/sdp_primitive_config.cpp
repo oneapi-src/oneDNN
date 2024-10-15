@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "graph/backend/dnnl/kernels/sdp_primitive_config.hpp"
+#include "common/compiler_workarounds.hpp"
 
 namespace dnnl {
 namespace impl {
