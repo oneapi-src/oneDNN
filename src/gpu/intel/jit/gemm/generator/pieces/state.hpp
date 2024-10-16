@@ -270,6 +270,7 @@ struct GEMMState : public CommonState {
     std::vector<MaskAssignment> AB_masks, AB_masksCoop;
     ngen::GRFRange broadcast_regs;
     std::vector<ngen::GRFRange> tempMul_regs;
+    ngen::Subregister groupIDMN;                            // d
     ngen::Subregister i0, j0, h0;                           // d
     ngen::Subregister wgI0, wgJ0;                           // d
     ngen::Subregister threadK0, k0Rem, wgK;                 // ud
@@ -384,6 +385,11 @@ struct GEMMState : public CommonState {
     ngen::GRF emulate64TempSave[2];
     bool simd32KMasks = false;
     int lastThresh = 0;
+    ngen::Subregister nextGroupIDM, nextGroupIDN;
+    ngen::Subregister nextFlagL3PFA, nextFlagL3PFB;
+    ngen::FlagRegister flagL3PFA, flagL3PFB;
+    std::vector<RegisterBlock> Apl3_layout, Bpl3_layout;
+    std::vector<ngen::GRFRange> Apl3_addrs, Bpl3_addrs;
 
     std::vector<ngen::Subregister> effBinary;
 

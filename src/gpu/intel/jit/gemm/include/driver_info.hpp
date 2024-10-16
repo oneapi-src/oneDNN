@@ -36,6 +36,8 @@ enum LoopType : uint8_t {
     LoopMNHilbertNMK = 0x91,        // Fused n/m indices (Hilbert ordering), with NMK nested inside
     LoopMNLinearMNK = 0xA0,         // Fused m/n indices (simple linear ordering), with MNK nested inside
     LoopMNLinearNMK = 0xA1,         // Fused n/m indices (simple linear ordering), with NMK nested inside
+    LoopMNNestedLinearMNK = 0xB0,   // Fused m/n indices (nested linear ordering), with MNK nested inside
+    LoopMNNestedLinearNMK = 0xB1,   // Fused n/m indices (nested linear ordering), with NMK nested inside
     LoopAny = 0xFF,
     LoopNone = 0xFF
 };
@@ -88,11 +90,12 @@ struct CommonDriverInfo {
     bool support4GB[3];             // True if >4GB buffers allowed for A,B,C (gemm) or S,D (copy).
 
     bool fusedEUs()           const { return (fusedLoop != LoopNone); }
-    bool isMNK()              const { auto l = loopOrder[0] & ~LoopPersistent; return l == LoopM || l == LoopMNHilbertMNK || l == LoopMNBoustrophedonMNK || l == LoopMNLinearMNK; }
-    bool isNMK()              const { auto l = loopOrder[0] & ~LoopPersistent; return l == LoopN || l == LoopMNHilbertNMK || l == LoopMNBoustrophedonNMK || l == LoopMNLinearNMK; }
+    bool isMNK()              const { auto l = loopOrder[0] & ~LoopPersistent; return l == LoopM || l == LoopMNHilbertMNK || l == LoopMNBoustrophedonMNK || l == LoopMNLinearMNK || l == LoopMNNestedLinearMNK; }
+    bool isNMK()              const { auto l = loopOrder[0] & ~LoopPersistent; return l == LoopN || l == LoopMNHilbertNMK || l == LoopMNBoustrophedonNMK || l == LoopMNLinearNMK || l == LoopMNNestedLinearNMK; }
     bool isHilbert()          const { auto l = loopOrder[0] & ~LoopPersistent; return l == LoopMNHilbertMNK || l == LoopMNHilbertNMK; }
     bool isBoustrophedon()    const { auto l = loopOrder[0] & ~LoopPersistent; return l == LoopMNBoustrophedonMNK || l == LoopMNBoustrophedonNMK; }
     bool isSimpleLinear()     const { auto l = loopOrder[0] & ~LoopPersistent; return l == LoopMNLinearMNK || l == LoopMNLinearNMK; }
+    bool isNestedLinear()     const { auto l = loopOrder[0] & ~LoopPersistent; return l == LoopMNNestedLinearMNK || l == LoopMNNestedLinearNMK; }
     bool isLinearOrder()      const { return (loopOrder[0] != LoopNone) && (loopOrder[0] & 0x80); }
     bool isPersistent()       const { return (loopOrder[0] != LoopNone) && (loopOrder[0] & LoopPersistent); }
     bool fixedWG()            const { return wgUpdate == WGFixed; }

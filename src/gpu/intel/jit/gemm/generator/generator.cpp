@@ -37,6 +37,7 @@
 #include "pieces/k_loop_setup.cxx"
 #include "pieces/k_loop.cxx"
 #include "pieces/layout_setup.cxx"
+#include "pieces/l3_prefetch.cxx"
 #include "pieces/masks.cxx"
 #include "pieces/math_helpers.cxx"
 #include "pieces/matrix_access.cxx"

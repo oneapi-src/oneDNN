@@ -104,6 +104,12 @@ bool BLASKernelGenerator<hw>::kLoopSetup(const GEMMProblem &problem, const GEMMS
                 state.modBarrierFence[q] = SBID(state.tokenBarrierFence[q]);
     }
 
+    // Update L3 prefetch enable flags.
+    if (strategy.l3PrefetchA)
+        mov(1, state.flagL3PFA, state.nextFlagL3PFA);
+    if (strategy.l3PrefetchB)
+        mov(1, state.flagL3PFB, state.nextFlagL3PFB);
+
     // Remainder load preparations.
     auto &ka_loadRem = state.ka_loadRem, &kb_loadRem = state.kb_loadRem;
     ka_loadRem = 1, kb_loadRem = 1;
@@ -374,6 +380,7 @@ void BLASKernelGenerator<hw>::kLoopTeardown(const GEMMProblem &problem, const GE
     safeReleaseRanges(state.Bo_regsRem, state);
     state.tokenAllocator.safeRelease(state.tokenBarrierFence[0]);
     state.tokenAllocator.safeRelease(state.tokenBarrierFence[1]);
+    gemmTeardownL3Prefetch(problem, strategy, state);
 }
 
 

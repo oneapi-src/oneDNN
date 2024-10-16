@@ -264,6 +264,19 @@ CoopSplit BLASKernelGenerator<hw>::effCoopSplitB(const GEMMProblem &problem, con
         return strategy.coopB;
 }
 
+// Offset A pointer in m dimension by a variable value.
+template <HW hw>
+void BLASKernelGenerator<hw>::gemmOffsetAm(const Subregister &i, const Subregister &effA, const MatrixAddressing &globalA, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
+{
+    auto Ta_ext = problem.Ta_ext;
+    switch (globalA.layout) {
+        case MatrixLayout::N:  eaddScaled(1, effA, effA, i, Ta_ext, strategy, state); break;
+        case MatrixLayout::Pc:
+        case MatrixLayout::T:  emad(1, effA, effA, state.inputs.lda, i, strategy, state); break;
+        default: stub();
+    }
+}
+
 // Offset A pointer in k dimension by a constant value.
 template <HW hw>
 void BLASKernelGenerator<hw>::gemmOffsetAk(int h, const Subregister &effA, const MatrixAddressing &globalA, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
@@ -312,6 +325,19 @@ void BLASKernelGenerator<hw>::gemmOffsetBk(const Subregister &h, const Subregist
         case MatrixLayout::T:  emad(1, effB, effB, state.inputs.ldb, h, strategy, state); break;
         case MatrixLayout::N:  eaddScaled(1, effB, effB, h, Tb_ext, strategy, state); break;
         case MatrixLayout::Pr: emad(1, effB, effB, h, globalB.packSize * Tb_ext, strategy, state); break;
+        default: stub();
+    }
+}
+
+// Offset B pointer in n dimension by a variable value.
+template <HW hw>
+void BLASKernelGenerator<hw>::gemmOffsetBn(const Subregister &j, const Subregister &effB, const MatrixAddressing &globalB, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
+{
+    auto Tb_ext = problem.Tb_ext;
+    switch (globalB.layout) {
+        case MatrixLayout::Pr:
+        case MatrixLayout::N:  emad(1, effB, effB, state.inputs.ldb, j, strategy, state); break;
+        case MatrixLayout::T:  eaddScaled(1, effB, effB, j, Tb_ext, strategy, state); break;
         default: stub();
     }
 }
@@ -1767,6 +1793,8 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
                    B_h0s, j0s, state.inputs.ldbScale, problem.B_scale, strategy.B_scale);
     }
 
+    if (i0s != state.i0) state.ra.safeRelease(i0s);
+    if (j0s != state.j0) state.ra.safeRelease(j0s);
     state.ra.safeRelease(A_h0q);
     state.ra.safeRelease(B_h0q);
     state.ra.safeRelease(A_h0s);
@@ -1786,14 +1814,20 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
             aoLoad = loadVector(problem.Tao, problem.Tao, aoBase, r, rem, strategy, state);
             makeUnbackedRegLayout(problem.Tao, A_offsetLayout, r, 1, true);
             state.ra.safeRelease(aoBase);
-        } else {
+        } else if (problem.aoPtrDims == 0) {
             auto grf = loadScalars(problem.Tao, {state.inputs.aoPtr}, strategy, state);
             aoLoad = grf-grf;
             A_offsetLayout = state.Ar_offsetLayout;
+        } else {
+            GRF grf{state.inputs.ao.getBase()};
+            aoLoad = grf-grf;
+            A_offsetLayout = state.Ar_offsetLayout;
+            A_offsetLayout[0].offsetBytes = state.inputs.ao.getByteOffset();
         }
         gemmRepack2DOffsetData(problem.Ta_ext, problem.Tao, state.Tao_int, A_offsetLayout, state.Ar_offsetLayout, aoLoad, state.Ar_offsetRegs, problem, strategy, state);
         state.ra.safeRelease(aoLoad);
-        if (!strategy.persistent) state.ra.safeRelease(state.inputs.aoPtr);
+        if (!strategy.persistent)
+            state.ra.safeRelease(state.inputs.aoPtr);
     }
     if (boTo2D) {
         if (!strategy.BO.base.isStateless()) stub();
@@ -1808,16 +1842,21 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
             boLoad = loadVector(problem.Tbo, problem.Tbo, boBase, c, rem, strategy, state);
             makeUnbackedRegLayout(problem.Tbo, B_offsetLayout, 1, c, false);
             state.ra.safeRelease(boBase);
-        } else {
+        } else if (problem.boPtrDims == 0) {
             auto grf = loadScalars(problem.Tbo, {state.inputs.boPtr}, strategy, state);
             boLoad = grf-grf;
             B_offsetLayout = state.Br_offsetLayout;
+        } else {
+            GRF grf{state.inputs.bo.getBase()};
+            boLoad = grf-grf;
+            B_offsetLayout = state.Br_offsetLayout;
+            B_offsetLayout[0].offsetBytes = state.inputs.bo.getByteOffset();
         }
         gemmRepack2DOffsetData(problem.Tb_ext, problem.Tbo, state.Tbo_int, B_offsetLayout, state.Br_offsetLayout, boLoad, state.Br_offsetRegs, problem, strategy, state);
         state.ra.safeRelease(boLoad);
-        if (!strategy.persistent) state.ra.safeRelease(state.inputs.boPtr);
+        if (!strategy.persistent)
+            state.ra.safeRelease(state.inputs.boPtr);
     }
-
     if (i0q != state.i0) state.ra.safeRelease(i0q);
     if (j0q != state.j0) state.ra.safeRelease(j0q);
 
@@ -2167,42 +2206,47 @@ void BLASKernelGenerator<hw>::gemmFreeIncrements(const GEMMProblem &problem, con
     }
 }
 
+// Adjust addresses for worksharing.
+template <HW hw>
+void BLASKernelGenerator<hw>::gemmApplyWorkshareOffset(bool isA, Subregister &base, Subregister alias, Address2DParams &params2D,
+                                                       const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy,
+                                                       int r, int c, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
+{
+    Subregister off;
+    auto &offR = params2D.offR, &offC = params2D.offC;
+    auto offR0 = offR, offC0 = offC;
+    isA ? gemmCalcWorkshareAOffset(off, offR, offC, atype, astrategy, r, c, problem, strategy, state)
+        : gemmCalcWorkshareBOffset(off, offR, offC, atype, astrategy, r, c, problem, strategy, state);
+    if (astrategy.address2D) {
+        if (offR0.isValid() && offR != offR0) add(1, offR, offR, offR0);
+        if (offC0.isValid() && offC != offC0) add(1, offC, offC, offC0);
+    } else {
+        auto base0 = base;
+        if (base == alias)
+            base = state.ra.alloc_sub(base.getType());
+        eadd(1, base, base0, off, strategy, state);
+    }
+    state.ra.safeRelease(off);
+}
+
 // Prepare A/B prefetch addresses.
 template <HW hw>
 void BLASKernelGenerator<hw>::gemmABPrefetchAddrSetup(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, bool doA, bool doB)
 {
     if (doA && strategy.cooperativePF && strategy.prefetchA) {
-        Subregister offAp;
         auto &A_offR = state.A_params.offR, &Ap_offR = state.Ap_params.offR;
         auto &A_offC = state.A_params.offC, &Ap_offC = state.Ap_params.offC;
-        gemmCalcWorkshareAOffset(offAp, Ap_offR, Ap_offC, problem.A, strategy.A_prefetch, state.ma_prefetch, state.ka_prefetch, problem, strategy, state);
-        if (strategy.A_prefetch.address2D) {
-            if (A_offR.isValid() && A_offR != Ap_offR) add(1, Ap_offR, Ap_offR, A_offR);
-            if (A_offC.isValid() && A_offC != Ap_offC) add(1, Ap_offC, Ap_offC, A_offC);
-        } else {
-            auto inEffAp = state.effAp;
-            if (state.effA == state.effAp)
-                state.effAp = state.ra.alloc_sub(state.effA.getType());
-            eadd(1, state.effAp, inEffAp, offAp, strategy, state);
-        }
-        state.ra.safeRelease(offAp);
+        Ap_offR = A_offR, Ap_offC = A_offC;
+        gemmApplyWorkshareOffset(true, state.effAp, state.effA, state.Ap_params, problem.A, strategy.A_prefetch,
+                                 state.ma_prefetch, state.ka_prefetch, problem, strategy, state);
     }
 
     if (doB && strategy.cooperativePF && strategy.prefetchB) {
-        Subregister offBp;
         auto &B_offR = state.B_params.offR, &Bp_offR = state.Bp_params.offR;
         auto &B_offC = state.B_params.offC, &Bp_offC = state.Bp_params.offC;
-        gemmCalcWorkshareBOffset(offBp, Bp_offR, Bp_offC, problem.B, strategy.B_prefetch, state.kb_prefetch, state.nb_prefetch, problem, strategy, state);
-        if (strategy.B_prefetch.address2D) {
-            if (B_offR.isValid() && B_offR != Bp_offR) add(1, Bp_offR, Bp_offR, B_offR);
-            if (B_offC.isValid() && B_offC != Bp_offC) add(1, Bp_offC, Bp_offC, B_offC);
-        } else {
-            auto inEffBp = state.effBp;
-            if (state.effB == state.effBp)
-                state.effBp = state.ra.alloc_sub(state.effB.getType());
-            eadd(1, state.effBp, inEffBp, offBp, strategy, state);
-        }
-        state.ra.safeRelease(offBp);
+        Bp_offR = B_offR, Bp_offC = B_offC;
+        gemmApplyWorkshareOffset(false, state.effBp, state.effB, state.Bp_params, problem.B, strategy.B_prefetch,
+                                 state.kb_prefetch, state.nb_prefetch, problem, strategy, state);
     }
 
     if (problem.backward()) {
@@ -2438,7 +2482,7 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
         state.inputs.groupCountM = interface.getArgument("group_count_m");
         state.inputs.groupCountN = interface.getArgument("group_count_n");
     }
-    if (strategy.cWalkOrder == WalkOrder::SimpleLinear)
+    if (one_of(strategy.cWalkOrder, WalkOrder::SimpleLinear, WalkOrder::NestedLinear))
         state.inputs.gcMNRecip = interface.getArgument("group_count_recip");
     else if (strategy.cWalkOrder == WalkOrder::Hilbertlike) {
         state.inputs.hilbertVD = interface.getArgumentIfExists("hilbert_vd");
@@ -2501,7 +2545,7 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
     state.inputs.localSizeK = lszs_reordered[2];
 
     if (strategy.linearOrder()) {
-        state.inputs.groupIDMN = tgids[0];
+        state.groupIDMN = state.inputs.groupIDMN = tgids[0];
         state.inputs.groupIDM = invalid;
         state.inputs.groupIDN = invalid;
     }
@@ -2683,7 +2727,7 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
         state.ra.claim(state.inputs.groupCountN);
     }
 
-    if (strategy.cWalkOrder == WalkOrder::SimpleLinear)
+    if (one_of(strategy.cWalkOrder, WalkOrder::SimpleLinear, WalkOrder::NestedLinear))
         state.ra.claim(state.inputs.gcMNRecip);
     else if (strategy.cWalkOrder == WalkOrder::Hilbertlike) {
         {

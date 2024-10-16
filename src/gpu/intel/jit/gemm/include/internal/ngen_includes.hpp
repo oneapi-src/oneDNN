@@ -14,5 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "../config.hpp"
+
 #   include "gpu/intel/jit/ngen/ngen_opencl.hpp"
 #   include "gpu/intel/jit/ngen/ngen_register_allocator.hpp"

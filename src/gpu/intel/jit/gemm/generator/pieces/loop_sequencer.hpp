@@ -150,6 +150,7 @@ public:
     int getUnroll() const;
     int getWarmup() const;
     int getCooldown() const;
+    int getLoopBias() const;
 
 protected:
     struct Action {
