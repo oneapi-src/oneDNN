@@ -142,6 +142,11 @@ const alg_kind_t reduction_norm_lp_power_p_sum
         = dnnl_reduction_norm_lp_power_p_sum;
 const alg_kind_t softmax_accurate = dnnl_softmax_accurate;
 const alg_kind_t softmax_log = dnnl_softmax_log;
+// Internal only alg kinds.
+const alg_kind_t internal_only_start = (alg_kind_t)(1 << 12);
+// GPU only via jit_eltwise injector.
+const alg_kind_t eltwise_stochastic_round
+        = (alg_kind_t)(internal_only_start + 1);
 } // namespace alg_kind
 
 using data_type_t = dnnl_data_type_t;
