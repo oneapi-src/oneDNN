@@ -160,7 +160,8 @@ struct ref_convolution_bwd_data_t : public gpu::generic::sycl::primitive_t {
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             attr_scales_ok()
                                     && check_convolution_scales_types(attr()))
-                    && set_default_alg_kind(alg_kind::convolution_direct);
+                    && set_default_alg_kind(alg_kind::convolution_direct)
+                    && sycl_post_ops_t::post_ops_ok(attr(), false);
             if (!ok) return status::unimplemented;
 
             return init_conf();
