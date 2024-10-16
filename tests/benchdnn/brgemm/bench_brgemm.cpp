@@ -46,7 +46,7 @@ void check_correctness(const settings_t &s) {
     for (const auto &i_ctx_exe : s.ctx_exe) {
         const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_strides,
                 i_ld, i_bia_dt, i_alpha, i_beta, i_batch_size, i_brgemm_attr,
-                i_batch_kind, i_attr, i_ctx_init, i_ctx_exe);
+                i_batch_kind, i_attr, i_ctx_init, i_ctx_exe, s.impl_filter);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
         BENCHDNN_PRINT(1, "run: %s\n", prb.str());
 

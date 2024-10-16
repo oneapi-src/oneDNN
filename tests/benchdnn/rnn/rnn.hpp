@@ -289,7 +289,7 @@ struct prb_t : public desc_t {
                 s.scale_proj_policy[0], s.flags[0], s.activation[0], s.alpha,
                 s.beta, s.skip_nonlinear[0], s.trivial_strides[0], s.n_layer[0],
                 s.n_iter[0], s.mb[0], s.attributes.front(), s.ctx_init[0],
-                s.ctx_exe[0]) {
+                s.ctx_exe[0], s.impl_filter) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
@@ -301,7 +301,8 @@ struct prb_t : public desc_t {
             activation_t activation, float alpha, float beta,
             bool skip_nonlinear, bool trivial_strides, int64_t n_layer,
             int64_t n_iter, int64_t mb, const attr_t &attr,
-            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe)
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe,
+            const impl_filter_t &impl_filter)
         : desc_t(desc)
         , cfg(cfg)
         , tag(tag)
@@ -324,7 +325,8 @@ struct prb_t : public desc_t {
         , linear_cscale(0.0f)
         , attr(attr)
         , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe) {
+        , ctx_exe(ctx_exe)
+        , impl_filter(impl_filter) {
 
         if (n_layer) this->n_layer = n_layer;
         if (n_iter) this->n_iter = n_iter;
@@ -469,6 +471,7 @@ struct prb_t : public desc_t {
     bool inplace = false; // Lacks placement, always considered `false`.
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
+    impl_filter_t impl_filter;
 
     float data_scale, data_shift;
 

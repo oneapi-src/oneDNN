@@ -18,6 +18,7 @@
 #include <limits.h>
 #include <stdint.h>
 
+#include <algorithm>
 #include <cctype>
 #include <fstream>
 #include <functional>
@@ -28,7 +29,6 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "common.hpp"
-#include "utils/parser.hpp"
 
 #include "utils/parallel.hpp"
 
@@ -321,21 +321,6 @@ bool match_regex(const char *str, const char *pattern) {
     return !regexec(&regex, str, 0, nullptr, 0);
 }
 #endif /* _WIN32 */
-
-bool maybe_skip(const std::string &impl_str) {
-    if (skip_impl.empty()) return false;
-
-    size_t start_pos = 0;
-    // Iterate over impls in skip list.
-    while (start_pos != std::string::npos) {
-        const auto skip_impl_item
-                = parser::get_substr(skip_impl, start_pos, ',');
-        if (skip_impl_item.empty()) continue;
-        if (impl_str.find(skip_impl_item) != std::string::npos) return true;
-    }
-
-    return false;
-}
 
 bool skip_start(res_t *res, int idx) {
     if (idx < test_start) {

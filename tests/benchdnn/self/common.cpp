@@ -21,6 +21,7 @@
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
+#include "utils/impl_filter.hpp"
 #include "utils/parser.hpp"
 
 #include "self/self.hpp"
@@ -517,14 +518,14 @@ static int check_trim_tags() {
 }
 
 static int check_skip_impl() {
-    skip_impl = "gemm";
-    SELF_CHECK_EQ(true, maybe_skip("x64:gemm:jit"));
+    impl_filter_t impl_filter({"gemm"}, /* use_impl = */ false);
+    SELF_CHECK_EQ(true, need_next_impl("x64:gemm:jit", impl_filter));
 
-    skip_impl = "ref,x64:gemm";
-    SELF_CHECK_EQ(true, maybe_skip("x64:gemm:jit"));
+    impl_filter = impl_filter_t({"ref", "x64:gemm"}, /* use_impl = */ false);
+    SELF_CHECK_EQ(true, need_next_impl("x64:gemm:jit", impl_filter));
 
-    skip_impl = "this,finds,nothing";
-    SELF_CHECK_EQ(false, maybe_skip("x64:gemm:jit"));
+    impl_filter = impl_filter_t({"this_finds_nothing"}, /* use_impl = */ false);
+    SELF_CHECK_EQ(false, need_next_impl("x64:gemm:jit", impl_filter));
 
     return OK;
 }

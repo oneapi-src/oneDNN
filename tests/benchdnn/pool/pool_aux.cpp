@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -339,6 +339,7 @@ std::string prb_t::set_repro_line() {
         s << "--ctx-init=" << ctx_init << " ";
     if (canonical || ctx_exe != def.ctx_exe[0])
         s << "--ctx-exe=" << ctx_exe << " ";
+    if (canonical || !impl_filter.is_def()) s << impl_filter;
 
     s << static_cast<const desc_t &>(*this);
 

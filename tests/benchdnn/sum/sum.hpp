@@ -64,7 +64,7 @@ struct prb_t : public prb_dims_t {
     prb_t(const settings_t &s)
         : prb_t(s.prb_dims, s.sdt[0], s.ddt[0], s.stag[0], s.dtag[0],
                 s.input_scales[0], s.inplace[0], s.attributes.front(),
-                s.ctx_init[0], s.ctx_exe[0]) {
+                s.ctx_init[0], s.ctx_exe[0], s.impl_filter) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
@@ -72,7 +72,7 @@ struct prb_t : public prb_dims_t {
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,
             const std::string &dtag, const std::vector<float> &input_scales,
             bool inplace, const attr_t &attr, const thr_ctx_t &ctx_init,
-            const thr_ctx_t &ctx_exe)
+            const thr_ctx_t &ctx_exe, const impl_filter_t &impl_filter)
         : prb_dims_t(prb_dims)
         , sdt(sdt)
         , ddt(ddt)
@@ -82,7 +82,8 @@ struct prb_t : public prb_dims_t {
         , inplace(inplace)
         , attr(attr)
         , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe) {
+        , ctx_exe(ctx_exe)
+        , impl_filter(impl_filter) {
         // Broadcast tag if needed
         if (stag.size() == 1) {
             const auto val = stag[0]; // Need a copy here.
@@ -107,6 +108,7 @@ struct prb_t : public prb_dims_t {
     bool inplace;
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
+    impl_filter_t impl_filter;
 
     int n_inputs() const { return (int)sdt.size(); }
 
