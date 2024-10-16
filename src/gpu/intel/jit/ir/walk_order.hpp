@@ -62,6 +62,13 @@ public:
     }
 
     void add(const pvar_t &dim, int block_size, int grid_id) {
+        if (!blocks_.empty()) {
+            auto &last = blocks_.back();
+            if (last.dim == dim && last.grid_id == grid_id) {
+                last.size *= block_size;
+                return;
+            }
+        }
         blocks_.emplace_back(dim, block_size, grid_id);
     }
 
