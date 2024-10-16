@@ -16,6 +16,7 @@
 
 #include "gpu/intel/jit/jit_eltwise_injector.hpp"
 #include "common/impl_registration.hpp"
+#include "gpu/intel/jit/codegen/ngen_helpers.hpp"
 
 #include <limits>
 
@@ -31,7 +32,7 @@ template <gpu_gen_t hw>
 int jit_eltwise_injector_f32<hw>::min_scratch_regs() {
     using namespace alg_kind;
     if (is_fwd_) {
-        switch (alg_) {
+        switch ((int)alg_) {
             case eltwise_elu:
             case eltwise_elu_use_dst_for_bwd: return 1;
             case eltwise_exp:
@@ -60,6 +61,7 @@ int jit_eltwise_injector_f32<hw>::min_scratch_regs() {
             case eltwise_gelu_tanh: return 2;
             case eltwise_logistic:
             case eltwise_logistic_use_dst_for_bwd: return 0;
+            case eltwise_stochastic_round: return 6;
             default: assert(!"unsupported eltwise algorithm");
         }
     } else {
@@ -301,6 +303,157 @@ template <gpu_gen_t hw>
 void jit_eltwise_injector_f32<hw>::round_compute_fwd(
         int simd, const ngen::GRF &r) {
     h->rnde(simd, r, r);
+}
+
+template <gpu_gen_t hw>
+void jit_eltwise_injector_f32<hw>::sround_compute_fwd(int simd,
+        const ngen::GRF &r, int phase, const ngen::Subregister &seed,
+        const ngen::DataType dst_dt, int off) {
+    // 2 regs for bias.
+    auto bias = scratch_[0].ud();
+    auto u_r = r[0].ud()(16, 16, 1);
+    auto u_f = r[0].f()(16, 16, 1);
+
+    // Initialize indices in counter.
+    int base_idx = off * simd;
+    h->template mov<uint16_t>(
+            8, bias.uw(0)(8, 8, 1), Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
+    h->template mov<uint16_t>(8, bias.uw(8)(8, 8, 1),
+            Immediate::uv(8, 9, 10, 11, 12, 13, 14, 15));
+    h->add(16, bias.ud(), bias.uw(), Immediate::ud(base_idx));
+
+    const int dst_dt_digits = dnnl::impl::types::digits<uint32_t>(
+            convert_ngen_type_to_dnnl(dst_dt));
+    data_type_t dnnl_t = to_dnnl(to_ir(dst_dt));
+    const float f_min = types::min_value<float>(dnnl_t);
+    const float max = types::max_value<float>(dnnl_t);
+    const float lowest = types::lowest_value<float>(dnnl_t);
+    auto bia_scratch = scratch_[4].ud();
+
+    // Mask for preserving inf, NaN.
+    // u_r & 0x7F800000 != 0x7F800000 implies (~u_r) & 0x7F800000 != 0
+    h->and_(simd | h->nz | f0[0], h->null.ud(), ~u_r, 0x7F800000);
+
+    const int truncation_mask = (0xffffffff << (24 - dst_dt_digits));
+
+    philox_4x32(simd, seed, bias);
+
+    if (getBytes(dst_dt) == 2) {
+        h->mov(simd, bia_scratch.ud(0), bias.ub(0)(simd, simd, 1));
+    } else {
+        h->mov(simd, bia_scratch.ud(0), bias.uw(0)(simd, simd, 1));
+    }
+
+    h->and_(simd, bia_scratch, bia_scratch, ~truncation_mask);
+
+    h->add(simd | f0[0], u_r, u_r, bia_scratch);
+    h->and_(simd | f0[0], u_r, u_r, truncation_mask);
+
+    // Enforce dst data type range.
+    h->max_(simd, u_f, u_f, lowest);
+    h->min_(simd, u_f, u_f, max);
+    // Enforce minimum precision.
+    h->cmp(simd | lt | f0[0], abs(u_f), f_min);
+    h->mov(simd | f0[0], u_r, 0);
+}
+
+template <gpu_gen_t hw>
+void jit_eltwise_injector_f32<hw>::philox_4x32(
+        int simd, const ngen::Subregister &seed, const ngen::GRF &bias) {
+    auto sround_seed = seed;
+    auto ctr = bias.ud(0);
+
+    auto key = scratch_[2].ud();
+    auto ctr_mul = scratch_[3].ud();
+    auto offs = scratch_[4].ud();
+    auto off_inc = scratch_[5].uw();
+    auto addr = h->indirect[h->a0].ud(0)(0, 1, 0);
+
+    // Compute key.
+    h->mov(4, key.uq(0)(4, 4, 1), uint64_t(0xBB67AE859E3779B9uLL));
+
+    h->template mov<uint16_t>(
+            4, offs.uw(16)(8, 8, 1), Immediate::uv(8, 8, 9, 9, 0, 0, 0, 0));
+    h->template mul<uint32_t>(
+            4, offs.ud(8)(4, 4, 1), key.ud(0)(4, 4, 1), offs.uw(16)(4, 4, 1));
+    h->add(4, offs.ud(8)(4, 4, 1), offs.ud(8)(4, 4, 1), sround_seed);
+
+    h->template mov<uint16_t>(
+            8, offs.uw(8)(8, 8, 1), Immediate::uv(4, 4, 5, 5, 6, 6, 7, 7));
+    h->template mov<uint16_t>(
+            8, offs.uw(0)(8, 8, 1), Immediate::uv(0, 0, 1, 1, 2, 2, 3, 3));
+    h->template mul<uint32_t>(
+            8, key.ud(8)(8, 8, 1), key.ud(0)(8, 8, 1), offs.uw(8)(8, 8, 1));
+    h->template mul<uint32_t>(
+            8, key.ud(0)(8, 8, 1), key.ud(0)(8, 8, 1), offs.uw(0)(8, 8, 1));
+    h->add(16, key, key, sround_seed);
+    // Compute ctr_mul.
+    h->mov(4, ctr_mul.ud(2)(4, 4, 4), 0xCD9E8D57);
+    h->mov(4, ctr_mul.ud(0)(4, 4, 4), 0xD2511F53);
+    auto ctr_base_sub = offs.uw(8)(8, 8, 1);
+    h->mov(8, ctr_base_sub, (ctr.getBase() * GRF::bytes(hw)) + ctr.getOffset());
+
+    // Prepare first iter idx swizzle
+    h->template mov<uint16_t>(
+            8, off_inc.uw(0)(8, 8, 1), Immediate::uv(0, 3, 2, 1, 4, 7, 6, 5));
+    h->template mul<uint16_t>(
+            8, off_inc.uw(0)(8, 8, 1), off_inc.uw(0)(8, 8, 1), 4);
+
+    //as_uint4(convert_ulong2(ctr.s31) * mul) ^ (uint4)(ctr.s20 ^ key, 0, 0).s3120
+    auto philox_round = [&](ngen::Subregister &ctr, ngen::GRF &ctr_mul,
+                                ngen::GRF &key, int idx) {
+        // TODO: what if offsets in different operands can differ?
+
+        // Apply idx swizzle.
+        h->add(8, h->a0, ctr_base_sub, off_inc);
+        h->template movi<uint32_t>(8, ctr.ud(0)(8, 8, 1), addr);
+        h->add(8, h->a0, h->a0, 32);
+        h->template movi<uint32_t>(8, ctr.ud(8)(8, 8, 1), addr);
+
+        // KEY packed with mul in ctr_mul, key in odd indices, ctr_mul in even.
+        // Swizzle Key to avoid double swizzle as in ocl ((uint4)(ctr.s20 ^ key, 0, 0).s3120).
+        h->mov(4, ctr_mul.ud(1)(8, 8, 4), key.ud(idx + 1)(0, 1, 0));
+        h->mov(4, ctr_mul.ud(3)(8, 8, 4), key.ud(idx)(0, 1, 0));
+        // END SWIZZLE CTR_MUL
+
+        // xor ctr.s02 ^ key.s10
+        h->xor_(8, ctr_mul.ud(1)(8, 8, 2), ctr_mul.ud(1)(8, 8, 2),
+                ctr.ud(1)(8, 8, 2));
+
+        // EMULATE QW <- DW X DW
+        // mul ctr.s31 * ctr_mul
+        auto ctrLo = ctr.ud(0)(8, 8, 2);
+        auto ctrHi = ctr.ud(1)(8, 8, 2);
+
+        auto acc = h->acc0.retype(DataType::ud)[ctrLo.getOffset()](
+                ctrLo.getHS());
+        h->mul(8, acc, ctr.ud(0)(8, 8, 2), ctr_mul.uw(0)(8, 8, 4));
+        h->mach(8, ctrLo, ctr.ud(0)(8, 8, 2), ctr_mul.ud(0)(8, 8, 2));
+        h->mov(8, ctrHi, ctrLo);
+        h->mov(8, ctrLo, acc);
+
+        // xor results
+        h->xor_(8, ctr.ud(1)(8, 8, 2), ctr.ud(1)(8, 8, 2),
+                ctr_mul.ud(1)(8, 8, 2));
+
+        // Set idx swizzle for subsequent iterations.
+        if (idx == 0) {
+            h->template mov<uint16_t>(8, off_inc.uw(0)(8, 8, 1),
+                    Immediate::uv(3, 0, 1, 2, 7, 4, 5, 6));
+            h->template mul<uint16_t>(
+                    8, off_inc.uw(0)(8, 8, 1), off_inc.uw(0)(8, 8, 1), 4);
+        }
+    };
+    philox_round(ctr, ctr_mul, key, 0);
+    philox_round(ctr, ctr_mul, key, 2);
+    philox_round(ctr, ctr_mul, key, 4);
+    philox_round(ctr, ctr_mul, key, 6);
+    philox_round(ctr, ctr_mul, key, 8);
+    philox_round(ctr, ctr_mul, key, 10);
+    philox_round(ctr, ctr_mul, key, 12);
+    philox_round(ctr, ctr_mul, key, 14);
+    philox_round(ctr, ctr_mul, offs, 8);
+    philox_round(ctr, ctr_mul, offs, 10);
 }
 
 template <gpu_gen_t hw>
@@ -659,7 +812,8 @@ void jit_eltwise_injector_f32<hw>::pow_compute_fwd(
 }
 
 template <gpu_gen_t hw>
-void jit_eltwise_injector_f32<hw>::compute(const int *grfs, int ngrf) {
+void jit_eltwise_injector_f32<hw>::compute(const int *grfs, int ngrf,
+        const int seed, const int off, const ngen::DataType dt) {
     using namespace alg_kind;
 
     auto bmax = max_batch_size();
@@ -680,7 +834,7 @@ void jit_eltwise_injector_f32<hw>::compute(const int *grfs, int ngrf) {
                 int simd = nreg * GRF::bytes(hw) / sizeof(float);
 
                 if (is_fwd_) {
-                    switch (alg_) {
+                    switch ((int)alg_) {
                         case eltwise_elu:
                         case eltwise_elu_use_dst_for_bwd:
                             elu_compute_fwd(simd, base, phase, ii);
@@ -753,6 +907,10 @@ void jit_eltwise_injector_f32<hw>::compute(const int *grfs, int ngrf) {
                         case eltwise_logistic:
                         case eltwise_logistic_use_dst_for_bwd:
                             logistic_compute_fwd(simd, base, phase);
+                            break;
+                        case eltwise_stochastic_round:
+                            sround_compute_fwd(simd, base, phase,
+                                    GRF(seed).ud(off), dt, ii);
                             break;
                         default: assert(!"unsupported eltwise algorithm");
                     }

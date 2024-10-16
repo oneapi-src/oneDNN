@@ -21,6 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
+#include "gpu/intel/jit/codegen/kernel.hpp"
 #include "gpu/intel/jit/jit_generator.hpp"
 
 namespace dnnl {
@@ -40,7 +41,7 @@ inline bool jit_eltwise_injector_f32_is_supported(alg_kind_t alg) {
             eltwise_tanh, eltwise_tanh_use_dst_for_bwd, eltwise_abs,
             eltwise_round, eltwise_linear, eltwise_clip, eltwise_clip_v2,
             eltwise_clip_v2_use_dst_for_bwd, eltwise_logistic,
-            eltwise_logistic_use_dst_for_bwd);
+            eltwise_logistic_use_dst_for_bwd, eltwise_stochastic_round);
 }
 
 template <gpu_gen_t hw>
@@ -69,7 +70,8 @@ struct jit_eltwise_injector_f32 {
     void prepare();
     void compute(const ngen::GRF &reg) { compute(reg - reg); }
     void compute(const ngen::GRFRange &regs);
-    void compute(const int *grfs, int ngrf);
+    void compute(const int *grfs, int ngrf, int seed = -1, int seed_off = -1,
+            ngen::DataType = ngen::DataType::invalid);
 
 private:
     const alg_kind_t alg_;
@@ -122,6 +124,11 @@ private:
     void sqrt_compute_fwd(int simd, const ngen::GRF &r);
     void square_compute_fwd(int simd, const ngen::GRF &r);
     void round_compute_fwd(int simd, const ngen::GRF &r);
+    void sround_compute_fwd(int simd, const ngen::GRF &r, int phase,
+            const ngen::Subregister &seed, const ngen::DataType dst_dt,
+            int off);
+    void philox_4x32(
+            int simd, const ngen::Subregister &seed, const ngen::GRF &bias);
     void swish_compute_fwd(int simd, const ngen::GRF &r, int phase, int off);
     void tanh_compute_fwd(
             int simd, const ngen::GRF &r, int phase, int off, int batch);
