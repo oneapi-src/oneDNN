@@ -140,6 +140,12 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
     if (strategy.kParallelVariable)
         state.k0Rem = copySubregister(state.inputs.k0, state, getHint(HintType::LongTerm, strategy));
 
+    // L3 prefetch warmup.
+    if (strategy.prefetchABL3) {
+        gemmInitL3Prefetch(false, problem, strategy, state);
+        gemmWarmupL3Prefetch(problem, strategy, state);
+    }
+
     // Surface handling for quantization parameters.
     auto replace0 = [&](Subregister &s) {
         if (s.isValid()) {
@@ -227,9 +233,8 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
         if (!strategy.linearOrder()) stub();
         if (problem.batch != BatchMode::None) stub();       // need to wrangle groupIDK also
 
-        auto newGroupIDMN = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
-        mov(1, newGroupIDMN, state.inputs.groupIDMN);
-        state.inputs.groupIDMN = newGroupIDMN;
+        state.groupIDMN = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
+        mov(1, state.groupIDMN, state.inputs.groupIDMN);
 
         if (state.effTempC == state.inputs.tempC)
             state.effTempC = state.ra.alloc_sub<uint64_t>(getHint(HintType::LongTerm, strategy));
@@ -258,7 +263,7 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
         // Check if we have reached the k-sliced region yet, and if so,
         //   if we need to do k-slicing computations.
         and_(1 | nz | f0[1], null.ud(), state.inputs.flags, FlagKSlicing);
-        add(1 | ge | f0[0], slicedGroupIdx, state.inputs.groupIDMN, -state.inputs.kParallelStart);
+        add(1 | ge | f0[0], slicedGroupIdx, state.groupIDMN, -state.inputs.kParallelStart);
         mov(1, state.h0, 0);
         mov(1 | lt | f1[1], temp, state.fullK);
         jmpi(1 | f0[1], lAlreadySliced);
@@ -294,7 +299,7 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
         or_(1, state.inputs.flags, state.inputs.flags, FlagKSlicing);
         divDown(slicedGroupIdx.ud(), temp, kpad, state.inputs.kRecip, f1[0], strategy, state);
         emad(1, state.h0, temp, -kpad, slicedGroupIdx.ud(), strategy, state);
-        eadd3(1, state.inputs.groupIDMN, groupCountMN, -slicedGroupIdx.ud(), -1);
+        eadd3(1, state.groupIDMN, groupCountMN, -slicedGroupIdx.ud(), -1);
         if (strategy.altFusedBeta)
             add(1 | gt | f0[1], temp3.d(), state.h0, -state.inputs.k0);
         add(1 | le | f1[1], temp.d(), state.fullK, -state.h0);
@@ -302,7 +307,7 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
             eadd3(1 | ge | f1[0], temp2.d(), state.h0, state.inputs.k0, -kpad);
             cmp(1 | f0[1] | lt | f0[1], null.ud(), temp3.ud(), state.fullK);
         }
-        add(1, slicedGroupIdx, state.inputs.groupIDMN, -state.inputs.kParallelStart);
+        add(1, slicedGroupIdx, state.groupIDMN, -state.inputs.kParallelStart);
         if (strategy.altFusedBeta) {
             // Decide if we are responsible for beta scaling.
             // If within padded region (h0 >= k, f1.1), scale if f0.1:
@@ -318,7 +323,7 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
         // In the tail case, it's possible that we don't have a full k0 chunk
         //  of work to do. Bail if so.
         // If bias enabled, do it if h0 = 0.
-        cmp(1 | lt | f0[0], state.inputs.groupIDMN.d(), state.inputs.kParallelStart);
+        cmp(1 | lt | f0[0], state.groupIDMN.d(), state.inputs.kParallelStart);
         if (problem.cOffset == COffset::Pre)
             cmp(1 | gt | f0[1], state.h0, 0);
         min_(1, state.inputs.k, temp.d(), state.k0Rem);     /* temp holds k - h0 */
@@ -393,16 +398,11 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
 
     if (strategy.kParallel && (strategy.fuseBeta || strategy.fusePostOps)) {
         if (!strategy.linearOrder()) stub();
-        gemmFusedBetaPOInit(state.inputs.groupIDMN, problem, strategy, state);
+        gemmFusedBetaPOInit(state.groupIDMN, problem, strategy, state);
     }
 
     // Group ID remapping.
-    if (strategy.cWalkOrder == WalkOrder::SimpleLinear)
-        gemmSimpleLinearOrder(problem, strategy, state);
-    else if (strategy.cWalkOrder == WalkOrder::Hilbertlike)
-        gemmHilbertlikeOrder(problem, strategy, state);
-    else if (strategy.cWalkOrder == WalkOrder::Boustrophedon)
-        gemmBoustrophedonOrder(problem, strategy, state);
+    gemmReorderGlobalIDs(problem, strategy, state);
 
     // Batch handling.
     gemmGetBatchIDs(problem, strategy, state);
@@ -508,6 +508,8 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
     if (strategy.linearOrder() || strategy.persistent) {
         state.ra.safeRelease(state.inputs.groupIDM);
         state.ra.safeRelease(state.inputs.groupIDN);
+        state.ra.claim(state.nextGroupIDM);
+        state.ra.claim(state.nextGroupIDN);
     }
 
     moveR0(strategy, state);
@@ -616,7 +618,7 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
             and_(1 | ze | f0[0], null.ud(), state.inputs.flags, FlagKSlicing);
             cmp(1 | gt | f1[0], state.k0Rem, 0);
             jmpi(1 | f0[0], lNotKSliced);
-            add(1, state.inputs.groupIDMN, state.inputs.groupIDMN, -1);
+            add(1, state.groupIDMN, state.groupIDMN, -1);
             alignDown(1 | gt | f0[1], state.k0Rem.ud(), state.k0Rem.ud(), strategy.kAlign(problem), strategy, state);
             persistentRestore();
             jmpi(1 | f0[1], lReentry);
@@ -629,8 +631,8 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
             emul(1, state.inputs.groupCountMN, state.inputs.groupCountM, state.inputs.groupCountN, strategy, state);
         }
 
-        add(1, state.inputs.groupIDMN, state.inputs.groupIDMN, state.inputs.groupStride);
-        cmp(1 | lt | f0[0], state.inputs.groupIDMN, state.inputs.groupCountMN);
+        add(1, state.groupIDMN, state.groupIDMN, state.inputs.groupStride);
+        cmp(1 | lt | f0[0], state.groupIDMN, state.inputs.groupCountMN);
         state.ra.safeRelease(state.inputs.groupCountMN);
 
         persistentRestore();

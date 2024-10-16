@@ -100,16 +100,17 @@ CacheSettingsLSC getCachingEntry(std::stringstream &s, HW hw)
     }
 }
 
-void getCaching(std::stringstream &s, HW hw, MatrixAddressingStrategy &astrategy)
+void getCaching(std::stringstream &s, HW hw, MatrixAddressingStrategy &astrategy, bool leaveDefault = false)
 {
     auto &cachingR = astrategy.cachingR;
     auto &cachingW = astrategy.cachingW;
 
-    cachingR = CacheSettingsLSC::L1C_L3C;
-    cachingW = CacheSettingsLSC::L1WB_L3WB;
-
-    if (hw >= HW::XeHPC)
-        cachingW = CacheSettingsLSC::L1UC_L3WB;
+    if (!leaveDefault) {
+        cachingR = CacheSettingsLSC::L1C_L3C;
+        cachingW = CacheSettingsLSC::L1WB_L3WB;
+        if (hw >= HW::XeHPC)
+            cachingW = CacheSettingsLSC::L1UC_L3WB;
+    }
 
     if (s.peek() == '{') {
         char eat;
@@ -144,6 +145,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
     char eat, asA, asB, asC, accessA, accessB, accessC;
     char accessAUnaligned = '\0', accessBUnaligned = '\0';
     char accessAPrefetch = 's', accessBPrefetch = 's', accessCPrefetch = 's';
+    char accessABPrefetchL3 = 'b';
 
     s >> std::ws >> asA >> accessA;
         if (s.peek() == '/') s >> eat >> accessAUnaligned;
@@ -153,13 +155,22 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
         if (s.peek() == 'x') s >> eat >> strategy.A_copies;
         getCaching(s, hw, strategy.A);
     if (s.peek() == '+') {
-        strategy.prefetchA = 1;
-        s >> eat >> accessAPrefetch >> strategy.ka_prefetch;
-        if (s.peek() == ',') s >> eat >> strategy.ka_pfStride;
-        if (s.peek() == '@') s >> eat >> strategy.prefetchA;
-        if (s.peek() == '/') s >> eat >> strategy.prefetchAMasked;
-        else strategy.prefetchAMasked = strategy.prefetchA;
-        getCaching(s, hw, strategy.A_prefetch);
+        s >> eat;
+        if (s.peek() != '+') {
+            strategy.prefetchA = 1;
+            s >> accessAPrefetch >> strategy.ka_prefetch;
+            if (s.peek() == ',') s >> eat >> strategy.ka_pfStride;
+            if (s.peek() == '@') s >> eat >> strategy.prefetchA;
+            if (s.peek() == '/') s >> eat >> strategy.prefetchAMasked;
+            else strategy.prefetchAMasked = strategy.prefetchA;
+            getCaching(s, hw, strategy.A_prefetch);
+        }
+    }
+    if (s.peek() == '+') {
+        strategy.l3PrefetchA = true;
+        s >> eat >> accessABPrefetchL3 >> strategy.ka_prefetchL3;
+        if (s.peek() == '@') s >> eat >> strategy.prefetchABL3;
+        getCaching(s, hw, strategy.AB_prefetchL3, true);
     }
     s >> std::ws >> asB >> accessB;
         if (s.peek() == '/') s >> eat >> accessBUnaligned;
@@ -169,13 +180,22 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
         if (s.peek() == 'x') s >> eat >> strategy.B_copies;
         getCaching(s, hw, strategy.B);
     if (s.peek() == '+') {
-        strategy.prefetchB = 1;
-        s >> eat >> accessBPrefetch >> strategy.kb_prefetch;
-        if (s.peek() == ',') s >> eat >> strategy.kb_pfStride;
-        if (s.peek() == '@') s >> eat >> strategy.prefetchB;
-        if (s.peek() == '/') s >> eat >> strategy.prefetchBMasked;
-        else strategy.prefetchBMasked = strategy.prefetchB;
-        getCaching(s, hw, strategy.B_prefetch);
+        s >> eat;
+        if (s.peek() != '+') {
+            strategy.prefetchB = 1;
+            s >> accessBPrefetch >> strategy.kb_prefetch;
+            if (s.peek() == ',') s >> eat >> strategy.kb_pfStride;
+            if (s.peek() == '@') s >> eat >> strategy.prefetchB;
+            if (s.peek() == '/') s >> eat >> strategy.prefetchBMasked;
+            else strategy.prefetchBMasked = strategy.prefetchB;
+            getCaching(s, hw, strategy.B_prefetch);
+        }
+    }
+    if (s.peek() == '+') {
+        strategy.l3PrefetchB = true;
+        s >> eat >> accessABPrefetchL3 >> strategy.kb_prefetchL3;
+        if (s.peek() == '@') s >> eat >> strategy.prefetchABL3;
+        getCaching(s, hw, strategy.AB_prefetchL3, true);
     }
     s >> std::ws >> asC >> accessC;
         getTiling(s, strategy.C);
@@ -218,6 +238,15 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
     strategy.A_prefetch.cachingW = CacheSettingsLSC::Default;
     strategy.B_prefetch.cachingW = CacheSettingsLSC::Default;
     strategy.C_prefetch.cachingW = CacheSettingsLSC::Default;
+
+    strategy.AB_prefetchL3.prefetch = true;
+    strategy.AB_prefetchL3.newDP = true;
+    strategy.AB_prefetchL3.padded = true;
+    strategy.AB_prefetchL3.accessType = getAccessType(accessABPrefetchL3);
+    strategy.AB_prefetchL3.base = getAddressBase(strategy.l3PrefetchA ? asA : asB);
+    if (strategy.AB_prefetchL3.cachingR == CacheSettingsLSC::Default) {
+        strategy.AB_prefetchL3.cachingR = CacheSettingsLSC::L1UC_L3C;
+    }
 
     strategy.A.padded |= isPacked(problem.A.layout);
     strategy.B.padded |= isPacked(problem.B.layout);
@@ -402,6 +431,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
             strategy.cWalkOrder = WalkOrder::Hilbertlike;
         else if (mod == "li")
             strategy.cWalkOrder = WalkOrder::SimpleLinear;
+        else if (mod == "nl")
+            strategy.cWalkOrder = WalkOrder::NestedLinear;
         else if (mod == "pt")
             strategy.persistent = true;
         else if (mod == "of")
@@ -539,12 +570,24 @@ void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy, c
     }
 
     // 2D block accesses use 2D addressing where supported.
-    strategy.A.address2D |= isBlock2D(strategy.A.accessType) && !isPacked(problem.A.layout);
-    strategy.B.address2D |= isBlock2D(strategy.B.accessType) && !isPacked(problem.B.layout);
-    strategy.C.address2D |= isBlock2D(strategy.C.accessType) && !isPacked(problem.C.layout);
-    strategy.A_prefetch.address2D |= isBlock2D(strategy.A_prefetch.accessType) && !isPacked(problem.A.layout);
-    strategy.B_prefetch.address2D |= isBlock2D(strategy.B_prefetch.accessType) && !isPacked(problem.B.layout);
-    strategy.C_prefetch.address2D |= isBlock2D(strategy.C_prefetch.accessType) && !isPacked(problem.C.layout);
+    auto use2DAddressing = [](MatrixAddressingStrategy &astrategy) {
+        astrategy.address2D |= isBlock2D(astrategy.accessType);
+    };
+
+    if (!isPacked(problem.A.layout)) {
+        use2DAddressing(strategy.A);
+        use2DAddressing(strategy.A_prefetch);
+    }
+    if (!isPacked(problem.B.layout)) {
+        use2DAddressing(strategy.B);
+        use2DAddressing(strategy.B_prefetch);
+    }
+    if (!isPacked(problem.C.layout)) {
+        use2DAddressing(strategy.C);
+        use2DAddressing(strategy.C_prefetch);
+    }
+    if (!(strategy.l3PrefetchA && isPacked(problem.A.layout)) && !(strategy.l3PrefetchB && isPacked(problem.B.layout)))
+        use2DAddressing(strategy.AB_prefetchL3);
 
     // Notify kernel generator to downgrade block 2D prefetches if block 2D cannot be used.
     if (tags && !strategy.optAlignAB2D) {
@@ -678,6 +721,13 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
             s << '/' << strategy.prefetchAMasked;
         unparseCaching(hw, s, strategy.A_prefetch);
     }
+    if (strategy.l3PrefetchA) {
+        if (!strategy.prefetchA) s << '+';
+        s << '+';
+        unparseAccessType(s, strategy.AB_prefetchL3);
+        s << strategy.ka_prefetchL3 << '@' << strategy.prefetchABL3;
+        unparseCaching(hw, s, strategy.AB_prefetchL3);
+    }
     s << ' ';
     unparseAddressBase(s, strategy.B.base);
     unparseAccessType(s, strategy.B);
@@ -701,6 +751,13 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
         if (strategy.prefetchBMasked != strategy.prefetchB)
             s << '/' << strategy.prefetchBMasked;
         unparseCaching(hw, s, strategy.B_prefetch);
+    }
+    if (strategy.l3PrefetchB) {
+        if (!strategy.prefetchB) s << '+';
+        s << '+';
+        unparseAccessType(s, strategy.AB_prefetchL3);
+        s << strategy.kb_prefetchL3 << '@' << strategy.prefetchABL3;
+        unparseCaching(hw, s, strategy.AB_prefetchL3);
     }
     s << ' ';
     unparseAddressBase(s, strategy.C.base);
@@ -833,6 +890,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
         case WalkOrder::Hilbertlike:      s << " hi"; break;
         case WalkOrder::Boustrophedon:    s << " bo"; break;
         case WalkOrder::SimpleLinear:     s << " li"; break;
+        case WalkOrder::NestedLinear:     s << " nl"; break;
         default: break;
     }
 

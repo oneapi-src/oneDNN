@@ -2400,6 +2400,11 @@ void BLASKernelGenerator<hw>::gemmKReduce(const GEMMProblem &problem, const GEMM
         if (ok) break;
     }
 
+    if (sliceRegs > maxContig)
+        sliceRegs = align_down(sliceRegs, maxContig);
+    else if (sliceRegs < maxContig)
+        sliceRegs = rounddown_pow2(sliceRegs);
+
     // Allocate address and data registers, automatically shrinking sliceRegs if
     //  there are not enough registers.
     C_load.resize(1);

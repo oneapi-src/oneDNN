@@ -134,6 +134,7 @@ enum class CoopSplit {
 enum class WalkOrder : uint8_t {
     HW2D,           // Rely on HW thread dispatch for ordering
     SimpleLinear,   // Simple 1D->2D mapping in column-major/row-major order
+    NestedLinear,   // Fixed-size blocks of WGs traversed in column/row-major order
     Hilbertlike,    // Cache-oblivious Hilbert curve-based order
     Boustrophedon,  // Cache-aware panel boustrophedon walk order
 };
@@ -230,6 +231,12 @@ struct GEMMStrategyPOD : public CommonStrategy {
     int prefetchA = 0, prefetchB = 0, prefetchC = 0;                // Prefetch distances, in units of unrollK.
     int prefetchAMasked = 0, prefetchBMasked = 0;                   // Same as above, when masking m/n.
     MatrixAddressingStrategy A_prefetch, B_prefetch, C_prefetch;    // Strategies for prefetching A/B/C.
+    bool l3PrefetchA = false;                    // Enable L3 prefetch for A?
+    bool l3PrefetchB = false;                    // Enable L3 prefetch for B?
+                                    ZPAD(HH, 2)
+    int prefetchABL3 = 0;                        // L3 prefetch distance for A/B.
+    int ka_prefetchL3 = 0, kb_prefetchL3 = 0;    // Chunk size for L3 prefetch of A/B.
+    MatrixAddressingStrategy AB_prefetchL3;      // Strategy for L3 prefetch of A/B.
     enum {
         CSeparate,                                   // C stored in its own bundle, A/B in the other bundle.
         ACB,                                         // A, then C, then B
@@ -358,6 +365,8 @@ struct GEMMStrategy : public GEMMStrategyPOD
             return WGFixed;
         if (cooperativePF)
             return WGFixed;     /* until flexible cooperative PF enabled */
+        if (cWalkOrder == WalkOrder::NestedLinear)
+            return WGFixed;
         if (forceWGUpdate == WGShrinkable)
             return WGShrinkable;
         else

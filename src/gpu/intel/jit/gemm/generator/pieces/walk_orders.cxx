@@ -23,33 +23,107 @@ using namespace ngen::utils;
 
 #include "internal/namespace_start.hxx"
 
+// Convert linear index to 2D index.
+template <HW hw>
+void BLASKernelGenerator<hw>::gemmLinearOrder(const Subregister &groupIDMN, const Subregister &groupIDM, const Subregister &groupIDN,
+                                              const Subregister &aLeader, const Subregister &bLeader,
+                                              const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
+{
+    switch (strategy.cWalkOrder) {
+        case WalkOrder::SimpleLinear:   gemmSimpleLinearOrder (groupIDMN, groupIDM, groupIDN, aLeader, bLeader, problem, strategy, state); break;
+        case WalkOrder::NestedLinear:   gemmNestedLinearOrder (groupIDMN, groupIDM, groupIDN, aLeader, bLeader, problem, strategy, state); break;
+        case WalkOrder::Hilbertlike:    gemmHilbertlikeOrder  (groupIDMN, groupIDM, groupIDN, aLeader, bLeader, problem, strategy, state); break;
+        case WalkOrder::Boustrophedon:  gemmBoustrophedonOrder(groupIDMN, groupIDM, groupIDN, aLeader, bLeader, problem, strategy, state); break;
+        default: stub();
+    }
+}
 
 // Convert linear index to 2D index using column/row-major ordering.
 template <HW hw>
-void BLASKernelGenerator<hw>::gemmSimpleLinearOrder(const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state)
+void BLASKernelGenerator<hw>::gemmSimpleLinearOrder(const Subregister &groupIDMN, const Subregister &groupIDM, const Subregister &groupIDN,
+                                                    const Subregister &aLeader, const Subregister &bLeader,
+                                                    const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
-    state.inputs.groupIDM = state.ra.alloc_sub<uint32_t>();
-    state.inputs.groupIDN = state.ra.alloc_sub<uint32_t>();
-
     bool nmk = (strategy.loopOrder[0] == LoopN);
     auto &groupCountX = nmk ? state.inputs.groupCountN : state.inputs.groupCountM;
-    auto &groupIDX    = nmk ? state.inputs.groupIDN    : state.inputs.groupIDM;
-    auto &groupIDY    = nmk ? state.inputs.groupIDM    : state.inputs.groupIDN;
+    auto &groupIDX    = nmk ? groupIDN : groupIDM;
+    auto &groupIDY    = nmk ? groupIDM : groupIDN;
+    auto &xLeader     = nmk ? bLeader  : aLeader;
+    auto &yLeader     = nmk ? aLeader  : bLeader;
 
-    divDown(groupIDY, state.inputs.groupIDMN, groupCountX, state.inputs.gcMNRecip, state.flagAP, strategy, state);
-    emad(1, groupIDX, state.inputs.groupIDMN, -groupIDY, groupCountX, strategy, state);
+    divDown(groupIDY, groupIDMN, groupCountX, state.inputs.gcMNRecip, state.flagAP, strategy, state);
+    emad(1, groupIDX, groupIDMN, -groupIDY, groupCountX, strategy, state);
 
-    if (!strategy.persistent) {
-        state.ra.safeRelease(state.inputs.groupCountM);
-        state.ra.safeRelease(state.inputs.groupCountN);
-        state.ra.safeRelease(state.inputs.gcMNRecip);
+    if (xLeader.isValid() || yLeader.isValid()) {
+        auto flag = state.raVFlag.alloc();
+        if (xLeader.isValid())
+            cmp(1 | lt | flag, xLeader, state.inputs.groupIDMN, groupCountX);
+        if (yLeader.isValid()) {
+            cmp(1 | eq | flag, yLeader, groupIDX, 0);
+            cmp(1 | ~flag | eq | flag, yLeader, state.inputs.groupIDMN, 0);
+        }
+        state.raVFlag.safeRelease(flag);
     }
+}
+
+// Convert linear index to 2D index using nested column/row-major ordering.
+template <HW hw>
+void BLASKernelGenerator<hw>::gemmNestedLinearOrder(const Subregister &groupIDMN, const Subregister &groupIDM, const Subregister &groupIDN,
+                                                    const Subregister &aLeader, const Subregister &bLeader,
+                                                    const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
+{
+    int nwgM = div_up(strategy.blockingAlt[LoopM], strategy.wgTile(LoopM));
+    int nwgN = div_up(strategy.blockingAlt[LoopN], strategy.wgTile(LoopN));
+
+    auto groupIDX1 = state.ra.alloc_sub<uint32_t>();
+    auto groupIDY1 = state.ra.alloc_sub<uint32_t>();
+    auto temp = state.ra.alloc_sub<uint32_t>();
+
+    bool nmk = (strategy.loopOrder[0] == LoopMNNestedLinearNMK);
+    auto &groupCountX = nmk ? state.inputs.groupCountN : state.inputs.groupCountM;
+    auto &groupIDX    = nmk ? groupIDN : groupIDM;
+    auto &groupIDY    = nmk ? groupIDM : groupIDN;
+    auto &xLeader     = nmk ? bLeader  : aLeader;
+    auto &yLeader     = nmk ? aLeader  : bLeader;
+    auto nwgX         = nmk ? nwgN     : nwgM;
+    auto nwgY         = nmk ? nwgM     : nwgN;
+
+    status << "Nested linear ordering" << status_stream::endl;
+
+    mulConstant(1, temp, groupCountX, nwgY);
+
+    divDown(groupIDY, groupIDMN, temp, state.inputs.gcMNRecip, state.flagAP, strategy, state);
+    emad(1, temp, groupIDMN, -groupIDY, temp, strategy, state);
+
+    divDown(groupIDX, temp, nwgM * nwgN, strategy, state);
+    emad(1, temp, temp, -groupIDX, nwgM * nwgN, strategy, state);
+
+    divDown(groupIDY1, temp, nwgX, strategy, state);
+    emad(1, groupIDX1, temp, -groupIDY1, nwgX, strategy, state);
+
+    emad(1, groupIDX, groupIDX1, groupIDX, nwgX, strategy, state);
+    emad(1, groupIDY, groupIDY1, groupIDY, nwgY, strategy, state);
+
+    if (xLeader.isValid() || yLeader.isValid()) {
+        auto flag = state.raVFlag.alloc();
+        if (xLeader.isValid()) cmp(1 | eq | flag, xLeader, groupIDY, 0);
+        if (yLeader.isValid()) cmp(1 | eq | flag, yLeader, groupIDX, 0);
+        state.raVFlag.safeRelease(flag);
+    }
+
+    state.ra.safeRelease(groupIDX1);
+    state.ra.safeRelease(groupIDY1);
+    state.ra.safeRelease(temp);
 }
 
 // Convert linear index to 2D index in a Hilbert curve-like fashion.
 template <HW hw>
-void BLASKernelGenerator<hw>::gemmHilbertlikeOrder(const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state)
+void BLASKernelGenerator<hw>::gemmHilbertlikeOrder(const Subregister &groupIDMN, const Subregister &groupIDM, const Subregister &groupIDN,
+                                                   const Subregister &aLeader, const Subregister &bLeader,
+                                                   const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
+    if (aLeader.isValid() || bLeader.isValid()) stub();
+
     bool triangular = false;
     bool rectangular = !triangular && state.inputs.hilbertVD.isValid();
 
@@ -117,7 +191,7 @@ void BLASKernelGenerator<hw>::gemmHilbertlikeOrder(const GEMMProblem &problem, G
         cmp(1 | ~f0[0] | ne | f0[0], state.inputs.m, state.inputs.n);
     else
         cmp(2 | le | f0[0], u(1), hilbertBail);
-    mov(1, q, state.inputs.groupIDMN);
+    mov(1, q, groupIDMN);
     add(4, a0[4](1), a0[0](1), 16);
     if (!rectangular && !triangular)
         emad(1, uv1, -1, u.uw(), v.uw(), strategy, state);
@@ -224,19 +298,9 @@ void BLASKernelGenerator<hw>::gemmHilbertlikeOrder(const GEMMProblem &problem, G
         mad(1, qrem, q, -qqot.uw(), divisor.uw());
     }
 
-    // Reassign m/n group IDs.
-    if (!strategy.persistent) {
-        state.inputs.groupIDM = state.inputs.groupCountM;
-        state.inputs.groupIDN = state.inputs.groupCountN;
-        state.inputs.groupCountM = invalid;
-        state.inputs.groupCountN = invalid;
-    } else {
-        state.inputs.groupIDM = state.ra.alloc_sub<uint32_t>();
-        state.inputs.groupIDN = state.ra.alloc_sub<uint32_t>();
-    }
-
-    add(1, state.inputs.groupIDM, a, nmk ? qqot : qrem);
-    add(1, state.inputs.groupIDN, b, nmk ? qrem : qqot);
+    // Assign m/n group IDs.
+    add(1, groupIDM, a, nmk ? qqot : qrem);
+    add(1, groupIDN, b, nmk ? qrem : qqot);
 
     state.ra.safeRelease(storage);
     state.ra.safeRelease(storage2);
@@ -249,8 +313,12 @@ void BLASKernelGenerator<hw>::gemmHilbertlikeOrder(const GEMMProblem &problem, G
 
 // Convert linear index to 2D index in a boustrophedon pattern.
 template <HW hw>
-void BLASKernelGenerator<hw>::gemmBoustrophedonOrder(const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state)
+void BLASKernelGenerator<hw>::gemmBoustrophedonOrder(const Subregister &groupIDMN, const Subregister &groupIDM, const Subregister &groupIDN,
+                                                     const Subregister &aLeader, const Subregister &bLeader,
+                                                     const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
+    if (aLeader.isValid() || bLeader.isValid()) stub();
+
     auto storage = state.ra.alloc_range(4);
     auto u = storage[0].ud(0);
     auto s = storage[0].ud(1);
@@ -281,7 +349,6 @@ void BLASKernelGenerator<hw>::gemmBoustrophedonOrder(const GEMMProblem &problem,
 
     auto &groupCountM = state.inputs.groupCountM;
     auto &groupCountN = state.inputs.groupCountN;
-    auto idMN = state.inputs.groupIDMN;
 
     Label lBegin, lEnd, lDone, lBeginTri2, lEndTri2, lTricalc1, lTricalc2, lTricalcOut;
 
@@ -323,9 +390,9 @@ void BLASKernelGenerator<hw>::gemmBoustrophedonOrder(const GEMMProblem &problem,
     ecsel(1, lt, f0[0], v, groupCountM, groupCountN, s0);
     ecsel(1, ge, f0[0], u, groupCountM, groupCountN, s0);
 
-    emad(1, temp0, idMN, -v.uw(), ithresh.uw(), strategy, state);
+    emad(1, temp0, groupIDMN, -v.uw(), ithresh.uw(), strategy, state);
     cmp(1 | ge | f0[0], temp2.d(), temp0.d(), 0);
-    ecsel(1, ge, f0[1], q, temp0, idMN, temp0.d());
+    ecsel(1, ge, f0[1], q, temp0, groupIDMN, temp0.d());
 
     if (hw >= HW::XeHPC) {
         add(1,          s1, abs(s0), 1);
@@ -445,25 +512,44 @@ void BLASKernelGenerator<hw>::gemmBoustrophedonOrder(const GEMMProblem &problem,
     // Reassign m/n group IDs.
     mark(lDone);
 
-    if (!strategy.persistent) {
-        state.inputs.groupIDM = state.inputs.groupCountM;
-        state.inputs.groupIDN = state.inputs.groupCountN;
-        state.inputs.groupCountM = invalid;
-        state.inputs.groupCountN = invalid;
-    } else {
-        state.inputs.groupIDM = state.ra.alloc_sub<uint32_t>();
-        state.inputs.groupIDN = state.ra.alloc_sub<uint32_t>();
-    }
-
     and_(1 | ne | f1[1], null.ud(), islice, 1);
     eadd3(1 | f1[1], j, v, -j, -1);
-    ecsel(1, ge, f0[0], state.inputs.groupIDM, i, j, s0);
-    ecsel(1, lt, f0[0], state.inputs.groupIDN, i, j, s0);
+    ecsel(1, ge, f0[0], groupIDM, i, j, s0);
+    ecsel(1, lt, f0[0], groupIDN, i, j, s0);
 
     state.ra.safeRelease(storage);
     if (!strategy.persistent) {
         state.ra.safeRelease(state.inputs.bslice);
         state.ra.safeRelease(state.inputs.bthresh);
+    }
+}
+
+// Reorder global IDs as needed.
+template <HW hw>
+void BLASKernelGenerator<hw>::gemmReorderGlobalIDs(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
+{
+    auto &gidM = state.inputs.groupIDM;
+    auto &gidN = state.inputs.groupIDN;
+    auto &gidMN = state.groupIDMN;
+
+    if (strategy.cWalkOrder == WalkOrder::HW2D)
+        return;
+
+    if (state.nextGroupIDM.isValid() && state.nextGroupIDN.isValid()) {
+        gidM = state.nextGroupIDM;
+        gidN = state.nextGroupIDN;
+        return;
+    }
+
+    gidM = state.ra.alloc_sub<uint32_t>();
+    gidN = state.ra.alloc_sub<uint32_t>();
+
+    gemmLinearOrder(gidMN, gidM, gidN, Subregister(), Subregister(), problem, strategy, state);
+
+    if (!strategy.persistent) {
+        state.ra.safeRelease(state.inputs.groupCountM);
+        state.ra.safeRelease(state.inputs.groupCountN);
+        state.ra.safeRelease(state.inputs.gcMNRecip);
     }
 }
 

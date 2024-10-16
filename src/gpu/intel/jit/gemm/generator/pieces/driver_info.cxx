@@ -45,6 +45,9 @@ CommonDriverInfo BLASKernelGenerator<hw>::driverInfo(GEMMProblem problem, const 
     if (strategy.cWalkOrder == WalkOrder::SimpleLinear) {
         info.loopOrder[0] = (info.loopOrder[0] == LoopN) ? LoopMNLinearNMK : LoopMNLinearMNK;
         info.loopOrder[1] = LoopNone;
+    } else if (strategy.cWalkOrder == WalkOrder::NestedLinear) {
+        info.loopOrder[0] = (info.loopOrder[0] == LoopN) ? LoopMNNestedLinearNMK : LoopMNNestedLinearMNK;
+        info.loopOrder[1] = LoopNone;
     } else if (strategy.cWalkOrder == WalkOrder::Hilbertlike) {
         info.loopOrder[0] = (info.loopOrder[0] == LoopN) ? LoopMNHilbertNMK : LoopMNHilbertMNK;
         info.loopOrder[1] = LoopNone;

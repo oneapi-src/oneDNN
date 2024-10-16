@@ -341,6 +341,9 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, bool systolicAvailable, bool isInt
             *tagPtr++ = ReqBatchMultiDim;
     }
 
+    if (problem.aoPtrDims > 0 || problem.boPtrDims > 0)
+        *tagPtr++ = ReqOffsetMultiDim;
+
     problem.autoTypeConversions(hw, systolicAvailable);
     if (problem.needsASums() && !problem.sumA) *tagPtr++ = ReqSumA;
     if (problem.needsBSums() && !problem.sumB) *tagPtr++ = ReqSumB;

@@ -387,6 +387,9 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
         });
     }
 
+    // A/B L3 prefetch.
+    gemmScheduleL3Prefetches(&ls, problem, strategy, state);
+
     if (slmDequantize2DA && slmDequantize2DB && kaq_load != kbq_load) stub();
     int slmKQLoad = slmDequantize2DA ? kaq_load : kbq_load;
     slmKQLoad = std::max(slmKQLoad, unrollKSLM);
@@ -727,6 +730,9 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
 
     if (strategy.prefetchA && strategy.prefetchB && loadBFirst)
         ls.swapLast2();
+
+    // A/B L3 prefetch address increments.
+    gemmScheduleL3PrefetchIncs(&ls, problem, strategy, state);
 
     // A/B quantization parameter address increment.
     auto reqIncAq = every(kaq_load);
@@ -1238,7 +1244,7 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
 
     using CT = LoopSequencer::CallbackType;
 
-    Label lTop, lBottom;
+    Label lTop, lBottom, lNextTilePFL3;
     std::vector<Label> labels;
 
     ls.analyze();
@@ -1249,6 +1255,11 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
     Subregister outerK;
     if (barrierSubloop)
         outerK = state.ra.alloc_sub<uint32_t>();
+
+    // Prepare to peel loops for L3 prefetch, if needed.
+    Subregister l3PFPeelK;
+    if (strategy.prefetchABL3)
+        l3PFPeelK = state.ra.alloc_sub<uint32_t>();
 
     // Prepare to peel loops for C prefetch, if needed.
     int prefetchCPeelLoops = -1;
@@ -1281,7 +1292,16 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
         add(1, state.K, state.K, offset);
     });
     ls.setCallback(CT::LoopStart, [&](int unroll, int) {
-        cmp(1 | le | state.flagAP, state.K, 0);
+        if (strategy.prefetchABL3) {
+            int peel = strategy.prefetchABL3 - ls.getLoopBias();
+            if (peel < unroll) {
+                peel = unroll;
+                status << "Warning: L3 prefetch distance too short for k loop; extending" << status_stream::endl;
+            }
+            add(1 | le | state.flagAP, state.K, state.K, -peel);
+            mov(1, l3PFPeelK, peel);
+        } else
+            cmp(1 | le | state.flagAP, state.K, 0);
         if (prefetchCPeelLoops > 0) {
             min_(1, pfCPeelK, state.K, prefetchCPeelLoops * unrollK);
             add(1, state.K, state.K, -pfCPeelK);
@@ -1303,10 +1323,9 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
             sync.nop(SWSB(1));
         else if (hw >= HW::Gen12LP)
             sync.nop(SWSB(Pipe::A, 1));
-        jmpi(1 | state.flagAP, lBottom);
+        jmpi(1 | state.flagAP, strategy.prefetchABL3 ? lNextTilePFL3 : lBottom);
         mark(lTop);
         state.wipeActiveVFlags();
-
     });
     ls.setCallback(CT::LoopEnd, [&](int, int) {
         jmpi(1 | state.flagAP, lTop);
@@ -1338,6 +1357,18 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
             jmpi(1 | state.flagAP, lTop);
         }
         mark(lBottom);
+        if (strategy.prefetchABL3) {
+            Label lPeelDone;
+            cmp(1 | eq | state.flagAP, l3PFPeelK, 0);
+            jmpi(1 | state.flagAP, lPeelDone);
+            mark(lNextTilePFL3);
+            /* Start L3 prefetch for next tile */
+            gemmInitL3Prefetch(true, problem, strategy, state);
+            add(1 | le | state.flagAP, state.K, state.K, l3PFPeelK);
+            mov(1, l3PFPeelK, 0);
+            jmpi(1 | ~state.flagAP, lTop);
+            mark(lPeelDone);
+        }
         state.wipeActiveVFlags();
     });
     ls.setCallback(CT::JumpIfLT, [&](int thresh, int label) {
@@ -1384,6 +1415,8 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
             case LoopSequencer::PhaseShortLoop:
                 if (strategy.prefetchC > 0)
                     gemmPrefetchC(problem, strategy, state);
+                if (strategy.prefetchABL3)
+                    gemmInitL3Prefetch(true, problem, strategy, state);
                 status << "Short k loop" << status_stream::endl;
                 remActiveA = remActiveB = remActiveSLM = false;
                 resetForNewLoop();

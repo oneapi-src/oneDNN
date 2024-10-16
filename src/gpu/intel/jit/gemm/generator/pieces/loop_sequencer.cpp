@@ -142,6 +142,12 @@ int LoopSequencer::getCooldown() const
     return minCooldown;
 }
 
+int LoopSequencer::getLoopBias() const
+{
+    checkAnalyzed();
+    return minCooldown + unroll - 1;
+}
+
 /**************/
 /* Main logic */
 /**************/
@@ -186,7 +192,7 @@ void LoopSequencer::materialize(int minLoops, int maxLoops)
 
     bool unifyRemainder = (remainderHandling != RemainderHandling::Separate)
                        && (minCooldown >= unroll) && (unroll > 1);
-    int loopBias = minCooldown + unroll - 1;
+    int loopBias = getLoopBias();
 
     int labelShort, labelUnite;
 
