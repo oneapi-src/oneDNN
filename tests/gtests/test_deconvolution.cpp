@@ -310,10 +310,20 @@ protected:
                         strides, padL, padR);
 
         auto aa = allows_attr_t {false};
+
+#ifndef DNNL_SYCL_GENERIC
         aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_eltwise = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_prelu = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_sum = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+#else
+        aa.po_eltwise = true;
+        aa.po_sum = true;
+        if (eng.get_kind() == dnnl::engine::kind::cpu) {
+            aa.po_binary = true;
+            aa.po_prelu = true;
+        }
+#endif
 
         bool is_int8 = impl::utils::one_of(dec_src_desc->get_data_type(),
                 memory::data_type::s8, memory::data_type::u8);
