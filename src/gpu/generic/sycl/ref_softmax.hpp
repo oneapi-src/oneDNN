@@ -48,7 +48,7 @@ struct ref_sycl_softmax_fwd_t : public gpu::generic::sycl::primitive_t {
                     && sycl_post_ops_t::post_ops_ok(attr(), true, false)
                     && set_default_formats() == status::success
                     && attr_.set_default_formats(dst_md()) == status::success
-                    && check_formats(diff_src_md(), diff_dst_md())
+                    && check_formats(src_md(), dst_md())
                     && md_dims_in_range(src_md());
 
             if (!ok) return status::unimplemented;
@@ -111,7 +111,7 @@ struct ref_sycl_softmax_bwd_t : public gpu::generic::sycl::primitive_t {
                     && dst_md()->data_type == diff_dst_md()->data_type
                     && attr()->has_default_values()
                     && set_default_formats() == status::success
-                    && check_formats(src_md(), dst_md())
+                    && check_formats(diff_src_md(), diff_dst_md())
                     && md_dims_in_range(diff_dst_md());
 
             if (!ok) return status::unimplemented;
