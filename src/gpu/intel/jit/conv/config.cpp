@@ -1493,6 +1493,15 @@ walk_order_t compute_walk_order(const conv_config_t &cfg) {
     // Depthwise does not expose much reuse so keep the default order.
     if (prb.is_dw) return default_walk_order;
 
+    // XXX: Workaround for XeHPG related issues, supposedly coming from
+    // math.inv usage to emulate integer division when using blocked walk
+    // order.
+    if (cfg.hw() == ngen::HW::XeHPG
+            && utils::one_of(cfg.hw().product_family(),
+                    ngen::ProductFamily::GenericXeHPG,
+                    ngen::ProductFamily::DG2))
+        return default_walk_order;
+
     // If threadgroup memory footprint exceeds L3 then L3 blocking is not
     // applied.
     const size_t l3_size = cfg.hw().l3_cache_size();
