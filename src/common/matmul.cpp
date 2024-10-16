@@ -129,6 +129,17 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         VCHECK_MATMUL_UNIMPL(
                 IMPLICATION(wei_scale_group_n > 1, attr->fpmath_.apply_to_int_),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+        // Due to hardware specifics, groups should be multiple of 32.
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(src_scale_group_k > 1, src_scale_group_k % 32 == 0),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_scale_group_k > 1, wei_scale_group_k % 32 == 0),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_scale_group_n > 1, wei_scale_group_n % 32 == 0),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
     // Check zero points
@@ -158,6 +169,47 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
                     IMPLICATION(mask_wei & wei_qmask_N, n % 2 == 0),
                     VERBOSE_UNSUPPORTED_ZP_CFG);
         }
+
+        // Check dependency between zps.
+        // Source zps groups are supported for int8 source and must divide
+        // or be divided by weights groups when both are greater than 1.
+        const auto src_zp_group_k = (mask_src & src_qmask_K)
+                        && zp.get_groups_ndims(DNNL_ARG_SRC) > 0
+                ? zp.get_groups(DNNL_ARG_SRC)[1]
+                : 1;
+        const auto wei_zp_group_k = (mask_wei & wei_qmask_K)
+                        && zp.get_groups_ndims(DNNL_ARG_WEIGHTS) > 0
+                ? zp.get_groups(DNNL_ARG_WEIGHTS)[0]
+                : 1;
+        const bool groups_are_divisible
+                = IMPLICATION(src_zp_group_k > 1 && wei_zp_group_k > 1,
+                        (src_zp_group_k % wei_zp_group_k == 0)
+                                || (wei_zp_group_k % src_zp_group_k == 0));
+        VCHECK_MATMUL_UNIMPL(IMPLICATION(src_zp_group_k > 1,
+                                     src_is_int8 && groups_are_divisible),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+
+        // Groups per N are solely for weights decompression as it's impossible
+        // to get performant kernel for a single `k` element in chain for
+        // regular quantized case.
+        const auto wei_zp_group_n = (mask_wei & wei_qmask_N)
+                        && zp.get_groups_ndims(DNNL_ARG_WEIGHTS) > 0
+                ? zp.get_groups(DNNL_ARG_WEIGHTS)[1]
+                : 1;
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_zp_group_n > 1, attr->fpmath_.apply_to_int_),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+
+        // Due to hardware specifics, groups should be multiple of 32.
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(src_zp_group_k > 1, src_zp_group_k % 32 == 0),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_zp_group_k > 1, wei_zp_group_k % 32 == 0),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_zp_group_n > 1, wei_zp_group_n % 32 == 0),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
     }
 
     // Check post-ops
