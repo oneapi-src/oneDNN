@@ -160,10 +160,10 @@ void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K, int64_t G,
 void weights_decompression_matmul(engine::kind engine_kind) {
     engine eng(engine_kind, 0);
 
-    const int64_t K = 96;
+    const int64_t K = 64;
     const int64_t N = 1000;
     const int64_t M = 100;
-    // Quantization Group size for scales
+    // Quantization Group size for scales. Must be divisible by 32.
     const int64_t G = K / 2;
 
     auto matmul_pd = matmul_pd_create(M, N, K, G, eng);

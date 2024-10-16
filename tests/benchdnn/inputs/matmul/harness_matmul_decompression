@@ -18,12 +18,12 @@
 --reset
 --wtag=any,abc,acb
 --dt=bf16:s8:bf16,bf16:u8:bf16
---attr-scales=wei:per_ocic:bf16:2x1
---attr-zero-points=,wei:per_ocic:u8:4x1
+--attr-scales=wei:per_ocic:bf16:32x1
+--attr-zero-points=,wei:per_ocic:u8:64x1
 --attr-fpmath=bf16:true
-1x5x12:1x12x17
-3x5x12:3x12x17
-3x5x12:1x12x17
+1x5x128:1x128x17
+3x5x128:3x128x17
+3x5x128:1x128x17
 
 --reset
 --dt=f32:s8:f32
