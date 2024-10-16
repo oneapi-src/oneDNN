@@ -208,7 +208,7 @@ jobs:
           ONEDNN_THREADING: ${{ matrix.threading }}
           WORKSPACE: ${{ github.workspace }}/oneDNN
 
-      - if: (matrix.threading == 'OMP') || (matrix.threading == 'TP' && matrix.toolset == 'clang' && matrix.config == 'Release' && matrix.host.name == 'c6g')
+      - if: (matrix.threading == 'OMP') || (matrix.threading == 'TP' && matrix.toolset == 'clang' && matrix.config == 'Release')
         name: Run oneDNN tests
         run: ${{ github.workspace }}/oneDNN/.github/automation/test_aarch64.sh
         working-directory: ${{ github.workspace }}/oneDNN/build
