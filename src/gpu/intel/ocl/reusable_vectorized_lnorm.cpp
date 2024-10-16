@@ -89,6 +89,9 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
         const compute::named_buffer_t &output_buf,
         const compute::named_buffer_t &stat_buf,
         const compute::named_buffer_t &ss_buf) {
+
+    int max_unroll = gpu_utils::dev_getenv("lnorm_max_unroll", 12);
+
     conf->use_scale = pd->use_scale();
     conf->use_shift = pd->use_shift();
     conf->input_dt = input_buf.data_type;
@@ -125,23 +128,22 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
         return status::unimplemented;
     }
 
+    const auto *compute_engine
+            = utils::downcast<const compute::compute_engine_t *>(engine);
     const auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
             pd->attr()->gpu_attr_.get());
 
-    const auto *compute_engine
-            = utils::downcast<const compute::compute_engine_t *>(engine);
-
-    conf->sg_size = 0;
-    conf->vector_size = 0;
+    std::unique_ptr<lws_strategy_t> lws_strategy;
     bool found_compatible_sg_and_vector_size = false;
+
     for (int sg_size : {32, 16}) {
         for (int vector_size : {8, 4, 2, 1}) {
             bool sg_and_vector_size_ok = is_sg_and_vector_size_compatible(
                     compute_engine, sg_size, vector_size);
-            bool sg_stride_ok = is_sg_stride_compatible(
+            bool group_stride_ok = is_sg_stride_compatible(
                     pd->norm_axis(), sg_size * vector_size);
 
-            if (sg_and_vector_size_ok && sg_stride_ok) {
+            if (sg_and_vector_size_ok && group_stride_ok) {
                 conf->sg_size = sg_size;
                 conf->vector_size = vector_size;
                 found_compatible_sg_and_vector_size = true;
@@ -159,12 +161,78 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
         return status::unimplemented;
     }
 
-    conf->unroll = std::min<int>(
-            4, (int)pd->norm_axis() / (conf->sg_size * conf->vector_size));
+    auto di = compute_engine->device_info();
 
-    // Norm dispatch: all dimensions
-    auto lws_strategy = single_subgroup_lws_strategy_t(
-            compute_engine, gpu_attr, conf->sg_size);
+    int num_sg_per_wg
+            = (int)pd->norm_axis() / (conf->sg_size * conf->vector_size);
+
+    float threads_launched_for_wg_kernel = num_sg_per_wg * pd->across_axis();
+    float threads_launched_for_sg_kernel = pd->across_axis();
+
+    float sg_waves_small_grf
+            = threads_launched_for_sg_kernel / di->hw_threads(false);
+    float wg_waves = threads_launched_for_wg_kernel / di->hw_threads(false);
+
+    size_t lnorm_bytes
+            = pd->norm_axis() * types::data_type_size(input_buf.data_type);
+    size_t tensor_size
+            = src_mdw.nelems() * types::data_type_size(input_buf.data_type);
+    size_t cache_size = compute_engine->device_info()->l3_cache_size();
+
+    bool sg_kernel_utilization_low = sg_waves_small_grf < 0.50f;
+    bool wg_has_higher_eu_utilization = wg_waves > sg_waves_small_grf;
+    bool wg_barrier_overhead_overcomes_unroll
+            = num_sg_per_wg > 3 || num_sg_per_wg > max_unroll;
+    bool wg_kernel_launch_configuration_within_device_bounds
+            = static_cast<size_t>(pd->norm_axis() / conf->vector_size)
+            < compute_engine->device_info()->max_wg_size(false);
+    bool src_tensor_doesnt_fit_in_cache
+            = (static_cast<float>(tensor_size) / cache_size) >= 0.75;
+    bool lnorm_axis_is_large = lnorm_bytes > 1280;
+
+    conf->select_work_group_kernel
+            = wg_kernel_launch_configuration_within_device_bounds
+            && ((sg_kernel_utilization_low && wg_has_higher_eu_utilization
+                        && wg_barrier_overhead_overcomes_unroll)
+                    || (src_tensor_doesnt_fit_in_cache && lnorm_axis_is_large));
+
+    conf->select_work_group_kernel = gpu_utils::dev_getenv(
+            "lnorm_select_wg_kernel", conf->select_work_group_kernel);
+    if (conf->select_work_group_kernel) {
+        conf->unroll = 1;
+        conf->private_mem_size = 0;
+        conf->large_grf = false;
+        conf->wg_size = pd->norm_axis() / conf->vector_size;
+        lws_strategy.reset(
+                new default_lws_strategy_t(compute_engine, gpu_attr));
+    } else {
+        conf->unroll = std::min<int>(max_unroll,
+                (int)pd->norm_axis() / (conf->sg_size * conf->vector_size));
+
+        conf->wg_size = conf->sg_size;
+        conf->large_grf = conf->unroll > 5;
+
+        conf->private_mem_size
+                = pd->norm_axis() / (conf->sg_size * conf->vector_size);
+        lws_strategy.reset(new single_subgroup_lws_strategy_t(
+                compute_engine, gpu_attr, conf->sg_size));
+    }
+    conf->unroll = gpu_utils::dev_getenv("lnorm_unroll", conf->unroll);
+    conf->large_grf = gpu_utils::dev_getenv("lnorm_large_grf", conf->large_grf);
+
+    VDEBUGINFO(15, primitive, lnorm,
+            "%s: wg_kernel_launch_configuration_within_device_bounds(%d) && "
+            "((sg_kernel_utilization_low(%d) && "
+            "wg_has_higher_eu_utilization(%d) && "
+            "wg_barrier_overhead_overcomes_unroll(%d)) || "
+            "(src_tensor_doesnt_fit_in_cache(%d) && lnorm_axis_is_large(%d)) "
+            "):",
+            conf->select_work_group_kernel ? "work_group kernel"
+                                           : "sub_group_kernel",
+            wg_kernel_launch_configuration_within_device_bounds,
+            sg_kernel_utilization_low, wg_has_higher_eu_utilization,
+            wg_barrier_overhead_overcomes_unroll,
+            src_tensor_doesnt_fit_in_cache, lnorm_axis_is_large);
 
     compute::reusable_dispatch_config_t dispatch_config(
             compute_engine, std::move(dims));
@@ -174,7 +242,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     CHECK(dispatch_config.register_buffer(ss_buf));
 
     compute::reusable_dispatch_t dispatch;
-    CHECK(dispatch_config.generate(dispatch, lws_strategy));
+    CHECK(dispatch_config.generate(dispatch, *lws_strategy));
     conf->gws_params = dispatch.get_compile_params();
     rt_conf->gws_params = dispatch.get_runtime_params();
 
@@ -208,6 +276,10 @@ compute::kernel_ctx_t
 reusable_vectorized_lnorm_params_t::get_kernel_ctx() const {
     compute::kernel_ctx_t kernel_ctx;
     kernel_ctx.set_data_type(input_dt);
+    kernel_ctx.add_option("-cl-std=CL3.0");
+
+    if (large_grf) { kernel_ctx.add_option("-cl-intel-256-GRF-per-thread"); }
+
     def_data_type(kernel_ctx, input_dt, "SRC");
     def_data_type(kernel_ctx, ss_dt, "WEI");
     def_data_type(kernel_ctx, output_dt, "DST");
@@ -220,8 +292,17 @@ reusable_vectorized_lnorm_params_t::get_kernel_ctx() const {
 
     kernel_ctx.define_int("SG_SIZE", sg_size);
     kernel_ctx.define_int("VECT_DT_N", vector_size);
-    kernel_ctx.define_int("SG_STRIDE", sg_size * vector_size);
     kernel_ctx.define_int("N_UNROLL", unroll);
+    kernel_ctx.define_int("PVT_MEM_SIZE", private_mem_size);
+
+    kernel_ctx.define_int("WG_SIZE", wg_size);
+    if (select_work_group_kernel) {
+        kernel_ctx.add_option("-DGROUP_ADD=work_group_reduce_add");
+        kernel_ctx.define_int("GROUP_STRIDE", INT32_MAX);
+    } else {
+        kernel_ctx.add_option("-DGROUP_ADD=sub_group_reduce_add");
+        kernel_ctx.define_int("GROUP_STRIDE", sg_size * vector_size);
+    }
 
     gws_params.def_kernel_macros(kernel_ctx);
 
@@ -259,17 +340,15 @@ status_t reusable_vectorized_layer_normalization_fwd_t::execute_forward(
     lnorm_arg_list.append(pd()->desc()->layer_norm_epsilon);
     lnorm_arg_list.append(src_scale);
     lnorm_arg_list.append(dst_scale);
-    lnorm_arg_list.append((int)utils::div_up(
-            pd()->norm_axis(), conf.sg_size * conf.vector_size));
     lnorm_arg_list.append(1.f / (pd()->norm_axis()));
 
     lnorm_arg_list.append(rt_conf.gws_params.get());
 
     compute::nd_range_t gws_nd_range_calc(
-            {static_cast<size_t>(conf.sg_size),
+            {static_cast<size_t>(conf.wg_size),
                     rt_conf.gws_params.nd_range.global_range().data()[1],
                     rt_conf.gws_params.nd_range.global_range().data()[2]},
-            {static_cast<size_t>(conf.sg_size), 1, 1});
+            {static_cast<size_t>(conf.wg_size), 1, 1});
 
     return parallel_for(
             ctx, gws_nd_range_calc, calculate_lnorm_kernel_, lnorm_arg_list);
