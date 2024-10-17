@@ -139,6 +139,8 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
                         ? dst_zps.get_elem(dst_zp_mask > 0 ? g * OCG + oc : 0)
                         : 0;
                 dst = conv_res * dst_scale + dst_zp;
+                maybe_round(
+                        prb->attr, DNNL_ARG_DST, dst, dst_off, prb->dst_dt());
             });
 }
 

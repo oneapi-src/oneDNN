@@ -159,8 +159,8 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
         const data_type_t src_dt = desc.src_desc.data_type;
         const data_type_t dst_dt = desc.dst_desc.data_type;
 
-        auto fwd_attr_mask
-                = smask_t::post_ops | smask_t::sum_dt | smask_t::fpmath_mode;
+        auto fwd_attr_mask = smask_t::post_ops | smask_t::sum_dt
+                | smask_t::fpmath_mode | smask_t::rounding_mode;
 
         bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8);
         if (engine->kind() == engine_kind::gpu)
