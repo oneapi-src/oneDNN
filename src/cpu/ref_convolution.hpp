@@ -65,8 +65,9 @@ struct ref_convolution_fwd_t : public primitive_t {
                     VERBOSE_UNSUPPORTED_BIAS_CFG);
             VDISPATCH_CONV(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_CONV(
-                    attr()->has_default_values(
-                            smask_t::post_ops | smask_t::sum_dt, dst_type),
+                    attr()->has_default_values(smask_t::post_ops
+                                    | smask_t::sum_dt | smask_t::rounding_mode,
+                            dst_type),
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_CONV(attr()->post_ops_.check_sum_consistency(
                                    dst_type, /* is_int8 */ false),

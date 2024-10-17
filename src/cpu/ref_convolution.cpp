@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2021 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,6 +35,8 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const void *, DNNL_ARG_BIAS);
+    const auto rnd_seed
+            = CTX_IN_MEM(const uint32_t *, DNNL_ARG_ATTR_ROUNDING_SEED);
     auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
     CHECK(status);
 
@@ -73,6 +75,7 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     const auto padL = pd()->padL();
 
     const auto ndims = pd()->desc()->src_desc.ndims;
+    const auto dst_rnd_mode = pd()->attr()->rounding_mode_.get(DNNL_ARG_DST);
 
     auto ker = [=](dim_t g, dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
         float d = 0;
@@ -212,6 +215,9 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                 args.l_offset = dst_l_off;
                 args.dst_md = pd()->dst_md();
                 ref_post_ops->execute(d, args);
+                if (dst_rnd_mode == rounding_mode::stochastic)
+                    d = math::stochastic_round_fwd(
+                            d, dst_off, rnd_seed[0], dst_d.data_type());
 
                 io::store_float_value(dst_d.data_type(), d, dst, dst_off);
             });
