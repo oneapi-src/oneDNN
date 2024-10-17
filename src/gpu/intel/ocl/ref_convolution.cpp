@@ -148,6 +148,10 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         default: break;
     }
 
+    kernel_ctx.define_int("WITH_SROUND", conf.attr_info.with_dst_sround);
+    kernel_ctx.define_int("DST_DT_DIGITS",
+            dnnl::impl::types::digits<uint32_t>(conf.dst_data_type));
+
     def_data_type(kernel_ctx, conf.src_data_type, "SRC");
     def_data_type(kernel_ctx, conf.weights_data_type, "WEI");
     def_data_type(kernel_ctx, conf.bias_data_type, "BIA");
@@ -191,6 +195,7 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
             = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
     auto &dst_zpoints
             = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
+    auto &dst_sround = CTX_IN_STORAGE(DNNL_ARG_ATTR_ROUNDING_SEED);
 
     auto &conf = pd()->conf;
 
@@ -221,6 +226,8 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         arg_list.set(arg_idx++, dst_zpoints);
     else
         arg_list.set(arg_idx++, memory_storage_t::empty_storage());
+
+    if (conf.attr_info.with_dst_sround) arg_list.set(arg_idx++, dst_sround);
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 

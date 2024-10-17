@@ -94,6 +94,7 @@ struct attr_info_t {
     data_type_t src_zpoints_data_type;
     data_type_t wei_zpoints_data_type;
     data_type_t dst_zpoints_data_type;
+    bool with_dst_sround;
 };
 
 template <size_t ndims>
@@ -201,6 +202,7 @@ struct conv_conf_t {
     bool is_nhwc;
     bool reorder_wei = false;
     bool reorder_bias = false;
+    bool stochastic_round = false;
     int ver;
     format_tag_t src_tag, dst_tag, wei_tag;
     bool is_nchw;
