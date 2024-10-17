@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022, 2024 Arm Ltd. and affiliates
+* Copyright 2021-2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,22 +68,29 @@ status_t acl_softmax_fwd_t::pd_t::init(engine_t *engine) {
             = acl_utils::get_acl_data_t(data_type);
 
     const int threads = dnnl_get_max_threads();
-    if (inner_size_ == 1) {
-        // A rough empirical heuristic created by fitting a polynomial
-        // of the tensor sizes and thread count to the run time of the
-        // ref and ACL softmax. This variable is greater than zero when
-        // ref is faster, and less than zero when ACL is faster. We can
-        // interpret the constant term as the constant overhead
-        // associated with calling the external library and the negative
-        // coefficient on total_size as ACL being faster at processing
-        // each element
+
+    // A rough empirical heuristic created by fitting a polynomial
+    // of the tensor sizes and thread count to the run time of the
+    // ref and ACL softmax. This variable is greater than zero when
+    // ref is faster, and less than zero when ACL is faster. We can
+    // interpret the constant term as the constant overhead
+    // associated with calling the external library and the negative
+    // coefficient on total_size as ACL being faster at processing
+    // each element
+    auto calculate_performance_diff = [=](double axis_coeff) {
         double acl_ref_performance_diff = 1 + 0.005 * outer_size_
-                - 0.0027 * axis_size_
+                + axis_coeff * axis_size_
                         * std::ceil(double(outer_size_) / threads);
+
         if (threads > 1 || outer_size_ > 1) {
-            // Using threads within ACL adds another constant overhead
-            acl_ref_performance_diff += 17;
+            acl_ref_performance_diff
+                    += 17; // Adds constant overhead for using threads within ACL
         }
+        return acl_ref_performance_diff;
+    };
+
+    if (inner_size_ == 1) {
+        double acl_ref_performance_diff = calculate_performance_diff(-0.0027);
         if (acl_ref_performance_diff > 0) return status::unimplemented;
 
         // If the inner size is 1, we can get rid of the dimension.
@@ -100,14 +107,8 @@ status_t acl_softmax_fwd_t::pd_t::init(engine_t *engine) {
         // A rough empirical heuristic, see comment above
         // The only difference here is that ACL does a reorder, and so
         // is considerably better
-        double acl_ref_performance_diff = 1 + 0.005 * outer_size_
-                - 0.01 * inner_size_ * axis_size_
-                        * std::ceil(double(outer_size_) / threads);
-        if (threads > 1 || outer_size_ > 1) {
-            // Using threads within ACL adds another constant overhead
-            acl_ref_performance_diff += 17;
-        }
-
+        double acl_ref_performance_diff
+                = calculate_performance_diff(-0.01 * inner_size_);
         if (acl_ref_performance_diff > 0) return status::unimplemented;
 
         // Irrespective of the input dimensions, we construct a tensor
