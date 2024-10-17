@@ -129,6 +129,9 @@ struct ref_concat_t : public gpu::primitive_t {
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
+        if (memory_desc_wrapper(pd()->dst_md()).size() == 0)
+            return status::success;
+
         using namespace memory_tracking::names;
         impl::engine_t *engine = ctx.stream()->engine();
         const auto n = pd()->n_inputs();

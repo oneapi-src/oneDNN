@@ -69,6 +69,21 @@
 #define SKIP_FOR_LOOP_HIP(cond, message)
 #endif
 
+#ifdef DNNL_SYCL_GENERIC
+#define SKIP_IF_GENERIC(cond, message) \
+    do { \
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu && (cond), \
+                (message)); \
+    } while (0)
+
+#define SKIP_FOR_LOOP_GENERIC(cond, message) \
+    SKIP_FOR_LOOP( \
+            get_test_engine_kind() == engine::kind::gpu && (cond), (message));
+#else
+#define SKIP_IF_GENERIC(cond, message)
+#define SKIP_FOR_LOOP_GENERIC(cond, message)
+#endif
+
 #define TEST_F_(test_fixture, test_name) TEST_F(test_fixture, test_name)
 
 #define CPU_TEST_F(test_fixture, test_name) \
