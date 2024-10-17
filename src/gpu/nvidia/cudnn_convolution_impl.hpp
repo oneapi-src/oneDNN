@@ -330,7 +330,7 @@ public:
         int expected_dims[CUDNN_DIM_MAX] = {};
         CUDNN_EXECUTE_FUNC_V(cudnnGetConvolutionNdForwardOutputDim, conv_desc,
                 descs[x], weights_desc, ndims[y], &expected_dims[0]);
-        for (size_t i = 0; i < ndims[y]; i++) {
+        for (int i = 0; i < ndims[y]; i++) {
             if (dims[y][i] != expected_dims[i]) return status::unimplemented;
         }
         return status::success;
@@ -438,7 +438,7 @@ public:
     status_t configure_post_ops(convolution_pd_t *pd) {
         auto &p = pd->attr()->post_ops_;
         num_post_ops = p.len();
-        for (size_t i = 0; i < p.len(); i++) {
+        for (int i = 0; i < p.len(); i++) {
             post_ops[i] = p.entry_[i].kind;
             if (post_ops[i] == dnnl_eltwise) {
                 CHECK(create_and_set_eltwise_descriptor(pd));
@@ -735,7 +735,7 @@ public:
                 cudnnGetConvolutionMathType, conv_desc, &expected_math_mode));
 
         auto submit_status = CUDNN_STATUS_NOT_SUPPORTED;
-        for (size_t i = 0; i < returned_algo_count; i++) {
+        for (int i = 0; i < returned_algo_count; i++) {
             submit_status = perf[i].status;
             if (submit_status == CUDNN_STATUS_SUCCESS) {
                 // cudnnFindConvolutionForwardAlgorithm can erroneously report
@@ -864,7 +864,7 @@ protected:
 
         dnnl_fpmath_mode_t dnnl_fpmath_mode = pd->attr()->fpmath_.mode_;
 
-        for (size_t i = 0; i < returned_algo_count; i++) {
+        for (int i = 0; i < returned_algo_count; i++) {
             if (perf[i].status == CUDNN_STATUS_SUCCESS) {
                 switch (pd->desc()->alg_kind) {
                     case dnnl_convolution_auto:
@@ -1013,7 +1013,7 @@ public:
 
         dnnl_fpmath_mode_t dnnl_fpmath_mode = pd->attr()->fpmath_.mode_;
 
-        for (size_t i = 0; i < returned_algo_count; i++) {
+        for (int i = 0; i < returned_algo_count; i++) {
             if (perf[i].status == CUDNN_STATUS_SUCCESS) {
                 switch (pd->desc()->alg_kind) {
                     case dnnl_convolution_auto:

@@ -100,7 +100,8 @@ struct cublas_lt_params : cublas_base_params {
                         // bias epilogue not supported for dst dim = 1
                         memory_desc_wrapper bias_d
                                 = memory_desc_wrapper(*bias_md);
-                        if ((bias_d.dims()[1 + isbatched_] != M_
+                        if ((bias_d.dims()[1 + isbatched_]
+                                            != static_cast<dim_t>(M_)
                                     || bias_d.dims()[0 + isbatched_] != 1)
                                 || M_ == 1 || N_ == 1 || has_runtime_params_) {
                             with_separate_bias_ = true;
