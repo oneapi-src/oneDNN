@@ -77,15 +77,12 @@ status_t acl_softmax_fwd_t::pd_t::init(engine_t *engine) {
     // associated with calling the external library and the negative
     // coefficient on total_size as ACL being faster at processing
     // each element
-    auto calculate_performance_diff = [](dnnl::impl::dim_t outer_size,
-                                              dnnl::impl::dim_t axis_size,
-                                              const int threads,
-                                              double sec_coff) {
-        double acl_ref_performance_diff = 1 + 0.005 * outer_size
-                + sec_coff * axis_size
-                        * std::ceil(double(outer_size) / threads);
+    auto calculate_performance_diff = [=](double axis_coeff) {
+        double acl_ref_performance_diff = 1 + 0.005 * outer_size_
+                + axis_coeff * axis_size_
+                        * std::ceil(double(outer_size_) / threads);
 
-        if (threads > 1 || outer_size > 1) {
+        if (threads > 1 || outer_size_ > 1) {
             acl_ref_performance_diff
                     += 17; // Adds constant overhead for using threads within ACL
         }
@@ -93,8 +90,7 @@ status_t acl_softmax_fwd_t::pd_t::init(engine_t *engine) {
     };
 
     if (inner_size_ == 1) {
-        double acl_ref_performance_diff = calculate_performance_diff(
-                outer_size_, axis_size_, threads, -0.0027);
+        double acl_ref_performance_diff = calculate_performance_diff(-0.0027);
         if (acl_ref_performance_diff > 0) return status::unimplemented;
 
         // If the inner size is 1, we can get rid of the dimension.
@@ -111,8 +107,8 @@ status_t acl_softmax_fwd_t::pd_t::init(engine_t *engine) {
         // A rough empirical heuristic, see comment above
         // The only difference here is that ACL does a reorder, and so
         // is considerably better
-        double acl_ref_performance_diff = calculate_performance_diff(
-                outer_size_, axis_size_, threads, -0.01);
+        double acl_ref_performance_diff
+                = calculate_performance_diff(-0.01 * inner_size_);
         if (acl_ref_performance_diff > 0) return status::unimplemented;
 
         // Irrespective of the input dimensions, we construct a tensor
