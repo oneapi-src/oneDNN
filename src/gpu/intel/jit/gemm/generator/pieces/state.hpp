@@ -223,6 +223,8 @@ struct GEMMState : public CommonState {
         std::vector<ngen::Subregister> binaryLDs;           // d
         std::vector<std::vector<ngen::Subregister>> binaryStrides;    // d
         std::vector<uint8_t> binarySurfaces;
+        ngen::Subregister sroundSeedPtr;                    // q
+        ngen::Subregister sroundSeed;                       // ud
     } inputs;
     Type Ta_load, Tb_load;                                  // Current type to be loaded into A/B_regs.
     Type Tacc;                                              // Current type in accumulator registers.

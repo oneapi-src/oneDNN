@@ -2367,6 +2367,8 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
         state.inputs.bScalePtr = interface.getArgumentIfExists("b_scale_ptr");
         state.inputs.surfaceBScale = interface.getArgumentSurfaceIfExists("b_scale_ptr");
     }
+    if (problem.cStochasticRound) 
+        state.inputs.sroundSeedPtr = interface.getArgument("sround_seed");
     state.inputs.offsetA = interface.getArgumentIfExists("offset_A");
     state.inputs.offsetB = interface.getArgumentIfExists("offset_B");
     state.inputs.offsetC[0] = interface.getArgumentIfExists("offset_C");
@@ -2638,6 +2640,8 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
 
     if (state.inputs.flags.isValid())
         state.ra.claim(state.inputs.flags);
+    if (problem.cStochasticRound)
+        state.ra.claim(state.inputs.sroundSeedPtr);
     if (state.inputs.slmBase.isValid())
         state.ra.claim(state.inputs.slmBase);
 

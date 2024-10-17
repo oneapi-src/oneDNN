@@ -163,6 +163,7 @@ struct GEMMProblem : public CommonProblem {
     MatrixAddressing A, B, C;                       // Addressing information for A/B/C matrices.
     MatrixAddressing AO, BO, CO;                    // Addressing information for A/B/C offsets (if 2D).
     MatrixAddressing A_scale, B_scale;              // Addressing information for A/B/C scales (if 2D).
+    MatrixAddressing sroundSeed;              // Addressing information for A/B/C scales (if 2D).
     bool checkBeta0 = true;                         // If true, check for beta = 0 and handle specially.
     ABOffset aOffset = ABOffset::None;              // A/B offset modes.
     ABOffset bOffset = ABOffset::None;              //
@@ -175,6 +176,7 @@ struct GEMMProblem : public CommonProblem {
     int batchDims = 0;                              // # of batch dimensions (strided batch only).
     bool sumA = false, sumB = false;                // If true, calculate A row sums/B column sums and store in CO.
     bool postOpFwd = true;                          // Eltwise parameters
+    bool cStochasticRound = false;
 
     gpu_post_ops_t postOps;                         // Fused post operations to apply
     std::bitset<post_ops_t::post_ops_limit> binaryRow;      // Binary op broadcasts row data if false
@@ -285,6 +287,7 @@ struct GEMMProblem : public CommonProblem {
         s.append(binaryCol);
         s.append(binaryBatch);
         s.append(binaryTrans);
+        s.append(cStochasticRound);
     }
 };
 

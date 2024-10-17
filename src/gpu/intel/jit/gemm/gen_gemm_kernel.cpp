@@ -353,14 +353,15 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         int stepping, int eu_count, bool has_systolic, bool is_integrated,
         compute_mode mode, int batch_dims, bool trans_a, bool trans_b,
         bool trans_co, bool swap_ab, int ao_dims, int bo_dims,
-        bool wei_scale_2d, bool src_scale_2d, int wei_q2d_group_k,
-        int src_q2d_group_k, bool c_offset, bool bias, sum_ab_t reduce_ab,
-        float alpha, float beta, data_type_t a_type, data_type_t b_type,
-        data_type_t c_type, data_type_t ao_type, data_type_t bo_type,
-        data_type_t wei_scales_type, data_type_t src_scales_type,
-        data_type_t co_type, data_type_t acc_type, int align_a, int align_b,
-        int align_c, dim_t m, dim_t n, dim_t k, dim_t lda, dim_t ldb, dim_t ldc,
-        dim_t batch, gpu_post_ops_t &&post_ops) {
+        bool wei_scale_2d, bool src_scale_2d, bool dst_sround,
+        int wei_q2d_group_k, int src_q2d_group_k, bool c_offset, bool bias,
+        sum_ab_t reduce_ab, float alpha, float beta, data_type_t a_type,
+        data_type_t b_type, data_type_t c_type, data_type_t ao_type,
+        data_type_t bo_type, data_type_t wei_scales_type,
+        data_type_t src_scales_type, data_type_t co_type, data_type_t acc_type,
+        int align_a, int align_b, int align_c, dim_t m, dim_t n, dim_t k,
+        dim_t lda, dim_t ldb, dim_t ldc, dim_t batch,
+        gpu_post_ops_t &&post_ops) {
     using namespace ngen;
     using namespace kcatalog;
 
@@ -481,6 +482,8 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 
     problem_.sumA = (reduce_ab == sum_ab::sum_b_col);
     problem_.sumB = (reduce_ab == sum_ab::sum_a_row);
+
+    problem_.cStochasticRound = dst_sround;
 
     // Select a kernel from the catalog.
     MatchParams match_params[4];
@@ -832,6 +835,9 @@ void gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("offset_CO", DataType::d);
         if (problem.cOffset == COffset::Pre)
             interface_.newArgument("ldco", DataType::d);
+    }
+    if (problem.cStochasticRound) {
+        interface_.newArgument("sround_seed", ExternalArgumentType::GlobalPtr);
     }
 
     if (strategy.needsTempC(problem))

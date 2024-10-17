@@ -36,13 +36,13 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         const memory_storage_t &c, const memory_storage_t *ao,
         const memory_storage_t *bo, const memory_storage_t *a_scales,
         const memory_storage_t *b_scales, const memory_storage_t &co,
-        const memory_storage_t *c_temp, int po_count,
-        const memory_storage_t **po_srcs, int64_t offset_a, int64_t offset_b,
-        int64_t offset_c, int32_t offset_aq, int32_t offset_bq,
-        int32_t offset_co, int32_t *offset_po_src, int32_t lda, int32_t ldb,
-        int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0, float alpha,
-        float beta, int32_t cmask, bool last_k_block, bool swapab,
-        bool disable_hilbert) const {
+        const memory_storage_t *c_temp, const memory_storage_t *sround_seed,
+        int po_count, const memory_storage_t **po_srcs, int64_t offset_a,
+        int64_t offset_b, int64_t offset_c, int32_t offset_aq,
+        int32_t offset_bq, int32_t offset_co, int32_t *offset_po_src,
+        int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
+        int32_t k0, float alpha, float beta, int32_t cmask, bool last_k_block,
+        bool swapab, bool disable_hilbert) const {
     if (pd()->desc()->batch() == 0) return status::success;
 
     uint32_t flags = 0;
@@ -107,6 +107,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         }
     }
     if (nocopy_info()->needsTempC()) arg_list.set(argn++, *c_temp);
+    if (problem->cStochasticRound) { arg_list.set(argn++, *sround_seed); }
     arg_list.set(argn++, flags);
     if (k_parallel_fixed) arg_list.set(argn++, k0);
 
@@ -273,6 +274,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &c_zp = GEMM_CTX_ARG_STORAGE(c_zero_point);
     auto &bias = GEMM_CTX_ARG_STORAGE(bias);
     auto &sum_ab = GEMM_CTX_ARG_STORAGE(sum_ab);
+    auto *sround_seed = &GEMM_CTX_ARG_STORAGE(sround_seed);
     auto *co = &c_zp;
     const memory_storage_t *ao = nullptr, *bo = nullptr;
     const memory_storage_t *a_scales = nullptr, *b_scales = nullptr;
@@ -343,7 +345,6 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             po_offsets0[i] = po_srcs[i]->offset() / problem.Tbinary[i];
 
     int cmask = 0;
-
     if (pd()->with_c_zero_points()) {
         off_co0 = types::bytes_to_elements(c_type, co->offset())
                 + pd()->dyn_offset_co;
@@ -405,10 +406,10 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
         if (k_parallel_global && !nocopy_info()->fusedBeta() && beta != 1.0f
                 && (k > dim_t(k0) * pd()->kernel_desc()->aux_params()->wgK)) {
             status = launch_nocopy(ctx, compute_stream, zero_pool, a, b, c, ao,
-                    bo, a_scales, b_scales, *co, nullptr, po_count, po_srcs,
-                    off_a0, off_b0, off_c0, int32_t(off_aq0), int32_t(off_bq0),
-                    int32_t(off_co0), po_offsets0, lda, ldb, ldc, m, n, 0, 1,
-                    1.0f, beta, 0, false, swapab, true);
+                    bo, a_scales, b_scales, *co, nullptr, sround_seed, po_count,
+                    po_srcs, off_a0, off_b0, off_c0, int32_t(off_aq0),
+                    int32_t(off_bq0), int32_t(off_co0), po_offsets0, lda, ldb,
+                    ldc, m, n, 0, 1, 1.0f, beta, 0, false, swapab, true);
             if (status) return status;
             beta = 1.0f;
         }
@@ -467,11 +468,11 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
                 float eff_beta = (Bk == 0) ? beta : 1.0f;
                 status = launch_nocopy(ctx, compute_stream, zero_pool, a, b, c,
-                        ao, bo, a_scales, b_scales, *co, c_temp.get(), po_count,
-                        po_srcs, off_a_src, off_b_src, off_c, off_aq, off_bq,
-                        off_co, po_offsets, lda, ldb, ldc, size_m, size_n,
-                        size_k, k0, alpha, eff_beta, cmask, last_k_block,
-                        swapab, disable_hilbert);
+                        ao, bo, a_scales, b_scales, *co, c_temp.get(),
+                        sround_seed, po_count, po_srcs, off_a_src, off_b_src,
+                        off_c, off_aq, off_bq, off_co, po_offsets, lda, ldb,
+                        ldc, size_m, size_n, size_k, k0, alpha, eff_beta, cmask,
+                        last_k_block, swapab, disable_hilbert);
 
                 if (status) return status;
             }
