@@ -64,6 +64,7 @@ protected:
 };
 
 TEST_F(wino_conv_test_t, TestSmallPadding) {
+    SKIP_IF_GENERIC(true, "Unsupported test case.");
     for (const auto &input : {input_f32, input_f16, input_int8}) {
         if (unsupported_data_type(input.dat_dt)
                 || unsupported_data_type(input.wei_dt))
@@ -100,6 +101,7 @@ TEST_F(wino_conv_test_t, TestSmallPadding) {
 }
 
 TEST_F(wino_conv_test_t, TestLargePadding) {
+    SKIP_IF_GENERIC(true, "Unsupported test case.");
     for (const auto &input : {input_f32, input_f16, input_int8}) {
         if (unsupported_data_type(input.dat_dt)
                 || unsupported_data_type(input.wei_dt))
@@ -125,6 +127,7 @@ TEST_F(wino_conv_test_t, TestLargePadding) {
 
 TEST_F(wino_conv_test_t, TestUnsupportedKernel) {
     SKIP_IF_HIP(true, "Unsupported test case.");
+    SKIP_IF_GENERIC(true, "Unsupported test case.");
     for (const auto &input : {input_f32, input_f16, input_int8}) {
         if (unsupported_data_type(input.dat_dt)
                 || unsupported_data_type(input.wei_dt))

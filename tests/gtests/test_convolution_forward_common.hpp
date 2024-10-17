@@ -162,6 +162,25 @@ protected:
                                         memory::format_tag::odhwi))),
                 "Format is not supported.");
 
+        SKIP_IF_GENERIC(
+                !(generic_check_format_tags(p.formats.src_format)
+                        && generic_check_format_tags(p.formats.dst_format)
+                        && (generic_check_format_tags(p.formats.weights_format)
+                                || (impl::utils::one_of(
+                                        p.formats.weights_format,
+                                        memory::format_tag::goiw,
+                                        memory::format_tag::goihw,
+                                        memory::format_tag::goidhw,
+                                        memory::format_tag::oiw,
+                                        memory::format_tag::oihw,
+                                        memory::format_tag::oidhw,
+                                        memory::format_tag::bacd,
+                                        memory::format_tag::bcda,
+                                        memory::format_tag::acbde,
+                                        memory::format_tag::iohw,
+                                        memory::format_tag::hwigo)))),
+                "Format is not supported.");
+
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -184,6 +203,14 @@ protected:
                 || (dt == memory::data_type::s8
                         && impl::utils::one_of(tag, memory::format_tag::aBcd4b,
                                 memory::format_tag::aBcde4b)));
+    }
+
+    bool generic_check_format_tags(memory::format_tag tag) {
+        return impl::utils::one_of(tag, memory::format_tag::ab,
+                memory::format_tag::abc, memory::format_tag::abcd,
+                memory::format_tag::abcde, memory::format_tag::abcdef,
+                memory::format_tag::acb, memory::format_tag::acdb,
+                memory::format_tag::acdeb, memory::format_tag::any);
     }
 
     void Test() {

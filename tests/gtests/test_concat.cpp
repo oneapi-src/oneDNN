@@ -99,6 +99,14 @@ protected:
                 dnnl_aBcde4b);
     }
 
+    bool generic_supported_format_tag(memory::format_tag tag) {
+        return impl::utils::one_of(tag, dnnl_a, dnnl_ab, dnnl_abc, dnnl_abcd,
+                dnnl_abcde, dnnl_abcdef, dnnl_abdec, dnnl_acb, dnnl_acbde,
+                dnnl_acbdef, dnnl_acdb, dnnl_acdeb, dnnl_ba, dnnl_bac,
+                dnnl_bacd, dnnl_bca, dnnl_bcda, dnnl_bcdea, dnnl_cba, dnnl_cdba,
+                dnnl_cdeba, dnnl_decab, dnnl_defcab);
+    }
+
     void SetUp() override {
         auto data_type = data_traits<data_t>::data_type;
         SKIP_IF_HIP(true, "Concat operator is not supported");
@@ -109,9 +117,13 @@ protected:
         for (size_t i = 0; i < p.srcs_cds.size(); i++) {
             SKIP_IF_CUDA(!cuda_supported_format_tag(p.srcs_format[i]),
                     "Unsupported format tag");
+            SKIP_IF_GENERIC(!generic_supported_format_tag(p.srcs_format[i]),
+                    "Unsupported format tag");
         }
 
         SKIP_IF_CUDA(!cuda_supported_format_tag(p.dst_format),
+                "Unsupported format tag");
+        SKIP_IF_GENERIC(!generic_supported_format_tag(p.dst_format),
                 "Unsupported format tag");
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status, false);

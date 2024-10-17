@@ -56,7 +56,8 @@ struct ref_prelu_fwd_t : public gpu::generic::sycl::primitive_t {
                     && (weights_md(0)->format_desc.blocking.inner_nblks == 0)
                     && check_data_types(data_d, weights_d, dst_d)
                     && md_dims_in_range(src_md())
-                    && md_dims_in_range(weights_md());
+                    && md_dims_in_range(weights_md())
+                    && attr()->has_default_values();
 
             if (!ok) return status::unimplemented;
             return init_conf();
@@ -109,7 +110,8 @@ struct ref_prelu_bwd_t : public gpu::generic::sycl::primitive_t {
                     && diff_weights_md(0)->data_type == weights_md(0)->data_type
                     && check_data_types(data_d, weights_d, diff_dst_d)
                     && md_dims_in_range(diff_src_md())
-                    && md_dims_in_range(weights_md());
+                    && md_dims_in_range(weights_md())
+                    && attr()->has_default_values();
 
             if (!ok) return status::unimplemented;
 
