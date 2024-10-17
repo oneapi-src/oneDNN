@@ -255,7 +255,7 @@ status_t gen9_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto nd_range = pd()->conf.dispatch.nd_range();
 
     dim_t num_batches = pd()->conf.num_batches;
-    for (int batch_iter = 0; batch_iter < num_batches; batch_iter++) {
+    for (dim_t batch_iter = 0; batch_iter < num_batches; batch_iter++) {
         arg_list.set(3, batch_iter);
         status = parallel_for(ctx, nd_range, kernel_, arg_list);
         if (status != status::success) return status;
