@@ -154,10 +154,10 @@ struct miopen_matmul_impl_t {
     void convert_dims_matmul(
             const dnnl_dim_t *dims, int *new_dims, int n_dims) {
         new_dims[0] = 1;
-        for (size_t i = 0; i < n_dims; i++) {
+        for (int i = 0; i < n_dims; i++) {
             new_dims[i + 1] = static_cast<int>(dims[i]);
         }
-        for (size_t i = n_dims; i < 4; i++) {
+        for (int i = n_dims; i < 4; i++) {
             new_dims[i + 1] = 1;
         }
     }

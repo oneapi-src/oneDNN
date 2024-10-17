@@ -134,7 +134,7 @@ struct miopen_inner_product_impl_base_t {
     bool conv_using_scale_scratchpad() const { return scale_bias_; }
 
     void set_bias_dims(miopenTensorLayout_t format, int ndims, int bias_dim) {
-        for (size_t i = 0; i < ndims; ++i) {
+        for (int i = 0; i < ndims; ++i) {
             dims_[io::bia][i] = 1;
             strides_[io::bia][i] = (format != miopenTensorNHWC ? 1 : bias_dim);
         }
