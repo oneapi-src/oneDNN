@@ -20,6 +20,7 @@
 #undef cl_future_bf16_cvt
 
 #include "gpu/intel/ocl/dispatch.h"
+#include "gpu/intel/ocl/ocl_philox.h"
 #include "gpu/intel/ocl/reorder_common.h"
 #include "gpu/intel/ocl/types_interop.h"
 

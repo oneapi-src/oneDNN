@@ -1935,19 +1935,4 @@
 #define DOUBLE_TO_DATA8(prefix, val) DOUBLE_TO_DATA_N(prefix, 8)(val)
 #define DOUBLE_TO_DATA_N(prefix, n) CONCAT3(DOUBLE_TO_, ALIAS(prefix), n)
 
-#if WITH_SROUND
-float stochastic_round_fwd(float s, long idx, uint seed) {
-    if (isnan(s) || isinf(s)) return s;
-    uint truncation_mask = 0xffffffff << (24 - DST_DT_DIGITS);
-    uint bias_val = sizeof(DST_DATA_T) == 4 ? philox_16x8(idx, seed)
-                                            : philox_8x16(idx, seed);
-    uint rnd_bias = (uint)(bias_val & ~truncation_mask);
-    float r = as_float((as_uint(s) + rnd_bias) & truncation_mask);
-    r = fmin(fmax((float)DST_DATA_FMIN, r), (float)DST_DATA_FMAX);
-    if (r > 0 && r < FLT_MIN) r = 0;
-    if (r < 0 && r > -FLT_MIN) r = 0;
-    return r;
-}
-#endif
-
 #endif
