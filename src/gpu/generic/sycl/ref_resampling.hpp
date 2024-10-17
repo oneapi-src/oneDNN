@@ -88,10 +88,10 @@ struct ref_resampling_bwd_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper diff_dst_d(diff_dst_md(0));
             const memory_desc_wrapper diff_src_d(diff_src_md(0));
 
-            bool ok = !is_fwd() && is_supported_type(src_md(0)->data_type)
-                    && is_supported_type(dst_md(0)->data_type)
+            bool ok = !is_fwd() && is_supported_type(diff_src_md(0)->data_type)
+                    && is_supported_type(diff_dst_md(0)->data_type)
                     && set_default_params() == status::success
-                    && (src_md(0)->format_desc.blocking.inner_nblks == 0)
+                    && (diff_src_md(0)->format_desc.blocking.inner_nblks == 0)
                     && (diff_dst_md(0)->format_desc.blocking.inner_nblks == 0)
                     && attr()->has_default_values()
                     && md_dims_in_range(diff_dst_md());
