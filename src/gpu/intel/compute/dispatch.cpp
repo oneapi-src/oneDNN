@@ -119,10 +119,9 @@ std::string dispatch_t::str() const {
 
 void dispatch_t::define_dim_with_nesting_level(
         const std::string &name, int nesting_level, dim_t size, dim_t block) {
-#ifndef NDEBUG
-    for (int i = 0; i < ndims_; ++i)
-        assert(dims_[i].name != name && "Name is not unique.");
-#endif
+    for (dim_idx_t i = 0; i < ndims_; ++i)
+        gpu_assert(dims_[i].name != name)
+                << "Name " << dims_[i].name << " is not unique";
 
     dim_info_t di;
     di.name = name;
