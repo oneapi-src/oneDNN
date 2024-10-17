@@ -51,7 +51,7 @@ inline status_t check_device(dnnl::impl::engine_kind_t eng_kind) {
 
 inline void convert_dnnl_dims_array(
         const dnnl_dim_t *dims, int *new_dims, int n_dims) {
-    for (size_t i = 0; i < n_dims; i++) {
+    for (int i = 0; i < n_dims; i++) {
         new_dims[i] = static_cast<int>(dims[i]);
     }
 }
@@ -59,7 +59,7 @@ inline void convert_dnnl_dims_array(
 inline void convert_dims(const dnnl_dim_t *dims, int *new_dims, int n_dims,
         int adjustment_size = 4, int adjustment_value = 1) {
     convert_dnnl_dims_array(dims, new_dims, n_dims);
-    for (size_t i = n_dims; i < adjustment_size; i++) {
+    for (int i = n_dims; i < adjustment_size; i++) {
         new_dims[i] = adjustment_value;
     }
 }
@@ -110,7 +110,7 @@ inline bool adjust_stride_for_dnn(
 
 // Check if the dimensions contain any zeros, returns true if they do.
 inline bool has_zero_dims(const dnnl_dim_t *dims, int n_dims) {
-    for (size_t i = 0; i < n_dims; i++) {
+    for (int i = 0; i < n_dims; i++) {
         if (dims[i] == 0) { return true; }
     }
     return false;
