@@ -115,9 +115,11 @@
 1x4096:4096x4096
 
 --reset
---allow-enum-tags-only=0 --engine=gpu  --runtime_dims_masks=
---dt=f16:s4:f32  --stag=ab --wtag=ba --dtag=ab --strides=::  --attr-post-ops=
---attr-scales=wei:per_ocic:f32:64x1 --attr-scratchpad=user --attr-fpmath=f16:true 5x4096:4096x4096
+--dt=f16:s4:f32
+--wtag=any,ab,ba
+--attr-scales=wei:per_ocic:f32:64x1
+--attr-fpmath=f16:true
+5x4096:4096x4096
 
 # int4 src grouped quantization
 --reset
