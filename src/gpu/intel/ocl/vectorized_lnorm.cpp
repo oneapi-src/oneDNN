@@ -338,9 +338,8 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         assert(conf.norm_axis % conf.norm_block == 0);
         assert(conf.norm_block % (conf.sub_group_size * conf.vect_dt_n) == 0);
 
-        const dim_t norm_gws = conf.sub_group_size * conf.num_norm_blocks;
-        assert(norm_gws <= max_wg_size);
-        MAYBE_UNUSED(max_wg_size);
+        const int norm_gws = conf.sub_group_size * conf.num_norm_blocks;
+        gpu_assert(into<size_t>(norm_gws) <= max_wg_size);
 
         for (dim_idx_t i = 0; i < 4; i++) {
             dim_idx_t md_hint_idx = nstl::min(i, ndims - 1);
