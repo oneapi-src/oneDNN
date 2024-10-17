@@ -170,6 +170,7 @@ jit_brgemm_ip_conf_t::get_desired_weights_tag() const {
     using namespace format_tag;
     const int n_sp_dims = jbgp.ndims - 2;
     const bool is_xf16 = utils::one_of(jbgp.wei_dt, bf16, f16);
+    const bool is_fp8 = utils::one_of(jbgp.wei_dt, f8_e5m2, f8_e4m3);
     const bool is_not_vnni_tag = jbgp.wei_dt == f32
             || (jbgp.wei_dt == f16 && jbgp.isa == avx512_core_fp16);
     if (is_not_vnni_tag) {
@@ -225,7 +226,7 @@ jit_brgemm_ip_conf_t::get_desired_weights_tag() const {
                             pick(n_sp_dims, OI8i8o2i, OwI8i8o2i, OhwI8i8o2i,
                                     OdhwI8i8o2i)}};
         }
-    } else if (jbgp.wei_dt == data_type::s8) {
+    } else if (jbgp.wei_dt == data_type::s8 || is_fp8) {
         if (jbgp.is_amx) {
             return {{64,
                             pick(n_sp_dims, OI16i64o4i, OwI16i64o4i,
@@ -1345,6 +1346,24 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
             && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
             && jbgp.is_amx;
 
+    const bool is_fp8
+            = everyone_is(f8_e5m2, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt)
+            || pick_by_prop_kind(jbgp.prop_kind,
+                    everyone_is(f8_e5m2, jbgp.src_dt, jbgp.wei_dt)
+                            && one_of(jbgp.dst_dt, f32, f16),
+                    everyone_is(f8_e5m2, jbgp.wei_dt, jbgp.dst_dt)
+                            && jbgp.src_dt == f32,
+                    everyone_is(f8_e5m2, jbgp.src_dt, jbgp.dst_dt)
+                            && jbgp.wei_dt == f32)
+            || everyone_is(f8_e4m3, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt)
+            || pick_by_prop_kind(jbgp.prop_kind,
+                    everyone_is(f8_e4m3, jbgp.src_dt, jbgp.wei_dt)
+                            && one_of(jbgp.dst_dt, f32, f16),
+                    everyone_is(f8_e4m3, jbgp.wei_dt, jbgp.dst_dt)
+                            && jbgp.src_dt == f32,
+                    everyone_is(f8_e4m3, jbgp.src_dt, jbgp.dst_dt)
+                            && jbgp.wei_dt == f32);
+
     if (!IMPLICATION(is_int8,
                 one_of(isa, avx2_vnni, avx2_vnni_2, avx512_core,
                         avx512_core_vnni, avx512_core_amx)))
@@ -1358,8 +1377,10 @@ status_t jit_brgemm_ip_conf_t::init_conf_base(cpu_isa_t isa,
                 one_of(isa, avx2_vnni_2, avx512_core_fp16,
                         avx512_core_amx_fp16)))
         return status::unimplemented;
+    if (!IMPLICATION(is_fp8, one_of(isa, avx512_core_amx_fp16)))
+        return status::unimplemented;
 
-    if (!one_of(true, is_int8, is_bf16, is_f16, is_f32))
+    if (!one_of(true, is_int8, is_bf16, is_f16, is_f32, is_fp8))
         return status::unimplemented;
     if (is_int8) {
         jbgp.acc_dt = s32;
