@@ -113,11 +113,12 @@ struct gen_gemm_nocopy_kernel_desc_t : public gen_gemm_kernel_desc_t {
     }
 
     status_t select_kernel(compute::gpu_arch_t arch, int stepping, int eu_count,
-            bool has_systolic, compute_mode mode, int batch_dims, bool trans_a,
-            bool trans_b, bool trans_co, bool swap_ab, int ao_dims, int bo_dims,
-            bool wei_scale_2d, bool src_scale_2d, int wei_q2d_group_k,
-            int src_q2d_group_k, bool c_offset, bool bias, sum_ab_t reduce_ab,
-            float alpha, float beta, data_type_t a_type, data_type_t b_type,
+            bool has_systolic, bool is_integrated, compute_mode mode,
+            int batch_dims, bool trans_a, bool trans_b, bool trans_co,
+            bool swap_ab, int ao_dims, int bo_dims, bool wei_scale_2d,
+            bool src_scale_2d, int wei_q2d_group_k, int src_q2d_group_k,
+            bool c_offset, bool bias, sum_ab_t reduce_ab, float alpha,
+            float beta, data_type_t a_type, data_type_t b_type,
             data_type_t c_type, data_type_t ao_type, data_type_t bo_type,
             data_type_t wei_scales_type, data_type_t src_scales_type,
             data_type_t co_type, data_type_t acc_type, int align_a, int align_b,
@@ -127,12 +128,13 @@ struct gen_gemm_nocopy_kernel_desc_t : public gen_gemm_kernel_desc_t {
 
 struct gen_gemm_xe_systolic_kernel_desc_t : public gen_gemm_kernel_desc_t {
     status_t select_kernel(compute::gpu_arch_t arch, int stepping, int eu_count,
-            int batch_dims, bool packed_c, bool trans_co, bool a_offset,
-            bool b_offset, bool c_offset, bool bias, float alpha, float beta,
-            data_type_t a_type, data_type_t b_type, data_type_t c_type,
-            data_type_t ao_type, data_type_t bo_type, data_type_t co_type,
-            data_type_t acc_type, dim_t m, dim_t n, dim_t k, dim_t batch,
-            int unroll_m, int unroll_n, bool alt, gpu_post_ops_t &&post_ops);
+            bool is_integrated, int batch_dims, bool packed_c, bool trans_co,
+            bool a_offset, bool b_offset, bool c_offset, bool bias, float alpha,
+            float beta, data_type_t a_type, data_type_t b_type,
+            data_type_t c_type, data_type_t ao_type, data_type_t bo_type,
+            data_type_t co_type, data_type_t acc_type, dim_t m, dim_t n,
+            dim_t k, dim_t batch, int unroll_m, int unroll_n, bool alt,
+            gpu_post_ops_t &&post_ops);
 
     static void choose_unrolls(compute::gpu_arch_t arch, int eu_count,
             data_type_t a_type, data_type_t b_type, data_type_t c_type, dim_t m,
