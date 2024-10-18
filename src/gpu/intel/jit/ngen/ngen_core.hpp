@@ -258,12 +258,41 @@ struct Product {
     int stepping;
 };
 
+enum class PlatformType {Unknown, Integrated, Discrete};
+
 static inline bool operator==(const Product &p1, const Product &p2) { return p1.family == p2.family && p1.stepping == p2.stepping; }
 static inline bool operator!=(const Product &p1, const Product &p2) { return !(p1 == p2); }
 static inline bool operator<(const Product &p1, const Product &p2) { return (p1.family < p2.family) || (p1.family == p2.family && p1.stepping < p2.stepping); }
 static inline bool operator>(const Product &p1, const Product &p2) { return p2 < p1; }
 static inline bool operator>=(const Product &p1, const Product &p2) { return !(p1 < p2); }
 static inline bool operator<=(const Product &p1, const Product &p2) { return !(p2 < p1); }
+
+static inline constexpr14 PlatformType getPlatformType(ProductFamily family) {
+    switch(family) {
+        // Guaranteed integrated
+        case ProductFamily::GenericGen9:
+        case ProductFamily::GenericGen10:
+        case ProductFamily::GenericGen11:
+        case ProductFamily::MTL:
+        case ProductFamily::ARL:
+            return PlatformType::Integrated;
+        // Could be integrated or discrete
+        case ProductFamily::GenericXeLP:
+        case ProductFamily::GenericXeHPG:
+        case ProductFamily::GenericXe2:
+        case ProductFamily::GenericXe3:
+            return PlatformType::Unknown;
+        // Guaranteed discrete
+        case ProductFamily::GenericXeHP:
+        case ProductFamily::GenericXeHPC:
+        case ProductFamily::DG2:
+        case ProductFamily::PVC:
+            return PlatformType::Discrete;
+        case ProductFamily::Unknown:
+            return PlatformType::Unknown;
+    }
+    return PlatformType::Unknown;
+}
 
 static inline constexpr14 ProductFamily genericProductFamily(HW hw)
 {
