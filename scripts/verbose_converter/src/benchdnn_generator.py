@@ -815,6 +815,18 @@ class SumConverter(MultiSourceMixin, Converter):
     driver: str = "sum"
 
 
+class ZeroPadConverter(Converter):
+    driver: str = "zeropad"
+
+    @property
+    def dts(self):
+        return f"--dt={self.entry.mds[0].data_type}"
+
+    @property
+    def tags(self):
+        return f"--tag={maybe_make_any_tag(self.entry.mds[0])}"
+
+
 def get_converter(primitive: str) -> ConverterMeta:
     converters: Dict[str, ConverterMeta] = {
         "batch_normalization": BatchNormalizationConverter,
@@ -838,6 +850,7 @@ def get_converter(primitive: str) -> ConverterMeta:
         "shuffle": ShuffleConverter,
         "softmax": SoftmaxConverter,
         "sum": SumConverter,
+        "zero_pad": ZeroPadConverter,
     }
     return converters[primitive]
 
