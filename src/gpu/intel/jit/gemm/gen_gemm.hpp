@@ -363,6 +363,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                     || compute_engine->mayiuse(compute::device_ext_t::
                                     intel_subgroup_split_matrix_multiply_accumulate);
 
+            bool is_integrated = compute_engine->device_info()->is_integrated();
+
             // size checks for fused reduction kernels
             if (with_sum_ab()) {
                 auto mnk = d->m() * d->n() * d->k();
@@ -424,15 +426,15 @@ struct gen_gemm_t : public gpu_gemm_t {
                     get_post_op_specializations()));
 
             CHECK(kernel_desc_.select_kernel(arch_, stepping,
-                    dev_info_->eu_count(), has_systolic, mode, batch_dims(),
-                    eff_transa(), eff_transb(), eff_trans_bias(), swap_ab(),
-                    ao_dims_, bo_dims_, wei_scales_2d_, src_scales_2d_,
-                    wei_q2d_group_k, src_q2d_group_k, with_c_zero_points(),
-                    with_bias(), eff_sum_ab(), alpha(), beta(), eff_a_type(),
-                    eff_b_type(), desc()->c_type(), ao_type, bo_type,
-                    wei_scales_type, src_scales_type, co_type, acc_type,
-                    eff_align_a(), eff_align_b(), align_c(), eff_m(), eff_n(),
-                    d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch(),
+                    dev_info_->eu_count(), has_systolic, is_integrated, mode,
+                    batch_dims(), eff_transa(), eff_transb(), eff_trans_bias(),
+                    swap_ab(), ao_dims_, bo_dims_, wei_scales_2d_,
+                    src_scales_2d_, wei_q2d_group_k, src_q2d_group_k,
+                    with_c_zero_points(), with_bias(), eff_sum_ab(), alpha(),
+                    beta(), eff_a_type(), eff_b_type(), desc()->c_type(),
+                    ao_type, bo_type, wei_scales_type, src_scales_type, co_type,
+                    acc_type, eff_align_a(), eff_align_b(), align_c(), eff_m(),
+                    eff_n(), d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch(),
                     std::move(gpu_post_ops)));
 
             // Global k-parallel kernels don't support post-ops or non-f32/s32

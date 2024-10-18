@@ -89,8 +89,10 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo, SizeP
     auto hw = getCore(product.family);
     auto stepping = hwInfo.gmdid & 0xFF;
 
+    bool isIntegrated = getPlatformType(product.family) == PlatformType::Integrated;
+
     /* Create catalog matcher */
-    MatchParams matchParams(hw, hwInfo.systolicAvailable, problem);
+    MatchParams matchParams(hw, hwInfo.systolicAvailable, isIntegrated, problem);
 
     matchParams.sizes = sizes;
     matchParams.stepping = stepping;

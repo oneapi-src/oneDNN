@@ -74,7 +74,7 @@ inline bool tagMatch(const char *tref, const char *tpattern)
     for (auto c = tref; *c; c++) {
         // Lowercase tags -> must not match pattern
         // Uppercase tags -> must match pattern
-        int cu = *c & ~0x20;     // tolower(c)
+        int cu = *c & ~0x20;     // toupper(c)
         bool match = (std::strchr(tpattern, cu) != nullptr);
         bool wantMatch = (*c & 0x20) == 0;
         if (match != wantMatch)
@@ -258,7 +258,7 @@ const kcatalog::Entry *upper_bound(const kcatalog::Catalog &catalog, const kcata
 }
 
 
-MatchParamsBase::MatchParamsBase(ngen::HW hw, bool systolicAvailable, const GEMMProblem &problem_)
+MatchParamsBase::MatchParamsBase(ngen::HW hw, bool systolicAvailable, bool isIntegrated, const GEMMProblem &problem_)
 {
     using namespace kcatalog;
 
@@ -332,6 +332,8 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, bool systolicAvailable, const GEMM
 
     if (systolicAvailable)
         *tagPtr++ = ReqSystolic;
+
+    if (isIntegrated) *tagPtr++ = ReqIntegrated;
 
     if (problem.batch != BatchMode::None) {
         *tagPtr++ = ReqBatch;
