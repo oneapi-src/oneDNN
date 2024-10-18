@@ -111,7 +111,7 @@ status_t ref_convolution_bwd_data_t::pd_t::init_conf() {
     conf_.single_data_zeropoint = attr()->zero_points_.common(DNNL_ARG_SRC_0);
     conf_.single_dst_zeropoint = attr()->zero_points_.common(DNNL_ARG_DST);
 
-    conf_.post_ops = sycl_post_ops_t(attr(), dst_md());
+    conf_.post_ops = sycl_post_ops_t(attr(), diff_src_md());
 
     conf_.padding[0] = static_cast<int>(desc()->padding[0][0]);
     conf_.padding[1] = static_cast<int>(desc()->padding[0][1]);

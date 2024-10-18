@@ -154,7 +154,9 @@ struct ref_convolution_bwd_data_t : public gpu::generic::sycl::primitive_t {
                     && check_convolution_formats(
                             diff_data_d, weights_d, diff_dst_d)
                     && attr()->has_default_values(sm::scales_runtime
-                            | sm::zero_points_runtime | sm::sum_dt)
+                            | sm::zero_points_runtime | sm::sum_dt
+                            | sm::post_ops)
+                    && sycl_post_ops_t::post_ops_ok(attr(), false)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             attr_scales_ok()
                                     && check_convolution_scales_types(attr()))
