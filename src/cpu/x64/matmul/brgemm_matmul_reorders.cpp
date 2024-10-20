@@ -69,7 +69,20 @@ format_tag_t get_blocked_otag(const memory_desc_t &dst_md) {
 status_t calculate_plain_transpose_blocks(dim_t &batch, dim_t &M, dim_t &K,
         const memory_desc_t &src_md, const memory_desc_t &dst_md) {
 
-    const memory_desc_wrapper id(src_md), od(dst_md);
+    // drop all unit dims as they they will break the calculations. Removing
+    // unit dims will not change the physical memory reorder problem.
+    dims_t non_unit_dims {};
+    dim_t non_unit_dim = 0;
+    for (dim_t i = 0; i < src_md.ndims; i++) {
+        if (src_md.dims[i] == 1) continue;
+        non_unit_dims[non_unit_dim++] = src_md.dims[i];
+    }
+
+    memory_desc_t src_md_reduced, dst_md_reduced;
+    memory_desc_reshape(src_md_reduced, src_md, non_unit_dim, non_unit_dims);
+    memory_desc_reshape(dst_md_reduced, dst_md, non_unit_dim, non_unit_dims);
+
+    const memory_desc_wrapper id(src_md_reduced), od(dst_md_reduced);
 
     // sort the arrays first by src strides.
     // set dims and dst strides in same order.
