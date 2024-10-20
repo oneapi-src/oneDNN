@@ -503,6 +503,17 @@ struct sparse_options_t {
         if (options_.count(arg) == 0) return dnnl_sparse_encoding_undef;
         return options_.at(arg).first;
     }
+    dnnl_sparse_encoding_t get_encoding(data_kind_t kind) const {
+        // Note: the commented code doesn't work as `arg` returned is a
+        // backward exec_arg. See the function comment.
+        // const auto arg = data_kind2exec_arg(kind);
+        // return get_encoding(arg);
+        switch (kind) {
+            case SRC: return get_encoding(DNNL_ARG_SRC);
+            case WEI: return get_encoding(DNNL_ARG_WEIGHTS);
+            default: return def_encoding;
+        }
+    }
 
     float get_sparsity(int arg) const {
         if (options_.count(arg) == 0) return 0.0f;
@@ -567,12 +578,8 @@ struct attr_args_t {
 
     attr_args_t() = default;
 
-    void prepare_scales(const attr_t &attr, int arg, int mask = -1) {
-        entries.insert(std::make_pair(DNNL_ARG_ATTR_SCALES | arg, mask));
-    };
-
-    void prepare_zero_points(const attr_t &attr, int arg, int mask = -1) {
-        entries.insert(std::make_pair(DNNL_ARG_ATTR_ZERO_POINTS | arg, mask));
+    void prepare_quant(const attr_t &attr, int arg, int mask = -1) {
+        entries.insert(std::make_pair(arg, mask));
     };
 
     int prepare_post_ops_mds(const attr_t &attr, int ndims,

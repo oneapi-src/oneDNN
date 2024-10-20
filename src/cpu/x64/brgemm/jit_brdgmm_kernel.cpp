@@ -473,9 +473,9 @@ void jit_brdgmm_kernel_base_t<Wmm>::store_accumulators_apply_post_ops(
 
     const bool dt_requires_saturation
             = one_of(brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
-    auto vmm_lbound = vmm_tmp(0);
-    auto vmm_ubound = vmm_tmp(1);
     if (dt_requires_saturation) {
+        auto vmm_lbound = vmm_tmp(0);
+        auto vmm_ubound = vmm_tmp(1);
         init_saturate_f32(
                 vmm_lbound, vmm_ubound, reg_tmp, data_type::f32, brg.dt_d);
     }
@@ -484,6 +484,8 @@ void jit_brdgmm_kernel_base_t<Wmm>::store_accumulators_apply_post_ops(
 
     for (int m = 0; m < m_blocks; m++) {
         if (dt_requires_saturation) {
+            auto vmm_lbound = vmm_tmp(0);
+            auto vmm_ubound = vmm_tmp(1);
             for_(int n = 0; n < n_blocks; n++)
             for (int v_i = 0; v_i < v_substep; ++v_i) {
                 if (get_substep_simd(n, v_i, has_n_tail) <= 0) continue;
@@ -553,9 +555,9 @@ void jit_brdgmm_kernel_base_t<Wmm>::store_accumulators_without_post_ops(
 
     const bool dt_requires_saturation
             = brg.is_int8 && brg.dt_c != data_type::s32;
-    auto vmm_lbound = vmm_tmp(0);
-    auto vmm_ubound = vmm_tmp(1);
     if (dt_requires_saturation) {
+        auto vmm_lbound = vmm_tmp(0);
+        auto vmm_ubound = vmm_tmp(1);
         init_saturate_f32(
                 vmm_lbound, vmm_ubound, reg_tmp, data_type::f32, brg.dt_d);
     }
@@ -567,8 +569,11 @@ void jit_brdgmm_kernel_base_t<Wmm>::store_accumulators_without_post_ops(
         if (substep_simd <= 0) continue;
         const bool mask_flag = substep_simd < simd_w_;
         auto vmm_acc = accm(m_blocks, n_blocks, m, n, v_i);
-        if (dt_requires_saturation)
+        if (dt_requires_saturation) {
+            auto vmm_lbound = vmm_tmp(0);
+            auto vmm_ubound = vmm_tmp(1);
             saturate_cvt_f32(vmm_acc, vmm_lbound, vmm_ubound, brg.dt_d);
+        }
         const auto offset = C_offset(m, n, v_i);
         if (IMPLICATION(mask_flag, isa_has_masks(brg.isa_impl))) {
             auto vmm_acc_masked = maybe_mask(vmm_acc, mask_flag, true);

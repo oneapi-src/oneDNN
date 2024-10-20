@@ -88,8 +88,8 @@ struct shuffle_kernel_vec2_t {
         dim_t sp_start {0}, sp_end {0};
         balance211(conf_.SP, conf_.nthr, ithr, sp_start, sp_end);
 
-        for (size_t mb = 0; mb < conf_.MB; mb++) {
-            for (size_t sp = sp_start; sp < sp_end; sp++) {
+        for (dim_t mb = 0; mb < conf_.MB; mb++) {
+            for (dim_t sp = sp_start; sp < sp_end; sp++) {
                 const dim_t off = mb * stride_mb + sp * conf_.C;
                 for (dim_t c = 0; c < conf_.C; ++c) {
                     dim_t i = c % conf_.transpose_col;

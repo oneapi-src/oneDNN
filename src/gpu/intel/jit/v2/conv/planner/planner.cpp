@@ -134,9 +134,13 @@ void planner_main(int argc, const char **argv) {
     switch (params.mode) {
         case planner_mode_t::trace: {
             plan_t plan;
-            finalize_conv_desc(params.desc, bench_mger.hw(), &plan);
-            std::cout << std::endl;
-            std::cout << ir_utils::add_tag("plan", plan.str()) << std::endl;
+            if (!finalize_conv_desc(params.desc, bench_mger.hw(), &plan)) {
+                std::cout << "Error: cannot create plan\n";
+                exit(1);
+            }
+            std::cout << plan.str() << std::endl;
+            std::cout << "Reqs:\n";
+            std::cout << params.desc.reqs.str() << std::endl;
             break;
         }
         case planner_mode_t::bench: {

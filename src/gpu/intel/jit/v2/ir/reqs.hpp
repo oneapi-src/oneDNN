@@ -48,6 +48,7 @@ public:
         return *reqs_;
     }
     explicit operator bool() const { return reqs_; }
+    bool can_update() const { return can_update_; }
 
 private:
     const prb_reqs_t *parent_ = nullptr;
@@ -65,7 +66,7 @@ public:
 
     void add(const expr_t &e);
     void add(const prb_reqs_t &other);
-    void add(const pvar_tile_t &tile);
+    void add(const pvar_map_t<int> &sizes);
     void set(const pvar_t &dim, int value);
     // Mark the dimension as being divisible by any number - this changes
     // behavior of methods like can_prove() and max_factor().
@@ -74,9 +75,10 @@ public:
 
     explicit operator bool() const { return !reqs_.empty(); }
     // Checks if the requirements are satisfied for the given problem sizes .
-    bool fits(const pvar_tile_t &sizes) const;
+    bool fits(const pvar_map_t<int> &sizes) const;
     // Simplifies and eliminates redundant requirements.
     void simplify();
+    void substitute(const pvar_map_t<int> &values);
     // Checks if an expression/condition is an implication of the requirements.
     // For example: prb_reqs_t(oc % 64 == 0) implies (oc % 16) == 0 so the
     // latter can be proven from the original requirements.
@@ -89,23 +91,34 @@ public:
     // of this object.
     bool implies(const prb_reqs_t &other) const;
     expr_t to_expr(const pvar_t &dim) const;
+    void stringify_impl(std::ostream &out, const std::string &req_delim,
+            const std::string &delim) const;
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
     std::string str() const;
 
     IR_DEFINE_DUMP()
 
+    static void merge(std::vector<prb_reqs_t> reqs_vec,
+            const std::vector<int> &factor_vec, const pvar_t &factor_dim,
+            prb_reqs_t &out_reqs);
+
 private:
     // Single requirement, represented as an expression.
     class req_t {
     public:
         req_t();
+        req_t(const req_t &other);
         req_t(const req_impl_t &impl);
+        ~req_t();
+        req_t &operator=(const req_t &other);
         const req_impl_t &impl() const { return *impl_; }
         req_impl_t &impl() { return *impl_; }
+        std::string str() const;
+        IR_DEFINE_DUMP()
 
     private:
-        std::shared_ptr<req_impl_t> impl_;
+        std::unique_ptr<req_impl_t> impl_;
     };
 
     void add_if_not_found(const req_impl_t &new_req);

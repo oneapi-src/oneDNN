@@ -99,9 +99,9 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
             aux_params_.k0 = utils::rnd_up(aux_params_.k0, problem_.bqGroupK);
     }
 
-    if (hw_ == ngen::HW::Xe2) {
-        // Temporary hack to use XeHPC register banking on Xe2, in order
-        //   to successfully reuse XeHPC strategies.
+    if (hw_ == ngen::HW::Xe2 || hw_ == ngen::HW::Xe3) {
+        // Use XeHPC register banking on Xe2/Xe3, in order
+        // to successfully reuse XeHPC strategies.
         strategy_.raHW = ngen::HW::XeHPC;
 
         // Bump up alignments to 16 bytes for block 2D if available.
@@ -243,6 +243,7 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
 
     strategy_.kInterleaveChunk
             = std::min(strategy_.kInterleaveChunk, (int)aux_params_.k0);
+    if (strategy_.kInterleave) aux_params_.wgK = strategy_.wg[LoopK];
     update_driver_info();
 
 #ifdef DNNL_DEV_MODE
@@ -278,6 +279,7 @@ void gen_gemm_kernel_desc_t::update_driver_info() {
         REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
         REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
         REG_XE2_ISA(ARCH_DISPATCH(Xe2))
+        REG_XE3_ISA(ARCH_DISPATCH(Xe3))
         default:
             assert(!"Unsupported architecture");
             driver_info_ = entry_->driverInfo;
@@ -380,7 +382,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     bool can_2d_c = (ldc * problem_.Tc <= 16777216);
 
     // Xe2 requires stronger alignment for block 2D.
-    if (arch == compute::gpu_arch_t::xe2) {
+    if (arch == compute::gpu_arch_t::xe2 || arch == compute::gpu_arch_t::xe3) {
         can_2d_a &= (align_a % 16 == 0);
         can_2d_b &= (align_b % 16 == 0);
         can_2d_c &= (align_c % 16 == 0);
@@ -590,10 +592,11 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
 
     if (!entry_) return status::unimplemented;
 
-    // Update A/B types from entry.
-    Type Ta_new, Ta_ext_new, Tb_new, Tb_ext_new;
+    // Update A/B/C types from entry.
+    Type Ta_new, Ta_ext_new, Tb_new, Tb_ext_new, Tc_new;
     parsePrecisions(entry_->selector.precisions[0], Ta_ext_new, Ta_new);
     parsePrecisions(entry_->selector.precisions[1], Tb_ext_new, Tb_new);
+    Tc_new = charToType(entry_->selector.precisions[2][0]);
 
     auto update_type = [](Type &T, Type T_new, bool sz_change = false) {
         if ((T.bits() != T_new.bits()) && !sz_change) return;
@@ -602,8 +605,11 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     };
     update_type(problem_.Ta, Ta_new, true);
     update_type(problem_.Tb, Tb_new, true);
+    update_type(problem_.Tc, Tc_new, true);
     update_type(problem_.Ta_ext, Ta_ext_new);
     update_type(problem_.Tb_ext, Tb_ext_new);
+
+    if (problem_.Ts == Type::invalid) problem_.Ts = problem_.Tc;
 
     auto block_k = entry_->driverInfo.blocking[LoopK];
     if (block_k > 0 && k > block_k && beta != 1.0f) problem_.beta = Scalar();
@@ -630,9 +636,8 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     k_ = k;
     eu_count_ = eu_count;
 
-    if (hw_ != HW::Xe2)
-        if (!utils::one_of(hw_, HW::XeHP, HW::XeHPG, HW::XeHPC))
-            return status::unimplemented;
+    if (!utils::one_of(hw_, HW::XeHP, HW::XeHPG, HW::XeHPC, HW::Xe2, HW::Xe3))
+        return status::unimplemented;
 
     bool xehpc = (hw_ >= HW::XeHPC);
 
@@ -752,6 +757,7 @@ void gen_gemm_xe_systolic_kernel_desc_t::choose_unrolls(
             break;
         case compute::gpu_arch_t::xe_hpc:
         case compute::gpu_arch_t::xe2:
+        case compute::gpu_arch_t::xe3:
             if (utils::one_of(a_type, f16, bf16)) {
                 if (unroll_m != 0)
                     unroll_n = (unroll_m > 16) ? 32 : 16;
@@ -911,6 +917,7 @@ xpu::binary_t gen_gemm_kernel_t::get_binary(
             REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
             REG_XEHPC_ISA(ARCH_DISPATCH(XeHPC))
             REG_XE2_ISA(ARCH_DISPATCH(Xe2))
+            REG_XE3_ISA(ARCH_DISPATCH(Xe3))
             default: assert(!"Unsupported architecture"); break;
         }
     } catch (const std::runtime_error &err) {

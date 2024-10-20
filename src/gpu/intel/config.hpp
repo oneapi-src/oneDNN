@@ -156,6 +156,19 @@ public:
     }
 };
 
+class dim_param_t : public value_param_t<dim_t> {
+public:
+    using value_param_t::value_param_t;
+
+    void set_from_str(const std::string &s) override { value_ = std::stoll(s); }
+
+    std::string str() const override {
+        std::ostringstream oss;
+        oss << short_name() << "=" << value_;
+        return oss.str();
+    }
+};
+
 class container_config_t {
 public:
     virtual ~container_config_t() = default;

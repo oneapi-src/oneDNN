@@ -53,11 +53,12 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     auto &src_blk = src_mdw.blocking_desc();
     if (src_blk.inner_nblks > 0) {
         // C is the last blocked dimension as it was checked in is_c_blocked_by
-        c_block_size = src_blk.inner_blks[src_blk.inner_nblks - 1];
+        c_block_size = into<int>(src_blk.inner_blks[src_blk.inner_nblks - 1]);
         // if there is NC blocking (N is the blocked dimension before C) use N blocks as well
         if (src_blk.inner_nblks > 1
                 && src_blk.inner_idxs[src_blk.inner_nblks - 2] == 0) {
-            n_block_size = src_blk.inner_blks[src_blk.inner_nblks - 2];
+            n_block_size
+                    = into<int>(src_blk.inner_blks[src_blk.inner_nblks - 2]);
         }
     }
 
@@ -70,7 +71,7 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     conf.sub_group_size = 16;
     conf.use_mb_c_block = false;
     conf.use_only_c_block = false;
-    int c_padded = utils::rnd_up(conf.c_padded, conf.sub_group_size);
+    dim_t c_padded = utils::rnd_up(conf.c_padded, conf.sub_group_size);
 
     if (c_block_size >= 16 && n_block_size >= 16) {
         c_padded = utils::rnd_up(conf.c_padded, c_block_size);
@@ -140,7 +141,8 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
 
     if (conf.num_batches > 1) {
         conf.dispatch.define_dim("MB", 0,
-                nstl::min(conf.mb_block_size, conf.mb_padded),
+                nstl::min(
+                        static_cast<dim_t>(conf.mb_block_size), conf.mb_padded),
                 conf.chunks_per_mb_block);
     } else {
         conf.dispatch.define_dim("MB", 0, conf.mb_padded / conf.unroll_mb_count,
@@ -172,7 +174,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
     if (conf.num_batches > 1) {
-        kernel_ctx.define_int("MB", nstl::min(conf.mb_block_size, conf.mb));
+        kernel_ctx.define_int("MB",
+                nstl::min(static_cast<dim_t>(conf.mb_block_size), conf.mb));
     } else {
         kernel_ctx.define_int("MB", conf.mb);
     }
@@ -251,7 +254,7 @@ status_t gen9_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 
-    int num_batches = pd()->conf.num_batches;
+    dim_t num_batches = pd()->conf.num_batches;
     for (int batch_iter = 0; batch_iter < num_batches; batch_iter++) {
         arg_list.set(3, batch_iter);
         status = parallel_for(ctx, nd_range, kernel_, arg_list);

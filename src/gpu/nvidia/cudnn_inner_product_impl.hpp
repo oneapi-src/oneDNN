@@ -135,7 +135,7 @@ struct cudnn_inner_product_impl_base_t {
         // of filter should be equal, as cuDNN always stores dimensions in
         // NCDHW order. The first dimension of filter must be equal to the
         // second dimension of bias
-        for (size_t i = 0; i < ndims; ++i) {
+        for (int i = 0; i < ndims; ++i) {
             dims_[io::bia][i] = 1;
             strides_[io::bia][i] = (format != CUDNN_TENSOR_NHWC ? 1 : bias_dim);
         }

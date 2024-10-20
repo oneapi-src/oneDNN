@@ -885,8 +885,11 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
             if (!jit_eltwise_injector_f32_is_supported(po.eltwise.alg))
                 return false;
             else if (po.eltwise.alg == alg_kind::eltwise_tanh
-                    && hw == ngen::HW::XeHPG && hw.systolic_support()
-                    && hw.eu_count() <= 128)
+                    && hw == ngen::HW::XeHPG
+                    && utils::one_of(hw.product_family(),
+                            ngen::ProductFamily::GenericXeHPG,
+                            ngen::ProductFamily::DG2)
+                    && hw.systolic_support() && hw.eu_count() <= 128)
                 // Workaround for hard to reproduce issue in end to end
                 // workloads. It is unclear what the actual issue is as the
                 // kernel always works correctly in benchdnn.
@@ -1483,6 +1486,15 @@ walk_order_t compute_walk_order(const conv_config_t &cfg) {
 
     // Depthwise does not expose much reuse so keep the default order.
     if (prb.is_dw) return default_walk_order;
+
+    // XXX: Workaround for XeHPG related issues, supposedly coming from
+    // math.inv usage to emulate integer division when using blocked walk
+    // order.
+    if (cfg.hw() == ngen::HW::XeHPG
+            && utils::one_of(cfg.hw().product_family(),
+                    ngen::ProductFamily::GenericXeHPG,
+                    ngen::ProductFamily::DG2))
+        return default_walk_order;
 
     // If threadgroup memory footprint exceeds L3 then L3 blocking is not
     // applied.

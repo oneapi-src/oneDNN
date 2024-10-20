@@ -40,7 +40,7 @@ strides_t<out_ndims> inner(const strides_t<in_ndims> &s) {
 }
 
 status_t compute_cell_fwd(const exec_ctx_t &ctx,
-        const compute::kernel_t &kernel, int lay, int dir, int iter,
+        const compute::kernel_t &kernel, dim_t lay, dim_t dir, dim_t iter,
         const workspace_t &workspace, const user_data_t user_data,
         const sub_buffer_t &weights_layer, const sub_buffer_t &weights_iter,
         const sub_buffer_t &cell_layer, const strides_t<4> &cell_layer_strides,
@@ -114,7 +114,7 @@ status_t compute_cell_fwd(const exec_ctx_t &ctx,
     arg_list.append(conf.slc);
     arg_list.append(conf.sic);
 
-    arg_list.append(gpu_utils::into<dim_t>(dhc_loop));
+    arg_list.append(into<dim_t>(dhc_loop));
 
     return gpu_primitive_t::parallel_for(ctx, nd_range, kernel, arg_list.args);
 }

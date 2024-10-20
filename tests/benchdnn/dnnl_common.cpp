@@ -444,7 +444,7 @@ void finalize() {
 
 inline int measure_perf_individual(timer::timer_t &t, dnnl_stream_t stream,
         perf_function_t &perf_func, std::vector<dnnl_exec_arg_t> &dnnl_args) {
-    cold_cache_t cold_cache(dnnl_args);
+    cold_cache_t cold_cache(dnnl_args, stream);
 
     t.reset();
     while (true) {
@@ -477,7 +477,7 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         DNN_SAFE(perf_func(v_stream[j], dnnl_args[j]), WARN);
         DNN_SAFE(dnnl_stream_wait(v_stream[j]), CRIT);
         if (use_profiling) reset_gpu_profiling(v_stream[j]);
-        cold_cache[j] = cold_cache_t(dnnl_args[j]);
+        cold_cache[j] = cold_cache_t(dnnl_args[j], v_stream[j]);
     }
 
     bool is_first_loop = true;

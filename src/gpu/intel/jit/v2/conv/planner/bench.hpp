@@ -63,7 +63,7 @@ struct bench_input_params_t {
     layout_tag_t dst_tag;
     prb_reqs_t reqs;
     bool is_dw = false;
-    prb_tile_t tile;
+    pvar_tile_t tile;
     int nprbs = 0;
 
     bench_input_params_t() = default;
@@ -109,6 +109,8 @@ private:
 
 bench_data_t bench(const bench_manager_t &bench_mger,
         const kernel_desc_t &kernel_desc, int nprbs = 100);
+kernel_desc_t try_extensions(
+        const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc);
 
 } // namespace planner
 } // namespace conv

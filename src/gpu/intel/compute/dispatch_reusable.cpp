@@ -56,7 +56,7 @@ status_t reusable_dispatch_config_t::use_subgroup(
 }
 
 status_t reusable_dispatch_config_t::define_dim_index(
-        const char *dim_name, dim_id_t dim_id, dim_t size) {
+        const char *dim_name, dim_idx_t dim_id, dim_t size) {
     memory_desc_t md = types::zero_md();
     md.ndims = 1;
     md.dims[0] = size;
@@ -88,7 +88,7 @@ status_t reusable_dispatch_config_t::register_buffer(
     if (has_zero_padding) return status::unimplemented;
 
     // Validate dim sizes
-    std::unordered_map<dim_id_t, bool, dim_id_hash_t> dim_seen;
+    std::unordered_map<dim_idx_t, bool, dim_id_hash_t> dim_seen;
     for (const auto &dim : dispatched_dims) {
         size_t canonical_idx = buffer.get_dim_idx(dim);
         if (canonical_idx == dim_not_found) {
@@ -221,24 +221,21 @@ public:
         std::vector<bool> is_mapped_to(master_layout.size(), false);
         for (size_t i = 0; i < res.size(); i++) {
             block_t &block = res[i];
-            size_t block_size = static_cast<size_t>(block.block);
+            dim_t block_size = block.block;
             for (size_t j = 0; j < master_layout.size(); j++) {
                 if (is_mapped_to[j]) continue;
 
                 mapped_block_t &master_block = master_layout[j];
-                if (master_block.get_dim_idx()
-                        != static_cast<size_t>(block.dim_idx))
-                    continue;
+                if (master_block.get_dim_idx() != block.dim_idx) continue;
 
-                size_t master_size = master_block.get_size();
+                dim_t master_size = master_block.get_size();
                 if (master_size == block_size) {
                     // Nothing to do, already matches
                 } else if (block_size % master_size == 0) {
                     // subdivide block
-                    block.block = static_cast<dim_t>(master_size);
-                    block_t next_block(block.dim_idx,
-                            static_cast<dim_t>(block_size / master_size),
-                            block.stride * static_cast<dim_t>(master_size));
+                    block.block = master_size;
+                    block_t next_block(block.dim_idx, block_size / master_size,
+                            block.stride * master_size);
                     res.insert(i + 1, next_block);
                 } else if (master_size % block_size == 0) {
                     // subdivide master block
@@ -395,7 +392,7 @@ status_t reusable_dispatch_config_t::generate(
     gpu_assert(!buffers.empty());
 
     // Every dispatched dim must have a defined size
-    for (dim_id_t id : dispatched_dims) {
+    for (dim_idx_t id : dispatched_dims) {
         if (dim_sizes.find(id) == dim_sizes.end()) {
             return status::unimplemented;
         }
@@ -403,7 +400,7 @@ status_t reusable_dispatch_config_t::generate(
 
     std::array<bool, DNNL_MAX_NDIMS> is_dispatched;
     is_dispatched.fill(false);
-    for (dim_id_t dim : dispatched_dims) {
+    for (dim_idx_t dim : dispatched_dims) {
         is_dispatched[dim] = true;
     }
 
@@ -459,7 +456,7 @@ status_t reusable_dispatch_config_t::generate(
 void dispatch_compile_params_t::def_kernel_macros(
         kernel_ctx_t &kernel_ctx, const char *suffix) const {
     kernel_ctx.define_int("GWS_WITH_RUNTIME_PARAMS", 1);
-    if (use_int32_offset) kernel_ctx.add_option("-DUSE_INT32_OFFSET");
+    kernel_ctx.use_int32_offset(use_int32_offset);
 
     // Find a unique prefix (in case there are many kernels in a file).
     std::string gws_prefix;
@@ -473,7 +470,7 @@ void dispatch_compile_params_t::def_kernel_macros(
     kernel_ctx.define_int(utils::format("%s_DEF", gws_prefix.c_str()), 1);
 
     // For each term, define each parameter
-    for (size_t i = 0; i < gpu_utils::into<size_t>(num_terms); i++) {
+    for (size_t i = 0; i < into<size_t>(num_terms); i++) {
         const gws_indexing_term_t::compile_params_t &term = terms[i];
         const char *gws_dim_op = [term]() -> const char * {
             switch (term.op) {
@@ -484,9 +481,9 @@ void dispatch_compile_params_t::def_kernel_macros(
                 case (gws_op_t::SOLO_BLOCK): return "SOLO_BLOCK";
                 case (gws_op_t::FIRST_BLOCK): return "FIRST_BLOCK";
                 case (gws_op_t::MOD_BLOCK): return "MOD_BLOCK";
-                default:
-                    gpu_assert(false) << "Unexpected GWS indexing operation";
+                case (gws_op_t::UNDEF): break;
             }
+            gpu_error_not_expected() << "Unexpected GWS indexing operation";
             return nullptr;
         }();
         if (!gws_dim_op) continue; // Will not be hit due to gpu_assert above
@@ -496,12 +493,12 @@ void dispatch_compile_params_t::def_kernel_macros(
                 "-D%s_OP%zu=GWS_OP_%s", gws_prefix, i, gws_dim_op));
 
         // GWS<X>_RT_IDX<Y>
-        kernel_ctx.define_int(utils::format("%s_RT_IDX%zu", gws_prefix, i),
-                gpu_utils::into<dim_t>(i));
+        kernel_ctx.define_int(
+                utils::format("%s_RT_IDX%zu", gws_prefix, i), into<dim_t>(i));
 
         // GWS<X>_IDX<Y>
         kernel_ctx.define_int(utils::format("%s_IDX%zu", gws_prefix, i),
-                gpu_utils::into<dim_t>(term.gws_idx));
+                into<dim_t>(term.gws_idx));
     }
 
     // Define data types for conversion (Ignore the default suffix)

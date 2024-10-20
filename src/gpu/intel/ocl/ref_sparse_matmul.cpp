@@ -32,7 +32,7 @@ status_t ref_sparse_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const auto a_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto c_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
-    const int nnz = a_d.nnz();
+    const dim_t nnz = a_d.nnz();
 
     const auto &b = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);

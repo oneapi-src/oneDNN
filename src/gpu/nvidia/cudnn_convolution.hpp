@@ -176,10 +176,6 @@ struct cudnn_convolution_fwd_t : public gpu::primitive_t {
             CHECK(sycl_engine->create_memory_storage(
                     &scratch_ptr, memory_flags_t::alloc, wrap.size(), nullptr));
             scratch_storage.reset(scratch_ptr);
-
-            CHECK(sycl_engine->create_memory_storage(
-                    &scratch_ptr, memory_flags_t::alloc, wrap.size(), nullptr));
-            scratch_storage_2.reset(scratch_ptr);
         }
         if (impl && impl->use_scales_dst()) {
             CHECK(sycl_engine->create_memory_storage(

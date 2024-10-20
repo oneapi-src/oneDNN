@@ -90,6 +90,49 @@ void prefetch_desc_t::parse(std::istream &in) {
     }
 }
 
+void extensions_t::add(extension_kind_t kind) {
+    kinds = static_cast<extension_kind_t>(
+            static_cast<uint32_t>(kinds) | static_cast<uint32_t>(kind));
+}
+
+bool extensions_t::has(extension_kind_t kind) const {
+    return static_cast<uint32_t>(kinds) & static_cast<uint32_t>(kind);
+}
+
+std::string extensions_t::str() const {
+    if (kinds == extension_kind_t::undef) return "x";
+    std::ostringstream oss;
+    bool is_first = true;
+    for (auto &p : extension_kind_names) {
+        if (p.first == extension_kind_t::undef) continue;
+        if (has(p.first)) {
+            if (!is_first) oss << ",";
+            oss << p.second;
+            is_first = false;
+        }
+    }
+    return oss.str();
+}
+
+void extensions_t::parse(std::istream &in) {
+    auto s = jit::parse<std::string>(in);
+    auto parts = gpu_utils::split(s, ",");
+    kinds = extension_kind_t::undef;
+    for (auto &p : parts) {
+        add(to_enum<extension_kind_t>(p));
+    }
+}
+
+extension_kind_t extensions_t::out_size(int size) {
+    switch (size) {
+        case 1: return extension_kind_t::out_b1;
+        case 2: return extension_kind_t::out_b2;
+        case 4: return extension_kind_t::out_b4;
+        default: ir_error_not_expected();
+    }
+    return extension_kind_t::undef;
+}
+
 layout_desc_t make_conv_layout_desc(
         tensor_kind_t tensor_kind, bool src_dst_with_group) {
     bool is_wei = (tensor_kind == tensor_kind_t::wei);
@@ -374,50 +417,78 @@ void kernel_desc_t::finalize(const prb_reqs_t &final_reqs) {
     reqs.add(final_reqs);
 }
 
-bool fit_tag(tensor_kind_t kind, const layout_tag_t &desc_tag,
-        const layout_tag_t &prb_tag, const pvar_tile_t &shape, bool exact,
-        bool adjust) {
+bool fit_tag(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
+        const problem_t &prb, bool exact) {
+    auto &desc_tag = kernel_desc.layout_tag(abc);
+    auto &prb_tag = prb.layout_tag(abc);
+    bool is_out = (abc == tensor_kind_t::c);
     auto &desc_type = desc_tag.type();
     auto &prb_type = prb_tag.type();
     bool type_ok = (desc_tag.type() == prb_tag.type());
     if (!exact) type_ok = (desc_type.size() == prb_type.size());
-    ir_check(type_ok && prb_tag.matches(desc_tag, shape, /*check_type=*/false))
-            << to_string(kind) << " tag " << prb_tag
+    if (!exact && is_out
+            && kernel_desc.ext.has(extensions_t::out_size(prb_type.size())))
+        type_ok = true;
+    ir_check(type_ok
+            && prb_tag.matches(desc_tag, prb.shape(), /*check_type=*/false))
+            << to_string(abc) << " tag " << prb_tag
             << " does not match kernel descriptor tag " << desc_tag;
-    if (desc_tag.type() != prb_tag.type() && adjust) {
-        const_cast<layout_tag_t &>(desc_tag)
-                = layout_tag_t(desc_tag.desc(), prb_type, desc_tag.raw_tag());
-    }
     return true;
 }
 
-bool fit_impl(const kernel_desc_t &desc, const problem_t &prb, bool exact,
-        bool adjust) {
+bool fit_impl(const kernel_desc_t &desc, const problem_t &prb, bool exact) {
     ir_check(prb.prop() == desc.prop) << "Propagation kind does not match";
-    ir_check(fit_tag(tensor_kind_t::src, desc.src_tag, prb.src_tag(),
-            prb.shape(), exact, adjust));
-    ir_check(fit_tag(tensor_kind_t::wei, desc.wei_tag, prb.wei_tag(),
-            prb.shape(), exact, adjust));
-    ir_check(fit_tag(tensor_kind_t::dst, desc.dst_tag, prb.dst_tag(),
-            prb.shape(), exact, adjust));
+    ir_check(fit_tag(tensor_kind_t::a, desc, prb, exact));
+    ir_check(fit_tag(tensor_kind_t::b, desc, prb, exact));
+    ir_check(fit_tag(tensor_kind_t::c, desc, prb, exact));
     ir_check(prb.is_depthwise() == desc.is_dw)
             << "Mixing depthwise/non-depthwise descriptor and problem";
-    ir_check(prb.with_bias() == desc.with_bias)
-            << "Problem and descriptor 'with_bias' field mismatch";
-    ir_check(desc.reqs.fits(prb.shape()));
+    if (exact) {
+        ir_check(prb.with_bias() == desc.with_bias)
+                << "Problem and descriptor 'with_bias' field mismatch";
+    }
+    if (prb.with_bias() != desc.with_bias) {
+        if (prb.with_bias()) {
+            ir_check(desc.ext.has(extension_kind_t::bias))
+                    << "Bias is not supported";
+        }
+    }
+    ir_check(desc.reqs.fits(prb.shape() | prb.vars()));
     return true;
+}
+
+void fit_tag_to(
+        tensor_kind_t abc, kernel_desc_t &kernel_desc, const problem_t &prb) {
+    auto &desc_tag = const_cast<layout_tag_t &>(kernel_desc.layout_tag(abc));
+    auto &prb_tag = prb.layout_tag(abc);
+    if (desc_tag.type() != prb_tag.type()) {
+        desc_tag = layout_tag_t(
+                desc_tag.desc(), prb_tag.type(), desc_tag.raw_tag());
+    }
+}
+
+void fit_to_impl(kernel_desc_t &desc, const problem_t &prb) {
+    if (prb.with_bias() != desc.with_bias) {
+        desc.with_bias = prb.with_bias();
+        if (desc.with_bias) desc.set_defaults();
+    }
+    desc.reqs.substitute(prb.vars());
+    fit_tag_to(tensor_kind_t::a, desc, prb);
+    fit_tag_to(tensor_kind_t::b, desc, prb);
+    fit_tag_to(tensor_kind_t::c, desc, prb);
 }
 
 bool kernel_desc_t::can_fit(const problem_t &prb) const {
-    return fit_impl(*this, prb, /*exact=*/false, /*adjust=*/false);
+    return fit_impl(*this, prb, /*exact=*/false);
 }
 
 void kernel_desc_t::fit_to(const problem_t &prb) {
-    fit_impl(*this, prb, /*exact=*/false, /*adjust=*/true);
+    fit_to_impl(*this, prb);
+    specialize(prb);
 }
 
 bool kernel_desc_t::matches(const problem_t &prb) const {
-    return fit_impl(*this, prb, /*exact=*/true, /*adjust=*/false);
+    return fit_impl(*this, prb, /*exact=*/true);
 }
 
 std::string kernel_desc_t::cmd_str() const {
@@ -434,6 +505,7 @@ std::string kernel_desc_t::brief_str() const {
 }
 
 std::string kernel_desc_t::str() const {
+    if (is_empty()) return "(empty)";
     std::ostringstream oss;
     oss << "Propagation:            " << jit::to_string(prop) << std::endl;
     oss << "Depthwise:              " << ir_utils::to_string(is_dw)
@@ -457,6 +529,7 @@ std::string kernel_desc_t::str() const {
     oss << "Align:                  " << align.str() << std::endl;
     oss << "Prefetch:               " << prefetch.str() << std::endl;
     if (reqs) oss << ir_utils::add_tag("Reqs", reqs.str()) << std::endl;
+    oss << "Extensions:             " << ext.str() << std::endl;
     oss << "Command:                " << cmd_str();
     return ir_utils::add_tag("Desc", oss.str());
 }
@@ -509,6 +582,9 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             "eliminate unused spatial dimensions).");
     iface->add<PACK(reqs)>("reqs",
             "Dimension requirements, colon-separated (e.g. kd=1:mb>=16).");
+    iface->add<PACK(ext)>("ext",
+            "Kernel extensions, comma-separated (e.g. "
+            "bias,out1b,out2b,out4b).");
 #undef PACK
 
     iface->set_post_parse_func([](kernel_desc_t &desc) {
@@ -530,16 +606,19 @@ void init_kernel_info_div_magic(
         kernel_info.register_internal_arg(var_magic);
         kernel_info.register_internal_arg(var_size);
     }
+    auto sw_magic = var_t::make(type_t::u64(), "sw_magic");
+    kernel_info.register_internal_arg(sw_magic);
 }
 
 void init_dispatch_kernel_info_div_magic(
-        kernel_info_t &kernel_info, const pvar_tile_t &tg_dims) {
+        kernel_info_t &kernel_info, const pvar_tile_t &tg_dims, int sw) {
     for (auto &d : tg_dims) {
         uint32_t size = tg_dims.at(d);
         uint64_t magic = ir_utils::idiv_magicgu_packed(size);
         kernel_info.set_internal_arg(d.str() + "_grid_size", size);
         kernel_info.set_internal_arg(d.str() + "_magic", magic);
     }
+    kernel_info.set_internal_arg("sw_magic", ir_utils::idiv_magicgu_packed(sw));
 }
 
 compute::range_t kernel_desc_t::local_range() const {
@@ -547,7 +626,7 @@ compute::range_t kernel_desc_t::local_range() const {
     compute::range_t lws = compute::range_t::empty();
     for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
         size_t tg_dim = thr_grid.size(i, thread_group_tile);
-        lws[i] = tg_dim * (i == 0 ? gpu_utils::into<size_t>(simd) : 1);
+        lws[i] = tg_dim * (i == 0 ? into<size_t>(simd) : 1);
     }
     return lws;
 }
@@ -669,22 +748,23 @@ status_t kernel_params_t::init_dispatch_kernel_info(
     auto tg_grid = create_thread_group_grid(desc);
     auto thr_grid = create_thread_grid(desc);
     CHECK(desc.init_kernel_info(kernel_info));
-    auto &dims = prb.shape();
-    for (auto &d : dims) {
-        kernel_info.set_internal_arg(d.str(), dims.at(d));
+    auto &shape = prb.shape();
+    for (auto &d : shape) {
+        kernel_info.set_internal_arg(d.str(), shape.at(d));
     }
     pvar_tile_t tg_dims;
     for (auto &d : tg_grid.all_dims()) {
         int tg_size = desc.thread_group_tile.get(d, 1);
         int iter_size = desc.iter_tile.get(d, 1);
-        tg_dims[d] = utils::div_up(dims.at(d), tg_size * iter_size);
+        tg_dims[d] = utils::div_up(shape.at(d), tg_size * iter_size);
     }
-    init_dispatch_kernel_info_div_magic(kernel_info, tg_dims);
+    init_dispatch_kernel_info_div_magic(
+            kernel_info, tg_dims, shape.at(pvars::sw));
     compute::range_t gws = compute::range_t::empty();
     compute::range_t lws = compute::range_t::empty();
     for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
         size_t tg_dim = thr_grid.size(i, desc.thread_group_tile);
-        lws[i] = tg_dim * (i == 0 ? gpu_utils::into<size_t>(desc.simd) : 1);
+        lws[i] = tg_dim * (i == 0 ? into<size_t>(desc.simd) : 1);
         gws[i] = tg_grid.size(i, tg_dims) * lws[i];
     }
     auto nd_range = compute::nd_range_t(gws, lws);

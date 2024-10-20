@@ -450,6 +450,7 @@ REG_XEHP_ISA(template class emulated_generator_t<gpu_xe_hp>);
 REG_XEHPG_ISA(template class emulated_generator_t<gpu_xe_hpg>);
 REG_XEHPC_ISA(template class emulated_generator_t<gpu_xe_hpc>);
 REG_XE2_ISA(template class emulated_generator_t<gpu_xe2>);
+REG_XE3_ISA(template class emulated_generator_t<gpu_xe3>);
 
 } // namespace jit
 } // namespace intel

@@ -35,15 +35,15 @@ namespace intel {
 namespace ocl {
 
 namespace bnorm_dims_t {
-compute::dim_id_t mb = 0;
-compute::dim_id_t ic = 1;
-compute::dim_id_t sp0 = 2;
-compute::dim_id_t sp1 = 3;
-compute::dim_id_t sp2 = 4;
+dim_idx_t mb = 0;
+dim_idx_t ic = 1;
+dim_idx_t sp0 = 2;
+dim_idx_t sp1 = 3;
+dim_idx_t sp2 = 4;
 }; // namespace bnorm_dims_t
 
-static std::vector<compute::dim_id_t> get_dims(size_t ndims) {
-    std::vector<compute::dim_id_t> ret(ndims);
+static std::vector<dim_idx_t> get_dims(size_t ndims) {
+    std::vector<dim_idx_t> ret(ndims);
     uint8_t idx = 0;
     ret[idx++] = bnorm_dims_t::mb;
     ret[idx++] = bnorm_dims_t::ic;
@@ -75,7 +75,7 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
     // - SRC: Just the input src buffer
     // - DST: SRC, but with one dim reduced and ic moved to the innermost position
     // - [variance only] MEAN: just the ic dim, stores the mean per ic
-    std::vector<compute::dim_id_t> dim_ids = get_dims(ndims);
+    std::vector<dim_idx_t> dim_ids = get_dims(ndims);
     compute::named_buffer_t src_buf("SRC", *data_mdw.md_, dim_ids);
 
     compute::named_buffer_t dst_buf("DST", src_buf);
@@ -103,7 +103,7 @@ static status_t init_calculate_stats_conf(reusable_bnorm_params_t &conf,
 
     // Dispatches all dims except for reduction dim
     for (size_t i = 0; i < dim_ids.size(); i++) {
-        if (dim_ids[i] == compute::dim_id_t(reduce_dim_idx)) {
+        if (dim_ids[i] == dim_idx_t(reduce_dim_idx)) {
             dim_ids.erase(dim_ids.begin() + static_cast<int>(i));
             break;
         }
@@ -165,7 +165,7 @@ static status_t init_conf_common(reusable_bnorm_params_t &conf,
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
 
     size_t ndims = static_cast<size_t>(data_mdw.ndims());
-    std::vector<compute::dim_id_t> dims = get_dims(ndims);
+    std::vector<dim_idx_t> dims = get_dims(ndims);
     compute::named_buffer_t buffer("BUFFER", *data_mdw.md_, dims);
 
     // Dispatch to all dims
@@ -284,7 +284,7 @@ status_t reusable_batch_normalization_fwd_t::execute_forward(
                 = [use_int32_offset](
                           compute::kernel_arg_list_t &arg_list, dim_t off) {
                       if (use_int32_offset) {
-                          arg_list.append(gpu_utils::into<int32_t>(off));
+                          arg_list.append(into<int32_t>(off));
                       } else {
                           arg_list.append(off);
                       }
@@ -408,7 +408,7 @@ status_t reusable_batch_normalization_bwd_t::execute_backward(
             = [use_int32_offset](
                       compute::kernel_arg_list_t &arg_list, dim_t off) {
                   if (use_int32_offset) {
-                      arg_list.append(gpu_utils::into<int32_t>(off));
+                      arg_list.append(into<int32_t>(off));
                   } else {
                       arg_list.append(off);
                   }

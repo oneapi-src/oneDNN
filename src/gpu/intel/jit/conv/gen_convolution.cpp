@@ -179,6 +179,11 @@ public:
         conv_config_t cfg;
         layout_t zp_dst;
         if (data.zp_pd) zp_dst = layout_t(data.zp_pd->impl()->dst_md(), false);
+
+        if (primitive->cache_blob()) {
+            tiler->set_cur_index(primitive->version() - 1);
+        }
+
         for (int try_iter = 0; try_iter < max_tries; try_iter++) {
             try {
                 cfg = data.pd_cfg;
@@ -187,8 +192,6 @@ public:
                 cfg.set_tiler(tiler);
                 CHECK(init_cfg(cfg, primitive));
 
-                if (primitive->cache_blob() && try_iter != primitive->version())
-                    continue;
                 if (!tiler->is_grf_limit_ok(cfg)) continue;
 
                 ir_info() << "Configuration:" << std::endl;
@@ -256,7 +259,7 @@ public:
                     if (!tmp_kernels[i]) return status::runtime_error;
                 }
                 ok = true;
-                primitive->set_version(try_iter);
+                primitive->set_version(tiler->cur_index());
                 kernels_ = std::move(tmp_kernels);
                 break;
             } catch (ngen::out_of_registers_exception &err) {
@@ -408,18 +411,17 @@ private:
                     ki.register_user_arg(buf, compute_arg_key, is_input);
             };
             auto scratchpad_book = [&](int key) {
-                pd->scratchpad_registry().registrar().book(
-                        gpu_utils::into<uint32_t>(key), compute_size, 1,
-                        ocl::OCL_BUFFER_ALIGNMENT);
+                pd->scratchpad_registry().registrar().book(into<uint32_t>(key),
+                        compute_size, 1, ocl::OCL_BUFFER_ALIGNMENT);
             };
             auto create_zero_out_info = [&]() -> kernel_info_t & {
                 auto &zero_out_info
                         = create_kernel_info(pd, kernel_id_t::zero_out);
                 auto size_var = var_t::make(type_t::u32(), "size");
                 zero_out_info.register_internal_arg(
-                        size_var, gpu_utils::into<uint32_t>(compute_size));
+                        size_var, into<uint32_t>(compute_size));
                 zero_out_info.set_nd_range(zero_out_kernel_t<>::nd_range(
-                        cfg.simd(), gpu_utils::into<int>(compute_size)));
+                        cfg.simd(), into<int>(compute_size)));
                 return zero_out_info;
             };
 

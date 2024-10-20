@@ -104,6 +104,7 @@ std::string to_string(op_kind_t kind) {
         case op_kind_t::_ne: return "!=";
 
         case op_kind_t::_and: return "&&";
+        case op_kind_t::_or: return "||";
 
         case op_kind_t::_add3: return "add3";
         case op_kind_t::_mad: return "mad";
@@ -138,6 +139,7 @@ bool is_commutative_op(op_kind_t op_kind) {
         case op_kind_t::_eq:
         case op_kind_t::_ne:
         case op_kind_t::_and:
+        case op_kind_t::_or:
         case op_kind_t::_add3: return true;
         default: return false;
     }
@@ -226,7 +228,7 @@ type_t binary_op_type(op_kind_t op_kind, const type_t &a, const type_t &b,
                 << "a must be unsigned for shift left/right.";
         return type_t::u32(a.elems());
     }
-    if (op_kind == op_kind_t::_and) {
+    if (utils::one_of(op_kind, op_kind_t::_and, op_kind_t::_or)) {
         if (a == b) return a;
         if (is_const(a_expr)) return b;
         if (is_const(b_expr)) return a;
@@ -307,6 +309,30 @@ expr_t linear_t::to_expr() const {
     return simplify_rewrite(ret);
 }
 
+void stmt_seq_flatten(std::vector<stmt_t> &out, const stmt_t &s) {
+    if (auto *seq = s.as_ptr<stmt_seq_t>()) {
+        out.insert(out.end(), seq->vec.begin(), seq->vec.end());
+        return;
+    }
+    out.push_back(s);
+}
+
+stmt_t stmt_seq_t::make(const std::vector<stmt_t> &_vec) {
+    std::vector<stmt_t> vec;
+    for (auto &s : _vec)
+        stmt_seq_flatten(vec, s);
+    return stmt_t(new stmt_seq_t(vec));
+}
+
+stmt_t stmt_t::append(const stmt_t &s) const {
+    if (is_empty()) return s;
+    if (s.is_empty()) return *this;
+    std::vector<stmt_t> vec;
+    stmt_seq_flatten(vec, *this);
+    stmt_seq_flatten(vec, s);
+    return stmt_seq_t::make(vec);
+}
+
 expr_t expr_t::operator[](const expr_t &off) const {
     if (is<shuffle_t>()) {
         ir_assert(is_const(off)) << "Offset is not constant.";
@@ -354,6 +380,7 @@ DEFINE_BINARY_OPERATOR(<, op_kind_t::_lt)
 DEFINE_BINARY_OPERATOR(<=, op_kind_t::_le)
 
 DEFINE_BINARY_OPERATOR(&, op_kind_t::_and)
+DEFINE_BINARY_OPERATOR(|, op_kind_t::_or)
 
 #undef DEFINE_BINARY_OPERATOR
 
@@ -582,17 +609,13 @@ void ir_visitor_t::_visit(const stmt_group_t &obj) {
 }
 
 object_t ir_mutator_t::_mutate(const stmt_seq_t &obj) {
-    auto head = mutate(obj.head);
-    auto tail = mutate(obj.tail);
-
-    if (head.is_same(obj.head) && tail.is_same(obj.tail)) return obj;
-
-    return stmt_seq_t::make(head, tail);
+    auto vec = mutate(obj.vec);
+    if (ir_utils::is_same(vec, obj.vec)) return obj;
+    return stmt_seq_t::make(vec);
 }
 
 void ir_visitor_t::_visit(const stmt_seq_t &obj) {
-    visit(obj.head);
-    visit(obj.tail);
+    visit(obj.vec);
 }
 
 object_t ir_mutator_t::_mutate(const store_t &obj) {

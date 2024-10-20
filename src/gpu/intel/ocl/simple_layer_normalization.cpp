@@ -36,12 +36,12 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     memory_desc_wrapper dst_mdw(
             pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md());
 
-    int ndims = src_mdw.ndims();
+    dim_idx_t ndims = into<dim_idx_t>(src_mdw.ndims());
 
     conf.src_dt = src_mdw.data_type();
     conf.dst_dt = dst_mdw.data_type();
     conf.ndims = ndims;
-    conf.norm_axis = pd->norm_axis();
+    conf.norm_axis = into<dim_idx_t>(pd->norm_axis());
     conf.src_md_info = memory_desc_info_t::create(src_mdw);
     conf.dst_md_info = memory_desc_info_t::create(dst_mdw);
     conf.stat_md_info = memory_desc_info_t::create(stat_mdw);
@@ -64,8 +64,9 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     bool c_is_last_physical = false;
 
     if (src_mdw.blocking_desc().inner_nblks > 0) {
-        c_block = src_mdw.blocking_desc()
-                          .inner_blks[src_mdw.blocking_desc().inner_nblks - 1];
+        c_block = into<int>(
+                src_mdw.blocking_desc()
+                        .inner_blks[src_mdw.blocking_desc().inner_nblks - 1]);
         c_is_last_physical
                 = src_mdw.blocking_desc().inner_idxs[ndims - 1] == ndims - 1;
     } else {
@@ -113,9 +114,9 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         } else {
             return status::unimplemented;
         }
-        for (int i = 0; i < 4; i++) {
-            int md_hint_idx = nstl::min(i, ndims - 1);
-            int dim = (i < ndims - 1) ? dims[i] : 1;
+        for (dim_idx_t i = 0; i < 4; i++) {
+            dim_idx_t md_hint_idx = nstl::min(i, ndims - 1);
+            dim_t dim = (i < ndims - 1) ? dims[i] : 1;
             if (conf.vectorize_calc_stats && (i == ndims - 1)) {
                 dim = sg_size;
                 conf.dispatch.define_dim(
@@ -154,9 +155,9 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                 conf.vect_dt_n /= 2;
             }
         }
-        for (int i = 0; i < 4; i++) {
-            int md_hint_idx = nstl::min(i, ndims - 1);
-            int dim = (i < ndims - 1) ? dims[i] : 1;
+        for (dim_idx_t i = 0; i < 4; i++) {
+            dim_idx_t md_hint_idx = nstl::min(i, ndims - 1);
+            dim_t dim = (i < ndims - 1) ? dims[i] : 1;
             if (conf.vectorize_bwd && (i == ndims - 1)) {
                 conf.dispatch.define_dim(utils::format("X%d", i), md_hint_idx,
                         conf.sub_group_size);
@@ -174,7 +175,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         conf.n_chunks = dims[0] / conf.n_chunk_size;
         if (src_mdw.blocking_desc().inner_nblks == 2
                 && src_mdw.blocking_desc().inner_idxs[0] == 0) {
-            n_block = src_mdw.blocking_desc().inner_blks[0];
+            n_block = into<int>(src_mdw.blocking_desc().inner_blks[0]);
         }
         // Scaleshift vectorization is supported for tensors
         // with shapes AxB, 1xBxC
@@ -188,7 +189,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         if (!conf.vectorize_bwd_scaleshift) { return status::unimplemented; }
         // Use partial reduction in order to increase number of used threads
         conf.vector_size_scaleshift = c_block == sg_size ? 8 : 1;
-        const int first_dim = ndims == 2 ? dims[0] : dims[1];
+        const dim_t first_dim = ndims == 2 ? dims[0] : dims[1];
         while (n_block % conf.vector_size_scaleshift != 0
                 || first_dim % conf.vector_size_scaleshift != 0) {
             conf.vector_size_scaleshift /= 2;

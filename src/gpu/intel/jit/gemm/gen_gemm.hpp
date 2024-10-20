@@ -57,7 +57,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             // LIMITATIONS:
             // - runtime dims are not supported
             auto attr_skip_mask = smask_t::scales_runtime | smask_t::post_ops
-                    | smask_t::fpmath_mode;
+                    | smask_t::fpmath_mode | smask_t::accumulation_mode;
             auto &attr_zps = attr()->zero_points_;
 
             dev_info_ = compute_engine->device_info();
@@ -120,11 +120,18 @@ struct gen_gemm_t : public gpu_gemm_t {
                         | smask_t::zero_points_runtime_groups;
             }
 
+            const int mask_scalar = 1 << 0;
+            const int mask_per_oc = 1 << 1;
+            const int mask_per_ic = 1 << 2;
+
+            bool src_zp_2d = false;
             bool wei_zp_2d = false;
             auto wei_scales_type = data_type::undef;
             auto src_scales_type = data_type::undef;
             int wei_q2d_group_k = 0;
             int src_q2d_group_k = 0;
+            int a_ndims = desc()->a_desc.ndims;
+            int b_ndims = desc()->b_desc.ndims;
 
             // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
@@ -196,6 +203,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             VDISPATCH_GEMM(attr()->post_ops_.check_sum_consistency(d->c_type(),
                                    utils::one_of(d->a_type(), s8, u8)),
                     VERBOSE_UNSUPPORTED_POSTOP);
+            auto valid_2d_mask = [](int mask, int ndims) {
+                return utils::one_of(mask, (1 << (ndims - 1)),
+                        (1 << (ndims - 1)) + (1 << (ndims - 2)));
+            };
 
             if (!attr()->zero_points_.has_default_values()) {
                 bool a_zp = !attr_zps.has_default_values(DNNL_ARG_A);
@@ -206,30 +217,64 @@ struct gen_gemm_t : public gpu_gemm_t {
                 CHECK(attr_zps.get(DNNL_ARG_B, &cmask_b));
                 CHECK(attr_zps.get(DNNL_ARG_C, &cmask_c));
 
+                src_zp_2d = attr_zps.get_groups_ndims(DNNL_ARG_B) > 1;
                 wei_zp_2d = attr_zps.get_groups_ndims(DNNL_ARG_A) > 1;
                 VDISPATCH_GEMM(
-                        (utils::one_of(cmask_a, 0, 1 << 1, 1 << 2) || wei_zp_2d)
-                                && utils::one_of(cmask_b, 0, 1 << 0)
-                                && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1),
+                        (utils::one_of(cmask_a, 0, mask_per_oc, mask_per_ic)
+                                || (wei_zp_2d
+                                        && valid_2d_mask(cmask_a, a_ndims)))
+                                && utils::one_of(
+                                        cmask_c, 0, mask_scalar, mask_per_oc),
+                        VERBOSE_UNSUPPORTED_ZP_CFG);
+                VDISPATCH_GEMM(utils::one_of(cmask_b, 0, mask_scalar,
+                                       mask_per_oc | mask_per_ic)
+                                || (src_zp_2d
+                                        && valid_2d_mask(cmask_b, b_ndims)),
                         VERBOSE_UNSUPPORTED_ZP_CFG);
 
                 ao_dims_ = a_zp ? (cmask_a != 0 ? 1 : 0) : -1;
                 bo_dims_ = b_zp ? (cmask_b != 0 ? 1 : 0) : -1;
                 if (wei_zp_2d) ao_dims_ = 2;
+                if (src_zp_2d) bo_dims_ = 2;
                 if (swap_ab_) std::swap(ao_dims_, bo_dims_);
 
                 if (wei_zp_2d) {
-                    wei_q2d_group_k
-                            = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS) > 0
-                            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
+                    const auto idx = DNNL_ARG_WEIGHTS;
+                    auto zp_group_k = attr_zps.get_groups_ndims(idx) > 0
+                            ? attr_zps.get_groups(idx)[0]
                             : 1;
+                    if (zp_group_k >= d->k()) {
+                        wei_zp_2d = false;
+                        ao_dims_ = 1;
+                    } else {
+                        wei_q2d_group_k = zp_group_k;
+                    }
                     const auto wei_q2d_group_n
-                            = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS) > 0
-                            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[1]
+                            = attr_zps.get_groups_ndims(idx) > 0
+                            ? attr_zps.get_groups(idx)[1]
                             : 1;
                     // Non-trivial N group unsupported.
                     VDISPATCH_GEMM(
                             wei_q2d_group_n == 1, VERBOSE_UNSUPPORTED_ZP_CFG);
+                }
+                if (src_zp_2d) {
+                    const auto idx = DNNL_ARG_SRC;
+                    auto zp_group_k = attr_zps.get_groups_ndims(idx) > 0
+                            ? attr_zps.get_groups(idx)[1]
+                            : 1;
+                    if (zp_group_k >= d->k()) {
+                        src_zp_2d = false;
+                        bo_dims_ = 1;
+                    } else {
+                        src_q2d_group_k = zp_group_k;
+                    }
+                    const auto src_q2d_group_m
+                            = attr_zps.get_groups_ndims(idx) > 0
+                            ? attr_zps.get_groups(idx)[0]
+                            : 1;
+                    // Non-trivial M group unsupported.
+                    VDISPATCH_GEMM(
+                            src_q2d_group_m == 1, VERBOSE_UNSUPPORTED_ZP_CFG);
                 }
                 // Zero points with non-trivial groups only supported when
                 // target tensor is being dequantized.
@@ -238,6 +283,12 @@ struct gen_gemm_t : public gpu_gemm_t {
                                 !dy_quant_enabled_
                                         || utils::one_of(d->a_type(), s4, u4)
                                         || wei_q2d_group_k == desc()->k()),
+                        VERBOSE_UNSUPPORTED_ZP_CFG);
+                VDISPATCH_GEMM(
+                        IMPLICATION(src_zp_2d,
+                                !dy_quant_enabled_
+                                        || utils::one_of(d->b_type(), s4, u4)
+                                        || src_q2d_group_k == desc()->k()),
                         VERBOSE_UNSUPPORTED_ZP_CFG);
             }
 
@@ -249,9 +300,12 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
                 auto mask = attr()->scales_.get(s).mask_;
-                VDISPATCH_GEMM(utils::one_of(mask, 0, 1 << 0, 1 << 1, 1 << 2)
-                                || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_)
-                                || (s == DNNL_ARG_SRC && src_scales_2d_),
+                VDISPATCH_GEMM(utils::one_of(mask, 0, mask_scalar, mask_per_oc,
+                                       mask_per_ic)
+                                || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_
+                                        && valid_2d_mask(mask, a_ndims))
+                                || (s == DNNL_ARG_SRC && src_scales_2d_
+                                        && valid_2d_mask(mask, a_ndims)),
                         VERBOSE_UNSUPPORTED_SCALES_CFG);
             }
 
@@ -271,7 +325,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 }
                 // Non-trivial N group unsupported.
                 VDISPATCH_GEMM(wei_scales.group_dims_[1] == 1,
-                        VERBOSE_UNSUPPORTED_ZP_CFG);
+                        VERBOSE_UNSUPPORTED_SCALES_CFG);
             }
             if (src_scales_2d_) {
                 src_scales_type = src_scales.data_type_;
@@ -294,10 +348,10 @@ struct gen_gemm_t : public gpu_gemm_t {
                     || (post_ops_.find(prelu) != -1);
             bool with_eltwise = (post_ops_.find(eltwise) != -1);
 
-            // check GPU architecture
+            // Check GPU architecture.
             bool arch_ok = utils::one_of(arch_, arch_t::gen9, arch_t::gen11,
                     arch_t::xe_lp, arch_t::xe_hp, arch_t::xe_hpg,
-                    arch_t::xe_hpc, arch_t::xe2);
+                    arch_t::xe_hpc, arch_t::xe2, arch_t::xe3);
 
             VDISPATCH_GEMM(arch_ok, VERBOSE_UNSUPPORTED_ARCH, "gpu");
             VDISPATCH_GEMM(IMPLICATION(with_binary, arch_ >= arch_t::xe_hp),
@@ -309,7 +363,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                     || compute_engine->mayiuse(compute::device_ext_t::
                                     intel_subgroup_split_matrix_multiply_accumulate);
 
-            // size checks for fused reduction kernels
+            // Size checks for fused reduction kernels.
             if (with_sum_ab()) {
                 auto mnk = d->m() * d->n() * d->k();
                 if (arch_ == arch_t::xe_hpc && d->a_type() == f32)
@@ -317,35 +371,43 @@ struct gen_gemm_t : public gpu_gemm_t {
                             (mnk <= 256 * 1024 * 1024), VERBOSE_LARGE_SHAPES);
             }
 
-            // choose kernel
+            // Wrangle data types.
             auto ao_type = with_a_zero_points()
                     ? attr_zps.get_data_type(DNNL_ARG_A)
                     : data_type::s32;
-            auto bo_type = data_type::s32;
+            auto bo_type = with_b_zero_points()
+                    ? attr_zps.get_data_type(DNNL_ARG_B)
+                    : data_type::s32;
+            if (swap_ab_) std::swap(ao_type, bo_type);
             bool int_acc = utils::one_of(eff_a_type(), s8, u8);
             auto co_type = with_bias() ? d->bias_type()
                     : with_sum_ab()    ? d->sum_ab_type
                     : int_acc          ? s32
                                        : d->c_type();
 
+            // Choose accumulation data type.
             auto acc_type = int_acc
                     ? s32
                     : (utils::one_of(f64, eff_a_type(), eff_b_type()) ? f64
                                                                       : f32);
-
-            if (swap_ab_) std::swap(ao_type, bo_type);
-            if (d->c_type() == f16 && !has_systolic) acc_type = data_type::f16;
             VDISPATCH_GEMM(
                     IMPLICATION(acc_type == f64, !with_eltwise && !with_binary),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
-            if (types::data_type_size(acc_type) < 4) {
-                // Limited post-op support for low-precision accumulation.
-                VDISPATCH_GEMM(
-                        !with_binary && IMPLICATION(with_sum_, sum_at_begin_),
-                        VERBOSE_UNSUPPORTED_POSTOP);
+            bool need_x32_acc
+                    = with_binary || !IMPLICATION(with_sum_, sum_at_begin_);
+
+            switch (attr()->acc_mode_) {
+                case accumulation_mode::any:
+                    if (!need_x32_acc) acc_type = data_type::undef;
+                    break;
+                case accumulation_mode::f16: acc_type = data_type::f16; break;
+                case accumulation_mode::f32: acc_type = data_type::f32; break;
+                case accumulation_mode::s32: acc_type = data_type::s32; break;
+                default: break;
             }
 
+            // Handle special compute modes.
             kernel_desc_t::compute_mode mode = kernel_desc_t::mode_default;
 
             if (attr()->mayiconvert(f32, tf32))
@@ -362,6 +424,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 set_mode(mode, kernel_desc_t::mode_w_decomp);
             }
 
+            // Call kernel selector to choose a kernel.
             gpu_post_ops_t gpu_post_ops;
             CHECK(gpu_post_ops_t::make(gpu_post_ops, post_ops_, dst_md(),
                     get_post_op_specializations()));
@@ -385,6 +448,11 @@ struct gen_gemm_t : public gpu_gemm_t {
                 VDISPATCH_GEMM(!with_eltwise && !with_binary
                                 && utils::one_of(d->c_type(), f32, s32),
                         VERBOSE_UNSUPPORTED_POSTOP);
+            }
+
+            // Limited post-op support for low-precision accumulation.
+            if (kernel_desc_.problem()->Tc.size() < 4) {
+                VDISPATCH_GEMM(!need_x32_acc, VERBOSE_UNSUPPORTED_POSTOP);
             }
 
             // Ensure kernel can be run deterministically if required.

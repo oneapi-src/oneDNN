@@ -150,8 +150,9 @@ dnnl_status_t cblas_gemm_s8x8s32_ppc64(int ATflag, int BTflag,
                 }
             }
             for (int i = 0; i < m; ++i) {
-                comparray[i] = out_round<int32_t>(saturate<int32_t>(
-                        ((double)comparray[i]) * alpha * -128.0));
+                comparray[i] = cpu::q10n::out_round<int32_t>(
+                        cpu::q10n::saturate<int32_t>(
+                                ((double)comparray[i]) * alpha * -128.0));
             }
             for (int j = 0; j < n; ++j) {
                 int *ca = comparray;

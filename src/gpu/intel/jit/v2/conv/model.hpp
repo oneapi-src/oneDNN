@@ -36,6 +36,7 @@ class model_t {
 public:
     model_t() = default;
     model_t(const vec1d &coef) : coef_(coef) {}
+    const vec1d &coef() const { return coef_; }
     float predict(const vec1d &x) const;
     float predict(const problem_t &prb, const kernel_desc_t &desc) const;
     float eff(const problem_t &prb, const kernel_desc_t &desc) const;
@@ -51,6 +52,7 @@ private:
 
 void to_model_xy(const bench_data_t &bd, vec2d &X, vec1d &y);
 void dump_csv(const bench_data_t &bd, const model_t &model);
+void dump_model_params(const kernel_desc_t &kernel_desc, const model_t &model);
 
 } // namespace conv
 } // namespace v2

@@ -138,39 +138,24 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
-    // Overload PER_OC src_mask definition for batched case
-    auto src_scale = prb->attr.scales.get(DNNL_ARG_SRC);
-    if (src_scale.policy == policy_t::PER_OC
-            || src_scale.policy == policy_t::PER_OCIC) {
-        const auto &src_rt_dims = get_runtime_dims(
-                prb->src_dims(), prb->src_runtime_dim_mask());
-        int src_mask = 1 << (src_rt_dims.size() - 1);
-        if (src_scale.policy == policy_t::PER_OCIC)
-            src_mask += 1 << (src_rt_dims.size() - 2);
-        attr_args.prepare_scales(prb->attr, DNNL_ARG_SRC, src_mask);
-    }
-    // Overload PER_OC/PER_OCIC wei_mask definition for batched case
-    auto wei_scale = prb->attr.scales.get(DNNL_ARG_WEIGHTS);
-    if (wei_scale.policy == policy_t::PER_OC
-            || wei_scale.policy == policy_t::PER_OCIC) {
-        const auto &dst_rt_dims
-                = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
-        int wei_mask = 1 << (dst_rt_dims.size() - 1);
-        if (wei_scale.policy == policy_t::PER_OCIC)
-            wei_mask += 1 << (dst_rt_dims.size() - 2);
-        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
-    }
-    // Overload PER_OC/PER_OCIC zp_mask definition for batched case
-    auto wei_zp = prb->attr.zero_points.get(DNNL_ARG_WEIGHTS);
-    if (wei_zp.policy == policy_t::PER_OC
-            || wei_zp.policy == policy_t::PER_OCIC) {
-        const auto &dst_rt_dims
-                = get_runtime_dims(prb->dst_dims, prb->dst_runtime_dim_mask());
-        int wei_mask = (1 << (dst_rt_dims.size() - 1));
-        if (wei_zp.policy == policy_t::PER_OCIC)
-            wei_mask += 1 << (dst_rt_dims.size() - 2);
-        attr_args.prepare_zero_points(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
-    }
+
+    const auto overload_quant_mask = [&](policy_t policy, int arg) {
+        // Overload PER_OC/PER_OCIC mask definition for batched cases.
+        if (policy == policy_t::PER_OC || policy == policy_t::PER_OCIC) {
+            int mask = 1 << (prb->ndims - 1);
+            if (policy == policy_t::PER_OCIC) mask += 1 << (prb->ndims - 2);
+            attr_args.prepare_quant(prb->attr, arg, mask);
+        }
+    };
+
+    overload_quant_mask(prb->attr.scales.get(DNNL_ARG_SRC).policy,
+            DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
+    overload_quant_mask(prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy,
+            DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+    overload_quant_mask(prb->attr.zero_points.get(DNNL_ARG_SRC).policy,
+            DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
+    overload_quant_mask(prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).policy,
+            DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
 
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
@@ -398,24 +383,22 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
 
-    // Refer to modes documentation for filling principles.
-    if (has_bench_mode_bit(mode_bit_t::bitwise)) {
-        return fill_random_real(mem_dt, mem_fp, res);
+    bool is_sparse_packed = false;
+    bool is_any_sparse = false;
+    std::vector<bool> nnz_mask;
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    const auto sparse_encoding = prb->sparse_options.get_encoding(kind);
+    const bool is_sparse_csr_coo
+            = sparse_encoding == dnnl_csr || sparse_encoding == dnnl_coo;
+    is_sparse_packed = sparse_encoding == dnnl_packed;
+    is_any_sparse = sparse_encoding != sparse_options_t::def_encoding;
+
+    if (is_sparse_csr_coo) {
+        return fill_sparse_data(
+                kind, prb, mem_dt, mem_fp, res, sparse_encoding);
     }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-    auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
-    auto wei_encoding = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
-
-    if ((kind == SRC && (src_encoding == dnnl_csr || src_encoding == dnnl_coo))
-            || (kind == WEI
-                    && (wei_encoding == dnnl_csr || wei_encoding == dnnl_coo)))
-        return fill_sparse_data(kind, prb, mem_dt, mem_fp, res,
-                kind == SRC ? src_encoding : wei_encoding);
-
-    bool is_wei_sparse_packed = wei_encoding == dnnl_packed;
-    std::vector<bool> nnz_mask;
-    if (kind == WEI && is_wei_sparse_packed) {
+    if (is_sparse_packed) {
         nnz_mask.resize(nelems, false);
         const dnnl_dim_t nnz = query_md_nnz(mem_dt.md_);
         assert(nnz > 0);
@@ -425,6 +408,22 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
         std::shuffle(nnz_mask.begin(), nnz_mask.end(), rng);
     }
 #endif
+
+    // Refer to modes documentation for filling principles.
+    // Note: sparse filling is more complex than a general one in a sense that
+    // it requires metadata in addition to data. To have reasonable bitwise
+    // validation for sparse, only data must be random and indices should remain
+    // identical between runs. So far, simply don't support bitwise mode for
+    // sparse problems. `CSR`/`COO` will utilize their `fill_sparse_data`
+    // function, `packed` will fall back into a regular filling as it involves
+    // `nnz_mask`.
+    if (has_bench_mode_bit(mode_bit_t::bitwise) && !is_any_sparse) {
+        return fill_random_real(mem_dt, mem_fp, res);
+    }
+    if (has_bench_mode_bit(mode_bit_t::perf) && !is_any_sparse) {
+        return fill_random_real(
+                mem_dt, mem_fp, res, get_perf_fill_cfg(mem_dt.dt()));
+    }
 
     cfg_t::density_args_t density_args;
     density_args.data_kind = kind;
@@ -452,11 +451,7 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
         std::bernoulli_distribution b_dist(density);
 
         // make sure the first element is positive
-        if (idx_start == 0
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-                && !is_wei_sparse_packed
-#endif
-        ) {
+        if (idx_start == 0 && !is_sparse_packed) {
             float val = 0;
             while (val <= 0)
                 val = gen(int_seed);
@@ -467,9 +462,8 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             bool is_one = density == 1.f ? true : b_dist(b_seed);
-#ifdef DNNL_EXPERIMENTAL_SPARSE
             float val = 0.0f;
-            if (is_wei_sparse_packed && kind == WEI) {
+            if (is_sparse_packed) {
                 is_one = nnz_mask[idx];
                 while (val == 0.0f)
                     val = gen(int_seed);
@@ -477,9 +471,6 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
             } else {
                 val = is_one * gen(int_seed);
             }
-#else
-            float val = is_one * gen(int_seed);
-#endif
             mem_fp.set_elem(
                     idx, round_to_nearest_representable(cfg.get_dt(kind), val));
         }

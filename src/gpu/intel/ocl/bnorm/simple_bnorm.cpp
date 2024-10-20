@@ -17,9 +17,6 @@
 #include "gpu/intel/ocl/bnorm/simple_bnorm.hpp"
 
 #include "common/c_types_map.hpp"
-#include "common/dnnl_traits.hpp"
-#include "common/math_utils.hpp"
-#include "common/scratchpad.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
@@ -37,7 +34,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     const batch_normalization_desc_t &bd = *pd->desc();
     const memory_desc_wrapper data_mdw(
             pd->is_fwd() ? pd->src_md() : pd->diff_src_md());
-    const int ndims = data_mdw.ndims();
+    const dim_idx_t ndims = into<dim_idx_t>(data_mdw.ndims());
 
     conf = utils::zero<decltype(conf)>();
     conf.data_type = data_mdw.data_type();
@@ -121,7 +118,7 @@ status_t simple_batch_normalization_fwd_t::pd_t::init_conf(
     if (!conf.calculate_stats) return status::unimplemented;
 
     const memory_desc_wrapper data_mdw(src_md());
-    const int ndims = data_mdw.ndims();
+    const dim_idx_t ndims = into<dim_idx_t>(data_mdw.ndims());
 
     compute::compute_engine_t *compute_engine
             = utils::downcast<compute::compute_engine_t *>(engine);
@@ -134,8 +131,8 @@ status_t simple_batch_normalization_fwd_t::pd_t::init_conf(
     calc_dims[2] = (ndims < 5) ? 1 : dims[ndims - 3];
     calc_dims[3] = (ndims < 4) ? 1 : dims[ndims - 2];
     calc_dims[4] = (ndims < 3) ? 1 : dims[ndims - 1];
-    int reduce_dim_idx = 0;
-    for (int i = 2; i < 5; i++) {
+    dim_idx_t reduce_dim_idx = 0;
+    for (dim_idx_t i = 2; i < 5; i++) {
         if (calc_dims[i] > calc_dims[reduce_dim_idx]) { reduce_dim_idx = i; }
     }
     conf.stat_ic = utils::array_product(calc_dims, 5);
@@ -146,9 +143,9 @@ status_t simple_batch_normalization_fwd_t::pd_t::init_conf(
     const std::string &reduce_dim_name = dim_names[reduce_dim_idx];
 
     // Translate reduce_dim_idx from being an index in calc_dims to dims array
-    const int base_reduce_dim_idx
+    const dim_idx_t base_reduce_dim_idx
             = reduce_dim_idx == 0 ? 0 : reduce_dim_idx - (5 - ndims);
-    const int reduce_dim_stride
+    const dim_t reduce_dim_stride
             = data_mdw.blocking_desc().strides[base_reduce_dim_idx];
     const bool can_vectorize_calc_stats
             = conf.reduce_dim % 16 == 0 && reduce_dim_stride == 1;
@@ -160,7 +157,7 @@ status_t simple_batch_normalization_fwd_t::pd_t::init_conf(
     // for the experimental flag. This should be updated to follow the API.
     if (!conf.skip_reduce_stat) return status::unimplemented;
 
-    int calc_dims_blocks[5] = {1, 1, 1, 1, 1};
+    dim_t calc_dims_blocks[5] = {1, 1, 1, 1, 1};
 
     // Calculations over reduce dimension will be split
     // between work items in the single subgroup.
@@ -178,11 +175,11 @@ status_t simple_batch_normalization_fwd_t::pd_t::init_conf(
             dim_names[0], 0, calc_dims[0], calc_dims_blocks[0]);
     dispatch_calc_stat.define_dim(
             dim_names[1], 1, calc_dims[1], calc_dims_blocks[1]);
-    dispatch_calc_stat.define_dim(dim_names[2], nstl::max(1, ndims - 3),
+    dispatch_calc_stat.define_dim(dim_names[2], nstl::max(1u, ndims - 3u),
             calc_dims[2], calc_dims_blocks[2]);
-    dispatch_calc_stat.define_dim(dim_names[3], nstl::max(1, ndims - 2),
+    dispatch_calc_stat.define_dim(dim_names[3], nstl::max(1u, ndims - 2u),
             calc_dims[3], calc_dims_blocks[3]);
-    dispatch_calc_stat.define_dim(dim_names[4], nstl::max(1, ndims - 1),
+    dispatch_calc_stat.define_dim(dim_names[4], nstl::max(1u, ndims - 1u),
             calc_dims[4], calc_dims_blocks[4]);
 
     CHECK(dispatch_calc_stat.vectorize_dim(
@@ -199,9 +196,9 @@ status_t simple_batch_normalization_fwd_t::pd_t::init_conf(
     dispatch = compute_engine->create_dispatch(data_mdw.md_);
     dispatch.define_dim("MB", 0, conf.mb);
     dispatch.define_dim("IC", 1, conf.ic);
-    dispatch.define_dim("ID", nstl::max(1, ndims - 3), conf.id);
-    dispatch.define_dim("IH", nstl::max(1, ndims - 2), conf.ih);
-    dispatch.define_dim("IW", nstl::max(1, ndims - 1), conf.iw);
+    dispatch.define_dim("ID", nstl::max(1u, ndims - 3u), conf.id);
+    dispatch.define_dim("IH", nstl::max(1u, ndims - 2u), conf.ih);
+    dispatch.define_dim("IW", nstl::max(1u, ndims - 1u), conf.iw);
     dispatch.generate();
 
     return status::success;
@@ -314,12 +311,12 @@ status_t simple_batch_normalization_bwd_t::pd_t::init_conf(
     }
 
     const int max_stat_nblocks = 256;
-    int stat_mb_nblocks = conf.mb / conf.mb_block;
-    int stat_sp_nblocks = utils::max_div(conf.id * conf.ih * conf.iw,
-            nstl::max(1, max_stat_nblocks / stat_mb_nblocks));
+    dim_t stat_mb_nblocks = conf.mb / conf.mb_block;
+    dim_t stat_sp_nblocks = utils::max_div(conf.id * conf.ih * conf.iw,
+            nstl::max<dim_t>(1, max_stat_nblocks / stat_mb_nblocks));
     assert(stat_mb_nblocks * stat_sp_nblocks <= max_stat_nblocks);
 
-    int stat_sp_block = conf.id * conf.ih * conf.iw / stat_sp_nblocks;
+    dim_t stat_sp_block = conf.id * conf.ih * conf.iw / stat_sp_nblocks;
 
     conf.reduce_stat_nblocks = stat_mb_nblocks * stat_sp_nblocks;
 
@@ -341,9 +338,9 @@ status_t simple_batch_normalization_bwd_t::pd_t::init_conf(
     dispatch = compute_engine->create_dispatch(data_mdw.md_);
     dispatch.define_dim("MB", 0, conf.mb, conf.mb_block);
     dispatch.define_dim("IC", 1, conf.ic);
-    dispatch.define_dim("ID", nstl::max(1, conf.ndims - 3), conf.id);
-    dispatch.define_dim("IH", nstl::max(1, conf.ndims - 2), conf.ih);
-    dispatch.define_dim("IW", nstl::max(1, conf.ndims - 1), conf.iw);
+    dispatch.define_dim("ID", nstl::max(1u, conf.ndims - 3u), conf.id);
+    dispatch.define_dim("IH", nstl::max(1u, conf.ndims - 2u), conf.ih);
+    dispatch.define_dim("IW", nstl::max(1u, conf.ndims - 1u), conf.iw);
     CHECK(dispatch.vectorize_dim("IC", 16));
     dispatch.generate();
 

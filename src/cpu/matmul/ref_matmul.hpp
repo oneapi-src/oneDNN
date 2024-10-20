@@ -139,15 +139,20 @@ struct ref_matmul_t : public primitive_t {
                     = attr()->zero_points_.get_groups_ndims(DNNL_ARG_WEIGHTS);
             const auto wei_group_dims
                     = attr()->zero_points_.get_groups(DNNL_ARG_WEIGHTS);
+            const bool wei_k_group_ok
+                    = IMPLICATION(wei_group_ndims == 2 && wei_group_dims[0] > 1,
+                            K() % wei_group_dims[0] == 0);
+            const bool wei_n_group_ok
+                    = IMPLICATION(wei_group_ndims == 2 && wei_group_dims[1] > 1,
+                            N() % wei_group_dims[1] == 0);
 
             return attr()->zero_points_.has_default_values(DNNL_ARG_SRC)
                     && attr()->zero_points_.has_default_values(DNNL_ARG_DST)
-                    && utils::one_of(mask_wei, 0, wei_qmask_N(),
-                            wei_qmask_N() + wei_qmask_K())
                     && utils::one_of(wei_group_ndims, 0, 2)
                     && IMPLICATION(wei_group_ndims == 2,
-                            wei_group_dims[1] == 1
-                                    && K() % wei_group_dims[0] == 0);
+                            utils::one_of(
+                                    1, wei_group_dims[0], wei_group_dims[1])
+                                    && wei_k_group_ok && wei_n_group_ok);
         }
     };
 

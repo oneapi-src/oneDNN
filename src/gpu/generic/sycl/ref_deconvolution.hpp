@@ -44,7 +44,6 @@ struct ref_deconvolution_bwd_weights_t
 
         status_t init(impl::engine_t *engine) {
             using namespace data_type;
-            using sm = primitive_attr_t::skip_mask_t;
 
             const memory_desc_wrapper data_d(src_md());
             const memory_desc_wrapper diff_weights_d(diff_weights_md());
@@ -57,9 +56,8 @@ struct ref_deconvolution_bwd_weights_t
                             data_d, diff_weights_d, diff_dst_d)
                     && check_convolution_formats(
                             data_d, diff_weights_d, diff_dst_d)
-                    && attr()->has_default_values(sm::scales_runtime
-                            | sm::zero_points_runtime | sm::post_ops
-                            | sm::sum_dt);
+                    && attr()->has_default_values()
+                    && desc()->alg_kind == alg_kind::deconvolution_direct;
             if (!ok) return status::unimplemented;
 
             return init_conf();

@@ -876,7 +876,7 @@ std::string x2r_plan_t::str() const {
     return add_indent("x2r_plan", oss.str());
 }
 
-int get_dpas_block_rcount(const layout_t &layout, int dim_idx) {
+int get_dpas_block_rcount(const layout_t &layout, dim_idx_t dim_idx) {
     if (layout.nblocks() < 2) return 1;
 
     auto &b0 = layout.blocks()[0];
@@ -898,7 +898,7 @@ bool fma_plan_t::can_split(abc_kind_t abc, int factor) const {
     bool is_a = (abc == abc_kind_t::a);
     bool is_m = is_a;
     auto &layout = is_a ? a_layout : b_layout;
-    int mn_idx = is_a ? 1 : 2;
+    dim_idx_t mn_idx = is_a ? 1 : 2;
     int dim = (int)layout.dim(mn_idx);
     if (dim % factor != 0) return false;
     int blk = is_m ? m_blk : n_blk;
@@ -1657,7 +1657,7 @@ public:
 
     layout_t transform(const layout_t &layout) const {
         ir_assert((bool)*this);
-        ir_assert(fused_tidx_ != -1);
+        ir_assert(fused_tidx_ != static_cast<dim_idx_t>(-1));
         std::vector<block_t> blocks;
         bool seen = false;
         for (auto &b : layout.blocks()) {
@@ -1686,7 +1686,7 @@ public:
     }
 
 private:
-    bool check_tdims(int &fused_tidx) const {
+    bool check_tdims(dim_idx_t &fused_tidx) const {
         int nfused = 0;
         for (int tidx = 0; tidx < view_.ntdims(); tidx++) {
             auto &tdim = view_.tdim(tidx);
@@ -1767,7 +1767,7 @@ private:
     }
 
     view_t view_;
-    int fused_tidx_ = -1;
+    dim_idx_t fused_tidx_ = -1;
     view_t direct_view_;
     bool active_ = false;
 };

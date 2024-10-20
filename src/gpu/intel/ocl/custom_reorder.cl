@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+// Temporary W/A for bf16 problems in HW and compiler
+#undef cl_future_bf16_cvt
+
 #include "gpu/intel/ocl/dispatch.h"
 #include "gpu/intel/ocl/reorder_common.h"
 

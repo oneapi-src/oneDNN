@@ -88,6 +88,15 @@ const fill_cfg_t &get_default_fill_cfg() {
     return fill_cfg;
 }
 
+const fill_cfg_t &get_perf_fill_cfg(dnnl_data_type_t dt) {
+    assert(has_bench_mode_bit(mode_bit_t::perf));
+    static const fill_cfg_t fill_cfg(dt, MAX2(-1024.f, lowest_dt(dt)),
+            MIN2(1024.f, max_dt(dt)),
+            /* only_int = */ false, attr_t::post_ops_t::kind_t::ADD,
+            "perf_mode_fill");
+    return fill_cfg;
+}
+
 int fill_scales(
         const attr_t &attr, int arg, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto &e = attr.scales.get(arg);
@@ -276,15 +285,17 @@ int fill_random_real_dense(dnn_mem_t &mem, dnn_mem_t &mem_ref, res_t *res,
 }
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
+// Since a sparsity pattern affects performance, it's crucial to keep the
+// pattern intact and only randomize tensor values. Thus, the function relies on
+// an assumption that every sparse format contains three handles, where the
+// second and the third are responsible for a sparsity pattern, and are
+// **already filled**.
 int fill_random_real_sparse(const_dnnl_memory_t dnnl_memory, dnn_mem_t &mem,
         dnn_mem_t &mem_ref, res_t *res, const fill_cfg_t &fill_cfg) {
     auto orig_cc_mem_md = query_md(dnnl_memory);
     const int nhandles = query_md_num_handles(orig_cc_mem_md);
     assert(nhandles == 3);
-    // Since a sparsity pattern affects performance, it's crucial to keep the
-    // pattern intact and only randomize tensor values.
-    // The assumption is every sparse format contains three handles and the
-    // second and the third are responsible for a sparsity pattern.
+    // Copy-exact the content of metadata buffers. Let data handle go further.
     for (int idx = 1; idx < nhandles; idx++) {
         void *dst_ptr = mem_ref.get_mapped_pointer<void>(idx);
         void *src_ptr = nullptr;

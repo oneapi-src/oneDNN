@@ -417,8 +417,8 @@ private:
 };
 
 struct data_helper_t {
-    static dim_t type_size(data_type_t d) {
-        return static_cast<dim_t>(types::data_type_size(d));
+    static uint32_t type_size(data_type_t d) {
+        return into<uint32_t>(types::data_type_size(d));
     }
 };
 
@@ -644,17 +644,17 @@ struct workspace_t : public data_helper_t {
                              conf.ws_grid_comp_offset, conf.ws_grid_comp_size)
                                                 : nullptr) {
         if (gates_) {
-            const int n_b = conf_.mb;
-            const int n_tb = conf_.n_iter * n_b;
-            const int n_dtb = conf_.n_dir * n_tb;
+            const dim_t n_b = conf_.mb;
+            const dim_t n_tb = conf_.n_iter * n_b;
+            const dim_t n_dtb = conf_.n_dir * n_tb;
             gates_strides_
                     = {n_dtb * conf_.gates_ws_ld, n_tb * conf_.gates_ws_ld,
                             n_b * conf_.gates_ws_ld, conf_.gates_ws_ld};
         }
         if (states_) {
-            const int n_b = conf_.mb;
-            const int n_tb = (conf_.n_iter + 1) * n_b;
-            const int n_dtb = conf_.n_dir * n_tb;
+            const dim_t n_b = conf_.mb;
+            const dim_t n_tb = (conf_.n_iter + 1) * n_b;
+            const dim_t n_dtb = conf_.n_dir * n_tb;
             states_strides_
                     = {n_dtb * conf_.states_ws_ld, n_tb * conf_.states_ws_ld,
                             n_b * conf_.states_ws_ld, conf_.states_ws_ld};
@@ -981,7 +981,7 @@ struct arg_list_t {
     }
     void append(const rnn_utils::sub_buffer_t &buffer, data_type_t dt) {
         args.append(buffer.get_storage());
-        args.append(gpu_utils::into<dim_t>(buffer.offset(dt)));
+        args.append(into<dim_t>(buffer.offset(dt)));
     }
     compute::kernel_arg_list_t args;
 };

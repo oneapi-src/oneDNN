@@ -55,11 +55,14 @@ protected:
     }
 
     template <typename F>
-    static void check_status(const F &f, dnnl_status_t status) {
-        catch_expected_failures(f, status != dnnl_success, status, false);
+    static void check_status(const F &f, dnnl_status_t status,
+            const char *filename, int64_t line_num) {
+        catch_expected_failures(
+                f, status != dnnl_success, status, false, filename, line_num);
     }
 };
-#define CHECK_STATUs(status, ...) check_status([&]() { __VA_ARGS__; }, status)
+#define CHECK_STATUs(status, ...) \
+    check_status([&]() { __VA_ARGS__; }, status, __FILE__, __LINE__)
 #define CHECK_STATUS(status, ...) CHECK_STATUs(status, __VA_ARGS__)
 
 #define CHECK_OK(...) CHECK_STATUS(dnnl_success, __VA_ARGS__)
@@ -427,13 +430,13 @@ TEST_F(attr_quantization_test_t, TestLRN) {
     }
 }
 
-CPU_TEST_F(attr_quantization_test_t, TestMatmul) {
+TEST_F(attr_quantization_test_t, TestMatmul) {
     for (auto a_dt : {data_type::f32, data_type::u8}) {
         const data_type b_dt
                 = a_dt == data_type::f32 ? data_type::f32 : data_type::s8;
 
-        memory::desc a_md {{10, 3}, a_dt, tag::ab};
-        memory::desc b_md {{3, 20}, b_dt, tag::ba};
+        memory::desc a_md {{10, 64}, a_dt, tag::ab};
+        memory::desc b_md {{64, 20}, b_dt, tag::ba};
         memory::desc c_md {{10, 20}, data_type::f32, tag::ab};
 
         CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md));
@@ -457,7 +460,13 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmul) {
                             gen_attr_with_zp(arg, (1 << 1) + (1 << 0))));
                     CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_zp(
-                                    arg, (1 << 1) + (1 << 0), b_dt, {3, 1})));
+                                    arg, (1 << 1) + (1 << 0), b_dt, {32, 1})));
+                } else if (arg == DNNL_ARG_SRC) {
+                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_zp(arg, (1 << 1) + (1 << 0))));
+                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_zp(
+                                    arg, (1 << 1) + (1 << 0), b_dt, {1, 32})));
                 } else {
                     CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_zp(arg, (1 << 1) + (1 << 0))));
@@ -473,39 +482,51 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmul) {
                 CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
                         gen_attr_with_scales(arg, (1 << 1) + (1 << 0))));
                 if (b_dt == data_type::s8) {
-                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
-                            gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
-                                    data_type::f32, {3, 1})));
-                } else {
+                    // Groups non divisible by 32 are not supported.
                     CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
                                     data_type::f32, {3, 1})));
+                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
+                                    data_type::f32, {32, 1})));
+                } else {
+                    CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
+                                    data_type::f32, {32, 1})));
                 }
             } else if (arg == DNNL_ARG_SRC) {
-                CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
-                        gen_attr_with_scales(arg, 1 << 1)));
+                // Somehow GPU doeshave this support.
+                const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
+                if (is_cpu) {
+                    CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(arg, 1 << 1)));
+                }
                 if (a_dt == data_type::u8) {
                     CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_scales(
-                                    arg, 1 << 1, data_type::f32, {1, 3})));
-                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                                    arg, 1 << 1, data_type::f32, {1, 32})));
+                    // Groups non divisible by 32 are not supported.
+                    CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
                                     data_type::f32, {1, 3})));
+                    CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
+                                    data_type::f32, {1, 32})));
                 } else {
                     CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_scales(
-                                    arg, 1 << 1, data_type::f32, {1, 3})));
+                                    arg, 1 << 1, data_type::f32, {1, 32})));
                     CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
-                                    data_type::f32, {1, 3})));
+                                    data_type::f32, {1, 32})));
                 }
             } else {
                 CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                         gen_attr_with_scales(arg, 1 << 1)));
+                // scales: unsupported mask only relevant for DST arg.
+                CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                        gen_attr_with_scales(arg, 1 << 2)));
             }
-            //scales: unsupported mask
-            CHECK_UNIMPL(matmul::primitive_desc(
-                    eng, a_md, b_md, c_md, gen_attr_with_scales(arg, 1 << 2)));
         }
     }
 }
@@ -515,9 +536,10 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmulBatch) {
         const data_type b_dt
                 = a_dt == data_type::f32 ? data_type::f32 : data_type::s8;
 
-        memory::desc a_md {{1, 10, 3}, a_dt, tag::abc};
-        memory::desc b_md {{1, 3, 20}, b_dt, tag::acb};
-        memory::desc c_md {{1, 10, 20}, data_type::f32, tag::abc};
+        memory::desc a_md {{2, 5, 10, 64}, a_dt, tag::abcd};
+        memory::desc b_md {{2, 5, 64, 20}, b_dt, tag::abdc};
+        memory::desc c_md {{2, 5, 10, 20}, data_type::f32, tag::abcd};
+        const auto ndims = a_md.get_ndims();
 
         CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md));
         CHECK_OK(matmul::primitive_desc(
@@ -536,15 +558,28 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmulBatch) {
             CHECK_OK(matmul::primitive_desc(
                     eng, a_md, b_md, c_md, gen_attr_with_scales(arg)));
             // scales: per_oc mask
-            if (arg == DNNL_ARG_WEIGHTS)
+            const auto per_oc_mask = 1 << (ndims - 1);
+            if (arg == DNNL_ARG_WEIGHTS) {
                 CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
-                        gen_attr_with_scales(arg, 1 << 2)));
-            else
+                        gen_attr_with_scales(arg, per_oc_mask)));
+            }
+
+            if (a_dt != data_type::u8 && a_dt != data_type::s8) continue;
+            // scales: per_tensor mask for int8 type only.
+            const auto per_tensor_mask = (1 << ndims) - 1;
+            const auto per_ocic_mask = (1 << (ndims - 1)) + (1 << (ndims - 2));
+            if (arg == DNNL_ARG_WEIGHTS) {
+                CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                        gen_attr_with_scales(arg, per_tensor_mask,
+                                data_type::f32, {32, 1})));
+            } else if (arg == DNNL_ARG_SRC) {
+                CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                        gen_attr_with_scales(
+                                arg, per_ocic_mask, data_type::f32, {1, 32})));
+            } else {
                 CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
-                        gen_attr_with_scales(arg, 1 << 2)));
-            //scales: unsupported mask
-            CHECK_UNIMPL(matmul::primitive_desc(
-                    eng, a_md, b_md, c_md, gen_attr_with_scales(arg, 1 << 1)));
+                        gen_attr_with_scales(arg, per_tensor_mask)));
+            }
         }
     }
 }

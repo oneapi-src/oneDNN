@@ -45,6 +45,7 @@ enum class gpu_arch_t {
     xe_hpg,
     xe_hpc,
     xe2,
+    xe3
 };
 
 static inline std::string to_string(gpu_arch_t arch) {
@@ -57,6 +58,7 @@ static inline std::string to_string(gpu_arch_t arch) {
     CASE(xe_hpg);
     CASE(xe_hpc);
     CASE(xe2);
+    CASE(xe3);
     return "unknown";
 #undef CASE
 }
@@ -72,6 +74,7 @@ static inline gpu_arch_t str2gpu_arch(const char *str) {
     CASE(xe_hpg);
     CASE(xe_hpc);
     CASE(xe2);
+    CASE(xe3);
     return gpu_arch_t::unknown;
 #undef CASE
 }

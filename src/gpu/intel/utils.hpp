@@ -29,6 +29,12 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace intel {
+
+#define MAX_NDIMS 6
+#define MAX_POST_OPS_SUPPORTED 32
+
+using dim_idx_t = uint32_t;
+
 namespace gpu_utils {
 
 // Replacement implementation of std::enable_if_t from C++14, included here for
@@ -125,14 +131,6 @@ inline bool validate_into(in_type in) {
 template <typename out_type>
 inline bool validate_into(bool b) {
     return std::is_integral<out_type>::value;
-}
-
-template <typename out_type, typename in_type>
-inline out_type into(in_type in) {
-    gpu_assert(validate_into<out_type>(in))
-            << "Value " << in << " cannot be converted into type "
-            << typeid(out_type).name();
-    return static_cast<out_type>(in);
 }
 
 inline int dev_getenv(const char *name, int default_value) {
@@ -246,6 +244,15 @@ struct device_id_hash_t {
 };
 
 } // namespace gpu_utils
+
+template <typename out_type, typename in_type>
+inline out_type into(in_type in) {
+    gpu_assert(gpu_utils::validate_into<out_type>(in))
+            << "Value " << in << " cannot be converted into type "
+            << typeid(out_type).name();
+    return static_cast<out_type>(in);
+}
+
 } // namespace intel
 } // namespace gpu
 } // namespace impl

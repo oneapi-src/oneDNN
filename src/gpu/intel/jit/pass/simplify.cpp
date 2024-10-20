@@ -420,6 +420,33 @@ expr_t simplify_rewrite_and(const expr_t &_e) {
     return e;
 }
 
+expr_t simplify_rewrite_or(const expr_t &_e) {
+    auto x = pexpr_t::x();
+
+    auto &obj = _e.as<binary_op_t>();
+    ir_assert(obj.op_kind == op_kind_t::_or);
+
+    auto e = _e;
+
+    // Boolean rules.
+    if (e.type().is_bool()) {
+        auto _true = (e.type().is_scalar()
+                        ? expr_t(true)
+                        : shuffle_t::make_broadcast(
+                                expr_t(true), e.type().elems()));
+        auto _false = (e.type().is_scalar()
+                        ? expr_t(false)
+                        : shuffle_t::make_broadcast(
+                                expr_t(false), e.type().elems()));
+        REWRITE_BINARY_NO_STATIC(_true | x, _true);
+        REWRITE_BINARY_NO_STATIC(x | _true, _true);
+        REWRITE_BINARY_NO_STATIC(_false | x, x);
+        REWRITE_BINARY_NO_STATIC(x | _false, x);
+    }
+
+    return e;
+}
+
 expr_t simplify_rewrite_iif(const expr_t &_e) {
     auto x = pexpr_t::x();
     auto y = pexpr_t::y();
@@ -468,6 +495,7 @@ public:
             case op_kind_t::_div: return simplify_rewrite_div(e);
             case op_kind_t::_mod: return simplify_rewrite_mod(e);
             case op_kind_t::_and: return simplify_rewrite_and(e);
+            case op_kind_t::_or: return simplify_rewrite_or(e);
             default: return e;
         }
     }
@@ -1741,8 +1769,8 @@ struct op_traits_t {};
             return a op b; \
         } \
         template <op_kind_t dummy_op = name, \
-                typename \
-                = typename std::enable_if<dummy_op == op_kind_t::_and>::type> \
+                typename = typename std::enable_if<dummy_op == op_kind_t::_and \
+                        || dummy_op == op_kind_t::_or>::type> \
         static bool compute(bool a, bool b) { \
             return a op b; \
         } \
@@ -1760,6 +1788,7 @@ DECL_OP_TRAITS(op_kind_t::_lt, <)
 DECL_OP_TRAITS(op_kind_t::_le, <=)
 
 DECL_OP_TRAITS(op_kind_t::_and, &)
+DECL_OP_TRAITS(op_kind_t::_or, |)
 
 template <>
 struct op_traits_t<op_kind_t::_min> {
@@ -1857,6 +1886,7 @@ public:
             CASE(op_kind_t::_le)
 
             CASE(op_kind_t::_and)
+            CASE(op_kind_t::_or)
             CASE(op_kind_t::_min)
             CASE(op_kind_t::_max)
 
@@ -2110,6 +2140,7 @@ bool const_to_const_binary(const expr_t &e, op_kind_t op_kind,
     }
     switch (op_kind) {
         case op_kind_t::_and: a = b = e; return true;
+        case op_kind_t::_or: a = b = e; return true;
         case op_kind_t::_le:
         case op_kind_t::_lt:
             a = (is_true ? a0 : a1);

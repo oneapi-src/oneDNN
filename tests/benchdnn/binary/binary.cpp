@@ -49,6 +49,10 @@ int fill_mem(
                 prb->alg, "binary");
         return fill_random_real(mem_dt, mem_fp, nullptr, fill_cfg);
     }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, nullptr, get_perf_fill_cfg(mem_dt.dt()));
+    }
 
     const auto dt = mem_dt.dt();
     const int range = 16;

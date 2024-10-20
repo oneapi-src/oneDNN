@@ -1536,11 +1536,13 @@ REG_XEHP_ISA(template void convert_ir_to_ngen(const stmt_t &body,
 REG_XEHPG_ISA(template void convert_ir_to_ngen(const stmt_t &body,
         ir_kernel_t<ngen::HW::XeHPG> *host,
         const expr_binding_t &expr_binding));
-REG_XE2_ISA(template void convert_ir_to_ngen(const stmt_t &body,
-        ir_kernel_t<ngen::HW::Xe2> *host, const expr_binding_t &expr_binding));
 REG_XEHPC_ISA(template void convert_ir_to_ngen(const stmt_t &body,
         ir_kernel_t<ngen::HW::XeHPC> *host,
         const expr_binding_t &expr_binding));
+REG_XE2_ISA(template void convert_ir_to_ngen(const stmt_t &body,
+        ir_kernel_t<ngen::HW::Xe2> *host, const expr_binding_t &expr_binding));
+REG_XE3_ISA(template void convert_ir_to_ngen(const stmt_t &body,
+        ir_kernel_t<ngen::HW::Xe3> *host, const expr_binding_t &expr_binding));
 
 } // namespace jit
 } // namespace intel

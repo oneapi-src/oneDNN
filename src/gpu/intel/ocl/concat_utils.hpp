@@ -364,9 +364,10 @@ struct prb_info_t {
         const int store_regs = scattered_store ? 2 : 8;
         const dim_t load_size = load_regs * reg_size;
         const dim_t store_size = store_regs * reg_size;
-        return utils::div_up(read_block * load_type_size, load_size)
+        return into<int>(utils::div_up(read_block * load_type_size, load_size)
                 + (read_block / write_block)
-                * utils::div_up(write_block * store_type_size, store_size);
+                        * utils::div_up(
+                                write_block * store_type_size, store_size));
     }
 
     bool operator<(const prb_info_t &other) const {

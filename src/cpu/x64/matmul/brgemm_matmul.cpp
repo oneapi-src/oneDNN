@@ -93,6 +93,13 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             ok = ok && one_of(asc.get_data_type(DNNL_ARG_WEIGHTS), undef, f32);
             ok = ok && one_of(asc.get_data_type(DNNL_ARG_DST), undef, f32);
         }
+        // Implementation has limited support w.r.t. scales groups.
+        if (!asc.get(DNNL_ARG_WEIGHTS).has_default_values()) {
+            if (!asc.get(DNNL_ARG_WEIGHTS).has_default_groups()) {
+                // Only grouping over K is supported.
+                ok = ok && asc.get(DNNL_ARG_WEIGHTS).group_dims_[1] == 1;
+            }
+        }
         return ok;
     };
 

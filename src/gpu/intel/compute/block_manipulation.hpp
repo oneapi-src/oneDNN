@@ -30,11 +30,10 @@ namespace compute {
 
 class mapped_block_t {
 public:
-    mapped_block_t(size_t size, size_t dim_idx)
+    mapped_block_t(size_t size, dim_idx_t dim_idx)
         : size(size), dim_idx(dim_idx) {}
     mapped_block_t(size_t buffer_idx, const block_t &block)
-        : size(static_cast<size_t>(block.block))
-        , dim_idx(static_cast<size_t>(block.dim_idx)) {
+        : size(static_cast<size_t>(block.block)), dim_idx(block.dim_idx) {
         map(buffer_idx, block);
     }
 
@@ -44,8 +43,7 @@ public:
 
     bool matches(const block_t &block) const {
         size_t block_size = static_cast<size_t>(block.block);
-        size_t block_dim_idx = static_cast<size_t>(block.dim_idx);
-        return block_size == size && block_dim_idx == dim_idx;
+        return block_size == size && block.dim_idx == dim_idx;
     }
 
     const std::unordered_map<size_t, block_t> &get_buffer_blocks() const {
@@ -56,7 +54,7 @@ public:
         return blocks.find(buffer_idx) == blocks.end();
     }
 
-    size_t get_dim_idx() const { return dim_idx; }
+    dim_idx_t get_dim_idx() const { return dim_idx; }
     size_t get_size() const { return size; }
 
     bool can_merge(
@@ -93,7 +91,7 @@ public:
 
 private:
     size_t size;
-    size_t dim_idx;
+    dim_idx_t dim_idx;
     std::unordered_map<size_t, block_t> blocks;
 };
 
@@ -135,12 +133,11 @@ public:
         assert(!is_broadcasted_[buffer_idx]);
         block_t front_block
                 = mapped_blocks.front().get_buffer_blocks().at(buffer_idx);
-        dim_t dim = static_cast<dim_t>(dim_idx);
         dim_t block_size = static_cast<dim_t>(size());
-        return block_t(dim, block_size, front_block.stride);
+        return block_t(dim_idx, block_size, front_block.stride);
     }
 
-    size_t get_dim_idx() const { return dim_idx; }
+    dim_idx_t get_dim_idx() const { return dim_idx; }
     const std::vector<mapped_block_t> &get_blocks() const {
         return mapped_blocks;
     }
@@ -148,7 +145,7 @@ public:
     bool is_in_lws() const { return is_in_lws_; }
 
 private:
-    size_t dim_idx;
+    dim_idx_t dim_idx;
     size_t num_layouts;
     std::vector<mapped_block_t> mapped_blocks;
     std::vector<bool> is_broadcasted_;

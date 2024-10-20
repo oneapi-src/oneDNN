@@ -342,7 +342,7 @@ public:
         int expected_dims[MIOPEN_DIM_MAX] = {};
         MIOPEN_EXECUTE_FUNC_V(miopenGetConvolutionNdForwardOutputDim, conv_desc,
                 descs[x], weights_desc, &ndims[y], &expected_dims[0]);
-        for (size_t i = 0; i < ndims[y]; i++) {
+        for (int i = 0; i < ndims[y]; i++) {
             if (dims[y][i] != expected_dims[i]) return status::unimplemented;
         }
         return status::success;
@@ -446,7 +446,7 @@ public:
     status_t configure_post_ops(convolution_pd_t *pd) {
         auto &p = pd->attr()->post_ops_;
         num_post_ops = p.len();
-        for (size_t i = 0; i < p.len(); i++) {
+        for (int i = 0; i < p.len(); i++) {
             post_ops[i] = p.entry_[i].kind;
             if (post_ops[i] == dnnl_eltwise) {
                 CHECK(create_and_set_eltwise_descriptor(pd));
@@ -580,7 +580,7 @@ public:
                 weights_desc, descs[io::x], conv_desc, descs[io::y],
                 maxSolutionCount, &actualCount, solutions.data()));
 
-        for (int i = 0; i < actualCount; i++) {
+        for (size_t i = 0; i < actualCount; i++) {
             if (solutions[i].workspace_size > 0) continue;
             selected_sol = i;
             break;
@@ -705,7 +705,7 @@ protected:
                 handle, descs[io::y], weights_desc, conv_desc, descs[io::x],
                 solutionCountm, &solutionCount, solutions.data()));
 
-        for (int i = 0; i < solutionCount; i++) {
+        for (size_t i = 0; i < solutionCount; i++) {
             if (selected_sol == -1) {
                 ws_size = solutions[i].workspace_size;
                 selected_sol = i;
@@ -842,7 +842,7 @@ public:
                 handle, descs[io::y], descs[io::x], conv_desc, weights_desc,
                 solutionCountm, &solutionCount, solutions.data()));
 
-        for (int i = 0; i < solutionCount; i++) {
+        for (size_t i = 0; i < solutionCount; i++) {
             if (selected_sol == -1) {
                 ws_size = solutions[i].workspace_size;
                 selected_sol = i;

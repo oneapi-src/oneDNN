@@ -18,7 +18,6 @@
 #include "common/c_types_map.hpp"
 
 #include "common/primitive_exec_types.hpp"
-#include "common/scratchpad.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
@@ -191,12 +190,12 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     memory_desc_wrapper dst_mdw(
             pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md());
 
-    int ndims = src_mdw.ndims();
+    dim_idx_t ndims = into<dim_idx_t>(src_mdw.ndims());
 
     conf.src_dt = src_mdw.data_type();
     conf.ndims = ndims;
-    conf.norm_axis = pd->norm_axis();
-    conf.across_axis = pd->across_axis();
+    conf.norm_axis = into<dim_idx_t>(pd->norm_axis());
+    conf.across_axis = into<dim_idx_t>(pd->across_axis());
     conf.use_scale = pd->use_scale();
     conf.use_shift = pd->use_shift();
     conf.calculate_stats = !pd->stats_are_src();
@@ -221,8 +220,9 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     int c_block = 1;
     bool c_is_last_physical = false;
     if (src_mdw.blocking_desc().inner_nblks > 0) {
-        c_block = src_mdw.blocking_desc()
-                          .inner_blks[src_mdw.blocking_desc().inner_nblks - 1];
+        c_block = into<int>(
+                src_mdw.blocking_desc()
+                        .inner_blks[src_mdw.blocking_desc().inner_nblks - 1]);
         c_is_last_physical
                 = src_mdw.blocking_desc().inner_idxs[ndims - 1] == ndims - 1;
     } else {
@@ -338,13 +338,12 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         assert(conf.norm_axis % conf.norm_block == 0);
         assert(conf.norm_block % (conf.sub_group_size * conf.vect_dt_n) == 0);
 
-        const size_t norm_gws = conf.sub_group_size * conf.num_norm_blocks;
-        assert(norm_gws <= max_wg_size);
-        MAYBE_UNUSED(max_wg_size);
+        const int norm_gws = conf.sub_group_size * conf.num_norm_blocks;
+        gpu_assert(into<size_t>(norm_gws) <= max_wg_size);
 
-        for (int i = 0; i < 4; i++) {
-            int md_hint_idx = nstl::min(i, ndims - 1);
-            size_t dim = (i < ndims - 1) ? dims[i] : 1;
+        for (dim_idx_t i = 0; i < 4; i++) {
+            dim_idx_t md_hint_idx = nstl::min(i, ndims - 1);
+            dim_t dim = (i < ndims - 1) ? dims[i] : 1;
             if (i == ndims - 1) {
                 dim = norm_gws;
                 conf.dispatch.define_dim(
@@ -356,7 +355,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                         utils::format("X%d", i), md_hint_idx, dim);
         }
         conf.dispatch.generate();
-        const compute::range_t tuned_lws = {norm_gws, 1, 1};
+        const compute::range_t tuned_lws = {into<size_t>(norm_gws), 1, 1};
         conf.dispatch.set_lws(tuned_lws);
 
     } else { // bwd
@@ -393,9 +392,9 @@ static status_t init_conf_common(lnorm_conf_t &conf,
             conf.vect_dt_n /= 2;
         }
 
-        for (int i = 0; i < 4; i++) {
-            int md_hint_idx = nstl::min(i, ndims - 1);
-            int dim = (i < ndims - 1) ? dims[i] : 1;
+        for (dim_idx_t i = 0; i < 4; i++) {
+            dim_idx_t md_hint_idx = nstl::min(i, ndims - 1);
+            dim_t dim = (i < ndims - 1) ? dims[i] : 1;
             if (i == ndims - 1) {
                 conf.dispatch.define_dim(utils::format("X%d", i), md_hint_idx,
                         conf.sub_group_size);
@@ -424,7 +423,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
         if ((conf.use_scale || conf.use_shift) && !vectorize_bwd_scaleshift)
             return status::unimplemented;
 
-        const int first_dim = ndims == 2 ? dims[0] : dims[1];
+        const dim_t first_dim = ndims == 2 ? dims[0] : dims[1];
         const int max_n_chunk_size = 16; // Experimentally selected values
         const int min_n_chunk_size = 4;
         int best_n_chunk_size = max_n_chunk_size;
@@ -449,7 +448,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
                 "C_finalize", conf.norm_axis);
         const int max_n_finalize = 256; // Experimentally selected values
 
-        int n_finalize = conf.n_chunks;
+        dim_t n_finalize = conf.n_chunks;
         while (n_finalize > max_n_finalize) {
             n_finalize = utils::div_up(n_finalize, 2);
         }

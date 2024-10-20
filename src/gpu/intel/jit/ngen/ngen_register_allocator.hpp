@@ -17,6 +17,11 @@
 #ifndef NGEN_REGISTER_ALLOCATOR_HPP
 #define NGEN_REGISTER_ALLOCATOR_HPP
 
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+#endif
+
 #include "ngen.hpp"
 #include <cstdint>
 #include <stdexcept>
@@ -230,6 +235,7 @@ int Bundle::firstReg(HW hw) const
     case HW::Gen12LP:
     case HW::XeHPC:
     case HW::Xe2:
+    case HW::Xe3:
         return (bundle0 << 1) | bank0;
     case HW::XeHP:
     case HW::XeHPG:
@@ -265,6 +271,7 @@ int Bundle::stride(HW hw) const
         return 4;
     case HW::Gen12LP:
     case HW::Xe2:
+    case HW::Xe3:
         return 16;
     case HW::XeHP:
     case HW::XeHPG:
@@ -294,6 +301,7 @@ int64_t Bundle::regMask(HW hw, int offset) const
         return bundle_mask & bank_mask;
     case HW::Gen12LP:
     case HW::Xe2:
+    case HW::Xe3:
         if (bundle_id != any)                           base_mask  = 0x0003000300030003;
         if (bank_id != any)                             base_mask &= 0x5555555555555555;
         return base_mask << (bank0 + (bundle0 << 1));
@@ -323,6 +331,7 @@ Bundle Bundle::locate(HW hw, RegData reg)
             return Bundle((base >> 1) & 1, base >> 6);
         case HW::Gen12LP:
         case HW::Xe2:
+        case HW::Xe3:
             return Bundle(base & 1, (base >> 1) & 7);
         case HW::XeHP:
         case HW::XeHPG:
@@ -660,5 +669,9 @@ void RegisterAllocator::dump(std::ostream &str)
 #endif /* NGEN_ENABLE_RA_DUMP */
 
 } /* namespace NGEN_NAMESPACE */
+
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic pop
+#endif
 
 #endif /* include guard */

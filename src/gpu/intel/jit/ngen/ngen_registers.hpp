@@ -76,6 +76,7 @@ static constexpr_reg FlagRegister f0_0{0,0}, f0_1{0,1}, f1_0{1,0}, f1_1{1,1};
 static constexpr_reg FlagRegister f2{2}, f3{3};
 static constexpr_reg ChannelEnableRegister ce0{0};
 static constexpr_reg StackPointerRegister sp{0};
+static constexpr_reg ScalarRegister s0{0};
 static constexpr_reg StateRegister sr0{0}, sr1{1};
 static constexpr_reg ControlRegister cr0{0};
 static constexpr_reg NotificationRegister n0{0};

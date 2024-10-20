@@ -69,8 +69,8 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         attr_mask |= smask_t::scales_runtime_groups;
     }
 
-    // Matmul supports fpmath mode
-    attr_mask |= smask_t::fpmath_mode;
+    // Matmul supports fpmath mode and accumulation mode
+    attr_mask |= smask_t::fpmath_mode | smask_t::accumulation_mode;
 
     VCHECK_MATMUL_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
             VERBOSE_UNSUPPORTED_ATTR);
@@ -95,13 +95,11 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         const int mask_wei = sc_wei.mask_;
         const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
 
-        // Check allowed masks.
         VCHECK_MATMUL_UNIMPL(utils::one_of(mask_src, 0, src_qmask_K,
-                                     src_qmask_M + src_qmask_K)
-                        && utils::one_of(mask_wei, 0, wei_qmask_N,
-                                wei_qmask_N + wei_qmask_K)
-                        && mask_dst == 0,
+                                     src_qmask_M + src_qmask_K),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
+        // Masks for weights scales can be any - skipping them.
+        VCHECK_MATMUL_UNIMPL(mask_dst == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
         // Check dependency between scales.
         // Source scales groups are supported for int8 source and must divide
         // or be divided by weights groups when both are greater than 1.
@@ -120,6 +118,28 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         VCHECK_MATMUL_UNIMPL(IMPLICATION(src_scale_group_k > 1,
                                      src_is_int8 && groups_are_divisible),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+        // Groups per N are solely for weights decompression as it's impossible
+        // to get performant kernel for a single `k` element in chain for
+        // regular quantized case.
+        const auto wei_scale_group_n
+                = (mask_wei & wei_qmask_N) && sc_wei.ndims_ > 0
+                ? sc_wei.group_dims_[1]
+                : 1;
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_scale_group_n > 1, attr->fpmath_.apply_to_int_),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+        // Due to hardware specifics, groups should be multiple of 32.
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(src_scale_group_k > 1, src_scale_group_k % 32 == 0),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_scale_group_k > 1, wei_scale_group_k % 32 == 0),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_scale_group_n > 1, wei_scale_group_n % 32 == 0),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
     // Check zero points
@@ -130,12 +150,10 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         zp.get(DNNL_ARG_WEIGHTS, &mask_wei);
         zp.get(DNNL_ARG_DST, &mask_dst);
 
-        VCHECK_MATMUL_UNIMPL(mask_src == 0
-                        || (desc.src_desc.ndims == 2 && mask_src == 1 << 1),
+        VCHECK_MATMUL_UNIMPL(utils::one_of(mask_src, 0, src_qmask_K,
+                                     src_qmask_M + src_qmask_K),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
-        VCHECK_MATMUL_UNIMPL(utils::one_of(mask_wei, 0, wei_qmask_N,
-                                     wei_qmask_N + wei_qmask_K),
-                VERBOSE_UNSUPPORTED_ZP_CFG);
+        // Masks for weights zero points can be any - skipping them.
         VCHECK_MATMUL_UNIMPL(mask_dst == 0
                         || (desc.dst_desc.ndims == 2 && mask_dst == 1 << 1),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
@@ -151,6 +169,47 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
                     IMPLICATION(mask_wei & wei_qmask_N, n % 2 == 0),
                     VERBOSE_UNSUPPORTED_ZP_CFG);
         }
+
+        // Check dependency between zps.
+        // Source zps groups are supported for int8 source and must divide
+        // or be divided by weights groups when both are greater than 1.
+        const auto src_zp_group_k = (mask_src & src_qmask_K)
+                        && zp.get_groups_ndims(DNNL_ARG_SRC) > 0
+                ? zp.get_groups(DNNL_ARG_SRC)[1]
+                : 1;
+        const auto wei_zp_group_k = (mask_wei & wei_qmask_K)
+                        && zp.get_groups_ndims(DNNL_ARG_WEIGHTS) > 0
+                ? zp.get_groups(DNNL_ARG_WEIGHTS)[0]
+                : 1;
+        const bool groups_are_divisible
+                = IMPLICATION(src_zp_group_k > 1 && wei_zp_group_k > 1,
+                        (src_zp_group_k % wei_zp_group_k == 0)
+                                || (wei_zp_group_k % src_zp_group_k == 0));
+        VCHECK_MATMUL_UNIMPL(IMPLICATION(src_zp_group_k > 1,
+                                     src_is_int8 && groups_are_divisible),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+
+        // Groups per N are solely for weights decompression as it's impossible
+        // to get performant kernel for a single `k` element in chain for
+        // regular quantized case.
+        const auto wei_zp_group_n = (mask_wei & wei_qmask_N)
+                        && zp.get_groups_ndims(DNNL_ARG_WEIGHTS) > 0
+                ? zp.get_groups(DNNL_ARG_WEIGHTS)[1]
+                : 1;
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_zp_group_n > 1, attr->fpmath_.apply_to_int_),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+
+        // Due to hardware specifics, groups should be multiple of 32.
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(src_zp_group_k > 1, src_zp_group_k % 32 == 0),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_zp_group_k > 1, wei_zp_group_k % 32 == 0),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(wei_zp_group_n > 1, wei_zp_group_n % 32 == 0),
+                VERBOSE_UNSUPPORTED_ZP_CFG);
     }
 
     // Check post-ops

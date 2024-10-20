@@ -38,6 +38,7 @@ const_dnnl_memory_desc_t query_md(const_dnnl_memory_t memory);
 
 dnnl_engine_t query_engine(const_dnnl_primitive_desc_t pd,
         dnnl_query_t engine_type = dnnl_query_engine);
+dnnl_engine_t query_engine(const_dnnl_memory_t memory);
 
 int64_t query_mem_consumption(const_dnnl_primitive_desc_t pd);
 

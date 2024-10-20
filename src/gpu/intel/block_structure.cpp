@@ -59,24 +59,24 @@ block_layout_t::block_layout_t(
         const memory_desc_wrapper &mdw, bool inner_only, bool do_normalize) {
     if (mdw.format_kind() == format_kind::undef) return;
 
-    const size_t ndims = static_cast<size_t>(mdw.ndims());
+    const dim_idx_t ndims = into<uint32_t>(mdw.ndims());
     auto &blocking = mdw.blocking_desc();
     auto *padded_dims = mdw.padded_dims();
 
     dim_t stride = 1;
     std::vector<dim_t> full_blocks(ndims, 1);
     for (int i = blocking.inner_nblks - 1; i >= 0; i--) {
-        dim_t dim_idx = blocking.inner_idxs[i];
+        dim_idx_t dim_idx = into<uint32_t>(blocking.inner_idxs[i]);
         dim_t block = blocking.inner_blks[i];
         append(block_t(dim_idx, block, stride));
         stride *= block;
-        full_blocks[static_cast<size_t>(dim_idx)] *= block;
+        full_blocks[dim_idx] *= block;
     }
 
     if (!inner_only) {
-        for (size_t i = 0; i < ndims; i++) {
+        for (dim_idx_t i = 0; i < ndims; i++) {
             dim_t block = padded_dims[i] / full_blocks[i];
-            append(block_t(static_cast<dim_t>(i), block, blocking.strides[i]));
+            append(block_t(i, block, blocking.strides[i]));
         }
 
         // Sort outer blocks by their stride.

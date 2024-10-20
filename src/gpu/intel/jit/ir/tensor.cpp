@@ -46,7 +46,7 @@ layout_t::layout_t(const type_t &type, const expr_t &offset, int ndims,
     dim_t stride = 1;
     // Iterate from right to left (innermost to outermost).
     for (auto it = parts.rbegin(); it != parts.rend(); ++it) {
-        int dim_idx = it->first;
+        dim_idx_t dim_idx = it->first;
         dim_t block = it->second;
         if (block == 0) {
             dim_t full_block = 1;
@@ -314,7 +314,7 @@ tensor_t layout_t::split_into_max_tile(
 }
 
 void layout_t::align_layouts(layout_t &a, layout_t &b) {
-    for (int i = 0; i < a.ndims(); i++) {
+    for (dim_idx_t i = 0; i < into<dim_idx_t>(a.ndims()); i++) {
         auto a_blocks = a.blocks();
         auto b_blocks = b.blocks();
 

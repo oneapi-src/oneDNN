@@ -63,16 +63,32 @@
 #define DEFINE_ARG_SCALES_BUFFER(scales, arg) \
     DEFINE_ARG_SCALES_BUFFER_ATTR(pd()->attr(), scales, arg)
 
-#define DEFINE_ZERO_POINTS_BUFFER(zero_points_ptr, mem_arg) \
-    int32_t CONCAT2(default_zero_point_, mem_arg) = 0; \
-    const int32_t *zero_points_ptr \
-            = pd()->attr()->zero_points_.has_default_values(mem_arg) \
-            ? &CONCAT2(default_zero_point_, mem_arg) \
-            : CTX_IN_MEM( \
-                    const int32_t *, DNNL_ARG_ATTR_ZERO_POINTS | mem_arg); \
-    VCHECK_ATTR(zero_points_ptr != nullptr, \
-            "Zero points buffer for arg %d is missing", mem_arg); \
+#define DEFINE_ZERO_POINTS_BUFFER_ATTR(attr, zero_points_ptr, arg) \
+    int32_t CONCAT2(default_zero_point_, arg) = 0; \
+    const int32_t *zero_points_ptr {nullptr}; \
+    if ((attr)) { \
+        if ((attr)->zero_points_.has_default_values(arg)) { \
+            zero_points_ptr = &CONCAT2(default_zero_point_, arg); \
+        } else { \
+            /* CAVEAT: type should be void to force proper loads of zero-points.
+             * Accessing `zero_points_ptr` by index will lead to a crash for
+             * datatypes different from s32. */ \
+            zero_points_ptr = CTX_IN_MEM( \
+                    const int32_t *, DNNL_ARG_ATTR_ZERO_POINTS | arg); \
+            VCHECK_ATTR(zero_points_ptr != nullptr, \
+                    "Zero points buffer for arg %d is missing", arg); \
+            const auto zero_points_d \
+                    = ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | arg); \
+            VCHECK_ATTR(utils::one_of(zero_points_d.data_type(), \
+                                data_type::s32, data_type::s8, data_type::u8, \
+                                data_type::s4, data_type::u4), \
+                    VERBOSE_INVALID_DATATYPE, "zero points"); \
+        } \
+    } \
     MAYBE_UNUSED(zero_points_ptr);
+
+#define DEFINE_ZERO_POINTS_BUFFER(zero_points_ptr, arg) \
+    DEFINE_ZERO_POINTS_BUFFER_ATTR(pd()->attr(), zero_points_ptr, arg)
 
 #define ASSIGN_ARG_SCALE_VALUE(scale, mem_arg) \
     alignas(16) float CONCAT2(CONCAT2(scales, _buf16), mem_arg)[16] = {0}; \

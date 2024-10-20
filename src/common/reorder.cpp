@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,6 +97,45 @@ status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
     VCHECK_REORDER(IMPLICATION(!types::is_integral_dt(dst_md->data_type),
                            zero_points.has_default_values(DNNL_ARG_DST)),
             VERBOSE_UNSUPPORTED_ZP_CFG);
+
+    // Check scales
+    if (!attr->scales_.has_default_values()) {
+        const auto &sc = attr->scales_;
+        const auto &sc_src = sc.get(DNNL_ARG_SRC);
+        const int mask_src = sc_src.mask_;
+
+        VCHECK_REORDER(IMPLICATION(utils::one_of(src_md->data_type,
+                                           data_type::s4, data_type::u4),
+                               mask_src > 0),
+                VERBOSE_INVALID_DATATYPE, "mask for int4 source");
+
+        if (sc_src.ndims_ > 0) {
+            const int src_ndims = s_mdw.ndims();
+            const bool group_dims_are_consistent
+                    = IMPLICATION(sc_src.group_dims_[0] > 1,
+                              src_md->dims[src_ndims - 2]
+                                              % sc_src.group_dims_[0]
+                                      == 0)
+                    && IMPLICATION(sc_src.group_dims_[1] > 1,
+                            src_md->dims[src_ndims - 1] % sc_src.group_dims_[1]
+                                    == 0);
+            VCHECK_REORDER(group_dims_are_consistent,
+                    "groups dimensions are not consistent with reorder "
+                    "dimensions");
+
+            // Groups are always applied to last two dimensions. Check that
+            // input scale mask is consistent with this limitation.
+            const bool mask_applies_to_last_two_dims
+                    = (mask_src & (1 << (src_ndims - 1)))
+                    && (mask_src & (1 << (src_ndims - 2)));
+            VCHECK_REORDER(mask_applies_to_last_two_dims,
+                    "mask is not consistent with groups");
+        }
+
+        const auto &sc_dst = sc.get(DNNL_ARG_DST);
+        VCHECK_REORDER(sc_dst.ndims_ == 0, VERBOSE_BAD_NDIMS, "dst scales",
+                sc_dst.ndims_);
+    }
 
     bool is_cross_engine = src_engine != dst_engine
             && utils::one_of(

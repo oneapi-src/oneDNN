@@ -33,7 +33,7 @@ std::pair<int, int> gen9_concat_t::pd_t::calculate_iter_dim_idx_chunk(
     const auto &dst_dims = conf.dst_md_info.padded_dims;
     int max_dim_idx = (conf.concat_axis == conf.ndims - 1) ? conf.ndims - 2
                                                            : conf.ndims - 1;
-    int max_dim = dst_dims[max_dim_idx];
+    dim_t max_dim = dst_dims[max_dim_idx];
     for (int dim_idx = max_dim_idx - 1; dim_idx >= 0; dim_idx--) {
         if (dim_idx == conf.concat_axis) continue;
         const auto dim = dst_dims[dim_idx];
@@ -155,7 +155,7 @@ status_t gen9_concat_t::pd_t::init_conf(impl::engine_t *engine) {
     for (int dim_idx = 0; dim_idx < MAX_NDIMS; dim_idx++) {
         const int dim_block
                 = conf.iter_dim_idx == dim_idx ? conf.iter_dim_chunk : 1;
-        const int dim_size = conf.ndims > dim_idx ? dst_dims[dim_idx] : 1;
+        const dim_t dim_size = conf.ndims > dim_idx ? dst_dims[dim_idx] : 1;
         conf.dispatch.define_dim(
                 utils::format("D%d", dim_idx), 0, dim_size, dim_block);
     }

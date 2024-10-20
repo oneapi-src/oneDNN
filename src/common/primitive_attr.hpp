@@ -40,7 +40,7 @@ struct runtime_scales_t;
 const runtime_scales_t &default_runtime_scale();
 
 struct rnn_data_qparams_t : public c_compatible {
-    rnn_data_qparams_t() : scale_(1.), shift_(0.) {}
+    rnn_data_qparams_t() : scale_(1.f), shift_(0.f) {}
     bool has_default_values() const { return (scale_ == 1. && shift_ == 0.); }
     bool defined() const {
         return !is_runtime_value(scale_) && !is_runtime_value(shift_);
@@ -131,7 +131,7 @@ private:
 // Note: keep for RNN quantization
 struct rnn_create_time_scales_t : public c_compatible {
     rnn_create_time_scales_t() : count_(1), mask_(0), scales_(scales_buf_) {
-        set_single_scale(1.);
+        set_single_scale(1.f);
     }
 
     ~rnn_create_time_scales_t() { cleanup(); }
@@ -376,7 +376,12 @@ struct zero_points_t : public c_compatible {
                 && group_ndims_wei == rhs.group_ndims_wei
                 && IMPLICATION(group_ndims_wei > 0,
                         utils::array_cmp(group_dims_wei, rhs.group_dims_wei,
-                                group_ndims_wei));
+                                group_ndims_wei))
+                && data_type_src == rhs.data_type_src
+                && group_ndims_src == rhs.group_ndims_src
+                && IMPLICATION(group_ndims_src > 0,
+                        utils::array_cmp(group_dims_src, rhs.group_dims_src,
+                                group_ndims_src));
     }
 
     // arg-specific checks
@@ -385,7 +390,8 @@ struct zero_points_t : public c_compatible {
         return is_set(arg) == false && has_default_data_type(arg);
     }
     bool has_default_groups(int arg) const {
-        return IMPLICATION(arg == DNNL_ARG_WEIGHTS, group_ndims_wei == 0);
+        return IMPLICATION(arg == DNNL_ARG_WEIGHTS, group_ndims_wei == 0)
+                && IMPLICATION(arg == DNNL_ARG_SRC, group_ndims_src == 0);
     }
     bool has_default_data_type(int arg) const {
         return get_data_type(arg) == data_type::s32;
@@ -408,16 +414,19 @@ struct zero_points_t : public c_compatible {
 
     data_type_t get_data_type(int arg) const {
         if (arg == DNNL_ARG_WEIGHTS) return data_type_wei;
+        if (arg == DNNL_ARG_SRC) return data_type_src;
         return data_type::s32;
     }
 
     const dim_t *get_groups(int arg) const {
         if (arg == DNNL_ARG_WEIGHTS) return group_dims_wei;
+        if (arg == DNNL_ARG_SRC) return group_dims_src;
         return nullptr;
     }
 
     int get_groups_ndims(int arg) const {
         if (arg == DNNL_ARG_WEIGHTS) return group_ndims_wei;
+        if (arg == DNNL_ARG_SRC) return group_ndims_src;
         return 0;
     }
 
@@ -436,6 +445,11 @@ private:
     data_type_t data_type_wei = data_type::s32;
     int group_ndims_wei = 0;
     dims_t group_dims_wei {};
+    // TODO: A temporary solution until a single quant abstraction is
+    // introduced.
+    data_type_t data_type_src = data_type::s32;
+    int group_ndims_src = 0;
+    dims_t group_dims_src {};
 
     int get_mask(int arg) const {
         int mask = 0;

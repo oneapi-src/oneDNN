@@ -41,7 +41,7 @@ struct softmax_fwd_kernel_vec_t {
                   DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC))
         , scale_dst_(CTX_IN_SYCL_KERNEL_MEMORY(
                   DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST))
-        , dst_(CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
+        , dst_(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST))
         , po_args_(cgh, ctx, conf_.post_ops) {}
 
     void operator()(::sycl::nd_item<1> item) const {
@@ -140,7 +140,7 @@ private:
     xpu::sycl::in_memory_arg_t src_;
     xpu::sycl::in_memory_arg_t scale_src_;
     xpu::sycl::in_memory_arg_t scale_dst_;
-    xpu::sycl::out_memory_arg_t dst_;
+    xpu::sycl::inout_memory_arg_t dst_;
     post_op_input_args po_args_;
 };
 

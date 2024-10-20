@@ -750,7 +750,7 @@ bool access_builder_t::try_build_2d(send_params_t &send_params) {
         }
 
         auto vstart = vstart0;
-        for (int i = 0; i < vlayout.ndims(); i++) {
+        for (dim_idx_t i = 0; i < into<dim_idx_t>(vlayout.ndims()); i++) {
             if (start[i] == 0) continue;
             int factor = (i == b0.dim_idx ? type_factor : 1);
             vstart[i] += factor * start[i];

@@ -568,15 +568,23 @@ inline int get_dims_mask(const dims_t dims1, const dims_t dims2, int ndims,
     return mask;
 };
 
-inline void copy_dims_with_mask(
-        dims_t ddims, const dims_t sdims, int ndims, int mask) {
+// The function can be used to get dimensions for memory descriptors or
+// dimensions for logical offset. First ones are happy to have ones when mask
+// is not applied. This allows to initialize them with existing functions using
+// tags/strides. Latter ones are not nappy with ones and must have zeros as
+// logical offsets starts with 0. `fill_with_one` flag regulates the behavior
+// between them.
+inline void copy_dims_with_mask(dims_t ddims, const dims_t sdims, int ndims,
+        int mask, bool fill_with_one = false) {
     for (int d = 0; d < ndims; ++d) {
-        ddims[d] = (mask & (1 << d)) ? sdims[d] : 0;
+        ddims[d] = (mask & (1 << d)) ? sdims[d]
+                                     : static_cast<dim_t>(fill_with_one);
     }
 }
 
-inline void apply_mask_on_dims(dims_t dims, int ndims, int mask) {
-    copy_dims_with_mask(dims, dims, ndims, mask);
+inline void apply_mask_on_dims(
+        dims_t dims, int ndims, int mask, bool fill_with_one = false) {
+    copy_dims_with_mask(dims, dims, ndims, mask, fill_with_one);
 }
 
 inline void dim_iterator(const dims_t dims, dims_t indices, int ndims) {
@@ -815,7 +823,7 @@ struct nibble2_t {
     }
 
     // returns pair of nibbles as uint8t
-    inline uint8_t get() const { return high << 4 | low; }
+    inline uint8_t get() const { return static_cast<uint8_t>(high << 4 | low); }
 
 private:
     uint8_t low : 4;

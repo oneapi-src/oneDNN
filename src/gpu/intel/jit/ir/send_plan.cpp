@@ -1186,11 +1186,11 @@ send_kind_t get_send_kind(const stmt_t &s) {
 struct layout_2d_wrapper_t {
     layout_2d_wrapper_t(const layout_t &l) : l(l) {}
 
-    int nblocks(int idx = -1) const {
+    int nblocks(dim_idx_t idx = -1) const {
         int ret = 0;
         for (auto &b : l.blocks()) {
             if (b.block == 1) continue;
-            if (idx == -1 || b.dim_idx == idx) ret++;
+            if (idx == static_cast<dim_idx_t>(-1) || b.dim_idx == idx) ret++;
         }
         return ret;
     }
@@ -1620,8 +1620,8 @@ public:
 
         int w_vidx = lw.w_idx();
         int h_vidx = lw.h_idx();
-        int w_tidx = w_tdim.tidx();
-        int h_tidx = h_tdim.tidx();
+        dim_idx_t w_tidx = w_tdim.tidx();
+        dim_idx_t h_tidx = h_tdim.tidx();
         bool use_xy = true;
 
         int w_tcount = 0;

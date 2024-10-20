@@ -46,13 +46,16 @@ cold_cache_t::cold_cache_t()
     , n_buffers_(0)
     , override_n_buffers_(false) {}
 
-cold_cache_t::cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args)
+cold_cache_t::cold_cache_t(
+        const std::vector<dnnl_exec_arg_t> &dnnl_args, dnnl_stream_t stream)
     : enabled_(use_cold_cache(dnnl_args))
     , n_buffers_top_limit_(is_gpu() ? gpu_n_buffers_top_limit_ : SIZE_MAX)
-    , n_buffers_bottom_limit_(1)
+    , n_buffers_bottom_limit_(0)
     , n_buffers_(0)
     , override_n_buffers_(false) {
 
+    // Note: there's an additional return from ctor below if it was identified
+    // that no buffers are needed.
     if (!enabled_) return;
 
     static cpu_cache_args_t cpu_cache_args {};
@@ -120,11 +123,15 @@ cold_cache_t::cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args)
             (is_gpu() ? "[GPU]" : "[CPU]"), MB(cache_capacity),
             MB(cache_size_upper_bound), MB(hot_args_size), MB(cold_args_size));
 
-    const size_t cold_mem_pool_size = hot_args_size > cache_size_upper_bound
-            ? 0
-            : cache_size_upper_bound - hot_args_size;
-    const size_t n_mem_pool_buffers
-            = div_up(cold_mem_pool_size, cold_args_size);
+    const size_t cold_mem_pool_size
+            = MAX2(cache_size_upper_bound - hot_args_size, 0);
+
+    size_t n_mem_pool_buffers = 0;
+    // If `cold_args_size` are greater then allowed pool_size, it means there's
+    // no sense in allocating any more buffers. Use original buffers only.
+    if (cold_mem_pool_size > cold_args_size)
+        n_mem_pool_buffers = div_up(cold_mem_pool_size, cold_args_size);
+
     n_buffers_ = MIN2(MAX2(n_mem_pool_buffers, n_buffers_bottom_limit_),
             n_buffers_top_limit_);
     override_n_buffers_ = n_mem_pool_buffers > n_buffers_top_limit_;
@@ -137,6 +144,11 @@ cold_cache_t::cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args)
                             ? "SIZE_MAX"
                             : std::to_string(n_buffers_top_limit_).c_str()),
             n_mem_pool_buffers, n_buffers_);
+    if (n_buffers_ <= 0) {
+        // No buffers allocation needed, return to avoid scratching `cache_`
+        // object. This allows to keep rest logic intact.
+        return;
+    }
 
     for (auto arg : cc_args) {
         const int idx = cold_cache_utils::get_arg_idx(dnnl_args, arg);
@@ -171,8 +183,43 @@ cold_cache_t::cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args)
                             i, __FILE__, __LINE__);
                     return;
                 }
-            }
+            } else
 #endif
+            {
+                // Reorders are expensive. If there are multiple buffers to
+                // fill, simply rely on default memory initialization.
+                if (n_mem_pool_buffers > 100) continue;
+
+                if (cc_entry[i].is_mapped()) cc_entry[i].unmap();
+                const auto &dst_memory = cc_entry[i].m_;
+                benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> reorder_pdw;
+                dnnl_primitive_desc_t reorder_pd {};
+                dnnl_status_t status = dnnl_reorder_primitive_desc_create(
+                        &reorder_pd, orig_cc_mem_md, query_engine(orig_mem),
+                        orig_cc_mem_md, query_engine(dst_memory), nullptr);
+                assert(status == dnnl_success);
+                if (status != dnnl_success) { return; }
+                reorder_pdw.reset(reorder_pd);
+
+                benchdnn_dnnl_wrapper_t<dnnl_primitive_t> reorder_w;
+                dnnl_primitive_t reorder {};
+                status = dnnl_primitive_create(&reorder, reorder_pdw);
+                assert(status == dnnl_success);
+                if (status != dnnl_success) { return; }
+                reorder_w.reset(reorder);
+
+                std::vector<dnnl_exec_arg_t> dnnl_args;
+                dnnl_args.resize(2);
+                dnnl_args[0].arg = DNNL_ARG_FROM;
+                dnnl_args[0].memory = orig_mem;
+                dnnl_args[1].arg = DNNL_ARG_TO;
+                dnnl_args[1].memory = dst_memory;
+
+                status = dnnl_primitive_execute(reorder_w, stream,
+                        (int)dnnl_args.size(), dnnl_args.data());
+                assert(status == dnnl_success);
+                if (status != dnnl_success) { return; }
+            }
             if (cc_entry[i].is_mapped()) cc_entry[i].unmap();
         }
     }

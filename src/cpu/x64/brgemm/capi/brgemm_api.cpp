@@ -367,8 +367,8 @@ dnnl_transform::dnnl_transform(dim_t K, dim_t N, pack_type_t in_pack_type,
 
     const auto in_tag = in_pack_type == pack_type::trans ? format_tag::ba
                                                          : format_tag::ab;
-    auto status = matmul::init_conf(bmc_, /* batch = */ 1, K_, N_, in_ld_,
-            out_ld_, in_dt_, out_dt_, in_tag);
+    auto status = matmul::init_conf(bmc_, /* batch = */ 1, /* M = */ 0, K_, N_,
+            in_ld_, out_ld_, in_dt_, out_dt_, in_tag);
     assert(status == status::success);
     if (status != status::success) return;
 

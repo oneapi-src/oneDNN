@@ -558,8 +558,7 @@ public:
     compute::nd_range_t nd_range() const {
         compute::range_t gws = compute::range_t::empty();
         compute::range_t lws = compute::range_t::empty();
-        for (int i = 0; i < gpu_utils::into<int>(compute::range_t::max_ndims);
-                i++) {
+        for (int i = 0; i < into<int>(compute::range_t::max_ndims); i++) {
             lws[i] = thread_group_grid().dim(i) * (i == 0 ? simd() : 1);
             gws[i] = kernel_grid().dim(i) * lws[i];
         }

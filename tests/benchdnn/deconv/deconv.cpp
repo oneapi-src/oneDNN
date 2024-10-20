@@ -144,6 +144,10 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     if (has_bench_mode_bit(mode_bit_t::bitwise)) {
         return fill_random_real(mem_dt, mem_fp, res);
     }
+    if (has_bench_mode_bit(mode_bit_t::perf)) {
+        return fill_random_real(
+                mem_dt, mem_fp, res, get_perf_fill_cfg(mem_dt.dt()));
+    }
 
     cfg_t::density_args_t density_args;
     density_args.data_kind = kind;
@@ -236,7 +240,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         // oihw: per_oc: 1 << 0 -> 1
         // goihw: per_oc: 1 << 1 + 1 << 0 -> 3
         auto wei_mask = prb->has_groups ? 3 : 1;
-        attr_args.prepare_scales(prb->attr, DNNL_ARG_WEIGHTS, wei_mask);
+        attr_args.prepare_quant(
+                prb->attr, DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, wei_mask);
     }
     attr_args.prepare_post_ops_mds(
             prb->attr, prb->ndims, prb->dst_dims().data());

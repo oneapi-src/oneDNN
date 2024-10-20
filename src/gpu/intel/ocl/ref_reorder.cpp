@@ -14,11 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <algorithm>
 #include "gpu/intel/ocl/ref_reorder.hpp"
 
 #include "common/utils.hpp"
-#include "gpu/intel/ocl/ocl_stream.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 namespace dnnl {
 namespace impl {
@@ -60,7 +58,7 @@ status_t ref_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
     for (int i = 0; i < MAX_NDIMS; ++i) {
         auto dim_str = utils::format("D%d", i);
         if (i < dst_mdw.ndims()) {
-            int dim = padded_dims[i];
+            dim_t dim = padded_dims[i];
             // if needed to align vectorized dim with vector size, pad that dim again
             conf.dispatch.define_dim(dim_str, i, dim, blocks[i]);
         } else {
@@ -157,7 +155,7 @@ status_t ref_reorder_t::execute(const exec_ctx_t &ctx) const {
     compute::kernel_arg_list_t repack_arg_list;
     repack_arg_list.set(0, *tmp);
     repack_arg_list.set(1, dst);
-    repack_arg_list.set(2, gpu_utils::into<dim_t>(conf.nelems));
+    repack_arg_list.set(2, into<dim_t>(conf.nelems));
     repack_arg_list.set(3, 4);
     compute::range_t repack_gws((conf.nelems * 4 + 7) / 8);
     compute::nd_range_t repack_nd_range(repack_gws);

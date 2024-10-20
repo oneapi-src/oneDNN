@@ -478,8 +478,6 @@ struct plan_t : public base_plan_t {
         return ret;
     }
 
-    prb_reqs_t reqs() const;
-
     std::string str() const {
         if (!*this) return "(empty)";
         std::ostringstream oss;

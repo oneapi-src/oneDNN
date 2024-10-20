@@ -43,8 +43,7 @@ cfg_t::cfg_t(const prb_t *prb, const std::vector<data_kind_t> &kinds) {
 // Adjust density based on accumulation chain.
 float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
     float density = 1.f;
-    if (!has_bench_mode_bit(mode_bit_t::corr) || density_args.data_kind != SRC)
-        return density;
+    if (density_args.data_kind != SRC) return density;
 
     const int64_t safe_n_acc = get_safe_n_acc();
     assert(safe_n_acc > 0);

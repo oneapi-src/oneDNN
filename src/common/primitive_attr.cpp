@@ -94,6 +94,9 @@ status_t zero_points_t::set(int arg, int mask, int ndims, const dims_t groups,
         case DNNL_ARG_SRC:
             is_set_src = true;
             mask_src = mask;
+            data_type_src = data_type;
+            group_ndims_src = ndims;
+            utils::array_copy(group_dims_src, groups, group_ndims_src);
             break;
         case DNNL_ARG_WEIGHTS:
             is_set_wei = true;
@@ -584,7 +587,7 @@ status_t dnnl_primitive_attr_set_zero_points(dnnl_primitive_attr_t attr,
             VERBOSE_INVALID_DATATYPE, "zero points");
     VCHECK_ATTR(IMPLICATION(utils::one_of(data_type, s4, u4), mask > 0),
             VERBOSE_BAD_PARAM, "mask with int4 data type");
-    VCHECK_ATTR(IMPLICATION(arg != DNNL_ARG_WEIGHTS,
+    VCHECK_ATTR(IMPLICATION(!utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS),
                         data_type == s32 && ndims == 0),
             VERBOSE_INVALID_DATATYPE, "zero points");
     VCHECK_ATTR(IMPLICATION(ndims, validate_dims(ndims, group_dims)),

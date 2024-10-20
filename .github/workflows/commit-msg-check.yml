@@ -1,5 +1,6 @@
 # *******************************************************************************
 # Copyright 2024 Arm Limited and affiliates.
+# Copyright 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,10 +25,16 @@ on:
 # Declare default permissions as read only.
 permissions: read-all
 
+# Kill stale checks
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   title:
+    if: github.repository == 'oneapi-src/oneDNN'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Pass pull request title through script.
-        run: python3 ./.github/automation/pr-title-check.py "${{ github.event.pull_request.title }}"
+      - name: Pass pull request commit messages through script.
+        run: python3 ./.github/automation/commit-msg-check.py "${{ github.event.pull_request.head.sha }}" "${{ github.event.pull_request.base.sha }}"

@@ -50,7 +50,7 @@ public:
         return false;
     };
 
-    void include(compute::dim_id_t dim, size_t size) {
+    void include(dim_idx_t dim, size_t size) {
         inc_blocks.emplace_back(into<dim_t>(dim), into<dim_t>(size), 1);
     }
 
@@ -83,13 +83,13 @@ private:
 // reduction is broken up into global, local, and loop
 // outer is left unchanged
 namespace reduction_dims {
-compute::dim_id_t subgroup = 0;
+dim_idx_t subgroup = 0;
 // implicit vector = 1
-compute::dim_id_t inner_group = 2;
-compute::dim_id_t global = 3;
-compute::dim_id_t local = 4;
-compute::dim_id_t loop = 5;
-compute::dim_id_t outer = 6;
+dim_idx_t inner_group = 2;
+dim_idx_t global = 3;
+dim_idx_t local = 4;
+dim_idx_t loop = 5;
+dim_idx_t outer = 6;
 } // namespace reduction_dims
 
 atomic_reduction_conf_t::atomic_reduction_conf_t(
@@ -181,11 +181,11 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
             // XXX: This encodes the reduction loop size directly into the kernel,
             // which limits reusability for these cases (small reduction sizes) in
             // exchange for fast execution time.
-            unroll = gpu_utils::into<int>(loop_size);
+            unroll = into<int>(loop_size);
         } else {
             int min_iters = std::numeric_limits<int>::max();
             for (int u = max_unroll; u > 0; u--) {
-                const int unroll_iters = gpu_utils::into<int>(loop_size / u);
+                const int unroll_iters = into<int>(loop_size / u);
                 const int extra_iters = loop_size % u;
                 const int total_iters = unroll_iters + extra_iters;
 
@@ -208,14 +208,14 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
 status_t atomic_reduction_conf_t::init_dispatcher(
         const compute::compute_engine_t *engine,
         const gpu_primitive_attr_t *gpu_attr) {
-    const std::vector<compute::dim_id_t> dispatch_dims = {
+    const std::vector<dim_idx_t> dispatch_dims = {
             reduction_dims::outer,
             reduction_dims::local,
             reduction_dims::global,
             reduction_dims::inner_group,
             reduction_dims::subgroup,
     };
-    const std::vector<compute::dim_id_t> all_dims = {
+    const std::vector<dim_idx_t> all_dims = {
             reduction_dims::outer,
             reduction_dims::loop,
             reduction_dims::local,

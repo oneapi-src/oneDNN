@@ -118,12 +118,12 @@ inline stride_t operator*(dim_t a, const stride_t &b) {
     return stride_t(a) * b;
 }
 
-static constexpr dim_t undefined_dim_idx = -1;
+static constexpr dim_idx_t undefined_dim_idx = -1;
 
 struct block_t {
     block_t() = default;
 
-    block_t(dim_t dim_idx, dim_t block, const stride_t &stride)
+    block_t(dim_idx_t dim_idx, dim_t block, const stride_t &stride)
         : dim_idx(dim_idx), block(block), stride(stride) {}
 
     bool can_merge(const block_t &other, bool same_dim_only = true) const {
@@ -156,7 +156,8 @@ struct block_t {
 
     bool is_empty() const { return dim_idx == undefined_dim_idx; }
 
-    dim_t dim_idx = undefined_dim_idx; // Dimension index.
+    dim_idx_t dim_idx = undefined_dim_idx; // Dimension index.
+    uint8_t pad[4] = {};
     dim_t block = 1; // Block size.
     stride_t stride; // Stride between elements of the block.
 };

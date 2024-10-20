@@ -161,7 +161,7 @@ public:
 
     void set_internal_arg(const std::string &name, const expr_t &value) {
         auto *arg = find_arg_impl(name);
-        ir_assert(arg);
+        ir_assert(arg) << "Cannot find argument: " << name;
         arg->value = value;
     }
 

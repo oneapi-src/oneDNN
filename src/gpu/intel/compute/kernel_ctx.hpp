@@ -47,6 +47,14 @@ public:
         for (auto &opt : option_set_)
             oss << " " << opt;
 
+        if (use_int32_offset_) {
+            oss << " -DUSE_INT32_OFFSET";
+        } else {
+            // TODO: Determine if specialization for buffers between 2GB and 4GB
+            // is worthwhile
+            oss << " -cl-intel-greater-than-4GB-buffer-required";
+        }
+
         for (auto &int_var : int_var_map_) {
             oss << " -D" << int_var.first << "=" << int_var.second;
             if (int_var.second > INT_MAX || int_var.second < INT_MIN)
@@ -59,6 +67,15 @@ public:
         }
         return oss.str();
     }
+
+    void register_buffer_size(size_t size) {
+        if (size > INT_MAX) use_int32_offset(false);
+    }
+
+    // Enable various optimizations when all buffers are < 2GB in size. In this
+    // case, int32_t types can be used for data offsets and avoid int64_t
+    // operations when native 64-bit operations are unsupported.
+    void use_int32_offset(bool value) { use_int32_offset_ = value; }
 
     void define_int(const char *variable, int64_t value) {
         int_var_map_.insert({variable, value});
@@ -166,6 +183,7 @@ private:
     std::map<std::string, float> float_var_map_;
     std::set<std::string> option_set_;
     std::unordered_map<std::string, std::string> custom_headers_;
+    bool use_int32_offset_ = true;
 };
 
 template <>

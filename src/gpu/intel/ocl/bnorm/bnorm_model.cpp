@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 #include "gpu/intel/ocl/bnorm/bnorm_model.hpp"
-#include <climits>
 #include <cmath>
 #include "common/utils.hpp"
 #include "gpu/intel/compute/utils.hpp"
@@ -40,23 +39,23 @@ int get_nhwc_vect_size(int ic, int max_vect_size, int simd) {
     return 1;
 }
 int get_nhwc_sp_block_size(
-        int sp, int ic_dim, int eu_count, int threads_per_eu, int simd) {
+        dim_t sp, dim_t ic_dim, int eu_count, int threads_per_eu, int simd) {
 
     float efficiency_thr = 0.0f;
     float efficiency_peak_eu_thr = 0.0f;
-    int block_size_thr = 1;
-    int block_size_peak_eu_thr = 1;
-    int curr_block_size = sp;
+    dim_t block_size_thr = 1;
+    dim_t block_size_peak_eu_thr = 1;
+    dim_t curr_block_size = sp;
     int nthr_mul = 1;
-    const int ic_nsg = ic_dim / simd; // number of subgroups by ic dim
+    const dim_t ic_nsg = ic_dim / simd; // number of subgroups by ic dim
 
     // The search is based on threads wave efficiency.
     // Higher priority for cases with peak EUs utilization.
     while (nthr_mul <= 32) {
         const int nthr = nthr_mul * eu_count;
         curr_block_size = div_up(sp * ic_nsg, nthr);
-        const int nblock = div_up(sp, curr_block_size);
-        const int nthr_gen = nblock * ic_nsg;
+        const dim_t nblock = div_up(sp, curr_block_size);
+        const dim_t nthr_gen = nblock * ic_nsg;
 
         const float curr_efficiency_eus
                 = (float)nthr_gen / rnd_up(nthr_gen, eu_count);
@@ -74,10 +73,10 @@ int get_nhwc_sp_block_size(
         }
         nthr_mul++;
     }
-    if (efficiency_peak_eu_thr > 0.0f) return block_size_peak_eu_thr;
-    return block_size_thr;
+    if (efficiency_peak_eu_thr > 0.0f) return into<int>(block_size_peak_eu_thr);
+    return into<int>(block_size_thr);
 }
-int get_nhwc_calc_stat_ic(int ic, int ic_block, int sg_size) {
+dim_t get_nhwc_calc_stat_ic(dim_t ic, int ic_block, int sg_size) {
     return div_up(ic, ic_block) * sg_size;
 }
 
@@ -123,7 +122,7 @@ float get_used_ss_thr_utilization(hw_params_t &hw_params, int sg_size,
     return (float)num_thrs_generated
             / std::min(
                     num_wgs * hw_params.eus_per_ss * hw_params.threads_per_eu,
-                    gpu_utils::into<size_t>(
+                    into<size_t>(
                             hw_params.eu_count * hw_params.threads_per_eu));
 }
 
@@ -285,8 +284,8 @@ size_t get_kernel_input_size(const model_params_t &p,
     size_t nbytes = 0;
     const size_t tensor_sz = conf.sp * conf.ic * conf.elsz;
     const size_t stat_vect_sz = conf.ic * sizeof(float);
-    const int num_sp_blocks = div_up(conf.sp, p.stat_sp_block);
-    const int ws_sz = conf.sp * conf.ic * into<int>(sizeof(char));
+    const dim_t num_sp_blocks = div_up(conf.sp, p.stat_sp_block);
+    const dim_t ws_sz = conf.sp * conf.ic * into<int>(sizeof(char));
 
     switch (desc.kernel) {
         case calc_mean_ker:
@@ -339,7 +338,7 @@ size_t get_kernel_output_size(const model_params_t &p,
     size_t nbytes = 0;
     const size_t tensor_sz = conf.sp * conf.ic * conf.elsz;
     const size_t stat_vect_sz = conf.ic * sizeof(float);
-    const int num_sp_blocks = div_up(conf.sp, p.stat_sp_block);
+    const dim_t num_sp_blocks = div_up(conf.sp, p.stat_sp_block);
 
     switch (desc.kernel) {
         case calc_mean_ker:
@@ -797,7 +796,7 @@ status_t get_params_by_model(nhwc_bnorm_params_t &conf,
     while (p.ic_block <= conf.ic
             && (reusable_version ? p.ic_block <= conf.max_ic_block : true)) {
         if (conf.ic % p.ic_block == 0) {
-            const int calc_stat_ic = get_nhwc_calc_stat_ic(
+            const dim_t calc_stat_ic = get_nhwc_calc_stat_ic(
                     conf.ic, p.ic_block, conf.sub_group_size);
             p.stat_sp_block = get_nhwc_sp_block_size(conf.sp, calc_stat_ic,
                     hw_params.eu_count, hw_params.threads_per_eu,

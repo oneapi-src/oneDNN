@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,7 +55,8 @@ struct cold_cache_t {
     // In worst case scenario when hot arguments fully occupy memory pool limit
     // devoted for cold cache, an extra memory for cold arguments will still be
     // allocated.
-    cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args);
+    cold_cache_t(const std::vector<dnnl_exec_arg_t> &dnnl_args,
+            dnnl_stream_t stream);
 
     ~cold_cache_t();
 

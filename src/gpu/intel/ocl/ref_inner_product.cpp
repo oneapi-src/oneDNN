@@ -42,7 +42,7 @@ static status_t init_conf_common(inner_product_conf_t &conf, offsets_t &off,
     conf.wei_ndims = wei_d.ndims();
     conf.dst_ndims = dst_d.ndims();
 
-    conf.has_spatial = utils::one_of(conf.ndims, 3, 4, 5);
+    conf.has_spatial = utils::one_of(conf.ndims, 3u, 4u, 5u);
 
     conf.mb = pd->MB();
     conf.ic = pd->IC();

@@ -29,7 +29,11 @@ struct uint4_t {
     template <typename IntegerType,
             typename SFINAE = typename std::enable_if<
                     std::is_integral<IntegerType>::value>::type>
-    constexpr uint4_t(IntegerType raw) : raw_bits_(raw) {}
+    constexpr uint4_t(IntegerType raw) : raw_bits_(static_cast<uint8_t>(raw)) {
+#if __cplusplus >= 201402L
+        assert(0 <= raw && raw <= std::numeric_limits<uint8_t>::max());
+#endif
+    }
     uint4_t(float val_f32) {
         uint8_t val_uint8 = static_cast<uint8_t>(val_f32);
         raw_bits_ = val_uint8 & 0xF;

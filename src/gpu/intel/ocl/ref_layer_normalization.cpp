@@ -39,7 +39,7 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     conf.src_dt = src_mdw.data_type();
     conf.dst_dt = dst_mdw.data_type();
     conf.ndims = ndims;
-    conf.norm_axis = pd->norm_axis();
+    conf.norm_axis = into<dim_idx_t>(pd->norm_axis());
     conf.use_scale = pd->use_scale();
     conf.use_shift = pd->use_shift();
     conf.calculate_stats = !pd->stats_are_src();
@@ -66,14 +66,14 @@ static status_t init_conf_common(lnorm_conf_t &conf,
     if (pd->is_fwd()) {
         for (int i = 0; i < 4; i++) {
             int md_hint_idx = nstl::min(i, ndims - 1);
-            int dim = (i < ndims - 1) ? dims[i] : 1;
+            dim_t dim = (i < ndims - 1) ? dims[i] : 1;
             conf.dispatch.define_dim(utils::format("X%d", i), md_hint_idx, dim);
         }
     } else {
         conf.dispatch_scaleshift.define_dim("C", pd->norm_axis());
         for (int i = 0; i < 4; i++) {
             int md_hint_idx = nstl::min(i, ndims - 1);
-            int dim = (i < ndims - 1) ? dims[i] : 1;
+            dim_t dim = (i < ndims - 1) ? dims[i] : 1;
             conf.dispatch.define_dim(utils::format("X%d", i), md_hint_idx, dim);
         }
         conf.dispatch_scaleshift.set_kernel_attr_suffix("SCALESHIFT");

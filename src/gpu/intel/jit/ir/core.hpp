@@ -1004,6 +1004,7 @@ enum class op_kind_t {
     _eq,
 
     _and,
+    _or,
 
     // Ternary operations.
     // Parametric ReLU.
@@ -1856,6 +1857,7 @@ DECLARE_BINARY_OPERATOR(<, op_kind_t::_lt)
 DECLARE_BINARY_OPERATOR(<=, op_kind_t::_le)
 
 DECLARE_BINARY_OPERATOR(&, op_kind_t::_and)
+DECLARE_BINARY_OPERATOR(|, op_kind_t::_or)
 
 #undef DECLARE_BINARY_OPERATOR
 
@@ -2426,43 +2428,40 @@ private:
         : stmt_impl_t(_type_info()), label(label), body(body) {}
 };
 
-// Statement sequence, allows combining two statements.
+// Statement sequence, allows combining multiple statements.
 // C++ equivalent:
 //     {
-//         head;
-//         tail;
+//         vec[0];
+//         vec[1];
+//         ...
 //     }
 class stmt_seq_t : public stmt_impl_t {
 public:
     IR_DECL_STMT_TYPE_ID(stmt_seq_t)
 
+    static stmt_t make(const std::vector<stmt_t> &vec);
+
     static stmt_t make(const stmt_t &head, const stmt_t &tail) {
-        return stmt_t(new stmt_seq_t(head, tail));
+        return head.append(tail);
     }
 
     bool is_equal(const object_impl_t &obj) const override {
         if (!obj.is<self_type>()) return false;
         auto &other = obj.as<self_type>();
 
-        return head.is_equal(other.head) && tail.is_equal(other.tail);
+        return ir_utils::is_equal(vec, other.vec);
     }
 
-    size_t get_hash() const override { return ir_utils::get_hash(head, tail); }
+    size_t get_hash() const override { return ir_utils::get_hash(vec); }
 
     IR_DECLARE_TRAVERSERS()
 
-    stmt_t head;
-    stmt_t tail;
+    std::vector<stmt_t> vec;
 
 private:
-    stmt_seq_t(const stmt_t &head, const stmt_t &tail)
-        : stmt_impl_t(_type_info()), head(head), tail(tail) {}
+    stmt_seq_t(const std::vector<stmt_t> &vec)
+        : stmt_impl_t(_type_info()), vec(vec) {}
 };
-
-inline stmt_t stmt_t::append(const stmt_t &s) const {
-    if (is_empty()) return s;
-    return stmt_seq_t::make(*this, s);
-}
 
 // Function call attribute.
 class func_call_attr_impl_t : public object_impl_t {

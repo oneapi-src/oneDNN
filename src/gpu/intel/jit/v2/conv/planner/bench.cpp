@@ -418,22 +418,19 @@ pvar_tile_t random_shape(
         return d_s | d_m | d_l;
     };
     pvar_tile_t s = problem_t::default_shape();
+    auto g = make_random_dim(pvars::g, 2, 512);
+    auto mb = make_random_dim_set(pvars::mb, 1, 16, 128);
+    auto ic = make_random_dim_set(pvars::ic, 64, 512, 2048);
+    auto oc = make_random_dim_set(pvars::oc, 64, 512, 2048);
+    auto ow = make_random_dim_set(pvars::ow, 64, 512, 2048);
+    auto iw = make_random_dim_set(pvars::iw, 64, 512, 2048);
     if (is_dw) {
-        auto g = make_random_dim(pvars::g, 2, 512);
-        auto mb = make_random_dim(pvars::mb, 1, 16);
-        auto ow = make_random_dim(pvars::ow, 1, 512);
-        auto iw = make_random_dim(pvars::iw, 1, 512);
         s[pvars::g] = g();
         s[pvars::mb] = mb();
         s[pvars::ic] = 1;
         s[pvars::oc] = 1;
         s[pvars::iw] = s[pvars::ow] = (ow.with_tile() ? ow() : iw());
     } else {
-        auto mb = make_random_dim_set(pvars::mb, 1, 16, 128);
-        auto ic = make_random_dim_set(pvars::ic, 64, 512, 2048);
-        auto oc = make_random_dim_set(pvars::oc, 64, 512, 2048);
-        auto ow = make_random_dim_set(pvars::ow, 64, 512, 2048);
-        auto iw = make_random_dim_set(pvars::iw, 64, 512, 2048);
         s[pvars::g] = 1;
         s[pvars::mb] = mb();
         s[pvars::ic] = ic();
@@ -535,8 +532,16 @@ bench_data_t bench(const bench_manager_t &bench_mger,
         if (!tasks[0].init_primitive(eng)) return {};
     }
 
+    ir_assert(kernel_desc.spec_strategy == spec_strategy_t::none);
+    auto kernel_desc_min_dims = kernel_desc;
+    kernel_desc_min_dims.spec_strategy = spec_strategy_t::min_dims;
+    {
+        auto guard = plan_preset_t::instance().make_guard(kernel_desc_min_dims);
+        if (!tasks[0].init_primitive(eng)) return {};
+    }
+
     parallel_nd(ntasks, [&](dim_t i) {
-        auto guard = plan_preset_t::instance().make_guard(kernel_desc);
+        auto guard = plan_preset_t::instance().make_guard(kernel_desc_min_dims);
         bool ok = tasks[i].init_primitive(eng);
         if (!ok) throw std::runtime_error("Initialization failed");
     });
@@ -601,6 +606,84 @@ bench_data_t bench(const bench_manager_t &bench_mger,
     if (!finalize_conv_desc(kernel_desc, bench_mger.hw())) return {};
     bench_runner_t runner(bench_mger, bench_input_params_t(kernel_desc, nprbs));
     return runner.bench(kernel_desc);
+}
+
+bool try_create(
+        const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc) {
+    bench_input_params_t params(kernel_desc, /*nprbs=*/1);
+    bench_task_t task(generate_problems(params)[0]);
+    auto engine = bench_mger.get_engine();
+    auto guard = plan_preset_t::instance().make_guard(kernel_desc);
+    return task.init_primitive(engine);
+}
+
+layout_tag_t &get_out_tag(kernel_desc_t &kernel_desc) {
+    switch (kernel_desc.prop) {
+        case prop_kind::forward: return kernel_desc.dst_tag;
+        case prop_kind::backward_data: return kernel_desc.src_tag;
+        case prop_kind::backward_weights: return kernel_desc.wei_tag;
+        default: ir_error_not_expected();
+    }
+    return kernel_desc.dst_tag;
+}
+
+std::vector<type_t> get_out_types(const kernel_desc_t &kernel_desc) {
+    std::vector<type_t> ret;
+    switch (kernel_desc.prop) {
+        case prop_kind::forward:
+            ret.push_back(type_t::s8());
+            ret.push_back(type_t::f16());
+            ret.push_back(type_t::f32());
+            break;
+        case prop_kind::backward_data: break;
+        case prop_kind::backward_weights:
+            ret.push_back(type_t::f32());
+            if (kernel_desc.wei_tag.type().is_bf16())
+                ret.push_back(type_t::bf16());
+        default: break;
+    }
+    return ret;
+}
+
+kernel_desc_t try_extensions(
+        const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc) {
+    auto &desc_out_type = kernel_desc.c_type();
+    std::vector<prb_reqs_t> reqs_vec({kernel_desc.reqs});
+    std::vector<int> out_type_sizes({desc_out_type.size()});
+    extensions_t ext;
+    for (auto &out_type : get_out_types(kernel_desc)) {
+        if (out_type.size() == desc_out_type.size()) continue;
+        auto d = kernel_desc;
+        auto &tag = get_out_tag(d);
+        tag = layout_tag_t(tag.desc(), out_type, tag.raw_tag());
+        d.is_finalized = false;
+        if (!finalize_conv_desc(d, bench_mger.hw())) continue;
+        if (!try_create(bench_mger, d)) continue;
+        ext.add(extensions_t::out_size(out_type.size()));
+        reqs_vec.push_back(d.reqs);
+        out_type_sizes.push_back(out_type.size());
+    }
+
+    if (kernel_desc.prop == prop_kind::backward_weights
+            && !kernel_desc.with_bias) {
+        auto d = kernel_desc;
+        d.with_bias = true;
+        d.is_finalized = false;
+        d.set_defaults();
+        if (finalize_conv_desc(d, bench_mger.hw())
+                && try_create(bench_mger, d)) {
+            ext.add(extension_kind_t::bias);
+            reqs_vec.push_back(d.reqs);
+            out_type_sizes.push_back(desc_out_type.size());
+        }
+    }
+
+    prb_reqs_t out_reqs;
+    prb_reqs_t::merge(reqs_vec, out_type_sizes, pvar_t("outsz"), out_reqs);
+    auto _kernel_desc = kernel_desc;
+    _kernel_desc.reqs = out_reqs;
+    _kernel_desc.ext = ext;
+    return _kernel_desc;
 }
 
 } // namespace planner

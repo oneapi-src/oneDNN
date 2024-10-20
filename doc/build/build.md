@@ -142,9 +142,13 @@ cmake -G "Visual Studio 16 2019" ..
 cmake --build . --config=Release
 ~~~
 
-@note CMake's Microsoft Visual Studio generator does not respect `CMAKE_BUILD_TYPE` option.
-Solution file supports both Debug and Release builds with Debug being the default.
-You can choose specific build type with `--config` option.
+@note Currently, the oneDNN build system has limited support for multi-config
+ generators. Build configuration is based on the `CMAKE_BUILD_TYPE` option
+ (`Release` by default), and CMake must be rerun from scratch every time
+ the build type changes to apply the new build configuration. You can choose
+ a specific build type with the `--config` option (the solution file supports
+ both `Debug` and `Release` builds), but it must refer to the same build type
+ (`Release`, `Debug`, etc.) as selected with the `CMAKE_BUILD_TYPE` option.
 
 @note You can also open `oneDNN.sln` to build the project from the
 Microsoft Visual Studio IDE.

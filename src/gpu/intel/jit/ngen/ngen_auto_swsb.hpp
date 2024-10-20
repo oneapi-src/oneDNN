@@ -21,6 +21,11 @@
 #ifndef NGEN_AUTO_SWSB_HPP
 #define NGEN_AUTO_SWSB_HPP
 
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+#endif
+
 #if defined(NGEN_DEBUG) || defined(NGEN_DEBUG_PROPAGATE) || defined(NGEN_DEBUG_BB)
 #include <iomanip>
 #include <iostream>
@@ -45,17 +50,19 @@ enum {
     PipeMaskI = 4,
     PipeMaskL = 8,
     PipeMaskM = 0x10,
-    PipeMaskC = 0x20,   // All instructions (in-order/out-of-order).
-    PipeMaskO = 0x40,   // All out-of-order pipes. Not a valid GeneralizedPipe.
+    PipeMaskS = 0x20,
+    PipeMaskC = 0x40,   // All instructions (in-order/out-of-order).
+    PipeMaskO = 0x80,   // All out-of-order pipes. Not a valid GeneralizedPipe.
     PipeBitA = 0,
     PipeBitF = 1,
     PipeBitI = 2,
     PipeBitL = 3,
     PipeBitM = 4,
-    PipeBitC = 5,
-    PipeBitO = 6,
+    PipeBitS = 5,
+    PipeBitC = 6,
+    PipeBitO = 7,
 };
-static constexpr int NPipes = 6;
+static constexpr int NPipes = 7;
 
 static inline PipeMask toMask(Pipe pipe)   { return (1 << (static_cast<unsigned>(pipe) - 1)); }
 static inline Pipe fromMask(PipeMask mask) { return mask ? static_cast<Pipe>(1 + utils::log2(mask)) : Pipe::Default; }
@@ -349,6 +356,11 @@ inline GeneralizedPipe getPipe(HW hw, const Instruction &insn, bool checkOOO = t
                 mask = PipeMaskL;
         }
 
+        if (hw >= HW::Xe3) {
+            ARFType dstARF;
+            if (insn.getARFType(dstARF, -1, hw) && dstARF == ARFType::s)
+                mask = PipeMaskS;
+        }
     } else
         mask = PipeMaskA;
     return mask;
@@ -528,7 +540,7 @@ inline bool contains(const DependencyRegion &dep1, const DependencyRegion &dep2)
 // Check if an ARF type needs SWSB tracking.
 inline bool trackableARF(ARFType type)
 {
-    return (type == ARFType::acc || type == ARFType::a);
+  return (type == ARFType::acc || type == ARFType::a || type == ARFType::s);
 }
 
 // Distance in an in-order pipe after which a dependency can be ignored.
@@ -540,6 +552,7 @@ inline int timeout(GeneralizedPipe pipe)
         case PipeMaskF: return 11;
         case PipeMaskL: return 15;
         case PipeMaskM: return 19;
+        case PipeMaskS: return 11; // FIXME: use correct value when available
         default:        return std::numeric_limits<int>::max();
     }
 }
@@ -600,6 +613,7 @@ inline bool intersects(const Dependency<false> &dep1, const Dependency<true> &de
         if (dep1.read() || dep1.pipe.inOrder())
         if (dep2.write() && (dep1.pipe == dep2.pipe) && (dep1.pipe != GeneralizedPipe::Math()))     return false;
         if (dep1.pipe.inOrder() && (distance(dep1, dep2, dep1.pipe) >= timeout(dep1.pipe)))         return false;
+        if ((dep2.region.base >> 4) != (static_cast<uint8_t>(ARFType::s) & 0xF))
         if (dep2.region.arf && (dep2.read() || dep2.region.hw == HW::Gen12LP))                      return false;
         return intersects(dep1.region, dep2.region);
     } else {
@@ -962,6 +976,7 @@ inline void dumpPipeMask(PipeMask mask, bool spacers = true)
         std::cerr << char((mask & PipeMaskI) ? 'I' : ' ');
         std::cerr << char((mask & PipeMaskL) ? 'L' : ' ');
         std::cerr << char((mask & PipeMaskM) ? 'M' : ' ');
+        std::cerr << char((mask & PipeMaskS) ? 'S' : ' ');
         std::cerr << char((mask & PipeMaskO) ? 'O' : ' ');
     } else {
         if (mask & PipeMaskA) std::cerr << 'A';
@@ -969,6 +984,7 @@ inline void dumpPipeMask(PipeMask mask, bool spacers = true)
         if (mask & PipeMaskI) std::cerr << 'I';
         if (mask & PipeMaskL) std::cerr << 'L';
         if (mask & PipeMaskM) std::cerr << 'M';
+        if (mask & PipeMaskS) std::cerr << 'S';
         if (mask & PipeMaskO) std::cerr << 'O';
         if (mask == PipeMaskNone) std::cerr << '-';
     }
@@ -1088,7 +1104,7 @@ void DependencyTable<consumer>::dump() const
                         if (i > NPipes)
                             std::cerr << '?';
                         else
-                            std::cerr << "AFILMCO"[i % (NPipes + 1)];
+                           std::cerr << "AFILMSCO"[i % (NPipes + 1)];
                         break;
                 }
                 std::cerr << ":\t";
@@ -2326,5 +2342,9 @@ inline BasicBlockList autoSWSB(HW hw, int grfCount, Program &program)
 // Program interface:
 // 	Instruction operator[](int inum);
 // 	size_t size() const;
+
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic pop
+#endif
 
 #endif /* NGEN_AUTOSWSB_HPP */

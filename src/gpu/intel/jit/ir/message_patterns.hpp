@@ -43,7 +43,7 @@ namespace jit {
 // The resulting overflow/underflow is handled by the entry can_overflow.
 template <typename dim_type_t>
 struct stride_layout_t {
-    static const int MAX_NDIMS = 12;
+    static const int max_ndims = 12;
     stride_layout_t(int type_size)
         : buffer_size(0), type_size(type_size), ndims(0) {};
 
@@ -94,7 +94,7 @@ struct stride_layout_t {
         }
     };
 
-    using stride_array_t = std::array<stride_dim_t, MAX_NDIMS>;
+    using stride_array_t = std::array<stride_dim_t, max_ndims>;
 
     typename stride_array_t::iterator strides_end() {
         return strides.begin() + ndims;
@@ -112,11 +112,11 @@ struct stride_layout_t {
     }
 
     const stride_dim_t &operator[](int i) const {
-        ir_assert(i < MAX_NDIMS);
+        ir_assert(i < max_ndims);
         return strides[i];
     }
     stride_dim_t &operator[](int i) {
-        ir_assert(i < MAX_NDIMS);
+        ir_assert(i < max_ndims);
         return strides[i];
     }
 

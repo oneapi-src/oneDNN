@@ -219,6 +219,7 @@ int attr_t::policy2mask(int arg, policy_t policy,
             case PER_DIM_1:
             case PER_OC: return (1 << (ndims - 1));
             case PER_OCIC: return (1 << (ndims - 1)) + (1 << (ndims - 2));
+            case PER_TENSOR: return attr_t::get_default_mask(policy);
             default: SAFE_V(FAIL); return -1;
         }
     } else if (prim_kind == dnnl_layer_normalization) {
@@ -311,6 +312,7 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
 
     if (!groups.empty()) {
         switch (this->policy) {
+            case PER_TENSOR:
             case PER_OC:
             case PER_OCIC:
                 if (this->groups.size() != 2) {
@@ -379,6 +381,8 @@ int attr_t::zero_points_t::entry_t::from_str(const std::string &s) {
             parser::parser_utils::stoll_safe, g_str, 'x');
     if (!groups.empty()) {
         switch (this->policy) {
+            case PER_TENSOR:
+            case PER_OC:
             case PER_OCIC:
                 if (this->groups.size() != 2) {
                     BENCHDNN_PRINT(0, "%s\n",
@@ -669,7 +673,7 @@ std::ostream &operator<<(
 
     s << scale.policy;
     if (scale.policy == policy_t::COMMON) s << ":" << scale.scale;
-    if (scale.dt != dnnl_f32) s << ':' << scale.dt;
+    if (scale.dt != dnnl_f32 || !scale.groups.empty()) s << ':' << scale.dt;
     if (!scale.groups.empty()) s << ":" << dims2str(scale.groups);
     return s;
 }
@@ -684,7 +688,8 @@ std::ostream &operator<<(
         s << arg2str(point.first) << ":" << point.second.policy;
         if (point.second.policy == policy_t::COMMON)
             s << ":" << point.second.value;
-        if (point.second.dt != dnnl_s32) s << ':' << point.second.dt;
+        if (point.second.dt != dnnl_s32 || !point.second.groups.empty())
+            s << ':' << point.second.dt;
         if (!point.second.groups.empty())
             s << ":" << dims2str(point.second.groups);
         delim = "+";

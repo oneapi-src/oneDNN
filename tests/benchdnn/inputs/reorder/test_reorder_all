@@ -99,3 +99,6 @@
 
 # Scales
 --batch=harness_reorder_scales
+
+# Decompression quantization
+--batch=harness_reorder_decompression

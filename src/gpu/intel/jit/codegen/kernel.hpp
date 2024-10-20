@@ -66,6 +66,7 @@ struct ir_generator_t : public jit_generator_base {
                 REG_XEHPG_ISA(CASE(XeHPG));
                 REG_XEHPC_ISA(CASE(XeHPC));
                 REG_XE2_ISA(CASE(Xe2));
+                REG_XE3_ISA(CASE(Xe3));
                 default: gpu_assert(false) << "Unexpected GPU architecture";
             }
 #undef CASE

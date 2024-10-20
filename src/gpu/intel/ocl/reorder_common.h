@@ -14,9 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-// Temporary W/A for bf16 problems in HW and compiler
-#undef cl_future_bf16_cvt
-
 #define DT_UNDEF 1
 #include "gpu/intel/ocl/ocl_types.h"
 

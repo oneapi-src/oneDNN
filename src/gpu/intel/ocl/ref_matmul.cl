@@ -35,22 +35,26 @@ uint get_dropout_threshold(float p) {
 #endif
 
 __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
-        __global DST_DATA_T *C, __global BIA_DATA_T *bia, __global int *a0,
-        __global WEI_ZP_DATA_T *b0, long wei_zp_stride_n, long wei_zp_stride_k,
-        long wei_zp_group_k, __global int *c0,
+        __global DST_DATA_T *C, __global BIA_DATA_T *bia,
+        __global SRC_ZP_DATA_T *a0, long src_zp_stride_k, long src_zp_stride_m,
+        long src_zp_group_k, __global WEI_ZP_DATA_T *b0, long wei_zp_stride_n,
+        long wei_zp_stride_k, long wei_zp_stride_d0, long wei_zp_stride_d1,
+        long wei_zp_group_n, long wei_zp_group_k, __global int *c0,
         __global SRC_SCALES_DATA_T *src_scales, long src_scale_stride_k,
-        long src_scale_stride_m, long src_scale_group_k,
+        long src_scale_stride_m, long src_scale_stride_d0,
+        long src_scale_stride_d1, long src_scale_group_k,
         __global WEI_SCALES_DATA_T *wei_scales, long wei_scale_stride_n,
-        long wei_scale_stride_k, long wei_scale_group_k,
-        __global DST_SCALES_DATA_T *dst_scales, long group_K, long K, long N,
-        long M, long D0, long D1, long D2, long bia_stride_d3,
-        long bia_stride_d2, long bia_stride_d1, long bia_stride_d0,
-        long bia_stride_m, long bia_stride_n, long a_stride_d3,
-        long a_stride_d2, long a_stride_d1, long a_stride_d0, long a_stride_m,
-        long a_stride_k, long b_stride_d3, long b_stride_d2, long b_stride_d1,
-        long b_stride_d0, long b_stride_k, long b_stride_n, long c_stride_d3,
-        long c_stride_d2, long c_stride_d1, long c_stride_d0, long c_stride_m,
-        long c_stride_n
+        long wei_scale_stride_k, long wei_scale_stride_d0,
+        long wei_scale_stride_d1, long wei_scale_group_n,
+        long wei_scale_group_k, __global DST_SCALES_DATA_T *dst_scales,
+        long group_K, long K, long N, long M, long D0, long D1, long D2,
+        long bia_stride_d3, long bia_stride_d2, long bia_stride_d1,
+        long bia_stride_d0, long bia_stride_m, long bia_stride_n,
+        long a_stride_d3, long a_stride_d2, long a_stride_d1, long a_stride_d0,
+        long a_stride_m, long a_stride_k, long b_stride_d3, long b_stride_d2,
+        long b_stride_d1, long b_stride_d0, long b_stride_k, long b_stride_n,
+        long c_stride_d3, long c_stride_d2, long c_stride_d1, long c_stride_d0,
+        long c_stride_m, long c_stride_n
 #if WITH_DROPOUT
         ,
         __global uchar *dropout_mask_buf, __global uint *dropout_seed_buf,
@@ -75,11 +79,6 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
     long n = get_global_id(1);
     int mb = get_global_id(2);
 
-#if WITH_SRC_ZPOINTS
-    int src_zp = a0[0];
-#else
-    int src_zp = 0;
-#endif
 #if WITH_DST_ZPOINTS
     int dst_zp = c0[0];
 #else
@@ -133,9 +132,16 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
 #endif
                 int wei_zp = 0;
 #if WITH_WEI_ZPOINTS
-                wei_zp = WEI_ZP_TO_REF(b0,
-                        wei_zp_stride_n * n
-                                + wei_zp_stride_k * (k / wei_zp_group_k));
+                long wei_zp_off = wei_zp_stride_n * (n / wei_zp_group_n)
+                        + wei_zp_stride_k * (k / wei_zp_group_k)
+                        + wei_zp_stride_d0 * d0 + wei_zp_stride_d1 * d1;
+                wei_zp = WEI_ZP_TO_REF(b0, wei_zp_off);
+#endif
+                int src_zp = 0;
+#if WITH_SRC_ZPOINTS
+                long src_zp_off = src_zp_stride_k * (k / src_zp_group_k)
+                        + src_zp_stride_m * m;
+                src_zp = SRC_ZP_TO_REF(a0, src_zp_off);
 #endif
 #if SRC_DT_F4_E2M1
                 ACC_DATA_T s = TO_ACC(
@@ -155,13 +161,16 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
             FLT_ACC_DATA_T src_scale = 1.f;
             FLT_ACC_DATA_T wei_scale = 1.f;
 #if WITH_SRC_SCALES
-            src_scale = SRC_SCALES_TO_REF(src_scales[src_scale_stride_k
-                            * (g * group_K / src_scale_group_k)
-                    + src_scale_stride_m * m]);
+            long src_scale_off = src_scale_stride_m * m
+                    + src_scale_stride_k * (g * group_K / src_scale_group_k)
+                    + src_scale_stride_d0 * d0 + src_scale_stride_d1 * d1;
+            src_scale = SRC_SCALES_TO_REF(src_scales[src_scale_off]);
 #endif
 #if WITH_WEI_SCALES
-            wei_scale = WEI_SCALES_TO_REF(wei_scales[wei_scale_stride_n * n
-                    + wei_scale_stride_k * (g * group_K / wei_scale_group_k)]);
+            long wei_scale_off = wei_scale_stride_n * (n / wei_scale_group_n)
+                    + wei_scale_stride_k * (g * group_K / wei_scale_group_k)
+                    + wei_scale_stride_d0 * d0 + wei_scale_stride_d1 * d1;
+            wei_scale = WEI_SCALES_TO_REF(wei_scales[wei_scale_off]);
 #endif
             FLT_ACC_DATA_T acc_g_to_f
                     = ACC_TO_REF(acc_g) * src_scale * wei_scale;

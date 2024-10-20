@@ -665,32 +665,33 @@ private:
 
     plan_t init_plan() {
         plan_t plan(desc_.hw);
-        if (!try_init_plan(plan) || !check_plan(plan)) return plan_t();
+        if (!try_init_plan(plan, reqs_) || !check_plan(plan)) return plan_t();
 
-        // Add plan requirements and re-create plan to ensure all requirements
-        // are cross-used between sub-plans.
-        reqs_.add(plan.reqs());
+        // Re-create plan to ensure all collected requirements are cross-used
+        // between sub-plans.
         plan = plan_t(desc_.hw);
-        if (!try_init_plan(plan) || !check_plan(plan)) {
+        if (!try_init_plan(plan, reqs_) || !check_plan(plan)) {
             ir_error_not_expected();
             return plan_t();
         }
+        reqs_.simplify();
         return plan;
     }
 
-    bool try_init_plan(plan_t &plan) const {
+    bool try_init_plan(plan_t &plan, prb_reqs_t &reqs) const {
         plan.desc = desc_;
         plan.tg_grid = tg_grid_;
         plan.thr_grid = thr_grid_;
         plan.virt_grid = virt_grid_;
         plan.coord_info = coord_info_;
-        ir_check(init_x2r_fma_plan(plan.x2r_fma));
+        ir_check(init_x2r_fma_plan(plan.x2r_fma, reqs));
         ir_check(init_prefetch_plan(
                 plan.x2r_fma, plan.virt_grid, plan.prefetch));
         ir_check(init_epilogue_plan(
-                plan.x2r_fma.c_layout, plan.virt_grid, plan.epilogue));
+                plan.x2r_fma.c_layout, plan.virt_grid, plan.epilogue, reqs));
         if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
-            ir_check(init_epilogue_bia(plan.x2r_fma.bia_layout, plan.epilogue));
+            ir_check(init_epilogue_bia(
+                    plan.x2r_fma.bia_layout, plan.epilogue, reqs));
         return true;
     }
 
@@ -713,12 +714,13 @@ private:
         auto params = get_send_params(
                 abc, send_op_t::prefetch, view, send_kind_t::_2d);
         prefetch = create_send_plan(params, view, /*allow_fail=*/true);
-        if (!prefetch || !x2r_fma.reqs().implies(prefetch.reqs())) {
+        if (!prefetch || !reqs_.implies(prefetch.reqs())) {
             // If 2D failed, try compressed prefetch.
             params = get_send_params(abc, send_op_t::prefetch, view,
                     send_kind_t::compressed_prefetch);
             prefetch = try_create_send_plan(__func__, params, view);
             if (!prefetch) return false;
+            if (!reqs_.implies(prefetch.reqs())) return false;
         }
         return true;
     }
@@ -780,7 +782,7 @@ private:
         return true;
     }
 
-    bool init_x2r_fma_plan(x2r_fma_plan_t &plan) const {
+    bool init_x2r_fma_plan(x2r_fma_plan_t &plan, prb_reqs_t &reqs) const {
         auto &outer = desc_.iter_outer_tile;
         auto &tile = desc_.iter_tile;
         ir_assert(outer.is_empty() || outer.size() == 1);
@@ -847,11 +849,12 @@ private:
                 plan.bia_layout.add_block(outer_dim, outer_size, bia_stride);
             }
         }
+        reqs.add(plan.reqs());
         return true;
     }
 
-    bool init_epilogue_bia(
-            const layout_t &bia_layout, epilogue_plan_t &plan) const {
+    bool init_epilogue_bia(const layout_t &bia_layout, epilogue_plan_t &plan,
+            prb_reqs_t &reqs) const {
         auto &bia_mapper = dim_mapper_manager_.mapper(tensor_kind_t::bia);
         auto bia_iter_view
                 = view_t(dim_mapper_manager_.mapper(tensor_kind_t::bia),
@@ -865,8 +868,12 @@ private:
         }
         plan.reduce_cond = std::move(reduce_cond);
         auto bia_params = get_send_params(
-                tensor_kind_t::bia, send_op_t::store, bia_iter_view);
+                tensor_kind_t::undef, send_op_t::store, bia_iter_view);
         auto bia_store = create_send_plan(bia_params, bia_iter_view);
+        ir_check(!bia_store.reqs())
+                << "Bias store needs additional requirements.";
+        ir_check(reqs.implies(bia_store.reqs()))
+                << "Bias store needs additional requirements.";
         auto tile = plan.tile;
         plan.bia_store = bia_store;
         if (bia_layout != bia_store.reg_layout()) {
@@ -960,7 +967,8 @@ private:
     }
 
     bool init_epilogue_plan(const layout_t &c_fma_layout,
-            virt_grid_t &virt_grid, epilogue_plan_t &plan) const {
+            virt_grid_t &virt_grid, epilogue_plan_t &plan,
+            prb_reqs_t &reqs) const {
         ir_check(
                 init_slm_reduce_plan(c_fma_layout, virt_grid, plan.slm_reduce));
         auto &c_mapper = dim_mapper_manager_.mapper(tensor_kind_t::c);
@@ -998,6 +1006,7 @@ private:
             plan.reorder.src = std::move(c_reg_tile_layout);
             plan.reorder.dst = std::move(store_layout);
         }
+        reqs.add(plan.c_store.reqs());
         return true;
     }
 
@@ -1080,15 +1089,6 @@ private:
     prb_reqs_t reqs_;
 };
 
-prb_reqs_t plan_t::reqs() const {
-    prb_reqs_t ret;
-    ret.add(prefetch.reqs());
-    ret.add(x2r_fma.reqs());
-    ret.add(epilogue.c_store.reqs());
-    ret.simplify();
-    return ret;
-}
-
 template <typename KernelDescT>
 plan_t create_conv_plan_impl(KernelDescT &desc, bool finalize) {
     if (!desc.is_supported()) return plan_t();
@@ -1117,13 +1117,16 @@ plan_t create_conv_plan(const kernel_desc_t &desc) {
 
 bool finalize_conv_desc_impl(kernel_desc_t &desc, const hw_t &hw,
         const problem_t *prb, plan_t *out_plan) {
-    ir_assert(desc.hw_desc.hw == hw.to_ngen());
+    if (desc.is_empty()) return false;
+    if (desc.hw_desc.hw != hw.to_ngen()) return false;
     desc.hw = hw;
     if (!desc.is_supported()) return false;
-    if (prb) desc.specialize(*prb);
     if (desc.is_finalized) return true;
     auto plan = create_conv_plan_impl(desc, /*finalize=*/true);
-    if (plan && out_plan) *out_plan = plan;
+    if (plan) {
+        if (out_plan) *out_plan = plan;
+        if (prb && !desc.matches(*prb)) return false;
+    }
     return (bool)plan;
 }
 

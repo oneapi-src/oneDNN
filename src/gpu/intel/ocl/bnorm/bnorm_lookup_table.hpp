@@ -61,7 +61,7 @@ public:
     bool is_overridable() const override { return true; }
 };
 
-class stat_sp_block_param_t : public int_param_t {
+class stat_sp_block_param_t : public dim_param_t {
 public:
     std::string name() const override { return "stat-sp-block"; }
     std::string short_name() const override { return "sspb"; }
@@ -71,7 +71,7 @@ public:
     bool is_overridable() const override { return true; }
 };
 
-class update_sp_block_param_t : public int_param_t {
+class update_sp_block_param_t : public dim_param_t {
 public:
     std::string name() const override { return "update-sp-block"; }
     std::string short_name() const override { return "uspb"; }

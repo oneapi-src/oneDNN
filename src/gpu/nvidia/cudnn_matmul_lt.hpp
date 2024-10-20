@@ -373,8 +373,7 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
 
             if (bias_dt_mismatch || col_maj_dst
                     || (bia_wrap.dims()[1 + isbatched]
-                                    != static_cast<uint64_t>(
-                                            dst_wrap.dims()[isbatched])
+                                    != dst_wrap.dims()[isbatched]
                             || bia_wrap.dims()[0 + isbatched] != 1)
                     || static_cast<uint64_t>(dst_wrap.dims()[isbatched]) == 1
                     || static_cast<uint64_t>(dst_wrap.dims()[isbatched]) == 1) {

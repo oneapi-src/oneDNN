@@ -55,7 +55,8 @@ struct specializations_t {
             }
         }
 
-        bool is_inlined(float value) const {
+        template <typename T>
+        bool is_inlined(T value) const {
             switch (mode_) {
                 case mode_t::always: return true;
                 case mode_t::never: return false;
@@ -126,7 +127,7 @@ struct relative_md_t {
         return ndims - 1 - idx.as_int();
     }
     static idx_t from_md_idx(int idx, int ndims) {
-        return {gpu_utils::into<int8_t>(ndims - 1 - idx)};
+        return {into<int8_t>(ndims - 1 - idx)};
     }
 
     // A compressed representation of the inner block. This cannot represent all
@@ -163,8 +164,7 @@ struct relative_md_t {
 
         for (size_t i = 0; i < layout.size(); i++) {
             rmd.inner_layout.idxs[i] = from_md_idx(layout[i].dim_idx, ndims);
-            rmd.inner_layout.blocks[i]
-                    = gpu_utils::into<uint8_t>(layout[i].block);
+            rmd.inner_layout.blocks[i] = into<uint8_t>(layout[i].block);
         }
 
         // Default all dimensions to broadcast
@@ -172,7 +172,7 @@ struct relative_md_t {
         uint16_t mask_bit = 1;
         for (int i = ndims - 1; i >= 0; i--) {
             if (dims[i] > 1) rmd.broadcast_mask &= ~mask_bit;
-            mask_bit = mask_bit << 1;
+            mask_bit = static_cast<uint16_t>(mask_bit << 1);
         }
 
         dim_t min_stride = std::numeric_limits<dim_t>::max();
@@ -220,7 +220,7 @@ struct sum_t {
         , inline_scale(s.scale.is_inlined(op.scale))
         , inline_zero_point(s.zero_point.is_inlined(op.zero_point))
         , scale(inline_scale ? op.scale : NAN)
-        , zero_point(inline_zero_point ? op.zero_point : NAN) {}
+        , zero_point(inline_zero_point ? op.zero_point : -1) {}
 
 #if __cplusplus >= 202002L
     bool operator==(const sum_t &) const = default;
@@ -372,7 +372,7 @@ struct gpu_post_ops_t {
             post_op::specializations_t opts = {}) {
         auto &ops = gpu_post_ops.ops_;
         ops.clear();
-        ops.reserve(gpu_utils::into<size_t>(post_ops.len()));
+        ops.reserve(into<size_t>(post_ops.len()));
         using namespace post_op;
         for (auto &entry : post_ops.entry_) {
             switch (entry.kind) {

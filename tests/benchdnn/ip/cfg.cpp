@@ -62,8 +62,7 @@ float cfg_t::get_density(const cfg_t::density_args_t &density_args) const {
     // BWD_D will always use dense tensors. It's fine as long as accumulators
     // stay in f32 "safe digit" space, otherwise potential result mismatch may
     // happen.
-    if (!has_bench_mode_bit(mode_bit_t::corr) || density_args.data_kind != SRC)
-        return density;
+    if (density_args.data_kind != SRC) return density;
 
     const auto safe_n_acc = get_safe_n_acc();
     assert(safe_n_acc > 0);

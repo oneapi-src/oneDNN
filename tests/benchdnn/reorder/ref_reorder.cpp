@@ -41,15 +41,17 @@ void compute_ref(
             prb->attr.scales.get(DNNL_ARG_SRC).policy);
     const int dst_scale_mask = attr_t::get_default_mask(
             prb->attr.scales.get(DNNL_ARG_DST).policy);
+    const auto &src_scale_groups = prb->attr.scales.get(DNNL_ARG_SRC).groups;
 
     const auto dst_dt = prb->ddt;
     const auto nelems = src.nelems();
     // This is native to reorder zero point which comes from reorder attributes.
     const bool has_src_zp = !prb->attr.zero_points.get(DNNL_ARG_SRC).is_def();
     const bool has_dst_zp = !prb->attr.zero_points.get(DNNL_ARG_DST).is_def();
-    assert(IMPLICATION(has_src_zp, src_zps.nelems() == 1));
+    const int src_zp_mask = attr_t::get_default_mask(
+            prb->attr.zero_points.get(DNNL_ARG_SRC).policy);
+    const auto &src_zp_groups = prb->attr.zero_points.get(DNNL_ARG_SRC).groups;
     assert(IMPLICATION(has_dst_zp, dst_zps.nelems() == 1));
-    const int src_zero_point = has_src_zp ? src_zps.get_elem(0) : 0;
     const int dst_zero_point = has_dst_zp ? dst_zps.get_elem(0) : 0;
 
     float beta = 0;
@@ -67,13 +69,20 @@ void compute_ref(
     const float s8_scale_factor = need_s8_comp ? reorder_rescale_factor() : 1.f;
 
     benchdnn_parallel_nd(nelems, [&](int64_t idx) {
-        float s = src.get_elem(idx) - src_zero_point;
+        int src_zp = 0;
+        if (has_src_zp) {
+            const auto src_zp_idx
+                    = src.get_idx(idx, src_zp_mask, src.ndims(), src_zp_groups);
+            src_zp = src_zps.get_elem(src_zp_idx);
+        }
+        float s = src.get_elem(idx) - src_zp;
         float d = 0;
         if (beta_idx >= 0) d = dst.get_elem(idx) - dst_zero_point;
 
         float src_scale = 1.f, dst_scale = 1.f;
         if (has_src_scale) {
-            int64_t src_mask_idx = src.get_idx(idx, src_scale_mask);
+            int64_t src_mask_idx = src.get_idx(
+                    idx, src_scale_mask, src.ndims(), src_scale_groups);
             src_scale = src_scales.get_elem(src_mask_idx);
         }
         if (has_dst_scale) {

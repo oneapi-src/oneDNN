@@ -125,7 +125,7 @@ struct sample_t {
         : prb(prb), kernel_desc(kernel_desc), time_ns(time_ns) {
         hw_cfg = hw_config_t(
                 prb.hw(), kernel_desc.fma, kernel_desc.src_tag.type());
-        pvar_tile_t padded_shape = prb.shape();
+        auto padded_shape = prb.shape();
         pad_eff = 1;
         for (auto &d : padded_shape) {
             if (!is_conv_index(d)) continue;
@@ -334,6 +334,17 @@ void dump_csv(const bench_data_t &bd, const model_t &model) {
         float model_time = model.predict(x);
         out << bd.prbs[i].desc_str() << "," << to_str(x) << "," << y << ","
             << model_time << std::endl;
+    }
+}
+
+void dump_model_params(const kernel_desc_t &kernel_desc, const model_t &model) {
+    auto name = kernel_desc.brief_str();
+    std::ofstream out(name + "_params.txt");
+    bool is_first = true;
+    for (auto &c : model.coef()) {
+        if (!is_first) out << ", ";
+        out << c;
+        is_first = false;
     }
 }
 

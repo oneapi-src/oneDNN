@@ -197,10 +197,10 @@ public:
 private:
     void set(const std::string &key, const std::string &value) {
         if (key == "iter") {
-            auto dim = pvar_t::from_name(value);
+            auto dim = pvar_t(value);
             tile_infos_[dim].add(tile_flags_t::iter);
         } else if (key == "tg") {
-            auto dim = pvar_t::from_name(value);
+            auto dim = pvar_t(value);
             tile_infos_[dim].add(tile_flags_t::thread_group);
         } else {
             ir_error_not_expected();
@@ -349,7 +349,11 @@ public:
     const std::vector<kernel_desc_t> &descs() const { return descs_; }
 
     void add_desc(const kernel_desc_t &desc) {
-        ir_assert(desc.reqs.str() == reqs_.str());
+        ir_assert(desc.reqs.str() == reqs_.str())
+                << "Reqs mismatch:\n"
+                << desc.cmd_str() << "\ndesc.reqs:" << desc.reqs.str()
+                << "\nreqs:\n"
+                << reqs_.str();
         if (descs_.empty()) {
             is_dw_ = desc.is_dw;
         } else {
@@ -380,46 +384,56 @@ private:
 };
 
 bench_data_set_t bench_kernel_desc_group(const bench_manager_t &bench_mger,
-        const search_kernel_desc_group_t &desc_group, int nprbs,
-        int max_descs = 256);
+        const search_kernel_desc_group_t &desc_group, int nprbs, int max_descs);
 
 class kernel_search_manager_t {
 public:
     // Number of problems to generate to rank kernel descriptors in a kernel
     // descriptor group.
-    static const int bench_nprbs = 30;
+    static const int bench_nprbs = 50;
     // Number of problems to generate to build performance model.
     static const int model_nprbs = 250;
     // Number of top kernel descriptors in a kernel descriptor group to save to
     // registry.
-    static const int registry_top_k = 4;
+    static const int registry_top_k = 8;
+    // Number of descriptors to search through.
+    static const int max_descs = 256;
 
     kernel_search_manager_t(
             const bench_manager_t &bench_mger, const kernel_desc_t &base_desc)
         : bench_mger_(bench_mger), base_desc_(base_desc) {
-        if (base_desc_.prop == prop_kind::backward_data) {
-            // XXX: No stride support in backward by data yet.
-            base_desc_.reqs.add(size_var(prb_dims::sw) == 1);
-            base_desc_.reqs.add(size_var(prb_dims::sh) == 1);
-            base_desc_.reqs.add(size_var(prb_dims::sd) == 1);
-        }
+        reset_reqs(base_desc_);
     }
 
     void search() {
         std::cout << "Starting kernel search" << std::endl;
         auto desc_groups = gen_desc_groups();
+        auto &registry = plan_registry();
         for (auto &dg : desc_groups) {
-            auto bench_data_set
-                    = bench_kernel_desc_group(bench_mger_, dg, bench_nprbs);
+            auto bench_data_set = bench_kernel_desc_group(
+                    bench_mger_, dg, bench_nprbs, max_descs);
             auto best = bench_data_set.find_best(registry_top_k);
             for (auto &bd : best) {
-                populate_registry(bd.kernel_desc);
+                auto &d = bd.kernel_desc;
+                auto bd_model = bench(bench_mger_, d, model_nprbs);
+                if (!bd_model) continue;
+                auto model = model_fit(bd_model);
+                auto d_ext = try_extensions(bench_mger_, d);
+                registry.set(d_ext, model);
             }
         }
         std::cout << "Kernel search completed" << std::endl;
     }
 
 private:
+    static void reset_reqs(kernel_desc_t &kernel_desc) {
+        if (kernel_desc.prop != prop_kind::backward_data) return;
+        // XXX: No stride support in backward by data yet.
+        kernel_desc.reqs.add(pvars::sw.var() == 1);
+        kernel_desc.reqs.add(pvars::sh.var() == 1);
+        kernel_desc.reqs.add(pvars::sd.var() == 1);
+    }
+
     std::vector<search_kernel_desc_group_t> gen_desc_groups() const {
         std::unordered_map<std::string, kernel_desc_t> descs;
         for (auto &s : get_tile_schemes(base_desc_.prop, base_desc_.is_dw)) {
@@ -449,6 +463,20 @@ private:
             auto ret = desc_groups.emplace(
                     d.reqs.str(), search_kernel_desc_group_t(d.reqs));
             ret.first->second.add_desc(d);
+            for (int dist : {1, 3}) {
+                auto _d = d;
+                _d.prefetch = prefetch_desc_t {dist, true, true};
+                reset_reqs(_d);
+                _d.is_finalized = false;
+                if (!finalize_conv_desc(_d, bench_mger_.hw())) {
+                    std::cout << d.brief_str() << ": \033[1;31mFAIL\033[0m"
+                              << std::endl;
+                    continue;
+                }
+                std::cout << _d.brief_str() << ": \033[1;32mOK\033[0m"
+                          << std::endl;
+                ret.first->second.add_desc(_d);
+            }
         }
         std::vector<search_kernel_desc_group_t> ret;
         for (auto &kv : desc_groups) {
@@ -459,51 +487,6 @@ private:
         return ret;
     }
 
-    void populate_registry(const kernel_desc_t &desc) const {
-        auto &registry = plan_registry();
-        auto bd = bench(bench_mger_, desc, model_nprbs);
-        auto model = model_fit(bd);
-        registry.set(desc, model);
-
-        std::vector<type_t> dst_types;
-        std::vector<type_t> wei_types;
-        switch (desc.prop) {
-            case prop_kind::forward:
-                for (auto &dst : {type_t::s8(), type_t::f16(), type_t::f32()}) {
-                    if (dst.size() == desc.src_tag.type().size()) continue;
-                    dst_types.push_back(dst);
-                }
-                break;
-            case prop_kind::backward_weights:
-                if (desc.wei_tag.type().is_bf16()) {
-                    wei_types.push_back(type_t::f32());
-                }
-            default: break;
-        }
-        for (auto &dst : dst_types) {
-            auto d = desc;
-            d.dst_tag = layout_tag_t(
-                    desc.dst_tag.desc(), dst, desc.dst_tag.raw_tag());
-            d.is_finalized = false;
-            if (!finalize_conv_desc(d, bench_mger_.hw())) continue;
-            auto bd = bench(bench_mger_, d, /*nprbs=*/250);
-            if (!bd) continue;
-            auto model = model_fit(bd);
-            registry.set(d, model);
-        }
-        for (auto &wei : wei_types) {
-            auto d = desc;
-            d.wei_tag = layout_tag_t(
-                    desc.wei_tag.desc(), wei, desc.wei_tag.raw_tag());
-            d.is_finalized = false;
-            if (!finalize_conv_desc(d, bench_mger_.hw())) continue;
-            auto bd = bench(bench_mger_, d, /*nprbs=*/250);
-            if (!bd) continue;
-            auto model = model_fit(bd);
-            registry.set(d, model);
-        }
-    }
-
     static std::vector<pvar_tile_t> generate_iter_outer_tiles(
             const kernel_desc_t &desc) {
         std::vector<pvar_tile_t> tiles = {pvar_tile_t()};
@@ -512,7 +495,7 @@ private:
             if (!utils::one_of(bmnk, pvars::m, pvars::n)) continue;
             for (int outer : {2, 4}) {
                 if (desc.iter_tile.at(d) % outer != 0) continue;
-                prb_tile_t tile_outer;
+                pvar_tile_t tile_outer;
                 tile_outer[d] = outer;
                 tiles.push_back(tile_outer);
             }
@@ -548,15 +531,19 @@ class search_sequence_t {
 public:
     search_sequence_t(const std::vector<kernel_desc_t> &descs, int max_entries)
         : max_entries_(max_entries) {
-        std::vector<std::vector<prb_tile_t>> tiles;
+        std::vector<std::vector<pvar_tile_t>> tiles;
+        pvar_t prefetch_dim("p");
         for (int i = 0; i < (int)descs.size(); i++) {
             auto &d = descs[i];
             entries_.emplace_back(i, d);
-            std::vector<prb_tile_t> d_tiles;
+            std::vector<pvar_tile_t> d_tiles;
             auto iter = to_gemm(d.iter_tile, d.prop);
             auto tg = to_gemm(d.thread_group_tile, d.prop);
             d_tiles.push_back(iter);
             d_tiles.push_back(tg);
+            pvar_tile_t prefetch_tile;
+            prefetch_tile[prefetch_dim] = d.prefetch.dist;
+            d_tiles.push_back(prefetch_tile);
             tiles.push_back(std::move(d_tiles));
         }
         tile_to_vec_ = tile_to_vec_t(tiles);
