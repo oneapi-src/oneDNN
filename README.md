@@ -5,6 +5,7 @@ oneAPI Deep Neural Network Library (oneDNN)
 
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/8762/badge)](https://www.bestpractices.dev/projects/8762)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/oneapi-src/oneDNN/badge)](https://securityscorecards.dev/viewer/?uri=github.com/oneapi-src/oneDNN)
+![AArch64 Build Status](https://github.com/oneapi-src/oneDNN/actions/workflows/ci-aarch64.yml/badge.svg?branch=main)
 
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
