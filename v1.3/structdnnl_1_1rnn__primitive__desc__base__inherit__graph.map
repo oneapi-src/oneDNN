@@ -1,0 +1,13 @@
+<map id="dnnl::rnn_primitive_desc_base" name="dnnl::rnn_primitive_desc_base">
+<area shape="rect" id="node5" href="$structdnnl_1_1gru__backward_1_1primitive__desc.html" title="Primitive descriptor for a GRU backward propagation primitive. " alt="" coords="867,5,1016,47"/>
+<area shape="rect" id="node6" href="$structdnnl_1_1gru__forward_1_1primitive__desc.html" title="Primitive descriptor GRU forward propagation primitive. " alt="" coords="869,71,1013,112"/>
+<area shape="rect" id="node7" href="$structdnnl_1_1lbr__gru__backward_1_1primitive__desc.html" title="Primitive descriptor for an LBR GRU backward propagation primitive. " alt="" coords="855,136,1028,177"/>
+<area shape="rect" id="node8" href="$structdnnl_1_1lbr__gru__forward_1_1primitive__desc.html" title="Primitive descriptor for an LBR GRU forward propagation primitive. " alt="" coords="861,201,1021,243"/>
+<area shape="rect" id="node9" href="$structdnnl_1_1lstm__backward_1_1primitive__desc.html" title="Primitive descriptor for LSTM backward propagation. " alt="" coords="863,267,1020,308"/>
+<area shape="rect" id="node10" href="$structdnnl_1_1lstm__forward_1_1primitive__desc.html" title="Primitive descriptor for an LSTM forward propagation primitive. " alt="" coords="869,332,1013,373"/>
+<area shape="rect" id="node11" href="$structdnnl_1_1vanilla__rnn__backward_1_1primitive__desc.html" title="Primitive descriptor for a RNN backward propagation primitive. " alt="" coords="841,397,1041,439"/>
+<area shape="rect" id="node12" href="$structdnnl_1_1vanilla__rnn__forward_1_1primitive__desc.html" title="Primitive descriptor for a vanilla RNN forward propagation primitive. " alt="" coords="848,463,1035,504"/>
+<area shape="rect" id="node2" href="$structdnnl_1_1primitive__desc.html" title="A base class for descriptors of all primitives that have an operation descriptor and that support ite..." alt="" coords="445,242,600,269"/>
+<area shape="rect" id="node3" href="$structdnnl_1_1primitive__desc__base.html" title="Base class for all primitive descriptors. " alt="" coords="205,242,397,269"/>
+<area shape="rect" id="node4" href="$structdnnl_1_1handle.html" title="dnnl::handle\&lt; dnnl\l_primitive_desc_t \&gt;" alt="" coords="5,235,157,276"/>
+</map>

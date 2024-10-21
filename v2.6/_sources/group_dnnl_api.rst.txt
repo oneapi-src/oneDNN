@@ -1,0 +1,76 @@
+.. index:: pair: group; oneDNN API
+.. _doxid-group__dnnl__api:
+
+oneDNN API
+==========
+
+.. toctree::
+	:hidden:
+
+	group_dnnl_api_primitives.rst
+	group_dnnl_api_memory.rst
+	group_dnnl_api_engine.rst
+	group_dnnl_api_stream.rst
+	group_dnnl_api_primitive_cache.rst
+	group_dnnl_api_mathmode.rst
+	group_dnnl_api_service.rst
+	group_dnnl_api_blas.rst
+	group_dnnl_api_interop.rst
+	group_dnnl_api_utils.rst
+	namespace_dnnl.rst
+	namespace_oneapi.rst
+
+
+
+|	:ref:`Primitives<doxid-group__dnnl__api__primitives>`
+|		:ref:`Common<doxid-group__dnnl__api__primitives__common>`
+|		:ref:`Attributes<doxid-group__dnnl__api__attributes>`
+|		:ref:`Reorder<doxid-group__dnnl__api__reorder>`
+|		:ref:`Concat<doxid-group__dnnl__api__concat>`
+|		:ref:`Sum<doxid-group__dnnl__api__sum>`
+|		:ref:`Binary<doxid-group__dnnl__api__binary>`
+|		:ref:`Convolution<doxid-group__dnnl__api__convolution>`
+|		:ref:`Deconvolution<doxid-group__dnnl__api__deconvolution>`
+|		:ref:`Shuffle<doxid-group__dnnl__api__shuffle>`
+|		:ref:`Eltwise<doxid-group__dnnl__api__eltwise>`
+|		:ref:`Softmax<doxid-group__dnnl__api__softmax>`
+|		:ref:`Softmax_v2<doxid-group__dnnl__api__softmax__v2>`
+|		:ref:`LogSoftmax<doxid-group__dnnl__api__logsoftmax>`
+|		:ref:`Pooling<doxid-group__dnnl__api__pooling>`
+|		:ref:`Pooling_v2<doxid-group__dnnl__api__pooling__v2>`
+|		:ref:`PReLU<doxid-group__dnnl__api__prelu>`
+|		:ref:`LRN<doxid-group__dnnl__api__lrn>`
+|		:ref:`Batch Normalization<doxid-group__dnnl__api__batch__normalization>`
+|		:ref:`Layer Normalization<doxid-group__dnnl__api__layer__normalization>`
+|		:ref:`Inner Product<doxid-group__dnnl__api__inner__product>`
+|		:ref:`RNN<doxid-group__dnnl__api__rnn>`
+|		:ref:`Matrix Multiplication<doxid-group__dnnl__api__matmul>`
+|		:ref:`Resampling<doxid-group__dnnl__api__resampling>`
+|		:ref:`Reduction<doxid-group__dnnl__api__reduction>`
+|	:ref:`Memory<doxid-group__dnnl__api__memory>`
+|	:ref:`Engine<doxid-group__dnnl__api__engine>`
+|	:ref:`Stream<doxid-group__dnnl__api__stream>`
+|	:ref:`Primitive Cache<doxid-group__dnnl__api__primitive__cache>`
+|	:ref:`Floating-point Math Mode<doxid-group__dnnl__api__mathmode>`
+|	:ref:`Service<doxid-group__dnnl__api__service>`
+|	:ref:`BLAS functions<doxid-group__dnnl__api__blas>`
+|	:ref:`Runtime interoperability API<doxid-group__dnnl__api__interop>`
+|		:ref:`OpenCL interoperability API<doxid-group__dnnl__api__ocl__interop>`
+|		:ref:`SYCL interoperability API<doxid-group__dnnl__api__sycl__interop>`
+|		:ref:`Threadpool interoperability API<doxid-group__dnnl__api__threadpool__interop>`
+|	:ref:`Utilities<doxid-group__dnnl__api__utils>`
+
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	// namespaces
+
+	namespace :ref:`dnnl<doxid-namespacednnl>`;
+		namespace :ref:`dnnl::ocl_interop<doxid-namespacednnl_1_1ocl__interop>`;
+		namespace :ref:`dnnl::sycl_interop<doxid-namespacednnl_1_1sycl__interop>`;
+		namespace :ref:`dnnl::threadpool_interop<doxid-namespacednnl_1_1threadpool__interop>`;
+	namespace :ref:`oneapi<doxid-namespaceoneapi>`;
+

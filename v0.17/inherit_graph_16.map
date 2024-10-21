@@ -1,0 +1,33 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" href="$classmkldnn_1_1handle.html" title="mkldnn::handle\&lt; mkldnn\l_primitive_desc_t \&gt;" alt="" coords="5,783,192,824"/>
+<area shape="rect" id="node2" href="$structmkldnn_1_1concat_1_1primitive__desc.html" title="mkldnn::concat::primitive_desc" alt="" coords="245,663,472,690"/>
+<area shape="rect" id="node3" href="$structmkldnn_1_1memory_1_1primitive__desc.html" title="A memory primitive descriptor. " alt="" coords="240,714,477,741"/>
+<area shape="rect" id="node4" href="$structmkldnn_1_1primitive__desc.html" title="A base class for all primitive descriptors. " alt="" coords="271,765,446,791"/>
+<area shape="rect" id="node29" href="$structmkldnn_1_1reorder_1_1primitive__desc.html" title="mkldnn::reorder::primitive_desc" alt="" coords="243,815,474,842"/>
+<area shape="rect" id="node30" href="$structmkldnn_1_1sum_1_1primitive__desc.html" title="mkldnn::sum::primitive_desc" alt="" coords="253,866,464,893"/>
+<area shape="rect" id="node31" href="$structmkldnn_1_1view_1_1primitive__desc.html" title="mkldnn::view::primitive_desc" alt="" coords="252,917,465,943"/>
+<area shape="rect" id="node5" href="$structmkldnn_1_1batch__normalization__backward_1_1primitive__desc.html" title="mkldnn::batch_normalization\l_backward::primitive_desc" alt="" coords="547,5,759,47"/>
+<area shape="rect" id="node6" href="$structmkldnn_1_1batch__normalization__forward_1_1primitive__desc.html" title="mkldnn::batch_normalization\l_forward::primitive_desc" alt="" coords="547,71,759,112"/>
+<area shape="rect" id="node7" href="$structmkldnn_1_1convolution__backward__data_1_1primitive__desc.html" title="mkldnn::convolution\l_backward_data::primitive_desc" alt="" coords="537,136,769,177"/>
+<area shape="rect" id="node8" href="$structmkldnn_1_1convolution__backward__weights_1_1primitive__desc.html" title="mkldnn::convolution\l_backward_weights::primitive_desc" alt="" coords="525,201,780,243"/>
+<area shape="rect" id="node9" href="$structmkldnn_1_1convolution__forward_1_1primitive__desc.html" title="mkldnn::convolution\l_forward::primitive_desc" alt="" coords="561,267,744,308"/>
+<area shape="rect" id="node10" href="$structmkldnn_1_1convolution__relu__forward_1_1primitive__desc.html" title="mkldnn::convolution\l_relu_forward::primitive_desc" alt="" coords="545,332,760,373"/>
+<area shape="rect" id="node11" href="$structmkldnn_1_1deconvolution__backward__data_1_1primitive__desc.html" title="mkldnn::deconvolution\l_backward_data::primitive_desc" alt="" coords="537,397,769,439"/>
+<area shape="rect" id="node12" href="$structmkldnn_1_1deconvolution__backward__weights_1_1primitive__desc.html" title="mkldnn::deconvolution\l_backward_weights::primitive_desc" alt="" coords="525,463,780,504"/>
+<area shape="rect" id="node13" href="$structmkldnn_1_1deconvolution__forward_1_1primitive__desc.html" title="mkldnn::deconvolution\l_forward::primitive_desc" alt="" coords="561,528,744,569"/>
+<area shape="rect" id="node14" href="$structmkldnn_1_1eltwise__backward_1_1primitive__desc.html" title="mkldnn::eltwise_backward\l::primitive_desc" alt="" coords="555,593,751,635"/>
+<area shape="rect" id="node15" href="$structmkldnn_1_1eltwise__forward_1_1primitive__desc.html" title="mkldnn::eltwise_forward\l::primitive_desc" alt="" coords="561,659,744,700"/>
+<area shape="rect" id="node16" href="$structmkldnn_1_1inner__product__backward__data_1_1primitive__desc.html" title="mkldnn::inner_product\l_backward_data::primitive_desc" alt="" coords="537,724,769,765"/>
+<area shape="rect" id="node17" href="$structmkldnn_1_1inner__product__backward__weights_1_1primitive__desc.html" title="mkldnn::inner_product\l_backward_weights::primitive_desc" alt="" coords="525,789,780,831"/>
+<area shape="rect" id="node18" href="$structmkldnn_1_1inner__product__forward_1_1primitive__desc.html" title="mkldnn::inner_product\l_forward::primitive_desc" alt="" coords="561,855,744,896"/>
+<area shape="rect" id="node19" href="$structmkldnn_1_1lrn__backward_1_1primitive__desc.html" title="mkldnn::lrn_backward\l::primitive_desc" alt="" coords="569,920,736,961"/>
+<area shape="rect" id="node20" href="$structmkldnn_1_1lrn__forward_1_1primitive__desc.html" title="mkldnn::lrn_forward\l::primitive_desc" alt="" coords="576,985,729,1027"/>
+<area shape="rect" id="node21" href="$structmkldnn_1_1pooling__backward_1_1primitive__desc.html" title="mkldnn::pooling_backward\l::primitive_desc" alt="" coords="554,1051,751,1092"/>
+<area shape="rect" id="node22" href="$structmkldnn_1_1pooling__forward_1_1primitive__desc.html" title="mkldnn::pooling_forward\l::primitive_desc" alt="" coords="561,1116,745,1157"/>
+<area shape="rect" id="node23" href="$structmkldnn_1_1rnn__backward_1_1primitive__desc.html" title="mkldnn::rnn_backward\l::primitive_desc" alt="" coords="567,1181,738,1223"/>
+<area shape="rect" id="node24" href="$structmkldnn_1_1rnn__forward_1_1primitive__desc.html" title="mkldnn::rnn_forward\l::primitive_desc" alt="" coords="574,1247,731,1288"/>
+<area shape="rect" id="node25" href="$structmkldnn_1_1shuffle__backward_1_1primitive__desc.html" title="mkldnn::shuffle_backward\l::primitive_desc" alt="" coords="556,1312,749,1353"/>
+<area shape="rect" id="node26" href="$structmkldnn_1_1shuffle__forward_1_1primitive__desc.html" title="mkldnn::shuffle_forward\l::primitive_desc" alt="" coords="563,1377,743,1419"/>
+<area shape="rect" id="node27" href="$structmkldnn_1_1softmax__backward_1_1primitive__desc.html" title="mkldnn::softmax_backward\l::primitive_desc" alt="" coords="551,1443,754,1484"/>
+<area shape="rect" id="node28" href="$structmkldnn_1_1softmax__forward_1_1primitive__desc.html" title="mkldnn::softmax_forward\l::primitive_desc" alt="" coords="557,1508,748,1549"/>
+</map>

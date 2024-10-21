@@ -1,0 +1,108 @@
+.. index:: pair: struct; dnnl::lrn_forward::desc
+.. _doxid-structdnnl_1_1lrn__forward_1_1desc:
+
+struct dnnl::lrn_forward::desc
+==============================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for an LRN forward propagation primitive. :ref:`More...<details-structdnnl_1_1lrn__forward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_lrn_desc_t<doxid-structdnnl__lrn__desc__t>` :target:`data<doxid-structdnnl_1_1lrn__forward_1_1desc_1a480578434f8d53dfa9b9b3e2575c46bb>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1lrn__forward_1_1desc_1affd48c5e9b111e6e204fdd2849984d9c>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>` local_size,
+			float alpha,
+			float beta,
+			float k = 1.f
+			);
+	};
+.. _details-structdnnl_1_1lrn__forward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for an LRN forward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1lrn__forward_1_1desc_1affd48c5e9b111e6e204fdd2849984d9c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>` local_size,
+		float alpha,
+		float beta,
+		float k = 1.f
+		)
+
+Constructs a descriptor for a LRN forward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::forward_training <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa24775787fab8f13aa4809e1ce8f82aeb>`, and :ref:`dnnl::prop_kind::forward_inference <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa3b9fad4f80d45368f856b5403198ac4c>`.
+
+	*
+		- aalgorithm
+
+		- LRN algorithm kind: either :ref:`dnnl::algorithm::lrn_across_channels <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640ab9e2d858b551792385a4b5b86672b24b>`, or :ref:`dnnl::algorithm::lrn_within_channel <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640aa25c4ccc5c7c9bd3a977a2089189a494>`.
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptors.
+
+	*
+		- local_size
+
+		- Regularization local size.
+
+	*
+		- alpha
+
+		- The alpha regularization parameter.
+
+	*
+		- beta
+
+		- The beta regularization parameter.
+
+	*
+		- k
+
+		- The k regularization parameter.
+
