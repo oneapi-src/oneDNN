@@ -401,8 +401,8 @@ void reset_gpu_profiling(dnnl_stream_t stream) {
 #endif
 }
 
-void get_gpu_profiling_info(dnnl_stream_t stream, std::vector<uint64_t> &nsecs,
-        std::vector<uint64_t> &cycles) {
+int get_gpu_profiling_info(dnnl_stream_t stream, std::vector<uint64_t> &nsecs,
+        std::vector<uint64_t> &cycles, int expected_num_entries) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
     dnnl_profiling_data_kind_t undef_kind {};
@@ -420,15 +420,29 @@ void get_gpu_profiling_info(dnnl_stream_t stream, std::vector<uint64_t> &nsecs,
 #endif
 
     int num_entries = 0;
-    DNN_SAFE_V(dnnl_query_profiling_data(
-            stream, undef_kind, &num_entries, nullptr));
+    DNN_SAFE(dnnl_query_profiling_data(
+                     stream, undef_kind, &num_entries, nullptr),
+            CRIT);
+    if (expected_num_entries != -1 && num_entries != expected_num_entries) {
+        BENCHDNN_PRINT(0,
+                "ERROR: profiling entries mismatch, expected: %d entries but "
+                "got %d entries\n",
+                expected_num_entries, num_entries);
+        return FAIL;
+    }
+    DNN_SAFE(dnnl_query_profiling_data(
+                     stream, time_kind, &num_entries, nsecs.data()),
+            CRIT);
     nsecs.resize(num_entries);
     cycles.resize(num_entries);
-    DNN_SAFE_V(dnnl_query_profiling_data(
-            stream, time_kind, &num_entries, nsecs.data()));
-    DNN_SAFE_V(dnnl_query_profiling_data(
-            stream, cycles_kind, &num_entries, cycles.data()));
+    DNN_SAFE(dnnl_query_profiling_data(
+                     stream, time_kind, &num_entries, nsecs.data()),
+            CRIT);
+    DNN_SAFE(dnnl_query_profiling_data(
+                     stream, cycles_kind, &num_entries, cycles.data()),
+            CRIT);
 #endif
+    return OK;
 }
 
 void notify_gpu_profiling_complete(dnnl_stream_t stream) {
@@ -476,8 +490,8 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         // kernel has not been built and skews the results.
         DNN_SAFE(perf_func(v_stream[j], dnnl_args[j]), WARN);
         DNN_SAFE(dnnl_stream_wait(v_stream[j]), CRIT);
-        if (use_profiling) reset_gpu_profiling(v_stream[j]);
         cold_cache[j] = cold_cache_t(dnnl_args[j], v_stream[j]);
+        if (use_profiling) reset_gpu_profiling(v_stream[j]);
     }
 
     bool is_first_loop = true;
@@ -486,11 +500,14 @@ inline int measure_perf_aggregate(timer::timer_t &t,
 
     t.reset();
     while (true) {
+        // Keep separate var due to a `break` inside the loop.
+        int execute_count = 0;
         // Keep inner loop over streams for better submission overlapping.
         for_(int i = 0; i < cur_batch_times; i++)
         for (size_t j = 0; j < v_stream.size(); j++) {
             if (!cold_cache[j].update_dnnl_args(dnnl_args[j])) break;
             DNN_SAFE(perf_func(v_stream[j], dnnl_args[j]), WARN);
+            execute_count++;
         }
 
         for (size_t j = 0; j < v_stream.size(); j++) {
@@ -502,7 +519,9 @@ inline int measure_perf_aggregate(timer::timer_t &t,
             std::vector<std::vector<uint64_t>> v_cycles(num_streams);
             bool nsecs_is_empty = false;
             for (size_t j = 0; j < v_stream.size(); j++) {
-                get_gpu_profiling_info(v_stream[j], v_nsecs[j], v_cycles[j]);
+                SAFE(get_gpu_profiling_info(v_stream[j], v_nsecs[j],
+                             v_cycles[j], execute_count),
+                        CRIT);
                 reset_gpu_profiling(v_stream[j]);
 
                 // Profiling should have information to report, otherwise, stop.

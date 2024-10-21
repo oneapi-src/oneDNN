@@ -632,8 +632,8 @@ void reset_gpu_profiling(dnnl_stream_t stream);
 
 void finalize();
 
-void get_gpu_profiling_info(dnnl_stream_t stream, std::vector<uint64_t> &nsecs,
-        std::vector<uint64_t> &cycles);
+int get_gpu_profiling_info(dnnl_stream_t stream, std::vector<uint64_t> &nsecs,
+        std::vector<uint64_t> &cycles, int expected_num_entries);
 int measure_perf(const thr_ctx_t &ctx, res_t *res, perf_function_t &perf_func,
         args_t &args);
 int measure_perf(
