@@ -55,13 +55,12 @@ uchar philox_16x8(long idx, uint seed) {
 float stochastic_round_fwd(float s, long idx, uint seed) {
     if (isnan(s) || isinf(s)) return s;
     uint truncation_mask = 0xffffffff << (24 - DST_DT_DIGITS);
-    uint bias_val = sizeof(DST_DATA_T) == 4 ? philox_16x8(idx, seed)
+    uint bias_val = sizeof(DST_DATA_T) == 2 ? philox_16x8(idx, seed)
                                             : philox_8x16(idx, seed);
     uint rnd_bias = (uint)(bias_val & ~truncation_mask);
     float r = as_float((as_uint(s) + rnd_bias) & truncation_mask);
-    r = fmin(fmax((float)DST_DATA_FMIN, r), (float)DST_DATA_FMAX);
-    if (r > 0 && r < FLT_MIN) r = 0;
-    if (r < 0 && r > -FLT_MIN) r = 0;
+    r = fmin(fmax((float)DST_DATA_FLOW, r), (float)DST_DATA_FMAX);
+    if (fabs(r) > 0 && fabs(r) < DST_DATA_FMIN) r = 0;
     return r;
 }
 #endif
