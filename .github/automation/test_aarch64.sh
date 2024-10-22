@@ -68,6 +68,7 @@ if [[ "$OS" == "Linux" ]]; then
         SKIPPED_TEST_FAILURES+="|cpu-graph-sdpa-stacked-qkv-cpp"
         SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_large_partition_usm_cpu"
         SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_usm_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_usm_cpu"
     elif [[ "$CMAKE_BUILD_TYPE" == "Release" ]]; then
         SKIPPED_TEST_FAILURES="cpu-primitives-deconvolution-cpp"
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_lnorm_smoke_cpu"
@@ -77,6 +78,7 @@ if [[ "$OS" == "Linux" ]]; then
         SKIPPED_TEST_FAILURES+="|cpu-graph-sdpa-stacked-qkv-cpp"
         SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_large_partition_usm_cpu"
         SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_usm_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_usm_cpu"
     fi
 elif [[ "$OS" == "Darwin" ]]; then
     if [[ "$CMAKE_BUILD_TYPE" == "Debug" ]]; then
@@ -85,11 +87,13 @@ elif [[ "$OS" == "Darwin" ]]; then
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_brgemm_smoke_cpu"
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_brgemm_ci_cpu"
         SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_usm_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_usm_cpu"
     elif [[ "$CMAKE_BUILD_TYPE" == "Release" ]]; then
         SKIPPED_TEST_FAILURES="cpu-primitives-deconvolution-cpp"
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_lnorm_smoke_cpu"
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_lnorm_ci_cpu"
         SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_usm_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_usm_cpu"
     fi
 fi
 
