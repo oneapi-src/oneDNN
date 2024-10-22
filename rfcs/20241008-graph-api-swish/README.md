@@ -154,7 +154,21 @@ Cons:
 
 ## Conclusions
 
-(TBD.)
+The decision is to implement the option 1.
+
+The library will support Sigmoid + Multiply fusions for Swish without
+considering `factor != 1.f` which is the most common case. In this case, Sigmoid
+\+ Multiply will be fused into swish algorithm of eltwise primitive or post-op
+with `alpha = 1.f`.
+
+For other cases where `factor != 1.f` is specified, once they are requested, we
+can extend the library in the following options:
+
+- Extend Sigmoid operation with a multiplication factor attribute, so the swish
+  can still be represented as Sigmoid + Multiply.
+- Represent the multiplication with another Multiply operation in case the
+  factor is not known at graph build stage or is not a scalar. In case, Swish
+  will be fused and implemented as Multiply + Sigmoid + Multiply.
 
 ## References
 
