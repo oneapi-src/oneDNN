@@ -105,11 +105,17 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
             VDISPATCH_POOLING_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_TAG);
 
-            bool is_training = desc_.prop_kind == forward_training;
-            if (desc()->alg_kind == pooling_max && is_training)
-                init_default_ws(s32);
-
             VDISPATCH_POOLING_SC(init_conf(engine), "init_conf()");
+
+            bool is_training = desc_.prop_kind == forward_training;
+            if (desc()->alg_kind == pooling_max && is_training) {
+                // Required for storing spatial offsets into workspace for
+                // pooling_max training due to use of int type.
+                VDISPATCH_POOLING(conf.kd * conf.kh * conf.kw <= INT_MAX,
+                        VERBOSE_OFFSET_DT_MISMATCH, "kernel spatial", "int");
+                init_default_ws(s32);
+            }
+
             return status::success;
         }
 
@@ -184,13 +190,18 @@ struct ref_pooling_bwd_t : public gpu_primitive_t {
             VDISPATCH_POOLING(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
+            VDISPATCH_POOLING_SC(init_conf(engine), "init_conf()");
+
             if (desc()->alg_kind == pooling_max) {
+                // Required for storing spatial offsets into workspace for
+                // pooling_max training due to use of int type.
+                VDISPATCH_POOLING(conf.kd * conf.kh * conf.kw <= INT_MAX,
+                        VERBOSE_OFFSET_DT_MISMATCH, "kernel spatial", "int");
                 init_default_ws(data_type::s32);
                 VDISPATCH_POOLING(
                         compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
-            VDISPATCH_POOLING_SC(init_conf(engine), "init_conf()");
             return status::success;
         }
 

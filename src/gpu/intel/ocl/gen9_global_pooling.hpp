@@ -59,12 +59,18 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
             VDISPATCH_POOLING(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
-            bool is_training = desc_.prop_kind == forward_training;
-            if (desc()->alg_kind == pooling_max && is_training)
-                init_default_ws(s32);
-
             VDISPATCH_POOLING_SC(init_conf(engine),
                     VERBOSE_PRIMITIVE_CREATION_FAIL, "pooling");
+
+            bool is_training = desc_.prop_kind == forward_training;
+            if (desc()->alg_kind == pooling_max && is_training) {
+                // Required for storing spatial offsets into workspace for
+                // pooling_max training due to use of int type.
+                VDISPATCH_POOLING(conf.id * conf.ih * conf.iw <= INT_MAX,
+                        VERBOSE_OFFSET_DT_MISMATCH, "kernel spatial", "int");
+                init_default_ws(s32);
+            }
+
             VDISPATCH_POOLING_SC(init_reduction(engine), "init_reduction()");
             init_scratchpad();
             return status::success;
@@ -187,14 +193,18 @@ struct gen9_global_pooling_bwd_t : public gpu_primitive_t {
             VDISPATCH_POOLING(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
+            VDISPATCH_POOLING_SC(init_conf(engine),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "pooling");
+
             if (desc()->alg_kind == pooling_max) {
+                // Required for storing spatial offsets into workspace for
+                // pooling_max training due to use of int type.
+                VDISPATCH_POOLING(conf.id * conf.ih * conf.iw <= INT_MAX,
+                        VERBOSE_OFFSET_DT_MISMATCH, "kernel spatial", "int");
                 init_default_ws(data_type::s32);
                 VDISPATCH_POOLING(
                         compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
-
-            VDISPATCH_POOLING_SC(init_conf(engine),
-                    VERBOSE_PRIMITIVE_CREATION_FAIL, "pooling");
             return status::success;
         }
 
