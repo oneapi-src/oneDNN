@@ -2,6 +2,7 @@
     "version": "3.0.0",
     "engine_kind": "cpu",
     "fpmath_mode": "strict",
+    "fpmath_mode_apply_to_int": "false",
     "graph": [
       {
         "id": 0,
