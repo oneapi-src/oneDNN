@@ -38,21 +38,25 @@ TEST(test_partition, CreateSimple) {
 }
 
 TEST(test_partition, AddOps) {
-    dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(
-            engine_kind::cpu, fpmath_mode::strict, partition_kind_t::undef);
-    size_t id = 100;
-    std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));
-    p.add_op(n);
-    ASSERT_EQ(p.get_ops().size(), 1U);
+    std::vector<engine_kind_t> engine_kinds
+            = {engine_kind::cpu, engine_kind::gpu};
+    for (const auto &engine_kind : engine_kinds) {
+        dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(
+                engine_kind, fpmath_mode::strict, partition_kind_t::undef);
+        size_t id = 100;
+        std::shared_ptr<op_t> n(new op_t(id, op_kind::Wildcard, "Wildcard"));
+        p.add_op(n);
+        ASSERT_EQ(p.get_ops().size(), 1U);
 
-    std::vector<size_t> ids {101, 102};
-    std::vector<std::shared_ptr<op_t>> ops;
-    for (auto id : ids) {
-        ops.emplace_back(new op_t(id, op_kind::Wildcard, "Wildcard"));
-        p.add_op(ops.back());
+        std::vector<size_t> ids {101, 102};
+        std::vector<std::shared_ptr<op_t>> ops;
+        for (auto id : ids) {
+            ops.emplace_back(new op_t(id, op_kind::Wildcard, "Wildcard"));
+            p.add_op(ops.back());
+        }
+
+        ASSERT_EQ(p.get_ops().size(), 3U);
     }
-
-    ASSERT_EQ(p.get_ops().size(), 3U);
 }
 
 TEST(test_partition, GetOps) {
@@ -67,41 +71,47 @@ TEST(test_partition, GetOps) {
 }
 
 TEST(test_partition, Init) {
-    // (todo)xinyu: improve engine test
-    engine_t *eng = get_engine();
-    dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(
-            eng->kind(), fpmath_mode::strict, partition_kind_t::undef);
-    std::shared_ptr<op_t> n(new op_t(0, op_kind::Convolution, "Conv"));
-    n->set_attr<int64_t>(op_attr::groups, 0);
-    p.add_op(n);
-    ASSERT_FALSE(p.is_initialized());
-    ASSERT_TRUE(p.get_assigned_backend()->get_name() != "fake_backend");
+    std::vector<engine_kind_t> engine_kinds
+            = {engine_kind::cpu, engine_kind::gpu};
+    for (const auto &engine_kind : engine_kinds) {
+        dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(
+                engine_kind, fpmath_mode::strict, partition_kind_t::undef);
+        std::shared_ptr<op_t> n(new op_t(0, op_kind::Convolution, "Conv"));
+        n->set_attr<int64_t>(op_attr::groups, 0);
+        p.add_op(n);
+        ASSERT_FALSE(p.is_initialized());
+        ASSERT_TRUE(p.get_assigned_backend()->get_name() != "fake_backend");
+    }
 }
 
 TEST(test_partition, Clone) {
-    engine_t *eng = get_engine();
-    dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(eng->kind(),
-            fpmath_mode::strict, partition_kind_t::convolution_post_ops);
-    auto n = std::make_shared<op_t>(op_kind::Convolution);
-    n->set_attr<int64_t>(op_attr::groups, 1);
+    std::vector<engine_kind_t> engine_kinds
+            = {engine_kind::cpu, engine_kind::gpu};
+    for (const auto &engine_kind : engine_kinds) {
+        dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t p(engine_kind,
+                fpmath_mode::strict, partition_kind_t::convolution_post_ops);
+        auto n = std::make_shared<op_t>(op_kind::Convolution);
+        n->set_attr<int64_t>(op_attr::groups, 1);
 
-    p.add_op(n); // the subgraph
+        p.add_op(n); // the subgraph
 
-    ASSERT_FALSE(p.is_initialized());
-    ASSERT_TRUE(p.get_assigned_backend()->get_name() == "dnnl_backend");
-    ASSERT_EQ(p.get_ops()[0]->get_kind(), op_kind::Convolution);
-    ASSERT_TRUE(p.get_ops()[0]->has_attr(op_attr::groups));
-    ASSERT_EQ(p.get_ops()[0]->get_attr<int64_t>(op_attr::groups), 1);
+        ASSERT_FALSE(p.is_initialized());
+        ASSERT_TRUE(p.get_assigned_backend()->get_name() == "dnnl_backend");
+        ASSERT_EQ(p.get_ops()[0]->get_kind(), op_kind::Convolution);
+        ASSERT_TRUE(p.get_ops()[0]->has_attr(op_attr::groups));
+        ASSERT_EQ(p.get_ops()[0]->get_attr<int64_t>(op_attr::groups), 1);
 
-    // clone the partition
-    auto p_copy = std::dynamic_pointer_cast<
-            dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t>(p.clone());
-    ASSERT_NE(p_copy, nullptr);
-    ASSERT_FALSE(p_copy->is_initialized());
-    ASSERT_TRUE(p_copy->get_assigned_backend()->get_name() == "dnnl_backend");
-    ASSERT_EQ(p_copy->get_ops()[0]->get_kind(), op_kind::Convolution);
-    ASSERT_TRUE(p_copy->get_ops()[0]->has_attr(op_attr::groups));
-    ASSERT_EQ(p_copy->get_ops()[0]->get_attr<int64_t>(op_attr::groups), 1);
+        // clone the partition
+        auto p_copy = std::dynamic_pointer_cast<
+                dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t>(p.clone());
+        ASSERT_NE(p_copy, nullptr);
+        ASSERT_FALSE(p_copy->is_initialized());
+        ASSERT_TRUE(
+                p_copy->get_assigned_backend()->get_name() == "dnnl_backend");
+        ASSERT_EQ(p_copy->get_ops()[0]->get_kind(), op_kind::Convolution);
+        ASSERT_TRUE(p_copy->get_ops()[0]->has_attr(op_attr::groups));
+        ASSERT_EQ(p_copy->get_ops()[0]->get_attr<int64_t>(op_attr::groups), 1);
+    }
 }
 
 TEST(test_partition_op, AssignedPartition) {
@@ -130,21 +140,25 @@ TEST(test_partition, SetFpmathMode) {
 }
 
 TEST(test_partition, InferShape) {
-    graph::engine_t &engine = *get_engine();
-    size_t id = 0;
+    std::vector<engine_kind_t> engine_kinds
+            = {engine_kind::cpu, engine_kind::gpu};
+    for (const auto &engine_kind : engine_kinds) {
+        size_t id = 0;
 
-    graph::logical_tensor_t lt1
-            = logical_tensor_init(id++, graph::data_type::f32);
-    graph::logical_tensor_t lt2
-            = logical_tensor_init(id++, graph::data_type::f32);
-    graph::logical_tensor_t lt3
-            = logical_tensor_init(id++, graph::data_type::f32);
+        graph::logical_tensor_t lt1
+                = logical_tensor_init(id++, graph::data_type::f32);
+        graph::logical_tensor_t lt2
+                = logical_tensor_init(id++, graph::data_type::f32);
+        graph::logical_tensor_t lt3
+                = logical_tensor_init(id++, graph::data_type::f32);
 
-    std::vector<const graph::logical_tensor_t *> inputs {&lt1, &lt2};
-    std::vector<graph::logical_tensor_t *> outputs {&lt3};
+        std::vector<const graph::logical_tensor_t *> inputs {&lt1, &lt2};
+        std::vector<graph::logical_tensor_t *> outputs {&lt3};
 
-    auto par = std::make_shared<
-            dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t>(engine.kind(),
-            graph::fpmath_mode::strict, graph::partition_kind_t::undef);
-    ASSERT_EQ(par->infer_shape(inputs, outputs), graph::status::success);
+        auto par = std::make_shared<
+                dnnl::impl::graph::dnnl_impl::dnnl_partition_impl_t>(
+                engine_kind, graph::fpmath_mode::strict,
+                graph::partition_kind_t::undef);
+        ASSERT_EQ(par->infer_shape(inputs, outputs), graph::status::success);
+    }
 }

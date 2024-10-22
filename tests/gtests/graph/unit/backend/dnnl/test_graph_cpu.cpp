@@ -33,45 +33,48 @@ TEST(test_graph, GetDnnlPartitions) {
     using namespace dnnl::impl::graph;
     using namespace dnnl::graph::tests::unit::utils;
 
-    const auto engine_kind = get_test_engine_kind();
-    graph_t agraph(engine_kind);
-    op_t conv {0, op_kind::Convolution, std::string("conv2d")};
-    op_t relu {1, op_kind::ReLU, std::string("relu")};
-    op_t end {2, op_kind::End, std::string("end")};
-    logical_tensor_t conv_src = logical_tensor_init(0, data_type::f32);
-    logical_tensor_t conv_wei = logical_tensor_init(1, data_type::f32);
-    logical_tensor_t conv_dst = logical_tensor_init(2, data_type::f32);
-    logical_tensor_t relu_dst = logical_tensor_init(3, data_type::f32);
-    conv.add_input(conv_src);
-    conv.add_input(conv_wei);
-    conv.add_output(conv_dst);
-    conv.set_attr<std::vector<int64_t>>(op_attr::strides, {1, 1});
-    conv.set_attr<std::vector<int64_t>>(op_attr::dilations, {1, 1});
-    conv.set_attr<std::vector<int64_t>>(op_attr::pads_begin, {0, 0});
-    conv.set_attr<std::vector<int64_t>>(op_attr::pads_end, {0, 0});
-    conv.set_attr<int64_t>(op_attr::groups, 1);
-    conv.set_attr<std::string>(op_attr::data_format, "NCX");
-    conv.set_attr<std::string>(op_attr::weights_format, "OIX");
-    relu.add_input(conv_dst);
-    relu.add_output(relu_dst);
-    end.add_input(relu_dst);
-    ASSERT_EQ(agraph.add_op(&conv), status::success);
-    ASSERT_EQ(agraph.add_op(&relu), status::success);
-    ASSERT_EQ(agraph.add_op(&end), status::success);
-    ASSERT_EQ(agraph.num_ops(), 3U);
+    std::vector<engine_kind_t> engine_kinds
+            = {engine_kind::cpu, engine_kind::gpu};
+    for (const auto &engine_kind : engine_kinds) {
+        graph_t agraph(engine_kind);
+        op_t conv {0, op_kind::Convolution, std::string("conv2d")};
+        op_t relu {1, op_kind::ReLU, std::string("relu")};
+        op_t end {2, op_kind::End, std::string("end")};
+        logical_tensor_t conv_src = logical_tensor_init(0, data_type::f32);
+        logical_tensor_t conv_wei = logical_tensor_init(1, data_type::f32);
+        logical_tensor_t conv_dst = logical_tensor_init(2, data_type::f32);
+        logical_tensor_t relu_dst = logical_tensor_init(3, data_type::f32);
+        conv.add_input(conv_src);
+        conv.add_input(conv_wei);
+        conv.add_output(conv_dst);
+        conv.set_attr<std::vector<int64_t>>(op_attr::strides, {1, 1});
+        conv.set_attr<std::vector<int64_t>>(op_attr::dilations, {1, 1});
+        conv.set_attr<std::vector<int64_t>>(op_attr::pads_begin, {0, 0});
+        conv.set_attr<std::vector<int64_t>>(op_attr::pads_end, {0, 0});
+        conv.set_attr<int64_t>(op_attr::groups, 1);
+        conv.set_attr<std::string>(op_attr::data_format, "NCX");
+        conv.set_attr<std::string>(op_attr::weights_format, "OIX");
+        relu.add_input(conv_dst);
+        relu.add_output(relu_dst);
+        end.add_input(relu_dst);
+        ASSERT_EQ(agraph.add_op(&conv), status::success);
+        ASSERT_EQ(agraph.add_op(&relu), status::success);
+        ASSERT_EQ(agraph.add_op(&end), status::success);
+        ASSERT_EQ(agraph.num_ops(), 3U);
 
-    ASSERT_EQ(agraph.finalize(), status::success);
-    auto &dnnl_bkd = dnnl_impl::dnnl_backend_t::get_singleton();
-    dnnl_bkd.get_partitions(agraph, partition_policy::fusion);
-    auto &fake_bkd = fake_impl::fake_backend_t::get_singleton();
-    fake_bkd.get_partitions(agraph, partition_policy::fusion);
-    ASSERT_EQ(agraph.get_num_partitions(), 2U);
-    auto p1 = agraph.get_partitions()[0];
-    ASSERT_NE(p1->get_assigned_backend()->get_name(),
-            std::string("fake_backend"));
-    ASSERT_TRUE(p1->is_initialized());
-    auto p2 = agraph.get_partitions()[1];
-    ASSERT_EQ(p2->get_assigned_backend()->get_name(),
-            std::string("fake_backend"));
-    ASSERT_TRUE(p2->is_initialized());
+        ASSERT_EQ(agraph.finalize(), status::success);
+        auto &dnnl_bkd = dnnl_impl::dnnl_backend_t::get_singleton();
+        dnnl_bkd.get_partitions(agraph, partition_policy::fusion);
+        auto &fake_bkd = fake_impl::fake_backend_t::get_singleton();
+        fake_bkd.get_partitions(agraph, partition_policy::fusion);
+        ASSERT_EQ(agraph.get_num_partitions(), 2U);
+        auto p1 = agraph.get_partitions()[0];
+        ASSERT_NE(p1->get_assigned_backend()->get_name(),
+                std::string("fake_backend"));
+        ASSERT_TRUE(p1->is_initialized());
+        auto p2 = agraph.get_partitions()[1];
+        ASSERT_EQ(p2->get_assigned_backend()->get_name(),
+                std::string("fake_backend"));
+        ASSERT_TRUE(p2->is_initialized());
+    }
 }
