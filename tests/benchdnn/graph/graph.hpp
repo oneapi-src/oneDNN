@@ -52,6 +52,7 @@ struct settings_t : public base_settings_t {
     std::vector<size_t> expected_n_partition_vec {0};
     // `default` means not specified by user with command line knob.
     std::vector<std::string> fpmath_mode_vec {"default"};
+    std::vector<dnnl_data_type_t> dt {dnnl_data_type_undef};
 
     const char *perf_template_csv
             = "perf,%engine%,%DESC%,"
@@ -81,7 +82,7 @@ std::string case_to_str(const std::string &json_file,
         const std::map<size_t, std::string> &in_shapes,
         const std::map<size_t, std::string> &op_attrs,
         const std::string &fpmath_mode, const size_t expected_n_partitions,
-        const int64_t mb);
+        const int64_t mb, const dnnl_data_type_t dt);
 
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const std::string case_str, const char *perf_template)

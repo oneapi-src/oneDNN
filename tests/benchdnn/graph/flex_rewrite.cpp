@@ -36,6 +36,7 @@ void flex_rewrite::rewrite(deserialized_graph &dgraph) {
     infer_output_shape(dgraph, change_stride);
     quantized_graph_rewrite(dgraph);
     graph_attrs_rewrite(dgraph);
+    dt_rewrite(dgraph);
 }
 
 void flex_rewrite::split_ncx(const std::string &data_format, dims_t &in,
@@ -1013,6 +1014,51 @@ void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
                 }
             }
             aop.attrs_["zps"].s64_vector_ = zps;
+        }
+    }
+}
+
+void flex_rewrite::dt_rewrite(deserialized_graph &dgraph) {
+    if (dt_ == dnnl_data_type_undef) return;
+
+    // We can only do data type rewriting for pure floating-point graph.
+    static const std::vector<dnnl_data_type_t> fp_dts {
+            dnnl_f32, dnnl_bf16, dnnl_f16};
+    if (!std::any_of(fp_dts.begin(), fp_dts.end(),
+                [this](const dnnl_data_type_t &dt) { return dt_ == dt; })) {
+        BENCHDNN_PRINT(0, "graph: rewrite: `%s` data type is not supported\n",
+                dt2str(dt_));
+        SAFE_V(FAIL);
+    }
+
+    static const std::vector<std::string> lowp_ops {
+            "TypeCast",
+            "Quantize",
+            "Dequantize",
+            "DynamicQuantize",
+            "DynamicDequantize",
+    };
+    // If the graph contains mix-precision ops, we cannot rewrite the data type
+    // trivially.
+    for (auto &aop : dgraph.ops_) {
+        if (std::any_of(lowp_ops.begin(), lowp_ops.end(),
+                    [&aop](const std::string &k) { return aop.kind_ == k; })) {
+            BENCHDNN_PRINT(0,
+                    "graph: rewrite: the graph contains operation `%s`\n",
+                    aop.kind_.c_str());
+            SAFE_V(FAIL);
+        }
+    }
+
+    // rewrite
+    std::string str_dt(dt2str(dt_));
+    for (auto &aop : dgraph.ops_) {
+        for (auto &lt : aop.in_lts_) {
+            lt.data_type_ = str_dt;
+        }
+
+        for (auto &lt : aop.out_lts_) {
+            lt.data_type_ = str_dt;
         }
     }
 }

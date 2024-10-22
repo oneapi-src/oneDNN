@@ -53,6 +53,13 @@ where *graph-knobs* are:
  - `--expected-n-partitions=INT` -- Specify the number of expected partitions 
     returned from the graph. `INT` is a non-negative integer value. When `INT`
     value is `0` (the default), the check is skipped.
+ - `--dt={undef [default], f32, bf16, f16}` -- Specify the data types in the
+   input JSON file. Currently, you can define data types for pure floating-point
+   input graph only. For example, you can specify `--dt=f16` for an `f32` graph
+   and then test it in `f16`. It has the same effect as changing the data type
+   field of all logical tensors in the input JSON file from `f32` to `f16`. If
+   `--dt` is not specified or specified as `undef`, the original data types
+   contained in the input JSON file will be used for testing.
 
 and *graph-case* is a JSON file which is dumped by a library or created from scratch.
 It must be passed to the graph driver as `--case=JSON_FILE`. Refer to the JSON
