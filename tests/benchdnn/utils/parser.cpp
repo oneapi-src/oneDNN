@@ -1014,6 +1014,28 @@ static bool parse_fast_ref(
     return parsed;
 }
 
+static bool parse_global_impl(
+        const char *str, const std::string &option_name = "global-impl") {
+    static const std::string help
+            = "STRINGS    (Default: not specified)\n    Same as `--impl` but "
+              "overrides any values from `--impl` or `--skip-impl` options met "
+              "on the way\n.";
+
+    return parser_utils::parse_impl_filter(global_impl_filter, impl_filter_t(),
+            /* use_impl = */ true, str, option_name, help);
+}
+
+static bool parse_global_skip_impl(
+        const char *str, const std::string &option_name = "global-skip-impl") {
+    static const std::string help
+            = "STRINGS    (Default: not specified)\n    Same as `--skip-impl` "
+              "but overrides any values from `--impl` or `--skip-impl` options "
+              "met on the way\n.";
+
+    return parser_utils::parse_impl_filter(global_impl_filter, impl_filter_t(),
+            /* use_impl = */ false, str, option_name, help);
+}
+
 // TODO: remove
 static bool parse_fast_ref_gpu(
         const char *str, const std::string &option_name = "fast-ref-gpu") {
@@ -1373,7 +1395,8 @@ bool parse_bench_settings(const char *str) {
             || parse_check_ref_impl(str) || parse_cold_cache(str)
             || parse_cpu_isa_hints(str) || parse_engine(str)
             || parse_fast_ref(str) || parse_fast_ref_gpu(str)
-            || parse_fix_times_per_prb(str) || parse_max_ms_per_prb(str)
+            || parse_fix_times_per_prb(str) || parse_global_impl(str)
+            || parse_global_skip_impl(str) || parse_max_ms_per_prb(str)
             || parse_num_streams(str) || parse_repeats_per_prb(str)
             || parse_mem_check(str) || parse_memory_kind(str) || parse_mode(str)
             || parse_mode_modifier(str) || parse_start(str)

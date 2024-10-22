@@ -66,7 +66,7 @@ index is greater or equal to the number of devices of requested kind
 discovered on a system, a runtime error occurs.
 
 ### --impl
-`--impl=STRING_NAME[,STRING_NAME...]` instructs benchdnn to search for an
+`--impl=STRING_NAME[,STRING_NAME...]` option is used to search for an
 implementation containing one of the names provided.
 Refer to [implementation filtering](knob_impl_filter.md) for details.
 
@@ -132,7 +132,7 @@ not be reset. COMMON-OPTIONS describe a global state and, thus, are not affected
 by this option.
 
 ### --skip-impl
-`--skip-impl=STRING_NAME[,STRING_NAME...]` instructs benchdnn to search for an
+`--skip-impl=STRING_NAME[,STRING_NAME...]` option is used to search for an
 implementation that doesn't contain any of the names provided.
 Refer to [implementation filtering](knob_impl_filter.md) for details.
 

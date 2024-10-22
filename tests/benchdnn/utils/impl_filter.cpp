@@ -18,6 +18,8 @@
 
 #include "utils/impl_filter.hpp"
 
+impl_filter_t global_impl_filter {};
+
 const impl_filter_t &get_prim_ref_impl_filter() {
     static const impl_filter_t prim_ref_impl_filter(
             {"ref:any", "ref_int8:any"}, /* use_impl = */ false);
@@ -32,13 +34,20 @@ std::string get_impl_filter_name(const impl_filter_t &impl_filter) {
     return s;
 }
 
+// This operator takes the global filter into account as well. No need to dump
+// it additionally in a common spot.
 std::ostream &operator<<(std::ostream &s, const impl_filter_t &impl_filter) {
-    const bool is_def = impl_filter.is_def();
+    const bool is_def = global_impl_filter.is_def() && impl_filter.is_def();
     if (is_def) return s;
 
-    s << get_impl_filter_name(impl_filter) << "=";
+    const auto &option_name = !global_impl_filter.is_def()
+            ? get_impl_filter_name(global_impl_filter)
+            : get_impl_filter_name(impl_filter);
+    s << option_name << "=";
 
-    const auto &names = impl_filter.get_names();
+    const auto &names = !global_impl_filter.is_def()
+            ? global_impl_filter.get_names()
+            : impl_filter.get_names();
     const size_t sz = names.size();
     for (size_t i = 0; i < sz - 1; i++) {
         s << names[i] << ",";
@@ -50,10 +59,15 @@ std::ostream &operator<<(std::ostream &s, const impl_filter_t &impl_filter) {
 
 bool need_next_impl(
         const std::string &impl_name, const impl_filter_t &impl_filter) {
-    if (impl_filter.is_def()) return false;
+    const bool is_def = global_impl_filter.is_def() && impl_filter.is_def();
+    if (is_def) return false;
 
-    const bool use_impl = impl_filter.use_impl();
-    const auto &names = impl_filter.get_names();
+    const bool use_impl = !global_impl_filter.is_def()
+            ? global_impl_filter.use_impl()
+            : impl_filter.use_impl();
+    const auto &names = !global_impl_filter.is_def()
+            ? global_impl_filter.get_names()
+            : impl_filter.get_names();
 
     // If the name hits the list and `use_impl_=true`, no need the next impl.
     // If the name hits the list and `use_impl_=false`, needs the next impl.

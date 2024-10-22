@@ -35,6 +35,8 @@ private:
     bool use_impl_; // `true` to `--impl`, `false` to `--skip-impl`.
 };
 
+extern impl_filter_t global_impl_filter;
+
 // Fixed filter to remove running reference impls for prim_ref support.
 const impl_filter_t &get_prim_ref_impl_filter();
 

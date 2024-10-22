@@ -32,6 +32,7 @@ following information is printed for certain verbosity levels.
 * The problem memory footprint and RAM capacity on devices.
 * Fill configuration stats.
 * Compare configuration stats.
+* Additional implementation filtering information.
 
 ## Level 7
 * Graph: prints the essential part of the graph (after the rewriter pass).
