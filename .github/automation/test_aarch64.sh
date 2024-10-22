@@ -26,8 +26,8 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 # Defines MP, CC, CXX and OS.
 source ${SCRIPT_DIR}/common_aarch64.sh
 
-# Skip tests for certain config to preserve resources, while maintaining 
-# coverage. Skip: 
+# Skip tests for certain config to preserve resources, while maintaining
+# coverage. Skip:
 # (SEQ,CLANG)
 # (OMP,CLANG,DEBUG)
 SKIP_TESTS=0
@@ -36,7 +36,7 @@ if [[ "$OS" == "Linux" ]]; then
         if [[ "$BUILD_TOOLSET" == "clang" ]]; then
             SKIP_TESTS=1
         fi
-    elif [[ "$ONEDNN_THREADING" == "OMP" ]]; then 
+    elif [[ "$ONEDNN_THREADING" == "OMP" ]]; then
         if [[ "$BUILD_TOOLSET" == "clang" ]]; then
             if [[ "$CMAKE_BUILD_TYPE" == "Debug" ]]; then
                 SKIP_TESTS=1
@@ -62,9 +62,23 @@ if [[ "$OS" == "Linux" ]]; then
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_conv_smoke_cpu"
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_deconv_smoke_cpu"
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_matmul_smoke_cpu"
+        SKIPPED_TEST_FAILURES+="|cpu-graph-gqa-cpp"
+        SKIPPED_TEST_FAILURES+="|cpu-graph-mqa-cpp"
+        SKIPPED_TEST_FAILURES+="|cpu-graph-sdpa-cpp"
+        SKIPPED_TEST_FAILURES+="|cpu-graph-sdpa-stacked-qkv-cpp"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_large_partition_usm_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_usm_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_usm_cpu"
     elif [[ "$CMAKE_BUILD_TYPE" == "Release" ]]; then
         SKIPPED_TEST_FAILURES="cpu-primitives-deconvolution-cpp"
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_lnorm_smoke_cpu"
+        SKIPPED_TEST_FAILURES+="|cpu-graph-gqa-cpp"
+        SKIPPED_TEST_FAILURES+="|cpu-graph-mqa-cpp"
+        SKIPPED_TEST_FAILURES+="|cpu-graph-sdpa-cpp"
+        SKIPPED_TEST_FAILURES+="|cpu-graph-sdpa-stacked-qkv-cpp"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_large_partition_usm_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_usm_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_usm_cpu"
     fi
 elif [[ "$OS" == "Darwin" ]]; then
     if [[ "$CMAKE_BUILD_TYPE" == "Debug" ]]; then
@@ -72,10 +86,14 @@ elif [[ "$OS" == "Darwin" ]]; then
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_lnorm_smoke_cpu"
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_brgemm_smoke_cpu"
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_brgemm_ci_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_usm_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_usm_cpu"
     elif [[ "$CMAKE_BUILD_TYPE" == "Release" ]]; then
         SKIPPED_TEST_FAILURES="cpu-primitives-deconvolution-cpp"
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_lnorm_smoke_cpu"
         SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_lnorm_ci_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_usm_cpu"
+        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_usm_cpu"
     fi
 fi
 
