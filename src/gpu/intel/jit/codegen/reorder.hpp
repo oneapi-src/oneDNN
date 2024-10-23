@@ -445,6 +445,107 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         return;
     }
 
+    // native x <-> xf8
+    if (((src_bf8 || dst_bf8) && hw >= ngen::HW::XeHPC)
+            || (hw >= ngen::HW::Xe3 && (src_hf8 || dst_hf8))) {
+        int step = get_step();
+        ngen::DataType src_raw
+                = (src_bf8 || src_hf8) ? ngen::DataType::ub : ngen::DataType::w;
+        ngen::DataType dst_raw
+                = (dst_bf8 || dst_hf8) ? ngen::DataType::ub : ngen::DataType::w;
+        ngen::DataType conv_src
+                = (src_bf8 || src_hf8) ? src_type : ngen::DataType::hf;
+        ngen::DataType conv_dst
+                = (dst_bf8 || dst_hf8) ? dst_type : ngen::DataType::hf;
+        const int conv_dst_type_size = ngen::getBytes(conv_dst);
+        const int conv_src_type_size = ngen::getBytes(conv_src);
+        const bool do_pre_reorder = !(src_hf || src_bf8 || src_hf8);
+        const bool do_post_reorder = !(dst_hf || dst_bf8 || dst_hf8);
+        int conv_dst_stride = dst_stride;
+        int conv_src_stride = src_stride;
+        if (do_post_reorder) {
+            if (dst_type_size < conv_dst_type_size)
+                conv_dst_stride = conv_dst_type_size / dst_type_size;
+        }
+        if (do_pre_reorder) { conv_src_stride = 1; }
+        const int step_nregs
+                = utils::div_up(step * ((int)sizeof(ngen::half)), grf_size);
+        auto tmp1 = lex_scope.alloc_reg_buf_data(step_nregs);
+        auto tmp2 = lex_scope.alloc_reg_buf_data(step_nregs);
+        // Only conversion between hf and bf8 supported with mov so additional
+        // reorders generated when required.
+        if (do_pre_reorder) {
+            const int src_nregs = utils::div_up(
+                    width * conv_src_type_size * conv_src_stride, grf_size);
+            auto tmp_src = lex_scope.alloc_reg_buf_data(src_nregs).format(
+                    0, conv_src);
+            emit_reorder_1d_tile(hw, host, scope, width, src, src_stride,
+                    tmp_src, conv_src_stride);
+            src = std::move(tmp_src);
+        }
+        if (do_post_reorder) {
+            const int dst_nregs = utils::div_up(
+                    width * conv_dst_type_size * conv_dst_stride, grf_size);
+            auto tmp_dst = lex_scope.alloc_reg_buf_data(dst_nregs).format(
+                    0, conv_dst);
+            dst = std::move(tmp_dst);
+        }
+        const int conv_src_stride_bytes = conv_src_type_size * conv_src_stride;
+        const int conv_dst_stride_bytes = conv_dst_type_size * conv_dst_stride;
+        for (int i = 0; i < width; i += step) {
+            step = std::min(step, width - i);
+            step = utils::rnd_down_pow2(step);
+            int esize = step;
+
+            auto s = src.subregister(i, esize, conv_src_stride_bytes);
+            auto d = dst.subregister(i, esize, conv_dst_stride_bytes);
+            bool some_offset
+                    = (s.getByteOffset() != 0 || d.getByteOffset() != 0);
+            bool some_stride = (conv_dst_stride > 1 || conv_src_stride > 1);
+            assert((src_hf || dst_hf) || esize <= 16);
+            // Esize 1 disabled for hf <-> bf8.
+            // bcast to tmp reg, convert 2 vals, copy one to dst.
+            if (esize == 1) {
+                auto t1 = tmp1.subregister(0, ngen::DataType::hf);
+                auto t2 = tmp2.subregister(0, src_raw);
+                plan(mov, 2, t1.reinterpret(0, src_raw)(1),
+                        s.reinterpret(0, src_raw)(0));
+                plan(mov, 2, t2.reinterpret(0, conv_dst)(1),
+                        t1.reinterpret(0, conv_src)(1));
+                plan(mov, 1, d.reinterpret(0, dst_raw)(1),
+                        t2.reinterpret(0, dst_raw)(1));
+                // Conversion allowed only with 0 offset, matching stride.
+            } else if (some_stride || some_offset) {
+                if (dst_bf8 || dst_hf8) {
+                    auto t1 = tmp1.subregister(0, ngen::DataType::hf);
+                    auto t2 = tmp2.subregister(0, conv_src);
+                    plan(mov, esize, t1.reinterpret(0, src_raw)(1),
+                            s.reinterpret(0, src_raw)(conv_src_stride));
+                    plan(mov, esize, t2.reinterpret(0, dst_type)(1),
+                            t1.reinterpret(0, conv_src)(1));
+                    plan(mov, esize, d.reinterpret(0, dst_raw)(conv_dst_stride),
+                            t2.reinterpret(0, dst_raw)(1));
+                } else if (src_bf8 || src_hf8) {
+                    emit_reorder_1d_tile(hw, host, scope, step,
+                            src.format(i * conv_src_stride, src_raw),
+                            conv_src_stride, tmp1.format(0, src_raw), 1);
+                    auto t1 = tmp1.subregister(0, conv_src);
+                    auto t2 = tmp2.subregister(0, conv_dst);
+                    plan(mov, esize, t2(1), t1(1));
+                    plan(mov, esize, d.reinterpret(0, dst_raw)(conv_dst_stride),
+                            t2.reinterpret(0, dst_raw)(1));
+                }
+            } else {
+                plan(mov, esize, d(conv_dst_stride), s(conv_src_stride));
+            }
+        }
+        if (do_post_reorder) {
+            emit_reorder_1d_tile(hw, host, scope, width, dst, conv_dst_stride,
+                    _dst, dst_stride);
+        }
+        return;
+    }
+
     // hf8 -> x
     if (src_hf8) {
         int step = get_step();
