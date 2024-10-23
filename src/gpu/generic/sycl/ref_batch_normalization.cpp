@@ -84,9 +84,13 @@ status_t ref_batch_normalization_fwd_t::init(impl::engine_t *engine) {
                 = ::sycl::get_kernel_id<batch_normalization_fwd_kernel_vec_t>();
         CHECK(create_kernel(engine, kid, &kernel_));
     } else {
+        // Enabling the IEEE div compliant implementation
+        setenv("SYCL_PROGRAM_COMPILE_OPTIONS",
+                "-cl-fp32-correctly-rounded-divide-sqrt", 1);
         const auto kid = ::sycl::get_kernel_id<
                 batch_normalization_fwd_kernel_vec_t1>();
         CHECK(create_kernel(engine, kid, &kernel_));
+        unsetenv("SYCL_PROGRAM_COMPILE_OPTIONS");
     }
     return status::success;
 }
