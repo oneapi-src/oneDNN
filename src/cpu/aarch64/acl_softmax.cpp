@@ -77,7 +77,7 @@ status_t acl_softmax_fwd_t::pd_t::init(engine_t *engine) {
     // associated with calling the external library and the negative
     // coefficient on total_size as ACL being faster at processing
     // each element
-    auto calculate_performance_diff = [=](double axis_coeff) {
+    auto calculate_performance_diff = [&](double axis_coeff) {
         double acl_ref_performance_diff = 1 + 0.005 * outer_size_
                 + axis_coeff * axis_size_
                         * std::ceil(double(outer_size_) / threads);
