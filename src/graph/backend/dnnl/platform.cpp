@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,8 +24,6 @@
 #if DNNL_AARCH64_USE_ACL
 // For checking if fp16 isa is supported on the platform
 #include "arm_compute/core/CPP/CPPTypes.h"
-// For setting the number of threads for ACL
-#include "src/common/cpuinfo/CpuInfo.h"
 #endif
 #endif
 #endif
