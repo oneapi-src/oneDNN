@@ -22,6 +22,7 @@
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "common/primitive_attr.hpp"
 #include "common/primitive_exec_types.hpp"
 
 namespace dnnl {

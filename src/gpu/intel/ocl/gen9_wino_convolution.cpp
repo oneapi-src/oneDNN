@@ -20,6 +20,8 @@
 #include "common/memory_storage.hpp"
 #include "common/type_helpers.hpp"
 
+#include "gpu/gpu_eltwise_pd.hpp"
+
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 
