@@ -84,13 +84,27 @@ status_t calculate_plain_transpose_blocks(dim_t &batch, dim_t &M, dim_t &K,
 
     const memory_desc_wrapper id(src_md_reduced), od(dst_md_reduced);
 
-    // sort the arrays first by src strides.
-    // set dims and dst strides in same order.
     dims_t sort_src_indices {};
-    for (dim_t i = 0; i < id.ndims(); i++)
+    dims_t sort_dst_indices {};
+    for (dim_t i = 0; i < id.ndims(); i++) {
         sort_src_indices[i] = i;
+        sort_dst_indices[i] = i;
+    }
     std::sort(sort_src_indices, sort_src_indices + id.ndims(),
             [id](int a, int b) { return id.strides()[a] > id.strides()[b]; });
+    std::sort(sort_dst_indices, sort_dst_indices + od.ndims(),
+            [od](int a, int b) { return od.strides()[a] > od.strides()[b]; });
+    // make sure physical layout is dense and there is no magical
+    // padding.
+    for (dim_t i = id.ndims() - 1; i > 0; i--)
+        VDISPATCH_REORDER_IC((id.strides()[sort_src_indices[i]]
+                                             * id.dims()[sort_src_indices[i]]
+                                     == id.strides()[sort_src_indices[i - 1]])
+                        && (od.strides()[sort_dst_indices[i]]
+                                        * od.dims()[sort_dst_indices[i]]
+                                == od.strides()[sort_dst_indices[i - 1]]),
+                VERBOSE_UNSUPPORTED_MEM_STRIDE);
+    // sort the arrays by src strides.
     dims_t src_sorted_strides {};
     dims_t dst_sorted_strides {};
     dims_t sorted_dims {};
