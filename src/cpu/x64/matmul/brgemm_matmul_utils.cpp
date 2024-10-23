@@ -1812,10 +1812,11 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
     bgmmc.has_zero_point_b = bgmmc.wei_zp_type != brgemm_broadcast_t::none;
     bgmmc.has_zero_point_c = bgmmc.dst_zp_type != brgemm_broadcast_t::none;
     bgmmc.post_ops_applicable = one_of(true, bgmmc.with_sum, bgmmc.with_bias,
-            bgmmc.with_scales, bgmmc.with_eltwise, bgmmc.with_binary,
-            bgmmc.acc_dt != bgmmc.dst_dt, bgmmc.s8s8_compensation_required,
-            bgmmc.has_zero_point_a, bgmmc.has_zero_point_b,
-            bgmmc.has_zero_point_c, bgmmc.with_dst_scales);
+            bgmmc.with_scales && !bgmmc.apply_scales_in_buffer_b,
+            bgmmc.with_eltwise, bgmmc.with_binary, bgmmc.acc_dt != bgmmc.dst_dt,
+            bgmmc.s8s8_compensation_required, bgmmc.has_zero_point_a,
+            bgmmc.has_zero_point_b, bgmmc.has_zero_point_c,
+            bgmmc.with_dst_scales);
 
     bgmmc.zp_a_comp_shift_n = bgmmc.wei_n_blk;
     bgmmc.zp_a_comp_elems_per_thr
