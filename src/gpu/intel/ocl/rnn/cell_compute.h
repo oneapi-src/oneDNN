@@ -87,6 +87,17 @@ typedef struct {
     cell_strides_t strides;
 } const_aux_cell_t;
 
+
+typedef struct {
+    __global WS_STATE_DATA_T *ptr;
+    cell_strides_t strides;
+} ws_state_cell_t;
+
+typedef struct {
+    __global const WS_STATE_DATA_T *ptr;
+    cell_strides_t strides;
+} const_ws_state_cell_t;
+
 typedef struct {
     cell_dim_t mb;
     cell_dim_t dhc;
