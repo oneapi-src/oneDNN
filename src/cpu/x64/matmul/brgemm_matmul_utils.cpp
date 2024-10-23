@@ -296,6 +296,7 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(memory_desc_t &B_md,
                 ? get_default_n_block(format_tag::undef)
                 : bgmmc.N_blk;
         bgmmc.wei_tag = blocked_B_layouts_allowed && !bgmmc.is_runtime_N
+                        && !bgmmc.is_int4_weights
                 ? this->pick_blocked_B_layout(default_n_block)
                 : plain_tensor_layout_tag;
         VCONDCHECK_BG(
@@ -311,6 +312,7 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(memory_desc_t &B_md,
         }
     } else {
         bgmmc.wei_tag = blocked_B_layouts_allowed && !bgmmc.is_runtime_N
+                        && !bgmmc.is_int4_weights
                 ? memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, blocked_64n_B_layout_tag,
                         blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
