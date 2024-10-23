@@ -200,9 +200,11 @@ struct ocl_conf_t {
     data_type_t dst_c_dt = data_type::undef;
     data_type_t acc_dt = data_type::undef;
     data_type_t aux_dt = data_type::undef;
+    data_type_t ws_state_dt = data_type::undef;
     data_type_t input_dt = data_type::undef;
     data_type_t output_dt = data_type::undef;
     data_type_t diff_dt = data_type::undef;
+    uint8_t pad[4] = {};
 
     struct inner_layouts_t {
 #if __cplusplus >= 202002L

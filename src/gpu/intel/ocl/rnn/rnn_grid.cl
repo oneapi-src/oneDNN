@@ -829,8 +829,8 @@ __kernel void simple_rnn_elemwise_bwd() {}
 #if CELL_COMP_ENABLED
 
 void gemm_sum_inner(float(C)[M_THR_BLOCK][N_THR_BLOCK],
-        const __global float *restrict A, const int a_stride,
-        const __global float *restrict B, const int b_stride,
+        const __global WS_STATE_DATA_T *restrict A, const int a_stride,
+        const __global WEI_LAYER_DATA_T *restrict B, const int b_stride,
         const int m_thr_stride, const int n_thr_stride, int m_l_end,
         int k_l_end, int n_l_end, bool mn_valid) {
 
@@ -866,10 +866,11 @@ void gemm_sum_inner(float(C)[M_THR_BLOCK][N_THR_BLOCK],
 
 // Perform C += A * B where all matrices are in row major layout
 void gemm_sum(float(C)[N_OUTER_BLOCK][M_THR_BLOCK][N_THR_BLOCK],
-        const __global float *restrict A, const int a_stride,
-        const __global float *restrict B, const int b_stride, gemm_dims_t size,
-        int m_sg, int m_thr_stride, int n_sg, int n_thr_stride,
-        bool enable_m_tail, bool enable_k_tail, bool enable_n_tail) {
+        const __global WS_STATE_DATA_T *restrict A, const int a_stride,
+        const __global WEI_LAYER_DATA_T *restrict B, const int b_stride,
+        gemm_dims_t size, int m_sg, int m_thr_stride, int n_sg,
+        int n_thr_stride, bool enable_m_tail, bool enable_k_tail,
+        bool enable_n_tail) {
 
     // Optimization opportunity: Loads across the m and n dimension can overflow
     // so long as they do not cross the end of the buffer.
@@ -930,10 +931,10 @@ void gemm_sum(float(C)[N_OUTER_BLOCK][M_THR_BLOCK][N_THR_BLOCK],
 }
 
 void cell_common_inner(const_wei_layer_cell_t wei_layer,
-        const_wei_iter_cell_t wei_iter, const_aux_cell_t cell_layer,
-        const_aux_cell_t cell_iter, aux_cell_t gates, aux_cell_t states,
-        const_aux_cell_t scratch_gates, cell_ctx_t ctx, cell_dims_t outer,
-        cell_dims_t dims) {
+        const_wei_iter_cell_t wei_iter, const_ws_state_cell_t cell_layer,
+        const_ws_state_cell_t cell_iter, aux_cell_t gates,
+        ws_state_cell_t states, const_aux_cell_t scratch_gates, cell_ctx_t ctx,
+        cell_dims_t outer, cell_dims_t dims) {
     // Extract local id from the subgroup id rather than `get_local_id` as the
     // mapping from subgroups to the local work group is not well defined.
     const int local_sgid0
@@ -1031,10 +1032,10 @@ void cell_common_inner(const_wei_layer_cell_t wei_layer,
 }
 
 void cell_common(const_wei_layer_cell_t wei_layer,
-        const_wei_iter_cell_t wei_iter, const_aux_cell_t cell_layer,
-        const_aux_cell_t cell_iter, aux_cell_t gates, aux_cell_t states,
-        const_aux_cell_t scratch_gates, cell_ctx_t ctx, cell_dims_t dims,
-        cell_loops_t loops) {
+        const_wei_iter_cell_t wei_iter, const_ws_state_cell_t cell_layer,
+        const_ws_state_cell_t cell_iter, aux_cell_t gates,
+        ws_state_cell_t states, const_aux_cell_t scratch_gates, cell_ctx_t ctx,
+        cell_dims_t dims, cell_loops_t loops) {
 
     for_(cell_dim_t mb_outer = 0; mb_outer < loops.mb; mb_outer += BATCH_LOCAL)
     for (cell_dim_t dhc_outer = 0; dhc_outer < loops.dhc;
@@ -1049,12 +1050,14 @@ __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) __kernel void
 simple_rnn_cell_fwd(__global const WEI_LAYER_DATA_T *wei_layer_,
         dim_t wei_layer_off, int64x5_t wei_layer_strides_,
         __global const WEI_ITER_DATA_T *wei_iter_, dim_t wei_iter_off,
-        int64x5_t wei_iter_strides_, __global const AUX_DATA_T *cell_layer_,
-        dim_t cell_layer_off, int64x2_t cell_layer_strides_,
-        __global const AUX_DATA_T *cell_iter_, dim_t cell_iter_off,
+        int64x5_t wei_iter_strides_,
+        __global const WS_STATE_DATA_T *cell_layer_, dim_t cell_layer_off,
+        int64x2_t cell_layer_strides_,
+        __global const WS_STATE_DATA_T *cell_iter_, dim_t cell_iter_off,
         int64x2_t cell_iter_strides_, __global AUX_DATA_T *gates_,
-        dim_t gates_off, int64x2_t gates_strides_, __global AUX_DATA_T *states_,
-        dim_t states_off, int64x2_t states_strides_,
+        dim_t gates_off, int64x2_t gates_strides_,
+        __global WS_STATE_DATA_T *states_, dim_t states_off,
+        int64x2_t states_strides_,
 #if CELL_KIND == VANILLA_LSTM
         __global AUX_DATA_T *c_states_, dim_t c_states_off,
         __global const AUX_DATA_T *c_states_iter_, dim_t c_states_iter_off,
@@ -1113,16 +1116,16 @@ simple_rnn_cell_fwd(__global const WEI_LAYER_DATA_T *wei_layer_,
     __global BIAS_DATA_T *bias = bias_ + bias_off;
 
     for (dim_t iter = 0; iter < iter_loop; iter++) {
-        const_aux_cell_t cell_layer = {.ptr
+        const_ws_state_cell_t cell_layer = {.ptr
                 = cell_layer_ + cell_layer_off + cell_layer_strides.iter * iter,
                 .strides = cell_layer_strides.cell};
-        const_aux_cell_t cell_iter = {.ptr
+        const_ws_state_cell_t cell_iter = {.ptr
                 = cell_iter_ + cell_iter_off + cell_iter_strides.iter * iter,
                 .strides = cell_iter_strides.cell};
         aux_cell_t gates
                 = {.ptr = gates_ + gates_off + gates_strides.iter * iter,
                         .strides = gates_strides.cell};
-        aux_cell_t states
+        ws_state_cell_t states
                 = {.ptr = states_ + states_off + states_strides.iter * iter,
                         .strides = states_strides.cell};
         const_aux_cell_t scratch_gates = {.ptr = scratch_gates_

@@ -81,6 +81,7 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.bia_dt = rnn.bias_data_type;
     ocl_conf.acc_dt = rnn.acc_data_type;
     ocl_conf.aux_dt = rnn.aux_data_type;
+    ocl_conf.ws_state_dt = rnn.src_data_type;
     ocl_conf.diff_dt = rnn.diff_data_type;
     ocl_conf.input_dt = rnn.input_data_type;
     ocl_conf.output_dt = rnn.output_data_type;
@@ -415,7 +416,7 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
     } else
         kernel_ctx.set_data_type(data_type::f32);
 
-    def_data_type(kernel_ctx, src_dt, "WS_STATE");
+    def_data_type(kernel_ctx, ws_state_dt, "WS_STATE");
     def_data_type(kernel_ctx, src_dt, "SRC");
     def_data_type(kernel_ctx, src_c_dt, "SRC_C");
     def_data_type(kernel_ctx, wei_dt, "WEI_LAYER");
