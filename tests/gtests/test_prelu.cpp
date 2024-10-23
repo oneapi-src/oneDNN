@@ -38,9 +38,9 @@ struct prelu_test_params_t {
     dnnl_status_t expected_status;
 };
 
-bool generic_check_dt(memory::format_tag tag) {
-    return impl::utils::one_of(tag, tag::ncdhw, tag::nchw, tag::ncw, tag::nhwc,
-            tag::nwc, tag::any);
+bool generic_check_dt(memory::format_tag ft) {
+    return impl::utils::one_of(
+            ft, tag::ncdhw, tag::nchw, tag::ncw, tag::nhwc, tag::nwc, tag::any);
 }
 
 bool generic_reduce_diff_weights(
