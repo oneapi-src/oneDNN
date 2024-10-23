@@ -38,7 +38,7 @@ struct prelu_test_params_t {
     dnnl_status_t expected_status;
 };
 
-bool generic_check_dt(memory::format_tag ft) {
+bool generic_check_tag(memory::format_tag ft) {
     return impl::utils::one_of(
             ft, tag::ncdhw, tag::nchw, tag::ncw, tag::nhwc, tag::nwc, tag::any);
 }
@@ -66,9 +66,12 @@ protected:
         SKIP_IF(unsupported_data_type(p.src_dt, p.wei_dt, p.dst_dt),
                 "Engine does not support this data type.");
 
-        SKIP_IF_GENERIC(!generic_check_dt(p.src_tag), "Unsupported format tag");
-        SKIP_IF_GENERIC(!generic_check_dt(p.dst_tag), "Unsupported format tag");
-        SKIP_IF_GENERIC(!generic_check_dt(p.wei_tag), "Unsupported format tag");
+        SKIP_IF_GENERIC(
+                !generic_check_tag(p.src_tag), "Unsupported format tag");
+        SKIP_IF_GENERIC(
+                !generic_check_tag(p.dst_tag), "Unsupported format tag");
+        SKIP_IF_GENERIC(
+                !generic_check_tag(p.wei_tag), "Unsupported format tag");
         // XXX: Enable these cases when generic reduction is implemented
         SKIP_IF_GENERIC(generic_reduce_diff_weights(p.src_dims, p.wei_dims),
                 "Unsupported configuration");
