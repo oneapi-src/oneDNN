@@ -17,6 +17,7 @@
 #ifndef GPU_INTEL_OCL_RNN_CELL_COMPUTE_H
 #define GPU_INTEL_OCL_RNN_CELL_COMPUTE_H
 
+#include "gpu/intel/ocl/ocl_conversion.h"
 #include "gpu/intel/ocl/rnn/rnn_common.h"
 
 #if CELL_COMP_ENABLED
@@ -87,7 +88,6 @@ typedef struct {
     cell_strides_t strides;
 } const_aux_cell_t;
 
-
 typedef struct {
     __global WS_STATE_DATA_T *ptr;
     cell_strides_t strides;
@@ -132,9 +132,22 @@ typedef struct {
 #define NEED_SCRATCH_GATES \
     (!(CELL_COMPUTE_GEMM_LAYER && CELL_COMPUTE_GEMM_ITER))
 
-inline void load(float *s, const __global float *data, bool is_valid) {
-    *s = is_valid ? as_float(data[get_sub_group_local_id()]) : 0;
+inline void __attribute__((overloadable))
+load(float *s, const __global float *data, bool is_valid) {
+    *s = is_valid ? data[get_sub_group_local_id()] : 0;
 }
+
+inline void __attribute__((overloadable))
+load(float *s, const __global half *data, bool is_valid) {
+    *s = is_valid ? into_float(data[get_sub_group_local_id()]) : 0;
+}
+
+// Bfloat 16
+inline void __attribute__((overloadable))
+load(float *s, const __global ushort *data, bool is_valid) {
+    *s = is_valid ? into_float(as_bf16(data[get_sub_group_local_id()])) : 0;
+}
+
 inline float __attribute__((overloadable)) sg_get(float s, int offset) {
     return intel_sub_group_shuffle(s, offset);
 }
