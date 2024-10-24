@@ -344,20 +344,28 @@
 #define DEFAULT_ROUND(f) f
 
 #if WITH_SRC_SCALE || WITH_DST_SCALE
-#define MASK_DIM(prefix, dim) ((CONCAT2(prefix, _SCALE_MASK) >> dim) & 1)
-#define SCALE_DIM(prefix, dim) \
-    (MASK_DIM(prefix, dim) ? CONCAT3(prefix, _D, dim) : 1)
-#define SCALE_S5(prefix) (1)
-#define SCALE_S4(prefix) (SCALE_DIM(prefix, 5) * SCALE_S5(prefix))
-#define SCALE_S3(prefix) (SCALE_DIM(prefix, 4) * SCALE_S4(prefix))
-#define SCALE_S2(prefix) (SCALE_DIM(prefix, 3) * SCALE_S3(prefix))
-#define SCALE_S1(prefix) (SCALE_DIM(prefix, 2) * SCALE_S2(prefix))
-#define SCALE_S0(prefix) (SCALE_DIM(prefix, 1) * SCALE_S1(prefix))
-#define SCALE_STRIDE(prefix, dim) \
-    (CONCAT2(SCALE_S, dim)(prefix) * MASK_DIM(prefix, dim))
+#define MASK_DIM(prefix, mask, dim) ((CONCAT2(prefix, mask) >> dim) & 1)
+#define QUANT_DIM(prefix, mask, dim) \
+    (MASK_DIM(prefix, mask, dim) ? CONCAT3(prefix, _D, dim) : 1)
+#define QUANT_S5(prefix, mask) (1)
+#define QUANT_S4(prefix, mask) \
+    (QUANT_DIM(prefix, mask, 5) * QUANT_S5(prefix, mask))
+#define QUANT_S3(prefix, mask) \
+    (QUANT_DIM(prefix, mask, 4) * QUANT_S4(prefix, mask))
+#define QUANT_S2(prefix, mask) \
+    (QUANT_DIM(prefix, mask, 3) * QUANT_S3(prefix, mask))
+#define QUANT_S1(prefix, mask) \
+    (QUANT_DIM(prefix, mask, 2) * QUANT_S2(prefix, mask))
+#define QUANT_S0(prefix, mask) \
+    (QUANT_DIM(prefix, mask, 1) * QUANT_S1(prefix, mask))
+#define QUANT_STRIDE(prefix, mask, dim) \
+    (CONCAT2(QUANT_S, dim)(prefix, mask) * MASK_DIM(prefix, mask, dim))
 
 #define SCALE_OFF(prefix, x0, x1, x2, x3, x4, x5) \
-    ((x0)*SCALE_STRIDE(prefix, 0) + (x1)*SCALE_STRIDE(prefix, 1) \
-            + (x2)*SCALE_STRIDE(prefix, 2) + (x3)*SCALE_STRIDE(prefix, 3) \
-            + (x4)*SCALE_STRIDE(prefix, 4) + (x5)*SCALE_STRIDE(prefix, 5))
+    ((x0)*QUANT_STRIDE(prefix, _SCALE_MASK, 0) \
+            + (x1)*QUANT_STRIDE(prefix, _SCALE_MASK, 1) \
+            + (x2)*QUANT_STRIDE(prefix, _SCALE_MASK, 2) \
+            + (x3)*QUANT_STRIDE(prefix, _SCALE_MASK, 3) \
+            + (x4)*QUANT_STRIDE(prefix, _SCALE_MASK, 4) \
+            + (x5)*QUANT_STRIDE(prefix, _SCALE_MASK, 5))
 #endif // WITH_SRC_SCALE || WITH_DST_SCALE
