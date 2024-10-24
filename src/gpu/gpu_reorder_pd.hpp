@@ -32,7 +32,27 @@ protected:
                        dnnl_primitive_attr::skip_mask_t::zero_points_runtime
                        | dnnl_primitive_attr::skip_mask_t::scales_runtime
                        | dnnl_primitive_attr::skip_mask_t::post_ops)
-                && post_ops_ok();
+                && post_ops_ok() && zero_points_ok();
+    }
+
+    bool zero_points_ok() const {
+        using namespace data_type;
+        const auto src_dt = src_md()->data_type;
+        const auto dst_dt = dst_md()->data_type;
+
+        int mask_src = 0, mask_dst = 0;
+        if (attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src)
+                != status::success)
+            return false;
+        if (attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst)
+                != status::success)
+            return false;
+
+        return IMPLICATION(!utils::one_of(src_dt, s8, u8),
+                       attr()->zero_points_.has_default_values(DNNL_ARG_SRC))
+                && IMPLICATION(!utils::one_of(dst_dt, s8, u8),
+                        attr()->zero_points_.has_default_values(DNNL_ARG_DST))
+                && mask_src == 0 && mask_dst == 0;
     }
 
     bool post_ops_ok() const {
