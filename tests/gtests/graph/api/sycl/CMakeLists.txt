@@ -29,5 +29,5 @@ foreach(TEST_FILE ${API_SYCL_TEST_SOURCES})
         ${DNNL_LIBRARY_NAME}
         ${EXTRA_SHARED_LIBS}
     )
-    register_graph_api_test_suite(${exe_name}_usm ${exe_name})
+    register_graph_api_test_suite(${exe_name} ${exe_name})
 endforeach()
