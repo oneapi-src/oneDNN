@@ -930,16 +930,11 @@ static bool parse_engine(
     // Parse engine index if present
     std::string s(str);
     auto start_pos = s.find_first_of(':');
-    if (start_pos != eol) engine_index = std::stoi(s.substr(start_pos + 1));
-
-    auto n_devices = dnnl_engine_get_count(engine_tgt_kind);
-    if (engine_index >= n_devices) {
-        fprintf(stderr,
-                "ERROR: requested engine with index %ld is not registered in "
-                "the system. Number of devices registered is %ld.\n",
-                (long)engine_index, (long)n_devices);
-        exit(2);
+    if (start_pos != eol) {
+        // Let the library catch issues with incorrect engine indices.
+        engine_index = std::stoi(s.substr(start_pos + 1));
     }
+
     return true;
 }
 

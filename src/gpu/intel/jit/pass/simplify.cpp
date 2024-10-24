@@ -102,7 +102,7 @@ public:
     }
 
     // Matches any integer constant.
-    static expr_t make_any(int64_t id) { return expr_t(new pint_imm_t(id, 0)); }
+    static expr_t make_any(int id) { return expr_t(new pint_imm_t(id, 0)); }
 
     bool matches(const int_imm_t &imm) const {
         if (id == -1) return value == imm.value;
@@ -1815,8 +1815,8 @@ struct op_traits_t<op_kind_t::_div> {
             typename = typename std::enable_if<is_int_t<T>::value>::type>
     static auto compute(T a, T b) -> decltype(a / b) {
         ir_assert(b > 0);
-        int r = a % b;
-        int d = a / b;
+        T r = a % b;
+        T d = a / b;
         if (r < 0) d--;
         return d;
     }
@@ -1828,7 +1828,7 @@ struct op_traits_t<op_kind_t::_mod> {
             typename = typename std::enable_if<is_int_t<T>::value>::type>
     static auto compute(T a, T b) -> decltype(a % b) {
         ir_assert(b > 0);
-        int r = a % b;
+        T r = a % b;
         if (r < 0) r += b;
         return r;
     }

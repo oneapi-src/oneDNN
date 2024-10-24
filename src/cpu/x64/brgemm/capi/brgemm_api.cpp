@@ -360,7 +360,9 @@ dnnl_transform::dnnl_transform(dim_t K, dim_t N, pack_type_t in_pack_type,
     , in_dt_(in_dt)
     , out_dt_(out_dt) {
     // Check for a valid in_ld depending on a pack type.
-    assert(in_pack_type == pack_type::no_trans ? in_ld_ >= N_ : in_ld_ >= K_);
+    assert(in_pack_type == pack_type::no_trans
+                    ? IMPLICATION(K_ > 1, in_ld_ >= N_)
+                    : in_ld_ >= K_);
     // Only special N_blk sizes are supported by matmul copy routines. Rest
     // will crash.
     assert(utils::one_of(out_ld_, 16, 32, 48, 64));

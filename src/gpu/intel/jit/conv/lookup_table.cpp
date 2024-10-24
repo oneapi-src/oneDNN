@@ -85,10 +85,10 @@ blocking_params_t conv_lookup_table_t::find(const conv_key_t &key) const {
     auto &desc_entries = entries_it->second;
     auto it = desc_entries.begin();
     auto best = desc_entries.end();
-    int best_dist = std::numeric_limits<int>::max();
+    dim_t best_dist = std::numeric_limits<dim_t>::max();
     for (; it != desc_entries.end(); it++) {
         if (!it->key.matches(key)) continue;
-        int dist = it->key.distance(key);
+        dim_t dist = it->key.distance(key);
         if (dist < best_dist) {
             best_dist = dist;
             best = it;

@@ -62,7 +62,7 @@ public:
         reg_layout.for_each_tile(
                 base_tile, [&](const std::vector<dim_t> &start) {
                     tensor_t tile(base_tile.dims(), start);
-                    int off = reg_layout(start) * reg_layout.type().size();
+                    dim_t off = reg_layout(start) * reg_layout.type().size();
                     auto mask = create_mask(reg_layout, tile);
                     auto zero = to_expr(0, reg_layout.type());
                     auto store = store_t::make(reg_buf, off,
@@ -74,13 +74,13 @@ public:
     }
 
 private:
-    void fill_mask_impl(mask_tensor_t &mask_tensor, int idx,
+    void fill_mask_impl(mask_tensor_t &mask_tensor, dim_idx_t idx,
             std::vector<dim_t> &args, const view_t &view,
             const layout_t &layout) const {
         if (idx == layout.ndims()) {
             std::vector<expr_t> vargs;
             vargs.reserve(layout.ndims());
-            for (int i = 0; i < layout.ndims(); i++)
+            for (dim_idx_t i = 0; i < layout.ndims(); i++)
                 vargs.push_back(view.vstart(i) + args[i]);
             expr_t mask = full_mem_view_.vmask(vargs);
             auto off = layout.offset(args, /*ignore_offset=*/true);
@@ -190,7 +190,7 @@ public:
     bool needs_reduction() const {
         if (!info_.is_output()) return false;
 
-        for (int i = 0; i < mem_view().nvdims(); i++) {
+        for (dim_idx_t i = 0; i < mem_view().nvdims(); i++) {
             if (is_broadcast_dim(i)) {
                 if (reg_layout_.dims()[i] != 1) return true;
             }
@@ -202,7 +202,7 @@ public:
 
     const expr_t &compute_expr() const { return info_.compute_expr(); }
 
-    bool is_broadcast_dim(int dim_idx) const {
+    bool is_broadcast_dim(dim_idx_t dim_idx) const {
         ir_assert(dim_idx >= 0 && dim_idx < mem_view().nvdims());
         return (mask() & (1 << dim_idx)) == 0;
     }
@@ -230,7 +230,7 @@ public:
         auto start = tile.start();
         auto dims = tile.dims();
 
-        for (int i = 0; i < tile.ndims(); i++) {
+        for (dim_idx_t i = 0; i < tile.ndims(); i++) {
             if (!is_broadcast_dim(i)) continue;
             start[i] = expr_t(0);
             dims[i] = 1;
@@ -253,12 +253,12 @@ public:
         // is computed via reduction. Extend layout to cover full masked_tile
         // and apply the final reduction after all tiles.
         auto masked_tile = apply_mask(tile);
-        for (int i = 0; i < masked_tile.ndims(); i++) {
+        for (dim_idx_t i = 0; i < masked_tile.ndims(); i++) {
             if (masked_tile(i) >= tile(i)) continue;
             ir_assert(masked_tile(i) == 1) << "Unexpected output tensor shape.";
             reg_layout_ = reg_layout_.add_outer_block(i, tile(i));
         }
-        register_buffer(reg_buf_, reg_layout_.size());
+        register_buffer(reg_buf_, into<int>(reg_layout_.size()));
     }
 
     stmt_t build_load_stmt(const view_t &c_view) {
@@ -289,7 +289,7 @@ public:
         auto f32_buf = make_tmp_reg_buffer();
         auto f32_layout = reg_layout_.retype(type_t::f32()).make_dense();
 
-        register_buffer(f32_buf, f32_layout.size());
+        register_buffer(f32_buf, into<int>(f32_layout.size()));
 
         // Reorder to f32.
         auto ret = create_reorder_stmt(
@@ -319,7 +319,7 @@ public:
             }
         }
         reg_buf_ = make_tmp_reg_buffer();
-        register_buffer(reg_buf_, reg_layout_.size());
+        register_buffer(reg_buf_, into<int>(reg_layout_.size()));
         return store_t::make(reg_buf_, 0, e);
     }
 
@@ -381,13 +381,13 @@ public:
 
     expr_t load_expr(const tensor_t &tile, int dim_idx) const {
         auto &type = reg_layout_.type();
-        int elems = is_broadcast_dim(dim_idx) ? 1 : tile.elems();
-        int off = reg_layout_.offset_in_bytes(expr_cast<dim_t>(tile.start()));
+        int elems = is_broadcast_dim(dim_idx) ? 1 : into<int>(tile.elems());
+        dim_t off = reg_layout_.offset_in_bytes(expr_cast<dim_t>(tile.start()));
         auto ret = (reg_buf_.type().is_ptr()
                         ? load_t::make(type.with_elems(elems), reg_buf_, off)
                         : reg_buf_);
         if (elems != tile.elems())
-            ret = shuffle_t::make_broadcast(ret, tile.elems());
+            ret = shuffle_t::make_broadcast(ret, into<int>(tile.elems()));
         return ret;
     }
 
@@ -398,9 +398,10 @@ public:
         ir_assert(value.type().elems() == tile.elems());
         // Add cast for booleans for comparison ops.
         if (value.type().is_bool()) {
-            value = cast(value, reg_layout_.type().with_elems(tile.elems()));
+            value = cast(value,
+                    reg_layout_.type().with_elems(into<int>(tile.elems())));
         }
-        int off = reg_layout_.offset_in_bytes(expr_cast<dim_t>(tile.start()));
+        dim_t off = reg_layout_.offset_in_bytes(expr_cast<dim_t>(tile.start()));
         auto ret = store_t::make(
                 reg_buf_, off, value, store_t::default_stride, mask);
         return ret;
@@ -421,7 +422,7 @@ private:
         return ir_ctx_->create_tmp_var(type_t::byte_ptr(), "tmp_" + name);
     }
 
-    void register_buffer(const expr_t &buf, int size) {
+    void register_buffer(const expr_t &buf, uint32_t size) {
         size = utils::rnd_up(size, ir_ctx_->grf_size());
         for (auto &_a : allocs_) {
             auto &a = _a.as<alloc_t>();
@@ -438,7 +439,7 @@ private:
     send_cache_hint_t get_cache_hint(const view_t &c_view) const {
         ir_assert(mem_view().nvdims() == c_view.nvdims());
         bool per_tensor = true;
-        for (int i = 0; i < mem_view().nvdims(); i++) {
+        for (dim_idx_t i = 0; i < mem_view().nvdims(); i++) {
             if ((mask() & (1 << i)) != 0) continue;
             if (c_view.vdims()[i] == 1) continue;
             per_tensor = false;
@@ -514,8 +515,8 @@ public:
             // Apply eltwise post-op.
             ir_assert(post_op_.lhs().is_equal(post_op_.rhs()))
                     << "Only supported form is lhs = eltwise(lhs).";
-            int lhs_size = lhs_tensor.reg_layout().size();
-            int lhs_elems = lhs_size / int(sizeof(float));
+            dim_t lhs_size = lhs_tensor.reg_layout().size();
+            dim_t lhs_elems = lhs_size / int(sizeof(float));
             return post_op_.eltwise().call(
                     {expr_t(lhs_elems), lhs_tensor.reg_buf()});
         }
@@ -574,9 +575,9 @@ private:
             ir_assert(dim_t(b0.stride) == 1);
             inner_dim_idx = b0.dim_idx;
 
-            int inner_block = b0.block;
-            int max_step = 2 * hw_.grf_size() / lhs_type.size();
-            inner_block = std::max(8, math::gcd(inner_block, max_step));
+            dim_t inner_block = b0.block;
+            dim_t max_step = 2 * hw_.grf_size() / lhs_type.size();
+            inner_block = std::max<dim_t>(8, math::gcd(inner_block, max_step));
 
             for (auto &kv : args) {
                 auto &t = *kv.second;
@@ -588,7 +589,7 @@ private:
                 auto &lb0 = l.blocks()[0];
                 ir_assert(lb0.dim_idx == b0.dim_idx);
                 ir_assert(dim_t(lb0.stride) == 1);
-                inner_block = math::gcd(int(lb0.block), inner_block);
+                inner_block = math::gcd(lb0.block, inner_block);
             }
             dims[b0.dim_idx] = inner_block;
         }
@@ -604,7 +605,7 @@ private:
             auto te = t.load_expr(tile, dim_idx);
             sub_map.insert({t.op_var(), te});
         }
-        post_op_bcast_mutator_t bcast_mutator(tile.elems(), sub_map);
+        post_op_bcast_mutator_t bcast_mutator(into<int>(tile.elems()), sub_map);
         return bcast_mutator.mutate(expr);
     }
 
@@ -615,7 +616,7 @@ private:
 int get_post_op_mem_usage(const post_op_tensor_info_t &info, int c_elems,
         const view_t &c_mem_view, int max_elems_per_dim = 64) {
     int po_elems = 1;
-    for (int i = 0; i < info.view().nvdims(); i++) {
+    for (dim_idx_t i = 0; i < info.view().nvdims(); i++) {
         if ((info.mask() & (1 << i)) == 0) continue;
         po_elems *= std::min(max_elems_per_dim, (int)c_mem_view.vdims()[i]);
     }
@@ -772,8 +773,8 @@ private:
                         layout, next->layout, buf, next->buf);
             } else {
                 // Reuse the same GRF buffer for the next stage.
-                int this_off = to_cpp<int>(layout.offset_in_bytes());
-                int next_off = to_cpp<int>(next->layout.offset_in_bytes());
+                dim_t this_off = to_cpp<dim_t>(layout.offset_in_bytes());
+                dim_t next_off = to_cpp<dim_t>(next->layout.offset_in_bytes());
                 ir_assert(next_off == 0);
                 next->set_buf(buf[this_off]);
             }
@@ -790,15 +791,15 @@ private:
             return buf.as<ptr_t>().base;
         }
 
-        int get_buf_size(bool check_base = true) const {
+        dim_t get_buf_size(bool check_base = true) const {
             if (check_base)
                 ir_assert(buf.is_same(buf_base()))
                         << "Size must be queried from another stage.";
-            return (buf_size == 0) ? int(layout.size()) : buf_size;
+            return (buf_size == 0) ? layout.size() : buf_size;
         }
 
-        int max_off_bytes() const {
-            int l_off_bytes = (int)layout.max_off_bytes(/*ignore_offset=*/true);
+        dim_t max_off_bytes() const {
+            dim_t l_off_bytes = layout.max_off_bytes(/*ignore_offset=*/true);
             return std::max(buf_size, l_off_bytes);
         }
 
@@ -807,13 +808,13 @@ private:
         }
 
         layout_t layout;
-        int buf_size;
+        dim_t buf_size;
         expr_t buf;
         stmt_t stmt; // Statement to emit after the stage.
     };
 
     void build(const layout_t &c_reg_layout, const expr_t &c_reg_buf) {
-        c_reg_buf_size_ = c_reg_layout.size();
+        c_reg_buf_size_ = into<int>(c_reg_layout.size());
         auto tmp_type = (post_op_builders_.empty() ? c_mem_view_.type()
                                                    : type_t::f32());
         int tmp_buf_elems = tile_size_ / tmp_type.size();
@@ -985,7 +986,7 @@ private:
         std::vector<int> buf_sizes(nstages);
         for (int i = 1; i < nstages; i++) {
             auto &s = c_stages[i];
-            buf_sizes[i] = s.max_off_bytes();
+            buf_sizes[i] = into<int>(s.max_off_bytes());
         }
 
         // Generate reorders between C stages if needed.

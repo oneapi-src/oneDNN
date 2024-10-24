@@ -61,7 +61,7 @@ public:
         }
     }
 
-    void add(const pvar_t &dim, int block_size, int grid_id) {
+    void add(const pvar_t &dim, dim_t block_size, int grid_id) {
         if (!blocks_.empty()) {
             auto &last = blocks_.back();
             if (last.dim == dim && last.grid_id == grid_id) {
@@ -145,7 +145,7 @@ public:
             for (auto &b : blocks_) {
                 if (b.dim == d) inner_block *= b.size;
             }
-            int outer = utils::div_up(grid_tile[d], inner_block);
+            dim_t outer = utils::div_up(grid_tile[d], inner_block);
             int id = (inner_block != 1 ? grid_id(d) : 0);
             dim_infos_.emplace_back(d, grid_tile[d]);
             if (outer != 1) add(d, outer, id);

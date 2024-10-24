@@ -27,7 +27,7 @@
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
 #include "gpu/intel/jit/v2/conv/bridge.hpp"
-#include "gpu/intel/jit/v2/conv/ir_builder.hpp"
+#include "gpu/intel/jit/v2/conv/builder.hpp"
 #include "gpu/intel/jit/v2/conv/kernel.hpp"
 #include "gpu/intel/jit/v2/conv/plan_preset.hpp"
 #include "gpu/intel/jit/v2/conv/plan_registry.hpp"
@@ -44,13 +44,13 @@ void maybe_init_layout(
         memory_desc_t &md, const layout_raw_tag_t &_tag, bool remove_a_dim) {
     if (md.format_kind != format_kind::any) return;
     auto tag = _tag;
-    int non_spatial_ndims = tag.ndims() - 3;
+    dim_idx_t non_spatial_ndims = tag.ndims() - 3;
     if (remove_a_dim) {
         tag.remove_dim('a');
         non_spatial_ndims--;
     }
-    while (tag.ndims() > md.ndims) {
-        tag.remove_dim('a' + non_spatial_ndims);
+    while (tag.ndims() > into<dim_idx_t>(md.ndims)) {
+        tag.remove_dim(dim_idx::as_tag(non_spatial_ndims));
     }
     jit::layout_t layout(md, tag.str(), /*do_normalize=*/false);
     md = layout.to_dnnl(md.dims);

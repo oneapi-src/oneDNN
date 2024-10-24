@@ -221,6 +221,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
     def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);
 
+    kernel_ctx.register_buffer_size(conf.src_md_info.size);
+    kernel_ctx.register_buffer_size(conf.dst_md_info.size);
+
     CHECK(def_attr_info(kernel_ctx, conf.attr_info, post_ops, *dst_md));
 
     def_dispatch(kernel_ctx, conf.dispatch);
@@ -255,7 +258,7 @@ status_t gen9_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto nd_range = pd()->conf.dispatch.nd_range();
 
     dim_t num_batches = pd()->conf.num_batches;
-    for (int batch_iter = 0; batch_iter < num_batches; batch_iter++) {
+    for (dim_t batch_iter = 0; batch_iter < num_batches; batch_iter++) {
         arg_list.set(3, batch_iter);
         status = parallel_for(ctx, nd_range, kernel_, arg_list);
         if (status != status::success) return status;

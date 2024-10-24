@@ -19,7 +19,7 @@
 
 #ifdef ENABLE_LLVM_WCONVERSION
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
 #endif
 
 #include "ngen.hpp"

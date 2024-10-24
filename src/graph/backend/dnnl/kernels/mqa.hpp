@@ -62,15 +62,16 @@ public:
         return mqa_decomp_status;
     }
 
-    // The fuction is used to check if enable the decomposition kernel based on
-    // user's env and params. Currently, we restrict the library’s CPU runtime
-    // to OMP and THREADPOOL. There is also an internal env var to decide if use
-    // the kernel. TODO: Remove CPU runtime check when we extend the support for
-    // others
+    // It is used to check if enable the decomposition kernel based on user's
+    // env and params. Decomposition kernel is enabled when:
+    // - CPU runtime is OMP or THREADPOOl.
+    // - Primitive based implementation is not forced by the internal env var.
     bool enable_decomp_kernel() {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP \
         || DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-        return graph::utils::getenv_int_internal("ENABLE_SDP_DECOMP", 1) > 0;
+        const int force_prim = graph::utils::getenv_int_internal(
+                "GRAPH_SDPA_FORCE_PRIMITIVE", 0);
+        return force_prim == 0;
 #else
         return false;
 #endif

@@ -816,7 +816,8 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
             ngen::Bundle bundle;
             // Choose the opposite bank for src0 or src2.
             if (is_src02 && bank != -1)
-                bundle = ngen::Bundle(1 - bank, ngen::Bundle::any);
+                bundle = ngen::Bundle(
+                        into<int8_t>(1 - bank), ngen::Bundle::any);
             auto &mask = buf_masks[i].blocks[0].masks[0];
             auto range = ra.alloc_range(regs, bundle);
             int base = range[0].getBase();

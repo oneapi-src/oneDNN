@@ -55,12 +55,15 @@ status_t ref_binary_t::pd_t::init_conf() {
 }
 
 status_t ref_binary_t::init(impl::engine_t *engine) {
+    if (memory_desc_wrapper(pd()->dst_md()).size() == 0) return status::success;
+
     const auto kid = ::sycl::get_kernel_id<binary_kernel_vec_t>();
     CHECK(create_kernel(engine, kid, &kernel_));
     return status::success;
 }
 
 status_t ref_binary_t::execute(const exec_ctx_t &ctx) const {
+    if (memory_desc_wrapper(pd()->dst_md()).size() == 0) return status::success;
 
     ctx.zero_pad_output(DNNL_ARG_TO);
 

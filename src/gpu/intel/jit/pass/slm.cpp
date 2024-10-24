@@ -36,7 +36,7 @@ public:
 
     const expr_t &slm_base() const { return slm_base_; }
 
-    int slm_size() const { return slm_size_; }
+    dim_t slm_size() const { return slm_size_; }
 
     object_t _mutate(const alloc_t &obj) override {
         if (obj.kind != alloc_kind_t::slm) return ir_mutator_t::_mutate(obj);
@@ -53,7 +53,7 @@ public:
 
 private:
     expr_t push(const alloc_t &obj) {
-        int cur_off = slm_off_.back();
+        dim_t cur_off = slm_off_.back();
         expr_t new_buf = slm_base_ + cur_off;
         slm_off_.push_back(cur_off + obj.size);
         slm_size_ = std::max(slm_size_, cur_off + obj.size);
@@ -63,8 +63,8 @@ private:
     void pop() { slm_off_.pop_back(); }
 
     expr_t slm_base_;
-    std::vector<int> slm_off_;
-    int slm_size_ = 0;
+    std::vector<dim_t> slm_off_;
+    dim_t slm_size_ = 0;
 };
 
 stmt_t merge_slm_buffers(const stmt_t &_stmt, ir_context_t &ir_ctx) {
@@ -72,8 +72,8 @@ stmt_t merge_slm_buffers(const stmt_t &_stmt, ir_context_t &ir_ctx) {
     stmt_t stmt = _stmt;
     slm_buffer_merger_t merger;
     stmt = merger.mutate(stmt);
-    stmt = alloc_t::make(
-            merger.slm_base(), merger.slm_size(), alloc_kind_t::slm, stmt);
+    stmt = alloc_t::make(merger.slm_base(), into<uint32_t>(merger.slm_size()),
+            alloc_kind_t::slm, stmt);
     trace_pass("merge_slm_buffers", stmt, ir_ctx);
     return stmt;
 }
@@ -155,8 +155,8 @@ private:
             const layout_t &dst, const expr_t &src_buf, const expr_t &dst_buf) {
         auto src_tile = src.map(tile);
         auto &src_tile_blocks = src_tile.blocks();
-        int simd = src_tile_blocks[0].block;
-        int vect_size = src_tile_blocks[1].block;
+        int simd = into<int>(src_tile_blocks[0].block);
+        int vect_size = into<int>(src_tile_blocks[1].block);
         int tile_size = simd * vect_size * src.type().size();
         int slm_thr_size = (int)src.size();
         int dword_size = type_t::dword().size();
@@ -210,8 +210,8 @@ private:
         ir_assert(s0.block == d1.block);
         ir_assert(s1.block == d0.block);
 
-        int simd = s0.block;
-        int vec_size = s1.block;
+        int simd = into<int>(s0.block);
+        int vec_size = into<int>(s1.block);
         if (!utils::one_of(simd, 16)) return false;
         if (!utils::one_of(vec_size, 8)) return false;
 

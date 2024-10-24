@@ -145,7 +145,11 @@ inline int measure_perf_aggregate(timer::timer_t &t,
         if (use_profiling) {
             std::vector<uint64_t> nsecs;
             std::vector<uint64_t> cycles;
-            get_gpu_profiling_info(((dnnl::stream)stream).get(), nsecs, cycles);
+            // Cannot determine the number of expected profiling entries
+            // beforehand so pass -1.
+            SAFE(get_gpu_profiling_info(((dnnl::stream)stream).get(), nsecs,
+                         cycles, /*expected_num_entries=*/-1),
+                    CRIT);
             reset_gpu_profiling(((dnnl::stream)stream).get());
 
             // Profiling should have information to report, otherwise, stop.

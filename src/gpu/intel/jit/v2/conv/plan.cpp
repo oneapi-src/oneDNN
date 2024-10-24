@@ -65,9 +65,9 @@ layout_tag_t append_groups(
     bool is_bia = (tensor_kind == tensor_kind_t::bia);
     if (!is_src && !is_dst && !is_bia) return layout_tag;
     auto xc_dim = (is_src ? pvars::ic : pvars::oc);
-    auto xc_letter = 'a' + layout_tag.desc().dim_index(xc_dim);
+    auto xc_letter = dim_idx::as_tag(layout_tag.desc().dim_index(xc_dim));
     auto new_g_letter = xc_letter;
-    auto new_xc_letter = xc_letter + 1;
+    auto new_xc_letter = into<char>(xc_letter + 1);
     auto &raw_tag = layout_tag.raw_tag();
     auto &entries = raw_tag.entries();
     layout_raw_tag_t new_raw_tag;
@@ -509,11 +509,11 @@ private:
         }
         ir_check(!m_dim.is_undef() && !n_dim.is_undef() && !k_dim.is_undef())
                 << "init_dpas: cannot initialize MNK dimensions.";
-        int m_size = iter_tile_.at(m_dim);
-        int n_size = iter_tile_.at(n_dim);
-        int k_size = iter_tile_.at(k_dim);
-        int sdepth = 8;
-        int rcount = 8;
+        dim_t m_size = iter_tile_.at(m_dim);
+        dim_t n_size = iter_tile_.at(n_dim);
+        dim_t k_size = iter_tile_.at(k_dim);
+        uint8_t sdepth = 8;
+        uint8_t rcount = 8;
         int type_size = a_type_.size();
         ir_check(m_size % rcount == 0)
                 << "init_dpas: M dimension size is invalid: " << m_size;
@@ -590,6 +590,10 @@ private:
         return plan;
     }
 
+    bool with_bias_reduce() const {
+        return (desc_.prop == prop_kind::backward_weights && desc_.with_bias);
+    }
+
     void add_align_req(const pvar_t &dim, const type_t &type,
             const align_desc_t::align_t &align) {
         if (align.value == 0) {
@@ -612,8 +616,8 @@ private:
         for (auto &d : conv_index_dims(desc_.prop)) {
             bool is_loop = desc_.loop_desc.has(d);
             bool is_global_loop = desc_.loop_desc.is_global(d);
-            int tg_tile = desc_.thread_group_tile.get(d, 1);
-            int iter_tile = desc_.iter_tile.get(d, 1);
+            dim_t tg_tile = desc_.thread_group_tile.get(d, 1);
+            dim_t iter_tile = desc_.iter_tile.get(d, 1);
             auto thr_idx = thr_grid_.index_var(d);
             coord_info_.add_dim(d, is_loop, is_global_loop, tg_tile, thr_idx,
                     iter_tile, reqs_);
@@ -760,7 +764,7 @@ private:
         plan.load = std::move(load);
         plan.reorder = std::move(reorder);
         plan.layout = std::move(reg_layout);
-        if (abc == tensor_kind_t::b) {
+        if (with_bias_reduce() && abc == tensor_kind_t::b) {
             auto bia_layout = mul_info_.bia_layout(plan.layout, bia_layout_);
             plan.bia_layout = std::move(bia_layout);
         }
@@ -787,7 +791,7 @@ private:
         auto &tile = desc_.iter_tile;
         ir_assert(outer.is_empty() || outer.size() == 1);
         auto outer_dim = (outer.is_empty() ? pvar_t() : *outer.begin());
-        int outer_size = outer.get(outer_dim, 1);
+        dim_t outer_size = outer.get(outer_dim, 1);
         auto sub_tile = tile;
         if (!outer_dim.is_undef()) sub_tile[outer_dim] /= outer_size;
         bool is_outer_m = mul_info_.is_m(outer_dim);
@@ -818,10 +822,12 @@ private:
                 x2r_plan_t b;
                 ir_check(init_x2r_plan(tensor_kind_t::b, b_sub_view, b));
                 b_prev_layout = b.layout;
-                bia_prev_layout = b.bia_layout;
-                b.bia_layout.set_base(bia_off_elems);
-                bia_off_elems += ir_utils::safe_div(
-                        b.bia_layout.size(), b.bia_layout.type().size());
+                if (with_bias_reduce()) {
+                    bia_prev_layout = b.bia_layout;
+                    b.bia_layout.set_base(bia_off_elems);
+                    bia_off_elems += ir_utils::safe_div(
+                            b.bia_layout.size(), b.bia_layout.type().size());
+                }
                 plan.add_stage(b);
             }
 
@@ -837,16 +843,21 @@ private:
             plan.add_stage(fma);
         }
         plan.c_layout = c_prev_layout;
-        plan.bia_layout = bia_prev_layout;
-        auto &bia_mapper = dim_mapper_manager_.mapper(tensor_kind_t::bia);
+        if (with_bias_reduce()) plan.bia_layout = bia_prev_layout;
+
         if (!outer_dim.is_undef()) {
             int stride = ir_utils::safe_div(
                     c_prev_layout.size(), c_prev_layout.type().size());
             plan.c_layout.add_block(outer_dim, outer_size, stride);
-            if (bia_mapper.has(outer_dim)) {
-                int bia_stride = ir_utils::safe_div(
-                        bia_prev_layout.size(), bia_prev_layout.type().size());
-                plan.bia_layout.add_block(outer_dim, outer_size, bia_stride);
+            if (with_bias_reduce()) {
+                auto &bia_mapper
+                        = dim_mapper_manager_.mapper(tensor_kind_t::bia);
+                if (bia_mapper.has(outer_dim)) {
+                    int bia_stride = ir_utils::safe_div(bia_prev_layout.size(),
+                            bia_prev_layout.type().size());
+                    plan.bia_layout.add_block(
+                            outer_dim, outer_size, bia_stride);
+                }
             }
         }
         reqs.add(plan.reqs());
@@ -876,6 +887,7 @@ private:
                 << "Bias store needs additional requirements.";
         auto tile = plan.tile;
         plan.bia_store = bia_store;
+        plan.bia_reduced_reg_layout = bia_layout;
         if (bia_layout != bia_store.reg_layout()) {
             auto fma_layout = bia_layout.map(tile);
             auto store_layout = bia_store.reg_layout().map(tile);
@@ -899,7 +911,7 @@ private:
         }
         if (k_dim.is_undef()) return true;
 
-        int k_tg = desc_.thread_group_tile.at(k_dim);
+        dim_t k_tg = desc_.thread_group_tile.at(k_dim);
         ir_assert(k_tg > 1);
         ir_assert(desc_.thread_group_tile.elems() == k_tg)
                 << "Local k-slicing assumes no split by M/N.";
@@ -999,6 +1011,8 @@ private:
         auto &tile = c_store.entry_tile();
         plan.tile = tile;
         plan.c_store = c_store;
+        plan.c_reg_layout = c_reg_layout;
+        plan.c_coord = c_coord;
         auto c_reg_tile_layout = c_reg_layout.map(tile);
         auto store_layout = c_store.reg_layout().map(tile);
         if (c_reg_tile_layout != store_layout) {
@@ -1016,7 +1030,7 @@ private:
         ir_check(grf_bytes <= grf_bound) << "check_plan: out of registers";
         int slm_bound = compute::device_info_t::max_slm_size_per_tg(
                 convert_ngen_arch_to_dnnl(desc_.hw.to_ngen()),
-                desc_.thread_group_tile.elems(), desc_.regs > 128);
+                into<int>(desc_.thread_group_tile.elems()), desc_.regs > 128);
         int slm_bytes = plan.slm_usage_bytes();
         ir_check(slm_bytes <= slm_bound) << "check_plan: out of SLM";
         return true;

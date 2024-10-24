@@ -158,6 +158,11 @@ protected:
                                 p.formats.dst_format, p.sizes.ng > 1)),
                 "Format is not supported.");
 
+        SKIP_IF_GENERIC(
+                !(generic_check_format_tags(p.formats.src_format)
+                        && generic_check_format_tags(p.formats.dst_format)),
+                "Format is not supported.");
+
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -202,6 +207,13 @@ protected:
                                    : (wei == memory::format_tag::bcda));
         }
         return false;
+    }
+
+    bool generic_check_format_tags(memory::format_tag tag) {
+        return impl::utils::one_of(tag, memory::format_tag::ab,
+                memory::format_tag::abc, memory::format_tag::abcd,
+                memory::format_tag::abcde, memory::format_tag::abcdef,
+                memory::format_tag::any);
     }
 
     void Test() {
@@ -298,10 +310,20 @@ protected:
                         strides, padL, padR);
 
         auto aa = allows_attr_t {false};
+
+#ifndef DNNL_SYCL_GENERIC
         aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_eltwise = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_prelu = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_sum = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+#else
+        aa.po_eltwise = true;
+        aa.po_sum = true;
+        if (eng.get_kind() == dnnl::engine::kind::cpu) {
+            aa.po_binary = true;
+            aa.po_prelu = true;
+        }
+#endif
 
         bool is_int8 = impl::utils::one_of(dec_src_desc->get_data_type(),
                 memory::data_type::s8, memory::data_type::u8);

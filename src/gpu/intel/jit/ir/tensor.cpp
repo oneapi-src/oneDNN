@@ -26,15 +26,15 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-layout_t::layout_t(const type_t &type, const expr_t &offset, int ndims,
+layout_t::layout_t(const type_t &type, const expr_t &offset, dim_idx_t ndims,
         const std::vector<std::pair<int, dim_t>> &parts,
         const std::vector<dim_t> &dims, bool do_normalize)
     : type_(type), ndims_(ndims), offset_(offset) {
-    if (!dims.empty() && ndims_ != int(dims.size())) {
+    if (!dims.empty() && ndims_ != dims.size()) {
         ir_error_not_expected() << "Format and dimensions do not match.";
     }
     for (auto &p : parts) {
-        int dim_idx = p.first;
+        dim_idx_t dim_idx = p.first;
         dim_t block = p.second;
         ir_assert(dim_idx < ndims_);
         if (block == 0 && dims.empty())
@@ -119,7 +119,7 @@ memory_desc_t layout_t::to_dnnl(const dim_t *dims_hint) const {
         seen[b.dim_idx] = true;
     }
 
-    for (int i = 0; i < ndims(); i++) {
+    for (dim_idx_t i = 0; i < ndims(); i++) {
         if (seen[i]) continue;
         ir_assert(md.dims[i] == 1);
         md.padded_dims[i] = md.dims[i];
@@ -270,7 +270,7 @@ layout_t layout_t::split_into_multi_blocks(
             if (e == 1) continue;
             if (b.block > e) {
                 // Try to split this block.
-                int next_block = utils::max_div(b.block, e);
+                dim_t next_block = utils::max_div(b.block, e);
                 if (next_block == 1) return layout_t();
                 return tmp.split_block(eb, next_block, b.block / next_block)
                         .split_into_multi_blocks(multi_blocks);
@@ -424,11 +424,11 @@ void layout_t::sanity_check() const {
     ir_assert(ndims_ <= max_ndims);
 }
 
-expr_t grid_splitter_t::pop_block(int size) {
+expr_t grid_splitter_t::pop_block(dim_t size) {
     ir_assert(size > 1);
     ir_assert(can_pop_block(size));
 
-    int new_stride = cur_stride_ * size;
+    dim_t new_stride = cur_stride_ * size;
 
     auto idx_expr = grid_.idx(cur_idx_);
     if (cur_stride_ != 1) idx_expr /= cur_stride_;
@@ -444,7 +444,8 @@ expr_t grid_splitter_t::pop_block(int size) {
     return idx_expr;
 }
 
-stride_t tdim_t::compute_stride(const expr_t &e, int idx, const expr_t &var) {
+stride_t tdim_t::compute_stride(
+        const expr_t &e, dim_idx_t idx, const expr_t &var) {
     // e == var -> fixed stride.
     if (e.is_same(var)) return stride_t(1);
 
@@ -463,7 +464,7 @@ view_t view_t::create_sub_view(const tensor_t &sub_tensor) const {
 
     auto ret = *this;
     ret.vdims_ = sub_tensor.dims();
-    for (int i = 0; i < nvdims(); i++) {
+    for (dim_idx_t i = 0; i < nvdims(); i++) {
         auto &i_start = sub_tensor.start()[i];
         if (is_zero(i_start)) continue;
         auto &s = ret.vstart_[i];
@@ -475,14 +476,14 @@ view_t view_t::create_sub_view(const tensor_t &sub_tensor) const {
 
 view_t view_t::substitute(const expr_t &from, const expr_t &to) const {
     view_t ret = *this;
-    for (int i = 0; i < nvdims(); i++) {
+    for (dim_idx_t i = 0; i < nvdims(); i++) {
         ret.vstart_[i] = jit::substitute(ret.vstart_[i], from, to);
         ret.vstart_[i] = simplify(ret.vstart_[i]);
     }
     return ret;
 }
 
-std::vector<expr_t> view_t::create_vvars(int nvdims) {
+std::vector<expr_t> view_t::create_vvars(dim_idx_t nvdims) {
     static const int max_nvdims = 128;
     static thread_local std::vector<expr_t> _vvars([] {
         std::vector<expr_t> ret;
@@ -512,11 +513,11 @@ layout_t view_t::create_pseudo_vlayout(
         if (tb_is_outermost) {
             // Use innermost dimension with maximum remaining size for first
             // block
-            int max_idx = -1;
-            int max_vidx = -1;
-            int max_vdim = 1;
+            dim_idx_t max_idx = dim_idx::invalid;
+            dim_idx_t max_vidx = dim_idx::invalid;
+            dim_t max_vdim = 1;
             for (int i = tinfo.nvargs() - 1; i >= 0; i--) {
-                int vidx = tinfo.vidx(i);
+                dim_idx_t vidx = tinfo.vidx(i);
                 if (rem_vdims[vidx] > max_vdim) {
                     max_idx = i;
                     max_vidx = vidx;
@@ -532,7 +533,7 @@ layout_t view_t::create_pseudo_vlayout(
             }
 
             for (int i = tinfo.nvargs() - 1; i >= 0; i--) {
-                int vidx = tinfo.vidx(i);
+                dim_idx_t vidx = tinfo.vidx(i);
                 if (rem_vdims[vidx] == 1) continue;
 
                 stride_t stride = tinfo.vstride(i) * tb.stride;

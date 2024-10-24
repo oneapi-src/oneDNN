@@ -48,42 +48,59 @@ public:
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs) override {
         const engine_kind_t ekind = g_engine->kind();
-        const bool enable_decomp
-                = ekind == engine_kind::cpu && enable_decomp_kernel();
-        const bool enable_prim = (ekind == engine_kind::gpu) && !quantized;
-        status_t subkernel_status = status::unimplemented;
+        bool enable_decomp = false;
+        bool enable_ukernel = false;
 
-        if (enable_prim) {
+        if (ekind == engine_kind::cpu) {
+            enable_decomp = enable_decomp_kernel();
+        } else if (ekind == engine_kind::gpu) {
+            enable_ukernel = !quantized && !force_primitive();
+        } else {
+            assert(!"unknown engine kind");
+            return status::invalid_arguments;
+        }
+
+        status_t ret = status::unimplemented;
+
+        if (enable_ukernel) {
             kernel = std::make_shared<sdp_primitive_kernel_t>();
-            subkernel_status
-                    = kernel->compile_impl(part, g_engine, inputs, outputs);
+            ret = kernel->compile_impl(part, g_engine, inputs, outputs);
         }
 
-        if (subkernel_status != status::success && enable_decomp) {
+        if (ret != status::success && enable_decomp) {
             kernel = std::make_shared<sdp_decomp_kernel_t<quantized, dt>>();
-            subkernel_status
-                    = kernel->compile_impl(part, g_engine, inputs, outputs);
+            ret = kernel->compile_impl(part, g_engine, inputs, outputs);
         }
 
-        if (subkernel_status != status::success) {
+        if (ret != status::success) {
             kernel = std::make_shared<larger_partition_kernel_t>();
-            return kernel->compile_impl(part, g_engine, inputs, outputs);
+            ret = kernel->compile_impl(part, g_engine, inputs, outputs);
         }
-        return subkernel_status;
+        return ret;
     }
 
-    // The fuction is used to check if enable the decomposition kernel based on
-    // user's env and params. Currently, we restrict the library’s CPU runtime
-    // to openmp and threadpool. There is also an internal env var to decide if
-    // use the kernel.
-    // TODO: Remove CPU runtime check when we extend the support for others
-    bool enable_decomp_kernel() {
+    // It is used to check if enable the decomposition kernel based on user's
+    // env and params. Decomposition kernel is enabled when:
+    // - CPU runtime is OMP or THREADPOOl.
+    // - Primitive based implementation is not forced by the internal env var.
+    bool enable_decomp_kernel() const {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP \
         || DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-        return graph::utils::getenv_int_internal("ENABLE_SDP_DECOMP", 1) > 0;
+        const bool force_prim = force_primitive();
+        return !force_prim;
 #else
         return false;
 #endif
+    }
+
+    // An internal env var is provided to force using primitive based SDPA
+    // implementation and skipping ukernel based optimization on GPU or
+    // decomposition based optimization on CPU. Currently it's for oneDNN debug
+    // and testing only.
+    bool force_primitive() const {
+        const int force = graph::utils::getenv_int_internal(
+                "GRAPH_SDPA_FORCE_PRIMITIVE", 0);
+        return force > 0;
     }
 
     status_t execute_impl(const stream_t *g_stream,

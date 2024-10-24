@@ -18,6 +18,7 @@
 #define GPU_INTEL_JIT_IR_IR_HPP
 
 #include <algorithm>
+#include <cstdint>
 #include <map>
 #include <vector>
 
@@ -119,6 +120,10 @@ public:
             ir_assert(entry_ptr->size % ir_ctx_->grf_size() == 0);
         }
         return entry_ptr->buf;
+    }
+
+    bool has(const std::string &name) const {
+        return entries_.find(name) != entries_.end();
     }
 
     entry_t find(const std::string &name, bool allow_empty = false) const {
@@ -407,7 +412,7 @@ public:
         return ret;
     }
 
-    int alloc_size(const expr_t &buf) const {
+    uint32_t alloc_size(const expr_t &buf) const {
         auto *a = find_alloc(buf);
         ir_assert(a) << buf;
         return a->size;
@@ -419,8 +424,8 @@ public:
         return a->kind;
     }
 
-    int total_size(alloc_kind_t kind) const {
-        int ret = 0;
+    uint32_t total_size(alloc_kind_t kind) const {
+        uint32_t ret = 0;
         for (auto &kv : buf2alloc_) {
             auto &a = kv.second.as<alloc_t>();
             if (a.kind == kind) ret += a.size;
@@ -672,8 +677,8 @@ struct mem_usage_guard_t {
 // where a and b are integer constants.
 struct linear_transform_t {
     expr_t x;
-    int a;
-    int b;
+    int64_t a;
+    int64_t b;
 
     bool is_identity() const { return a == 1 && b == 0; }
 };
@@ -990,7 +995,7 @@ inline func_t zero_out_func() {
     return f;
 }
 
-inline stmt_t zero_out(const expr_t &buf, int size) {
+inline stmt_t zero_out(const expr_t &buf, dim_t size) {
     return zero_out_func().call({buf, expr_t(size)});
 }
 

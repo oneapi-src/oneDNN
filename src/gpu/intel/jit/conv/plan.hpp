@@ -47,8 +47,8 @@ struct reorder_plan_t : public base_plan_t {
     bool can_split(int factor) const;
     void set_split(int factor = 1);
     stmt_t create_stmt(const expr_t &src_buf, const expr_t &dst_buf) const;
-    int src_buf_size() const;
-    int estimate_regs() const;
+    dim_t src_buf_size() const;
+    dim_t estimate_regs() const;
 
     std::string str(const std::string &tag = "reorder") const {
         std::ostringstream oss;
@@ -68,7 +68,7 @@ struct reduce_plan_t : public base_plan_t {
     using base_plan_t::base_plan_t;
 
     explicit operator bool() const { return !src.is_empty(); }
-    int dst_buf_size() const;
+    dim_t dst_buf_size() const;
     bool can_split(int factor) const;
     void set_split(int factor = 1);
     stmt_t create_stmt(const expr_t &src_buf, const expr_t &dst_buf) const;
@@ -149,14 +149,14 @@ struct x2r_plan_t : public base_plan_t {
     void set_split(abc_kind_t abc = abc_kind_t::undef, int factor = 1);
 
     int a_buf_size() const {
-        int a_size = a_layout.size();
+        int a_size = into<int>(a_layout.size());
         if (split_abc == abc_kind_t::a)
             a_size = utils::div_up(a_size, split_factor);
         return utils::rnd_up(a_size, grf_size());
     }
 
     int b_buf_size() const {
-        int b_size = b_layout.size();
+        int b_size = into<int>(b_layout.size());
         if (split_abc == abc_kind_t::b)
             b_size = utils::div_up(b_size, split_factor);
         return utils::rnd_up(b_size, grf_size());

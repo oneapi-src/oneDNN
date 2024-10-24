@@ -14,6 +14,11 @@
 # limitations under the License.
 #===============================================================================
 
+# TODO: Extend conversion warning support to GEMM code
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    append(CMAKE_CXX_FLAGS " -Wno-implicit-int-conversion")
+endif()
+
 set(DIRS "generator;selector")
 
 file(GLOB SOURCES

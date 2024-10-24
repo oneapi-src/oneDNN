@@ -52,6 +52,8 @@ status_t ref_sycl_softmax_fwd_t::init(impl::engine_t *engine) {
 }
 
 status_t ref_sycl_softmax_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+    if (pd()->has_zero_dim_memory()) return status::success;
+
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         softmax_fwd_kernel_vec_t softmax_fwd_kernel_(pd()->conf_, cgh, ctx);
 
@@ -82,6 +84,8 @@ status_t ref_sycl_softmax_bwd_t::init(impl::engine_t *engine) {
 }
 
 status_t ref_sycl_softmax_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
+    if (pd()->has_zero_dim_memory()) return status::success;
+
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
         softmax_bwd_kernel_vec_t softmax_bwd_kernel(pd()->conf_, cgh, ctx);
 

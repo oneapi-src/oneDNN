@@ -1,5 +1,5 @@
 ################################################################################
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2021-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,19 +14,37 @@
 # limitations under the License.
 ################################################################################
 
+import functools
 import sys
 
-status = {"SUCCESS": 0, "FAILED": 1}
+
+@functools.total_ordering
+class Version:
+    def __init__(self, major: int, minor: int, patch: int):
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+
+    @property
+    def _as_tuple(self):
+        return self.major, self.minor, self.patch
+
+    def __lt__(self, other):
+        return self._as_tuple < other._as_tuple
+
+    def __eq__(self, other):
+        return self._as_tuple == other._as_tuple
 
 
 def get_version():
-    version = sys.version.split(" ")[0].split(".")
-    return {"major": int(version[0]), "minor": int(version[1]), "fix": int(version[2])}
+    return Version(*map(int, sys.version.split(" ")[0].split(".")))
 
 
 def check_version():
-    v = get_version()
-    if not (v["major"] >= 3 and v["minor"] >= 6):
-        print("ERROR: unsupported python version")
-        return status.get("FAILED")
-    return status.get("SUCCESS")
+    return get_version() >= Version(3, 7, 0)
+
+
+def dedent(multiline):
+    lines = multiline.split("\n")
+    indent = min(len(line) - len(line.lstrip()) for line in lines[1:])
+    return (lines[0] + "\n".join(line[indent:] for line in lines[1:])).strip()

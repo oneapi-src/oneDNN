@@ -69,15 +69,42 @@ format_tag_t get_blocked_otag(const memory_desc_t &dst_md) {
 status_t calculate_plain_transpose_blocks(dim_t &batch, dim_t &M, dim_t &K,
         const memory_desc_t &src_md, const memory_desc_t &dst_md) {
 
-    const memory_desc_wrapper id(src_md), od(dst_md);
+    // drop all unit dims as they they will break the calculations. Removing
+    // unit dims will not change the physical memory reorder problem.
+    dims_t non_unit_dims {};
+    dim_t non_unit_dim = 0;
+    for (dim_t i = 0; i < src_md.ndims; i++) {
+        if (src_md.dims[i] == 1) continue;
+        non_unit_dims[non_unit_dim++] = src_md.dims[i];
+    }
 
-    // sort the arrays first by src strides.
-    // set dims and dst strides in same order.
+    memory_desc_t src_md_reduced, dst_md_reduced;
+    memory_desc_reshape(src_md_reduced, src_md, non_unit_dim, non_unit_dims);
+    memory_desc_reshape(dst_md_reduced, dst_md, non_unit_dim, non_unit_dims);
+
+    const memory_desc_wrapper id(src_md_reduced), od(dst_md_reduced);
+
     dims_t sort_src_indices {};
-    for (dim_t i = 0; i < id.ndims(); i++)
+    dims_t sort_dst_indices {};
+    for (dim_t i = 0; i < id.ndims(); i++) {
         sort_src_indices[i] = i;
+        sort_dst_indices[i] = i;
+    }
     std::sort(sort_src_indices, sort_src_indices + id.ndims(),
             [id](int a, int b) { return id.strides()[a] > id.strides()[b]; });
+    std::sort(sort_dst_indices, sort_dst_indices + od.ndims(),
+            [od](int a, int b) { return od.strides()[a] > od.strides()[b]; });
+    // make sure physical layout is dense and there is no magical
+    // padding.
+    for (dim_t i = id.ndims() - 1; i > 0; i--)
+        VDISPATCH_REORDER_IC((id.strides()[sort_src_indices[i]]
+                                             * id.dims()[sort_src_indices[i]]
+                                     == id.strides()[sort_src_indices[i - 1]])
+                        && (od.strides()[sort_dst_indices[i]]
+                                        * od.dims()[sort_dst_indices[i]]
+                                == od.strides()[sort_dst_indices[i - 1]]),
+                VERBOSE_UNSUPPORTED_MEM_STRIDE);
+    // sort the arrays by src strides.
     dims_t src_sorted_strides {};
     dims_t dst_sorted_strides {};
     dims_t sorted_dims {};

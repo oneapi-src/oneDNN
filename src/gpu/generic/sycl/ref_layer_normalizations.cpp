@@ -91,6 +91,8 @@ status_t ref_layer_normalization_fwd_t::init(impl::engine_t *engine) {
 
 status_t ref_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
+    if (memory_desc_wrapper(pd()->dst_md()).size() == 0) return status::success;
+
     if (pd()->stats_are_src()) {
         return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
             layer_normalization_fwd_kernel_vec_t layer_normalization_fwd_kernel(
@@ -163,6 +165,9 @@ status_t ref_layer_normalization_bwd_t::init(impl::engine_t *engine) {
 
 status_t ref_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
+    if (memory_desc_wrapper(pd()->diff_src_md()).size() == 0)
+        return status::success;
+
     if (pd()->conf_.use_scale || pd()->conf_.use_shift) {
         auto status = parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
             auto nelems_A = memory_desc_wrapper(pd()->src_md(0)).nelems();

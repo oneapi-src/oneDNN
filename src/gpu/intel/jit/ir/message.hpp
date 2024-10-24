@@ -453,7 +453,7 @@ public:
     const layout_t &reg_layout() const { return reg_layout_; }
     int reg_buf_size() const {
         if (reg_buf_size_ == 0)
-            return utils::rnd_up(reg_layout_.size(), grf_size());
+            return into<int>(utils::rnd_up(reg_layout_.size(), grf_size()));
         return reg_buf_size_;
     }
     const stmt_t &stmt() const { return stmt_; }
@@ -478,7 +478,7 @@ private:
             int &c, int &vnni_permute_factor);
 
     bool check_2d_mask(const tensor_t &tile, bool use_virtual_surface,
-            int w_idx, int h_idx, expr_t &mask) const;
+            dim_idx_t w_idx, dim_idx_t h_idx, expr_t &mask) const;
 
     std::vector<layout_t> candidate_payload_layouts() const;
     stmt_t create_send_stmt(

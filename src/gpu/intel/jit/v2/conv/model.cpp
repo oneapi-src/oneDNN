@@ -42,7 +42,7 @@ struct hw_config_t {
         return ss_per_gpu * hw.threads_per_eu(regs);
     }
 
-    int max_tgs_per_gpu(int tg_size) const {
+    int max_tgs_per_gpu(dim_t tg_size) const {
         int tgs_per_ss
                 = hw.eus_per_ss_or_dss() * hw.threads_per_eu(regs) / tg_size;
         return hw.eu_count() / hw.eus_per_ss_or_dss() * tgs_per_ss;
@@ -113,10 +113,10 @@ struct sample_t {
     uint64_t time_ns = 0;
 
     hw_config_t hw_cfg;
-    int b, m, n, k;
-    int bt, mt, nt, kt;
-    int bl, ml, nl, kl;
-    int bi, mi, ni, ki;
+    dim_t b, m, n, k;
+    dim_t bt, mt, nt, kt;
+    dim_t bl, ml, nl, kl;
+    dim_t bi, mi, ni, ki;
     float pad_eff = 0;
 
     sample_t() = default;
@@ -129,10 +129,10 @@ struct sample_t {
         pad_eff = 1;
         for (auto &d : padded_shape) {
             if (!is_conv_index(d)) continue;
-            int tg = kernel_desc.thread_group_tile.get(d, 1);
-            int iter = kernel_desc.iter_tile.get(d, 1);
-            int dim = padded_shape[d];
-            int padded_dim = utils::rnd_up(dim, tg * iter);
+            dim_t tg = kernel_desc.thread_group_tile.get(d, 1);
+            dim_t iter = kernel_desc.iter_tile.get(d, 1);
+            dim_t dim = padded_shape[d];
+            dim_t padded_dim = utils::rnd_up(dim, tg * iter);
             padded_shape[d] = padded_dim;
             pad_eff *= ((float)dim / padded_dim);
         }
@@ -180,8 +180,8 @@ struct sample_t {
         return ops() / 1e9 / sec / hw_cfg.max_gops_per_sec();
     }
 
-    static void to_bmnk(prop_kind_t prop, const pvar_tile_t &tile, int &b,
-            int &m, int &n, int &k) {
+    static void to_bmnk(prop_kind_t prop, const pvar_tile_t &tile, dim_t &b,
+            dim_t &m, dim_t &n, dim_t &k) {
         const auto t = to_gemm(tile, prop);
         b = t[pvars::b];
         m = t[pvars::m];
@@ -289,7 +289,8 @@ void model_t::parse(std::istream &in) {
     std::vector<uint8_t> data;
     auto s_data = stream_parse<std::string>(in);
     for (size_t i = 0; i < s_data.size(); i += 2) {
-        data.push_back(std::stoi(s_data.substr(i, 2), nullptr, 16));
+        data.push_back(
+                into<uint8_t>(std::stoi(s_data.substr(i, 2), nullptr, 16)));
     }
     auto s = serialized_t::from_data(std::move(data));
     deserializer_t d(s);

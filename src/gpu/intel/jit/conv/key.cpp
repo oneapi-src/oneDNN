@@ -303,7 +303,7 @@ bool is_mb_blocked(const layout_t &layout) {
 
 struct key_mb_t {
     bool is_blocked = false;
-    int value = 0;
+    dim_t value = 0;
 
     key_mb_t() = default;
     key_mb_t(const conv_config_t &cfg, prop_kind_t prop) {
@@ -401,7 +401,7 @@ public:
         return ret;
     }
 
-    int distance(const conv_key_impl_t &other) const {
+    dim_t distance(const conv_key_impl_t &other) const {
         int max_dist = std::numeric_limits<int>::max();
         if (!matches(other)) return max_dist;
         // Here this object is a filter, other object is a non-filter.
@@ -410,7 +410,7 @@ public:
         //   Key     : mb512
         //   Filter A: mb128+ (distance: 384)
         //   Filter B: mb256+ (distance: 256) <- smaller distance, preferred.
-        int dist = other.mb_.value - mb_.value;
+        dim_t dist = other.mb_.value - mb_.value;
         auto f1 = hw_.family;
         auto f2 = other.hw_.family;
         if (f1 != f2) {
@@ -514,7 +514,7 @@ const std::string &conv_key_t::desc() const {
     return impl_->desc_str();
 }
 
-int conv_key_t::distance(const conv_key_t &other) const {
+dim_t conv_key_t::distance(const conv_key_t &other) const {
     ir_assert(impl_ && other.impl_);
     return impl_->distance(*other.impl_);
 }

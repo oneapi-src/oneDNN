@@ -62,9 +62,9 @@ public:
         if (!is_cmp_op(obj.op_kind)) return ir_mutator_t::_mutate(obj);
 
         if (!is_const(obj.b)) return obj;
-        int a_div = linear_max_pow2_divisor(obj.a);
-        int b_div = to_cpp<int>(obj.b);
-        int factor = math::gcd(a_div, b_div);
+        dim_t a_div = linear_max_pow2_divisor(obj.a);
+        dim_t b_div = to_cpp<dim_t>(obj.b);
+        dim_t factor = math::gcd(a_div, b_div);
         if (factor == 1) return obj;
 
         auto a = linear_div(obj.a, factor);
@@ -118,8 +118,9 @@ public:
     }
     bool operator!=(const req_lhs_t &other) const { return !operator==(other); }
 
-    int64_t to_int(const pvar_map_t<int> &values) const {
-        int64_t value = 1;
+    template <typename T>
+    T to_int(const pvar_map_t<T> &values) const {
+        T value = 1;
         for (auto &pvar : pvars_) {
             value *= values.at(pvar);
         }
@@ -148,7 +149,7 @@ public:
         return true;
     }
 
-    int substitute(const pvar_map_t<int> &values) {
+    int substitute(const pvar_map_t<dim_t> &values) {
         int factor = 1;
         for (auto &v : values) {
             for (int i = 0; i < size(); i++) {
@@ -213,7 +214,7 @@ private:
 class req_rhs_entry_t {
 public:
     req_rhs_entry_t() = default;
-    explicit req_rhs_entry_t(int value) : value_(value) { is_undef_ = false; }
+    explicit req_rhs_entry_t(dim_t value) : value_(value) { is_undef_ = false; }
     explicit req_rhs_entry_t(const pvar_t &pvar) : pvar_(pvar) {
         is_undef_ = false;
     }
@@ -242,11 +243,12 @@ public:
         ir_assert(is_pvar());
         return pvar_;
     }
-    int value() const {
+    dim_t value() const {
         ir_assert(is_value());
         return value_;
     }
-    int64_t to_int(const pvar_map_t<int> &values) const {
+    template <typename T>
+    T to_int(const pvar_map_t<T> &values) const {
         ir_assert(!is_undef());
         if (is_value()) return value_;
         return values.at(pvar_);
@@ -276,13 +278,13 @@ public:
 private:
     bool is_undef_ = true;
     pvar_t pvar_;
-    int value_ = 0;
+    dim_t value_ = 0;
 };
 
 class req_rhs_t {
 public:
     req_rhs_t() = default;
-    explicit req_rhs_t(int value) { entries_[0] = req_rhs_entry_t(value); }
+    explicit req_rhs_t(dim_t value) { entries_[0] = req_rhs_entry_t(value); }
     explicit req_rhs_t(const expr_t &e) { entries_[0] = req_rhs_entry_t(e); }
     explicit req_rhs_t(
             const req_rhs_entry_t &e0, const req_rhs_entry_t &e1 = {}) {
@@ -299,7 +301,7 @@ public:
         ir_assert(is_pvar());
         return entries_[0].pvar();
     }
-    int value() const {
+    dim_t value() const {
         ir_assert(is_value());
         return entries_[0].value();
     }
@@ -318,16 +320,17 @@ public:
     }
     bool operator!=(const req_rhs_t &other) const { return !operator==(other); }
 
-    int64_t to_int(const pvar_map_t<int> &values) const {
-        int64_t ret = 1;
+    template <typename T>
+    T to_int(const pvar_map_t<T> &values) const {
+        T ret = 1;
         for (int i = 0; i < size(); i++) {
             ret *= entries_[i].to_int(values);
         }
         return ret;
     }
 
-    void substitute(const pvar_map_t<int> &values) {
-        int value = 1;
+    void substitute(const pvar_map_t<dim_t> &values) {
+        dim_t value = 1;
         pvar_t pvar;
         for (int i = 0; i < size(); i++) {
             if (entries_[i].is_value()) {
@@ -427,7 +430,7 @@ public:
     const req_lhs_t &lhs() const { return lhs_; }
     const req_rhs_t &rhs() const { return rhs_; }
 
-    void substitute(const pvar_map_t<int> &values) {
+    void substitute(const pvar_map_t<dim_t> &values) {
         if (kind_ == req_kind_t::_or_eq) {
             auto a = req_impl_t(
                     req_kind_t::eq, req_lhs_t(lhs_[0]), req_rhs_t(rhs_[0]));
@@ -448,7 +451,7 @@ public:
         if (lhs_.size() == 0) {
             // Fully reduced, check that the requirement evaluates to true and
             // reset it to skip later.
-            ir_assert(fits(pvar_map_t<int>()));
+            ir_assert(fits(pvar_map_t<dim_t>()));
             *this = req_impl_t();
         }
     }
@@ -457,7 +460,7 @@ public:
         return (kind_ == other.kind_) && (lhs_ == other.lhs_)
                 && (rhs_ == other.rhs_);
     }
-    bool fits(const pvar_map_t<int> &values) const {
+    bool fits(const pvar_map_t<dim_t> &values) const {
         if (kind_ == req_kind_t::_or_eq) {
             int64_t lhs0 = values.at(lhs_[0]);
             int64_t lhs1 = values.at(lhs_[1]);
@@ -668,13 +671,13 @@ void prb_reqs_t::add(const prb_reqs_t &other) {
         add_if_not_found(r.impl());
 }
 
-void prb_reqs_t::add(const pvar_map_t<int> &values) {
+void prb_reqs_t::add(const pvar_map_t<dim_t> &values) {
     for (auto &v : values) {
         set(v, values[v]);
     }
 }
 
-void prb_reqs_t::set(const pvar_t &pvar, int value) {
+void prb_reqs_t::set(const pvar_t &pvar, dim_t value) {
     add(pvar.var() == value);
 }
 
@@ -693,7 +696,7 @@ prover_t prb_reqs_t::prover(const prb_reqs_t &parent, bool can_update) {
     return prover_t(&parent, this, can_update);
 }
 
-bool prb_reqs_t::fits(const pvar_map_t<int> &values) const {
+bool prb_reqs_t::fits(const pvar_map_t<dim_t> &values) const {
     for (auto &r : reqs_) {
         ir_check(r.impl().fits(values));
     }
@@ -706,7 +709,7 @@ void prb_reqs_t::stringify_impl(std::ostream &out, const std::string &req_delim,
         out << "x";
         return;
     }
-    pvar_map_t<int> var_eq_map;
+    pvar_map_t<dim_t> var_eq_map;
     bool is_first = true;
     for (auto &r : reqs_) {
         if (r.impl().kind() == req_kind_t::eq) {
@@ -799,14 +802,14 @@ void prb_reqs_t::merge(std::vector<prb_reqs_t> reqs_vec,
     for (int i = 0; i < get_reqs_size(0); i++) {
         auto &r0 = get_req(0, i);
         if (r0.rhs().size() != 1 || !r0.rhs().is_value()) continue;
-        int base = r0.rhs().value() * factor_vec[0];
+        dim_t base = r0.rhs().value() * factor_vec[0];
         std::vector<int> idxs(vec_size, -1);
         for (int j = 0; j < vec_size; j++) {
             for (int k = 0; k < get_reqs_size(j); k++) {
                 auto &rj = get_req(j, k);
                 if (rj.lhs() != r0.lhs()) continue;
                 if (rj.rhs().size() != 1 || !rj.rhs().is_value()) continue;
-                int base_j = rj.rhs().value() * factor_vec[j];
+                dim_t base_j = rj.rhs().value() * factor_vec[j];
                 if (base_j == base) {
                     idxs[j] = k;
                     break;
@@ -856,7 +859,7 @@ void prb_reqs_t::simplify() {
     for (size_t i = 0; i < new_reqs.size(); i++) {
         auto &ri = new_reqs[i].impl();
         if (ri.is_undef()) continue;
-        pvar_map_t<int> sub;
+        pvar_map_t<dim_t> sub;
         if (ri.kind() == req_kind_t::eq && ri.lhs().size() == 1) {
             sub[ri.lhs()[0]] = ri.rhs().value();
         }
@@ -884,7 +887,7 @@ void prb_reqs_t::simplify() {
     });
 }
 
-void prb_reqs_t::substitute(const pvar_map_t<int> &values) {
+void prb_reqs_t::substitute(const pvar_map_t<dim_t> &values) {
     for (auto &r : reqs_) {
         r.impl().substitute(values);
     }
@@ -917,7 +920,7 @@ bool prb_reqs_t::can_prove(const req_impl_t &to_prove, bool use_any_mod) const {
     return false;
 }
 
-bool prb_reqs_t::get_value(const pvar_t &pvar, int &value) const {
+bool prb_reqs_t::get_value(const pvar_t &pvar, dim_t &value) const {
     for (auto &r : reqs_) {
         auto &ri = r.impl();
         if (ri.kind() == req_kind_t::eq && ri.lhs() == pvar) {
@@ -928,8 +931,8 @@ bool prb_reqs_t::get_value(const pvar_t &pvar, int &value) const {
     return false;
 }
 
-int prb_reqs_t::max_factor(const pvar_t &pvar) const {
-    int ret = 1;
+dim_t prb_reqs_t::max_factor(const pvar_t &pvar) const {
+    dim_t ret = 1;
     for (auto &r : reqs_) {
         auto &ri = r.impl();
         if (ri.kind() == req_kind_t::mod_eq_0 && ri.lhs() == pvar
@@ -940,8 +943,8 @@ int prb_reqs_t::max_factor(const pvar_t &pvar) const {
     return ret;
 }
 
-bool prb_reqs_t::is_equal(const pvar_t &pvar, int value) const {
-    int pvar_value;
+bool prb_reqs_t::is_equal(const pvar_t &pvar, dim_t value) const {
+    dim_t pvar_value;
     return get_value(pvar, pvar_value) && pvar_value == value;
 }
 
@@ -953,7 +956,7 @@ bool prb_reqs_t::implies(const prb_reqs_t &other) const {
 }
 
 expr_t prb_reqs_t::to_expr(const pvar_t &pvar) const {
-    int pvar_value;
+    dim_t pvar_value;
     if (get_value(pvar, pvar_value)) return pvar_value;
     return pvar.var();
 }

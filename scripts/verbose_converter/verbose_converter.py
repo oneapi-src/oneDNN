@@ -15,82 +15,85 @@
 # limitations under the License.
 ################################################################################
 
-import sys
-
 import argparse
+import logging
+import os
+import sys
 from argparse import RawTextHelpFormatter
+from typing import IO, Dict, Iterable, List
 
-from src import utils
-from src import writer
+from src.benchdnn_generator import InputGenerator  # type: ignore
+from src.breakdown_generator import BreakdownGenerator  # type: ignore
+from src.dnnl_parser import LogParser  # type: ignore
+from src.utils import check_version, dedent  # type: ignore
+
+logger = logging.getLogger("verbose_converter")
+logger.setLevel(logging.CRITICAL + 10)  # off
+
+
+def one_line(multiline: str):
+    return dedent(multiline).replace(os.sep, " ")
+
+
+class ConverterError(RuntimeError):
+    pass
+
+
+def generate(generator, parser: LogParser, *args):
+    return generator.generate(parser.get_data(), *args)
 
 
 def convert(
-    verbose_level,
-    parser,
-    input,
-    action,
-    generator,
-    split_output,
-    agg_keys,
-    events=["create", "exec"],
-):
-    status = utils.check_version()
-    if status != utils.status.get("SUCCESS"):
-        return status
+    parser: str,
+    input: Iterable[str],
+    action: str,
+    generator: str,
+    split_output: bool,
+    agg_keys: List[str],
+    events: Iterable[str] = ("create", "exec"),
+) -> Dict[str, str]:
+    if not check_version():
+        raise ConverterError("Unsupported Python version")
 
-    logger = writer.Writer(verbose_level=verbose_level)
-    log_parser = None
+    log_parser: LogParser
     if parser == "oneDNN":
-        from src import dnnl_parser
-
-        log_parser = dnnl_parser.LogParser(logger, input)
+        log_parser = LogParser(logger, input)
     else:
-        logger.print("Error: unsupported parser", "STDIO")
-        return utils.status.get("FAILED")
+        raise ConverterError("Unsupported parser")
 
-    logger.print(f"Processing input ...", "INFO")
+    logger.info("Processing input ...")
     log_parser.process(events)
 
-    output = None
     if action == "dumpIR":
-        logger.print(f"Dumping data from input...", "INFO")
+        logger.info("Dumping data from input...")
         log_parser.dump(True)
-
-    if action == "generate":
-        logger.print(f"Generating output ...", "INFO")
+        return {}
+    elif action == "generate":
+        logger.info("Generating output ...")
         if generator == "benchdnn":
-            from src import benchdnn_generator
-
-            gen = benchdnn_generator.InputGenerator(logger)
-            output = gen.generate(log_parser.get_data(), split_output)
+            return generate(InputGenerator(logger), log_parser, split_output)
         elif generator == "breakdown":
-            from src import breakdown_generator
-
-            gen = breakdown_generator.BreakdownGenerator(logger)
-            output = gen.generate(log_parser.get_data(), agg_keys)
+            return generate(BreakdownGenerator(logger), log_parser, agg_keys)
         else:
-            logger.print("Error: unsupported generator", "STDIO")
-            return utils.status.get("FAILED")
-
-    return utils.status.get("SUCCESS"), output
-
-
-def validate_option(value, supported_values, str):
-    if not value in supported_values:
-        print(f"ERROR: {str}")
-        return utils.status.get("FAILED")
-    return utils.status.get("SUCCESS")
+            raise ConverterError("Unsupported generator")
+    else:
+        raise ConverterError("Unsupported action")
 
 
-def main():
-    status = utils.check_version()
-    if status != utils.status.get("SUCCESS"):
-        return status
+def validate_option(value, supported_values, message):
+    if value not in supported_values:
+        raise ConverterError(message)
+
+
+def main() -> int:
+    if not check_version():
+        logger.error("Unsupported Python version")
+        return 1
 
     action_opts = ["generate", "dumpIR"]
     generator_opts = ["benchdnn", "breakdown"]
     parser_opts = ["oneDNN"]
-    verbose_opts = ["0", "1"]
+    verbose_opts = [0, 1]
     aggregate_opts = [
         "engine",
         "prim_kind",
@@ -132,12 +135,18 @@ def main():
         "--aggregate",
         nargs="+",
         default=aggregate_opts,
-        help=f"aggregates statistics on the specified keys (default: all keys but time).\nValues: {aggregate_opts}",
+        help=one_line(
+            f"""
+             aggregates statistics on the specified keys (default: all keys but
+             time). Values: {aggregate_opts}
+             """
+        ),
     )
     args_parser.add_argument(
         "-v",
         "--verbose_level",
-        default="0",
+        default=0,
+        type=int,
         help=f"verbose level (default: 0). Values: {verbose_opts}.",
     )
     args_parser.add_argument(
@@ -154,25 +163,27 @@ def main():
         "--events",
         nargs="+",
         default=event_opts,
-        help=f"events to parse (default: create and exec).\nValues: {event_opts}.",
+        help=one_line(
+            f"""
+             events to parse (default: create and exec). Values: {event_opts}.
+             """
+        ),
     )
     args = args_parser.parse_args()
 
     # validate options
-    status = validate_option(args.action, action_opts, "Unknown action value")
-    if status != utils.status.get("SUCCESS"):
-        return status
-    status = validate_option(
-        args.verbose_level, verbose_opts, "Unknown verbose_level value"
-    )
-    if status != utils.status.get("SUCCESS"):
-        return status
-    status = validate_option(args.parser, parser_opts, "Unknown parser value")
-    if status != utils.status.get("SUCCESS"):
-        return status
-    status = validate_option(args.generator, generator_opts, "Unknown generator value")
-    if status != utils.status.get("SUCCESS"):
-        return status
+    try:
+        validate_option(args.action, action_opts, "Unknown action value")
+        validate_option(
+            args.verbose_level, verbose_opts, "Unknown verbose level"
+        )
+        validate_option(args.parser, parser_opts, "Unknown parser value")
+        validate_option(
+            args.generator, generator_opts, "Unknown generator value"
+        )
+    except ConverterError as e:
+        logger.error(str(e))
+        return 1
 
     input_data = []
     if args.input == "stdin":
@@ -181,53 +192,61 @@ def main():
             for line in sys.stdin:
                 input_data.append(line)
         else:
-            print("WARN: no input was provided to the script")
+            logger.warn("No input was provided to the script")
             args_parser.print_help()
     else:
         try:
             input_data = open(args.input, "r").readlines()
         except BaseException as e:
-            print(f"Error while reading input: {e}")
+            logger.error(f"While reading input: {e!s}")
+            return 1
 
-    output = None
-
-    event_sets = args.events if args.generator == 'breakdown' else [args.events]
+    event_sets = (
+        [[e] for e in args.events]
+        if args.generator == "breakdown"
+        else [args.events]
+    )
+    verbose_level = [logging.WARN, logging.INFO][args.verbose_level]
+    logger.setLevel(verbose_level)
 
     for events in event_sets:
-        status, output = convert(
-            verbose_level=args.verbose_level,
-            parser=args.parser,
-            input=input_data,
-            action=args.action,
-            generator=args.generator,
-            split_output=args.split,
-            agg_keys=args.aggregate,
-            events=events
-        )
+        try:
+            output = convert(
+                parser=args.parser,
+                input=input_data,
+                action=args.action,
+                generator=args.generator,
+                split_output=args.split,
+                agg_keys=args.aggregate,
+                events=events,
+            )
+        except ConverterError as e:
+            logger.error(str(e))
+            return 1
 
-        if status != utils.status.get("SUCCESS"):
-            return status
-
-        if output != None:
+        for key, value in output.items():
+            fd: IO
+            filename = args.output
+            if args.split:
+                filename += f".{key}"
             if args.output != "stdout":
-                if output != None:
-                    for key, value in output.items():
-                        filename = args.output
-                        if args.split == True:
-                            filename += "." + key
-                        of = open(filename, "w")
-                    if args.generator == "breakdown":
-                        print(f"Event: {events}", file=of)
-                    print(value, end="", file=of)
+                fd = open(filename, "w")
             else:
-                if args.generator == "breakdown":
-                    print(f"Event: {events}")
-                for key, value in output.items():
-                    if args.split == False:
-                        print(f"{value}")
-                    else:
-                        print(f"--{key}\n{value}")
+                fd = sys.stdout
+            if args.generator == "breakdown":
+                fd.write(f"Event: {events[0]}\n")
+                fd.write(f"{value}\n")
+            else:
+                if args.split:
+                    fd.write(f"--{key}\n")
+                fd.write(f"{value}\n")
+            if args.output != "stdout":
+                fd.close()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(0)

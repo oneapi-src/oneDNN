@@ -38,24 +38,42 @@ const std::vector<pvar_t> &conv_layout_dims(
         tensor_kind_t tensor_kind, bool src_dst_with_group = false);
 
 template <typename T>
-T &&pick_a(prop_kind_t prop, T &&src, T &&wei, T &&dst) {
+T &&pick_abc(tensor_kind_t abc, prop_kind_t prop, T &&src, T &&wei, T &&dst) {
     bool is_fwd = (prop == prop_kind::forward);
+    bool is_bwd_d = (prop == prop_kind::backward_data);
     bool is_bwd_w = (prop == prop_kind::backward_weights);
-    return std::forward<T>(is_fwd || is_bwd_w ? src : dst);
+    switch (abc) {
+        case tensor_kind_t::a:
+            if (is_fwd || is_bwd_w) return std::forward<T>(src);
+            return std::forward<T>(dst);
+        case tensor_kind_t::b:
+            if (is_fwd || is_bwd_d) return std::forward<T>(wei);
+            return std::forward<T>(dst);
+        case tensor_kind_t::c:
+            if (is_fwd) return std::forward<T>(dst);
+            if (is_bwd_d) return std::forward<T>(src);
+            return std::forward<T>(wei);
+        default: ir_error_not_expected();
+    }
+    return std::forward<T>(src);
+}
+
+template <typename T>
+T &&pick_a(prop_kind_t prop, T &&src, T &&wei, T &&dst) {
+    return std::forward<T>(pick_abc(tensor_kind_t::a, prop,
+            std::forward<T>(src), std::forward<T>(wei), std::forward<T>(dst)));
 }
 
 template <typename T>
 T &&pick_b(prop_kind_t prop, T &&src, T &&wei, T &&dst) {
-    bool is_fwd = (prop == prop_kind::forward);
-    bool is_bwd_d = (prop == prop_kind::backward_data);
-    return std::forward<T>(is_fwd || is_bwd_d ? wei : dst);
+    return std::forward<T>(pick_abc(tensor_kind_t::b, prop,
+            std::forward<T>(src), std::forward<T>(wei), std::forward<T>(dst)));
 }
 
 template <typename T>
 T &&pick_c(prop_kind_t prop, T &&src, T &&wei, T &&dst) {
-    bool is_fwd = (prop == prop_kind::forward);
-    bool is_bwd_d = (prop == prop_kind::backward_data);
-    return std::forward<T>(is_fwd ? dst : is_bwd_d ? src : wei);
+    return std::forward<T>(pick_abc(tensor_kind_t::c, prop,
+            std::forward<T>(src), std::forward<T>(wei), std::forward<T>(dst)));
 }
 
 tensor_kind_t to_abc(prop_kind_t prop, tensor_kind_t tensor);
@@ -161,18 +179,19 @@ public:
     bool ab_swap_transpose = false;
 
     int ndims = 0;
-    int mb = 0; // Batch size.
-    int g = 0; // Groups.
-    int ic = 0, oc = 0; // Input and output channels.
-    int id = 0, ih = 0, iw = 0; // Input spatial sizes.
-    int od = 0, oh = 0, ow = 0; // Output spatial sizes.
-    int kd = 0, kh = 0, kw = 0; // Kernel sizes.
-    int sd = 0, sh = 0, sw = 0; // Strides.
-    int pd = 0, ph = 0, pw = 0; // Padding in the beginning.
-    int dd = 0, dh = 0, dw = 0; // Dilation.
+    dim_t mb = 0; // Batch size.
+    dim_t g = 0; // Groups.
+    dim_t ic = 0, oc = 0; // Input and output channels.
+    dim_t id = 0, ih = 0, iw = 0; // Input spatial sizes.
+    dim_t od = 0, oh = 0, ow = 0; // Output spatial sizes.
+    dim_t kd = 0, kh = 0, kw = 0; // Kernel sizes.
+    dim_t sd = 0, sh = 0, sw = 0; // Strides.
+    dim_t pd = 0, ph = 0, pw = 0; // Padding in the beginning.
+    dim_t dd = 0, dh = 0, dw = 0; // Dilation.
     // Mapping for spatial dimensions (e.g. when 3D convolution is reduced to 1D).
     std::array<int, 3> dhw_map = {-1, -1, -1};
-    int isp = 0, osp = 0, ksp = 0; // Combined input/output/kernel spatial size.
+    dim_t isp = 0, osp = 0,
+          ksp = 0; // Combined input/output/kernel spatial size.
 
     data_type_t a_data_type = data_type::undef;
     data_type_t b_data_type = data_type::undef;
@@ -199,10 +218,10 @@ private:
     void init_transpose(const hw_t &hw);
 };
 
-void normalize_conv_shape(int &id, int &od, int &kd, int &sd, int &dd, int &pd,
-        int &ih, int &oh, int &kh, int &sh, int &dh, int &ph, int &iw, int &ow,
-        int &kw, int &sw, int &dw, int &pw, bool can_flatten_spatial,
-        std::array<int, 3> &dhw_map);
+void normalize_conv_shape(dim_t &id, dim_t &od, dim_t &kd, dim_t &sd, dim_t &dd,
+        dim_t &pd, dim_t &ih, dim_t &oh, dim_t &kh, dim_t &sh, dim_t &dh,
+        dim_t &ph, dim_t &iw, dim_t &ow, dim_t &kw, dim_t &sw, dim_t &dw,
+        dim_t &pw, bool can_flatten_spatial, std::array<int, 3> &dhw_map);
 bool is_small_ic(const conv_problem_t &prb);
 
 class conv_arg_helper_t {

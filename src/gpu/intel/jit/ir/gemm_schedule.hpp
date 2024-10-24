@@ -473,7 +473,7 @@ public:
 
     void set_view(const view_t &view) {
         // Create missing loops.
-        for (int i = 0; i < view.nvdims(); i++) {
+        for (dim_idx_t i = 0; i < view.nvdims(); i++) {
             auto &v = view.vvars()[i];
             dim_t bound = view.vdims()[i];
             if (has_loop(v)) {
@@ -532,11 +532,11 @@ public:
         return c_tg_tile_.create_sub_tensor(c_thr_tile_);
     }
 
-    int var_bound(const expr_t &var) const {
-        return to_cpp<int>(find_loop(var).bound());
+    dim_t var_bound(const expr_t &var) const {
+        return to_cpp<dim_t>(find_loop(var).bound());
     }
 
-    void set_var_bound(const expr_t &var, int bound) {
+    void set_var_bound(const expr_t &var, dim_t bound) {
         return find_loop(var).set_bound(bound);
     }
 
@@ -549,7 +549,7 @@ public:
     //       ...
     //     }
     //   }
-    void split(const expr_t &var, int factor, expr_t &outer_var,
+    void split(const expr_t &var, dim_t factor, expr_t &outer_var,
             expr_t &inner_var, const std::string &outer_name = {},
             const std::string &inner_name = {}) {
         auto &loop = find_loop(var);
@@ -650,9 +650,10 @@ public:
         loop.set_bound_var(bound_var);
         loop.set_kind(bound_var_to_loop_kind(bound_var));
 
-        int var_dim = bound_var_to_dim(bound_var);
-        ir_assert(to_cpp<int>(loop.bound()) == var_dim)
-                << "Dimension size doesn't match.";
+        dim_t var_dim = bound_var_to_dim(bound_var);
+        ir_assert(to_cpp<dim_t>(loop.bound()) == var_dim)
+                << "Dimension size doesn't match, "
+                << to_cpp<dim_t>(loop.bound()) << " != " << var_dim << ".";
     }
 
     // Reorders loops defined by given variables.
@@ -761,7 +762,7 @@ public:
         }
         if (expand_trivial_vars) {
             for (auto &kv : loops_) {
-                int bound = to_cpp<int>(kv.second.bound());
+                dim_t bound = to_cpp<dim_t>(kv.second.bound());
                 if (bound != 1) continue;
                 if (!contains_object(ret, kv.first)) continue;
                 ret = substitute(ret, kv.first, expr_t(0));
@@ -788,7 +789,7 @@ public:
             auto init = with_dyn ? init_it->second : expr_t(0);
             auto step = with_dyn ? step_it->second : expr_t(1);
             ir_assert(!with_dyn || step_it != dynamic_steps.end());
-            if (found_vars.count(var) == 0 && to_cpp<int>(loop.bound()) == 1
+            if (found_vars.count(var) == 0 && to_cpp<dim_t>(loop.bound()) == 1
                     && !with_dyn)
                 continue;
             body = for_t::make(
@@ -938,10 +939,10 @@ private:
     }
 
     loop_kind_t bound_var_to_loop_kind(const expr_t &v) const {
-        for (int i = 0; i < kernel_grid_.ndims(); i++) {
+        for (dim_idx_t i = 0; i < kernel_grid_.ndims(); i++) {
             if (kernel_grid_.idx(i).is_same(v)) return loop_kind_t::kernel_grid;
         }
-        for (int i = 0; i < tg_grid_.ndims(); i++) {
+        for (dim_idx_t i = 0; i < tg_grid_.ndims(); i++) {
             if (tg_grid_.idx(i).is_same(v)) return loop_kind_t::tg_grid;
         }
         if (kernel_grid_walk_order_.is_grid_var(v))
@@ -950,11 +951,11 @@ private:
         return loop_kind_t::undef;
     }
 
-    int bound_var_to_dim(const expr_t &v) const {
-        for (int i = 0; i < kernel_grid_.ndims(); i++) {
+    dim_t bound_var_to_dim(const expr_t &v) const {
+        for (dim_idx_t i = 0; i < kernel_grid_.ndims(); i++) {
             if (kernel_grid_.idx(i).is_same(v)) return kernel_grid_.dim(i);
         }
-        for (int i = 0; i < tg_grid_.ndims(); i++) {
+        for (dim_idx_t i = 0; i < tg_grid_.ndims(); i++) {
             if (tg_grid_.idx(i).is_same(v)) return tg_grid_.dim(i);
         }
         if (kernel_grid_walk_order_.is_grid_var(v))

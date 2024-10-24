@@ -59,15 +59,15 @@ public:
             start_[i] = start[i];
     }
 
-    dim_t operator()(int idx) const { return dims_[idx]; }
+    dim_t operator()(dim_idx_t idx) const { return dims_[idx]; }
 
-    const expr_t &start(int idx) const { return start_[idx]; }
+    const expr_t &start(dim_idx_t idx) const { return start_[idx]; }
 
-    int ndims() const { return int(dims_.size()); }
+    dim_idx_t ndims() const { return into<dim_idx_t>(dims_.size()); }
 
     dim_t elems() const {
         dim_t ret = 1;
-        for (int i = 0; i < ndims(); i++)
+        for (dim_idx_t i = 0; i < ndims(); i++)
             ret *= dims_[i];
         return ret;
     }
@@ -80,7 +80,7 @@ public:
 
     bool is_equal(const tensor_t &other) const {
         if (ndims() != other.ndims()) return false;
-        for (int i = 0; i < ndims(); i++) {
+        for (dim_idx_t i = 0; i < ndims(); i++) {
             if (dims_[i] != other.dims_[i]) return false;
             if (!start_[i].is_equal(other.start_[i])) return false;
         }
@@ -89,7 +89,7 @@ public:
 
     bool is_divisible(const tensor_t &other) const {
         if (ndims() != other.ndims()) return false;
-        for (int i = 0; i < ndims(); i++) {
+        for (dim_idx_t i = 0; i < ndims(); i++) {
             if (dims_[i] % other.dims_[i] != 0) return false;
         }
         return true;
@@ -108,7 +108,7 @@ public:
     IR_DEFINE_DUMP()
 
     bool has_zero_start() const {
-        for (int i = 0; i < ndims(); i++)
+        for (dim_idx_t i = 0; i < ndims(); i++)
             if (!is_zero(start_[i])) return false;
         return true;
     }
@@ -117,7 +117,7 @@ public:
         ir_assert(has_zero_start());
 
         dim_t off = 0;
-        for (int i = 0; i < ndims(); i++) {
+        for (dim_idx_t i = 0; i < ndims(); i++) {
             off *= dims_[i];
             off += args[i];
         }
@@ -127,14 +127,14 @@ public:
     tensor_t create_sub_tensor(const tensor_t &tile) const {
         ir_assert(ndims() == tile.ndims()) << "Incompatible sizes.";
         std::vector<expr_t> new_start = start_;
-        for (int i = 0; i < ndims(); i++)
+        for (dim_idx_t i = 0; i < ndims(); i++)
             new_start[i] += tile.start(i);
         return tensor_t(tile.dims(), new_start);
     }
 
     tensor_t substitute(const expr_t &from, const expr_t &to) const {
         tensor_t ret = *this;
-        for (int i = 0; i < ndims(); i++) {
+        for (dim_idx_t i = 0; i < ndims(); i++) {
             ret.start_[i] = jit::substitute(ret.start_[i], from, to);
             ret.start_[i] = simplify(ret.start_[i]);
         }
@@ -149,11 +149,11 @@ private:
 class grid_info_t {
 public:
     grid_info_t() = default;
-    grid_info_t(int ndims) : dims_(ndims), offs_(ndims), idxs_(ndims) {}
+    grid_info_t(dim_idx_t ndims) : dims_(ndims), offs_(ndims), idxs_(ndims) {}
     grid_info_t(const std::vector<dim_t> &dims, const std::vector<expr_t> &idxs)
         : grid_info_t(dims, {}, idxs) {}
     grid_info_t(const std::vector<dim_t> &dims, const std::string &prefix)
-        : grid_info_t(dims, make_idxs(prefix, (int)dims.size())) {}
+        : grid_info_t(dims, make_idxs(prefix, into<dim_idx_t>(dims.size()))) {}
     grid_info_t(const std::vector<dim_t> &dims, const std::vector<dim_t> &offs,
             const std::vector<expr_t> &idxs)
         : dims_(dims), offs_(offs), idxs_(idxs) {
@@ -164,7 +164,7 @@ public:
 
     bool operator==(const grid_info_t &other) const {
         if (ndims() != other.ndims()) return false;
-        for (int i = 0; i < ndims(); i++) {
+        for (dim_idx_t i = 0; i < ndims(); i++) {
             if (dim(i) != other.dim(i)) return false;
             if (off(i) != other.off(i)) return false;
             if (!idx(i).is_equal(other.idx(i))) return false;
@@ -174,35 +174,35 @@ public:
 
     bool is_empty() const { return dims_.empty(); }
 
-    dim_t &dim(int dim_idx) { return dims_[dim_idx]; }
-    dim_t &off(int dim_idx) { return offs_[dim_idx]; }
-    expr_t &idx(int dim_idx) { return idxs_[dim_idx]; }
-    int dim_idx(const expr_t &idx_var) const {
-        for (int i = 0; i < ndims(); i++) {
+    dim_t &dim(dim_idx_t dim_idx) { return dims_[dim_idx]; }
+    dim_t &off(dim_idx_t dim_idx) { return offs_[dim_idx]; }
+    expr_t &idx(dim_idx_t dim_idx) { return idxs_[dim_idx]; }
+    dim_idx_t dim_idx(const expr_t &idx_var) const {
+        for (dim_idx_t i = 0; i < ndims(); i++) {
             if (idx(i).is_same(idx_var)) return i;
         }
         ir_error_not_expected() << "Index not found: " << idx_var;
         return -1;
     }
 
-    const dim_t &dim(int dim_idx) const { return dims_[dim_idx]; }
+    const dim_t &dim(dim_idx_t dim_idx) const { return dims_[dim_idx]; }
     const dim_t &dim(const expr_t &idx_var) const {
         return dims_[dim_idx(idx_var)];
     }
-    const dim_t &off(int dim_idx) const { return offs_[dim_idx]; }
-    const expr_t &idx(int dim_idx) const { return idxs_[dim_idx]; }
+    const dim_t &off(dim_idx_t dim_idx) const { return offs_[dim_idx]; }
+    const expr_t &idx(dim_idx_t dim_idx) const { return idxs_[dim_idx]; }
 
-    dim_t &operator[](int dim_idx) { return dim(dim_idx); }
-    const dim_t &operator[](int dim_idx) const { return dim(dim_idx); }
+    dim_t &operator[](dim_idx_t dim_idx) { return dim(dim_idx); }
+    const dim_t &operator[](dim_idx_t dim_idx) const { return dim(dim_idx); }
 
-    int ndims() const { return int(dims_.size()); }
+    dim_idx_t ndims() const { return into<dim_idx_t>(dims_.size()); }
     dim_t elems() const {
         return utils::array_product(dims_.data(), dims_.size());
     }
 
-    grid_info_t sub_grid(std::initializer_list<dim_t> old_dim_idxs) const {
-        grid_info_t ret(int(old_dim_idxs.size()));
-        int new_dim_idx = 0;
+    grid_info_t sub_grid(std::initializer_list<dim_idx_t> old_dim_idxs) const {
+        grid_info_t ret(into<dim_idx_t>(old_dim_idxs.size()));
+        dim_idx_t new_dim_idx = 0;
         for (auto old_dim_idx : old_dim_idxs) {
             ret.dim(new_dim_idx) = dim(old_dim_idx);
             ret.off(new_dim_idx) = off(old_dim_idx);
@@ -218,7 +218,7 @@ public:
         return ret;
     }
 
-    grid_info_t slice(int dim_idx, int new_off, int new_dim,
+    grid_info_t slice(dim_idx_t dim_idx, dim_t new_off, dim_t new_dim,
             const expr_t &new_idx, expr_t &new_idx_value) const {
         ir_assert(dim_idx >= 0 && dim_idx < ndims());
         ir_assert(new_dim > 0 && new_off >= 0);
@@ -237,7 +237,7 @@ public:
         return ret;
     }
 
-    grid_info_t halven(const expr_t &new_idx, int &dim_idx,
+    grid_info_t halven(const expr_t &new_idx, dim_idx_t &dim_idx,
             expr_t &new_idx_value, bool first = true) const {
         for (int i = ndims() - 1; i >= 0; i--) {
             if (dim(i) == 1 || dim(i) % 2 != 0) continue;
@@ -251,7 +251,7 @@ public:
     expr_t slice_condition() const {
         if (parent_dims_.empty()) return expr_t();
         expr_t ret(true);
-        for (int i = 0; i < ndims(); i++) {
+        for (dim_idx_t i = 0; i < ndims(); i++) {
             auto &idx = idxs_[i];
             if (offs_[i] > 0) ret &= (idx >= 0);
             if (offs_[i] + dims_[i] < parent_dims_[i]) ret &= (idx < dims_[i]);
@@ -293,50 +293,51 @@ public:
         ir_assert(cur_idx_ >= 0);
     }
 
-    int cur_block() const {
+    dim_t cur_block() const {
         if (is_empty()) return 1;
 
         return grid_.dim(cur_idx_) / cur_stride_;
     }
 
-    bool is_empty() const { return cur_idx_ == -1; }
+    bool is_empty() const { return cur_idx_ == dim_idx::invalid; }
 
-    bool can_pop_block(int size) const {
+    bool can_pop_block(dim_t size) const {
         if (is_empty()) return false;
         return cur_block() % size == 0;
     }
 
-    expr_t pop_block(int size);
+    expr_t pop_block(dim_t size);
 
 private:
     void skip_size_1_dims() {
-        while (cur_idx_ >= 0 && grid_.dim(cur_idx_) == 1)
+        while (cur_idx_ != dim_idx::invalid && grid_.dim(cur_idx_) == 1)
             cur_idx_--;
     }
 
     grid_info_t grid_;
 
-    int cur_idx_;
-    int cur_stride_;
+    dim_idx_t cur_idx_;
+    dim_t cur_stride_;
 };
 
 class layout_t {
 public:
-    static const int max_ndims = 16;
+    static const dim_idx_t max_ndims = 16;
 
     layout_t() : type_(type_t::undef()), ndims_(0), offset_(0) {
         sanity_check();
     }
 
-    layout_t(const type_t &type, const expr_t &offset, int ndims,
+    layout_t(const type_t &type, const expr_t &offset, dim_idx_t ndims,
             const std::vector<std::pair<int, dim_t>> &parts,
             const std::vector<dim_t> &dims = {}, bool do_normalize = true);
 
     layout_t(const type_t &type, const expr_t &offset,
             const std::string &format, const std::vector<dim_t> &dims = {},
             bool do_normalize = true)
-        : layout_t(type, offset, (int)dims.size(),
-                parse_format(format, int(dims.size())), dims, do_normalize) {}
+        : layout_t(type, offset, into<dim_idx_t>(dims.size()),
+                parse_format(format, into<dim_idx_t>(dims.size())), dims,
+                do_normalize) {}
 
     layout_t(const memory_desc_wrapper &mdw, const std::string &format,
             bool do_normalize = true)
@@ -352,7 +353,7 @@ public:
 
     layout_t(const type_t &type, const expr_t &offset,
             const std::vector<dim_t> &dims, bool do_normalize = true)
-        : type_(type), ndims_(int(dims.size())), offset_(offset) {
+        : type_(type), ndims_(into<dim_idx_t>(dims.size())), offset_(offset) {
         dim_t stride = 1;
         for (int i = ndims_ - 1; i >= 0; i--) {
             blocks_.emplace_back(i, dims[i], stride);
@@ -375,7 +376,7 @@ public:
 
     bool is_empty() const { return ndims_ == 0; }
 
-    int ndims() const { return ndims_; }
+    dim_idx_t ndims() const { return ndims_; }
 
     dim_t elems() const {
         dim_t ret = 1;
@@ -415,7 +416,7 @@ public:
             const std::vector<T> &args = {}, bool ignore_offset = false) const {
         if (args.empty()) return expr_cast<T>(offset_);
 
-        ir_assert(int(args.size()) == ndims()) << "Dimensions do not match.";
+        ir_assert(args.size() == ndims()) << "Dimensions do not match.";
 
         T off = 0;
         auto _args = args;
@@ -540,10 +541,10 @@ public:
             auto &b = eb.second;
             std::string b_str;
             if (dnnl_style && is_outermost(eb)) {
-                b_str.append(1, (seen[b.dim_idx] ? 'A' : 'a') + b.dim_idx);
+                b_str.append(1, dim_idx::as_tag(b.dim_idx, seen[b.dim_idx]));
             } else {
                 b_str = std::to_string(b.block);
-                b_str.append(1, 'a' + b.dim_idx);
+                b_str.append(1, dim_idx::as_tag(b.dim_idx));
             }
             if (!dnnl_style) {
                 if (b.stride.is_unknown()) {
@@ -724,7 +725,7 @@ public:
         ir_assert(ndims() == inner.ndims());
         auto cur_dims = dims();
         std::vector<dim_t> rem_dims(ndims());
-        for (int i = 0; i < ndims(); i++)
+        for (dim_idx_t i = 0; i < ndims(); i++)
             rem_dims[i] = ir_utils::safe_divide(dim(i), inner.dim(i));
         auto ret = inner;
         for (auto &b : blocks()) {
@@ -736,7 +737,7 @@ public:
             ret = ret.add_outer_block(b.dim_idx, blk);
             r = ir_utils::safe_divide(r, blk);
         }
-        for (int i = 0; i < ndims(); i++)
+        for (dim_idx_t i = 0; i < ndims(); i++)
             ir_assert(rem_dims[i] == 1);
         return ret;
     }
@@ -758,7 +759,7 @@ public:
             const std::vector<dim_t> &multi_blocks) const;
 
     layout_t add_outer_block(
-            int dim_idx, dim_t block, dim_t stride = -1) const {
+            dim_idx_t dim_idx, dim_t block, dim_t stride = -1) const {
         if (stride == -1) {
             if (blocks_.empty()) {
                 stride = 1;
@@ -799,7 +800,7 @@ public:
         std::vector<dim_t> cur_dims(grid_info.ndims(), 1);
 
         for (int iter = 0; iter < grid_info.elems(); iter++) {
-            for (int i = 0; i < grid_info.ndims(); i++) {
+            for (dim_idx_t i = 0; i < grid_info.ndims(); i++) {
                 if (++cur_dims[i] <= grid_info.dim(i)) break;
                 cur_dims[i] = 1;
             }
@@ -893,8 +894,8 @@ public:
                     return tensor_t();
                 }
             } else {
-                dim_t next_chunk = math::gcd(
-                        b.block, static_cast<dim_t>(grid_splitter.cur_block()));
+                dim_t next_chunk
+                        = math::gcd(b.block, grid_splitter.cur_block());
                 if (b.block == next_chunk) {
                     auto idx = grid_splitter.pop_block(next_chunk);
                     start[b.dim_idx] += idx * dims[b.dim_idx];
@@ -919,7 +920,7 @@ public:
     void for_each_tile(const tensor_t &tile, const F &f) const {
         ir_assert(tile.ndims() == ndims());
         ir_assert(tile.has_zero_start());
-        for (int i = 0; i < ndims(); i++) {
+        for (dim_idx_t i = 0; i < ndims(); i++) {
             ir_assert(dim(i) % tile.dims()[i] == 0);
         }
 
@@ -979,8 +980,7 @@ public:
         if (block == 1) return true;
         if (blocks().empty()) return false;
         auto &b = blocks().back();
-        if (dim_idx != static_cast<dim_idx_t>(-1) && b.dim_idx != dim_idx)
-            return false;
+        if (dim_idx != dim_idx::invalid && b.dim_idx != dim_idx) return false;
         if (b.block % block != 0) return false;
         return true;
     }
@@ -1072,7 +1072,7 @@ private:
     type_t type_;
 
     // Number of dimensions.
-    int ndims_;
+    dim_idx_t ndims_;
 
     // Offset to the start of the layout (in elements of type).
     expr_t offset_;
@@ -1122,7 +1122,7 @@ public:
         std::vector<dim_t> dims(l_.ndims(), 1);
         for (int i = 0; i <= block_idx_; i++) {
             auto &b = l_.blocks()[i];
-            int b_block = b.block;
+            dim_t b_block = b.block;
             if (i == block_idx_) b_block /= block_;
             dims[b.dim_idx] *= b_block;
         }
@@ -1253,7 +1253,7 @@ public:
         return mask_tensor_t(_1d_layout, new_masks, mask2ids_, id2masks_);
     }
 
-    expr_t to_expr(int nmasks) const {
+    expr_t to_expr(dim_t nmasks) const {
         if (elems() % nmasks != 0) return expr_t();
 
         std::vector<expr_t> vec(nmasks);
@@ -1304,7 +1304,7 @@ public:
 
     tdim_t(const expr_t &expr, const expr_t &mask) : expr_(expr), mask_(mask) {}
 
-    int nvargs() const { return nvargs_; }
+    dim_idx_t nvargs() const { return nvargs_; }
 
     const expr_t &expr() const { return expr_; }
 
@@ -1315,7 +1315,7 @@ public:
     expr_t mask(const expr_t &tvalue, const std::vector<expr_t> &vvars,
             const std::vector<expr_t> &vvalues) const {
         auto ret = substitute(mask_, placeholder_var(), tvalue);
-        for (int i = 0; i < int(vvars.size()); i++) {
+        for (dim_idx_t i = 0; i < vvars.size(); i++) {
             if (contains_object(ret, vvars[i])) {
                 ret = substitute(ret, vvars[i], vvalues[i]);
             }
@@ -1323,12 +1323,12 @@ public:
         return ret;
     }
 
-    int vidx(int arg_idx) const {
+    dim_idx_t vidx(dim_idx_t arg_idx) const {
         ir_assert(arg_idx < nvargs());
         return vidxs_[arg_idx];
     }
 
-    stride_t vstride(int arg_idx) const {
+    stride_t vstride(dim_idx_t arg_idx) const {
         ir_assert(arg_idx < nvargs());
         return vstrides_[arg_idx];
     }
@@ -1337,12 +1337,12 @@ public:
 
     bool is_identity() const { return is_var(expr_); }
 
-    bool is_fixed_stride(int arg_idx) const {
+    bool is_fixed_stride(dim_idx_t arg_idx) const {
         ir_assert(arg_idx < nvargs());
         return vstrides_[arg_idx].is_fixed();
     }
 
-    void add_vvar(int vidx, const expr_t &varg) {
+    void add_vvar(dim_idx_t vidx, const expr_t &varg) {
         ir_assert(nvargs_ + 1 <= max_nvargs);
         vidxs_[nvargs_] = vidx;
         vstrides_[nvargs_] = compute_stride(expr_, nvargs_, varg);
@@ -1364,15 +1364,16 @@ public:
     IR_DEFINE_DUMP()
 
 private:
-    static const int max_nvargs = 2;
+    static const dim_idx_t max_nvargs = 2;
 
-    static stride_t compute_stride(const expr_t &e, int idx, const expr_t &var);
+    static stride_t compute_stride(
+            const expr_t &e, dim_idx_t idx, const expr_t &var);
 
     expr_t expr_;
 
-    int nvargs_ = 0;
+    dim_idx_t nvargs_ = 0;
     std::array<stride_t, max_nvargs> vstrides_;
-    std::array<int, max_nvargs> vidxs_;
+    std::array<dim_idx_t, max_nvargs> vidxs_;
     expr_t mask_;
 };
 
@@ -1380,7 +1381,7 @@ class view_t {
 public:
     view_t() = default;
 
-    view_t(const std::vector<expr_t> &vvars, int ntdims)
+    view_t(const std::vector<expr_t> &vvars, dim_idx_t ntdims)
         : vvars_(vvars)
         , vdims_(vvars.size())
         , vstart_(vvars.size())
@@ -1400,7 +1401,7 @@ public:
         , tdims_(layout.ndims())
         , tlayout_(layout) {
         if (vvars_.empty()) vvars_ = create_vvars(layout.ndims());
-        for (int i = 0; i < nvdims(); i++) {
+        for (dim_idx_t i = 0; i < nvdims(); i++) {
             expr_t i_mask;
             if ((bound_check_mask & (1 << i)) != 0)
                 i_mask = (placeholder_var() < layout.dim(i));
@@ -1414,22 +1415,22 @@ public:
 
     std::vector<expr_t> vstart() const { return vstart_; }
 
-    expr_t vstart(int vidx) const { return vstart_[vidx]; }
+    expr_t vstart(dim_idx_t vidx) const { return vstart_[vidx]; }
 
     const layout_t &tlayout() const { return tlayout_; }
 
-    int nvdims() const { return int(vdims_.size()); }
+    dim_idx_t nvdims() const { return into<dim_idx_t>(vdims_.size()); }
 
-    int ntdims() const { return int(tdims_.size()); }
+    dim_idx_t ntdims() const { return into<dim_idx_t>(tdims_.size()); }
 
     dim_t velems() const {
         dim_t ret = 1;
-        for (int i = 0; i < nvdims(); i++)
+        for (dim_idx_t i = 0; i < nvdims(); i++)
             ret *= vdims_[i];
         return ret;
     }
 
-    const expr_t &vvar(int idx) const {
+    const expr_t &vvar(dim_idx_t idx) const {
         ir_assert(idx < nvdims());
         return vvars_[idx];
     }
@@ -1441,18 +1442,19 @@ public:
         return vvars_[0];
     }
 
-    const tdim_t &tdim(int idx) const {
+    const tdim_t &tdim(dim_idx_t idx) const {
         ir_assert(idx < ntdims());
         return tdims_[idx];
     }
 
-    void set_tdim(int tidx, const expr_t &_texpr, const expr_t &mask = {}) {
+    void set_tdim(
+            dim_idx_t tidx, const expr_t &_texpr, const expr_t &mask = {}) {
         ir_assert(tdims_[tidx].is_empty());
 
         auto texpr = simplify(_texpr);
 
         tdim_t tdim(texpr, mask);
-        for (int i = 0; i < nvdims(); i++) {
+        for (dim_idx_t i = 0; i < nvdims(); i++) {
             if (contains_object(texpr, vvars_[i])) tdim.add_vvar(i, vvars_[i]);
         }
         if (!is_const(texpr)) {
@@ -1465,7 +1467,7 @@ public:
 
     void set_vdim(
             const expr_t &varg, dim_t vdim, const expr_t &vstart = expr_t(0)) {
-        int vidx = vvar_index(varg);
+        dim_idx_t vidx = vvar_index(varg);
         ir_assert(vstart_[vidx].is_empty());
         vstart_[vidx] = vstart;
         vdims_[vidx] = vdim;
@@ -1473,19 +1475,19 @@ public:
 
     void set_tlayout(const layout_t &tlayout) { tlayout_ = tlayout; }
 
-    void set_tmasks(const std::unordered_map<std::string, int> &padded_dims) {
+    void set_tmasks(const std::unordered_map<std::string, dim_t> &padded_dims) {
         using namespace ir_utils;
         auto &x = placeholder_var();
-        for (int i = 0; i < ntdims(); i++) {
+        for (dim_idx_t i = 0; i < ntdims(); i++) {
             auto &tdim = tdims_[i];
             if (!tdim.is_identity() || !tdim.mask().is_empty()) continue;
-            int vidx = tdim.vidx(0);
-            int dim = tlayout_.dim(i);
+            dim_idx_t vidx = tdim.vidx(0);
+            dim_t dim = tlayout_.dim(i);
             auto &dim_name = vvars_[vidx].as<var_t>().name;
-            int padded_dim = get_or_default(padded_dims, dim_name, 1);
+            dim_t padded_dim = get_or_default(padded_dims, dim_name, dim_t(1));
             if (dim >= padded_dim) continue;
-            int inner_blk = ir_utils::max_pow2_divisor(dim);
-            int dim_blk = ir_utils::max_pow2_divisor(tlayout_.inner_block(
+            dim_t inner_blk = ir_utils::max_pow2_divisor(dim);
+            dim_t dim_blk = ir_utils::max_pow2_divisor(tlayout_.inner_block(
                     i, /*skip_outer=*/true, /*inner_only=*/false));
             inner_blk = std::min(inner_blk, dim_blk);
             auto tmask = (inner_blk == 1) ? (x < dim)
@@ -1494,10 +1496,10 @@ public:
         }
     }
 
-    void set_tmasks(const std::vector<int> &padded_dims) {
-        ir_assert(int(padded_dims.size()) == ntdims());
-        std::unordered_map<std::string, int> pd_map;
-        for (int i = 0; i < ntdims(); i++) {
+    void set_tmasks(const std::vector<dim_t> &padded_dims) {
+        ir_assert(padded_dims.size() == ntdims());
+        std::unordered_map<std::string, dim_t> pd_map;
+        for (dim_idx_t i = 0; i < ntdims(); i++) {
             auto &dim_name = vvars_[tdims_[i].vidx(0)].as<var_t>().name;
             pd_map.emplace(dim_name, padded_dims[i]);
         }
@@ -1520,12 +1522,12 @@ public:
     bool is_empty() const { return vdims_.empty(); }
 
     bool has_zero_vstart() const {
-        for (int i = 0; i < nvdims(); i++)
+        for (dim_idx_t i = 0; i < nvdims(); i++)
             if (!is_zero(vstart_[i])) return false;
         return true;
     }
 
-    bool has_tmask(int tidx) const {
+    bool has_tmask(dim_idx_t tidx) const {
         ir_assert(tidx >= 0 && tidx < ntdims());
         return !tdims_[tidx].mask().is_empty();
     }
@@ -1545,17 +1547,17 @@ public:
 
     int get_alignment(const constraint_set_t &cset) const {
         // Alignment must be a power of 2.
-        const int base_alignment = 128;
+        const dim_t base_alignment = 128;
         int64_t f = get_max_const_factor(this->offset_in_bytes(), cset);
-        int alignment = f ? ir_utils::max_pow2_divisor(f) : base_alignment;
-        return std::min(base_alignment, alignment);
+        dim_t alignment = f ? ir_utils::max_pow2_divisor(f) : base_alignment;
+        return static_cast<int>(std::min(base_alignment, alignment));
     }
 
-    int vvar_index(const expr_t &vvar) const {
-        for (size_t i = 0; i < vvars_.size(); i++)
-            if (vvar.is_same(vvars_[i])) return int(i);
+    dim_idx_t vvar_index(const expr_t &vvar) const {
+        for (dim_idx_t i = 0; i < vvars_.size(); i++)
+            if (vvar.is_same(vvars_[i])) return i;
         ir_error_not_expected() << "Can't find view dimension.";
-        return -1;
+        return dim_idx::invalid;
     }
 
     template <typename T>
@@ -1578,17 +1580,17 @@ public:
         return ret;
     }
 
-    bool is_masked_vdim(int vidx) const {
+    bool is_masked_vdim(dim_idx_t vidx) const {
         ir_assert(vidx >= 0 && vidx < nvdims());
         ir_assert(has_zero_vstart())
                 << "Can't be reliably determined if the view is a sub-view.";
-        for (int i = 0; i < ntdims(); i++) {
+        for (dim_idx_t i = 0; i < ntdims(); i++) {
             auto &tdim = tdims_[i];
             if (tdim.expr().is_equal(vvars_[vidx])) {
                 if (vdims_[vidx] != tlayout_.dim(i)) return true;
             }
             if (has_tmask(i)) {
-                for (int j = 0; j < tdim.nvargs(); j++) {
+                for (dim_idx_t j = 0; j < tdim.nvargs(); j++) {
                     if (tdim.vidx(j) == vidx) return true;
                 }
             }
@@ -1606,13 +1608,13 @@ public:
     //      assuming the zero padding invariant. However in some cases we need
     //      to generate the exact bound condition based on the logical indices.
     expr_t vmask(const std::vector<expr_t> &vargs) const {
-        ir_assert(int(vargs.size()) == nvdims()) << "Incompatible dimensions.";
+        ir_assert(vargs.size() == nvdims()) << "Incompatible dimensions.";
         ir_assert(has_zero_vstart())
                 << "Can't be reliably determined if the view is a sub-view.";
         auto targs = cvt_vargs_to_targs(vargs);
         auto mask = bool_imm_t::make(true);
-        for (int i = 0; i < ntdims(); i++) {
-            for (int j = 0; j < nvdims(); j++) {
+        for (dim_idx_t i = 0; i < ntdims(); i++) {
+            for (dim_idx_t j = 0; j < nvdims(); j++) {
                 if (!tdims_[i].expr().is_equal(vvars_[j])) continue;
                 if (vdims_[j] != tlayout_.dim(i)) {
                     mask &= (vargs[j] < vdims_[j]);
@@ -1628,7 +1630,7 @@ public:
 
     bool can_convert_to_vlayout() const {
         if (nvdims() != ntdims()) return false;
-        for (int i = 0; i < nvdims(); i++) {
+        for (dim_idx_t i = 0; i < nvdims(); i++) {
             if (!tdims_[i].expr().is_same(vvars_[i])) return false;
             if (!tdims_[i].is_fixed_stride(0)) return false;
         }
@@ -1719,25 +1721,25 @@ public:
     void try_create_buffer_view(view_t &buf_view, view_t &inv_view) const {
         buf_view = view_t(create_vvars(ntdims()), ntdims());
         inv_view = view_t(vvars(), ntdims());
-        for (int i = 0; i < nvdims(); i++) {
+        for (dim_idx_t i = 0; i < nvdims(); i++) {
             inv_view.set_vdim(vvars()[i], vdims()[i]);
         }
-        for (int i = 0; i < ntdims(); i++) {
+        for (dim_idx_t i = 0; i < ntdims(); i++) {
             auto &tdim = tdims_[i];
             auto &buf_vvar = buf_view.vvars()[i];
             if (tdim.is_identity()) {
-                int vidx = tdim.vidx(0);
+                dim_idx_t vidx = tdim.vidx(0);
                 buf_view.set_vdim(buf_vvar, vdims()[vidx], vstart(vidx));
                 buf_view.set_tdim(i, buf_vvar, tdim.mask());
                 inv_view.set_tdim(i, tdim.expr());
                 continue;
             }
-            int buf_vdim = 0;
+            int64_t buf_vdim = 0;
             bool ok = true;
-            for (int j = 0; j < tdim.nvargs(); j++) {
-                int vidx = tdim.vidx(j);
+            for (dim_idx_t j = 0; j < tdim.nvargs(); j++) {
+                dim_idx_t vidx = tdim.vidx(j);
                 auto &vvar = vvars()[vidx];
-                int vdim = vdims()[vidx];
+                dim_t vdim = vdims()[vidx];
                 if (vdim == 1) continue;
                 const auto &A = tdim.expr();
                 auto B = jit::substitute(A, vvar, vvar + 1);
@@ -1746,7 +1748,7 @@ public:
                     ok = false;
                     break;
                 }
-                buf_vdim += to_cpp<int>(C) * (vdim - 1);
+                buf_vdim += to_cpp<int64_t>(C) * (vdim - 1);
             }
             buf_vdim++;
 
@@ -1758,8 +1760,8 @@ public:
 
             auto buf_vstart = tdim.expr();
             auto inv_vstart = tdim.expr();
-            for (int j = 0; j < tdim.nvargs(); j++) {
-                int vidx = tdim.vidx(j);
+            for (dim_idx_t j = 0; j < tdim.nvargs(); j++) {
+                dim_idx_t vidx = tdim.vidx(j);
                 buf_vstart = jit::substitute(
                         buf_vstart, vvars()[vidx], vstart(vidx));
                 inv_vstart
@@ -1797,7 +1799,7 @@ public:
 
     static const expr_t &placeholder_var() { return tdim_t::placeholder_var(); }
 
-    static std::vector<expr_t> create_vvars(int nvdims);
+    static std::vector<expr_t> create_vvars(dim_idx_t nvdims);
 
     template <typename SrcT = expr_t, typename DstT = SrcT>
     std::vector<DstT> cvt_vargs_to_targs(const std::vector<SrcT> &_vargs = {},
@@ -1806,19 +1808,19 @@ public:
         if (vargs.empty()) vargs.resize(nvdims(), 0);
 
         if (!ignore_vstart) {
-            for (int i = 0; i < nvdims(); i++) {
+            for (dim_idx_t i = 0; i < nvdims(); i++) {
                 if (!is_zero(vstart_[i])) vargs[i] += vstart_[i];
             }
         }
 
         std::vector<expr_t> targs(ntdims());
-        for (int i = 0; i < ntdims(); i++) {
+        for (dim_idx_t i = 0; i < ntdims(); i++) {
             targs[i] = tdims_[i].expr();
-            for (int j = 0; j < nvdims(); j++) {
+            for (dim_idx_t j = 0; j < nvdims(); j++) {
                 targs[i] = jit::substitute(targs[i], vvars_[j], vargs[j]);
             }
         }
-        for (int i = 0; i < ntdims(); i++) {
+        for (dim_idx_t i = 0; i < ntdims(); i++) {
             targs[i] = const_fold(targs[i]);
         }
         return expr_cast<DstT>(targs);
@@ -1829,21 +1831,21 @@ private:
             const layout_t &tlayout, bool init_offset) const;
 
     void create_mask_tensor(mask_tensor_t &mask_tensor,
-            const layout_t &_vlayout, int vidx, std::vector<dim_t> &vargs,
+            const layout_t &_vlayout, dim_idx_t vidx, std::vector<dim_t> &vargs,
             uint32_t tmask) const {
         if (vidx == _vlayout.ndims()) {
             bool is_init = false;
             std::vector<expr_t> vvalues;
             std::vector<expr_t> targs;
             expr_t mask = bool_imm_t::make(true);
-            for (int i = 0; i < ntdims(); i++) {
+            for (dim_idx_t i = 0; i < ntdims(); i++) {
                 auto &tdim = tdims_[i];
                 if ((tmask & (1 << i)) == 0) continue;
                 if (tdim.mask().is_empty()) continue;
                 if (!is_init) {
                     // Lazily initialize values
                     vvalues = vstart_;
-                    for (int i = 0; i < nvdims(); i++)
+                    for (dim_idx_t i = 0; i < nvdims(); i++)
                         vvalues[i] += vargs[i];
                     targs = cvt_vargs_to_targs<dim_t, expr_t>(vargs);
                     is_init = true;
@@ -1854,7 +1856,7 @@ private:
             return;
         }
 
-        for (int i = 0; i < vdims()[vidx]; i++) {
+        for (dim_idx_t i = 0; i < vdims()[vidx]; i++) {
             vargs[vidx] = i;
             create_mask_tensor(mask_tensor, _vlayout, vidx + 1, vargs, tmask);
         }
@@ -1892,42 +1894,42 @@ class dim_assignment_t {
 public:
     dim_assignment_t() = default;
 
-    dim_assignment_t(int old_ndims, int new_ndims)
+    dim_assignment_t(dim_idx_t old_ndims, dim_idx_t new_ndims)
         : old_ndims_(old_ndims)
         , new_ndims_(new_ndims)
         , assignments_(old_ndims, -1) {}
 
-    void assign(int old_idx, int new_idx) {
+    void assign(dim_idx_t old_idx, dim_idx_t new_idx) {
         ir_assert(0 <= old_idx && old_idx < old_ndims_);
         ir_assert(0 <= new_idx && new_idx < new_ndims_);
         assignments_[old_idx] = new_idx;
     }
 
-    void assign(const std::vector<int> &old_idxes, int new_idx) {
+    void assign(const std::vector<dim_idx_t> &old_idxes, dim_idx_t new_idx) {
         for (auto old_idx : old_idxes) {
             assign(old_idx, new_idx);
         }
     }
 
-    int operator[](int old_idx) const {
+    dim_idx_t operator[](dim_idx_t old_idx) const {
         ir_assert(old_idx >= 0 && old_idx < old_ndims());
         return assignments_[old_idx];
     }
 
-    int old_ndims() const { return old_ndims_; }
+    dim_idx_t old_ndims() const { return old_ndims_; }
 
-    int new_ndims() const { return new_ndims_; }
+    dim_idx_t new_ndims() const { return new_ndims_; }
 
     bool is_empty() const { return old_ndims_ == 0 && new_ndims_ == 0; }
 
     layout_t map(const layout_t &layout) const;
 
 private:
-    int old_ndims_ = 0;
-    int new_ndims_ = 0;
+    dim_idx_t old_ndims_ = 0;
+    dim_idx_t new_ndims_ = 0;
 
     // assignments_[old_idx] = new_idx.
-    std::vector<int> assignments_;
+    std::vector<dim_idx_t> assignments_;
 };
 
 // Adds size one spatial dimensions according to input parameters. Spatial

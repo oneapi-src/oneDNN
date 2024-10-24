@@ -70,7 +70,8 @@ public:
 
         // only allow SIMD-aligned channel-first layouts
         const auto &oc_blk = src.blocks()[0];
-        if ((oc_blk.dim_idx != 1) || (oc_blk.block % exec.simd())) return false;
+        if ((oc_blk.dim_idx != dim_idx_t(1)) || (oc_blk.block % exec.simd()))
+            return false;
 
         // for some reason 3D pooling works poorly on PVC at the moment
         // TODO: bring PVC 3D pooling back
@@ -179,9 +180,9 @@ public:
 
     int pad_block(const pvar_t &d) const override {
         if (d == pvars::mb)
-            return src_layout().user().inner_block(0, true, false);
+            return into<int>(src_layout().user().inner_block(0, true, false));
         if (d == pvars::oc)
-            return src_layout().user().inner_block(1, true, false);
+            return into<int>(src_layout().user().inner_block(1, true, false));
         return 1;
     }
 
@@ -242,7 +243,7 @@ public:
         const int regs_per_tile
                 = exec.regs() - (!is_scalar ? is_blocked_by_mb() ? 8 : 28 : 0);
 
-        auto optimize_load = [](dim_t &dim, int mult) {
+        auto optimize_load = [](dim_t &dim, dim_t mult) {
             const int optimal_load_size = 256;
             dim_t null = 0;
             while ((dim * mult > optimal_load_size) && (dim > 1))
@@ -297,13 +298,14 @@ public:
             const int simds_per_line
                     = max_grf / (simd * (src_type_size + acc_type_size));
 
-            auto calc_non_sp = [](int scale, int simds, int opt, int per_line) {
-                int pow2 = 1;
-                for (int i = simds; i % 2 == 0; i /= 2)
-                    pow2 *= 2;
-                pow2 = (opt > pow2) ? simds : pow2;
-                return scale * utils::max_div(pow2, per_line / scale);
-            };
+            auto calc_non_sp
+                    = [](dim_t scale, dim_t simds, int opt, dim_t per_line) {
+                          dim_t pow2 = 1;
+                          for (dim_t i = simds; i % 2 == 0; i /= 2)
+                              pow2 *= 2;
+                          pow2 = (opt > pow2) ? simds : pow2;
+                          return scale * utils::max_div(pow2, per_line / scale);
+                      };
             if (is_blocked_by_mb()) {
                 lg[1] = oc_blk / simd;
                 lg[0] = mb_blk;
@@ -338,19 +340,20 @@ public:
             if (src.dim(0) % lg[0] == 0) mb = src.dim(0);
 
             const dim_t total_simds = dim_t(mb) * (oc / simd) * od * oh * ow;
-            const dim_t safe_thr_count = eu_count * 4;
+            const int safe_thr_count = eu_count * 4;
 
             if (total_simds < safe_thr_count * lg[1] * lg[0]) {
-                auto find_div = [](int num, int total_simds, int thr_count) {
-                    if (total_simds <= thr_count) return 1;
-                    const int orig = num;
+                auto find_div = [](dim_t num, dim_t total_simds,
+                                        int thr_count) {
+                    if (total_simds <= thr_count) return dim_t(1);
+                    const dim_t orig = num;
                     num = 0;
                     for (int div = sqrtf(orig); div >= 1; div--)
                         if (orig % div == 0) {
                             if (total_simds >= thr_count * (orig / div))
-                                num = std::max(num, orig / div);
+                                num = std::max<dim_t>(num, orig / div);
                             if (total_simds >= thr_count * div)
-                                num = std::max(num, div);
+                                num = std::max<dim_t>(num, div);
                         }
                     return (num == 0) ? orig : num;
                 };
@@ -440,8 +443,9 @@ public:
                 }
             }
 
-            const int simds_per_tile = (regs_per_tile * 32 / simd
-                                               - lg[0] * lg[1] * acc_type_size)
+            const dim_t simds_per_tile
+                    = (regs_per_tile * 32 / simd
+                              - lg[0] * lg[1] * acc_type_size)
                     / src_type_size;
 
             if (simds_per_tile / (lg[0] * lg[1]) <= prb.kw) {
@@ -464,8 +468,8 @@ public:
             }
 
             if (!is_blocked_by_mb()) {
-                const int oc_outer = oc / simd;
-                const int layers_per_thr
+                const dim_t oc_outer = oc / simd;
+                const dim_t layers_per_thr
                         = simds_per_tile / (lg[7] * lg[6] * lg[5]);
                 if (max_threads > 1) {
                     lg[1] = std::min(max_threads,
@@ -473,17 +477,18 @@ public:
                     lg[1] = utils::max_div(oc_outer, std::max(lg[1], dim_t(1)));
                 }
                 if ((oc == lg[1] * simd) && (max_threads / lg[1] > 1)) {
-                    const int mb_reg = layers_per_thr / lg[1] / src_type_size;
+                    const dim_t mb_reg = layers_per_thr / lg[1] / src_type_size;
                     lg[0] = std::min(max_threads / lg[1],
                             (mb_reg > mb_blk) ? utils::rnd_dn(mb_reg, mb_blk)
                                               : utils::max_div(mb_blk, mb_reg));
                     lg[0] = utils::max_div(mb, std::max(lg[0], dim_t(1)));
                 }
                 if ((lg[0] == 1) && (max_threads / lg[1] > 1)) {
-                    const int oc_reg = layers_per_thr / lg[1] / src_type_size;
-                    const int lg1 = std::min(max_threads / lg[1],
+                    const dim_t oc_reg = layers_per_thr / lg[1] / src_type_size;
+                    const dim_t lg1 = std::min(max_threads / lg[1],
                             utils::max_div(oc_outer / lg[1], oc_reg));
-                    lg[1] *= utils::max_div(oc_outer / lg[1], std::max(lg1, 1));
+                    lg[1] *= utils::max_div(
+                            oc_outer / lg[1], std::max(lg1, dim_t(1)));
                 }
             }
         }
@@ -521,8 +526,8 @@ public:
             desc.insert(desc.size(), 22 - desc.size(), ' ');
             oss << "  " << desc << layouts[i]->user() << std::endl;
         }
-        const int kg_elems = kernel_grid().elems();
-        const int tg_elems = thread_group_grid().elems();
+        const dim_t kg_elems = kernel_grid().elems();
+        const dim_t tg_elems = thread_group_grid().elems();
         //oss << blocking_brief_str();
         oss << "  Padded dimensions:    " << dims_padded() << std::endl;
         oss << "  Internal loop:        " << loop_grid() << std::endl;

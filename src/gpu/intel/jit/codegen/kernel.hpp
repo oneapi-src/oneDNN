@@ -17,6 +17,11 @@
 #ifndef GPU_INTEL_JIT_CODEGEN_KERNEL_HPP
 #define GPU_INTEL_JIT_CODEGEN_KERNEL_HPP
 
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#endif
+
 #include "common/cpp_compat.hpp"
 
 #include "common/impl_registration.hpp"
@@ -1169,5 +1174,9 @@ protected:
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#ifdef ENABLE_LLVM_WCONVERSION
+#pragma clang diagnostic pop
+#endif
 
 #endif
