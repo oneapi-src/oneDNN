@@ -25,11 +25,14 @@ namespace generic {
 namespace sycl {
 
 status_t ref_convolution_fwd_t::pd_t::init_conf() {
-    conf_ = sycl_convolution_conf_t();
+    conf_ = sycl_convolution_fwd_conf_t();
 
     conf_.data_md = xpu::sycl::md_t(src_md());
     conf_.weights_md = xpu::sycl::md_t(weights_md(0));
-    if (with_bias()) { conf_.bias_md = xpu::sycl::md_t(weights_md(1)); }
+    if (with_bias()) {
+        conf_.bias_dt = weights_md(1)->data_type;
+        conf_.has_bias = true;
+    }
     conf_.dst_md = xpu::sycl::md_t(dst_md());
     conf_.ndims = ndims();
 
@@ -85,11 +88,14 @@ status_t ref_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
 }
 
 status_t ref_convolution_bwd_data_t::pd_t::init_conf() {
-    conf_ = sycl_convolution_conf_t();
+    conf_ = sycl_convolution_bwd_data_conf_t();
 
     conf_.diff_data_md = xpu::sycl::md_t(diff_src_md());
     conf_.weights_md = xpu::sycl::md_t(weights_md(0));
-    if (with_bias()) { conf_.bias_md = xpu::sycl::md_t(weights_md(1)); }
+    if (with_bias()) {
+        conf_.bias_dt = weights_md(1)->data_type;
+        conf_.has_bias = true;
+    }
     conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md());
     conf_.ndims = ndims();
 
@@ -145,12 +151,13 @@ status_t ref_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
 }
 
 status_t ref_convolution_bwd_weights_t::pd_t::init_conf() {
-    conf_ = sycl_convolution_conf_t();
+    conf_ = sycl_convolution_bwd_weights_conf_t();
 
     conf_.data_md = xpu::sycl::md_t(src_md());
     conf_.diff_weights_md = xpu::sycl::md_t(diff_weights_md(0));
     if (with_bias()) {
-        conf_.diff_bias_md = xpu::sycl::md_t(diff_weights_md(1));
+        conf_.bias_dt = diff_weights_md(1)->data_type;
+        conf_.has_bias = true;
     }
     conf_.diff_dst_md = xpu::sycl::md_t(diff_dst_md());
     conf_.ndims = ndims();
