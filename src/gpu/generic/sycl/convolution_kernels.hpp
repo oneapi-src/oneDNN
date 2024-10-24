@@ -33,7 +33,7 @@ namespace sycl {
 struct convolution_kernel_fwd_t {
     static constexpr int max_supported_ndims = 6;
 
-    convolution_kernel_fwd_t(const sycl_convolution_conf_t &conf,
+    convolution_kernel_fwd_t(const sycl_convolution_fwd_conf_t &conf,
             ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
         , data_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC_0))
@@ -191,9 +191,8 @@ struct convolution_kernel_fwd_t {
                 accumulator *= sm_weights;
             }
 
-            if (bias_md().ndims() != 0) {
-                auto bias = load_float_value(
-                        bias_md().data_type(), bias_ptr(), oc_tot);
+            if (conf_.has_bias) {
+                auto bias = load_float_value(conf_.bias_dt, bias_ptr(), oc_tot);
                 accumulator += bias;
             }
 
@@ -214,7 +213,6 @@ struct convolution_kernel_fwd_t {
 private:
     const xpu::sycl::md_t &data_md() const { return conf_.data_md; }
     const xpu::sycl::md_t &weights_md() const { return conf_.weights_md; }
-    const xpu::sycl::md_t &bias_md() const { return conf_.bias_md; }
     const xpu::sycl::md_t &dst_md() const { return conf_.dst_md; }
 
     void *data_ptr() const { return data_.get_pointer(); }
@@ -227,7 +225,7 @@ private:
     void *data_zeropoint_ptr() const { return data_zeropoints_.get_pointer(); }
     void *dst_zeropoint_ptr() const { return dst_zeropoints_.get_pointer(); }
 
-    sycl_convolution_conf_t conf_;
+    sycl_convolution_fwd_conf_t conf_;
 
     xpu::sycl::in_memory_arg_t data_;
     xpu::sycl::in_memory_arg_t weights_;
@@ -247,7 +245,7 @@ private:
 struct convolution_kernel_bwd_data_t {
     static constexpr int max_supported_ndims = 6;
 
-    convolution_kernel_bwd_data_t(const sycl_convolution_conf_t &conf,
+    convolution_kernel_bwd_data_t(const sycl_convolution_bwd_data_conf_t &conf,
             ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
         , diff_data_(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
@@ -423,9 +421,8 @@ struct convolution_kernel_bwd_data_t {
                 accumulator *= sm_weights;
             }
 
-            if (bias_md().ndims() != 0) {
-                auto bias = load_float_value(
-                        bias_md().data_type(), bias_ptr(), ic_tot);
+            if (conf_.has_bias) {
+                auto bias = load_float_value(conf_.bias_dt, bias_ptr(), ic_tot);
                 accumulator += bias;
             }
 
@@ -446,7 +443,6 @@ struct convolution_kernel_bwd_data_t {
 private:
     const xpu::sycl::md_t &diff_data_md() const { return conf_.diff_data_md; }
     const xpu::sycl::md_t &weights_md() const { return conf_.weights_md; }
-    const xpu::sycl::md_t &bias_md() const { return conf_.bias_md; }
     const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
 
     void *diff_data_ptr() const { return diff_data_.get_pointer(); }
@@ -459,7 +455,7 @@ private:
     void *data_zeropoint_ptr() const { return data_zeropoints_.get_pointer(); }
     void *dst_zeropoint_ptr() const { return dst_zeropoints_.get_pointer(); }
 
-    sycl_convolution_conf_t conf_;
+    sycl_convolution_bwd_data_conf_t conf_;
 
     xpu::sycl::inout_memory_arg_t diff_data_;
     xpu::sycl::in_memory_arg_t weights_;
@@ -479,7 +475,8 @@ private:
 struct convolution_kernel_bwd_weights_t {
     static constexpr int max_supported_ndims = 6;
 
-    convolution_kernel_bwd_weights_t(const sycl_convolution_conf_t &conf,
+    convolution_kernel_bwd_weights_t(
+            const sycl_convolution_bwd_weights_conf_t &conf,
             ::sycl::handler &cgh, const exec_ctx_t &ctx, int data_arg,
             int diff_dst_arg)
         : conf_(conf)
@@ -572,8 +569,8 @@ struct convolution_kernel_bwd_weights_t {
                             }
                         }
                     }
-                    store_float_value(diff_bias_md().data_type(),
-                            accumulator_bias, diff_bias_ptr(), g * OC + oc);
+                    store_float_value(conf_.bias_dt, accumulator_bias,
+                            diff_bias_ptr(), g * OC + oc);
                 }
             };
             if (conf_.is_deconvolution) {
@@ -624,7 +621,6 @@ private:
     const xpu::sycl::md_t &diff_weights_md() const {
         return conf_.diff_weights_md;
     }
-    const xpu::sycl::md_t &diff_bias_md() const { return conf_.diff_bias_md; }
     const xpu::sycl::md_t &diff_dst_md() const { return conf_.diff_dst_md; }
 
     void *data_ptr() const { return data_.get_pointer(); }
@@ -632,7 +628,7 @@ private:
     void *diff_bias_ptr() const { return diff_bias_.get_pointer(); }
     void *diff_dst_ptr() const { return diff_dst_.get_pointer(); }
 
-    sycl_convolution_conf_t conf_;
+    sycl_convolution_bwd_weights_conf_t conf_;
 
     xpu::sycl::in_memory_arg_t data_;
     xpu::sycl::out_memory_arg_t diff_weights_;

@@ -63,7 +63,7 @@ struct ref_deconvolution_bwd_weights_t
             return init_conf();
         }
 
-        sycl_convolution_conf_t conf_;
+        sycl_convolution_bwd_weights_conf_t conf_;
 
     private:
         status_t init_conf();

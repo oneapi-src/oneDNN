@@ -47,15 +47,9 @@ struct sycl_binary_conf_t {
     sycl_post_ops_t post_ops;
 };
 
-struct sycl_convolution_conf_t {
-    xpu::sycl::md_t data_md;
-    xpu::sycl::md_t dst_md;
-    xpu::sycl::md_t weights_md;
-    xpu::sycl::md_t bias_md;
-    xpu::sycl::md_t diff_data_md;
-    xpu::sycl::md_t diff_dst_md;
-    xpu::sycl::md_t diff_weights_md;
-    xpu::sycl::md_t diff_bias_md;
+struct sycl_convolution_common_conf_t {
+    bool has_bias = false;
+    data_type_t bias_dt;
 
     int padding[3];
     int strides[3];
@@ -79,6 +73,24 @@ struct sycl_convolution_conf_t {
     bool is_deconvolution;
 
     sycl_post_ops_t post_ops;
+};
+
+struct sycl_convolution_fwd_conf_t : sycl_convolution_common_conf_t {
+    xpu::sycl::md_t data_md;
+    xpu::sycl::md_t dst_md;
+    xpu::sycl::md_t weights_md;
+};
+
+struct sycl_convolution_bwd_data_conf_t : sycl_convolution_common_conf_t {
+    xpu::sycl::md_t weights_md;
+    xpu::sycl::md_t diff_data_md;
+    xpu::sycl::md_t diff_dst_md;
+};
+
+struct sycl_convolution_bwd_weights_conf_t : sycl_convolution_common_conf_t {
+    xpu::sycl::md_t data_md;
+    xpu::sycl::md_t diff_dst_md;
+    xpu::sycl::md_t diff_weights_md;
 };
 
 struct sycl_eltwise_conf_t {
@@ -416,6 +428,9 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_sum_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_base_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_fwd_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_bwd_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_convolution_fwd_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_convolution_bwd_data_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_convolution_bwd_weights_conf_t);
 
 } // namespace sycl
 } // namespace generic

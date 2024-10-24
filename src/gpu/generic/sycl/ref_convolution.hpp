@@ -107,7 +107,7 @@ struct ref_convolution_fwd_t : public gpu::generic::sycl::primitive_t {
             return init_conf();
         }
 
-        sycl_convolution_conf_t conf_;
+        sycl_convolution_fwd_conf_t conf_;
 
     private:
         status_t init_conf();
@@ -167,7 +167,7 @@ struct ref_convolution_bwd_data_t : public gpu::generic::sycl::primitive_t {
             return init_conf();
         }
 
-        sycl_convolution_conf_t conf_;
+        sycl_convolution_bwd_data_conf_t conf_;
 
     private:
         status_t init_conf();
@@ -219,7 +219,7 @@ struct ref_convolution_bwd_weights_t : public gpu::generic::sycl::primitive_t {
             return init_conf();
         }
 
-        sycl_convolution_conf_t conf_;
+        sycl_convolution_bwd_weights_conf_t conf_;
 
     private:
         status_t init_conf();
