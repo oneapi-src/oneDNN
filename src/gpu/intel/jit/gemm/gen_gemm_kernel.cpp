@@ -754,9 +754,18 @@ void gen_gemm_kernel_t::init_interface() {
     interface_ = NEOInterfaceHandler {desc()->hw_};
     auto s_type_ngen = problem.Ts.ngen();
 
-    interface_.newArgument("A", ExternalArgumentType::GlobalPtr);
-    interface_.newArgument("B", ExternalArgumentType::GlobalPtr);
-    interface_.newArgument("C", ExternalArgumentType::GlobalPtr);
+    auto a_access = strategy.A.getGlobalAccessType();
+    auto b_access = strategy.B.getGlobalAccessType();
+    auto c_access = strategy.C.getGlobalAccessType();
+    auto ao_access = strategy.AO.getGlobalAccessType();
+    auto bo_access = strategy.BO.getGlobalAccessType();
+    auto co_access = strategy.CO.getGlobalAccessType();
+    auto as_access = strategy.A_scale.getGlobalAccessType();
+    auto bs_access = strategy.B_scale.getGlobalAccessType();
+
+    interface_.newArgument("A", ExternalArgumentType::GlobalPtr, a_access);
+    interface_.newArgument("B", ExternalArgumentType::GlobalPtr, b_access);
+    interface_.newArgument("C", ExternalArgumentType::GlobalPtr, c_access);
     interface_.newArgument("offset_A", DataType::q);
     interface_.newArgument("offset_B", DataType::q);
     interface_.newArgument("offset_C", DataType::q);
@@ -769,26 +778,32 @@ void gen_gemm_kernel_t::init_interface() {
     interface_.newArgument("alpha_real", s_type_ngen);
     interface_.newArgument("beta_real", s_type_ngen);
     if (problem.aoPtrDims >= 0)
-        interface_.newArgument("ao_ptr", ExternalArgumentType::GlobalPtr);
+        interface_.newArgument(
+                "ao_ptr", ExternalArgumentType::GlobalPtr, ao_access);
     if (problem.boPtrDims >= 0)
-        interface_.newArgument("bo_ptr", ExternalArgumentType::GlobalPtr);
+        interface_.newArgument(
+                "bo_ptr", ExternalArgumentType::GlobalPtr, bo_access);
     if (problem.aScale2D)
-        interface_.newArgument("a_scale_ptr", ExternalArgumentType::GlobalPtr);
+        interface_.newArgument(
+                "a_scale_ptr", ExternalArgumentType::GlobalPtr, as_access);
     if (problem.bScale2D)
-        interface_.newArgument("b_scale_ptr", ExternalArgumentType::GlobalPtr);
+        interface_.newArgument(
+                "b_scale_ptr", ExternalArgumentType::GlobalPtr, bs_access);
     if (problem.aoPtrDims == 2 || problem.aScale2D)
         interface_.newArgument("ldaq", DataType::d);
     if (problem.boPtrDims == 2 || problem.bScale2D)
         interface_.newArgument("ldbq", DataType::d);
     if (problem.cOffset != COffset::None || problem.sumA || problem.sumB) {
-        interface_.newArgument("CO", ExternalArgumentType::GlobalPtr);
+        interface_.newArgument(
+                "CO", ExternalArgumentType::GlobalPtr, co_access);
         interface_.newArgument("offset_CO", DataType::d);
         if (problem.cOffset == COffset::Pre)
             interface_.newArgument("ldco", DataType::d);
     }
 
     if (strategy.needsTempC(problem))
-        interface_.newArgument("temp_C", ExternalArgumentType::GlobalPtr);
+        interface_.newArgument(
+                "temp_C", ExternalArgumentType::GlobalPtr, c_access);
     interface_.newArgument("flags", DataType::ud);
     if ((strategy.kParallel || strategy.kParallelLocal)
             && !strategy.kParallelVariable)
@@ -796,7 +811,8 @@ void gen_gemm_kernel_t::init_interface() {
     for (size_t i = 0; i < problem.postOps.len(); i++) {
         if (!problem.postOps[i].is_binary()) continue;
         auto bname = "binary" + std::to_string(i);
-        interface_.newArgument(bname, ExternalArgumentType::GlobalPtr);
+        interface_.newArgument(bname, ExternalArgumentType::GlobalPtr,
+                strategy.binary[i].getGlobalAccessType());
         interface_.newArgument("offset_" + bname, DataType::d);
         if (problem.binaryRow[i] && problem.binaryCol[i])
             interface_.newArgument("ld" + bname, DataType::d);
