@@ -235,8 +235,17 @@ struct GEMMProblem : public CommonProblem {
     bool quantized2DA() const { return (aoPtrDims == 2) || aScale2D; }
     bool quantized2DB() const { return (boPtrDims == 2) || bScale2D; }
 
-    bool earlyDequantizeA() const { return (aOffset == ABOffset::Calc && Tao.asSigned().isSubsetOf(Ta)) || (aScale2D && ((aOffset != ABOffset::Calc && bOffset != ABOffset::Calc) || Ta_scale.isSubsetOf(Ta))); }
-    bool earlyDequantizeB() const { return (bOffset == ABOffset::Calc && Tbo.asSigned().isSubsetOf(Tb)) || (bScale2D && ((aOffset != ABOffset::Calc && bOffset != ABOffset::Calc) || Tb_scale.isSubsetOf(Tb))); }
+    bool downconvertAScales() const { return Ta == Type::f16 && Ta_scale == Type::f32; }
+    bool downconvertBScales() const { return Tb == Type::f16 && Tb_scale == Type::f32; }
+
+    bool earlyDequantizeA() const {
+        return (aOffset == ABOffset::Calc && Tao.asSigned().isSubsetOf(Ta))
+            || (aScale2D && (Ta_scale.isSubsetOf(Ta) || downconvertAScales()));
+    }
+    bool earlyDequantizeB() const {
+        return (bOffset == ABOffset::Calc && Tbo.asSigned().isSubsetOf(Tb))
+            || (bScale2D && (Tb_scale.isSubsetOf(Tb) || downconvertBScales()));
+    }
 
     Type Tc_compute() const {
         if (Ta.isInteger() && Tb.isInteger() && Tc == Type::f32)
