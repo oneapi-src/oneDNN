@@ -143,13 +143,23 @@ void quantization_t::define_macros(
         kernel_ctx.define_int("WITH_" + name + "_SCALE", 1);
         kernel_ctx.define_int(name + "_SCALE_MASK", scale_mask());
         kernel_ctx.define_int(name + "_NUM_SCALES", num_scales());
+        kernel_ctx.define_int(name + "_SCALE_GROUP", scale_group());
+        kernel_ctx.define_int(name + "_SCALE_GROUP_DIM", scale_group_dim());
     }
+    // Unconditionally as this defines types in kernels.
+    // Note: consistent with ocl_types.hpp
+    def_data_type(kernel_ctx, scale_dt(), name + "_SCALES");
 
     if (with_zp()) {
         kernel_ctx.define_int("WITH_" + name + "_ZPOINT", 1);
         kernel_ctx.define_int(name + "_ZPOINT_MASK", zp_mask());
         kernel_ctx.define_int(name + "_NUM_ZPOINTS", num_zps());
+        kernel_ctx.define_int(name + "_ZPOINT_GROUP", zp_group());
+        kernel_ctx.define_int(name + "_ZPOINT_GROUP_DIM", zp_group_dim());
     }
+    // Unconditionally as this defines types in kernels.
+    // Note: consistent with ocl_types.hpp
+    def_data_type(kernel_ctx, zp_dt(), name + "_ZP");
 }
 
 void sum_quantization_t::define_macros(
@@ -439,6 +449,10 @@ void def_data_type(compute::kernel_ctx_t &kernel_ctx, data_type_t dt,
                     << "Unexpected data type " << dnnl_dt2str(dt);
             break;
     }
+}
+void def_data_type(compute::kernel_ctx_t &kernel_ctx, data_type_t dt,
+        const std::string &str, bool with_punning) {
+    return def_data_type(kernel_ctx, dt, str.c_str(), with_punning);
 }
 
 void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,

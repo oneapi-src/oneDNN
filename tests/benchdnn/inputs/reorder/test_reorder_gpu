@@ -260,6 +260,9 @@
 --reset
 --batch=option_set_fwks_ext_gpu
 
+# Test decompression features
+--batch=harness_reorder_decompression
+
 # Catch overflows
 --reset
 2147483648_n"int_overflow"

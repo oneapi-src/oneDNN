@@ -671,6 +671,8 @@ void def_block_offsets(const block_layout_t &layout,
 
 void def_data_type(compute::kernel_ctx_t &kernel_ctx, data_type_t dt,
         const char *str, bool with_punning = true);
+void def_data_type(compute::kernel_ctx_t &kernel_ctx, data_type_t dt,
+        const std::string &str, bool with_punning = true);
 
 void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
         const memory_desc_info_t &md_info, const char *prefix);
