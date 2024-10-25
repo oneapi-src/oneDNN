@@ -1607,6 +1607,8 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
     for (bool isA : {true, false})
         gemmMake2DQuantizationLayouts(isA, problem, strategy, state);
 
+    gemmCalcQuantizationIncrements(problem, strategy, state);
+
     // Grab flag registers now for named barriers. TODO: unlock these.
     if (strategy.needsNamedBarriersM(problem))
         state.barrierM = state.raVFlag.allocSubreg0();
@@ -2132,8 +2134,6 @@ void BLASKernelGenerator<hw>::gemmCalcIncrements(const GEMMProblem &problem, con
 {
     gemmFreeIncrements(problem, strategy, state, doA, doB);
 
-    bool doAq = doA, doBq = doB;
-
     doA &= (problem.A.layout == MatrixLayout::N);
     doB &= (problem.B.layout == MatrixLayout::T);
 
@@ -2170,7 +2170,11 @@ void BLASKernelGenerator<hw>::gemmCalcIncrements(const GEMMProblem &problem, con
     bool bo2D = (problem.boPtrDims == 2);
     bool as2D = problem.aScale2D;
     bool bs2D = problem.bScale2D;
+}
 
+template <HW hw>
+void BLASKernelGenerator<hw>::gemmCalcQuantizationIncrements(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
+{
     auto calcInterleavedQIncrement = [&](bool isA, SubregisterPair &base, LDIncrements &increments) {
         auto inc   = isA ? state.kaqStride  : state.kbqStride;
         auto group = isA ? problem.aqGroupK : problem.bqGroupK;
@@ -2185,13 +2189,13 @@ void BLASKernelGenerator<hw>::gemmCalcIncrements(const GEMMProblem &problem, con
             calcIncrement(increments, base, inc, strategy, state);
     };
 
-    if (doAq && ao2D && problem.AO.layout == MatrixLayout::N)
+    if (ao2D && problem.AO.layout == MatrixLayout::N)
         calcInterleavedQIncrement(true,  state.ldao,     state.ldaoIncrements);
-    if (doAq && as2D && problem.A_scale.layout == MatrixLayout::N)
+    if (as2D && problem.A_scale.layout == MatrixLayout::N)
         calcInterleavedQIncrement(true,  state.ldaScale, state.ldasIncrements);
-    if (doBq && bo2D && problem.BO.layout == MatrixLayout::T)
+    if (bo2D && problem.BO.layout == MatrixLayout::T)
         calcInterleavedQIncrement(false, state.ldbo,     state.ldboIncrements);
-    if (doBq && bs2D && problem.B_scale.layout == MatrixLayout::T)
+    if (bs2D && problem.B_scale.layout == MatrixLayout::T)
         calcInterleavedQIncrement(false, state.ldbScale, state.ldbsIncrements);
 }
 

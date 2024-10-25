@@ -386,6 +386,7 @@ protected:
     SubregisterPair lookupIncrement(const LDIncrements &increments, const SubregisterPair &base, int scale, const CommonStrategy &strategy, CommonState &state, bool *release = nullptr);
     void gemmFreeIncrements(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, bool doA = true, bool doB = true);
     void gemmCalcIncrements(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, int ka_load = 0, int kb_load = 0, bool doA = true, bool doB = true);
+    void gemmCalcQuantizationIncrements(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     ngen::Subregister gemmMNLinearID(const GEMMStrategy &strategy, GEMMState &state);
     void gemmApplyWorkshareOffset(bool isA, ngen::Subregister &base, ngen::Subregister alias, Address2DParams &params2D, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, int r, int c, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmCalcWorkshareAOffset(ngen::Subregister &off, ngen::Subregister &offR, ngen::Subregister &offC, const MatrixAddressing &A, const MatrixAddressingStrategy &A_strategy, int ma, int ka, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
