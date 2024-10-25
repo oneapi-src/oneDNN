@@ -1635,10 +1635,10 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
     allocAddrRegs(state.Bi_addrs, state.Bi_layout, state.Bi, state.Bi_strategy, state);
     allocAddrRegs(state.Ao_addrs, state.Ao_layout, state.Ao, state.Ao_strategy, state);
     allocAddrRegs(state.Bo_addrs, state.Bo_layout, state.Bo, state.Bo_strategy, state);
-    allocAddrRegs(state.A_offsetAddrs, state.A_offsetLayout, problem.AO, state.A_offsetStrategy, state);
-    allocAddrRegs(state.B_offsetAddrs, state.B_offsetLayout, problem.BO, state.B_offsetStrategy, state);
-    allocAddrRegs(state.A_scaleAddrs, state.A_scaleLayout, problem.A_scale, state.A_scaleStrategy, state);
-    allocAddrRegs(state.B_scaleAddrs, state.B_scaleLayout, problem.B_scale, state.B_scaleStrategy, state);
+    allocAddrRegs(state.A_offsetAddrs, state.A_offsetLayout, problem.AO, strategy.AO, state);
+    allocAddrRegs(state.B_offsetAddrs, state.B_offsetLayout, problem.BO, strategy.BO, state);
+    allocAddrRegs(state.A_scaleAddrs, state.A_scaleLayout, problem.A_scale, strategy.A_scale, state);
+    allocAddrRegs(state.B_scaleAddrs, state.B_scaleLayout, problem.B_scale, strategy.B_scale, state);
 
     // Free up some C registers temporarily for use in address calculations.
     releaseRanges(state.C_regs, state);
@@ -1740,23 +1740,23 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
 
     if (ao2D) {
         setupQAddr(Tao, state.A_offsetAddrs, state.A_offsetLayout, state.inputs.aoPtr,
-                   i0q, A_h0q, state.inputs.ldao, problem.AO, state.A_offsetStrategy);
+                   i0q, A_h0q, state.inputs.ldao, problem.AO, strategy.AO);
     }
     if (as2D) {
         if (!state.lateScale2DA)
             i0s = i0q, A_h0s = A_h0q;
         setupQAddr(Ta_scale, state.A_scaleAddrs, state.A_scaleLayout, state.inputs.aScalePtr,
-                   i0s, A_h0s, state.inputs.ldaScale, problem.A_scale, state.A_scaleStrategy);
+                   i0s, A_h0s, state.inputs.ldaScale, problem.A_scale, strategy.A_scale);
     }
     if (bo2D) {
         setupQAddr(Tbo, state.B_offsetAddrs, state.B_offsetLayout, state.inputs.boPtr,
-                   B_h0q, j0q, state.inputs.ldbo, problem.BO, state.B_offsetStrategy);
+                   B_h0q, j0q, state.inputs.ldbo, problem.BO, strategy.BO);
     }
     if (bs2D) {
         if (!state.lateScale2DB)
             j0s = j0q, B_h0s = B_h0q;
         setupQAddr(Tb_scale, state.B_scaleAddrs, state.B_scaleLayout, state.inputs.bScalePtr,
-                   B_h0s, j0s, state.inputs.ldbScale, problem.B_scale, state.B_scaleStrategy);
+                   B_h0s, j0s, state.inputs.ldbScale, problem.B_scale, strategy.B_scale);
     }
 
     state.ra.safeRelease(A_h0q);
@@ -2098,16 +2098,16 @@ void BLASKernelGenerator<hw>::gemmCalcIncrements(const GEMMProblem &problem, con
         if (strategy.prefetchB && !strategy.B_prefetch.address2D)
             calcInterleavedIncrement(false, strategy.kb_pfStride);
     }
-
-    bool ao2D = (problem.aoPtrDims == 2);
-    bool bo2D = (problem.boPtrDims == 2);
-    bool as2D = problem.aScale2D;
-    bool bs2D = problem.bScale2D;
 }
 
 template <HW hw>
 void BLASKernelGenerator<hw>::gemmCalcQuantizationIncrements(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
+    bool ao2D = (problem.aoPtrDims == 2);
+    bool bo2D = (problem.boPtrDims == 2);
+    bool as2D = problem.aScale2D;
+    bool bs2D = problem.bScale2D;
+
     auto calcInterleavedQIncrement = [&](bool isA, SubregisterPair &base, LDIncrements &increments) {
         auto inc   = isA ? state.kaqStride  : state.kbqStride;
         auto group = isA ? problem.aqGroupK : problem.bqGroupK;
@@ -2358,11 +2358,11 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
         state.inputs.surfaceBO = interface.getArgumentSurfaceIfExists("bo_ptr");
     }
     if (problem.aScale2D) {
-        state.inputs.aScalePtr = interface.getArgument("a_scale_ptr");
+        state.inputs.aScalePtr = interface.getArgumentIfExists("a_scale_ptr");
         state.inputs.surfaceAScale = interface.getArgumentSurfaceIfExists("a_scale_ptr");
     }
     if (problem.bScale2D) {
-        state.inputs.bScalePtr = interface.getArgument("b_scale_ptr");
+        state.inputs.bScalePtr = interface.getArgumentIfExists("b_scale_ptr");
         state.inputs.surfaceBScale = interface.getArgumentSurfaceIfExists("b_scale_ptr");
     }
     state.inputs.offsetA = interface.getArgumentIfExists("offset_A");

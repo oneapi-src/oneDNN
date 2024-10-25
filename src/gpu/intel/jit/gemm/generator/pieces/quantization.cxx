@@ -31,7 +31,7 @@ using std::vector;
 
 // Prepare 2D dequantization layouts.
 template <HW hw>
-bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
+bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state)
 {
     int xoPtrDims = (isA ? problem.aoPtrDims : problem.boPtrDims);
     bool xo2D = (xoPtrDims == 2);
@@ -43,8 +43,8 @@ bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMM
     if (!xo2D && !xoTo2D && !xs2D) return true;
 
     auto &X_strategy       = isA ? strategy.A             : strategy.B;
-    auto &X_offsetStrategy = isA ? state.A_offsetStrategy : state.B_offsetStrategy;
-    auto &X_scaleStrategy  = isA ? state.A_scaleStrategy  : state.B_scaleStrategy;
+    auto &X_offsetStrategy = isA ? strategy.AO            : strategy.BO;
+    auto &X_scaleStrategy  = isA ? strategy.A_scale       : strategy.B_scale;
     auto &X_offsetLayout   = isA ? state.A_offsetLayout   : state.B_offsetLayout;
     auto &X_scaleLayout    = isA ? state.A_scaleLayout    : state.B_scaleLayout;
     auto &Xr_offsetLayout  = isA ? state.Ar_offsetLayout  : state.Br_offsetLayout;
@@ -127,21 +127,13 @@ bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMM
     int cs = lateScale ? cNoSLM : c;
 
     if (X_strategy.padded) {
-        X_offsetStrategy.padded = true;
+        X_offsetStrategy.padded = X_scaleStrategy.padded = true;
         remR = remC = false;
     }
-
-    X_offsetStrategy.newDP = (hw >= HW::XeHPG);
-    X_scaleStrategy = X_offsetStrategy;
 
     bool wantCM = isA ^ (xqGroupMN > 1);
     X_offsetStrategy.accessType = (wantCM == isColMajor(XO.layout)) ? AccessType::Block : AccessType::Scattered;
     X_scaleStrategy.accessType  = (wantCM == isColMajor(XS.layout)) ? AccessType::Block : AccessType::Scattered;
-
-    if (!X_offsetStrategy.base.isStateless()) {
-        X_offsetStrategy.base.setIndex(isA ? state.inputs.surfaceAO : state.inputs.surfaceBO);
-        X_scaleStrategy.base.setIndex(isA ? state.inputs.surfaceAScale : state.inputs.surfaceBScale);
-    }
 
     if (xo2D && !getRegLayout(Txo, X_offsetLayout, r,  c,  remR, remC, false, AvoidFragment, 0, 0, XO, X_offsetStrategy)) return false;
     if (xs2D && !getRegLayout(Txs, X_scaleLayout,  rs, cs, remR, remC, false, AvoidFragment, 0, 0, XS, X_scaleStrategy)) return false;
