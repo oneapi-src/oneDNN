@@ -1766,6 +1766,7 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
 
     // Load and convert 0D/1D offsets for 2D dequantization.
     if (aoTo2D) {
+        if (!strategy.AO.base.isStateless()) stub();
         std::vector<RegisterBlock> A_offsetLayout;
         GRFRange aoLoad;
         if (problem.aoPtrDims == 1) {
@@ -1787,6 +1788,7 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
         if (!strategy.persistent) state.ra.safeRelease(state.inputs.aoPtr);
     }
     if (boTo2D) {
+        if (!strategy.BO.base.isStateless()) stub();
         std::vector<RegisterBlock> B_offsetLayout;
         GRFRange boLoad;
         if (problem.boPtrDims == 1) {

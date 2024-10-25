@@ -535,6 +535,9 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
     strategy.AO.base = strategy.A_scale.base = (surfaceAq ? BTS : A64);
     strategy.BO.base = strategy.B_scale.base = (surfaceBq ? BTS : A64);
 
+    if (problem.aoPtrDims <= 2) strategy.AO.base = A64;
+    if (problem.boPtrDims <= 2) strategy.BO.base = A64;
+
     strategy.AO.newDP = strategy.A_scale.newDP = strategy.A.newDP;
     strategy.BO.newDP = strategy.B_scale.newDP = strategy.B.newDP;
 }
