@@ -40,6 +40,11 @@ void BLASKernelGenerator<hw>::gemmMicrokernel(GEMMProblem problem, GEMMStrategy 
 
     strategy.forceWGUpdate = WGFixed;
 
+    strategy.AO.base = A64;
+    strategy.BO.base = A64;
+    strategy.A_scale.base = A64;
+    strategy.B_scale.base = A64;
+
     state.isNested = true;
 
     /* Leave some space for host kernel arguments */
@@ -62,11 +67,6 @@ void BLASKernelGenerator<hw>::gemmMicrokernel(GEMMProblem problem, GEMMStrategy 
 
     state.lidM = getAndClaim("local_id_m").uw();
     state.lidN = getAndClaim("local_id_n").uw();
-
-    state.A_offsetStrategy.base = A64;
-    state.B_offsetStrategy.base = A64;
-    state.A_scaleStrategy.base = A64;
-    state.B_scaleStrategy.base = A64;
 
     state.allocEmulate64Temp(strategy.emulate);
 

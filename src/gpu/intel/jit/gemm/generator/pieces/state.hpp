@@ -350,8 +350,6 @@ struct GEMMState : public CommonState {
     MatrixAddressing Ai, Bi, Ao, Bo, tempC;
     MatrixAddressingStrategy Ai_strategy, Bi_strategy;
     MatrixAddressingStrategy Ao_strategy, Bo_strategy;
-    MatrixAddressingStrategy A_offsetStrategy, B_offsetStrategy;
-    MatrixAddressingStrategy A_scaleStrategy, B_scaleStrategy;
     MatrixAddressingStrategy Cext_strategy, tempCStrategy;
     ngen::FlagRegister panelMaskA, panelMaskB;
     int8_t tokenBarrierFence[2];

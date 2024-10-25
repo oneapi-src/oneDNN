@@ -147,6 +147,9 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
     char accessAPrefetch = 's', accessBPrefetch = 's', accessCPrefetch = 's';
     char accessABPrefetchL3 = 'b';
 
+    auto A64 = AddressBase::createA64(true);
+    auto BTS = AddressBase::createBTS(0);
+
     s >> std::ws >> asA >> accessA;
         if (s.peek() == '/') s >> eat >> accessAUnaligned;
         s >> strategy.ka_load;
@@ -213,7 +216,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
     strategy.A.base = strategy.A_prefetch.base = getAddressBase(asA);
     strategy.B.base = strategy.B_prefetch.base = getAddressBase(asB);
     strategy.C.base = strategy.C_prefetch.base = getAddressBase(asC);
-    strategy.CO.base = (hw >= HW::XeHPG) ? AddressBase::createA64(true) : AddressBase::createBTS(0);
+    strategy.CO.base = (hw >= HW::XeHPG) ? A64 : BTS;
     strategy.A.newDP = bool(std::isupper(accessA));
     strategy.B.newDP = bool(std::isupper(accessB));
     strategy.C.newDP = bool(std::isupper(accessC));
@@ -286,7 +289,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
             strategy.dpasw = true;
         else if (mod == "fs") {
             strategy.fixedSystolic = strategy.systolic = true;
-            strategy.CO.base = AddressBase::createBTS(0);
+            strategy.CO.base = BTS;
         } else if (mod == "ar")
             strategy.altCRemainder = true;
         else if (mod == "sr") {
@@ -387,7 +390,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
             strategy.C.atomic = true;
             strategy.CO.atomic = problem.sumA || problem.sumB;
             if (strategy.CO.atomic)
-                strategy.CO.base = AddressBase::createA64(true);
+                strategy.CO.base = A64;
         } else if (mod == "kr")
             strategy.kParallelLocal = true;
         else if (mod == "akr")
@@ -559,9 +562,18 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
     size_t poCount = problem.postOps.len();
     strategy.binary.resize(poCount);
     for (auto &astrategy: strategy.binary) {
-        astrategy.base = (hw >= HW::XeHPC) ? AddressBase::createA64(true) : AddressBase::createBTS(0);
+        astrategy.base = (hw >= HW::XeHPC) ? A64 : BTS;
         astrategy.newDP = strategy.C.newDP;
     }
+
+    bool surfaceAq = (problem.quantized2DA() && !strategy.A.base.isStateless());
+    bool surfaceBq = (problem.quantized2DB() && !strategy.B.base.isStateless());
+
+    strategy.AO.base = strategy.A_scale.base = (surfaceAq ? BTS : A64);
+    strategy.BO.base = strategy.B_scale.base = (surfaceBq ? BTS : A64);
+
+    strategy.AO.newDP = strategy.A_scale.newDP = strategy.A.newDP;
+    strategy.BO.newDP = strategy.B_scale.newDP = strategy.B.newDP;
 }
 
 void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy, const char *tags)

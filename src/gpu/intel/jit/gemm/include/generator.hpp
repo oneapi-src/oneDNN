@@ -394,7 +394,7 @@ protected:
     bool gemmPrepMaskedAB(const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     void gemmSLMRemask(bool remaskA, bool remaskB, GRFMultirange &Ao_regs, GRFMultirange &Bo_regs, int kOffset, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     // quantization.cpp
-    bool gemmMake2DQuantizationLayouts(bool isA, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
+    bool gemmMake2DQuantizationLayouts(bool isA, const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     void gemmRepack2DQuantizationData(Type Ts, Type Td, const std::vector<RegisterBlock> &layoutSrc, const std::vector<RegisterBlock> &layoutDst, const GRFMultirange &src, const GRFMultirange &dst, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmRepack2DOffsetData(Type Text, Type Ts, Type Td, const std::vector<RegisterBlock> &layoutSrc, const std::vector<RegisterBlock> &layoutDst, const GRFMultirange &src, const GRFMultirange &dst, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void dequantizeInt4Shift(Type Tsrc, GRFMultirange src, const CommonStrategy &strategy);
