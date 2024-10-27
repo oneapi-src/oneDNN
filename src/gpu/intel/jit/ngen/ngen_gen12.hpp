@@ -625,36 +625,40 @@ static inline constexpr14 TernaryOperand12 encodeTernaryOperand12(const Extended
 
 static inline void encodeCommon12(Instruction12 &i, Opcode opcode, const InstructionModifier &mod, const RegData &dst, EncodingTag12 tag)
 {
-    i.common.opcode = static_cast<unsigned>(opcode) | (mod.parts.autoSWSB << 7);
-    i.common.swsb = SWSBInfo12(mod.getSWSB(), opcode).raw();
-    i.common.execSize = mod.parts.eSizeField;
-    i.common.execOffset = mod.parts.chanOff;
-    i.common.flagReg = (mod.parts.flagRegNum << 1) | mod.parts.flagSubRegNum;
-    i.common.predCtrl = mod.parts.predCtrl;
-    i.common.predInv = mod.parts.predInv;
-    i.common.cmptCtrl = mod.parts.cmptCtrl;
-    i.common.debugCtrl = mod.parts.debugCtrl;
-    i.common.maskCtrl = mod.parts.maskCtrl;
-    i.common.atomicCtrl = mod.parts.threadCtrl;
-    i.common.accWrCtrl = mod.parts.accWrCtrl;
-    i.common.saturate = mod.parts.saturate;
+    Instruction12 i2;
+    i2.common.opcode = static_cast<unsigned>(opcode) | (mod.parts.autoSWSB << 7);
+    i2.common.swsb = SWSBInfo12(mod.getSWSB(), opcode).raw();
+    i2.common.execSize = mod.parts.eSizeField;
+    i2.common.execOffset = mod.parts.chanOff;
+    i2.common.flagReg = (mod.parts.flagRegNum << 1) | mod.parts.flagSubRegNum;
+    i2.common.predCtrl = mod.parts.predCtrl;
+    i2.common.predInv = mod.parts.predInv;
+    i2.common.cmptCtrl = mod.parts.cmptCtrl;
+    i2.common.debugCtrl = mod.parts.debugCtrl;
+    i2.common.maskCtrl = mod.parts.maskCtrl;
+    i2.common.atomicCtrl = mod.parts.threadCtrl;
+    i2.common.accWrCtrl = mod.parts.accWrCtrl;
+    i2.common.saturate = mod.parts.saturate;
+    i.common = i2.common;
 }
 
 static inline void encodeCommon12(Instruction12 &i, Opcode opcode, const InstructionModifier &mod, const RegData &dst, EncodingTagXeHPC tag)
 {
-    i.common.opcode = static_cast<unsigned>(opcode) | (mod.parts.autoSWSB << 7);
-    i.commonXeHPC.swsb = SWSBInfoXeHPC(mod.getSWSB(), opcode).raw();
-    i.commonXeHPC.execSize = mod.parts.eSizeField;
-    i.commonXeHPC.flagReg = (mod.parts.flagRegNum1 << 2) | (mod.parts.flagRegNum << 1) | mod.parts.flagSubRegNum;
-    i.commonXeHPC.execOffset = mod.parts.chanOff >> 1;
-    i.commonXeHPC.predCtrl = mod.parts.predCtrl;
-    i.common.predInv = mod.parts.predInv;
-    i.common.cmptCtrl = mod.parts.cmptCtrl;
-    i.common.debugCtrl = mod.parts.debugCtrl;
-    i.common.maskCtrl = mod.parts.maskCtrl;
-    i.common.atomicCtrl = mod.parts.threadCtrl;
-    i.commonXeHPC.dstExt = (dst.isIndirect() ? dst.getOffset() : dst.getByteOffset()) & 1;
-    i.common.saturate = mod.parts.saturate;
+    Instruction12 i2;
+    i2.common.opcode = static_cast<unsigned>(opcode) | (mod.parts.autoSWSB << 7);
+    i2.commonXeHPC.swsb = SWSBInfoXeHPC(mod.getSWSB(), opcode).raw();
+    i2.commonXeHPC.execSize = mod.parts.eSizeField;
+    i2.commonXeHPC.flagReg = (mod.parts.flagRegNum1 << 2) | (mod.parts.flagRegNum << 1) | mod.parts.flagSubRegNum;
+    i2.commonXeHPC.execOffset = mod.parts.chanOff >> 1;
+    i2.commonXeHPC.predCtrl = mod.parts.predCtrl;
+    i2.common.predInv = mod.parts.predInv;
+    i2.common.cmptCtrl = mod.parts.cmptCtrl;
+    i2.common.debugCtrl = mod.parts.debugCtrl;
+    i2.common.maskCtrl = mod.parts.maskCtrl;
+    i2.common.atomicCtrl = mod.parts.threadCtrl;
+    i2.commonXeHPC.dstExt = (dst.isIndirect() ? dst.getOffset() : dst.getByteOffset()) & 1;
+    i2.common.saturate = mod.parts.saturate;
+    i.common = i2.common;
 }
 
 template <typename Tag>
