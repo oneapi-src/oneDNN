@@ -377,10 +377,6 @@ private:
         return plan;
     }
 
-    bool with_bias_reduce() const {
-        return (desc_.prop == prop_kind::backward_weights && desc_.with_bias);
-    }
-
     void add_align_req(const pvar_t &dim, const type_t &type,
             const align_desc_t::align_t &align) {
         int align_bytes
@@ -417,9 +413,12 @@ private:
         a_layout_ = pick_a(desc_.prop, src_layout, wei_layout, dst_layout);
         b_layout_ = pick_b(desc_.prop, src_layout, wei_layout, dst_layout);
         c_layout_ = pick_c(desc_.prop, src_layout, wei_layout, dst_layout);
-        if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
+        if (desc_.with_bias_bwd_w()) {
+            auto bia_tag = make_conv_layout_tag(
+                    tensor_kind_t::bia, "a" + desc_.bias_type.str());
             bia_layout_ = make_conv_layout(
-                    tensor_kind_t::bia, desc_.bia_tag, desc_.is_dw, reqs_);
+                    tensor_kind_t::bia, bia_tag, desc_.is_dw, reqs_);
+        }
         auto &align = desc_.align;
         add_align_req(src_layout.blocks()[0].dim, src_layout.type(), align.src);
         add_align_req(wei_layout.blocks()[0].dim, wei_layout.type(), align.wei);
@@ -476,7 +475,7 @@ private:
                 plan.x2r_fma, plan.virt_grid, plan.prefetch));
         ir_check(init_epilogue_plan(
                 plan.x2r_fma.c_layout, plan.virt_grid, plan.epilogue, reqs));
-        if (desc_.prop == prop_kind::backward_weights && desc_.with_bias)
+        if (desc_.with_bias_bwd_w())
             ir_check(init_epilogue_bia(
                     plan.x2r_fma.bia_layout, plan.epilogue, reqs));
         return true;
@@ -547,7 +546,7 @@ private:
         plan.load = std::move(load);
         plan.reorder = std::move(reorder);
         plan.layout = std::move(reg_layout);
-        if (with_bias_reduce() && abc == tensor_kind_t::b) {
+        if (desc_.with_bias_bwd_w() && abc == tensor_kind_t::b) {
             auto bia_layout = mul_info_.bia_layout(plan.layout, bia_layout_);
             plan.bia_layout = std::move(bia_layout);
         }
@@ -605,7 +604,7 @@ private:
                 x2r_plan_t b;
                 ir_check(init_x2r_plan(tensor_kind_t::b, b_sub_view, b));
                 b_prev_layout = b.layout;
-                if (with_bias_reduce()) {
+                if (desc_.with_bias_bwd_w()) {
                     bia_prev_layout = b.bia_layout;
                     b.bia_layout.set_base(bia_off_elems);
                     bia_off_elems += ir_utils::safe_div(
@@ -626,13 +625,13 @@ private:
             plan.add_stage(fma);
         }
         plan.c_layout = c_prev_layout;
-        if (with_bias_reduce()) plan.bia_layout = bia_prev_layout;
+        if (desc_.with_bias_bwd_w()) plan.bia_layout = bia_prev_layout;
 
         if (!outer_dim.is_undef()) {
             int stride = ir_utils::safe_div(
                     c_prev_layout.size(), c_prev_layout.type().size());
             plan.c_layout.add_block(outer_dim, outer_size, stride);
-            if (with_bias_reduce()) {
+            if (desc_.with_bias_bwd_w()) {
                 auto &bia_mapper
                         = dim_mapper_manager_.mapper(tensor_kind_t::bia);
                 if (bia_mapper.has(outer_dim)) {

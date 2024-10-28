@@ -34,8 +34,8 @@ layout_desc_t make_conv_algo_layout_desc(
         prop_kind_t prop, tensor_kind_t tensor_kind);
 layout_tag_t make_conv_layout_tag(
         tensor_kind_t tensor_kind, const std::string &s);
-layout_tag_t make_conv_layout_tag(
-        tensor_kind_t tensor_kind, dim_idx_t conv_ndims, const memory_desc_t &md);
+layout_tag_t make_conv_layout_tag(tensor_kind_t tensor_kind,
+        dim_idx_t conv_ndims, const memory_desc_t &md);
 layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
         bool is_dw, const prb_reqs_t &reqs, uint32_t mask = 0xFFFFFFFF);
 

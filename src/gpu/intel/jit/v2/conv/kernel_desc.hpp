@@ -17,6 +17,7 @@
 #ifndef GPU_INTEL_JIT_V2_CONV_KERNEL_DESC_HPP
 #define GPU_INTEL_JIT_V2_CONV_KERNEL_DESC_HPP
 
+#include "gpu/intel/gpu_post_ops.hpp"
 #include "gpu/intel/jit/ir/fma.hpp"
 #include "gpu/intel/jit/ir/hw.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"
@@ -258,11 +259,10 @@ class kernel_desc_t : public kernel_desc_base_t {
 public:
     prop_kind_t prop = prop_kind::undef;
     bool is_dw = false;
-    bool with_bias = false;
     layout_tag_t src_tag;
     layout_tag_t wei_tag;
     layout_tag_t dst_tag;
-    layout_tag_t bia_tag;
+    type_t bias_type;
     spec_strategy_t spec_strategy = spec_strategy_t::none;
     hw_desc_t hw_desc;
     fma_kind_t fma = fma_kind_t::undef;
@@ -279,6 +279,7 @@ public:
     prefetch_desc_t prefetch;
     prb_reqs_t reqs;
     extensions_t ext;
+    gpu_post_ops_t post_ops;
 
     hw_t hw;
     bool is_finalized = false;
@@ -290,6 +291,8 @@ public:
     void finalize(const prb_reqs_t &final_reqs);
     bool can_fit(const problem_t &prb) const;
     void fit_to(const problem_t &prb);
+    status_t set_post_ops(
+            const post_ops_t &post_ops, const memory_desc_t *out_md);
     bool matches(const problem_t &prb) const;
     std::string cmd_str() const;
     std::string brief_str() const;
@@ -316,6 +319,12 @@ public:
     const type_t &a_type() const { return layout_tag(tensor_kind_t::a).type(); }
     const type_t &b_type() const { return layout_tag(tensor_kind_t::b).type(); }
     const type_t &c_type() const { return layout_tag(tensor_kind_t::c).type(); }
+    bool with_bias_fwd() const {
+        return prop == prop_kind::forward && !bias_type.is_undef();
+    }
+    bool with_bias_bwd_w() const {
+        return prop == prop_kind::backward_weights && !bias_type.is_undef();
+    }
 
     send_kind_t access_kind(send_op_t op, tensor_kind_t tensor) const {
         if (use_2d_access && tensor != tensor_kind_t::undef)
@@ -368,6 +377,23 @@ public:
     serialized_t serialize() const override;
     static kernel_desc_t deserialize(const serialized_t &s);
     static void show_help();
+};
+
+class arg_helper_t {
+public:
+    arg_helper_t(const kernel_desc_t &desc);
+    int key(const std::string &name) const;
+    bool is_input(const std::string &name) const;
+    bool is_output(const std::string &name) const;
+    std::string post_op_name(size_t idx) const;
+    int post_op_key(size_t idx) const;
+
+private:
+    bool is_fwd() const { return desc_.prop == prop_kind::forward; }
+    bool is_bwd_d() const { return desc_.prop == prop_kind::backward_data; }
+    bool is_bwd_w() const { return desc_.prop == prop_kind::backward_weights; }
+
+    const kernel_desc_t &desc_;
 };
 
 class grid_t {
