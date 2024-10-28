@@ -164,7 +164,7 @@ private:
 
 struct align_desc_t {
     struct align_t {
-        int value = 0;
+        int value = 1;
         // If true, then value in bytes, otherwise in elements.
         bool in_bytes = false;
 
@@ -172,7 +172,7 @@ struct align_desc_t {
         bool operator==(const align_t &other) const = default;
 #endif
 
-        bool is_default() const { return value == 0; }
+        bool is_default() const { return value == 1; }
         std::string str() const;
         void parse(const std::string &s);
     };

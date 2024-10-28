@@ -35,7 +35,7 @@ namespace v2 {
 namespace conv {
 
 std::string align_desc_t::align_t::str() const {
-    std::string s = (value == 0 ? "*" : std::to_string(value));
+    std::string s = std::to_string(value);
     if (in_bytes) s += "b";
     return s;
 }
@@ -44,7 +44,7 @@ void align_desc_t::align_t::parse(const std::string &_s) {
     auto s = _s;
     in_bytes = (!s.empty() && s.back() == 'b');
     if (in_bytes) s = s.substr(0, s.length() - 1);
-    value = (s == "*") ? 0 : std::stoi(s);
+    value = std::stoi(s);
 }
 
 std::string align_desc_t::str() const {
@@ -568,8 +568,7 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     iface->add<PACK(align)>("align",
             "Alignments in bytes/elements for the innermost dimension in "
             "source, weights and destination. Examples: 8b:8b:8b (in bytes), "
-            "2:2:2 (in elements), *:*:* (for optimal values determined during "
-            "kernel plan generation).");
+            "2:2:2 (in elements).");
     iface->add<PACK(prefetch)>("prefetch",
             "Prefetch description specifying distance and whether A/B are "
             "prefetched. Examples: x3 (distance is 3, both A/B are "

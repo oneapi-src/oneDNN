@@ -596,14 +596,10 @@ private:
 
     void add_align_req(const pvar_t &dim, const type_t &type,
             const align_desc_t::align_t &align) {
-        if (align.value == 0) {
-            reqs_.set_any_mod(dim);
-        } else {
-            int align_bytes = (align.in_bytes ? align.value
-                                              : align.value * type.size());
-            reqs_.add(dim.var() % ir_utils::safe_div(align_bytes, type.size())
-                    == 0);
-        }
+        int align_bytes
+                = (align.in_bytes ? align.value : align.value * type.size());
+        reqs_.add(
+                dim.var() % ir_utils::safe_div(align_bytes, type.size()) == 0);
     }
 
     void init_dim_mapper_manager() {
