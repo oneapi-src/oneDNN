@@ -566,7 +566,7 @@ private:
                 }
                 return;
             };
-            auto &loop = loop_nest_[i];
+            auto &loop = loop_nest_[i - 1];
             const auto &var = coord_info.loop_index(loop.dim);
             const auto &bound = loop.size;
             _for(var, 0, bound, [&]() {
