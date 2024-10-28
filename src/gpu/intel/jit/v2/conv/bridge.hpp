@@ -22,6 +22,7 @@
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
+#include "gpu/intel/jit/v2/conv/tensor_utils.hpp"
 #include "gpu/intel/jit/v2/ir/bridge.hpp"
 #include "gpu/intel/jit/v2/ir/tensor.hpp"
 

@@ -250,14 +250,6 @@ struct extensions_t {
     static extension_kind_t out_size(int size);
 };
 
-layout_desc_t make_conv_layout_desc(
-        tensor_kind_t tensor_kind, bool src_dst_with_group = false);
-layout_desc_t make_conv_algo_layout_desc(
-        prop_kind_t prop, tensor_kind_t tensor_kind);
-layout_tag_t make_conv_layout_tag(
-        tensor_kind_t tensor_kind, const std::string &s);
-layout_tag_t make_conv_layout_tag(
-        tensor_kind_t tensor_kind, int conv_ndims, const memory_desc_t &md);
 pvar_tile_t min_dims_tile(const problem_t &prb);
 
 struct plan_t;
