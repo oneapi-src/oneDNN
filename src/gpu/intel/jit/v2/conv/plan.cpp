@@ -877,8 +877,6 @@ private:
         auto bia_params = get_send_params(
                 tensor_kind_t::undef, send_op_t::store, bia_iter_view);
         auto bia_store = create_send_plan(bia_params, bia_iter_view);
-        ir_check(!bia_store.reqs())
-                << "Bias store needs additional requirements.";
         ir_check(reqs.implies(bia_store.reqs()))
                 << "Bias store needs additional requirements.";
         auto tile = plan.tile;
