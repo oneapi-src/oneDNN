@@ -32,6 +32,7 @@
 #include "common/utils.hpp"
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/jit/ngen/ngen.hpp"
+#include "gpu/intel/serialization.hpp"
 #include "gpu/intel/utils.hpp"
 
 #ifdef DNNL_DEV_MODE
@@ -1338,6 +1339,30 @@ void parse_enum(std::istream &in, E &e) {
 void stringify_to_cpp_file(const std::string &file_name,
         const std::string &var_name, const std::vector<std::string> &namespaces,
         const std::vector<std::string> &lines);
+
+template <typename T>
+std::string serialize_to_hex(const T &t) {
+    std::ostringstream oss;
+    serialized_data_t s;
+    s.append(t);
+    for (uint8_t d : s.get_data()) {
+        oss << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+            << (int)d;
+    }
+    return oss.str();
+}
+
+template <typename T>
+void deserialize_from_hex(T &t, const std::string &s_hex) {
+    std::vector<uint8_t> data;
+    for (size_t i = 0; i < s_hex.size(); i += 2) {
+        data.push_back(static_cast<uint8_t>(
+                std::stoi(s_hex.substr(i, 2), nullptr, 16)));
+    }
+    auto s = serialized_t::from_data(std::move(data));
+    deserializer_t d(s);
+    d.pop(t);
+}
 
 } // namespace jit
 } // namespace intel
