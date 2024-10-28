@@ -127,7 +127,7 @@ void BLASKernelGenerator<hw>::loadMask(MaskAssignment assignment, Subregister in
         // Load a variable mask, which requires some minor bit-twiddling.
         auto &vmask = assignment.mask.variable;
 
-        uint32_t rsizeScaled = vmask.rsize >> vmask.rshift;
+        uint32_t rsizeScaled = std::max<uint32_t>(vmask.rsize >> vmask.rshift, 1);
         uint32_t maskLen = vmask.bitRep * vmask.maskRep * rsizeScaled;
         uint32_t fullMask = (uint64_t(1) << maskLen) - 1;
         uint32_t rep1Mask = (uint64_t(1) << (vmask.bitRep * rsizeScaled)) - 1;
@@ -136,9 +136,10 @@ void BLASKernelGenerator<hw>::loadMask(MaskAssignment assignment, Subregister in
         auto flagType = flag.getType();
         auto mask0Type = getBytes(flagType) >= 4 ? DataType::uq : flagType;
 
-        if (vmask.rsize == 1 && vmask.rshift == 0) {
+        if (vmask.rsize == 1) {
             // Simple threshold comparison.
             offset += assignment.offset;
+            offset <<= vmask.rshift;
             if (flag.isARF())
                 cmp(int(maskLen) | gt | static_cast<FlagRegister &>(flag), index, offset);
             else {
