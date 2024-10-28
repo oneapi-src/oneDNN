@@ -1,7 +1,7 @@
 --reset
 
 --sdt=s8,u8,s4,u4
---ddt=f32
+--ddt=f32,bf16,f16
 --stag=abx,axb,xba
 --dtag=abx,axb,xba
 --attr-scales=src:per_tensor:bf16

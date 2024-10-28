@@ -2241,7 +2241,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         && tag_o == format_tag::any
                         && utils::one_of(type_i, data_type::s4, data_type::u4,
                                 data_type::f4_e2m1)
-                        && type_o == data_type::f32,
+                        && utils::one_of(type_o, data_type::f32,
+                                data_type::bf16, data_type::f16),
                 spec::reference>::type> {
     static status_t is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
