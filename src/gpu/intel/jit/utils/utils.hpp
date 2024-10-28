@@ -1093,6 +1093,26 @@ class parse_iface_t {
 public:
     using base_type = T;
 
+    struct entry_t {
+        std::string name;
+        std::string help;
+        std::string _default;
+        bool required = false;
+        std::function<void(std::ostream &, const T &)> stringify;
+        std::function<void(std::istream &, T &)> parse;
+
+        bool matches_relaxed(const std::string &_s) const {
+            auto s = (_s.find("--") == 0 ? _s.substr(2) : _s);
+            if (s.length() != name.length()) return false;
+            for (size_t i = 0; i < s.length(); i++) {
+                if (s[i] == name[i]) continue;
+                if (s[i] == '-' && name[i] == '_') continue;
+                return false;
+            }
+            return true;
+        }
+    };
+
     template <typename U, U T::*ptr>
     void add(const std::string &name = {}, const std::string &help = {},
             bool required = false) {
@@ -1107,6 +1127,10 @@ public:
         e.parse = [](std::istream &in, T &parent) {
             jit::parse(in, parent.*ptr);
         };
+        add(e);
+    }
+
+    void add(const entry_t &e) {
         if (relaxed_) {
             ir_assert(!e.name.empty())
                     << "Relaxed support requires non-empty name.";
@@ -1188,26 +1212,6 @@ public:
     }
 
 private:
-    struct entry_t {
-        std::string name;
-        std::string help;
-        std::string _default;
-        bool required = false;
-        std::function<void(std::ostream &, const T &)> stringify;
-        std::function<void(std::istream &, T &)> parse;
-
-        bool matches_relaxed(const std::string &_s) const {
-            auto s = (_s.find("--") == 0 ? _s.substr(2) : _s);
-            if (s.length() != name.length()) return false;
-            for (size_t i = 0; i < s.length(); i++) {
-                if (s[i] == name[i]) continue;
-                if (s[i] == '-' && name[i] == '_') continue;
-                return false;
-            }
-            return true;
-        }
-    };
-
     int find_entry_index(const std::string name) const {
         for (int i = 0; i < (int)entries_.size(); i++) {
             if (entries_[i].matches_relaxed(name)) return i;
