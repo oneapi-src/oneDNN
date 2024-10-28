@@ -30,16 +30,17 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_op_attrs : s.op_attrs_vec)
     for_(const auto &i_expected_n_partition : s.expected_n_partition_vec)
     for_(const auto &i_fpmath_mode : s.fpmath_mode_vec)
+    for_(const auto &i_dt : s.dt)
     for (const auto &i_mb : s.mb) {
         deserialized_graph dg;
         dg.load(locate_file(s.json_file));
-        flex_rewrite fw(i_in_shapes, i_op_attrs, i_fpmath_mode, i_mb);
+        flex_rewrite fw(i_in_shapes, i_op_attrs, i_fpmath_mode, i_mb, i_dt);
         fw.rewrite(dg);
         BENCHDNN_PRINT(7, "[INFO] Graph dump:\n%s\n", dg.get_string().c_str());
 
         const prb_t prb(dg, i_expected_n_partition);
         const auto &cpp_pstr = case_to_str(s.json_file, i_in_shapes, i_op_attrs,
-                i_fpmath_mode, i_expected_n_partition, i_mb);
+                i_fpmath_mode, i_expected_n_partition, i_mb, i_dt);
         const char *pstr = cpp_pstr.c_str();
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
         res_t res {};
@@ -64,6 +65,7 @@ int bench(int argc, char **argv) {
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])
+                || parse_dt(s.dt, def.dt, argv[0])
                 || parse_input_shapes(s.in_shapes_vec, argv[0])
                 || parse_op_attrs(s.op_attrs_vec, argv[0])
                 || parse_graph_expected_n_partitions(

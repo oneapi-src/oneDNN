@@ -65,6 +65,11 @@ uint64_t get_future_extensions(
     return extensions;
 }
 
+bool device_info_t::is_integrated() const {
+    auto family = static_cast<ngen::ProductFamily>(gpu_product_family_);
+    return ngen::getPlatformType(family) == ngen::PlatformType::Integrated;
+}
+
 bool device_info_t::mayiuse_sub_group(int size) const {
     switch (gpu_arch()) {
         case gpu_arch_t::xe2:

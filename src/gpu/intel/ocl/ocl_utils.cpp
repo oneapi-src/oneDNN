@@ -366,6 +366,11 @@ status_t get_ocl_device_eu_count(cl_device_id device,
     //   for certain buggy drivers.
     bool ok = true;
 
+#ifdef _WIN32
+    // But don't try this on Windows Xe2 to avoid undercounting EUs.
+    ok &= (arch != gpu::intel::compute::gpu_arch_t::xe2);
+#endif
+
     auto do_query = [&](cl_uint query) -> cl_uint {
         cl_uint val = 0;
         ok = ok

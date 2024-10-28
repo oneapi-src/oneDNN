@@ -232,7 +232,8 @@ public:
             auto &name = kernel_info_.arg_name(i);
             auto &type = kernel_info_.arg_type(i);
             if (type.is_ptr()) {
-                newArgument(name, ngen::ExternalArgumentType::GlobalPtr);
+                newArgument(name, ngen::ExternalArgumentType::GlobalPtr,
+                        ngen::GlobalAccessType::Stateless);
             } else {
                 newArgument(name, to_ngen(type));
             }

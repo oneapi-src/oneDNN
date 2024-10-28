@@ -84,13 +84,13 @@ status_t compute_cell_fwd(const exec_ctx_t &ctx,
     arg_list.append(offsets.weights_layer);
     arg_list.append(weights_iter, ocl_conf.wei_dt);
     arg_list.append(offsets.weights_iter);
-    arg_list.append(cell_layer, ocl_conf.aux_dt);
+    arg_list.append(cell_layer, ocl_conf.ws_state_dt);
     arg_list.append(inner<2>(cell_layer_strides));
-    arg_list.append(cell_iter, ocl_conf.aux_dt);
+    arg_list.append(cell_iter, ocl_conf.ws_state_dt);
     arg_list.append(inner<2>(cell_iter_strides));
     arg_list.append(gates, ocl_conf.aux_dt);
     arg_list.append(inner<2>(gates_strides));
-    arg_list.append(states, ocl_conf.aux_dt);
+    arg_list.append(states, ocl_conf.ws_state_dt);
     arg_list.append(inner<2>(states_strides));
 
     if (ocl_conf.cell_kind == alg_kind::vanilla_lstm) {

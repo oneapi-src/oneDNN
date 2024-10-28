@@ -164,7 +164,8 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
                     && !(rnn.is_fwd || is_gru));
 
     if (rnn.is_fwd) {
-        bool can_fuse_gemm = rnn.dt_conf == all_f32 && rnn.is_fwd
+        bool can_fuse_gemm = !rnn.is_int8
+                && rnn.wei_iter_type == rnn.wei_layer_type && rnn.is_fwd
                 && utils::one_of(rd.cell_kind, alg_kind::vanilla_rnn,
                         alg_kind::vanilla_lstm);
         // Poor implementation performance if dhc % subgroup_size != 0
