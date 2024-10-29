@@ -74,7 +74,7 @@ __kernel void gen9_global_pooling_fwd(
     ws[dst_off] = max_idx;
 #endif
 #else
-    dst[dst_off] = TO_DST(dst_val / ID / IH / IW);
+    dst[dst_off] = TO_DST(dst_val / convert_float(ID * IH * IW));
 #endif
 }
 #endif // IS_FWD
