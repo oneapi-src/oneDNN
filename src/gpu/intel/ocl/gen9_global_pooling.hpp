@@ -59,8 +59,7 @@ struct gen9_global_pooling_fwd_t : public gpu_primitive_t {
             VDISPATCH_POOLING(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
-            VDISPATCH_POOLING_SC(init_conf(engine),
-                    VERBOSE_PRIMITIVE_CREATION_FAIL, "pooling");
+            CHECK(init_conf(engine));
 
             bool is_training = desc_.prop_kind == forward_training;
             if (desc()->alg_kind == pooling_max && is_training) {
@@ -193,8 +192,7 @@ struct gen9_global_pooling_bwd_t : public gpu_primitive_t {
             VDISPATCH_POOLING(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
-            VDISPATCH_POOLING_SC(init_conf(engine),
-                    VERBOSE_PRIMITIVE_CREATION_FAIL, "pooling");
+            CHECK(init_conf(engine));
 
             if (desc()->alg_kind == pooling_max) {
                 // Required for storing spatial offsets into workspace for

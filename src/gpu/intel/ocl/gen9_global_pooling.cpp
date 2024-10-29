@@ -52,28 +52,33 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     set_default_pool_conf(conf, *pd->desc(), *pd->invariant_src_md(),
             *pd->invariant_dst_md(), *pd->attr());
 
-    if (conf.iw != conf.kw || conf.ih != conf.kh || conf.ow * conf.oh != 1)
-        return status::unimplemented;
+    VDISPATCH_POOLING_IC(
+            conf.iw == conf.kw && conf.ih == conf.kh && conf.ow * conf.oh == 1,
+            "%s," VERBOSE_SHAPE_RESTRICTION, pd->info(engine));
 
     const memory_desc_wrapper src_mdw(pd->invariant_src_md());
     const memory_desc_wrapper dst_mdw(pd->invariant_dst_md());
     const auto &padded_src_dims = src_mdw.padded_dims();
     const auto &padded_dst_dims = dst_mdw.padded_dims();
-    if (utils::array_product(padded_src_dims + 2, conf.ndims - 2)
-                    != conf.id * conf.ih * conf.iw
-            || utils::array_product(padded_dst_dims + 2, conf.ndims - 2)
-                    != conf.od * conf.oh * conf.ow)
-        return status::unimplemented;
+    VDISPATCH_POOLING_IC(
+            utils::array_product(padded_src_dims + 2, conf.ndims - 2)
+                            == conf.id * conf.ih * conf.iw
+                    && utils::array_product(padded_dst_dims + 2, conf.ndims - 2)
+                            == conf.od * conf.oh * conf.ow,
+            "%s," VERBOSE_SHAPE_RESTRICTION, pd->info(engine));
 
     using namespace dnnl::impl::alg_kind;
     if (!conf.is_backward) {
         if (conf.alg == pooling_max) {
             // gen9_global_pooling_fwd doesn't support zero padding.
-            if (conf.mb != conf.mb_padded || conf.c != conf.c_padded)
-                return status::unimplemented;
+            VDISPATCH_POOLING_IC(
+                    conf.mb == conf.mb_padded && conf.c == conf.c_padded,
+                    "%s," VERBOSE_SHAPE_RESTRICTION, pd->info(engine));
         }
         // heuristics: for small shapes, gen9_pooling_fwd provides better perf.
-        if (conf.kd * conf.kh * conf.kw < 128) return status::unimplemented;
+        VDISPATCH_POOLING_IC(conf.kd * conf.kh * conf.kw >= 128,
+                "%s," VERBOSE_IMPL_HEURISTIC_FAIL, pd->info(engine),
+                "input kernel spatial size is too small");
     }
 
     set_offsets(src_mdw, off.src_off);
@@ -100,7 +105,11 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
                 || !dst_mdw.is_plain())
             conf.vectorize = false;
         if (conf.vectorize) {
-            CHECK(conf.dispatch.vectorize_dim("C", conf.sub_group_size));
+            VDISPATCH_POOLING_IC(
+                    conf.dispatch.vectorize_dim("C", conf.sub_group_size)
+                            == status::success,
+                    "%s," VERBOSE_BLOCKING_FAIL, pd->info(engine),
+                    "failed to block channels across subgroup");
         }
     }
     conf.dispatch.generate();
