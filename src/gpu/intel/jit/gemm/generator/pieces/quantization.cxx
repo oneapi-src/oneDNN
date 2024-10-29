@@ -82,7 +82,7 @@ bool BLASKernelGenerator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMM
 
     bool int4SpecialPath = Tx_ext.isInt4() && one_of(Tx, Type::f16, Type::bf16, Type::f32);
     if (int4SpecialPath)
-        Txo_int = Txs_int = Type::f16;
+        Txo_int = Txs_int = Tx_scaleOp = Type::f16;
 
     // Get tile sizes, depending on whether A/B are copied to SLM.
     // For late scaling (after compute), scales are always applied to the whole tile.
