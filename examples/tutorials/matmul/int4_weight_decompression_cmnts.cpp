@@ -74,7 +74,7 @@ void init_vector(std::vector<float> &v) {
 // Comparing two vectors by calculating their L2 norms and the L2 norm of their
 // difference Checking if the difference is within a calculated threshold The
 // function returns 0 if the vectors are considered similar, otherwise it
-// returns 1. --Rupak
+// returns 1.
 int compare_vectors(const std::vector<float> &v1, const std::vector<float> &v2,
         int64_t K, const char *message) {
     double v1_l2 = 0, diff_l2 = 0;
@@ -134,7 +134,7 @@ void ref_compute_matmul_f32(int64_t M, int64_t N, int64_t K, int64_t G,
 }
 
 // Create a MatMul primitive descriptor for the following op:
-// C_f32 = A_f32 * (B_s4 - zp_B) * sc_B[:] --Rupak
+// C_f32 = A_f32 * (B_s4 - zp_B) * sc_B[:]
 matmul::primitive_desc matmul_pd_create(
         int64_t M, int64_t N, int64_t K, int64_t G, const engine &eng) {
 
@@ -159,8 +159,7 @@ matmul::primitive_desc matmul_pd_create(
     // points are applied. For example:
     // - mask = (1 << 0) would apply zero points only along the K dimension.
     // - mask = (1 << 1) would apply zero points only along the N dimension.
-    int mask = (1 << 0)
-            + (1 << 1); // zero points both along K and N dimensions --Rupak
+    int mask = (1 << 0) + (1 << 1); // zero points both along K and N dimensions
     memory::dims groups = {};
     attr.set_zero_points(DNNL_ARG_WEIGHTS, mask, groups, memory::data_type::s4);
 
@@ -201,7 +200,6 @@ void weights_decompression_matmul(int64_t M, int64_t N, int64_t K, int64_t G,
     // Pre-packed zp stored as int4
     // A unique zero point is used for each weight in this example
     // Allocates memory for zp_B_s4_mem with specified dimensions and data type.
-    // --Rupak
     memory zp_B_s4_mem({{K, N}, memory::data_type::s4, {1, K}}, eng);
     {
         memory zp_B_f32_mem({{K, N}, memory::data_type::f32, {1, K}}, eng);
@@ -227,7 +225,7 @@ void weights_decompression_matmul(int64_t M, int64_t N, int64_t K, int64_t G,
 }
 
 // Compares the results of reference matrix multiplication and oneDNN weights
-// decompression. --Rupak
+// decompression.
 void compare_ref_and_weights_decompression(engine::kind engine_kind) {
     engine eng(engine_kind, 0);
 
