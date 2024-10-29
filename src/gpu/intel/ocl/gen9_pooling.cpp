@@ -41,13 +41,13 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
                           && (blk.inner_blks[blk.inner_nblks - 1] == blockSize);
               };
 
-    if (!is_c_blocked_by(src_mdw, 16) && !is_c_blocked_by(src_mdw, 32)
-            && !is_c_dense(src_mdw))
-        return status::unimplemented;
+    VDISPATCH_POOLING_IC(is_c_blocked_by(src_mdw, 16)
+                    || is_c_blocked_by(src_mdw, 32) || is_c_dense(src_mdw),
+            "%s," VERBOSE_SHAPE_RESTRICTION, pd->info(engine));
 
-    if (!is_c_blocked_by(dst_mdw, 16) && !is_c_blocked_by(dst_mdw, 32)
-            && !is_c_dense(dst_mdw))
-        return status::unimplemented;
+    VDISPATCH_POOLING_IC(is_c_blocked_by(dst_mdw, 16)
+                    || is_c_blocked_by(dst_mdw, 32) || is_c_dense(dst_mdw),
+            "%s," VERBOSE_SHAPE_RESTRICTION, pd->info(engine));
 
     int c_block_size = 1, n_block_size = 1;
     auto &src_blk = src_mdw.blocking_desc();
@@ -92,9 +92,9 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         }
         conf.chunks_per_c_block = conf.nvect * conf.vect_dt_n;
         conf.chunks_per_mb_block = 1;
-        // heuristics: ocl ref kernel is faster for small filters.
-        if (((float)conf.kh / (float)conf.ih) < 0.5)
-            return status::unimplemented;
+        VDISPATCH_POOLING_IC((float)conf.kh / (float)conf.ih >= 0.5,
+                "%s," VERBOSE_IMPL_HEURISTIC_FAIL, pd->info(engine),
+                "ocl ref kernel is faster for small kernels");
     } else {
         conf.use_only_c_block = true;
         const size_t num_c_blocks = c_padded / conf.sub_group_size;
@@ -114,10 +114,13 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         conf.chunks_per_mb_block = 1;
         // fallback to ref_pooling kernel for better perf.
         if (conf.is_backward) {
-            if ((conf.vect_dt_n < 4) && (num_c_blocks > 2))
-                return status::unimplemented;
+            VDISPATCH_POOLING_IC(!((conf.vect_dt_n < 4) && (num_c_blocks > 2)),
+                    "%s," VERBOSE_IMPL_HEURISTIC_FAIL, pd->info(engine),
+                    "ocl ref_kernel is faster");
         } else { // FWD
-            if (conf.vect_dt_n == 1) return status::unimplemented;
+            VDISPATCH_POOLING_IC(conf.vect_dt_n != 1,
+                    "%s," VERBOSE_IMPL_HEURISTIC_FAIL, pd->info(engine),
+                    "ocl ref_kernel is faster");
         }
     }
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
@@ -137,7 +140,9 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     // for IO bytes less than 256 KB fall back into ocl ref kernel for better performance.
     size_t io_bytes = src_mdw.nelems() * src_mdw.data_type_size()
             + dst_mdw.nelems() * dst_mdw.data_type_size();
-    if (io_bytes < 256 * 1024) return status::unimplemented;
+    VDISPATCH_POOLING_IC(io_bytes >= 256 * 1024,
+            "%s," VERBOSE_IMPL_HEURISTIC_FAIL, pd->info(engine),
+            "ocl ref_kernel is faster");
 
     if (conf.num_batches > 1) {
         conf.dispatch.define_dim("MB", 0,
@@ -160,7 +165,11 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         conf.dispatch.define_dim("IH", nstl::max(2, ndims - 2), conf.ih);
         conf.dispatch.define_dim("IW", nstl::max(2, ndims - 1), conf.iw);
     }
-    CHECK(conf.dispatch.vectorize_dim("C", conf.sub_group_size));
+
+    VDISPATCH_POOLING_IC(conf.dispatch.vectorize_dim("C", conf.sub_group_size)
+                    == status::success,
+            "%s," VERBOSE_BLOCKING_FAIL, pd->info(engine),
+            "failed to block channels across subgroup");
     conf.dispatch.generate();
 
     return status::success;
