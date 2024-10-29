@@ -28,14 +28,111 @@
 namespace dnnl {
 namespace impl {
 
+#define VCHECK_SDPA(f, msg, ...) \
+    VCHECK(primitive, create, check, sdpa, (f), msg, ##__VA_ARGS__);
+
+#define VCHECK_SDPA_COND(cond, msg, ...) \
+    VCONDCHECK(primitive, create, check, sdpa, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
+#define VCHECK_SDPA_ATTR_TYPE( \
+        variable_check, variable, attribute_member_name, expected_types) \
+    VCONDCHECK(primitive, create, check, sdpa, (variable_check), \
+            status::invalid_arguments, VERBOSE_INVALID_DATATYPE, \
+            format_verbose_string(#variable attribute_member_name \
+                    "(%s). must be " expected_types, \
+                    attr2str(variable).c_str()) \
+                    .c_str())
+
+#define VCHECK_SDPA_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(primitive, create, check, sdpa, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__);
+
+static inline status_t sdpa_attr_check(const memory_desc_t *q_desc,
+        const memory_desc_t *k_desc, const memory_desc_t *v_desc,
+        const engine_t *engine, const primitive_attr_t *attr,
+        const primitive_attr_t *kq_attr, const primitive_attr_t *vs_attr) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+
+    if (utils::everyone_is(nullptr, attr, kq_attr, vs_attr))
+        return status::success;
+    if (attr && attr->has_default_values() && kq_attr
+            && kq_attr->has_default_values() && vs_attr
+            && vs_attr->has_default_values()) {
+        return status::success;
+    }
+
+    const data_type_t k_dt = k_desc->data_type;
+    const data_type_t v_dt = v_desc->data_type;
+
+    using namespace dnnl::impl::data_type;
+    if (kq_attr && !kq_attr->has_default_values()) {
+        smask_t kq_attr_mask = smask_t::none;
+        const auto &sc = kq_attr->scales_;
+        const auto &zp = kq_attr->zero_points_;
+        const auto &scale_dt = sc.get_data_type(DNNL_ARG_WEIGHTS);
+        const auto &zp_dt = zp.get_data_type(DNNL_ARG_WEIGHTS);
+
+        if (utils::one_of(k_dt, s8, u8, s4, u4)) {
+            kq_attr_mask |= smask_t::scales_runtime_data_type
+                    | smask_t::scales_runtime_groups
+                    | smask_t::zero_points_runtime_groups
+                    | smask_t::zero_points_runtime_data_type;
+        }
+        VCHECK_SDPA_UNIMPL(kq_attr->has_default_values(kq_attr_mask),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+        VCHECK_SDPA_ATTR_TYPE(
+                scale_dt == data_type::f16, kq_attr, "scales", "f16");
+        VCHECK_SDPA_ATTR_TYPE(
+                zp_dt == data_type::u8, kq_attr, "zero_points", "u8");
+    }
+
+    if (vs_attr && !vs_attr->has_default_values()) {
+        smask_t vs_attr_mask = smask_t::none;
+        const auto &sc = vs_attr->scales_;
+        const auto &zp = vs_attr->zero_points_;
+        const auto &scale_dt = sc.get_data_type(DNNL_ARG_WEIGHTS);
+        const auto &zp_dt = zp.get_data_type(DNNL_ARG_WEIGHTS);
+
+        if (utils::one_of(v_dt, s8, u8, s4, u4)) {
+            vs_attr_mask |= smask_t::scales_runtime_data_type
+                    | smask_t::scales_runtime_groups
+                    | smask_t::zero_points_runtime_groups
+                    | smask_t::zero_points_runtime_data_type;
+        }
+        VCHECK_SDPA_UNIMPL(vs_attr->has_default_values(vs_attr_mask),
+                VERBOSE_UNSUPPORTED_ATTR);
+        VCHECK_SDPA_ATTR_TYPE(
+                scale_dt == data_type::f16, vs_attr, "scales", "f16");
+        VCHECK_SDPA_ATTR_TYPE(
+                zp_dt == data_type::u8, vs_attr, "zero_points", "u8");
+    }
+    smask_t attr_mask = smask_t::none;
+
+    VCHECK_SDPA_UNIMPL(
+            attr->has_default_values(attr_mask), VERBOSE_UNSUPPORTED_ATTR);
+
+    return status::success;
+}
+
 static inline sdpa_desc_t create_sdpa_desc(const memory_desc_t *q_md,
         const memory_desc_t *k_md, const memory_desc_t *v_md,
         const memory_desc_t *dst_md, const memory_desc_t *attn_mask_md,
-        data_type_t scale_dt, dim_t kv_head_number, bool invert_scale = false) {
+        data_type_t scale_dt, dim_t kv_head_number,
+        const primitive_attr_t *kq_attr, const primitive_attr_t *vs_attr,
+        bool invert_scale = false) {
     auto sdpa_desc = sdpa_desc_t();
     sdpa_desc.primitive_kind = primitive_kind::sdpa;
     sdpa_desc.q_desc = *q_md;
     sdpa_desc.k_desc = *k_md;
+    if (kq_attr) {
+        sdpa_desc.kq_scales = kq_attr->scales_.get(DNNL_ARG_WEIGHTS);
+        sdpa_desc.kq_zero_points = kq_attr->zero_points_;
+    }
+    if (vs_attr) {
+        sdpa_desc.vs_scales = vs_attr->scales_.get(DNNL_ARG_WEIGHTS);
+        sdpa_desc.vs_zero_points = vs_attr->zero_points_;
+    }
     sdpa_desc.v_desc = *v_md;
     sdpa_desc.dst_desc = *dst_md;
     if (attn_mask_md) sdpa_desc.attn_mask_desc = *attn_mask_md;
@@ -50,9 +147,13 @@ static inline status_t create_sdpa_pd(
         const memory_desc_t *q_md, const memory_desc_t *k_md,
         const memory_desc_t *v_md, const memory_desc_t *dst_md,
         const memory_desc_t *attn_mask_md, data_type_t scale_dt,
-        bool invert_scale, const primitive_attr_t *attr, dim_t kv_head_number) {
+        bool invert_scale, const primitive_attr_t *attr, dim_t kv_head_number,
+        const primitive_attr_t *kq_attr = nullptr,
+        const primitive_attr_t *vs_attr = nullptr) {
+    CHECK(sdpa_attr_check(q_md, k_md, v_md, engine, attr, kq_attr, vs_attr));
+
     auto sdpa_desc = create_sdpa_desc(q_md, k_md, v_md, dst_md, attn_mask_md,
-            scale_dt, kv_head_number, invert_scale);
+            scale_dt, kv_head_number, kq_attr, vs_attr, invert_scale);
 
     int ndims = dst_md->ndims;
     int r = ndims - 2, c = ndims - 1;
@@ -63,7 +164,7 @@ static inline status_t create_sdpa_pd(
     if (dst_md->dims[r] != q_md->dims[r] || dst_md->dims[c] != v_md->dims[c])
         return status::invalid_arguments;
 
-    primitive_attr_t sdpa_attr = *attr;
+    primitive_attr_t sdpa_attr = attr ? *attr : default_attr();
 
     primitive_desc_iterator_t it(
             engine, (op_desc_t *)&sdpa_desc, &sdpa_attr, nullptr);

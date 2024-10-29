@@ -27,11 +27,6 @@
 namespace dnnl {
 namespace impl {
 
-#define DNNL_ARG_QUERIES DNNL_ARG_SRC_0
-#define DNNL_ARG_KEYS DNNL_ARG_SRC_1
-#define DNNL_ARG_VALUES DNNL_ARG_SRC_2
-#define DNNL_ARG_ATTN_MASK DNNL_ARG_SHIFT
-
 #define VDISPATCH_SDPA(cond, msg, ...) \
     VCONDCHECK(primitive, create, dispatch, sdpa, (cond), \
             status::unimplemented, "%s," msg, this->info(engine), \
@@ -54,7 +49,11 @@ struct sdpa_pd_t : public primitive_desc_t {
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_QUERIES, DNNL_ARG_KEYS, DNNL_ARG_VALUES,
-                    DNNL_ARG_ATTN_MASK, DNNL_ARG_SCALE))
+                    DNNL_ARG_ATTN_MASK, DNNL_ARG_SCALE,
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_KEYS,
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_VALUES,
+                    DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_KEYS,
+                    DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_VALUES))
             return arg_usage_t::input;
 
         if (arg == DNNL_ARG_DST) return arg_usage_t::output;
@@ -94,7 +93,9 @@ struct sdpa_pd_t : public primitive_desc_t {
     const memory_desc_t *val_md() const { return &desc_.v_desc; }
     const memory_desc_t *attn_mask_md() const { return &desc_.attn_mask_desc; }
 
-    int n_inputs() const override { return 3 + int(with_attn_mask()); }
+    int n_inputs() const override {
+        return 3 + int(with_attn_mask()) + int(with_attn_scale());
+    }
     int n_outputs() const override { return 1; }
 
     bool with_attn_scale() const {
