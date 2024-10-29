@@ -93,8 +93,7 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
             if (desc()->alg_kind == pooling_max && is_training)
                 init_default_ws(s32);
 
-            VDISPATCH_POOLING_SC(init_conf(engine),
-                    VERBOSE_PRIMITIVE_CREATION_FAIL, "pooling");
+            CHECK(init_conf(engine));
 
             // Required for storing spatial offsets into workspace for
             // pooling_max training.
@@ -190,8 +189,7 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
                         compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
-            VDISPATCH_POOLING_SC(init_conf(engine),
-                    VERBOSE_PRIMITIVE_CREATION_FAIL, "pooling");
+            CHECK(init_conf(engine));
 
             // Required for storing spatial offsets into workspace for
             // pooling_max training due to use of int type.
