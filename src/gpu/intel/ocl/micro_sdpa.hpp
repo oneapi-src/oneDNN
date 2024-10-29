@@ -50,10 +50,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
 
         status_t init(impl::engine_t *engine) {
             using namespace data_type;
-            using smask_t = primitive_attr_t::skip_mask_t;
 
-            VDISPATCH_SDPA(attr()->has_default_values(smask_t::scales_runtime),
-                    VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_SDPA(
                     utils::everyone_is(4, qry_md()->ndims, key_md()->ndims,
                             val_md()->ndims, dst_md()->ndims),
@@ -69,8 +66,13 @@ struct micro_sdpa_t : public gpu_primitive_t {
                         VERBOSE_INVALID_BROADCAST, "attn_mask", mask_k_index);
             }
             VDISPATCH_SDPA(utils::everyone_is(data_type::f16,
-                                   qry_md()->data_type, key_md()->data_type,
-                                   val_md()->data_type, dst_md()->data_type),
+                                   qry_md()->data_type, dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SDPA(
+                    utils::one_of(key_md()->data_type, f16, u8, s8, u4, s4),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SDPA(
+                    utils::one_of(val_md()->data_type, f16, u8, s8, u4, s4),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_SDPA(set_default_formats() == status::success,
                     VERBOSE_UNSUPPORTED_TAG);
@@ -111,6 +113,41 @@ struct micro_sdpa_t : public gpu_primitive_t {
             for (int i = 32; i <= 1024; i *= 2)
                 if (head_size <= i) return i;
             return head_size;
+        }
+
+        bool with_key_scales() const {
+            return (!desc()->kq_scales.has_default_values());
+        }
+        bool with_value_scales() const {
+            return (!desc()->vs_scales.has_default_values());
+        }
+
+        bool with_key_zp() const {
+            return (!desc()->kq_zero_points.has_default_values(
+                    DNNL_ARG_WEIGHTS));
+        }
+        bool with_value_zp() const {
+            return (!desc()->vs_zero_points.has_default_values(
+                    DNNL_ARG_WEIGHTS));
+        }
+
+        dim_t key_group_size() const {
+            if (with_key_scales() && desc()->kq_scales.ndims_ > 0)
+                return desc()->kq_scales.group_dims_[0];
+            if (with_key_zp()
+                    && desc()->kq_zero_points.get_groups_ndims(DNNL_ARG_WEIGHTS)
+                            > 0)
+                return desc()->kq_zero_points.get_groups(DNNL_ARG_WEIGHTS)[0];
+            return 0;
+        }
+        dim_t value_group_size() const {
+            if (with_value_scales() && desc()->vs_scales.ndims_ > 1)
+                return desc()->vs_scales.group_dims_[1];
+            if (with_value_zp()
+                    && desc()->vs_zero_points.get_groups_ndims(DNNL_ARG_WEIGHTS)
+                            > 1)
+                return desc()->vs_zero_points.get_groups(DNNL_ARG_WEIGHTS)[1];
+            return 0;
         }
 
         compute::gpu_arch_t arch() const { return arch_; }

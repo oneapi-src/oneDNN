@@ -17,12 +17,21 @@
 #ifndef COMMON_SDPA_TYPES_HPP
 #define COMMON_SDPA_TYPES_HPP
 
-#include <assert.h>
+#include "oneapi/dnnl/dnnl_types.h"
+
 #include "common/c_types_map.hpp"
 #include "common/memory_desc.hpp"
+#include "common/primitive_attr_quant.hpp"
+
+#include <assert.h>
 
 namespace dnnl {
 namespace impl {
+
+#define DNNL_ARG_QUERIES DNNL_ARG_SRC_0
+#define DNNL_ARG_KEYS DNNL_ARG_SRC_1
+#define DNNL_ARG_VALUES DNNL_ARG_SRC_2
+#define DNNL_ARG_ATTN_MASK DNNL_ARG_SHIFT
 
 // A descriptor for a scaled dot product attention (SDPA) operation.
 struct sdpa_desc_t {
@@ -32,6 +41,14 @@ struct sdpa_desc_t {
     memory_desc_t q_desc; /* queries */
     memory_desc_t k_desc; /* keys */
     memory_desc_t v_desc; /* values */
+
+    // primitive_attr_t can't be used because of deleted copy-ctor, but desc_t
+    // must be copyable.
+    runtime_scales_t kq_scales;
+    zero_points_t kq_zero_points;
+    runtime_scales_t vs_scales;
+    zero_points_t vs_zero_points;
+
     memory_desc_t dst_desc;
     memory_desc_t attn_mask_desc;
     data_type_t scale_dt;
