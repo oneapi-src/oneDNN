@@ -78,7 +78,7 @@ public:
 
     bool isVirtual(VirtualFlag vflag)               { return (vflag.idx >= nflag); }
 
-    bool lock(VirtualFlag vflag)                    { bool wasLocked = isLocked(vflag); locked |= mask(vflag); return wasLocked; }
+    bool lock(VirtualFlag vflag, bool allowAlreadyLocked = false);
     void unlock(VirtualFlag vflag)                  { locked &= ~mask(vflag); }
     bool isLocked(VirtualFlag vflag)          const { return !(~locked & mask(vflag)); }
     bool canLock(int n = 1) const;
