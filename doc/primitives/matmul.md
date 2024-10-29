@@ -240,3 +240,7 @@ The following examples are available:
 [MatMul Tutorial: Weights decompression](@ref weights_decompression_matmul_cpp) (CPU only)
 
 @copydetails weights_decompression_matmul_cpp_short
+
+[MatMul Tutorial: Int4 Weights decompression](@ref int4_weights_decompression_matmul_cpp) (GPU only)
+
+@copydetails int4_weights_decompression_matmul_cpp_short
