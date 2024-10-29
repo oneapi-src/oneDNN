@@ -1,0 +1,15 @@
+# Implicitly test FWD_D via BWD_D
+--dir=FWD_I,BWD_D
+--dt=bf16:bf16
+--alg=max,avg_p
+--tag=axb
+
+--impl=jit
+--batch=shapes_large_pool
+
+# Test both gen_pooling and gen9_global pooling in the same pass
+--impl=gen9
+--batch=shapes_large_pool
+
+--impl=ref
+--batch=shapes_large_pool
