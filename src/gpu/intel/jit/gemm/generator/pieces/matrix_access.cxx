@@ -621,6 +621,8 @@ void BLASKernelGenerator<hw>::prepareSeriesRegisterBlockMasking(const vector<Reg
         for (int startPreload = start; startPreload < nblocks; startPreload++) {
             auto &block = layout[startPreload];
 
+            if (!block.isLoadBlock()) continue;
+
             bool plFlag[2];
             for (int i = 0; i <= 1; i++)
                 plFlag[i] = block.flag[i] && (block.flag[i] != state.blockEMask);
@@ -630,7 +632,7 @@ void BLASKernelGenerator<hw>::prepareSeriesRegisterBlockMasking(const vector<Reg
 
             auto &flag = block.flag[plFlag[0] ? 0 : 1];
             if (!state.raVFlag.canLock(flag.n)) break;
-            state.raVFlag.lock(getPhysicalFlag(flag, state));
+            state.raVFlag.lock(getPhysicalFlag(flag, state), true);
         }
     }
 }
