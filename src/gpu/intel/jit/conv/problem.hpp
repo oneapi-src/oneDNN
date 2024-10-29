@@ -174,6 +174,7 @@ public:
     bool with_sum = false;
     bool is_dw = false;
     bool ab_swap_transpose = false;
+    bool strided = false;
 
     int ndims = 0;
     dim_t mb = 0; // Batch size.

@@ -1123,8 +1123,9 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_w(
     bool k_is_mb = (k_iter_dim == pvars::mb);
     bool k_is_ow = (k_iter_dim == pvars::ow);
     bool small_ic = is_small_ic(cfg.prb());
-    ret.add(k_is_mb, conv_schemes::bwd_w_T_io_I_ion);
-    ret.add(k_is_ow, conv_schemes::bwd_w_T_io_I_iow);
+    bool strided = cfg.prb().strided;
+    ret.add(k_is_mb || strided, conv_schemes::bwd_w_T_io_I_ion);
+    ret.add(k_is_ow || strided, conv_schemes::bwd_w_T_io_I_iow);
     ret.add(k_is_mb && small_ic, conv_schemes::bwd_w_T_io_I_kon);
     ret.add(k_is_mb && small_ic, conv_schemes::bwd_w_T_io_I_ikon);
     ret.add(k_is_ow && small_ic, conv_schemes::bwd_w_T_io_I_ikow);

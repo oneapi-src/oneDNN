@@ -117,6 +117,7 @@ inline layout_t make_layout(const memory_desc_t &md) {
 }
 
 inline layout_t make_layout(const memory_desc_t &md, const std::string &tag) {
+    if (tag == "user") return layout_t(md);
     return layout_t(md, tag, /*do_normalize=*/false);
 }
 

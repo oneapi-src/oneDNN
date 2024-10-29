@@ -150,6 +150,13 @@ status_t conv_problem_t::init(
     with_bias = conv_pd->with_bias();
     with_groups = conv_pd->with_groups();
     with_sum = with_sum_post_op();
+    memory_desc_wrapper mdw_src(conv_pd->invariant_src_md());
+    memory_desc_wrapper mdw_wei(conv_pd->invariant_wei_md());
+    memory_desc_wrapper mdw_dst(conv_pd->invariant_dst_md());
+
+    strided = (mdw_src.is_plain() && !mdw_src.is_dense())
+            || (mdw_wei.is_plain() && !mdw_wei.is_dense())
+            || (mdw_dst.is_plain() && !mdw_dst.is_dense());
 
     src_data_type = conv_pd->invariant_src_md()->data_type;
     wei_data_type = conv_pd->invariant_wei_md()->data_type;
@@ -511,6 +518,8 @@ private:
 // Matches the user-provided descriptor against the list of supported plain tags.
 std::string get_plain_user_tag(
         const conv_problem_t &prb, const memory_desc_t &md, bool is_wei) {
+    memory_desc_wrapper mdw(md);
+    if (mdw.is_plain() && !mdw.is_dense()) return "user";
     if (is_wei) {
         std::vector<const char *> plain_non_group_wei_tags
                 = {"abx", "axb", "xba"};
@@ -644,6 +653,10 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     // Use plain tag for output to avoid extra reorders.
     if (src_output) src_tag = user_src_tag;
     if (dst_output) dst_tag = user_dst_tag;
+
+    if (user_src_req == "user") src_tag = user_src_tag = "user";
+    if (user_wei_req == "user") wei_tag = user_wei_tag = "user";
+    if (user_dst_req == "user") dst_tag = user_dst_tag = "user";
 }
 
 status_t init_tensor_layouts(

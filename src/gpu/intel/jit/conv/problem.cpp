@@ -167,14 +167,22 @@ const std::vector<pvar_t> &conv_padding_dims() {
     return _padding_dims;
 }
 
-bool can_reduce_to_1d(const memory_desc_t &out_md, const post_ops_t &post_ops) {
-    int ndims = out_md.ndims;
+bool can_reduce_to_1d(const memory_desc_t &md, const post_ops_t &post_ops) {
+    int ndims = md.ndims;
     int sp_ndims = ndims - 2;
     int non_one_sp_ndims = 0;
-    for (int i = ndims - sp_ndims; i < ndims; i++) {
-        if (out_md.dims[i] != 1) non_one_sp_ndims++;
+    auto &strides = md.format_desc.blocking.strides;
+    dim_t sp_size = strides[ndims - 1];
+    bool sp_dense = true;
+    for (int i = ndims - 1; i >= ndims - sp_ndims; i--) {
+        if (md.dims[i] != 1) non_one_sp_ndims++;
+        if (strides[i] != sp_size) sp_dense = false;
+        sp_size *= md.dims[i];
     }
     if (non_one_sp_ndims == 1) return true;
+    memory_desc_wrapper mdw(md);
+    bool strided = mdw.is_plain() && !sp_dense;
+    if (strided) return false;
     for (int i = 0; i < post_ops.len(); i++) {
         auto &po = post_ops.entry_[i];
         int mask = 0;
@@ -182,7 +190,7 @@ bool can_reduce_to_1d(const memory_desc_t &out_md, const post_ops_t &post_ops) {
             mask = po.prelu.mask;
         } else if (po.is_binary()) {
             mask = utils::get_dims_mask(
-                    out_md.dims, po.binary.src1_desc.dims, ndims);
+                    md.dims, po.binary.src1_desc.dims, ndims);
         }
         // If the post-op is applied per D/H/W dimension then it cannot be
         // transformed to 1D.
@@ -196,7 +204,10 @@ bool can_reduce_to_1d(const memory_desc_t &out_md, const post_ops_t &post_ops) {
 void conv_problem_t::normalize_shape() {
     normalize_conv_shape(id, od, kd, sd, dd, pd, ih, oh, kh, sh, dh, ph, iw, ow,
             kw, sw, dw, pw,
-            can_reduce_to_1d(c_md(), conv_pd->attr()->post_ops_), dhw_map);
+            can_reduce_to_1d(c_md(), conv_pd->attr()->post_ops_)
+                    && can_reduce_to_1d(a_md(), post_ops_t())
+                    && can_reduce_to_1d(b_md(), post_ops_t()),
+            dhw_map);
 }
 
 const memory_desc_t &conv_problem_t::a_md() const {
