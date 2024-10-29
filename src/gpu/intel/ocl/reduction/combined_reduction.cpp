@@ -243,6 +243,10 @@ status_t combined_reduction_t::pd_t::init_conf(impl::engine_t *engine) {
     const dim_t *src_padded_dims = src_mdw.padded_dims();
     const dim_t *dst_dims = dst_mdw.dims();
 
+    // Implementation uses int for offset calculations
+    if (src_mdw.nelems(true) > INT_MAX || dst_mdw.nelems(true) > INT_MAX)
+        return status::unimplemented;
+
     for (int i = 0; i < ndims; i++) {
         // Actually reduced dimensions
         if (src_dims[i] != dst_dims[i]) {

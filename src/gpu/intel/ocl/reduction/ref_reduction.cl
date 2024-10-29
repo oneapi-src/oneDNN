@@ -69,15 +69,15 @@
 
 __kernel void ref_reduce(
         __global SRC_DATA_T *src, __global DST_DATA_T *dst POST_OP_ARGS) {
-    int d0 = GWS_GET_D0();
-    int d1 = GWS_GET_D1();
-    int d2 = GWS_GET_D2();
-    int d3 = GWS_GET_D3();
-    int d4 = GWS_GET_D4();
-    int d5 = GWS_GET_D5();
+    off_t d0 = GWS_GET_D0();
+    off_t d1 = GWS_GET_D1();
+    off_t d2 = GWS_GET_D2();
+    off_t d3 = GWS_GET_D3();
+    off_t d4 = GWS_GET_D4();
+    off_t d5 = GWS_GET_D5();
 
     // If the index combination is supposed to be zero-padded, write a zero and quit
-    const int dst_off = _DST_OFF(d0, d1, d2, d3, d4, d5);
+    const off_t dst_off = _DST_OFF(d0, d1, d2, d3, d4, d5);
     if (d0 >= DST_D0 || d1 >= DST_D1 || d2 >= DST_D2 || d3 >= DST_D3
             || d4 >= DST_D4 || d5 >= DST_D5) {
         dst[dst_off] = TO_DST(0.0f);
@@ -85,14 +85,14 @@ __kernel void ref_reduce(
     }
 
     DEF_ACC_DATA_T acc = INIT_ACC;
-    for_(int d0_off = 0; d0_off < REDUCTION_D0; d0_off++)
-    for_(int d1_off = 0; d1_off < REDUCTION_D1; d1_off++)
-    for_(int d2_off = 0; d2_off < REDUCTION_D2; d2_off++)
-    for_(int d3_off = 0; d3_off < REDUCTION_D3; d3_off++)
-    for_(int d4_off = 0; d4_off < REDUCTION_D4; d4_off++)
-    for_(int d5_off = 0; d5_off < REDUCTION_D5; d5_off++)
+    for_(off_t d0_off = 0; d0_off < REDUCTION_D0; d0_off++)
+    for_(off_t d1_off = 0; d1_off < REDUCTION_D1; d1_off++)
+    for_(off_t d2_off = 0; d2_off < REDUCTION_D2; d2_off++)
+    for_(off_t d3_off = 0; d3_off < REDUCTION_D3; d3_off++)
+    for_(off_t d4_off = 0; d4_off < REDUCTION_D4; d4_off++)
+    for_(off_t d5_off = 0; d5_off < REDUCTION_D5; d5_off++)
     {
-        const int src_off = _SRC_OFF(d0 + d0_off, d1 + d1_off, d2 + d2_off,
+        const off_t src_off = _SRC_OFF(d0 + d0_off, d1 + d1_off, d2 + d2_off,
                 d3 + d3_off, d4 + d4_off, d5 + d5_off);
         acc = ACCUMULATE(acc, TO_DEF_ACC_DATA_T(src[src_off]));
     }
