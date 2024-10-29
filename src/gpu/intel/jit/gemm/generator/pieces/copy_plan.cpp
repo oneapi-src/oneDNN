@@ -1314,6 +1314,31 @@ inline bool legalPackedBF(HW hw, const CopyOperand &op)
     return (op.stride == 1 && (op.offset & (align - 1)) == 0);
 }
 
+void   CopyPlan::planFP8SIMD1Mov(CopyInstruction &i){
+		/* Simd 1 not allowed, use following sequence instead:
+		   hf8->hf (analagous sequence will be generated for hf->hf8)
+		   mov(2, t_dst.hf, src<2,2,1>.hf8)
+		   mov(1, dst.uw, t_dst<1,1,1>.uw) */
+
+                auto dt = i.dst.type;
+                auto ie = splitMultiple<2>(i);
+                auto src = i.src0;
+                auto dst = i.dst;
+                auto t_dst = newTemp(dt, 2, 1);
+                t_dst.stride = 1;
+
+                ie[0]->op = Opcode::mov;
+                ie[0]->dst = t_dst;
+                ie[0]->src0 = src;
+                ie[0]->src0.stride = 1;
+                ie[0]->simd = 2;
+
+                ie[1]->op = Opcode::mov;
+                ie[1]->dst = dst;
+                ie[1]->src0 = t_dst;
+                ie[1]->moveToIntegerPipe();
+}
+
 // Pass to legalize regions.
 void CopyPlan::legalizeRegions()
 {
@@ -1333,14 +1358,16 @@ void CopyPlan::legalizeRegions()
         if (i.op == Opcode::mov && ((s0t == DataType::hf && isFP8(dt))
                                  || (dt == DataType::hf && isFP8(s0t)))) {
             // hf <-> bf8/hf8: src0/dst must be packed unit stride, zero offset
-            if (i.src0.offset != 0 || i.src0.stride != 1) {
+            if (i.simd == 1 && i.src0.offset == 0 && i.src0.stride == 1){
+                planFP8SIMD1Mov(i);
+                rerun = true;
+	    } else if (i.src0.offset != 0 || i.src0.stride != 1) {
                 repositionSrc(i, 0, 1, 0);
                 rerun = true;
             } else if (i.dst.offset != 0 || i.dst.stride != 1)
                 repositionDst(i, 1, 0);
-            if (i.simd == 1) hw_unsupported();
             continue;
-        }
+	}
 
         if (dt == DataType::bf || s0t == DataType::bf || s1t == DataType::bf) {
             // bf/f mixed mode: src/dst may be packed unit stride
