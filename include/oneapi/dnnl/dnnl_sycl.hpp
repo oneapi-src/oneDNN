@@ -84,7 +84,7 @@ inline engine make_engine(
     error::wrap_c_api(dnnl_sycl_interop_engine_create(&aengine,
                               static_cast<const void *>(&adevice),
                               static_cast<const void *>(&acontext)),
-            "could not create an engine");
+            err_message_list::init_error("engine"));
     return engine(aengine);
 }
 
@@ -97,7 +97,7 @@ inline sycl::context get_context(const engine &aengine) {
     void *ctx_ptr;
     error::wrap_c_api(
             dnnl_sycl_interop_engine_get_context(aengine.get(), &ctx_ptr),
-            "could not get a context handle");
+            err_message_list::get_failure("context handle"));
     auto ctx = *static_cast<sycl::context *>(ctx_ptr);
     return ctx;
 }
@@ -111,7 +111,7 @@ inline sycl::device get_device(const engine &aengine) {
     void *dev_ptr;
     error::wrap_c_api(
             dnnl_sycl_interop_engine_get_device(aengine.get(), &dev_ptr),
-            "could not get a device handle");
+            err_message_list::get_failure("device handle"));
     auto dev = *static_cast<sycl::device *>(dev_ptr);
     return dev;
 }
@@ -127,7 +127,7 @@ inline stream make_stream(const engine &aengine, sycl::queue &aqueue) {
     dnnl_stream_t astream;
     error::wrap_c_api(
             dnnl_sycl_interop_stream_create(&astream, aengine.get(), &aqueue),
-            "could not create a stream");
+            err_message_list::init_error("could not create a stream"));
     return stream(astream);
 }
 
@@ -140,7 +140,7 @@ inline sycl::queue get_queue(const stream &astream) {
     void *queue_ptr;
     error::wrap_c_api(
             dnnl_sycl_interop_stream_get_queue(astream.get(), &queue_ptr),
-            "could not get a stream handle");
+            err_message_list::get_failure("stream handle"));
     auto queue = *static_cast<sycl::queue *>(queue_ptr);
     return queue;
 }
@@ -165,11 +165,11 @@ sycl::buffer<T, ndims> get_buffer(const memory &amemory) {
     dnnl_sycl_interop_memory_kind_t ckind;
     error::wrap_c_api(
             dnnl_sycl_interop_memory_get_memory_kind(amemory.get(), &ckind),
-            "could not get SYCL buffer object");
+            err_message_list::get_failure("SYCL buffer object"));
 
     void *handle_ptr;
     error::wrap_c_api(dnnl_memory_get_data_handle(amemory.get(), &handle_ptr),
-            "could not get SYCL buffer object");
+            err_message_list::get_failure("SYCL buffer object"));
 
     // XXX: workaround: zero-range buffer cannot be constructed.
     if (!handle_ptr) return sycl::buffer<T, ndims>(sycl::range<1>(1));
@@ -192,7 +192,7 @@ void set_buffer(memory &amemory, sycl::buffer<T, ndims> &abuffer) {
     auto buf_u8 = abuffer.template reinterpret<uint8_t, 1>(range);
     error::wrap_c_api(dnnl_sycl_interop_memory_set_buffer(
                               amemory.get(), static_cast<void *>(&buf_u8)),
-            "could not set SYCL buffer object");
+            err_message_list::set_failure("SYCL buffer object"));
 }
 
 /// Returns the memory allocation kind associated with a memory object.
@@ -204,7 +204,7 @@ inline memory_kind get_memory_kind(const memory &amemory) {
     dnnl_sycl_interop_memory_kind_t ckind;
     error::wrap_c_api(
             dnnl_sycl_interop_memory_get_memory_kind(amemory.get(), &ckind),
-            "could not get memory kind");
+            err_message_list::get_failure("memory kind"));
     return static_cast<memory_kind>(ckind);
 }
 
@@ -246,7 +246,7 @@ inline memory make_memory(const memory::desc &memory_desc,
             dnnl_sycl_interop_memory_create_v2(&c_memory, memory_desc.get(),
                     aengine.get(), convert_to_c(kind), (int)handles.size(),
                     handles.data()),
-            "could not create a memory");
+            err_message_list::init_error("memory"));
     return memory(c_memory);
 }
 
@@ -320,7 +320,7 @@ inline memory make_memory(const memory::desc &memory_desc,
     error::wrap_c_api(
             dnnl_sycl_interop_memory_create(&c_memory, memory_desc.get(),
                     aengine.get(), convert_to_c(kind), handle),
-            "could not create a memory");
+            err_message_list::init_error("memory"));
     return memory(c_memory);
 }
 #endif
@@ -369,7 +369,7 @@ inline sycl::event execute(const dnnl::primitive &aprimitive,
     error::wrap_c_api(
             dnnl_sycl_interop_primitive_execute(aprimitive.get(), astream.get(),
                     (int)c_args.size(), c_args.data(), &deps, &return_event),
-            "could not execute a primitive");
+            err_message_list::execute_error("primitive"));
     return return_event;
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ inline dnnl::stream make_stream(
     dnnl_stream_t c_stream;
     dnnl::error::wrap_c_api(dnnl_threadpool_interop_stream_create(
                                     &c_stream, aengine.get(), threadpool),
-            "could not create stream");
+            err_message_list::init_error("stream"));
     return dnnl::stream(c_stream);
 }
 
@@ -66,7 +66,7 @@ inline threadpool_iface *get_threadpool(const dnnl::stream &astream) {
     void *tp;
     dnnl::error::wrap_c_api(
             dnnl_threadpool_interop_stream_get_threadpool(astream.get(), &tp),
-            "could not get stream threadpool");
+            err_message_list::get_failure("stream threadpool"));
     return static_cast<threadpool_iface *>(tp);
 }
 
