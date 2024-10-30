@@ -39,23 +39,21 @@ compute::range_t get_optimal_lws(compute::range_t &gws,
             = {256, 224, 192, 160, 128, 96, 64, 32, 16, 8, 7, 6, 5, 4, 3, 2, 1};
     size_t total_lws = 1;
 
-    compute::range_t gws_copy = gws;
-    auto lws = compute::range_t::one(gws_copy.ndims());
+    auto lws = compute::range_t::one(gws.ndims());
 
     // Iterate through global work size and calculate max divisor from
     // the array optimal_lws_values.
-    for (size_t i = 0; i < gws_copy.ndims(); ++i) {
+    for (size_t i = 0; i < gws.ndims(); ++i) {
         auto rest_lws = lws_max / total_lws;
         size_t lws_idx = 0;
         while (rest_lws < optimal_lws_values[lws_idx])
             lws_idx++;
 
-        while (gws_copy[i] % optimal_lws_values[lws_idx])
+        while (gws[i] % optimal_lws_values[lws_idx])
             lws_idx++;
 
         lws[i] *= optimal_lws_values[lws_idx];
         total_lws *= optimal_lws_values[lws_idx];
-        gws_copy[i] /= optimal_lws_values[lws_idx];
     }
 
     // Temporary WA for HW/Compiler walk order issue:
