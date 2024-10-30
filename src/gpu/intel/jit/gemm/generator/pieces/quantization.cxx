@@ -331,7 +331,7 @@ void BLASKernelGenerator<hw>::gemmDequantizeOperation(bool doA, Type T, Type To,
             }
 
             int maxSIMD = (op == BinaryOp::Sub && T.isInt8()) ? 64 : 32;
-            if(To == Type::f32) maxSIMD = 16;
+            if (To == Type::f32) maxSIMD = elementsPerGRF(hw, To);
             int simd = std::min({ne * crosspack / strided, 2 * elementsPerGRF(hw, T) / strided, maxSIMD});
             switch (op) {
                 case BinaryOp::Sub:
