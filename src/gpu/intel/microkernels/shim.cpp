@@ -125,6 +125,8 @@ const char *typeName(
             case StructuredType::u32: return "uint";
             case StructuredType::u16: return "ushort";
             case StructuredType::u8: return "uchar";
+            case StructuredType::s4: return "uchar";
+            case StructuredType::u4: return "uchar";
             case StructuredType::f64: return "double";
             case StructuredType::f32: return "float";
             case StructuredType::f16: return "half";

@@ -306,6 +306,8 @@ static inline micro::StructuredType::Type microType(Type T)
         CASE(u32)
         CASE(u16)
         CASE(u8)
+        CASE(s4)
+        CASE(u4)
         default: stub("Unsupported type");
     }
 #undef CASE
