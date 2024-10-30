@@ -31,7 +31,7 @@ namespace intel {
 namespace compute {
 
 // Compute optimal local work size for the given global work size.
-compute::range_t get_optimal_lws(const compute::range_t &gws,
+compute::range_t get_optimal_lws(compute::range_t &gws,
         const int mapped_vec_dim_idx, const gpu_arch_t gpu_arch) {
     const size_t lws_max = 256;
     // Factors in descending order, prefer bigger sizes for local work size.

@@ -318,7 +318,7 @@ struct lws_strategy_t {
     virtual ~lws_strategy_t() = default;
 
     virtual range_t create_lws(
-            const range_t &gws, const gws_bin_mapping_t &mapper) const = 0;
+            range_t &gws, const gws_bin_mapping_t &mapper) const = 0;
 
     // Determine if a given block (mapped to each buffer) should be in the lws.
     // Gets called for each block dispatched to the GWS.
@@ -341,8 +341,8 @@ struct default_lws_strategy_t : public lws_strategy_t {
     default_lws_strategy_t(const compute_engine_t *engine,
             const gpu_primitive_attr_t *gpu_attr)
         : lws_strategy_t(engine, gpu_attr) {};
-    range_t create_lws(const range_t &gws,
-            const gws_bin_mapping_t &mapper) const override {
+    range_t create_lws(
+            range_t &gws, const gws_bin_mapping_t &mapper) const override {
         range_t lws
                 = get_optimal_lws(gws, -1, engine->device_info()->gpu_arch());
         return lws;
@@ -616,7 +616,7 @@ public:
         add_(bin, gws_.ndims() - 1);
     }
 
-    nd_range_t nd_range(const lws_strategy_t &lws_strategy) const {
+    nd_range_t nd_range(const lws_strategy_t &lws_strategy) {
         range_t lws = lws_strategy.create_lws(gws_, *this);
         return compute::nd_range_t(gws_, lws);
     }
