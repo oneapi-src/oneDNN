@@ -548,12 +548,9 @@ public:
 
     bool is_empty() const { return params_vec_.empty(); }
 
-    bool can_move_next() const { return cur_idx_ + 1 < configs(); }
+    bool is_valid() const { return cur_idx_ < configs(); }
 
-    void move_next() {
-        ir_assert(can_move_next());
-        cur_idx_++;
-    }
+    void move_next() { cur_idx_++; }
 
     int cur_index() const { return cur_idx_; }
 
@@ -614,7 +611,7 @@ private:
             blocking_checker_t &chk, int tune_level, int simd_size);
 
     std::vector<blocking_params_t> params_vec_;
-    int cur_idx_ = -1;
+    int cur_idx_ = 0;
 };
 
 enum class tiler_mode_t {

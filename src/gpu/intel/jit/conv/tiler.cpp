@@ -1255,12 +1255,9 @@ public:
         maybe_rescore();
     }
 
-    bool can_move_next() const { return params_gen_.can_move_next(); }
+    bool is_valid() const { return params_gen_.is_valid(); }
 
-    void move_next() {
-        ir_assert(can_move_next());
-        params_gen_.move_next();
-    }
+    void move_next() { params_gen_.move_next(); }
 
     int cur_index() const { return params_gen_.cur_index(); }
 
@@ -1423,6 +1420,13 @@ std::unordered_map<const impl::primitive_t *, conv_tuner_t::primitive_info_t>
 
 std::mutex conv_tuner_t::mutex_;
 
+enum class grf_mode_policy_t {
+    // Try 128 GRF mode based on heuristics.
+    try_small_grf = 0,
+    // Use default_regs().
+    _default = 1
+};
+
 class conv_tiler_impl_t {
 public:
     conv_tiler_impl_t() = default;
@@ -1445,30 +1449,46 @@ public:
 
     bool is_tuning_mode() const { return tuner_; }
 
-    bool can_move_next() const {
-        if (is_tuning_mode()) return tuner_->can_move_next();
-        return params_gen_.can_move_next();
+    bool is_valid() const {
+        if (is_tuning_mode()) return tuner_->is_valid();
+        return params_gen_.is_valid();
     }
 
-    int cur_index() const {
-        if (is_tuning_mode()) return tuner_->cur_index();
-        return params_gen_.cur_index();
+    void move_next(const conv_config_t &cfg) {
+        if (is_tuning_mode()) {
+            tuner_->move_next();
+            return;
+        }
+        if (grf_mode_policy_ == grf_mode_policy_t::try_small_grf
+                && cfg.regs() != default_regs(cfg)) {
+            grf_mode_policy_ = grf_mode_policy_t::_default;
+            return;
+        }
+        grf_mode_policy_ = grf_mode_policy_t::try_small_grf;
+        params_gen_.move_next();
     }
 
-    void set_cur_index(int idx) {
+    int32_t cur_version() const {
+        return pack_version(is_tuning_mode() ? tuner_->cur_index()
+                                             : params_gen_.cur_index(),
+                grf_mode_policy_);
+    }
+
+    void set_cur_version(int32_t version) {
         ir_assert(!is_tuning_mode());
-        return params_gen_.set_cur_index(idx);
+        int idx;
+        unpack_version(version, idx, grf_mode_policy_);
+        params_gen_.set_cur_index(idx);
     }
 
     void set_params(conv_config_t &cfg) {
         init_regs(cfg);
         if (is_tuning_mode()) {
-            tuner_->move_next();
             tuner_->set_params(cfg);
         } else {
-            if (!try_small_grf_) params_gen_.move_next();
             params_gen_.set_params(cfg);
-            maybe_try_small_grf(cfg);
+            if (grf_mode_policy_ == grf_mode_policy_t::try_small_grf)
+                maybe_try_small_grf(cfg);
         }
     }
 
@@ -1492,6 +1512,16 @@ public:
     }
 
 private:
+    static int32_t pack_version(int idx, grf_mode_policy_t policy) {
+        return idx * 2 + static_cast<int>(policy);
+    }
+
+    static void unpack_version(
+            int32_t version, int &idx, grf_mode_policy_t &policy) {
+        idx = version / 2;
+        policy = static_cast<grf_mode_policy_t>(version % 2);
+    }
+
     void init(const conv_config_t &cfg) {
         if (cfg.loop_dims().is_overridden()
                 || cfg.thread_group_dims().is_overridden()
@@ -1557,6 +1587,8 @@ private:
     }
 
     void maybe_try_small_grf(conv_config_t &cfg) {
+        if (cfg.regs() == 128 || cfg.exec_cfg_param().is_overridden("regs"))
+            return;
         auto try_cfg = cfg;
         init_walk_order(try_cfg);
         init_kernel_grid(try_cfg);
@@ -1568,14 +1600,7 @@ private:
                 try_cfg.exec_cfg(), kg_elems, tg_elems);
         int wave_util = conv_config_t::get_wave_utilization(
                 cfg.exec_cfg(), kg_elems, tg_elems);
-        if (wave_util > 90 && new_wave_util >= wave_util && !try_small_grf_
-                && cfg.regs() > 128
-                && !cfg.exec_cfg_param().is_overridden("regs")) {
-            cfg.set_regs(128);
-            try_small_grf_ = true;
-        } else {
-            try_small_grf_ = false;
-        }
+        if (wave_util > 90 && new_wave_util >= wave_util) cfg.set_regs(128);
     }
 
     void print_info(double init_time_ms) {
@@ -1589,7 +1614,7 @@ private:
     params_generator_t params_gen_;
     conv_tuner_t *tuner_ = nullptr;
     int grf_usage_limit_ = 0;
-    bool try_small_grf_ = false;
+    grf_mode_policy_t grf_mode_policy_ = grf_mode_policy_t::try_small_grf;
 };
 
 conv_tiler_t::conv_tiler_t(const conv_config_t &cfg)
@@ -1603,16 +1628,20 @@ bool conv_tiler_t::is_tuning_mode() const {
     return impl_->is_tuning_mode();
 }
 
-bool conv_tiler_t::can_move_next() const {
-    return impl_->can_move_next();
+bool conv_tiler_t::is_valid() const {
+    return impl_->is_valid();
 }
 
-int conv_tiler_t::cur_index() const {
-    return impl_->cur_index();
+void conv_tiler_t::move_next(const conv_config_t &cfg) {
+    impl_->move_next(cfg);
 }
 
-void conv_tiler_t::set_cur_index(int idx) {
-    impl_->set_cur_index(idx);
+int32_t conv_tiler_t::cur_version() const {
+    return impl_->cur_version();
+}
+
+void conv_tiler_t::set_cur_version(int32_t version) {
+    impl_->set_cur_version(version);
 }
 
 void conv_tiler_t::set_params(conv_config_t &cfg) {
