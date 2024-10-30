@@ -1756,13 +1756,14 @@ status_t init_cfg(conv_config_t &cfg, const primitive_t *prim) {
     static std::mutex tune_mutex;
     std::unique_lock<std::mutex> lock(tune_mutex, std::defer_lock_t());
     if (cfg.tiler().is_tuning_mode()) lock.lock();
-    while (cfg.tiler().can_move_next()) {
+    while (cfg.tiler().is_valid()) {
         auto try_cfg = cfg;
         auto status = try_init_cfg(try_cfg);
         if (status == status::success) {
             cfg = std::move(try_cfg);
             return status::success;
         }
+        cfg.tiler().move_next(cfg);
     }
     return status::runtime_error;
 }
