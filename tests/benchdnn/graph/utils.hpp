@@ -220,5 +220,25 @@ inline double GB(double bytes) {
     return bytes / powf(2, 30);
 }
 
+struct graph_fpmath_mode_t {
+    graph_fpmath_mode_t() = default;
+    graph_fpmath_mode_t(const std::string &mode, bool apply_to_int,
+            bool override_json_value)
+        : mode_(mode)
+        , apply_to_int_(apply_to_int)
+        , override_json_value_(override_json_value) {}
+
+    bool operator==(const graph_fpmath_mode_t &rhs) const {
+        return mode_ == rhs.mode_ && apply_to_int_ == rhs.apply_to_int_
+                && override_json_value_ == rhs.override_json_value_;
+    }
+
+    std::string mode_ = "strict";
+    bool apply_to_int_ = false;
+    // Since fpmath_mode doesn't provide an "undef" value that would indicate
+    // it was not set externally to the json case, need to maintain this flag.
+    bool override_json_value_ = false;
+};
+
 } // namespace graph
 #endif

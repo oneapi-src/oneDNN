@@ -1,8 +1,8 @@
---reset --case=pattern/int8/int8_bf16_matmul.json
+--reset --attr-fpmath=strict:false,bf16:false,tf32:false --case=pattern/int8/int8_bf16_matmul.json
 --reset --case=pattern/int8/int8_bf16_matmul_mul_add_fusion.json
 --reset --case=pattern/int8/int8_bf16_matmul_post_ops_fusion.json
 --reset --case=pattern/int8/int8_concat_fusion.json
---reset --case=pattern/int8/int8_conv_bias_fusion.json
+--reset --attr-fpmath=strict:false,bf16:false,tf32:false --case=pattern/int8/int8_conv_bias_fusion.json
 --reset --case=pattern/int8/int8_conv_post_ops_fusion.json
 --reset --case=pattern/int8/int8_conv_post_ops_int8_add_fusion.json
 --reset --case=pattern/int8/int8_convtranspose_post_ops_fusion.json
@@ -12,7 +12,7 @@
 --reset --case=pattern/int8/int8_matmul_sum_add_mul_relu.json
 --reset --case=pattern/int8/int8_bf16_matmul_add_mul_relu.json
 --reset --case=pattern/int8/int8_bf16_matmul_sum_add_mul_relu.json
---reset --case=pattern/int8/int8_avgpool_reshape_fusion.json
+--reset --attr-fpmath=strict:false,bf16:false,tf32:false --case=pattern/int8/int8_avgpool_reshape_fusion.json
 --reset --case=pattern/int8/int8_avgpool_transpose_fusion.json
 --reset --case=pattern/int8/int8_bf16_conv_add_relu_mul.json
 --reset --case=pattern/int8/int8_bf16_matmul_tc_add_quant_fusion.json

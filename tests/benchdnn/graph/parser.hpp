@@ -23,6 +23,7 @@
 #include "allocator.hpp"
 #include "dnnl_common.hpp"
 #include "oneapi/dnnl/dnnl_graph.hpp"
+#include "utils.hpp"
 
 extern dnnl_engine_kind_t engine_tgt_kind;
 
@@ -39,7 +40,7 @@ bool parse_graph_expected_n_partitions(
         std::vector<size_t> &expected_n_partition_vec, const char *str);
 
 bool parse_graph_fpmath_mode(
-        std::vector<std::string> &fpmath_mode_vec, const char *str);
+        std::vector<graph_fpmath_mode_t> &fpmath_mode_vec, const char *str);
 
 bool parse_input_file(std::string &json_file, const char *str);
 

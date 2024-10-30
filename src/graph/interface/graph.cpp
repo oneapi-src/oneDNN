@@ -280,6 +280,29 @@ status_t DNNL_API dnnl_graph_graph_destroy(graph_t *graph) {
     return status::success;
 }
 
+status_t dnnl_graph_graph_set_fpmath_mode(
+        dnnl_graph_graph_t graph, dnnl_fpmath_mode_t mode, int apply_to_int) {
+
+    if (graph == nullptr) { return status::invalid_arguments; }
+
+    if (graph->is_finalized()) { return status::invalid_graph; }
+
+    return graph->set_fpmath_mode(mode, apply_to_int);
+}
+
+status_t dnnl_graph_graph_get_fpmath_mode(
+        dnnl_graph_graph_t graph, dnnl_fpmath_mode_t *mode, int *apply_to_int) {
+
+    if (graph == nullptr) { return status::invalid_arguments; }
+    if (graph->is_finalized()) { return status::invalid_graph; }
+
+    const auto &fpmath = graph->get_fpmath_mode();
+    if (mode) *mode = fpmath.mode_;
+    if (apply_to_int) *apply_to_int = fpmath.apply_to_int_;
+
+    return status::success;
+}
+
 status_t DNNL_API dnnl_graph_add_op(graph_t *graph, op_t *op) {
     if (graph == nullptr || op == nullptr) { return status::invalid_arguments; }
 

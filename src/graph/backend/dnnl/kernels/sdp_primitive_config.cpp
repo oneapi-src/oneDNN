@@ -169,8 +169,12 @@ status_t sdp_primitive_config_t::initial_check(
     if (in_lt.data_type != dnnl_data_type_t::dnnl_f16)
         return status::unimplemented;
 
-    auto find_graph_inport = [&inputs](const std::shared_ptr<value_t> &val) {
+    auto find_graph_inport = [&inputs](std::shared_ptr<value_t> val) {
         for (int i = 0; i < (int)inputs.size(); i++) {
+            // For GQA, it has producer such as static_reshape.
+            while (val->has_producer()) {
+                val = val->get_producer().get_input_value(0);
+            }
             if (val->get_logical_tensor().id == inputs[i].id) { return i; }
         }
         // If the corresponding input is not found, return an invalid value
@@ -218,7 +222,8 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
 
     auto &mgr = sg->fusion_info_mgr_;
     attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
-    attr.set_fpmath_mode(static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
+    attr.set_fpmath_mode(
+            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode().mode_));
 
     CHECK(create_sdpa_pd(sdpa_pd_, p_engine.get(), md_q.get(), md_k.get(),
             md_v.get(), md_dst.get(), md_mask.get(), scale_dt, invert_scale_,

@@ -77,7 +77,8 @@ bool get_graph_attr(const deserialized_op &base_op_ref,
         attr_t::fpmath_mode_t &arg_fpmath_mode) {
 
     const auto &fpmath_mode = base_op_ref.fpmath_mode_;
-    arg_fpmath_mode.set(str2fpmath_mode(fpmath_mode.c_str()));
+    arg_fpmath_mode.set(str2fpmath_mode(fpmath_mode.c_str()),
+            str2bool(base_op_ref.fpmath_mode_apply_to_int_.c_str()));
 
     return true;
 }
