@@ -48,8 +48,8 @@ struct single_subgroup_lws_strategy_t : public lws_strategy_t {
         : lws_strategy_t(engine, gpu_attr)
         , desired_sg_size(_desired_sg_size) {};
 
-    range_t create_lws(const range_t &gws,
-            const gws_bin_mapping_t &mapper) const override {
+    range_t create_lws(
+            range_t &gws, const gws_bin_mapping_t &mapper) const override {
         range_t lws = {desired_sg_size, 1, 1};
         return lws;
     }
