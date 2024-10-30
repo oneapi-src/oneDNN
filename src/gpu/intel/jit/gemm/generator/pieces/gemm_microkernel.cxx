@@ -179,7 +179,38 @@ micro::Package BLASKernelGenerator<hw>::gemmMicrokernelPackage(const GEMMProblem
         Argument arg;
         arg.name = parg.name;
 
-        if (arg.name == "c") {
+        /* Map microkernel argument name to gemmstone internal name (iname) */
+        auto iname = arg.name;
+
+        if (transposeC) {
+            if (iname == "a") iname = "b";
+            else if (iname == "b") iname = "a";
+            else if (iname == "lda") iname = "ldb";
+            else if (iname == "ldb") iname = "lda";
+            else if (iname == "m") iname = "n";
+            else if (iname == "n") iname = "m";
+            else if (iname == "i0") iname = "j0";
+            else if (iname == "j0") iname = "i0";
+            else if (iname == "local_id_m") iname = "local_id_n";
+            else if (iname == "local_id_n") iname = "local_id_m";
+            else if (iname == "a_scale") iname = "b_scale";
+            else if (iname == "b_scale") iname = "a_scale";
+            else if (iname == "a_offset") iname = "b_offset";
+            else if (iname == "b_offset") iname = "a_offset";
+            else if (iname == "ldaq") iname = "ldbq";
+            else if (iname == "ldbq") iname = "ldaq";
+        }
+
+        if (iname == "a") iname = "A";
+        else if (iname == "b") iname = "B";
+        else if (iname == "slm") iname = "slm_base";
+        else if (iname == "a_offset") iname = "ao_ptr";
+        else if (iname == "b_offset") iname = "bo_ptr";
+        else if (iname == "a_scale") iname = "a_scale_ptr";
+        else if (iname == "b_scale") iname = "b_scale_ptr";
+
+        /* Locate argument registers */
+        if (iname == "c") {
             int tileM = strategy.unroll[LoopM];
             int tileN = strategy.unroll[LoopN];
             int blockM = outputCLayout[0].nr;
@@ -224,42 +255,20 @@ micro::Package BLASKernelGenerator<hw>::gemmMicrokernelPackage(const GEMMProblem
             arg.sizes.block[0] = blockM;
             arg.sizes.block[1] = blockN;
         } else {
-            const char *aname = parg.name;
-            if (arg.name == "a") aname = "A";
-            if (arg.name == "b") aname = "B";
-            if (arg.name == "slm") aname = "slm_base";
-            if (arg.name == "a_offset") aname = "ao_ptr";
-            if (arg.name == "b_offset") aname = "bo_ptr";
-            if (arg.name == "a_scale") aname = "a_scale_ptr";
-            if (arg.name == "b_scale") aname = "b_scale_ptr";
-            auto reg = interface.getArgument(aname);
+            auto reg = interface.getArgument(iname);
             arg.location.resize(1);
             arg.location[0].boffset = reg.getBase() * GRF::bytes(hw) + reg.getByteOffset();
             arg.location[0].blen = reg.getBytes();
         }
 
-        if (arg.name == "a") arg.actualType = microType(problem.Ta_ext);
-        if (arg.name == "b") arg.actualType = microType(problem.Tb_ext);
-        if (arg.name == "c") arg.actualType = microType(problem.Tc);
-
-        if (transposeC) {
-            if (arg.name == "a") arg.name = "b";
-            else if (arg.name == "b") arg.name = "a";
-            else if (arg.name == "lda") arg.name = "ldb";
-            else if (arg.name == "ldb") arg.name = "lda";
-            else if (arg.name == "m") arg.name = "n";
-            else if (arg.name == "n") arg.name = "m";
-            else if (arg.name == "i0") arg.name = "j0";
-            else if (arg.name == "j0") arg.name = "i0";
-            else if (arg.name == "local_id_m") arg.name = "local_id_n";
-            else if (arg.name == "local_id_n") arg.name = "local_id_m";
-            else if (arg.name == "a_scale") arg.name = "b_scale";
-            else if (arg.name == "b_scale") arg.name = "a_scale";
-            else if (arg.name == "a_offset") arg.name = "b_offset";
-            else if (arg.name == "b_offset") arg.name = "a_offset";
-            else if (arg.name == "ldaq") arg.name = "ldbq";
-            else if (arg.name == "ldbq") arg.name = "ldaq";
-        }
+        /* Provide actual argument types */
+        if (iname == "A") arg.actualType = microType(problem.Ta_ext);
+        if (iname == "B") arg.actualType = microType(problem.Tb_ext);
+        if (iname == "c") arg.actualType = microType(problem.Tc);
+        if (iname == "ao_ptr") arg.actualType = microType(problem.Tao);
+        if (iname == "bo_ptr") arg.actualType = microType(problem.Tbo);
+        if (iname == "a_scale_ptr") arg.actualType = microType(problem.Ta_scale);
+        if (iname == "b_scale_ptr") arg.actualType = microType(problem.Tb_scale);
 
         package.arguments.push_back(std::move(arg));
     }

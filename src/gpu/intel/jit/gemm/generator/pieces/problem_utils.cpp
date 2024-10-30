@@ -37,6 +37,8 @@ void GEMMProblem::transpose()
     std::swap(aOffset, bOffset);
     std::swap(aoPtrDims, boPtrDims);
     std::swap(aScale2D, bScale2D);
+    std::swap(aqGroupM, bqGroupN);
+    std::swap(aqGroupK, bqGroupK);
     std::swap(sumA, sumB);
     std::swap(binaryRow, binaryCol);
     binaryTrans.flip();
@@ -48,6 +50,8 @@ void GEMMProblem::transpose()
     AO.transpose();
     BO.transpose();
     CO.transpose();
+    A_scale.transpose();
+    B_scale.transpose();
 }
 
 static inline void append(std::ostringstream &ss, const Scalar &x);

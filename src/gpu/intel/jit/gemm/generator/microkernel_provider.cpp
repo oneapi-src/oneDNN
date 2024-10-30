@@ -75,6 +75,8 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo, SizeP
         problem.transpose();
         std::swap(localA, localB);
         std::swap(sizes.m, sizes.n);
+        std::swap(scaleA, scaleB);
+        std::swap(offsetA, offsetB);
         for (auto &req: reqs)
             req.transpose();
     }
