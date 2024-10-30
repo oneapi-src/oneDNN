@@ -53,6 +53,7 @@
 #include "reorder_pd.hpp"
 #include "resampling_pd.hpp"
 #include "rnn_pd.hpp"
+#include "sdpa_pd.hpp"
 #include "shuffle_pd.hpp"
 #include "softmax_pd.hpp"
 #include "sum_pd.hpp"
@@ -1564,6 +1565,66 @@ std::string init_info_sum(const engine_t *e, const pd_t *pd) {
     return ss.str();
 }
 
+template <typename pd_t>
+std::string init_info_sdpa(const engine_t *e, const pd_t *pd) {
+    std::stringstream ss;
+    ss << e << "," << pd->kind() << "," << pd->name() << ",";
+
+    const sdpa_desc_t *desc = pd->desc();
+
+    // TODO: re-use the code from primitive_attr operator<<
+    auto print_zp = [&](std::ostream &ss, const zero_points_t &zp) {
+        for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+            if (zp.has_default_values(arg)) continue;
+
+            int mask = 0;
+            zp.get(arg, &mask);
+            const auto dt = zp.get_data_type(arg);
+
+            ss << arg2str(arg) << ":" << mask << ":" << dt;
+
+            const auto &g_ndim = zp.get_groups_ndims(arg);
+            if (g_ndim) {
+                const auto &g_dims = zp.get_groups(arg);
+                ss << ":";
+                for (int i = 0; i < g_ndim - 1; ++i)
+                    ss << g_dims[i] << 'x';
+                ss << g_dims[g_ndim - 1];
+            }
+        }
+        return std::ref(ss);
+    };
+
+    std::string delimiter;
+    if (!desc->kq_scales.has_default_values()) {
+        ss << delimiter << "kq_attr-scales:wei:" << desc->kq_scales;
+        delimiter = "+";
+    }
+    if (!desc->kq_zero_points.has_default_values()) {
+        ss << delimiter << "kq_attr-zero-points:";
+        print_zp(ss, desc->kq_zero_points);
+        delimiter = "+";
+    }
+    if (!desc->vs_scales.has_default_values()) {
+        ss << delimiter << "vs_attr-scales:wei:" << desc->vs_scales;
+        delimiter = "+";
+    }
+    if (!desc->vs_zero_points.has_default_values()) {
+        ss << delimiter << "vs_attr-zero-points:";
+        print_zp(ss, desc->vs_zero_points);
+        delimiter = "+";
+    }
+
+    ss << ",query:" << pd->qry_md()->data_type << ":"
+       << md2dim_str(pd->qry_md());
+    ss << ",key:" << pd->key_md()->data_type << ":" << md2dim_str(pd->key_md());
+    ss << ",val:" << pd->val_md()->data_type << ":" << md2dim_str(pd->val_md());
+    if (pd->with_attn_mask())
+        ss << ",msk:" << pd->attn_mask_md()->data_type << ":"
+           << md2dim_str(pd->attn_mask_md());
+    return ss.str();
+}
+
 } // namespace
 
 std::string rt_mds2str(primitive_kind_t prim_kind, const memory_desc_t *src_md,
@@ -1696,9 +1757,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(shuffle);
             CASE(softmax);
             CASE(sum);
-            case primitive_kind::sdpa:
-              str_ = "sdpa, unknown info";
-              break;
+            CASE(sdpa);
             case primitive_kind::zero_pad:
               str_ = "zero_pad, unknown info";
               break;
