@@ -37,37 +37,45 @@ compute::range_t get_optimal_lws(compute::range_t &gws,
     // Factors in descending order, prefer bigger sizes for local work size.
     const size_t optimal_lws_values[]
             = {256, 224, 192, 160, 128, 96, 64, 32, 16, 8, 7, 6, 5, 4, 3, 2, 1};
-    size_t total_lws = 1;
+    const size_t optimal_vect_values[] = {256, 128, 64, 32, 16, 8, 4, 2, 1};
 
-    auto lws = compute::range_t::one(gws.ndims());
+    auto match = [](const size_t *values, size_t gws_i, size_t max_lws_i) {
+        size_t lws_idx = 0;
+        while (max_lws_i < values[lws_idx])
+            lws_idx++;
+        while (gws_i % values[lws_idx])
+            lws_idx++;
+        return values[lws_idx];
+    };
+
+    // Starting from XE_HP subgroups may not be contained in lws[0] when lws[0]
+    // is not a power of 2. To account for this, we consider multiple allocation
+    // strategies which require subgroups to be contained in lws[0] and take the
+    // best outcome.
+
+    auto lws_1d = [&]() {
+        auto ret = compute::range_t::one(gws.ndims());
+        ret[0] = match(optimal_lws_values, gws[0], lws_max);
+        return ret;
+    }();
+
+    auto lws_nd = compute::range_t::one(gws.ndims());
+    size_t total_lws = 1;
 
     // Iterate through global work size and calculate max divisor from
     // the array optimal_lws_values.
     for (size_t i = 0; i < gws.ndims(); ++i) {
         auto rest_lws = lws_max / total_lws;
-        size_t lws_idx = 0;
-        while (rest_lws < optimal_lws_values[lws_idx])
-            lws_idx++;
+        auto lws_i = (static_cast<size_t>(mapped_vec_dim_idx) == i
+                             && gpu_arch >= gpu_arch_t::xe_hp)
+                ? match(optimal_vect_values, gws[i], rest_lws)
+                : match(optimal_lws_values, gws[i], rest_lws);
 
-        while (gws[i] % optimal_lws_values[lws_idx])
-            lws_idx++;
-
-        lws[i] *= optimal_lws_values[lws_idx];
-        total_lws *= optimal_lws_values[lws_idx];
+        lws_nd[i] *= lws_i;
+        total_lws *= lws_i;
     }
 
-    // Temporary WA for HW/Compiler walk order issue:
-    // starting from XE_HP, if LWS vectorized dim is not power of 2
-    // it may generate sub_groups with inconsecutive SIMD elements.
-    // TODO: remove it when the original issue fixed
-    if (mapped_vec_dim_idx != -1 && gpu_arch >= gpu_arch_t::xe_hp) {
-        if (!math::is_pow2(lws[mapped_vec_dim_idx])) {
-            for (size_t i = 0; i < lws.ndims(); i++) {
-                if (i != (size_t)mapped_vec_dim_idx) lws[i] = 1;
-            }
-        }
-    }
-    return lws;
+    return lws_nd.nelems() >= lws_1d.nelems() ? lws_nd : lws_1d;
 }
 
 dispatch_t::dispatch_t(const compute_engine_t *engine, const memory_desc_t *md)
