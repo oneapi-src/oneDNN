@@ -32,8 +32,8 @@ namespace gpu {
 namespace intel {
 namespace compute {
 
-range_t get_optimal_lws(
-        range_t &gws, const int mapped_vec_dim_idx, const gpu_arch_t gpu_arch);
+range_t get_optimal_lws(range_t &gws, const dim_idx_t mapped_vec_dim_idx,
+        const gpu_arch_t gpu_arch);
 
 class compute_engine_t;
 
