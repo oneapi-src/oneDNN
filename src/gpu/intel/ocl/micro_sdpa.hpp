@@ -131,6 +131,19 @@ struct micro_sdpa_t : public gpu_primitive_t {
                     DNNL_ARG_WEIGHTS));
         }
 
+        data_type_t key_scales_dt() const {
+            return desc()->kq_scales.data_type_;
+        }
+        data_type_t key_zp_dt() const {
+            return desc()->kq_zero_points.get_data_type(DNNL_ARG_WEIGHTS);
+        }
+        data_type_t value_scales_dt() const {
+            return desc()->vs_scales.data_type_;
+        }
+        data_type_t value_zp_dt() const {
+            return desc()->vs_zero_points.get_data_type(DNNL_ARG_WEIGHTS);
+        }
+
         dim_t key_group_size() const {
             if (with_key_scales() && desc()->kq_scales.ndims_ > 0)
                 return desc()->kq_scales.group_dims_[0];
