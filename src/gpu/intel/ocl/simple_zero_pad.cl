@@ -131,7 +131,7 @@ __kernel void simple_zero_pad(__global void *a, ulong type_size,
 }
 
 __attribute__((intel_reqd_sub_group_size(16))) __kernel void
-simple_zero_pad_subg_16(__global void *a, const uint type_size,
+simple_zero_pad_subg_16(__global char *a, const uint type_size,
         const ulong base_offset, const ulong b_block_size,
         const ulong b_block_offset, const ulong d0_stride,
         const ulong d1_stride, const ulong d2_stride, const ulong d3_stride,
@@ -148,7 +148,7 @@ simple_zero_pad_subg_16(__global void *a, const uint type_size,
     const unsigned d1_dim = mixed_dims % d1_size;
     const unsigned d0_dim = mixed_dims / d1_size;
 
-    __global void *p = a + base_offset;
+    __global char *p = a + base_offset;
     p += a_block_id * b_block_size;
     p += b_block_id * b_block_offset;
     p += d0_dim * d0_stride;
@@ -178,7 +178,7 @@ simple_zero_pad_subg_16(__global void *a, const uint type_size,
 
 __attribute__((intel_reqd_sub_group_size(16))) __kernel void
 simple_zero_pad_subg_16_mask_and_clear_dt_1b(
-        __global void *a, const uint mask) {
+        __global char *a, const uint mask) {
     const uint block_size = 8;
     const uint data_stride = 32;
     const uint simd = 16;
@@ -186,7 +186,7 @@ simple_zero_pad_subg_16_mask_and_clear_dt_1b(
     const ulong offset = get_global_id(0) * block_size;
     const unsigned subg_local_id = get_sub_group_local_id();
 
-    __global void *p = a + offset;
+    __global char *p = a + offset;
 
     const uint mask_val = mask > subg_local_id ? 1 : 0;
 

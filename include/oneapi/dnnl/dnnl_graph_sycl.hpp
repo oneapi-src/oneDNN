@@ -68,7 +68,7 @@ inline allocator make_allocator(dnnl_graph_sycl_allocate_f sycl_malloc,
     dnnl_graph_allocator_t c_allocator = nullptr;
     error::wrap_c_api(dnnl_graph_sycl_interop_allocator_create(
                               &c_allocator, sycl_malloc, sycl_free),
-            "could not create allocator for sycl device");
+            err_message_list::init_error("allocator for sycl device"));
     return allocator(c_allocator);
 }
 
@@ -79,7 +79,7 @@ inline engine make_engine_with_allocator(const sycl::device &adevice,
             dnnl_graph_sycl_interop_make_engine_with_allocator(&c_engine,
                     static_cast<const void *>(&adevice),
                     static_cast<const void *>(&acontext), alloc.get()),
-            "could not make an engine with allocator");
+            err_message_list::init_error("engine with allocator"));
     return engine(c_engine);
 }
 
@@ -111,8 +111,9 @@ inline sycl::event execute(compiled_partition &c_partition, stream &astream,
                               c_partition.get(), astream.get(), c_inputs.size(),
                               c_inputs.data(), c_outputs.size(),
                               c_outputs.data(), &deps, &sycl_event),
-            "could not execute the compiled_partition on a specified sycl "
-            "stream");
+            err_message_list::execute_error(
+                    "compiled_partition on a specified sycl "
+                    "stream"));
     return sycl_event;
 }
 

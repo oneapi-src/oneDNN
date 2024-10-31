@@ -68,9 +68,6 @@ public:
     void add(const prb_reqs_t &other);
     void add(const pvar_map_t<dim_t> &sizes);
     void set(const pvar_t &dim, dim_t value);
-    // Mark the dimension as being divisible by any number - this changes
-    // behavior of methods like can_prove() and max_factor().
-    void set_any_mod(const pvar_t &dim);
     prover_t prover(const prb_reqs_t &parent, bool can_update = true);
 
     explicit operator bool() const { return !reqs_.empty(); }
@@ -83,7 +80,7 @@ public:
     // For example: prb_reqs_t(oc % 64 == 0) implies (oc % 16) == 0 so the
     // latter can be proven from the original requirements.
     bool can_prove(const expr_t &to_prove) const;
-    bool can_prove(const req_impl_t &to_prove, bool use_any_mod = false) const;
+    bool can_prove(const req_impl_t &to_prove) const;
     bool get_value(const pvar_t &dim, dim_t &value) const;
     dim_t max_factor(const pvar_t &dim) const;
     bool is_equal(const pvar_t &dim, dim_t value) const;
@@ -124,9 +121,6 @@ private:
     void add_if_not_found(const req_impl_t &new_req);
 
     std::vector<req_t> reqs_;
-    // List of dimensions that are treated as having any arbitrary factors
-    // during proving.
-    std::vector<pvar_t> any_mods_;
 };
 
 } // namespace v2

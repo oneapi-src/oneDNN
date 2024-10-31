@@ -446,7 +446,7 @@ dnnl::graph::graph deserialized_graph::to_graph(
             g.add_op(aop.create());
         } catch (const dnnl::error &e) {
             BENCHDNN_PRINT(0, "Error: Adding op %s failed: %s\n",
-                    aop.name_.c_str(), e.message);
+                    aop.name_.c_str(), e.message.c_str());
             SAFE_V(FAIL);
         }
     }

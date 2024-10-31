@@ -681,10 +681,6 @@ void prb_reqs_t::set(const pvar_t &pvar, dim_t value) {
     add(pvar.var() == value);
 }
 
-void prb_reqs_t::set_any_mod(const pvar_t &pvar) {
-    any_mods_.push_back(pvar);
-}
-
 void prb_reqs_t::add_if_not_found(const req_impl_t &new_req) {
     for (auto &r : reqs_) {
         if (r.impl() == new_req) return;
@@ -900,7 +896,7 @@ bool prb_reqs_t::can_prove(const expr_t &to_prove) const {
     return can_prove(req_impl_t(e));
 }
 
-bool prb_reqs_t::can_prove(const req_impl_t &to_prove, bool use_any_mod) const {
+bool prb_reqs_t::can_prove(const req_impl_t &to_prove) const {
     for (auto &r : reqs_) {
         if (r.impl().can_prove(to_prove)) return true;
     }
@@ -908,11 +904,6 @@ bool prb_reqs_t::can_prove(const req_impl_t &to_prove, bool use_any_mod) const {
         int mod = 1;
         for (int i = 0; i < to_prove.lhs().size(); i++) {
             auto &lhs_pvar = to_prove.lhs()[i];
-            if (use_any_mod) {
-                for (auto &pvar : any_mods_) {
-                    if (pvar == lhs_pvar) return true;
-                }
-            }
             mod *= max_factor(lhs_pvar);
         }
         if (mod % to_prove.rhs().value() == 0) return true;
@@ -971,7 +962,7 @@ bool prover_t::require(const expr_t &_e) const {
     if (auto *imm = e.as_ptr<bool_imm_t>()) return imm->value;
 
     req_impl_t ri(e);
-    bool is_true = (parent_ && parent_->can_prove(ri, /*use_any_mod=*/true));
+    bool is_true = (parent_ && parent_->can_prove(ri));
     if (!is_true && !can_update_) return false;
     reqs_->add_if_not_found(ri);
     return true;

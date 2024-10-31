@@ -461,7 +461,7 @@ pvar_tile_t expand_tile(
         prop_kind_t prop, const prb_reqs_t &reqs, const pvar_tile_t &_tile) {
     pvar_tile_t tile = _tile;
     for (auto &d : conv_index_dims(prop)) {
-        int mod = reqs.max_factor(d);
+        dim_t mod = reqs.max_factor(d);
         mod = math::lcm(mod, tile.get(d, 1));
         if (mod == 1) continue;
         tile[d] = mod;

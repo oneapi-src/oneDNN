@@ -57,20 +57,23 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
     gemmInitState(problem, strategy, state);
 
     // Transfer surface indices to strategy AddressBases.
-    if (!strategy.A.base.isStateless()) strategy.A.base.setIndex(state.inputs.surfaceA);
-    if (!strategy.B.base.isStateless()) strategy.B.base.setIndex(state.inputs.surfaceB);
-    if (!strategy.C.base.isStateless()) {
-        strategy.C.base.setIndex(state.inputs.surfaceC[0]);
-        if (state.C_count > 1) stub();
-        if (state.useTempC)
-            state.tempCStrategy.base.setIndex(state.inputs.surfaceTempC);
-    }
-    if (problem.usesCO() && !strategy.CO.base.isStateless())
-        strategy.CO.base.setIndex(state.inputs.surfaceCO);
+    strategy.A.assignSurface(state.inputs.surfaceA);
+    strategy.B.assignSurface(state.inputs.surfaceB);
+    strategy.C.assignSurface(state.inputs.surfaceC[0]);
+
+    if (!strategy.C.base.isStateless() && state.C_count > 1) stub();
+    if (state.useTempC)
+        state.tempCStrategy.assignSurface(state.inputs.surfaceTempC);
+    if (problem.usesCO())
+        strategy.CO.assignSurface(state.inputs.surfaceCO);
 
     for (size_t i = 0; i < strategy.binary.size(); i++)
-        if (!strategy.binary[i].base.isStateless())
-            strategy.binary[i].base.setIndex(state.inputs.binarySurfaces[i]);
+        strategy.binary[i].assignSurface(state.inputs.binarySurfaces[i]);
+
+    strategy.AO.assignSurface(state.inputs.surfaceAO);
+    strategy.BO.assignSurface(state.inputs.surfaceBO);
+    strategy.A_scale.assignSurface(state.inputs.surfaceAScale);
+    strategy.B_scale.assignSurface(state.inputs.surfaceBScale);
 
     // Prologue.
     if (!inFusedGEMM)
@@ -142,28 +145,16 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
 
     // Surface handling for quantization parameters.
     auto replace0 = [&](Subregister &s) {
-        if (s.isValid()) {
+        if (s.isValid())
             state.ra.release(s);
-            s = state.ra.alloc_sub<uint32_t>();
-            mov(1, s, 0);
-        }
+        s = state.ra.alloc_sub<uint32_t>();
+        mov(1, s, 0);
     };
 
-    state.A_offsetStrategy.base = A64;
-    state.B_offsetStrategy.base = A64;
-    state.A_scaleStrategy.base = A64;
-    state.B_scaleStrategy.base = A64;
-
-    if (problem.quantized2DA() && !strategy.A.base.isStateless()) {
-        if (problem.aoPtrDims == 2) replace0(state.inputs.aoPtr);
-        replace0(state.inputs.aScalePtr);
-        state.A_offsetStrategy.base = state.A_scaleStrategy.base = AddressBase::createBTS(0);
-    }
-    if (problem.quantized2DB() && !strategy.B.base.isStateless()) {
-        if (problem.boPtrDims == 2) replace0(state.inputs.boPtr);
-        replace0(state.inputs.bScalePtr);
-        state.B_offsetStrategy.base = state.B_scaleStrategy.base = AddressBase::createBTS(0);
-    }
+    if (!strategy.AO.base.isStateless() && problem.aoPtrDims == 2) replace0(state.inputs.aoPtr);
+    if (!strategy.A_scale.base.isStateless())                      replace0(state.inputs.aScalePtr);
+    if (!strategy.BO.base.isStateless() && problem.boPtrDims == 2) replace0(state.inputs.boPtr);
+    if (!strategy.B_scale.base.isStateless())                      replace0(state.inputs.bScalePtr);
 
     // A/B offset pointer handling.
     bool aOffset = (problem.aOffset != ABOffset::None);

@@ -386,13 +386,14 @@ protected:
     SubregisterPair lookupIncrement(const LDIncrements &increments, const SubregisterPair &base, int scale, const CommonStrategy &strategy, CommonState &state, bool *release = nullptr);
     void gemmFreeIncrements(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, bool doA = true, bool doB = true);
     void gemmCalcIncrements(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, int ka_load = 0, int kb_load = 0, bool doA = true, bool doB = true);
+    void gemmCalcQuantizationIncrements(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     ngen::Subregister gemmMNLinearID(const GEMMStrategy &strategy, GEMMState &state);
     void gemmCalcWorkshareAOffset(ngen::Subregister &off, ngen::Subregister &offR, ngen::Subregister &offC, const MatrixAddressing &A, const MatrixAddressingStrategy &A_strategy, int ma, int ka, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmCalcWorkshareBOffset(ngen::Subregister &off, ngen::Subregister &offR, ngen::Subregister &offC, const MatrixAddressing &B, const MatrixAddressingStrategy &B_strategy, int kb, int nb, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     bool gemmPrepMaskedAB(const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     void gemmSLMRemask(bool remaskA, bool remaskB, GRFMultirange &Ao_regs, GRFMultirange &Bo_regs, int kOffset, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     // quantization.cpp
-    bool gemmMake2DQuantizationLayouts(bool isA, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
+    bool gemmMake2DQuantizationLayouts(bool isA, const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     void gemmRepack2DQuantizationData(Type Ts, Type Td, const std::vector<RegisterBlock> &layoutSrc, const std::vector<RegisterBlock> &layoutDst, const GRFMultirange &src, const GRFMultirange &dst, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmRepack2DOffsetData(Type Text, Type Ts, Type Td, const std::vector<RegisterBlock> &layoutSrc, const std::vector<RegisterBlock> &layoutDst, const GRFMultirange &src, const GRFMultirange &dst, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void dequantizeInt4Shift(Type Tsrc, GRFMultirange src, const CommonStrategy &strategy);
