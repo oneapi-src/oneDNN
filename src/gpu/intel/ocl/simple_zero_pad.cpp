@@ -164,7 +164,6 @@ status_t simple_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
     const int ndims = mdw.ndims();
     const auto &dims = mdw.dims();
     const auto &pdims = mdw.padded_dims();
-    const auto mem_total_size = mdw.size();
 
     const auto most_inner_nblk = blocking_desc.inner_nblks - 1;
 
@@ -238,10 +237,16 @@ status_t simple_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
         CHECK(status);
 
         if (dims[blocking_desc.inner_idxs[most_inner_nblk - 1]]
-                        != pdims[blocking_desc.inner_idxs[most_inner_nblk - 1]]
-                && s2most_inner_block_stride != mem_total_size) {
-            const cl_ulong base_offset_b2 = most_inner_block_base_offset
-                    + s2most_inner_block_stride * gws1;
+                != pdims[blocking_desc.inner_idxs[most_inner_nblk - 1]]) {
+
+            // skip inner block stride if dim < single block size
+            const bool s2most_dim_lt_block_size
+                    = dims[blocking_desc.inner_idxs[most_inner_nblk - 1]]
+                    < blocking_desc.inner_blks[most_inner_nblk - 1];
+            const cl_ulong base_offset_b2 = (s2most_dim_lt_block_size)
+                    ? most_inner_block_base_offset
+                    : most_inner_block_base_offset
+                            + s2most_inner_block_stride * gws1;
             arg_list.set(2, base_offset_b2);
 
             const size_t gws_10 = 16
