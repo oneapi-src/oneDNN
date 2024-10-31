@@ -226,7 +226,9 @@ std::string init_info_partition(const engine_t *engine,
         }
     }
 
-    ss << ",fpm:" << fpmath_mode2str(partition.get_pimpl()->get_fpmath_mode());
+    const auto &fpm = partition.get_pimpl()->get_fpmath_mode();
+    ss << ",fpm:" << fpmath_mode2str(fpm.mode_);
+    if (fpm.apply_to_int_) ss << ":true";
 
     ss << "," << compiled_partition->get_pimpl()->str();
 

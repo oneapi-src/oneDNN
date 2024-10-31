@@ -109,24 +109,23 @@ partition_data_displacer_t::partition_data_displacer_t(
                                         filling_type_t::quantization));
                         break;
                     }
-
-                    if (parent_op->kind_ == "StaticReshape") {
-                        // StaticReshape is accepted when the pattern is
-                        // "StaticReshape + Matmul" and it doesn't have any
-                        // predecessors in the partition
-                        const auto &parent_op_in_lt = parent_op->in_lts_[0];
-                        const auto &prev_parent_op
-                                = dg_->get_op_by_out_lt(parent_op_in_lt.id_);
-                        if (prev_parent_op.empty()
-                                || op_ids_set_.find(prev_parent_op.id_)
-                                        == op_ids_set_.end()) {
-                            if (aop.kind_ == "MatMul") {
-                                quantize_displace_.emplace(parent_op_in_lt.id_,
-                                        std::make_tuple(aop, i, parent_op_in_lt,
-                                                filling_type_t::quantization));
-                            }
-                            break;
+                }
+                if (parent_op->kind_ == "StaticReshape") {
+                    // StaticReshape is accepted when the pattern is
+                    // "StaticReshape + Matmul" and it doesn't have any
+                    // predecessors in the partition
+                    const auto &parent_op_in_lt = parent_op->in_lts_[0];
+                    const auto &prev_parent_op
+                            = dg_->get_op_by_out_lt(parent_op_in_lt.id_);
+                    if (prev_parent_op.empty()
+                            || op_ids_set_.find(prev_parent_op.id_)
+                                    == op_ids_set_.end()) {
+                        if (aop.kind_ == "MatMul") {
+                            quantize_displace_.emplace(parent_op_in_lt.id_,
+                                    std::make_tuple(aop, i, parent_op_in_lt,
+                                            filling_type_t::quantization));
                         }
+                        break;
                     }
                 }
                 // Continue only on allowed ops.

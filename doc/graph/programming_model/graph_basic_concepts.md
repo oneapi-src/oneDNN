@@ -41,13 +41,19 @@ tensor as the edge between them.
 ## Graph
 
 `Graph` (@ref dnnl::graph::graph) contains a set of operations. A graph object
-is associated to a specific engine kind (@ref dnnl::engine::kind). Multiple
-operations can be added (@ref dnnl::graph::graph::add_op) along with input and
-output logical tensors to a graph. After finishing adding operations,
-finalization API (@ref dnnl::graph::graph::finalize) can be called to indicate
-that the graph is ready for partitioning. By calling partitioning API (@ref
-dnnl::graph::graph::get_partitions), a group of partitions from the graph will
-be returned .
+is associated to a specific engine kind (@ref dnnl::engine::kind). In addition, 
+you can set the graph-level floating-point math mode through the setter API 
+( @ref dnnl::graph::graph::set_fpmath_mode ) or in the constructor. The API
+accepts two paramters, the given floating point math mode and a optional boolean
+flag to indicate whether to use floating-point arithmetic for integral
+operations.
+
+Multiple operations can be added (@ref dnnl::graph::graph::add_op) along with
+input and output logical tensors to a graph. After finishing adding the
+operations, finalization API (@ref dnnl::graph::graph::finalize) can be called
+to indicate that the graph is ready for partitioning. By calling partitioning
+API (@ref dnnl::graph::graph::get_partitions), a group of partitions from the
+graph will be returned. 
 
 ## Partition
 

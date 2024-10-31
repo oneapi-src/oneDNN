@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,22 @@
 #include <gtest/gtest.h>
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
+
+TEST(APIGraph, SetAndGetFloatingPointMathMode) {
+    using namespace dnnl::graph;
+    using fpmath_mode = dnnl::fpmath_mode;
+
+    dnnl::engine::kind engine_kind = dnnl::engine::kind::cpu;
+    graph g(engine_kind);
+    g.set_fpmath_mode(fpmath_mode::bf16, true);
+
+    fpmath_mode mode;
+    bool apply_to_int;
+    g.get_fpmath_mode(mode, apply_to_int);
+
+    EXPECT_EQ(mode, fpmath_mode::bf16);
+    EXPECT_EQ(apply_to_int, 1U);
+}
 
 TEST(APIGraph, GetPartitions) {
     using namespace dnnl::graph;

@@ -245,6 +245,8 @@ void deserialized_graph::load(const std::string &pass_config_json) {
     helper.declare_field("version", &version_);
     helper.declare_field("engine_kind", &engine_kind_);
     helper.declare_field("fpmath_mode", &fpmath_mode_);
+    helper.declare_field(
+            "fpmath_mode_apply_to_int", &fpmath_mode_apply_to_int_);
     helper.declare_field("input_ports", &input_ports_);
     helper.declare_field("output_ports", &output_ports_);
     helper.read_fields(&read);
@@ -432,9 +434,13 @@ std::string deserialized_graph::get_string() const {
 }
 
 dnnl::graph::graph deserialized_graph::to_graph(
-        dnnl::fpmath_mode fpmath_mode) const {
+        const graph_fpmath_mode_t &fpmath_mode) const {
     const auto &engine = get_graph_engine();
-    dnnl::graph::graph g(engine.get_kind(), fpmath_mode);
+    dnnl::graph::graph g(engine.get_kind());
+    g.set_fpmath_mode(static_cast<dnnl::fpmath_mode>(
+                              str2fpmath_mode(fpmath_mode.mode_.c_str())),
+            fpmath_mode.apply_to_int_);
+
     for (const auto &aop : ops_) {
         try {
             g.add_op(aop.create());

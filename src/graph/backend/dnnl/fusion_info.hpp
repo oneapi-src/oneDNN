@@ -26,6 +26,7 @@
 #include <unordered_map>
 
 #include "graph/interface/c_types_map.hpp"
+#include "graph/interface/graph_attr.hpp"
 #include "graph/interface/op.hpp"
 #include "graph/interface/value.hpp"
 #include "graph/utils/utils.hpp"
@@ -267,8 +268,8 @@ private:
 // info key to query it out from the manager.
 class fusion_info_mgr_t {
 public:
-    fusion_info_mgr_t(fpmath_mode_t fpm_mode = fpmath_mode::strict,
-            bool can_use_blocked_layout = false)
+    fusion_info_mgr_t(
+            graph::fpmath_t fpm_mode = {}, bool can_use_blocked_layout = false)
         : fpmath_mode_(fpm_mode)
         , can_use_blocked_layout_(can_use_blocked_layout) {}
 
@@ -298,13 +299,13 @@ public:
         return data_[k];
     }
 
-    fpmath_mode_t get_fpmath_mode() const { return fpmath_mode_; }
+    const fpmath_t &get_fpmath_mode() const { return fpmath_mode_; }
     bool get_use_blocked_layout() const { return can_use_blocked_layout_; }
 
 private:
     std::vector<fusion_info_t> data_;
     // specified floating-point math mode for all fusions
-    fpmath_mode_t fpmath_mode_ {};
+    fpmath_t fpmath_mode_ {};
     bool can_use_blocked_layout_;
 };
 

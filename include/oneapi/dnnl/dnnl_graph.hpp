@@ -1373,6 +1373,10 @@ public:
     /// mode. All partitions returned from the graph will inherit the engine
     /// kind and floating-point math mode.
     ///
+    /// Setting the floating-point math mode enables automatic down-conversion
+    /// of inputs for the given graph, promoting speedup by using
+    /// lower-precision data types when available.
+    ///
     /// @param engine_kind Engine kind.
     /// @param mode Floating-point math mode.
     graph(engine::kind engine_kind, fpmath_mode mode) {
@@ -1382,6 +1386,37 @@ public:
                         &g, convert_to_c(engine_kind), convert_to_c(mode)),
                 "could not create graph with engine kind and math mode");
         reset(g);
+    }
+
+    /// Set the floating point math mode for a graph. Users can enforce the
+    /// graph to comply with the mode by specifying a boolean flag with the
+    /// setter function.
+    ///
+    /// @param mode The floating-point math mode.
+    /// @param apply_to_int The flag that controls whether to use
+    /// floating-point arithmetic for integral operations.
+    void set_fpmath_mode(fpmath_mode mode, bool apply_to_int = false) {
+        error::wrap_c_api(dnnl_graph_graph_set_fpmath_mode(
+                                  get(), convert_to_c(mode), apply_to_int),
+                "could not set fpmath mode graph attribute");
+    }
+
+    /// Get the floating point math mode and the boolean flag that specifies
+    /// whether the graph will be enforced to comply the mode.
+    ///
+    /// @param mode The floating-point math mode.
+    /// @param apply_to_int The flag that controls whether to use
+    /// floating-point arithmetic for integral operations.
+    void get_fpmath_mode(fpmath_mode &mode, bool &apply_to_int) const {
+        dnnl_fpmath_mode_t c_mode;
+        int c_apply_to_int;
+
+        error::wrap_c_api(dnnl_graph_graph_get_fpmath_mode(
+                                  get(), &c_mode, &c_apply_to_int),
+                "could not get fpmath mode graph attribute");
+
+        mode = fpmath_mode(c_mode);
+        apply_to_int = static_cast<bool>(c_apply_to_int);
     }
 
     /// Adds an op into the graph to construct a computational DAG. The API will
