@@ -351,6 +351,12 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     def_data_type(kernel_ctx, key_mdw.data_type(), "KEY");
     def_data_type(kernel_ctx, val_mdw.data_type(), "VAL");
 
+    def_data_type(kernel_ctx, pd()->key_scales_dt(), "KEY_ATTR_SCALES");
+    def_data_type(kernel_ctx, pd()->value_scales_dt(), "VAL_ATTR_SCALES");
+
+    def_data_type(kernel_ctx, pd()->key_zp_dt(), "KEY_ATTR_ZP");
+    def_data_type(kernel_ctx, pd()->value_zp_dt(), "VAL_ATTR_ZP");
+
     auto Q_num_heads_dim = qry_mdw.dims()[1];
     kernel_ctx.define_int("KV_GROUP_SIZE", Q_num_heads_dim / d->kv_head_number);
 

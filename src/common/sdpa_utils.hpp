@@ -81,10 +81,10 @@ static inline status_t sdpa_attr_check(const memory_desc_t *q_desc,
         }
         VCHECK_SDPA_UNIMPL(kq_attr->has_default_values(kq_attr_mask),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
-        VCHECK_SDPA_ATTR_TYPE(
-                scale_dt == data_type::f16, kq_attr, "scales", "f16");
-        VCHECK_SDPA_ATTR_TYPE(
-                zp_dt == data_type::u8, kq_attr, "zero_points", "u8");
+        VCHECK_SDPA_ATTR_TYPE(utils::one_of(scale_dt, f16, f32), kq_attr,
+                "scales", "f16 or f32");
+        VCHECK_SDPA_ATTR_TYPE(utils::one_of(zp_dt, u8, s8, s32), kq_attr,
+                "zero_points", "u8, s8, or s32");
     }
 
     if (vs_attr && !vs_attr->has_default_values()) {
@@ -102,10 +102,10 @@ static inline status_t sdpa_attr_check(const memory_desc_t *q_desc,
         }
         VCHECK_SDPA_UNIMPL(vs_attr->has_default_values(vs_attr_mask),
                 VERBOSE_UNSUPPORTED_ATTR);
-        VCHECK_SDPA_ATTR_TYPE(
-                scale_dt == data_type::f16, vs_attr, "scales", "f16");
-        VCHECK_SDPA_ATTR_TYPE(
-                zp_dt == data_type::u8, vs_attr, "zero_points", "u8");
+        VCHECK_SDPA_ATTR_TYPE(utils::one_of(scale_dt, f16, f32), vs_attr,
+                "scales", "f16 or f32");
+        VCHECK_SDPA_ATTR_TYPE(utils::one_of(zp_dt, u8, s8, s32), vs_attr,
+                "zero_points", "u8, s8, or s32");
     }
     smask_t attr_mask = smask_t::none;
 
