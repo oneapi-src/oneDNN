@@ -99,6 +99,13 @@ FlagRegister VirtualFlagAllocator::assignPhysical(VirtualFlag vflag)
     return pflag.toPhysical();
 }
 
+bool VirtualFlagAllocator::lock(VirtualFlag vflag, bool allowAlreadyLocked) {
+    bool wasLocked = isLocked(vflag);
+    if (wasLocked && !allowAlreadyLocked) stub("Illegally locking an already-locked flag register");
+    locked |= mask(vflag);
+    return wasLocked;
+}
+
 bool VirtualFlagAllocator::canLock(int n) const
 {
     uint8_t unlocked = ~locked & ((1 << nflag) - 1);

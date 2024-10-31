@@ -590,6 +590,28 @@ dnnl_status_t DNNL_API dnnl_graph_graph_create_with_fpmath_mode(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_graph_graph_destroy(dnnl_graph_graph_t graph);
 
+/// Set the floating point math mode for a graph.
+///
+/// @param graph The target graph.
+/// @param mode The floating-point math mode.
+/// @param apply_to_int The flag that controls whether to use floating-point
+///     arithmetic for integral operations.
+/// @returns #dnnl_success on success or a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_graph_graph_set_fpmath_mode(
+        dnnl_graph_graph_t graph, dnnl_fpmath_mode_t mode, int apply_to_int);
+
+/// Get the floating point math mode for a graph.
+///
+/// @param graph The target graph.
+/// @param mode The floating-point math mode.
+/// @param apply_to_int The flag that controls whether to use floating-point
+///     arithmetic for integral operations.
+/// @returns #dnnl_success on success or a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_graph_graph_get_fpmath_mode(
+        dnnl_graph_graph_t graph, dnnl_fpmath_mode_t *mode, int *apply_to_int);
+
 /// Adds an operation into a graph. The API will return failure if the operator
 /// has already been added to the graph or the operation cannot pass the schema
 /// check in the library (eg. input and output numbers and data types, the

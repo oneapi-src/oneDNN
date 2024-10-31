@@ -342,8 +342,9 @@ using namespace dnnl::graph;
 std::string case_to_str(const std::string &json_file,
         const std::map<size_t, std::string> &in_shapes,
         const std::map<size_t, std::string> &op_attrs,
-        const std::string &fpmath_mode, const size_t expected_n_partitions,
-        const int64_t mb, const dnnl_data_type_t dt) {
+        const graph_fpmath_mode_t &fpmath_mode,
+        const size_t expected_n_partitions, const int64_t mb,
+        const dnnl_data_type_t dt) {
     std::stringstream s;
     dump_global_params(s);
 
@@ -374,8 +375,10 @@ std::string case_to_str(const std::string &json_file,
         s << " ";
     }
 
-    if (strcmp(fpmath_mode.c_str(), "default") != 0) {
-        s << "--attr-fpmath=" << fpmath_mode << " ";
+    if (fpmath_mode.override_json_value_) {
+        s << "--attr-fpmath=" << fpmath_mode.mode_.c_str();
+        if (fpmath_mode.apply_to_int_) { s << ":true"; }
+        s << " ";
     }
 
     if (expected_n_partitions != 0) {
@@ -423,12 +426,12 @@ void skip_unimplemented_ops(const dnnl::graph::partition &partition,
 }
 
 void skip_unimplemented_graph_attribute(
-        const dnnl::fpmath_mode &fpmath_mode, res_t *res) {
+        const graph_fpmath_mode_t &fpmath_mode, res_t *res) {
     // Compiler backend only supports strict and bf16 for floating-point math
     // mode
     if (is_gc_backend()) {
-        if (fpmath_mode != dnnl::fpmath_mode::strict
-                && fpmath_mode != dnnl::fpmath_mode::bf16) {
+        const auto &mode = fpmath_mode.mode_;
+        if (mode != "strict" && mode != "bf16") {
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;

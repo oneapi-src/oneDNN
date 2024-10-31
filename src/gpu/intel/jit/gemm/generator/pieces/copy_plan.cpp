@@ -733,10 +733,12 @@ void CopyPlan::planTypeConversions()
                 } else
                     planEmulatedHalveFloat(i);
             }
-        } else if (st == DataType::hf8 && dt == DataType::hf && hw < HW::Xe3) {
-                planEmulatedHF8ToHF(i);
-        } else if (st == DataType::hf && dt == DataType::hf8 && hw < HW::Xe3) {
-                planEmulatedHFToHF8(i);
+        } else if (st == DataType::hf8 && dt == DataType::hf) {
+               if (hw < HW::Xe3)
+                    planEmulatedHF8ToHF(i);
+        } else if (st == DataType::hf && dt == DataType::hf8) {
+               if (hw < HW::Xe3)
+                   planEmulatedHFToHF8(i);
         } else if (st != dt && (isFP8(st) || isFP8(dt))) {
             copyThrough(i, DataType::hf, 1);
             rerun = true;
@@ -1328,11 +1330,13 @@ void CopyPlan::legalizeRegions()
         if (!i.dst) continue;
 
         /* Check for special packed conversion cases */
-        if (i.op == Opcode::mov && s0t == DataType::hf && dt == DataType::bf8) {
-            // hf -> bf8: src0/dst must be packed unit stride, zero offset
-            if (i.src0.offset != 0 || i.src0.stride != 1)
+        if (i.op == Opcode::mov && ((s0t == DataType::hf && isFP8(dt))
+                                 || (dt == DataType::hf && isFP8(s0t)))) {
+            // hf <-> bf8/hf8: src0/dst must be packed unit stride, zero offset
+            if (i.src0.offset != 0 || i.src0.stride != 1) {
                 repositionSrc(i, 0, 1, 0);
-            if (i.dst.offset != 0 || i.dst.stride != 1)
+                rerun = true;
+            } else if (i.dst.offset != 0 || i.dst.stride != 1)
                 repositionDst(i, 1, 0);
             if (i.simd == 1) hw_unsupported();
             continue;

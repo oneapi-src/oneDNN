@@ -172,7 +172,7 @@ void BLASKernelGenerator<hw>::copyExecute(CopyPlan &&plan, CommonState &state)
     if (!state.vflagsEnabled())
         for (int i = 0; i < nflag; i++)
             if (!raVFlag0.isFree(VirtualFlag{i}))
-                raVFlag0.lock(VirtualFlag{i});
+                raVFlag0.lock(VirtualFlag{i}, true);
     auto raVFlag = raVFlag0;
 
     // If we have enough free flags, use those.

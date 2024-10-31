@@ -30,6 +30,7 @@
 #include "common/engine.hpp"
 
 #include "graph/interface/c_types_map.hpp"
+#include "graph/interface/graph_attr.hpp"
 #include "graph/interface/logical_tensor.hpp"
 #include "graph/interface/op.hpp"
 
@@ -66,19 +67,21 @@ class backend_t;
 
 class partition_impl_t : public std::enable_shared_from_this<partition_impl_t> {
 public:
-    explicit partition_impl_t(engine_kind_t engine_kind,
-            fpmath_mode_t fpmath_mode, partition_kind_t pkind)
+    explicit partition_impl_t(engine_kind_t engine_kind, fpmath_t fpmath_mode,
+            partition_kind_t pkind)
         : engine_kind_(engine_kind)
         , fpmath_mode_(fpmath_mode)
         , pkind_(pkind)
         , can_use_blocked_layout_(false) {}
 
-    explicit partition_impl_t(engine_kind_t engine_kind,
-            fpmath_mode_t fpmath_mode = fpmath_mode::strict)
+    explicit partition_impl_t(
+            engine_kind_t engine_kind, fpmath_t fpmath_mode = {})
         : engine_kind_(engine_kind)
         , fpmath_mode_(fpmath_mode)
         , pkind_(partition_kind_t::undef)
-        , can_use_blocked_layout_(false) {}
+        , can_use_blocked_layout_(false) {
+        fpmath_mode_.mode_ = graph::fpmath_mode::strict;
+    }
 
     virtual ~partition_impl_t() = default;
 
@@ -86,7 +89,7 @@ public:
     engine_kind_t get_engine_kind() const { return engine_kind_; }
 
     /// The getter for fpmath_mode_
-    fpmath_mode_t get_fpmath_mode() const { return fpmath_mode_; }
+    const fpmath_t &get_fpmath_mode() const { return fpmath_mode_; }
 
     /// The getter for partition kind
     partition_kind_t get_kind() const { return pkind_; }
@@ -193,7 +196,7 @@ protected:
     engine_kind_t engine_kind_;
 
     // floating-point math mode
-    fpmath_mode_t fpmath_mode_;
+    fpmath_t fpmath_mode_;
 
     // Partition kind
     partition_kind_t pkind_;

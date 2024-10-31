@@ -66,8 +66,9 @@ conv_fwd_executable_t::desc_t conv_fwd_executable_t::create_desc(
         prm_attr = make_dnnl_primitive_attr(op, fusion_info);
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    auto fpmath = mgr.get_fpmath_mode();
     prm_attr.set_fpmath_mode(
-            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
+            static_cast<dnnl::fpmath_mode>(fpmath.mode_), fpmath.apply_to_int_);
     const bool can_use_blocked_layout = mgr.get_use_blocked_layout();
 
     auto src = make_dnnl_memory_desc(
@@ -181,8 +182,9 @@ deconv_fwd_executable_t::desc_t deconv_fwd_executable_t::create_desc(
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    auto fpmath = mgr.get_fpmath_mode();
     prm_attr.set_fpmath_mode(
-            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
+            static_cast<dnnl::fpmath_mode>(fpmath.mode_), fpmath.apply_to_int_);
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
@@ -241,8 +243,9 @@ deconv_bwd_data_executable_t::desc_t deconv_bwd_data_executable_t::create_desc(
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    auto fpmath = mgr.get_fpmath_mode();
     prm_attr.set_fpmath_mode(
-            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
+            static_cast<dnnl::fpmath_mode>(fpmath.mode_), fpmath.apply_to_int_);
 
     auto diff_dst = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
@@ -292,8 +295,9 @@ deconv_bwd_weights_executable_t::create_desc(std::shared_ptr<op_t> &op,
         int64_t key = op->get_attr<int64_t>(op_attr::fusion_info_key);
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
+    auto fpmath = mgr.get_fpmath_mode();
     prm_attr.set_fpmath_mode(
-            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
+            static_cast<dnnl::fpmath_mode>(fpmath.mode_), fpmath.apply_to_int_);
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
@@ -336,8 +340,9 @@ matmul_executable_t::desc_t matmul_executable_t::create_desc(
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    auto fpmath = mgr.get_fpmath_mode();
     prm_attr.set_fpmath_mode(
-            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
+            static_cast<dnnl::fpmath_mode>(fpmath.mode_), fpmath.apply_to_int_);
 
     auto src = make_dnnl_memory_desc(
             op->get_input_value(0)->get_logical_tensor());
@@ -835,8 +840,9 @@ conv_bwd_data_executable_t::desc_t conv_bwd_data_executable_t::create_desc(
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    auto fpmath = mgr.get_fpmath_mode();
     prm_attr.set_fpmath_mode(
-            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
+            static_cast<dnnl::fpmath_mode>(fpmath.mode_), fpmath.apply_to_int_);
     const bool can_use_blocked_layout = mgr.get_use_blocked_layout();
 
     auto diff_dst = make_dnnl_memory_desc(
@@ -894,8 +900,9 @@ conv_bwd_weights_executable_t::create_desc(std::shared_ptr<op_t> &op,
         prm_attr = make_dnnl_primitive_attr(op, mgr.get_info(key));
     }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+    auto fpmath = mgr.get_fpmath_mode();
     prm_attr.set_fpmath_mode(
-            static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode()));
+            static_cast<dnnl::fpmath_mode>(fpmath.mode_), fpmath.apply_to_int_);
     const bool can_use_blocked_layout = mgr.get_use_blocked_layout();
 
     auto src = make_dnnl_memory_desc(

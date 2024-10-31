@@ -30,6 +30,7 @@
 
 #include "graph/interface/c_types_map.hpp"
 #include "graph/interface/graph.hpp"
+#include "graph/interface/graph_attr.hpp"
 #include "graph/interface/op.hpp"
 #include "graph/interface/value.hpp"
 #include "graph/utils/utils.hpp"
@@ -65,7 +66,7 @@ private:
 
 public:
     subgraph_t(const std::vector<op_ptr> &ops, const dnnl::engine &eng,
-            impl::fpmath_mode_t fpm_mode, bool can_use_blocked_layout,
+            const graph::fpmath_t &fpm_mode, bool can_use_blocked_layout,
             bool reset_layout);
 
     subgraph_t(const std::vector<op_ptr> &ops, bool reset_layout = true);

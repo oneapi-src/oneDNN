@@ -47,9 +47,25 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     // for e.g when ab in abcd is 1x1
     bool batch_ok = IMPLICATION(src_batch > 1, wei_batch == 1)
             && IMPLICATION(wei_batch > 1, src_batch == 1);
+
     ACL_CHECK_SUPPORT(src_d.ndims() == 4 && src_batch != wei_batch && !batch_ok,
             "matmul broadcast supported only for 3D shapes and 4D shapes when "
             "ab is 1x1");
+
+    if (src_d.ndims() == 4 && src_batch == wei_batch
+            && src_d.dims()[0] != wei_d.dims()[0]) { // 4D broadcast occurred
+        if (src_d.dims()[0] == 1 && wei_d.dims()[0] != 1) { // Broadcast src
+            ACL_CHECK_SUPPORT(
+                    IMPLICATION(src_d.dims()[1] != 1, wei_d.dims()[1] == 1),
+                    "acl only broadcasts one of src or wei at once");
+        }
+
+        if (wei_d.dims()[0] == 1 && src_d.dims()[0] != 1) { // Broadcast wei
+            ACL_CHECK_SUPPORT(
+                    IMPLICATION(src_d.dims()[1] == 1, wei_d.dims()[1] != 1),
+                    "acl only broadcasts one of src or wei at once");
+        }
+    }
 
     // ACL does not support bias
     bool with_bias = md.bias_desc.format_kind != format_kind::undef;
