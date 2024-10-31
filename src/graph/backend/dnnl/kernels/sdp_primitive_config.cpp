@@ -15,6 +15,8 @@
 *******************************************************************************/
 
 #include "graph/backend/dnnl/kernels/sdp_primitive_config.hpp"
+#include "graph/backend/dnnl/fusion_info.hpp"
+
 #include "common/compiler_workarounds.hpp"
 
 namespace dnnl {
@@ -88,10 +90,23 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
     }
 
     // Locate input/outputs: Q, K, V, dst, scale, mask
+    mm1_ = mm1;
+    mm2_ = mm2;
     if (!mm1 || !mm2 || !final_op) return status::unimplemented;
     q_ = mm1->get_input_value(0);
     k_ = mm1->get_input_value(1);
     v_ = mm2->get_input_value(1);
+
+    if (quantized_) {
+        // The input order of fused matmul is: src_0, src_1, scale, zero points
+        if (mm1->num_inputs() > 2) k_scale_ = mm1->get_input_value(2);
+        if (mm2->num_inputs() > 2) v_scale_ = mm2->get_input_value(2);
+
+        // asymmetric quantization for key.
+        if (4 == mm1->num_inputs()) k_zero_points_ = mm1->get_input_value(3);
+        // asymmetric quantization for value.
+        if (4 == mm2->num_inputs()) v_zero_points_ = mm2->get_input_value(3);
+    }
 
     auto k_follow = follow_back(k_);
     for (auto &t : inputs)
@@ -133,7 +148,28 @@ status_t sdp_primitive_config_t::initial_check(
                     graph::op_kind::SoftMax};
     op_ptr mm1 = nullptr, mm2 = nullptr, scale = nullptr;
     for (const auto &cur_op : sg->get_ops()) {
-        if (cur_op->get_kind() != graph::op_kind::MatMul) continue;
+        const auto &op_kind = cur_op->get_kind();
+        if (op_kind == graph::op_kind::DynamicDequantize
+                && cur_op->get_attr<std::string>(op_attr::qtype)
+                        == "per_group") {
+            if (!cur_op->has_attr(op_attr::group_shape))
+                return status::invalid_arguments;
+            const auto &group_shape = cur_op->get_attr<std::vector<int64_t>>(
+                    op_attr::group_shape);
+            const auto &input_lt
+                    = cur_op->get_input_value(0)->get_logical_tensor();
+            const auto &input_dims = ltw(input_lt).dims();
+            if (static_cast<int>(group_shape.size()) != ltw(input_lt).ndims())
+                return status::invalid_arguments;
+            // Due to the precision issue of ukernel implementation, we only
+            // support group_num=1 case for now.
+            for (size_t idx = 0; idx < group_shape.size(); ++idx) {
+                if (group_shape[idx] != 1
+                        && group_shape[idx] != input_dims[idx])
+                    return status::unimplemented;
+            }
+        }
+        if (op_kind != graph::op_kind::MatMul) continue;
         auto post_op = get_post_op(cur_op);
         if (post_op && mm1_post_op_kind.count(post_op->get_kind())) {
             mm1 = cur_op;
@@ -165,18 +201,14 @@ status_t sdp_primitive_config_t::initial_check(
         }
     }
 
-    // step2(data type check): only support fp16 now.
-    auto in_lt = inputs[0];
-    if (in_lt.data_type != dnnl_data_type_t::dnnl_f16)
-        return status::unimplemented;
-
-    auto find_graph_inport = [&inputs](std::shared_ptr<value_t> val) {
+    auto find_graph_inport = [&inputs](const std::shared_ptr<value_t> &val) {
+        auto tmp_val = val;
+        while (tmp_val->has_producer()) {
+            const op_t &prod_op = tmp_val->get_producer();
+            tmp_val = prod_op.get_input_value(0);
+        }
         for (int i = 0; i < (int)inputs.size(); i++) {
-            // For GQA, it has producer such as static_reshape.
-            while (val->has_producer()) {
-                val = val->get_producer().get_input_value(0);
-            }
-            if (val->get_logical_tensor().id == inputs[i].id) { return i; }
+            if (tmp_val->get_logical_tensor().id == inputs[i].id) { return i; }
         }
         // If the corresponding input is not found, return an invalid value
         return -1;
@@ -225,16 +257,27 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
     auto scale_dt = impl::data_type::undef;
     if (scale_) scale_dt = scale_->get_logical_tensor().data_type;
 
-    dnnl::primitive_attr attr;
+    dnnl::primitive_attr attr, qk_attr, vs_attr;
 
     auto &mgr = sg->fusion_info_mgr_;
     attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
     attr.set_fpmath_mode(
             static_cast<dnnl::fpmath_mode>(mgr.get_fpmath_mode().mode_));
 
+    if (mm1_->has_attr(op_attr::fusion_info_key)
+            && mm1_->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = mm1_->get_attr<int64_t>(op_attr::fusion_info_key);
+        qk_attr = make_dnnl_primitive_attr(mm1_, mgr.get_info(key));
+    }
+    if (mm2_->has_attr(op_attr::fusion_info_key)
+            && mm2_->get_attr<int64_t>(op_attr::fusion_info_key) != -1) {
+        int64_t key = mm2_->get_attr<int64_t>(op_attr::fusion_info_key);
+        vs_attr = make_dnnl_primitive_attr(mm2_, mgr.get_info(key));
+    }
+
     CHECK(create_sdpa_pd(sdpa_pd_, p_engine.get(), md_q.get(), md_k.get(),
             md_v.get(), md_dst.get(), md_mask.get(), scale_dt, invert_scale_,
-            attr.get(), kv_head_number_));
+            attr.get(), kv_head_number_, qk_attr.get(), vs_attr.get()));
 
     auto status = sdpa_pd_->create_primitive(sdpa_prim_, p_engine.get());
 

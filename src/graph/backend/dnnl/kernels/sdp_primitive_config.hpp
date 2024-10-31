@@ -43,13 +43,24 @@ struct sdp_primitive_config_t {
 public:
     sdp_primitive_config_t() = default;
 
+    std::shared_ptr<op_t> mm1_ = nullptr;
+    std::shared_ptr<op_t> mm2_ = nullptr;
+
     std::shared_ptr<value_t> q_ = nullptr;
     std::shared_ptr<value_t> k_ = nullptr;
     std::shared_ptr<value_t> v_ = nullptr;
     std::shared_ptr<value_t> dst_ = nullptr;
     std::shared_ptr<value_t> scale_ = nullptr;
     std::shared_ptr<value_t> attn_mask_ = nullptr;
+
+    std::shared_ptr<value_t> k_scale_ = nullptr;
+    std::shared_ptr<value_t> v_scale_ = nullptr;
+
+    std::shared_ptr<value_t> k_zero_points_ = nullptr;
+    std::shared_ptr<value_t> v_zero_points_ = nullptr;
+
     bool invert_scale_ = false;
+    bool quantized_ = false;
     dim_t kv_head_number_;
 
     // SDP pd and primitive.

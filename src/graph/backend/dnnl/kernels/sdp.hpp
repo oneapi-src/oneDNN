@@ -54,7 +54,7 @@ public:
         if (ekind == engine_kind::cpu) {
             enable_decomp = enable_decomp_kernel();
         } else if (ekind == engine_kind::gpu) {
-            enable_ukernel = !quantized && !force_primitive();
+            enable_ukernel = !force_primitive();
         } else {
             assert(!"unknown engine kind");
             return status::invalid_arguments;
@@ -63,7 +63,7 @@ public:
         status_t ret = status::unimplemented;
 
         if (enable_ukernel) {
-            kernel = std::make_shared<sdp_primitive_kernel_t>();
+            kernel = std::make_shared<sdp_primitive_kernel_t<quantized>>();
             ret = kernel->compile_impl(part, g_engine, inputs, outputs);
         }
 

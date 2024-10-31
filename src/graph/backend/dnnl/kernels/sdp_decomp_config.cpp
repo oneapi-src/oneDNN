@@ -432,9 +432,15 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
                     graph::op_kind::Add, graph::op_kind::Select,
                     graph::op_kind::SoftMax};
     for (const auto &cur_op : sg->get_ops()) {
+        const auto &op_kind = cur_op->get_kind();
+        if (op_kind == graph::op_kind::DynamicDequantize
+                && cur_op->get_attr<std::string>(op_attr::qtype)
+                        == "per_group") {
+            return status::unimplemented;
+        }
         // both mm1 and mm2 are found.
         if (mm1 && mm2) break;
-        if (cur_op->get_kind() != graph::op_kind::MatMul) continue;
+        if (op_kind != graph::op_kind::MatMul) continue;
 
         auto post_op = get_post_op(cur_op);
         if (post_op && post_op_kind.count(post_op->get_kind())) {

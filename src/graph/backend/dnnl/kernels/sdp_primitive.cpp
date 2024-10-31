@@ -40,8 +40,10 @@ namespace impl {
 namespace graph {
 namespace dnnl_impl {
 
-status_t sdp_primitive_kernel_t::compile_impl(const dnnl_partition_impl_t *part,
-        const engine_t *g_engine, const std::vector<logical_tensor_t> &inputs,
+template <bool quantized>
+status_t sdp_primitive_kernel_t<quantized>::compile_impl(
+        const dnnl_partition_impl_t *part, const engine_t *g_engine,
+        const std::vector<logical_tensor_t> &inputs,
         const std::vector<logical_tensor_t> &outputs) {
     p_engine_ = make_dnnl_engine(*g_engine);
     g_alloc_
@@ -62,8 +64,22 @@ status_t sdp_primitive_kernel_t::compile_impl(const dnnl_partition_impl_t *part,
 
     BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_reshape_for_gqa);
+    if (quantized) {
+        BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
+        BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_predecessor);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_scales);
+        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_zero_points);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_runtime_u8_to_s8_for_matmul);
+    }
     BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
     BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_matmul);
+    if (quantized) {
+        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
+    }
 
     pipeline.reset_visualize_arg(true, false);
     BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
@@ -101,13 +117,16 @@ status_t sdp_primitive_kernel_t::compile_impl(const dnnl_partition_impl_t *part,
     };
 
     CHECK(modify_subgraph());
+
+    cfg_.quantized_ = quantized;
     CHECK(cfg_.init(subgraph_, p_engine_, inputs, outputs));
 
     return status::success;
 }
 
-void sdp_primitive_kernel_t::prepare_args_set(const execution_args_set_t *res,
-        const std::vector<tensor_t> &inputs,
+template <bool quantized>
+void sdp_primitive_kernel_t<quantized>::prepare_args_set(
+        const execution_args_set_t *res, const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs, const scratchpad_t &scratchpad) {
     // update the data of partition in/outputs args
     for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
@@ -126,8 +145,10 @@ void sdp_primitive_kernel_t::prepare_args_set(const execution_args_set_t *res,
     }
 }
 
-status_t sdp_primitive_kernel_t::get_prim_exec_args(exec_args_t &args,
-        memory (&mem_storage)[6], const execution_args_set_t *res) const {
+template <bool quantized>
+status_t sdp_primitive_kernel_t<quantized>::get_prim_exec_args(
+        exec_args_t &args, memory (&mem_storage)[10],
+        const execution_args_set_t *res) const {
     bool ok = res->find_value_mem_map(cfg_.q_.get(), mem_storage[0])
             && res->find_value_mem_map(cfg_.k_.get(), mem_storage[1])
             && res->find_value_mem_map(cfg_.v_.get(), mem_storage[2])
@@ -139,6 +160,21 @@ status_t sdp_primitive_kernel_t::get_prim_exec_args(exec_args_t &args,
         ok = ok
                 && res->find_value_mem_map(
                         cfg_.attn_mask_.get(), mem_storage[5]);
+    if (quantized && !(cfg_.k_scale_ || cfg_.v_scale_))
+        return status::invalid_arguments;
+    if (cfg_.k_scale_)
+        ok = ok && res->find_value_mem_map(cfg_.k_scale_.get(), mem_storage[6]);
+    if (cfg_.v_scale_)
+        ok = ok && res->find_value_mem_map(cfg_.v_scale_.get(), mem_storage[7]);
+
+    if (cfg_.k_zero_points_)
+        ok = ok
+                && res->find_value_mem_map(
+                        cfg_.k_zero_points_.get(), mem_storage[8]);
+    if (cfg_.v_zero_points_)
+        ok = ok
+                && res->find_value_mem_map(
+                        cfg_.v_zero_points_.get(), mem_storage[9]);
 
     if (!ok) return status::runtime_error;
 
@@ -148,6 +184,10 @@ status_t sdp_primitive_kernel_t::get_prim_exec_args(exec_args_t &args,
     memory_arg_t mem_arg_dst = {mem_storage[3].get(), false};
     memory_arg_t mem_arg_scale = {mem_storage[4].get(true), true};
     memory_arg_t mem_arg_mask = {mem_storage[5].get(true), true};
+    memory_arg_t mem_arg_k_scale = {mem_storage[6].get(true), true};
+    memory_arg_t mem_arg_v_scale = {mem_storage[7].get(true), true};
+    memory_arg_t mem_arg_k_zero_points = {mem_storage[8].get(true), true};
+    memory_arg_t mem_arg_v_zero_points = {mem_storage[9].get(true), true};
 
     args.clear();
     args[DNNL_ARG_QUERIES] = mem_arg_q;
@@ -156,12 +196,17 @@ status_t sdp_primitive_kernel_t::get_prim_exec_args(exec_args_t &args,
     args[DNNL_ARG_DST] = mem_arg_dst;
     args[DNNL_ARG_SCALE] = mem_arg_scale;
     args[DNNL_ARG_ATTN_MASK] = mem_arg_mask;
+    args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_KEYS] = mem_arg_k_scale;
+    args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_VALUES] = mem_arg_v_scale;
+    args[DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_KEYS] = mem_arg_k_zero_points;
+    args[DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_VALUES] = mem_arg_v_zero_points;
 
     return status::success;
 }
 
-status_t sdp_primitive_kernel_t::execute_impl(const stream_t *g_stream,
-        const std::vector<tensor_t> &inputs,
+template <bool quantized>
+status_t sdp_primitive_kernel_t<quantized>::execute_impl(
+        const stream_t *g_stream, const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs) {
     dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
 
@@ -174,7 +219,7 @@ status_t sdp_primitive_kernel_t::execute_impl(const stream_t *g_stream,
     temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
     prepare_args_set(res, inputs, outputs, scratchpad);
 
-    memory mem_storage[6];
+    memory mem_storage[10];
     exec_args_t args;
     CHECK(get_prim_exec_args(args, mem_storage, res));
     exec_ctx_t ctx(p_stream.get(), std::move(args));
@@ -183,8 +228,9 @@ status_t sdp_primitive_kernel_t::execute_impl(const stream_t *g_stream,
 }
 
 #ifdef DNNL_WITH_SYCL
-status_t sdp_primitive_kernel_t::sycl_execute_impl(const stream_t *g_stream,
-        const std::vector<tensor_t> &inputs,
+template <bool quantized>
+status_t sdp_primitive_kernel_t<quantized>::sycl_execute_impl(
+        const stream_t *g_stream, const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,
         const std::vector<::sycl::event> &sycl_deps,
         ::sycl::event *sycl_event) {
@@ -200,7 +246,7 @@ status_t sdp_primitive_kernel_t::sycl_execute_impl(const stream_t *g_stream,
     temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
     prepare_args_set(res, inputs, outputs, scratchpad);
 
-    memory mem_storage[6];
+    memory mem_storage[10];
     exec_args_t args;
     CHECK(get_prim_exec_args(args, mem_storage, res));
     exec_ctx_t ctx(p_stream.get(), std::move(args));
@@ -229,8 +275,9 @@ status_t sdp_primitive_kernel_t::sycl_execute_impl(const stream_t *g_stream,
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-status_t sdp_primitive_kernel_t::ocl_execute_impl(const stream_t *g_stream,
-        const std::vector<tensor_t> &inputs,
+template <bool quantized>
+status_t sdp_primitive_kernel_t<quantized>::ocl_execute_impl(
+        const stream_t *g_stream, const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,
         const std::vector<cl_event> &cl_deps, cl_event *ret_event) {
 
@@ -245,15 +292,15 @@ status_t sdp_primitive_kernel_t::ocl_execute_impl(const stream_t *g_stream,
     temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
     prepare_args_set(res, inputs, outputs, scratchpad);
 
-    memory mem_storage[6];
+    memory mem_storage[10];
     exec_args_t args;
     CHECK(get_prim_exec_args(args, mem_storage, res));
     exec_ctx_t ctx(p_stream.get(), std::move(args));
 
     // TODO (pc): refactor
-    namespace ocl = gpu::intel::ocl;
     auto *ocl_stream
-            = dnnl::impl::utils::downcast<ocl::ocl_stream_t *>(p_stream.get());
+            = dnnl::impl::utils::downcast<gpu::intel::ocl::ocl_stream_t *>(
+                    p_stream.get());
 
     ocl_stream->before_exec_hook();
 
@@ -280,6 +327,10 @@ status_t sdp_primitive_kernel_t::ocl_execute_impl(const stream_t *g_stream,
     return status;
 }
 #endif
+
+template struct sdp_primitive_kernel_t<true>;
+template struct sdp_primitive_kernel_t<false>;
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl
