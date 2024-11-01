@@ -43,13 +43,13 @@ class compiler_partition_impl_t : public partition_impl_t {
 
 public:
     compiler_partition_impl_t(graph::engine_kind_t engine_kind,
-            graph::fpmath_mode_t fpmath_mode, graph::partition_kind_t pkind,
+            graph::fpmath_t fpmath_mode, graph::partition_kind_t pkind,
             std::string pname)
         : graph::partition_impl_t(engine_kind, fpmath_mode, pkind)
         , is_init_(true)
         , pname_(pname) {
-        assertm(fpmath_mode == fpmath_mode::strict
-                        || fpmath_mode == fpmath_mode::bf16,
+        assertm(fpmath_mode.mode_ == fpmath_mode::strict
+                        || fpmath_mode.mode_ == fpmath_mode::bf16,
                 "Compiler backend only allows fpmath mode: strict, bf16.");
     }
 
