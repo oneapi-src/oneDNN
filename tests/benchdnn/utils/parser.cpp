@@ -1378,6 +1378,26 @@ static bool parse_verbose(
     return false;
 }
 
+static bool parse_use_sycl_graph(
+        const char *str, const std::string &option_name = "use-sycl-graph") {
+    static const std::string help
+            = "BOOL    (Default: `false`)\n    Instructs the driver to execute "
+              "using experimental SyCL Graph backend, when set to `true`.\n";
+    bool parsed = parse_single_value_option(
+            use_sycl_graph, false, str2bool, str, option_name, help);
+
+#if !defined(DNNL_WITH_SYCL)
+    if (parsed) {
+        BENCHDNN_PRINT(0,
+                "Error: option `--%s` is supported with DPC++ "
+                "builds only, exiting...\n",
+                option_name.c_str());
+        SAFE_V(FAIL);
+    }
+#endif
+    return parsed;
+}
+
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
@@ -1402,7 +1422,8 @@ bool parse_bench_settings(const char *str) {
             || parse_num_streams(str) || parse_repeats_per_prb(str)
             || parse_mem_check(str) || parse_memory_kind(str) || parse_mode(str)
             || parse_mode_modifier(str) || parse_start(str)
-            || parse_stream_kind(str) || parse_verbose(str);
+            || parse_stream_kind(str) || parse_verbose(str)
+            || parse_use_sycl_graph(str);
 
     // Last condition makes this help message to be triggered once driver_name
     // is already known.
