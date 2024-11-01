@@ -38,6 +38,16 @@ inline format_tag_t get_abx_tag(int ndims) {
     }
 }
 
+inline format_tag_t get_axb_tag(int ndims) {
+    switch (ndims) {
+        case 2: return format_tag::ab;
+        case 3: return format_tag::acb;
+        case 4: return format_tag::acdb;
+        case 5: return format_tag::acdeb;
+        default: assert(!"unexpected ndims"); return format_tag::undef;
+    }
+}
+
 enum class block_dim_t {
     _,
     _A,

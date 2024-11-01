@@ -24,6 +24,7 @@
 #include "common/primitive_desc_iterator.hpp"
 #include "common/reorder.hpp"
 #include "common/stream.hpp"
+#include "common/tag_traits.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
@@ -37,27 +38,6 @@ namespace cpu {
 namespace x64 {
 
 using namespace dnnl::impl::utils;
-
-namespace {
-format_tag_t get_ncsp_tag(int ndims) {
-    using namespace format_tag;
-    switch (ndims) {
-        case 3: return ncw;
-        case 4: return nchw;
-        case 5: return ncdhw;
-        default: assert("invalid ndims"); return undef;
-    }
-}
-format_tag_t get_nspc_tag(int ndims) {
-    using namespace format_tag;
-    switch (ndims) {
-        case 3: return nwc;
-        case 4: return nhwc;
-        case 5: return ndhwc;
-        default: assert("invalid ndims"); return undef;
-    }
-}
-} // namespace
 
 status_t ncsp_matmul_reduction_helper_t::reshape_activations(
         memory_desc_t *o_md, const memory_desc_t *i_md, bool to_matmul,
@@ -164,7 +144,7 @@ status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_convolution(
         engine_t *engine) {
     // create a convolution descriptor with activations in nspc format
     convolution_desc_t nspc_conv_d = convolution_desc_t();
-    format_tag_t nspc_tag = get_nspc_tag(ndims());
+    format_tag_t nspc_tag = get_axb_tag(ndims());
     nspc_src_md_ = *src_md();
     nspc_dst_md_ = *dst_md();
     CHECK(memory_desc_init_by_tag(nspc_src_md_, nspc_tag));
@@ -252,9 +232,9 @@ status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
 
     VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
 
-    VDISPATCH_CONV(memory_desc_matches_tag(*src_md(), get_ncsp_tag(ndims())),
+    VDISPATCH_CONV(memory_desc_matches_tag(*src_md(), get_abx_tag(ndims())),
             VERBOSE_UNSUPPORTED_TAG);
-    VDISPATCH_CONV(memory_desc_matches_tag(*dst_md(), get_ncsp_tag(ndims())),
+    VDISPATCH_CONV(memory_desc_matches_tag(*dst_md(), get_abx_tag(ndims())),
             VERBOSE_UNSUPPORTED_TAG);
     VDISPATCH_CONV(everyone_is(f32, src_md()->data_type, dst_md()->data_type,
                            weights_md(0)->data_type,
@@ -429,10 +409,10 @@ status_t jit_uni_ncsp_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
     VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
             VERBOSE_BAD_ALGORITHM);
     VDISPATCH_CONV(is_bwd_w(), VERBOSE_BAD_PROPKIND);
-    VDISPATCH_CONV(memory_desc_matches_tag(*src_md(), get_ncsp_tag(ndims())),
+    VDISPATCH_CONV(memory_desc_matches_tag(*src_md(), get_abx_tag(ndims())),
             VERBOSE_UNSUPPORTED_TAG);
     VDISPATCH_CONV(
-            memory_desc_matches_tag(*diff_dst_md(), get_ncsp_tag(ndims())),
+            memory_desc_matches_tag(*diff_dst_md(), get_abx_tag(ndims())),
             VERBOSE_UNSUPPORTED_TAG);
     VDISPATCH_CONV(
             everyone_is(data_type::f32, src_md()->data_type,
@@ -451,7 +431,7 @@ status_t jit_uni_ncsp_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
 
 status_t jit_uni_ncsp_convolution_bwd_weights_t::pd_t::init_convolution(
         engine_t *engine) {
-    format_tag_t nspc_tag = get_nspc_tag(ndims());
+    format_tag_t nspc_tag = get_axb_tag(ndims());
     nspc_src_md_ = *src_md();
     nspc_diff_dst_md_ = *diff_dst_md();
     CHECK(memory_desc_init_by_tag(nspc_src_md_, nspc_tag));
@@ -579,10 +559,10 @@ status_t jit_uni_ncsp_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
             VERBOSE_BAD_ALGORITHM);
     VDISPATCH_CONV(is_bwd_d(), VERBOSE_BAD_PROPKIND);
     VDISPATCH_CONV(
-            memory_desc_matches_tag(*diff_src_md(), get_ncsp_tag(ndims())),
+            memory_desc_matches_tag(*diff_src_md(), get_abx_tag(ndims())),
             VERBOSE_UNSUPPORTED_TAG);
     VDISPATCH_CONV(
-            memory_desc_matches_tag(*diff_dst_md(), get_ncsp_tag(ndims())),
+            memory_desc_matches_tag(*diff_dst_md(), get_abx_tag(ndims())),
             VERBOSE_UNSUPPORTED_TAG);
     VDISPATCH_CONV(everyone_is(data_type::f32, diff_src_md()->data_type,
                            diff_dst_md()->data_type, weights_md(0)->data_type),
@@ -605,7 +585,7 @@ status_t jit_uni_ncsp_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
 
 status_t jit_uni_ncsp_convolution_bwd_data_t::pd_t::init_convolution(
         engine_t *engine) {
-    format_tag_t nspc_tag = get_nspc_tag(ndims());
+    format_tag_t nspc_tag = get_axb_tag(ndims());
     nspc_diff_src_md_ = *diff_src_md();
     nspc_diff_dst_md_ = *diff_dst_md();
     CHECK(memory_desc_init_by_tag(nspc_diff_src_md_, nspc_tag));
