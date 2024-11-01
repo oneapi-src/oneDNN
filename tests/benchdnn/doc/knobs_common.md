@@ -146,6 +146,12 @@ Additional information is printed to the stdout depending on a level `N`. `N` is
 a non-negative integer value. The default value is `0`. Refer to
 [verbose](knobs_verbose.md) for details.
 
+### --use-sycl-graph
+`--use-sycl-graph=BOOL` instructs the driver to execute using the experimental
+SYCL Graph backend when `BOOL` is set to `true`. When `BOOL` is set to `false`
+(the default), the driver will execute normally. This feature is limited to
+DPC++ runtime with Level Zero backend.
+
 ## Correctness mode settings
 
 ### --attr-same-pd-check
