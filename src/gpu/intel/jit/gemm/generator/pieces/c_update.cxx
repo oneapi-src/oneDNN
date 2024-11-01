@@ -2122,6 +2122,18 @@ void BLASKernelGenerator<hw>::convert(const GRFMultirange &range, Type Told, Typ
         return;
     }
 
+    // Special path: f32->hf8.
+    if (hw >= HW::Xe3 && Told == Type::f32 && Tnew == Type::hf8) {
+        int ne = elementsPerGRF<uint32_t>(hw);
+        for (int i = 0; i < range.getLen(); i++)
+            mov(ne, range[i].hf(), range[i].f());
+        for (int i = 0; i < range.getLen(); i++)
+            mov(ne, range[i].hf8(), range[i].hf());
+        for (int i = 0; i < range.getLen(); i++)
+            mov(ne, range[i].ub(0)(4), range[i].ub());
+        return;
+    }
+
     // Special path: s16->f16.
     if (Told == Type::s16 && Tnew == Type::f16) {
         if (hw < HW::Gen11) stub();
