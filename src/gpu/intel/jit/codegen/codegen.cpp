@@ -158,7 +158,9 @@ public:
                 if (send_func.is_load() || send_func.is_load_2d()) {
                     auto reg_buf_op = ir_to_ngen_t<hw>::eval(
                             send_t::arg_reg_buf(args), scope);
-                    zero_out(reg_buf_op, send_func.payload_size());
+                    auto pattern_op = ir_to_ngen_t<hw>::eval(
+                            send_t::arg_fill_pattern(args), scope);
+                    fill_buf(reg_buf_op, send_func.payload_size(), pattern_op);
                 }
                 return;
             }
@@ -189,7 +191,7 @@ public:
             slm_fence(obj.attr);
         } else if (func.is_same(funcs::zero_out_func())) {
             auto buf_op = eval(obj.args[0], scope);
-            zero_out(buf_op.reg_buf_data(), to_cpp<int>(obj.args[1]));
+            fill_buf(buf_op.reg_buf_data(), to_cpp<int>(obj.args[1]));
         } else {
             ir_error_not_expected() << object_t(obj);
         }
@@ -517,9 +519,10 @@ private:
         }
     }
 
-    void zero_out(const ngen_operand_t &buf_op, int size) const {
+    void fill_buf(const ngen_operand_t &buf_op, int size,
+            const ngen_operand_t &pattern = {}) const {
         auto &rd = buf_op.reg_buf_data();
-        type_t type = type_t::f32();
+        type_t type = type_t::u32();
         int grf_size = ngen::GRF::bytes(hw);
         int step = 2 * grf_size;
         for (int i = 0; i < size; i += step) {
@@ -527,7 +530,15 @@ private:
             step = utils::rnd_down_pow2(step);
             int exec_size = step / type.size();
             auto sub_rd_mov = rd.format(i, to_ngen(type), exec_size).reg_data();
-            host_->emov(exec_size, sub_rd_mov, ngen::Immediate(0.0f));
+            if (pattern.is_invalid()) {
+                host_->emov(exec_size, sub_rd_mov, ngen::Immediate(0));
+            } else if (pattern.is_immediate()) {
+                host_->emov(exec_size, sub_rd_mov, pattern.immediate());
+            } else if (pattern.is_reg_data()) {
+                host_->emov(exec_size, sub_rd_mov, pattern.reg_data());
+            } else {
+                ir_error_not_expected();
+            }
         }
     }
 
@@ -582,12 +593,12 @@ private:
                 << "expected atomic message dwordx8 or qwordx8";
         auto load_func = send_t::make(send_func.hw, send_op_t::load,
                 send_func.address, send_func.type, send_func.slots,
-                send_func.zero_out, send_func.cache_hint);
+                send_func.fill_buf, send_func.cache_hint);
         auto &load_send = load_func.as<send_t>();
         send_impl_t load(load_send);
         auto cmpwr_func = send_t::make(send_func.hw, send_op_t::atomic_cmpwr,
                 send_func.address, send_func.type, send_func.slots,
-                send_func.zero_out, send_func.cache_hint);
+                send_func.fill_buf, send_func.cache_hint);
         auto &cmpwr_send = cmpwr_func.as<send_t>();
         send_impl_t cmpwr(cmpwr_send);
         bool is_df = send_func.type.kind() == type_kind_t::qword;
@@ -638,6 +649,7 @@ private:
         auto &mem_off_op = send_t::arg_mem_off(args);
         auto &reg_buf_op = send_t::arg_reg_buf(args);
         auto &mask_op = send_t::arg_mask(args);
+        auto &fill_pattern = send_t::arg_fill_pattern(args);
 
         ngen::InstructionModifier mod = send_func.nmasks();
         ir_assert(math::is_pow2(mod.getExecSize()));
@@ -646,10 +658,10 @@ private:
         if (!mask_op.is_invalid()) mod |= mask_op.flag_register_mod();
 
         // Zero-out inactive channels unless told not to.
-        if (send_func.zero_out
+        if (send_func.fill_buf
                 && (send_func.is_load() || send_func.is_load_2d())
                 && mod.getPredCtrl() != ngen::PredCtrl::None) {
-            zero_out(reg_buf_op, send_func.payload_size());
+            fill_buf(reg_buf_op, send_func.payload_size(), fill_pattern);
         }
 
         // Emit send instruction.

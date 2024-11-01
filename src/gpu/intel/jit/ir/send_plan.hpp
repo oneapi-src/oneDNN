@@ -50,7 +50,7 @@ public:
     void set_reg_buf_size(int size);
 
     stmt_t create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
-            int subtile_idx = 0) const;
+            int subtile_idx = 0, const expr_t &pattern = {}) const;
 
     int estimate_regs(bool with_buffer = true, bool with_headers = true,
             bool reuse_headers = false) const;
