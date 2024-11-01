@@ -68,6 +68,107 @@ format_tag_t get_nspc_tag(int ndims) {
 }
 } // namespace
 
+status_t ncsp_matmul_reduction_helper_t::reshape_activations(
+        memory_desc_t *o_md, const memory_desc_t *i_md, bool to_matmul,
+        bool is_dst) {
+    dims_t reduce {};
+    // 1 (batch) + groups + 2 (c/g and sp) for matmul
+    // groups + convolution dims for convolution
+    const dim_t ndims_out = to_matmul ? 1 + pd_->with_groups() + 2
+                                      : pd_->with_groups() + pd_->ndims();
+    // convert between activations for convolution and matmul
+    // batch dimension is the same for convolution and matmul
+    // channel dimension of convolution is split into group and channels
+    // spatial dimensions of convolution are combined into one
+    // eg. {n, c, d, h, w} <-> {n, g, c/g, sp}
+    if (to_matmul) {
+        // conv to matmul: add batch, remove spatial
+        int d = 0;
+        reduce[d++] = pd_->MB(); // n
+        if (pd_->with_groups()) reduce[d++] = pd_->G(); // g
+        reduce[d++] = i_md->dims[1] / pd_->G(); // c/g
+        reduce[d++] = pd_->ID() * pd_->IH() * pd_->IW(); // sp
+    } else {
+        // matmul to conv: restore original dimensions
+        const memory_desc_t *a_md
+                = is_dst ? pd_->invariant_dst_md() : pd_->invariant_src_md();
+        for (int d = 0; d < pd_->ndims(); ++d)
+            reduce[d] = a_md->dims[d]; // n, c, d, h, w
+    }
+    return memory_desc_reshape(*o_md, *i_md, ndims_out, reduce);
+}
+
+status_t ncsp_matmul_reduction_helper_t::reshape_bias(
+        memory_desc_t *o_md, const memory_desc_t *i_md) {
+    dims_t reduce {};
+    // 1 (batch) + groups + 2 (c/g and sp) for matmul
+    const dim_t ndims_out = 1 + pd_->with_groups() + 2;
+    // reshape bias from convolution to matmul
+    // for matmul, batch and spatial dimensions are always 1
+    // eg. {o} <-> {1, g, o/g, 1}
+    int d = 0;
+    reduce[d++] = 1; // b
+    if (pd_->with_groups()) reduce[d++] = pd_->G(); // g
+    reduce[d++] = i_md->dims[0] / pd_->G(); // o/g
+    reduce[d++] = 1; // sp
+    return memory_desc_reshape(*o_md, *i_md, ndims_out, reduce);
+}
+
+status_t ncsp_matmul_reduction_helper_t::reshape_weights(
+        memory_desc_t *o_md, const memory_desc_t *i_md, bool to_matmul) {
+    dims_t reduce {};
+    // 1 (batch) + groups + 2 (c/g and sp) for matmul
+    // groups + convolution dims for convolution
+    const dim_t ndims_out = to_matmul ? 1 + pd_->with_groups() + 2
+                                      : pd_->with_groups() + pd_->ndims();
+    const dim_t ndims_ch = 2 + pd_->with_groups();
+    // this will never be the case for convolution reduction to matmul but
+    // adding in for compiler errors.
+    if (ndims_out > DNNL_MAX_NDIMS) return status::invalid_arguments;
+    // convert between weights for convolution and matmul
+    // for matmul, batch dimension b is always 1
+    // eg. {g, o, i, d, h, w} <-> {b, g, o, i}
+    if (to_matmul) {
+        // conv to matmul: add batch, remove spatial
+        reduce[0] = 1; // b
+        for (int d = 0; d < ndims_ch; ++d)
+            reduce[d + 1] = i_md->dims[d]; // g, oc, ic
+    } else {
+        // matmul to conv: remove batch, restore spatial
+        for (int d = 0; d < ndims_ch; ++d)
+            reduce[d] = i_md->dims[d + 1]; // g, o, i
+        for (int d = ndims_ch; d < ndims_out; ++d)
+            reduce[d] = 1; // d, h, w
+    }
+    return memory_desc_reshape(*o_md, *i_md, ndims_out, reduce);
+}
+
+status_t ncsp_matmul_reduction_helper_t::transpose(
+        memory_desc_t &transposed_md, memory_desc_t &to_be_tranposed_md) {
+    const int ndims = to_be_tranposed_md.ndims;
+    int *perm = new int[ndims];
+    for (int dim = 0; dim < ndims; dim++) {
+        if (dim == ndims - 2)
+            perm[dim] = dim + 1;
+        else if (dim == ndims - 1)
+            perm[dim] = dim - 1;
+        else
+            perm[dim] = dim;
+    }
+    return memory_desc_permute_axes(transposed_md, to_be_tranposed_md, perm);
+}
+
+bool ncsp_matmul_reduction_helper_t::is_gemm() {
+    // 1x1
+    return utils::everyone_is(1, pd_->KD(), pd_->KH(), pd_->KW())
+            // no pre-padding
+            && utils::everyone_is(0, pd_->padFront(), pd_->padT(), pd_->padL())
+            // no post-padding
+            && utils::everyone_is(0, pd_->padBack(), pd_->padB(), pd_->padR())
+            // unit strides
+            && utils::everyone_is(1, pd_->KSD(), pd_->KSH(), pd_->KSW());
+}
+
 status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_convolution(
         engine_t *engine) {
     // create a convolution descriptor with activations in nspc format
