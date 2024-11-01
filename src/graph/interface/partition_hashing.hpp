@@ -27,6 +27,7 @@
 
 #include "oneapi/dnnl/dnnl_graph.h"
 
+#include "common/engine.hpp"
 #include "common/engine_id.hpp"
 
 #include "graph/interface/c_types_map.hpp"
@@ -63,15 +64,15 @@ struct key_t {
     bool operator==(const key_t &other) const;
     const std::thread::id &thread_id() const { return thread_id_; }
     bool has_runtime_dependencies() const {
-        return !(engine_id_.kind() == engine_kind::cpu
-                && impl::is_native_runtime(engine_id_.runtime_kind()));
+        return !(engine_->kind() == engine_kind::cpu
+                && impl::is_native_runtime(engine_->runtime_kind()));
     }
 
     mutable std::vector<op_t *> ops_;
     mutable std::vector<logical_tensor_t> ins_;
     mutable std::vector<logical_tensor_t> outs_;
     int nthread_;
-    impl::engine_id_t engine_id_;
+    const impl::engine_t *engine_;
 
 private:
     // Thread ID is not used as part of the key, it's only used to get
@@ -148,7 +149,8 @@ struct hash<dnnl::impl::graph::partition_hashing::key_t> {
         size_t seed = 0;
         // Compute hash for nthread_, engine_kind_
         seed = dnnl::impl::hash_combine(seed, key.nthread_);
-        seed = dnnl::impl::hash_combine(seed, key.engine_id_.hash());
+        seed = dnnl::impl::hash_combine(
+                seed, reinterpret_cast<uintptr_t>(key.engine_));
 
         // Combine hash for op_kinds & attributes with the computed hash
         seed = get_array_hash(seed, key.ops_);

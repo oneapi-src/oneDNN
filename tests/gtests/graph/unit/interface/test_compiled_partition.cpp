@@ -138,6 +138,68 @@ TEST(test_interface_compiled_partition, CacheSingleOpCase) {
 #endif
 }
 
+TEST(test_interface_compiled_partition, CacheEngine) {
+    dnnl::engine::kind ekind;
+    if (get_test_engine_kind() == impl::graph::engine_kind::cpu) {
+        ekind = dnnl::engine::kind::cpu;
+    } else {
+        ekind = dnnl::engine::kind::gpu;
+    }
+    const size_t batch_num = 2;
+
+    impl::graph::op_kind_t kind = impl::graph::op_kind::ReLU;
+
+    // Flush the cache
+    set_compiled_partition_cache_capacity(0);
+    set_compiled_partition_cache_capacity(1024);
+
+    for (size_t batch = 0; batch < batch_num; ++batch) {
+        dnnl::engine engine = dnnl::engine(ekind, 0);
+        impl::engine_t *eng = engine.get();
+        impl::graph::logical_tensor_t input = utils::logical_tensor_init(0,
+                {1, 1, 1, 1}, impl::graph::data_type::f32,
+                impl::graph::layout_type::strided);
+        impl::graph::logical_tensor_t output = utils::logical_tensor_init(1,
+                {1, 1, 1, 1}, impl::graph::data_type::f32,
+                impl::graph::layout_type::strided);
+
+        impl::graph::op_t elt {0, kind, "elt"};
+        elt.add_input(input);
+        elt.add_output(output);
+        // Create graph
+        impl::graph::graph_t g {eng->kind()};
+        g.add_op(&elt);
+        g.finalize();
+        // Create single-op partition
+        std::vector<const impl::graph::backend_t *> &backends
+                = impl::graph::backend_registry_t::get_singleton()
+                          .get_registered_backends();
+        for (const auto &cbkd : backends) {
+            impl::graph::backend_t *bkd
+                    = const_cast<impl::graph::backend_t *>(cbkd);
+            bkd->get_partitions(g, impl::graph::partition_policy::fusion);
+        }
+        // wrap into the partition
+        impl::graph::partition_t par = impl::graph::partition_t();
+        std::vector<impl::graph::partition_t *> parts {&par};
+        g.get_ordered_partitions(parts);
+
+        impl::graph::compiled_partition_t cp(par);
+        std::pair<impl::graph::compiled_partition_t *, cache_state_t> cpcache {
+                &cp, cache_state_t::miss};
+        std::vector<const impl::graph::logical_tensor_t *> inputs {&input};
+        std::vector<const impl::graph::logical_tensor_t *> outputs {&output};
+        // Partition compilation
+        par.compile(cpcache, inputs, outputs, eng);
+    }
+
+#ifdef DNNL_GRAPH_DISABLE_COMPILED_PARTITION_CACHE
+    ASSERT_EQ(get_compiled_partition_cache_size(), 0);
+#else
+    ASSERT_EQ(get_compiled_partition_cache_size(), static_cast<int>(batch_num));
+#endif
+}
+
 TEST(test_interface_compiled_partition, CacheMethod) {
     namespace graph = dnnl::impl::graph;
 
