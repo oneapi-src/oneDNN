@@ -64,6 +64,8 @@ public:
         auto &mem_off = send_t::arg_mem_off(obj);
         auto &reg_buf = send_t::arg_reg_buf(obj);
         auto &mask = send_t::arg_mask(obj);
+        expr_t pattern;
+        if (obj.args.size() > 6) pattern = send_t::arg_fill_pattern(obj);
 
         ir_assert(is_var(mem_buf)) << mem_buf;
 
@@ -96,8 +98,10 @@ public:
                     send_t::header_2d_off_whc());
         }
 
-        auto new_call = func_call_t::make(
-                obj.func, {mem_buf, header_buf, reg_buf, mask}, obj.attr);
+        auto new_call = func_call_t::make(obj.func,
+                {mem_buf, header_buf, reg_buf, mask, expr_t(), expr_t(),
+                        pattern},
+                obj.attr);
         auto body = stmt_seq_t::make(off_store, new_call);
 
         // Allocate header.

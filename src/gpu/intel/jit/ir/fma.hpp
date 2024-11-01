@@ -141,10 +141,9 @@ public:
         std::ostringstream oss;
         oss << (is_dpasw ? "dpasw" : is_dp4a() ? "dp4a" : "dpas");
         if (!is_dp4a()) {
-            oss << "." << sdepth << "x" << rcount;
-        } else {
-            oss << ".x" << exec_size;
+            oss << std::to_string(sdepth) << "x" << std::to_string(rcount);
         }
+        oss << ".x" << std::to_string(exec_size);
         return oss.str();
     }
 

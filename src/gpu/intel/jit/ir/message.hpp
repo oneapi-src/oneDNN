@@ -182,7 +182,7 @@ public:
         return (op == other.op) && (address == other.address)
                 && (type == other.type) && (slots == other.slots)
                 && (slot_mask == other.slot_mask) && (is_lsc == other.is_lsc)
-                && (zero_out == other.zero_out)
+                && (fill_buf == other.fill_buf)
                 && (block_2d_info == other.block_2d_info)
                 && (cache_hint == other.cache_hint);
     }
@@ -193,7 +193,7 @@ public:
         oss << type.str();
         if (is_scattered()) oss << "x" << slots;
         if (is_2d()) oss << "." << block_2d_info.str();
-        if (!zero_out) oss << ".nzo";
+        if (!fill_buf) oss << ".nofill";
         if (cache_hint != send_cache_hint_t::undef)
             oss << "." << to_string(cache_hint);
         return oss.str();
@@ -206,6 +206,7 @@ public:
     IR_DEFINE_ARG_GET(mask, 3)
     IR_DEFINE_ARG_GET(x, 4)
     IR_DEFINE_ARG_GET(y, 5)
+    IR_DEFINE_ARG_GET(fill_pattern, 6)
 
     // Header offsets in bytes for 2D block messages.
     static int header_2d_off_base() { return 0; }
@@ -218,8 +219,9 @@ public:
 
     stmt_t operator()(const expr_t &mem_buf, const expr_t &mem_off,
             const expr_t &reg_buf, const expr_t &mask,
-            const expr_t &x = expr_t(), const expr_t &y = expr_t()) const {
-        return call({mem_buf, mem_off, reg_buf, mask, x, y});
+            const expr_t &x = expr_t(), const expr_t &y = expr_t(),
+            const expr_t &pattern = expr_t()) const {
+        return call({mem_buf, mem_off, reg_buf, mask, x, y, pattern});
     }
 
     bool is_atomic() const { return op == send_op_t::atomic_fadd; }
@@ -342,7 +344,7 @@ public:
     int slots;
     uint32_t slot_mask;
     bool is_lsc;
-    bool zero_out;
+    bool fill_buf;
 
     block_2d_info_t block_2d_info;
     send_cache_hint_t cache_hint;
@@ -367,7 +369,7 @@ private:
         , slots(slots)
         , slot_mask(slot_mask)
         , is_lsc(is_lsc)
-        , zero_out(zero_out)
+        , fill_buf(zero_out)
         , cache_hint(cache_hint) {}
 
     send_t(const hw_t &hw, send_op_t op, const type_t &type, bool zero_out,
@@ -380,7 +382,7 @@ private:
         , slots(1)
         , slot_mask(default_slot_mask)
         , is_lsc(true)
-        , zero_out(zero_out)
+        , fill_buf(zero_out)
         , block_2d_info(block_2d_info)
         , cache_hint(cache_hint) {
         ir_assert(utils::one_of(op, send_op_t::load_2d, send_op_t::store_2d,

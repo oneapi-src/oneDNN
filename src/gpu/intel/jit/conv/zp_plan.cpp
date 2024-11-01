@@ -312,9 +312,6 @@ public:
 
     stmt_t create_stmt(const expr_t &wei_buf, const expr_t &dpas_buf,
             const gemm_schedule_t &gemm_schedule, int subtile_idx) {
-        auto simd_bcast = [&](const expr_t &e) {
-            return shuffle_t::make_broadcast(e, simd_);
-        };
         if (subtile_idx > 0) return stmt_t();
 
         ir_assert(zp_layout_.blocks().empty());
@@ -373,6 +370,10 @@ public:
     IR_DEFINE_DUMP()
 
 private:
+    expr_t simd_bcast(const expr_t &e) const {
+        return shuffle_t::make_broadcast(e, simd_);
+    }
+
     layout_t zp_layout_;
     layout_t b_layout_;
     type_t data_type_;
@@ -385,16 +386,25 @@ public:
     using base_plan_t::base_plan_t;
 
     zp_comp_init_plan_t(const hw_t &hw, bool is_fwd, const layout_t &zp_layout,
-            const layout_t &wei_layout)
-        : base_plan_t(hw), zp_layout_(zp_layout), wei_layout_(wei_layout) {
+            const layout_t &src_layout, const layout_t &wei_layout)
+        : base_plan_t(hw)
+        , zp_layout_(zp_layout)
+        , src_layout_(src_layout)
+        , wei_layout_(wei_layout) {
         init_idxs(is_fwd);
         init_comp_layout();
         init_comp_kind();
     }
 
+    const layout_t &zp_layout() const { return zp_layout_; }
+    const layout_t &src_layout() const { return src_layout_; }
     const layout_t &comp_layout() const { return comp_layout_; }
 
     int ndims() const { return comp_layout_.ndims(); }
+
+    int fill_reg_buf_size() const {
+        return utils::rnd_up(into<int>(src_layout_.size()), grf_size());
+    }
 
     int comp_reg_buf_size() const {
         int ret = utils::div_up(into<int>(comp_layout_.size()), split_factor_);
@@ -425,9 +435,12 @@ public:
         if (abc == abc_kind_t::b) split_factor_ = factor;
     }
 
+    int estimate_fill_regs() const {
+        return utils::div_up(fill_reg_buf_size(), grf_size());
+    }
+
     int estimate_regs() const {
-        int ret = 0;
-        ret += comp_reg_buf_size();
+        int ret = comp_reg_buf_size();
         switch (kind_) {
             case zp_comp_kind_t::wei_Xn4k_x8_zp_common:
                 // zp_1x4 buffer.
@@ -442,13 +455,28 @@ public:
         return utils::div_up(ret, grf_size());
     }
 
+    stmt_t create_fill_stmt(
+            const expr_t &src_buf, const expr_t &dpas_buf) const {
+        auto int8_bcast4 = [](const expr_t &buf) {
+            auto load = load_t::make(type_t::u8(), buf, 0);
+            return store_t::make(buf, 0,
+                    cast_t::make(
+                            type_t::u8(4), shuffle_t::make_broadcast(load, 4)));
+        };
+        auto stmt = int8_bcast4(src_buf);
+        stmt = stmt.append(store_t::make(
+                dpas_buf, 0, -load_t::make(type_t::s8(), src_buf, 0)));
+        stmt = stmt.append(int8_bcast4(dpas_buf));
+        auto fill = simd_bcast(load_t::make(type_t::u32(), dpas_buf, 0));
+        for (int i = 0; i < src_layout_.size(); i += simd_ * 4)
+            stmt = stmt.append(store_t::make(dpas_buf, i, fill));
+        return stmt;
+    }
+
     stmt_t create_stmt(buffer_manager_t &buf_mgr, const expr_t &zp_buf,
             const expr_t &wei_buf, const expr_t &comp_buf,
             const expr_t &src_buf, const gemm_schedule_t &gemm_schedule,
             int subtile_idx) const {
-        auto simd_bcast = [&](const expr_t &e) {
-            return shuffle_t::make_broadcast(e, simd_);
-        };
         if (split_factor_ == 1 && subtile_idx > 0) return stmt_t();
         stmt_t stmt, comp_buf_fill;
         int ck_blk = 1;
@@ -497,8 +525,17 @@ public:
                 });
         auto zp_1x4 = buf_mgr.get("zp_1x4");
         if (!zp_1x4.is_empty()) {
-            auto init = store_t::make(zp_1x4, 0, 0x01010101);
-            stmt = init.append(stmt);
+            if (zp_layout_.type().is_s8()) {
+                auto load = load_t::make(
+                        zp_layout_.type(), buf_mgr.get("zp_src"), 0);
+                auto init = store_t::make(zp_1x4, 0,
+                        cast_t::make(type_t::u8(4),
+                                shuffle_t::make_broadcast(load, 4)));
+                stmt = init.append(stmt);
+            } else {
+                auto init = store_t::make(zp_1x4, 0, 0x01010101);
+                stmt = init.append(stmt);
+            }
         }
         return comp_buf_fill.append(stmt);
     }
@@ -506,6 +543,7 @@ public:
     std::string str() const {
         std::ostringstream oss;
         oss << "zp_layout:   " << zp_layout_ << std::endl;
+        oss << "src_layout:  " << src_layout_ << std::endl;
         oss << "wei_layout:  " << wei_layout_ << std::endl;
         oss << "comp_layout: " << comp_layout_ << std::endl;
         oss << "kind:        " << kind_ << std::endl;
@@ -516,6 +554,10 @@ public:
     IR_DEFINE_DUMP()
 
 private:
+    expr_t simd_bcast(const expr_t &e) const {
+        return shuffle_t::make_broadcast(e, simd_);
+    }
+
     void init_idxs(bool is_fwd) {
         g_idx_ = 0;
         cn_idx_ = is_fwd ? 1 : 2;
@@ -646,7 +688,7 @@ private:
                 return create_tile_wei_Xn4k_x8_zp_per_k(zp, wei, comp, buf_mgr);
             case zp_comp_kind_t::wei_Xb_s16:
             case zp_comp_kind_t::wei_Xn_s16:
-                return create_tile_wei_Xy_s16(zp, wei, comp);
+                return create_tile_wei_Xy_s16(zp, wei, comp, buf_mgr);
             default: ir_error_not_expected();
         }
         return stmt_t();
@@ -654,9 +696,9 @@ private:
 
     stmt_t create_zp_common_mul_stmt(
             const expr_t &zp, const expr_t &comp) const {
-        if (kind_ != zp_comp_kind_t::wei_Xn4k_x8_zp_common) return stmt_t();
-
         auto zp_type = zp_layout_.type();
+        if ((kind_ != zp_comp_kind_t::wei_Xn4k_x8_zp_common) || zp_type.is_s8())
+            return stmt_t();
         auto comp_type = comp_layout_.type();
         auto comp_load = load_t::make(comp_type.with_elems(simd_), comp, 0);
         auto zp_load = load_t::make(zp_type, zp, 0);
@@ -686,11 +728,12 @@ private:
         auto wei_x8_type = wei_layout_.type();
         auto wei_s16_type = type_t::s16();
         auto comp_type = comp_layout_.type();
-        auto mad = mad_t::make(hw, comp_type, simd_, zp_type, zp_stride,
-                wei_s16_type, wei_s16_stride);
+        auto real_zp = zp;
         auto wei_s16_buf = buf_mgr.get(
                 "zp_wei_s16", simd_ * wei_s16_type.size() * wei_s16_stride);
-        stmt_t ret;
+        auto ret = maybe_typecast_zp_src(buf_mgr, zp_type, real_zp, 4);
+        auto mad = mad_t::make(hw, comp_type, simd_, zp_type, zp_stride,
+                wei_s16_type, wei_s16_stride);
         for (int ic = 0; ic < 4; ic++) {
             auto wei_x8
                     = load_t::make(wei_x8_type.with_elems(simd_), wei, ic, 4);
@@ -699,13 +742,13 @@ private:
                     wei_s16_stride * type_t::s16().size());
             ret = ret.append(store_s16);
             ret = ret.append(mad.call(
-                    {comp, comp, zp + zp_type.size() * ic, wei_s16_buf}));
+                    {comp, comp, real_zp + zp_type.size() * ic, wei_s16_buf}));
         }
         return ret;
     }
 
-    stmt_t create_tile_wei_Xy_s16(
-            const expr_t &zp, const expr_t &wei, const expr_t &comp) const {
+    stmt_t create_tile_wei_Xy_s16(const expr_t &zp, const expr_t &wei,
+            const expr_t &comp, buffer_manager_t &buf_mgr) const {
         int zp_stride = (kind_ == zp_comp_kind_t::wei_Xb_s16 && !is_zp_common())
                 ? 1
                 : 0;
@@ -713,14 +756,31 @@ private:
         auto zp_type = zp_layout_.type();
         auto wei_type = wei_layout_.type();
         auto comp_type = comp_layout_.type();
+        auto real_zp = zp;
 
         ir_assert((int)comp_layout_.inner_stride() == 1);
         ir_assert(wei_type.is_s16());
         ir_assert((int)wei_layout_.inner_stride() == wei_stride);
 
+        auto ret = maybe_typecast_zp_src(
+                buf_mgr, zp_type, real_zp, (zp_stride) ? simd_ : 1);
         auto mad = mad_t::make(
                 hw, comp_type, simd_, zp_type, zp_stride, wei_type, wei_stride);
-        return mad.call({comp, comp, zp, wei});
+        return ret.append(mad.call({comp, comp, real_zp, wei}));
+    }
+
+    stmt_t maybe_typecast_zp_src(buffer_manager_t &buf_mgr, type_t &type,
+            expr_t &zp, int size) const {
+        auto real_type = type_t::s32();
+        stmt_t ret;
+        if (type != real_type) {
+            auto src_zp = load_t::make(type.with_elems(size), zp, 0);
+            zp = buf_mgr.get("zp_src_s32", real_type.size() * size);
+            ret = store_t::make(
+                    zp, 0, cast(src_zp, real_type.with_elems(size)));
+            type = real_type;
+        }
+        return ret;
     }
 
     dim_idx_t g_idx_ = -1;
@@ -728,6 +788,7 @@ private:
     dim_idx_t ck_idx_ = -1;
 
     layout_t zp_layout_;
+    layout_t src_layout_;
     layout_t wei_layout_;
     layout_t comp_layout_;
 
@@ -1384,7 +1445,9 @@ private:
 };
 
 struct zp_plan_impl_t : public base_plan_t {
+    bool src_2d_loads = false;
     bool needs_precalc = false;
+    bool has_dpasw = false;
     split_dispatcher_t sd;
     send_plan_t load;
     zp_comp_init_plan_t comp_init;
@@ -1400,8 +1463,17 @@ struct zp_plan_impl_t : public base_plan_t {
         , comp_apply(hw)
         , wei_init(hw) {}
 
+    bool has_scalar_int8_src() const {
+        return has_zp_src() && (comp_init.zp_layout().elems() == 1)
+                && comp_init.zp_layout().type().is_s8()
+                && comp_init.src_layout().type().is_s8();
+    }
     bool has_zp_src() const { return load; }
     bool has_zp_wei() const { return wei_load; }
+    bool is_src_precomp_compatible() const {
+        return has_scalar_int8_src() && !has_zp_wei() && !src_2d_loads
+                && !has_dpasw;
+    }
     explicit operator bool() const { return has_zp_src() || has_zp_wei(); }
 
     bool can_split(abc_kind_t abc, int factor) const {
@@ -1418,7 +1490,9 @@ struct zp_plan_impl_t : public base_plan_t {
 
     int estimate_regs() const {
         int ret = 0;
-        if (has_zp_src()) {
+        if (is_src_precomp_compatible()) {
+            ret += comp_init.estimate_fill_regs();
+        } else if (has_zp_src()) {
             ret += comp_init.estimate_regs();
             ret += mask_init.estimate_regs();
         }
@@ -1446,10 +1520,12 @@ zp_plan_t::zp_plan_t(const hw_t &hw)
 
 zp_plan_t::~zp_plan_t() = default;
 
-void zp_plan_t::init(const conv_config_t &cfg,
+void zp_plan_t::init(const conv_config_t &cfg, bool src_2d_loads,
         const gemm_schedule_t &gemm_schedule, const view_t &zp_view,
         const view_t &zp_src_view, const layout_t &src_layout,
         const layout_t &wei_layout, const layout_t &dst_layout) {
+    impl->src_2d_loads = src_2d_loads;
+    impl->has_dpasw = cfg.fma_kind() == fma_kind_t::dpasw;
     impl->needs_precalc = cfg.zp_cfg().needs_src_precalc;
     bool do_src = cfg.zp_cfg().do_src_compensation && !impl->needs_precalc;
     bool do_wei = cfg.zp_cfg().do_wei_compensation;
@@ -1459,8 +1535,8 @@ void zp_plan_t::init(const conv_config_t &cfg,
         auto load_params = get_send_params(
                 cfg.exec_cfg(), send_op_t::load, send_address_t::a64, zp_view);
         impl_load = create_send_plan(cfg.exec_cfg(), zp_view, load_params);
-        impl->comp_init = zp_comp_init_plan_t(
-                cfg.hw(), cfg.prb().is_fwd, impl_load.reg_layout(), wei_layout);
+        impl->comp_init = zp_comp_init_plan_t(cfg.hw(), cfg.prb().is_fwd,
+                impl_load.reg_layout(), src_layout, wei_layout);
         impl->sd = split_dispatcher_t(impl->comp_init.comp_layout(), dst_layout,
                 cfg.hw(), cfg.prb().is_fwd, gemm_schedule.bmnk_mapper());
     }
@@ -1484,6 +1560,10 @@ void zp_plan_t::init(const conv_config_t &cfg,
 
 zp_plan_t::operator bool() const {
     return (bool)*impl;
+}
+
+bool zp_plan_t::is_src_precomp_compatible() const {
+    return impl->is_src_precomp_compatible();
 }
 
 bool zp_plan_t::has_zp_src() const {
@@ -1518,18 +1598,25 @@ int zp_plan_t::wei_reg_buf_size() const {
     return impl->wei_init.wei_reg_buf_size();
 }
 
+int zp_plan_t::src_reg_buf_size() const {
+    return impl->comp_init.fill_reg_buf_size();
+}
+
+stmt_t zp_plan_t::src_init_create_stmt(
+        const expr_t &src_buf, const expr_t &dpas_buf) const {
+    return impl->comp_init.create_fill_stmt(src_buf, dpas_buf);
+}
+
 stmt_t zp_plan_t::load_create_stmt(
         const expr_t &mem_buf, const expr_t &reg_buf, int subtile_idx) const {
-    return subtile_idx > 0
-            ? stmt_t()
-            : impl->load.create_stmt(mem_buf, reg_buf, subtile_idx);
+    if (subtile_idx > 0) return stmt_t();
+    return impl->load.create_stmt(mem_buf, reg_buf, subtile_idx);
 }
 
 stmt_t zp_plan_t::wei_load_create_stmt(
         const expr_t &mem_buf, const expr_t &reg_buf, int subtile_idx) const {
-    return subtile_idx > 0
-            ? stmt_t()
-            : impl->wei_load.create_stmt(mem_buf, reg_buf, subtile_idx);
+    if (subtile_idx > 0) return stmt_t();
+    return impl->wei_load.create_stmt(mem_buf, reg_buf, subtile_idx);
 }
 
 stmt_t zp_plan_t::comp_init_create_stmt(buffer_manager_t &buf_mgr,

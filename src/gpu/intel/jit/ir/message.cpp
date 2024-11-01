@@ -575,7 +575,7 @@ static stmt_t try_promote_to_lsc(const stmt_t &_call) {
     send_t::arg_mask(new_args) = std::move(mask);
 
     auto lsc_send = send_t::make(send.hw, send.op, send.address, send.type,
-            send.slots, /*is_lsc=*/true, send.zero_out, send.cache_hint);
+            send.slots, /*is_lsc=*/true, send.fill_buf, send.cache_hint);
     return lsc_send.call(new_args);
 }
 
