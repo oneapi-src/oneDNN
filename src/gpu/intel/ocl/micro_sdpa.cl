@@ -151,18 +151,6 @@ DECLARE_2D_TILE_RSELECT(a_scale_tile_type, SUBGROUP_SIZE, ugemm_vs_sg_tile_n, 1,
     tile_store_block(t, ptr, ld, off_r, off_c)
 #endif
 
-#if defined(KEY_DT_U4) || defined(KEY_DT_S4)
-#define KEY_ELEMENTS_PER_BYTE 2
-#else
-#define KEY_ELEMENTS_PER_BYTE 1
-#endif
-
-#if defined(VAL_DT_U4) || defined(VAL_DT_S4)
-#define VAL_ELEMENTS_PER_BYTE 2
-#else
-#define VAL_ELEMENTS_PER_BYTE 1
-#endif
-
 #define binary_add(x, y) ((x) + (y))
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) kernel void
@@ -235,7 +223,8 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
     K_scales += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE;
 #endif
 #if WITH_KEY_ZERO_POINTS
-    K_zp += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE;
+    K_zp += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE
+            / KEY_ZP_ELEMENTS_PER_BYTE;
 #endif
 #if WITH_VAL_SCALES
     V_scales += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE;
