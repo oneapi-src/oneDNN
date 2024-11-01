@@ -1067,8 +1067,7 @@ void flex_rewrite::graph_attrs_rewrite(deserialized_graph &dgraph) {
 
     // if the fpmath mode is specified by users through cml, replace the fpmath
     // mode from JSON file with the value from cml.
-    if (!fpmath_mode_.override_json_value_)
-        dgraph.set_fpmath_mode(fpmath_mode_);
+    if (fpmath_mode_.override_json_value_) dgraph.set_fpmath_mode(fpmath_mode_);
 
     for (auto &aop : dgraph.ops_) {
         // save the graph-level config for ops
