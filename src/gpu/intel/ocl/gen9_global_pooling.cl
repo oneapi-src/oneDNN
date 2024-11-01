@@ -109,7 +109,7 @@ __kernel void gen9_global_pooling_bwd(__global DATA_T *diff_src,
 #endif // ALG_AVG
     int ws_val = ws[dst_off];
     for (off_t sp_idx = spatial;
-            sp_idx < min(spatial + SPATIAL_CHUNK, SPATIAL_DIM); sp_idx++) {
+         sp_idx < min(spatial + SPATIAL_CHUNK, (off_t)SPATIAL_DIM); sp_idx++) {
         const off_t iw = sp_idx % IW;
         const off_t ih = ((sp_idx - iw) % (IH * IW)) / IW;
         const off_t id = (sp_idx - iw - ih * IW) / (IH * IW);
