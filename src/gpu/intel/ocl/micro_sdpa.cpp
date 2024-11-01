@@ -206,14 +206,14 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     auto problem_kq = problem;
     problem_kq.A.layout = convert_dnnl_to_kernel_layout(key_md());
     if (with_key_scales()) {
-        auto scale_dt = d->kq_scales.data_type_;
+        auto scale_dt = key_scales_dt();
         problem_kq.Ta_scale = jit::convert_dnnl_to_kernel_type(scale_dt);
         problem_kq.A_scale.alignment = uint8_t(types::data_type_size(scale_dt));
         problem_kq.A_scale.layout = MatrixLayout::T;
         problem_kq.aScale2D = true;
     }
     if (with_key_zp()) {
-        auto zp_dt = d->kq_zero_points.get_data_type(DNNL_ARG_WEIGHTS);
+        auto zp_dt = key_zp_dt();
         problem_kq.Tao = jit::convert_dnnl_to_kernel_type(zp_dt);
         problem_kq.AO.alignment = uint8_t(types::data_type_size(zp_dt));
         problem_kq.AO.layout = MatrixLayout::T;
@@ -265,14 +265,14 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     problem_vs.A.layout = convert_dnnl_to_kernel_layout(val_md());
 
     if (with_value_scales()) {
-        auto scale_dt = d->vs_scales.data_type_;
+        auto scale_dt = value_scales_dt();
         problem_vs.Ta_scale = jit::convert_dnnl_to_kernel_type(scale_dt);
         problem_vs.A_scale.alignment = uint8_t(types::data_type_size(scale_dt));
         problem_vs.A_scale.layout = MatrixLayout::N;
         problem_vs.aScale2D = true;
     }
     if (with_value_zp()) {
-        auto zp_dt = d->vs_zero_points.get_data_type(DNNL_ARG_WEIGHTS);
+        auto zp_dt = value_zp_dt();
         problem_vs.Tao = jit::convert_dnnl_to_kernel_type(zp_dt);
         problem_vs.AO.alignment = uint8_t(types::data_type_size(zp_dt));
         problem_vs.AO.layout = MatrixLayout::N;
@@ -378,11 +378,22 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     kernel_ctx.define_int("WITH_KEY_ZERO_POINTS", pd()->with_key_zp());
     kernel_ctx.define_int("WITH_VAL_ZERO_POINTS", pd()->with_value_zp());
 
-    if (d->vs_zero_points.get_data_type(DNNL_ARG_WEIGHTS) == data_type::u4) {
-        kernel_ctx.define_int("VAL_ZP_ELEMENTS_PER_BYTE", 2);
-    } else {
-        kernel_ctx.define_int("VAL_ZP_ELEMENTS_PER_BYTE", 1);
-    }
+    using namespace data_type;
+    auto elems_per_byte = [](data_type_t dt) {
+        switch (dt) {
+            case u4:
+            case s4: return 2;
+            default: return 1;
+        }
+    };
+    kernel_ctx.define_int(
+            "KEY_ELEMENTS_PER_BYTE", elems_per_byte(key_mdw.data_type()));
+    kernel_ctx.define_int(
+            "KEY_ZP_ELEMENTS_PER_BYTE", elems_per_byte(pd()->key_zp_dt()));
+    kernel_ctx.define_int(
+            "VAL_ELEMENTS_PER_BYTE", elems_per_byte(val_mdw.data_type()));
+    kernel_ctx.define_int(
+            "VAL_ZP_ELEMENTS_PER_BYTE", elems_per_byte(pd()->value_zp_dt()));
 
     if (pd()->with_key_scales() || pd()->with_key_zp())
         kernel_ctx.define_int("KEY_GROUP_SIZE", pd()->key_group_size());
