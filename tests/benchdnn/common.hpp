@@ -90,14 +90,6 @@ enum { CRIT = 1, WARN = 2 };
         } \
     } while (0)
 
-extern int verbose;
-extern bool canonical;
-extern bool mem_check;
-extern bool attr_same_pd_check;
-extern bool check_ref_impl;
-extern std::string skip_impl; /* empty or "" means skip nothing */
-extern std::string driver_name;
-
 #define BENCHDNN_PRINT(v, fmt, ...) \
     do { \
         if (verbose >= v) { \
@@ -106,6 +98,28 @@ extern std::string driver_name;
             fflush(0); \
         } \
     } while (0)
+
+extern int verbose;
+extern bool canonical;
+extern bool mem_check;
+extern bool attr_same_pd_check;
+extern bool check_ref_impl;
+extern std::string skip_impl; /* empty or "" means skip nothing */
+extern std::string driver_name;
+
+#define LIST_OF_EXECUTION_MODES(X) \
+    X(direct) \
+    X(graph)
+
+enum class execution_mode_t {
+#define EXECUTION_MODES_ENUM(name, ...) name,
+    LIST_OF_EXECUTION_MODES(EXECUTION_MODES_ENUM)
+#undef EXECUTION_MODES_ENUM
+};
+extern execution_mode_t execution_mode;
+
+const char *execution_mode2str(execution_mode_t mode);
+execution_mode_t str2execution_mode(const char *str);
 
 #define BENCHDNN_DISALLOW_COPY_AND_ASSIGN(T) \
     T(const T &) = delete; \

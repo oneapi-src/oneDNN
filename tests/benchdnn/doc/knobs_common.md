@@ -146,6 +146,13 @@ Additional information is printed to the stdout depending on a level `N`. `N` is
 a non-negative integer value. The default value is `0`. Refer to
 [verbose](knobs_verbose.md) for details.
 
+### --execution-mode
+`--execution-mode=MODE` specifies the execution mode to be used. When `MODE`
+is set to `direct` (the default), the driver will execute normally. When `MODE`
+is set to `graph` it instructs the driver to execute on a graph backend.
+Currently this feature is limited to the experimental SYCL Graph feature on
+DPC++ runtime with Level Zero backend.
+
 ## Correctness mode settings
 
 ### --attr-same-pd-check

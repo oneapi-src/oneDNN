@@ -291,6 +291,28 @@ const char *bool2str(bool value) {
     return value ? "true" : "false";
 }
 
+const char *execution_mode2str(execution_mode_t mode) {
+#define EXECUTION_MODE_TO_STR(name, ...) \
+    if (execution_mode_t::name == mode) return #name;
+    LIST_OF_EXECUTION_MODES(EXECUTION_MODE_TO_STR);
+#undef EXECUTION_MODE_STR
+
+    BENCHDNN_PRINT(0, "%s", "Error: execution mode value is not recognized.\n");
+    SAFE_V(FAIL);
+    return "";
+}
+
+execution_mode_t str2execution_mode(const char *str) {
+#define STR_TO_EXECUTION_MODE(name, ...) \
+    if (!strcasecmp(#name, str)) return execution_mode_t::name;
+    LIST_OF_EXECUTION_MODES(STR_TO_EXECUTION_MODE);
+#undef STR_TO_EXECUTION_MODE
+
+    BENCHDNN_PRINT(0, "%s", "Error: execution mode value is not recognized.\n");
+    SAFE_V(FAIL);
+    return execution_mode_t::direct;
+}
+
 #ifdef _WIN32
 /* NOTE: this should be supported on linux as well, but currently
  * having issues for ICC170 and Clang*/
