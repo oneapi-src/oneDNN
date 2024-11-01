@@ -169,10 +169,10 @@ int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr,
     // Do nothing, return a good status. Keep here to avoid guarding externally.
     if (query_md_ndims(rhs.md_) == 0) return OK;
 
-    // Assumption is `no_host_memory` assigned values at construction, and no
+    // Assumption is `no_ref_memory` assigned values at construction, and no
     // actual reorder needed. This check is to avoid extra code outside of
     // reorder interface.
-    if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
+    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) return OK;
 
     const bool do_swap_dt = swap_dt != dnnl_data_type_undef;
     dnnl_data_type_t orig_dt = this->dt();
@@ -874,7 +874,7 @@ int dnn_mem_t::initialize(
     SAFE(initialize_memory_create(handle_info), CRIT);
 
     if (handle_info.is_allocate()) {
-        if (!has_bench_mode_modifier(mode_modifier_t::no_host_memory)) map();
+        if (!has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) map();
 
         const int nhandles = query_md_num_handles(md_);
         for (int i = 0; i < nhandles; i++) {
@@ -890,7 +890,7 @@ int dnn_mem_t::initialize(
                 // Avoid costy data reorders for cold cache mode when
                 // initializing cold cache buffers.
                 // TODO: consider enabling broadly for perf mode.
-                if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)
+                if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)
                         || cold_cache_mode != default_cold_cache_mode) {
                     // Fill memory directly with 0x3F3F3F3F (0.747059f) number.
                     this->memset(dnnl_mem_default_perf_test_value, sz);
@@ -941,7 +941,7 @@ static int cleanup_opencl(
 
 int dnn_mem_t::cleanup() {
     if (!active_) return OK;
-    if (!has_bench_mode_modifier(mode_modifier_t::no_host_memory)) unmap();
+    if (!has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) unmap();
     DNN_SAFE(dnnl_memory_desc_destroy(md_), CRIT);
     DNN_SAFE(dnnl_memory_destroy(m_), CRIT);
     if (is_data_owner_) {

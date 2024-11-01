@@ -273,7 +273,7 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
 
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         const prb_t *prb, res_t *res) {
-    if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return OK;
+    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) return OK;
 
     switch (prb->alg) {
         case SELECT:

@@ -100,10 +100,10 @@ otherwise. The following modes (`--mode`) are supported:
 
 ## Mode modifiers
 
-Modes may have extensions to their default behavior. Those extensions may be
-enabled by special mode modifiers (`--mode-modifier`). They have limited scope
-and applicability. See details next to each modifier to know their limits.
-The following modifiers are supported:
+Modes may have extensions to their default behavior. These extensions are
+enabled by default for certain modes and further modifiers may be enabled by
+(`--mode-modifier`). See details next to each modifier to know their limits. The
+following modifiers are supported:
 * Parallel test object creation (`P`). This is an extension of step 4, when
   several backend objects, up to the number of threads identified on the system,
   are created in parallel and then executed in order. This allows to overlap
@@ -114,11 +114,10 @@ The following modifiers are supported:
   used  unless "-DDNNL_ENABLE_CONCURRENT_EXEC=ON" is enabled at the build time.
   Otherwise scratchpad pointers are invalidated due to threads used for creation
   are no longer alive at the point when execution time comes.
-* Disabling usage of host memory (`M`). This is an extension of performance mode
-  when all work with host memory is disabled. It includes mapping/unmapping
-  memory objects and also skipping filling functions with their reorders. Every
+* Disable reference memory (`M`). This is an extension for modes which do not
+  need reference memory, like run mode. It includes skipping
+  mapping/unmapping memory objects and also skipping filling functions. Every
   value of a device memory object is assigned with a special value directly.
-  This is applicable for GPU only.
 
 ## Problem Statuses
 

@@ -1257,7 +1257,10 @@ static bool parse_mode(
                 case 'i':
                 case 'I': mode = bench_mode_t::init; break;
                 case 'r':
-                case 'R': mode = bench_mode_t::exec; break;
+                case 'R':
+                    mode = bench_mode_t::exec;
+                    bench_mode_modifier |= mode_modifier_t::no_ref_memory;
+                    break;
                 case 'c':
                 case 'C': mode = bench_mode_t::corr; break;
                 case 'p':
@@ -1266,8 +1269,8 @@ static bool parse_mode(
                 case 'F':
                     mode = bench_mode_t::perf_fast;
                     max_ms_per_prb = 10;
-                    bench_mode_modifier = mode_modifier_t::par_create
-                            | mode_modifier_t::no_host_memory;
+                    bench_mode_modifier |= mode_modifier_t::par_create
+                            | mode_modifier_t::no_ref_memory;
                     break;
                 case 'b':
                 case 'B': mode = bench_mode_t::bitwise; break;
@@ -1295,21 +1298,20 @@ static bool parse_mode_modifier(
               "          The flow will create as many primitives in parallel \n"
               "          as number of threads identified on the system \n"
               "          first, then execute them one by one.\n"
-              "    * `M` to disable usage of host memory.\n"
+              "    * `M` to disable usage of reference memory.\n"
               "          It removes any overheads for mapping, unmapping and \n"
               "          reorders used in filling functions (disabled).\n"
-              "          Applicable for performance mode and GPU engine only.\n"
               "    More details at "
             + doc_url + "benchdnn_general_info.md\n";
 
     const auto str2mode_modifier = [](const std::string &_str) {
-        mode_modifier_t modifier = default_bench_mode_modifier;
+        mode_modifier_t modifier = bench_mode_modifier;
         for (auto s : _str) {
             switch (s) {
                 case 'p':
                 case 'P': modifier |= mode_modifier_t::par_create; break;
                 case 'm':
-                case 'M': modifier |= mode_modifier_t::no_host_memory; break;
+                case 'M': modifier |= mode_modifier_t::no_ref_memory; break;
                 default:
                     BENCHDNN_PRINT(0, "%s\n%s",
                             "Error: modifier value is invalid.", help.c_str());

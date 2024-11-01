@@ -85,7 +85,7 @@ private:
 
     // Memory allocations are time consuming on GPU, thus, limiting number of
     // buffers from above.
-    // Since `no_host_memory` allocations use `memset` call to initialize the
+    // Since `no_ref_memory` allocations use `memset` call to initialize the
     // data, the assumption is it makes newly created memory objects get into
     // GPU cache. Using these memory objects in cold cache run will not be
     // "cold" any more.

@@ -89,7 +89,7 @@ runtimes. `KIND` values can be `usm` (default), `buffer`, `usm_device`
                `--mode=P --mode-modifier=PM --max-ms-per-prb=10`
   - `CP` or `cp` for both correctness and performance testing
   - `B` or `b` for bitwise (numerical determinism) testing
-  - `R` or `r` for run mode
+  - `R` or `r` for run mode, enables `--mode-modifier=M`
   - `I` or `i` for initialization mode
   - `L` or `l` for listing mode
 
@@ -100,7 +100,7 @@ Refer to [modes](benchdnn_general_info.md) for details.
 `MODIFIER` values can be:
   - empty for no modifiers (the default)
   - `P` or `p` for parallel backend object creation
-  - `M` or `m` for disabling usage of host memory (GPU only)
+  - `M` or `m` for disabling usage of reference memory (GPU only)
 
 Refer to [mode modifiers](benchdnn_general_info.md) for details.
 

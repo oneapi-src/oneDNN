@@ -255,7 +255,7 @@ cold_cache_t::cold_cache_t(
 }
 
 cold_cache_t::~cold_cache_t() {
-    if (has_bench_mode_modifier(mode_modifier_t::no_host_memory)) return;
+    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) return;
 
     // Mapping memories after execution to have them destroyed gracefully.
     for (auto &e : cache_) {

@@ -762,7 +762,7 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                     // It may happen that the map already has the argument but
                     // the library requires it in a different format, e.g., RNN
                     // BWD support on GPU (for better performance). It may also
-                    // happen in a combination with `no_host_memory` modifier,
+                    // happen in a combination with `no_ref_memory` modifier,
                     // which requires the library memories map to handle such
                     // cases.
                     assert(!has_runtime_dims(md));
