@@ -177,23 +177,13 @@ struct jit_uni_ncsp_convolution_fwd_t : public primitive_t {
     private:
         const bool with_sum_;
         ncsp_matmul_reduction_helper_t reduce;
-        std::string name_ = "ncsp:tbd";
         bool is_matmul_;
+        std::string name_ = "jit_uni_ncsp_convolution:";
         void init_name() {
             std::string suffix = is_matmul_ ? "matmul" : "conv";
-            name_ = "jit_uni_ncsp_convolution:" + suffix + "+";
+            name_ += suffix + "+";
             name_.append(
                     is_matmul_ ? matmul_pd_->name() : nspc_conv_pd_->name());
-            if (!is_matmul_) {
-                name_.append("+src_reorder->");
-                name_.append(src_reorder_pd_->name());
-                if (with_sum_) {
-                    name_.append("+dst_pre_reorder->");
-                    name_.append(dst_pre_reorder_pd_->name());
-                }
-                name_.append("+dst_post_reorder->");
-                name_.append(dst_post_reorder_pd_->name());
-            }
         }
         void init_scratchpad();
     };
@@ -247,12 +237,8 @@ struct jit_uni_ncsp_convolution_bwd_weights_t : public primitive_t {
         std::string name_;
         void init_scratchpad();
         void init_name() {
-            name_ = "jit_uni_ncsp_convolution:conv->";
+            name_ = "jit_uni_ncsp_convolution:conv+";
             name_.append(nspc_conv_pd_->name());
-            name_.append("+src_reorder->");
-            name_.append(src_reorder_pd_->name());
-            name_.append("+dst_reorder->");
-            name_.append(dst_reorder_pd_->name());
         }
     };
     jit_uni_ncsp_convolution_bwd_weights_t(const pd_t *cpd)
@@ -308,15 +294,9 @@ struct jit_uni_ncsp_convolution_bwd_data_t : public primitive_t {
         void init_scratchpad();
         void init_name() {
             std::string suffix = is_matmul_ ? "matmul" : "conv";
-            name_ = "jit_uni_ncsp_convolution:" + suffix + "->";
+            name_ = "jit_uni_ncsp_convolution:" + suffix + "+";
             name_.append(is_matmul_ ? matmul_diff_src_pd_->name()
                                     : nspc_conv_pd_->name());
-            if (!is_matmul_) {
-                name_.append("+src_reorder->");
-                name_.append(src_reorder_pd_->name());
-                name_.append("+dst_reorder->");
-                name_.append(dst_reorder_pd_->name());
-            }
         }
     };
     jit_uni_ncsp_convolution_bwd_data_t(const pd_t *cpd) : primitive_t(cpd) {};
