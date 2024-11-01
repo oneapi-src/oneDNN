@@ -33,7 +33,7 @@ bool parse_string(
 }
 
 void parse_key_value(std::vector<std::map<size_t, std::string>> &res_v,
-        const std::string &key_val_str) {
+        const std::string &key_val_str, const std::string &option_name = "") {
     if (key_val_str.empty()) return;
     res_v.clear();
 
@@ -49,22 +49,43 @@ void parse_key_value(std::vector<std::map<size_t, std::string>> &res_v,
 
         std::string::size_type val_pos = 0;
         std::map<size_t, std::string> key_val_case;
-        key_val_case.clear();
         while (val_pos < case_str.size()) {
             std::string single_key_val = get_substr(case_str, val_pos, '+');
             if (single_key_val.empty()) continue;
 
             std::string::size_type key_pos = 0;
             std::string key_str = get_substr(single_key_val, key_pos, ':');
-            std::string val_str
-                    = single_key_val.substr(key_pos, val_pos - key_pos);
-            auto key_num = size_t(stoll(key_str));
-            if (key_val_case.count(key_num) || single_key_val.empty()) {
-                fprintf(stderr, "graph: Parser: repeat id `%zd`, exiting...\n",
-                        key_num);
+            if (key_pos == std::string::npos) {
+                BENCHDNN_PRINT(0,
+                        "Error: a colon separating the key and value was not "
+                        "found. Parsed input for option \'%s\': \'%s\'. Please "
+                        "check the option documentation.\n",
+                        option_name.c_str(), key_str.c_str());
                 SAFE_V(FAIL);
             }
-            key_val_case.emplace(stoll(key_str), val_str);
+
+            std::string val_str
+                    = single_key_val.substr(key_pos, val_pos - key_pos);
+            if (val_str.empty()) {
+                BENCHDNN_PRINT(0,
+                        "Error: a value after colon was not parsed. Parsed "
+                        "input for option \'%s\': \'%s\'. Please check the "
+                        "option documentation.\n",
+                        option_name.c_str(), single_key_val.c_str());
+                SAFE_V(FAIL);
+            }
+
+            const auto key_num = size_t(stoll(key_str));
+            if (key_val_case.count(key_num)) {
+                BENCHDNN_PRINT(0,
+                        "Error: a tensor with \'%zu\' ID was already updated. "
+                        "Previous value for the option \'%s\' with this ID is "
+                        "\'%s\', new value is \'%s\'.\n",
+                        key_num, option_name.c_str(),
+                        key_val_case.at(key_num).c_str(), val_str.c_str());
+                SAFE_V(FAIL);
+            }
+            key_val_case.emplace(key_num, val_str);
         }
         res_v.push_back(key_val_case);
     }
@@ -82,10 +103,11 @@ std::string get_substr(const std::string &s, size_t &start_pos, char delim) {
 
 bool parse_input_shapes(
         std::vector<std::map<size_t, std::string>> &in_shapes_vec,
-        const char *str) {
+        const char *str, const std::string &option_name) {
     std::string in_shapes_str;
-    if (!parse_string(in_shapes_str, str, "in-shapes")) return false;
-    return parse_key_value(in_shapes_vec, in_shapes_str), true;
+    if (!parse_string(in_shapes_str, str, option_name)) return false;
+    parse_key_value(in_shapes_vec, in_shapes_str, option_name);
+    return true;
 }
 
 bool parse_op_attrs(std::vector<std::map<size_t, std::string>> &op_attrs_vec,

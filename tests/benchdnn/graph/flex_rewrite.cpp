@@ -98,8 +98,22 @@ void flex_rewrite::split_oix(const std::string &data_format, dims_t &in,
     }
 }
 
-void flex_rewrite::broadcast(
-        const dims_t &x, const dims_t &y, dims_t &z) const {
+template <typename T>
+std::string stdvec2string(const std::vector<T> &v) {
+    std::string s;
+    if (v.empty()) return s;
+
+    s.append("[");
+    const size_t sz = v.size() - 1;
+    for (size_t i = 0; i < sz; i++) {
+        s.append(std::to_string(v[i])).append(", ");
+    }
+    s.append(std::to_string(v[sz])).append("]");
+    return s;
+}
+
+void flex_rewrite::broadcast(const dims_t &x, const dims_t &y, dims_t &z,
+        const std::string &x_str, const std::string &y_str) const {
     const size_t x_rank = x.size();
     const size_t y_rank = y.size();
     const size_t max_rank = std::max(x_rank, y_rank);
@@ -112,11 +126,18 @@ void flex_rewrite::broadcast(
         if (i >= by) r = y[i - by];
         if (l != r) {
             if (l != 1 && r != 1) {
-                fprintf(stderr, "graph: failed to broadcast in infer shape!\n");
+                BENCHDNN_PRINT(0,
+                        "Error: batched dimensions \'%lld\' from \'%s\' and "
+                        "\'%lld\' from \'%s\' are not consistent. They should "
+                        "be equal to each other or one of them should be equal "
+                        "to 1.\n",
+                        (long long)l, x_str.c_str(), (long long)r,
+                        y_str.c_str());
                 SAFE_V(FAIL);
             }
             z[i] = (l == 1 ? r : l);
         } else {
+            // Batch sizes are equal, use it as a final value.
             z[i] = l;
         }
     }
@@ -593,15 +614,26 @@ void flex_rewrite::infer_output_shape(
                     x[x.size() - 1] = n;
                     gi[out0] = x;
                 } else {
-                    assert(x[x.size() - 1] == y[y.size() - 2]);
-                    size_t a = x[x.size() - 2], b = y[y.size() - 1];
-                    x.pop_back();
-                    x.pop_back();
-                    y.pop_back();
-                    y.pop_back();
-                    broadcast(x, y, gi[out0]);
-                    gi[out0].push_back(a);
-                    gi[out0].push_back(b);
+                    // Check that K is consistent in updated inputs.
+                    if (x[x.size() - 1] != y[y.size() - 2]) {
+                        BENCHDNN_PRINT(0,
+                                "Error: updated shapes are not consistent. "
+                                "Expected element \'%lld\' from \'%s\' to be "
+                                "equal to element \'%lld\' from \'%s\'.\n",
+                                (long long)(x[x.size() - 1]),
+                                stdvec2string(x).c_str(),
+                                (long long)(y[y.size() - 2]),
+                                stdvec2string(y).c_str());
+                        SAFE_V(FAIL);
+                    }
+                    size_t M = x[x.size() - 2];
+                    size_t N = y[y.size() - 1];
+                    dims_t x_batch(x.begin(), x.end() - 2);
+                    dims_t y_batch(y.begin(), y.end() - 2);
+                    broadcast(x_batch, y_batch, gi[out0], stdvec2string(x),
+                            stdvec2string(y));
+                    gi[out0].push_back(M);
+                    gi[out0].push_back(N);
                 }
                 break;
             // infer_prelu_bwd_output_shape
@@ -807,6 +839,14 @@ void flex_rewrite::inports_shape_rewrite(
     for (auto &lt : aop.in_lts_) {
         // if 'lt' is not a inport, set default logical tensor info
         if (dgraph.graph_tensors_.find(lt.id_) == dgraph.graph_tensors_.end()) {
+            // At the same time check if in_shapes contain non-inport tensors.
+            if (in_shapes_.find(lt.id_) != in_shapes_.end()) {
+                BENCHDNN_PRINT(0,
+                        "Error: \'in-shapes\' option contains a tensor with "
+                        "id=\'%zu\' which is not an input for a given graph.\n",
+                        lt.id_);
+                SAFE_V(FAIL);
+            }
             set_default_deserialized_lt(lt);
             continue;
         }
