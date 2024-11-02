@@ -156,11 +156,11 @@ DECLARE_2D_TILE_RSELECT(a_scale_tile_type, SUBGROUP_SIZE, ugemm_vs_sg_tile_n, 1,
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) kernel void
 micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         const global VAL_DATA_T *V, global half *A,
-        global SCALE_DATA_T *scale_ptr, const global half *msk, int d, int k,
+        const global SCALE_DATA_T *scale_ptr, const global half *msk, int d, int k,
         int q, const global KEY_ATTR_SCALES_DATA_T *K_scales,
         const global KEY_ATTR_ZP_DATA_T *K_zp,
         const global VAL_ATTR_SCALES_DATA_T *V_scales,
-        global VAL_ATTR_ZP_DATA_T *V_zp) {
+        const global VAL_ATTR_ZP_DATA_T *V_zp) {
     uint sg_ij = sub_group_broadcast(get_local_id(1), 0);
     uint b0 = get_group_id(1);
     uint b1 = get_group_id(2);
