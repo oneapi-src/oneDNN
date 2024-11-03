@@ -423,7 +423,7 @@ struct layout_normalization_t {
             return *this;
         }
 
-        iterator_t(int ndims, block_iterator_t it, block_iterator_t end)
+        iterator_t(dim_idx_t ndims, block_iterator_t it, block_iterator_t end)
             : curr_(it == end ? end : it + 1)
             , last_(it)
             , end_(end)
@@ -519,7 +519,7 @@ private:
     }
 
     type_t type_;
-    int ndims_;
+    dim_idx_t ndims_;
     expr_t offset_;
     blocks_t blocks_;
 };
