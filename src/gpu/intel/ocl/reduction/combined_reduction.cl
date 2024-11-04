@@ -210,7 +210,8 @@ combined_reduce(
     const int red_off_sg = (inner_idx_start + sglid) / INNER_DIM_SIZE;
     const int red_off_tg = red_off_sg + sgid * red_per_sg;
 
-    const int active_channels = min(SUBGROUP_SIZE, red_per_sg * INNER_DIM_SIZE);
+    const int active_channels = min(
+            SUBGROUP_SIZE, red_per_sg * (INNER_DIM_SIZE - inner_idx_start));
     ASSUME(active_channels == SUBGROUP_SIZE || !WITH_BLOCK_READ);
 
     const int loop_stride = _SRC_OFF(0, other_reductions, 0);
