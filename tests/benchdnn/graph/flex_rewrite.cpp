@@ -1018,6 +1018,31 @@ void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
     }
 }
 
+// Select: only rewrite src_1/src_2/dst as `cond` is always `bool`.
+void dt_rewrite_select(deserialized_op &select, const std::string &dt) {
+    select.in_lts_[1].data_type_ = dt;
+    select.in_lts_[2].data_type_ = dt;
+    select.out_lts_[0].data_type_ = dt;
+}
+
+// Normalization ops: only rewrite src/dst/diff_src/diff_dst as f16
+// normalization still requires f32 for gamma/beta/etc. This is good for most of
+// the cases. But there is a potential issue if gamma/beta/etc is connected to
+// another op which will rewrite the data type at other places.
+void dt_rewrite_norm(deserialized_op &norm, const std::string &dt) {
+    if (norm.kind_ == "BatchNormTrainingBackward"
+            || norm.kind_ == "LayerNormBackward") {
+        // rewrite for src/diff_dst/diff_src.
+        norm.in_lts_[0].data_type_ = dt;
+        norm.in_lts_[1].data_type_ = dt;
+        norm.out_lts_[0].data_type_ = dt;
+    } else {
+        // only rewrite for src/dst.
+        norm.in_lts_[0].data_type_ = dt;
+        norm.out_lts_[0].data_type_ = dt;
+    }
+}
+
 void flex_rewrite::dt_rewrite(deserialized_graph &dgraph) {
     if (dt_ == dnnl_data_type_undef) return;
 
@@ -1050,15 +1075,35 @@ void flex_rewrite::dt_rewrite(deserialized_graph &dgraph) {
         }
     }
 
+    // Normalization ops need additional handling. See the comments of function
+    // `dt_rewrite_norm`.
+    static const std::vector<std::string> norm_ops {
+            "BatchNormForwardTraining",
+            "BatchNormInference",
+            "BatchNormTrainingBackward",
+            "GroupNorm",
+            "LayerNorm",
+            "LayerNormBackward",
+    };
+
     // rewrite
     std::string str_dt(dt2str(dt_));
     for (auto &aop : dgraph.ops_) {
-        for (auto &lt : aop.in_lts_) {
-            lt.data_type_ = str_dt;
-        }
+        if (aop.kind_ == "Select") {
+            dt_rewrite_select(aop, str_dt);
+        } else if (std::any_of(norm_ops.begin(), norm_ops.end(),
+                           [&aop](const std::string &k) {
+                               return aop.kind_ == k;
+                           })) {
+            dt_rewrite_norm(aop, str_dt);
+        } else {
+            for (auto &lt : aop.in_lts_) {
+                lt.data_type_ = str_dt;
+            }
 
-        for (auto &lt : aop.out_lts_) {
-            lt.data_type_ = str_dt;
+            for (auto &lt : aop.out_lts_) {
+                lt.data_type_ = str_dt;
+            }
         }
     }
 }
