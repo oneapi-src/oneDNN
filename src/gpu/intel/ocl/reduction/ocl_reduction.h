@@ -64,6 +64,14 @@ IF_DOUBLE_SUPPORTED(DEF_fp_minmax_abs(double));
         } \
     }
 
+DEF_reduce(float);
+DEF_reduce(int);
+IF_DOUBLE_SUPPORTED(DEF_reduce(double));
+IF_DOUBLE_SUPPORTED(DEF_reduce(half));
+
+#undef DEF_reduce
+
+#if !DETERMINISTIC && ATOMICS_SUPPORTED
 // Atomic reduction does not support mul... Must be checked on the caller side
 #define DEF_atomic_reduce(dt) \
     dt __attribute__((overloadable)) atomic_reduce( \
@@ -89,20 +97,13 @@ IF_DOUBLE_SUPPORTED(DEF_fp_minmax_abs(double));
         return SPECIAL(dt, zero); \
     }
 
-DEF_reduce(float);
-DEF_reduce(int);
-IF_DOUBLE_SUPPORTED(DEF_reduce(double));
-IF_DOUBLE_SUPPORTED(DEF_reduce(half));
-
-#if ATOMICS_SUPPORTED
 #if ATOMIC_FLOAT_SUPPORTED
 DEF_atomic_reduce(float);
 #endif
 DEF_atomic_reduce(int);
-#endif
 
-#undef DEF_reduce
 #undef DEF_atomic_reduce
+#endif
 
 // ************ Initialization functions ************* //
 
