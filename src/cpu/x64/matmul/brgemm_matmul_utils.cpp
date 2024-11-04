@@ -1251,6 +1251,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.brg_type = brgemm_addr;
 
     bgmmc.src_dt = src_d.data_type();
+    bgmmc.orig_src_dt = src_d.data_type();
     bgmmc.dst_dt = dst_d.data_type();
     bgmmc.wei_dt = weights_d.data_type();
     bgmmc.orig_wei_dt = weights_d.data_type();
