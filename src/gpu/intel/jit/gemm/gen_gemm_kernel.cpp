@@ -378,9 +378,9 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     align_b = nstl::max(align_b, int(types::data_type_size(b_type)));
     align_c = nstl::max(align_c, int(types::data_type_size(c_type)));
 
-    bool can_2d_a = (lda * problem_.Ta <= 16777216);
-    bool can_2d_b = (ldb * problem_.Tb <= 16777216);
-    bool can_2d_c = (ldc * problem_.Tc <= 16777216);
+    bool can_2d_a = (lda * problem_.Ta_ext <= 16777216);
+    bool can_2d_b = (ldb * problem_.Tb_ext <= 16777216);
+    bool can_2d_c = (ldc * problem_.Tc_ext <= 16777216);
 
     // Xe2 requires stronger alignment for block 2D.
     if (arch == compute::gpu_arch_t::xe2 || arch == compute::gpu_arch_t::xe3) {
