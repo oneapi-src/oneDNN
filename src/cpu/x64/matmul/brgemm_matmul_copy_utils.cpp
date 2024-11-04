@@ -3932,7 +3932,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
             vcvtdq2ps(zmm_src, zmm_src);
             maybe_apply_scales(src_reg, i * scales_K_stride_, is_tail);
         } else
-            assert("Unsupported data type in loading");
+            assert(!"Unsupported data type in loading");
 
         if (ncolumns <= req_cvt_bf16_k_blk_step_) {
             vpxord(src_reg_next, src_reg_next, src_reg_next);
@@ -3956,7 +3956,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
                                 + req_cvt_bf16_k_blk_step_ * scales_typesize_,
                         is_tail);
             } else
-                assert("Unsupported data type in loading");
+                assert(!"Unsupported data type in loading");
         }
 
         if (conf_->wei_dt == data_type::bf16) {
@@ -4815,7 +4815,7 @@ status_t create_brgemm_matmul_copy_b(
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_brgemm_matmul_copy_b_cvt_bf16_t<Zmm>(conf)));
             else {
-                assert("Unsupported isa for bf16_with_int_wei");
+                assert(!"Unsupported isa for bf16_with_int_wei");
                 return status::unimplemented;
             }
         } else if (is_bf16 || is_f16 || conf->is_bf32
@@ -4877,7 +4877,7 @@ status_t create_brgemm_matmul_copy_a(
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_brgemm_matmul_copy_a_impl_t<Ymm>(conf)));
             } else {
-                assert("Unsupported isa for jit_brgemm_matmul_copy_a_impl_t");
+                assert(!"Unsupported isa for jit_brgemm_matmul_copy_a_impl_t");
                 return status::unimplemented;
             }
         }
