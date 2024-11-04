@@ -613,8 +613,8 @@ public:
     constexpr bool isInvalid()         const { return invalid; }
     constexpr bool isValid()           const { return !invalid; }
     constexpr int getOffset()          const { return off; }
-    constexpr14 int getByteOffset()    const { return off * getBytes(); }
-    constexpr14 int getLogicalOffset() const { return off * elementsPerByte(getType()); }
+    constexpr14 int getByteOffset()    const { return (off * getBits()) >> 3; }
+    constexpr14 int getLogicalOffset() const { return off; }                /* Deprecated; use getOffset */
     constexpr DataType getType()       const { return static_cast<DataType>(type); }
     constexpr int getVS()              const { return vs; }
     constexpr int getWidth()           const { return width; }
@@ -622,6 +622,7 @@ public:
     constexpr bool getNeg()            const { return mods & 2; }
     constexpr bool getAbs()            const { return mods & 1; }
     constexpr int getMods()            const { return mods; }
+    constexpr14 int getBits()          const { return NGEN_NAMESPACE::getBits(getType()); }
     constexpr14 int getBytes()         const { return NGEN_NAMESPACE::getBytes(getType()); }
     constexpr14 int getDwords()        const { return NGEN_NAMESPACE::getDwords(getType()); }
     constexpr bool isScalar()          const { return hs == 0 && vs == 0 && width == 1; }
@@ -799,7 +800,7 @@ public:
     constexpr Subregister() : RegData() {}
     constexpr14 Subregister(RegData reg_, int offset_, DataType type_) {
         *static_cast<RegData *>(this) = reg_;
-        off = offset_ >> log2ElementsPerByte(type_);
+        off = offset_;
         type = static_cast<int>(type_);
         hs = vs = 0;
         width = 1;
@@ -1292,8 +1293,6 @@ inline Subregister Subregister::reinterpret(int offset, DataType type_) const
 {
     Subregister r = *this;
     r.setType(type_);
-
-    offset >>= log2ElementsPerByte(type_);
 
     int o = getOffset();
     int oldbytes = getBytes(), newbytes = r.getBytes();
