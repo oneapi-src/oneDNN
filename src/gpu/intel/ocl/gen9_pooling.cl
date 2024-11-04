@@ -40,6 +40,9 @@ inline void write_vect_c_block_int(int idx, __global int *ptr, off_t c,
 KERNEL_ATTR
 __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         __global DATA_T *dst, const dim_t batch_id POST_OP_ARGS) {
+
+    if (GWS_OVERFLOW) return;
+
     const off_t mb0 = MB_BLOCK_SIZE * batch_id + GWS_GET_MB();
 #if UNROLL_MB_COUNT > 1
     const off_t mb1 = mb0 + MB / 2;
@@ -278,6 +281,8 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
 KERNEL_ATTR
 __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
         __global DATA_T *diff_dst) {
+
+    if (GWS_OVERFLOW) return;
 
     const off_t mb0 = GWS_GET_MB();
 #if UNROLL_MB_COUNT > 1
