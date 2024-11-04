@@ -409,6 +409,7 @@ public:
 
     // This function is used to serialize graph to a JSON file
     graph::status_t serialize(const std::string &filename) const {
+        const auto &fpmath = get_fpmath_mode();
         dnnl::impl::verbose_printf(
                 "graph,info,serialize graph to a json file %s\n",
                 filename.c_str());
@@ -422,8 +423,9 @@ public:
         writer.write_keyvalue("engine_kind",
                 std::string(graph::utils::engine_kind2str(get_engine_kind())));
         writer.write_keyvalue("fpmath_mode",
-                std::string(graph::utils::fpmath_mode2str(
-                        get_fpmath_mode().mode_)));
+                std::string(graph::utils::fpmath_mode2str(fpmath.mode_)));
+        writer.write_keyvalue("fpmath_mode_apply_to_int",
+                std::string(fpmath.apply_to_int_ ? "true" : "false"));
         std::vector<size_t> inputs_id;
         inputs_id.reserve(get_input_values().size());
         for (const auto &val : get_input_values()) {
