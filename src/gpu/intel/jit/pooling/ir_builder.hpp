@@ -17,11 +17,8 @@
 #ifndef GPU_INTEL_JIT_POOLING_IR_BUILDER_HPP
 #define GPU_INTEL_JIT_POOLING_IR_BUILDER_HPP
 
-#include "gpu/intel/jit/ir/gemm_schedule.hpp"
-#include "gpu/intel/jit/ir/ir.hpp"
 #include "gpu/intel/jit/ir/ir_builder.hpp"
 #include "gpu/intel/jit/ir/kernel_info.hpp"
-#include "gpu/intel/jit/ir/tensor.hpp"
 #include "gpu/intel/jit/pooling/config.hpp"
 
 namespace dnnl {

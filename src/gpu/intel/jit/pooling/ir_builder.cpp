@@ -17,14 +17,9 @@
 #include "gpu/intel/jit/pooling/ir_builder.hpp"
 
 #include <algorithm>
-#include <array>
 #include <iostream>
-#include <limits>
-#include <memory>
-#include <numeric>
 #include <utility>
 #include <vector>
-#include <unordered_map>
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
@@ -36,8 +31,6 @@
 #include "gpu/intel/jit/ir/post_ops.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
 #include "gpu/intel/jit/pass/pass.hpp"
-#include "gpu/intel/jit/utils/iterator.hpp"
-#include "gpu/intel/jit/utils/range.hpp"
 #include "gpu/intel/jit/utils/trace.hpp"
 
 namespace dnnl {
