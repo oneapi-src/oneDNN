@@ -91,20 +91,20 @@ private:
     }
 
     uint32_t normalize_mask(uint32_t orig_mask) const {
-        int cp_ndims = cp_view().nvdims();
+        dim_idx_t cp_ndims = cp_view().nvdims();
         ir_assert(cp_ndims >= 3);
         // Number of dimensions before normalization.
-        int orig_ndims = 2 + ndims_;
+        dim_idx_t orig_ndims = 2 + ndims_;
         std::vector<dim_t> dummy_dims(orig_ndims, 1);
         dim_t mask_set_value = 2;
-        for (int i = 0; i < orig_ndims; i++) {
+        for (dim_idx_t i = 0; i < orig_ndims; i++) {
             if ((orig_mask & (1 << i)) != 0) dummy_dims[i] = mask_set_value;
         }
         auto cvt_dims = dims_to_3d(dummy_dims);
-        ir_assert(int(cvt_dims.size()) == cp_ndims);
+        ir_assert(cvt_dims.size() == cp_ndims);
 
         uint32_t mask = 0;
-        for (int i = 0; i < cp_ndims; i++) {
+        for (dim_idx_t i = 0; i < cp_ndims; i++) {
             if (cvt_dims[i] == mask_set_value) mask = mask | (1 << i);
         }
         return mask;
@@ -178,11 +178,11 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     const auto &tg = cfg.thread_group_grid();
     const auto &dims_grid = cfg.dims_padded();
     std::vector<dim_t> padded_dims(dims_grid.ndims());
-    for (int i = 0; i < int(padded_dims.size()); i++)
+    for (dim_idx_t i = 0; i < padded_dims.size(); i++)
         padded_dims[i] = dims_grid[i];
     ir_assert(padded_dims.size() == 5);
-    std::vector<dim_t> dims {padded_dims[0], int(src_layout.dim(1)),
-            padded_dims[2], padded_dims[3], padded_dims[4]};
+    std::vector<dim_t> dims {padded_dims[0], src_layout.dim(1), padded_dims[2],
+            padded_dims[3], padded_dims[4]};
 
     // Source.
     auto src_view = view_t({mb, oc, od, oh, ow, kd, kh, kw}, 5);
