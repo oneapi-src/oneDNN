@@ -1,32 +1,40 @@
 {
-  "version": "3.0.0",
+  "version": "3.7.0",
   "engine_kind": "cpu",
   "fpmath_mode": "strict",
+  "input_ports": [
+    0,
+    1,
+    2
+  ],
+  "output_ports": [
+    3
+  ],
   "graph": [
     {
       "id": 0,
-      "name": "PRELU_0",
-      "kind": "PReLUBackward",
+      "name": "CONCAT_0",
+      "kind": "Concat",
       "attrs": {
-        "data_format": {
-          "type": "string",
-          "value": "NCX"
+        "axis": {
+          "type": "s64",
+          "value": 3
         }
       },
       "inputs": [
         {
           "id": 0,
-          "dtype": "f16",
+          "dtype": "f32",
           "shape": [
-            4,
+            8,
             16,
-            3,
-            4
+            384,
+            64
           ],
           "stride": [
-            192,
-            12,
-            4,
+            393216,
+            24576,
+            64,
             1
           ],
           "layout_type": "strided",
@@ -34,17 +42,17 @@
         },
         {
           "id": 1,
-          "dtype": "f16",
+          "dtype": "f32",
           "shape": [
-            4,
+            8,
             16,
-            3,
-            4
+            384,
+            384
           ],
           "stride": [
-            192,
-            12,
-            4,
+            2359296,
+            147456,
+            384,
             1
           ],
           "layout_type": "strided",
@@ -52,17 +60,17 @@
         },
         {
           "id": 2,
-          "dtype": "f16",
+          "dtype": "f32",
           "shape": [
-            4,
+            8,
             16,
-            3,
-            4
+            384,
+            384
           ],
           "stride": [
-            192,
-            12,
-            4,
+            2359296,
+            147456,
+            384,
             1
           ],
           "layout_type": "strided",
@@ -72,35 +80,17 @@
       "outputs": [
         {
           "id": 3,
-          "dtype": "f16",
+          "dtype": "f32",
           "shape": [
-            4,
+            8,
             16,
-            3,
-            4
+            384,
+            832
           ],
           "stride": [
-            192,
-            12,
-            4,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "undef"
-        },
-        {
-          "id": 4,
-          "dtype": "f16",
-          "shape": [
-            4,
-            16,
-            3,
-            4
-          ],
-          "stride": [
-            192,
-            12,
-            4,
+            5111808,
+            319488,
+            832,
             1
           ],
           "layout_type": "strided",

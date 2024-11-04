@@ -1,24 +1,24 @@
---reset --op-attrs=0:auto_pad:SAME_LOWER --case=op/bf16/conv_2d.json
---reset --in-shapes=0:384x32 --op-attrs=0:transpose_a:1 --case=op/bf16/matmul.json
---reset --case=op/bf16/abs_bwd.json
---reset --in-shapes=0:1x300x300x64 --op-attrs=0:data_format:NXC*src_shape:1x600x600x64 --case=op/bf16/avgpool_bwd.json
---reset --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/bf16/bnorm.json
---reset --case=op/bf16/clamp_bwd.json
---reset --case=op/bf16/div.json
---reset --case=op/bf16/gelu_bwd.json
---reset --op-attrs=0:mode:trilinear --case=op/bf16/interpolate.json
---reset --case=op/bf16/leakyrelu.json
---reset --case=op/bf16/logsoftmax.json
---reset --op-attrs=0:auto_pad:SAME_LOWER*kernel:2x2 --case=op/bf16/maxpool.json
---reset --case=op/bf16/mish_bwd.json
---reset --op-attrs=0:data_format:NXC --case=op/bf16/prelu_bwd.json
---reset --case=op/bf16/reducemin.json
---reset --case=op/bf16/sigmoid.json
---reset --case=op/bf16/sub.json
---reset --op-attrs=0:beta:1 --case=op/bf16/hardsigmoid.json
---reset --case=op/bf16/gnorm.json
+--reset --dt=bf16 --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/conv_2d.json
+--reset --dt=bf16 --in-shapes=0:384x32 --op-attrs=0:transpose_a:1 --case=op/f32/matmul_2d_4d.json
+--reset --dt=bf16 --case=op/f32/abs_bwd.json
+--reset --dt=bf16 --in-shapes=0:1x300x300x64 --op-attrs=0:data_format:NXC*src_shape:1x600x600x64 --case=op/f32/avgpool_bwd.json
+--reset --dt=bf16 --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f32/bnorm.json
+--reset --dt=bf16 --case=op/f32/clamp_bwd.json
+--reset --dt=bf16 --case=op/f32/div.json
+--reset --dt=bf16 --case=op/f32/gelu_bwd.json
+--reset --dt=bf16 --op-attrs=0:mode:trilinear --case=op/f32/interpolate.json
+--reset --dt=bf16 --case=op/f32/leakyrelu.json
+--reset --dt=bf16 --case=op/f32/logsoftmax.json
+--reset --dt=bf16 --op-attrs=0:auto_pad:SAME_LOWER*kernel:2x2 --case=op/f32/maxpool.json
+--reset --dt=bf16 --case=op/f32/mish_bwd.json
+--reset --dt=bf16 --op-attrs=0:data_format:NXC --case=op/f32/prelu_bwd.json
+--reset --dt=bf16 --case=op/f32/reducemin.json
+--reset --dt=bf16 --case=op/f32/sigmoid.json
+--reset --dt=bf16 --case=op/f32/sub.json
+--reset --dt=bf16 --op-attrs=0:beta:1 --case=op/f32/hardsigmoid.json
+--reset --dt=bf16 --case=op/f32/gnorm.json
 # only the graph compiler supports these 4 ops
---reset --case=op/bf16/pow.json
---reset --case=op/bf16/select.json
---reset --case=op/bf16/static_reshape.json
---reset --case=op/bf16/static_transpose.json
+--reset --dt=bf16 --case=op/f32/pow.json
+--reset --dt=bf16 --case=op/f32/select.json
+--reset --dt=bf16 --case=op/f32/static_reshape.json
+--reset --dt=bf16 --case=op/f32/static_transpose.json

@@ -1,7 +1,14 @@
 {
-  "version": "3.0.0",
+  "version": "3.7.0",
   "engine_kind": "cpu",
   "fpmath_mode": "strict",
+  "input_ports": [
+    0,
+    1
+  ],
+  "output_ports": [
+    2
+  ],
   "graph": [
     {
       "id": 0,
@@ -31,7 +38,7 @@
       "inputs": [
         {
           "id": 0,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
             2,
             16,
@@ -49,7 +56,7 @@
         },
         {
           "id": 1,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
             2,
             16,
@@ -69,7 +76,7 @@
       "outputs": [
         {
           "id": 2,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
             2,
             16,

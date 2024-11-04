@@ -1,51 +1,54 @@
 {
-  "version": "3.0.0",
+  "version": "3.7.0",
   "engine_kind": "cpu",
   "fpmath_mode": "strict",
+  "input_ports": [
+    0,
+    1
+  ],
+  "output_ports": [
+    2
+  ],
   "graph": [
     {
       "id": 0,
-      "name": "ELTWISE_0",
-      "kind": "ReLUBackward",
+      "name": "SOFTMAX_0",
+      "kind": "SoftMaxBackward",
       "attrs": {
-        "use_dst": {
-          "type": "bool",
-          "value": 0
+        "axis": {
+          "type": "s64",
+          "value": 1
         }
       },
       "inputs": [
         {
           "id": 0,
-          "dtype": "f16",
+          "dtype": "f32",
           "shape": [
-            1,
-            32,
-            28,
-            28
+            8,
+            384,
+            1024
           ],
           "stride": [
-            25088,
-            784,
-            28,
-            1
+            393216,
+            1,
+            384
           ],
           "layout_type": "strided",
           "property_type": "undef"
         },
         {
           "id": 1,
-          "dtype": "f16",
+          "dtype": "f32",
           "shape": [
-            1,
-            32,
-            28,
-            28
+            8,
+            384,
+            1024
           ],
           "stride": [
-            25088,
-            784,
-            28,
-            1
+            393216,
+            1,
+            384
           ],
           "layout_type": "strided",
           "property_type": "undef"
@@ -54,18 +57,16 @@
       "outputs": [
         {
           "id": 2,
-          "dtype": "f16",
+          "dtype": "f32",
           "shape": [
-            1,
-            32,
-            28,
-            28
+            8,
+            384,
+            1024
           ],
           "stride": [
-            25088,
-            784,
-            28,
-            1
+            393216,
+            1,
+            384
           ],
           "layout_type": "strided",
           "property_type": "undef"
