@@ -21,16 +21,16 @@ file(GLOB TEST_UTILS_ENGINE_DEPENDENT_SOURCES
 )
 
 file(GLOB TEST_UTILS_ENGINE_INDEPENDENT_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_debug.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_json.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern_matcher.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_attribute_value_cpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_debug_cpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_json_cpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pattern_matcher_cpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_utils_cpu.cpp
 )
 
 if(DNNL_USE_CLANG_SANITIZER)
     # Due to the following tests are testing out-of-range enum values.
-    list(REMOVE_ITEM TEST_UTILS_ENGINE_INDEPENDENT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_debug.cpp)
+    list(REMOVE_ITEM TEST_UTILS_ENGINE_INDEPENDENT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_debug_cpu.cpp)
 endif()
 
 add_library(${OBJ_LIB} OBJECT ${TEST_UTILS_ENGINE_DEPENDENT_SOURCES} ${TEST_UTILS_ENGINE_INDEPENDENT_SOURCES})
@@ -46,6 +46,7 @@ endforeach()
 
 foreach(TEST_FILE ${TEST_UTILS_ENGINE_INDEPENDENT_SOURCES})
     get_filename_component(file_name ${TEST_FILE} NAME_WE)
+    string(REPLACE "_cpu" "" file_name ${file_name})
     string(REPLACE "test_" "test_graph_unit_utils_" test_suite_name ${file_name})
     string(REPLACE "test_" "test_utils_" filter ${file_name})
     register_graph_test_suite(${test_suite_name}_cpu "${filter}*")

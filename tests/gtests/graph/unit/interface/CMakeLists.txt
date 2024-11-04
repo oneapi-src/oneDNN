@@ -23,14 +23,14 @@ file(GLOB TEST_INTERFACE_ENGINE_DEPENDENT_SOURCES
 )
 
 file(GLOB TEST_INTERFACE_ENGINE_INDEPENDENT_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_backend.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_graph.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_op.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_shape_infer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_op_def_constraint.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_value.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_backend_cpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_graph_cpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_logical_tensor_cpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_op_schema_cpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_op_cpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_shape_infer_cpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_op_def_constraint_cpu.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_value_cpu.cpp
 )
 
 add_library(${OBJ_LIB} OBJECT ${TEST_INTERFACE_ENGINE_DEPENDENT_SOURCES} ${TEST_INTERFACE_ENGINE_INDEPENDENT_SOURCES})
@@ -52,6 +52,7 @@ endforeach()
 
 foreach(TEST_FILE ${TEST_INTERFACE_ENGINE_INDEPENDENT_SOURCES})
     get_filename_component(file_name ${TEST_FILE} NAME_WE)
+    string(REPLACE "_cpu" "" file_name ${file_name})
     string(REPLACE "test_" "test_graph_unit_interface_" test_suite_name ${file_name})
     string(REPLACE "test_" "test_interface_" filter ${file_name})
     register_graph_test_suite(${test_suite_name}_cpu "${filter}.*:${filter}/*")
