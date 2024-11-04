@@ -1,7 +1,15 @@
 {
-  "version": "3.0.0",
+  "version": "3.7.0",
   "engine_kind": "cpu",
   "fpmath_mode": "strict",
+  "input_ports": [
+    0,
+    1,
+    2
+  ],
+  "output_ports": [
+    2214
+  ],
   "graph": [
     {
       "id": 8,
@@ -20,7 +28,7 @@
       "inputs": [
         {
           "id": 0,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
             384,
             4096
@@ -34,7 +42,7 @@
         },
         {
           "id": 1,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
             4096,
             1024
@@ -48,7 +56,7 @@
         },
         {
           "id": 2,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
             1,
             1024
@@ -64,7 +72,7 @@
       "outputs": [
         {
           "id": 168,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
             384,
             1024
@@ -81,17 +89,21 @@
     {
       "id": 2054,
       "name": "ELTWISE_1",
-      "kind": "Elu",
+      "kind": "Clamp",
       "attrs": {
-        "alpha": {
+        "min": {
           "type": "f32",
           "value": 0
+        },
+        "max": {
+          "type": "f32",
+          "value": 6
         }
       },
       "inputs": [
         {
           "id": 168,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
             384,
             1024
@@ -107,7 +119,7 @@
       "outputs": [
         {
           "id": 2214,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
             384,
             1024

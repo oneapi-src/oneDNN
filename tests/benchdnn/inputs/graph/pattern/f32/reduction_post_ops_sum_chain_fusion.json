@@ -1,45 +1,47 @@
 {
-  "version": "3.0.0",
+  "version": "3.7.0",
   "engine_kind": "cpu",
   "fpmath_mode": "strict",
+  "input_ports": [
+    0,
+    1
+  ],
+  "output_ports": [
+    6305
+  ],
   "graph": [
     {
-      "id": 13,
-      "name": "RESAMPLING_0",
-      "kind": "Interpolate",
+      "id": 11,
+      "name": "REDUCTION_0",
+      "kind": "ReduceSum",
       "attrs": {
-        "coordinate_transformation_mode": {
-          "type": "string",
-          "value": "half_pixel"
-        },
-        "sizes": {
+        "axes": {
           "type": "s64[]",
           "value": [
-            17
+            2,
+            3
           ]
         },
-        "mode": {
-          "type": "string",
-          "value": "nearest"
-        },
-        "data_format": {
-          "type": "string",
-          "value": "NCX"
+        "keep_dims": {
+          "type": "bool",
+          "value": 1
         }
       },
       "inputs": [
         {
           "id": 0,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
-            2,
-            17,
-            21
+            64,
+            20,
+            7,
+            7
           ],
           "stride": [
-            357,
-            21,
-            1
+            980,
+            1,
+            140,
+            20
           ],
           "layout_type": "strided",
           "property_type": "undef"
@@ -47,16 +49,18 @@
       ],
       "outputs": [
         {
-          "id": 173,
-          "dtype": "bf16",
+          "id": 171,
+          "dtype": "f32",
           "shape": [
-            2,
-            17,
-            17
+            64,
+            20,
+            1,
+            1
           ],
           "stride": [
-            289,
-            17,
+            20,
+            1,
+            1,
             1
           ],
           "layout_type": "strided",
@@ -71,16 +75,18 @@
       "attrs": {},
       "inputs": [
         {
-          "id": 173,
-          "dtype": "bf16",
+          "id": 171,
+          "dtype": "f32",
           "shape": [
-            2,
-            17,
-            17
+            64,
+            20,
+            1,
+            1
           ],
           "stride": [
-            289,
-            17,
+            20,
+            1,
+            1,
             1
           ],
           "layout_type": "strided",
@@ -90,15 +96,17 @@
       "outputs": [
         {
           "id": 2214,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
-            2,
-            17,
-            17
+            64,
+            20,
+            1,
+            1
           ],
           "stride": [
-            289,
-            17,
+            20,
+            1,
+            1,
             1
           ],
           "layout_type": "strided",
@@ -114,15 +122,17 @@
       "inputs": [
         {
           "id": 2214,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
-            2,
-            17,
-            17
+            64,
+            20,
+            1,
+            1
           ],
           "stride": [
-            289,
-            17,
+            20,
+            1,
+            1,
             1
           ],
           "layout_type": "strided",
@@ -132,15 +142,17 @@
       "outputs": [
         {
           "id": 4262,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
-            2,
-            17,
-            17
+            64,
+            20,
+            1,
+            1
           ],
           "stride": [
-            289,
-            17,
+            20,
+            1,
+            1,
             1
           ],
           "layout_type": "strided",
@@ -151,7 +163,7 @@
     {
       "id": 6145,
       "name": "BINARY_3",
-      "kind": "Add",
+      "kind": "Multiply",
       "attrs": {
         "auto_broadcast": {
           "type": "string",
@@ -161,15 +173,17 @@
       "inputs": [
         {
           "id": 4262,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
-            2,
-            17,
-            17
+            64,
+            20,
+            1,
+            1
           ],
           "stride": [
-            289,
-            17,
+            20,
+            1,
+            1,
             1
           ],
           "layout_type": "strided",
@@ -177,14 +191,16 @@
         },
         {
           "id": 1,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
             1,
-            17,
+            20,
+            1,
             1
           ],
           "stride": [
-            17,
+            20,
+            1,
             1,
             1
           ],
@@ -195,15 +211,17 @@
       "outputs": [
         {
           "id": 6305,
-          "dtype": "bf16",
+          "dtype": "f32",
           "shape": [
-            2,
-            17,
-            17
+            64,
+            20,
+            1,
+            1
           ],
           "stride": [
-            289,
-            17,
+            20,
+            1,
+            1,
             1
           ],
           "layout_type": "strided",
