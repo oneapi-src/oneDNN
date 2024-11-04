@@ -95,6 +95,19 @@ public:
 
     operator bool() const { return ndims_ > 0; }
 
+    std::string str() const {
+        if (ndims_ == 0) return "(nil)";
+
+        std::stringstream oss;
+        oss << "[";
+        for (size_t i = 0; i < ndims(); i++) {
+            if (i > 0) oss << ", ";
+            oss << dims_[i];
+        }
+        oss << "]";
+        return oss.str();
+    }
+
 private:
     size_t ndims_ = 0;
     std::array<size_t, max_ndims> dims_ = {0, 0, 0};
@@ -125,19 +138,10 @@ public:
 
     std::string str() const {
         std::stringstream oss;
-        oss << "gws = [";
-        for (size_t i = 0; i < ndims(); i++) {
-            if (i > 0) oss << ", ";
-            oss << global_range_[i];
-        }
-        oss << "] lws = ";
+        oss << "gws = " << global_range_.str();
+        oss << " lws = ";
         if (local_range_) {
-            oss << "[";
-            for (size_t i = 0; i < ndims(); i++) {
-                if (i > 0) oss << ", ";
-                oss << local_range_[i];
-            }
-            oss << "]";
+            oss << local_range_.str();
         } else {
             oss << "(nil)";
         }
