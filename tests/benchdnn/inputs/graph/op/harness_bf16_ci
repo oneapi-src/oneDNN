@@ -1,6 +1,12 @@
+--reset --dt=bf16 --op-attrs=0:auto_pad:VALID --case=op/f32/conv_2d.json
 --reset --dt=bf16 --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/conv_2d.json
 --reset --dt=bf16 --in-shapes=0:384x32 --op-attrs=0:transpose_a:1 --case=op/f32/matmul_2d_4d.json
 --reset --dt=bf16 --case=op/f32/abs_bwd.json
+--reset --dt=bf16 --case=op/f32/add.json
+--reset --dt=bf16 --in-shapes=0:1x32x32x128 --op-attrs=0:data_format:NXC --case=op/f32/biasadd.json
+--reset --dt=bf16 --case=op/f32/min.json
+--reset --dt=bf16 --case=op/f32/reducel2.json
+--reset --dt=bf16 --case=op/f32/gnorm.json
 --reset --dt=bf16 --in-shapes=0:1x300x300x64 --op-attrs=0:data_format:NXC*src_shape:1x600x600x64 --case=op/f32/avgpool_bwd.json
 --reset --dt=bf16 --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f32/bnorm.json
 --reset --dt=bf16 --case=op/f32/clamp_bwd.json
@@ -16,10 +22,6 @@
 --reset --dt=bf16 --case=op/f32/sigmoid.json
 --reset --dt=bf16 --case=op/f32/sub.json
 --reset --dt=bf16 --op-attrs=0:beta:1 --case=op/f32/hardsigmoid.json
---reset --dt=bf16 --case=op/f32/gnorm.json
 --reset --dt=bf16 --case=op/f32/select.json
 --reset --dt=bf16 --case=op/f32/static_reshape.json
 --reset --dt=bf16 --case=op/f32/static_transpose.json
-
-# only the graph compiler supports this op
---reset --dt=bf16 --case=op/f32/pow.json

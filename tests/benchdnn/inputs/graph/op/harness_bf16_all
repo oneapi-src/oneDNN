@@ -140,6 +140,11 @@
 --reset --case=op/bf16/typecast.json
 --reset --dt=bf16 --case=op/f32/sqrt.json
 --reset --dt=bf16 --case=op/f32/sqrt_bwd.json
+--reset --dt=bf16 --case=op/f32/select.json
+--reset --dt=bf16 --case=op/f32/gnorm.json
+--reset --dt=bf16 --case=op/f32/static_reshape.json
+--reset --dt=bf16 --case=op/f32/static_transpose.json
+
 # concat
 --reset --dt=bf16 --in-shapes=0:1x4096x14x14+1:1x4096x14x14 --case=op/f32/concat.json
 --reset --dt=bf16 --in-shapes=0:64x128x28x28+1:64x128x28x28 --op-attrs=0:axis:1 --case=op/f32/concat.json
@@ -568,9 +573,12 @@
 --reset --dt=bf16 --in-shapes=0:2x16x5x11*acdb+1:2x16x3x11*acdb --op-attrs=0:scales:0.6x1*mode:nearest --case=op/f32/interpolate_bwd_2d.json
 --reset --dt=bf16 --in-shapes=0:2x17x6x12*acdb+1:2x17x7x14*acdb --op-attrs=0:scales:1.166667x1.166667*mode:nearest --case=op/f32/interpolate_bwd_2d.json
 --reset --dt=bf16 --in-shapes=0:2x17x7x14*acdb+1:2x17x6x12*acdb --op-attrs=0:scales:0.857143x0.857143*mode:nearest --case=op/f32/interpolate_bwd_2d.json
---reset --dt=bf16 --case=op/f32/select.json
---reset --dt=bf16 --case=op/f32/gnorm.json
---reset --dt=bf16 --case=op/f32/static_reshape.json
---reset --dt=bf16 --case=op/f32/static_transpose.json
+
+# reorder
+--reset --dt=bf16 --in-shapes=0:2x64x3x3 --case=op/f32/reorder.json
+--reset --dt=bf16 --in-shapes=0:abcd --case=op/f32/reorder.json
+--reset --dt=bf16 --in-shapes=0:cdba --case=op/f32/reorder.json
+--reset --dt=bf16 --in-shapes=0:acdb --case=op/f32/reorder.json
+
 # only the graph compiler supports this op
 --reset --dt=bf16 --case=op/f32/pow.json
