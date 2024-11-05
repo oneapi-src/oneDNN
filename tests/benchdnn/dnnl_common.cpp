@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2017-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -272,7 +273,7 @@ void init_isa_settings() {
     if (hints.get() == isa_hints_t::no_hints)
         DNN_SAFE_V(dnnl_set_cpu_isa_hints(dnnl_cpu_isa_no_hints));
     else if (hints.get() == isa_hints_t::prefer_ymm)
-        DNN_SAFE_V(dnnl_set_cpu_isa_hints(dnnl_cpu_isa_prefer_ymm));
+        dnnl_set_cpu_isa_hints(dnnl_cpu_isa_prefer_ymm);
     else {
         // Do nothing when hints == none
         assert(hints.get() == isa_hints_t::none);
