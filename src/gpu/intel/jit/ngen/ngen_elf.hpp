@@ -126,6 +126,37 @@ private:
             MachineIntelGT = 205,
             ZebinExec = 0xFF12
         };
+
+        enum DWARF_UT : uint8_t {
+            COMPILE = 0x01,
+        };
+        enum DWARF_TAG : uint8_t {
+            COMPILATION_UNIT = 0x11,
+            SUBPROGRAM       = 0x2e,
+        };
+        enum DWARF_AT : uint8_t {
+            NAME        = 0x03,
+            STMT_LIST   = 0x10,
+            DECL_COLUMN = 0x39,
+            DECL_FILE   = 0x3a,
+            DECL_LINE   = 0x3b,
+        };
+        enum DWARF_FORM : uint8_t {
+            DATA2        = 0x05,
+            DATA4        = 0x06,
+            DATA8        = 0x07,
+            STRING       = 0x08,
+            DATA1        = 0x0b,
+            STRP         = 0x0e,
+            LINEPTR      = 0x17,
+            FLAG_PRESENT = 0x19,
+            LINE_STRP    = 0x1f,
+        };
+        enum DWARF_LNCT : uint8_t {
+            PATH            = 0x1,
+            DIRECTORY_INDEX = 0x2,
+        };
+
         union TargetMetadata {
             uint32_t all;
             struct {
@@ -173,7 +204,7 @@ private:
             uint32_t info = 0;
             uint64_t align = 0x10;
             uint64_t entrySize = 0;
-        } sectionHeaders[5];
+        } sectionHeaders[10];
         struct Note {
             uint32_t nameSize = 8;
             uint32_t descSize = 4;
@@ -183,25 +214,143 @@ private:
             const char name[8] = "IntelGT";
             uint32_t payload;
         } noteGfxCore;
+
+        struct DebugInfo {
+            struct __attribute__((packed)) {
+                uint32_t unit_length;
+                uint16_t version = 5;
+                uint8_t unit_type = DWARF_UT::COMPILE;
+                uint8_t address_size = sizeof(void*);
+                uint32_t debug_abbrev_offset = 0;
+            } CUHeader;
+            struct __attribute__((packed)) {
+                uint8_t abbrev_code = 1;
+                uint32_t name = 0;
+                uint32_t stmt_list = 0;
+            } CU;
+            struct __attribute__((packed)) {
+                uint8_t abbrev_code = 2;
+                uint32_t name;
+                uint8_t decl_file = 1;
+                uint32_t decl_line = 0;
+                uint8_t decl_column = 1;
+            } subProgram;
+        } debugInfo;
+
+        struct DebugAbbrev {
+            struct __attribute__((packed)) {
+                uint8_t abbrev_code = 1;
+                uint8_t tag = DWARF_TAG::COMPILATION_UNIT;
+                uint8_t hasChildren = 1;
+
+                struct {
+                    uint8_t attr_name;
+                    uint8_t attr_form;
+                } attributes[3] = {
+                    { DWARF_AT::NAME, DWARF_FORM::LINE_STRP },
+                    { DWARF_AT::STMT_LIST, DWARF_FORM::LINEPTR },
+                    { 0, 0 },
+                };
+            } CU;
+            struct __attribute__((packed)) {
+                uint8_t abbrev_code = 2;
+                uint8_t tag = DWARF_TAG::SUBPROGRAM;
+                uint8_t hasChildren = 0;
+
+                struct {
+                    uint8_t attr_name;
+                    uint8_t attr_form;
+                } attributes[5] = {
+                    { DWARF_AT::NAME, DWARF_FORM::STRP },
+                    { DWARF_AT::DECL_FILE, DWARF_FORM::DATA1 },
+                    { DWARF_AT::DECL_LINE, DWARF_FORM::DATA4 },
+                    { DWARF_AT::DECL_COLUMN, DWARF_FORM::DATA1 },
+                    { 0, 0 },
+                };
+            } subProgram;
+            struct __attribute__((packed)) {
+                uint8_t code = 0;
+            } end;
+        } debugAbbrev;
+
+        struct DebugLine {
+            struct __attribute__((packed)) DebugLineHeader {
+                uint32_t unit_length;
+                uint16_t version = 5;
+                uint8_t address_size = sizeof(void*);
+                uint8_t segment_selector_size = 0;
+                uint32_t header_length;
+                uint8_t minimum_instruction_length = 1;
+                uint8_t maximum_operations_per_instruction = 1;
+                uint8_t default_is_stmt = 1;
+                int8_t line_base = 0;
+                uint8_t line_range = 1;
+                uint8_t opcode_base = 1;
+//                 uint8_t standard_opcode_lengths[] = {};
+
+                uint8_t directory_entry_format_count = 1;
+                struct {
+                    uint8_t type;
+                    uint8_t form;
+                } directory_entry_format[1] = {
+                    { DWARF_LNCT::PATH, DWARF_FORM::LINE_STRP },
+                };
+                uint8_t directories_count = 1;
+                uint32_t dirName = strlen(__FILE__) + 1;
+
+                uint8_t file_name_entry_format_count = 2;
+                struct {
+                    uint8_t type;
+                    uint8_t form;
+                } file_name_entry_format[2] = {
+                    { DWARF_LNCT::PATH, DWARF_FORM::LINE_STRP },
+                    { DWARF_LNCT::DIRECTORY_INDEX, DWARF_FORM::DATA1 },
+                };
+                uint8_t file_names_count = 2;
+                uint32_t fileName0 = 0;
+                uint8_t dirIndex0 = 0;
+                uint32_t fileName1 = 0;
+                uint8_t dirIndex1 = 0;
+            } header;
+        } debugLine;
+
+        struct {
+            const char fileName[strlen(__FILE__) + 1] = __FILE__;
+            const char dirName[strlen("oneDNN:") + 1] = "oneDNN:";
+        } debugLineStr;
+
         struct StringTable {
-            const char zero = '\0';
-            const char snStrTable[10] = ".shstrtab";
-            const char snMetadata[9] = ".ze_info";
-            const char snNote[21] = ".note.intelgt.compat";
-            const char snText[6] = {'.', 't', 'e', 'x', 't', '.'};
+            const char zero                           = '\0';
+            const char snStrTable[10]                 = ".shstrtab";
+            const char snMetadata[9]                  = ".ze_info";
+            const char snNote[21]                     = ".note.intelgt.compat";
+            const char snDebugInfo[12]                = ".debug_info";
+            const char snDebugAbbrev[14]              = ".debug_abbrev";
+            const char snDebugLine[12]                = ".debug_line";
+            const char snDebugLineStr[16]             = ".debug_line_str";
+            const char snDebugStr[11]                 = ".debug_str";
+            const char snText[6]                      = {'.', 't', 'e', 'x', 't', '.'};
         } stringTable;
 
         static size_t align(size_t sz) {
             return (sz + 0xF) & ~0xF;
         }
 
-        ZebinELF(size_t szKernelName, size_t szMetadata, size_t szKernel) {
+        ZebinELF(size_t szKernelName, size_t szMetadata, size_t szKernel, int linenum) {
             fileHeader.size = sizeof(fileHeader);
             fileHeader.sectionHeaderSize = sizeof(SectionHeader);
             fileHeader.sectionTableOff = offsetof(ZebinELF, sectionHeaders);
             fileHeader.sectionCount = sizeof(sectionHeaders) / sizeof(SectionHeader);
 
             fileHeader.flags.all = 0;
+
+            debugInfo.CUHeader.unit_length = sizeof(debugInfo) - sizeof(debugInfo.CUHeader.unit_length);
+
+            debugInfo.subProgram.name = offsetof(StringTable, snText) + strlen(".text.");
+            debugInfo.subProgram.decl_line = linenum;
+
+            debugLine.header.unit_length = sizeof(debugLine) - sizeof(debugLine.header.unit_length);
+            debugLine.header.header_length = sizeof(debugLine.header) - (offsetof(DebugLine::DebugLineHeader, header_length) + sizeof(debugLine.header.header_length));
 
             sectionHeaders[0].name = 0;
             sectionHeaders[0].type = SectionHeader::Type::Null;
@@ -230,6 +379,30 @@ private:
             sectionHeaders[4].size = sizeof(noteGfxCore);
 
             noteGfxCore.payload = static_cast<uint32_t>(npack::encodeGfxCoreFamily(hw));
+
+            sectionHeaders[5].name = offsetof(StringTable, snDebugInfo);
+            sectionHeaders[5].type = SectionHeader::Type::Program;
+            sectionHeaders[5].offset = offsetof(ZebinELF, debugInfo);
+            sectionHeaders[5].size = sizeof(debugInfo);
+
+            sectionHeaders[6].name = offsetof(StringTable, snDebugAbbrev);
+            sectionHeaders[6].type = SectionHeader::Type::Program;
+            sectionHeaders[6].offset = offsetof(ZebinELF, debugAbbrev);
+            sectionHeaders[6].size = sizeof(debugAbbrev);
+
+            sectionHeaders[7] = sectionHeaders[1]; /* Dup of strtab */
+            sectionHeaders[7].name = offsetof(StringTable, snDebugStr);
+            sectionHeaders[7].type = SectionHeader::Type::Program;
+
+            sectionHeaders[8].name = offsetof(StringTable, snDebugLine);
+            sectionHeaders[8].type = SectionHeader::Type::Program;
+            sectionHeaders[8].offset = offsetof(ZebinELF, debugLine);
+            sectionHeaders[8].size = sizeof(debugLine);
+
+            sectionHeaders[9].name = offsetof(StringTable, snDebugLineStr);
+            sectionHeaders[9].type = SectionHeader::Type::Program;
+            sectionHeaders[9].offset = offsetof(ZebinELF, debugLineStr);
+            sectionHeaders[9].size = sizeof(debugLineStr);
         }
 
         static size_t kernelNameOffset() {
@@ -358,7 +531,7 @@ std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary(const std::vector<uint8_t> 
 
     binary.resize(paddedSzELF + paddedSzMetadata + paddedSzKernel);
 
-    (void) new(binary.data()) ZebinELF(paddedSzKernelName, metadata.size(), kernel.size());
+    (void) new(binary.data()) ZebinELF(paddedSzKernelName, metadata.size(), kernel.size(), __LINE__);
     utils::copy_into(binary, ZebinELF::kernelNameOffset(), interface_.getExternalName());
     utils::copy_into(binary, paddedSzELF, metadata);
     utils::copy_into(binary, paddedSzELF + paddedSzMetadata, kernel);
