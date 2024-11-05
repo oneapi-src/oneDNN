@@ -299,11 +299,12 @@ void ref_primitive_t::check_correctness(
         //   matmul's output precise.
         // * bf16 softmax's output contains irregular floating-point values that
         //   potentially get accumulated in a different order on each end, and
-        //   it leads to an output mismatch.
+        //   it leads to an output mismatch. Different underlying
+        //   implementations can add more to that.
         //
         // Note: the following threshold is obtained from actual runs on
         // different hardware.
-        cmp.set_threshold(8e-5f);
+        cmp.set_threshold(1e-4f);
         cmp.set_norm_validation_mode(true);
         cmp.compare(mem_fp_abx, mem_dt, attr, res);
     }
