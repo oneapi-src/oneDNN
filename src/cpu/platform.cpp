@@ -82,6 +82,8 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
 status_t set_cpu_isa_hints(dnnl_cpu_isa_hints_t isa_hints) {
 #if DNNL_X64
     return x64::set_cpu_isa_hints(isa_hints);
+#elif DNNL_AARCH64
+    return status::success;
 #else
     return status::unimplemented;
 #endif
