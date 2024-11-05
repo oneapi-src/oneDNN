@@ -178,11 +178,16 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
                                             : (is_int8 ? avx512_core_vnni
                                                        : avx512_core)))
             : isa;
-    for_(int i_bs = 0; i_bs < 2; i_bs++)
-    for_(int i_init = 0; i_init < 2; i_init++)
+
+    const int i_bs_end = bgmmc_.brgemm_batch_tail_size ? 2 : 1;
+    const int i_init_start = bgmmc_.K_blk != bgmmc_.K ? 0 : 1;
+    const int i_K_end = bgmmc_.K_tail ? 2 : 1;
+
+    for_(int i_bs = 0; i_bs < i_bs_end; i_bs++)
+    for_(int i_init = i_init_start; i_init < 2; i_init++)
     for_(int i_M = 0; i_M < max_m_ker_idx; i_M++)
     for_(int i_N = 0; i_N < max_n_ker_idx; i_N++)
-    for (int i_K = 0; i_K < 2; i_K++) {
+    for (int i_K = 0; i_K < i_K_end; i_K++) {
         auto vbeta = (i_init) ? beta_init : beta;
         auto vM = (i_M) == 0 ? bgmmc_.M_blk
                              : (bgmmc_.is_runtime_M ? dynamic_m_tails[i_M - 1]
@@ -219,6 +224,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             brgattr.use_uker = true;
             brgattr.use_interleave_stores = true;
             brgattr.max_bs = bs;
+            brgattr.wary_A_k_tail_read = bgmmc_.extendable_k;
+            brgattr.extendable_k = bgmmc_.extendable_k;
             // TODO: change expected sizes to local chunks wrt L2 blocking
             brgattr.hint_expected_A_size = vM * vK * bs;
             brgattr.hint_expected_B_size = vN * vK * bs;
@@ -249,11 +256,16 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
             = bgmmc.is_runtime_M ? max_num_dynamic_m_tails + 1 : 2;
     const int max_n_ker_idx
             = bgmmc.is_runtime_N ? max_num_dynamic_n_tails + 1 : 2;
-    for_(int i_bs = 0; i_bs < 2; i_bs++)
+
+    const int i_bs_end = bgmmc.brgemm_batch_tail_size ? 2 : 1;
+    const int i_init_start = bgmmc.K_blk != bgmmc.K ? 0 : 1;
+    const int i_K_end = bgmmc.K_tail ? 2 : 1;
+
+    for_(int i_bs = 0; i_bs < i_bs_end; i_bs++)
     for_(int i_M = 0; i_M < max_m_ker_idx; i_M++)
     for_(int i_N = 0; i_N < max_n_ker_idx; i_N++)
-    for_(int i_K = 0; i_K < 2; i_K++)
-    for (int i_init = 0; i_init < 2; i_init++) {
+    for_(int i_K = 0; i_K < i_K_end; i_K++)
+    for (int i_init = i_init_start; i_init < 2; i_init++) {
         int idx = pd()->get_brg_kernel_idx(i_bs, i_init, i_M, i_N, i_K);
         if (idx < 0) continue;
 
@@ -809,6 +821,8 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
         ctx.current_K_start = k;
         ctx.current_K_iters = nstl::min(bgmmc.K_blk, bgmmc.K);
+        ctx.current_K_pad = brgmm_ctx.get_current_K_pad(ctx.current_K_iters);
+
         ctx.scales_ptr = (void *)brgmm_ctx.get_oscales_ptr(n, k);
         if (bgmmc.blocked_B && !bgmmc.is_f16_with_int_wei
                 && isa == avx512_core_fp16) {
@@ -827,6 +841,7 @@ void brgemm_matmul_t<isa>::copy_b_chunk_in_buffer(
                 = (void *)brgmm_ctx.get_s8s8_comp_ptr(ithr, b_idx, n_blk_idx);
         ctx.current_K_start = k;
         ctx.current_K_iters = bgmmc.K % bgmmc.K_blk;
+        ctx.current_K_pad = brgmm_ctx.get_current_K_pad(ctx.current_K_iters);
         ctx.scales_ptr = (void *)brgmm_ctx.get_oscales_ptr(n, k);
         if (bgmmc.blocked_B && !bgmmc.is_f16_with_int_wei
                 && isa == avx512_core_fp16) {
@@ -1726,6 +1741,13 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     dim_t copy_B_wei_stride() const { return copy_B_wei_stride_; }
 
     bool packed_sparse_weights() const { return bgmmc_.packed_sparse_weights; }
+
+    int get_current_K_pad(int current_K_iters) const {
+        return bgmmc_.extendable_k ? bgmmc_.wei_k_blk
+                        - rnd_up(
+                                current_K_iters % bgmmc_.wei_k_blk, vnni_factor)
+                                   : 0;
+    }
 
 private:
     struct tail_processing_t {
