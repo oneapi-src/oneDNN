@@ -641,6 +641,7 @@ dnnl_status_t brgemm_kernel_execute_postops_wrapper(const_dnnl_brgemm_t brgemm,
         const bool use_dst_as_acc, const void *src_ptr,
         const void *wei_packed_ptr, const std::vector<dnnl_dim_t> &offsets,
         void *acc_ptr, void *dst_ptr, void *scratchpad_ptr,
+        const_dnnl_ukernel_attr_params_t attr_params,
         const dnnl_stream_t &stream,
         const std::vector<dnnl_exec_arg_t> &dnnl_args) {
 
@@ -650,7 +651,7 @@ dnnl_status_t brgemm_kernel_execute_postops_wrapper(const_dnnl_brgemm_t brgemm,
                 offsets.data(), dst_ptr, scratchpad_ptr);
     } else {
         st = dnnl_brgemm_execute_postops(brgemm, src_ptr, wei_packed_ptr,
-                offsets.data(), acc_ptr, dst_ptr, scratchpad_ptr, nullptr);
+                offsets.data(), acc_ptr, dst_ptr, scratchpad_ptr, attr_params);
     }
     return st;
 }
@@ -1305,8 +1306,8 @@ int doit(const prb_t *prb, res_t *res) {
 #else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
     perf_function_t perf_func = std::bind(brgemm_kernel_execute_postops_wrapper,
             kernel_args.brgemm_, prb->use_dst_as_acc(), src_ptr, wei_packed_ptr,
-            offsets, acc_ptr, dst_ptr, scratchpad_ptr, std::placeholders::_1,
-            std::placeholders::_2);
+            offsets, acc_ptr, dst_ptr, scratchpad_ptr, attr_params_ptr,
+            std::placeholders::_1, std::placeholders::_2);
 #endif
 
     measure_perf(prb->ctx_exe, res, perf_func, args);
