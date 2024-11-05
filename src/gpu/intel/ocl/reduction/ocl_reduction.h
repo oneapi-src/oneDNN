@@ -67,7 +67,7 @@ IF_DOUBLE_SUPPORTED(DEF_fp_minmax_abs(double));
 DEF_reduce(float);
 DEF_reduce(int);
 IF_DOUBLE_SUPPORTED(DEF_reduce(double));
-IF_DOUBLE_SUPPORTED(DEF_reduce(half));
+IF_HALF_SUPPORTED(DEF_reduce(half));
 
 #undef DEF_reduce
 
