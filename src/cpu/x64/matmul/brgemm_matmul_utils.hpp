@@ -203,6 +203,8 @@ struct brgemm_matmul_conf_t {
     bool is_oscale_per_n = false;
     bool is_oscale_per_k = false;
     bool apply_scales_in_buffer_b = false;
+    bool extendable_k = false;
+
     inline bool lda_big_pow2() const {
         const dim_t big_stride_threshold_in_bytes = 8192;
         const dim_t big_K_threshold = big_stride_threshold_in_bytes / a_dt_sz;

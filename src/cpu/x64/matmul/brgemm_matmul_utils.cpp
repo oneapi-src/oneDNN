@@ -535,6 +535,8 @@ struct matmul_amx_blocking_params_t : public brgemm_matmul_conf_t {
         , k_blk_(0)
         , k_chunk_size_(0)
         , k_chunk_elems_(0)
+        , use_buffer_a_(false)
+        , extendable_k_(false)
         , current_lda_(0)
         , need_buf_c_(false)
         , blocking_chunk_mem_size_(0)
@@ -554,6 +556,8 @@ struct matmul_amx_blocking_params_t : public brgemm_matmul_conf_t {
         , k_blk_(K_blk)
         , k_chunk_size_(brgemm_batch_size)
         , k_chunk_elems_(k_blk_ * k_chunk_size_)
+        , use_buffer_a_(use_buffer_a)
+        , extendable_k_(extendable_k)
         , current_lda_(LDA)
         , need_buf_c_(use_buffer_c)
         , blocking_chunk_mem_size_(0)
@@ -575,6 +579,9 @@ private:
     dim_t n_blk_, n_chunk_size_, n_chunk_elems_;
     dim_t m_blk_, m_chunk_size_, m_chunk_elems_;
     dim_t k_blk_, k_chunk_size_, k_chunk_elems_;
+
+    bool use_buffer_a_;
+    bool extendable_k_;
 
     dim_t current_lda_;
     bool need_buf_c_;
@@ -1170,6 +1177,7 @@ status_t compute_blocking_heuristic(brgemm_matmul_conf_t &bgmmc,
         // AMX BRGEMM kernel requires (K_brgemm % 64 == 0 || K_brgemm < 64)
         // for K_brgemm reduction value to avoid AMX tiles re-configuration.
         // To satisfy this condition K_tail value is fixed to K % wei_k_blk here.
+
         const bool fixed_K_tail_size
                 = bgmmc.K % bgmmc.wei_k_blk > 0 && bgmmc.K > bgmmc.wei_k_blk;
         bgmmc.K_blk = bgmmc.K < bgmmc.wei_k_blk
@@ -1573,10 +1581,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     if (bgmmc.is_amx && bm_conf_utils.is_int8())
         prefer_copy_a &= bgmmc.N >= 256;
 
-    const bool is_copy_a_required
-            = (bgmmc.is_amx
-                      && ((bgmmc.K % bgmmc.required_k_granularity != 0)
-                              || bm_conf_utils.is_bf32()))
+    const bool is_copy_a_required = (bgmmc.is_amx && bm_conf_utils.is_bf32())
             || ((bm_conf_utils.is_f16() || bm_conf_utils.is_f16_with_int_wei())
                     && isa == avx512_core_fp16)
             || (bgmmc.wei_zp_type != brgemm_broadcast_t::none
@@ -1647,7 +1652,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.M_tail = bgmmc.is_runtime_M ? 0 : bgmmc.M % bgmmc.M_blk;
     bgmmc.N_tail = bgmmc.is_runtime_N ? 0 : bgmmc.N % bgmmc.N_blk;
     bgmmc.K_tail = bgmmc.K > bgmmc.K_blk
-            ? rnd_up(bgmmc.K % bgmmc.K_blk, bgmmc.required_k_granularity)
+            ? (bgmmc.extendable_k ? bgmmc.K % bgmmc.K_blk
+                                  : rnd_up(bgmmc.K % bgmmc.K_blk,
+                                          bgmmc.required_k_granularity))
             : 0;
 
     bgmmc.LDB = bm_conf_utils.get_actual_LDB();
@@ -2026,16 +2033,32 @@ void matmul_amx_blocking_params_t::set_blocking_parameters(
                     : kc1;
         }
 
+        k_chunk_elems_ = k_blk_ * k_chunk_size_;
+
         const dim_t current_k_tail = K % k_blk_;
-        if (current_k_tail == 0 && K % (k_blk_ * k_chunk_size_) == 0) {
-            k_blk_ *= k_chunk_size_;
+
+        extendable_k_
+                = !use_buffer_a && K % wei_k_blk && k_chunk_elems_ > wei_k_blk;
+
+        if (extendable_k_) {
+            if (k_chunk_elems_ >= K) {
+                k_blk_ = K;
+                k_chunk_size_ = 1;
+            } else {
+                k_blk_ = k_chunk_elems_;
+                k_chunk_size_ = 1;
+            }
+        } else if (current_k_tail == 0 && K % (k_blk_ * k_chunk_size_) == 0) {
+            k_blk_ = k_chunk_elems_;
             k_chunk_size_ = 1;
         } else if (nthr_k_ == 1
                 && K == k_blk_ * k_chunk_size_ + current_k_tail) {
-            k_blk_ *= k_chunk_size_;
+            k_blk_ = k_chunk_elems_;
             k_chunk_size_ = 2;
         }
     }
+    use_buffer_a_
+            = use_buffer_a || (!extendable_k_ && K % required_k_granularity);
 
     blocking_chunk_mem_size_ = calculate_chunk_memory_size();
 
@@ -2078,7 +2101,7 @@ float matmul_amx_blocking_params_t::get_copied_data_reusage_scores() {
     const dim_t desired_M_chunk_size = is_runtime_M
             ? effective_m_chunk_sz
             : nstl::min(M, effective_m_chunk_sz);
-    const dim_t effective_n_chunk_sz = 64 * (use_buffer_a ? 4 : 1);
+    const dim_t effective_n_chunk_sz = 64 * (use_buffer_a_ ? 4 : 1);
     const dim_t desired_N_chunk_size = is_runtime_N
             ? effective_n_chunk_sz
             : nstl::min(N, effective_n_chunk_sz);
@@ -2138,10 +2161,12 @@ void matmul_amx_blocking_params_t::update_configuration(
 
     bgmmc.use_buffer_c = need_buf_c_;
     bgmmc.LDA = current_lda_;
+    bgmmc.use_buffer_a = use_buffer_a_;
+    bgmmc.extendable_k = extendable_k_;
 }
 
 dim_t matmul_amx_blocking_params_t::get_actual_lda() {
-    if (!use_buffer_a)
+    if (!use_buffer_a_)
         return treat_transposed_A_as_plain
                 ? K
                 : A_strides[1 - transposed_A] / a_dt_sz;
@@ -2165,7 +2190,7 @@ size_t matmul_amx_blocking_params_t::calculate_chunk_memory_size() {
     update_k_blocking_dependent_params();
 
     size_t A_chunk_sz = a_dt_sz * k_chunk_elems_ * m_chunk_elems_;
-    size_t A_buf_sz = use_buffer_a
+    size_t A_buf_sz = use_buffer_a_
             ? tr_a_dt_sz * current_lda_ * k_chunk_size_ * m_chunk_elems_
             : 0;
     size_t B_chunk_sz = b_dt_sz * k_chunk_elems_ * n_chunk_elems_;
