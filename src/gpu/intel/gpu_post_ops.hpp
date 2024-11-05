@@ -206,6 +206,7 @@ struct relative_md_t {
 };
 
 enum class kind_t {
+    undef,
     sum,
     eltwise,
     conv,
@@ -404,6 +405,7 @@ struct gpu_post_ops_t {
     }
 
     struct entry_t {
+        entry_t() : kind_(post_op::kind_t::undef) {}
         entry_t(post_op::sum_t e) : kind_(post_op::kind_t::sum), sum_(e) {}
         entry_t(post_op::eltwise_t e)
             : kind_(post_op::kind_t::eltwise), eltwise_(e) {}
@@ -420,6 +422,7 @@ struct gpu_post_ops_t {
                     depthwise_conv_.~depthwise_conv_t();
                     break;
                 case (post_op::kind_t::binary): binary_.~binary_t(); break;
+                default: gpu_error_not_expected();
             }
         }
 
@@ -466,7 +469,7 @@ struct gpu_post_ops_t {
                     sum_.inline_scale = true;
                     eltwise_.scale = scale;
                     break;
-                default: gpu_error_not_expected();
+                default: gpu_error_not_expected(); break;
             }
         }
 
@@ -493,6 +496,7 @@ struct gpu_post_ops_t {
                 case (post_op::kind_t::eltwise): s.append(eltwise_); break;
                 case (post_op::kind_t::conv): s.append(depthwise_conv_); break;
                 case (post_op::kind_t::binary): s.append(binary_); break;
+                default: gpu_error_not_expected(); break;
             }
         }
 
@@ -506,6 +510,7 @@ struct gpu_post_ops_t {
                     return d.pop<post_op::depthwise_conv_t>();
                 case (post_op::kind_t::binary):
                     return d.pop<post_op::binary_t>();
+                default: gpu_error_not_expected(); return entry_t();
             }
         }
 
@@ -548,7 +553,9 @@ struct gpu_post_ops_t {
     void serialize(serialized_data_t &s) const { s.append(ops_); }
 
     static gpu_post_ops_t deserialize(deserializer_t &d) {
-        return d.pop<gpu_post_ops_t>();
+        gpu_post_ops_t po;
+        d.pop(po.ops_);
+        return po;
     }
 
 #if __cplusplus >= 202002L
@@ -559,7 +566,6 @@ struct gpu_post_ops_t {
     };
 #endif
 
-    // Enable serialization/deserialization
     size_t len() const { return ops_.size(); }
 
 private:
