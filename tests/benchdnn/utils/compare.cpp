@@ -19,6 +19,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 
 #include "utils/parallel.hpp"
 
@@ -31,19 +32,39 @@
 namespace compare {
 
 namespace {
-void dump_point_values(const_dnnl_memory_desc_t md, const std::string &kind_str,
-        int64_t l_offset, float exp_f32, float exp, float got, float diff,
-        float rel_diff) {
+struct dump_point_ctx_t {
+    dump_point_ctx_t(const_dnnl_memory_desc_t md, int64_t l_offset,
+            float exp_f32, float exp, float got, float diff, float rel_diff)
+        : md(md)
+        , l_offset(l_offset)
+        , exp_f32(exp_f32)
+        , exp(exp)
+        , got(got)
+        , diff(diff)
+        , rel_diff(rel_diff) {}
+
+    const_dnnl_memory_desc_t md;
+    int64_t l_offset;
+    float exp_f32;
+    float exp;
+    float got;
+    float diff;
+    float rel_diff;
+};
+
+void dump_point_values(
+        const std::string &kind_str, const dump_point_ctx_t &ctx) {
     std::stringstream ss;
-    dims_t l_dims = md2dims(md);
-    dims_t dims_idx = off2dims_idx(l_dims, l_offset);
+    dims_t l_dims = md2dims(ctx.md);
+    dims_t dims_idx = off2dims_idx(l_dims, ctx.l_offset);
     ss << dims_idx;
     std::string ind_str = ss.str();
 
     BENCHDNN_PRINT(0,
-            "[%4ld]%s[%s] exp_f32:%12g exp:%12g got:%12g diff:%8g rdiff:%8g\n",
-            (long)l_offset, kind_str.c_str(), ind_str.c_str(), exp_f32, exp,
-            got, diff, rel_diff);
+            "[%4" PRId64
+            "]%s[%s] exp_f32:%12g exp:%12g got:%12g diff:%8g rdiff:%8g\n",
+            ctx.l_offset, kind_str.c_str(), ind_str.c_str(), ctx.exp_f32,
+            ctx.exp, ctx.got, ctx.diff, ctx.rel_diff);
 }
 
 void dump_norm_values(
@@ -211,8 +232,9 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     if (need_dump) {
         for (int64_t i = 0; i < nelems; ++i) {
             driver_check_func_args_t args(exp_mem, got_f32, i, dt, trh_);
-            dump_point_values(got_mem.md_, get_kind_str(), i, args.exp_f32,
-                    args.exp, args.got, args.diff, args.rel_diff);
+            dump_point_values(get_kind_str(),
+                    {got_mem.md_, i, args.exp_f32, args.exp, args.got,
+                            args.diff, args.rel_diff});
         }
     }
 
@@ -275,7 +297,6 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     const auto nelems_pad = nelems_per_thread * nthreads;
 
     // These global metrics are updated at the synchronization point.
-    bool global_ok = true;
     int64_t zeros = 0;
     // "all_" stuff is across the whole tensor. "err_" stuff is just for points
     // that didn't pass any criteria.
@@ -283,21 +304,52 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     float all_max_diff = 0.f;
     float err_max_rdiff = 0.f;
     float err_max_diff = 0.f;
-    int64_t n_errors = 0;
-    volatile bool from_parallel = true;
     const bool need_dump = verbose >= 99;
+
+    // Make thread_data static so that acquiring the thread data can be
+    // performed in a static thread_local variable to minimize locking
+    static struct {
+        struct data_t {
+            int64_t n_errors;
+            std::vector<dump_point_ctx_t> dumps;
+        };
+
+        data_t &get() {
+            std::lock_guard<std::mutex> guard(m);
+            return data[std::this_thread::get_id()];
+        }
+        void reset() {
+            for (auto &d : data) {
+                d.second.n_errors = 0;
+                d.second.dumps.clear();
+            }
+        }
+
+        std::unordered_map<std::thread::id, data_t> data;
+        std::mutex m;
+    } thread_data;
+
+    // Clear data from previous runs for the static variable
+    thread_data.reset();
 
     const auto compare_point_values = [&](int64_t i) {
         // Skip padded (non-existent) elements.
         if (i >= nelems) return;
 
         // Stats for all validated points per one thread.
-        static thread_local bool ithr_ok = true;
         static thread_local int64_t ithr_zeros = 0;
         static thread_local float ithr_all_max_rdiff = 0.f;
         static thread_local float ithr_all_max_diff = 0.f;
         static thread_local float ithr_err_max_rdiff = 0.f;
         static thread_local float ithr_err_max_diff = 0.f;
+
+        // This is valid because references to data are only invalidated by
+        // erasing that element, but it does require that thread_data is a
+        // static variable and the corresponding element isn't erased between
+        // calls to this function.
+        static thread_local auto &out_data = thread_data.get();
+        auto &n_errors = out_data.n_errors;
+        auto &dumps = out_data.dumps;
 
         driver_check_func_args_t args(exp_f32, got_f32, i, dt, trh_);
 
@@ -440,39 +492,30 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         }
 
         // Update compare stats.
-        if (from_parallel) {
-            if (fabsf(args.got) == 0) ithr_zeros++;
-            ithr_all_max_rdiff = MAX2(ithr_all_max_rdiff, args.rel_diff);
-            ithr_all_max_diff = MAX2(ithr_all_max_diff, args.diff);
-            if (!ok)
-                ithr_err_max_rdiff = MAX2(ithr_err_max_rdiff, args.rel_diff);
-            if (!ok) ithr_err_max_diff = MAX2(ithr_err_max_diff, args.diff);
-        }
+        if (fabsf(args.got) == 0) ithr_zeros++;
+        ithr_all_max_rdiff = MAX2(ithr_all_max_rdiff, args.rel_diff);
+        ithr_all_max_diff = MAX2(ithr_all_max_diff, args.diff);
+        if (!ok) ithr_err_max_rdiff = MAX2(ithr_err_max_rdiff, args.rel_diff);
+        if (!ok) ithr_err_max_diff = MAX2(ithr_err_max_diff, args.diff);
 
-        if (!ok && ithr_ok) ithr_ok = false;
-        if (!ok && !from_parallel) n_errors++;
+        if (!ok) n_errors++;
 
         const bool dump
                 = need_dump || (!ok && (n_errors <= 10 || verbose >= 10));
-        if (!from_parallel && dump)
-            dump_point_values(got_mem.md_, get_kind_str(), i, args.exp_f32,
-                    args.exp, args.got, args.diff, args.rel_diff);
+        if (dump)
+            dumps.emplace_back(got_mem.md_, i, args.exp_f32, args.exp, args.got,
+                    args.diff, args.rel_diff);
 
         // Synchronization point, update global stats from thread stats.
         if (((i + 1) % nelems_per_thread == 0) || (i == nelems - 1)) {
             static std::mutex m;
             std::lock_guard<std::mutex> guard(m);
 
-            if (global_ok && !ithr_ok) global_ok = false;
-            ithr_ok = true;
-
-            if (from_parallel) {
-                zeros += ithr_zeros;
-                all_max_rdiff = MAX2(all_max_rdiff, ithr_all_max_rdiff);
-                all_max_diff = MAX2(all_max_diff, ithr_all_max_diff);
-                err_max_rdiff = MAX2(err_max_rdiff, ithr_err_max_rdiff);
-                err_max_diff = MAX2(err_max_diff, ithr_err_max_diff);
-            }
+            zeros += ithr_zeros;
+            all_max_rdiff = MAX2(all_max_rdiff, ithr_all_max_rdiff);
+            all_max_diff = MAX2(all_max_diff, ithr_all_max_diff);
+            err_max_rdiff = MAX2(err_max_rdiff, ithr_err_max_rdiff);
+            err_max_diff = MAX2(err_max_diff, ithr_err_max_diff);
             ithr_zeros = 0;
             ithr_all_max_rdiff = 0.f;
             ithr_all_max_diff = 0.f;
@@ -487,11 +530,26 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     // With this logic, the block of code below won't be needed.
     benchdnn_parallel_nd(nelems_pad, compare_point_values);
 
+    int64_t n_errors = 0;
+    for (auto &d : thread_data.data) {
+        n_errors += d.second.n_errors;
+    }
     // serial comparison with enabled dumping when needed for nicer output.
-    if (!global_ok || need_dump) {
-        from_parallel = false;
-        for (int64_t i = 0; i < nelems; ++i)
-            compare_point_values(i);
+    if (n_errors > 0 || need_dump) {
+        std::vector<dump_point_ctx_t> dumps;
+        for (auto &d : thread_data.data) {
+            dumps.insert(
+                    dumps.end(), d.second.dumps.begin(), d.second.dumps.end());
+        }
+        std::sort(dumps.begin(), dumps.end(),
+                [](const dump_point_ctx_t &a, const dump_point_ctx_t &b) {
+                    return a.l_offset < b.l_offset;
+                });
+        size_t max_dump_size
+                = (verbose >= 10 || dumps.size() < 10) ? dumps.size() : 10;
+        for (size_t i = 0; i < max_dump_size; i++) {
+            dump_point_values(get_kind_str(), dumps[i]);
+        }
     }
 
     // Set state to FAILED in case of any errors.
