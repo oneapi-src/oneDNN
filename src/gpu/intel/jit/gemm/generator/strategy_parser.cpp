@@ -575,6 +575,13 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
     if (problem.aoPtrDims <= 2) strategy.AO.base = A64;
     if (problem.boPtrDims <= 2) strategy.BO.base = A64;
 
+    // Use new LSC messages on Xe2+
+    if (hw >= ngen::HW::Xe2) {
+       strategy.A.newDP = strategy.A_prefetch.newDP = true;
+       strategy.B.newDP = strategy.B_prefetch.newDP = true;
+       strategy.C.newDP = strategy.C_prefetch.newDP = true;
+    }
+
     strategy.AO.newDP = strategy.A_scale.newDP = strategy.A.newDP;
     strategy.BO.newDP = strategy.B_scale.newDP = strategy.B.newDP;
 }
@@ -582,13 +589,6 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
 void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy, const char *tags)
 {
     auto *gemmAStrategy = &strategy.A, *gemmBStrategy = &strategy.B;
-    
-    // Use new LSC messages on Xe2+
-    if (hw >= ngen::HW::Xe2) {
-       strategy.A.newDP = strategy.A_prefetch.newDP = true;
-       strategy.B.newDP = strategy.B_prefetch.newDP = true;
-       strategy.C.newDP = strategy.C_prefetch.newDP = true;
-    }
 
     // 2D block accesses use 2D addressing where supported.
     auto use2DAddressing = [](MatrixAddressingStrategy &astrategy) {
