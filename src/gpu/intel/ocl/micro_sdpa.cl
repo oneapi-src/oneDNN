@@ -22,6 +22,12 @@
 #include "gemm_kq.h"
 #include "gemm_vs.h"
 
+/* The quantization parameter may be unique for each token/element */
+#define QUANTIZE_2D 2
+
+/* The quantization parameter shares the same value across the work-group */
+#define QUANTIZE_COMMON 3
+
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define DIV_UP(x, y) (((x) + (y)-1) / (y))
 
@@ -156,8 +162,8 @@ DECLARE_2D_TILE_RSELECT(a_scale_tile_type, SUBGROUP_SIZE, ugemm_vs_sg_tile_n, 1,
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) kernel void
 micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         const global VAL_DATA_T *V, global half *A,
-        const global SCALE_DATA_T *scale_ptr, const global half *msk, int d, int k,
-        int q, const global KEY_ATTR_SCALES_DATA_T *K_scales,
+        const global SCALE_DATA_T *scale_ptr, const global half *msk, int d,
+        int k, int q, const global KEY_ATTR_SCALES_DATA_T *K_scales,
         const global KEY_ATTR_ZP_DATA_T *K_zp,
         const global VAL_ATTR_SCALES_DATA_T *V_scales,
         const global VAL_ATTR_ZP_DATA_T *V_zp) {
@@ -222,12 +228,18 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
 #if WITH_KEY_SCALES
     K_scales += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE;
 #endif
+#if WITH_KEY_SCALES == QUANTIZE_COMMON
+    float k_scale = convert_float(*K_scales);
+#endif
 #if WITH_KEY_ZERO_POINTS
     K_zp += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE
             / KEY_ZP_ELEMENTS_PER_BYTE;
 #endif
 #if WITH_VAL_SCALES
     V_scales += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE;
+#endif
+#if WITH_VAL_SCALES == QUANTIZE_COMMON
+    float v_scale = convert_float(*V_scales);
 #endif
 #if WITH_VAL_ZERO_POINTS
     V_zp += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE
@@ -330,7 +342,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         s_tile_type S_tile
                 = ugemm_kq(K, ldk, Q_slm, D_MAX, k, ugemm_kq_wg_tile_n, d, k0,
                         0, 0, sg_i_kq, sg_j_kq, (local char *)ugemm_slm
-#if WITH_KEY_SCALES
+#if WITH_KEY_SCALES == QUANTIZE_2D
                         ,
                         K_scales
 #endif
@@ -338,11 +350,16 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
                         ,
                         K_zp
 #endif
-#if WITH_KEY_SCALES || WITH_KEY_ZERO_POINTS
+#if (WITH_KEY_SCALES == QUANTIZE_2D) || WITH_KEY_ZERO_POINTS
                         ,
                         ldkq
 #endif
                 );
+
+#if WITH_KEY_SCALES == QUANTIZE_COMMON
+#define k_scale_op(x) ((x)*k_scale)
+        tile_elementwise(S_tile, k_scale_op);
+#endif
 
         /* Apply attention mask */
 #if WITH_ATTN_MASK
@@ -495,7 +512,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         a_tile_type A_tile1 = ugemm_vs(
                 V, ldv, S_slm, ugemm_kq_wg_tile_m, d, ugemm_kq_wg_tile_n,
                 k_chunk, 0, 0, 0, sg_i_vs, sg_j_vs, (local char *)ugemm_slm
-#if WITH_VAL_SCALES
+#if WITH_VAL_SCALES == QUANTIZE_2D
                 ,
                 V_scales
 #endif
@@ -503,17 +520,17 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
                 ,
                 V_zp
 #endif
-#if WITH_VAL_SCALES || WITH_VAL_ZERO_POINTS
+#if (WITH_VAL_SCALES == QUANTIZE_2D) || WITH_VAL_ZERO_POINTS
                 ,
                 ldvq
 #endif
         );
 
         V += ldv * ugemm_kq_wg_tile_m / VAL_ELEMENTS_PER_BYTE;
-#if WITH_VAL_SCALES
+#if WITH_VAL_SCALES == QUANTIZE_2D
         V_scales += ldvq * ugemm_kq_wg_tile_m;
 #endif
-#if WITH_VAL_ZERO_POINTS
+#if WITH_VAL_ZERO_POINTS == QUANTIZE_2D
         V_zp += ldvq * ugemm_kq_wg_tile_m / VAL_ZP_ELEMENTS_PER_BYTE;
 #endif
         tile_binary(A_tile, A_tile1, binary_add);
@@ -532,6 +549,11 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
                 ugemm_vs_sg_tile_n * sg_j_vs, sg1);
         tile_binary(A_scale_tile, A_scale_tile_load, binary_add);
     }
+
+#if WITH_VAL_SCALES == QUANTIZE_COMMON
+#define v_scale_op(x) ((x)*v_scale)
+    tile_elementwise(A_tile, v_scale_op);
+#endif
 
     /* Rescale by 1 / (column sums) */
     tile_elementwise(A_scale_tile, native_vrecip);
