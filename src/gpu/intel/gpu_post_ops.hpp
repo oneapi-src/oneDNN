@@ -521,6 +521,7 @@ struct gpu_post_ops_t {
                 case (post_op::kind_t::conv):
                     return depthwise_conv_ == other.depthwise_conv_;
                 case (post_op::kind_t::binary): return binary_ == other.binary_;
+                case (post_op::kind_t::undef): return true;
             }
             gpu_error_not_expected();
             return false;
