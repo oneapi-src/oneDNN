@@ -1598,10 +1598,7 @@ void jit_brgemm_kernel_t<Wmm>::store_accumulators(int bd_block2,
         bool skip_accumulation) {
     const bool has_zero_points = !everyone_is(brgemm_broadcast_t::none,
             brg.zp_type_a, brg.zp_type_b, brg.zp_type_c);
-    const bool are_post_ops_applicable = one_of(true, brg.with_eltwise,
-            brg.with_binary, brg.with_scales, brg.with_bias, brg.with_sum,
-            brg.dt_d != brg.dt_c, brg.req_s8s8_compensation, has_zero_points,
-            brg.with_dst_scales);
+    const bool are_post_ops_applicable = brg.are_post_ops_applicable();
     const bool need_to_apply_alpha_beta = brg.beta != 0.f || brg.alpha != 1.f;
     const bool need_generate_zp_a_compensation
             = brg.is_int8 && (brg.req_s8s8_compensation || has_zero_points);

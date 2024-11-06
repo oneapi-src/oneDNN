@@ -402,6 +402,24 @@ struct brgemm_desc_t {
             default: return true;
         }
     }
+
+    // This function indicates when the kernel would operate with the D pointer
+    // (`true`) and when not (`false`). It's important to distinguish these two
+    // cases due to the fact that kernel would ignore D pointer completely if
+    // no post-accumulation work is identified.
+    //
+    // Correspondent decisions are done in `store_accumulators` function.
+    // The function is used inside kernel generation and ukernel API.
+    // TODO: extend usage to primitives (each of them utilize their own copy
+    // of this definition).
+    bool are_post_ops_applicable() const {
+        const bool has_zero_points = !utils::everyone_is(
+                brgemm_broadcast_t::none, zp_type_a, zp_type_b, zp_type_c);
+        return dt_c != dt_d || with_eltwise || with_binary || with_scales
+                || with_bias || with_sum || req_s8s8_compensation
+                || has_zero_points || with_dst_scales;
+    }
+
     bool is_xf16() const noexcept { return is_bf16 || is_f16; }
 
     bool is_f16_b_non_amx_vnni() const {

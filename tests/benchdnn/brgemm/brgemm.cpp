@@ -1279,16 +1279,12 @@ int doit(const prb_t *prb, res_t *res) {
                 post_ops_data, scratchpad_ptr);
     }
 #else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
-    if (prb->use_dst_as_acc()) {
-        DNN_SAFE(dnnl_brgemm_execute(brgemm, src_ptr, wei_packed_ptr,
-                         offsets.data(), dst_ptr, scratchpad_ptr),
-                WARN);
-    } else {
-        DNN_SAFE(dnnl_brgemm_execute_postops(brgemm, src_ptr, wei_packed_ptr,
-                         offsets.data(), acc_ptr, dst_ptr, scratchpad_ptr,
-                         attr_params),
-                WARN);
-    }
+    // `prb->use_dst_as_acc()=true` will make `dst_ptr=acc_ptr` and rest should
+    // be handled by API.
+    DNN_SAFE(dnnl_brgemm_execute_postops(brgemm, src_ptr, wei_packed_ptr,
+                     offsets.data(), acc_ptr, dst_ptr, scratchpad_ptr,
+                     attr_params),
+            WARN);
 #endif
     res->state = EXECUTED;
 
