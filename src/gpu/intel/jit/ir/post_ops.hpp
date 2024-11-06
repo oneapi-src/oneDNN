@@ -121,14 +121,15 @@ public:
 
     post_op_tensor_info_t(bool is_input, bool is_output, const view_t &view,
             const expr_t &buf, uint32_t mask, const expr_t &op_var,
-            const expr_t &compute_expr)
+            const expr_t &compute_expr, const bool do_convert = true)
         : is_input_(is_input)
         , is_output_(is_output)
         , view_(view)
         , buf_(buf)
         , mask_(mask)
         , op_var_(op_var)
-        , compute_expr_(compute_expr) {
+        , compute_expr_(compute_expr)
+        , do_convert_(do_convert) {
         if (op_var_.is_empty())
             op_var_ = var_t::make(type_t::f32(), make_op_var_name(buf));
     }
@@ -150,6 +151,8 @@ public:
     const expr_t &compute_expr() const { return compute_expr_; }
 
     bool needs_compute() const { return !compute_expr().is_empty(); }
+
+    bool do_convert() const { return do_convert_; }
 
     post_op_tensor_info_t create_sub_tensor(const tensor_t &tile) const {
         auto ret = *this;
@@ -183,6 +186,7 @@ private:
     uint32_t mask_;
     expr_t op_var_;
     expr_t compute_expr_;
+    bool do_convert_ = true;
 };
 
 class post_op_view_mapper_t {
@@ -260,6 +264,11 @@ public:
     bool uses(const expr_t &op_var) const {
         if (contains_object(lhs_, op_var)) return true;
         if (contains_object(rhs_, op_var)) return true;
+        if (eltwise_.is<eltwise_t>()) {
+            auto &eltwise_func = eltwise_.as<eltwise_t>();
+            if (eltwise_func.alg_kind == alg_kind::eltwise_stochastic_round)
+                if (contains_object(eltwise_func.seed, op_var)) return true;
+        }
         return false;
     }
 
@@ -330,20 +339,22 @@ private:
     }
 
     const expr_t &add_input_tensor(const view_t &view, const expr_t &buf,
+            const bool do_convert = true,
             const expr_t &compute_expr = expr_t()) {
         return add_tensor(/*is_input=*/true, /*is_output=*/false, view, buf,
-                expr_t(), compute_expr);
+                expr_t(), compute_expr, do_convert);
     }
 
     const expr_t &add_tensor(bool is_input, bool is_output, const view_t &view,
             const expr_t &buf, const expr_t &op_var,
-            const expr_t &compute_expr = expr_t()) {
+            const expr_t &compute_expr = expr_t(),
+            const bool do_convert = true) {
         ir_assert(cp_ndims() == view.nvdims());
         uint32_t mask = (buf.is_empty() && compute_expr.is_empty()
                         ? ~(1u << cp_ndims())
                         : compute_mask(view));
-        tensor_infos_.emplace_back(
-                is_input, is_output, view, buf, mask, op_var, compute_expr);
+        tensor_infos_.emplace_back(is_input, is_output, view, buf, mask, op_var,
+                compute_expr, do_convert);
         return tensor_infos_.back().op_var();
     }
 

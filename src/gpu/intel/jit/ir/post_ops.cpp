@@ -188,6 +188,17 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
         }
     }
 
+    if (!attr.rounding_mode_.has_default_values()) {
+        auto seed_buf = kernel_info.find_arg("sround_seed");
+        auto view = po_vm_.create_view(type_t::u64(), 0);
+        auto in = add_input_tensor(view, seed_buf, /*do_convert=*/false);
+        auto func = eltwise_t::make(alg_kind::eltwise_stochastic_round,
+                /*scale=*/1.f,
+                /*alpha=*/1.f,
+                /*beta=*/0.f, in, convert_dnnl_type_to_ngen(dst_md.data_type));
+        post_ops_.emplace_back(c, c, func);
+    }
+
     need_to_restore_zero_padding_ = has_padding(out_md)
             && (po_vm_.need_to_restore_zero_padding()
                     || init_need_to_restore_zero_padding(

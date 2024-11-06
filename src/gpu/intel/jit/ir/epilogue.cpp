@@ -184,7 +184,8 @@ public:
     bool needs_masked_update() const { return info_.needs_masked_update(); }
 
     bool needs_f32_convert() const {
-        return !mem_view().type().is_f32() && !mem_view().type().is_f64();
+        return info_.do_convert() && !mem_view().type().is_f32()
+                && !mem_view().type().is_f64();
     }
 
     bool needs_reduction() const {
@@ -517,8 +518,16 @@ public:
                     << "Only supported form is lhs = eltwise(lhs).";
             dim_t lhs_size = lhs_tensor.reg_layout().size();
             dim_t lhs_elems = lhs_size / int(sizeof(float));
-            return post_op_.eltwise().call(
-                    {expr_t(lhs_elems), lhs_tensor.reg_buf()});
+            auto &eltwise_func = post_op_.eltwise().as<eltwise_t>();
+            if (eltwise_func.alg_kind == alg_kind::eltwise_stochastic_round) {
+
+                return post_op_.eltwise().call(
+                        {expr_t(lhs_elems), lhs_tensor.reg_buf(),
+                                (*args.at(eltwise_func.seed)).reg_buf()});
+            } else {
+                return post_op_.eltwise().call(
+                        {expr_t(lhs_elems), lhs_tensor.reg_buf()});
+            }
         }
 
         int inner_dim_idx = -1;
@@ -527,10 +536,12 @@ public:
         auto inner_layout = lhs_tensor.reg_layout().map(base_inner_tile);
         ir_assert(inner_dim_idx != -1);
 
-        // All post-ops are performed in f32 except f64 bias.
+        // All post-ops arguments are f32 type except f64 bias and u64
+        // stochastic rounding seed.
         for (auto &kv : args) {
             ir_assert(kv.second->reg_layout().type().is_f32()
-                    || kv.second->reg_layout().type().is_f64());
+                    || kv.second->reg_layout().type().is_f64()
+                    || kv.second->reg_layout().type().is_u64());
         }
 
         // Handle one inner tile at a time. Inner tile covers a single block

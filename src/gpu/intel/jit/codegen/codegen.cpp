@@ -725,6 +725,18 @@ private:
         int grf_size = ngen::GRF::bytes(hw);
         int f_size = sizeof(float);
         int step = 2 * grf_size / f_size;
+
+        auto do_eltwise = [&](const reg_buf_data_t &r, const int count) {
+            if (func.alg_kind == alg_kind::eltwise_stochastic_round) {
+                ir_assert(args.size() == 3);
+                auto seed = args[2].reg_buf_data();
+                inj.compute(ngen::GRFRange(r.base(), count),
+                        seed.reg_data().getBase(), seed.reg_data().getOffset(),
+                        func.dst_dt);
+            } else {
+                inj.compute(ngen::GRFRange(r.base(), count));
+            }
+        };
         for (int i = 0; i < elems; i += step) {
             ngen_register_scope_t i_scope(scope.register_allocator());
             step = std::min(step, elems - i);
@@ -740,13 +752,11 @@ private:
                 auto tmp = i_scope.alloc_reg_data(type_t::f32(full_elems));
                 emit_reorder_1d_tile(
                         hw, host_, i_scope, cur_elems, rd, 1, tmp, 1);
-                inj.compute(ngen::GRFRange(
-                        tmp.base(), full_elems * f_size / grf_size));
+                do_eltwise(tmp, full_elems * f_size / grf_size);
                 emit_reorder_1d_tile(
                         hw, host_, i_scope, cur_elems, tmp, 1, rd, 1);
             } else {
-                inj.compute(ngen::GRFRange(
-                        rd.base(), cur_elems * f_size / grf_size));
+                do_eltwise(rd, cur_elems * f_size / grf_size);
             }
         }
     }

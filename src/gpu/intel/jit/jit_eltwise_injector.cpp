@@ -945,13 +945,14 @@ void jit_eltwise_injector_f32<hw>::compute(const int *grfs, int ngrf,
 }
 
 template <gpu_gen_t hw>
-void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs) {
+void jit_eltwise_injector_f32<hw>::compute(const ngen::GRFRange &regs,
+        const int seed, const int off, const ngen::DataType dt) {
     int grfs[ngen::GRF::maxRegs()];
 
     for (int i = 0; i < regs.getLen(); i++)
         grfs[i] = regs.getBase() + i;
 
-    compute(grfs, regs.getLen());
+    compute(grfs, regs.getLen(), seed, off, dt);
 }
 
 template <gpu_gen_t hw>

@@ -33,6 +33,11 @@ class eltwise_t : public func_impl_t {
 public:
     IR_DECL_DERIVED_TYPE_ID(eltwise_t, func_impl_t)
 
+    static func_t make(alg_kind_t alg_kind, float scale, float alpha,
+            float beta, expr_t &seed, ngen::DataType dst_dt) {
+        return func_t(
+                new eltwise_t(alg_kind, scale, alpha, beta, seed, dst_dt));
+    }
     static func_t make(
             alg_kind_t alg_kind, float scale, float alpha, float beta) {
         return func_t(new eltwise_t(alg_kind, scale, alpha, beta));
@@ -74,6 +79,7 @@ public:
             case alg_kind::eltwise_clip_v2_use_dst_for_bwd:
                 return "clip_v2_use_dst_for_bwd";
             case alg_kind::eltwise_round: return "round";
+            case alg_kind::eltwise_stochastic_round: return "stochastic_round";
             default: ir_error_not_expected();
         }
         return "unknown";
@@ -86,14 +92,30 @@ public:
     float scale;
     float alpha;
     float beta;
+    expr_t seed;
+    ngen::DataType dst_dt = ngen::DataType::invalid;
 
 private:
+    eltwise_t(alg_kind_t alg_kind, float scale, float alpha, float beta,
+            expr_t &seed, ngen::DataType dst_dt)
+        : func_impl_t(_type_info())
+        , alg_kind(alg_kind)
+        , scale(scale)
+        , alpha(alpha)
+        , beta(beta)
+        , seed(seed)
+        , dst_dt(dst_dt) {
+        assert(alg_kind == alg_kind::eltwise_stochastic_round);
+    }
+
     eltwise_t(alg_kind_t alg_kind, float scale, float alpha, float beta)
         : func_impl_t(_type_info())
         , alg_kind(alg_kind)
         , scale(scale)
         , alpha(alpha)
-        , beta(beta) {}
+        , beta(beta) {
+        assert(alg_kind != alg_kind::eltwise_stochastic_round);
+    }
 };
 
 } // namespace jit

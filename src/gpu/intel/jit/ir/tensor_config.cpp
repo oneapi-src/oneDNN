@@ -26,6 +26,11 @@ void init_extra_tensors(const zero_points_config_t &zp_cfg,
         const primitive_attr_t &attr, const memory_desc_t *zp_src,
         const memory_desc_t &dst_md, dim_t ic, dim_t oc,
         tensor_config_t &tensor_cfg) {
+    if (!attr.rounding_mode_.has_default_values()) {
+        layout_t sround_seed_layout(type_t::u32(), 0, std::vector<dim_t> {1});
+        tensor_cfg.add_tensor("sround_seed", DNNL_ARG_ATTR_ROUNDING_SEED,
+                /*is_input=*/true, /*is_output=*/false, sround_seed_layout);
+    }
     auto add_zp_buffer = [&](const std::string &name, type_t type, int arg_id,
                                  dim_t size) {
         layout_t zp_layout(type, 0, std::vector<dim_t> {size});
