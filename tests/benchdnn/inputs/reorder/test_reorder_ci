@@ -12,6 +12,13 @@
 --oflag=
 2x16x3x4 1x17x5x3 30x1
 
+# 4d reorders
+--sdt=s8,u8
+--ddt=f32
+--attr-zero-points=src:common:-1
+--stag=adbc
+1x12x128x33
+
 --reset
 # compensation reorders without groups
 --sdt=f32,s8,bf16

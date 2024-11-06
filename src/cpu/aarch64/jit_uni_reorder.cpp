@@ -2840,6 +2840,11 @@ status_t jit_uni_reorder_t::pd_t::create(reorder_pd_t **reorder_pd,
     _pd->ker_desc_ = ker_desc;
     CHECK(_pd->init_scratchpad_md());
 
+    bool has_zero_point
+            = !_pd->attr()->zero_points_.has_default_values(DNNL_ARG_FROM)
+            || !_pd->attr()->zero_points_.has_default_values(DNNL_ARG_TO);
+    if (src_md->ndims == 4 && has_zero_point) { return status::unimplemented; }
+
     return safe_ptr_assign(*reorder_pd, _pd.release());
 }
 
