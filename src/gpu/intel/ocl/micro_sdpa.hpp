@@ -78,6 +78,10 @@ struct micro_sdpa_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_SDPA(desc()->values() == desc()->head_size(),
                     "values does not match head size");
+            VDISPATCH_SDPA(qry_md()->dims[1] >= key_md()->dims[1]
+                            && qry_md()->dims[1] >= val_md()->dims[1],
+                    "number of heads in query tensor(%s) must be greater than "
+                    "the number of heads in the key(%s) and value(%s) tensors");
 
             CHECK(init_microkernels(engine));
             return status::success;
@@ -115,9 +119,11 @@ struct micro_sdpa_t : public gpu_primitive_t {
             return head_size;
         }
 
+        /// If true, dequantize the K tensor using scaling in the KQ matmul
         bool with_key_scales() const {
             return (!desc()->kq_scales.has_default_values());
         }
+        /// If true, dequantize the V tensor using scaling in the VS matmul
         bool with_value_scales() const {
             return (!desc()->vs_scales.has_default_values());
         }
