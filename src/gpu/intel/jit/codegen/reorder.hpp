@@ -519,6 +519,12 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 if (dst_bf8 || dst_hf8) {
                     auto t1 = tmp1.subregister(0, ngen::DataType::hf);
                     auto t2 = tmp2.subregister(0, conv_src);
+                    if (s.getByteOffset() != 0) {
+                        plan(mov, esize,
+                                t2.reinterpret(0, src_raw)(conv_src_stride),
+                                s.reinterpret(0, src_raw)(conv_src_stride));
+                        s = t2;
+                    }
                     plan(mov, esize, t1.reinterpret(0, src_raw)(1),
                             s.reinterpret(0, src_raw)(conv_src_stride));
                     plan(mov, esize, t2.reinterpret(0, dst_type)(1),
@@ -1036,8 +1042,6 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         auto step_size = step * src_type_size * src_stride;
         auto tmp_regs = utils::div_up(step_size, grf_size);
         auto tmp = lex_scope.alloc_reg_buf_data(tmp_regs);
-        auto tmp2_regs = utils::div_up(step * dst_type_size, grf_size);
-        auto tmp2 = lex_scope.alloc_reg_buf_data(tmp2_regs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
@@ -1046,17 +1050,13 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     esize, src_stride);
             auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
                     esize, dst_stride);
-            auto d_old = d;
-            bool d_half_grf_aligned
-                    = utils::one_of(d.byte_offset(), 0, grf_size / 2);
-            if (!d_half_grf_aligned) { d = tmp2.format(0, dst_type, esize); }
-            if (s.offset() != 0) {
-                auto t = tmp.format(0, src_type, esize, src_stride);
+            if (2 * (d.offset() % 16) != s.offset() && hw >= ngen::HW::XeHPC) {
+                auto t = tmp.format(
+                        4 * (d.offset() % 16), src_type, esize, src_stride);
                 plan(mov, esize, t, s);
                 s = std::move(t);
             }
             plan(mov, esize, d, s);
-            if (!d_half_grf_aligned) plan(mov, esize, d_old, d);
         }
         return;
     }
