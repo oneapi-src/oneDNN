@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,13 +21,9 @@
 
 #include "backend/dnnl/utils.hpp"
 
-#include "cpp/unit/unit_test_common.hpp"
-#include "cpp/unit/utils.hpp"
-
 namespace graph = dnnl::impl::graph;
-namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(test_dnnl_utils_dnnl_utils, TryReverseAxis) {
+TEST(test_dnnl_utils, TryReverseAxis) {
     auto par1 = std::make_pair<bool, int64_t>(true, 0);
     ASSERT_EQ(graph::dnnl_impl::utils::try_reverse_axis(0, 3), par1);
 

@@ -46,7 +46,7 @@ void check_correctness(
     for_(const auto &i_ctx_init : s.ctx_init)
     for (const auto &i_ctx_exe : s.ctx_exe) {
         const prb_t prb(s.prb_vdims, i_sdt, i_ddt, i_stag, i_dtag, i_alg, i_p,
-                i_eps, i_attr, i_ctx_init, i_ctx_exe);
+                i_eps, i_attr, i_ctx_init, i_ctx_exe, s.impl_filter);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(
@@ -94,13 +94,7 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(s.p, def.p, atof, argv[0], "p", help_p)
                 || parse_vector_option(
                         s.eps, def.eps, atof, argv[0], "eps", help_eps)
-                || parse_attributes(s, def, argv[0])
-                || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
-                || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
-                || parse_test_pattern_match(s.pattern, argv[0])
-                || parse_perf_template(s.perf_template, s.perf_template_def,
-                        s.perf_template_csv(), argv[0])
-                || parse_reset(s, argv[0]) || parse_help(argv[0]);
+                || parse_driver_shared_settings(s, def, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 

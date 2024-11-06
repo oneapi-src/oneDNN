@@ -64,7 +64,8 @@ status_t init_layouts(const kernel_desc_t &desc, convolution_pd_t *pd) {
     maybe_init_layout(src_md, desc.src_tag.raw_tag(), false);
     maybe_init_layout(wei_md, desc.wei_tag.raw_tag(), !pd->with_groups());
     maybe_init_layout(dst_md, desc.dst_tag.raw_tag(), false);
-    maybe_init_layout(bia_md, desc.bia_tag.raw_tag(), false);
+    maybe_init_layout(bia_md,
+            make_conv_layout_tag(tensor_kind_t::bia, "a").raw_tag(), false);
     return status::success;
 }
 
@@ -80,9 +81,15 @@ public:
         if (pd->is_bwd_d()
                 && !(pd->KSW() == 1 && pd->KSH() == 1 && pd->KSD() == 1))
             return false;
+        // Mixed types are not supported for backward by data.
+        if (pd->is_bwd_d()
+                && pd->dst_md()->data_type != pd->diff_src_md()->data_type) {
+            return false;
+        }
 
-        if ((pd->is_bwd_d() || pd->is_fwd()) && pd->with_bias()) return false;
-        if (!pd->attr()->has_default_values()) return false;
+        using sm = primitive_attr_t::skip_mask_t;
+        auto skip_mask = sm::post_ops | sm::sum_dt;
+        if (!pd->attr()->has_default_values(skip_mask)) return false;
         return true;
     }
 
@@ -128,8 +135,9 @@ private:
         return status::success;
     }
 
+    template <typename T>
     static status_t init_conv(std::shared_ptr<kernel_desc_base_t> &desc,
-            std::shared_ptr<kernel_params_base_t> &params, convolution_pd_t *pd,
+            std::shared_ptr<kernel_params_base_t> &params, T *pd,
             impl::engine_t *engine) {
         auto prb = to_problem(pd, engine);
         kernel_desc_t _desc;
@@ -139,18 +147,31 @@ private:
         } else {
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);
+            ir_assert(!_desc.is_empty())
+                    << "Cannot find kernels that can fit the problem.";
+            if (_desc.is_empty()) return status::unimplemented;
         }
         _desc.spec_strategy = spec_strategy_t::min_dims;
         _desc.fit_to(prb);
+        CHECK(init_layouts(_desc, pd));
+        CHECK(pd->attr_.set_default_formats(out_md(pd)));
+        _desc.set_post_ops(pd->attr()->post_ops_, out_md(pd));
         if (!finalize_conv_desc(_desc, prb)) {
             ir_info() << "Cannot create kernel descriptor";
             return status::runtime_error;
         }
-        CHECK(init_layouts(_desc, pd));
         _params.prb = std::move(prb);
         desc = std::make_shared<kernel_desc_t>(_desc);
         params = std::make_shared<kernel_params_t>(_params);
         return status::success;
+    }
+
+    static const memory_desc_t *out_md(const convolution_pd_t *pd) {
+        if (pd->is_fwd()) return pd->dst_md();
+        if (pd->is_bwd_d()) return pd->diff_src_md();
+        if (pd->is_bwd_w()) return pd->diff_weights_md();
+        ir_error_not_expected();
+        return nullptr;
     }
 
     std::vector<compute::kernel_t> kernels_;

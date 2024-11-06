@@ -283,7 +283,7 @@ graph::status_t compiler_partition_impl_t::compile(
         backend_graph_obj.attrs_["temp.name"]
                 = pname_ + "_" + std::to_string(this->id_);
         backend_graph_obj.attrs_[gc::sc_graph_t::attr_key_t::fpmath_mode]
-                = static_cast<int>(fpmath_mode_);
+                = static_cast<int>(fpmath_mode_.mode_);
         backend_graph_obj
                 .attrs_[gc::sc_graph_t::attr_key_t::allow_channel_last_output]
                 = true;

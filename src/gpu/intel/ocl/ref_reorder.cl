@@ -20,6 +20,7 @@
 #undef cl_future_bf16_cvt
 
 #include "gpu/intel/ocl/dispatch.h"
+#include "gpu/intel/ocl/ocl_philox.h"
 #include "gpu/intel/ocl/reorder_common.h"
 #include "gpu/intel/ocl/types_interop.h"
 
@@ -29,15 +30,17 @@
 
 KERNEL_ATTR
 __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
-        __global DST_DATA_T *restrict dst, __global float *restrict src_scales,
-        __global int *restrict src_zps, __global float *restrict dst_scales,
-        __global int *dst_zps, float sum_scale, int sum_zp,
+        __global DST_DATA_T *restrict dst,
+        __global SRC_SCALES_DATA_T *restrict src_scales,
+        __global SRC_ZP_DATA_T *restrict src_zps,
+        __global float *restrict dst_scales, __global int *dst_zps,
+        float sum_scale, int sum_zp,
 #if WITH_SROUND
         __global uint *sround_seed_buf,
 #endif
         int64x3_t offset) {
 
-    const int src_zp = GET_SRC_ZP(src_zps);
+    int src_zp = 0;
     const int dst_zp = GET_DST_ZP(dst_zps);
     float src_scale = 1.0f;
     float dst_scale = 1.0f;
@@ -83,8 +86,16 @@ __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
             continue;
         }
 #endif
+        // Both scales and zero-points include groups in their offsets.
+        // It involves division by a group value of a correspondent dX value,
+        // and also adjusting stride for a dimension with a group.
+#if WITH_SRC_ZPOINT
+        off_t zp_off = ZPOINT_OFF(SRC, d0, d1, d2, d3, d4, d5);
+        src_zp = SRC_ZP_TO_REF(src_zps, zp_off);
+#endif
 #if WITH_SRC_SCALE
-        src_scale = src_scales[SCALE_OFF(SRC, d0, d1, d2, d3, d4, d5)];
+        off_t scale_off = SCALE_OFF(SRC, d0, d1, d2, d3, d4, d5);
+        src_scale = SRC_SCALES_TO_REF(src_scales[scale_off]);
 #endif
 #if WITH_DST_SCALE
         dst_scale = dst_scales[SCALE_OFF(DST, d0, d1, d2, d3, d4, d5)];

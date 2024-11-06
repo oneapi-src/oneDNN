@@ -89,29 +89,32 @@ struct prb_t : public prb_dims_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
         : prb_t(s.prb_dims, s.sdt[0], s.ddt[0], s.stag[0], s.dtag[0],
-                s.strides[0], s.attributes.front(), s.ctx_init[0], s.ctx_exe[0],
-                s.oflag[0], s.cross_engine[0], s.runtime_dim_mask[0]) {
+                s.strides[0], s.oflag[0], s.cross_engine[0],
+                s.runtime_dim_mask[0], s.attributes.front(), s.ctx_init[0],
+                s.ctx_exe[0], s.impl_filter) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
     prb_t(const prb_dims_t &prb_dims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::string &stag,
-            const std::string &dtag, const vdims_t &strides, const attr_t &attr,
-            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe,
+            const std::string &dtag, const vdims_t &strides,
             const std::vector<flag_t> &oflag, cross_engine_t cross_engine,
-            unsigned runtime_dim_mask)
+            unsigned runtime_dim_mask, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe,
+            const impl_filter_t &impl_filter)
         : prb_dims_t(prb_dims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
         , strides(strides)
+        , oflag(oflag)
+        , cross_engine(cross_engine)
+        , runtime_dim_mask(runtime_dim_mask)
         , attr(attr)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
-        , oflag(oflag)
-        , cross_engine(cross_engine)
-        , runtime_dim_mask(runtime_dim_mask) {
+        , impl_filter(impl_filter) {
         repro = set_repro_line(); // must be last in ctor to collect right info
     }
 
@@ -119,12 +122,13 @@ struct prb_t : public prb_dims_t {
     dnnl_data_type_t sdt, ddt;
     std::string stag, dtag;
     vdims_t strides;
-    bool inplace = false; // Lacks placement, always considered `false`.
-    attr_t attr;
-    thr_ctx_t ctx_init, ctx_exe;
     std::vector<flag_t> oflag;
     cross_engine_t cross_engine;
     unsigned runtime_dim_mask;
+    bool inplace = false; // Lacks placement, always considered `false`.
+    attr_t attr;
+    thr_ctx_t ctx_init, ctx_exe;
+    impl_filter_t impl_filter;
 
     bool is_reorder_with_compensation(flag_bit_t flag) const;
     dims_t get_compensation_dims(flag_bit_t flag) const;

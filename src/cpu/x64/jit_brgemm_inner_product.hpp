@@ -276,8 +276,10 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                     VERBOSE_BAD_PROPKIND);
             VDISPATCH_INNER_PRODUCT(
                     !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
-            VDISPATCH_INNER_PRODUCT(utils::one_of(diff_dst_dt, data_type::f32,
-                                            data_type::bf16, data_type::f16),
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(diff_dst_dt, data_type::f32, data_type::bf16,
+                            data_type::f16, data_type::f8_e5m2,
+                            data_type::f8_e4m3),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_INNER_PRODUCT(wei_dt == diff_dst_dt,
                     VERBOSE_INCONSISTENT_DT, "weights", "diff_dst");
@@ -453,8 +455,10 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                     VERBOSE_BAD_PROPKIND);
             VDISPATCH_INNER_PRODUCT(
                     !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
-            VDISPATCH_INNER_PRODUCT(utils::one_of(src_dt, data_type::f32,
-                                            data_type::bf16, data_type::f16),
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(src_dt, data_type::f32, data_type::bf16,
+                            data_type::f16, data_type::f8_e5m2,
+                            data_type::f8_e4m3),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_INNER_PRODUCT(diff_dst_type == src_dt,
                     VERBOSE_INCONSISTENT_DT, "diff_dst", "src");
@@ -592,8 +596,8 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 CHECK(create_brgemm_trans_to_vnni(trans_C_kernel_, &pd()->jbgp_,
                         jit_brgemm_trans_to_vnni_t::matrix_to_transform::
                                 matrix_C));
-        } else if (utils::one_of(
-                           jbgp.wei_dt, data_type::bf16, data_type::f16)) {
+        } else if (utils::one_of(jbgp.wei_dt, data_type::bf16, data_type::f16,
+                           data_type::f8_e5m2, data_type::f8_e4m3)) {
             CHECK(create_brgemm_amx_ip_trans_wei(diff_wei_trans_kernel_,
                     &pd()->jbgp_, ext_ic_block_, ext_oc_block_));
         }

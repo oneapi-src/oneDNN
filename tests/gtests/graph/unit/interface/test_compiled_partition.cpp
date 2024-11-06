@@ -35,7 +35,7 @@ namespace utils = dnnl::graph::tests::unit::utils;
 namespace dnnl {
 namespace graph {
 
-TEST(test_interface_compiled_partition_cache, SingleOpCase) {
+TEST(test_interface_compiled_partition, CacheSingleOpCase) {
 #if !defined(NDEBUG) && (DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL)
     // TODO:
     // Due to symbol duplication of dnnl_get_max_threads(), when building with
@@ -138,7 +138,7 @@ TEST(test_interface_compiled_partition_cache, SingleOpCase) {
 #endif
 }
 
-TEST(test_interface_lru_compiled_partition_cache, Method) {
+TEST(test_interface_compiled_partition, CacheMethod) {
     namespace graph = dnnl::impl::graph;
 
     graph::engine_t &eng = *get_engine();

@@ -30,6 +30,7 @@
 #include "dnnl_debug.hpp"
 #include "tests/test_thread.hpp"
 #include "utils/dims.hpp"
+#include "utils/impl_filter.hpp"
 #include "utils/settings.hpp"
 
 namespace parser {
@@ -232,6 +233,12 @@ bool parse_ctx_init(std::vector<thr_ctx_t> &ctx,
         const std::vector<thr_ctx_t> &def_ctx, const char *str);
 bool parse_ctx_exe(std::vector<thr_ctx_t> &ctx,
         const std::vector<thr_ctx_t> &def_ctx, const char *str);
+bool parse_impl(impl_filter_t &impl_filter,
+        const impl_filter_t &def_impl_filter, const char *str,
+        const std::string &option_name = "impl");
+bool parse_skip_impl(impl_filter_t &impl_filter,
+        const impl_filter_t &def_impl_filter, const char *str,
+        const std::string &option_name = "skip-impl");
 
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
         const char *str, const std::string &option_name = "axis");
@@ -281,6 +288,19 @@ void parse_prb_dims(prb_dims_t &prb_dims, const std::string &str);
 
 // service functions
 bool parse_bench_settings(const char *str);
+
+template <typename S>
+bool parse_driver_shared_settings(S &s, const S &def, const char *str) {
+    return parse_attributes(s, def, str)
+            || parse_ctx_init(s.ctx_init, def.ctx_init, str)
+            || parse_ctx_exe(s.ctx_exe, def.ctx_exe, str)
+            || parse_test_pattern_match(s.pattern, str)
+            || parse_impl(s.impl_filter, def.impl_filter, str)
+            || parse_skip_impl(s.impl_filter, def.impl_filter, str)
+            || parse_perf_template(s.perf_template, s.perf_template_def,
+                    s.perf_template_csv(), str)
+            || parse_reset(s, str) || parse_help(str);
+}
 
 void catch_unknown_options(const char *str);
 

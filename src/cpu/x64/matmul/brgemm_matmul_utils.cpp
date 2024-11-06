@@ -296,6 +296,7 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(memory_desc_t &B_md,
                 ? get_default_n_block(format_tag::undef)
                 : bgmmc.N_blk;
         bgmmc.wei_tag = blocked_B_layouts_allowed && !bgmmc.is_runtime_N
+                        && !bgmmc.is_int4_weights
                 ? this->pick_blocked_B_layout(default_n_block)
                 : plain_tensor_layout_tag;
         VCONDCHECK_BG(
@@ -311,6 +312,7 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(memory_desc_t &B_md,
         }
     } else {
         bgmmc.wei_tag = blocked_B_layouts_allowed && !bgmmc.is_runtime_N
+                        && !bgmmc.is_int4_weights
                 ? memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag,
                         transposed_tensor_layout_tag, blocked_64n_B_layout_tag,
                         blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
@@ -890,6 +892,7 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
         // Parallelize across K for shapes with big 'K' dimension
         bool bwd_w_par_k_blk = bgmmc.batch == 1
                 && bm_conf_utils.check_is_transposed(bgmmc.src_tag)
+                && !bm_conf_utils.is_int8()
                 && IMPLICATION(bm_conf_utils.is_bf16(), math::is_pow2(matmul.K))
                 && matmul.K >= 2048;
         if (bwd_w_par_k_blk) {
@@ -1827,10 +1830,11 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
     bgmmc.has_zero_point_b = bgmmc.wei_zp_type != brgemm_broadcast_t::none;
     bgmmc.has_zero_point_c = bgmmc.dst_zp_type != brgemm_broadcast_t::none;
     bgmmc.post_ops_applicable = one_of(true, bgmmc.with_sum, bgmmc.with_bias,
-            bgmmc.with_scales, bgmmc.with_eltwise, bgmmc.with_binary,
-            bgmmc.acc_dt != bgmmc.dst_dt, bgmmc.s8s8_compensation_required,
-            bgmmc.has_zero_point_a, bgmmc.has_zero_point_b,
-            bgmmc.has_zero_point_c, bgmmc.with_dst_scales);
+            bgmmc.with_scales && !bgmmc.apply_scales_in_buffer_b,
+            bgmmc.with_eltwise, bgmmc.with_binary, bgmmc.acc_dt != bgmmc.dst_dt,
+            bgmmc.s8s8_compensation_required, bgmmc.has_zero_point_a,
+            bgmmc.has_zero_point_b, bgmmc.has_zero_point_c,
+            bgmmc.with_dst_scales);
 
     bgmmc.zp_a_comp_shift_n = bgmmc.wei_n_blk;
     bgmmc.zp_a_comp_elems_per_thr

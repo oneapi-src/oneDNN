@@ -79,7 +79,8 @@ struct prb_t : public prb_vdims_t {
 #ifdef DNNL_EXPERIMENTAL_SPARSE
                 s.sparse_options[0],
 #endif
-                s.attributes.front(), s.ctx_init[0], s.ctx_exe[0]) {
+                s.attributes.front(), s.ctx_init[0], s.ctx_exe[0],
+                s.impl_filter) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
@@ -92,7 +93,7 @@ struct prb_t : public prb_vdims_t {
             sparse_options_t sparse_options,
 #endif
             const attr_t &attr, const thr_ctx_t &ctx_init,
-            const thr_ctx_t &ctx_exe)
+            const thr_ctx_t &ctx_exe, const impl_filter_t &impl_filter)
         : prb_vdims_t(prb_vdims)
         , dt(dt)
         , stag(stag)
@@ -107,7 +108,8 @@ struct prb_t : public prb_vdims_t {
 #endif
         , attr(attr)
         , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe) {
+        , ctx_exe(ctx_exe)
+        , impl_filter(impl_filter) {
 
         // Broadcast data types if needed
         if (dt.size() == 1) {
@@ -149,6 +151,7 @@ struct prb_t : public prb_vdims_t {
     bool inplace = false; // Lacks placement, always considered `false`.
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
+    impl_filter_t impl_filter;
 
     double ops;
 

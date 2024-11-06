@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 namespace dnnl_impl = graph::dnnl_impl;
 
-TEST(test_layout_propagator_layout_propagator, LayoutPropagatorForPermute) {
+TEST(test_layout_propagator, LayoutPropagatorForPermute) {
     auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
     op->set_attr<std::vector<int64_t>>(dnnl_impl::op_attr::permutation, {1, 0});
     auto lt_in = utils::logical_tensor_init(
@@ -54,7 +54,7 @@ TEST(test_layout_propagator_layout_propagator, LayoutPropagatorForPermute) {
             graph::status::success);
 }
 
-TEST(test_layout_propagator_layout_propagator, LayoutPropagatorForReorder) {
+TEST(test_layout_propagator, LayoutPropagatorForReorder) {
     auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
     op->set_attr<std::vector<int64_t>>(dnnl_impl::op_attr::permutation, {1, 0});
     auto lt_in = utils::logical_tensor_init(
@@ -78,8 +78,7 @@ TEST(test_layout_propagator_layout_propagator, LayoutPropagatorForReorder) {
             graph::status::success);
 }
 
-TEST(test_layout_propagator_layout_propagator,
-        LayoutPropagatorForSumDeathTest) {
+TEST(test_layout_propagator, LayoutPropagatorForSumDeathTest) {
     graph::engine_t &eng = *get_engine();
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;
@@ -100,8 +99,7 @@ TEST(test_layout_propagator_layout_propagator,
             graph::status::success);
 }
 
-TEST(test_layout_propagator_layout_propagator,
-        LayoutPropagatorForSumFailDeathTest) {
+TEST(test_layout_propagator, LayoutPropagatorForSumFailDeathTest) {
     dnnl::engine p_engine;
     dnnl_impl::fusion_info_mgr_t mgr;
     dnnl_impl::pd_cache_t pd_cache;
@@ -122,8 +120,7 @@ TEST(test_layout_propagator_layout_propagator,
 #endif
 }
 
-TEST(test_layout_propagator_layout_propagator,
-        LayoutPropagatorForSubZpsDeathTest) {
+TEST(test_layout_propagator, LayoutPropagatorForSubZpsDeathTest) {
     graph::engine_t &eng = *get_engine();
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;
@@ -144,8 +141,7 @@ TEST(test_layout_propagator_layout_propagator,
 #endif
 }
 
-TEST(test_layout_propagator_layout_propagator,
-        LayoutPropagatorForAddZpsDeathTest) {
+TEST(test_layout_propagator, LayoutPropagatorForAddZpsDeathTest) {
     graph::engine_t &eng = *get_engine();
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;

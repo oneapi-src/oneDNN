@@ -28,11 +28,6 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-// placeholder for data type unimplemented in HW.
-constexpr ngen::DataType ngen_hf8() {
-    return static_cast<ngen::DataType>(0x0D);
-}
-
 template <typename T>
 T to_cpp(const ngen::Immediate &imm) {
     auto u64 = uint64_t(imm);
@@ -64,6 +59,7 @@ inline ngen::DataType to_ngen(const type_t &type) {
     CASE(bf16, bf);
     CASE(f16, hf);
     CASE(bf8, bf8);
+    CASE(hf8, hf8);
     CASE(tf32, tf32);
     CASE(f32, f);
     CASE(f64, df);
@@ -77,7 +73,6 @@ inline ngen::DataType to_ngen(const type_t &type) {
     CASE(u8, ub);
 
     if (type == type_t::byte_ptr()) return ngen::DataType::uq;
-    if (type == type_kind_t::hf8) return ngen_hf8();
 
 #undef CASE
     ir_error_not_expected();
@@ -92,6 +87,7 @@ inline type_t to_ir(ngen::DataType type) {
     CASE(bf16, bf);
     CASE(f16, hf);
     CASE(bf8, bf8);
+    CASE(hf8, hf8);
     CASE(f32, f);
     CASE(f64, df);
     CASE(s16, w);

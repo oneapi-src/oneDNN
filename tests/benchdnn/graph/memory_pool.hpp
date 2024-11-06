@@ -77,10 +77,10 @@ static void ocl_free(
 }
 #endif
 
-// This memory pool is for benchdnn graph performance test. The clear and
-// set_capacity functions aren't thread safe. The multi-threaded scenario is
-// mainly used in Graph Compiler backend.
-// Note: for benchdnn graph we use the memory pool for gpu backend currently.
+// This memory pool is for benchdnn graph performance validation. `clear` and
+// `set_capacity` functions aren't thread safe.
+// Note: memory pool for GPU backend currently.
+
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL \
         || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 class simple_memory_pool_t {
@@ -136,21 +136,14 @@ public:
     }
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    void deallocate(
-            void *ptr, const void *device, const void *context, void *event) {
+    void deallocate(void *ptr) {
         std::lock_guard<std::mutex> pool_guard(pool_lock);
-        if (event) {
-            auto sycl_deps_ptr = static_cast<::sycl::event *>(event);
-            sycl_deps_ptr->wait();
-        }
         is_free_ptr_[ptr] = true;
         return;
     }
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    void deallocate(
-            void *ptr, cl_device_id dev, const cl_context ctx, cl_event event) {
+    void deallocate(void *ptr) {
         std::lock_guard<std::mutex> pool_guard(pool_lock);
-        if (event) { OCL_CHECK(clWaitForEvents(1, &event)); }
         is_free_ptr_[ptr] = true;
         return;
     }

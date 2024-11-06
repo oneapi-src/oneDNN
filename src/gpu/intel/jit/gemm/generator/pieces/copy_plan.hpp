@@ -182,6 +182,7 @@ protected:
     void planInt4Upconversion(CopyInstruction &i);
     void planEmulatedHF8ToHF(CopyInstruction &i);
     void planEmulatedHFToHF8(CopyInstruction &i);
+    void planFP8SIMD1Mov(CopyInstruction &i);
     void legalizeSIMD(bool initial = false);
     void legalizeRegions();
     void legalizeNegation();

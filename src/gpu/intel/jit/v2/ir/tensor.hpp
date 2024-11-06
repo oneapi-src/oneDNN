@@ -410,6 +410,8 @@ public:
         return map(mapper, pvar_coord_t<T>(), tile);
     }
 
+    layout_t make_dense() const;
+    layout_t retype(const type_t &new_type, bool dense = false) const;
     pvar_coord_t<dim_t> to_coord(const std::vector<int> &block_idx) const;
     int to_linear_index(
             const pvar_tile_t &tile, const pvar_coord_t<dim_t> &coord) const;

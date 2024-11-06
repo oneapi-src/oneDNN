@@ -32,6 +32,7 @@
 #include "common/utils.hpp"
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/jit/ngen/ngen.hpp"
+#include "gpu/intel/serialization.hpp"
 #include "gpu/intel/utils.hpp"
 
 #ifdef DNNL_DEV_MODE
@@ -1092,6 +1093,26 @@ class parse_iface_t {
 public:
     using base_type = T;
 
+    struct entry_t {
+        std::string name;
+        std::string help;
+        std::string _default;
+        bool required = false;
+        std::function<void(std::ostream &, const T &)> stringify;
+        std::function<void(std::istream &, T &)> parse;
+
+        bool matches_relaxed(const std::string &_s) const {
+            auto s = (_s.find("--") == 0 ? _s.substr(2) : _s);
+            if (s.length() != name.length()) return false;
+            for (size_t i = 0; i < s.length(); i++) {
+                if (s[i] == name[i]) continue;
+                if (s[i] == '-' && name[i] == '_') continue;
+                return false;
+            }
+            return true;
+        }
+    };
+
     template <typename U, U T::*ptr>
     void add(const std::string &name = {}, const std::string &help = {},
             bool required = false) {
@@ -1106,6 +1127,10 @@ public:
         e.parse = [](std::istream &in, T &parent) {
             jit::parse(in, parent.*ptr);
         };
+        add(e);
+    }
+
+    void add(const entry_t &e) {
         if (relaxed_) {
             ir_assert(!e.name.empty())
                     << "Relaxed support requires non-empty name.";
@@ -1187,26 +1212,6 @@ public:
     }
 
 private:
-    struct entry_t {
-        std::string name;
-        std::string help;
-        std::string _default;
-        bool required = false;
-        std::function<void(std::ostream &, const T &)> stringify;
-        std::function<void(std::istream &, T &)> parse;
-
-        bool matches_relaxed(const std::string &_s) const {
-            auto s = (_s.find("--") == 0 ? _s.substr(2) : _s);
-            if (s.length() != name.length()) return false;
-            for (size_t i = 0; i < s.length(); i++) {
-                if (s[i] == name[i]) continue;
-                if (s[i] == '-' && name[i] == '_') continue;
-                return false;
-            }
-            return true;
-        }
-    };
-
     int find_entry_index(const std::string name) const {
         for (int i = 0; i < (int)entries_.size(); i++) {
             if (entries_[i].matches_relaxed(name)) return i;
@@ -1338,6 +1343,30 @@ void parse_enum(std::istream &in, E &e) {
 void stringify_to_cpp_file(const std::string &file_name,
         const std::string &var_name, const std::vector<std::string> &namespaces,
         const std::vector<std::string> &lines);
+
+template <typename T>
+std::string serialize_to_hex(const T &t) {
+    std::ostringstream oss;
+    serialized_data_t s;
+    s.append(t);
+    for (uint8_t d : s.get_data()) {
+        oss << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+            << (int)d;
+    }
+    return oss.str();
+}
+
+template <typename T>
+void deserialize_from_hex(T &t, const std::string &s_hex) {
+    std::vector<uint8_t> data;
+    for (size_t i = 0; i < s_hex.size(); i += 2) {
+        data.push_back(static_cast<uint8_t>(
+                std::stoi(s_hex.substr(i, 2), nullptr, 16)));
+    }
+    auto s = serialized_t::from_data(std::move(data));
+    deserializer_t d(s);
+    d.pop(t);
+}
 
 } // namespace jit
 } // namespace intel

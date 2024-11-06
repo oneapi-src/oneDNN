@@ -33,6 +33,7 @@
 #include "utils/dims.hpp"
 #include "utils/dnnl_query.hpp"
 #include "utils/fill.hpp"
+#include "utils/impl_filter.hpp"
 #include "utils/numeric.hpp"
 #include "utils/parallel.hpp"
 
@@ -334,9 +335,12 @@ int check_dnnl_status(dnnl_status_t status, const prb_t *prb, res_t *res) {
 //     simple-prims-of-complex-prim).
 // 2b. It's a tested primitive and not all implementations hit skip-impl option
 //     values.
+//
+// Note: `res` can be empty when fetching impl for prim_ref support.
 template <typename prb_t>
 int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
-        init_pd_args_t<prb_t> &init_pd_args, res_t *res, bool is_service_prim) {
+        init_pd_args_t<prb_t> &init_pd_args, const impl_filter_t &impl_filter,
+        res_t *res, bool is_service_prim) {
     if (!init_pd_args.pd) return FAIL;
 
     // Wrapper is expected to come empty.
@@ -349,29 +353,31 @@ int fetch_impl(benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> &pdw,
 
     while (true) {
         const auto impl_name = query_impl_info(pdw);
-        // Skip-impl is not requested or hit. Latest pd already fetched.
-        if (!maybe_skip(impl_name)) return OK;
+        if (!need_next_impl(impl_name, impl_filter)) return OK;
 
-        BENCHDNN_PRINT(6, "Implementation skipped: %s\n", impl_name.c_str());
+        BENCHDNN_PRINT(6, "[IMPL_FILTER] Implementation skipped: %s\n",
+                impl_name.c_str());
 
         // Iterator is not supported, further logic is not applicable.
         if (!init_pd_args.is_iterator_supported) {
-            res->state = SKIPPED;
-            res->reason = skip_reason::skip_impl_hit;
+            if (res) res->state = SKIPPED;
+            if (res) res->reason = skip_reason::skip_impl_hit;
             return OK;
         }
 
         auto status = dnnl_primitive_desc_next_impl(pdw);
         if (status == dnnl_last_impl_reached) {
-            BENCHDNN_PRINT(2, "%s\n", "All implementations were skipped!");
-            res->state = SKIPPED;
-            res->reason = skip_reason::skip_impl_hit;
+            BENCHDNN_PRINT(2, "%s\n",
+                    "[IMPL_FILTER] All implementations were skipped!");
+            if (res) res->state = SKIPPED;
+            if (res) res->reason = skip_reason::skip_impl_hit;
             pdw.reset(nullptr);
             return OK;
         } else if (status == dnnl_success) {
             continue;
         } else {
-            BENCHDNN_PRINT(0, "%s\n", "Unexpected status from pd iterator.");
+            BENCHDNN_PRINT(0, "%s\n",
+                    "[IMPL_FILTER] Unexpected status from pd iterator.");
             return FAIL;
         }
     }
@@ -402,7 +408,8 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
     if (res->state == SKIPPED) return OK;
 
     // Fetch also checks if user requested to skip certain implementations.
-    SAFE(fetch_impl(pdw, init_pd_args, res, is_service_prim), WARN);
+    SAFE(fetch_impl(pdw, init_pd_args, prb->impl_filter, res, is_service_prim),
+            WARN);
     if (res->state == SKIPPED) return OK;
 
     // Check memory requirements if only execution happens.

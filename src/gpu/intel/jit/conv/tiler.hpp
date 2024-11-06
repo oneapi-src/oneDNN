@@ -41,9 +41,10 @@ public:
     void set_tuner(conv_tuner_t *tuner);
     int configs() const;
     bool is_tuning_mode() const;
-    bool can_move_next() const;
-    int cur_index() const;
-    void set_cur_index(int idx);
+    bool is_valid() const;
+    void move_next(const conv_config_t &cfg);
+    int32_t cur_version() const;
+    void set_cur_version(int32_t idx);
     void set_params(conv_config_t &cfg);
     void notify_out_of_registers(const conv_config_t &cfg);
     bool is_grf_limit_ok(const conv_config_t &cfg) const;

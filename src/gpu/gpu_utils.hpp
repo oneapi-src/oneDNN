@@ -17,11 +17,13 @@
 #ifndef GPU_GPU_UTILS_HPP
 #define GPU_GPU_UTILS_HPP
 
+#include <cassert>
 #include <map>
 #include <vector>
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "common/primitive_attr.hpp"
 #include "common/primitive_exec_types.hpp"
 
 namespace dnnl {
@@ -45,6 +47,27 @@ public:
     bool has_default_values() const { return scales_.has_default_values(); }
     int get_mask() const { return scales_.mask_; }
     size_t get_count() const { return count_; }
+    data_type_t get_data_type() const { return scales_.data_type_; }
+    dim_t get_group() const {
+        if (scales_.ndims_ < 2) return 1;
+        const auto g0 = scales_.group_dims_[0];
+        const auto g1 = scales_.group_dims_[1];
+        assert(utils::one_of(1, g0, g1));
+        return g0 > 1 ? g0 : g1;
+    }
+    // Returns a dimension to which the group should be applied.
+    int get_group_dim() const {
+        // If groups are not identified, they should be set to `1`, and
+        // it shouldn't hurt to divide by 1 any dim. Just use 0th for that.
+        if (scales_.ndims_ < 2) return 0;
+        const auto g0 = scales_.group_dims_[0];
+        const auto g1 = scales_.group_dims_[1];
+        assert(utils::one_of(1, g0, g1));
+        UNUSED(g1);
+        const int g_dim = g0 > 1 ? 0 : 1;
+        return ndims_ - scales_.ndims_ + g_dim;
+    }
+
     memory_storage_t &get_scales(const exec_ctx_t &ctx) const {
         return CTX_IN_STORAGE(DNNL_ARG_ATTR_SCALES | arg_);
     }
@@ -52,7 +75,7 @@ public:
     scales_query_t() = default;
     scales_query_t(const primitive_attr_t *attr, const memory_desc_wrapper &mdw,
             int arg)
-        : arg_(arg) {
+        : arg_(arg), ndims_(mdw.ndims()) {
         scales_ = attr->scales_.get(arg);
         count_ = get_attr_oscales_count(scales_.mask_, mdw);
     }
@@ -61,6 +84,7 @@ private:
     runtime_scales_t scales_;
     dim_t count_ = 0;
     int arg_ = 0;
+    int ndims_ = 0;
 };
 
 class zero_points_query_t {
@@ -71,6 +95,27 @@ public:
         return mask;
     }
     size_t get_count() const { return count_; }
+    data_type_t get_data_type() const { return zps_.get_data_type(arg_); }
+    dim_t get_group() const {
+        if (zps_.get_groups_ndims(arg_) < 2) return 1;
+        const auto g0 = zps_.get_groups(arg_)[0];
+        const auto g1 = zps_.get_groups(arg_)[1];
+        assert(utils::one_of(1, g0, g1));
+        return g0 > 1 ? g0 : g1;
+    }
+    // Returns a dimension to which the group should be applied.
+    int get_group_dim() const {
+        // If groups are not identified, they should be set to `1`, and
+        // it shouldn't hurt to divide by 1 any dim. Just use 0th for that.
+        if (zps_.get_groups_ndims(arg_) < 2) return 0;
+        const auto g0 = zps_.get_groups(arg_)[0];
+        const auto g1 = zps_.get_groups(arg_)[1];
+        assert(utils::one_of(1, g0, g1));
+        UNUSED(g1);
+        const int g_dim = g0 > 1 ? 0 : 1;
+        return ndims_ - zps_.get_groups_ndims(arg_) + g_dim;
+    }
+
     memory_storage_t &get_zero_points(const exec_ctx_t &ctx) const {
         return CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | arg_);
     }
@@ -78,7 +123,7 @@ public:
     zero_points_query_t() = default;
     zero_points_query_t(const primitive_attr_t *attr,
             const memory_desc_wrapper &mdw, int arg)
-        : arg_(arg) {
+        : arg_(arg), ndims_(mdw.ndims()) {
         zps_ = attr->zero_points_;
         int mask = zps_.get(arg);
         count_ = get_attr_oscales_count(mask, mdw);
@@ -88,6 +133,7 @@ private:
     zero_points_t zps_;
     dim_t count_ = 0;
     int arg_ = 0;
+    int ndims_ = 0;
 };
 
 struct quantization_t {
@@ -95,6 +141,9 @@ public:
     bool with_scale() const { return !scale_.has_default_values(); }
     int scale_mask() const { return scale_.get_mask(); }
     size_t num_scales() const { return scale_.get_count(); }
+    data_type_t scale_dt() const { return scale_.get_data_type(); }
+    dim_t scale_group() const { return scale_.get_group(); }
+    int scale_group_dim() const { return scale_.get_group_dim(); }
     memory_storage_t &scales(const exec_ctx_t &ctx) const {
         return scale_.get_scales(ctx);
     }
@@ -102,6 +151,9 @@ public:
     bool with_zp() const { return !zp_.has_default_values(); }
     int zp_mask() const { return zp_.get_mask(); }
     size_t num_zps() const { return zp_.get_count(); }
+    data_type_t zp_dt() const { return zp_.get_data_type(); }
+    dim_t zp_group() const { return zp_.get_group(); }
+    int zp_group_dim() const { return zp_.get_group_dim(); }
     memory_storage_t &zero_points(const exec_ctx_t &ctx) const {
         return zp_.get_zero_points(ctx);
     }

@@ -665,9 +665,9 @@ kernel_desc_t try_extensions(
     }
 
     if (kernel_desc.prop == prop_kind::backward_weights
-            && !kernel_desc.with_bias) {
+            && !kernel_desc.with_bias_bwd_w()) {
         auto d = kernel_desc;
-        d.with_bias = true;
+        d.bias_type = type_t::f32();
         d.is_finalized = false;
         d.set_defaults();
         if (finalize_conv_desc(d, bench_mger.hw())

@@ -99,6 +99,36 @@ struct specializations_t {
     } binary;
 };
 
+// Helper to extend the memory descriptor dimensions (e.g. NCW -> NCDHW).
+struct ndim_normalizer_t {
+    constexpr ndim_normalizer_t() = default;
+    constexpr ndim_normalizer_t(int insert_idx, int bcast_ndims)
+        : insert_idx(insert_idx), bcast_ndims(bcast_ndims) {}
+
+    int ndims(const memory_desc_t &md) const { return md.ndims + bcast_ndims; }
+
+    int dim_idx(int md_idx) const {
+        if (bcast_ndims == 0) return 0;
+        return (md_idx < insert_idx) ? md_idx : md_idx + bcast_ndims;
+    }
+
+    dim_t dim(int idx, const memory_desc_t &md) const {
+        auto &dims = md.dims;
+        return (idx < insert_idx) ? dims[idx] : dims[idx - bcast_ndims];
+    }
+
+    dim_t stride(int idx, const memory_desc_t &md) const {
+        auto &strides = md.format_desc.blocking.strides;
+        return (idx < insert_idx) ? strides[idx] : strides[idx - bcast_ndims];
+    }
+
+    // Position to insert broadcast dimensions, dimensions
+    // are inserted before this index.
+    int insert_idx = 0;
+    // Number of broadcast dimensions to insert.
+    int bcast_ndims = 0;
+};
+
 // New type to prevent misuse of relative_md_t indices with memory_desc_t indices
 struct relative_idx_t {
     constexpr relative_idx_t() = default;
@@ -126,8 +156,9 @@ struct relative_md_t {
     static constexpr int to_md_idx(idx_t idx, int ndims) {
         return ndims - 1 - idx.as_int();
     }
-    static idx_t from_md_idx(int idx, int ndims) {
-        return {into<int8_t>(ndims - 1 - idx)};
+    static idx_t from_md_idx(
+            int idx, int ndims, const ndim_normalizer_t &ndim_normalizer) {
+        return {into<int8_t>(ndims - 1 - ndim_normalizer.dim_idx(idx))};
     }
 
     // A compressed representation of the inner block. This cannot represent all
@@ -149,21 +180,21 @@ struct relative_md_t {
     };
 
     relative_md_t() = default;
-    static status_t make(relative_md_t &rmd, const memory_desc_t &md) {
+    static status_t make(relative_md_t &rmd, const memory_desc_t &md,
+            const ndim_normalizer_t &ndim_normalizer) {
         if (md.format_kind != format_kind::blocked)
             return status::unimplemented;
 
         rmd.dt = md.data_type;
 
-        auto ndims = md.ndims;
-        auto &dims = md.dims;
-        auto &strides = md.format_desc.blocking.strides;
+        auto ndims = ndim_normalizer.ndims(md);
 
         auto layout = block_layout_t(md, true);
         gpu_assert(layout.size() <= blocking_t::max_dims);
 
         for (size_t i = 0; i < layout.size(); i++) {
-            rmd.inner_layout.idxs[i] = from_md_idx(layout[i].dim_idx, ndims);
+            rmd.inner_layout.idxs[i]
+                    = from_md_idx(layout[i].dim_idx, ndims, ndim_normalizer);
             rmd.inner_layout.blocks[i] = into<uint8_t>(layout[i].block);
         }
 
@@ -171,15 +202,16 @@ struct relative_md_t {
         rmd.broadcast_mask = ~0;
         uint16_t mask_bit = 1;
         for (int i = ndims - 1; i >= 0; i--) {
-            if (dims[i] > 1) rmd.broadcast_mask &= ~mask_bit;
+            if (ndim_normalizer.dim(i, md) > 1) rmd.broadcast_mask &= ~mask_bit;
             mask_bit = static_cast<uint16_t>(mask_bit << 1);
         }
 
         dim_t min_stride = std::numeric_limits<dim_t>::max();
         for (int i = 0; i < ndims; i++) {
-            if (dims[i] > 1 && strides[i] <= min_stride) {
-                rmd.inner_dim = from_md_idx(i, ndims);
-                min_stride = strides[i];
+            if (ndim_normalizer.dim(i, md) > 1
+                    && ndim_normalizer.stride(i, md) <= min_stride) {
+                rmd.inner_dim = from_md_idx(i, ndims, ndim_normalizer);
+                min_stride = ndim_normalizer.stride(i, md);
             }
         }
         if (rmd.inner_dim.is_unset()) rmd.inner_dim = {0};
@@ -206,6 +238,7 @@ struct relative_md_t {
 };
 
 enum class kind_t {
+    undef,
     sum,
     eltwise,
     conv,
@@ -323,9 +356,11 @@ struct depthwise_conv_t {
 struct binary_t {
     binary_t() = default;
     static status_t make(binary_t &b, const post_ops_t::entry_t::binary_t &op,
-            const specializations_t::binary_t &s) {
+            const specializations_t::binary_t &s,
+            const post_op::ndim_normalizer_t &ndim_normalizer) {
         if (s.src1_desc_layout.is_inlined())
-            CHECK(relative_md_t::make(b.src1_desc, op.src1_desc));
+            CHECK(relative_md_t::make(
+                    b.src1_desc, op.src1_desc, ndim_normalizer));
         else
             b.src1_desc.dt = op.src1_desc.data_type;
 
@@ -335,12 +370,13 @@ struct binary_t {
 
     static status_t make(binary_t &b, const post_ops_t::entry_t::prelu_t &op,
             const memory_desc_wrapper &dst_md,
-            const specializations_t::binary_t &s) {
+            const specializations_t::binary_t &s,
+            const ndim_normalizer_t &ndim_normalizer) {
         if (s.src1_desc_layout.is_inlined()) {
             memory_desc_t prelu_md;
             CHECK(get_prelu_md(
                     op.mask, dst_md.dims(), prelu_md, dst_md.ndims()));
-            CHECK(relative_md_t::make(b.src1_desc, prelu_md));
+            CHECK(relative_md_t::make(b.src1_desc, prelu_md, ndim_normalizer));
         } else {
             b.src1_desc.dt = data_type::f32;
         }
@@ -369,7 +405,8 @@ struct gpu_post_ops_t {
 
     static status_t make(gpu_post_ops_t &gpu_post_ops,
             const post_ops_t &post_ops, const memory_desc_wrapper &dst_md,
-            post_op::specializations_t opts = {}) {
+            post_op::specializations_t opts = {},
+            post_op::ndim_normalizer_t ndim_normalizer = {}) {
         auto &ops = gpu_post_ops.ops_;
         ops.clear();
         ops.reserve(into<size_t>(post_ops.len()));
@@ -387,13 +424,15 @@ struct gpu_post_ops_t {
                     break;
                 case (primitive_kind::binary): {
                     binary_t b;
-                    CHECK(binary_t::make(b, entry.binary, opts.binary));
+                    CHECK(binary_t::make(
+                            b, entry.binary, opts.binary, ndim_normalizer));
                     ops.emplace_back(b);
                     break;
                 }
                 case (primitive_kind::prelu): {
                     binary_t b;
-                    CHECK(binary_t::make(b, entry.prelu, dst_md, opts.binary));
+                    CHECK(binary_t::make(b, entry.prelu, dst_md, opts.binary,
+                            ndim_normalizer));
                     ops.emplace_back(b);
                     break;
                 }
@@ -404,6 +443,7 @@ struct gpu_post_ops_t {
     }
 
     struct entry_t {
+        entry_t() : kind_(post_op::kind_t::undef) {}
         entry_t(post_op::sum_t e) : kind_(post_op::kind_t::sum), sum_(e) {}
         entry_t(post_op::eltwise_t e)
             : kind_(post_op::kind_t::eltwise), eltwise_(e) {}
@@ -420,6 +460,7 @@ struct gpu_post_ops_t {
                     depthwise_conv_.~depthwise_conv_t();
                     break;
                 case (post_op::kind_t::binary): binary_.~binary_t(); break;
+                default: gpu_error_not_expected();
             }
         }
 
@@ -466,7 +507,7 @@ struct gpu_post_ops_t {
                     sum_.inline_scale = true;
                     eltwise_.scale = scale;
                     break;
-                default: gpu_error_not_expected();
+                default: gpu_error_not_expected(); break;
             }
         }
 
@@ -493,6 +534,7 @@ struct gpu_post_ops_t {
                 case (post_op::kind_t::eltwise): s.append(eltwise_); break;
                 case (post_op::kind_t::conv): s.append(depthwise_conv_); break;
                 case (post_op::kind_t::binary): s.append(binary_); break;
+                default: gpu_error_not_expected(); break;
             }
         }
 
@@ -506,6 +548,7 @@ struct gpu_post_ops_t {
                     return d.pop<post_op::depthwise_conv_t>();
                 case (post_op::kind_t::binary):
                     return d.pop<post_op::binary_t>();
+                default: gpu_error_not_expected(); return entry_t();
             }
         }
 
@@ -548,7 +591,9 @@ struct gpu_post_ops_t {
     void serialize(serialized_data_t &s) const { s.append(ops_); }
 
     static gpu_post_ops_t deserialize(deserializer_t &d) {
-        return d.pop<gpu_post_ops_t>();
+        gpu_post_ops_t po;
+        d.pop(po.ops_);
+        return po;
     }
 
 #if __cplusplus >= 202002L
@@ -559,7 +604,6 @@ struct gpu_post_ops_t {
     };
 #endif
 
-    // Enable serialization/deserialization
     size_t len() const { return ops_.size(); }
 
 private:

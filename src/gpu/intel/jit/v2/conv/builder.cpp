@@ -243,10 +243,20 @@ public:
             entries_[to_string(abc)] = entries_.at(name);
         }
 
-        if (!plan.bia_layout.is_empty()) {
+        if (desc.with_bias_fwd() || desc.with_bias_bwd_w()) {
             auto &e = entries_["bia"];
             e.mem_buf = kernel_info.find_arg("bia");
-            e.reg_buf = buf_mgr.get("bia_reduced", plan.bia_layout.size());
+            if (!plan.bia_layout.is_empty())
+                e.reg_buf = buf_mgr.get("bia_reduced", plan.bia_layout.size());
+        }
+
+        for (size_t i = 0; i < desc.post_ops.len(); i++) {
+            auto &po = desc.post_ops[i];
+            if (po.is_binary()) {
+                std::string name = "binary_" + std::to_string(i);
+                auto &e = entries_[name];
+                e.mem_buf = kernel_info.find_arg(name);
+            }
         }
     }
 
@@ -412,12 +422,121 @@ private:
     const prefetch_plan_t &plan_;
 };
 
+class post_op_builder_t : public ir_builder_t {
+public:
+    post_op_builder_t(ir_builder_t &parent, const kernel_desc_t &desc,
+            const pvar_coord_t<expr_t> &coord, const pvar_tile_t &tile,
+            alg_kind_t binary_alg, const gpu_post_ops_t::entry_t *post_op_entry,
+            const layout_t &lhs_reg_layout, const expr_t &lhs_reg_buf,
+            const expr_t &rhs_mem_buf, const type_t &_rhs_type,
+            uint16_t rhs_mask, float rhs_scale, int rhs_zero_point)
+        : ir_builder_t(parent, loop_nest_t()), desc_(desc) {
+        // Binary post-op.
+        if (!rhs_mem_buf.is_empty()) {
+            auto &c_tag = pick_c(
+                    desc_.prop, desc_.src_tag, desc_.wei_tag, desc_.dst_tag);
+            auto rhs_type = _rhs_type.is_undef() ? c_tag.type() : _rhs_type;
+            auto rhs_view = rhs_mem_view(coord, tile, rhs_type, rhs_mask);
+            layout_t rhs_reg_layout;
+            auto rhs_reg_buf
+                    = load(rhs_view, rhs_mem_buf, expr_t(), &rhs_reg_layout);
+            build_binary_post_op(binary_alg, lhs_reg_layout, rhs_reg_layout,
+                    lhs_reg_buf, rhs_reg_buf, rhs_scale, rhs_zero_point);
+            return;
+        }
+        // Eltwise post-op.
+        auto &e = post_op_entry->as_eltwise();
+        auto func = eltwise_t::make(e.alg, e.scale, e.alpha, e.beta);
+        emit(func.call({expr_t(lhs_reg_layout.elems()), lhs_reg_buf}));
+    }
+
+private:
+    view_t rhs_mem_view(const pvar_coord_t<expr_t> &_coord,
+            const pvar_tile_t &_tile, const type_t &type, uint16_t mask) {
+        dim_mapper_manager_t mger(desc_.prop, desc_.reqs);
+        auto &c_mapper = mger.mapper(tensor_kind_t::c);
+        auto kind = pick_c(desc_.prop, tensor_kind_t::src, tensor_kind_t::wei,
+                tensor_kind_t::dst);
+        auto &c_tag = pick_c(
+                desc_.prop, desc_.src_tag, desc_.wei_tag, desc_.dst_tag);
+        auto rhs_layout
+                = make_conv_layout(kind, c_tag, desc_.is_dw, desc_.reqs, mask);
+        rhs_layout = rhs_layout.retype(type);
+        auto is_bcast = [&](const pvar_t &dim) {
+            for (auto &b : rhs_layout.blocks()) {
+                if (b.dim == dim) return false;
+            }
+            return true;
+        };
+        auto coord = _coord;
+        auto tile = _tile;
+        for (auto &d : rhs_layout.desc().letter_map()) {
+            if (is_bcast(d)) {
+                if (tile.has(d)) tile.unset(d);
+                if (coord.has(d)) coord.unset(d);
+            }
+        }
+        return view_t(c_mapper, rhs_layout, coord, tile);
+    }
+
+    void build_binary_post_op(alg_kind_t alg, const layout_t &lhs,
+            const layout_t &_rhs, const expr_t &lhs_buf, const expr_t &_rhs_buf,
+            float scale = 1, int zero_point = 0) {
+        ir_assert(lhs.type() == type_t::f32());
+        auto rhs = _rhs;
+        auto rhs_buf = _rhs_buf;
+        if (rhs.type() != type_t::f32()) {
+            auto rhs_f32 = _rhs.retype(type_t::f32(), /*dense=*/true);
+            rhs_buf = reorder(_rhs, rhs_f32, _rhs_buf);
+            rhs = rhs_f32;
+        }
+        if (scale != 1 || zero_point != 0) {
+            auto func = eltwise_t::make(
+                    alg_kind::eltwise_linear, 1, scale, -zero_point);
+            emit(func.call({expr_t(rhs.elems()), rhs_buf}));
+        }
+        ir_assert(lhs.nblocks() > 0);
+        int max_simd = (2 * desc_.hw.grf_size()) / sizeof(float);
+        auto &lhs0 = lhs.blocks()[0];
+        int elems = math::gcd(max_simd, lhs0.int_size());
+        bool is_bcast = !rhs.dim_sizes().has(lhs0.dim);
+        if (!is_bcast) {
+            auto &rhs0 = rhs.blocks()[0];
+            if (rhs0.dim == lhs0.dim) {
+                elems = math::gcd(elems, rhs0.int_size());
+            } else {
+                elems = 1;
+            }
+        }
+        elems = (elems < 8 ? 1 : elems);
+        pvar_tile_t tile;
+        tile[lhs0.dim] = elems;
+        for_each(lhs.int_dim_sizes(), tile,
+                [&](const pvar_coord_t<dim_t> &coord) {
+                    auto lhs_off = lhs.offset_in_bytes(coord);
+                    auto rhs_off = rhs.offset_in_bytes(coord);
+                    auto e_l = load_t::make(
+                            type_t::f32().with_elems(elems), lhs_buf, lhs_off);
+                    auto e_r = load_t::make(
+                            type_t::f32().with_elems(is_bcast ? 1 : elems),
+                            rhs_buf, rhs_off);
+                    if (is_bcast) e_r = shuffle_t::make_broadcast(e_r, elems);
+                    auto e_op = binary_op_t::make(
+                            alg_kind_to_op_kind(alg), e_l, e_r);
+                    emit(store_t::make(lhs_buf, lhs_off, e_op));
+                });
+    }
+
+    const kernel_desc_t &desc_;
+};
+
 class epilogue_builder_t : public ir_builder_t {
 public:
     epilogue_builder_t(ir_builder_t &parent, const buffer_info_t &buf_info,
-            const epilogue_plan_t &plan)
+            const kernel_desc_t &desc, const epilogue_plan_t &plan)
         : ir_builder_t(parent, loop_nest_t())
         , buf_info_(buf_info)
+        , desc_(desc)
         , plan_(plan) {
         build_slm_reduce();
         build_c_store();
@@ -448,8 +567,10 @@ private:
                     dim_t off = c_layout.offset_in_bytes(coord);
                     auto store_layout
                             = plan_.c_store.reg_layout().map(plan_.tile);
-                    layout_t payload_layout = c_layout.map(plan_.tile);
-                    auto payload_buf = c_reg_buf + off;
+                    layout_t payload_layout = store_layout;
+                    auto payload_buf = build_post_ops(c_layout.map(plan_.tile),
+                            plan_.c_coord + coord, c_reg_buf + off,
+                            payload_layout);
                     payload_buf = reorder(
                             payload_layout, store_layout, payload_buf);
                     store(plan_.c_store, c_mem_buf, payload_buf, coord,
@@ -457,10 +578,80 @@ private:
                 });
     }
 
+    static uint16_t reverse_post_op_mask(uint16_t mask, int ndims) {
+        uint16_t ret = 0;
+        for (int i = 0; i < ndims; i++) {
+            uint16_t bit = (mask >> (ndims - i - 1)) & 0x1;
+            ret |= bit << i;
+        }
+        return ret;
+    }
+
+    void build_post_op(const pvar_coord_t<expr_t> &coord,
+            const pvar_tile_t &tile, alg_kind_t binary_alg,
+            const gpu_post_ops_t::entry_t *post_op_entry,
+            const layout_t &lhs_reg_layout, const expr_t &lhs_reg_buf,
+            const expr_t &rhs_mem_buf = expr_t(),
+            const type_t &rhs_type = type_t::undef(), uint16_t rhs_mask = 0,
+            float rhs_scale = 1.0f, int rhs_zero_point = 0) {
+        post_op_builder_t builder(*this, desc_, coord, tile, binary_alg,
+                post_op_entry, lhs_reg_layout, lhs_reg_buf, rhs_mem_buf,
+                rhs_type, rhs_mask, rhs_scale, rhs_zero_point);
+        emit(builder.get_init_stmt());
+        emit(builder.get_stmt());
+    }
+
+    expr_t build_post_ops(const layout_t &layout,
+            const pvar_coord_t<expr_t> &coord, const expr_t &_buf,
+            layout_t &out_layout) {
+        if (desc_.post_ops.len() == 0 && !desc_.with_bias_fwd()) {
+            out_layout = layout;
+            return _buf;
+        }
+        auto f32_layout = out_layout.retype(type_t::f32(), /*dense=*/true);
+        auto tile = f32_layout.int_dim_sizes();
+        int elems = f32_layout.elems();
+        ir_assert(elems * type_t::f32().size() == f32_layout.size());
+        auto buf = reorder(layout, f32_layout, _buf);
+        arg_helper_t arg_helper(desc_);
+        auto &c_tag = pick_c(
+                desc_.prop, desc_.src_tag, desc_.wei_tag, desc_.dst_tag);
+        if (desc_.with_bias_fwd()) {
+            build_post_op(coord, tile, alg_kind::binary_add, nullptr,
+                    f32_layout, buf, buf_info_.mem_buf("bia"), desc_.bias_type,
+                    /*rhs_mask=*/0x2);
+        }
+        for (size_t i = 0; i < desc_.post_ops.len(); i++) {
+            auto &po = desc_.post_ops[i];
+            if (po.is_eltwise()) {
+                build_post_op(
+                        coord, tile, alg_kind::undef, &po, f32_layout, buf);
+            } else if (po.is_sum()) {
+                auto &s = po.as_sum();
+                build_post_op(coord, tile, alg_kind::binary_add, &po,
+                        f32_layout, buf, buf_info_.mem_buf("c"), type_t(s.dt),
+                        0xFFFF, s.scale, s.zero_point);
+            } else if (po.is_binary()) {
+                auto &b = po.as_binary();
+                auto rhs_buf_name = arg_helper.post_op_name(i);
+                auto mask = reverse_post_op_mask(
+                        b.src1_desc.broadcast_mask ^ 0xFFFF,
+                        c_tag.raw_tag().ndims());
+                build_post_op(coord, tile, b.alg, &po, f32_layout, buf,
+                        buf_info_.mem_buf(rhs_buf_name), type_t(b.src1_desc.dt),
+                        mask);
+            } else {
+                ir_error_not_expected();
+            }
+        }
+        out_layout = f32_layout;
+        return buf;
+    }
+
     void build_bias_reduce_store() {
         if (plan_.bia_reduced_reg_layout.is_empty()) return;
-        auto &bia_mem_buf = buf_info_.mem_buf("bia");
-        auto &bia_reg_buf = buf_info_.reg_buf("bia");
+        auto &bia_red_mem_buf = buf_info_.mem_buf("bia");
+        auto &bia_red_reg_buf = buf_info_.reg_buf("bia");
         expr_t tmp_buf;
         if (plan_.bia_reorder)
             tmp_buf = alloc("bia_tmp", plan_.bia_reorder.dst.size());
@@ -470,23 +661,24 @@ private:
             epilogue_tile[d] = plan_.tile[d];
         for_each(
                 bia_tile, epilogue_tile, [&](const pvar_coord_t<dim_t> &coord) {
-                    auto payload_buf = bia_reg_buf;
+                    auto payload_buf = bia_red_reg_buf;
                     if (plan_.bia_reorder) {
                         dim_t src_off
                                 = plan_.bia_reduced_reg_layout.offset_in_bytes(
                                         coord);
-                        reorder(plan_.bia_reorder, bia_reg_buf + src_off,
+                        reorder(plan_.bia_reorder, bia_red_reg_buf + src_off,
                                 tmp_buf);
                         payload_buf = std::move(tmp_buf);
                     }
                     _if(plan_.reduce_cond, [&]() {
-                        store(plan_.bia_store, bia_mem_buf, payload_buf, coord,
-                                epilogue_tile);
+                        store(plan_.bia_store, bia_red_mem_buf, payload_buf,
+                                coord, epilogue_tile);
                     });
                 });
     }
 
     const buffer_info_t &buf_info_;
+    const kernel_desc_t &desc_;
     const epilogue_plan_t &plan_;
 };
 
@@ -578,7 +770,7 @@ private:
     }
 
     void epilogue() {
-        epilogue_builder_t builder(*this, buf_info_, plan_.epilogue);
+        epilogue_builder_t builder(*this, buf_info_, desc_, plan_.epilogue);
         emit(builder.get_init_stmt());
         emit(builder.get_stmt());
     }

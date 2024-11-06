@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 
 namespace graph = dnnl::impl::graph;
 
-TEST(test_internal_attrs_internal_attrs, InternalAttr2str) {
+TEST(test_internal_attrs, InternalAttr2str) {
     using namespace graph::dnnl_impl::op_attr;
 #define CASE(a) ASSERT_EQ(internal_attr2str(a), #a)
     CASE(canonicalized);

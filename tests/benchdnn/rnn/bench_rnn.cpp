@@ -69,9 +69,9 @@ void check_correctness(
         auto prb = std::make_shared<prb_t>(s.desc,
                 dt_conf_t::create(i_cfg, i_attr), i_tag, i_prop, i_alg,
                 i_with_peephole, i_with_projection, i_direction, i_scale_policy,
-                i_scale_proj_policy, i_flags, i_activation, i_attr, i_ctx_init,
-                i_ctx_exe, s.alpha, s.beta, i_skip_nonlinear, i_trivial_strides,
-                i_n_layer, i_n_iter, i_mb);
+                i_scale_proj_policy, i_flags, i_activation, s.alpha, s.beta,
+                i_skip_nonlinear, i_trivial_strides, i_n_layer, i_n_iter, i_mb,
+                i_attr, i_ctx_init, i_ctx_exe, s.impl_filter);
 
         task_executor.submit(
                 std::move(prb), s.perf_template, createit, check_cacheit, doit);
@@ -180,12 +180,7 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(s.with_projection, def.with_projection,
                         str2bool, argv[0], "with-projection",
                         help_with_projection)
-                || parse_attributes(s, def, argv[0])
-                || parse_ctx_init(s.ctx_init, def.ctx_init, argv[0])
-                || parse_ctx_exe(s.ctx_exe, def.ctx_exe, argv[0])
-                || parse_perf_template(s.perf_template, s.perf_template_def,
-                        s.perf_template_csv(), argv[0])
-                || parse_reset(s, argv[0]) || parse_help(argv[0]);
+                || parse_driver_shared_settings(s, def, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 

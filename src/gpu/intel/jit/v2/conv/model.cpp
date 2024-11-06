@@ -275,26 +275,12 @@ void model_t::score(const bench_data_t &bd) {
 }
 
 void model_t::stringify(std::ostream &out) const {
-    std::ostringstream oss;
-    serialized_data_t s;
-    s.append(coef_);
-    for (uint8_t d : s.get_data()) {
-        oss << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
-            << (int)d;
-    }
-    out << oss.str();
+    out << serialize_to_hex(coef_);
 }
 
 void model_t::parse(std::istream &in) {
-    std::vector<uint8_t> data;
     auto s_data = stream_parse<std::string>(in);
-    for (size_t i = 0; i < s_data.size(); i += 2) {
-        data.push_back(
-                into<uint8_t>(std::stoi(s_data.substr(i, 2), nullptr, 16)));
-    }
-    auto s = serialized_t::from_data(std::move(data));
-    deserializer_t d(s);
-    d.pop(coef_);
+    deserialize_from_hex(coef_, s_data);
 }
 
 std::string to_str(const vec1d &x) {

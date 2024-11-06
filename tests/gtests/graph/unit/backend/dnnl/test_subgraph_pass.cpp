@@ -62,14 +62,18 @@ dnnl::impl::graph::pass::pass_base_ptr get_pass(const std::string &pass_name) {
 }
 } // namespace
 
-TEST(test_subgraph_pass_subgraph, Kind2Str) {
+TEST(test_subgraph_pass, Kind2Str) {
     ASSERT_EQ(graph::dnnl_impl::kind2str(graph::op_kind::Abs), "Abs");
     ASSERT_EQ(
             graph::dnnl_impl::kind2str(graph::dnnl_impl::op_kind::dnnl_add_zps),
             "Dnnl_add_zps");
 }
 
-TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Conv) {
+TEST(test_subgraph_pass, LargerPartitionKernelCreator) {
+    ASSERT_NO_THROW(graph::dnnl_impl::large_partition_kernel_creator());
+}
+
+TEST(test_subgraph_pass, LowerDownToInt8Conv) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -216,7 +220,7 @@ TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Conv) {
     ASSERT_EQ(post_ops.size(), 2U);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Matmul) {
+TEST(test_subgraph_pass, LowerDownToInt8Matmul) {
     /*
         | (u8/s8)  | (s8)
      dequant    dequant
@@ -335,7 +339,7 @@ TEST(test_subgraph_pass_subgraph_pass, LowerDownToInt8Matmul) {
     ASSERT_EQ(post_ops.size(), 1U);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, Conv2dNxcPlainDst) {
+TEST(test_subgraph_pass, Conv2dNxcPlainDst) {
     using dims = graph::dnnl_impl::dims;
     graph::engine_t *engine = get_engine();
     dnnl::engine p_eng
@@ -457,7 +461,7 @@ TEST(test_subgraph_pass_subgraph_pass, Conv2dNxcPlainDst) {
     }
 }
 
-TEST(test_subgraph_pass_subgraph_pass, Int8ConvSumRelu) {
+TEST(test_subgraph_pass, Int8ConvSumRelu) {
     /*
                    | (f32, constant)
                  quant
@@ -932,8 +936,7 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
     ASSERT_EQ(subgraph->get_ops().size(), params.final_subgraph_size);
 }
 
-INSTANTIATE_TEST_SUITE_P(test_subgraph_pass_subgraph_pass,
-        int8_matmul_with_diff_inputs_t,
+INSTANTIATE_TEST_SUITE_P(test_subgraph_pass, int8_matmul_with_diff_inputs_t,
         testing::Values(matmul_params_t {{1, 1024}, {1000, 1024}, {1000},
                                 {1, 1000}, false, true, false, 7, 8},
                 matmul_params_t {{1, 1024}, {1000, 1024}, {1000}, {1, 1000},
@@ -1047,8 +1050,7 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
     ASSERT_EQ(subgraph->get_ops().size(), final_subgraph_size);
 }
 
-INSTANTIATE_TEST_SUITE_P(test_subgraph_pass_subgraph_pass,
-        matmul_with_diff_inputs_t,
+INSTANTIATE_TEST_SUITE_P(test_subgraph_pass, matmul_with_diff_inputs_t,
         testing::Values(matmul_params_t {{1, 1024}, {1000, 1024}, {1000},
                                 {1, 1000}, false, true, false, 4, 5},
                 matmul_params_t {{4, 3, 64}, {3, 64}, {3}, {4, 3, 3}, false,
@@ -1056,7 +1058,7 @@ INSTANTIATE_TEST_SUITE_P(test_subgraph_pass_subgraph_pass,
                 matmul_params_t {{4, 64, 3}, {3, 64}, {3}, {4, 3, 3}, true,
                         true, false, 6, 8}));
 
-TEST(test_subgraph_pass_subgraph_pass, ExecutionArgsSet) {
+TEST(test_subgraph_pass, ExecutionArgsSet) {
     ///////////////////////////
     // val1    val2
     //   \     /
@@ -1196,7 +1198,7 @@ TEST(test_subgraph_pass_subgraph_pass, ExecutionArgsSet) {
             && cloned_mem5 == cloned_op2_args[DNNL_ARG_DST]);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, MemoryPlanning) {
+TEST(test_subgraph_pass, MemoryPlanning) {
     /*
                 / -> dnnl_reorder -> dnnl_reorder
                /
@@ -1295,7 +1297,7 @@ TEST(test_subgraph_pass_subgraph_pass, MemoryPlanning) {
     ASSERT_TRUE(mem_offkeys.empty());
 }
 
-TEST(test_subgraph_pass_subgraph_pass, FusePostOpsForConvDepthwise_CPU) {
+TEST(test_subgraph_pass, FusePostOpsForConvDepthwise_CPU) {
     /*   conv
           |
          conv (depthwise)
@@ -1366,7 +1368,7 @@ TEST(test_subgraph_pass_subgraph_pass, FusePostOpsForConvDepthwise_CPU) {
     ASSERT_EQ(subgraph->num_ops(), 2U);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, FailToFusePostOpsForConvDepthwise_CPU) {
+TEST(test_subgraph_pass, FailToFusePostOpsForConvDepthwise_CPU) {
     /*   conv
           |
          conv (depthwise)
@@ -1424,7 +1426,7 @@ TEST(test_subgraph_pass_subgraph_pass, FailToFusePostOpsForConvDepthwise_CPU) {
     ASSERT_EQ(g.get_num_partitions(), 0U);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, FuseSigmoidMultiplyToSwish) {
+TEST(test_subgraph_pass, FuseSigmoidMultiplyToSwish) {
     /*   
               /\
         sigmoid \
@@ -1625,7 +1627,7 @@ TEST(test_subgraph_pass_int8_matmul_passes_with_diff_inputs,
     }
 }
 
-TEST(test_subgraph_pass_subgraph_pass, FuseTypecastToQuantize) {
+TEST(test_subgraph_pass, FuseTypecastToQuantize) {
     graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
     graph_t agraph;
@@ -1827,7 +1829,7 @@ TEST(test_subgraph_pass_layout_propagation, Transpose) {
     ASSERT_EQ(md_stride, out_stride);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, FuseTypecastBeforeFusePostops) {
+TEST(test_subgraph_pass, FuseTypecastBeforeFusePostops) {
     graph::engine_t *engine = get_engine();
 
     // prepare fp32 data
@@ -1958,7 +1960,7 @@ TEST(test_subgraph_pass_subgraph_pass, FuseTypecastBeforeFusePostops) {
     ASSERT_EQ(subgraph->num_ops(), 9U);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, CheckUndefinedOpAttribute) {
+TEST(test_subgraph_pass, CheckUndefinedOpAttribute) {
     /*
     (f32) \     / (f32)
             conv
@@ -2014,7 +2016,7 @@ TEST(test_subgraph_pass_subgraph_pass, CheckUndefinedOpAttribute) {
     ASSERT_EQ(validator.run(subgraph), status::invalid_graph_op);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, CommonReorderElimination) {
+TEST(test_subgraph_pass, CommonReorderElimination) {
     graph::engine_t &g_eng = *get_engine();
     dnnl::engine p_eng = graph::dnnl_impl::make_dnnl_engine(g_eng);
     size_t id = 0;
@@ -2055,7 +2057,7 @@ TEST(test_subgraph_pass_subgraph_pass, CommonReorderElimination) {
     ASSERT_EQ(subgraph->get_ops().size(), 3U);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, CombineBinaryPostOpScales) {
+TEST(test_subgraph_pass, CombineBinaryPostOpScales) {
     namespace utils = dnnl::graph::tests::unit::utils;
     dnnl_impl::dnnl_backend_t::get_singleton();
     using dims = graph::dnnl_impl::dims;
@@ -2182,7 +2184,7 @@ TEST(test_subgraph_pass_subgraph_pass, CombineBinaryPostOpScales) {
     ASSERT_EQ(subgraph->num_ops(), 2U);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, FuseNCXConvolutionBinaryAddNC11PostSrc) {
+TEST(test_subgraph_pass, FuseNCXConvolutionBinaryAddNC11PostSrc) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     namespace utils = dnnl::graph::tests::unit::utils;
     dnnl_impl::dnnl_backend_t::get_singleton();
@@ -2338,7 +2340,7 @@ TEST(test_subgraph_pass_subgraph_pass, FuseNCXConvolutionBinaryAddNC11PostSrc) {
     ASSERT_EQ(post_ops.size(), 1U);
 }
 
-TEST(test_subgraph_pass_subgraph_pass, FuseNXCConvolutionBinaryAddNC11PostSrc) {
+TEST(test_subgraph_pass, FuseNXCConvolutionBinaryAddNC11PostSrc) {
     using dims = dnnl::impl::graph::dnnl_impl::dims;
     namespace utils = dnnl::graph::tests::unit::utils;
     dnnl_impl::dnnl_backend_t::get_singleton();

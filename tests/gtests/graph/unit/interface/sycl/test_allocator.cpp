@@ -25,7 +25,7 @@
 
 namespace graph = dnnl::impl::graph;
 
-TEST(test_interface_test_allocator, DefaultSyclAllocator) {
+TEST(test_interface_allocator, DefaultSyclAllocator) {
     graph::engine_kind_t kind = get_test_engine_kind();
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
     SKIP_IF(kind == graph::engine_kind::cpu,
@@ -54,7 +54,7 @@ TEST(test_interface_test_allocator, DefaultSyclAllocator) {
     }
 }
 
-TEST(test_interface_test_allocator, SyclAllocator) {
+TEST(test_interface_allocator, SyclAllocator) {
     graph::engine_kind_t kind = get_test_engine_kind();
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
     SKIP_IF(kind == graph::engine_kind::cpu,

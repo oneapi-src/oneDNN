@@ -57,7 +57,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             // LIMITATIONS:
             // - runtime dims are not supported
             auto attr_skip_mask = smask_t::scales_runtime | smask_t::post_ops
-                    | smask_t::fpmath_mode | smask_t::accumulation_mode;
+                    | smask_t::fpmath_mode | smask_t::accumulation_mode
+                    | smask_t::rounding_mode;
             auto &attr_zps = attr()->zero_points_;
 
             dev_info_ = compute_engine->device_info();
@@ -76,6 +77,9 @@ struct gen_gemm_t : public gpu_gemm_t {
                     && utils::one_of(d->b_type(), u8, s8));
             quant_enabled_ = wei_decomp_ || dy_quant_enabled_;
             CHECK(set_default_formats(false));
+
+            with_sround_ = attr()->rounding_mode_.get(DNNL_ARG_DST)
+                    == rounding_mode::stochastic;
 
             // If m = 1, swap A/B to use more efficient n = 1 kernels if possible.
             eff_lda_ = d->lda();
@@ -435,12 +439,13 @@ struct gen_gemm_t : public gpu_gemm_t {
                     dev_info_->eu_count(), has_systolic, is_integrated, mode,
                     batch_dims(), eff_transa(), eff_transb(), eff_trans_bias(),
                     swap_ab(), ao_dims_, bo_dims_, wei_scales_2d_,
-                    src_scales_2d_, wei_q2d_group_k, src_q2d_group_k,
-                    with_c_zero_points(), with_bias(), eff_sum_ab(), alpha(),
-                    beta(), eff_a_type(), eff_b_type(), desc()->c_type(),
-                    ao_type, bo_type, wei_scales_type, src_scales_type, co_type,
-                    acc_type, eff_align_a(), eff_align_b(), align_c(), eff_m(),
-                    eff_n(), d->k(), eff_lda(), eff_ldb(), d->ldc(), d->batch(),
+                    src_scales_2d_, with_sround_, wei_q2d_group_k,
+                    src_q2d_group_k, with_c_zero_points(), with_bias(),
+                    eff_sum_ab(), alpha(), beta(), eff_a_type(), eff_b_type(),
+                    desc()->c_type(), ao_type, bo_type, wei_scales_type,
+                    src_scales_type, co_type, acc_type, eff_align_a(),
+                    eff_align_b(), align_c(), eff_m(), eff_n(), d->k(),
+                    eff_lda(), eff_ldb(), d->ldc(), d->batch(),
                     std::move(gpu_post_ops)));
 
             // Global k-parallel kernels don't support post-ops or non-f32/s32
@@ -617,6 +622,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         bool with_c_zero_points() const {
             return !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
         }
+        bool with_sround() const { return with_sround_; }
 
         bool wei_scales_2d() const { return wei_scales_2d_; }
         bool src_scales_2d() const { return src_scales_2d_; }
@@ -710,6 +716,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         bool src_po_sc_ = false;
         dim_t eff_lda_ = 0, eff_ldb_ = 0;
         bool eff_transa_ = false, eff_transb_ = false;
+        bool with_sround_ = false;
 
         const compute::device_info_t *dev_info_ = nullptr;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
@@ -769,13 +776,13 @@ private:
             const memory_storage_t &c, const memory_storage_t *ao,
             const memory_storage_t *bo, const memory_storage_t *a_scales,
             const memory_storage_t *b_scales, const memory_storage_t &co,
-            const memory_storage_t *c_temp, int po_count,
-            const memory_storage_t **po_src, int64_t offset_a, int64_t offset_b,
-            int64_t offset_c, int32_t offset_aq, int32_t offset_bq,
-            int32_t offset_co, int32_t *offset_po_src, int32_t lda, int32_t ldb,
-            int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0,
-            float alpha, float beta, int32_t cmask, bool last_k_block,
-            bool swapab, bool disable_hilbert) const;
+            const memory_storage_t *c_temp, const memory_storage_t *sround_seed,
+            int po_count, const memory_storage_t **po_src, int64_t offset_a,
+            int64_t offset_b, int64_t offset_c, int32_t offset_aq,
+            int32_t offset_bq, int32_t offset_co, int32_t *offset_po_src,
+            int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n,
+            int32_t k, int32_t k0, float alpha, float beta, int32_t cmask,
+            bool last_k_block, bool swapab, bool disable_hilbert) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     const CommonDriverInfo *nocopy_info() const {

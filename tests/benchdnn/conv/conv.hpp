@@ -123,16 +123,17 @@ struct prb_t : public desc_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
         : prb_t(s.desc, s.dir[0], s.dt[0], s.stag[0], s.wtag[0], s.dtag[0],
-                s.strides[0], s.alg[0], s.attributes.front(), s.ctx_init[0],
-                s.ctx_exe[0], s.mb[0]) {
+                s.strides[0], s.alg[0], s.mb[0], s.attributes.front(),
+                s.ctx_init[0], s.ctx_exe[0], s.impl_filter) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
     prb_t(const desc_t &desc, dir_t dir,
             const std::vector<dnnl_data_type_t> &dt, const std::string &stag,
             const std::string &wtag, const std::string &dtag,
-            const vdims_t &strides, alg_t alg, const attr_t &attr,
-            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe, int64_t mb = 0)
+            const vdims_t &strides, alg_t alg, int64_t mb, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe,
+            const impl_filter_t &impl_filter)
         : desc_t(desc)
         , dir(dir)
         , dt(dt)
@@ -141,11 +142,12 @@ struct prb_t : public desc_t {
         , dtag(dtag)
         , strides(strides)
         , alg(alg)
-        , attr(attr)
         , user_mb(mb)
         , ops(0)
+        , attr(attr)
         , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe) {
+        , ctx_exe(ctx_exe)
+        , impl_filter(impl_filter) {
         if (mb) this->mb = mb;
 
         // Broadcast data types if needed
@@ -163,12 +165,12 @@ struct prb_t : public desc_t {
     std::string stag, wtag, dtag;
     vdims_t strides;
     mutable alg_t alg; // `mutable` because of `AUTO`.
+    int64_t user_mb;
+    double ops;
     bool inplace = false; // Lacks placement, always considered `false`.
     attr_t attr;
-    int64_t user_mb;
-
-    double ops;
     thr_ctx_t ctx_init, ctx_exe;
+    impl_filter_t impl_filter;
 
     void count_ops();
     int64_t count_n_acc() const {

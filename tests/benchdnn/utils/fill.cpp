@@ -256,11 +256,17 @@ int fill_random_real_dense(dnn_mem_t &mem, dnn_mem_t &mem_ref, res_t *res,
                         ? orig_val - 0.5f
                         : orig_val + 0.5f;
             } else if (round_dt == dnnl_s8) {
-                ; // s8 is fine.
+                ; // Using s8 val of -128 leads to a binary_mul alg magnifying
+                        // the diff (at least for eltwise) when it used to fit.
+                        // Need a general solution for the problem.
             } else if (round_dt == dnnl_u8) {
                 return 128.f; // catch faulty s8 loads instead of u8.
             } else if (round_dt == dnnl_s32) {
                 return 256.f; // catch faulty int8 loads instead of s32.
+            } else if (round_dt == dnnl_u4) {
+                return 15.f;
+            } else if (round_dt == dnnl_s4) {
+                return -8.f;
             } else {
                 assert(!"unexpected data type");
             }

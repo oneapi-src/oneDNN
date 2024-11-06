@@ -38,7 +38,7 @@ TEST(test_interface_allocator, DefaultCpuAllocator) {
     }
 }
 
-TEST(test_interface_engine, AllocatorEarlyDestroy) {
+TEST(test_interface_allocator, AllocatorEarlyDestroy) {
     dnnl::impl::graph::allocator_t *alloc
             = new dnnl::impl::graph::allocator_t();
     graph::engine_t *eng = get_engine();

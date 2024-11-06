@@ -115,24 +115,27 @@ struct settings_t : public base_settings_t {
 struct prb_t : public desc_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
-        : prb_t(s.desc, s.dir[0], s.dt[0], s.tag[0], s.alg[0],
-                s.attributes.front(), s.ctx_init[0], s.ctx_exe[0], s.mb[0]) {
+        : prb_t(s.desc, s.dir[0], s.dt[0], s.tag[0], s.alg[0], s.mb[0],
+                s.attributes.front(), s.ctx_init[0], s.ctx_exe[0],
+                s.impl_filter) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
     prb_t(const desc_t &desc, dir_t dir,
             const std::vector<dnnl_data_type_t> &dt, const std::string &tag,
-            alg_t alg, const attr_t &attr, const thr_ctx_t &ctx_init,
-            const thr_ctx_t &ctx_exe, int64_t mb = 0)
+            alg_t alg, int64_t mb, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe,
+            const impl_filter_t &impl_filter)
         : desc_t(desc)
         , dir(dir)
         , dt(dt)
         , tag(tag)
         , alg(alg)
+        , user_mb(mb)
         , attr(attr)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
-        , user_mb(mb) {
+        , impl_filter(impl_filter) {
         if (mb) this->mb = mb;
 
         // Broadcast data types if needed
@@ -148,10 +151,11 @@ struct prb_t : public desc_t {
     std::vector<dnnl_data_type_t> dt;
     std::string tag;
     alg_t alg;
+    int64_t user_mb;
     bool inplace = false; // Lacks placement, always considered `false`.
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
-    int64_t user_mb;
+    impl_filter_t impl_filter;
 
     int64_t kernel_size() const { return kd * kh * kw; }
     bool has_ker_in_pad() const {

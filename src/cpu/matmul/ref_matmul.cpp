@@ -174,6 +174,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                             = matmul_helper_t::get_quant_off(weights_dims_idx,
                                     ndims, wei_scale_mask, wei_scale_group_k,
                                     wei_scale_group_n, wei_scale_md);
+                    // Single scale value was already converted into f32.
                     const float wei_scale = wei_scales_d.nelems() == 1
                             ? wei_scales[0]
                             : io::load_float_value(
@@ -211,8 +212,14 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                         dst_dims_idx, l_offset, dst_d.dims(), ndims);
                 float d = ker(dst_dims_idx, m, n);
                 if (with_src_scales) d *= src_scales[0];
-                if (with_wei_scales && !with_wei_decompression)
-                    d *= wei_scales[wei_scale_stride_n * n];
+                if (with_wei_scales && !with_wei_decompression) {
+                    // Single scale value was already converted into f32.
+                    const float wei_scale = wei_scales_d.nelems() == 1
+                            ? wei_scales[0]
+                            : io::load_float_value(wei_scale_dt, wei_scales,
+                                    wei_scale_stride_n * n);
+                    d *= wei_scale;
+                }
                 if (bias) d += ker_bias(dst_dims_idx);
 
                 const auto dst_off = dst_d.off_v(dst_dims_idx);

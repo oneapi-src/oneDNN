@@ -772,6 +772,24 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
     return layout_t(dim_mapper.layout_desc(), type(), base, mapped_blocks);
 }
 
+layout_t layout_t::make_dense() const {
+    ir_assert(has_const_sizes() && has_const_strides());
+    dim_t stride = 1;
+    auto new_blocks = blocks_;
+    for (auto &b : new_blocks) {
+        b.stride = expr_t(stride);
+        stride *= b.int_size();
+    }
+    return layout_t(desc_, type_, base_, new_blocks);
+}
+
+layout_t layout_t::retype(const type_t &new_type, bool dense) const {
+    if (new_type == type_) return *this;
+    auto ret = layout_t(desc_, new_type, base_, blocks_);
+    if (dense) return ret.make_dense();
+    return ret;
+}
+
 template layout_t layout_t::map<int>(const dim_mapper_t &dim_mapper,
         const pvar_coord_t<int> &coord, const pvar_tile_t &tile,
         const var_range_info_t &var_range_info) const;

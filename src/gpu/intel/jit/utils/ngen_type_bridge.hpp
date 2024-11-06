@@ -39,6 +39,28 @@ inline ngen::DataType convert_dnnl_type_to_ngen(data_type_t dt) {
         case data_type::s32: dt_out = DataType::d; break;
         case data_type::s8: dt_out = DataType::b; break;
         case data_type::u8: dt_out = DataType::ub; break;
+        case data_type::f8_e5m2: dt_out = DataType::bf8; break;
+        case data_type::f8_e4m3: dt_out = DataType::hf8; break;
+        default: assert(!"Unknown datatype");
+    }
+
+    return dt_out;
+}
+
+inline data_type_t convert_ngen_type_to_dnnl(ngen::DataType dt) {
+    using namespace ngen;
+
+    data_type_t dt_out = data_type::undef;
+
+    switch (dt) {
+        case DataType::hf: dt_out = data_type::f16; break;
+        case DataType::bf: dt_out = data_type::bf16; break;
+        case DataType::f: dt_out = data_type::f32; break;
+        case DataType::d: dt_out = data_type::s32; break;
+        case DataType::b: dt_out = data_type::s8; break;
+        case DataType::ub: dt_out = data_type::u8; break;
+        case DataType::bf8: dt_out = data_type::f8_e5m2; break;
+        case DataType::hf8: dt_out = data_type::f8_e4m3; break;
         default: assert(!"Unknown datatype");
     }
 

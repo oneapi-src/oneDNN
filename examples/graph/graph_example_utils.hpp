@@ -575,10 +575,9 @@ public:
     void deallocate(
             void *ptr, const void *device, const void *context, void *event) {
         std::lock_guard<std::mutex> pool_guard(pool_lock);
-        if (event) {
-            auto sycl_deps_ptr = static_cast<::sycl::event *>(event);
-            sycl_deps_ptr->wait();
-        }
+        // This example currently supports `in_order`. So the kernel are
+        // executed in the order in which they are submitted. Don't need to wait
+        // event.
         is_free_ptr_[ptr] = true;
         return;
     }
@@ -587,7 +586,9 @@ public:
     void deallocate(
             void *ptr, cl_device_id dev, const cl_context ctx, cl_event event) {
         std::lock_guard<std::mutex> pool_guard(pool_lock);
-        if (event) { OCL_CHECK(clWaitForEvents(1, &event)); }
+        // This example currently supports `In-order`. So the kernel are
+        // executed in the order in which they are submitted. Don't need to wait
+        // event.
         is_free_ptr_[ptr] = true;
         return;
     }

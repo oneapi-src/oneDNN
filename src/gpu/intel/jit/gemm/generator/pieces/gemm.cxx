@@ -199,6 +199,14 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
     if (aoScalarLoad) loadABO(problem.Tao, state.inputs.ao, state.inputs.aoPtr);
     if (boScalarLoad) loadABO(problem.Tbo, state.inputs.bo, state.inputs.boPtr);
 
+    if (problem.cStochasticRound) {
+        state.inputs.sroundSeed = state.ra.alloc_sub(DataType::ud, getHint(HintType::LongTerm, strategy));
+        vector<Subregister> srcs;
+        srcs.push_back(state.inputs.sroundSeedPtr);
+        auto seedLoad = loadScalars(Type::u32, srcs, strategy, state);
+        mov(1, state.inputs.sroundSeed, seedLoad);
+    }
+
     // 2D scale address handling.
     if (problem.aScale2D && state.inputs.offsetAScale.isValid())
         eadd(1, state.inputs.aScalePtr, state.inputs.aScalePtr, state.inputs.offsetAScale, strategy, state);

@@ -22,6 +22,7 @@
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
+#include "gpu/intel/jit/v2/conv/tensor_utils.hpp"
 #include "gpu/intel/jit/v2/ir/bridge.hpp"
 #include "gpu/intel/jit/v2/ir/tensor.hpp"
 
@@ -74,7 +75,7 @@ inline problem_t to_problem(
     problem_t prb;
     prb.set_hw(hw_t(engine));
     prb.set_prop(prop);
-    prb.set_bias(pd->with_bias());
+    prb.set_bias_type(type_t(pd->invariant_bia_md()->data_type));
     prb.set_src_tag(src);
     prb.set_wei_tag(wei);
     prb.set_dst_tag(dst);

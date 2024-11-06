@@ -318,8 +318,8 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
 
     for (const auto &prim_ref_dt_i : prim_ref_dt) {
         prb_t prb_cpu {*prb, prb->dir, prim_ref_dt_i, tag::any, tag::any,
-                tag::any, DIRECT, cpu_attr, prb->ctx_init, prb->ctx_exe,
-                prb->mb};
+                tag::any, DIRECT, prb->mb, cpu_attr, prb->ctx_init,
+                prb->ctx_exe, prb->impl_filter};
 
         init_pd_args_t<prb_t> init_pd_args(
                 /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
@@ -327,16 +327,19 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
         init_pd(init_pd_args);
 
         benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
-        fetch_impl(pdw, init_pd_args, /* res = */ nullptr,
-                /* is_service_prim = */ true);
+        // `is_service_prim=true` prevents from filtering the implementation
+        // by name which is intended through a `get_prim_ref_impl_filter()`.
+        // As `fetch_impl` doesn't have any further logic related to it, it's
+        // safe to set it to `false`.
+        fetch_impl(pdw, init_pd_args, get_prim_ref_impl_filter(),
+                /* res = */ nullptr,
+                /* is_service_prim = */ false);
 
         // Prim desc wasn't created - try the next set...
         if (!pdw) continue;
-        // Reference impl was fetched - try the next set...
-        if (query_impl_info(pdw) == "ref:any") continue;
 
         auto st = dnnl_primitive_create(&prim_ref_, pdw);
-        // Primitive wan't created - try the next set...
+        // Primitive wasn't created - try the next set...
         if (st != dnnl_success) continue;
 
         BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",

@@ -363,7 +363,7 @@ public:
         sanity_check();
     }
 
-    layout_t(const type_t &type, int ndims, const expr_t &offset,
+    layout_t(const type_t &type, dim_idx_t ndims, const expr_t &offset,
             const std::vector<block_t> &blocks, bool do_normalize = true)
         : type_(type), ndims_(ndims), offset_(offset), blocks_(blocks) {
         if (do_normalize) blocks_ = normalize_blocks(blocks_);

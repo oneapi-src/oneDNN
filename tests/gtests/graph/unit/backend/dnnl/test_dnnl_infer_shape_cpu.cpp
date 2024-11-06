@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(test_dnnl_infer_shape_dnnl_infer_shape, InferDnnlConvOutputShape) {
+TEST(test_dnnl_infer_shape, InferDnnlConvOutputShape) {
     using dims = graph::dnnl_impl::dims;
     using ltw = graph::logical_tensor_wrapper_t;
 
@@ -75,7 +75,7 @@ TEST(test_dnnl_infer_shape_dnnl_infer_shape, InferDnnlConvOutputShape) {
             output_strides_ref.begin()));
 }
 
-TEST(test_dnnl_infer_shape_dnnl_shape_infer, InferFromGroupOutputShape) {
+TEST(test_dnnl_infer_shape, InferFromGroupOutputShape) {
     using namespace dnnl::graph::tests::unit::utils;
     size_t id = 0;
 
@@ -119,7 +119,7 @@ TEST(test_dnnl_infer_shape_dnnl_shape_infer, InferFromGroupOutputShape) {
     }
 }
 
-TEST(test_dnnl_infer_shape_dnnl_shape_infer, InferBnFoldingOutputShape) {
+TEST(test_dnnl_infer_shape, InferBnFoldingOutputShape) {
     using namespace dnnl::graph::tests::unit::utils;
     using item_type = std::tuple<graph::dims, graph::dims, graph::dims,
             graph::dims, graph::status_t>;
@@ -158,7 +158,7 @@ TEST(test_dnnl_infer_shape_dnnl_shape_infer, InferBnFoldingOutputShape) {
     }
 }
 
-TEST(test_dnnl_infer_shape_dnnl_shape_infer, InferDnnlConvBwdDataOutputShape) {
+TEST(test_dnnl_infer_shape, InferDnnlConvBwdDataOutputShape) {
     using namespace dnnl::graph::tests::unit::utils;
     using dims = graph::dims;
     auto conv_op = std::make_shared<graph::op_t>(

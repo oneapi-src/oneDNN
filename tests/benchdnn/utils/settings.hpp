@@ -17,6 +17,8 @@
 #ifndef UTILS_SETTINGS_HPP
 #define UTILS_SETTINGS_HPP
 
+#include "utils/impl_filter.hpp"
+
 struct base_settings_t {
     struct settings_attributes_t {
         void clear() { attrs_.clear(); }
@@ -92,6 +94,7 @@ struct base_settings_t {
             attr_t::rounding_mode_t()};
     std::vector<thr_ctx_t> ctx_init {default_thr_ctx};
     std::vector<thr_ctx_t> ctx_exe {default_thr_ctx};
+    impl_filter_t impl_filter {};
     const char *pattern = NULL;
     // Non-parsed members
     settings_attributes_t attributes;

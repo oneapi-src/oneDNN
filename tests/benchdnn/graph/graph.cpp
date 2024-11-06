@@ -25,6 +25,7 @@
 #include "dnnl_common.hpp"
 #include "graph.hpp"
 #include "ref_partition.hpp"
+#include "utils/stream_kind.hpp"
 
 namespace {
 
@@ -554,7 +555,14 @@ int doit(const prb_t *prb, res_t *res) {
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const auto &eng = get_graph_engine();
-    cpp_stream_t strm {eng};
+    const dnnl::engine &dnnl_eng = static_cast<const dnnl::engine>(eng);
+
+    const bool use_profiling = has_bench_mode_bit(mode_bit_t::perf)
+            && is_gpu(dnnl_eng.get()) && !is_nvidia_gpu(dnnl_eng.get())
+            && !is_amd_gpu(dnnl_eng.get());
+    dnnl_stream_flags_t flags
+            = stream_kind2stream_flags(stream_kind, use_profiling);
+    cpp_stream_t strm {eng, static_cast<dnnl::stream::flags>(flags)};
 
     // mark the output logical tensors of partition as ANY layout enabled
     std::unordered_set<size_t> id_to_set_any_layout;

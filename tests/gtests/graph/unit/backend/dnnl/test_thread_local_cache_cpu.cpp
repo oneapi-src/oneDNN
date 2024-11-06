@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ struct test_resource_t {
     size_t data_;
 };
 
-TEST(test_thread_local_cache_thread_local_cache, SingleThread) {
+TEST(test_thread_local_cache, SingleThread) {
     thread_local_cache_t<test_resource_t> cache;
     cache.clear();
 
@@ -62,7 +62,7 @@ TEST(test_thread_local_cache_thread_local_cache, SingleThread) {
     cache.remove_if_exist(key2);
 }
 
-TEST(test_thread_local_cache_thread_local_cache, Multithreading) {
+TEST(test_thread_local_cache, Multithreading) {
     auto func = []() {
         thread_local_cache_t<test_resource_t> cache;
         cache.clear();
@@ -100,7 +100,7 @@ TEST(test_thread_local_cache_thread_local_cache, Multithreading) {
     t3.join();
 }
 
-TEST(test_thread_local_cache_thread_local_cache, Clear) {
+TEST(test_thread_local_cache, Clear) {
     thread_local_cache_t<test_resource_t> cache;
     size_t key1 = (size_t)1;
     cache.get_or_add(
@@ -111,7 +111,7 @@ TEST(test_thread_local_cache_thread_local_cache, Clear) {
     ASSERT_NO_THROW(cache.clear());
 }
 
-TEST(test_thread_local_cache_thread_local_cache, RetainAndRelease) {
+TEST(test_thread_local_cache, RetainAndRelease) {
     auto func = []() {
         thread_local_cache_t<test_resource_t> cache;
         cache.retain();

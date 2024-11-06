@@ -25,6 +25,7 @@
 #include "gpu/intel/jit/v2/conv/kernel.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
 #include "gpu/intel/jit/v2/conv/problem.hpp"
+#include "gpu/intel/jit/v2/conv/tensor_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -133,159 +134,6 @@ extension_kind_t extensions_t::out_size(int size) {
     return extension_kind_t::undef;
 }
 
-layout_desc_t make_conv_layout_desc(
-        tensor_kind_t tensor_kind, bool src_dst_with_group) {
-    bool is_wei = (tensor_kind == tensor_kind_t::wei);
-    pvar_map_t<char> letter_map;
-    for (auto &d : conv_layout_dims(tensor_kind, src_dst_with_group)) {
-        char c = ' ';
-#define CASE(key, value) \
-    if (d == pvars::key) c = (value)
-        CASE(g, 'g');
-        CASE(mb, 'n');
-        CASE(ic, is_wei ? 'i' : 'c');
-        CASE(oc, is_wei ? 'o' : 'c');
-        CASE(id, 'd');
-        CASE(od, 'd');
-        CASE(kd, is_wei ? 'd' : 'z');
-        CASE(ih, 'h');
-        CASE(oh, 'h');
-        CASE(kh, is_wei ? 'h' : 'y');
-        CASE(iw, 'w');
-        CASE(ow, 'w');
-        CASE(kw, is_wei ? 'w' : 'x');
-#undef CASE
-        ir_assert(c != ' ');
-        letter_map[d] = c;
-    }
-    return layout_desc_t(letter_map);
-}
-
-layout_desc_t make_conv_algo_layout_desc(
-        prop_kind_t prop, tensor_kind_t tensor_kind) {
-    auto desc = make_conv_layout_desc(tensor_kind, /*src_dst_with_group=*/true);
-    switch (tensor_kind) {
-        case tensor_kind_t::bia:
-        case tensor_kind_t::wei: return desc;
-        case tensor_kind_t::src:
-            if (prop == prop_kind::backward_data) return desc;
-            break;
-        case tensor_kind_t::dst:
-            if (prop != prop_kind::backward_data) return desc;
-            break;
-        default: ir_error_not_expected();
-    }
-    pvar_map_t<char> letter_map;
-    bool is_src = (tensor_kind == tensor_kind_t::src);
-    pvar_t xd = (is_src ? pvars::od : pvars::id);
-    pvar_t xh = (is_src ? pvars::oh : pvars::ih);
-    pvar_t xw = (is_src ? pvars::ow : pvars::iw);
-    for (int i = 0; i < desc.ndims(); i++) {
-        auto d = desc.prb_dim(i);
-        if (utils::one_of(d, pvars::id, pvars::od)) {
-            letter_map[xd] = 'd';
-            letter_map[pvars::kd] = 'z';
-        } else if (utils::one_of(d, pvars::ih, pvars::oh)) {
-            letter_map[xh] = 'h';
-            letter_map[pvars::kh] = 'y';
-        } else if (utils::one_of(d, pvars::iw, pvars::ow)) {
-            letter_map[xw] = 'w';
-            letter_map[pvars::kw] = 'x';
-        } else {
-            letter_map[d] = desc.layout_letter(d);
-        }
-    }
-    return layout_desc_t(letter_map);
-}
-
-layout_tag_t make_conv_layout_tag(
-        tensor_kind_t tensor_kind, const std::string &s) {
-    if (s.empty()) return layout_tag_t();
-    bool is_wei = (tensor_kind == tensor_kind_t::wei);
-    auto desc = make_conv_layout_desc(tensor_kind);
-    auto parts = gpu_utils::split(s, ":");
-    auto type = (parts.size() > 1 ? type_t(parts[1]) : type_t::f32());
-    auto str_tag = desc.to_abx_tag(parts[0]);
-    auto raw_tag = layout_raw_tag_t(str_tag, is_wei ? 6 : 5);
-    return layout_tag_t(desc, type, raw_tag);
-}
-
-std::string blocked_to_str_tag(const memory_desc_t &md) {
-    auto &blk = md.format_desc.blocking;
-    dim_idx_t ndims = md.ndims;
-    std::vector<dim_t> full_inner_blks(ndims, 1);
-    std::vector<std::string> parts;
-    dim_t stride = 1;
-    for (int i = blk.inner_nblks - 1; i >= 0; i--) {
-        dim_idx_t idx = into<dim_idx_t>(blk.inner_idxs[i]);
-        dim_t block = blk.inner_blks[i];
-        parts.push_back(std::string(1, dim_idx::as_tag(idx)));
-        parts.push_back(std::to_string(block));
-        full_inner_blks[idx] *= block;
-        stride *= block;
-    }
-    std::vector<bool> seen(ndims);
-    dims_t rem_dims;
-    for (dim_idx_t i = 0; i < ndims; i++) {
-        rem_dims[i] = md.padded_dims[i] / full_inner_blks[i];
-    }
-    for (dim_idx_t i = 0; i < ndims; i++) {
-        bool found = false;
-        dim_t min_dim = std::numeric_limits<dim_t>::max();
-        for (dim_idx_t j = 0; j < ndims; j++) {
-            if (!seen[j] && blk.strides[j] == stride) {
-                min_dim = std::min(min_dim, rem_dims[j]);
-            }
-        }
-        for (int j = ndims - 1; j >= 0; j--) {
-            if (!seen[j] && blk.strides[j] == stride) {
-                // Size-one blocks have to be added first.
-                if (min_dim == 1 && rem_dims[j] != min_dim) continue;
-                bool is_blocked = (full_inner_blks[j] != 1);
-                parts.push_back(std::string(1, dim_idx::as_tag(j, is_blocked)));
-                stride *= rem_dims[j];
-                seen[j] = true;
-                found = true;
-                break;
-            }
-        }
-        if (!found) ir_error_not_expected();
-    }
-    std::ostringstream oss;
-    for (int i = (int)parts.size() - 1; i >= 0; i--)
-        oss << parts[i];
-    return oss.str();
-}
-
-layout_raw_tag_t normalize_conv_tag(tensor_kind_t tensor_kind,
-        dim_idx_t conv_ndims, const layout_raw_tag_t &tag) {
-    bool is_wei = (tensor_kind == tensor_kind_t::wei);
-    bool add_groups = (is_wei && tag.ndims() == conv_ndims);
-    int old_sp_ndims = conv_ndims - 2;
-    int new_sp_ndims = 3;
-    layout_raw_tag_t ret = tag;
-    if (add_groups) ret.add_dim('a', 0);
-    char sp_letter = dim_idx::as_tag(2u + ret.ndims() - conv_ndims);
-    int entry_idx = ret.entry_index(sp_letter);
-    for (int i = old_sp_ndims; i < new_sp_ndims; i++) {
-        ret.add_dim(sp_letter, entry_idx);
-    }
-    return ret;
-}
-
-layout_tag_t make_conv_layout_tag(
-        tensor_kind_t tensor_kind, int conv_ndims, const memory_desc_t &md) {
-    bool is_any = (md.format_kind == format_kind::any);
-    bool is_blocked = (md.format_kind == format_kind::blocked);
-    ir_assert(is_any || is_blocked);
-    auto desc = make_conv_layout_desc(tensor_kind);
-    type_t type(md.data_type);
-    if (is_any) return layout_tag_t(desc, type, layout_raw_tag_t::any());
-    auto str_tag = blocked_to_str_tag(md);
-    auto raw_tag = layout_raw_tag_t(str_tag);
-    raw_tag = normalize_conv_tag(tensor_kind, conv_ndims, raw_tag);
-    return layout_tag_t(desc, type, raw_tag);
-}
 pvar_tile_t min_dims_tile(const problem_t &prb) {
     pvar_tile_t xd;
     xd[pvars::id] = xd[pvars::od] = xd[pvars::kd] = 1;
@@ -403,11 +251,6 @@ void kernel_desc_t::set_defaults() {
         reqs.set(pvars::ic, 1);
         reqs.set(pvars::oc, 1);
     }
-    if (prop == prop_kind::backward_weights && with_bias) {
-        bia_tag = make_conv_layout_tag(tensor_kind_t::bia, "a");
-        bia_tag = layout_tag_t(
-                bia_tag.desc(), dst_tag.type(), bia_tag.raw_tag());
-    }
 }
 
 void kernel_desc_t::finalize(const prb_reqs_t &final_reqs) {
@@ -442,11 +285,13 @@ bool fit_impl(const kernel_desc_t &desc, const problem_t &prb, bool exact) {
     ir_check(prb.is_depthwise() == desc.is_dw)
             << "Mixing depthwise/non-depthwise descriptor and problem";
     if (exact) {
-        ir_check(prb.with_bias() == desc.with_bias)
-                << "Problem and descriptor 'with_bias' field mismatch";
+        ir_check(prb.with_bias_bwd_w() == desc.with_bias_bwd_w())
+                << "Problem and descriptor bias reduction mismatch";
+        ir_check(prb.with_bias_fwd() == desc.with_bias_fwd())
+                << "Problem and descriptor bias mismatch";
     }
-    if (prb.with_bias() != desc.with_bias) {
-        if (prb.with_bias()) {
+    if (prb.with_bias_bwd_w() != desc.with_bias_bwd_w()) {
+        if (prb.with_bias_bwd_w()) {
             ir_check(desc.ext.has(extension_kind_t::bias))
                     << "Bias is not supported";
         }
@@ -466,14 +311,11 @@ void fit_tag_to(
 }
 
 void fit_to_impl(kernel_desc_t &desc, const problem_t &prb) {
-    if (prb.with_bias() != desc.with_bias) {
-        desc.with_bias = prb.with_bias();
-        if (desc.with_bias) desc.set_defaults();
-    }
     desc.reqs.substitute(prb.vars());
     fit_tag_to(tensor_kind_t::a, desc, prb);
     fit_tag_to(tensor_kind_t::b, desc, prb);
     fit_tag_to(tensor_kind_t::c, desc, prb);
+    desc.bias_type = prb.bias_type();
 }
 
 bool kernel_desc_t::can_fit(const problem_t &prb) const {
@@ -483,6 +325,20 @@ bool kernel_desc_t::can_fit(const problem_t &prb) const {
 void kernel_desc_t::fit_to(const problem_t &prb) {
     fit_to_impl(*this, prb);
     specialize(prb);
+}
+
+status_t kernel_desc_t::set_post_ops(
+        const post_ops_t &attr_post_ops, const memory_desc_t *out_md) {
+    // Adjust post-ops to be expressed in terms of the full layout, including
+    // all spatial dimensions.
+    int old_ndims = out_md->ndims;
+    int new_ndims = 5;
+    int old_sp_ndims = (old_ndims - 2);
+    int new_sp_ndims = (new_ndims - 2);
+    post_op::ndim_normalizer_t ndim_normalizer {
+            old_sp_ndims, new_sp_ndims - old_sp_ndims};
+    return gpu_post_ops_t::make(post_ops, attr_post_ops, out_md,
+            post_op::specializations_t(), ndim_normalizer);
 }
 
 bool kernel_desc_t::matches(const problem_t &prb) const {
@@ -508,8 +364,7 @@ std::string kernel_desc_t::str() const {
     oss << "Propagation:            " << jit::to_string(prop) << std::endl;
     oss << "Depthwise:              " << ir_utils::to_string(is_dw)
         << std::endl;
-    oss << "With bias:              " << ir_utils::to_string(with_bias)
-        << std::endl;
+    oss << "Bias type:              " << bias_type << std::endl;
     oss << "Source tag:             " << src_tag << std::endl;
     oss << "Weights tag:            " << wei_tag << std::endl;
     oss << "Destination tag:        " << dst_tag << std::endl;
@@ -540,8 +395,7 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             /*required=*/true);
     iface->add<PACK(is_dw)>(
             "dw", "Whether the problem is a depthwise convolution (0 or 1).");
-    iface->add<PACK(with_bias)>(
-            "with_bias", "Whether the problem has bias (0 or 1).");
+    iface->add<PACK(bias_type)>("bias", "Bias type.");
     iface->add<PACK(src_tag)>("src",
             "Source layout tag. Examples: axb:f32, aBx16b:f16).",
             /*required=*/true);
@@ -582,6 +436,19 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     iface->add<PACK(ext)>("ext",
             "Kernel extensions, comma-separated (e.g. "
             "bias,out1b,out2b,out4b).");
+
+    parse_iface_t<kernel_desc_t>::entry_t po_entry;
+    po_entry.name = "post_ops";
+    po_entry.help = "Kernel post-ops.";
+    po_entry._default = serialize_to_hex(gpu_post_ops_t());
+    po_entry.stringify = [](std::ostream &out, const kernel_desc_t &parent) {
+        out << serialize_to_hex(parent.post_ops);
+    };
+    po_entry.parse = [](std::istream &in, kernel_desc_t &parent) {
+        auto s_data = stream_parse<std::string>(in);
+        deserialize_from_hex(parent.post_ops, s_data);
+    };
+    iface->add(po_entry);
 #undef PACK
 
     iface->set_post_parse_func([](kernel_desc_t &desc) {
@@ -619,6 +486,91 @@ void init_dispatch_kernel_info_div_magic(
             "sw_magic", ir_utils::idiv_magicgu_packed(into<uint32_t>(sw)));
 }
 
+arg_helper_t::arg_helper_t(const kernel_desc_t &desc) : desc_(desc) {}
+
+int arg_helper_t::key(const std::string &name) const {
+    if (name == "src") {
+        if (is_fwd()) return DNNL_ARG_SRC;
+        if (is_bwd_d()) return DNNL_ARG_DIFF_SRC;
+        if (is_bwd_w()) return DNNL_ARG_SRC;
+    } else if (name == "wei") {
+        if (is_fwd()) return DNNL_ARG_WEIGHTS;
+        if (is_bwd_d()) return DNNL_ARG_WEIGHTS;
+        if (is_bwd_w()) return DNNL_ARG_DIFF_WEIGHTS;
+    } else if (name == "dst") {
+        if (is_fwd()) return DNNL_ARG_DST;
+        if (is_bwd_d()) return DNNL_ARG_DIFF_DST;
+        if (is_bwd_w()) return DNNL_ARG_DIFF_DST;
+    } else if (name == "bia") {
+        if (is_fwd()) return DNNL_ARG_BIAS;
+        if (is_bwd_d()) return DNNL_ARG_BIAS;
+        if (is_bwd_w()) return DNNL_ARG_DIFF_BIAS;
+    }
+    ir_error_not_expected();
+    return DNNL_ARG_UNDEF;
+}
+
+bool arg_helper_t::is_input(const std::string &name) const {
+    if (name == "src") return is_fwd() || is_bwd_w();
+    if (name == "wei") return is_fwd() || is_bwd_d();
+    if (name == "dst") return is_bwd_d() || is_bwd_w();
+    if (name == "bia") return desc_.with_bias_fwd();
+    ir_error_not_expected();
+    return false;
+}
+
+bool arg_helper_t::is_output(const std::string &name) const {
+    if (name == "src") return is_bwd_d();
+    if (name == "wei") return is_bwd_w();
+    if (name == "dst") return is_fwd();
+    if (name == "bia") return desc_.with_bias_bwd_w();
+    ir_error_not_expected();
+    return false;
+}
+
+std::string arg_helper_t::post_op_name(size_t idx) const {
+    ir_assert(idx < desc_.post_ops.len());
+    auto &po = desc_.post_ops[idx];
+    if (po.is_eltwise() || po.is_sum()) return "";
+    if (po.is_binary()) return "binary_" + std::to_string(idx);
+    ir_error_not_expected();
+    return "";
+}
+
+int arg_helper_t::post_op_key(size_t idx) const {
+    int _idx = static_cast<int>(idx);
+    ir_assert(idx < desc_.post_ops.len());
+    auto &po = desc_.post_ops[idx];
+    if (po.is_eltwise() || po.is_sum()) return DNNL_ARG_UNDEF;
+    if (po.is_binary() && po.as_binary().alg == alg_kind::binary_prelu) {
+        return DNNL_ARG_ATTR_MULTIPLE_POST_OP(_idx) | DNNL_ARG_WEIGHTS;
+    }
+    if (po.is_binary()) {
+        return DNNL_ARG_ATTR_MULTIPLE_POST_OP(_idx) | DNNL_ARG_SRC_1;
+    }
+    ir_error_not_expected();
+    return -1;
+}
+
+tensor_config_t get_tensor_config(const kernel_desc_t &desc) {
+    arg_helper_t h(desc);
+    tensor_config_t tensor_cfg;
+    for (auto *t : {"src", "wei", "dst", "bia"}) {
+        bool is_input = h.is_input(t);
+        bool is_output = h.is_output(t);
+        if (!is_input && !is_output) continue;
+        tensor_cfg.add_tensor(
+                t, h.key(t), is_input, is_output, jit::layout_t());
+    }
+    for (size_t i = 0; i < desc.post_ops.len(); i++) {
+        auto name = h.post_op_name(i);
+        if (name.empty()) continue;
+        tensor_cfg.add_tensor(name, h.post_op_key(i), /*is_input=*/true,
+                /*is_output=*/false, jit::layout_t());
+    }
+    return tensor_cfg;
+}
+
 compute::range_t kernel_desc_t::local_range() const {
     auto thr_grid = create_thread_grid(*this);
     compute::range_t lws = compute::range_t::empty();
@@ -630,7 +582,7 @@ compute::range_t kernel_desc_t::local_range() const {
 }
 
 status_t kernel_desc_t::init_kernel_info(kernel_info_t &kernel_info) const {
-    auto tensor_config = get_tensor_config(prop, with_bias);
+    auto tensor_config = get_tensor_config(*this);
     for (auto &t : tensor_config.tensors()) {
         auto buf = make_buffer(t.name);
         kernel_info.register_user_arg(buf, t.arg_key, t.is_input);

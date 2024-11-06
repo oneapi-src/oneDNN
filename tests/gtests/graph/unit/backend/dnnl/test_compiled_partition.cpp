@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
-TEST(test_compiled_partition_compiled_partition, Relu) {
+TEST(test_compiled_partition, Relu) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t relu_op(graph::op_kind::ReLU, "relu");
@@ -104,7 +104,7 @@ TEST(test_compiled_partition_compiled_partition, Relu) {
     }
 }
 
-TEST(test_compiled_partition_compiled_partition, SearchRequiredInputsOutputs) {
+TEST(test_compiled_partition, SearchRequiredInputsOutputs) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t relu_op(graph::op_kind::ReLU, "relu");
@@ -218,7 +218,7 @@ TEST(test_compiled_partition_compiled_partition, SearchRequiredInputsOutputs) {
     }
 }
 
-TEST(test_compiled_partition_compiled_partition, AllowRepeatedInputs) {
+TEST(test_compiled_partition, AllowRepeatedInputs) {
     graph::engine_t *eng = get_engine();
 
     graph::op_t n(graph::op_kind::Multiply);
@@ -288,7 +288,7 @@ TEST(test_compiled_partition_compiled_partition, AllowRepeatedInputs) {
     }
 }
 
-TEST(test_compiled_partition_compiled_partition, GetAndInfoMethod) {
+TEST(test_compiled_partition, GetAndInfoMethod) {
     using ltw = graph::logical_tensor_wrapper_t;
 
     graph::engine_t &engine = *get_engine();
@@ -330,7 +330,7 @@ TEST(test_compiled_partition_compiled_partition, GetAndInfoMethod) {
     ASSERT_EQ(std::string(cp.info()), std::string(info.c_str()));
 }
 
-TEST(test_compiled_partition_compiled_partition, GetInputsAndOutputs) {
+TEST(test_compiled_partition, GetInputsAndOutputs) {
     using ltw = graph::logical_tensor_wrapper_t;
     graph::engine_t &engine = *get_engine();
     size_t id = 0;

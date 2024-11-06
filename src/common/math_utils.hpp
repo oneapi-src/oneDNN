@@ -515,7 +515,7 @@ inline uint16_t philox8x16(uint32_t idx, uint32_t seed) {
     // - 1 lsb is used to index 16-bit words within this 32 bit random
     //   value
     uint32_t r = philox4x32(idx >> 1, seed);
-    return (uint16_t)(r >> ((idx & 1) * sizeof(uint16_t)));
+    return (uint16_t)(r >> ((idx & 1) * sizeof(uint16_t) * 8));
 }
 
 inline uint8_t philox16x8(uint32_t idx, uint32_t seed) {
@@ -524,7 +524,7 @@ inline uint8_t philox16x8(uint32_t idx, uint32_t seed) {
     // - 2 lsb is used to index 8-bit words within this 32 bit random
     //   value
     uint32_t r = philox4x32(idx >> 2, seed);
-    return (uint8_t)(r >> ((idx & 3) * sizeof(uint8_t)));
+    return (uint8_t)(r >> ((idx & 3) * sizeof(uint8_t) * 8));
 }
 
 inline float stochastic_round_fwd(

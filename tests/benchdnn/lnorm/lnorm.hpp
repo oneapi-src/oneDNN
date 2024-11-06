@@ -80,16 +80,18 @@ struct prb_t : public prb_dims_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
         : prb_t(s.prb_dims, s.tag[0], s.stat_tag[0], s.ss_dt[0], s.dir[0],
-                s.dt[0], s.flags[0], s.attributes.front(), s.ctx_init[0],
-                s.ctx_exe[0], s.inplace[0], s.check_alg) {
+                s.dt[0], s.flags[0], s.check_alg, s.inplace[0],
+                s.attributes.front(), s.ctx_init[0], s.ctx_exe[0],
+                s.impl_filter) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
     prb_t(const prb_dims_t &prb_dims, const std::vector<std::string> &tag,
             const std::string &stat_tag, dnnl_data_type_t ss_dt, dir_t dir,
             const std::vector<dnnl_data_type_t> &dt, flags_t flags,
-            const attr_t &attr, const thr_ctx_t &ctx_init,
-            const thr_ctx_t &ctx_exe, bool inplace, check_alg_t check_alg)
+            check_alg_t check_alg, bool inplace, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe,
+            const impl_filter_t &impl_filter)
         : prb_dims_t(prb_dims)
         , check_alg(check_alg)
         , tag(tag)
@@ -101,7 +103,8 @@ struct prb_t : public prb_dims_t {
         , inplace(inplace)
         , attr(attr)
         , ctx_init(ctx_init)
-        , ctx_exe(ctx_exe) {
+        , ctx_exe(ctx_exe)
+        , impl_filter(impl_filter) {
         n = 1;
         for (int d = 0; d < ndims - 1; d++)
             n *= dims[d];
@@ -126,7 +129,8 @@ struct prb_t : public prb_dims_t {
     flags_t flags;
     bool inplace;
     attr_t attr;
-    const thr_ctx_t ctx_init, ctx_exe;
+    thr_ctx_t ctx_init, ctx_exe;
+    impl_filter_t impl_filter;
     int64_t n, c;
     float eps;
 

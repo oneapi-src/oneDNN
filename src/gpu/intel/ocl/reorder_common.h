@@ -343,21 +343,80 @@
 
 #define DEFAULT_ROUND(f) f
 
-#if WITH_SRC_SCALE || WITH_DST_SCALE
-#define MASK_DIM(prefix, dim) ((CONCAT2(prefix, _SCALE_MASK) >> dim) & 1)
-#define SCALE_DIM(prefix, dim) \
-    (MASK_DIM(prefix, dim) ? CONCAT3(prefix, _D, dim) : 1)
-#define SCALE_S5(prefix) (1)
-#define SCALE_S4(prefix) (SCALE_DIM(prefix, 5) * SCALE_S5(prefix))
-#define SCALE_S3(prefix) (SCALE_DIM(prefix, 4) * SCALE_S4(prefix))
-#define SCALE_S2(prefix) (SCALE_DIM(prefix, 3) * SCALE_S3(prefix))
-#define SCALE_S1(prefix) (SCALE_DIM(prefix, 2) * SCALE_S2(prefix))
-#define SCALE_S0(prefix) (SCALE_DIM(prefix, 1) * SCALE_S1(prefix))
-#define SCALE_STRIDE(prefix, dim) \
-    (CONCAT2(SCALE_S, dim)(prefix) * MASK_DIM(prefix, dim))
+#if WITH_SRC_SCALE || WITH_DST_SCALE || WITH_SRC_ZPOINT || WITH_DST_ZPOINT
+#define MASK_DIM(prefix, mask, dim) ((CONCAT2(prefix, mask) >> dim) & 1)
+#define QUANT_DIM(prefix, mask, dim) \
+    (MASK_DIM(prefix, mask, dim) ? CONCAT3(prefix, _D, dim) : 1)
+#define GROUP_DIM(prefix, quant_group_dim, quant_group, dim) \
+    ((CONCAT2(prefix, quant_group_dim) == dim) ? CONCAT2(prefix, quant_group) \
+                                               : 1)
+#define QUANT_S5(prefix, mask, quant_group_dim, quant_group) (1)
+#define QUANT_S4(prefix, mask, quant_group_dim, quant_group) \
+    ((QUANT_DIM(prefix, mask, 5) \
+             / GROUP_DIM(prefix, quant_group_dim, quant_group, 5)) \
+            * QUANT_S5(prefix, mask, quant_group_dim, quant_group))
+#define QUANT_S3(prefix, mask, quant_group_dim, quant_group) \
+    ((QUANT_DIM(prefix, mask, 4) \
+             / GROUP_DIM(prefix, quant_group_dim, quant_group, 4)) \
+            * QUANT_S4(prefix, mask, quant_group_dim, quant_group))
+#define QUANT_S2(prefix, mask, quant_group_dim, quant_group) \
+    ((QUANT_DIM(prefix, mask, 3) \
+             / GROUP_DIM(prefix, quant_group_dim, quant_group, 3)) \
+            * QUANT_S3(prefix, mask, quant_group_dim, quant_group))
+#define QUANT_S1(prefix, mask, quant_group_dim, quant_group) \
+    ((QUANT_DIM(prefix, mask, 2) \
+             / GROUP_DIM(prefix, quant_group_dim, quant_group, 2)) \
+            * QUANT_S2(prefix, mask, quant_group_dim, quant_group))
+#define QUANT_S0(prefix, mask, quant_group_dim, quant_group) \
+    ((QUANT_DIM(prefix, mask, 1) \
+             / GROUP_DIM(prefix, quant_group_dim, quant_group, 1)) \
+            * QUANT_S1(prefix, mask, quant_group_dim, quant_group))
+#define QUANT_STRIDE(prefix, mask, quant_group_dim, quant_group, dim) \
+    (CONCAT2(QUANT_S, dim)(prefix, mask, quant_group_dim, quant_group) \
+            * MASK_DIM(prefix, mask, dim))
 
+#if WITH_SRC_SCALE || WITH_DST_SCALE
 #define SCALE_OFF(prefix, x0, x1, x2, x3, x4, x5) \
-    ((x0)*SCALE_STRIDE(prefix, 0) + (x1)*SCALE_STRIDE(prefix, 1) \
-            + (x2)*SCALE_STRIDE(prefix, 2) + (x3)*SCALE_STRIDE(prefix, 3) \
-            + (x4)*SCALE_STRIDE(prefix, 4) + (x5)*SCALE_STRIDE(prefix, 5))
+    (((x0) / GROUP_DIM(prefix, _SCALE_GROUP_DIM, _SCALE_GROUP, 0)) \
+                    * QUANT_STRIDE(prefix, _SCALE_MASK, _SCALE_GROUP_DIM, \
+                            _SCALE_GROUP, 0) \
+            + ((x1) / GROUP_DIM(prefix, _SCALE_GROUP_DIM, _SCALE_GROUP, 1)) \
+                    * QUANT_STRIDE(prefix, _SCALE_MASK, _SCALE_GROUP_DIM, \
+                            _SCALE_GROUP, 1) \
+            + ((x2) / GROUP_DIM(prefix, _SCALE_GROUP_DIM, _SCALE_GROUP, 2)) \
+                    * QUANT_STRIDE(prefix, _SCALE_MASK, _SCALE_GROUP_DIM, \
+                            _SCALE_GROUP, 2) \
+            + ((x3) / GROUP_DIM(prefix, _SCALE_GROUP_DIM, _SCALE_GROUP, 3)) \
+                    * QUANT_STRIDE(prefix, _SCALE_MASK, _SCALE_GROUP_DIM, \
+                            _SCALE_GROUP, 3) \
+            + ((x4) / GROUP_DIM(prefix, _SCALE_GROUP_DIM, _SCALE_GROUP, 4)) \
+                    * QUANT_STRIDE(prefix, _SCALE_MASK, _SCALE_GROUP_DIM, \
+                            _SCALE_GROUP, 4) \
+            + ((x5) / GROUP_DIM(prefix, _SCALE_GROUP_DIM, _SCALE_GROUP, 5)) \
+                    * QUANT_STRIDE(prefix, _SCALE_MASK, _SCALE_GROUP_DIM, \
+                            _SCALE_GROUP, 5))
 #endif // WITH_SRC_SCALE || WITH_DST_SCALE
+
+#if WITH_SRC_ZPOINT || WITH_DST_ZPOINT
+#define ZPOINT_OFF(prefix, x0, x1, x2, x3, x4, x5) \
+    (((x0) / GROUP_DIM(prefix, _ZPOINT_GROUP_DIM, _ZPOINT_GROUP, 0)) \
+                    * QUANT_STRIDE(prefix, _ZPOINT_MASK, _ZPOINT_GROUP_DIM, \
+                            _ZPOINT_GROUP, 0) \
+            + ((x1) / GROUP_DIM(prefix, _ZPOINT_GROUP_DIM, _ZPOINT_GROUP, 1)) \
+                    * QUANT_STRIDE(prefix, _ZPOINT_MASK, _ZPOINT_GROUP_DIM, \
+                            _ZPOINT_GROUP, 1) \
+            + ((x2) / GROUP_DIM(prefix, _ZPOINT_GROUP_DIM, _ZPOINT_GROUP, 2)) \
+                    * QUANT_STRIDE(prefix, _ZPOINT_MASK, _ZPOINT_GROUP_DIM, \
+                            _ZPOINT_GROUP, 2) \
+            + ((x3) / GROUP_DIM(prefix, _ZPOINT_GROUP_DIM, _ZPOINT_GROUP, 3)) \
+                    * QUANT_STRIDE(prefix, _ZPOINT_MASK, _ZPOINT_GROUP_DIM, \
+                            _ZPOINT_GROUP, 3) \
+            + ((x4) / GROUP_DIM(prefix, _ZPOINT_GROUP_DIM, _ZPOINT_GROUP, 4)) \
+                    * QUANT_STRIDE(prefix, _ZPOINT_MASK, _ZPOINT_GROUP_DIM, \
+                            _ZPOINT_GROUP, 4) \
+            + ((x5) / GROUP_DIM(prefix, _ZPOINT_GROUP_DIM, _ZPOINT_GROUP, 5)) \
+                    * QUANT_STRIDE(prefix, _ZPOINT_MASK, _ZPOINT_GROUP_DIM, \
+                            _ZPOINT_GROUP, 5))
+#endif // WITH_SRC_ZP || WITH_DST_ZP
+
+#endif // WITH_SRC_SCALE || WITH_DST_SCALE || WITH_SRC_ZP || WITH_DST_ZP

@@ -412,6 +412,7 @@ public:
 
     // Constructor from dnnl_data_type_t.
     type_t(data_type_t dt) {
+        if (dt == data_type::undef) return;
         elems_ = 1;
         switch ((int)dt) {
 #define CASE(x) \
@@ -453,7 +454,7 @@ public:
     static void init_parse_iface(parse_iface_t<type_t> *iface) {
         iface->add<type_kind_t, &type_t::kind_>();
         iface->set_pre_stringify_func([](const type_t &type) {
-            ir_assert(!type.is_ptr() && type.is_scalar())
+            ir_assert(!type.is_ptr() && (type.is_scalar() || type.is_undef()))
                     << "Cannot stringify pointer/non-scalar type.";
         });
     }

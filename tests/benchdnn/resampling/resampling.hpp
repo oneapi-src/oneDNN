@@ -90,24 +90,26 @@ struct prb_t : public desc_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
         : prb_t(s.desc, s.dir[0], s.sdt[0], s.ddt[0], s.tag[0], s.alg[0],
-                s.attributes.front(), s.ctx_init[0], s.ctx_exe[0], s.mb[0]) {
+                s.mb[0], s.attributes.front(), s.ctx_init[0], s.ctx_exe[0],
+                s.impl_filter) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
     prb_t(const desc_t &desc, dir_t dir, dnnl_data_type_t sdt,
-            dnnl_data_type_t ddt, const std::string &tag, alg_t alg,
+            dnnl_data_type_t ddt, const std::string &tag, alg_t alg, int64_t mb,
             const attr_t &attr, const thr_ctx_t &ctx_init,
-            const thr_ctx_t &ctx_exe, int64_t mb = 0)
+            const thr_ctx_t &ctx_exe, const impl_filter_t &impl_filter)
         : desc_t(desc)
         , dir(dir)
         , sdt(sdt)
         , ddt(ddt)
         , tag(tag)
         , alg(alg)
+        , user_mb(mb)
         , attr(attr)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
-        , user_mb(mb) {
+        , impl_filter(impl_filter) {
         if (mb) this->mb = mb;
         repro = set_repro_line(); // must be last in ctor to collect right info
     }
@@ -116,10 +118,11 @@ struct prb_t : public desc_t {
     dnnl_data_type_t sdt, ddt;
     std::string tag;
     alg_t alg;
+    int64_t user_mb;
     bool inplace = false; // Lacks placement, always considered `false`.
     attr_t attr;
     thr_ctx_t ctx_init, ctx_exe;
-    int64_t user_mb;
+    impl_filter_t impl_filter;
 
     // Used to construct memory desc when dimensions are runtime since such mds
     // can't be used directly from query and memory objects can't be constructed.

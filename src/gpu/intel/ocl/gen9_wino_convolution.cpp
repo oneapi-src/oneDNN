@@ -380,7 +380,6 @@ status_t gen9_wino_convolution_fwd_t::execute_forward(
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     const auto &conf = pd()->conf;
-    const auto &attr_info = conf.attr_info;
 
     std::unique_ptr<memory_storage_t> wei_trans
             = ctx.get_scratchpad_grantor().get_memory_storage(key_wino_U);
@@ -432,10 +431,7 @@ status_t gen9_wino_convolution_fwd_t::execute_forward(
                 ctx, dst_trans_nd_range, dst_trans_kernel_, dst_transform_args);
     }
 
-    if (attr_info.with_eltwise
-            && !gpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
-                    attr_info.eltwise_alg, attr_info.eltwise_alpha,
-                    attr_info.eltwise_beta)) {
+    if (!post_ops_preserves_zeroes(ctx, pd()->attr()->post_ops_)) {
         CHECK(ctx.zero_pad_output(DNNL_ARG_DST));
     }
     return status;

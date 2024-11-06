@@ -65,6 +65,11 @@ checked up with ONEDNN_VERBOSE output. By default, `INDEX` is `0`. If the
 index is greater or equal to the number of devices of requested kind
 discovered on a system, a runtime error occurs.
 
+### --impl
+`--impl=STRING_NAME[,STRING_NAME...]` option is used to search for an
+implementation containing one of the names provided.
+Refer to [implementation filtering](knob_impl_filter.md) for details.
+
 ### --mem-check
 `--mem-check=BOOL` instructs the driver to perform a device RAM capability
 check if the problem fits the device including all service memory allocations.
@@ -127,15 +132,9 @@ not be reset. COMMON-OPTIONS describe a global state and, thus, are not affected
 by this option.
 
 ### --skip-impl
-`--skip-impl=STR` instructs the driver to jump to the next implementation
-in the list if the name of the returned one matches `STR` symbol-by-symbol.
-`STR` is a string literal with no spaces. When `STR` is empty (the default), the
-driver uses the first fetched implementation. `STR` supports several patterns to
-be matched against through the comma `,` delimiter between patterns. The name of
-a fetched implementation is searched against all specified patterns; and if any
-of the patterns match any part of the implementation name string, it counts as a
-hit. For example, `--skip-impl=ref,gemm` causes `ref:any` or `x64:gemm:jit`
-implementations to be skipped.
+`--skip-impl=STRING_NAME[,STRING_NAME...]` option is used to search for an
+implementation that doesn't contain any of the names provided.
+Refer to [implementation filtering](knob_impl_filter.md) for details.
 
 ### --start
 `--start=N` specifies the test index `N` to start testing from. All tests
