@@ -38,6 +38,36 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
+class mask_iterator {
+    int mask_;
+    int index_;
+
+public:
+    using iterator_category = std::input_iterator_tag;
+    using difference_type = int;
+    using value_type = int;
+    using pointer = value_type *;
+    using reference = value_type &;
+    mask_iterator() : mask_(0), index_(0) {}
+    mask_iterator(int mask) : mask_(mask), index_(0) {
+        if ((mask_ & 0x1) == 0) { ++(*this); }
+    }
+    mask_iterator &begin() { return *this; }
+    mask_iterator end() const { return 0; }
+    value_type operator*() const { return index_; }
+    mask_iterator &operator++() {
+        do {
+            index_++;
+            mask_ >>= 1;
+        } while ((mask_ & 0x1) == 0 && mask_ != 0);
+        if (mask_ == 0) { index_ = 0; }
+        return *this;
+    }
+    bool operator!=(const mask_iterator &other) const {
+        return mask_ != other.mask_ || index_ != other.index_;
+    }
+};
+
 struct micro_sdpa_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public sdpa_pd_t {
@@ -123,50 +153,103 @@ struct micro_sdpa_t : public gpu_primitive_t {
         bool with_key_scales() const {
             return (!desc()->kq_scales.has_default_values());
         }
+
         /// If true, dequantize the V tensor using scaling in the VS matmul
         bool with_value_scales() const {
             return (!desc()->vs_scales.has_default_values());
         }
 
+        /// If true, dequantize the K tensor with zero points in the KQ matmul
         bool with_key_zp() const {
             return (!desc()->kq_zero_points.has_default_values(
                     DNNL_ARG_WEIGHTS));
         }
+
+        /// If true, dequantize the V tensor with zero points in the VS matmul
         bool with_value_zp() const {
             return (!desc()->vs_zero_points.has_default_values(
                     DNNL_ARG_WEIGHTS));
         }
 
+        /// Returns the data type of the scales tensor for the KQ matmul
         data_type_t key_scales_dt() const {
             return desc()->kq_scales.data_type_;
         }
+
+        /// Returns the data type of the zero points tensor for the KQ matmul
         data_type_t key_zp_dt() const {
             return desc()->kq_zero_points.get_data_type(DNNL_ARG_WEIGHTS);
         }
+
+        /// Returns the data type of the scales tensor for the VS matmul
         data_type_t value_scales_dt() const {
             return desc()->vs_scales.data_type_;
         }
+
+        /// Returns the data type of the zero points tensor for the VS matmul
         data_type_t value_zp_dt() const {
             return desc()->vs_zero_points.get_data_type(DNNL_ARG_WEIGHTS);
         }
 
-        dim_t key_group_size() const {
-            if (with_key_scales() && desc()->kq_scales.ndims_ > 0)
-                return desc()->kq_scales.group_dims_[0];
-            if (with_key_zp()
-                    && desc()->kq_zero_points.get_groups_ndims(DNNL_ARG_WEIGHTS)
-                            > 0)
-                return desc()->kq_zero_points.get_groups(DNNL_ARG_WEIGHTS)[0];
-            return 0;
+        static int scale_group_size(
+                const runtime_scales_t &scales, const memory_desc_t &desc) {
+            dim_t out = utils::array_product(desc.dims, 4);
+            if (scales.has_default_groups()) {
+                for (int idx : mask_iterator(scales.mask_)) {
+                    out /= desc.dims[idx];
+                }
+            } else {
+                for (int idx : mask_iterator(scales.mask_)) {
+                    if (idx < 2) {
+                        out /= desc.dims[idx];
+                    } else {
+                        out /= (desc.dims[idx] / scales.group_dims_[idx - 2]);
+                    }
+                }
+            }
+            return static_cast<int>(out);
         }
-        dim_t value_group_size() const {
-            if (with_value_scales() && desc()->vs_scales.ndims_ > 1)
-                return desc()->vs_scales.group_dims_[1];
-            if (with_value_zp()
-                    && desc()->vs_zero_points.get_groups_ndims(DNNL_ARG_WEIGHTS)
-                            > 1)
-                return desc()->vs_zero_points.get_groups(DNNL_ARG_WEIGHTS)[1];
-            return 0;
+
+        static int zp_group_size(
+                const zero_points_t &zp, const memory_desc_t &desc) {
+            dim_t out = utils::array_product(desc.dims, 4);
+            if (zp.has_default_groups(DNNL_ARG_WEIGHTS)) {
+                for (int idx : mask_iterator(zp.get(DNNL_ARG_WEIGHTS))) {
+                    out /= desc.dims[idx];
+                }
+            } else {
+                auto groups = zp.get_groups(DNNL_ARG_WEIGHTS);
+                for (int idx : mask_iterator(zp.get(DNNL_ARG_WEIGHTS))) {
+                    if (idx < 2) {
+                        out /= desc.dims[idx];
+                    } else {
+                        out /= (desc.dims[idx] / groups[idx - 2]);
+                    }
+                }
+            }
+            return static_cast<int>(out);
+        }
+
+        // Returns the group size for the quantization parameters for the KQ matmul
+        int key_group_size() const {
+            int out = 0;
+            if (with_key_scales())
+                out = scale_group_size(desc()->kq_scales, *key_md());
+            else if (with_key_zp()) {
+                out = zp_group_size(desc()->kq_zero_points, *key_md());
+            }
+            return out;
+        }
+
+        // Returns the group size for the quantization parameters for the VS matmul
+        int value_group_size() const {
+            int out = 0;
+            if (with_value_scales())
+                out = scale_group_size(desc()->vs_scales, *val_md());
+            else if (with_value_zp()) {
+                out = zp_group_size(desc()->vs_zero_points, *val_md());
+            }
+            return out;
         }
 
         compute::gpu_arch_t arch() const { return arch_; }
