@@ -257,7 +257,11 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     try {
         gemm_kq_ = selectGEMMMicrokernel(
                 opts_kq, hw_info, sizes, problem_kq, reqs_kq);
-    } catch (...) { return status::unimplemented; }
+    } catch (const std::runtime_error &ex) {
+        VDISPATCH_SDPA(false,
+                "gemm_kq microkernel generation failure with message: %s",
+                ex.what());
+    }
 
     /* Update for second GEMM: V*S */
     auto problem_vs = problem;
@@ -314,7 +318,11 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
         };
         gemm_vs_ = selectGEMMMicrokernel(
                 opts_vs, hw_info, sizes, problem_vs, reqs_vs, adjust_vs);
-    } catch (...) { return status::unimplemented; }
+    } catch (const std::runtime_error &ex) {
+        VDISPATCH_SDPA(false,
+                "gemm_vs microkernel generation failure with message: %s",
+                ex.what());
+    }
 
     return status::success;
 }

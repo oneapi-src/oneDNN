@@ -136,12 +136,24 @@ static inline status_t create_sdpa_pd(
 
     int ndims = dst_md->ndims;
     int r = ndims - 2, c = ndims - 1;
-    if (!utils::everyone_is(ndims, q_md->ndims, k_md->ndims, v_md->ndims))
-        return status::invalid_arguments;
-    if (q_md->dims[c] != k_md->dims[r]) return status::invalid_arguments;
-    if (k_md->dims[c] != v_md->dims[r]) return status::invalid_arguments;
-    if (dst_md->dims[r] != q_md->dims[r] || dst_md->dims[c] != v_md->dims[c])
-        return status::invalid_arguments;
+    VCHECK_SDPA_COND(
+            utils::everyone_is(ndims, q_md->ndims, k_md->ndims, v_md->ndims),
+            "number of dimensions have to match. expected: %d q: %d k: %d v: "
+            "%d",
+            ndims, q_md->ndims, k_md->ndims, v_md->ndims);
+
+    VCHECK_SDPA_COND(q_md->dims[c] == k_md->dims[r],
+            "q_md->dims[%d](%s) must match k_md->dims[%d](%s)", c,
+            md2dim_str(q_md).c_str(), r, md2dim_str(k_md).c_str());
+    VCHECK_SDPA_COND(k_md->dims[c] == v_md->dims[r],
+            "k_md->dims[%d](%s) must match v_md->dims[%d](%s)", c,
+            md2dim_str(k_md).c_str(), r, md2dim_str(v_md).c_str());
+    VCHECK_SDPA_COND(dst_md->dims[r] == q_md->dims[r],
+            "dst_md->dims[%d](%s) == q_md->dims[%d](%s)", r,
+            md2dim_str(dst_md).c_str(), r, md2dim_str(q_md).c_str());
+    VCHECK_SDPA_COND(dst_md->dims[c] == v_md->dims[c],
+            "dst_md->dims[%d](%s) == v_md->dims[%d](%s)", c,
+            md2dim_str(dst_md).c_str(), c, md2dim_str(v_md).c_str());
 
     primitive_attr_t sdpa_attr = attr ? *attr : default_attr();
 
@@ -149,7 +161,7 @@ static inline status_t create_sdpa_pd(
             engine, (op_desc_t *)&sdpa_desc, &sdpa_attr, nullptr);
 
     sdpa_pd_ = *(++it);
-    if (!sdpa_pd_) return status::unimplemented;
+    VCHECK_SDPA_COND(sdpa_pd_, "failed to create the SDPA primitive");
 
     return status::success;
 }
