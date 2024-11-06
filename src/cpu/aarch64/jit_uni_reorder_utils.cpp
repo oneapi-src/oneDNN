@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2018-2023 Intel Corporation
 * Copyright 2020-2023 FUJITSU LIMITED
-* Copyright 2022 Arm Ltd. and affiliates
+* Copyright 2022, 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -451,6 +451,10 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
         verbose_printf(
                 verbose_t::debuginfo, "smpl : %s\n", prb_dump(p).c_str());
     });
+
+    bool has_zero_point = !attr->zero_points_.has_default_values(DNNL_ARG_FROM)
+            || !attr->zero_points_.has_default_values(DNNL_ARG_TO);
+    if (imd.ndims == 4 && has_zero_point) { return status::unimplemented; }
 
     return success;
 }
