@@ -357,7 +357,7 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     ///     post-op or scales were set.
     void execute(const void *A, const void *B,
             const std::vector<std::pair<memory::dim, memory::dim>> &A_B_offsets,
-            void *C, void *D, void *scratchpad,
+            const void *C, void *D, void *scratchpad,
             const attr_params &params = default_attr_params()) const {
         // TODO: export batch_element to C API later for user to fill it and
         // pass directly to the call.
