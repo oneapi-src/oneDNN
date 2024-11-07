@@ -88,16 +88,18 @@ class inner_product_test_t
 protected:
     void SetUp() override {
         auto p = ::testing::TestWithParam<inprod_test_params_t>::GetParam();
-        SKIP_IF_CUDA(!cuda_check_format_tags(p.src_format, p.weights_format,
-                             p.bias_format, p.dst_format),
+        SKIP_IF_CUDA(!cuda_generic_check_format_tags(p.src_format,
+                             p.weights_format, p.bias_format, p.dst_format),
+                "Unsupported format tag");
+        SKIP_IF_GENERIC(!cuda_generic_check_format_tags(p.src_format,
+                                p.weights_format, p.bias_format, p.dst_format),
                 "Unsupported format tag");
         SKIP_IF_CUDA(p.ndims > 5, "Unsupported number of dimensions");
-        SKIP_IF_GENERIC(true, "Primitive not implemented");
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
-    bool cuda_check_format_tags(memory::format_tag src_format,
+    bool cuda_generic_check_format_tags(memory::format_tag src_format,
             memory::format_tag wei_format, memory::format_tag bia_format,
             memory::format_tag dst_format) {
         bool src_ok = src_format == memory::format_tag::ncdhw
@@ -128,6 +130,20 @@ protected:
                 || dst_format == memory::format_tag::nc;
 
         return src_ok && wei_ok && bia_ok && dst_ok;
+    }
+
+    std::vector<int> get_dim_order(const memory::dims &strides) {
+        size_t ndims = strides.size();
+        std::vector<int> order(ndims);
+        for (size_t i = 0; i < ndims; ++i) {
+            order[i] = i;
+        }
+
+        std::sort(order.begin(), order.end(), [&strides](size_t i, size_t j) {
+            return strides[i] < strides[j];
+        });
+
+        return order;
     }
 
     void Test() {
@@ -169,6 +185,10 @@ protected:
                 : create_md({}, data_type, p.bias_format);
         auto ip_dst_desc = create_md({ipd.mb, ipd.oc}, data_type, p.dst_format);
 
+        SKIP_IF_GENERIC(get_dim_order(ip_src_desc.get_strides())
+                        != get_dim_order(ip_weights_desc.get_strides()),
+                "Unsupported case for generic");
+
         auto ip_primitive_desc = with_bias
                 ? pd_t(eng, p.aprop_kind, ip_src_desc, ip_weights_desc,
                         ip_bias_desc, ip_dst_desc)
@@ -176,11 +196,15 @@ protected:
                         ip_dst_desc);
 
         auto aa = allows_attr_t {false};
-        aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_eltwise = true;
-        aa.po_prelu = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
         aa.po_sum = true;
-
+#ifdef DNNL_SYCL_GENERIC
+        aa.po_binary = true;
+        aa.po_prelu = true;
+#else
+        aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_prelu = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+#endif
         test_fwd_pd_constructors<pd_t>(ip_primitive_desc, aa, p.aprop_kind,
                 ip_src_desc, ip_weights_desc, ip_bias_desc, ip_dst_desc);
 
