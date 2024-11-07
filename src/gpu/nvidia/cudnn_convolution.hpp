@@ -155,15 +155,17 @@ struct cudnn_convolution_fwd_t : public gpu::primitive_t {
                     && ndims() < 5;
         }
 
-        bool attr_scales_ok() const {
-            const auto &scales = attr()->scales_;
-            const auto &supported_args
-                    = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
-            if (!scales.has_default_values(supported_args)) return false;
-            // cuDNN does not support scaling per dimension.
-            for (auto arg : supported_args)
-                if (scales.get(arg).mask_ != 0) return false;
-            return true;
+        bool attr_scales_ok(const std::vector<int> &supported_args
+                = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
+            bool ok = attr()->scales_.has_default_values(supported_args);
+            for (int arg : supported_args) {
+                if (attr()->scales_.get(arg).has_default_values()) continue;
+
+                const auto &mask = attr()->scales_.get_mask(arg);
+                // cuDNN does not support scaling per dimension.
+                ok = ok && (mask == 0);
+            }
+            return ok;
         }
     };
 

@@ -78,11 +78,10 @@ status_t jit_avx512_core_amx_deconvolution_fwd_t::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
     const float *oscales = precompute_scales(ctx.get_scratchpad_grantor(),
             src_scales, wei_scales, src_d.dims()[1], dst_d.dims()[1], false,
-            wei_scale_mask != 0, pd()->attr());
+            wei_scale_mask > 0, pd()->attr());
 
     // The body of bwd/d convolution harness is called with:
     //   1. src as input instead of diff_dst

@@ -1993,7 +1993,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.with_scales = !src_scales.has_default_values()
             || !wei_scales.has_default_values()
             || jcp.scale_adjust_factor != 1.0f;
-    jcp.is_oc_scale = wei_scales.mask_ != 0;
+    jcp.is_oc_scale = wei_scales.get_mask() > 0;
 
     // disables the shape with small ic but large spatial
     // or specific large spatial shapes for int8 conv
@@ -2190,7 +2190,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.with_scales = !src_scales.has_default_values()
             || !wei_scales.has_default_values()
             || jcp.scale_adjust_factor != 1.0f;
-    jcp.is_oc_scale = wei_scales.mask_ != 0;
+    jcp.is_oc_scale = wei_scales.get_mask() > 0;
 
     // enable ununroll_bd_loop for big shapes to reduce kernel sizes
     jcp.ununroll_bd_loop

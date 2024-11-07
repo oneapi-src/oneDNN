@@ -188,19 +188,7 @@ void serialize_attr(
 
     if (!attr.scales_.has_default_values()) {
         sstream.write("scale:");
-        // go through scales for all arguments
-        for (const auto &p : attr.scales_.scales_) {
-            // scales: arg
-            sstream.write(&p.first);
-            // scales: mask
-            sstream.write(&p.second.mask_);
-            // scales: groups
-            const int ndims = p.second.ndims_;
-            sstream.write(&ndims);
-            if (ndims > 0) sstream.write(p.second.group_dims_, ndims);
-            // scales: data type
-            sstream.write(&p.second.data_type_);
-        }
+        attr.scales_.serialize(sstream);
     }
     // zero_points
     if (!attr.zero_points_.has_default_values()) sstream.write("zp:");

@@ -200,7 +200,7 @@ status_t brdgmm_dw_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     const auto &wei_scales = attr_.scales_.get(DNNL_ARG_WEIGHTS);
     jcp.with_scale = !src_scales.has_default_values()
             || !wei_scales.has_default_values();
-    jcp.is_oc_scale = wei_scales.mask_ != 0;
+    jcp.is_oc_scale = wei_scales.get_mask() > 0;
 
     const bool scales_ok
             = attr_scales_ok({DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST});

@@ -136,9 +136,16 @@ struct ref_gemm_t : public gpu_gemm_t {
 
         bool attr_oscale_ok() const {
             const auto &scales = attr()->scales_;
-            return scales.get(DNNL_ARG_SRC).mask_ == 0
-                    && scales.get(DNNL_ARG_WEIGHTS).mask_ == 0
-                    && scales.get(DNNL_ARG_DST).mask_ == 0;
+            const bool src_scale_ok
+                    = scales.get(DNNL_ARG_SRC).has_default_values()
+                    || scales.get_mask(DNNL_ARG_SRC) == 0;
+            const bool wei_scale_ok
+                    = scales.get(DNNL_ARG_WEIGHTS).has_default_values()
+                    || scales.get_mask(DNNL_ARG_WEIGHTS) == 0;
+            const bool dst_scale_ok
+                    = scales.get(DNNL_ARG_DST).has_default_values()
+                    || scales.get_mask(DNNL_ARG_DST) == 0;
+            return src_scale_ok && wei_scale_ok && dst_scale_ok;
         }
 
         bool attr_zp_ok() const {

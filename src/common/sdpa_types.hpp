@@ -47,9 +47,9 @@ struct sdpa_desc_t : public op_desc_t {
 
     // primitive_attr_t can't be used because of deleted copy-ctor, but desc_t
     // must be copyable.
-    runtime_scales_t kq_scales {};
+    quant_entry_t kq_scales {};
     zero_points_t kq_zero_points {};
-    runtime_scales_t vs_scales {};
+    quant_entry_t vs_scales {};
     zero_points_t vs_zero_points {};
 
     memory_desc_t dst_desc {};

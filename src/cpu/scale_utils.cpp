@@ -32,7 +32,7 @@ constexpr size_t scales_simd_w = 16;
 }
 
 void book_precomputed_scales(memory_tracking::registrar_t &scratchpad,
-        const arg_scales_t &attr_scales, size_t wei_scale_count,
+        const scales_t &attr_scales, size_t wei_scale_count,
         bool force_scales_book) {
     using namespace dnnl::impl::memory_tracking::names;
 
@@ -40,13 +40,11 @@ void book_precomputed_scales(memory_tracking::registrar_t &scratchpad,
             = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
     const bool with_wei_scales
             = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
-    const auto wei_scales_dt = attr_scales.get(DNNL_ARG_WEIGHTS).data_type_;
-    const auto wei_scale_groups_ndims
-            = attr_scales.get(DNNL_ARG_WEIGHTS).ndims_;
+
     if ((with_src_scales && with_wei_scales) || force_scales_book
-            || (wei_scales_dt != data_type::f32 && with_wei_scales)
-            || (wei_scale_groups_ndims > 0 && with_wei_scales)) {
-        const int wei_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
+            || !attr_scales.has_default_data_type(DNNL_ARG_WEIGHTS)
+            || !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_groups()) {
+        const int wei_mask = attr_scales.get_mask(DNNL_ARG_WEIGHTS);
         const size_t precomputed_scales_size = wei_mask == 0
                 ? scales_simd_w
                 : nstl::max(
@@ -64,23 +62,23 @@ bool req_copy_scales(
             = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
     const bool with_wei_scales
             = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
-    const auto wei_scales_dt = attr_scales.get(DNNL_ARG_WEIGHTS).data_type_;
-    const auto wei_scale_groups_ndims
-            = attr_scales.get(DNNL_ARG_WEIGHTS).ndims_;
     return (with_src_scales && with_wei_scales) || scale_adjust_factor != 1.0f
-            || (wei_scales_dt != data_type::f32 && with_wei_scales)
-            || (wei_scale_groups_ndims > 0 && with_wei_scales);
+            || !attr_scales.has_default_data_type(DNNL_ARG_WEIGHTS)
+            || !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_groups();
 }
 
 const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
         const float *src_scales, const float *wei_scales, dim_t oc,
         const primitive_attr_t *attr, float scale_adjust_factor) {
-    // Note: per-ic-channel is no supported in default
-    const int wei_scale_mask = attr->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    // Note: per-ic-channel is no supported by default.
+    const int wei_scale_mask = attr->scales_.get_mask(DNNL_ARG_WEIGHTS);
     return precompute_scales(scratchpad, src_scales, wei_scales, 1, oc, false,
-            wei_scale_mask != 0, attr, scale_adjust_factor, false);
+            wei_scale_mask > 0, attr, scale_adjust_factor, false);
 }
 
+// Note: `wei_scale_per_ic` and `wei_scale_per_oc` could be identified in this
+// function unless different primitives have same definition of `per_ic` and
+// `per_oc` masks. Mostly, matmul is different from anybody else.
 const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
         const float *src_scales, const float *wei_scales, dim_t IC, dim_t OC,
         const bool wei_scale_per_ic, const bool wei_scale_per_oc,
@@ -96,7 +94,9 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
 
     const float *scales = nullptr;
     if (req_copy_scales(attr, scale_adjust_factor)) {
-        const int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
+        const int wei_scale_mask = attr_scales.get_mask(DNNL_ARG_WEIGHTS);
+        assert(wei_scale_mask >= 0);
+
         size_t size = 0;
         auto loc_scales
                 = scratchpad.template get<float>(key_precomputed_scales, &size);
@@ -108,12 +108,9 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
             const dim_t count = nstl::min(
                     static_cast<dim_t>(size / sizeof(float)), wei_scale_count);
             const auto wei_scale_dt
-                    = attr_scales.get(DNNL_ARG_WEIGHTS).data_type_;
-            const auto wei_scale_groups_ndims
-                    = attr_scales.get(DNNL_ARG_WEIGHTS).ndims_;
-            const auto wei_scale_groups_ic = wei_scale_groups_ndims > 0
-                    ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0]
-                    : 1;
+                    = attr_scales.get_data_type(DNNL_ARG_WEIGHTS);
+            const auto wei_scale_groups_ic
+                    = attr_scales.get_group(DNNL_ARG_WEIGHTS, 0);
             // Note: per-ic-channel scales is only supported for
             // weights decompression for now
             if ((wei_scale_per_ic && wei_scale_groups_ic > 1)

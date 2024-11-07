@@ -44,12 +44,8 @@ status_t ref_layer_normalization_fwd_t::pd_t::init_conf() {
     conf_.src_def = attr()->scales_.get(DNNL_ARG_SRC).has_default_values();
     conf_.dst_def = attr()->scales_.get(DNNL_ARG_DST).has_default_values();
 
-    conf_.scales_src_dt = conf_.src_def
-            ? data_type_t::dnnl_f32
-            : attr()->scales_.get(DNNL_ARG_SRC).data_type_;
-    conf_.scales_dst_dt = conf_.dst_def
-            ? data_type_t::dnnl_f32
-            : attr()->scales_.get(DNNL_ARG_DST).data_type_;
+    conf_.scales_src_dt = attr()->scales_.get_data_type(DNNL_ARG_SRC);
+    conf_.scales_dst_dt = attr()->scales_.get_data_type(DNNL_ARG_DST);
 
     conf_.use_scale = use_scale();
     conf_.use_shift = use_shift();

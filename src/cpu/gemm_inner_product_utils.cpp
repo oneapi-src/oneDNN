@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -161,8 +161,8 @@ pp_kernel_t::pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
               || !attr->scales_.get(DNNL_ARG_WEIGHTS).has_default_values())
     , ndims_(dst_md->ndims) {
 
-    if (do_scale_) {
-        int wei_mask = attr->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    if (!attr->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()) {
+        int wei_mask = attr->scales_.get_mask(DNNL_ARG_WEIGHTS);
         // matmul: per_oc: 1 << (ndims_ - 1)
         // ip: per_oc: 1 << 0
         scale_idx_mult_ = wei_mask == (1 << (ndims_ - 1)) || wei_mask == 1 << 0;

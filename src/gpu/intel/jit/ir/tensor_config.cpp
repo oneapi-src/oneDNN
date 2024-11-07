@@ -61,7 +61,7 @@ void init_extra_tensors(const zero_points_config_t &zp_cfg,
         int arg = scale_args[i].second;
         auto &s = attr.scales_.get(arg);
         if (s.has_default_values()) continue;
-        std::vector<dim_t> dims = {(s.mask_ == 0) ? 1 : oc};
+        std::vector<dim_t> dims = {(s.get_mask() == 0) ? 1 : oc};
         layout_t layout(type_t::f32(), 0, dims);
         int arg_key = DNNL_ARG_ATTR_SCALES | arg;
         tensor_cfg.add_tensor(scale_args[i].first, arg_key, /*is_input=*/true,

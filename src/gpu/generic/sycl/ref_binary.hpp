@@ -87,8 +87,7 @@ struct ref_binary_t : public gpu::generic::sycl::primitive_t {
             const auto &scales = attr()->scales_;
             bool dt_ok = true;
             for (auto arg : supported_args) {
-                auto &s = scales.get(arg);
-                dt_ok = dt_ok && is_supported_type(s.data_type_);
+                dt_ok = dt_ok && is_supported_type(scales.get_data_type(arg));
             }
             return dt_ok && attr_scales_ok(supported_args);
         }

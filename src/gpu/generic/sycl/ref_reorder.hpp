@@ -103,7 +103,7 @@ struct ref_reorder_t : public gpu::generic::sycl::primitive_t {
 
             const auto &scales = attr()->scales_;
             for (auto arg : supported_args) {
-                auto dt = scales.get(arg).data_type_;
+                const auto dt = scales.get_data_type(arg);
                 if (!is_supported_type(dt)) { return false; }
             }
             return true;

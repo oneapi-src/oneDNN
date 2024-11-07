@@ -23,7 +23,6 @@
 
 #include "common/c_types_map.hpp"
 #include "common/engine_id.hpp"
-#include "common/primitive_attr.hpp"
 #include "common/type_helpers.hpp"
 #include "common/verbose.hpp"
 

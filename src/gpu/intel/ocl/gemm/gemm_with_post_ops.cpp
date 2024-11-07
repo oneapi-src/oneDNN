@@ -46,7 +46,9 @@ status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
 
     const primitive_attr_t *attributes_with_po = attr();
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-        const auto &mask = attr()->scales_.get(arg).mask_;
+        if (attr()->scales_.get(arg).has_default_values()) continue;
+
+        const auto &mask = attr()->scales_.get_mask(arg);
         if (arg == DNNL_ARG_WEIGHTS && !wei_decomp)
             VDISPATCH_GEMM((mask == 0 || mask == (1 << (dst_md()->ndims - 1))),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
@@ -88,7 +90,7 @@ status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
     // Setup empty attributes but keep zero points for gemm.
     primitive_attr_t attributes_without_po = *attr();
     attributes_without_po.set_post_ops(post_ops_t());
-    attributes_without_po.scales_ = arg_scales_t();
+    attributes_without_po.scales_ = scales_t();
     attributes_without_po.zero_points_ = zero_points_t();
     int src_mask, wei_mask;
     auto zp = attributes_with_po->zero_points_;
@@ -182,10 +184,10 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("A_SCALES", with_src_scales);
     kernel_ctx.define_int("B_SCALES", with_wei_scales);
     kernel_ctx.define_int("C_SCALES", with_dst_scales);
-    def_data_type(kernel_ctx, attr_scales.get(DNNL_ARG_WEIGHTS).data_type_,
+    def_data_type(kernel_ctx, attr_scales.get_data_type(DNNL_ARG_WEIGHTS),
             "WEI_SCALES");
     def_data_type(
-            kernel_ctx, attr_scales.get(DNNL_ARG_DST).data_type_, "DST_SCALES");
+            kernel_ctx, attr_scales.get_data_type(DNNL_ARG_DST), "DST_SCALES");
     int dst_zp_mask;
     attr()->zero_points_.get(DNNL_ARG_DST, &dst_zp_mask);
     kernel_ctx.define_int("DST_ZERO_POINT",
@@ -254,7 +256,7 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
     arg_list.set(idx++, GEMM_CTX_ARG_STORAGE(a_scales));
     arg_list.set(idx++, GEMM_CTX_ARG_STORAGE(c_scales));
     arg_list.set(idx++,
-            pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ != 0 ? 1 : 0);
+            pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) > 0 ? 1 : 0);
     arg_list.set(idx, GEMM_CTX_ARG_STORAGE(c_zero_point));
     auto nd_range = pd()->dispatch_.nd_range();
     exec_status = parallel_for(ctx, nd_range, post_process_kernel_, arg_list);

@@ -104,19 +104,20 @@ attr_info_t attr_info_t::create(const primitive_attr_t *attr) {
     const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
     attr_info.with_src_scales = !src_scales.has_default_values();
     attr_info.with_src0_scale = !src_scales.has_default_values();
-    attr_info.src_scales_mask = src_scales.mask_;
 
     const auto &src1_scales = attr->scales_.get(DNNL_ARG_SRC_1);
     attr_info.with_src1_scale = !src1_scales.has_default_values();
-    gpu_assert(src1_scales.mask_ == 0);
+    if (attr_info.with_src1_scale) { gpu_assert(src1_scales.get_mask() == 0); }
 
     const auto &wei_scales = attr->scales_.get(DNNL_ARG_WEIGHTS);
     attr_info.with_wei_scales = !wei_scales.has_default_values();
-    attr_info.wei_scales_mask = wei_scales.mask_;
+    // TODO: remove the default `0` value.
+    attr_info.wei_scales_mask
+            = attr_info.with_wei_scales ? wei_scales.get_mask() : 0;
 
     const auto &dst_scales = attr->scales_.get(DNNL_ARG_DST);
     attr_info.with_dst_scales = !dst_scales.has_default_values();
-    gpu_assert(dst_scales.mask_ == 0);
+    if (attr_info.with_dst_scales) { gpu_assert(dst_scales.get_mask() == 0); }
 
     // zero points
     const auto &zp = attr->zero_points_;
@@ -823,7 +824,6 @@ status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_SRC_SCALES", attr_info.with_src_scales);
     kernel_ctx.define_int("WITH_WEI_SCALES", attr_info.with_wei_scales);
     kernel_ctx.define_int("WITH_DST_SCALES", attr_info.with_dst_scales);
-    kernel_ctx.define_int("SRC_SCALES_MASK", attr_info.src_scales_mask);
     kernel_ctx.define_int("WEI_SCALES_MASK", attr_info.wei_scales_mask);
 
     kernel_ctx.define_int("WITH_SRC_ZPOINTS", attr_info.with_src_zpoints);

@@ -133,12 +133,17 @@ status_t ip_attr_check(const inner_product_desc_t &desc, const engine_t *engine,
         // Check scales
         if (!attr->scales_.has_default_values()) {
             const auto &sc = attr->scales_;
-            const int mask_src = sc.get(DNNL_ARG_SRC).mask_;
-            const int mask_wei = sc.get(DNNL_ARG_WEIGHTS).mask_;
-            const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
-
-            VCHECK_IP_UNIMPL(utils::everyone_is(0, mask_src, mask_dst)
-                            && utils::one_of(mask_wei, 0, 1),
+            VCHECK_IP_UNIMPL(
+                    IMPLICATION(!sc.get(DNNL_ARG_SRC).has_default_values(),
+                            sc.get_mask(DNNL_ARG_SRC) == 0),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VCHECK_IP_UNIMPL(
+                    IMPLICATION(!sc.get(DNNL_ARG_WEIGHTS).has_default_values(),
+                            utils::one_of(sc.get_mask(DNNL_ARG_WEIGHTS), 0, 1)),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VCHECK_IP_UNIMPL(
+                    IMPLICATION(!sc.get(DNNL_ARG_DST).has_default_values(),
+                            sc.get_mask(DNNL_ARG_DST) == 0),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
         }
 

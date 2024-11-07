@@ -227,7 +227,8 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 auto &scale
                         = attr_1x1.scales_.get(DNNL_ARG_ATTR_POST_OP_DW | arg);
                 if (!scale.has_default_values())
-                    attr_1x1.scales_.reset(DNNL_ARG_ATTR_POST_OP_DW | arg);
+                    CHECK(attr_1x1.scales_.set(DNNL_ARG_ATTR_POST_OP_DW | arg,
+                            default_quant_entry()));
             }
             // erase post-ops after fusion as they will be handled separately
             auto &e = attr_1x1.post_ops_.entry_;

@@ -44,8 +44,7 @@ status_t ref_convolution_fwd_t::pd_t::init_conf() {
             = !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
     conf_.do_scale_dst
             = !attr()->scales_.get(DNNL_ARG_DST).has_default_values();
-    conf_.single_weight_scale
-            = attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0;
+    conf_.single_weight_scale = attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) == 0;
 
     conf_.use_data_zeropoints
             = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC_0);
@@ -109,8 +108,7 @@ status_t ref_convolution_bwd_data_t::pd_t::init_conf() {
             = !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
     conf_.do_scale_dst
             = !attr()->scales_.get(DNNL_ARG_DST).has_default_values();
-    conf_.single_weight_scale
-            = attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0;
+    conf_.single_weight_scale = attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) == 0;
 
     conf_.use_data_zeropoints
             = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC_0);
@@ -175,8 +173,7 @@ status_t ref_convolution_bwd_weights_t::pd_t::init_conf() {
             = !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
     conf_.do_scale_dst
             = !attr()->scales_.get(DNNL_ARG_DST).has_default_values();
-    conf_.single_weight_scale
-            = attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0;
+    conf_.single_weight_scale = attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) == 0;
 
     conf_.use_data_zeropoints
             = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC_0);

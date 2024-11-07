@@ -172,13 +172,20 @@ status_t deconv_attr_check(const deconvolution_desc_t &desc,
         // Check scales
         if (!attr->scales_.has_default_values()) {
             const auto &sc = attr->scales_;
-            const int mask_src = sc.get(DNNL_ARG_SRC).mask_;
-            const int mask_wei = sc.get(DNNL_ARG_WEIGHTS).mask_;
-            const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
             const bool with_groups
                     = desc.src_desc.ndims != desc.weights_desc.ndims;
-            VCHECK_DECONV_UNIMPL(utils::everyone_is(0, mask_src, mask_dst)
-                            && utils::one_of(mask_wei, 0, with_groups ? 3 : 1),
+            VCHECK_DECONV_UNIMPL(
+                    IMPLICATION(!sc.get(DNNL_ARG_SRC).has_default_values(),
+                            sc.get_mask(DNNL_ARG_SRC) == 0),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VCHECK_DECONV_UNIMPL(
+                    IMPLICATION(!sc.get(DNNL_ARG_WEIGHTS).has_default_values(),
+                            utils::one_of(sc.get_mask(DNNL_ARG_WEIGHTS), 0,
+                                    with_groups ? 3 : 1)),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VCHECK_DECONV_UNIMPL(
+                    IMPLICATION(!sc.get(DNNL_ARG_DST).has_default_values(),
+                            sc.get_mask(DNNL_ARG_DST) == 0),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
         }
 
