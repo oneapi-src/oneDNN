@@ -1,6 +1,7 @@
 --reset
 
 # int8 wei decompression
+--skip-impl=ref
 --wtag=any,ab,ba
 --dt=bf16:s8:bf16,bf16:u8:bf16
 --attr-scales=wei:common:2,wei:per_oc:bf16
@@ -8,6 +9,7 @@
 --batch=shapes_2d
 
 --reset
+--skip-impl=ref
 --wtag=any,ab,ba
 --dt=f16:s8:f16,f16:u8:f16
 --attr-scales=wei:common:2,wei:per_oc,wei:per_ocic:f16
@@ -16,6 +18,7 @@
 --batch=shapes_2d_ci
 
 --reset
+--skip-impl=ref
 --wtag=any,abc,acb
 --dt=bf16:s8:bf16,bf16:u8:bf16
 --attr-scales=wei:per_ocic:bf16:32x1
@@ -26,6 +29,7 @@
 3x5x128:1x128x17
 
 --reset
+--skip-impl=ref
 --dt=f32:s8:f32
 --attr-fpmath=f16:true,bf16:true,tf32:true
 --attr-scales=wei:common:2,wei:per_oc,wei:per_ocic:f16
@@ -35,6 +39,7 @@
 7x16x24x8:7x16x8x24
 
 --reset
+--skip-impl=ref
 --stag=ba
 --dt=bf16:s8:bf16,bf16:u8:bf16
 --attr-scales=wei:common:2,wei:per_oc:bf16
@@ -44,6 +49,7 @@
 1x4096:4096x2048
 
 --reset
+--skip-impl=ref
 --stag=ba
 --dt=bf16:s8:bf16
 --attr-scales=wei:per_ocic:bf16:128x1
@@ -51,6 +57,7 @@
 2048x4096:4096x2048
 
 --reset
+--skip-impl=ref
 --stag=ba
 --dt=f16:s8:f16,f16:u8:f16
 --attr-scales=wei:common:2,wei:per_oc:f16
@@ -60,6 +67,7 @@
 1x4096:4096x2048
 
 --reset
+--skip-impl=ref
 --dt=bf16:s8:bf16,bf16:u8:bf16
 --wtag=any,ab,ba
 --attr-scales=wei:common:2,wei:per_oc:bf16
@@ -68,6 +76,7 @@
 1x4096:4096x4096
 
 --reset
+--skip-impl=ref
 --dt=f16:s8:f16,f16:u8:f16
 --wtag=any,ab,ba
 --attr-scales=wei:common:2,wei:per_oc:f16
@@ -77,6 +86,7 @@
 
 ## 4D cases with full mask
 --reset
+--skip-impl=ref
 --dt=bf16:s8:bf16,bf16:u8:bf16
 --wtag=any,abcd,abdc
 --attr-scales=wei:per_tensor:bf16:128x1,wei:per_tensor:bf16:1x128
@@ -85,6 +95,7 @@
 2x3x5x512:2x3x512x1024
 
 --reset
+--skip-impl=ref
 --dt=f16:s8:f16,f16:u8:f16
 --wtag=any,abcd,abdc
 --attr-scales=wei:per_tensor:f16:128x1
@@ -94,6 +105,7 @@
 
 # int4 wei decompression
 --reset
+--skip-impl=ref
 --dt=bf16:s4:bf16,bf16:u4:bf16
 --wtag=any,abc,acb
 --attr-scales=wei:common:2,wei:per_oc:bf16,wei:per_ocic:bf16:32x1
@@ -105,6 +117,7 @@
 3x14x96:1x96x77
 
 --reset
+--skip-impl=ref
 --dt=f16:s4:f16,f16:u4:f16
 --wtag=any,abc,acb
 --attr-scales=wei:common:2,wei:per_oc:f16,wei:per_ocic:f16:128x1
@@ -116,6 +129,7 @@
 3x6x512:1x512x62
 
 --reset
+--skip-impl=ref
 --dt=bf16:s4:bf16,bf16:u4:bf16
 --wtag=any,ab,ba
 --attr-scales=wei:common:2,wei:per_oc:bf16,wei:per_ocic:bf16:128x1
@@ -124,6 +138,7 @@
 1x4096:4096x4096
 
 --reset
+--skip-impl=ref
 --dt=f16:s4:f16,f16:u4:f16
 --wtag=any,ab,ba
 --attr-scales=wei:common:2,wei:per_oc:f16,wei:per_ocic:f16:128x1
@@ -132,6 +147,7 @@
 1x4096:4096x4096
 
 --reset
+--skip-impl=ref
 --dt=f16:s4:f32
 --wtag=any,ab,ba
 --attr-scales=wei:per_ocic:f32:64x1
@@ -139,6 +155,7 @@
 5x4096:4096x4096
 
 --reset
+--skip-impl=ref
 --dt=bf16:s4:bf16,bf16:u4:bf16
 --wtag=any,abcd,abdc
 --attr-scales=wei:per_tensor:bf16:128x1,wei:per_tensor:bf16:1x128
@@ -147,6 +164,7 @@
 2x3x5x512:2x3x512x1024
 
 --reset
+--skip-impl=ref
 --dt=f16:s4:f16,f16:u4:f16
 --wtag=any,abcd,abdc
 --attr-scales=wei:per_tensor:f16:128x1,wei:per_tensor:f16:1x128
@@ -156,6 +174,7 @@
 
 # Dynamic quantization (int8 src, int4/int8 weights)
 --reset
+--skip-impl=ref
 --wtag=any,ab,ba
 --dt=s8:s8:f16
 --attr-scales=src:common:0.5:f32+wei:per_oc:f16

@@ -54,7 +54,8 @@ private:
             int64_t c, const dims_t &x) const;
     void split_oix(const std::string &data_format, dims_t &in, dims_t &oi,
             dims_t &x) const;
-    void broadcast(const dims_t &x, const dims_t &y, dims_t &z) const;
+    void broadcast(const dims_t &x, const dims_t &y, dims_t &z,
+            const std::string &x_str = "", const std::string &y_str = "") const;
     // Returns `pad_begin` and `pad_end` for each dimension.
     void cal_pads(dims_t &pads_begin, dims_t &pads_end,
             const deserialized_op &aop, const dims_t &spatial_dims,
