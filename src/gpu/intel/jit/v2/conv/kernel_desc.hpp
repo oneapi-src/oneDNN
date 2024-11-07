@@ -202,6 +202,9 @@ struct prefetch_desc_t {
     bool a = false;
     bool b = false;
 
+    prefetch_desc_t() = default;
+    prefetch_desc_t(int dist, bool a, bool b) : dist(dist), a(a), b(b) {}
+
     std::string str() const {
         if (!a && !b) return "x0";
         std::ostringstream oss;

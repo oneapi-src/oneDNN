@@ -465,7 +465,7 @@ private:
             ret.first->second.add_desc(d);
             for (int dist : {1, 3}) {
                 auto _d = d;
-                _d.prefetch = prefetch_desc_t {dist, true, true};
+                _d.prefetch = prefetch_desc_t(dist, true, true);
                 reset_reqs(_d);
                 _d.is_finalized = false;
                 if (!finalize_conv_desc(_d, bench_mger_.hw())) {
