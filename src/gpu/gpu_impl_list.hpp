@@ -146,6 +146,14 @@ namespace gpu {
 #define GPU_INSTANCE_INTEL_DEVMODE(...)
 #endif
 
+// Instance macros that are enabled only with DNNL_EXPERIMENTAL.
+#ifdef DNNL_EXPERIMENTAL
+#define GPU_INSTANCE_INTEL_EXPERIMENTAL(...) \
+    DNNL_GPU_INTEL_ONLY(GPU_INSTANCE(__VA_ARGS__))
+#else
+#define GPU_INSTANCE_INTEL_EXPERIMENTAL(...)
+#endif
+
 // Instance macros that are enabled only when REF is disabled
 #ifdef DNNL_DISABLE_GPU_REF_KERNELS
 #define GPU_INSTANCE_INTEL_REF(...)

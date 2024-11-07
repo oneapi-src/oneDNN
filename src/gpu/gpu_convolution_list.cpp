@@ -16,13 +16,16 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#include <mutex>
+
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/jit/binary_format.hpp"
 #include "gpu/intel/jit/conv/gen_convolution.hpp"
 #include "gpu/intel/ocl/gen9_wino_convolution.hpp"
 #include "gpu/intel/ocl/ref_convolution.hpp"
 
-#ifdef DNNL_DEV_MODE
+#ifdef DNNL_EXPERIMENTAL
+#include "common/experimental.hpp"
 #include "gpu/intel/jit/v2/conv/gen_convolution.hpp"
 #endif
 
@@ -51,28 +54,28 @@ using namespace dnnl::impl::prop_kind;
 const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         impl_list_map REG_CONV_P({
     {{forward}, {
-        GPU_INSTANCE_INTEL_DEVMODE(intel::jit::v2::conv::gen_convolution_fwd_t)
         GPU_INSTANCE_INTEL(intel::jit::gen_convolution_fwd_t)
         GPU_INSTANCE_INTEL(intel::ocl::gen9_wino_convolution_fwd_t)
         GPU_INSTANCE_INTEL_REF(intel::ocl::ref_convolution_fwd_t)
+        GPU_INSTANCE_INTEL_EXPERIMENTAL(intel::jit::v2::conv::gen_convolution_fwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_convolution_fwd_t)
         GPU_INSTANCE_AMD(amd::miopen_convolution_fwd_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_convolution_fwd_t)
         nullptr,
     }},
     {{backward_data}, REG_BWD_D_PK({
-        GPU_INSTANCE_INTEL_DEVMODE(intel::jit::v2::conv::gen_convolution_bwd_data_t)
         GPU_INSTANCE_INTEL(intel::jit::gen_convolution_bwd_data_t)
         GPU_INSTANCE_INTEL_REF(intel::ocl::ref_convolution_bwd_data_t)
+        GPU_INSTANCE_INTEL_EXPERIMENTAL(intel::jit::v2::conv::gen_convolution_bwd_data_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_convolution_bwd_data_t)
         GPU_INSTANCE_AMD(amd::miopen_convolution_bwd_data_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_convolution_bwd_data_t)
         nullptr,
     })},
     {{backward_weights}, REG_BWD_PK({
-        GPU_INSTANCE_INTEL_DEVMODE(intel::jit::v2::conv::gen_convolution_bwd_weights_t)
         GPU_INSTANCE_INTEL(intel::jit::gen_convolution_bwd_weights_t)
         GPU_INSTANCE_INTEL_REF(intel::ocl::ref_convolution_bwd_weights_t)
+        GPU_INSTANCE_INTEL_EXPERIMENTAL(intel::jit::v2::conv::gen_convolution_bwd_weights_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_convolution_bwd_weights_t)
         GPU_INSTANCE_AMD(amd::miopen_convolution_bwd_weights_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_convolution_bwd_weights_t)
@@ -80,6 +83,36 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
     })},
 });
 // clang-format on
+
+const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &
+get_impl_list_map() {
+    static std::map<pk_impl_key_t, std::vector<impl_list_item_t>> list_map;
+    static std::once_flag flag;
+    std::call_once(flag, [&] {
+        list_map = impl_list_map;
+#if (DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL) && defined(DNNL_EXPERIMENTAL)
+        if (experimental::use_gpu_conv_v2()) {
+            for (auto &kv : list_map) {
+                auto &list = kv.second;
+                int fwd_idx = impl_list_item_t::find<
+                        intel::jit::v2::conv::gen_convolution_fwd_t::pd_t>(
+                        &list[0]);
+                int bwd_d_idx = impl_list_item_t::find<
+                        intel::jit::v2::conv::gen_convolution_bwd_data_t::pd_t>(
+                        &list[0]);
+                int bwd_w_idx = impl_list_item_t::find<intel::jit::v2::conv::
+                                gen_convolution_bwd_weights_t::pd_t>(&list[0]);
+                int idx = std::max(std::max(fwd_idx, bwd_d_idx), bwd_w_idx);
+                if (idx == -1) continue;
+                auto item = list[idx];
+                list.erase(list.begin() + idx);
+                list.insert(list.begin(), item);
+            }
+        }
+#endif
+    });
+    return list_map;
+}
 
 } // namespace
 
@@ -91,9 +124,10 @@ const impl_list_item_t *get_convolution_impl_list(
             desc->prop_kind, forward_training, forward_inference);
     prop_kind_t prop_kind = is_fwd ? forward : desc->prop_kind;
 
-    const auto impl_list_it = impl_list_map.find({prop_kind});
-    return impl_list_it != impl_list_map.cend() ? impl_list_it->second.data()
-                                                : empty_list;
+    const auto impl_list_it = get_impl_list_map().find({prop_kind});
+    return impl_list_it != get_impl_list_map().cend()
+            ? impl_list_it->second.data()
+            : empty_list;
 }
 
 } // namespace gpu

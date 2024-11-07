@@ -16,10 +16,6 @@
 
 set(CMAKE_CXX_CLANG_TIDY "")
 
-if(DNNL_GPU_CONV_PLANNER)
-    set(CMAKE_CXX_STANDARD 17)
-endif()
-
 set(DIRS "codegen;conv;ir;ngen;pass;pooling;reorder;utils;v2")
 
 file(GLOB SOURCES
@@ -35,7 +31,7 @@ foreach(d ${DIRS})
 endforeach()
 
 
-if(DNNL_GPU_CONV_PLANNER)
+if(DNNL_EXPERIMENTAL)
     list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/v2/conv/planner/planner_main.cpp")
 else()
     file(GLOB planner_sources
@@ -54,11 +50,7 @@ add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
 
-if(DNNL_GPU_CONV_PLANNER)
-    if (NOT DNNL_GPU_RUNTIME STREQUAL "OCL")
-        message(FATAL_ERROR "GPU convolution planner requires OpenCL GPU runtime. "
-            "Build with -DONEDNN_GPU_RUNTIME=OCL.")
-    endif()
+if(DNNL_EXPERIMENTAL)
     add_subdirectory(v2/conv/planner)
 endif()
 

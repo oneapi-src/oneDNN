@@ -119,6 +119,8 @@ void print_header(const filter_status_t &filter_status) noexcept {
         verbose_printf("info,use batch_normalization stats one pass is %s\n",
                 experimental::use_bnorm_stats_one_pass() ? "enabled"
                                                          : "disabled");
+        verbose_printf("info,GPU convolution v2 is %s\n",
+                experimental::use_gpu_conv_v2() ? "enabled" : "disabled");
 #endif
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE

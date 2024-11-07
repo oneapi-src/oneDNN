@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,6 +31,16 @@ bool DNNL_API use_bnorm_stats_one_pass() {
     static const bool stats_onepass_algo = false;
 #endif
     return stats_onepass_algo;
+}
+
+bool use_gpu_conv_v2() {
+#ifdef DNNL_EXPERIMENTAL
+    static const bool is_enabled
+            = getenv_int_user("EXPERIMENTAL_GPU_CONV_V2", 0);
+#else
+    static const bool is_enabled = false;
+#endif
+    return is_enabled;
 }
 
 } // namespace experimental

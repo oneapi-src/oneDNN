@@ -73,9 +73,6 @@ class gen_convolution_t {
 public:
     template <typename T>
     static bool is_supported(T *pd, prop_kind_t prop) {
-        bool enable_conv_v2 = gpu_utils::dev_getenv("enable_conv_v2", false);
-        if (!enable_conv_v2) return false;
-
         // Non-trivial strides produces non-linear offset arithmetic which is
         // not yet supported.
         if (pd->is_bwd_d()
