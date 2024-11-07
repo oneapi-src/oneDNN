@@ -32,6 +32,10 @@
 #include "gpu/amd/miopen_gemm_inner_product.hpp"
 #endif
 
+#ifdef GENERIC_SYCL_KERNELS_ENABLED
+#include "gpu/generic/sycl/ref_inner_product.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -49,6 +53,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_gemm_inner_product_fwd_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_conv_inner_product_fwd_t)
         GPU_INSTANCE_AMD(amd::miopen_gemm_inner_product_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_inner_product_fwd_t)
         nullptr,
     }},
     {{backward}, REG_BWD_PK({
