@@ -175,7 +175,14 @@ void assignUniformMask(std::vector<RegisterBlock> &layout, ngen::FlagRegister fl
 // Returns true if successful; false if not all blocks in layout are compatible.
 bool assignAllDescs(std::vector<RegisterBlock> &layout);
 
+void postprocessLayout(Type T, std::vector<RegisterBlock> &layout, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy);
 
+void finalizeLayout(ngen::HW hw, Type T, std::vector<RegisterBlock> &layout, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy);
+
+void coalesceAddrs(ngen::HW hw, Type T, std::vector<RegisterBlock> &layout, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy);
+
+bool needsRemask(Type T, bool column, const std::vector<RegisterBlock> &layout,
+                 const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, bool ignoreMasks);
 #include "internal/namespace_end.hxx"
 
 #endif /* header guard */
