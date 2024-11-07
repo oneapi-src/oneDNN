@@ -178,10 +178,10 @@ public:
         }
         key_idxs.push_back(parts.size());
         std::unordered_map<std::string, std::vector<std::string>> k2v;
-        for (int i = 0; i < (int)key_idxs.size() - 1; i++) {
-            int cur = key_idxs[i];
-            int next = key_idxs[i + 1];
-            for (int j = cur + 1; j < next; j++) {
+        for (size_t i = 0; i < key_idxs.size() - 1; i++) {
+            size_t cur = key_idxs[i];
+            size_t next = key_idxs[i + 1];
+            for (size_t j = cur + 1; j < next; j++) {
                 set(parts[cur], parts[j]);
             }
         }

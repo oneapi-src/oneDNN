@@ -124,10 +124,10 @@ model_t model_fit(const vec2d &X, const vec1d &y, bool verbose = false) {
     model_params_t params;
     // Empirically-based parameter ranges.
     params.add("T0", 1000, 1, 100000);
-    params.add("a_kl", 1, 0.0001, 100);
-    params.add("b_kl", 1, 0.0001, 100);
+    params.add("a_kl", 1, 0.0001f, 100);
+    params.add("b_kl", 1, 0.0001f, 100);
     params.add("a_wp", 2, 1, 100);
-    params.add("b_wp", 1, 0.0001, 100);
+    params.add("b_wp", 1, 0.0001f, 100);
     int nparams = params.size();
     // Perform a coordinate descent search optimizing one parameter at a time.
     // The goal is to maximize R2. See conv/model.cpp file for more details on

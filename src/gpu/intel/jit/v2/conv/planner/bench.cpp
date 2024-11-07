@@ -34,9 +34,11 @@
 
 using namespace dnnl;
 
+#ifndef DNNL_EXPERIMENTAL_PROFILING
 extern "C" dnnl_status_t dnnl_reset_profiling(dnnl_stream_t stream);
 extern "C" dnnl_status_t dnnl_query_profiling_data(dnnl_stream_t stream,
         int32_t data_kind, int *num_entries, uint64_t *data);
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -356,17 +358,17 @@ private:
     memory::dim ph, pw;
 };
 
-int random(int a, int b) {
+dim_t random(dim_t a, dim_t b) {
     return a + rand() % (b - a + 1);
 }
 
 struct random_dim_t {
-    int lo = 0;
-    int hi = 0;
-    int tile = 0;
+    dim_t lo = 0;
+    dim_t hi = 0;
+    dim_t tile = 0;
 
-    random_dim_t(const pvar_t &dim, int _tile) : tile(_tile) {}
-    random_dim_t with_range(int _lo, int _hi) {
+    random_dim_t(const pvar_t &dim, dim_t _tile) : tile(_tile) {}
+    random_dim_t with_range(dim_t _lo, dim_t _hi) {
         auto ret = *this;
         ret.lo = utils::div_up(_lo, tile);
         ret.hi = _hi / tile;
@@ -374,7 +376,7 @@ struct random_dim_t {
     }
     explicit operator bool() const { return lo <= hi; }
     bool with_tile() const { return tile > 1; }
-    int operator()() const {
+    dim_t operator()() const {
         ir_assert(*this);
         return random(lo, hi) * tile;
     }
@@ -392,10 +394,10 @@ struct random_dim_set_t {
         ret.dims.insert(ret.dims.end(), other.dims.begin(), other.dims.end());
         return ret;
     }
-    int size() const { return (int)dims.size(); }
+    size_t size() const { return dims.size(); }
     bool with_tile() const { return dims[0].with_tile(); }
-    int operator()() const {
-        int idx = random(0, size() - 1);
+    dim_t operator()() const {
+        dim_t idx = random(0, static_cast<dim_t>(size()) - 1);
         return dims[idx]();
     }
 };
@@ -406,17 +408,18 @@ random_dim_set_t operator|(const random_dim_t &a, const random_dim_set_t &b) {
 
 pvar_tile_t random_shape(
         prop_kind_t prop, bool is_dw, const pvar_tile_t &tile) {
-    auto make_random_dim = [&](const pvar_t &dim, int lo = 0, int hi = 0) {
+    auto make_random_dim = [&](const pvar_t &dim, dim_t lo = 0, dim_t hi = 0) {
         auto ret = random_dim_t(dim, tile.get(dim, 1));
         return ret.with_range(lo, hi);
     };
-    auto make_random_dim_set = [&](const pvar_t &dim, int s, int m, int l) {
-        auto d = make_random_dim(dim);
-        auto d_s = d.with_range(1, s);
-        auto d_m = d.with_range(s + 1, m);
-        auto d_l = d.with_range(m + 1, l);
-        return d_s | d_m | d_l;
-    };
+    auto make_random_dim_set
+            = [&](const pvar_t &dim, dim_t s, dim_t m, dim_t l) {
+                  auto d = make_random_dim(dim);
+                  auto d_s = d.with_range(1, s);
+                  auto d_m = d.with_range(s + 1, m);
+                  auto d_l = d.with_range(m + 1, l);
+                  return d_s | d_m | d_l;
+              };
     pvar_tile_t s = problem_t::default_shape();
     auto g = make_random_dim(pvars::g, 2, 512);
     auto mb = make_random_dim_set(pvars::mb, 1, 16, 128);
@@ -474,7 +477,8 @@ std::vector<problem_t> generate_problems(const bench_input_params_t &params) {
     const double max_ops = 1e10;
     const double max_bytes = 100e6;
     auto tile = expand_tile(params.prop, params.reqs, params.tile);
-    srand(ir_utils::get_hash(params.reqs.str()));
+    srand(static_cast<unsigned>(
+            ir_utils::get_hash(params.reqs.str()) & 0xFFFFFFFFu));
     std::vector<problem_t> ret;
     const int max_iters = (1 << 24);
     for (int iter = 0; iter < max_iters; iter++) {
