@@ -486,10 +486,9 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     problem_.cStochasticRound = dst_sround;
 
     // Select a kernel from the catalog.
-    MatchParams match_params[4];
-    int npatterns = 1;
+    std::vector<MatchParams> match_params;
 
-    match_params[0] = MatchParams(hw_, has_systolic, is_integrated, problem_);
+    match_params.emplace_back(hw_, has_systolic, is_integrated, problem_);
 
     match_params[0].sizes.m = m;
     match_params[0].sizes.n = n;
@@ -512,22 +511,19 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         if (!has_mode) return;
         auto &def = match_params[0].selector.precisions;
         if (match(problem_.Ta)) {
-            match_params[npatterns] = match_params[0];
-            match_params[npatterns].selector.precisions[0] = match(problem_.Ta);
-            match_params[npatterns].selector.precisions[1] = def[1];
-            npatterns++;
+            match_params.emplace_back(match_params[0]);
+            match_params.back().selector.precisions[0] = match(problem_.Ta);
+            match_params.back().selector.precisions[1] = def[1];
         }
         if (match(problem_.Tb)) {
-            match_params[npatterns] = match_params[0];
-            match_params[npatterns].selector.precisions[0] = def[0];
-            match_params[npatterns].selector.precisions[1] = match(problem_.Tb);
-            npatterns++;
+            match_params.emplace_back(match_params[0]);
+            match_params.back().selector.precisions[0] = def[0];
+            match_params.back().selector.precisions[1] = match(problem_.Tb);
         }
         if (match(problem_.Ta) && match(problem_.Tb)) {
-            match_params[npatterns] = match_params[0];
-            match_params[npatterns].selector.precisions[0] = match(problem_.Ta);
-            match_params[npatterns].selector.precisions[1] = match(problem_.Tb);
-            npatterns++;
+            match_params.emplace_back(match_params[0]);
+            match_params.back().selector.precisions[0] = match(problem_.Ta);
+            match_params.back().selector.precisions[1] = match(problem_.Tb);
         }
     };
 
@@ -564,8 +560,8 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     eval_params.batch = (batch_dims > 0);
     eval_params.deterministic = (mode & mode_deterministic);
 
-    entry_ = select(
-            gemm_catalog, npatterns, match_params, eval_params, aux_params_);
+    entry_ = select(gemm_catalog, static_cast<int>(match_params.size()),
+            match_params.data(), eval_params, aux_params_);
 
     if (!entry_) return status::unimplemented;
 
