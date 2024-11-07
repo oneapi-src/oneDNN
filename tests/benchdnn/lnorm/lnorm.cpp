@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2024 Intel Corporation
+* Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -635,10 +636,14 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
     std::vector<data_kind_t> check_kinds;
     if (prb->dir & FLAG_FWD) {
+// ACL lnorm does not return mean and variance, so these tests would fail
+// even if the normalization layer worked correctly
+#if !(DNNL_AARCH64_USE_ACL)
         if (!(prb->flags & GLOB_STATS) && !(prb->dir & FLAG_INF)) {
             check_kinds.push_back(MEAN);
             check_kinds.push_back(VAR);
         }
+#endif
         check_kinds.push_back(DST);
     } else {
         if (prb->dir & FLAG_WEI) {
