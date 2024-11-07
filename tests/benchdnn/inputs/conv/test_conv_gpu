@@ -1,5 +1,11 @@
 --reset
 
+# Test v2 implementation
+--batch=option_set_v2
+--impl=v2
+--batch=option_set_v2
+--reset
+
 # f32
 --dt=f32
 --mb=2,16
