@@ -322,8 +322,10 @@ void jit_eltwise_injector_f32<hw>::sround_compute_fwd(int simd,
             Immediate::uv(8, 9, 10, 11, 12, 13, 14, 15));
     h->add(16, bias.ud(), bias.uw(), Immediate::ud(base_idx));
 
-    const int dst_dt_digits = dnnl::impl::types::digits<uint32_t>(
+    const uint32_t dst_dt_digits = dnnl::impl::types::digits<uint32_t>(
             convert_ngen_type_to_dnnl(dst_dt));
+    assert(dst_dt_digits <= 24);
+
     data_type_t dnnl_t = to_dnnl(to_ir(dst_dt));
     const float f_min = types::min_value<float>(dnnl_t);
     const float max = types::max_value<float>(dnnl_t);

@@ -52,6 +52,11 @@ uchar philox_16x8(long idx, uint seed) {
 }
 
 #if WITH_SROUND
+
+#if DST_DT_DIGITS > 24
+#error "Invalid dst digits"
+#endif
+
 float stochastic_round_fwd(float s, long idx, uint seed) {
     if (isnan(s) || isinf(s)) return s;
     uint truncation_mask = 0xffffffff << (24 - DST_DT_DIGITS);
