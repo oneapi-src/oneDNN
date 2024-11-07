@@ -46,6 +46,8 @@ private:
 
 protected:
     void SetUp() override {
+        SKIP_IF_CUDA(
+                true, "Group Normalization operator is not supported in CUDA");
         SKIP_IF_HIP(
                 true, "Group Normalization operator is not supported in HIP");
         SKIP_IF_GENERIC(true,

@@ -432,6 +432,9 @@ TEST_F(attr_quantization_test_t, TestLRN) {
 }
 
 TEST_F(attr_quantization_test_t, TestMatmul) {
+    // cuDNN doesn't support zero points
+    SKIP_IF_CUDA(true, "Test not supported on cuda");
+
     for (auto a_dt : {data_type::f32, data_type::u8}) {
         const data_type b_dt
                 = a_dt == data_type::f32 ? data_type::f32 : data_type::s8;

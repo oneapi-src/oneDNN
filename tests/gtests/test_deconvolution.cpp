@@ -312,10 +312,10 @@ protected:
         auto aa = allows_attr_t {false};
 
 #ifndef DNNL_SYCL_GENERIC
-        aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
-        aa.po_eltwise = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
-        aa.po_prelu = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
-        aa.po_sum = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_binary = !is_amd_gpu(eng);
+        aa.po_eltwise = !is_amd_gpu(eng);
+        aa.po_prelu = !is_amd_gpu(eng);
+        aa.po_sum = !is_amd_gpu(eng);
 #else
         aa.po_eltwise = true;
         aa.po_sum = true;

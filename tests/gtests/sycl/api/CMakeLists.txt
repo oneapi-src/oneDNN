@@ -24,12 +24,12 @@ register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "dnnl_gtest")
 # so they need to be compiled with the correct device triple
 if(DNNL_WITH_SYCL)
     if(DNNL_SYCL_GENERIC)
-        CHECK_CXX_COMPILER_FLAG("-fsycl -fsycl-targets=nvptx64-nvidia-cuda" NVIDIA_TARGET_SUPPORTED)
+        CHECK_CXX_COMPILER_FLAG("-fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64" NVIDIA_TARGET_SUPPORTED)
     endif()
 
     # Enable linking SYCL kernels.
     if(DNNL_SYCL_CUDA OR (DNNL_SYCL_GENERIC AND NVIDIA_TARGET_SUPPORTED))
-        append(CMAKE_CXX_FLAGS "-fsycl-targets=nvptx64-nvidia-cuda")
+        append(CMAKE_CXX_FLAGS "-fsycl-targets=nvptx64-nvidia-cuda,spir64")
         append(CMAKE_CXX_FLAGS "-Wno-linker-warnings")
     endif()
 
