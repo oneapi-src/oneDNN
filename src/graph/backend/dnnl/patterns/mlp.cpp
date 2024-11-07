@@ -65,15 +65,15 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gated_mlp)
                     auto act = pgraph->append_optional(
                             alt_graph, in_edges_t {in_edge(0, fc_gt, 0)});
 
-                    // multiplication
+                    // binary: add/div/mul/sub
                     in_edges_t edges
                             = {in_edge(0, act, 0), in_edge(1, fc_up, 0)};
-                    auto mul = pgraph->append_op(
-                            graph::op_kind::Multiply, edges);
+                    auto bin = pgraph->append_alternation(
+                            get_binary_ops(), edges);
 
                     // fc_down
                     pgraph->append_op(graph::op_kind::MatMul,
-                            in_edges_t {in_edge(0, mul, 0)});
+                            in_edges_t {in_edge(0, bin, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<larger_partition_kernel_t>();
@@ -99,15 +99,15 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gated_mlp_v1)
                     pm::pb_op_t *swish_mul = pgraph->append_op(
                             graph::op_kind::Multiply, swish_mul_edges);
 
-                    // multiplication
+                    // binary: add/div/mul/sub
                     in_edges_t edges
                             = {in_edge(0, swish_mul, 0), in_edge(1, fc_up, 0)};
-                    auto mul = pgraph->append_op(
-                            graph::op_kind::Multiply, edges);
+                    auto bin = pgraph->append_alternation(
+                            get_binary_ops(), edges);
 
                     // fc_down
                     pgraph->append_op(graph::op_kind::MatMul,
-                            in_edges_t {in_edge(0, mul, 0)});
+                            in_edges_t {in_edge(0, bin, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<larger_partition_kernel_t>();
