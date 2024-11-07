@@ -81,9 +81,8 @@ struct acl_layer_normalization_fwd_t : public primitive_t {
             // dir and flags
             ACL_CHECK_SUPPORT(
                     !is_fwd(), "ACL lnorm supports forward propagation only");
-            ACL_CHECK_SUPPORT(is_training() && use_global_stats(),
-                    "ACL only supports forward training with lnorm if stats "
-                    "are not provided (do not use global stats)");
+            ACL_CHECK_SUPPORT(use_global_stats(),
+                    "ACL does not support global stats with lnorm");
             ACL_CHECK_SUPPORT(use_scale() || use_shift(),
                     "ACL does not support lnorm scale and shift");
 
