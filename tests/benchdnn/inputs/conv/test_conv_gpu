@@ -138,6 +138,14 @@ mb128ic3ih230oc64oh112kh7sh2ph0
 --batch=set_gpu
 --batch=shapes_basic_gpu
 
+# fp8 Stochastic Rounding
+--reset
+--dt=f8_e5m2,f8_e4m3
+--mb=2,16
+--dir=FWD_B
+--attr-rounding-mode=dst:stochastic
+--batch=shapes_basic_gpu
+
 # dw gen9 fwd conv
 --reset
 --dt=f16,f16:f16:s8
