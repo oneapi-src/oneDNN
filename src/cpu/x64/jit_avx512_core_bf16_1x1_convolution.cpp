@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -179,6 +179,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
     const bool is_src_layout_nxc = utils::one_of(
             jcp.src_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
 
+    auto start_off = dst_d.off_l(0);
+
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
         return remaining < tail_step ? remaining : default_step;
@@ -267,7 +269,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
                 : rnd_up((jcp.load_dim / grp_count), jcp.load_block);
         const size_t str_size = jcp.bcast_dim * max_load_per_thread;
         p.store_buffer = store_buffer + ithr * str_size
-                + data_blk_off(dst_d, 0, 0, od, oh, ow);
+                + data_blk_off(dst_d, 0, 0, od, oh, ow) - start_off;
 
         p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
         p.dst_orig = static_cast<const char *>(p.output_data)

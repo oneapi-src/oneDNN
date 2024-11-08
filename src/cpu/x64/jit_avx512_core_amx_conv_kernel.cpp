@@ -2390,7 +2390,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         CHECK(memory_desc_init_by_tag(src_md, dat_tag_opt));
         jcp.src_tag = dat_tag_opt;
     } else
-        jcp.src_tag = src_d.matches_one_of_tag(dat_tag_alt, dat_tag_opt);
+        jcp.src_tag = src_d.mb_stride_relaxed_match(dat_tag_alt, dat_tag_opt);
 
     VDISPATCH_CONV_IC(one_of(jcp.src_tag, dat_tag_alt, dat_tag_opt),
             VERBOSE_UNSUPPORTED_TAG_S, "src");
@@ -2405,7 +2405,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         CHECK(memory_desc_init_by_tag(dst_md, jcp.src_tag));
         jcp.dst_tag = jcp.src_tag;
     } else
-        jcp.dst_tag = dst_d.matches_one_of_tag(jcp.src_tag);
+        jcp.dst_tag = dst_d.mb_stride_relaxed_match(jcp.src_tag);
 
     VDISPATCH_CONV_IC(jcp.dst_tag == jcp.src_tag, VERBOSE_UNSUPPORTED_TAG);
 

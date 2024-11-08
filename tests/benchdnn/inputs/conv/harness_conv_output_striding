@@ -1,0 +1,152 @@
+# This file tests convolution output striding in order to eliminate concat operation
+
+## SqueezeNet 1.1
+### kernel: 1x1 impl: jit
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=3200x1x160x16::12800x1x640x64
+ic16oc64iw10ih10ow10oh10kh1kw1ph0
+
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=6400x1x320x32::25600x1x1280x128
+ic32oc128iw10ih10ow10oh10kh1kw1ph0
+
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=9600x1x480x48::38400x1x1920x192
+ic48oc192iw10ih10ow10oh10kh1kw1ph0
+
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=12800x1x640x64::51200x1x2560x256
+ic64oc256iw10ih10ow10oh10kh1kw1ph0
+
+### kernel: 3x3 impl: jit
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=3200x1x160x16::8192x1x512x64
+ic16oc64iw10ih10ow8oh8kh3kw3ph0
+
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=6400x1x320x32::16384x1x1024x128
+ic32oc128iw10ih10ow8oh8kh3kw3ph0
+
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=9600x1x480x48::24576x1x1536x192
+ic48oc192iw10ih10ow8oh8kh3kw3ph0
+
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=12800x1x640x64::32768x1x2048x256
+ic64oc256iw10ih10ow8oh8kh3kw3ph0
+
+### kernel: 5x5 impl: jit
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=3200x1x160x16::4608x1x384x64
+ic16oc64iw10ih10ow6oh6kh5kw5ph0
+
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=6400x1x320x32::9216x1x768x128
+ic32oc128iw10ih10ow6oh6kh5kw5ph0
+
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=9600x1x480x48::13824x1x1152x192
+ic48oc192iw10ih10ow6oh6kh5kw5ph0
+
+--reset --dt=f32,bf16,u8:s8:s32
+--skip-impl=ref,brg
+--mb=1,4
+--strides=12800x1x640x64::18432x1x1536x256
+ic64oc256iw10ih10ow6oh6kh5kw5ph0
+
+### kernel: 1x1 impl: brg
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=3200x1x160x16::12800x1x640x64
+ic16oc64iw10ih10ow10oh10kh1kw1ph0
+
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=6400x1x320x32::25600x1x1280x128
+ic32oc128iw10ih10ow10oh10kh1kw1ph0
+
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=9600x1x480x48::38400x1x1920x192
+ic48oc192iw10ih10ow10oh10kh1kw1ph0
+
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=12800x1x640x64::51200x1x2560x256
+ic64oc256iw10ih10ow10oh10kh1kw1ph0
+
+### kernel: 3x3 impl: brg
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=3200x1x160x16::8192x1x512x64
+ic16oc64iw10ih10ow8oh8kh3kw3ph0
+
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=6400x1x320x32::16384x1x1024x128
+ic32oc128iw10ih10ow8oh8kh3kw3ph0
+
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=9600x1x480x48::24576x1x1536x192
+ic48oc192iw10ih10ow8oh8kh3kw3ph0
+
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=12800x1x640x64::32768x1x2048x256
+ic64oc256iw10ih10ow8oh8kh3kw3ph0
+
+### kernel: 5x5 impl: brg
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=3200x1x160x16::4608x1x384x64
+ic16oc64iw10ih10ow6oh6kh5kw5ph0
+
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=6400x1x320x32::9216x1x768x128
+ic32oc128iw10ih10ow6oh6kh5kw5ph0
+
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=9600x1x480x48::13824x1x1152x192
+ic48oc192iw10ih10ow6oh6kh5kw5ph0
+
+--reset --dt=f32,f16,bf16,u8:s8:s32
+--skip-impl=ref,jit
+--mb=1,4
+--strides=12800x1x640x64::18432x1x1536x256
+ic64oc256iw10ih10ow6oh6kh5kw5ph0
