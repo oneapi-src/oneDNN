@@ -156,7 +156,7 @@ struct acl_lowp_matmul_sq_t : public primitive_t {
                     arm_compute::TensorShape(N(), K()), 1,
                     acl_utils::get_acl_data_t(wei_d.data_type(), true),
                     arm_compute::QuantizationInfo(1.0, 0, true));
-            almc_.wei_tensor_info.set_are_values_constant(false);
+            almc_.wei_tensor_info.set_are_values_constant(true);
 
             almc_.dst_tensor_info = arm_compute::TensorInfo(
                     arm_compute::TensorShape(N(), M()), 1,
