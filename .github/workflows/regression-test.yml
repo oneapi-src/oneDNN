@@ -1,0 +1,157 @@
+# *******************************************************************************
+# Copyright 2025 Arm Limited and affiliates.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# *******************************************************************************
+
+name: "Regression test"
+
+#* To avoid duplicate jobs running when both push and PR is satisfied, we use this:
+#* https://github.com/orgs/community/discussions/26940#discussioncomment-5686753
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+#* Stop stale workflows when pull requests are updated: https://stackoverflow.com/a/70972844
+#* Does not apply to the main branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+
+# Declare default permissions as read only.
+permissions: read-all
+
+jobs:
+  # We only run the linux aarch64 runners if macos smoke tests pass.
+  linux:
+    strategy:
+      matrix:
+        config: [
+          { name: c7g, label: ah-ubuntu_22_04-c7g_4x-50, threading: OMP, toolset: gcc, build: Release, testset: CI }
+        ]
+
+    name: ${{ matrix.config.name }}, ${{ matrix.config.toolset }}, ${{ matrix.config.threading }}, ${{ matrix.config.build }}
+    runs-on: ${{ matrix.config.label }}
+    steps:
+
+      - name: Checkout oneDNN
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: oneDNN
+
+      - name: Get latest CMake and Ninja
+        uses: lukka/get-cmake@8567b9d9b63052b8430ef30042e13c3ba5288f16 # v3.31.3
+        with:
+          cmakeVersion: 3.31.0
+          ninjaVersion: 1.12.0
+
+      - if: ${{ (startsWith(matrix.config.label,'ah-ubuntu') && (matrix.config.threading == 'OMP')) }}
+        name: Install openmp
+        run: |
+          sudo apt install -y libomp-dev
+
+      - if: ${{ (startsWith(matrix.config.label,'ah-ubuntu') && (matrix.config.toolset == 'gcc')) }}
+        name: Install gcc
+        run: |
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+          sudo apt update -y
+          sudo apt install -y g++-13
+
+      - if: ${{ (startsWith(matrix.config.label,'ah-ubuntu') && (matrix.config.toolset == 'clang')) }}
+        name: Install clang
+        uses: KyleMayes/install-llvm-action@e0a8dc9cb8a22e8a7696e8a91a4e9581bec13181
+        with:
+          version: "17"
+
+      - name: Clone ACL
+        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
+        env:
+          ACL_ACTION: clone
+          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
+          ACL_VERSION: v24.11.1
+
+      - name: Get ACL commit hash for cache key
+        id: get_acl_commit_hash
+        run: (cd ${{ github.workspace }}/ComputeLibrary && echo "ACLCommitHash=$(git rev-parse --short HEAD)") >> $GITHUB_OUTPUT
+
+      - name: Get system name
+        id: get_system_name
+        run: (echo "SystemName=$(uname)") >> $GITHUB_OUTPUT
+
+      - name: Restore cached ACL
+        id: cache-acl-restore
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.config.toolset }}-${{ matrix.config.build }}-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
+          path: ${{ github.workspace }}/ComputeLibrary/build
+
+      - name: Configure ACL
+        if:  ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
+        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
+        env:
+          ACL_ACTION: configure
+          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
+          ACL_THREADING: ${{ matrix.config.threading }}
+          BUILD_TOOLSET: ${{ matrix.config.toolset }}
+          CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
+          CMAKE_GENERATOR: Ninja
+          GCC_VERSION: 13
+
+      - name: Build ACL
+        if:  ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
+        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
+        env:
+          ACL_ACTION: build
+
+      - name: Save ACL in cache
+        if:  ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
+        id: cache-acl_build-save
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.cache-acl-restore.outputs.cache-primary-key }}
+          path: ${{ github.workspace }}/ComputeLibrary/build
+
+      - name: Configure oneDNN
+        run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
+        working-directory: ${{ github.workspace }}/oneDNN
+        env:
+          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
+          BUILD_TOOLSET: ${{ matrix.config.toolset }}
+          CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
+          CMAKE_GENERATOR: Ninja
+          GCC_VERSION: 13
+          ONEDNN_ACTION: configure
+          ONEDNN_TEST_SET: ${{ matrix.config.testset }}
+          ONEDNN_THREADING: ${{ matrix.config.threading }}
+
+      - name: Build oneDNN
+        run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
+        working-directory: ${{ github.workspace }}/oneDNN
+        env:
+          ONEDNN_ACTION: build
+
+      - shell: bash
+        run: |
+          OMP_NUM_THREADS=4 ${{ github.workspace }}/oneDNN/tests/regression/bench_regression.sh > 4_threads.txt
+
+      - name: Upload regression test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BRANCH_NAME }}_4_threads
+          path: 4_threads.txt
+        
