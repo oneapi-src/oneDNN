@@ -111,6 +111,11 @@ jobs:
         with:
           version: ${{ fromJson(steps.get-versions.outputs.output).dependencies.clang }}
 
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
       - name: Clone ACL
         run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build_acl.sh
         env:
@@ -161,6 +166,79 @@ jobs:
           CTEST_PARALLEL_LEVEL: 6
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
           ONEDNN_THREADING: ${{ matrix.config.threading }}
+
+      ## Regression test steps ##
+      - name: Checkout oneDNN main
+        if: ${{ matrix.config.build == 'Release' }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          path: oneDNN_main
+
+      # TODO :: Create separate pipeline to cache oneDNN main
+      - name: Configure oneDNN main
+        if: ${{ matrix.config.build == 'Release' }}
+        run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
+        working-directory: ${{ github.workspace }}/oneDNN_main
+        env:
+          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
+          BUILD_TOOLSET: ${{ matrix.config.toolset }}
+          CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
+          CMAKE_GENERATOR: Ninja
+          GCC_VERSION: 13
+          ONEDNN_ACTION: configure
+          ONEDNN_TEST_SET: ${{ matrix.config.testset }}
+          ONEDNN_THREADING: ${{ matrix.config.threading }}
+
+      - name: Build oneDNN main
+        if: ${{ matrix.config.build == 'Release' }}
+        run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
+        working-directory: ${{ github.workspace }}/oneDNN_main
+        env:
+          ONEDNN_ACTION: build
+
+      - shell: bash
+        if: ${{ matrix.config.build == 'Release' }}
+        run: |
+          bash ${{ github.workspace }}/oneDNN/tests/regression/consistency_check.sh ${{ github.workspace }}/oneDNN_main/build/tests/benchdnn/benchdnn > consistency_1.txt
+          bash ${{ github.workspace }}/oneDNN/tests/regression/consistency_check.sh ${{ github.workspace }}/oneDNN_main/build/tests/benchdnn/benchdnn > consistency_2.txt
+        env:
+          OMP_NUM_THREADS: 4
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
+
+      - name: Compare consistency check results
+        if: ${{ matrix.config.build == 'Release' }}
+        id: consistency-check
+        continue-on-error: true
+        run: python ${{ github.workspace }}/oneDNN/tests/regression/benchdnn_comparison.py consistency_1.txt consistency_2.txt
+
+      - shell: bash
+        if: ${{ matrix.config.build == 'Release' }}
+        run: |
+          OMP_NUM_THREADS=4 bash ${{ github.workspace }}/oneDNN/tests/regression/bench_regression.sh ${{ github.workspace }}/oneDNN_main/build/tests/benchdnn/benchdnn >> main.txt
+          OMP_NUM_THREADS=4 bash ${{ github.workspace }}/oneDNN/tests/regression/bench_regression.sh ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn >> new.txt
+          OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/tests/regression/bench_regression.sh ${{ github.workspace }}/oneDNN_main/build/tests/benchdnn/benchdnn >> main.txt
+          OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/tests/regression/bench_regression.sh ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn >> new.txt
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
+
+      - name: Compare regression test results
+        if: ${{ matrix.config.build == 'Release' }}
+        id: regression-test
+        continue-on-error: true
+        run: python ${{ github.workspace }}/oneDNN/tests/regression/benchdnn_comparison.py main.txt new.txt
+
+      - name: Check consistency-check failure
+        if: ${{ matrix.config.build == 'Release' && steps.consistency-check.outputs.pass != 'True' && steps.regression-test.outputs.pass != 'True' }}
+        run: |
+          echo "::warnings title=consistency-check-failure::consistency check on main failed, ignoring regression test results!"
+      
+      - name: Check regression test failure
+        if: ${{ matrix.config.build == 'Release' && steps.consistency-check.outputs.pass == 'True' && steps.regression-test.outputs.pass != 'True' }}
+        run: |
+          echo "::error title=regression-test-failure::some regression tests failed. Check the compare regression test results step for more details!"
+          exit 1
+  
   # This job adds a check named "CI AArch64" that represents overall
   # workflow status and can be used in branch rulesets
   status:
