@@ -55,6 +55,10 @@ struct jit_brgemm_matmul_copy_a_impl_t : public jit_brgemm_matmul_copy_a_t,
                   conf_->has_zero_point_b && !conf_->with_wei_decompression)
         , avx512_core_dot_product_(
                   do_compute_compensation_ && !isa_has_int8_vnni(conf->isa))
+        // See the note in `create_brgemm_matmul_copy_b` why `orig_src_dt` used.
+        , use_fp16_instructions_(conf_->isa == avx512_core_fp16
+                  && conf_->orig_src_dt == data_type::f16
+                  && conf_->src_dt == data_type::f32)
         , k_loop_unroll_(is_ymm_ ? 7 : 16)
         , vmm_copy_idx_(is_ymm_                      ? 13
                           : avx512_core_dot_product_ ? 27
@@ -80,6 +84,7 @@ private:
     const dim_t tr_src_stride_;
     const bool do_compute_compensation_;
     const bool avx512_core_dot_product_;
+    const bool use_fp16_instructions_;
 
     const int k_loop_unroll_;
     const int vmm_copy_idx_;
@@ -151,14 +156,11 @@ private:
 template <>
 void jit_brgemm_matmul_copy_a_impl_t<Zmm>::load_vmm(int idx, int offset) {
     const auto addr = EVEX_compress_addr(reg_src, offset);
-    if (conf_->isa == avx512_core_fp16
-            && (conf_->orig_wei_dt == data_type::f16
-                    || conf_->is_f16_with_int_wei)) {
-        // See the note in `create_brgemm_matmul_copy_b` why `orig_wei_dt`
-        // is used.
+    if (use_fp16_instructions_) {
         vcvtph2psx(get_vmm_copy(idx), addr);
-    } else
+    } else {
         vmovdqu8(get_vmm_copy(idx), addr);
+    }
 }
 
 template <>
@@ -190,13 +192,8 @@ void jit_brgemm_matmul_copy_a_impl_t<Zmm>::load_tail(
         }
     };
 
-    // See the note in `create_brgemm_matmul_copy_b` why `orig_wei_dt` is used.
-    const size_t dt_step = conf_->is_bf32
-                    || (conf_->isa == avx512_core_fp16
-                            && (conf_->orig_wei_dt == data_type::f16
-                                    || conf_->is_f16_with_int_wei))
-            ? 1
-            : typesize_;
+    const size_t dt_step
+            = conf_->is_bf32 || use_fp16_instructions_ ? 1 : typesize_;
     const size_t tail_mask_load = size_t(((size_t)1 << (dt_step * k_tail)) - 1);
     kmovx(kTail_load, tail_mask_load);
     const int k_tail_st = rnd_up(k_tail, vnni_granularity_);
@@ -211,11 +208,7 @@ void jit_brgemm_matmul_copy_a_impl_t<Zmm>::load_tail(
     auto load_addr = EVEX_compress_addr(reg_src, offset * typesize_);
     if (conf_->is_bf32)
         vmovups(zmm_tail, load_addr);
-    else if (conf_->isa == avx512_core_fp16
-            && (conf_->orig_wei_dt == data_type::f16
-                    || conf_->is_f16_with_int_wei))
-        // See the note in `create_brgemm_matmul_copy_b` why `orig_wei_dt`
-        // is used.
+    else if (use_fp16_instructions_)
         vcvtph2psx(zmm_tail, load_addr);
     else
         vmovdqu8(zmm_tail, load_addr);
@@ -236,11 +229,7 @@ void jit_brgemm_matmul_copy_a_impl_t<Zmm>::store_tail(
         Ymm ymm_downcvt_bf16 = Ymm(get_vmm_copy(0).getIdx());
         vcvtneps2bf16(ymm_downcvt_bf16, get_vmm_copy(0));
         vmovdqu16(tr_src_addr, ymm_downcvt_bf16 | kTail_store);
-    } else if (conf_->isa == avx512_core_fp16
-            && (conf_->orig_wei_dt == data_type::f16
-                    || conf_->is_f16_with_int_wei)) {
-        // See the note in `create_brgemm_matmul_copy_b` why `orig_wei_dt`
-        // is used.
+    } else if (use_fp16_instructions_) {
         vmovups(tr_src_addr, get_vmm_copy(0) | kTail_store);
     } else
         vmovdqu8(tr_src_addr, get_vmm_copy(0) | kTail_store);
@@ -557,7 +546,11 @@ struct jit_brgemm_matmul_copy_a_transposed_impl_t
         , k_loop_dst_shift(rows_step * tr_typesize)
         , is_f32(everyone_is(data_type::f32, conf_->src_dt, conf_->wei_dt))
         , is_bf32(conf_->is_bf32)
-        , is_dynamic_src_ld(conf_->is_runtime_M) {}
+        , is_dynamic_src_ld(conf_->is_runtime_M)
+        // See the note in `create_brgemm_matmul_copy_b` why `orig_src_dt` used.
+        , use_fp16_instructions_(conf_->isa == avx512_core_fp16
+                  && conf_->orig_src_dt == data_type::f16
+                  && conf_->src_dt == data_type::f32) {}
 
     void operator()(ctx_t *ctx) override { jit_generator::operator()(ctx); }
     status_t create_kernel() override { return jit_generator::create_kernel(); }
@@ -579,6 +572,7 @@ private:
     const bool is_f32;
     const bool is_bf32;
     const bool is_dynamic_src_ld;
+    const bool use_fp16_instructions_;
 
     opmask_t kFFFF = k1;
     opmask_t k3333 = k1;
@@ -961,10 +955,7 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t<Xbyak::Zmm>::transpose_f32(
                 ? ptr[i % 2 == 0 ? reg_aux_src0 : reg_aux_src1]
                 : EVEX_compress_addr(src, i * src_stride);
         if (i < nrows) {
-            if (conf_->isa == avx512_core_fp16
-                    && conf_->orig_wei_dt == data_type::f16)
-                // See the note in `create_brgemm_matmul_copy_b` why
-                // `orig_wei_dt` is used.
+            if (use_fp16_instructions_)
                 vcvtph2psx(src_zmm(i) | kTail | T_z, addr);
             else
                 vmovups(src_zmm(i) | kTail | T_z, addr);
@@ -1096,11 +1087,7 @@ void jit_brgemm_matmul_copy_a_transposed_impl_t<Xbyak::Zmm>::transpose_f32(
 template <typename Vmm>
 void jit_brgemm_matmul_copy_a_transposed_impl_t<Vmm>::deploy_transpose(
         reg64_t dst, reg64_t src, int nrows, int ncolumns) {
-    if (is_f32
-            || (conf_->isa == avx512_core_fp16
-                    && conf_->orig_wei_dt == data_type::f16))
-        // See the note in `create_brgemm_matmul_copy_b` why `orig_wei_dt`
-        // is used.
+    if (is_f32 || use_fp16_instructions_)
         transpose_f32(dst, src, nrows, ncolumns);
     else
         transpose_bf16(dst, src, nrows, ncolumns);
@@ -3605,6 +3592,10 @@ struct jit_brgemm_matmul_copy_b_transposed_t
         , req_apply_scales_(conf_->apply_scales_in_buffer_b)
         , avx512_core_dot_product_(
                   do_compute_compensation_ && !isa_has_int8_vnni(conf->isa))
+        // See the note in `create_brgemm_matmul_copy_b` why `orig_wei_dt` used.
+        , use_fp16_instructions_(conf_->isa == avx512_core_fp16
+                  && conf_->orig_wei_dt == data_type::f16
+                  && conf_->wei_dt == data_type::f32)
         , max_tmp_idx(16
                   - (avx512_core_dot_product_
                                   ? 8
@@ -3650,6 +3641,7 @@ private:
     const bool req_zp_b_shift_;
     const bool req_apply_scales_;
     const bool avx512_core_dot_product_;
+    const bool use_fp16_instructions_;
     const int max_tmp_idx;
 
     const dim_t src_stride_, tr_src_stride_, scales_K_stride_, typesize_scale_;
@@ -3795,13 +3787,8 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::init_tail_mask(
         const int columns_tail, const bool use_int4_mask) {
     assert(IMPLICATION(use_int4_mask, is_src_int4_));
     if (columns_tail > 0) {
-        // See the note in `create_brgemm_matmul_copy_b` why `orig_wei_dt`
-        // is used.
-        const int dt_step = req_cvtps2xf16_
-                        || (conf_->isa == avx512_core_fp16
-                                && conf_->orig_wei_dt == data_type::f16)
-                ? 1
-                : typesize_;
+        const int dt_step
+                = req_cvtps2xf16_ || use_fp16_instructions_ ? 1 : typesize_;
         const auto tail_mask = use_int4_mask
                 ? size_t(((size_t)1 << div_up(dt_step * columns_tail, 2)) - 1)
                 : size_t(((size_t)1 << dt_step * columns_tail) - 1);
@@ -3932,7 +3919,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
             vcvtdq2ps(zmm_src, zmm_src);
             maybe_apply_scales(src_reg, i * scales_K_stride_, is_tail);
         } else
-            assert("Unsupported data type in loading");
+            assert(!"Unsupported data type in loading");
 
         if (ncolumns <= req_cvt_bf16_k_blk_step_) {
             vpxord(src_reg_next, src_reg_next, src_reg_next);
@@ -3956,7 +3943,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
                                 + req_cvt_bf16_k_blk_step_ * scales_typesize_,
                         is_tail);
             } else
-                assert("Unsupported data type in loading");
+                assert(!"Unsupported data type in loading");
         }
 
         if (conf_->wei_dt == data_type::bf16) {
@@ -3999,10 +3986,7 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
             maybe_apply_zp_b_shift(src_reg, is_tail);
             vcvtdq2ps(src_load, src_load);
             maybe_apply_scales(src_reg, i * scales_K_stride_, is_tail);
-        } else if (conf_->isa == avx512_core_fp16
-                && conf_->orig_wei_dt == data_type::f16) {
-            // See the note in `create_brgemm_matmul_copy_b` why `orig_wei_dt`
-            // is used.
+        } else if (use_fp16_instructions_) {
             vcvtph2psx(src_load, addr);
         } else {
             vmovdqu8(src_load, addr);
@@ -4815,7 +4799,7 @@ status_t create_brgemm_matmul_copy_b(
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_brgemm_matmul_copy_b_cvt_bf16_t<Zmm>(conf)));
             else {
-                assert("Unsupported isa for bf16_with_int_wei");
+                assert(!"Unsupported isa for bf16_with_int_wei");
                 return status::unimplemented;
             }
         } else if (is_bf16 || is_f16 || conf->is_bf32
@@ -4877,7 +4861,7 @@ status_t create_brgemm_matmul_copy_a(
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_brgemm_matmul_copy_a_impl_t<Ymm>(conf)));
             } else {
-                assert("Unsupported isa for jit_brgemm_matmul_copy_a_impl_t");
+                assert(!"Unsupported isa for jit_brgemm_matmul_copy_a_impl_t");
                 return status::unimplemented;
             }
         }

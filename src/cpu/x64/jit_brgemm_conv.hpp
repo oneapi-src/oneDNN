@@ -157,8 +157,7 @@ struct brgemm_convolution_fwd_t : public primitive_t {
                 KW_BLOCK, KD_BLOCK_PAD, KH_BLOCK_PAD, ID, IH, IW, IDP, IHP, IWP,
                 OD, OH, OW, SD, SH, SW, FP, TP, LP, DD, DH, DW;
         size_t acc_dsz, bia_dsz, src_dsz, wei_dsz, dst_dsz;
-        dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz,
-                wei_ocb_sz;
+        dim_t src_w_sz, src_h_sz, dst_w_sz, dst_h_sz, wei_ocb_sz;
         dim_t adj_src_h_sz, adj_src_h_offset, src_iw_offset, src_d_offset,
                 wei_ic_offset, wei_kd_offset, wei_kh_offset, wei_kw_offset;
     };
@@ -205,6 +204,9 @@ private:
     inline int maybe_invert_range(int k, int k_inv, int K) const {
         return pd()->desc()->use_inversion ? K - k_inv : k;
     };
+
+    dim_t get_src_base_offset(
+            const brgemm_thread_ctx_t &btc, const dim_t ic) const;
 
     void ker_base(brgemm_thread_ctx_t &btc) const;
     void ker_trans(brgemm_thread_ctx_t &btc) const;
@@ -272,7 +274,7 @@ private:
     int KD, KH, KW, EXT_KD, EXT_KH, EXT_KW, KS, KD_BLOCK, KH_BLOCK, KW_BLOCK,
             KD_BLOCK_PAD, KH_BLOCK_PAD, ID, IH, IW, IDP, IHP, IWP, OD, OH, OW,
             SD, SH, SW, FP, TP, LP, DD, DH, DW;
-    dim_t src_w_sz, src_h_sz, src_d_sz, dst_w_sz, dst_h_sz, dst_d_sz;
+    dim_t src_w_sz, src_h_sz, dst_w_sz, dst_h_sz;
     dim_t ker_vpad_sz, comp_ocb_sz, comp_ker_sz, comp_kw_sz, comp_ow_sz;
 
     bool is_relo_with_relo_weights;

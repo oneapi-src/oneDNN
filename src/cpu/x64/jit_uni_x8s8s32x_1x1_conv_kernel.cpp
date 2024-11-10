@@ -708,8 +708,8 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
 
     format_tag_t dat_tag = utils::pick(
             ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
-    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
-    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
+    jcp.src_tag = src_d.mb_stride_relaxed_match(dat_tag);
+    jcp.dst_tag = dst_d.mb_stride_relaxed_match(dat_tag);
 
     bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == dat_tag
             && jcp.dst_tag == dat_tag;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -185,8 +185,10 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
         balance211(work_amount, nthr, ithr, start, end);
         auto par_conv = jit_conv_call_s();
 
-        size_t src_h_stride = src_d.blk_off(0, 0, 1);
-        size_t dst_h_stride = dst_d.blk_off(0, 0, 1);
+        // The second arg in template means sub_offset0 = true
+        // See `blk_off` method definition.
+        size_t src_h_stride = src_d.blk_off<false, true>(0, 0, 1);
+        size_t dst_h_stride = dst_d.blk_off<false, true>(0, 0, 1);
         size_t wht_h_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
         int n {0}, gg {0}, occ {0}, oh_s {0}, owb {0};
@@ -309,9 +311,11 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
         balance211(work_amount, nthr, ithr, start, end);
         auto par_conv = jit_conv_call_s();
 
-        size_t src_d_stride = src_d.blk_off(0, 0, 1);
-        size_t src_h_stride = src_d.blk_off(0, 0, 0, 1);
-        size_t dst_h_stride = dst_d.blk_off(0, 0, 0, 1);
+        // The second arg in template means sub_offset0 = true
+        // See `blk_off` method definition.
+        size_t src_d_stride = src_d.blk_off<false, true>(0, 0, 1);
+        size_t src_h_stride = src_d.blk_off<false, true>(0, 0, 0, 1);
+        size_t dst_h_stride = dst_d.blk_off<false, true>(0, 0, 0, 1);
         size_t wht_d_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
         size_t wht_h_stride = wht_blk_off(weights_d, 0, 0, 0, 0, 1);
 
@@ -436,8 +440,10 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
 
         auto par_conv = jit_conv_call_s();
 
-        size_t diff_src_h_stride = diff_src_d.blk_off(0, 0, 0, 1);
-        size_t diff_dst_h_stride = diff_dst_d.blk_off(0, 0, 0, 1);
+        // The second arg in template means sub_offset0 = true
+        // See `blk_off` method definition.
+        size_t diff_src_h_stride = diff_src_d.blk_off<false, true>(0, 0, 0, 1);
+        size_t diff_dst_h_stride = diff_dst_d.blk_off<false, true>(0, 0, 0, 1);
         size_t wht_h_stride = wht_blk_off(weights_d, 0, 0, 0, 0, 1);
 
         bool is_fast_path_d = jcp.dilate_d == 0 && jcp.stride_d == 1;
@@ -601,8 +607,11 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
         balance211(work_amount, nthr, ithr, start, end);
 
         auto par_conv = jit_conv_call_s();
-        size_t diff_src_h_stride = diff_src_d.blk_off(0, 0, 1);
-        size_t diff_dst_h_stride = diff_dst_d.blk_off(0, 0, 1);
+
+        // The second arg in template means sub_offset0 = true
+        // See `blk_off` method definition.
+        size_t diff_src_h_stride = diff_src_d.blk_off<false, true>(0, 0, 1);
+        size_t diff_dst_h_stride = diff_dst_d.blk_off<false, true>(0, 0, 1);
         size_t wht_h_stride = wht_blk_off(weights_d, 0, 0, 0, 1);
 
         bool is_fast_path = jcp.dilate_h == 0 && jcp.stride_h == 1;

@@ -333,14 +333,20 @@ void brgemm_1x1_convolution_fwd_t<isa>::maybe_rtus(int ithr,
             : icc * jcp.nb_ic_blocking * jcp.ic_block;
     const auto g_ic = g * jcp.ic_without_padding + icc_tail_start;
 
+    const memory_desc_wrapper src_d(pd()->src_md());
+
     auto call_kernel = [&](int nh, int nw, int od, int oh, int ow) {
         assert(nh == 0 || (nw == 0 && ow == 0));
         if (utils::everyone_is(0, nh, nw)) return;
         const int id = od * jcp.stride_d;
         const int ih = oh * jcp.stride_h;
         const int iw = ow * jcp.stride_w;
-        const auto inp_offset = n * src_d_sz + id * src_h_sz + ih * src_w_sz
-                + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
+
+        // Using blk_off to offset batch is motivated input\output striding aligment
+        const auto inp_offset = src_d.off_l(0)
+                + n * src_d.blk_off<false, true>(1) + id * src_h_sz
+                + ih * src_w_sz + iw * jcp.ngroups * jcp.ic_without_padding
+                + g_ic;
         auto p = jit_avx512_core_brgemm_conv_trans_kernel::
                 jit_brgemm_conv_trans_kernel_call_s();
         p.h_count = nh;
@@ -426,7 +432,6 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
 
     const int icb = icc * jcp.nb_ic_blocking;
     const int ic = icb * jcp.ic_block;
-    const int g_ic = g * jcp.ic + ic;
 
     const bool use_special_m_idx = get_extra_m_kernel_req(jcp) && is_last_os;
     const int kernel_init = static_cast<int>(icc == 0) + 2 * use_special_m_idx;
@@ -441,19 +446,33 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
             : (icc == pd()->ic_chunks_ - 1
                     && ((jcp.ic - ic) % jcp.ic_block != 0));
 
-    const auto src_offset = n * src_d_sz + id * src_h_sz + ih * src_w_sz
-            + iw * jcp.ngroups * jcp.ic_without_padding + g_ic;
-    const auto rtus_src
-            = jcp.is_reduced_rtus ? src + src_dt_size * src_offset : inp_buffer;
+    // Using blk_off to offset batch is motivated input\output striding aligment
+    // See `blk_off` definition.
+    const auto src_mb_c_offset = src_dt_size
+            * (src_d.off_l(0) + n * src_d.blk_off<false, true>(1)
+                    + g * src_d.blk_off<false, true>(0, 1) * jcp.ic + ic);
+    const auto src_hw_offset = src_dt_size
+            * (id * src_h_sz + ih * src_w_sz
+                    + iw * jcp.ngroups * jcp.ic_without_padding);
+
+    const auto rtus_src = jcp.is_reduced_rtus
+            ? src + src_mb_c_offset + src_hw_offset
+            : inp_buffer;
     const auto src_base
-            = jcp.is_rtus ? rtus_src : src + src_dt_size * src_offset;
+            = jcp.is_rtus ? rtus_src : src + src_mb_c_offset + src_hw_offset;
 
     const auto wei_offset = g * wei_g_stride + ocb * wei_ocb_stride;
     const auto wei_base = weights + wei_dt_size * wei_offset;
-    const auto ptr_D = dst
-            + dst_dt_size
-                    * (n * dst_d_sz + od * dst_h_sz + oh * dst_w_sz
-                            + ow * jcp.oc_without_padding + g_oc);
+
+    // Using blk_off to offset batch is motivated input\output striding aligment
+    // See `blk_off` definition.
+    const auto dst_base = dst_dt_size
+            * (dst_d.off_l(0) + n * dst_d.blk_off<false, true>(1)
+                    + g * dst_d.blk_off<false, true>(0, 1) * jcp.oc + oc);
+    const auto dst_offset = dst_dt_size
+            * (od * dst_h_sz + oh * dst_w_sz + ow * jcp.oc_without_padding);
+
+    const auto ptr_D = dst + dst_base + dst_offset;
     char *const ptr_C = (jcp.use_buffer) ? c_buffer : (char *)ptr_D;
 
     const auto bias_w
