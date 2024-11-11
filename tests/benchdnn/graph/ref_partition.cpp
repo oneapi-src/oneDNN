@@ -202,32 +202,57 @@ void ref_partition_t::exec_ops(res_t *res) {
             ref_prim->replace_arg(arg, lt_id_2_mems_.at(lt.id_));
         }
 
-        // There are unfusable operations (such as Softmax) inside a partition
-        // that are executed with user-requested data type. To have correctness
+        // There are unfusable operations inside complex fusion partitions
+        // (such as Softmax in SDPA or chains of MatMuls in MLP) that are
+        // executed with user-requested data type. To have correctness
         // validation working as expected, the data for such operations should
         // be adjusted accordingly in case of low precision data types. E.g.,
         // if pattern is bfloat16 only, the output of a matmul op is bfloat16.
         // Having a float reference implies that is should use "same" bfloat16
-        // data, otherwise, the output from bfloat16 softmax inside the graph
+        // data, otherwise, the output from bfloat16 softmax inside the library
         // and float softmax inside the reference will mismatch, which happens
         // due to the property of softmax, and exponent part in particular.
-        const bool unfusable_transcendental_op
-                = ref_prim->get_kind() == dnnl::graph::op::kind::SoftMax;
-
-        // However, this practice must be limited to the cases when it's
-        // mandatory. The requirement for input adjustment is having a parent
-        // op, since there's an assumption the current op is unfusable.
         //
-        // Note: Compiler backend doesn't down-convert to the lower precision
-        // data type when pass data to a transcendental op. However, this
-        // conversion can't be disabled without additional library API which
-        // would provide an info if Compiler or DNNL backend was used, since
-        // fall back to DNNL from Compiler backend fails.
-        if (unfusable_transcendental_op && has_parent_op(op)) {
+        // However, this practice of data conversion to a lower precision and
+        // back must be limited to the cases when it's necessary.
+        //
+        // For SDPA, it is limited for a Softmax with a parent op presented, as
+        // it's assumed Softmax is unfusable.
+        const bool is_sdpa_pattern
+                = ref_prim->get_kind() == dnnl::graph::op::kind::SoftMax
+                && has_parent_op(op, /* check_all_in_lts = */ true);
+        // For gated-MLP, it is complicated - the Swish op is decomposed into
+        // Sigmoid and Multiply which has inputs from MatMul0 and Sigmoid. Its
+        // output is passed to another Multiply which is the target for the
+        // reorder, both input and output (since its input is down-converted
+        // by MatMul0, and its output would be a down-converted output of
+        // MatMul1). The variable below carefully checks which Multiply it is
+        // there - Swish's one or not.
+        const bool is_child_multiply
+                = ref_prim->get_kind() == dnnl::graph::op::kind::Multiply
+                && has_parent_op(op, /* check_all_in_lts */ true);
+        bool is_gated_mlp_pattern = false;
+        if (is_child_multiply && op.in_lts_.size() == 2) {
+            const auto &parent0 = get_parent_op(op.in_lts_[0].id_)->kind_;
+            const auto &parent1 = get_parent_op(op.in_lts_[1].id_)->kind_;
+            is_gated_mlp_pattern
+                    = (parent0 == "MatMul" && parent1 == "Multiply")
+                    || (parent0 == "Multiply" && parent1 == "MatMul");
+        }
+
+        if (is_sdpa_pattern || is_gated_mlp_pattern) {
             for (size_t i = 0; i < op.in_lts_.size(); i++) {
                 const auto dt = ref_prim->get_lt_dt(op.in_lts_[i].id_);
                 // There's no need to reorder data for f32 tensors.
                 if (dt == dnnl_f32 || dt == dnnl_data_type_undef) continue;
+
+                // MLP pattern requires reorder only for an input coming from
+                // MatMul0 directly, not from Swish.
+                if (is_gated_mlp_pattern) {
+                    const auto parent_op = get_parent_op(op.in_lts_[i].id_);
+                    if (!parent_op) continue;
+                    if (parent_op->kind_ != "MatMul") continue;
+                }
 
                 int arg = get_prim_arg_name_from_graph_op_input_offset(
                         ref_prim->get_kind(), i, use_dst);
@@ -247,7 +272,8 @@ void ref_partition_t::exec_ops(res_t *res) {
         // A data type to where transform the data will also be provided by the
         // same function since there are corner cases.
         dnnl_data_type_t dt = dnnl_data_type_undef;
-        if (unfusable_transcendental_op && need_unfusable_output_crop(op, dt)) {
+        if ((is_sdpa_pattern || is_gated_mlp_pattern)
+                && need_unfusable_output_crop(op, dt)) {
             for (size_t i = 0; i < op.out_lts_.size(); i++) {
                 // There's no need to reorder data for undefined or f32 tensors.
                 if (dt == dnnl_data_type_undef || dt == dnnl_f32) continue;
@@ -340,24 +366,29 @@ int ref_partition_t::check_partition_correctness(
     return OK;
 }
 
-bool ref_partition_t::has_parent_op(const deserialized_op &op) const {
+bool ref_partition_t::has_parent_op(
+        const deserialized_op &op, bool check_all_in_lts) const {
     if (partition_ops_ref_.size() < 2) return false;
 
     for (const auto &in_lt : op.in_lts_) {
-        // Check if parent op exist for an `op`.
-        const auto &parent_op = dg_->get_op_by_out_lt(in_lt.id_);
-        if (parent_op.empty()) continue;
-
-        // If it does, check its ID presents in a partition.
-        for (const auto &op_ref : partition_ops_ref_) {
-            const auto &cur_op = op_ref.get();
-            if (parent_op.id_ == cur_op.id_) return true;
+        const auto *parent_op = get_parent_op(in_lt.id_);
+        if (!parent_op) {
+            if (check_all_in_lts) return false;
+            continue;
+        } else {
+            if (check_all_in_lts) continue;
+            return true;
         }
     }
 
-    return false;
+    // The logic for `check_all_in_lts=true` is exclusive along the
+    // verification. If it made till the end, all lts had a parent. The logic
+    // for `check_all_in_lts=false` would return during the verification, and if
+    // reached the end, it means no parent was met.
+    return check_all_in_lts;
 }
 
+// TODO: add get_child and remove the second arg.
 bool ref_partition_t::has_child_op(
         const deserialized_op &op, const deserialized_op **child_op_ptr) const {
     if (partition_ops_ref_.size() < 2) return false;
@@ -378,6 +409,22 @@ bool ref_partition_t::has_child_op(
     }
 
     return false;
+}
+
+const deserialized_op *ref_partition_t::get_parent_op(size_t in_lt_id) const {
+    if (partition_ops_ref_.size() < 2) return nullptr;
+
+    // Check if a parent op exists for an `op`.
+    const auto &parent_op = dg_->get_op_by_out_lt(in_lt_id);
+    if (parent_op.empty()) return nullptr;
+
+    // If it does, check its ID presents in a partition.
+    for (const auto &op_ref : partition_ops_ref_) {
+        const auto &cur_op = op_ref.get();
+        if (parent_op.id_ == cur_op.id_) { return &parent_op; }
+    }
+
+    return nullptr;
 }
 
 // This function decides when unfusable transcendental op output should be

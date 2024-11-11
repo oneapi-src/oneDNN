@@ -1,0 +1,4 @@
+--reset --dt=bf16,f16 --case=complex_fusion/mlp/gated-mlp-f32.json
+
+# WA: use smaller problem to pass correctness check for f32 on pvc.
+--reset --in-shapes=0:1x128+1:128x256+4:128x256+13:256x128 --case=complex_fusion/mlp/gated-mlp-f32.json

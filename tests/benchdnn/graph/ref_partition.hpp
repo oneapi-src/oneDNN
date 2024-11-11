@@ -63,8 +63,12 @@ public:
     }
 
 private:
-    // Returns `true` if an `op` has a parent op in the partition.
-    bool has_parent_op(const deserialized_op &op) const;
+    // Returns `true` if an `op` has a parent op in the partition for any of
+    // its logical tensors.
+    // When `check_all_in_lts` is set to true, returns `true` if only the op has
+    // a parent for each of its logical tensors.
+    bool has_parent_op(const deserialized_op &op, bool check_all_in_lts) const;
+
     // Returns `true` if an `op` has a child op in the partition.
     // If `child_op_ptr` is not empty, updates the pointer with a child op.
     //
@@ -72,6 +76,11 @@ private:
     // needed to avoid a copy of an `child_op` object.
     bool has_child_op(const deserialized_op &op,
             const deserialized_op **child_op_ptr) const;
+
+    // Returns a pointer to parent op for a given input lt id. If the parent is
+    // not found, an empty pointer is returned.
+    const deserialized_op *get_parent_op(size_t in_lt_id) const;
+
     // Returns `true` if unfusable transcendental op should have cropped output.
     // `dt` is a target data type for following transform. Updated only when the
     // function returns `true`.
