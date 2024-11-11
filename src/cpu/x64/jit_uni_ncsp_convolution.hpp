@@ -28,16 +28,15 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-struct ncsp_matmul_reduction_helper_t {
-    ncsp_matmul_reduction_helper_t(const convolution_pd_t *pd_) : pd_(pd_) {}
-    status_t reshape_activations(memory_desc_t *o_md, const memory_desc_t *i_md,
-            bool to_matmul, bool is_dst);
+struct reduction_helper_t {
+    reduction_helper_t(const convolution_pd_t *pd_) : pd_(pd_) {}
+    status_t reshape_activations(
+            memory_desc_t *o_md, const memory_desc_t *i_md, bool is_dst);
 
     status_t reshape_bias(memory_desc_t *o_md, const memory_desc_t *i_md);
     status_t reshape_weights(
             memory_desc_t *o_md, const memory_desc_t *i_md, bool to_matmul);
-    status_t transpose(
-            memory_desc_t &transposed_md, memory_desc_t &to_be_tranposed_md);
+    status_t reshape_for_transpose(memory_desc_t &o_md, memory_desc_t &i_md);
     // If convolution is 1x1, no padding, and single strides then dispatch
     // to matmul kernel. This is done because matmul supports transposed
     // layout and is more efficient than 1x1 convolutions due to not having
@@ -66,8 +65,6 @@ struct jit_uni_ncsp_convolution_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(name_.c_str(), jit_uni_ncsp_convolution_fwd_t);
 
         status_t init(engine_t *engine);
-        status_t init_convolution(engine_t *engine);
-        status_t init_matmul(engine_t *engine);
 
         std::shared_ptr<primitive_desc_t> matmul_pd_;
         std::shared_ptr<primitive_desc_t> nspc_conv_pd_;
@@ -81,10 +78,11 @@ struct jit_uni_ncsp_convolution_fwd_t : public primitive_t {
         memory_desc_t nspc_src_md_;
         memory_desc_t nspc_dst_md_;
 
-
     private:
+        status_t init_convolution(engine_t *engine);
+        status_t init_matmul(engine_t *engine);
         const bool with_sum_;
-        ncsp_matmul_reduction_helper_t reduce;
+        reduction_helper_t reduce;
         bool is_matmul_;
         std::string name_ = "jit_uni_ncsp_convolution:";
         void init_name() {
@@ -102,10 +100,10 @@ struct jit_uni_ncsp_convolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
-    status_t execute_convolution(const exec_ctx_t &ctx) const;
-    status_t execute_matmul(const exec_ctx_t &ctx) const;
 
 private:
+    status_t execute_convolution(const exec_ctx_t &ctx) const;
+    status_t execute_matmul(const exec_ctx_t &ctx) const;
     status_t reorder_activations(const exec_ctx_t &ctx,
             const std::shared_ptr<primitive_t> &prim, engine_t *engine,
             const memory_arg_t &in, const memory_arg_t &out) const;
@@ -132,7 +130,6 @@ struct jit_uni_ncsp_convolution_bwd_weights_t : public primitive_t {
                 name_.c_str(), jit_uni_ncsp_convolution_bwd_weights_t);
 
         status_t init(engine_t *engine);
-        status_t init_convolution(engine_t *engine);
 
         std::shared_ptr<primitive_desc_t> nspc_conv_pd_;
         std::shared_ptr<primitive_desc_t> src_reorder_pd_;
@@ -141,7 +138,8 @@ struct jit_uni_ncsp_convolution_bwd_weights_t : public primitive_t {
         memory_desc_t nspc_diff_dst_md_;
 
     private:
-        ncsp_matmul_reduction_helper_t reduce;
+        status_t init_convolution(engine_t *engine);
+        reduction_helper_t reduce;
         std::string name_;
         void init_scratchpad();
         void init_name() {
@@ -155,9 +153,9 @@ struct jit_uni_ncsp_convolution_bwd_weights_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
-    status_t execute_convolution(const exec_ctx_t &ctx) const;
 
 private:
+    status_t execute_convolution(const exec_ctx_t &ctx) const;
     status_t reorder_activations(const exec_ctx_t &ctx,
             const std::shared_ptr<primitive_t> &prim, engine_t *engine,
             const memory_arg_t &in, const memory_arg_t &out) const;
@@ -182,8 +180,6 @@ struct jit_uni_ncsp_convolution_bwd_data_t : public primitive_t {
         DECLARE_COMMON_PD_T(name_.c_str(), jit_uni_ncsp_convolution_bwd_data_t);
 
         status_t init(engine_t *engine);
-        status_t init_convolution(engine_t *engine);
-        status_t init_matmul(engine_t *engine);
 
         std::shared_ptr<primitive_desc_t> matmul_diff_src_pd_;
         std::shared_ptr<primitive_desc_t> nspc_conv_pd_;
@@ -196,7 +192,9 @@ struct jit_uni_ncsp_convolution_bwd_data_t : public primitive_t {
         memory_desc_t matmul_dst_md_;
 
     private:
-        ncsp_matmul_reduction_helper_t reduce;
+        status_t init_convolution(engine_t *engine);
+        status_t init_matmul(engine_t *engine);
+        reduction_helper_t reduce;
         bool is_matmul_ = false;
         std::string name_;
         void init_scratchpad();
@@ -212,10 +210,10 @@ struct jit_uni_ncsp_convolution_bwd_data_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
-    status_t execute_convolution(const exec_ctx_t &ctx) const;
-    status_t execute_matmul(const exec_ctx_t &ctx) const;
 
 private:
+    status_t execute_convolution(const exec_ctx_t &ctx) const;
+    status_t execute_matmul(const exec_ctx_t &ctx) const;
     status_t reorder_activations(const exec_ctx_t &ctx,
             const std::shared_ptr<primitive_t> &prim, engine_t *engine,
             const memory_arg_t &in, const memory_arg_t &out) const;
