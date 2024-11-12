@@ -756,22 +756,25 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
                 // Check for ndims is needed when the driver supported args map
                 // contains extra arguments for other purposes.
                 const int ndims = query_md_ndims(md);
-                if (is_arg_in_map && ndims > 0
-                        && dnnl_memory_desc_equal(md, mem_map.at(exec_arg).md_)
-                                == 0) {
+                if (is_arg_in_map) {
                     // It may happen that the map already has the argument but
                     // the library requires it in a different format, e.g., RNN
                     // BWD support on GPU (for better performance). It may also
                     // happen in a combination with `no_ref_memory` modifier,
                     // which requires the library memories map to handle such
                     // cases.
-                    assert(!has_runtime_dims(md));
-                    dnn_mem_t new_mem(md, test_engine);
-                    // Reorder user's data from the old memory to the new one.
-                    auto st = new_mem.reorder(mem_map.at(exec_arg));
-                    assert(st == OK);
-                    if (st != OK) return;
-                    mem_map[exec_arg] = std::move(new_mem);
+                    if (ndims > 0
+                            && dnnl_memory_desc_equal(
+                                       md, mem_map.at(exec_arg).md_)
+                                    == 0) {
+                        assert(!has_runtime_dims(md));
+                        dnn_mem_t new_mem(md, test_engine);
+                        // Reorder user's data from the old memory to the new one.
+                        auto st = new_mem.reorder(mem_map.at(exec_arg));
+                        assert(st == OK);
+                        if (st != OK) return;
+                        mem_map[exec_arg] = std::move(new_mem);
+                    }
                 } else {
                     if (has_runtime_dims(md)) {
                         mem_map.emplace(exec_arg,
