@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,9 +45,10 @@ TEST(test_layout_propagator, LayoutPropagatorForPermute) {
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;
     dnnl_impl::pd_cache_t pd_cache;
+    const graph::fpmath_t fpm {graph::fpmath_mode::any, false};
     auto sg = std::make_shared<dnnl_impl::subgraph_t>(
-            std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-            graph::fpmath_mode::any, false, false);
+            std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine, fpm,
+            false, false);
     dnnl_impl::subgraph_rewriter_t rewriter {sg};
     ASSERT_EQ(dnnl_impl::layout_propagator_for_permute(
                       op, p_engine, mgr, pd_cache, rewriter),
@@ -69,9 +70,10 @@ TEST(test_layout_propagator, LayoutPropagatorForReorder) {
     dnnl::engine p_engine = dnnl_impl::make_dnnl_engine(eng);
     dnnl_impl::fusion_info_mgr_t mgr;
     dnnl_impl::pd_cache_t pd_cache;
+    const graph::fpmath_t fpm {graph::fpmath_mode::any, false};
     auto sg = std::make_shared<dnnl_impl::subgraph_t>(
-            std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-            graph::fpmath_mode::any, false, false);
+            std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine, fpm,
+            false, false);
     dnnl_impl::subgraph_rewriter_t rewriter {sg};
     ASSERT_EQ(layout_propagator_for_reorder(
                       op, p_engine, mgr, pd_cache, rewriter),
@@ -91,9 +93,10 @@ TEST(test_layout_propagator, LayoutPropagatorForSumDeathTest) {
 
     op->add_input(lt_in);
     op->add_output(lt_out);
+    const graph::fpmath_t fpm {graph::fpmath_mode::any, false};
     auto sg = std::make_shared<dnnl_impl::subgraph_t>(
-            std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-            graph::fpmath_mode::any, false, false);
+            std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine, fpm,
+            false, false);
     dnnl_impl::subgraph_rewriter_t rewriter {sg};
     ASSERT_EQ(layout_propagator_for_sum(op, p_engine, mgr, pd_cache, rewriter),
             graph::status::success);
@@ -126,9 +129,10 @@ TEST(test_layout_propagator, LayoutPropagatorForSubZpsDeathTest) {
     dnnl_impl::fusion_info_mgr_t mgr;
     dnnl_impl::pd_cache_t pd_cache;
     auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
+    const graph::fpmath_t fpm {graph::fpmath_mode::any, false};
     auto sg = std::make_shared<dnnl_impl::subgraph_t>(
-            std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-            graph::fpmath_mode::any, false, false);
+            std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine, fpm,
+            false, false);
     dnnl_impl::subgraph_rewriter_t rewriter {sg};
 #ifndef NDEBUG
     EXPECT_DEATH(dnnl_impl::layout_propagator_for_sub_zps(
@@ -147,9 +151,10 @@ TEST(test_layout_propagator, LayoutPropagatorForAddZpsDeathTest) {
     dnnl_impl::fusion_info_mgr_t mgr;
     dnnl_impl::pd_cache_t pd_cache;
     auto op = std::make_shared<graph::op_t>(0, graph::op_kind::Wildcard, "op");
+    const graph::fpmath_t fpm {graph::fpmath_mode::any, false};
     auto sg = std::make_shared<dnnl_impl::subgraph_t>(
-            std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine,
-            graph::fpmath_mode::any, false, false);
+            std::vector<std::shared_ptr<graph::op_t>> {op}, p_engine, fpm,
+            false, false);
     dnnl_impl::subgraph_rewriter_t rewriter {sg};
 #ifndef NDEBUG
     EXPECT_DEATH(dnnl_impl::layout_propagator_for_add_zps(

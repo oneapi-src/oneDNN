@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -414,12 +414,12 @@ TEST(test_interface_graph, SetFpmathMode) {
     ASSERT_EQ(dnnl::impl::get_fpmath_mode(), fpmath_mode::strict);
 
     graph_t graph;
-    ASSERT_EQ(graph.get_fpmath_mode(), fpmath_mode::strict);
+    ASSERT_EQ(graph.get_fpmath_mode().mode_, fpmath_mode::strict);
 
     for (auto m : {fpmath_mode::strict, fpmath_mode::bf16, fpmath_mode::f16,
                  fpmath_mode::any}) {
         graph_t graph2 {engine_kind::cpu, m};
-        ASSERT_EQ(graph2.get_fpmath_mode(), m);
+        ASSERT_EQ(graph2.get_fpmath_mode().mode_, m);
     }
 }
 

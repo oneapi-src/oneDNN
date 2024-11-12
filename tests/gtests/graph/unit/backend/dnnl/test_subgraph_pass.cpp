@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -408,10 +408,9 @@ TEST(test_subgraph_pass, Conv2dNxcPlainDst) {
 
     std::vector<graph::logical_tensor_t> lt_ins {src_u8, weight_s8};
     std::vector<graph::logical_tensor_t> lt_outs {dst_u8};
-
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
-            agraph.get_partitions()[0]->get_ops(), p_eng, fpmath_mode::strict,
-            true, true);
+            agraph.get_partitions()[0]->get_ops(), p_eng, fpm, true, true);
     ASSERT_EQ(subgraph->get_ops().size(), 4U);
 
     ASSERT_EQ(dnnl_impl::set_given_inputs_outputs(subgraph, lt_ins, lt_outs),
@@ -619,9 +618,9 @@ TEST(test_subgraph_pass, Int8ConvSumRelu) {
 
     weight_f32.property = graph::property_type::constant;
     bias_f32.property = graph::property_type::constant;
-
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
-            part->get_ops(), p_eng, fpmath_mode::strict, false, true);
+            part->get_ops(), p_eng, fpm, false, true);
 
     std::vector<logical_tensor_t> inputs
             = {src_u8, weight_f32, bias_f32, other_s8};
@@ -871,10 +870,9 @@ TEST_P(int8_matmul_with_diff_inputs_t, Int8MatmulPasses) {
             graph::partition_kind_t::quantized_matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
-
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
-            agraph.get_partitions()[0]->get_ops(), p_eng, fpmath_mode::strict,
-            true, true);
+            agraph.get_partitions()[0]->get_ops(), p_eng, fpm, true, true);
     ASSERT_EQ(subgraph->get_ops().size(), 5U);
 
     dnnl_impl::check_with_bias(subgraph);
@@ -992,10 +990,9 @@ TEST_P(matmul_with_diff_inputs_t, MatmulPasses) {
             graph::partition_kind_t::matmul_post_ops);
     ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
     ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 3U);
-
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
-            agraph.get_partitions()[0]->get_ops(), p_eng, fpmath_mode::strict,
-            true, true);
+            agraph.get_partitions()[0]->get_ops(), p_eng, fpm, true, true);
     ASSERT_EQ(subgraph->get_ops().size(), 2U);
 
     dnnl_impl::check_with_bias(subgraph);
@@ -1278,9 +1275,9 @@ TEST(test_subgraph_pass, MemoryPlanning) {
     g.add_op(&op8);
     g.add_op(&op9);
     g.finalize();
-
-    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(g.get_ops(), p_eng,
-            fpmath_mode::strict, false, /* reset_layout */ false);
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            g.get_ops(), p_eng, fpm, false, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 9U);
 
     std::vector<logical_tensor_t> inputs = {val0};
@@ -1354,9 +1351,9 @@ TEST(test_subgraph_pass, FusePostOpsForConvDepthwise_CPU) {
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
-
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
-            part->get_ops(), p_eng, fpmath_mode::strict, false, true);
+            part->get_ops(), p_eng, fpm, false, true);
     dnnl_impl::subgraph_visualizer_t vis(part->id(), [](const value_t *val) {
         (void)val;
         return std::string();
@@ -1465,9 +1462,9 @@ TEST(test_subgraph_pass, FuseSigmoidMultiplyToSwish) {
     apass->run(g);
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
-
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
-            part->get_ops(), p_eng, fpmath_mode::strict, false, true);
+            part->get_ops(), p_eng, fpm, false, true);
     dnnl_impl::pass_pipeline_t pipeline(
             dnnl_impl::subgraph_visualizer_t(), true, false);
     dnnl_impl::larger_partition_kernel_t::setup_pipeline_stage1(pipeline);
@@ -1572,10 +1569,9 @@ TEST(test_subgraph_pass_int8_matmul_passes_with_diff_inputs,
                 graph::partition_kind_t::quantized_matmul_post_ops);
         ASSERT_EQ(agraph.get_partitions()[0]->get_outputs().size(), 1U);
         ASSERT_EQ(agraph.get_partitions()[0]->get_inputs().size(), 4U);
-
+        const graph::fpmath_t fpm {fpmath_mode::strict, false};
         auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
-                agraph.get_partitions()[0]->get_ops(), p_eng,
-                fpmath_mode::strict, false, true);
+                agraph.get_partitions()[0]->get_ops(), p_eng, fpm, false, true);
         // dequant, dequant, tc, tc, matmul, scale, add
         ASSERT_EQ(subgraph->get_ops().size(), 7U);
 
@@ -1659,10 +1655,9 @@ TEST(test_subgraph_pass, FuseTypecastToQuantize) {
     pass::pass_base_ptr apass = get_pass("typecast_quantize_fusion");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
-
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
-            agraph.get_partitions()[0]->get_ops(), p_eng, fpmath_mode::strict,
-            false, true);
+            agraph.get_partitions()[0]->get_ops(), p_eng, fpm, false, true);
     // tc, quant
     ASSERT_EQ(subgraph->get_ops().size(), 2U);
 
@@ -1695,9 +1690,9 @@ TEST(test_subgraph_pass_layout_propagation, ReshapeWithSpecifiedOutputLayout) {
     graph::graph_t g;
     g.add_op(&op1);
     g.finalize();
-
-    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(g.get_ops(), p_eng,
-            fpmath_mode::strict, false, /* reset_layout */ false);
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            g.get_ops(), p_eng, fpm, false, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
     ASSERT_EQ(dnnl_impl::lower_down(subgraph), graph::status::success);
@@ -1737,9 +1732,9 @@ TEST(test_subgraph_pass_layout_propagation,
     graph::graph_t g;
     g.add_op(&op1);
     g.finalize();
-
-    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(g.get_ops(), p_eng,
-            fpmath_mode::strict, false, /* reset_layout */ false);
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            g.get_ops(), p_eng, fpm, false, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
     ASSERT_EQ(dnnl_impl::lower_down(subgraph), graph::status::success);
@@ -1775,9 +1770,9 @@ TEST(test_subgraph_pass_layout_propagation, ReshapeWithReshapableInputLayout) {
     graph::graph_t g;
     g.add_op(&op1);
     g.finalize();
-
-    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(g.get_ops(), p_eng,
-            fpmath_mode::strict, false, /* reset_layout */ false);
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            g.get_ops(), p_eng, fpm, false, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
     ASSERT_EQ(dnnl_impl::lower_down(subgraph), graph::status::success);
@@ -1808,9 +1803,9 @@ TEST(test_subgraph_pass_layout_propagation, Transpose) {
     graph::graph_t g;
     g.add_op(&op1);
     g.finalize();
-
-    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(g.get_ops(), p_eng,
-            fpmath_mode::strict, false, /* reset_layout */ false);
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
+    auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
+            g.get_ops(), p_eng, fpm, false, /* reset_layout */ false);
     ASSERT_EQ(subgraph->get_ops().size(), 1U);
 
     ASSERT_EQ(dnnl_impl::lower_down(subgraph), graph::status::success);
@@ -1944,9 +1939,9 @@ TEST(test_subgraph_pass, FuseTypecastBeforeFusePostops) {
 
     graph::engine_t *g_eng = get_engine();
     dnnl::engine p_eng = dnnl::impl::graph::dnnl_impl::make_dnnl_engine(*g_eng);
+    const graph::fpmath_t fpm {fpmath_mode::strict, false};
     auto subgraph = std::make_shared<dnnl_impl::subgraph_t>(
-            g.get_partitions()[0]->get_ops(), p_eng, fpmath_mode::strict, false,
-            true);
+            g.get_partitions()[0]->get_ops(), p_eng, fpm, false, true);
     ASSERT_EQ(subgraph->get_ops().size(), 8U);
 
     dnnl_impl::subgraph_visualizer_t vis(0, [](const value_t *val) {
@@ -2050,8 +2045,9 @@ TEST(test_subgraph_pass, CommonReorderElimination) {
     g.add_op(&reorder_op2);
     g.add_op(&op1);
     g.finalize();
-    auto subgraph = std::make_shared<graph::dnnl_impl::subgraph_t>(g.get_ops(),
-            p_eng, graph::fpmath_mode::any, false, /* reset_layout */ false);
+    const graph::fpmath_t fpm {fpmath_mode::any, false};
+    auto subgraph = std::make_shared<graph::dnnl_impl::subgraph_t>(
+            g.get_ops(), p_eng, fpm, false, /* reset_layout */ false);
     ASSERT_EQ(graph::dnnl_impl::common_reorder_elimination(subgraph),
             graph::status::success);
     ASSERT_EQ(subgraph->get_ops().size(), 3U);
@@ -2156,9 +2152,9 @@ TEST(test_subgraph_pass, CombineBinaryPostOpScales) {
     g.add_op(&mul_op);
     g.add_op(&qout_op);
     g.finalize();
-
-    auto subgraph = std::make_shared<graph::dnnl_impl::subgraph_t>(g.get_ops(),
-            p_engine, graph::fpmath_mode::any, false, /* reset_layout */ false);
+    const graph::fpmath_t fpm {fpmath_mode::any, false};
+    auto subgraph = std::make_shared<graph::dnnl_impl::subgraph_t>(
+            g.get_ops(), p_engine, fpm, false, /* reset_layout */ false);
     ASSERT_EQ(graph::dnnl_impl::lower_down(subgraph), graph::status::success);
     ASSERT_EQ(graph::dnnl_impl::fuse_to_int8_pool(subgraph),
             graph::status::success);
@@ -2294,9 +2290,9 @@ TEST(test_subgraph_pass, FuseNCXConvolutionBinaryAddNC11PostSrc) {
     ASSERT_EQ(g.add_op(&conv_op), graph::status::success);
     ASSERT_EQ(g.add_op(&add_op), graph::status::success);
     g.finalize();
-
+    const graph::fpmath_t fpm {fpmath_mode::any, false};
     auto subgraph = std::make_shared<graph::dnnl_impl::subgraph_t>(g.get_ops(),
-            p_engine, graph::fpmath_mode::any, false,
+            p_engine, fpm, false,
             /* reset_layout */ false);
     ASSERT_EQ(graph::dnnl_impl::lower_down(subgraph), graph::status::success);
     ASSERT_EQ(
@@ -2450,9 +2446,9 @@ TEST(test_subgraph_pass, FuseNXCConvolutionBinaryAddNC11PostSrc) {
     ASSERT_EQ(g.add_op(&conv_op), graph::status::success);
     ASSERT_EQ(g.add_op(&add_op), graph::status::success);
     g.finalize();
-
+    const graph::fpmath_t fpm {fpmath_mode::any, false};
     auto subgraph = std::make_shared<graph::dnnl_impl::subgraph_t>(g.get_ops(),
-            p_engine, graph::fpmath_mode::any, false,
+            p_engine, fpm, false,
             /* reset_layout */ false);
     ASSERT_EQ(graph::dnnl_impl::lower_down(subgraph), graph::status::success);
     ASSERT_EQ(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,16 +24,16 @@ namespace impl {
 namespace graph {
 
 struct fpmath_t {
+    fpmath_t() = default;
 
-    fpmath_t(dnnl_fpmath_mode_t mode = fpmath_mode::strict,
-            bool apply_to_int = false)
+    fpmath_t(fpmath_mode_t mode, bool apply_to_int)
         : mode_(mode), apply_to_int_(apply_to_int) {}
 
     bool operator==(const fpmath_t &rhs) const {
         return mode_ == rhs.mode_ && apply_to_int_ == rhs.apply_to_int_;
     }
 
-    graph::fpmath_mode_t mode_;
+    fpmath_mode_t mode_ = fpmath_mode::strict;
     bool apply_to_int_ = false;
 };
 
