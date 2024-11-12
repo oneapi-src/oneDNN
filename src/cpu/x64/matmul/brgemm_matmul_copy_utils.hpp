@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ struct jit_brgemm_matmul_copy_b_t {
 
         dim_t current_K_start;
         dim_t current_K_iters;
+        dim_t current_K_pad {0};
         dim_t current_N_blk;
         dim_t dynamic_src_stride;
     };

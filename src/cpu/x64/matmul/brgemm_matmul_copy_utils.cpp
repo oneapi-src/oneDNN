@@ -2159,11 +2159,12 @@ protected:
     inline void load(int blk, int i, bool is_tail) {}
     inline void kmovq(Opmask k, size_t q) {}
     virtual void init_permute() {}
-    virtual void copy_block(int nrows, int ncolumns, bool n_tail) {
+    virtual void copy_block(
+            int nrows, int ncolumns, bool n_tail, bool zeropad) {
         UNUSED(n_tail);
-        copy_4x64(nrows, ncolumns);
+        copy_4x64(nrows, ncolumns, zeropad);
     }
-    virtual void copy_4x64(int nrows, int ncolumns) {}
+    virtual void copy_4x64(int nrows, int ncolumns, bool zeropad) {}
     inline void dot_product(Vmm v1, Vmm v2, Vmm v3) {
         if (!avx512_core_dot_product_)
             vpdpbusd(v1, v2, v3,
@@ -2242,9 +2243,10 @@ private:
         vmovdqa64(vreg_idx_hi_128, (const void *)idx_hi_8);
     }
 
-    void copy_block(int nrows, int ncolumns, bool n_tail) override {
+    void copy_block(
+            int nrows, int ncolumns, bool n_tail, bool zeropad) override {
         if (!is_dynamic_N_ || !n_tail) {
-            copy_4x64(nrows, ncolumns);
+            copy_4x64(nrows, ncolumns, zeropad);
             return;
         }
 
@@ -2266,7 +2268,7 @@ private:
         {
             mov(ptr[rsp + reg_src_offs_], reg_src);
             add(reg_src, reg_copy_block_n_shift);
-            copy_4x64(nrows, n_blk_step_);
+            copy_4x64(nrows, n_blk_step_, zeropad);
             add(reg_copy_block_n_shift, n_blk_step_ * typesize);
             add(reg_src, n_blk_step_ * typesize);
             add(reg_tr_src, n_blk_step_ * k_blk_step_ * typesize);
@@ -2289,7 +2291,7 @@ private:
             jle(loop_row_done, T_NEAR);
 
             add(reg_src, reg_copy_block_n_shift);
-            copy_4x64(nrows, 1 /* to force tail case */);
+            copy_4x64(nrows, 1 /* to force tail case */, zeropad);
         }
         L(loop_row_done);
 
@@ -2298,7 +2300,7 @@ private:
         mov(reg_tr_src, ptr[rsp + reg_tr_src_offs_]);
     }
 
-    void copy_4x64(int nrows, int ncolumns) override {
+    void copy_4x64(int nrows, int ncolumns, bool zeropad) override {
         const bool is_tail = ncolumns < n_blk_step_;
         const auto tail_mask = size_t(((size_t)1 << ncolumns) - 1);
 
@@ -2313,32 +2315,36 @@ private:
                 k++) {
             const int row_start = (kb * max_unroll + k) * k_blk_step_;
             const int row_end = nstl::min(row_start + k_blk_step_, nrows);
-
-            for (int i = row_start; i < row_end; i++)
-                load(k, i, is_tail);
-            if (row_end == nrows && nrows % k_blk_step_ > 0) {
-                for (int i = nrows; i < rnd_up(nrows, k_blk_step_); i++) {
-                    auto src_reg = get_vmm(k, i % k_blk_step_);
-                    vpxord(src_reg, src_reg, src_reg);
-                }
-            }
-
-            vmovups(get_vmm(k, 4), vreg_idx_lo_256);
-            vpermi2b(get_vmm(k, 4), get_vmm(k, 0), get_vmm(k, 2));
-            vmovups(get_vmm(k, 5), vreg_idx_hi_256);
-            vpermi2b(get_vmm(k, 5), get_vmm(k, 0), get_vmm(k, 2));
-            vmovups(get_vmm(k, 0), vreg_idx_lo_256);
-            vpermi2b(get_vmm(k, 0), get_vmm(k, 1), get_vmm(k, 3));
-            vmovups(get_vmm(k, 2), vreg_idx_hi_256);
-            vpermi2b(get_vmm(k, 2), get_vmm(k, 1), get_vmm(k, 3));
-
-            vmovups(get_vmm(k, 1), vreg_idx_lo_128);
-            vpermi2b(get_vmm(k, 1), get_vmm(k, 4), get_vmm(k, 0));
             dim_t tr_src_off_base = (kb * max_unroll + k) * tr_src_stride_;
-            vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base),
-                    get_vmm(k, 1));
-            if (do_compute_compensation_)
-                vpdpbusd(get_comp_acc(0), vmm_comp_mul, get_vmm(k, 1));
+
+            if (!zeropad) {
+                for (int i = row_start; i < row_end; i++)
+                    load(k, i, is_tail);
+                if (row_end == nrows && nrows % k_blk_step_ > 0) {
+                    for (int i = nrows; i < rnd_up(nrows, k_blk_step_); i++) {
+                        auto src_reg = get_vmm(k, i % k_blk_step_);
+                        vpxord(src_reg, src_reg, src_reg);
+                    }
+                }
+                vmovups(get_vmm(k, 4), vreg_idx_lo_256);
+                vpermi2b(get_vmm(k, 4), get_vmm(k, 0), get_vmm(k, 2));
+                vmovups(get_vmm(k, 5), vreg_idx_hi_256);
+                vpermi2b(get_vmm(k, 5), get_vmm(k, 0), get_vmm(k, 2));
+                vmovups(get_vmm(k, 0), vreg_idx_lo_256);
+                vpermi2b(get_vmm(k, 0), get_vmm(k, 1), get_vmm(k, 3));
+                vmovups(get_vmm(k, 2), vreg_idx_hi_256);
+                vpermi2b(get_vmm(k, 2), get_vmm(k, 1), get_vmm(k, 3));
+
+                vmovups(get_vmm(k, 1), vreg_idx_lo_128);
+                vpermi2b(get_vmm(k, 1), get_vmm(k, 4), get_vmm(k, 0));
+                vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base),
+                        get_vmm(k, 1));
+                if (do_compute_compensation_)
+                    vpdpbusd(get_comp_acc(0), vmm_comp_mul, get_vmm(k, 1));
+            } else {
+                vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base),
+                        vmm_zero);
+            }
             const bool dynamic_tail = is_dynamic_N_ && ncolumns < n_blk_step_;
 
             Label k_loop_done;
@@ -2346,7 +2352,7 @@ private:
                 cmp(reg_dynamic_tail, 16);
                 jle(k_loop_done, T_NEAR);
             }
-            if (ncolumns > 16 || dynamic_tail) {
+            if (!zeropad && (ncolumns > 16 || dynamic_tail)) {
                 vmovups(get_vmm(k, 3), vreg_idx_hi_128);
                 vpermi2b(get_vmm(k, 3), get_vmm(k, 4), get_vmm(k, 0));
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 64),
@@ -2362,7 +2368,7 @@ private:
                 cmp(reg_dynamic_tail, 32);
                 jle(k_loop_done, T_NEAR);
             }
-            if (ncolumns > 32 || dynamic_tail) {
+            if (!zeropad && (ncolumns > 32 || dynamic_tail)) {
                 vmovups(get_vmm(k, 4), vreg_idx_lo_128);
                 vpermi2b(get_vmm(k, 4), get_vmm(k, 5), get_vmm(k, 2));
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 128),
@@ -2378,7 +2384,7 @@ private:
                 cmp(reg_dynamic_tail, 48);
                 jle(k_loop_done, T_NEAR);
             }
-            if (ncolumns > 48 || dynamic_tail) {
+            if (!zeropad && (ncolumns > 48 || dynamic_tail)) {
                 vmovups(get_vmm(k, 0), vreg_idx_hi_128);
                 vpermi2b(get_vmm(k, 0), get_vmm(k, 5), get_vmm(k, 2));
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 192),
@@ -2419,7 +2425,7 @@ private:
         vmovdqa64(vreg_idx_hi_128, (const void *)idx_hi_128);
     }
 
-    void copy_4x64(int nrows, int ncolumns) override {
+    void copy_4x64(int nrows, int ncolumns, bool zeropad) override {
         const bool is_tail = ncolumns < n_blk_step_;
         if (is_tail) {
             const auto tail_mask = size_t(((size_t)1 << ncolumns) - 1);
@@ -2435,44 +2441,49 @@ private:
                 k++) {
             const int row_start = (kb * max_unroll + k) * k_blk_step_;
             const int row_end = nstl::min(row_start + k_blk_step_, nrows);
+            dim_t tr_src_off_base = (kb * max_unroll + k) * tr_src_stride_;
 
-            for (int i = row_start; i < row_end; i++)
-                load(k, i, is_tail);
-            if (row_end == nrows && nrows % k_blk_step_ > 0) {
-                for (int i = nrows; i < rnd_up(nrows, k_blk_step_); i++) {
-                    auto src_reg = get_vmm(k, i % k_blk_step_);
-                    vpxord(src_reg, src_reg, src_reg);
+            if (!zeropad) {
+                for (int i = row_start; i < row_end; i++)
+                    load(k, i, is_tail);
+                if (row_end == nrows && nrows % k_blk_step_ > 0) {
+                    for (int i = nrows; i < rnd_up(nrows, k_blk_step_); i++) {
+                        auto src_reg = get_vmm(k, i % k_blk_step_);
+                        vpxord(src_reg, src_reg, src_reg);
+                    }
                 }
+
+                vpunpcklbw(get_vmm(k, 4), get_vmm(k, 0), get_vmm(k, 1));
+                vpunpckhbw(get_vmm(k, 5), get_vmm(k, 0), get_vmm(k, 1));
+                vpunpcklbw(get_vmm(k, 0), get_vmm(k, 2), get_vmm(k, 3));
+                vpunpckhbw(get_vmm(k, 1), get_vmm(k, 2), get_vmm(k, 3));
+
+                vpunpcklwd(get_vmm(k, 2), get_vmm(k, 4), get_vmm(k, 0));
+                vpunpckhwd(get_vmm(k, 3), get_vmm(k, 4), get_vmm(k, 0));
+                vpunpcklwd(get_vmm(k, 4), get_vmm(k, 5), get_vmm(k, 1));
+                vpunpckhwd(get_vmm(k, 5), get_vmm(k, 5), get_vmm(k, 1));
+
+                vmovups(get_vmm(k, 0), vreg_idx_lo_256);
+                vpermi2q(get_vmm(k, 0), get_vmm(k, 2), get_vmm(k, 4));
+                vmovups(get_vmm(k, 1), vreg_idx_hi_256);
+                vpermi2q(get_vmm(k, 1), get_vmm(k, 2), get_vmm(k, 4));
+                vmovups(get_vmm(k, 2), vreg_idx_lo_256);
+                vpermi2q(get_vmm(k, 2), get_vmm(k, 3), get_vmm(k, 5));
+                vmovups(get_vmm(k, 4), vreg_idx_hi_256);
+                vpermi2q(get_vmm(k, 4), get_vmm(k, 3), get_vmm(k, 5));
+
+                vmovups(get_vmm(k, 3), vreg_idx_lo_128);
+                vpermi2q(get_vmm(k, 3), get_vmm(k, 0), get_vmm(k, 2));
+                vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base),
+                        get_vmm(k, 3));
+                if (do_compute_compensation_)
+                    dot_product(get_comp_acc(0), vmm_comp_mul, get_vmm(k, 3));
+            } else {
+                vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base),
+                        vmm_zero);
             }
 
-            vpunpcklbw(get_vmm(k, 4), get_vmm(k, 0), get_vmm(k, 1));
-            vpunpckhbw(get_vmm(k, 5), get_vmm(k, 0), get_vmm(k, 1));
-            vpunpcklbw(get_vmm(k, 0), get_vmm(k, 2), get_vmm(k, 3));
-            vpunpckhbw(get_vmm(k, 1), get_vmm(k, 2), get_vmm(k, 3));
-
-            vpunpcklwd(get_vmm(k, 2), get_vmm(k, 4), get_vmm(k, 0));
-            vpunpckhwd(get_vmm(k, 3), get_vmm(k, 4), get_vmm(k, 0));
-            vpunpcklwd(get_vmm(k, 4), get_vmm(k, 5), get_vmm(k, 1));
-            vpunpckhwd(get_vmm(k, 5), get_vmm(k, 5), get_vmm(k, 1));
-
-            vmovups(get_vmm(k, 0), vreg_idx_lo_256);
-            vpermi2q(get_vmm(k, 0), get_vmm(k, 2), get_vmm(k, 4));
-            vmovups(get_vmm(k, 1), vreg_idx_hi_256);
-            vpermi2q(get_vmm(k, 1), get_vmm(k, 2), get_vmm(k, 4));
-            vmovups(get_vmm(k, 2), vreg_idx_lo_256);
-            vpermi2q(get_vmm(k, 2), get_vmm(k, 3), get_vmm(k, 5));
-            vmovups(get_vmm(k, 4), vreg_idx_hi_256);
-            vpermi2q(get_vmm(k, 4), get_vmm(k, 3), get_vmm(k, 5));
-
-            vmovups(get_vmm(k, 3), vreg_idx_lo_128);
-            vpermi2q(get_vmm(k, 3), get_vmm(k, 0), get_vmm(k, 2));
-            dim_t tr_src_off_base = (kb * max_unroll + k) * tr_src_stride_;
-            vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base),
-                    get_vmm(k, 3));
-            if (do_compute_compensation_)
-                dot_product(get_comp_acc(0), vmm_comp_mul, get_vmm(k, 3));
-
-            if (ncolumns > 16) {
+            if (!zeropad && ncolumns > 16) {
                 vmovups(get_vmm(k, 5), vreg_idx_hi_128);
                 vpermi2q(get_vmm(k, 5), get_vmm(k, 0), get_vmm(k, 2));
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 64),
@@ -2484,7 +2495,7 @@ private:
                         vmm_zero);
             }
 
-            if (ncolumns > 32) {
+            if (!zeropad && ncolumns > 32) {
                 vmovups(get_vmm(k, 0), vreg_idx_lo_128);
                 vpermi2q(get_vmm(k, 0), get_vmm(k, 1), get_vmm(k, 4));
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 128),
@@ -2496,7 +2507,7 @@ private:
                         vmm_zero);
             }
 
-            if (ncolumns > 48) {
+            if (!zeropad && ncolumns > 48) {
                 vmovups(get_vmm(k, 2), vreg_idx_hi_128);
                 vpermi2q(get_vmm(k, 2), get_vmm(k, 1), get_vmm(k, 4));
                 vmovups(EVEX_compress_addr(reg_tr_src, tr_src_off_base + 192),
@@ -2533,7 +2544,7 @@ private:
             uni_vmovups(vmm_src, ptr[reg_src + offset]);
     }
 
-    void copy_4x64(int nrows, int ncolumns) override {
+    void copy_4x64(int nrows, int ncolumns, bool zeropad) override {
         const bool is_tail = ncolumns < n_blk_step_;
         const int k_end = div_up(nrows, k_blk_step_);
         for_(int k = 0; k < k_end; k++)
@@ -2545,39 +2556,44 @@ private:
                     = tr_src_off_base + pass * 2 * n_blk_step_;
             const int row_start = k * k_blk_step_;
             const int row_end = nstl::min(row_start + k_blk_step_, nrows);
-            for (int i = row_start; i < rnd_up(row_end, k_blk_step_); i++) {
-                const bool do_load = i < row_end
-                        && IMPLICATION(pass == 1, ncolumns >= simd_w_);
-                if (do_load) {
-                    const bool do_tail = is_tail
-                            && IMPLICATION(pass == 0, ncolumns < simd_w_);
-                    const auto offset
-                            = (is_dynamic_stride_ ? 0 : i * src_stride_)
-                            + pass * simd_w_;
-                    load_ymm(i % 4, offset, do_tail, ncolumns - pass * simd_w_);
-                    if (is_dynamic_stride_) add(reg_src, reg_src_stride);
-                } else {
-                    const auto src_ymm_1 = get_ymm(i % 4);
-                    uni_vpxor(src_ymm_1, src_ymm_1, src_ymm_1);
+            if (!zeropad) {
+                for (int i = row_start; i < rnd_up(row_end, k_blk_step_); i++) {
+                    const bool do_load = i < row_end
+                            && IMPLICATION(pass == 1, ncolumns >= simd_w_);
+                    if (do_load) {
+                        const bool do_tail = is_tail
+                                && IMPLICATION(pass == 0, ncolumns < simd_w_);
+                        const auto offset
+                                = (is_dynamic_stride_ ? 0 : i * src_stride_)
+                                + pass * simd_w_;
+                        load_ymm(i % 4, offset, do_tail,
+                                ncolumns - pass * simd_w_);
+                        if (is_dynamic_stride_) add(reg_src, reg_src_stride);
+                    } else {
+                        const auto src_ymm_1 = get_ymm(i % 4);
+                        uni_vpxor(src_ymm_1, src_ymm_1, src_ymm_1);
+                    }
                 }
+                if (pass == 0 && ncolumns >= simd_w_)
+                    mov(reg_src, reg_src_backup);
+
+                vpunpcklbw(get_ymm(4), get_ymm(0), get_ymm(1));
+                vpunpckhbw(get_ymm(5), get_ymm(0), get_ymm(1));
+                vpunpcklbw(get_ymm(0), get_ymm(2), get_ymm(3));
+                vpunpckhbw(get_ymm(1), get_ymm(2), get_ymm(3));
+
+                vpunpcklwd(get_ymm(2), get_ymm(4), get_ymm(0));
+                vpunpckhwd(get_ymm(3), get_ymm(4), get_ymm(0));
+                vpunpcklwd(get_ymm(4), get_ymm(5), get_ymm(1));
+                vpunpckhwd(get_ymm(5), get_ymm(5), get_ymm(1));
             }
-            if (pass == 0 && ncolumns >= simd_w_) mov(reg_src, reg_src_backup);
-
-            vpunpcklbw(get_ymm(4), get_ymm(0), get_ymm(1));
-            vpunpckhbw(get_ymm(5), get_ymm(0), get_ymm(1));
-            vpunpcklbw(get_ymm(0), get_ymm(2), get_ymm(3));
-            vpunpckhbw(get_ymm(1), get_ymm(2), get_ymm(3));
-
-            vpunpcklwd(get_ymm(2), get_ymm(4), get_ymm(0));
-            vpunpckhwd(get_ymm(3), get_ymm(4), get_ymm(0));
-            vpunpcklwd(get_ymm(4), get_ymm(5), get_ymm(1));
-            vpunpckhwd(get_ymm(5), get_ymm(5), get_ymm(1));
 
             auto get_accum
                     = [&](int idx) { return get_comp_acc(idx + pass * 4); };
 
-            if (IMPLICATION(
-                        pass == 1, ncolumns > 32)) { // check against {0, 32}
+            if (!zeropad
+                    && IMPLICATION(pass == 1,
+                            ncolumns > 32)) { // check against {0, 32}
                 vperm2i128(get_ymm(0), get_ymm(2), get_ymm(3), perm2i128_l);
                 vperm2i128(get_ymm(1), get_ymm(4), get_ymm(5), perm2i128_l);
                 uni_vmovups(ptr[reg_tr_src + set_1_tr_src_offset], get_ymm(0));
@@ -2597,7 +2613,7 @@ private:
 
             const int set_2_tr_src_offset = set_1_tr_src_offset + n_blk_step_;
             const int upper_check = 16 + pass * 32; // check against {16, 48}
-            if (ncolumns > upper_check) {
+            if (!zeropad && ncolumns > upper_check) {
                 vperm2i128(get_ymm(2), get_ymm(2), get_ymm(3), perm2i128_h);
                 vperm2i128(get_ymm(3), get_ymm(4), get_ymm(5), perm2i128_h);
                 uni_vmovups(ptr[reg_tr_src + set_2_tr_src_offset], get_ymm(2));
@@ -2631,7 +2647,6 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
     uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
-    mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
     mov(reg_N_blk, ptr[param1 + GET_OFF(current_N_blk)]);
     if (is_dynamic_stride_) {
         mov(reg_src_stride, ptr[param1 + GET_OFF(dynamic_src_stride)]);
@@ -2647,33 +2662,33 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
         uni_vpbroadcastb(vmm_comp_mul, reg_tmp.cvt8());
     }
 
-    auto compute_K_loop = [&](bool is_N_tail) {
+    auto compute_K_loop_body = [&](const reg64_t &reg_K, int ncolumns,
+                                       bool is_N_tail, bool zeropad) {
         const int k_unroll = 4;
-        int ncolumns = is_N_tail ? conf_->N_tail : conf_->N_blk;
-
         Label K_loop_unrolled, K_loop_single, K_loop_tail_or_done;
-        cmp(reg_K_iters, k_unroll * k_blk_step_);
+        cmp(reg_K, k_unroll * k_blk_step_);
         jl(K_loop_single, T_NEAR);
 
         L(K_loop_unrolled);
-        copy_block(k_unroll * k_blk_step_, ncolumns, is_N_tail);
-        if (!is_dynamic_stride_)
+        copy_block(k_unroll * k_blk_step_, ncolumns, is_N_tail, zeropad);
+        if (!zeropad && !is_dynamic_stride_)
             add(reg_src, k_unroll * k_blk_step_ * src_stride_);
         add(reg_tr_src, k_unroll * tr_src_stride_);
 
-        sub(reg_K_iters, k_unroll * k_blk_step_);
-        cmp(reg_K_iters, k_unroll * k_blk_step_);
+        sub(reg_K, k_unroll * k_blk_step_);
+        cmp(reg_K, k_unroll * k_blk_step_);
         jge(K_loop_unrolled, T_NEAR);
 
         L(K_loop_single);
-        cmp(reg_K_iters, k_blk_step_);
+        cmp(reg_K, k_blk_step_);
         jl(K_loop_tail_or_done, T_NEAR);
 
-        copy_block(k_blk_step_, ncolumns, is_N_tail);
-        if (!is_dynamic_stride_) add(reg_src, k_blk_step_ * src_stride_);
+        copy_block(k_blk_step_, ncolumns, is_N_tail, zeropad);
+        if (!zeropad && !is_dynamic_stride_)
+            add(reg_src, k_blk_step_ * src_stride_);
         add(reg_tr_src, tr_src_stride_);
 
-        sub(reg_K_iters, k_blk_step_);
+        sub(reg_K, k_blk_step_);
         jmp(K_loop_single, T_NEAR);
 
         L(K_loop_tail_or_done);
@@ -2681,13 +2696,22 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
         int k_blk_tail = conf_->K % k_blk_step_;
         if (k_blk_tail > 0) {
             Label K_loop_done;
-            cmp(reg_K_iters, 0);
+            cmp(reg_K, 0);
             jle(K_loop_done, T_NEAR);
 
-            copy_block(k_blk_tail, ncolumns, is_N_tail);
-            sub(reg_K_iters, k_blk_tail);
+            copy_block(k_blk_tail, ncolumns, is_N_tail, zeropad);
+            add(reg_tr_src, tr_src_stride_);
+            sub(reg_K, k_blk_tail);
             L(K_loop_done);
         }
+    };
+
+    auto compute_K_loop = [&](bool is_N_tail) {
+        int ncolumns = is_N_tail ? conf_->N_tail : conf_->N_blk;
+        mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
+        compute_K_loop_body(reg_K_iters, ncolumns, is_N_tail, false);
+        mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_pad)]);
+        compute_K_loop_body(reg_K_iters, ncolumns, is_N_tail, true);
     };
 
     Label done;
@@ -2945,8 +2969,8 @@ private:
         }
     }
     void load_data(const Vmm vmm_in, const Xbyak::Operand &op, bool is_tail);
-    void copy_block(int nrows, int ncolumns, bool n_tail);
-    void copy_2x32(int nrows, int ncolumns);
+    void copy_block(int nrows, int ncolumns, bool n_tail, bool zeropad);
+    void copy_2x32(int nrows, int ncolumns, bool zeropad);
     void init_masks();
     void generate() override;
 };
@@ -2989,7 +3013,8 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::load_data(
 }
 
 template <typename Vmm>
-void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
+void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(
+        int nrows, int ncolumns, bool zeropad) {
 
     const int columns_tail = ncolumns % n_blk_step;
     if (columns_tail > 0 && columns_tail < n_blk_step) {
@@ -3077,7 +3102,7 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_2x32(int nrows, int ncolumns) {
             }
         }
 
-        if (ncolumns - n <= 0) {
+        if (ncolumns - n <= 0 || zeropad) {
             uni_vmovups(store_addr, vmm_zero);
             if (!is_superset(conf_->isa, avx512_core))
                 uni_vmovups(store_addr_ymm1, vmm_zero);
@@ -3146,9 +3171,9 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::init_masks() {
 
 template <typename Vmm>
 void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_block(
-        int nrows, int ncolumns, bool n_tail) {
+        int nrows, int ncolumns, bool n_tail, bool zeropad) {
     if (!is_dynamic_N || !n_tail) {
-        copy_2x32(nrows, ncolumns);
+        copy_2x32(nrows, ncolumns, zeropad);
         return;
     }
 
@@ -3169,7 +3194,7 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_block(
     {
         mov(ptr[rsp + reg_src_offs], reg_src);
         add(reg_src, reg_copy_block_n_shift);
-        copy_2x32(nrows, n_blk_step);
+        copy_2x32(nrows, n_blk_step, zeropad);
         add(reg_copy_block_n_shift, n_blk_step * typesize);
         add(reg_src, n_blk_step * typesize);
         add(reg_tr_src, n_blk_step * k_blk_step * tr_typesize);
@@ -3192,7 +3217,7 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::copy_block(
         jle(loop_row_done, T_NEAR);
 
         add(reg_src, reg_copy_block_n_shift);
-        copy_2x32(nrows, 1 /* to force tail case */);
+        copy_2x32(nrows, 1 /* to force tail case */, zeropad);
     }
     L(loop_row_done);
 
@@ -3210,7 +3235,6 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
-    mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
     mov(reg_N_blk, ptr[param1 + GET_OFF(current_N_blk)]);
     mov(reg_scales, ptr[param1 + GET_OFF(scales_ptr)]);
     if (is_dynamic_stride) {
@@ -3224,38 +3248,40 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
     }
 
     init_masks();
-    auto compute_K_loop = [&](bool is_N_tail) {
-        const int k_unroll = 8;
-        int ncolumns = is_N_tail ? conf_->N_tail : conf_->N_blk;
 
+    auto compute_K_loop_body = [&](const reg64_t &reg_K, int ncolumns,
+                                       bool is_N_tail, bool zeropad) {
+        const int k_unroll = 8;
         Label K_loop_unrolled, K_loop_single, K_loop_tail_or_done;
-        cmp(reg_K_iters, k_unroll * k_blk_step);
+
+        cmp(reg_K, k_unroll * k_blk_step);
         jl(K_loop_single, T_NEAR);
 
         L(K_loop_unrolled);
-        copy_block(k_unroll * k_blk_step, ncolumns, is_N_tail);
+        copy_block(k_unroll * k_blk_step, ncolumns, is_N_tail, zeropad);
 
-        if (!is_dynamic_stride)
+        if (!zeropad && !is_dynamic_stride)
             add(reg_src, (k_unroll * k_blk_step * src_stride) / typesize_scale);
-        if (req_apply_scales)
+        if (!zeropad && req_apply_scales)
             add(reg_scales, k_unroll * k_blk_step * scales_N_stride);
         add(reg_tr_src, k_unroll * tr_src_stride);
 
-        sub(reg_K_iters, k_unroll * k_blk_step);
-        cmp(reg_K_iters, k_unroll * k_blk_step);
+        sub(reg_K, k_unroll * k_blk_step);
+        cmp(reg_K, k_unroll * k_blk_step);
         jge(K_loop_unrolled, T_NEAR);
 
         L(K_loop_single);
-        cmp(reg_K_iters, k_blk_step);
+        cmp(reg_K, k_blk_step);
         jl(K_loop_tail_or_done, T_NEAR);
 
-        copy_block(k_blk_step, ncolumns, is_N_tail);
-        if (!is_dynamic_stride)
+        copy_block(k_blk_step, ncolumns, is_N_tail, zeropad);
+        if (!zeropad && !is_dynamic_stride)
             add(reg_src, (k_blk_step * src_stride) / typesize_scale);
-        if (req_apply_scales) add(reg_scales, k_blk_step * scales_N_stride);
+        if (!zeropad && req_apply_scales)
+            add(reg_scales, k_blk_step * scales_N_stride);
         add(reg_tr_src, tr_src_stride);
 
-        sub(reg_K_iters, k_blk_step);
+        sub(reg_K, k_blk_step);
         jmp(K_loop_single, T_NEAR);
 
         L(K_loop_tail_or_done);
@@ -3263,13 +3289,22 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
         int k_blk_tail = conf_->K % k_blk_step;
         if (k_blk_tail > 0) {
             Label K_loop_done;
-            cmp(reg_K_iters, 0);
+            cmp(reg_K, 0);
             jle(K_loop_done, T_NEAR);
 
-            copy_block(k_blk_tail, ncolumns, is_N_tail);
-            sub(reg_K_iters, k_blk_tail);
+            copy_block(k_blk_tail, ncolumns, is_N_tail, zeropad);
+            add(reg_tr_src, tr_src_stride);
+            sub(reg_K, k_blk_tail);
             L(K_loop_done);
         }
+    };
+
+    auto compute_K_loop = [&](bool is_N_tail) {
+        int ncolumns = is_N_tail ? conf_->N_tail : conf_->N_blk;
+        mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
+        compute_K_loop_body(reg_K_iters, ncolumns, is_N_tail, false);
+        mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_pad)]);
+        compute_K_loop_body(reg_K_iters, ncolumns, is_N_tail, true);
     };
 
     Label done;
@@ -4589,7 +4624,7 @@ private:
     void load_int(const Vmm vmm_in, const Xbyak::Operand &op);
     void get_scales(const int blk, const int k, const int n,
             const bool is_n_tail, const bool is_k_tail);
-    void copy_block(const int nrows, const int ncolumns);
+    void copy_block(const int nrows, const int ncolumns, bool zeropad);
     void generate() override;
 };
 
@@ -4668,7 +4703,7 @@ void jit_brgemm_matmul_copy_b_cvt_bf16_t<Vmm>::get_scales(const int blk,
 
 template <typename Vmm>
 void jit_brgemm_matmul_copy_b_cvt_bf16_t<Vmm>::copy_block(
-        const int nrows, int ncolumns) {
+        const int nrows, int ncolumns, bool zeropad) {
     const int columns_tail = ncolumns % n_blk_step;
     if (columns_tail > 0 && columns_tail < n_blk_step) {
         const auto regw_tmp = reg_tmp.cvt32();
@@ -4728,8 +4763,12 @@ void jit_brgemm_matmul_copy_b_cvt_bf16_t<Vmm>::copy_block(
                 = maybe_EVEX_compress_addr(reg_tr_src, tr_src_off);
         const int blk_idx = iter % max_unroll;
 
-        load(blk_idx, k, n);
-        uni_vmovups(store_addr, get_vmm(blk_idx, 0));
+        const auto store_vmm = get_vmm(blk_idx, 0);
+        if (zeropad)
+            uni_vpxor(store_vmm, store_vmm, store_vmm);
+        else
+            load(blk_idx, k, n);
+        uni_vmovups(store_addr, store_vmm);
 
         iter++;
     }
@@ -4744,7 +4783,6 @@ void jit_brgemm_matmul_copy_b_cvt_bf16_t<Vmm>::generate() {
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
     mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
-    mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
     mov(reg_N_blk, ptr[param1 + GET_OFF(current_N_blk)]);
     mov(reg_scales, ptr[param1 + GET_OFF(scales_ptr)]);
 
@@ -4753,48 +4791,58 @@ void jit_brgemm_matmul_copy_b_cvt_bf16_t<Vmm>::generate() {
         uni_vpbroadcastd(vmm_zp_b_val, ptr[reg_tmp]);
     }
 
+    auto compute_K_loop_body
+            = [&](const reg64_t &reg_K, int ncolumns, bool zeropad) {
+                  const int k_unroll = 8;
+
+                  Label K_loop_unrolled, K_loop_single, K_loop_tail_or_done;
+                  cmp(reg_K, k_unroll * k_blk_step);
+                  jl(K_loop_single, T_NEAR);
+
+                  L(K_loop_unrolled);
+                  copy_block(k_unroll * k_blk_step, ncolumns, zeropad);
+                  add(reg_src, k_unroll * src_stride_);
+                  add(reg_tr_src, k_unroll * tr_src_stride_);
+                  if (req_apply_scales_)
+                      add(reg_scales, k_unroll * k_blk_step * scales_N_stride_);
+
+                  sub(reg_K, k_unroll * k_blk_step);
+                  cmp(reg_K, k_unroll * k_blk_step);
+                  jge(K_loop_unrolled, T_NEAR);
+
+                  L(K_loop_single);
+                  cmp(reg_K, k_blk_step);
+                  jl(K_loop_tail_or_done, T_NEAR);
+
+                  copy_block(k_blk_step, ncolumns, zeropad);
+                  add(reg_src, src_stride_);
+                  add(reg_tr_src, tr_src_stride_);
+                  if (req_apply_scales_)
+                      add(reg_scales, k_blk_step * scales_N_stride_);
+
+                  sub(reg_K, k_blk_step);
+                  jmp(K_loop_single, T_NEAR);
+
+                  L(K_loop_tail_or_done);
+
+                  const int k_blk_tail = conf_->K % k_blk_step;
+                  if (k_blk_tail > 0) {
+                      Label K_loop_done;
+                      cmp(reg_K, 0);
+                      jle(K_loop_done, T_NEAR);
+
+                      copy_block(k_blk_tail, ncolumns, zeropad);
+                      add(reg_tr_src, tr_src_stride_);
+                      sub(reg_K, k_blk_tail);
+                      L(K_loop_done);
+                  }
+              };
+
     auto compute_K_loop = [&](const int ncolumns) {
-        const int k_unroll = 8;
-
-        Label K_loop_unrolled, K_loop_single, K_loop_tail_or_done;
-        cmp(reg_K_iters, k_unroll * k_blk_step);
-        jl(K_loop_single, T_NEAR);
-
-        L(K_loop_unrolled);
-        copy_block(k_unroll * k_blk_step, ncolumns);
-        add(reg_src, k_unroll * src_stride_);
-        add(reg_tr_src, k_unroll * tr_src_stride_);
-        if (req_apply_scales_)
-            add(reg_scales, k_unroll * k_blk_step * scales_N_stride_);
-
-        sub(reg_K_iters, k_unroll * k_blk_step);
-        cmp(reg_K_iters, k_unroll * k_blk_step);
-        jge(K_loop_unrolled, T_NEAR);
-
-        L(K_loop_single);
-        cmp(reg_K_iters, k_blk_step);
-        jl(K_loop_tail_or_done, T_NEAR);
-
-        copy_block(k_blk_step, ncolumns);
-        add(reg_src, src_stride_);
-        add(reg_tr_src, tr_src_stride_);
-        if (req_apply_scales_) add(reg_scales, k_blk_step * scales_N_stride_);
-
-        sub(reg_K_iters, k_blk_step);
-        jmp(K_loop_single, T_NEAR);
-
-        L(K_loop_tail_or_done);
-
-        const int k_blk_tail = conf_->K % k_blk_step;
-        if (k_blk_tail > 0) {
-            Label K_loop_done;
-            cmp(reg_K_iters, 0);
-            jle(K_loop_done, T_NEAR);
-
-            copy_block(k_blk_tail, ncolumns);
-            sub(reg_K_iters, k_blk_tail);
-            L(K_loop_done);
-        }
+        mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
+        compute_K_loop_body(reg_K_iters, ncolumns, false);
+        mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_pad)]);
+        compute_K_loop_body(reg_K_iters, ncolumns, true);
     };
 
     Label done;
