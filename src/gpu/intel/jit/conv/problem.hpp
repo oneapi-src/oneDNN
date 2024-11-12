@@ -105,11 +105,9 @@ public:
         return ret;
     }
     bool is_s32_accumulator() const { return acc_data_type == data_type::s32; }
+    bool is_f64_accumulator() const { return acc_data_type == data_type::f64; }
     bool is_f32_conv() const {
         return utils::everyone_is(src_data_type, wei_data_type, data_type::f32);
-    }
-    bool is_f64_conv() const {
-        return utils::everyone_is(src_data_type, wei_data_type, data_type::f64);
     }
     bool is_int8_dst() const {
         return utils::one_of(dst_data_type, data_type::s8, data_type::u8);
@@ -167,7 +165,6 @@ public:
     data_type_t dst_data_type = data_type::undef;
     data_type_t bia_data_type = data_type::undef;
     fpmath_mode_t fpmath_mode = fpmath_mode::strict;
-    bool deterministic = false;
 
     bool is_fwd = false;
     bool is_bwd_d = false;

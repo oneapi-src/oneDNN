@@ -2104,7 +2104,7 @@ private:
         auto &src = g2s_load.reg_layout();
         auto &dst = g2s_store.reg_layout();
         reorder = create_reorder_plan(cfg_.hw(), src, dst);
-        if (reduce_mask && !cfg_.prb().deterministic) {
+        if (reduce_mask && cfg_.allow_global_reduction()) {
             *reduce_tile = to_reduce_tensor(abs_thr_tile, reduce_mask.mask);
             auto reduce_layout = to_reduce_layout(src, reduce_mask.mask);
             *reduce = create_reduce_plan(
@@ -2169,7 +2169,7 @@ private:
                 send_address_t::slm, abc, thr_view);
         load = create_send_plan(cfg_.exec_cfg(), thr_view, params);
         layout = load.reg_layout();
-        if (reduce_mask && cfg_.prb().deterministic) {
+        if (reduce_mask && !cfg_.allow_global_reduction()) {
             *reduce_tile = to_reduce_tensor(abs_thr_tile, reduce_mask.mask);
             auto reduce_layout = to_reduce_layout(layout, reduce_mask.mask);
             *reduce = create_reduce_plan(

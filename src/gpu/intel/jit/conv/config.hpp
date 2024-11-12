@@ -38,6 +38,19 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
+class allow_global_reduction_param_t : public bool_param_t {
+public:
+    allow_global_reduction_param_t() : bool_param_t(default_value) {}
+    std::string name() const override { return "global-reduction"; }
+    std::string desc() const override {
+        return "Whether global reduction via atomics is allowed.";
+    }
+    bool is_overridable() const override { return true; }
+    bool is_default() const override { return get() == default_value; }
+
+    static const bool default_value;
+};
+
 // Special optimization techniques for backward by data convolution.
 //
 // skip_out_of_bound_w enables skip-conditions for kw loop (unit stride only):
@@ -488,6 +501,7 @@ public:
     } \
     name##_param_t &name() { return name##_; }
 
+    DECL_PARAM(allow_global_reduction)
     DECL_PARAM(bwd_d_optimize_kind)
     DECL_PARAM(fma_kind)
     DECL_PARAM(pad_slm)
@@ -606,6 +620,7 @@ private:
                   return &((const conv_config_t *)c)->name##_; \
               });
 
+    INIT_PARAM(allow_global_reduction)
     INIT_PARAM(bwd_d_optimize_kind)
     INIT_PARAM(fma_kind)
     INIT_PARAM(pad_slm)
