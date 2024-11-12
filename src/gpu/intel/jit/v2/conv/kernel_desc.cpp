@@ -333,10 +333,7 @@ status_t kernel_desc_t::set_post_ops(
     // all spatial dimensions.
     int old_ndims = out_md->ndims;
     int new_ndims = 5;
-    int old_sp_ndims = (old_ndims - 2);
-    int new_sp_ndims = (new_ndims - 2);
-    post_op::ndim_normalizer_t ndim_normalizer {
-            old_sp_ndims, new_sp_ndims - old_sp_ndims};
+    post_op::ndim_normalizer_t ndim_normalizer {2, new_ndims - old_ndims};
     return gpu_post_ops_t::make(post_ops, attr_post_ops, out_md,
             post_op::specializations_t(), ndim_normalizer);
 }

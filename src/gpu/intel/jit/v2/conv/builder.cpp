@@ -490,9 +490,14 @@ private:
             rhs_buf = reorder(_rhs, rhs_f32, _rhs_buf);
             rhs = rhs_f32;
         }
-        if (scale != 1 || zero_point != 0) {
+        if (zero_point != 0) {
             auto func = eltwise_t::make(
-                    alg_kind::eltwise_linear, 1, scale, -zero_point);
+                    alg_kind::eltwise_linear, 1, 1.0f, -zero_point);
+            emit(func.call({expr_t(rhs.elems()), rhs_buf}));
+        }
+        if (scale != 1) {
+            auto func
+                    = eltwise_t::make(alg_kind::eltwise_linear, 1, scale, 0.0f);
             emit(func.call({expr_t(rhs.elems()), rhs_buf}));
         }
         ir_assert(lhs.nblocks() > 0);
@@ -523,6 +528,9 @@ private:
                     if (is_bcast) e_r = shuffle_t::make_broadcast(e_r, elems);
                     auto e_op = binary_op_t::make(
                             alg_kind_to_op_kind(alg), e_l, e_r);
+                    if (e_op.type().is_bool()) {
+                        e_op = cast(e_op, lhs.type().with_elems(elems));
+                    }
                     emit(store_t::make(lhs_buf, lhs_off, e_op));
                 });
     }
