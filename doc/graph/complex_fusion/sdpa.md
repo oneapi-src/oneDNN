@@ -94,7 +94,11 @@ platforms follow the general description in @ref dev_guide_data_types.
    floating point SDPA patterns are usually implemented with f32/bf16/f16 matmul
    (with post-ops) and softmax primitives, while quantized SDPA patterns are
    implemented with int8 matmul (with post-ops) and f32/bf16/f16 softmax
-   primitives.
+   primitives. The reference implementation requires memory to store the
+   intermediate results of the dot products between Query and Key which takes
+   \f$O(S^2)\f$ memory. It may lead to Out-of-Memory when computing long
+   sequence length input on platforms with limited memory.
+   
 2. The SDPA patterns functionally supports all input shapes meeting the shape
    requirements of each operation in the graph. For example, Add, Multiply,
    Divide, and Select operations require the input tensors to have the same
