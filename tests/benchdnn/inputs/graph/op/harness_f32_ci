@@ -56,6 +56,3 @@
 --reset --case=op/f32/select.json
 --reset --case=op/f32/static_reshape.json
 --reset --case=op/f32/static_transpose.json
-
-# only the graph compiler supports this op
---reset --case=op/f32/pow.json

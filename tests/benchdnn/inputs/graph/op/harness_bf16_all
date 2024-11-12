@@ -579,6 +579,3 @@
 --reset --dt=bf16 --in-shapes=0:abcd --case=op/f32/reorder.json
 --reset --dt=bf16 --in-shapes=0:cdba --case=op/f32/reorder.json
 --reset --dt=bf16 --in-shapes=0:acdb --case=op/f32/reorder.json
-
-# only the graph compiler supports this op
---reset --dt=bf16 --case=op/f32/pow.json
