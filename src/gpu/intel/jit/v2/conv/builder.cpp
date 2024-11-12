@@ -663,26 +663,14 @@ private:
         expr_t tmp_buf;
         if (plan_.bia_reorder)
             tmp_buf = alloc("bia_tmp", plan_.bia_reorder.dst.size());
-        auto bia_tile = plan_.bia_store.reg_layout().int_dim_sizes();
-        auto epilogue_tile = bia_tile;
-        for (auto &d : bia_tile)
-            epilogue_tile[d] = plan_.tile[d];
-        for_each(
-                bia_tile, epilogue_tile, [&](const pvar_coord_t<dim_t> &coord) {
-                    auto payload_buf = bia_red_reg_buf;
-                    if (plan_.bia_reorder) {
-                        dim_t src_off
-                                = plan_.bia_reduced_reg_layout.offset_in_bytes(
-                                        coord);
-                        reorder(plan_.bia_reorder, bia_red_reg_buf + src_off,
-                                tmp_buf);
-                        payload_buf = std::move(tmp_buf);
-                    }
-                    _if(plan_.reduce_cond, [&]() {
-                        store(plan_.bia_store, bia_red_mem_buf, payload_buf,
-                                coord, epilogue_tile);
-                    });
-                });
+        auto payload_buf = bia_red_reg_buf;
+        if (plan_.bia_reorder) {
+            reorder(plan_.bia_reorder, bia_red_reg_buf, tmp_buf);
+            payload_buf = std::move(tmp_buf);
+        }
+        _if(plan_.reduce_cond, [&]() {
+            store(plan_.bia_store, bia_red_mem_buf, payload_buf);
+        });
     }
 
     const buffer_info_t &buf_info_;

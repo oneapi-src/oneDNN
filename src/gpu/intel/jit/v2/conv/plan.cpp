@@ -415,7 +415,7 @@ private:
         c_layout_ = pick_c(desc_.prop, src_layout, wei_layout, dst_layout);
         if (desc_.with_bias_bwd_w()) {
             auto bia_tag = make_conv_layout_tag(
-                    tensor_kind_t::bia, "a" + desc_.bias_type.str());
+                    tensor_kind_t::bia, "a:" + desc_.bias_type.str());
             bia_layout_ = make_conv_layout(
                     tensor_kind_t::bia, bia_tag, desc_.is_dw, reqs_);
         }
