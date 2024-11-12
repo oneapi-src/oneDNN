@@ -128,8 +128,8 @@
 --reset --attr-fpmath=strict,bf16,tf32 --case=pattern/f32/matmul_post_ops_add_add_fusion.json
 --reset --in-shapes=0:384x4096+1:4096x1024+2:384x1024 --case=pattern/f32/matmul_post_ops_sum_relu_fusion.json
 --reset --in-shapes=0:384x512+1:512x1024+2:384x1024 --case=pattern/f32/matmul_post_ops_sum_relu_fusion.json
---reset --in-shapes=0:16x1024+1:1024x1024+2:1x1+3:1x1 --case=pattern/f32/matmul_post_ops_chain_fusion.json
---reset --in-shapes=0:16x1024+1:1024x1024+2:1x1024+3:1x1024 --case=pattern/f32/matmul_post_ops_chain_fusion.json
+--reset --in-shapes=0:16x1024+1:1024x1024+3:1x1+6:1x1 --case=pattern/f32/matmul_post_ops_chain_fusion.json
+--reset --in-shapes=0:16x1024+1:1024x1024+3:1x1024+6:1x1024 --case=pattern/f32/matmul_post_ops_chain_fusion.json
 --reset --in-shapes=0:384x4096+1:4096x1024+2:384x1 --case=pattern/f32/matmul_post_ops_swish_fusion.json
 --reset --in-shapes=0:384x4096+1:4096x1024+2:1024 --case=pattern/f32/matmul_post_ops_swish_fusion.json
 --reset --case=pattern/f32/matmul_select.json
