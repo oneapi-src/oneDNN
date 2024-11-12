@@ -26,3 +26,4 @@
 --batch=test_conv_int8
 --batch=test_conv_regression
 --batch=test_conv_wino_gpu
+--batch=harness_conv_output_striding

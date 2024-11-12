@@ -31,7 +31,7 @@ namespace graph {
 
 bool parse_input_shapes(
         std::vector<std::map<size_t, std::string>> &in_shapes_vec,
-        const char *str);
+        const char *str, const std::string &option_name = "in-shapes");
 
 bool parse_op_attrs(std::vector<std::map<size_t, std::string>> &op_attrs_vec,
         const char *str);

@@ -123,6 +123,7 @@ struct brgemm_matmul_conf_t {
     data_type_t wei_dt;
     data_type_t acc_dt;
     data_type_t bia_dt;
+    data_type_t orig_src_dt;
     data_type_t orig_wei_dt;
     int nthr;
     int nthr_k;

@@ -214,7 +214,7 @@ inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
             tag = format_tag::undef;
         }
     } else {
-        tag = mdw.matches_one_of_tag(tag_value);
+        tag = mdw.mb_stride_relaxed_match(tag_value);
     }
 
     VDISPATCH_CONV_IC(tag == tag_value, VERBOSE_UNSUPPORTED_TAG);

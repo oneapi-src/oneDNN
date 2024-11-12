@@ -1,1 +1,1 @@
---reset --case=pattern/f16/conv_post_ops_fusion.json
+--reset --dt=f16 --case=pattern/f32/conv_post_ops_fusion.json

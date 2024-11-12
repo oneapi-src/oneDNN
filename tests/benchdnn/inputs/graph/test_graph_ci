@@ -7,3 +7,4 @@
 --batch=pattern/harness_int8_ci
 --batch=pattern/harness_f8_ci
 --batch=complex_fusion/harness_mha_ci
+--batch=complex_fusion/harness_mlp_ci

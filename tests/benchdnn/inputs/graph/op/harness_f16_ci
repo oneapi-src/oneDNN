@@ -1,6 +1,27 @@
---reset --op-attrs=0:auto_pad:VALID --case=op/f16/conv_2d.json
---reset --case=op/f16/add.json
---reset --in-shapes=0:1x32x32x128 --op-attrs=0:data_format:NXC --case=op/f16/biasadd.json
---reset --case=op/f16/min.json
---reset --case=op/f16/reducel2.json
---reset --case=op/f16/gnorm.json
+--reset --dt=f16 --op-attrs=0:auto_pad:VALID --case=op/f32/conv_2d.json
+--reset --dt=f16 --op-attrs=0:auto_pad:SAME_LOWER --case=op/f32/conv_2d.json
+--reset --dt=f16 --in-shapes=0:384x32 --op-attrs=0:transpose_a:1 --case=op/f32/matmul_2d_4d.json
+--reset --dt=f16 --case=op/f32/abs_bwd.json
+--reset --dt=f16 --case=op/f32/add.json
+--reset --dt=f16 --in-shapes=0:1x32x32x128 --op-attrs=0:data_format:NXC --case=op/f32/biasadd.json
+--reset --dt=f16 --case=op/f32/min.json
+--reset --dt=f16 --case=op/f32/reducel2.json
+--reset --dt=f16 --case=op/f32/gnorm.json
+--reset --dt=f16 --in-shapes=0:1x300x300x64 --op-attrs=0:data_format:NXC*src_shape:1x600x600x64 --case=op/f32/avgpool_bwd.json
+--reset --dt=f16 --in-shapes=0:2x71x71x192 --op-attrs=0:data_format:NXC --case=op/f32/bnorm.json
+--reset --dt=f16 --case=op/f32/clamp_bwd.json
+--reset --dt=f16 --case=op/f32/div.json
+--reset --dt=f16 --case=op/f32/gelu_bwd.json
+--reset --dt=f16 --op-attrs=0:mode:trilinear --case=op/f32/interpolate.json
+--reset --dt=f16 --case=op/f32/leakyrelu.json
+--reset --dt=f16 --case=op/f32/logsoftmax.json
+--reset --dt=f16 --op-attrs=0:auto_pad:SAME_LOWER*kernel:2x2 --case=op/f32/maxpool.json
+--reset --dt=f16 --case=op/f32/mish_bwd.json
+--reset --dt=f16 --op-attrs=0:data_format:NXC --case=op/f32/prelu_bwd.json
+--reset --dt=f16 --case=op/f32/reducemin.json
+--reset --dt=f16 --case=op/f32/sigmoid.json
+--reset --dt=f16 --case=op/f32/sub.json
+--reset --dt=f16 --op-attrs=0:beta:1 --case=op/f32/hardsigmoid.json
+--reset --dt=f16 --case=op/f32/select.json
+--reset --dt=f16 --case=op/f32/static_reshape.json
+--reset --dt=f16 --case=op/f32/static_transpose.json

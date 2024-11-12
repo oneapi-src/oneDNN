@@ -449,8 +449,8 @@ struct memory_desc_wrapper : public c_compatible {
 
     /** returns true if the memory desc corresponds to the given format tag.
      * @sa memory_desc_matches_tag */
-    bool matches_tag(format_tag_t tag) const {
-        return memory_desc_matches_tag(*md_, tag);
+    bool matches_tag(format_tag_t tag, const dims_t strides = nullptr) const {
+        return memory_desc_matches_tag(*md_, tag, strides);
     }
 
     /** returns matching tag (or undef if match is not found)
@@ -460,6 +460,16 @@ struct memory_desc_wrapper : public c_compatible {
         for (const auto tag : {tags...}) {
             if (memory_desc_matches_tag(*md_, tag)) return tag;
         }
+        return format_tag::undef;
+    }
+
+    template <typename... Tags>
+    format_tag_t mb_stride_relaxed_match(Tags... tags) const {
+        dims_t skip_mb_stride {};
+        // See `memory_desc_matches_tag` comment.
+        skip_mb_stride[0] = -1;
+        for (const auto &tag : {tags...})
+            if (matches_tag(tag, skip_mb_stride)) return tag;
         return format_tag::undef;
     }
 
@@ -551,6 +561,16 @@ struct memory_desc_wrapper : public c_compatible {
     dim_t blk_off(T xn, Args... args) const {
         return skip_first ? blk_off<Args...>(args...)
                           : blk_off<T, Args...>(xn, args...);
+    }
+
+    /** returns physical offset by logical one. Logical offset is represented by
+     * a tuple of block indices (\param bn, ..., \param b1, \param b0). It is a
+     * user responsibility to adjust the result to get offset within blocks.
+     * If @tparam sub_off0 is true, then offset0() will be subtracted
+     * from result.*/
+    template <bool skip_first, bool sub_off0, typename T, typename... Args>
+    dim_t blk_off(T xn, Args... args) const {
+        return blk_off<skip_first, Args...>(xn, args...) - sub_off0 * offset0();
     }
 
     /* static functions section */
