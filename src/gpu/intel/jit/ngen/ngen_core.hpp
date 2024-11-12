@@ -613,8 +613,8 @@ public:
     constexpr bool isInvalid()         const { return invalid; }
     constexpr bool isValid()           const { return !invalid; }
     constexpr int getOffset()          const { return off; }
-    constexpr14 int getByteOffset()    const { return off * getBytes(); }
-    constexpr14 int getLogicalOffset() const { return off * elementsPerByte(getType()); }
+    constexpr14 int getByteOffset()    const { return (off * getBits()) >> 3; }
+    constexpr14 int getLogicalOffset() const { return off; }                /* Deprecated; use getOffset */
     constexpr DataType getType()       const { return static_cast<DataType>(type); }
     constexpr int getVS()              const { return vs; }
     constexpr int getWidth()           const { return width; }
@@ -622,6 +622,7 @@ public:
     constexpr bool getNeg()            const { return mods & 2; }
     constexpr bool getAbs()            const { return mods & 1; }
     constexpr int getMods()            const { return mods; }
+    constexpr14 int getBits()          const { return NGEN_NAMESPACE::getBits(getType()); }
     constexpr14 int getBytes()         const { return NGEN_NAMESPACE::getBytes(getType()); }
     constexpr14 int getDwords()        const { return NGEN_NAMESPACE::getDwords(getType()); }
     constexpr bool isScalar()          const { return hs == 0 && vs == 0 && width == 1; }
@@ -843,10 +844,10 @@ public:
     Subregister    w(int offset = 0) const { return reinterpret(offset, DataType::w);  }
     Subregister   ub(int offset = 0) const { return reinterpret(offset, DataType::ub); }
     Subregister    b(int offset = 0) const { return reinterpret(offset, DataType::b);  }
-    Subregister   u4(int offset = 0) const { return reinterpret(offset >> 1, DataType::u4); }
-    Subregister   s4(int offset = 0) const { return reinterpret(offset >> 1, DataType::s4); }
-    Subregister   u2(int offset = 0) const { return reinterpret(offset >> 2, DataType::u2); }
-    Subregister   s2(int offset = 0) const { return reinterpret(offset >> 2, DataType::s2); }
+    Subregister   u4(int offset = 0) const { return reinterpret(offset, DataType::u4); }
+    Subregister   s4(int offset = 0) const { return reinterpret(offset, DataType::s4); }
+    Subregister   u2(int offset = 0) const { return reinterpret(offset, DataType::u2); }
+    Subregister   s2(int offset = 0) const { return reinterpret(offset, DataType::s2); }
     Subregister   df(int offset = 0) const { return reinterpret(offset, DataType::df); }
     Subregister    f(int offset = 0) const { return reinterpret(offset, DataType::f);  }
     Subregister   hf(int offset = 0) const { return reinterpret(offset, DataType::hf); }
@@ -886,10 +887,10 @@ public:
     constexpr14 Subregister    w(int offset) const { return sub(offset, DataType::w);  }
     constexpr14 Subregister   ub(int offset) const { return sub(offset, DataType::ub); }
     constexpr14 Subregister    b(int offset) const { return sub(offset, DataType::b);  }
-    constexpr14 Subregister   u4(int offset) const { return sub(offset >> 1, DataType::u4); }
-    constexpr14 Subregister   s4(int offset) const { return sub(offset >> 1, DataType::s4); }
-    constexpr14 Subregister   u2(int offset) const { return sub(offset >> 2, DataType::u2); }
-    constexpr14 Subregister   s2(int offset) const { return sub(offset >> 2, DataType::s2); }
+    constexpr14 Subregister   u4(int offset) const { return sub(offset, DataType::u4); }
+    constexpr14 Subregister   s4(int offset) const { return sub(offset, DataType::s4); }
+    constexpr14 Subregister   u2(int offset) const { return sub(offset, DataType::u2); }
+    constexpr14 Subregister   s2(int offset) const { return sub(offset, DataType::s2); }
     constexpr14 Subregister   df(int offset) const { return sub(offset, DataType::df); }
     constexpr14 Subregister    f(int offset) const { return sub(offset, DataType::f);  }
     constexpr14 Subregister   hf(int offset) const { return sub(offset, DataType::hf); }
@@ -948,10 +949,10 @@ public:
     constexpr14 Subregister    w(int offset) const { return sub(offset, DataType::w);  }
     constexpr14 Subregister   ub(int offset) const { return sub(offset, DataType::ub); }
     constexpr14 Subregister    b(int offset) const { return sub(offset, DataType::b);  }
-    constexpr14 Subregister   u4(int offset) const { return sub(offset >> 1, DataType::u4); }
-    constexpr14 Subregister   s4(int offset) const { return sub(offset >> 1, DataType::s4); }
-    constexpr14 Subregister   u2(int offset) const { return sub(offset >> 2, DataType::u2); }
-    constexpr14 Subregister   s2(int offset) const { return sub(offset >> 2, DataType::s2); }
+    constexpr14 Subregister   u4(int offset) const { return sub(offset, DataType::u4); }
+    constexpr14 Subregister   s4(int offset) const { return sub(offset, DataType::s4); }
+    constexpr14 Subregister   u2(int offset) const { return sub(offset, DataType::u2); }
+    constexpr14 Subregister   s2(int offset) const { return sub(offset, DataType::s2); }
     constexpr14 Subregister   df(int offset) const { return sub(offset, DataType::df); }
     constexpr14 Subregister    f(int offset) const { return sub(offset, DataType::f);  }
     constexpr14 Subregister   hf(int offset) const { return sub(offset, DataType::hf); }
