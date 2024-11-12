@@ -108,10 +108,67 @@ struct micro_sdpa_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_SDPA(desc()->values() == desc()->head_size(),
                     "values does not match head size");
+
             VDISPATCH_SDPA(qry_md()->dims[1] >= key_md()->dims[1]
                             && qry_md()->dims[1] >= val_md()->dims[1],
-                    "number of heads in query tensor(%s) must be greater than "
-                    "the number of heads in the key(%s) and value(%s) tensors");
+                    "number of heads in query tensor(%s) must be greater "
+                    "than the number of heads in the key(%s) and value(%s) "
+                    "tensors",
+                    qry_md()->dims[1], key_md()->dims[1], val_md()->dims[1]);
+
+            int kq_scales_mask = desc()->kq_scales.mask_;
+            int kq_zp_mask = desc()->kq_zero_points.get(DNNL_ARG_WEIGHTS);
+            if (!desc()->kq_scales.has_default_values()
+                    && !desc()->kq_zero_points.has_default_values())
+                VDISPATCH_SDPA(kq_scales_mask == kq_zp_mask,
+                        "kq scales mask(%d) must equal kq zero point(%d) "
+                        "mask",
+                        kq_scales_mask, kq_zp_mask);
+            VDISPATCH_SDPA(utils::one_of(kq_scales_mask, 0, 1, 3, 11, 15),
+                    "unsupported mask for kq matmul(%d). must be 0, 1, 3, 11, "
+                    "or 15",
+                    kq_scales_mask);
+            VDISPATCH_SDPA(utils::one_of(kq_zp_mask, 0, 1, 3, 11, 15),
+                    "unsupported mask for kq matmul(%d). must be 0, 1, 3, 11, "
+                    "or 15",
+                    kq_zp_mask);
+
+            /// NOTE: Limitation of microkernels
+            if (utils::one_of(
+                        desc()->kq_zero_points.get_data_type(DNNL_ARG_WEIGHTS),
+                        s4, u4)) {
+                VDISPATCH_SDPA(key_group_size() == 16,
+                        "if kq zero points data type is s4 or u4 then the "
+                        "group size(%d) must be 16.",
+                        key_group_size());
+            }
+
+            int vs_scales_mask = desc()->vs_scales.mask_;
+            int vs_zp_mask = desc()->vs_zero_points.get(DNNL_ARG_WEIGHTS);
+            if (!desc()->vs_scales.has_default_values()
+                    && !desc()->vs_zero_points.has_default_values())
+                VDISPATCH_SDPA(vs_scales_mask == vs_zp_mask,
+                        "vs scales mask(%d) must equal vs zero point(%d) "
+                        "mask",
+                        vs_scales_mask, vs_zp_mask);
+            VDISPATCH_SDPA(utils::one_of(vs_scales_mask, 0, 1, 3, 7, 15),
+                    "unsupported mask for vs matmul(%d). must be 0, 1, 3, 7, "
+                    "or 15",
+                    vs_scales_mask);
+            VDISPATCH_SDPA(utils::one_of(vs_zp_mask, 0, 1, 3, 7, 15),
+                    "unsupported mask for vs matmul(%d). must be 0, 1, 3, 7, "
+                    "or 15",
+                    vs_zp_mask);
+
+            /// NOTE: Limitation of microkernels
+            if (utils::one_of(
+                        desc()->vs_zero_points.get_data_type(DNNL_ARG_WEIGHTS),
+                        s4, u4)) {
+                VDISPATCH_SDPA(value_group_size() == 16,
+                        "if vs zero points data type is s4 or u4 then the "
+                        "group size(%d) must be 16.",
+                        value_group_size());
+            }
 
             CHECK(init_microkernels(engine));
             return status::success;
