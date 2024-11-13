@@ -100,6 +100,8 @@ struct dnnl_brgemm : public dnnl::impl::c_compatible {
 
     size_t get_scratchpad_size() const;
 
+    bool is_execute_postops_valid() const;
+
     dnnl::impl::status_t set_hw_context() const;
 
     dnnl::impl::status_t generate();

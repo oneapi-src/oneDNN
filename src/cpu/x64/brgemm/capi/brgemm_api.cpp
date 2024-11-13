@@ -160,6 +160,10 @@ size_t brgemm_t::get_scratchpad_size() const {
     return brgemm_desc_.get_wsp_buffer_size();
 }
 
+bool brgemm_t::is_execute_postops_valid() const {
+    return brgemm_desc_.are_post_ops_applicable();
+}
+
 status_t brgemm_t::set_hw_context() const {
     char palette[AMX_PALETTE_SIZE] = {};
     auto status = brgemm_init_tiles(brgemm_desc_, palette);
@@ -614,6 +618,14 @@ status_t dnnl_brgemm_get_scratchpad_size(const brgemm_t *brgemm, size_t *size) {
     if (brgemm == nullptr) return invalid_arguments;
 
     if (size) *size = brgemm->get_scratchpad_size();
+    return status::success;
+}
+
+status_t dnnl_brgemm_is_execute_postops_valid(
+        const brgemm_t *brgemm, int *valid) {
+    if (brgemm == nullptr) return invalid_arguments;
+
+    if (valid) *valid = static_cast<int>(brgemm->is_execute_postops_valid());
     return status::success;
 }
 

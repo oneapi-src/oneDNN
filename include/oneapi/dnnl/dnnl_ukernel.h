@@ -203,6 +203,17 @@ dnnl_status_t DNNL_API dnnl_brgemm_get_B_pack_type(
 dnnl_status_t DNNL_API dnnl_brgemm_get_scratchpad_size(
         const_dnnl_brgemm_t brgemm, size_t *size);
 
+/// Returns the flag indicating when the call to `dnnl_brgemm_execute_postops`
+/// is valid.
+///
+/// @param brgemm BRGeMM ukernel object.
+/// @param valid The flag indicating if `dnnl_brgemm_execute_postops` is valid
+///     for a given ukernel object. `1` is for valid and `0`, otherwise.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_brgemm_is_execute_postops_valid(
+        const_dnnl_brgemm_t brgemm, int *valid);
+
 /// Initializes the hardware-specific context. If no initialization required,
 /// returns the success status.
 ///

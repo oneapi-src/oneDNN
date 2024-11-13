@@ -312,11 +312,21 @@ void brgemm_example() {
     params.set_post_ops_args(bin_po_ptrs.data());
     params.set_B_scales(B_scales_mem.get_data_handle());
 
-    // An execute call. The difference here is an additional D tensor pointer
-    // to store final output result after finishing accumulation and post-ops
-    // application.
-    brg_po.execute(A_ptr, B_base_ptr, A_B_po_offsets, C_ptr,
-            D_mem.get_data_handle(), scratchpad.data(), params);
+    // An execute call. The difference here is when post operations are
+    // requested, an additional D tensor pointer to store final output result
+    // after finishing accumulation and post-ops application is required.
+    // Additionally, a special `params` object with post operations handles
+    // is required.
+    //
+    // If post operations are not defined, the call is invalid, and a special
+    // API checks the state.
+    if (brg_po.is_execute_postops_valid()) {
+        brg_po.execute(A_ptr, B_base_ptr, A_B_po_offsets, C_ptr,
+                D_mem.get_data_handle(), scratchpad.data(), params);
+    } else {
+        brg_po.execute(
+                A_ptr, B_base_ptr, A_B_po_offsets, C_ptr, scratchpad.data());
+    }
 
     // Once all computations are done, need to release HW context.
     brgemm::release_hw_context();
