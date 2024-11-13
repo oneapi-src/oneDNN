@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2024 Intel Corporation
+# Copyright 2019-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ set(DNNL_GPU_RUNTIME "@DNNL_GPU_RUNTIME@")
 
 set(DNNL_INSTALL_MODE "@DNNL_INSTALL_MODE@")
 set(IS_NEW_DIR_LAYOUT FALSE)
-if(DNNL_INSTALL_MODE STREQUAL "BUNDLE_V2")
+if(DNNL_INSTALL_MODE STREQUAL "BUNDLE")
     set(IS_NEW_DIR_LAYOUT TRUE)
 endif()
 

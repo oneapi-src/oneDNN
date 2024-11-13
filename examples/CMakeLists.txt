@@ -204,12 +204,8 @@ foreach(src ${sources})
     endif()
 endforeach()
 
-if (DNNL_INSTALL_MODE STREQUAL "BUNDLE" OR DNNL_INSTALL_MODE STREQUAL "BUNDLE_V2")
-    if(DNNL_INSTALL_MODE STREQUAL "BUNDLE")
-        set(BUNDLE_EXAMPLES_DIR "examples")
-    else()
-        set(BUNDLE_EXAMPLES_DIR "${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_PACKAGE_NAME}/examples")
-    endif()
+if (DNNL_INSTALL_MODE STREQUAL "BUNDLE")
+    set(BUNDLE_EXAMPLES_DIR "${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_PACKAGE_NAME}/examples")
 
     configure_file(CMakeLists.txt.in CMakeLists.txt @ONLY)
     install(FILES
