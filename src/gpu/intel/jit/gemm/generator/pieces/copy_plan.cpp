@@ -107,7 +107,7 @@ static bool isSubsetOf(DataType dt1, DataType dt2)
 /***********************/
 
 CopyOperand::CopyOperand(RegData rd)
-        : grf(rd.getBase()), offset(rd.getOffset()),
+        : grf(rd.getBase()), offset(rd.getLogicalOffset()),
           stride(rd.getHS()), type(rd.getType()), kind(GRF),
           overwrite(false), overwriteStride(false), neg(rd.getNeg())
 {
