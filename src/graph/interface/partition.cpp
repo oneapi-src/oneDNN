@@ -41,7 +41,7 @@
 #include "graph/interface/partition_cache.hpp"
 
 #ifdef DNNL_WITH_SYCL
-#include "graph/utils/sycl_check.hpp"
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
