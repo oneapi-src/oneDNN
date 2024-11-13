@@ -96,16 +96,8 @@ status_t make_kernel(std::unique_ptr<::sycl::kernel> &sycl_kernel,
 uint64_t init_extensions(const ::sycl::device &dev) {
     uint64_t extensions = 0;
 
-#if DNNL_USE_SYCL121_API
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    constexpr auto base_atomics_aspect = ::sycl::aspect::int64_base_atomics;
-    constexpr auto extended_atomics_aspect
-            = ::sycl::aspect::int64_extended_atomics;
-#else
     constexpr auto base_atomics_aspect = ::sycl::aspect::atomic64;
     constexpr auto extended_atomics_aspect = ::sycl::aspect::atomic64;
-#endif
 
     for (uint64_t i_ext = 1; i_ext < (uint64_t)device_ext_t::last;
             i_ext <<= 1) {
@@ -142,9 +134,7 @@ uint64_t init_extensions(const ::sycl::device &dev) {
         }
         if (is_ext_supported) extensions |= i_ext;
     }
-#if DNNL_USE_SYCL121_API
-#pragma clang diagnostic pop
-#endif
+
     return extensions;
 }
 

@@ -889,11 +889,7 @@ bool is_f64_supported(const dnnl_engine_t &engine) {
     if (is_sycl_engine(engine)) {
         auto eng = dnnl::engine(engine, true);
         auto dev = dnnl::sycl_interop::get_device(eng);
-#ifdef DNNL_SYCL_INTEROP_USE_SYCL121
-        return dev.has_extension("cl_khr_fp64");
-#else
         return dev.has(::sycl::aspect::fp64);
-#endif
     }
 #endif
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
