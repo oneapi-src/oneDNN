@@ -231,7 +231,7 @@ foreach(header ${HEADERS_SUBDIR})
 endforeach()
 
 string(TOUPPER "${LIB_PACKAGE_NAME}::" LIB_NAMESPACE)
-if(DNNL_INSTALL_MODE STREQUAL "BUNDLE_V2" AND WIN32)
+if(DNNL_INSTALL_MODE STREQUAL "BUNDLE" AND WIN32)
     # Config file for binary distribution needs to define a mapping
     # DEBUG -> RELWITHMDD so that proper library (dnnld) is picked up for the
     # DEBUG configuration.
@@ -262,7 +262,7 @@ install(EXPORT ${LIB_EXPORT_NAME}
 
 # Apply a workaround to CMake config file to make it work with symlinks.
 # The patched config file is only used in oneAPI binary distribution.
-if(UNIX AND DNNL_INSTALL_MODE STREQUAL "BUNDLE_V2")
+if(UNIX AND DNNL_INSTALL_MODE STREQUAL "BUNDLE")
     install(CODE "file(READ \"${CMAKE_INSTALL_PREFIX}/${LIB_CONFIG_INSTALL_DIR}/${LIB_PACKAGE_NAME}-targets.cmake\" TARGETS_CONTENT)")
     install(CODE "string(REPLACE
                          \"get_filename_component(_IMPORT_PREFIX \\\"\\\${CMAKE_CURRENT_LIST_FILE}\\\" PATH)\"
