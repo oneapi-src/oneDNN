@@ -219,12 +219,19 @@ std::vector<int> supported_exec_args(dir_t dir) {
             DNNL_ARG_WORKSPACE,
     };
     static const std::vector<int> exec_bwd_args = {
+            DNNL_ARG_DIFF_DST,
+            DNNL_ARG_DIFF_SRC,
+            DNNL_ARG_WORKSPACE,
+    };
+    static const std::vector<int> exec_bwd_args_graph = {
             DNNL_ARG_SRC, // For Graph to compute ws on backward
             DNNL_ARG_DIFF_DST,
             DNNL_ARG_DIFF_SRC,
             DNNL_ARG_WORKSPACE,
     };
-    return (dir & FLAG_FWD) ? exec_fwd_args : exec_bwd_args;
+    return (dir & FLAG_FWD)            ? exec_fwd_args
+            : (driver_name == "graph") ? exec_bwd_args_graph
+                                       : exec_bwd_args;
 };
 
 fill_cfg_t binary_po_fill_cfg(
