@@ -58,26 +58,9 @@ inline void host_task(H &cgh, F &&f) {
 
 constexpr auto target_device = ::sycl::target::device;
 
-#if DNNL_USE_SYCL121_API
 template <typename T, int dims>
 using local_accessor = ::sycl::accessor<T, dims,
         ::sycl::access::mode::read_write, ::sycl::access::target::local>;
-
-constexpr auto ext_intel_gpu_slices
-        = ::sycl::info::device::ext_intel_gpu_slices;
-constexpr auto ext_intel_gpu_subslices_per_slice
-        = ::sycl::info::device::ext_intel_gpu_subslices_per_slice;
-
-const auto cpu_selector_v = ::sycl::cpu_selector {};
-const auto gpu_selector_v = ::sycl::gpu_selector {};
-#else
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-template <typename T, int dims>
-using local_accessor = ::sycl::accessor<T, dims,
-        ::sycl::access::mode::read_write, ::sycl::access::target::local>;
-#pragma clang diagnostic pop
 
 using ext_intel_gpu_slices = ::sycl::ext::intel::info::device::gpu_slices;
 using ext_intel_gpu_subslices_per_slice
@@ -85,8 +68,6 @@ using ext_intel_gpu_subslices_per_slice
 
 inline const auto &cpu_selector_v = ::sycl::cpu_selector_v;
 inline const auto &gpu_selector_v = ::sycl::gpu_selector_v;
-
-#endif
 
 } // namespace compat
 } // namespace sycl

@@ -489,12 +489,7 @@ void dnn_mem_t::memset(int value, size_t size) const {
                 auto &buf = *static_cast<::sycl::buffer<uint8_t, 1> *>(
                         mem_handle);
                 queue.submit([&](::sycl::handler &cgh) {
-#ifdef DNNL_SYCL_INTEROP_USE_SYCL121
-                    constexpr auto target_device
-                            = ::sycl::target::global_buffer;
-#else
                     constexpr auto target_device = ::sycl::target::device;
-#endif
                     ::sycl::accessor<uint8_t, 1, ::sycl::access::mode::write,
                             target_device>
                             acc(buf, cgh);

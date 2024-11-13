@@ -24,24 +24,6 @@
 
 #if __has_include(<sycl/sycl.hpp>)
 #include <sycl/sycl.hpp>
-#elif __has_include(<CL/sycl.hpp>)
-#include <CL/sycl.hpp>
-#else
-#error "Unsupported compiler"
-#endif
-
-#if defined(__INTEL_LLVM_COMPILER)
-#if (__INTEL_LLVM_COMPILER < 20230000)
-#define DNNL_USE_SYCL121_API 1
-#else
-#define DNNL_USE_SYCL121_API 0
-#endif
-#elif defined(__LIBSYCL_MAJOR_VERSION)
-#if (__LIBSYCL_MAJOR_VERSION < 6)
-#define DNNL_USE_SYCL121_API 1
-#else
-#define DNNL_USE_SYCL121_API 0
-#endif
 #else
 #error "Unsupported compiler"
 #endif
