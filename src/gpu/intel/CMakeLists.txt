@@ -15,7 +15,7 @@
 #===============================================================================
 
 # TODO: Extend to all -Wconversion warnings
-if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" OR CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?[Cc]lang")
     append(CMAKE_CXX_FLAGS "-Wbitfield-enum-conversion -Wbool-conversion -Wconstant-conversion -Wenum-conversion -Wimplicit-int-conversion -Wliteral-conversion -Wnon-literal-null-conversion -Wnull-conversion")
     add_definitions("-DENABLE_LLVM_WCONVERSION")
 endif()

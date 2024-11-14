@@ -18,6 +18,7 @@ if (NOT DNNL_BUILD_TESTS)
     return()
 endif()
 
+# Do not export symbols from executables
 if(POLICY CMP0065)
     cmake_policy(SET CMP0065 NEW)
 endif()
@@ -73,7 +74,7 @@ if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE" AND
     register_exe(api-c api.c "test" "${LIBM}")
 endif()
 
-if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND (UNIX OR MINGW))
+if(NOT CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?[Cc]lang" AND (UNIX OR MINGW))
     get_directory_property(include_dirs INCLUDE_DIRECTORIES)
     set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
     add_custom_command(

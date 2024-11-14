@@ -136,14 +136,7 @@ endif()
 #   #pragma message("The Intel extensions have been moved into cl_ext.h.
 #   Please include cl_ext.h directly.")
 if(NOT WIN32)
-    if(${CMAKE_VERSION} VERSION_LESS "3.1.0")
-        # Prior to CMake 3.1 the Makefile generators did not escape # correctly
-        # inside make variable assignments used in generated makefiles, causing
-        # them to be treated as comments. This is a workaround.
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-\\#pragma-messages")
-    else()
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-#pragma-messages")
-    endif()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-#pragma-messages")
 endif()
 
 add_definitions_with_host_compiler("-DCL_TARGET_OPENCL_VERSION=300")
