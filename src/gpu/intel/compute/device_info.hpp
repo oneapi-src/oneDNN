@@ -199,6 +199,7 @@ public:
     gpu_arch_t gpu_arch() const { return gpu_arch_; }
     int gpu_product_family() const { return gpu_product_family_; }
     int stepping_id() const { return stepping_id_; }
+    uint64_t native_extensions() const { return native_extensions_; }
     bool is_integrated() const;
     uint32_t ip_version() const { return ip_version_; }
     int max_eus_per_wg() const { return max_eus_per_wg_; }

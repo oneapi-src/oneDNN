@@ -68,6 +68,7 @@ status_t device_info_t::init_arch(impl::engine_t *engine) {
         gpu_arch_ = dev_info->gpu_arch();
         gpu_product_family_ = dev_info->gpu_product_family();
         stepping_id_ = dev_info->stepping_id();
+        native_extensions_ = dev_info->native_extensions();
         mayiuse_systolic_ = dev_info->mayiuse_systolic();
         mayiuse_ngen_kernels_ = dev_info->mayiuse_ngen_kernels();
         mayiuse_microkernels_ = dev_info->mayiuse_microkernels();
