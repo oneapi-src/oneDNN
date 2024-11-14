@@ -49,8 +49,6 @@ protected:
 
         SKIP_IF(unsupported_data_type(src_dt),
                 "Engine does not support this data type.");
-        SKIP_IF(get_test_engine().get_kind() != engine::kind::cpu,
-                "Engine does not support this primitive.");
         SKIP_IF_CUDA(p.aalgorithm != algorithm::reduction_max
                         && p.aalgorithm != algorithm::reduction_min
                         && p.aalgorithm != algorithm::reduction_sum
@@ -61,9 +59,20 @@ protected:
                                 != algorithm::reduction_norm_lp_power_p_max
                         && p.eps != 0.0f,
                 "Unsupported algorithm type for CUDA");
+        SKIP_IF_GENERIC(!(generic_supported_format_tag(p.src_format)
+                                && generic_supported_format_tag(p.dst_format)),
+                "Unsupported format tag");
 
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+
+    bool generic_supported_format_tag(memory::format_tag tag) {
+        return impl::utils::one_of(tag, dnnl_a, dnnl_ab, dnnl_abc, dnnl_abcd,
+                dnnl_abcde, dnnl_abcdef, dnnl_abdec, dnnl_acb, dnnl_acbde,
+                dnnl_acbdef, dnnl_acdb, dnnl_acdeb, dnnl_ba, dnnl_bac,
+                dnnl_bacd, dnnl_bca, dnnl_bcda, dnnl_bcdea, dnnl_cba, dnnl_cdba,
+                dnnl_cdeba, dnnl_decab, dnnl_defcab);
     }
 
     void Test() {
