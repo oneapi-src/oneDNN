@@ -850,6 +850,43 @@ private:
 };
 static_assert(sizeof(nibble2_t) == 1, "nibble2_t must be 1 byte");
 
+/// Iterates through a binary integer
+/// usage:
+///
+/// for(int idx : mask_iterator(13)) { // 13 == 1101
+///     printf("%d\t", idx);
+/// }
+/// output: 0  2  3
+class mask_iterator {
+    int mask_;
+    int index_;
+
+public:
+    using iterator_category = std::input_iterator_tag;
+    using difference_type = int;
+    using value_type = int;
+    using pointer = value_type *;
+    using reference = value_type &;
+    mask_iterator() : mask_(0), index_(0) {}
+    mask_iterator(int mask) : mask_(mask), index_(0) {
+        if ((mask_ & 0x1) == 0) { ++(*this); }
+    }
+    mask_iterator &begin() { return *this; }
+    mask_iterator end() const { return 0; }
+    value_type operator*() const { return index_; }
+    mask_iterator &operator++() {
+        do {
+            index_++;
+            mask_ >>= 1;
+        } while ((mask_ & 0x1) == 0 && mask_ != 0);
+        if (mask_ == 0) { index_ = 0; }
+        return *this;
+    }
+    bool operator!=(const mask_iterator &other) const {
+        return mask_ != other.mask_ || index_ != other.index_;
+    }
+};
+
 } // namespace impl
 } // namespace dnnl
 
