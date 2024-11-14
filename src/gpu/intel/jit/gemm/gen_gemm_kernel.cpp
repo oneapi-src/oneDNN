@@ -545,7 +545,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     });
 
     add_mode_matches(!(fpmath_f16 || fpmath_bf16), [](Type dt) -> const char * {
-        if (dt.isInt4()) return "[OF]";
+        if (dt.isInt4()) return "[FO]";
         return nullptr;
     });
 
