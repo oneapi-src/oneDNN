@@ -75,8 +75,12 @@ public:
                     && entries[i + 1].is_dpas) {
                 auto &cur_src1 = dpas_t::arg_src1(entries[i].stmt);
                 auto &next_src1 = dpas_t::arg_src1(entries[i + 1].stmt);
-                // Compare src1, apply {Atomic} if they are equal.
-                if (cur_src1.is_equal(next_src1)) {
+                auto &cur_src2 = dpas_t::arg_src2(entries[i].stmt);
+                auto &next_src2 = dpas_t::arg_src2(entries[i + 1].stmt);
+                auto &cur_src2_base = cur_src2.as<ptr_t>().base;
+                auto &next_src2_base = next_src2.as<ptr_t>().base;
+                if (cur_src1.is_equal(next_src1)
+                        && cur_src2_base.is_equal(next_src2_base)) {
                     auto atomic_attr = instruction_modifier_attr_t::make(
                             ngen_proxy::InstructionModifier().with_atomic());
                     auto &call = s.as<func_call_t>();

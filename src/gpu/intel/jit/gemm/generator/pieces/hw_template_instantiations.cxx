@@ -19,11 +19,22 @@
 #pragma warning (disable: 4661)     /* missing definition in template instatiation */
 #endif
 
+#if defined(DNNL_GPU_ISA_GEN9)
 REG_GEN9_ISA(template class BLASKernelGenerator<HW::Gen9>);
+#elif defined(DNNL_GPU_ISA_GEN11)
 REG_GEN11_ISA(template class BLASKernelGenerator<HW::Gen11>);
+#elif defined(DNNL_GPU_ISA_XELP)
 REG_XELP_ISA(template class BLASKernelGenerator<HW::Gen12LP>);
+#elif defined(DNNL_GPU_ISA_XEHP)
 REG_XEHP_ISA(template class BLASKernelGenerator<HW::XeHP>);
+#elif defined(DNNL_GPU_ISA_XEHPG)
 REG_XEHPG_ISA(template class BLASKernelGenerator<HW::XeHPG>);
+#elif defined(DNNL_GPU_ISA_XEHPC)
 REG_XEHPC_ISA(template class BLASKernelGenerator<HW::XeHPC>);
+#elif defined(DNNL_GPU_ISA_XE2)
 REG_XE2_ISA(template class BLASKernelGenerator<HW::Xe2>);
+#elif defined(DNNL_GPU_ISA_XE3)
 REG_XE3_ISA(template class BLASKernelGenerator<HW::Xe3>);
+#else
+#error "Unimplemented GPU Architecture"
+#endif

@@ -424,7 +424,7 @@ private:
         ir_assert(send.type.elems() % 2 == 0) << "Can't create half-send.";
         auto _s = send_t::make(send.hw, send.op, send.address,
                 send.type.with_elems(send.type.elems() / 2), send.slots,
-                send.is_lsc, send.zero_out, send.cache_hint);
+                send.is_lsc, send.fill_buf, send.cache_hint);
         auto &s = _s.as<send_t>();
         ir_assert(s.is_supported())
                 << "Can't find send reading half of the original send.";

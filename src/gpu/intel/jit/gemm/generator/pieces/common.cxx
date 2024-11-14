@@ -84,22 +84,6 @@ void BLASKernelGenerator<hw>::padding()
         nop();
 }
 
-Subregister SubregisterPair::getReg(int idx) const
-{
-    auto r = regs[idx & 1];
-    if (negative)
-        r = -r;
-    return r;
-}
-
-Subregister SubregisterPair::getRegAvoiding(HW hw, const RegData &rd) const
-{
-    if (Bundle::same_bank(hw, rd, regs[0]))
-        return getReg(1);
-    else
-        return getReg(0);
-}
-
 // Create a copy of a SubregisterPair in the other bank.
 template <HW hw>
 void BLASKernelGenerator<hw>::duplicateScalar(SubregisterPair &val, CommonState &state)

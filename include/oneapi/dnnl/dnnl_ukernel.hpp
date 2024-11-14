@@ -29,6 +29,8 @@
 /// oneDNN namespace
 namespace dnnl {
 
+#ifdef DNNL_EXPERIMENTAL_UKERNEL
+
 /// @addtogroup dnnl_api_utils
 /// @{
 
@@ -58,6 +60,8 @@ struct handle_traits<dnnl_ukernel_attr_params_t> {
 /// @endcond
 
 /// @} dnnl_api_utils
+
+#endif
 
 /// @addtogroup dnnl_api_ukernel Ukernels
 /// Collection of ukernels

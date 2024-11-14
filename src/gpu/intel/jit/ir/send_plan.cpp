@@ -43,7 +43,7 @@ public:
     virtual const layout_t &reg_layout() const = 0;
     virtual int reg_buf_size() const = 0;
     virtual stmt_t create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
-            int subtile_idx) const = 0;
+            int subtile_idx, const expr_t &pattern) const = 0;
     virtual bool can_split(int factor) const = 0;
     virtual void set_split(int factor) = 0;
     virtual int split_factor() const = 0;
@@ -998,7 +998,7 @@ struct send_group_t {
                 type = fixup_type(type, send_params);
                 auto f = send_t::make(hw, send_params.send_op,
                         send_params.send_address, type, 1,
-                        send_t::default_slot_mask, is_lsc, zero_out,
+                        send_t::default_slot_mask, is_lsc, fill_buf,
                         send_params.cache_hint);
                 ret.push_back(f);
             }
@@ -1015,7 +1015,7 @@ struct send_group_t {
                 type = fixup_type(type, send_params);
                 auto f = send_t::make(hw, send_params.send_op,
                         send_params.send_address, type, cur_slots, slot_mask,
-                        is_lsc, zero_out, send_params.cache_hint);
+                        is_lsc, fill_buf, send_params.cache_hint);
                 ret.push_back(f);
             }
         } else if (is_2d()) {
@@ -1025,7 +1025,7 @@ struct send_group_t {
                 auto type = fixup_type(p.type, send_params);
                 auto f = send_t::make_2d(hw, to_2d(send_params.send_op), type,
                         into<int>(p.W), into<int>(p.H), into<int>(p.P), p.w,
-                        p.h, p.c, p.vnni, p.transpose, zero_out,
+                        p.h, p.c, p.vnni, p.transpose, fill_buf,
                         send_params.cache_hint);
                 ret.push_back(f);
             }
@@ -1047,7 +1047,7 @@ struct send_group_t {
         } else {
             ir_error_not_expected();
         }
-        if (!zero_out) oss << ".nzo";
+        if (!fill_buf) oss << ".nofill";
         oss << "(" << addr_inc << ")";
         if (mask_bits != 0)
             oss << std::endl << indent << "  mask_base: " << mask_inc;
@@ -1116,7 +1116,7 @@ struct send_group_t {
     int slot_stride = 0;
     int mask_bits = 0;
     int pad_bytes = 0;
-    bool zero_out = true;
+    bool fill_buf = true;
     send_2d_params_t send_2d_params;
 
     vec_off_t addr_inc; // slots
@@ -1986,7 +1986,7 @@ public:
     }
 
     stmt_t create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
-            int subtile_idx) const override {
+            int subtile_idx, const expr_t &pattern) const override {
         stmt_t ret;
         bool is_g1b1 = (send_groups_.size() == 1)
                 && (send_groups_[0].blocks.size() == 1);
@@ -2024,7 +2024,7 @@ public:
                                        : expr_t();
                     auto call = send(mem_buf, mem_off,
                             reg_buf.is_empty() ? expr_t() : reg_buf + reg_off,
-                            mask, x, y);
+                            mask, x, y, pattern);
                     if (try_legacy) {
                         send_infos.emplace_back(
                                 g.addr_inc[0] + b.addr_inc + byte_off, reg_off,
@@ -2211,7 +2211,7 @@ private:
             type = type.with_elems(
                     type.elems() * (new_size / s0.payload_size()));
             auto func = send_t::make(s0.hw, s0.op, s0.address, type, s0.slots,
-                    /*is_lsc=*/false, s0.zero_out, s0.cache_hint);
+                    /*is_lsc=*/false, s0.fill_buf, s0.cache_hint);
             auto new_args = c0.args;
             auto &mask = send_t::arg_mask(new_args);
             std::vector<expr_t> vec_mask;
@@ -2282,7 +2282,7 @@ public:
     }
 
     stmt_t create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
-            int subtile_idx) const override {
+            int subtile_idx, const expr_t &pattern) const override {
         auto stmt = access_.stmt();
         stmt = substitute(stmt, dummy_mem_buf_, mem_buf);
         stmt = substitute(stmt, dummy_reg_buf_, reg_buf);
@@ -2413,9 +2413,9 @@ int send_plan_t::reg_buf_size() const {
     return impl_->reg_buf_size();
 }
 
-stmt_t send_plan_t::create_stmt(
-        const expr_t &mem_buf, const expr_t &reg_buf, int subtile_idx) const {
-    return impl_->create_stmt(mem_buf, reg_buf, subtile_idx);
+stmt_t send_plan_t::create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
+        int subtile_idx, const expr_t &pattern) const {
+    return impl_->create_stmt(mem_buf, reg_buf, subtile_idx, pattern);
 }
 
 int send_plan_t::estimate_regs(
@@ -2442,14 +2442,14 @@ std::string send_plan_t::str(const std::string &tag) const {
 }
 
 send_group_t init_2d(const view_info_t &info, view_iterator_t &it,
-        layout_t &reg_layout, bool zero_out) {
+        layout_t &reg_layout, bool fill_buf) {
     auto &params = info.send_2d_params();
     auto &vlayout = info.vlayout();
     send_group_t ret;
     ret.hw = info.hw();
     ret.type_size = params.type.size();
     ret.slots = 1;
-    ret.zero_out = zero_out;
+    ret.fill_buf = fill_buf;
     ret.mask_bits = info.mask_bits();
     ret.send_2d_params = params;
     ret.addr_inc = vec_off_t(0);
@@ -2461,12 +2461,12 @@ send_group_t init_2d(const view_info_t &info, view_iterator_t &it,
 }
 
 send_group_t init_block(const view_info_t &info, view_iterator_t &it,
-        layout_t &reg_layout, bool zero_out) {
+        layout_t &reg_layout, bool fill_buf) {
     send_group_t ret;
     ret.hw = info.hw();
     ret.type_size = it.inner_bytes();
     ret.slots = 1;
-    ret.zero_out = zero_out;
+    ret.fill_buf = fill_buf;
     ret.mask_bits = info.mask_bits();
     ret.addr_inc = vec_off_t(0);
     ret.mask_inc = it.get_mask(ret.mask_bits);
@@ -2481,7 +2481,7 @@ send_group_t init_block(const view_info_t &info, view_iterator_t &it,
 
 send_group_t init_scattered(const view_info_t &info,
         const send_params_t &send_params, view_iterator_t &it,
-        layout_t &reg_layout, bool zero_out) {
+        layout_t &reg_layout, bool fill_buf) {
     auto &vlayout = info.vlayout();
     auto &blocks = vlayout.blocks();
     int type_size = vlayout.type().size();
@@ -2498,7 +2498,7 @@ send_group_t init_scattered(const view_info_t &info,
     ret.type_size = slot_size;
     ret.slot_stride = slot_stride;
     ret.slots = inner_slots * it.middle_blocks();
-    ret.zero_out = zero_out;
+    ret.fill_buf = fill_buf;
     ret.mask_bits = info.mask_bits();
     auto mask_base = it.get_mask(ret.mask_bits, inner_slots);
     auto addr_base = it.get_addr(inner_slots, slot_size);
@@ -2636,7 +2636,7 @@ send_plan_t create_ir_send_plan(const exec_config_t &exec_cfg,
 }
 
 send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
-        const send_params_t &send_params, bool zero_out) {
+        const send_params_t &send_params, bool fill_buf) {
     if (!send_params.use_send_plan)
         return create_ir_send_plan(exec_cfg, view, send_params);
     auto &hw = exec_cfg.hw();
@@ -2647,14 +2647,14 @@ send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
     layout_t reg_layout;
     switch (info.send_kind()) {
         case send_kind_t::_2d:
-            base_group = init_2d(info, it, reg_layout, zero_out);
+            base_group = init_2d(info, it, reg_layout, fill_buf);
             break;
         case send_kind_t::block:
-            base_group = init_block(info, it, reg_layout, zero_out);
+            base_group = init_block(info, it, reg_layout, fill_buf);
             break;
         case send_kind_t::scattered:
             base_group = init_scattered(
-                    info, send_params, it, reg_layout, zero_out);
+                    info, send_params, it, reg_layout, fill_buf);
             break;
         default: ir_error_not_expected();
     }

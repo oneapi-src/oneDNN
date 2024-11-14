@@ -198,7 +198,7 @@ public:
 
     int ab_slm_size() const { return plan_.slm.slm_size(); }
 
-    stmt_t zero_out_stmt() const {
+    stmt_t zero_out_stmt() {
         auto c_entry = buf_mgr_.find("c");
         auto ret = stmt_group_t::make(stmt_label_t::c_zero_out(),
                 funcs::zero_out(c_entry.buf, c_entry.size));
@@ -207,6 +207,7 @@ public:
             ret = ret.append(
                     funcs::zero_out(x_reduce_entry.buf, x_reduce_entry.size));
         }
+        build_zp_init_src_precomp(ret);
         return ret;
     }
 
@@ -296,7 +297,11 @@ private:
             const reorder_plan_t &g2s_reorder, const send_plan_t &g2s_store,
             const grid_info_t &grid) {
         auto g2s_buf = buf_mgr_.get(prefix + "_g2s", g2s_load.reg_buf_size());
-        auto load = g2s_load.create_stmt(mem_buf, g2s_buf);
+        expr_t pattern;
+        if ((prefix == "a") && plan_.zp.is_src_precomp_compatible())
+            pattern = load_t::make(type_t::u32(),
+                    buf_mgr_.get("zp_src", plan_.zp.load_reg_buf_size()), 0);
+        auto load = g2s_load.create_stmt(mem_buf, g2s_buf, 0, pattern);
         auto reduce_buf = g2s_reduce
                 ? buf_mgr_.get("x_reduce", into<int>(g2s_reduce.dst_buf_size()))
                 : expr_t();
@@ -376,53 +381,89 @@ private:
         x2r_mul_stmt_ = x2r_mul_stmt_.append(s2r_load_stmt);
     }
 
+    expr_t build_zp_init_src_load(int subtile_idx, stmt_t &stmt) {
+        auto &zp = plan_.zp;
+        auto zp_buf = buf_mgr_.get("zp_src", zp.load_reg_buf_size());
+        auto zp_mem_buf = kernel_info_.find_arg("src_zero_points");
+        auto load = zp.load_create_stmt(zp_mem_buf, zp_buf, subtile_idx);
+        stmt = stmt.append(load);
+        return zp_buf;
+    }
+
+    expr_t build_zp_init_wei_load(int subtile_idx, stmt_t &stmt) {
+        auto &zp = plan_.zp;
+        auto zp_buf = buf_mgr_.get("zp_wei", zp.wei_load_reg_buf_size());
+        auto zp_mem_buf = kernel_info_.find_arg("wei_zero_points");
+        auto load = zp.wei_load_create_stmt(zp_mem_buf, zp_buf, subtile_idx);
+        stmt = stmt.append(load);
+        return zp_buf;
+    }
+
+    void build_zp_init_src_precomp(stmt_t &stmt) {
+        auto &zp = plan_.zp;
+
+        if (zp.is_src_precomp_compatible()) {
+            auto zp_buf = build_zp_init_src_load(0, stmt);
+
+            auto zp_src_buf = buf_mgr_.get("zp_src_buf", zp.src_reg_buf_size());
+            auto zp_src_init = zp.src_init_create_stmt(zp_buf, zp_src_buf);
+            stmt = stmt.append(zp_src_init);
+        }
+    }
+
     void build_zp_init(int subtile_idx, stmt_t &mul_stmt) {
         auto &zp = plan_.zp;
 
         if (zp.has_zp_wei()) {
-            auto zp_mem_buf = kernel_info_.find_arg("wei_zero_points");
-            auto zp_buf = buf_mgr_.get("zp_wei", zp.wei_load_reg_buf_size());
+            auto zp_buf = build_zp_init_wei_load(subtile_idx, mul_stmt);
+
             auto zp_wei_buf = buf_mgr_.get("zp_wei_buf", zp.wei_reg_buf_size());
-            auto load
-                    = zp.wei_load_create_stmt(zp_mem_buf, zp_buf, subtile_idx);
             auto zp_wei_init = zp.wei_init_create_stmt(
                     zp_buf, zp_wei_buf, plan_.gemm_schedule, subtile_idx);
-            mul_stmt = mul_stmt.append(load);
             mul_stmt = mul_stmt.append(zp_wei_init);
         }
-        if (zp.has_zp_src()) {
-            auto zp_wei = (zp.has_zp_wei()) ? buf_mgr_.get("zp_wei") : expr_t();
-            auto zp_mem_buf = kernel_info_.find_arg("src_zero_points");
-            auto zp_buf = buf_mgr_.get("zp_src", zp.load_reg_buf_size());
-            auto wei_buf = buf_mgr_.get("b");
+        if (zp.has_zp_src() && !zp.is_src_precomp_compatible()) {
+            auto zp_buf = build_zp_init_src_load(subtile_idx, mul_stmt);
+
             auto zp_mask_buf = buf_mgr_.get("zp_mask", zp.mask_reg_buf_size());
-            auto zp_comp_buf = buf_mgr_.get("zp_comp", zp.comp_reg_buf_size());
-            auto load = zp.load_create_stmt(zp_mem_buf, zp_buf, subtile_idx);
             auto zp_mask_init
                     = zp.mask_init_create_stmt(zp_mask_buf, subtile_idx);
+            mul_stmt = mul_stmt.append(zp_mask_init);
+
+            auto wei_buf = buf_mgr_.get("b");
+            auto zp_wei = (zp.has_zp_wei()) ? buf_mgr_.get("zp_wei") : expr_t();
+            auto zp_comp_buf = buf_mgr_.get("zp_comp", zp.comp_reg_buf_size());
             auto zp_comp_init = zp.comp_init_create_stmt(buf_mgr_, zp_buf,
                     wei_buf, zp_comp_buf, zp_wei, plan_.gemm_schedule,
                     subtile_idx);
-            mul_stmt = mul_stmt.append(load);
-            mul_stmt = mul_stmt.append(zp_mask_init);
             mul_stmt = mul_stmt.append(zp_comp_init);
         }
     }
 
     void build_zp_apply(int subtile_idx, stmt_t &mul_stmt) {
+        auto make_zp_fma = [&](const std::string &zp_buf, abc_kind_t kind,
+                                   int size) {
+            ir_assert((kind == abc_kind_t::a) || (kind == abc_kind_t::b));
+            buf_mgr_.get(zp_buf, size);
+            return plan_.fma.create_stmt(ir_ctx_, buf_mgr_,
+                    (kind == abc_kind_t::a) ? zp_buf : "a",
+                    (kind == abc_kind_t::b) ? zp_buf : "b", "c", subtile_idx);
+        };
         auto &zp = plan_.zp;
-
-        if (zp.has_zp_src()) {
+        if (zp.has_zp_wei()) {
+            mul_stmt = mul_stmt.append(make_zp_fma(
+                    "zp_wei_buf", abc_kind_t::b, zp.wei_reg_buf_size()));
+        }
+        if (zp.is_src_precomp_compatible()) {
+            mul_stmt = mul_stmt.append(make_zp_fma(
+                    "zp_src_buf", abc_kind_t::a, zp.src_reg_buf_size()));
+        } else if (zp.has_zp_src()) {
             auto c_buf = buf_mgr_.get("c");
             auto zp_comp_buf = buf_mgr_.get("zp_comp");
             auto zp_mask_buf = buf_mgr_.get("zp_mask");
             auto zp_comp_apply = zp.comp_apply_create_stmt(
                     zp_comp_buf, zp_mask_buf, c_buf, subtile_idx);
             mul_stmt = mul_stmt.append(zp_comp_apply);
-        }
-        if (zp.has_zp_wei()) {
-            mul_stmt = mul_stmt.append(plan_.fma.create_stmt(
-                    ir_ctx_, buf_mgr_, "a", "zp_wei_buf", "c", subtile_idx));
         }
     }
 
@@ -439,10 +480,14 @@ private:
         if (load_buf.is_same(reg_buf)) {
             reg_buf = buf_mgr_.get(prefix, x2r_load.reg_buf_size());
         }
+        expr_t pattern;
+        if ((prefix == "a") && plan_.zp.is_src_precomp_compatible())
+            pattern = load_t::make(type_t::u32(),
+                    buf_mgr_.get("zp_src", plan_.zp.load_reg_buf_size()), 0);
+        auto load = x2r_load.create_stmt(x_buf, load_buf, subtile_idx, pattern);
         auto reduce_buf = x2r_reduce
                 ? buf_mgr_.get("x_reduce", into<int>(x2r_reduce.dst_buf_size()))
                 : expr_t();
-        auto load = x2r_load.create_stmt(x_buf, load_buf, subtile_idx);
         bool do_reduce = ((cfg_.prb().ab_swap_transpose && prefix == "a")
                 || (!cfg_.prb().ab_swap_transpose && prefix == "b"));
         auto reduce = do_reduce
@@ -645,7 +690,6 @@ void conv_ir_builder_t::build() {
     stmt_t loop_stmt = cb.iter_stmt();
     loop_stmt = gemm_schedule.create_loop_nest(loop_stmt);
     loop_stmt = inject_compute_loop_label(loop_stmt);
-    loop_stmt = cb.inject_compute_alloc_stmts(loop_stmt);
 
     stmt_t c_store_stmt;
     c_store_stmt = c_store_stmt.append(cb.x_reduced_store_stmt());
@@ -654,6 +698,7 @@ void conv_ir_builder_t::build() {
 
     stmt_ = std::move(loop_stmt);
     stmt_ = stmt_seq_t::make(cb.zero_out_stmt(), stmt_);
+    stmt_ = cb.inject_compute_alloc_stmts(stmt_);
     stmt_ = stmt_seq_t::make(stmt_, c_store_stmt);
 
     stmt_ = cb.inject_out_alloc_stmts(stmt_);

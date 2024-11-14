@@ -19,7 +19,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" OR CMAKE_CXX_COMPILER_ID STREQUAL 
     append(CMAKE_CXX_FLAGS " -Wno-implicit-int-conversion")
 endif()
 
-set(DIRS "generator;selector")
+set(DIRS "generator;generator/pieces;selector")
 
 file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
@@ -31,6 +31,29 @@ foreach(d ${DIRS})
         ${CMAKE_CURRENT_SOURCE_DIR}/${d}/*.cpp
         )
     list(APPEND SOURCES "${d_sources}")
+endforeach()
+
+list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/generator/generator.cpp)
+
+file (GLOB GENERATOR_SOURCES
+        generator/generator.cpp
+     )
+
+if (DNNL_ENABLE_PRIMITIVE_GPU_ISA STREQUAL "ALL")
+    set(DNNL_GPU_ISA_LIST "GEN9;GEN11;XELP;XEHP;XEHPG;XEHPC;XE2;XE3")
+else()
+    foreach(isa ${DNNL_ENABLE_PRIMITIVE_GPU_ISA})
+       string(TOUPPER ${isa} ISA)
+       set(DNNL_GPU_ISA_LIST "${DNNL_GPU_ISA_LIST};${ISA}")
+    endforeach()
+endif()
+
+foreach(isa ${DNNL_GPU_ISA_LIST})
+    set(GENERATOR_LIB generator${isa})
+    add_library(${GENERATOR_LIB} OBJECT ${GENERATOR_SOURCES})
+    target_compile_definitions(${GENERATOR_LIB} PRIVATE DNNL_GPU_ISA_${isa} )
+    set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
+                        $<TARGET_OBJECTS:${GENERATOR_LIB}>)
 endforeach()
 
 set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_intel_jit_gemm)

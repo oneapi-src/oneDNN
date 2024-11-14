@@ -37,12 +37,13 @@ struct zp_plan_impl_t;
 struct zp_plan_t : public base_plan_t {
     zp_plan_t(const hw_t &hw);
     ~zp_plan_t();
-    void init(const conv_config_t &cfg, const gemm_schedule_t &gemm_schedule,
-            const view_t &zp_src_view, const view_t &zp_view,
-            const layout_t &src_layout, const layout_t &wei_layout,
-            const layout_t &dst_layout);
+    void init(const conv_config_t &cfg, bool src_2d_loads,
+            const gemm_schedule_t &gemm_schedule, const view_t &zp_src_view,
+            const view_t &zp_view, const layout_t &src_layout,
+            const layout_t &wei_layout, const layout_t &dst_layout);
 
     explicit operator bool() const;
+    bool is_src_precomp_compatible() const;
     bool has_zp_src() const;
     bool has_zp_wei() const;
     bool needs_precalc() const;
@@ -51,6 +52,9 @@ struct zp_plan_t : public base_plan_t {
     int comp_reg_buf_size() const;
     int wei_load_reg_buf_size() const;
     int wei_reg_buf_size() const;
+    int src_reg_buf_size() const;
+    stmt_t src_init_create_stmt(
+            const expr_t &src_buf, const expr_t &dpas_buf) const;
     stmt_t load_create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
             int subtile_idx) const;
     stmt_t comp_init_create_stmt(buffer_manager_t &buf_mgr,

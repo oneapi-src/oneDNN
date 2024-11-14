@@ -2481,8 +2481,9 @@ private:
                 cfg_.zp_cfg().wei_zp_type, 0, std::vector<dim_t> {1, 1});
         view_t zp_wei_view(zp_wei_layout);
 
-        plan.init(cfg_, gemm_schedule_, zp_view, zp_wei_view, x2r.a_layout,
-                x2r.b_layout, fma.c_prb_layout);
+        plan.init(cfg_, x2r.a_load.send_params().hint_2d.enable, gemm_schedule_,
+                zp_view, zp_wei_view, x2r.a_layout, x2r.b_layout,
+                fma.c_prb_layout);
         return plan_status_t::success;
     }
 

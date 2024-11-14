@@ -348,24 +348,6 @@ void BLASKernelGenerator<hw>::gemmDequantizeOperation(bool doA, Type T, Type To,
     }
 }
 
-bool canDequantizeInt4(Type Tsrc, Type Tdst,
-                       const vector<RegisterBlock> &layoutSrc, const vector<RegisterBlock> &layoutDst,
-                       const vector<RegisterBlock> layoutOffset, const vector<RegisterBlock> layoutScale)
-{
-    if (!Tsrc.isInt4() || !one_of(Tdst, Type::f16, Type::bf16, Type::f32))
-        return false;
-
-    if (layoutOffset.empty() || layoutScale.empty()) {
-        int m, n, md, nd;
-        getLayoutDims(layoutSrc, m, n);
-        getLayoutDims(layoutDst, md, nd);
-
-        if (m < md || n < nd) return false;
-    }
-
-    return true;
-}
-
 // Shift s4 data by 8 to transfrom it into u4 data.
 template <HW hw>
 void BLASKernelGenerator<hw>::dequantizeInt4Shift(Type Tsrc, GRFMultirange src, const CommonStrategy &strategy)
