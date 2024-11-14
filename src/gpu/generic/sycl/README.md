@@ -174,3 +174,8 @@ The implementation supports both forward and backward propagations.
 
 * Supported formats: plain formats with up to 7 dimensions
 * Supported data types: `f32`, `bf16`, `f16`, `s8`, `u8`
+
+## Reduction
+
+* Supported formats: plain formats with up to 6 dimensions
+* Supported data types: `f32`, `bf16`, `f16`, `s8`, `u8`

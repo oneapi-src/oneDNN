@@ -73,13 +73,13 @@ struct Reducer {
     }
 };
 
-struct reduction_kernel_fwd_t {
+struct simple_reduction_kernel_fwd_t {
     sycl_simple_reduction_conf_t conf_;
     xpu::sycl::in_memory_arg_t src_;
     xpu::sycl::out_memory_arg_t dst_;
     post_op_input_args po_args_;
 
-    reduction_kernel_fwd_t(const sycl_simple_reduction_conf_t &conf,
+    simple_reduction_kernel_fwd_t(const sycl_simple_reduction_conf_t &conf,
             ::sycl::handler &cgh, const exec_ctx_t &ctx)
         : conf_(conf)
         , src_(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
