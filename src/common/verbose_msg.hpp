@@ -42,9 +42,9 @@
 // verbose messages
 #define VERBOSE_PROFILING_UNSUPPORTED "profiling capabilities are not supported"
 #define VERBOSE_INVALID_DEVICE_ENV "invalid %s device in environment: index %zu"
-#define VERBOSE_INVALID_ENGINE_KIND "no %s device is available"
+#define VERBOSE_INVALID_ENGINE_KIND "no %s %s device is available"
 #define VERBOSE_INVALID_ENGINE_IDX \
-    "%zu %s devices are available but %zu was queried"
+    "%zu %s devices are available but device index %zu was queried"
 #define VERBOSE_INVALID_ACC_MODE "bad accumulation mode %s"
 #define VERBOSE_NULL_ARG "one of the mandatory arguments is nullptr"
 #define VERBOSE_BAD_ENGINE_KIND "bad engine kind"

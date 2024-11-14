@@ -33,6 +33,11 @@ namespace ocl {
 
 void print_verbose_header() {
     xpu::ocl::engine_factory_t factory(engine_kind::gpu);
+
+    verbose_printf("info,gpu,engine,opencl device count:%zu %s\n",
+            factory.count(),
+            factory.count() == 0 ? "- no devices available." : "");
+
     for (size_t i = 0; i < factory.count(); ++i) {
         impl::engine_t *eng_ptr = nullptr;
         status_t status = factory.engine_create(&eng_ptr, i);

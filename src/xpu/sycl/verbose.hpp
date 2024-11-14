@@ -37,6 +37,11 @@ namespace sycl {
 void print_verbose_header(engine_kind_t kind) {
     engine_factory_t factory(kind);
     auto s_engine_kind = (kind == engine_kind::cpu ? "cpu" : "gpu");
+
+    verbose_printf("info,%s,engine,sycl %s device count:%zu %s\n",
+            s_engine_kind, s_engine_kind, factory.count(),
+            factory.count() == 0 ? "- no devices available." : "");
+
     for (size_t i = 0; i < factory.count(); ++i) {
         try {
             impl::engine_t *eng_ptr = nullptr;

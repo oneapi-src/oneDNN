@@ -88,7 +88,19 @@ status_t dnnl_engine_create(
     try {
         auto ef = get_engine_factory(kind, get_default_runtime(kind));
         VERROR_ENGINE(ef != nullptr, invalid_arguments,
-                VERBOSE_INVALID_ENGINE_KIND, dnnl_engine_kind2str(kind));
+                VERBOSE_INVALID_ENGINE_KIND, "", dnnl_engine_kind2str(kind));
+
+        auto s_runtime_kind = dnnl_runtime2str(kind == engine_kind::cpu
+                        ? dnnl_version()->cpu_runtime
+                        : dnnl_version()->gpu_runtime);
+
+        VERROR_ENGINE(ef->count() > 0, invalid_arguments,
+                "%s %s devices queried but not found",
+                get_default_runtime(kind) == runtime_kind::none
+                        ? ""
+                        : s_runtime_kind,
+                dnnl_engine_kind2str(kind));
+
         VERROR_ENGINE(index < ef->count(), invalid_arguments,
                 VERBOSE_INVALID_ENGINE_IDX, ef->count(),
                 dnnl_engine_kind2str(kind), index);

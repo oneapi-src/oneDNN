@@ -309,6 +309,10 @@ status_t get_device_index(size_t *index, const ::sycl::device &dev) {
     auto backend = get_backend(dev);
     auto devices = get_devices(dev_type, backend);
 
+    VERROR_ENGINE(devices.size() > 0, status::invalid_arguments,
+            "%s devices queried but not found",
+            xpu::sycl::to_string(dev_type).c_str());
+
     // Find the top level device in the list
     auto it = std::find(devices.begin(), devices.end(), get_root_device(dev));
     if (it != devices.end()) {
@@ -319,8 +323,8 @@ status_t get_device_index(size_t *index, const ::sycl::device &dev) {
         // TODO: remove this work around once Level-Zero is fixed
         if (backend == backend_t::level0) return status::success;
         VERROR_ENGINE(false, status::invalid_arguments,
-                VERBOSE_INVALID_ENGINE_IDX, SIZE_MAX,
-                to_string(dev_type).c_str(), devices.size());
+                VERBOSE_INVALID_ENGINE_IDX, devices.size(),
+                xpu::sycl::to_string(dev_type).c_str(), SIZE_MAX);
     }
 }
 
