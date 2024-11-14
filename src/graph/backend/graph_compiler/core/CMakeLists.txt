@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2023 Intel Corporation
+# Copyright 2020-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -175,13 +175,11 @@ include_directories_with_host_compiler(
 if(SC_LLVM_ENABLED)
     set(SC_LLVM_ABS_LIBPATH ${SC_LLVM_LIB_NAME})
 
-    #expose the LLVM libraries it depends on when cmake version > 3.0
-    if(${CMAKE_VERSION} VERSION_GREATER "3.0.0")
-        add_library(dnnl_graphcompiler_llvm_lib INTERFACE IMPORTED GLOBAL)
-        set_property(TARGET dnnl_graphcompiler_llvm_lib PROPERTY INTERFACE_LINK_LIBRARIES ${SC_LLVM_LIB_NAME})
-        add_library(dnnl_graphcompiler_llvm_lib_exclude_string INTERFACE IMPORTED GLOBAL)
-        set_property(TARGET dnnl_graphcompiler_llvm_lib_exclude_string PROPERTY INTERFACE_LINK_LIBRARIES ${SC_LLVM_LIB_EXCLUDE})
-    endif()
+    #expose the LLVM libraries
+    add_library(dnnl_graphcompiler_llvm_lib INTERFACE IMPORTED GLOBAL)
+    set_property(TARGET dnnl_graphcompiler_llvm_lib PROPERTY INTERFACE_LINK_LIBRARIES ${SC_LLVM_LIB_NAME})
+    add_library(dnnl_graphcompiler_llvm_lib_exclude_string INTERFACE IMPORTED GLOBAL)
+    set_property(TARGET dnnl_graphcompiler_llvm_lib_exclude_string PROPERTY INTERFACE_LINK_LIBRARIES ${SC_LLVM_LIB_EXCLUDE})
 
     if(${SC_LLVM_CONFIG_RETURN_STATIC})
         set_property(GLOBAL APPEND PROPERTY DNNL_SUBDIR_EXTRA_STATIC_LIBS
@@ -207,15 +205,7 @@ else()
 endif()
 
 if(NEED_SET_CPP_STD)
-    if(${CMAKE_VERSION} VERSION_LESS "3.1.0") 
-        if(MSVC)
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++${SC_CPP_VER}")
-        else()
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${SC_CPP_VER}")
-        endif()
-    else()
-        set_property(TARGET ${SC_LIB_NAME} PROPERTY CXX_STANDARD ${SC_CPP_VER})
-    endif()
+    set_property(TARGET ${SC_LIB_NAME} PROPERTY CXX_STANDARD ${SC_CPP_VER})
 endif()
 
 if(NOT MSVC OR CMAKE_BASE_NAME MATCHES "(icx|icpx)")
@@ -237,7 +227,7 @@ if(NOT MSVC OR CMAKE_BASE_NAME MATCHES "(icx|icpx)")
     endif()
 endif()
 
-if("${DNNL_CPU_RUNTIME}" STREQUAL "SYCL" AND WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+if("${DNNL_CPU_RUNTIME}" STREQUAL "SYCL" AND WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
     append_host_compiler_options(CMAKE_CXX_FLAGS "-Wno-deprecated-declarations")
 endif()

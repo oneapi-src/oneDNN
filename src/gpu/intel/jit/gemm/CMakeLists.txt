@@ -15,7 +15,7 @@
 #===============================================================================
 
 # TODO: Extend conversion warning support to GEMM code
-if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" OR CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?[Cc]lang")
     append(CMAKE_CXX_FLAGS " -Wno-implicit-int-conversion")
 endif()
 

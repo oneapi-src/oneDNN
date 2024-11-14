@@ -23,26 +23,13 @@ endif()
 set(OpenMP_cmake_included true)
 include("cmake/Threading.cmake")
 
-if (APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+if (APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
     # OSX Clang doesn't have OpenMP by default.
     # But we still want to build the library.
     set(_omp_severity "WARNING")
 else()
     set(_omp_severity "FATAL_ERROR")
 endif()
-
-macro(set_openmp_values_for_old_cmake)
-    #newer version for findOpenMP (>= v. 3.9)
-    if(CMAKE_VERSION VERSION_LESS "3.9" AND OPENMP_FOUND)
-        if(${CMAKE_MAJOR_VERSION} VERSION_LESS "3" AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
-            # Override FindOpenMP flags for Intel Compiler (otherwise deprecated)
-            set(OpenMP_CXX_FLAGS "-fopenmp")
-            set(OpenMP_C_FLAGS "-fopenmp")
-        endif()
-        set(OpenMP_C_FOUND true)
-        set(OpenMP_CXX_FOUND true)
-    endif()
-endmacro()
 
 if(DPCPP_HOST_COMPILER_KIND STREQUAL "DEFAULT")
     # XXX: workaround: when -fsycl is specified the compiler doesn't define
@@ -51,10 +38,7 @@ if(DPCPP_HOST_COMPILER_KIND STREQUAL "DEFAULT")
     # the -fsycl option by default so it has to be explicitly disabled.
     set(_omp_original_cmake_cxx_flags "${CMAKE_CXX_FLAGS}")
     string(REGEX REPLACE "-fsycl" "-fno-sycl" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-
     find_package(OpenMP)
-    set_openmp_values_for_old_cmake()
-
     set(CMAKE_CXX_FLAGS "${_omp_original_cmake_cxx_flags}")
 endif()
 
