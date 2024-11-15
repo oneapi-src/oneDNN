@@ -192,6 +192,7 @@ int execute(const prb_t *prb, const args_t &args, res_t *res) {
     int ret = pad.reorder(src);
     if (ret != OK) { res->state = FAILED; }
     // update output shape with dense stride
+    dnnl_memory_desc_destroy(pad.md_);
     dnnl_memory_desc_create_with_string_tag(&pad.md_, dst.ndims(), dst.dims(),
             dst.dt(), normalize_tag(tag::abx, dst.ndims()).c_str());
     ret = dst.reorder(pad);
