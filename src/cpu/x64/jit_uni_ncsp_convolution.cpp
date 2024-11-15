@@ -115,6 +115,8 @@ status_t reduction_helper_t::reshape_for_transpose(
 bool reduction_helper_t::is_gemm() {
     // 1x1
     return utils::everyone_is(1, pd_->KD(), pd_->KH(), pd_->KW())
+            // unit groups
+            && 1 == pd_->G()
             // no pre-padding
             && utils::everyone_is(0, pd_->padFront(), pd_->padT(), pd_->padL())
             // no post-padding
