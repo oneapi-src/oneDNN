@@ -301,7 +301,6 @@ status_t device_info_t::init_serialized_device_info(
     serialized_device_info_.write(&mayiuse_systolic_);
     serialized_device_info_.write(&mayiuse_ngen_kernels_);
     serialized_device_info_.write(&mayiuse_system_memory_allocators_);
-    serialized_device_info_.write(&mayiuse_microkernels_);
     serialized_device_info_.write(&mayiuse_non_uniform_work_groups_);
 
     const size_t name_size = name_.size();
@@ -343,7 +342,6 @@ status_t device_info_t::init_from_cache_blob(
     DESERIALIZE(mayiuse_systolic_, bool);
     DESERIALIZE(mayiuse_ngen_kernels_, bool);
     DESERIALIZE(mayiuse_system_memory_allocators_, bool);
-    DESERIALIZE(mayiuse_microkernels_, bool);
     DESERIALIZE(mayiuse_non_uniform_work_groups_, bool);
 #undef DESERIALIZE
 

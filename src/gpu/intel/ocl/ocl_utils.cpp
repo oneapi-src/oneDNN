@@ -17,12 +17,18 @@
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 #include <CL/cl_ext.h>
 
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
+#include "gpu/intel/ocl/ocl_gpu_hw_info.hpp"
 #include "gpu/intel/ocl/ocl_gpu_kernel.hpp"
 #include "gpu/intel/ocl/ocl_utils.hpp"
 #include "xpu/ocl/utils.hpp"
+
+#if __has_include(<sycl/sycl.hpp>)
+#include "gpu/intel/sycl/engine.hpp"
+#endif
 
 #ifndef CL_KERNEL_BINARY_PROGRAM_INTEL
 #define CL_KERNEL_BINARY_PROGRAM_INTEL 0x407D
@@ -75,6 +81,99 @@ namespace impl {
 namespace gpu {
 namespace intel {
 namespace ocl {
+
+/// Tries to build a kernel with assembly instructions to check to see if the
+/// OpenCL compiler supports microkernels.
+bool try_building_with_microkernels(cl_context context, cl_device_id device) {
+    const char *kernel_code = R""""(
+        kernel void igc_check() {
+            __asm__ volatile(
+                    ".decl AA0 v_type=G type=ud num_elts=1\n"
+                    ".decl AA1 v_type=G type=ud num_elts=1\n"
+                    ".implicit_PSEUDO_INPUT AA0 offset=256 size=4\n"
+                    ".implicit_PSEUDO_INPUT AA1 offset=256 size=4\n"
+                    "mov (M1_NM,1) AA0(0,0)<1> AA1(0,0)<0;1,0>\n"
+            );
+        }
+        )"""";
+    cl_int err;
+    /// Not using existing build infrastructure to avoid error messages in the CI logs
+    xpu::ocl::wrapper_t<cl_program> program(
+            clCreateProgramWithSource(context, 1, &kernel_code, nullptr, &err));
+    if (err != CL_SUCCESS) return false;
+    err = clBuildProgram(program, 1, &device, nullptr, nullptr, nullptr);
+    return err == CL_SUCCESS;
+}
+
+int get_sycl_ocl_device_and_context(
+        xpu::ocl::wrapper_t<cl_context> &ocl_context,
+        xpu::ocl::wrapper_t<cl_device_id> &ocl_device,
+        const impl::engine_t *engine) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+    auto *sycl_engine = utils::downcast<const sycl::engine_t *>(engine);
+    auto &device = sycl_engine->device();
+
+    auto be = xpu::sycl::get_backend(device);
+    if (be == xpu::sycl::backend_t::opencl) {
+        cl_int err = CL_SUCCESS;
+        auto ocl_dev = xpu::sycl::compat::get_native<cl_device_id>(device);
+        ocl_device = xpu::ocl::make_wrapper(ocl_dev, true);
+
+        ocl_context = xpu::ocl::make_wrapper(
+                clCreateContext(nullptr, 1, &ocl_dev, nullptr, nullptr, &err),
+                true);
+        if (err) return -1;
+    } else if (be == xpu::sycl::backend_t::level0) {
+        std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
+                ocl_engine;
+        auto err
+                = gpu::intel::sycl::create_ocl_engine(&ocl_engine, sycl_engine);
+        if (err != status::success) return -1;
+        ocl_device = xpu::ocl::make_wrapper(ocl_engine->device(), true);
+        ocl_context = xpu::ocl::make_wrapper(ocl_engine->context(), true);
+    }
+#endif
+    return 0;
+}
+
+bool mayiuse_microkernels(const impl::engine_t *engine) {
+    auto mayiuse_mk = [](const impl::engine_t *engine) {
+        xpu::ocl::wrapper_t<cl_device_id> ocl_device;
+        xpu::ocl::wrapper_t<cl_context> ocl_context;
+
+        switch (engine->runtime_kind()) {
+            case runtime_kind::sycl: {
+                auto err = get_sycl_ocl_device_and_context(
+                        ocl_context, ocl_device, engine);
+                if (err) return false;
+            } break;
+            case runtime_kind::ocl: {
+                const ocl_gpu_engine_t *eng
+                        = utils::downcast<const ocl_gpu_engine_t *>(engine);
+                ocl_device = xpu::ocl::make_wrapper(eng->device(), true);
+                ocl_context = xpu::ocl::make_wrapper(eng->context(), true);
+            } break;
+            default: return false;
+        }
+
+        bool mayiuse_microkernels = get_driver_version(ocl_device)
+                >= xpu::runtime_version_t(24, 22, 29735);
+        if (!mayiuse_microkernels) {
+            mayiuse_microkernels
+                    = try_building_with_microkernels(ocl_context, ocl_device);
+        }
+        return mayiuse_microkernels;
+    };
+
+    static std::map<engine_id_t, bool> engine_microkernel_map {
+            {engine->engine_id(), mayiuse_mk(engine)}};
+
+    static std::mutex map_mutex;
+    std::lock_guard<std::mutex> map_lock(map_mutex);
+    auto it = engine_microkernel_map.find(engine->engine_id());
+    if (it != std::end(engine_microkernel_map)) { return it->second; }
+    return engine_microkernel_map[engine->engine_id()] = mayiuse_mk(engine);
+}
 
 status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,
         cl_kernel ocl_kernel, cl_uint idx, bool allow_undef) {

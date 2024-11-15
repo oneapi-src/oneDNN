@@ -55,7 +55,7 @@ status_t device_info_t::init_arch(impl::engine_t *engine) {
         gpu::intel::ocl::init_gpu_hw_info(engine, ocl_dev_wrapper,
                 ocl_ctx_wrapper, ip_version_, gpu_arch_, gpu_product_family_,
                 stepping_id_, native_extensions_, mayiuse_systolic_,
-                mayiuse_ngen_kernels_, mayiuse_microkernels_);
+                mayiuse_ngen_kernels_);
     } else if (be == xpu::sycl::backend_t::level0) {
         // TODO: add support for L0 binary ngen check
         // XXX: query from ocl_engine for now
@@ -71,7 +71,6 @@ status_t device_info_t::init_arch(impl::engine_t *engine) {
         native_extensions_ = dev_info->native_extensions();
         mayiuse_systolic_ = dev_info->mayiuse_systolic();
         mayiuse_ngen_kernels_ = dev_info->mayiuse_ngen_kernels();
-        mayiuse_microkernels_ = dev_info->mayiuse_microkernels();
     } else {
         assert(!"not_expected");
     }
