@@ -417,19 +417,19 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
 
     int kq_scale_mask = (static_cast<int>(pd()->with_key_scales()) << 1)
             | static_cast<int>(with_quantize_common(d->kq_scales));
-    kernel_ctx.define_int("WITH_KEY_SCALES", kq_scale_mask);
+    kernel_ctx.define_int("KEY_SCALES", kq_scale_mask);
 
     int vs_scale_mask = (static_cast<int>(pd()->with_value_scales()) << 1)
             | static_cast<int>(with_quantize_common(d->vs_scales));
-    kernel_ctx.define_int("WITH_VAL_SCALES", vs_scale_mask);
+    kernel_ctx.define_int("VAL_SCALES", vs_scale_mask);
 
     int kq_zp_mask = (static_cast<int>(pd()->with_key_zp()) << 1)
             | static_cast<int>(with_quantize_common(d->kq_zero_points));
-    kernel_ctx.define_int("WITH_KEY_ZERO_POINTS", kq_zp_mask);
+    kernel_ctx.define_int("KEY_ZERO_POINTS", kq_zp_mask);
 
     int vs_zp_mask = (static_cast<int>(pd()->with_value_zp()) << 1)
             | static_cast<int>(with_quantize_common(d->vs_zero_points));
-    kernel_ctx.define_int("WITH_VAL_ZERO_POINTS", vs_zp_mask);
+    kernel_ctx.define_int("VAL_ZERO_POINTS", vs_zp_mask);
 
     using namespace data_type;
     auto elems_per_byte = [](data_type_t dt) {

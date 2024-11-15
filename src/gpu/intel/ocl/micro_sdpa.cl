@@ -180,10 +180,10 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
     uint ldv = VAL_S2;
     uint lda = DST_S2;
 
-#if WITH_KEY_SCALES || WITH_KEY_ZERO_POINTS
+#if KEY_SCALES || KEY_ZERO_POINTS
     uint ldkq = div_up(d, KEY_GROUP_SIZE);
 #endif
-#if WITH_VAL_SCALES || WITH_VAL_ZERO_POINTS
+#if VAL_SCALES || VAL_ZERO_POINTS
     uint ldvq = div_up(d, VAL_GROUP_SIZE);
 #endif
 
@@ -225,23 +225,23 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
     msk += MSK_OFF(b1 % MSK_D0, b0 % MSK_D1, 0, 0);
 #endif
 
-#if WITH_KEY_SCALES
+#if KEY_SCALES
     K_scales += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE;
 #endif
-#if WITH_KEY_SCALES == QUANTIZE_COMMON
+#if KEY_SCALES == QUANTIZE_COMMON
     float k_scale = convert_float(*K_scales);
 #endif
-#if WITH_KEY_ZERO_POINTS
+#if KEY_ZERO_POINTS
     K_zp += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE
             / KEY_ZP_ELEMENTS_PER_BYTE;
 #endif
-#if WITH_VAL_SCALES
+#if VAL_SCALES
     V_scales += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE;
 #endif
-#if WITH_VAL_SCALES == QUANTIZE_COMMON
+#if VAL_SCALES == QUANTIZE_COMMON
     float v_scale = convert_float(*V_scales);
 #endif
-#if WITH_VAL_ZERO_POINTS
+#if VAL_ZERO_POINTS
     V_zp += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE
             / VAL_ZP_ELEMENTS_PER_BYTE;
 #endif
@@ -342,21 +342,21 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         s_tile_type S_tile
                 = ugemm_kq(K, ldk, Q_slm, D_MAX, k, ugemm_kq_wg_tile_n, d, k0,
                         0, 0, sg_i_kq, sg_j_kq, (local char *)ugemm_slm
-#if WITH_KEY_SCALES == QUANTIZE_2D
+#if KEY_SCALES == QUANTIZE_2D
                         ,
                         K_scales
 #endif
-#if WITH_KEY_ZERO_POINTS
+#if KEY_ZERO_POINTS
                         ,
                         K_zp
 #endif
-#if (WITH_KEY_SCALES == QUANTIZE_2D) || WITH_KEY_ZERO_POINTS
+#if (KEY_SCALES == QUANTIZE_2D) || KEY_ZERO_POINTS
                         ,
                         ldkq
 #endif
                 );
 
-#if WITH_KEY_SCALES == QUANTIZE_COMMON
+#if KEY_SCALES == QUANTIZE_COMMON
 #define k_scale_op(x) ((x)*k_scale)
         tile_elementwise(S_tile, k_scale_op);
 #endif
@@ -512,25 +512,25 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         a_tile_type A_tile1 = ugemm_vs(
                 V, ldv, S_slm, ugemm_kq_wg_tile_m, d, ugemm_kq_wg_tile_n,
                 k_chunk, 0, 0, 0, sg_i_vs, sg_j_vs, (local char *)ugemm_slm
-#if WITH_VAL_SCALES == QUANTIZE_2D
+#if VAL_SCALES == QUANTIZE_2D
                 ,
                 V_scales
 #endif
-#if WITH_VAL_ZERO_POINTS
+#if VAL_ZERO_POINTS
                 ,
                 V_zp
 #endif
-#if (WITH_VAL_SCALES == QUANTIZE_2D) || WITH_VAL_ZERO_POINTS
+#if (VAL_SCALES == QUANTIZE_2D) || VAL_ZERO_POINTS
                 ,
                 ldvq
 #endif
         );
 
         V += ldv * ugemm_kq_wg_tile_m / VAL_ELEMENTS_PER_BYTE;
-#if WITH_VAL_SCALES == QUANTIZE_2D
+#if VAL_SCALES == QUANTIZE_2D
         V_scales += ldvq * ugemm_kq_wg_tile_m;
 #endif
-#if WITH_VAL_ZERO_POINTS == QUANTIZE_2D
+#if VAL_ZERO_POINTS == QUANTIZE_2D
         V_zp += ldvq * ugemm_kq_wg_tile_m / VAL_ZP_ELEMENTS_PER_BYTE;
 #endif
         tile_binary(A_tile, A_tile1, binary_add);
@@ -550,7 +550,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         tile_binary(A_scale_tile, A_scale_tile_load, binary_add);
     }
 
-#if WITH_VAL_SCALES == QUANTIZE_COMMON
+#if VAL_SCALES == QUANTIZE_COMMON
 #define v_scale_op(x) ((x)*v_scale)
     tile_elementwise(A_tile, v_scale_op);
 #endif
