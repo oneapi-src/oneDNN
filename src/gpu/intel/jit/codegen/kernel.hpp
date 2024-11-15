@@ -776,6 +776,14 @@ public:
             const ngen_operand_t &src1) {
         if (src1.is_reg_data()) {
             cmp(mod, src0.reg_data(), src1.reg_data());
+        } else if (utils::one_of(src1.immediate().getType(), ngen::DataType::q,
+                           ngen::DataType::uq)) {
+            auto tmp = src1.immediate().getType() == ngen::DataType::uq
+                    ? ra_.alloc().uq()
+                    : ra_.alloc().q();
+            mov(1, tmp, src1.immediate());
+            cmp(mod, src0.reg_data(), tmp);
+            ra_.safeRelease(tmp);
         } else {
             cmp(mod, src0.reg_data(), src1.immediate());
         }
@@ -785,6 +793,14 @@ public:
             const ngen_operand_t &src0, const ngen_operand_t &src1) {
         if (src1.is_reg_data()) {
             cmp(mod, dst.reg_data(), src0.reg_data(), src1.reg_data());
+        } else if (utils::one_of(src1.immediate().getType(), ngen::DataType::q,
+                           ngen::DataType::uq)) {
+            auto tmp = src1.immediate().getType() == ngen::DataType::uq
+                    ? ra_.alloc().uq()
+                    : ra_.alloc().q();
+            mov(1, tmp, src1.immediate());
+            cmp(mod, dst.reg_data(), src0.reg_data(), tmp);
+            ra_.safeRelease(tmp);
         } else {
             cmp(mod, dst.reg_data(), src0.reg_data(), src1.immediate());
         }
