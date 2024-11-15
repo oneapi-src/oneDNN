@@ -356,6 +356,91 @@ status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
     return status::success;
 }
 
+status_t insert_permute_for_dynamic_mul_scale_sub_zp(
+        std::shared_ptr<subgraph_t> &sg) {
+    subgraph_rewriter_t rewriter(sg);
+    std::vector<op_ptr> permute_op_group;
+
+    for (auto &cur_op : sg->get_ops()) {
+        if (cur_op->get_kind() != op_kind::dnnl_sub_zps
+                && cur_op->get_kind() != op_kind::dnnl_mul_scales)
+            continue;
+
+        if (cur_op->get_attr<std::string>(op_attr::qtype) == "per_tensor")
+            continue;
+
+        // This pass only handle dynamic quantization
+        if (cur_op->get_kind() == op_kind::dnnl_sub_zps) {
+            if (!cur_op->has_attr(op_attr::with_runtime_zps)
+                    || !cur_op->get_attr<bool>(op_attr::with_runtime_zps))
+                continue;
+
+            auto out_val = cur_op->get_output_values()[0];
+            auto consumers = out_val->get_consumers();
+            if (consumers.empty()) continue;
+
+            auto &consumer_op = consumers[0].get_op();
+            if (consumer_op.get_kind() != op_kind::dnnl_mul_scales) continue;
+            if (!consumer_op.has_attr(op_attr::with_runtime_scales)
+                    || !consumer_op.get_attr<bool>(
+                            op_attr::with_runtime_scales))
+                continue;
+
+            auto scale_out_val = consumer_op.get_output_values()[0];
+            auto &scale_consumer_op
+                    = scale_out_val->get_consumers()[0].get_op();
+            if (scale_consumer_op.get_kind() != op_kind::dnnl_matmul) continue;
+
+            if (scale_consumer_op.has_attr(op_attr::transpose_b)
+                    && scale_consumer_op.get_attr<bool>(op_attr::transpose_b)) {
+
+                permute_op_group.emplace_back(cur_op);
+            }
+        } else {
+            if (!cur_op->has_attr(op_attr::with_runtime_scales)
+                    || !cur_op->get_attr<bool>(op_attr::with_runtime_scales))
+                continue;
+
+            auto out_val = cur_op->get_output_values()[0];
+            auto consumers = out_val->get_consumers();
+            if (consumers.empty()) continue;
+
+            auto &consumer_op = consumers[0].get_op();
+            if (consumer_op.get_kind() != op_kind::dnnl_matmul) continue;
+
+            if (consumer_op.has_attr(op_attr::transpose_b)
+                    && consumer_op.get_attr<bool>(op_attr::transpose_b)) {
+                permute_op_group.emplace_back(cur_op);
+            }
+        }
+    }
+
+    if (permute_op_group.empty()) return status::success;
+
+    for (auto &cur_op : permute_op_group) {
+        auto ndims = cur_op->get_input_value(0)->get_logical_tensor().ndims;
+        if (cur_op->get_attr<std::string>(op_attr::qtype) == "per_group") {
+            op_ptr permute_op = std::make_shared<op_t>(op_kind::dnnl_permute);
+            auto perm = get_last_two_dims_permutation(ndims);
+            permute_op->set_attr<std::vector<int64_t>>(
+                    op_attr::permutation, perm);
+            rewriter.insert_op_before(permute_op, cur_op, 1);
+
+            auto group_shape = cur_op->get_attr<std::vector<int64_t>>(
+                    op_attr::group_shape);
+            std::swap(group_shape[ndims - 1], group_shape[ndims - 2]);
+            cur_op->set_attr<std::vector<int64_t>>(
+                    op_attr::group_shape, group_shape);
+        } else { // per-channel quantization
+            const auto axis = cur_op->get_attr<int64_t>(op_attr::axis);
+            cur_op->set_attr<int64_t>(op_attr::axis, (2 * ndims - 3) - axis);
+        }
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
 status_t insert_permute_for_matmul(std::shared_ptr<subgraph_t> &sg) {
     auto &mgr = sg->fusion_info_mgr_;
     subgraph_rewriter_t rewriter(sg);

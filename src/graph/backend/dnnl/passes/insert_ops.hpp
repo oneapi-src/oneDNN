@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2022 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,11 @@ status_t insert_permute_for_shuffle(std::shared_ptr<subgraph_t> &sg);
 status_t insert_to_group_for_conv_or_deconv(std::shared_ptr<subgraph_t> &sg);
 
 status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg);
+
+/// Insert a permute op to transposed the scale and zero points on matmul's
+/// input tensors.
+status_t insert_permute_for_dynamic_mul_scale_sub_zp(
+        std::shared_ptr<subgraph_t> &sg);
 
 /// Insert a permute op to transpose matmul's input tensors
 ///

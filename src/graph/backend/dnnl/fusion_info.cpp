@@ -117,6 +117,24 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                             mask, default_groups,
                             static_cast<dnnl::memory::data_type>(
                                     scales_data_type));
+                } else { // per-group quantization
+                    // oneDNN only supports weights-decompressed matmul
+                    if (in_scales_indices != 1
+                            || op->get_kind() != op_kind::dnnl_matmul)
+                        continue;
+                    const auto &group_shape
+                            = in_scales_op->get_attr<std::vector<int64_t>>(
+                                    op_attr::group_shape);
+
+                    // Currently oneDNN only supports grouped scales and zps on
+                    // last two dimensions.
+                    std::vector<int64_t> groups(
+                            group_shape.end() - 2, group_shape.end());
+                    int64_t mask = (1 << group_shape.size()) - 1;
+
+                    attr.set_scales(DNNL_ARG_WEIGHTS, mask, groups,
+                            static_cast<dnnl::memory::data_type>(
+                                    scales_data_type));
                 }
             }
         }
@@ -137,11 +155,34 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                         = in_zps_op->has_attr(op_attr::data_type)
                         ? in_zps_op->get_attr<int64_t>(op_attr::data_type)
                         : dnnl_s32;
-                int mask = 0;
-                attr.set_zero_points(
-                        in_zps_indices == 0 ? DNNL_ARG_SRC : DNNL_ARG_WEIGHTS,
-                        mask, default_groups,
-                        static_cast<dnnl::memory::data_type>(zps_data_type));
+                if (qtype == "per_group") {
+                    // oneDNN only supports weights-decompressed matmul
+                    if (in_zps_indices != 1
+                            || op->get_kind() != op_kind::dnnl_matmul)
+                        break;
+                    const auto &group_shape
+                            = in_zps_op->get_attr<std::vector<int64_t>>(
+                                    op_attr::group_shape);
+
+                    // Currently oneDNN only supports grouped scales and zps on
+                    // last two dimensions.
+                    std::vector<int64_t> groups(
+                            group_shape.end() - 2, group_shape.end());
+                    int64_t mask = (1 << group_shape.size()) - 1;
+
+                    // Currently oneDNN only supports grouped zps on last two dimensions.
+                    attr.set_zero_points(DNNL_ARG_WEIGHTS, mask, groups,
+                            static_cast<dnnl::memory::data_type>(
+                                    zps_data_type));
+
+                } else {
+                    int mask = 0;
+                    attr.set_zero_points(in_zps_indices == 0 ? DNNL_ARG_SRC
+                                                             : DNNL_ARG_WEIGHTS,
+                            mask, default_groups,
+                            static_cast<dnnl::memory::data_type>(
+                                    zps_data_type));
+                }
             }
         }
     }

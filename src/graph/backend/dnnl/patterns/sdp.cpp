@@ -391,6 +391,114 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_sdp_fusion)
                     sdp_base_t<true, memory::data_type::bf16>>();
         });
 
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, sdp_with_compressed_kv_fusion)
+        .set_priority(22.0f)
+        .set_kind(partition_kind_t::quantized_sdp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto dequantize_key = pgraph->append_op(
+                            graph::op_kind::DynamicDequantize);
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
+                            {in_edge(1, dequantize_key, 0)});
+
+                    auto fscore_scale = pgraph->append_alternation(
+                            {graph::op_kind::Divide, graph::op_kind::Multiply},
+                            {in_edge(0, matmul_qk, 0)});
+
+                    auto optional_mask = std::make_shared<pb_graph_t>();
+                    auto fscore_add
+                            = optional_mask->append_op(graph::op_kind::Add);
+                    optional_mask->create_input_port(0, fscore_add, 0);
+                    optional_mask->create_output_port(0, fscore_add, 0);
+                    auto mask = pgraph->append_optional(
+                            optional_mask, {in_edge(0, fscore_scale, 0)});
+
+                    // Optional select for distilbert
+                    auto p_select2 = optional_select(pgraph, mask, 2);
+
+                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
+                            {in_edge(0, p_select2, 0)});
+                    auto dequantize_value = pgraph->append_op(
+                            graph::op_kind::DynamicDequantize);
+                    pgraph->append_op(graph::op_kind::MatMul,
+                            {in_edge(0, softmax, 0),
+                                    in_edge(1, dequantize_value, 0)});
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<
+                    sdp_base_t<true, memory::data_type::bf16>>();
+        });
+
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, sdp_with_compressed_v_fusion)
+        .set_priority(22.0f)
+        .set_kind(partition_kind_t::quantized_sdp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
+
+                    auto fscore_scale = pgraph->append_alternation(
+                            {graph::op_kind::Divide, graph::op_kind::Multiply},
+                            {in_edge(0, matmul_qk, 0)});
+
+                    auto optional_mask = std::make_shared<pb_graph_t>();
+                    auto fscore_add
+                            = optional_mask->append_op(graph::op_kind::Add);
+                    optional_mask->create_input_port(0, fscore_add, 0);
+                    optional_mask->create_output_port(0, fscore_add, 0);
+                    auto mask = pgraph->append_optional(
+                            optional_mask, {in_edge(0, fscore_scale, 0)});
+
+                    // Optional select for distilbert
+                    auto p_select2 = optional_select(pgraph, mask, 2);
+
+                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
+                            {in_edge(0, p_select2, 0)});
+                    auto dequantize_value = pgraph->append_op(
+                            graph::op_kind::DynamicDequantize);
+                    pgraph->append_op(graph::op_kind::MatMul,
+                            {in_edge(0, softmax, 0),
+                                    in_edge(1, dequantize_value, 0)});
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<
+                    sdp_base_t<true, memory::data_type::bf16>>();
+        });
+
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, sdp_with_compressed_k_fusion)
+        .set_priority(22.0f)
+        .set_kind(partition_kind_t::quantized_sdp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto dequantize_key = pgraph->append_op(
+                            graph::op_kind::DynamicDequantize);
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul,
+                            {in_edge(1, dequantize_key, 0)});
+
+                    auto fscore_scale = pgraph->append_alternation(
+                            {graph::op_kind::Divide, graph::op_kind::Multiply},
+                            {in_edge(0, matmul_qk, 0)});
+
+                    auto optional_mask = std::make_shared<pb_graph_t>();
+                    auto fscore_add
+                            = optional_mask->append_op(graph::op_kind::Add);
+                    optional_mask->create_input_port(0, fscore_add, 0);
+                    optional_mask->create_output_port(0, fscore_add, 0);
+                    auto mask = pgraph->append_optional(
+                            optional_mask, {in_edge(0, fscore_scale, 0)});
+
+                    // Optional select for distilbert
+                    auto p_select2 = optional_select(pgraph, mask, 2);
+
+                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
+                            {in_edge(0, p_select2, 0)});
+                    pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<
+                    sdp_base_t<true, memory::data_type::bf16>>();
+        });
+
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_gpt_sdp)
         .set_priority(22.0f)
         .set_kind(partition_kind_t::sdp)

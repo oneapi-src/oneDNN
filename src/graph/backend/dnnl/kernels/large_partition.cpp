@@ -63,6 +63,8 @@ void larger_partition_kernel_t::setup_pipeline_stage1(
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_add);
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_predecessor);
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_mul_scales);
+    BACKEND_DNNL_ADD_PASS(
+            pipeline, insert_permute_for_dynamic_mul_scale_sub_zp);
 
     BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
 
