@@ -198,47 +198,51 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     auto sum_dt = pd()->attr()->post_ops_.get_sum_dt(dst_d.data_type());
     bool with_dropout = !pd()->attr()->dropout_.has_default_values();
 
-    // computations
-    // Note: If dst type is < 8 bits, we cannot split a byte during
-    // store or we get a race condition.  To simplify logic, we just
-    // emit fewer threads
-    int nthr = batch * std::min<dim_t>(M / 2, 1) * std::min<dim_t>(N / 2, 1);
-    parallel_nd_ext(
-            nthr, batch, M, N, [&](int, int, dim_t mb, dim_t m, dim_t n) {
-                dims_t dst_dims_idx;
-                // account for M, N dims for index calculations
-                const size_t l_offset = mb * M * N + m * N + n;
-                utils::l_dims_by_l_offset(
-                        dst_dims_idx, l_offset, dst_d.dims(), ndims);
-                float d = ker(dst_dims_idx, m, n);
-                if (with_src_scales) d *= src_scales[0];
-                if (with_wei_scales && !with_wei_decompression) {
-                    // Single scale value was already converted into f32.
-                    const float wei_scale = wei_scales_d.nelems() == 1
-                            ? wei_scales[0]
-                            : io::load_float_value(wei_scale_dt, wei_scales,
-                                    wei_scale_stride_n * n);
-                    d *= wei_scale;
-                }
-                if (bias) d += ker_bias(dst_dims_idx);
+    // computations Note: If dst type is < 8 bits, we cannot split a
+    // byte during store or we get a race condition. To simplify
+    // logic, we limit parallelization on M and N by a factor of 2.
+    parallel_nd(batch, utils::div_up(M, 2), utils::div_up(N, 2),
+            [&](dim_t mb, dim_t m_, dim_t n_) {
+                for_(int m = 2 * m_; m < std::min<int>(2 * (m_ + 1), M); m++)
+                for (int n = 2 * n_; n < std::min<int>(2 * (n_ + 1), N); n++) {
+                    dims_t dst_dims_idx;
+                    // account for M, N dims for index calculations
+                    const size_t l_offset = mb * M * N + m * N + n;
+                    utils::l_dims_by_l_offset(
+                            dst_dims_idx, l_offset, dst_d.dims(), ndims);
+                    float d = ker(dst_dims_idx, m, n);
+                    if (with_src_scales) d *= src_scales[0];
+                    if (with_wei_scales && !with_wei_decompression) {
+                        // Single scale value was already converted into f32.
+                        const float wei_scale = wei_scales_d.nelems() == 1
+                                ? wei_scales[0]
+                                : io::load_float_value(wei_scale_dt, wei_scales,
+                                        wei_scale_stride_n * n);
+                        d *= wei_scale;
+                    }
+                    if (bias) d += ker_bias(dst_dims_idx);
 
-                const auto dst_off = dst_d.off_v(dst_dims_idx);
-                if (non_default_attrs) {
-                    if (with_dropout)
-                        d = ref_dropout(d, dropout_mask, dst_off, *p, *seed);
-                    ref_post_ops_t::args_t args;
-                    args.dst_val = io::load_float_value(sum_dt, dst, dst_off);
-                    args.ctx = &ctx;
-                    args.l_offset = l_offset;
-                    args.dst_md = pd()->dst_md();
-                    ref_post_ops->execute(d, args);
+                    const auto dst_off = dst_d.off_v(dst_dims_idx);
+                    if (non_default_attrs) {
+                        if (with_dropout)
+                            d = ref_dropout(
+                                    d, dropout_mask, dst_off, *p, *seed);
+                        ref_post_ops_t::args_t args;
+                        args.dst_val
+                                = io::load_float_value(sum_dt, dst, dst_off);
+                        args.ctx = &ctx;
+                        args.l_offset = l_offset;
+                        args.dst_md = pd()->dst_md();
+                        ref_post_ops->execute(d, args);
+                    }
+                    if (with_dst_scales) d *= dst_scales[0];
+                    if (dst_rnd_mode == rounding_mode::stochastic)
+                        d = math::stochastic_round_fwd(
+                                d, dst_off, rnd_seed[0], dst_d.data_type());
+                    io::store_float_value(dst_d.data_type(), d, dst, dst_off);
+                    utils::dim_iterator(
+                            dst_d.dims(), dst_dims_idx, batch_ndims);
                 }
-                if (with_dst_scales) d *= dst_scales[0];
-                if (dst_rnd_mode == rounding_mode::stochastic)
-                    d = math::stochastic_round_fwd(
-                            d, dst_off, rnd_seed[0], dst_d.data_type());
-                io::store_float_value(dst_d.data_type(), d, dst, dst_off);
-                utils::dim_iterator(dst_d.dims(), dst_dims_idx, batch_ndims);
             });
 
     return status::success;
