@@ -67,7 +67,7 @@ argument index as specified by the following table.
    user must pass fully specified memory objects so that the primitive is able
    to perform the computations. Note that the less information about shapes
    or format is available at the creation stage, the less performant execution
-   will be.  In particular, if the shape is not known at creation stage, one
+   will be.  In particular, if the shape is not known at the creation stage, you
    cannot use the special format tag #dnnl::memory::format_tag::any to enable an
    implementation to choose the most appropriate memory format for the
    corresponding input or output shapes. On the other hand, run-time specified
@@ -80,13 +80,13 @@ argument index as specified by the following table.
    invalid.
 
 3. The broadcasting shape consistency check is not done for the dimensions with
-   #DNNL_RUNTIME_DIM_VAL. It is user responsibility to make sure the dimensions
+   #DNNL_RUNTIME_DIM_VAL. Make sure the dimensions
    for the tensors are valid.
 
 4. Multiple batch dimensions and broadcasting of batch dimensions of `src` and
    `weights` are supported for both CPU and GPU engines.
 
-   Please check tutorials below to see #DNNL_RUNTIME_DIM_VAL support in use.
+   Check the tutorials below to see #DNNL_RUNTIME_DIM_VAL support in use.
 
 ### Data Types
 
@@ -96,11 +96,12 @@ types for source, destination, weights, and bias tensors:
 
 | Source           | Weights              | Destination                      | Bias                        |
 |:-----------------|:---------------------|:---------------------------------|:----------------------------|
-| f32              | f32                  | f32                              | f32                         |
-| f16              | f16, u8, s8, u4, s4  | f16, u8, s8                      | f16, f32                    |
-| bf16             | bf16, u8, s8, u4, s4 | f32, bf16                        | bf16, f32                   |
+| f64              | f64                  | f64                              | f64, f32, f16, bf16, s8, u8 |
+| f32              | f32                  | f32                              | f32, bf16, f16, u8, s8      |
+| f16              | f16, u8, s8, u4, s4  | f16, u8, s8                      | f32                         |
+| f16              | f16, u8, s8          | f32                              | f32, f16                    |
+| bf16             | bf16, u8, s8, u4, s4 | f32, bf16                        | f32, bf16                   |
 | f32, bf16, f16   | u8, s8               | f32, bf16, f16                   | f32, bf16, f16              |
-| f8_e5m2, f8_e4m3 | f8_e5m2, f8_e4m3     | f32, f16, bf16, f8_e5m2, f8_e4m3 | f32, bf16, f16              |
 | f8_e5m2, f8_e4m3 | f8_e5m2, f8_e4m3     | f32, f16, bf16, f8_e5m2, f8_e4m3 | f32, bf16, f16              |
 | u8, s8           | s8                   | u8, s8, s32, f32, f16, bf16      | u8, s8, s32, f32, f16, bf16 |
 
@@ -188,6 +189,7 @@ memory buffer that shares its shape with the destination buffer).
      * Runtime dimensions.
      * Three and higher dimensional matrices.
    - The layout of dropout mask has to be exactly the same as that of dst.
+   - f64 is only supported on Intel(R) Data Center GPU Max Series.
 
 3. **CPU**
    - Configuration with int8 source data type, s8 weight data type and f16
