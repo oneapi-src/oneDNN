@@ -235,9 +235,6 @@ public:
 
     bool mayiuse_ngen_kernels() const { return mayiuse_ngen_kernels_; }
 
-    /// Returns true if the OpenCL compiler supports microkernels.
-    bool mayiuse_microkernels() const { return mayiuse_microkernels_; }
-
     bool mayiuse_systolic() const { return mayiuse_systolic_; }
 
     bool mayiuse_non_uniform_work_groups() const {
@@ -285,7 +282,6 @@ protected:
     bool mayiuse_systolic_ = false;
     bool mayiuse_ngen_kernels_ = false;
     bool mayiuse_system_memory_allocators_ = false;
-    bool mayiuse_microkernels_ = false;
 
     std::string name_;
     xpu::runtime_version_t runtime_version_;
