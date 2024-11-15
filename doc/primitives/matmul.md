@@ -189,7 +189,7 @@ memory buffer that shares its shape with the destination buffer).
      * Runtime dimensions.
      * Three and higher dimensional matrices.
    - The layout of dropout mask has to be exactly the same as that of dst.
-   - f64 is only supported on Intel(R) Data Center GPU Max Series.
+
 
 3. **CPU**
    - Configuration with int8 source data type, s8 weight data type and f16
