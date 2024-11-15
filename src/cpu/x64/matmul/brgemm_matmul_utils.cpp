@@ -1658,6 +1658,9 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t M, dim_t K,
     const auto vnni_granularity = data_type_vnni_granularity(out_type);
     if (vnni_granularity <= 0) return status::invalid_arguments;
 
+    // Zero initialize the `conf` to avoid access to 'garbage' in members.
+    conf = brgemm_matmul_conf_t();
+
     const bool is_bf16_with_int_wei = out_type == data_type::bf16
             && utils::one_of(in_type, data_type::s8, data_type::u8,
                     data_type::s4, data_type::u4);
@@ -1670,6 +1673,7 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t M, dim_t K,
     conf.is_bf32 = false;
     conf.batch = batch;
     conf.src_dt = conf.wei_dt = out_type;
+    conf.orig_src_dt = conf.orig_wei_dt = in_type;
     // Note: will need to change `tr_a_dt_sz` for copyA in cases where src_dt != dst_dt
     conf.a_dt_sz = conf.tr_a_dt_sz = types::data_type_size(conf.src_dt);
     conf.N = N;
@@ -1692,7 +1696,6 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t M, dim_t K,
         conf.transposed_B = utils::one_of(in_tag, ba, acb);
         conf.is_bf16_with_int_wei = is_bf16_with_int_wei;
         conf.with_wei_decompression = with_wei_decompression;
-        conf.orig_wei_dt = in_type;
         conf.wei_tag = in_tag;
         conf.wei_n_blk = conf.N_blk = conf.LDB = n_blk;
         conf.N_tail = conf.N % conf.N_blk;
