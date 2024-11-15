@@ -158,7 +158,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             } else if (d->a_type() == bf16) {
                 VDISPATCH_GEMM(
                         d->b_type() == bf16, VERBOSE_INCONSISTENT_DT, "a", "b");
-                VDISPATCH_GEMM(utils::one_of(d->c_type(), bf16, f32),
+                VDISPATCH_GEMM(
+                        utils::one_of(d->c_type(), bf16, f32, f8_e5m2, f8_e4m3),
                         VERBOSE_INCONSISTENT_DT, "a", "c");
                 VDISPATCH_GEMM(utils::one_of(d->acc_type, bf16, f32),
                         VERBOSE_INCONSISTENT_DT, "a", "acc");
