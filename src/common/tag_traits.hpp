@@ -34,6 +34,13 @@ inline format_tag_t get_abx_tag(int ndims) {
         case 4: return format_tag::abcd;
         case 5: return format_tag::abcde;
         case 6: return format_tag::abcdef;
+        case 7: return format_tag::abcdefg;
+        case 8: return format_tag::abcdefgh;
+        case 9: return format_tag::abcdefghi;
+        case 10: return format_tag::abcdefghij;
+        case 11: return format_tag::abcdefghijk;
+        case 12: return format_tag::abcdefghijkl;
+
         default: assert(!"unexpected ndims"); return format_tag::undef;
     }
 }
