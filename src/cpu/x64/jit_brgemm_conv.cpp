@@ -1526,6 +1526,10 @@ status_t brgemm_convolution_fwd_t<isa>::cal_compensation(
 
     const int max_ker_sz = adjusted_k.size();
     const auto comp_buffer_ow = jcp.exec_type != exec_vpad ? jcp.ow : 1;
+    // TODO: revise the thread distribution here because the work_amount may be
+    // insufficient
+    // TODO: revise comp_vpad_pbuffer_ generator to avoid huge code for cases
+    // with big ow
     const auto work_amount
             = static_cast<dim_t>(jcp.ngroups) * jcp.nb_oc * max_ker_sz;
     const auto is_small_shape = work_amount <= jcp.nthr
