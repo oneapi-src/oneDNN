@@ -15,6 +15,7 @@
 ################################################################################
 
 import enum
+import string
 from abc import abstractmethod
 from collections.abc import MutableMapping
 from dataclasses import MISSING, dataclass, fields
@@ -145,14 +146,13 @@ class MemoryDescriptor(Mapping):
         return self._format(self.tag, str)
 
     def __hash_str__(self):
-        dims = "abcdefghijkl"
         tag = self.tag
         if "a" not in self.properties:
             return self._format(tag, hash_str)
-        for i, c in enumerate(self.tag):
-            if c.lower() not in dims:
-                return self._format(dims[:i], hash_str)
-        return self._format(tag, hash_str)
+        for i, c in enumerate(tag):
+            if not c.isalpha():
+                return self._format(string.ascii_lowercase[:i], hash_str)
+        return self._format(string.ascii_lowercase[: len(tag)], hash_str)
 
 
 @dataclass(eq=False)
