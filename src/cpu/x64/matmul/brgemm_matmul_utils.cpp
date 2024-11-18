@@ -456,7 +456,7 @@ status_t brgemm_matmul_conf_utils_t::set_B_flags(memory_desc_t &B_md) const {
 format_tag_t brgemm_matmul_conf_utils_t::pick_blocked_B_layout(
         int n_blk) const {
     if (bgmmc.ndims > 3) return format_tag::undef;
-    if (this->is_int8()) switch (n_blk) {
+    if (this->is_int8() || this->is_f8()) switch (n_blk) {
             case 64: return bgmmc.ndims == 3 ? aCB16b64c4b : BA16a64b4a;
             case 48: return bgmmc.ndims == 3 ? aCB16b48c4b : BA16a48b4a;
             case 32: return bgmmc.ndims == 3 ? aCB16b32c4b : BA16a32b4a;
