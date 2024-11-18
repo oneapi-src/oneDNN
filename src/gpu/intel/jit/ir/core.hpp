@@ -2306,7 +2306,10 @@ private:
     let_t(const expr_t &var, const expr_t &value, const stmt_t &body)
         : stmt_impl_t(_type_info()), var(var), value(value), body(body) {
         if (!value.is_empty() && !is_const(value))
-            ir_assert(var.type() == value.type());
+            ir_assert(var.type() == value.type())
+                    << "Variable " << var << " and  value " << value
+                    << "have different types. " << var.type()
+                    << " != " << value.type() << "\n";
     }
 };
 
