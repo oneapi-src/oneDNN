@@ -17,7 +17,6 @@
 
 import argparse
 import logging
-import os
 import sys
 from argparse import RawTextHelpFormatter
 from typing import IO, Dict, Iterable, List
@@ -25,14 +24,14 @@ from typing import IO, Dict, Iterable, List
 from src.benchdnn_generator import InputGenerator  # type: ignore
 from src.breakdown_generator import BreakdownGenerator  # type: ignore
 from src.dnnl_parser import LogParser  # type: ignore
-from src.utils import check_version, dedent  # type: ignore
+from src.utils import check_version  # type: ignore
 
 logger = logging.getLogger("verbose_converter")
 logger.setLevel(logging.CRITICAL + 10)  # off
 
 
 def one_line(multiline: str):
-    return dedent(multiline).replace(os.sep, " ")
+    return " ".join(map(str.strip, multiline.split("\n")))
 
 
 class ConverterError(RuntimeError):
