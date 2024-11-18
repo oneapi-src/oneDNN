@@ -144,9 +144,10 @@ private:
         } else {
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);
-            ir_assert(!_desc.is_empty())
-                    << "Cannot find kernels that can fit the problem.";
-            if (_desc.is_empty()) return status::unimplemented;
+            if (_desc.is_empty()) {
+                ir_info() << "Cannot find kernels that can fit the problem.\n";
+                return status::unimplemented;
+            }
         }
         _desc.spec_strategy = spec_strategy_t::min_dims;
         _desc.fit_to(prb);
@@ -154,7 +155,7 @@ private:
         CHECK(pd->attr_.set_default_formats(out_md(pd)));
         _desc.set_post_ops(pd->attr()->post_ops_, out_md(pd));
         if (!finalize_conv_desc(_desc, prb)) {
-            ir_info() << "Cannot create kernel descriptor";
+            ir_info() << "Cannot create kernel descriptor.\n";
             return status::runtime_error;
         }
         _params.prb = std::move(prb);
