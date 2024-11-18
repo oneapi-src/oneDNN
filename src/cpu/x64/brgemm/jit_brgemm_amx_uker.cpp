@@ -307,7 +307,11 @@ private:
         bd_iteration_t *similar {nullptr};
         Label lstart;
 
-        virtual bool operator==(const bd_iteration_t &rhs) const {
+        bool operator==(const dim_iteration_t &_rhs) const override {
+            // `downcast` will catch a type mismatch in debug mode.
+            // Note: it supports only a pointer type so far.
+            const bd_iteration_t &rhs
+                    = *utils::downcast<const bd_iteration_t *>(&_rhs);
             bool res = dim_iteration_t::operator==(rhs)
                     && A_shift == rhs.A_shift && C_shift == rhs.C_shift
                     && D_shift == rhs.D_shift && bd_mask == rhs.bd_mask
