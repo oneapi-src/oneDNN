@@ -96,11 +96,13 @@ status_t acl_indirect_gemm_convolution_fwd_t::pd_t::init(engine_t *engine) {
 
     const bool is_fp16_ok = expect_data_types(f16, f16, f16, f16, undef)
             && attr()->has_default_values(smask_t::post_ops, f16);
+    const bool is_bf16_ok = expect_data_types(bf16, bf16, bf16, bf16, undef)
+            && attr_.post_ops_.len() == 0;
     const bool is_fp32_ok = expect_data_types(f32, f32, f32, f32, undef)
             && attr()->has_default_values(
                     smask_t::post_ops | smask_t::fpmath_mode, f32);
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
-            && utils::one_of(true, is_fp16_ok, is_fp32_ok)
+            && utils::one_of(true, is_fp16_ok, is_bf16_ok, is_fp32_ok)
             && !has_zero_dim_memory();
     if (!ok) return status::unimplemented;
 
