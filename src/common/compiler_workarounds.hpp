@@ -65,9 +65,10 @@
 
 // Workaround 04: GCC
 //
-// GCC 10 & 11 && 12 (at least versiona 10.1, 10.3 & 11.1, 12.2) report false positives
-// in xbyak when -Warray-bounds build setting is on
-#if (defined NEED_GCC_WA_CHECK) && (__GNUC__ >= 10)
+// GCC 9 && 10 && 11 && 12 (at least versions 9.5, 10.1, 10.3, 11.1, 12.2, 13.1,
+// 13.3) report false positives in xbyak when -Warray-bounds build setting is on
+// Also on other places when it comes to copying objects or plain memory pieces.
+#if (defined NEED_GCC_WA_CHECK) && (__GNUC__ >= 9)
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 
