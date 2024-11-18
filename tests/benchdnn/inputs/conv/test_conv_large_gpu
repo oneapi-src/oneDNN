@@ -1,0 +1,12 @@
+--reset
+--dir=FWD_D,BWD_D,BWD_W
+--dt=bf16
+--stag=axb
+--dtag=axb
+--wtag=xba
+
+--impl=jit
+--batch=shapes_large_conv
+
+--impl=ref
+--batch=shapes_large_conv
