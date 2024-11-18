@@ -408,6 +408,7 @@ public:
         CASE(f32);
         CASE(f64);
         CASE(s32);
+        CASE(s64);
         CASE(s8);
         CASE(u8);
         CASE(s16);
