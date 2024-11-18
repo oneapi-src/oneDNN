@@ -19,7 +19,7 @@
 --wtag=BA16a64b2a,BA16a48b2a,BA16a32b2a,BA16a16b2a
 --batch=shapes_2d
 
---dt=u8:s8:f32
+--dt=u8:s8:f32,f8_e4m3,f8_e5m2
 --wtag=BA16a64b4a,BA16a48b4a,BA16a32b4a,BA16a16b4a
 --batch=shapes_2d
 
@@ -34,6 +34,6 @@
 --wtag=aCB16b16c2b,aCB16b32c2b,aCB16b48c2b,aCB16b64c2b
 --batch=shapes_3d
 
---dt=u8:s8:f32
+--dt=u8:s8:f32,f8_e4m3,f8_e5m2
 --wtag=aCB16b16c4b,aCB16b32c4b,aCB16b48c4b,aCB16b64c4b
 --batch=shapes_3d
