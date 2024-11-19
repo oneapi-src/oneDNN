@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -405,8 +405,6 @@ void brg_blocking_t::select_ic_block() {
     if (is_1x1 && is_amx(isa)) {
         // TODO: merge with non-1x1 code block below
         const int ic_padded_block = 16 * vnni_block;
-        assert(IMPLICATION(
-                !is_bf32, ic < ic_padded_block || ic % ic_padded_block == 0));
         MAYBE_UNUSED(ic_padded_block);
         // Note: bf32 requires ic_block be less than 64, otherwise it results
         // in incorrect output.
@@ -2371,7 +2369,9 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const int n_vnni_blocks = utils::div_up(jcp.ic, jcp.vnni_block);
         const int ic_block
                 = nstl::min(jcp.acc_simd_w, n_vnni_blocks) * jcp.vnni_block;
-        const bool do_zeropad = (!jcp.is_bf32)
+        jcp.extendable_k = jcp.ic > jcp.simd_w && jcp.ic % jcp.simd_w;
+
+        const bool do_zeropad = !jcp.is_bf32 && !jcp.extendable_k
                 && (jcp.ic % jcp.vnni_block != 0 || jcp.ic > ic_block);
         if (do_zeropad) jcp.ic = utils::rnd_up(jcp.ic, ic_block);
         const auto ic_padded_block = jcp.simd_w;
