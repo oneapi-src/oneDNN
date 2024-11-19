@@ -63,6 +63,8 @@ const data_type_t u8 = dnnl_u8;
 const data_type_t boolean = dnnl_boolean;
 const data_type_t f8_e5m2 = dnnl_f8_e5m2;
 const data_type_t f8_e4m3 = dnnl_f8_e4m3;
+const data_type_t s4 = dnnl_s4;
+const data_type_t u4 = dnnl_u4;
 } // namespace data_type
 
 using partition_policy_t = dnnl_graph_partition_policy_t;
@@ -243,6 +245,7 @@ const op_attr_t shape = dnnl_graph_op_attr_shape;
 const op_attr_t sizes = dnnl_graph_op_attr_sizes;
 const op_attr_t strides = dnnl_graph_op_attr_strides;
 const op_attr_t zps = dnnl_graph_op_attr_zps;
+const op_attr_t group_shape = dnnl_graph_op_attr_group_shape;
 
 const op_attr_t exclude_pad = dnnl_graph_op_attr_exclude_pad;
 const op_attr_t keep_dims = dnnl_graph_op_attr_keep_dims;
