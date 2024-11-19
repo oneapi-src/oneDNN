@@ -102,7 +102,8 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         if (vM == 0 || vN == 0 || vK == 0) continue;
 
         if (!jcp_.is_reduced_rtus) {
-            brgemm_init_params_.emplace_front(i_init, vM, vN, vK, jcp_.LDA);
+            brgemm_init_params_.emplace_front(
+                    i_init, vM, vN, vK, jcp_.LDA, jcp_.extendable_k);
         } else {
             const bool is_accum_kernel = i_init == 0;
 
@@ -119,7 +120,8 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             const auto brgemm_K = use_rtus_K ? rtus_k : vK;
             const bool use_rtus_LDA = use_rtus_K && is_accum_kernel;
             const auto LDA = use_rtus_LDA ? jcp_.rtus_padded_ic_size : jcp_.LDA;
-            brgemm_init_params_.emplace_front(i_init, vM, vN, brgemm_K, LDA);
+            brgemm_init_params_.emplace_front(
+                    i_init, vM, vN, brgemm_K, LDA, false);
         }
     }
 
@@ -139,7 +141,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             const auto LDA = use_rtus_LDA ? jcp_.rtus_padded_ic_size : jcp_.LDA;
             constexpr int extra_m_kernel_start_idx = 2;
             brgemm_init_params_.emplace_front(
-                    extra_m_kernel_start_idx + idx, vM, vN, vK, LDA);
+                    extra_m_kernel_start_idx + idx, vM, vN, vK, LDA, false);
         }
     }
 
@@ -200,6 +202,8 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init_brgemm_desc() {
         brgattr.hint_expected_B_size = vN * vK;
         brgattr.hint_expected_C_size = bd_blocking * vN;
 
+        brgattr.wary_A_k_tail_read = params.wary_tail_read_;
+        brgattr.extendable_k = jcp_.extendable_k;
         brgattr.use_uker = jcp_.use_uker;
         brgattr.use_interleave_stores = jcp_.use_interleave_stores;
         brgattr.hint_prefetching = jcp_.hint_prefetching;
@@ -264,7 +268,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
     wei_ic_stride = jcp.wei_plain ? jcp.oc_without_padding : jcp.oc_block;
     wei_ocb_stride = jcp.wei_plain
             ? jcp.oc_block
-            : (dim_t)rnd_up(jcp.ic, last_ic_block) * jcp.oc_block;
+            : (dim_t)rnd_up(jcp.icp, last_ic_block) * jcp.oc_block;
     wei_g_stride = jcp.wei_plain ? jcp.oc : jcp.nb_oc * wei_ocb_stride;
 
     if (jcp.is_rtus) {
@@ -489,6 +493,8 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
             ? &s8s8_compensation[comp_offset]
             : nullptr;
 
+    const bool wary_tail_read = jcp.extendable_k;
+
     const auto call_brgemm = [&](int brg_idx, int ic_block_s, int n_ic_blocks,
                                      bool do_postops, bool brgemm_is_ic_tail) {
         // NOTE: avoid some costly tile reconfigurations here by keeping track
@@ -540,18 +546,21 @@ void brgemm_1x1_convolution_fwd_t<isa>::exec_ker(
 
     const auto do_post_work = (pd()->need_postwork_ || jcp.use_buffer)
             && icc == pd()->ic_chunks_ - 1;
-    if (jcp.is_reduced_rtus || nb_ic_b > 0) {
-        const auto brg_idx
-                = get_brg_idx(kernel_init, is_os_tail, is_oc_tail, false);
-        call_brgemm(brg_idx, 0, jcp.is_reduced_rtus ? 1 : nb_ic_b,
-                do_post_work && !is_ic_tail, false);
+    if (jcp.is_reduced_rtus) {
+        const auto brg_idx = get_brg_idx(
+                kernel_init, is_os_tail, is_oc_tail, false, wary_tail_read);
+        call_brgemm(brg_idx, 0, 1, do_post_work && !is_ic_tail, false);
+    } else if (nb_ic_b > 0) {
+        const auto brg_idx = get_brg_idx(
+                kernel_init, is_os_tail, is_oc_tail, false, wary_tail_read);
+        call_brgemm(brg_idx, 0, nb_ic_b, do_post_work && !is_ic_tail, false);
     }
     if (is_ic_tail) {
         const auto use_init_ker = jcp.is_reduced_rtus
                 ? kernel_init - 1
                 : kernel_init && (nb_ic_b == 0);
-        const auto brg_idx = get_brg_idx(
-                use_init_ker, is_os_tail, is_oc_tail, !jcp.is_reduced_rtus);
+        const auto brg_idx = get_brg_idx(use_init_ker, is_os_tail, is_oc_tail,
+                !jcp.is_reduced_rtus, wary_tail_read);
         call_brgemm(brg_idx, jcp.is_reduced_rtus ? 0 : nb_ic_b, 1, do_post_work,
                 jcp.is_reduced_rtus);
     }
