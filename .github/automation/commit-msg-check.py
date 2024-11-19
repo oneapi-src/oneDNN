@@ -67,7 +67,7 @@ def main():
     head: str = args.head
 
     commit_range = base + ".." + head
-    messages = subprocess.run(["git", "rev-list", "--ancestry-path", commit_range, "--format=oneline"], capture_output=True, text=True).stdout
+    messages = subprocess.run(["git", "rev-list", "--format=oneline", commit_range], capture_output=True, text=True).stdout
 
     is_ok = True
     for i in messages.splitlines():
