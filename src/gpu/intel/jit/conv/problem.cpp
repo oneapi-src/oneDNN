@@ -262,8 +262,8 @@ status_t conv_problem_t::init_acc_data_type() {
     auto a = a_data_type;
     auto b = b_data_type;
     auto c = c_data_type;
-    bool is_bf8 = utils::one_of(data_type::f8_e5m2, a, b, c);
-    bool is_hf8 = utils::one_of(data_type::f8_e4m3, a, b, c);
+    bool is_fp8 = (utils::one_of(data_type::f8_e5m2, a, b, c)
+            || utils::one_of(data_type::f8_e4m3, a, b, c));
     acc_data_type = data_type::undef;
     if (utils::one_of(a, data_type::s8, data_type::u8)
             && utils::one_of(b, data_type::s8, data_type::u8)) {
@@ -271,7 +271,7 @@ status_t conv_problem_t::init_acc_data_type() {
     } else if (utils::everyone_is(data_type::f16, a, b)
             || utils::everyone_is(data_type::bf16, a, b)
             || utils::everyone_is(data_type::tf32, a, b)
-            || utils::everyone_is(data_type::f32, a, b) || is_bf8 || is_hf8) {
+            || utils::everyone_is(data_type::f32, a, b) || is_fp8) {
         acc_data_type = data_type::f32;
     } else if (utils::everyone_is(data_type::f64, a, b)) {
         acc_data_type = data_type::f64;

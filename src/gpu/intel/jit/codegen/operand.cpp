@@ -42,6 +42,7 @@ static std::string to_string(ngen::DataType type) {
         CASE(v);
         CASE(vf);
         CASE(bf8);
+        CASE(hf8);
         CASE(tf32);
         CASE(u4);
         CASE(s4);
