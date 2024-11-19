@@ -1519,35 +1519,77 @@ reorder_executable_t::desc_t reorder_executable_t::create_desc(
 
     // generate mask
     int mask = 0;
-    if (op->has_attr(op_attr::axis) && op->has_attr(op_attr::qtype)) {
-        int64_t axis = op->get_attr<int64_t>(op_attr::axis);
+    const auto set_reorder_mask = [&op, &prm_attr](int mask) {
+        std::vector<int64_t> default_groups;
+
+        if (op->has_attr(op_attr::with_runtime_scales)
+                && op->get_attr<bool>(op_attr::with_runtime_scales)) {
+            auto scale_dt
+                    = op->get_input_value(1)->get_logical_tensor().data_type;
+            // For runtime arg scales, need to get data type information from
+            // the op
+            prm_attr.set_scales(DNNL_ARG_SRC, mask, default_groups,
+                    static_cast<dnnl::memory::data_type>(scale_dt));
+        } else if (op->has_attr(op_attr::scales)) {
+            assertm(false, "only support runtime arg scales.\n");
+        }
+
+        if (op->has_attr(op_attr::with_runtime_src_zps)
+                && op->get_attr<bool>(op_attr::with_runtime_src_zps)) {
+            // For runtime src zps, as graph compilation will add extra
+            // typecast to convert int8 zero points to s32, we may still use
+            // the set_zero_points_mask API which specifies s32 zero point by
+            // default.
+            prm_attr.set_zero_points_mask(DNNL_ARG_FROM, mask);
+        } else if (op->has_attr(op_attr::src_zps)) {
+            assertm(false, "only support runtime src zero points.\n");
+        }
+
+        if (op->has_attr(op_attr::with_runtime_dst_zps)
+                && op->get_attr<bool>(op_attr::with_runtime_dst_zps)) {
+            // runtime dst zps
+            prm_attr.set_zero_points_mask(DNNL_ARG_TO, mask);
+        } else if (op->has_attr(op_attr::dst_zps)) {
+            assertm(false, "only support runtime dst zero points.\n");
+        }
+    };
+
+    if (op->has_attr(op_attr::qtype)) {
         std::string qtype = op->get_attr<std::string>(op_attr::qtype);
-        mask = qtype == "per_tensor" ? 0 : 1 << axis;
+        int64_t axis = op->has_attr(op_attr::axis)
+                ? op->get_attr<int64_t>(op_attr::axis)
+                : 1;
+
+        // For per group quantization, extra handling is needed for setting
+        // group shape and size.
+        if (qtype == "per_group") {
+            const auto &scale_lt = op->get_input_value(1)->get_logical_tensor();
+            const auto scales_data_type = scale_lt.data_type;
+            const auto &group_shape
+                    = op->get_attr<std::vector<int64_t>>(op_attr::group_shape);
+            const auto ndims = group_shape.size();
+            const int mask = (1 << ndims) - 1;
+
+            const std::vector<int64_t> groups
+                    = {group_shape[ndims - 2], group_shape[ndims - 1]};
+
+            prm_attr.set_scales(DNNL_ARG_FROM, mask, groups,
+                    static_cast<dnnl::memory::data_type>(scales_data_type));
+            if (op->has_attr(op_attr::with_runtime_src_zps)
+                    && op->get_attr<bool>(op_attr::with_runtime_src_zps)) {
+                const auto &zps_lt
+                        = op->get_input_value(2)->get_logical_tensor();
+                const auto zps_data_type = zps_lt.data_type;
+                prm_attr.set_zero_points(DNNL_ARG_FROM, mask, groups,
+                        static_cast<dnnl::memory::data_type>(zps_data_type));
+            }
+
+        } else { // per channel and per tensor quantization
+            if (qtype == "per_channel") { mask = 1 << axis; }
+            set_reorder_mask(mask);
+        }
     }
 
-    if (op->has_attr(op_attr::with_runtime_src_zps)
-            && op->get_attr<bool>(op_attr::with_runtime_src_zps)) {
-        // runtime src zps
-        prm_attr.set_zero_points_mask(DNNL_ARG_FROM, mask);
-    } else if (op->has_attr(op_attr::src_zps)) {
-        assertm(false, "only support runtime src zero points.\n");
-    }
-
-    if (op->has_attr(op_attr::with_runtime_scales)
-            && op->get_attr<bool>(op_attr::with_runtime_scales)) {
-        // runtime arg scales
-        prm_attr.set_scales_mask(DNNL_ARG_SRC, mask);
-    } else if (op->has_attr(op_attr::scales)) {
-        assertm(false, "only support runtime arg scales.\n");
-    }
-
-    if (op->has_attr(op_attr::with_runtime_dst_zps)
-            && op->get_attr<bool>(op_attr::with_runtime_dst_zps)) {
-        // runtime dst zps
-        prm_attr.set_zero_points_mask(DNNL_ARG_TO, mask);
-    } else if (op->has_attr(op_attr::dst_zps)) {
-        assertm(false, "only support runtime dst zero points.\n");
-    }
     prm_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
     auto in_md = make_dnnl_memory_desc(

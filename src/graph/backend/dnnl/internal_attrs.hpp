@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,6 +49,8 @@ const op_attr_t keep_dst_layout = 0x1000f;
 // int64_t
 const op_attr_t alg_kind = 0x10100;
 const op_attr_t fusion_info_key = 0x10103;
+const op_attr_t group_mask = 0x10104;
+const op_attr_t data_type = 0x10105;
 
 // string
 const op_attr_t dw_type = 0x10201;

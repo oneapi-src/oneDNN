@@ -76,6 +76,12 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_mul_scales, 1,
                 .set_attr(
                         op_attr::qtype, false, attribute_kind::s, "per_tensor")
                 .set_attr(op_attr::axis, false, attribute_kind::i, int64_t(1))
+                .set_attr(op_attr::group_shape, false, attribute_kind::is,
+                        std::vector<int64_t>())
+                .set_attr(op_attr::group_mask, false, attribute_kind::i,
+                        int64_t(0))
+                .set_attr(op_attr::data_type, false, attribute_kind::i,
+                        int64_t(0))
                 .set_attr(op_attr::scales, false, attribute_kind::fs,
                         std::vector<float>())
                 .set_attr(op_attr::with_runtime_scales, false,
@@ -116,6 +122,12 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_add_zps, 1,
                         std::vector<int64_t>())
                 .set_attr(op_attr::with_runtime_zps, false, attribute_kind::b,
                         false)
+                .set_attr(op_attr::group_shape, false, attribute_kind::is,
+                        std::vector<int64_t>())
+                .set_attr(op_attr::group_mask, false, attribute_kind::i,
+                        int64_t(0))
+                .set_attr(op_attr::data_type, false, attribute_kind::i,
+                        int64_t(0))
                 .set_shape_inference_function(infer_identity_output_shape)
                 .SET_LAYOUT_PROPAGATOR(layout_propagator_for_add_zps)
                 .SET_EXECUTABLE_CREATOR(dummy_executable_creator)
@@ -137,6 +149,12 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_sub_zps, 1,
                         std::vector<int64_t>())
                 .set_attr(op_attr::with_runtime_zps, false, attribute_kind::b,
                         false)
+                .set_attr(op_attr::group_shape, false, attribute_kind::is,
+                        std::vector<int64_t>())
+                .set_attr(op_attr::group_mask, false, attribute_kind::i,
+                        int64_t(0))
+                .set_attr(op_attr::data_type, false, attribute_kind::i,
+                        int64_t(0))
                 .set_shape_inference_function(infer_identity_output_shape)
                 .SET_LAYOUT_PROPAGATOR(layout_propagator_for_sub_zps)
                 .SET_EXECUTABLE_CREATOR(dummy_executable_creator)
@@ -923,7 +941,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_matmul, 1,
                 .set_num_outputs(2)
                 .set_input(0, "src0")
                 .set_input(1, "src1")
-                .set_input(2, "bias")
+                .set_input(2, "bias") // optional
                 .set_output(0, "output")
                 .set_output(1, "scratchpad")
                 // Attributes inherited from MatMul.
@@ -1033,6 +1051,9 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_reorder, 1,
                 .set_attr(op_attr::scales, false, attribute_kind::fs)
                 .set_attr(op_attr::src_zps, false, attribute_kind::is)
                 .set_attr(op_attr::dst_zps, false, attribute_kind::is)
+                .set_attr(op_attr::group_shape, false, attribute_kind::is)
+                .set_attr(op_attr::group_mask, false, attribute_kind::i,
+                        int64_t(0))
                 .set_attr(op_attr::with_runtime_scales, false,
                         attribute_kind::b, false)
                 .set_attr(op_attr::with_runtime_src_zps, false,

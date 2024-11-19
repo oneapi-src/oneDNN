@@ -40,6 +40,10 @@
 #include "graph/backend/dnnl/passes/transform.hpp"
 #include "graph/backend/dnnl/passes/utils.hpp"
 
+#define VCHECK_UNIMPLEMENTED(cond, msg, ...) \
+    VCONDCHECK(graph, create, check, compile, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -245,6 +249,11 @@ status_t convert_to_runtime_src_scales(std::shared_ptr<subgraph_t> &sg) {
                 || visited.count(cur_op.get()) != 0)
             continue;
 
+        // This pass only handle static quantization
+        bool dync_quantization = cur_op->has_attr(op_attr::with_runtime_scales)
+                && cur_op->get_attr<bool>(op_attr::with_runtime_scales);
+        if (dync_quantization) continue;
+
         scales_ops.emplace_back(cur_op.get());
         visited.insert(cur_op.get());
     }
@@ -297,6 +306,11 @@ status_t convert_to_runtime_src_zero_points(std::shared_ptr<subgraph_t> &sg) {
         if (cur_op->get_kind() != op_kind::dnnl_sub_zps
                 || visited.count(cur_op.get()) != 0)
             continue;
+
+        // This pass only handle static quantization
+        bool dync_quantization = cur_op->has_attr(op_attr::with_runtime_zps)
+                && cur_op->get_attr<bool>(op_attr::with_runtime_zps);
+        if (dync_quantization) continue;
 
         zp_ops.emplace_back(cur_op.get());
         visited.insert(cur_op.get());
@@ -351,6 +365,11 @@ status_t convert_to_runtime_dst_zero_points(std::shared_ptr<subgraph_t> &sg) {
         if (cur_op->get_kind() != op_kind::dnnl_add_zps
                 || visited.count(cur_op.get()) != 0)
             continue;
+
+        // This pass only handle static quantization
+        bool dync_quantization = cur_op->has_attr(op_attr::with_runtime_zps)
+                && cur_op->get_attr<bool>(op_attr::with_runtime_zps);
+        if (dync_quantization) continue;
 
         zp_ops.emplace_back(cur_op.get());
         visited.insert(cur_op.get());
@@ -1214,6 +1233,11 @@ status_t convert_to_runtime_dst_scales(std::shared_ptr<subgraph_t> &sg) {
                         op_kind::dnnl_groupnorm)
                 || visited.count(cur_op.get()))
             continue;
+
+        // This pass only handle static quantization
+        bool dync_quantization = cur_op->has_attr(op_attr::with_runtime_scales)
+                && cur_op->get_attr<bool>(op_attr::with_runtime_scales);
+        if (dync_quantization) continue;
 
         visited.insert(cur_op.get());
         // make scales as a constant input
@@ -2795,6 +2819,16 @@ status_t fuse_dynamic_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg) {
         fused_op->set_attr<bool>(op_attr::change_layout, false);
         fused_op->set_attr<int64_t>(op_attr::axis, axis);
         fused_op->set_attr<std::string>(op_attr::qtype, qtype);
+        if (qtype == "per_group") {
+            const auto &group_shape
+                    = op2->get_attr<std::vector<int64_t>>(op_attr::group_shape);
+            const int64_t group_mask
+                    = op2->get_attr<int64_t>(op_attr::group_mask);
+
+            fused_op->set_attr<int64_t>(op_attr::group_mask, group_mask);
+            fused_op->set_attr<std::vector<int64_t>>(
+                    op_attr::group_shape, group_shape);
+        }
 
         // src must be the 0-th input
         auto src = op1->get_input_value(0);
@@ -2865,6 +2899,16 @@ impl::status_t convert_dynamic_quantize_ops(std::shared_ptr<subgraph_t> &sg) {
         fused_op->set_attr<bool>(op_attr::change_layout, false);
         fused_op->set_attr<int64_t>(op_attr::axis, axis);
         fused_op->set_attr<std::string>(op_attr::qtype, qtype);
+        if (qtype == "per_group") {
+            const auto &group_shape = cur_op->get_attr<std::vector<int64_t>>(
+                    op_attr::group_shape);
+            const int64_t group_mask
+                    = cur_op->get_attr<int64_t>(op_attr::group_mask);
+
+            fused_op->set_attr<int64_t>(op_attr::group_mask, group_mask);
+            fused_op->set_attr<std::vector<int64_t>>(
+                    op_attr::group_shape, group_shape);
+        }
 
         // src must be the 0-th input
         auto src = cur_op->get_input_value(0);
@@ -2904,21 +2948,37 @@ status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
 
     for (auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != op_kind::dnnl_reorder) continue;
+        const std::string &qtype = cur_op->has_attr(op_attr::qtype)
+                ? cur_op->get_attr<std::string>(op_attr::qtype)
+                : "";
 
         size_t index = 1; // the start index of optional runtime scales and zps
-
         // optionally skip the runtime scales
         if (cur_op->has_attr(op_attr::with_runtime_scales)
                 && cur_op->get_attr<bool>(op_attr::with_runtime_scales)) {
             index++;
         }
 
+        const auto is_int4 = [](const graph::data_type_t dt) {
+            return dt == graph::data_type::s4 || dt == graph::data_type::u4;
+        };
+
+        if (qtype == "per_channel") {
+            VCHECK_UNIMPLEMENTED(
+                    (!(cur_op->has_attr(op_attr::with_runtime_src_zps)
+                            || cur_op->has_attr(
+                                    op_attr::with_runtime_dst_zps))),
+                    "reorder primitive does not support zero points for "
+                    "per-channel quantization");
+        }
+
         // check runtime src_zps and add typecast if necessary
         if (cur_op->has_attr(op_attr::with_runtime_src_zps)
                 && cur_op->get_attr<bool>(op_attr::with_runtime_src_zps)) {
             auto src_zps = cur_op->get_input_value(index);
-            if (src_zps->get_logical_tensor().data_type
-                    != graph::data_type::s32) {
+            const auto &zp_dt = src_zps->get_logical_tensor().data_type;
+            if (zp_dt != graph::data_type::s32 && !is_int4(zp_dt)) {
+                // DNNL backend does not support int4<->s32 reorder.
                 auto tc_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
                 tc_op->set_attr<bool>(op_attr::change_layout, false);
                 rewriter.insert_op_before(tc_op, cur_op, index);
@@ -2933,8 +2993,8 @@ status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         if (cur_op->has_attr(op_attr::with_runtime_dst_zps)
                 && cur_op->get_attr<bool>(op_attr::with_runtime_dst_zps)) {
             auto dst_zps = cur_op->get_input_value(index);
-            if (dst_zps->get_logical_tensor().data_type
-                    != graph::data_type::s32) {
+            const auto &zp_dt = dst_zps->get_logical_tensor().data_type;
+            if (zp_dt != graph::data_type::s32 && !is_int4(zp_dt)) {
                 auto tc_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
                 tc_op->set_attr<bool>(op_attr::change_layout, false);
                 rewriter.insert_op_before(tc_op, cur_op, index);

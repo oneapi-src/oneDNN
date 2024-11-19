@@ -35,29 +35,37 @@
 #include "graph/backend/dnnl/utils.hpp"
 
 #include "oneapi/dnnl/dnnl.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace dnnl_impl {
 
+using value_ptr = std::shared_ptr<value_t>;
+
 dnnl::primitive_attr make_dnnl_primitive_attr(
         const std::shared_ptr<op_t> &op, const fusion_info_t &fusion_info) {
     dnnl::primitive_attr attr;
+    std::vector<int64_t> default_groups;
 
     if (fusion_info.dst_scales_) {
         const op_t *dst_scales_op = fusion_info.dst_scales_->get_op();
         assertm(fusion_info.with_runtime_scales(false, 0),
                 "only support runtime dst scales.\n");
         int mask = 0;
+        int64_t dt = 0;
+
         if (dst_scales_op->has_attr(op_attr::axis)
                 && dst_scales_op->has_attr(op_attr::qtype)) {
             int64_t axis = dst_scales_op->get_attr<int64_t>(op_attr::axis);
             std::string qtype
                     = dst_scales_op->get_attr<std::string>(op_attr::qtype);
             mask = qtype == "per_tensor" ? 0 : 1 << axis;
+            dt = dst_scales_op->has_attr(op_attr::data_type)
+                    ? dst_scales_op->get_attr<int64_t>(op_attr::data_type)
+                    : dnnl_f32;
         }
-        attr.set_scales_mask(DNNL_ARG_DST, mask);
+        attr.set_scales(DNNL_ARG_DST, mask, default_groups,
+                static_cast<dnnl::memory::data_type>(dt));
     }
 
     // convert input scales
@@ -68,14 +76,24 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             assertm(fusion_info.with_runtime_scales(true, in_scales_indices),
                     "only support runtime src scales.\n");
             int mask = 0;
-            if (in_scales_op->has_attr(op_attr::axis)
-                    && in_scales_op->has_attr(op_attr::qtype)) {
-                int64_t axis = in_scales_op->get_attr<int64_t>(op_attr::axis);
+            if (in_scales_op->has_attr(op_attr::qtype)) {
                 std::string qtype
                         = in_scales_op->get_attr<std::string>(op_attr::qtype);
+                const auto scales_data_type
+                        = in_scales_op->has_attr(op_attr::data_type)
+                        ? in_scales_op->get_attr<int64_t>(op_attr::data_type)
+                        : dnnl_f32;
                 if (qtype == "per_tensor") {
                     mask = 0;
-                } else {
+                    attr.set_scales(in_scales_indices == 0 ? DNNL_ARG_SRC
+                                                           : DNNL_ARG_WEIGHTS,
+                            mask, default_groups,
+                            static_cast<dnnl::memory::data_type>(
+                                    scales_data_type));
+                } else if (qtype == "per_channel") { // per-channel quantization
+                    int64_t axis = in_scales_op->has_attr(op_attr::axis)
+                            ? in_scales_op->get_attr<int64_t>(op_attr::axis)
+                            : 1;
                     if (impl::utils::one_of(op->get_kind(),
                                 op_kind::dnnl_convolution,
                                 op_kind::dnnl_convtranspose)
@@ -94,11 +112,13 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                     } else {
                         mask = 1 << axis;
                     }
+                    attr.set_scales(in_scales_indices == 0 ? DNNL_ARG_SRC
+                                                           : DNNL_ARG_WEIGHTS,
+                            mask, default_groups,
+                            static_cast<dnnl::memory::data_type>(
+                                    scales_data_type));
                 }
             }
-            attr.set_scales_mask(
-                    in_scales_indices == 0 ? DNNL_ARG_SRC : DNNL_ARG_WEIGHTS,
-                    mask);
         }
     }
 
@@ -106,21 +126,37 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
     if (!fusion_info.input_zps_.empty()) {
         for (const auto &in_zps : fusion_info.input_zps_) {
             size_t in_zps_indices = in_zps.first;
+            const op_t *in_zps_op = in_zps.second->get_op();
             assertm(fusion_info.with_runtime_zero_points(true, in_zps_indices),
                     "only support runtime src zero points.\n");
-            int mask = 0;
-            attr.set_zero_points_mask(
-                    in_zps_indices == 0 ? DNNL_ARG_SRC : DNNL_ARG_WEIGHTS,
-                    mask);
+
+            if (in_zps_op->has_attr(op_attr::qtype)) {
+                std::string qtype
+                        = in_zps_op->get_attr<std::string>(op_attr::qtype);
+                const auto zps_data_type
+                        = in_zps_op->has_attr(op_attr::data_type)
+                        ? in_zps_op->get_attr<int64_t>(op_attr::data_type)
+                        : dnnl_s32;
+                int mask = 0;
+                attr.set_zero_points(
+                        in_zps_indices == 0 ? DNNL_ARG_SRC : DNNL_ARG_WEIGHTS,
+                        mask, default_groups,
+                        static_cast<dnnl::memory::data_type>(zps_data_type));
+            }
         }
     }
 
     // convert output zps
     if (fusion_info.output_zps_) {
+        const op_t *output_zps_op = fusion_info.output_zps_->get_op();
+        const auto zps_data_type = output_zps_op->has_attr(op_attr::data_type)
+                ? output_zps_op->get_attr<int64_t>(op_attr::data_type)
+                : dnnl_s32;
         assertm(fusion_info.with_runtime_zero_points(false, 0),
-                "only support runtime src zero points.\n");
+                "only support runtime dst zero points.\n");
         int mask = 0;
-        attr.set_zero_points_mask(DNNL_ARG_DST, mask);
+        attr.set_zero_points(DNNL_ARG_DST, mask, default_groups,
+                static_cast<dnnl::memory::data_type>(zps_data_type));
     }
 
     // convert post ops

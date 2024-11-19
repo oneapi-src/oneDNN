@@ -42,6 +42,14 @@
 #include "graph/backend/dnnl/passes/transform.hpp"
 #include "graph/backend/dnnl/passes/utils.hpp"
 
+#define VCHECK_INVALID_ARGUMENT(cond, msg, ...) \
+    VCONDCHECK(graph, create, check, compile, (cond), \
+            status::invalid_arguments, msg, ##__VA_ARGS__);
+
+#define VCHECK_UNIMPLEMENTED(cond, msg, ...) \
+    VCONDCHECK(graph, create, check, compile, (cond), status::unimplemented, \
+            msg, ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -535,10 +543,55 @@ static status_t dynamic_dequant_handler(
 
     // DynamicDequantize has optional zps
     bool has_zps = in_vals.size() == 3;
+    bool is_group_quantization = (qtype == "per_group");
 
     value_ptr src = in_vals[0], scales = in_vals[1], dst = out_vals[0], zps;
     if (has_zps) zps = in_vals[2];
 
+    int64_t group_mask = 0;
+    if (is_group_quantization) {
+
+        const auto &group_shape
+                = cur_op->get_attr<std::vector<int64_t>>(op_attr::group_shape);
+        const auto src_lt = src->get_logical_tensor();
+        const auto scale_lt = scales->get_logical_tensor();
+
+        const auto ndims = ltw(src_lt).ndims();
+        VCHECK_INVALID_ARGUMENT((ndims == ltw(scale_lt).ndims()),
+                "scale and src should have the same number of dimensions "
+                "for grouped quantization");
+        VCHECK_INVALID_ARGUMENT(
+                (static_cast<size_t>(ndims) == group_shape.size()),
+                "group shape size should match the number of dimensions of "
+                "src");
+        VCHECK_UNIMPLEMENTED((ndims >= 2),
+                "group quantization requires at least two dimensions");
+        const auto &src_dims = ltw(src_lt).vdims();
+        const auto &scale_dims = ltw(scale_lt).vdims();
+
+        for (int idx = 0; idx < ndims - 2; ++idx) {
+            VCHECK_INVALID_ARGUMENT((src_dims[idx] == scale_dims[idx]),
+                    "the scale shape should match the input shape on the "
+                    "dimensions where no quantization is applied");
+        }
+
+        for (int idx = 0; idx < ndims; ++idx) {
+            VCHECK_INVALID_ARGUMENT(
+                    (src_dims[idx] == scale_dims[idx] * group_shape[idx]),
+                    "unsupported scale shape and group shape on dimension %d, "
+                    "src dim: %d, scale shape: %d, group shape: %d",
+                    idx, static_cast<int>(src_dims[idx]),
+                    static_cast<int>(scale_dims[idx]),
+                    static_cast<int>(group_shape[idx]));
+
+            if (group_shape[idx] != 1) {
+                group_mask += 1ULL << idx;
+                //Currently group quantization only happens on one dimension
+            }
+        }
+    }
+
+    const int64_t scales_data_type = scales->get_logical_tensor().data_type;
     // f32 = scales * (int8 - zps)
     // connect scales to mul_scales op
     op_ptr mul_scales = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
@@ -546,6 +599,14 @@ static status_t dynamic_dequant_handler(
     scales->remove_consumer(*cur_op, 1);
     mul_scales->set_attr<int64_t>(op_attr::axis, axis);
     mul_scales->set_attr<std::string>(op_attr::qtype, qtype);
+    if (is_group_quantization) {
+        const auto &group_shape
+                = cur_op->get_attr<std::vector<int64_t>>(op_attr::group_shape);
+        mul_scales->set_attr<std::vector<int64_t>>(
+                op_attr::group_shape, group_shape);
+        mul_scales->set_attr<int64_t>(op_attr::group_mask, group_mask);
+    }
+    mul_scales->set_attr<int64_t>(op_attr::data_type, scales_data_type);
     mul_scales->set_attr<bool>(op_attr::with_runtime_scales, true);
 
     // connect mul_scales op to subgraph
@@ -555,13 +616,29 @@ static status_t dynamic_dequant_handler(
     rewriter.to_insert(mul_scales);
 
     if (has_zps) {
+        value_ptr scales = in_vals[1], zps = in_vals[2];
+        const auto &scale_dims = ltw(scales->get_logical_tensor()).vdims();
+        const auto &zp_dims = ltw(zps->get_logical_tensor()).vdims();
+        for (size_t idx = 0; idx < scale_dims.size(); ++idx) {
+            VCHECK_INVALID_ARGUMENT((scale_dims[idx] == zp_dims[idx]),
+                    "scale and zero point tensors should have the same shape");
+        }
+
+        const int64_t zps_data_type = zps->get_logical_tensor().data_type;
         op_ptr sub_zps = std::make_shared<op_t>(op_kind::dnnl_sub_zps);
         sub_zps->connect_input(1, zps);
         zps->remove_consumer(*cur_op, 2);
         sub_zps->set_attr<int64_t>(op_attr::axis, axis);
         sub_zps->set_attr<std::string>(op_attr::qtype, qtype);
+        sub_zps->set_attr<int64_t>(op_attr::data_type, zps_data_type);
+        if (is_group_quantization) {
+            const auto &group_shape = cur_op->get_attr<std::vector<int64_t>>(
+                    op_attr::group_shape);
+            sub_zps->set_attr<std::vector<int64_t>>(
+                    op_attr::group_shape, group_shape);
+            sub_zps->set_attr<int64_t>(op_attr::group_mask, group_mask);
+        }
         sub_zps->set_attr<bool>(op_attr::with_runtime_zps, true);
-
         // connect sub_zps op to subgraph
         rewriter.insert_op_before(sub_zps, mul_scales, 0, 0);
     }

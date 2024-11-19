@@ -658,6 +658,7 @@ impl::status_t insert_runtime_u8_to_s8_for_matmul(
         const_zps_dst_value->set_layout_type(layout_type::strided);
         const_zps_dst_value->set_strides({1});
         const_zps_op->add_output(const_zps_dst_value);
+        u8_to_s8_op->set_attr<std::string>(op_attr::qtype, "per_tensor");
         u8_to_s8_op->set_attr(op_attr::with_runtime_dst_zps, true);
         rewriter.insert_op_before(u8_to_s8_op, cur_op, 1);
         u8_to_s8_op->connect_input(1, const_zps_dst_value);
