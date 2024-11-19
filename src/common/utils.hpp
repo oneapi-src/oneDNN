@@ -209,11 +209,30 @@ constexpr bool any_null(Args... ptrs) {
     return one_of(nullptr, ptrs...);
 }
 
+// For some unknown reason, GCC 11.x and beyond can't compile specific places
+// of the library that involve this routine. It's connected to the fact that
+// this function is inline and defined in a header.
+#if defined(__GNUC__) && __GNUC__ > 8 && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wrestrict"
+// /usr/include/bits/string_fortified.h:29:33: warning: ‘void* __builtin_memcpy(
+//     void*, const void*, long unsigned int)’ accessing 18446744056529682432 or
+//     more bytes at offsets 320 and 0 overlaps 9223372002495037441 bytes at
+//     offset -9223372019674906625 [-Wrestrict]
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+// warning: ‘void* __builtin_memcpy(void*, const void*, long unsigned int)’
+//     specified bound between 18446744056529682432 and 18446744073709551608
+//     exceeds maximum object size 9223372036854775807 [-Wstringop-overflow=]
+#endif
 template <typename T>
 inline void array_copy(T *dst, const T *src, size_t size) {
     for (size_t i = 0; i < size; ++i)
         dst[i] = src[i];
 }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
 template <typename T>
 inline bool array_cmp(const T *a1, const T *a2, size_t size) {
     for (size_t i = 0; i < size; ++i)
