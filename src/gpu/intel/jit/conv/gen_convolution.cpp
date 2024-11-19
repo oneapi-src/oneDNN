@@ -68,6 +68,14 @@ public:
             conv_problem_t prb;
             CHECK(prb.init(engine, pd));
 
+            // The IR generator hard-codes s32 as the type for problem parameters.
+            VDISPATCH_CONV_IC(
+                    INT_MAX > std::max({prb.mb, prb.ic, prb.id, prb.ih, prb.iw,
+                            prb.oc, prb.od, prb.oh, prb.ow, prb.kd, prb.kh,
+                            prb.kw, prb.sd, prb.sh, prb.sw, prb.pd, prb.ph,
+                            prb.pw, prb.dd, prb.dh, prb.dw}),
+                    VERBOSE_SHAPE_RESTRICTION);
+
             pd->data = std::make_shared<conv_pd_data_t>();
             CHECK(init_pd_time_cfg(
                     prb, pd->data->pd_cfg, engine, pd, &pd->attr_));
