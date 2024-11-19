@@ -63,14 +63,6 @@
 #define GCC_WA_NO_TREE_DOMINATOR_OPTS 0
 #endif
 
-// Workaround 04: GCC
-//
-// GCC 10 & 11 && 12 (at least versiona 10.1, 10.3 & 11.1, 12.2) report false positives
-// in xbyak when -Warray-bounds build setting is on
-#if (defined NEED_GCC_WA_CHECK) && (__GNUC__ >= 10)
-#pragma GCC diagnostic ignored "-Warray-bounds"
-#endif
-
 // Workaround 05: GCC
 //
 // NOTE: inside lambda, type cast variables captured by reference using
