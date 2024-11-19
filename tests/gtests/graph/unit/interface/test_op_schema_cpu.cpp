@@ -4975,16 +4975,16 @@ static auto DequantizeCases = []() {
             data_type::f32, "per_tensor", true, 1, true});
     cases.push_back({data_type::s8, data_type::f32, data_type::s32,
             data_type::f32, "per_channel", true, 1, true});
+    cases.push_back({data_type::s8, data_type::f16, data_type::s32,
+            data_type::f16, "per_channel", true, 1, true});
+    cases.push_back({data_type::s8, data_type::bf16, data_type::s32,
+            data_type::bf16, "per_channel", true, 1, true});
+    cases.push_back({data_type::u8, data_type::bf16, data_type::s32,
+            data_type::bf16, "per_tensor", false, 1, true});
 
     // negative cases
     cases.push_back({data_type::s8, data_type::f32, data_type::s32,
             data_type::f16, "per_tensor", true, 1, false});
-    cases.push_back({data_type::s8, data_type::f16, data_type::s32,
-            data_type::f16, "per_channel", true, 1, false});
-    cases.push_back({data_type::s8, data_type::bf16, data_type::s32,
-            data_type::bf16, "per_channel", true, 1, false});
-    cases.push_back({data_type::u8, data_type::bf16, data_type::s32,
-            data_type::bf16, "per_tensor", false, 1, false});
 
     return ::testing::ValuesIn(cases);
 };
