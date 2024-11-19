@@ -360,22 +360,39 @@ int64_t desc_t::desc_nelems(int arg, int mask) const {
 void prb_t::count_ops() {
     if (ops > 0) return;
 
+    auto sp_upper = this->ow;
+    auto sp_lower = this->ow - (this->kw + (this->kw - 1) * this->dw - 1);
+    if (this->oh > 0) {
+        sp_upper *= this->oh;
+        sp_lower *= this->oh - (this->kh + (this->kh - 1) * this->dh - 1);
+    }
+    if (this->od > 0) {
+        sp_upper *= this->od;
+        sp_lower *= this->od - (this->kd + (this->kd - 1) * this->dd - 1);
+    }
+    auto max_sp_error = double(sp_upper - sp_lower) / sp_lower;
     double sp_ops = 0;
-    for_(int64_t od = 0; od < this->od; ++od)
-    for_(int64_t oh = 0; oh < this->oh; ++oh)
-    for (int64_t ow = 0; ow < this->ow; ++ow) {
-        for (int64_t kd = 0; kd < this->kd; ++kd) {
-            const int64_t id = od * this->sd - this->pd + kd * (this->dd + 1);
-            if (id < 0 || id >= this->id) continue;
-            for (int64_t kh = 0; kh < this->kh; ++kh) {
-                const int64_t ih
-                        = oh * this->sh - this->ph + kh * (this->dh + 1);
-                if (ih < 0 || ih >= this->ih) continue;
-                for (int64_t kw = 0; kw < this->kw; ++kw) {
-                    const int64_t iw
-                            = ow * this->sw - this->pw + kw * (this->dw + 1);
-                    if (iw < 0 || iw >= this->iw) continue;
-                    sp_ops += 1;
+    if (max_sp_error < 1e-6) {
+        // Return estimate for very large sizes to avoid unnecessary compute.
+        sp_ops = sp_upper * this->kd * this->kh * this->kw;
+    } else {
+        for_(int64_t od = 0; od < this->od; ++od)
+        for_(int64_t oh = 0; oh < this->oh; ++oh)
+        for (int64_t ow = 0; ow < this->ow; ++ow) {
+            for (int64_t kd = 0; kd < this->kd; ++kd) {
+                const int64_t id
+                        = od * this->sd - this->pd + kd * (this->dd + 1);
+                if (id < 0 || id >= this->id) continue;
+                for (int64_t kh = 0; kh < this->kh; ++kh) {
+                    const int64_t ih
+                            = oh * this->sh - this->ph + kh * (this->dh + 1);
+                    if (ih < 0 || ih >= this->ih) continue;
+                    for (int64_t kw = 0; kw < this->kw; ++kw) {
+                        const int64_t iw = ow * this->sw - this->pw
+                                + kw * (this->dw + 1);
+                        if (iw < 0 || iw >= this->iw) continue;
+                        sp_ops += 1;
+                    }
                 }
             }
         }
