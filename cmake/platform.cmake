@@ -78,11 +78,12 @@ macro(platform_gnu_nowarn_ccxx_flags var gnu_version)
     append(${var} "-Wno-strict-overflow")
     # suppress false positive warnings about uninitialized variables
     append(${var} "-Wno-maybe-uninitialized")
-    # suppress false positive warnings with 10.x: GCC Bugzilla – Bug 96963
+    # suppress false positive warnings with 9.x+: GCC Bugzilla – Bug 96963
     # assume 0.0 is unknown version - always suppress the warning
     if(${gnu_version} VERSION_EQUAL 0.0 OR
-        (${gnu_version} VERSION_GREATER 10.0 AND ${gnu_version} VERSION_LESS 11.0))
+        ${gnu_version} VERSION_GREATER 9.0)
         append(${var} "-Wno-stringop-overflow")
+        append(${var} "-Wno-array-bounds")
     endif()
 endmacro()
 
