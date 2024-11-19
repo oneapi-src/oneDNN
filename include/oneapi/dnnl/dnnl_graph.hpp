@@ -270,6 +270,10 @@ public:
         /// floating-point](https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-06-20-pdf)
         /// with a 4-bit exponent and a 3-bit mantissa.
         f8_e4m3 = dnnl_f8_e4m3,
+        /// 4-bit signed integer.
+        s4 = dnnl_s4,
+        /// 4-bit unsigned integer.
+        u4 = dnnl_u4,
     };
 
     /// Layout type
@@ -918,6 +922,12 @@ public:
         weights_shape = dnnl_graph_op_attr_weights_shape,
         /// Specifies a zps attribute to an op.
         zps = dnnl_graph_op_attr_zps,
+        /// Specifies the group shape of an op. The size of the vector should
+        /// match that of the input. For the dimensions where the grouped
+        /// quantization occurs, the values should correspond to the group
+        /// size, which indicates the number of elements that will share the
+        /// same scaling factor.
+        group_shape = dnnl_graph_op_attr_group_shape,
 
         // bool attributes. The value of these attributes can be any single bool
         // value.

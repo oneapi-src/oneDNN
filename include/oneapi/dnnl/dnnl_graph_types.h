@@ -327,6 +327,8 @@ typedef enum {
     dnnl_graph_op_attr_weights_shape,
     /// Specifies a zps attribute to an op.
     dnnl_graph_op_attr_zps,
+    /// Specifies a group shape attribute to an op.
+    dnnl_graph_op_attr_group_shape,
 
     // bool attributes. The value of these attributes can be any single bool
     // value.
