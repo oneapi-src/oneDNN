@@ -816,6 +816,7 @@ struct jit_brgemm_conv_conf_t {
     int vnni_block {1};
     bool has_uneven_iw;
     int trans_dim_koef {1};
+    bool extendable_k = false;
 };
 
 struct jit_shuffle_conf_t {
