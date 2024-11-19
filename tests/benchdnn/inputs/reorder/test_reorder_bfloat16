@@ -1,6 +1,6 @@
-# f32, s8, u8 <--> bf16
+# f32, bf16, s8, u8 <--> bf16
 --reset
---sdt=f32,s8,u8,f8_e5m2,f8_e4m3 --ddt=bf16
+--sdt=f32,bf16,s8,u8,f8_e5m2,f8_e4m3 --ddt=bf16
 --stag=abx
 --dtag=aBx16b 2x64x14x14 2x56x14x14
 --dtag=gOIhw16i16o 2x64x64x3x3 2x56x56x3x3
