@@ -24,41 +24,39 @@ import subprocess
 # * Ensuring the scopes end in colon and same level scopes are comma delimited.
 # TODO: Limit scopes to an acceptable list of tags.
 def __scopeCheck(msg: str):
+    status = "Message scope: "
+
     firstLine = (msg.partition("\n")[0]).strip()
 
     if not ":" in firstLine:
-        raise ValueError(
-            f"Please see contribution guidelines. First line must contain a scope ending in a colon. Got: {firstLine}"
-        )
+        print(f"{status} FAILED: Commit message does not include scope")
+        return False
 
-    # The last element of the split is the title, which we don't care about. Remove it.
+    # The last element of the split is the title, which we don't care about.
     scopesArray = firstLine.split(":")[:-1]
-    print("---")
-    print(f"Scopes: {scopesArray}")
 
     for scopes in scopesArray:
-        print("---")
-        print(f"Same-level scope: {scopes}")
         numWords = len(scopes.split())
         numCommas = scopes.count(",")
-        print(f"Number of words in scope: {numWords}")
-        print(f"Number of commas in scope: {numCommas}")
 
         if numWords != numCommas + 1:
-            raise ValueError(
-                f"Please see contribution guidelines. Same-level scopes must be seperated by a comma. If this is true then words == commas + 1."
-            )
+            print(f"{status} FAILED: Same-level scopes must be comma-separated. Bad token: '{scopes}'")
+            return False
 
+    print(f"{status} OK")
+    return True
 
 # * Ensuring a character limit for the first line.
 def __numCharacterCheck(msg: str):
+    status = "Message length:"
     summary = msg.partition("\n")[0]
     msgSummaryLen = len(summary)
-    if msgSummaryLen >= 72:
-        raise ValueError(
-            f"Please see contribution guidelines. Message summary must be less than 72. Got: {msgSummaryLen}"
-        )
-
+    if msgSummaryLen <= 72:
+        print(f"{status} OK")
+        return True
+    else:
+        print(f"{status} FAILED: Commit message summary must not exceed 72 characters.")
+        return False
 
 def main():
     parser = argparse.ArgumentParser()
@@ -71,11 +69,20 @@ def main():
     commit_range = base + ".." + head
     messages = subprocess.run(["git", "rev-list", "--ancestry-path", commit_range, "--format=oneline"], capture_output=True, text=True).stdout
 
+    is_ok = True
     for i in messages.splitlines():
+      print(i)
       commit_msg=i.split(' ', 1)[1]
-      print(f"msg: {commit_msg}")
-      __numCharacterCheck(commit_msg)
-      __scopeCheck(commit_msg)
+      result = __numCharacterCheck(commit_msg)
+      is_ok = is_ok and result
+      result = __scopeCheck(commit_msg)
+      is_ok = is_ok and result
+
+    if is_ok:
+        print("All commmit messages are formtted correctly. ")
+    else:
+        print("Some commit message checks failed. Please align commit messages with Contributing Guidelines and update the PR.")
+        exit(1)
 
 
 if __name__ == "__main__":
