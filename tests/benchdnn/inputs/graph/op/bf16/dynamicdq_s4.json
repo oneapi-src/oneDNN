@@ -1,0 +1,108 @@
+{
+    "version": "3.7.0",
+    "engine_kind": "cpu",
+    "fpmath_mode": "bf16",
+    "fpmath_mode_apply_to_int": "true",
+    "graph": [
+      {
+        "id": 0,
+        "name": "aten::dequantize",
+        "kind": "DynamicDequantize",
+        "attrs": {
+          "qtype": {
+            "type": "string",
+            "value": "per_group"
+          },
+          "group_shape": {
+            "type": "s64[]",
+            "value": [
+                1,
+                1,
+                8,
+                1
+            ]
+          }, 
+          "axis": {
+            "type": "s64",
+            "value": 2
+          }
+        },
+        "inputs": [
+          {
+            "id": 0,
+            "dtype": "s4",
+            "shape": [
+              1,
+              32,
+              128,
+              32
+            ],
+            "stride": [
+              131072,
+              4096,
+              1,
+              128
+            ],
+            "layout_type": "strided",
+            "property_type": "variable"
+          },
+          {
+            "id": 1,
+            "dtype": "bf16",
+            "shape": [
+              1,
+              32,
+              16,
+              32
+            ],
+            "stride": [
+              16384,
+              512,
+              32,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          },
+          {
+            "id": 2,
+            "dtype": "s4",
+            "shape": [
+              1,
+              32,
+              16,
+              32
+            ],
+            "stride": [
+              16384,
+              512,
+              32,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          }
+        ],
+        "outputs": [
+          {
+            "id": 10,
+            "dtype": "bf16",
+            "shape": [
+              1,
+              32,
+              128,
+              32
+            ],
+            "stride": [
+              131072,
+              4096,
+              32,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "variable"
+          }
+        ]
+      }
+    ]
+  }

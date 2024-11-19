@@ -25,3 +25,4 @@
 --reset --dt=f16 --case=op/f32/select.json
 --reset --dt=f16 --case=op/f32/static_reshape.json
 --reset --dt=f16 --case=op/f32/static_transpose.json
+--reset --case=op/f16/dynamicdq_s4.json

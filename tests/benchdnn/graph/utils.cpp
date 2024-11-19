@@ -375,6 +375,7 @@ dnnl::graph::op::attr attrstr2kind(const std::string &attr_name) {
             {"axis", dnnl::graph::op::attr::axis},
             {"begin_norm_axis", dnnl::graph::op::attr::begin_norm_axis},
             {"groups", dnnl::graph::op::attr::groups},
+            {"group_shape", dnnl::graph::op::attr::group_shape},
             // int64_t vector attributes. The value of these attributes can be a
             // vector of int64 numbers.
             {"axes", dnnl::graph::op::attr::axes},
@@ -1259,6 +1260,8 @@ dnnl_data_type_t convert_dt(const dnnl::graph::logical_tensor::data_type dt) {
         case graph_dt::boolean: return dnnl_u8;
         case graph_dt::f8_e5m2: return dnnl_f8_e5m2;
         case graph_dt::f8_e4m3: return dnnl_f8_e4m3;
+        case graph_dt::s4: return dnnl_s4;
+        case graph_dt::u4: return dnnl_u4;
         case graph_dt::undef:
         default: return dnnl_data_type_undef;
     }

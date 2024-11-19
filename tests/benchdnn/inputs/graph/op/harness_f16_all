@@ -138,6 +138,8 @@
 --reset --dt=f16 --case=op/f32/tanh.json
 --reset --dt=f16 --case=op/f32/tanh_bwd.json
 --reset --case=op/f16/typecast.json
+--reset --case=op/f16/dynamicdq_s4.json
+--reset --case=op/f16/dynamicdq_u4.json
 --reset --dt=f16 --case=op/f32/sqrt.json
 --reset --dt=f16 --case=op/f32/sqrt_bwd.json
 --reset --dt=f16 --case=op/f32/select.json

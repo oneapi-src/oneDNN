@@ -83,6 +83,10 @@ logical_tensor::data_type deserialized_lt::get_data_type() const {
         return logical_tensor::data_type::f8_e5m2;
     } else if (data_type_ == "f8_e4m3") {
         return logical_tensor::data_type::f8_e4m3;
+    } else if (data_type_ == "s4") {
+        return logical_tensor::data_type::s4;
+    } else if (data_type_ == "u4") {
+        return logical_tensor::data_type::u4;
     } else {
         return logical_tensor::data_type::undef;
     }

@@ -79,6 +79,8 @@
 --reset --case=op/f32/dequantize_u8.json
 --reset --case=op/f32/dequantize_f8_e4m3.json
 --reset --case=op/f32/dequantize_f8_e5m2.json
+--reset --case=op/f32/dynamicdq_s4.json
+--reset --case=op/f32/dynamicdq_u4.json
 --reset --case=op/f32/div.json
 --reset --op-attrs=0:auto_broadcast:numpy --case=op/f32/div.json
 --reset --case=op/f32/elu.json

@@ -1676,6 +1676,12 @@ bool get_reorder_dt(const deserialized_op &base_op_ref, dnnl_data_type_t &sdt,
         dnnl_data_type_t &ddt) {
     sdt = convert_dt(base_op_ref.in_lts_.front().get_data_type());
     ddt = convert_dt(base_op_ref.out_lts_.front().get_data_type());
+
+    const auto &op_kind = base_op_ref.kind_;
+    // As we always use f32 computation in the reference path, to link
+    // arguments correctly in the reference path, we need to always create
+    // dequantize ops with f32 output.
+    if (op_kind == "DynamicDequantize") { ddt = dnnl_f32; }
     return true;
 }
 
@@ -1704,10 +1710,16 @@ bool get_reorder_attrs(const deserialized_op &base_op_ref,
     // scale
     attr_t::policy_t scale_policy = attr_t::policy_t::COMMON;
     int64_t axis = 1;
+    std::vector<dnnl_dim_t> groups;
+    dnnl_data_type_t scale_dt, zp_dt;
+
+    const int ndims
+            = static_cast<int>(base_op_ref.in_lts_.front().shape_.size());
+    base_op_ref.get_attr_s64(axis, "axis");
+    if (axis < 0) axis += ndims;
+
+    // per dimension
     if (qtype == "per_channel") {
-        // per dimension
-        base_op_ref.get_attr_s64(axis, "axis");
-        const auto ndims = base_op_ref.in_lts_.front().shape_.size();
         if (axis < 0) axis += ndims;
         if (axis == 0) {
             scale_policy = attr_t::PER_DIM_0;
@@ -1720,6 +1732,14 @@ bool get_reorder_attrs(const deserialized_op &base_op_ref,
         } else {
             assert(!"unsupported axis");
         }
+    } else if (qtype == "per_group") {
+        scale_policy = attr_t::PER_TENSOR;
+
+        std::vector<int64_t> group_shape;
+        base_op_ref.get_attr_s64_vector(group_shape, "group_shape");
+        groups = {group_shape[ndims - 2], group_shape[ndims - 1]};
+        scale_dt = static_cast<dnnl_data_type_t>(
+                base_op_ref.in_lts_[1].get_data_type());
     }
 
     if (op_kind == "Dequantize" || op_kind == "Quantize") {
@@ -1734,18 +1754,29 @@ bool get_reorder_attrs(const deserialized_op &base_op_ref,
         if (has_zps && !zps.empty())
             zp.set(arg, attr_t::policy_t::COMMON, zps.front());
     } else if (op_kind == "DynamicDequantize" || op_kind == "DynamicQuantize") {
+        // For reference path, it always use f32 for computation.
+        scale_dt = dnnl_f32;
+
         //  TODO: benchdnn needs to alloc memory based on is_def() function.
         //  so add tmp value for per_tensor scales && zps to make is_def()
         //  return false to alloc memory.
         if (qtype == "per_tensor") {
             arg_scales.set(arg, {scale_policy, 2});
+        } else if (qtype == "per_group") {
+            arg_scales.set(arg, {scale_policy, 1.f, scale_dt, groups});
         } else {
             arg_scales.set(arg, {scale_policy});
         }
         // zps is optional for DynamicDequantize/DynamicQuantize, default is
         // symmetric quantization
         if (base_op_ref.in_lts_.size() == 3) {
-            zp.set(arg, attr_t::policy_t::COMMON, 1);
+            if (qtype == "per_group") {
+                zp_dt = static_cast<dnnl_data_type_t>(
+                        base_op_ref.in_lts_[2].get_data_type());
+                zp.set(arg, {scale_policy, 0, zp_dt, groups});
+            } else {
+                zp.set(arg, attr_t::policy_t::COMMON, 1);
+            }
         }
     }
     return true;
