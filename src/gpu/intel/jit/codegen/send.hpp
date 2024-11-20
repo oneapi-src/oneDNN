@@ -202,8 +202,10 @@ private:
             } else if (send_.is_store()) {
                 host->store.ugm(mod, *lsc_spec, host->A64, header, data);
             } else if (send_.is_atomic()) {
-                host->atomic.ugm(ngen::AtomicOp::fadd, mod, *lsc_spec,
-                        to_address_base(send_.address), header, data);
+                if (gpu_utils::dev_getenv("ATOMIC", true)) {
+                    host->atomic.ugm(ngen::AtomicOp::fadd, mod, *lsc_spec,
+                            to_address_base(send_.address), header, data);
+                }
             }
         } else {
             ir_error_not_expected();

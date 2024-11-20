@@ -26,7 +26,7 @@
     VCHECK(common, create, check, runtime, stat, msg, ##__VA_ARGS__);
 
 // Uncomment this when aborting on ir_assert is desired:
-// #define GPU_ABORT_ON_ERROR
+#define GPU_ABORT_ON_ERROR
 
 namespace dnnl {
 namespace impl {
