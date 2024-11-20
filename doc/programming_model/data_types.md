@@ -44,7 +44,7 @@ oneDNN supports training and inference with the following data types:
 
 @note
     f64 is only supported for matmul, convolution, reorder, layer normalization and
-    pooling primitives, on the GPU engine.
+    pooling primitives on the GPU engine.
 
 @note
     Boolean is only supported by the oneDNN graph API when the graph compiler
