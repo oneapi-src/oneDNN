@@ -42,13 +42,6 @@ struct resampling_fwd_pd_t;
 struct resampling_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::resampling;
 
-    resampling_pd_t(const resampling_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const resampling_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
-        , hint_fwd_pd_(hint_fwd_pd) {}
-
     const resampling_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
@@ -103,6 +96,13 @@ protected:
     resampling_desc_t desc_;
     const resampling_fwd_pd_t *hint_fwd_pd_;
 
+    resampling_pd_t(const resampling_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const resampling_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd) {}
+
 private:
     const memory_desc_t &src_desc() const {
         return is_fwd() ? desc_.src_desc : desc_.diff_src_desc;
@@ -115,13 +115,6 @@ private:
 struct resampling_fwd_pd_t : public resampling_pd_t {
     typedef resampling_fwd_pd_t base_class;
     typedef resampling_fwd_pd_t hint_class;
-
-    resampling_fwd_pd_t(const resampling_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const resampling_fwd_pd_t *hint_fwd_pd)
-        : resampling_pd_t(adesc, attr, hint_fwd_pd)
-        , src_md_(desc_.src_desc)
-        , dst_md_(desc_.dst_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -155,6 +148,13 @@ protected:
     memory_desc_t src_md_;
     memory_desc_t dst_md_;
 
+    resampling_fwd_pd_t(const resampling_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const resampling_fwd_pd_t *hint_fwd_pd)
+        : resampling_pd_t(adesc, attr, hint_fwd_pd)
+        , src_md_(desc_.src_desc)
+        , dst_md_(desc_.dst_desc) {}
+
     virtual status_t set_default_params(
             format_tag_t src_tag_hint = format_tag::undef) {
         if (dst_md()->format_kind != format_kind::any) return status::success;
@@ -174,13 +174,6 @@ protected:
 struct resampling_bwd_pd_t : public resampling_pd_t {
     typedef resampling_bwd_pd_t base_class;
     typedef resampling_fwd_pd_t hint_class;
-
-    resampling_bwd_pd_t(const resampling_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const resampling_fwd_pd_t *hint_fwd_pd)
-        : resampling_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_src_md_(desc_.diff_src_desc)
-        , diff_dst_md_(desc_.diff_dst_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_DIFF_DST) return arg_usage_t::input;
@@ -215,6 +208,13 @@ struct resampling_bwd_pd_t : public resampling_pd_t {
 protected:
     memory_desc_t diff_src_md_;
     memory_desc_t diff_dst_md_;
+
+    resampling_bwd_pd_t(const resampling_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const resampling_fwd_pd_t *hint_fwd_pd)
+        : resampling_pd_t(adesc, attr, hint_fwd_pd)
+        , diff_src_md_(desc_.diff_src_desc)
+        , diff_dst_md_(desc_.diff_dst_desc) {}
 
     virtual status_t set_default_params() {
         if (diff_dst_md()->format_kind == format_kind::any && hint_fwd_pd_) {

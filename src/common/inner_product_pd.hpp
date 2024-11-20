@@ -44,13 +44,6 @@ struct inner_product_fwd_pd_t;
 struct inner_product_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::inner_product;
 
-    inner_product_pd_t(const inner_product_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const inner_product_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
-        , hint_fwd_pd_(hint_fwd_pd) {}
-
     const inner_product_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
@@ -139,6 +132,13 @@ protected:
     inner_product_desc_t desc_;
     const inner_product_fwd_pd_t *hint_fwd_pd_;
 
+    inner_product_pd_t(const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const inner_product_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*adesc)
+        , hint_fwd_pd_(hint_fwd_pd) {}
+
     bool set_default_formats_common_template(memory_desc_t &src_md,
             format_tag_t src_tag, memory_desc_t &wei_md, format_tag_t wei_tag,
             memory_desc_t &dst_md, format_tag_t dst_tag,
@@ -199,15 +199,6 @@ struct inner_product_fwd_pd_t : public inner_product_pd_t {
     typedef inner_product_fwd_pd_t base_class;
     typedef inner_product_fwd_pd_t hint_class;
 
-    inner_product_fwd_pd_t(const inner_product_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const inner_product_fwd_pd_t *hint_fwd_pd)
-        : inner_product_pd_t(adesc, attr, hint_fwd_pd)
-        , src_md_(desc_.src_desc)
-        , weights_md_(desc_.weights_desc)
-        , bias_md_(desc_.bias_desc)
-        , dst_md_(desc_.dst_desc) {}
-
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS))
             return arg_usage_t::input;
@@ -259,6 +250,15 @@ protected:
     memory_desc_t bias_md_;
     memory_desc_t dst_md_;
 
+    inner_product_fwd_pd_t(const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const inner_product_fwd_pd_t *hint_fwd_pd)
+        : inner_product_pd_t(adesc, attr, hint_fwd_pd)
+        , src_md_(desc_.src_desc)
+        , weights_md_(desc_.weights_desc)
+        , bias_md_(desc_.bias_desc)
+        , dst_md_(desc_.dst_desc) {}
+
     bool set_default_formats_common(
             format_tag_t src_tag, format_tag_t wei_tag, format_tag_t dst_tag) {
         return set_default_formats_common_template(src_md_, src_tag,
@@ -269,14 +269,6 @@ protected:
 struct inner_product_bwd_data_pd_t : public inner_product_pd_t {
     typedef inner_product_bwd_data_pd_t base_class;
     typedef inner_product_fwd_pd_t hint_class;
-
-    inner_product_bwd_data_pd_t(const inner_product_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const inner_product_fwd_pd_t *hint_fwd_pd)
-        : inner_product_pd_t(adesc, attr, hint_fwd_pd)
-        , diff_src_md_(desc_.diff_src_desc)
-        , weights_md_(desc_.weights_desc)
-        , diff_dst_md_(desc_.diff_dst_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_WEIGHTS, DNNL_ARG_DIFF_DST))
@@ -324,6 +316,14 @@ protected:
     memory_desc_t weights_md_;
     memory_desc_t diff_dst_md_;
 
+    inner_product_bwd_data_pd_t(const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const inner_product_fwd_pd_t *hint_fwd_pd)
+        : inner_product_pd_t(adesc, attr, hint_fwd_pd)
+        , diff_src_md_(desc_.diff_src_desc)
+        , weights_md_(desc_.weights_desc)
+        , diff_dst_md_(desc_.diff_dst_desc) {}
+
     bool set_default_formats_common(format_tag_t diff_src_tag,
             format_tag_t wei_tag, format_tag_t diff_dst_tag) {
         memory_desc_t dummy_md;
@@ -335,15 +335,6 @@ protected:
 struct inner_product_bwd_weights_pd_t : public inner_product_pd_t {
     typedef inner_product_bwd_weights_pd_t base_class;
     typedef inner_product_fwd_pd_t hint_class;
-
-    inner_product_bwd_weights_pd_t(const inner_product_desc_t *adesc,
-            const primitive_attr_t *attr,
-            const inner_product_fwd_pd_t *hint_fwd_pd)
-        : inner_product_pd_t(adesc, attr, hint_fwd_pd)
-        , src_md_(desc_.src_desc)
-        , diff_weights_md_(desc_.diff_weights_desc)
-        , diff_bias_md_(desc_.diff_bias_desc)
-        , diff_dst_md_(desc_.diff_dst_desc) {}
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_DIFF_DST))
@@ -396,6 +387,15 @@ protected:
     memory_desc_t diff_weights_md_;
     memory_desc_t diff_bias_md_;
     memory_desc_t diff_dst_md_;
+
+    inner_product_bwd_weights_pd_t(const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
+            const inner_product_fwd_pd_t *hint_fwd_pd)
+        : inner_product_pd_t(adesc, attr, hint_fwd_pd)
+        , src_md_(desc_.src_desc)
+        , diff_weights_md_(desc_.diff_weights_desc)
+        , diff_bias_md_(desc_.diff_bias_desc)
+        , diff_dst_md_(desc_.diff_dst_desc) {}
 
     bool set_default_formats_common(format_tag_t src_tag,
             format_tag_t diff_wei_tag, format_tag_t diff_dst_tag) {
