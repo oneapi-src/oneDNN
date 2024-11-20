@@ -43,7 +43,7 @@ oneDNN supports training and inference with the following data types:
     model implementation.
 
 @note
-    f64 is only supported for matmul, convolution, reorder, layer normalization and
+    f64 is supported only for matmul, convolution, reorder, layer normalization, and
     pooling primitives on the GPU engine.
 
 @note
