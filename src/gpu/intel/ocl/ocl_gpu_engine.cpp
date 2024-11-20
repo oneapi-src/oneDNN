@@ -101,9 +101,12 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
         std::string kernel_name(kernel_names[i] ? kernel_names[i] : "");
 
         const uint8_t *binary = nullptr;
+        const uint8_t *metadata = nullptr;
         size_t binary_size = 0;
+        size_t metadata_size = 0;
 
         CHECK(cache_blob.get_binary(&binary, &binary_size));
+        CHECK(cache_blob.get_binary(&metadata, &metadata_size));
 
         auto program = xpu::ocl::make_wrapper(clCreateProgramWithBinary(
                 ctx, 1, &dev, &binary_size, &binary, nullptr, &err));
@@ -142,6 +145,8 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
         std::shared_ptr<compute::kernel_impl_t> kernel_impl
                 = std::make_shared<ocl_gpu_kernel_t>(
                         std::move(ocl_kernel), arg_types);
+        kernel_impl->set_metadata(
+                xpu::binary_t(metadata, metadata + metadata_size));
         (*kernels)[i] = std::move(kernel_impl);
     }
 
@@ -277,10 +282,11 @@ status_t ocl_gpu_engine_t::create_binary_from_ocl_source(xpu::binary_t &binary,
 }
 
 status_t ocl_gpu_engine_t::create_kernel_from_binary(compute::kernel_t &kernel,
-        const xpu::binary_t &binary, const char *kernel_name) const {
+        const xpu::binary_t &kernel_binary,
+        const xpu::binary_t &kernel_metadata, const char *kernel_name) const {
     xpu::ocl::wrapper_t<cl_program> program;
     CHECK(xpu::ocl::create_program(
-            program, this->device(), this->context(), binary));
+            program, this->device(), this->context(), kernel_binary));
 
     cl_int err;
     auto ocl_kernel = xpu::ocl::make_wrapper(
@@ -293,6 +299,7 @@ status_t ocl_gpu_engine_t::create_kernel_from_binary(compute::kernel_t &kernel,
     std::shared_ptr<compute::kernel_impl_t> kernel_impl
             = std::make_shared<ocl_gpu_kernel_t>(
                     std::move(ocl_kernel), arg_types);
+    kernel_impl->set_metadata(kernel_metadata);
     kernel = std::move(kernel_impl);
 
     return status::success;
@@ -308,9 +315,12 @@ status_t ocl_gpu_engine_t::create_kernels_from_cache_blob(
 status_t ocl_gpu_engine_t::create_kernel(
         compute::kernel_t *kernel, jit::jit_generator_base *jitter) const {
     if (!jitter) return status::invalid_arguments;
-    xpu::binary_t binary = jitter->get_binary(context(), device());
-    if (binary.empty()) return status::runtime_error;
-    return create_kernel_from_binary(*kernel, binary, jitter->kernel_name());
+    xpu::binary_t metadata_binary;
+    xpu::binary_t kernel_binary
+            = jitter->get_binary(context(), device(), metadata_binary);
+    if (kernel_binary.empty()) return status::runtime_error;
+    return create_kernel_from_binary(
+            *kernel, kernel_binary, metadata_binary, jitter->kernel_name());
 }
 
 status_t ocl_gpu_engine_t::create_program(

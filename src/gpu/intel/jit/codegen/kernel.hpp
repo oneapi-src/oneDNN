@@ -53,7 +53,9 @@ struct ir_generator_t : public jit_generator_base {
 
     const char *kernel_name() const override { return kernel_name_.c_str(); }
 
-    xpu::binary_t get_binary(cl_context context, cl_device_id device) override {
+    xpu::binary_t get_binary(cl_context context, cl_device_id device,
+            xpu::binary_t &metadata) override {
+        UNUSED(metadata);
         kernel_info_t kernel_info;
         auto status = kernel_desc_.init_kernel_info(kernel_info);
         if (status != status::success) return xpu::binary_t();

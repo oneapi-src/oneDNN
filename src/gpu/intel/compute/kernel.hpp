@@ -21,6 +21,7 @@
 #include <memory>
 #include <utility>
 
+#include "common/cache_blob.hpp"
 #include "common/verbose.hpp"
 #include "gpu/intel/compute/kernel_arg_list.hpp"
 #include "gpu/intel/compute/utils.hpp"
@@ -42,6 +43,9 @@ public:
     kernel_impl_t &operator=(const kernel_impl_t &) = delete;
     virtual ~kernel_impl_t() = default;
 
+    void set_metadata(const xpu::binary_t &metadata) { metadata_ = metadata; }
+    const xpu::binary_t &get_metadata() const { return metadata_; }
+
     virtual status_t parallel_for(impl::stream_t &stream,
             const nd_range_t &range, const kernel_arg_list_t &arg_list,
             const xpu::event_t &deps, xpu::event_t &out_dep) {
@@ -55,15 +59,37 @@ public:
         return status::runtime_error;
     }
 
-    virtual status_t get_binary_size(
+    virtual status_t get_kernel_binary_size(
             const impl::engine_t *engine, size_t *binary_size) const {
-        gpu_assert(false) << "unimplemented function get_binary_size() called";
+        gpu_assert(false)
+                << "unimplemented function get_kernel_binary_size() called";
         return status::runtime_error;
     }
-    virtual status_t get_binary(
+
+    status_t get_blob_size(
+            const impl::engine_t *engine, size_t *blob_size) const {
+        size_t kernel_binary_size;
+        CHECK(get_kernel_binary_size(engine, &kernel_binary_size));
+        *blob_size += kernel_binary_size;
+        *blob_size += metadata_.size();
+        *blob_size += 2 * sizeof(size_t);
+        return status::success;
+    }
+
+    virtual status_t get_kernel_binary(
             const impl::engine_t *engine, xpu::binary_t &binary) const {
-        gpu_assert(false) << "unimplemented function get_binary() called";
+        gpu_assert(false)
+                << "unimplemented function get_kernel_binary() called";
         return status::runtime_error;
+    }
+
+    status_t add_cache_blob(
+            const impl::engine_t *engine, cache_blob_t &blob) const {
+        xpu::binary_t kernel_binary;
+        CHECK(get_kernel_binary(engine, kernel_binary));
+        CHECK(blob.add_binary(kernel_binary.data(), kernel_binary.size()));
+        CHECK(blob.add_binary(metadata_.data(), metadata_.size()));
+        return status::success;
     }
 
     virtual const std::vector<scalar_type_t> &arg_types() const {
@@ -109,6 +135,9 @@ public:
         }
         return status::success;
     }
+
+private:
+    xpu::binary_t metadata_;
 };
 
 class kernel_t {
@@ -140,15 +169,21 @@ public:
         return impl_->parallel_for(stream, cgf);
     }
 
-    status_t get_binary_size(
-            const impl::engine_t *engine, size_t *binary_size) const {
-        return impl_->get_binary_size(engine, binary_size);
+    status_t get_blob_size(
+            const impl::engine_t *engine, size_t *blob_size) const {
+        return impl_->get_blob_size(engine, blob_size);
     }
 
-    status_t get_binary(
-            const impl::engine_t *engine, xpu::binary_t &binary) const {
-        return impl_->get_binary(engine, binary);
+    status_t add_cache_blob(
+            const impl::engine_t *engine, cache_blob_t &blob) const {
+        return impl_->add_cache_blob(engine, blob);
     }
+
+    void set_metadata(const xpu::binary_t &metadata) {
+        impl_->set_metadata(metadata);
+    }
+
+    const xpu::binary_t &get_metadata() const { return impl_->get_metadata(); }
 
     const std::vector<scalar_type_t> &arg_types() const {
         return impl_->arg_types();

@@ -152,7 +152,8 @@ struct gen_gemm_kernel_t : public jit_generator_base {
         : desc_(desc) {}
 
     const char *kernel_name() const override { return "gemm_kernel"; }
-    xpu::binary_t get_binary(cl_context context, cl_device_id device) override;
+    xpu::binary_t get_binary(cl_context context, cl_device_id device,
+            xpu::binary_t &metadata) override;
 
     const gen_gemm_kernel_desc_t *desc() const { return &desc_; }
 

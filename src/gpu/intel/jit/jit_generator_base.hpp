@@ -31,7 +31,8 @@ namespace jit {
 struct jit_generator_base {
     virtual ~jit_generator_base() = default;
     virtual const char *kernel_name() const = 0;
-    virtual xpu::binary_t get_binary(cl_context context, cl_device_id device)
+    virtual xpu::binary_t get_binary(
+            cl_context context, cl_device_id device, xpu::binary_t &metadata)
             = 0;
 };
 

@@ -52,7 +52,8 @@ public:
             const compute::kernel_ctx_t &kernel_ctx) const;
 
     status_t create_kernel_from_binary(compute::kernel_t &kernel,
-            const xpu::binary_t &binary,
+            const xpu::binary_t &kernel_binary,
+            const xpu::binary_t &metadata_binary,
             const char *kernel_name) const override;
 
     status_t create_kernels_from_cache_blob(const cache_blob_t &cache_blob,
