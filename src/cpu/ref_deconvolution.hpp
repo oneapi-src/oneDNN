@@ -93,9 +93,7 @@ static status_t conv_descr_create(const deconvolution_desc_t *dd,
 
 struct ref_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
-        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
-                const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_deconvolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
         pd_t(const pd_t &other)
             : cpu_deconvolution_fwd_pd_t(other)
@@ -312,9 +310,7 @@ private:
 
 struct ref_deconvolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_bwd_data_pd_t {
-        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
-                const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_deconvolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_deconvolution_bwd_data_pd_t::cpu_deconvolution_bwd_data_pd_t;
 
         pd_t(const pd_t &other)
             : cpu_deconvolution_bwd_data_pd_t(other)
@@ -421,9 +417,8 @@ private:
 
 struct ref_deconvolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_bwd_weights_pd_t {
-        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
-                const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_deconvolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_deconvolution_bwd_weights_pd_t::
+                cpu_deconvolution_bwd_weights_pd_t;
 
         pd_t(const pd_t &other)
             : cpu_deconvolution_bwd_weights_pd_t(other)

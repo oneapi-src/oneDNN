@@ -39,9 +39,7 @@ namespace cpu {
 
 struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(src_md()->data_type == data_type::u8
                         ? IGEMM_S8U8S32_IMPL_STR
@@ -87,6 +85,8 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
 
             auto scratchpad = scratchpad_registry().registrar();
 
+            // TODO: make `init_conf` assign initialized object to `jcp_`
+            jcp_ = conv_gemm_conf_t();
             CHECK(jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md_, weights_md_, dst_md_, bias_md_, attr_,
                     dnnl_get_max_threads()));
@@ -98,7 +98,7 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        conv_gemm_conf_t jcp_;
+        conv_gemm_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     };
 
     gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
@@ -129,9 +129,7 @@ private:
 
 struct gemm_x8s8s32x_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
+        using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T(diff_dst_md()->data_type == data_type::u8
                         ? IGEMM_S8U8S32_IMPL_STR
@@ -165,6 +163,9 @@ struct gemm_x8s8s32x_convolution_bwd_data_t : public primitive_t {
             VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 
             auto scratchpad = scratchpad_registry().registrar();
+
+            // TODO: make `init_conf` assign initialized object to `jcp_`
+            jcp_ = conv_gemm_conf_t();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), diff_src_md_, weights_md_, diff_dst_md_, bias_md_,
                     attr_, dnnl_get_max_threads());
@@ -172,7 +173,7 @@ struct gemm_x8s8s32x_convolution_bwd_data_t : public primitive_t {
 
         bool support_bias() const override { return true; }
 
-        conv_gemm_conf_t jcp_;
+        conv_gemm_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     };
 
     gemm_x8s8s32x_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}

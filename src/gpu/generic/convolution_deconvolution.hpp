@@ -84,13 +84,7 @@ static status_t conv_descr_create(
 struct convolution_deconvolution_fwd_t : public gpu::primitive_t {
     using gpu::primitive_t::primitive_t;
     struct pd_t : public gpu_deconvolution_fwd_pd_t {
-        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
-                const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : gpu_deconvolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
-
-        pd_t(const pd_t &other) = default;
-
-        ~pd_t() = default;
+        using gpu_deconvolution_fwd_pd_t::gpu_deconvolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(name_.c_str(), convolution_deconvolution_fwd_t);
         status_t init_convolution(impl::engine_t *engine) {
@@ -250,14 +244,7 @@ private:
 struct convolution_deconvolution_bwd_data_t : public gpu::primitive_t {
     using gpu::primitive_t::primitive_t;
     struct pd_t : public gpu_deconvolution_bwd_data_pd_t {
-        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
-                const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : gpu_deconvolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
-            , conv_pd_(nullptr) {}
-
-        pd_t(const pd_t &other) = default;
-
-        ~pd_t() = default;
+        using gpu_deconvolution_bwd_data_pd_t::gpu_deconvolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T(
                 name_.c_str(), convolution_deconvolution_bwd_data_t);

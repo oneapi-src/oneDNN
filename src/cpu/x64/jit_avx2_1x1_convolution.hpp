@@ -42,12 +42,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
     // TODO: (Roma) Code duplication duplication! Remove with templates
     //              (maybe...)!
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_()
-            , rtus_()
-            , jcp_dw_(nullptr) {}
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         pd_t(const pd_t &other) : cpu_convolution_fwd_pd_t(other) {
             if (copy(other) != status::success) is_initialized_ = false;
@@ -75,8 +70,11 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
+
+            // TODO: make `rtus_prepare` assign initialized object to `rtus_`
             rtus_prepare(this, conv_d, src_d, dst_md(), weights_md());
 
+            // TODO: make `init_conf` assign initialized object to `jcp_`
             CHECK(jit_avx2_1x1_conv_kernel_f32::init_conf(
                     jcp_, *conv_d, *src_d, *weights_md(), *dst_md(), *attr()));
             if (jcp_.with_dw_conv) CHECK(depthwise_po_init(engine));
@@ -127,9 +125,9 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
             return convolution_fwd_pd_t::arg_usage(arg);
         }
 
-        jit_1x1_conv_conf_t jcp_;
-        reduce_to_unit_stride_t rtus_;
-        jit_conv_conf_t *jcp_dw_;
+        jit_1x1_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
+        reduce_to_unit_stride_t rtus_ = utils::zero<decltype(rtus_)>();
+        jit_conv_conf_t *jcp_dw_ = nullptr;
         std::unique_ptr<cpu_convolution_fwd_pd_t> dw_conv_pd_;
 
     protected:
@@ -368,11 +366,7 @@ private:
 
 struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_()
-            , rtus_() {}
+        using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
                 jit_avx2_1x1_convolution_bwd_data_t);
@@ -394,12 +388,13 @@ struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_t {
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *diff_src_d = diff_src_md();
+
+            // TODO: make `rtus_prepare` assign initialized object to `rtus_`
             rtus_prepare(this, conv_d, diff_src_d, diff_dst_md(), weights_md());
 
-            status_t status = jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_,
-                    *conv_d, *diff_src_d, *weights_md(), *diff_dst_md(),
-                    *attr());
-            if (status != status::success) return status;
+            // TODO: make `init_conf` assign initialized object to `jcp_`
+            CHECK(jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_, *conv_d,
+                    *diff_src_d, *weights_md(), *diff_dst_md(), *attr()));
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx2_1x1_conv_kernel_f32::init_scratchpad(scratchpad, jcp_);
@@ -409,8 +404,8 @@ struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_t {
             return status::success;
         }
 
-        jit_1x1_conv_conf_t jcp_;
-        reduce_to_unit_stride_t rtus_;
+        jit_1x1_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
+        reduce_to_unit_stride_t rtus_ = utils::zero<decltype(rtus_)>();
 
     protected:
         bool set_default_formats() {
@@ -472,11 +467,8 @@ private:
 
 struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_()
-            , rtus_() {}
+        using cpu_convolution_bwd_weights_pd_t::
+                cpu_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
                 jit_avx2_1x1_convolution_bwd_weights_t);
@@ -497,12 +489,13 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_t {
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
+
+            // TODO: make `rtus_prepare` assign initialized object to `rtus_`
             rtus_prepare(this, conv_d, src_d, diff_dst_md(), diff_weights_md());
 
-            status_t status = jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_,
-                    *conv_d, *src_d, *diff_weights_md(), *diff_dst_md(),
-                    *attr());
-            if (status != status::success) return status;
+            // TODO: make `init_conf` assign initialized object to `jcp_`
+            CHECK(jit_avx2_1x1_conv_kernel_f32::init_conf(jcp_, *conv_d, *src_d,
+                    *diff_weights_md(), *diff_dst_md(), *attr()));
 
             init_balancers();
 
@@ -522,10 +515,10 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_t {
             return status::success;
         }
 
-        jit_1x1_conv_conf_t jcp_;
+        jit_1x1_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
         cpu_reducer_t<data_type::f32>::conf_t reducer_bia_conf_;
         cpu_reducer_2d_t<data_type::f32>::conf_t reducer_wei_conf_;
-        reduce_to_unit_stride_t rtus_;
+        reduce_to_unit_stride_t rtus_ = utils::zero<decltype(rtus_)>();
 
     protected:
         bool set_default_formats() {

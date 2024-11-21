@@ -112,10 +112,7 @@ static status_t conv_descr_create(
 struct miopen_deconvolution_fwd_t : public gpu::primitive_t {
     using gpu::primitive_t::primitive_t;
     struct pd_t : public deconvolution_fwd_pd_t {
-        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
-                const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : deconvolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , conv_pd_(nullptr) {}
+        using deconvolution_fwd_pd_t::deconvolution_fwd_pd_t;
 
         pd_t(const pd_t &other)
             : deconvolution_fwd_pd_t(other)
@@ -244,16 +241,11 @@ private:
 struct miopen_deconvolution_bwd_data_t : public gpu::primitive_t {
     using gpu::primitive_t::primitive_t;
     struct pd_t : public deconvolution_bwd_data_pd_t {
-        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
-                const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : deconvolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
-            , conv_pd_(nullptr) {}
+        using deconvolution_bwd_data_pd_t::deconvolution_bwd_data_pd_t;
 
         pd_t(const pd_t &other)
             : deconvolution_bwd_data_pd_t(other)
             , conv_pd_(other.conv_pd_->clone()) {}
-
-        ~pd_t() {}
 
         DECLARE_COMMON_PD_T("hip:miopen:any", miopen_deconvolution_bwd_data_t);
 
@@ -344,16 +336,11 @@ private:
 struct miopen_deconvolution_bwd_weights_t : public gpu::primitive_t {
     using gpu::primitive_t::primitive_t;
     struct pd_t : public deconvolution_bwd_weights_pd_t {
-        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
-                const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : deconvolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
-            , conv_pd_(nullptr) {}
+        using deconvolution_bwd_weights_pd_t::deconvolution_bwd_weights_pd_t;
 
         pd_t(const pd_t &other)
             : deconvolution_bwd_weights_pd_t(other)
             , conv_pd_(other.conv_pd_->clone()) {}
-
-        ~pd_t() {}
 
         DECLARE_COMMON_PD_T(
                 "hip:miopen:any", miopen_deconvolution_bwd_weights_t);

@@ -45,9 +45,7 @@ namespace x64 {
 template <cpu_isa_t isa>
 struct brgemm_inner_product_fwd_t : public primitive_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
-        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_inner_product_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgemm:", isa, ""),
                 brgemm_inner_product_fwd_t);
@@ -255,9 +253,7 @@ private:
 template <cpu_isa_t isa>
 struct brgemm_inner_product_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_inner_product_bwd_data_pd_t {
-        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_bwd_data_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_inner_product_bwd_data_pd_t::cpu_inner_product_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgemm_bwd_d:", isa, ""),
                 brgemm_inner_product_bwd_data_t);
@@ -432,9 +428,8 @@ private:
 template <cpu_isa_t isa>
 struct brgemm_inner_product_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_inner_product_bwd_weights_pd_t {
-        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : cpu_inner_product_bwd_weights_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_inner_product_bwd_weights_pd_t::
+                cpu_inner_product_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgemm_bwd_w:", isa, ""),
                 brgemm_inner_product_bwd_weights_t);

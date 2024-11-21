@@ -33,10 +33,7 @@ namespace ocl {
 struct ref_lrn_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_lrn_fwd_pd_t {
-        pd_t(const lrn_desc_t *adesc, const primitive_attr_t *attr,
-                const lrn_fwd_pd_t *hint_fwd_pd)
-            : gpu_lrn_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
-        virtual ~pd_t() {}
+        using gpu_lrn_fwd_pd_t::gpu_lrn_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_lrn_fwd_t);
 
@@ -164,10 +161,7 @@ private:
 struct ref_lrn_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_lrn_bwd_pd_t {
-        pd_t(const lrn_desc_t *adesc, const primitive_attr_t *attr,
-                const lrn_fwd_pd_t *hint_fwd_pd)
-            : gpu_lrn_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
-        virtual ~pd_t() {}
+        using gpu_lrn_bwd_pd_t::gpu_lrn_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_lrn_bwd_t);
 

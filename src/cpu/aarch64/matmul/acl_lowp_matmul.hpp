@@ -76,11 +76,6 @@ private:
 
 struct acl_lowp_matmul_t : public primitive_t {
     struct pd_t : public dnnl::impl::cpu::matmul::cpu_matmul_pd_t {
-
-        pd_t(const matmul_desc_t *adesc, const primitive_attr_t *attr,
-                const cpu_matmul_pd_t *hint_fwd_pd)
-            : cpu_matmul_pd_t(adesc, attr, hint_fwd_pd), almc_() {}
-
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
         DECLARE_COMMON_PD_T(
@@ -90,7 +85,7 @@ struct acl_lowp_matmul_t : public primitive_t {
 
         status_t init_scratchpad(memory_tracking::registrar_t &scratchpad);
 
-        acl_lowp_matmul_conf_t almc_;
+        acl_lowp_matmul_conf_t almc_ = utils::zero<decltype(almc_)>();
         acl_post_ops_t acl_post_ops;
     };
 

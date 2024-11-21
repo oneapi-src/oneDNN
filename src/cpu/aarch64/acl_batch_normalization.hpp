@@ -92,12 +92,6 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
         using cpu_batch_normalization_fwd_pd_t::
                 cpu_batch_normalization_fwd_pd_t;
 
-        pd_t(const batch_normalization_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , abp() {}
-
         DECLARE_COMMON_PD_T("acl", acl_batch_normalization_fwd_t);
 
         status_t init(engine_t *engine) {
@@ -240,7 +234,7 @@ struct acl_batch_normalization_fwd_t : public primitive_t {
             return status::success;
         }
 
-        acl_batch_normalization_conf_t abp;
+        acl_batch_normalization_conf_t abp = utils::zero<decltype(abp)>();
 
         acl_post_ops_t post_ops;
     }; // pd_t

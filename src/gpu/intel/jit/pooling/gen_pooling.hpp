@@ -36,9 +36,7 @@ class kernel_info_t;
 class gen_pooling_fwd_t : public gpu_primitive_t {
 public:
     struct pd_t : public gpu_pooling_fwd_pd_t {
-        pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
-                const pooling_fwd_pd_t *hint_fwd_pd)
-            : gpu_pooling_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using gpu_pooling_fwd_pd_t::gpu_pooling_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("jit:ir", gen_pooling_fwd_t);
 

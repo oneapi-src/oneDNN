@@ -85,10 +85,6 @@ struct acl_inner_product_fwd_t : public primitive_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
         using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
 
-        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_inner_product_fwd_pd_t(adesc, attr, hint_fwd_pd), aip() {}
-
         DECLARE_COMMON_PD_T("acl", acl_inner_product_fwd_t);
 
         status_t init(engine_t *engine) {
@@ -128,7 +124,7 @@ struct acl_inner_product_fwd_t : public primitive_t {
             return status::success;
         }
 
-        acl_ip_conf_t aip;
+        acl_ip_conf_t aip = utils::zero<decltype(aip)>();
 
         acl_post_ops_t post_ops;
 

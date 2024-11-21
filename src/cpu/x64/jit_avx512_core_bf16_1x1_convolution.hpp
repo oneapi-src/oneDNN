@@ -42,13 +42,7 @@ namespace x64 {
 template <impl::data_type_t dst_type>
 struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        using dw_conv_pd_type = cpu_convolution_fwd_pd_t;
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_()
-            , rtus_()
-            , jcp_dw_(nullptr) {}
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         pd_t(const pd_t &other) : cpu_convolution_fwd_pd_t(other) {
             if (copy(other) != status::success) is_initialized_ = false;
@@ -59,7 +53,8 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            // disabling verbose dispatch messages for unsupported isa for better readability
+            // Disabling verbose dispatch messages for unsupported isa for
+            // better readability.
             if (!mayiuse(avx512_core)) return status::unimplemented;
 
             VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
@@ -84,8 +79,11 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
+
+            // TODO: make `rtus_prepare` assign initialized object to `rtus_`
             rtus_prepare(this, conv_d, src_d, dst_md(), weights_md());
 
+            // TODO: make `init_conf` assign initialized object to `jcp_`
             CHECK(jit_avx512_core_bf16_1x1_conv_kernel::init_conf(jcp_, *conv_d,
                     *src_d, *weights_md(), *dst_md(), attr_,
                     dnnl_get_max_threads(), rtus_.reduce_src_));
@@ -139,9 +137,9 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             return convolution_fwd_pd_t::arg_usage(arg);
         }
 
-        jit_1x1_conv_conf_t jcp_;
-        reduce_to_unit_stride_t rtus_;
-        jit_conv_conf_t *jcp_dw_; // doesn't own a resource
+        jit_1x1_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
+        reduce_to_unit_stride_t rtus_ = utils::zero<decltype(rtus_)>();
+        jit_conv_conf_t *jcp_dw_ = nullptr; // doesn't own a resource
         std::unique_ptr<cpu_convolution_fwd_pd_t> dw_conv_pd_;
 
     protected:
@@ -372,11 +370,7 @@ private:
 template <impl::data_type_t diff_src_type>
 struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_()
-            , rtus_() {}
+        using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_1x1:", jcp_.isa, ""),
                 jit_avx512_core_bf16_1x1_convolution_bwd_data_t);
@@ -399,25 +393,25 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public primitive_t {
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *diff_src_d = diff_src_md();
+            // TODO: make `rtus_prepare` assign initialized object to `rtus_`
             rtus_prepare(this, conv_d, diff_src_d, diff_dst_md(), weights_md());
 
-            status_t status = jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
-                    jcp_, *conv_d, *diff_src_d, *weights_md(), *diff_dst_md(),
-                    attr_, dnnl_get_max_threads(), rtus_.reduce_src_);
-            if (status != status::success) return status;
+            // TODO: make `init_conf` assign initialized object to `jcp_`
+            CHECK(jit_avx512_core_bf16_1x1_conv_kernel::init_conf(jcp_, *conv_d,
+                    *diff_src_d, *weights_md(), *diff_dst_md(), attr_,
+                    dnnl_get_max_threads(), rtus_.reduce_src_));
 
             auto scratchpad = scratchpad_registry().registrar();
-            status = jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
-                    scratchpad, jcp_);
-            if (status != status::success) return status;
+            CHECK(jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
+                    scratchpad, jcp_));
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
             return status::success;
         }
 
         // TODO (Roma): structs conf header cleanup
-        jit_1x1_conv_conf_t jcp_;
-        reduce_to_unit_stride_t rtus_;
+        jit_1x1_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
+        reduce_to_unit_stride_t rtus_ = utils::zero<decltype(rtus_)>();
 
     protected:
         bool set_default_formats() {
@@ -487,11 +481,8 @@ private:
 template <impl::data_type_t diff_weights_type>
 struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_()
-            , rtus_() {}
+        using cpu_convolution_bwd_weights_pd_t::
+                cpu_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_1x1:", jcp_.isa, ""),
                 jit_avx512_core_bf16_1x1_convolution_bwd_weights_t);
@@ -520,18 +511,18 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
-            rtus_prepare(
-                    this, conv_d, src_d, diff_dst_md(), diff_weights_md(0));
 
-            status_t status = jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
-                    jcp_, *conv_d, *src_d, *diff_weights_md(0), *diff_dst_md(),
-                    attr_, dnnl_get_max_threads(), rtus_.reduce_src_);
-            if (status != status::success) return status;
+            // TODO: make `rtus_prepare` assign initialized object to `rtus_`
+            rtus_prepare(this, conv_d, src_d, diff_dst_md(), diff_weights_md());
+
+            // TODO: make `init_conf` assign initialized object to `jcp_`
+            CHECK(jit_avx512_core_bf16_1x1_conv_kernel::init_conf(jcp_, *conv_d,
+                    *src_d, *diff_weights_md(0), *diff_dst_md(), attr_,
+                    dnnl_get_max_threads(), rtus_.reduce_src_));
 
             auto scratchpad = scratchpad_registry().registrar();
-            status = jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
-                    scratchpad, jcp_);
-            if (status != status::success) return status;
+            CHECK(jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
+                    scratchpad, jcp_));
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
@@ -539,8 +530,8 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
         }
 
         // TODO (Roma): structs conf header cleanup
-        jit_1x1_conv_conf_t jcp_;
-        reduce_to_unit_stride_t rtus_;
+        jit_1x1_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
+        reduce_to_unit_stride_t rtus_ = utils::zero<decltype(rtus_)>();
 
     protected:
         bool set_default_formats() {

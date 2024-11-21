@@ -32,9 +32,7 @@ namespace ocl {
 struct ref_pooling_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_pooling_fwd_pd_t {
-        pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
-                const pooling_fwd_pd_t *hint_fwd_pd)
-            : gpu_pooling_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using gpu_pooling_fwd_pd_t::gpu_pooling_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref", ref_pooling_fwd_t);
 
@@ -150,9 +148,7 @@ private:
 struct ref_pooling_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_pooling_bwd_pd_t {
-        pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
-                const pooling_fwd_pd_t *hint_fwd_pd)
-            : gpu_pooling_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using gpu_pooling_bwd_pd_t::gpu_pooling_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_pooling_bwd_t);
 

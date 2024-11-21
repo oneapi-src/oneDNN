@@ -301,7 +301,7 @@ struct jit_sve_512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        jit_conv_conf_t jcp_;
+        jit_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     };
 
     jit_sve_512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)

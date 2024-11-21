@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ struct _jit_uni_x8s8s32x_deconv_fwd_kernel : public jit_generator {
             const primitive_attr_t &attr, const memory_desc_wrapper &dst_d);
     ~_jit_uni_x8s8s32x_deconv_fwd_kernel();
 
-    const jit_conv_conf_t jcp_;
+    const jit_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
 
 private:
     std::unique_ptr<injector::jit_uni_postops_injector_t<isa, Vmm>>
@@ -193,7 +193,7 @@ struct jit_uni_x8s8s32x_deconvolution_fwd_t : public primitive_t {
                 jit_uni_x8s8s32x_deconvolution_fwd_t);
 
         status_t init(engine_t *engine);
-        jit_conv_conf_t jcp_;
+        jit_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     };
 
     jit_uni_x8s8s32x_deconvolution_fwd_t(const pd_t *apd);

@@ -53,12 +53,7 @@ struct brgemm_convolution_fwd_t : public primitive_t {
     struct brgemm_thread_ctx_t;
 
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::hint_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , with_sum(false) {}
-
-        ~pd_t() = default;
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brg_conv_fwd:", isa, ""),
                 brgemm_convolution_fwd_t);
@@ -68,8 +63,8 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         int brgs_sz_;
         std::shared_ptr<brgemm_containers::brgemm_desc_container_t>
                 brgemm_descriptors_;
-        bool with_sum;
-        jit_brgemm_conv_conf_t jcp_;
+        bool with_sum_ = false;
+        jit_brgemm_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
 
         int ic_chunks;
         bool need_postwork;

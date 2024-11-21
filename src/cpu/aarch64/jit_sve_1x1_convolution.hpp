@@ -43,11 +43,8 @@ template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
         impl::data_type_t dst_type = src_type, cpu_isa_t isa_ = isa_undef>
 struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_()
-            , rtus_() {}
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
+
         pd_t(const pd_t &other) : cpu_convolution_fwd_pd_t(other) {
             if (copy(other) != status::success) is_initialized_ = false;
         }
@@ -119,8 +116,8 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
             return convolution_fwd_pd_t::arg_usage(arg);
         }
 
-        jit_1x1_conv_conf_t jcp_;
-        reduce_to_unit_stride_t rtus_;
+        jit_1x1_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
+        reduce_to_unit_stride_t rtus_ = utils::zero<decltype(rtus_)>();
         using dw_pd_t = jit_sve_512_dw_convolution_fwd_t::pd_t;
         std::unique_ptr<dw_pd_t> dw_conv_pd_;
 
@@ -372,11 +369,8 @@ template <impl::data_type_t diff_dst_type,
         cpu_isa_t isa_ = isa_undef>
 struct jit_sve_1x1_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_()
-            , rtus_() {}
+        using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
+
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", isa_, ""),
                 jit_sve_1x1_convolution_bwd_data_t);
 
@@ -407,8 +401,8 @@ struct jit_sve_1x1_convolution_bwd_data_t : public primitive_t {
         }
 
         // TODO (Roma): structs conf header cleanup
-        jit_1x1_conv_conf_t jcp_;
-        reduce_to_unit_stride_t rtus_;
+        jit_1x1_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
+        reduce_to_unit_stride_t rtus_ = utils::zero<decltype(rtus_)>();
 
     protected:
         bool set_default_formats() {
@@ -515,11 +509,8 @@ template <impl::data_type_t diff_dst_type,
         cpu_isa_t isa_ = isa_undef>
 struct jit_sve_1x1_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_()
-            , rtus_() {}
+        using cpu_convolution_bwd_weights_pd_t::
+                cpu_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", isa_, ""),
                 jit_sve_1x1_convolution_bwd_weights_t);
@@ -556,9 +547,9 @@ struct jit_sve_1x1_convolution_bwd_weights_t : public primitive_t {
         }
 
         // TODO (Roma): structs conf header cleanup
-        jit_1x1_conv_conf_t jcp_;
+        jit_1x1_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
         typename cpu_reducer_t<data_type::f32, isa_>::conf_t reducer_bia_conf_;
-        reduce_to_unit_stride_t rtus_;
+        reduce_to_unit_stride_t rtus_ = utils::zero<decltype(rtus_)>();
 
     protected:
         bool set_default_formats() {

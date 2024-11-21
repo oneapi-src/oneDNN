@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ struct jit_uni_brgemm_conv_comp_pad_kernel_t : public jit_generator {
 protected:
     static constexpr bool is_ymm_ = std::is_same<Vmm, Xbyak::Ymm>::value;
 
-    jit_brgemm_conv_conf_t jcp_;
+    jit_brgemm_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     const int inp_dsz_;
     const int out_dsz_;
     const size_t nb_ic_;
@@ -146,7 +146,7 @@ struct jit_uni_brgemm_conv_relo_comp_pad_kernel_t : public jit_generator {
     ~jit_uni_brgemm_conv_relo_comp_pad_kernel_t() = default;
 
 protected:
-    jit_brgemm_conv_conf_t jcp_;
+    jit_brgemm_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     const int inp_dsz_;
     const int out_dsz_;
     const int inp_oc_block_;

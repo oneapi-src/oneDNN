@@ -46,14 +46,8 @@ namespace x64 {
 
 struct brgemm_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_()
-            , brgs_sz_(0)
-            , bs_c(0) {}
-
-        ~pd_t() = default;
+        using cpu_convolution_bwd_weights_pd_t::
+                cpu_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("brgconv_bwd_w:", jcp_.isa, ""),
@@ -61,14 +55,14 @@ struct brgemm_convolution_bwd_weights_t : public primitive_t {
 
         status_t init(engine_t *engine);
 
-        jit_brgemm_conv_conf_t jcp_;
+        jit_brgemm_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
         jit_conv_conf_t jit_jcp_;
         void copy2jit_jcp();
 
-        int brgs_sz_;
+        int brgs_sz_ = 0;
         std::shared_ptr<brgemm_containers::brgemm_desc_container_t> brgs_;
 
-        int bs_c;
+        int bs_c = 0;
         std::vector<int> batchsizes;
         bool are_empty_bs {false};
 

@@ -31,12 +31,7 @@ namespace cpu {
 
 struct ref_concat_t : public primitive_t {
     struct pd_t : public cpu_concat_pd_t {
-        pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
-                int concat_dim, const memory_desc_t *const *src_mds)
-            : cpu_concat_pd_t(attr, dst_md, n, concat_dim, src_mds)
-            , tent_dst_md_(types::zero_md()) {}
-        pd_t(const pd_t &rhs) = default;
-        ~pd_t() = default;
+        using cpu_concat_pd_t::cpu_concat_pd_t;
 
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
 
@@ -44,6 +39,7 @@ struct ref_concat_t : public primitive_t {
             using sm = primitive_attr_t::skip_mask_t;
             VDISPATCH_CONCAT(attr()->has_default_values(sm::scales_runtime),
                     VERBOSE_UNSUPPORTED_ATTR);
+            tent_dst_md_ = types::zero_md();
             status_t status = cpu_concat_pd_t::init();
             if (status != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);

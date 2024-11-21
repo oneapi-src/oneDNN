@@ -67,6 +67,10 @@ namespace impl {
 // Sanity check for 64 bits
 static_assert(sizeof(void *) == 8, "oneDNN supports 64-bit architectures only");
 
+// Note: if `f` has any explicit templated arguments, e.g., func<A, B>, then
+// compiler returns `error: macro "CHECK" passed 2 arguments, but takes just 1`.
+// The solution is to use an alias, e.g. `using func_alias = func<A, B>;` and
+// use `func_alias` in CHECK, then it compiles.
 #define CHECK(f) \
     do { \
         dnnl::impl::status_t _status_ = f; \

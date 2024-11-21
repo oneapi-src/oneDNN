@@ -38,11 +38,7 @@ namespace ocl {
 struct gemm_inner_product_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_inner_product_fwd_pd_t {
-        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : gpu_inner_product_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
-        pd_t(const pd_t &rhs) = default;
-        ~pd_t() = default;
+        using gpu_inner_product_fwd_pd_t::gpu_inner_product_fwd_pd_t;
 
         DECLARE_COMMON_PD_T((gemm_pd_ ? gemm_pd_->name() : "ocl:gemm"),
                 gemm_inner_product_fwd_t);
@@ -134,11 +130,7 @@ private:
 struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_inner_product_bwd_data_pd_t {
-        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : gpu_inner_product_bwd_data_pd_t(adesc, attr, hint_fwd_pd) {}
-        pd_t(const pd_t &rhs) = default;
-        ~pd_t() = default;
+        using gpu_inner_product_bwd_data_pd_t::gpu_inner_product_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T((gemm_pd_ ? gemm_pd_->name() : "ocl:gemm"),
                 gemm_inner_product_bwd_data_t);
@@ -224,12 +216,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     using gpu_ip_bwd_weights_pd_t = gpu_inner_product_bwd_weights_pd_t;
     struct pd_t : public gpu_ip_bwd_weights_pd_t {
-        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : gpu_ip_bwd_weights_pd_t(adesc, attr, hint_fwd_pd) {}
-        pd_t(const pd_t &rhs) = default;
-
-        ~pd_t() = default;
+        using gpu_ip_bwd_weights_pd_t::gpu_ip_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T(gemm_pd_ ? gemm_pd_->name() : "ocl:gemm",
                 gemm_inner_product_bwd_weights_t);

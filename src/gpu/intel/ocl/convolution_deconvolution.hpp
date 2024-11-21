@@ -86,13 +86,8 @@ static status_t conv_descr_create(
 struct convolution_deconvolution_bwd_weights_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_deconvolution_bwd_weights_pd_t {
-        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
-                const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : gpu_deconvolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd) {}
-
-        pd_t(const pd_t &other) = default;
-
-        ~pd_t() = default;
+        using gpu_deconvolution_bwd_weights_pd_t::
+                gpu_deconvolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T(
                 name_.c_str(), convolution_deconvolution_bwd_weights_t);

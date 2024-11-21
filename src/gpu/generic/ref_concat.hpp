@@ -33,13 +33,7 @@ namespace generic {
 struct ref_concat_t : public gpu::primitive_t {
     using gpu::primitive_t::primitive_t;
     struct pd_t : public gpu_concat_pd_t {
-        pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
-                int concat_dim, const memory_desc_t *const *src_mds)
-            : gpu_concat_pd_t(attr, dst_md, n, concat_dim, src_mds)
-            , tent_dst_md_(types::zero_md()) {}
-
-        pd_t(const pd_t &rhs) = default;
-        ~pd_t() = default;
+        using gpu_concat_pd_t::gpu_concat_pd_t;
 
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
 
@@ -48,6 +42,8 @@ struct ref_concat_t : public gpu::primitive_t {
 
             VDISPATCH_CONCAT(attr()->has_default_values(sm::scales_runtime),
                     VERBOSE_UNSUPPORTED_ATTR);
+
+            tent_dst_md_ = types::zero_md();
 
             if (gpu_concat_pd_t::init() != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);

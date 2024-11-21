@@ -117,9 +117,7 @@ private:
 struct gen9_eltwise_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_eltwise_bwd_pd_t {
-        pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
-                const eltwise_fwd_pd_t *hint_fwd_pd)
-            : gpu_eltwise_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using gpu_eltwise_bwd_pd_t::gpu_eltwise_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:gen9:any", gen9_eltwise_bwd_t);
 

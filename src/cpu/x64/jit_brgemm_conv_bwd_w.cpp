@@ -61,15 +61,14 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
 
     auto scratchpad = scratchpad_registry().registrar();
 
-    status_t status = brgemm_convolution_utils::init_conf_bwd_w(jcp_, *desc(),
-            src_md_, diff_weights_md_, diff_bias_md_, diff_dst_md_, attr_,
-            dnnl_get_max_threads());
-    if (status != status::success) return status;
+    // TODO: make `init_conf` assign initialized object to `jcp_`
+    CHECK(brgemm_convolution_utils::init_conf_bwd_w(jcp_, *desc(), src_md_,
+            diff_weights_md_, diff_bias_md_, diff_dst_md_, attr_,
+            dnnl_get_max_threads()));
 
-    status = brgemm_convolution_utils::init_scratchpad_bwd_w(
-            scratchpad, jcp_, src_md_, diff_weights_md_, diff_dst_md_);
+    CHECK(brgemm_convolution_utils::init_scratchpad_bwd_w(
+            scratchpad, jcp_, src_md_, diff_weights_md_, diff_dst_md_));
 
-    if (status != status::success) return status;
     copy2jit_jcp();
 
     bs_c = jcp_.var_bs ? 1 : (jcp_.max_batch + 1);
@@ -153,7 +152,7 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
             }
         }
     }
-    return status;
+    return status::success;
 }
 
 // jit_jcp used to initialize transpose kernels shared with jit implementation
