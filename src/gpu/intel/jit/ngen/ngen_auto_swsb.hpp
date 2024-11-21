@@ -423,6 +423,7 @@ DependencyRegion::DependencyRegion(HW hw_, int esize, RegData rr)
     int off = rr.getByteOffset();
 
     auto makeMask = [](int sz) -> uint64_t {
+        if (sz == 64) return ~uint64_t(0);
         return (uint64_t(1) << sz) - 1;
     };
 
