@@ -52,13 +52,13 @@ compute::range_t get_optimal_lws(compute::range_t &gws,
 
     const auto ndims = gws.ndims();
     // Avoid GPU limitation where work-group size must fit in uint32_t
-    compute::range_t lws_min(ndims);
+    auto lws_min = compute::range_t::empty(ndims);
     for (size_t i = 0; i < ndims; i++)
         lws_min[i]
                 = utils::div_up(gws[i], std::numeric_limits<uint32_t>::max());
 
     const compute::range_t lws_max = [&]() {
-        compute::range_t ret(ndims);
+        auto ret = compute::range_t::empty(ndims);
         size_t max = 256;
         size_t min = 1;
         for (dim_t i = ndims - 1; i >= 0; i--) {
