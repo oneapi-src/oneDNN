@@ -856,10 +856,10 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #endif // WITH_SUM_SCALE || WITH_SUM_ZPOINT
 #endif // (SRC_16A16B || SRC_16B16A) && (DST_16A16B || DST_16B16A)
 
-    REORDER8(
-            dst0, in0, src_scale, dst_scale, sum_scale, src_zp, dst_zp, sum_zp);
-    REORDER8(
-            dst1, in1, src_scale, dst_scale, sum_scale, src_zp, dst_zp, sum_zp);
+    REORDER8(DEFAULT_ROUND, dst0, in0, src_scale, dst_scale, sum_scale, src_zp,
+            dst_zp, sum_zp);
+    REORDER8(DEFAULT_ROUND, dst1, in1, src_scale, dst_scale, sum_scale, src_zp,
+            dst_zp, sum_zp);
 
 #if (SRC_16A16B || SRC_16B16A) && (DST_16A16B || DST_16B16A)
     for (int i = 0; i < 8; i++) {
@@ -974,10 +974,10 @@ __kernel void custom_reorder(__global SRC_DATA_T *restrict src,
 #endif // WITH_SUM_SCALE || WITH_SUM_ZPOINT
 #endif // (SRC_16B16C || SRC_16C16B) && (DST_16B16C || DST_16C16B)
 
-    REORDER8(
-            dst0, in0, src_scale, dst_scale, sum_scale, src_zp, dst_zp, sum_zp);
-    REORDER8(
-            dst1, in1, src_scale, dst_scale, sum_scale, src_zp, dst_zp, sum_zp);
+    REORDER8(DEFAULT_ROUND, dst0, in0, src_scale, dst_scale, sum_scale, src_zp,
+            dst_zp, sum_zp);
+    REORDER8(DEFAULT_ROUND, dst1, in1, src_scale, dst_scale, sum_scale, src_zp,
+            dst_zp, sum_zp);
 
 #if (SRC_16B16C || SRC_16C16B) && (DST_16B16C || DST_16C16B)
     for (int i = 0; i < 8; i++) {
