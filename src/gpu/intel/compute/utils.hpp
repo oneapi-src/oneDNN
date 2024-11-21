@@ -70,11 +70,13 @@ public:
     }
 
     size_t &operator[](size_t idx) {
-        assert(idx < ndims_);
+        gpu_assert(idx < ndims_) << "range index " << idx
+                                 << " overflows range ndims of " << ndims_;
         return dims_[idx];
     }
     size_t operator[](size_t idx) const {
-        assert(idx < ndims_);
+        gpu_assert(idx < ndims_) << "range index " << idx
+                                 << " overflows range ndims of " << ndims_;
         return dims_[idx];
     }
     size_t ndims() const { return ndims_; }
