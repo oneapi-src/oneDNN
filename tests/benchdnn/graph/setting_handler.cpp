@@ -76,9 +76,17 @@ void assign_shape_val(int64_t &c, int64_t &w, int64_t &h, int64_t &d,
 bool get_graph_attr(const deserialized_op &base_op_ref,
         attr_t::fpmath_mode_t &arg_fpmath_mode) {
 
-    const auto &fpmath_mode = base_op_ref.fpmath_mode_;
-    arg_fpmath_mode.set(str2fpmath_mode(fpmath_mode.c_str()),
-            str2bool(base_op_ref.fpmath_mode_apply_to_int_.c_str()));
+    const auto &op_kind = base_op_ref.kind_;
+    static const std::unordered_set<std::string> accept_fpmath_op {"MatMul",
+            "Convolution", "ConvolutionBackwardData",
+            "ConvolutionBackwardWeights", "ConvTranspose",
+            "ConvTransposeBackwardData", "ConvTransposeBackwardWeights"};
+
+    if (accept_fpmath_op.find(op_kind) != accept_fpmath_op.end()) {
+        const auto &fpmath_mode = base_op_ref.fpmath_mode_;
+        arg_fpmath_mode.set(str2fpmath_mode(fpmath_mode.c_str()),
+                str2bool(base_op_ref.fpmath_mode_apply_to_int_.c_str()));
+    }
 
     return true;
 }
