@@ -33,11 +33,7 @@ namespace ocl {
 struct gemm_matmul_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_matmul_pd_t {
-        pd_t(const matmul_desc_t *adesc, const primitive_attr_t *attr,
-                const matmul_pd_t *hint_pd)
-            : gpu_matmul_pd_t(adesc, attr, hint_pd) {}
-
-        pd_t(const pd_t &other) = default;
+        using gpu_matmul_pd_t::gpu_matmul_pd_t;
 
         DECLARE_COMMON_PD_T(gemm_pd_->name(), gemm_matmul_t);
 

@@ -71,7 +71,7 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        jit_conv_conf_t jcp_;
+        jit_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     };
 
     jit_uni_dw_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
@@ -136,7 +136,7 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_t {
             return status::success;
         }
 
-        jit_conv_conf_t jcp_;
+        jit_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
 
     protected:
         bool set_default_formats() {
@@ -231,7 +231,7 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
             return status::success;
         }
 
-        jit_conv_conf_t jcp_;
+        jit_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
 
     protected:
         bool set_default_formats() {

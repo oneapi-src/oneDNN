@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,10 +40,8 @@ struct driver_t;
 template <cpu_isa_t isa>
 struct jit_uni_batch_normalization_s8_fwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_fwd_pd_t {
-        pd_t(const batch_normalization_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_batch_normalization_fwd_pd_t::
+                cpu_batch_normalization_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("bnorm_s8_jit:", isa, ""),
                 jit_uni_batch_normalization_s8_fwd_t);

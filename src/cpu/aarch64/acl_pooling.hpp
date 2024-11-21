@@ -77,9 +77,6 @@ private:
 struct acl_pooling_fwd_t : public primitive_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
-        pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
-                const pooling_fwd_pd_t *hint_fwd_pd)
-            : cpu_pooling_fwd_pd_t(adesc, attr, hint_fwd_pd), app() {}
 
         DECLARE_COMMON_PD_T("acl", acl_pooling_fwd_t);
 
@@ -265,7 +262,7 @@ struct acl_pooling_fwd_t : public primitive_t {
             return problem_size > cutoff * thread_count;
         }
 
-        acl_pooling_conf_t app;
+        acl_pooling_conf_t app = utils::zero<decltype(app)>();
     };
 
     acl_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}

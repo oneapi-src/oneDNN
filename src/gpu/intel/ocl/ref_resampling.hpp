@@ -30,10 +30,7 @@ namespace ocl {
 struct ref_resampling_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_resampling_fwd_pd_t {
-        pd_t(const resampling_desc_t *adesc, const primitive_attr_t *attr,
-                const resampling_fwd_pd_t *hint_fwd_pd)
-            : gpu_resampling_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
-        virtual ~pd_t() {}
+        using gpu_resampling_fwd_pd_t::gpu_resampling_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_resampling_fwd_t);
 
@@ -91,10 +88,7 @@ private:
 struct ref_resampling_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_resampling_bwd_pd_t {
-        pd_t(const resampling_desc_t *adesc, const primitive_attr_t *attr,
-                const resampling_fwd_pd_t *hint_fwd_pd)
-            : gpu_resampling_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
-        virtual ~pd_t() {}
+        using gpu_resampling_bwd_pd_t::gpu_resampling_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_resampling_bwd_t);
 

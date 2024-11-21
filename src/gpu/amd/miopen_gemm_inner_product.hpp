@@ -160,10 +160,10 @@ status_t template_set_default_params(memory_desc_t &src_md,
 
 struct miopen_gemm_inner_product_fwd_t : public miopen_inner_product_fwd_t {
     using miopen_inner_product_fwd_t::miopen_inner_product_fwd_t;
-    using parrent_pd_t = miopen_inner_product_fwd_t::pd_t;
+    using parent_pd_t = miopen_inner_product_fwd_t::pd_t;
 
-    struct pd_t : public parrent_pd_t {
-        using parrent_pd_t::parrent_pd_t;
+    struct pd_t : public parent_pd_t {
+        using parent_pd_t::parent_pd_t;
 
         DECLARE_COMMON_PD_T("hip:miopen:gemm", miopen_gemm_inner_product_fwd_t);
 

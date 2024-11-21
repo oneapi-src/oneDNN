@@ -113,10 +113,8 @@ struct nhwc_reusable_bnorm_runtime_params_t {
 struct nhwc_reusable_batch_normalization_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_batch_normalization_fwd_pd_t {
-        pd_t(const batch_normalization_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : gpu_batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using gpu_batch_normalization_fwd_pd_t::
+                gpu_batch_normalization_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(
                 impl_name(), nhwc_reusable_batch_normalization_fwd_t);
@@ -208,10 +206,8 @@ private:
 struct nhwc_reusable_batch_normalization_bwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_batch_normalization_bwd_pd_t {
-        pd_t(const batch_normalization_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : gpu_batch_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using gpu_batch_normalization_bwd_pd_t::
+                gpu_batch_normalization_bwd_pd_t;
 
         DECLARE_COMMON_PD_T(
                 "ocl:nhwc_reusable", nhwc_reusable_batch_normalization_bwd_t);

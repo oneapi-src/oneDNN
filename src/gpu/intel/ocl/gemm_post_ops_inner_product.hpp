@@ -37,11 +37,7 @@ namespace ocl {
 struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_inner_product_fwd_pd_t {
-        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
-                const inner_product_fwd_pd_t *hint_fwd_pd)
-            : gpu_inner_product_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
-
-        pd_t(const pd_t &rhs) = default;
+        using gpu_inner_product_fwd_pd_t::gpu_inner_product_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(
                 "ocl:gemm_post_ops_fwd", gemm_post_ops_inner_product_fwd_t);

@@ -51,7 +51,7 @@ struct jit_uni_brgemm_conv_comp_pad_kernel_t : public jit_generator {
 protected:
     static constexpr bool is_ymm_ = true;
 
-    jit_brgemm_conv_conf_t jcp_;
+    jit_brgemm_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     const int inp_dsz_;
     const int out_dsz_;
     const size_t nb_ic_;

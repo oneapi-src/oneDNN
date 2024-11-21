@@ -30,14 +30,9 @@ namespace ocl {
 struct gemm_with_post_ops_t : public gpu_gemm_t {
     using gpu_gemm_t::gpu_gemm_t;
     struct pd_t : public gpu_gemm_pd_t {
+        using gpu_gemm_pd_t::gpu_gemm_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:gemm_with_po:any", gemm_with_post_ops_t);
-
-        pd_t(const gemm_desc_t *adesc, const primitive_attr_t *attr,
-                const hint_class *hint_fwd_pd)
-            : gpu_gemm_pd_t(adesc, attr, hint_fwd_pd) {}
-
-        pd_t(const pd_t &other) = default;
 
         status_t init(impl::engine_t *engine);
 

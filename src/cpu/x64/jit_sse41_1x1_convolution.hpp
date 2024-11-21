@@ -39,10 +39,7 @@ namespace x64 {
 
 struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        using dw_conv_pd_type = jit_sse41_dw_convolution_fwd_t::pd_t;
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         pd_t(const pd_t &other) : cpu_convolution_fwd_pd_t(other) {
             if (copy(other) != status::success) is_initialized_ = false;
@@ -68,6 +65,7 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
                     attr_.set_default_formats(dst_md(0)) == status::success,
                     VERBOSE_UNSUPPORTED_POSTOP);
 
+            // TODO: make `init_conf` assign initialized object to `jcp_`
             CHECK(jit_sse41_1x1_conv_kernel_f32::init_conf(jcp_, *desc(),
                     *src_md(), *weights_md(), *dst_md(), *attr(),
                     dnnl_get_max_threads()));
@@ -114,7 +112,7 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
             return convolution_fwd_pd_t::arg_usage(arg);
         }
 
-        jit_1x1_conv_conf_t jcp_;
+        jit_1x1_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
         using dw_pd_t = jit_sse41_dw_convolution_fwd_t::pd_t;
         std::unique_ptr<dw_pd_t> dw_conv_pd_;
 

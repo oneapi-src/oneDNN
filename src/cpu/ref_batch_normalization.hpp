@@ -35,10 +35,8 @@ namespace cpu {
 template <data_type_t d_type>
 struct ref_batch_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_fwd_pd_t {
-        pd_t(const batch_normalization_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_batch_normalization_fwd_pd_t::
+                cpu_batch_normalization_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_batch_normalization_fwd_t);
 
@@ -94,10 +92,8 @@ private:
 template <data_type_t d_type>
 struct ref_batch_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_bwd_pd_t {
-        pd_t(const batch_normalization_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_batch_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_batch_normalization_bwd_pd_t::
+                cpu_batch_normalization_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_batch_normalization_bwd_t);
 

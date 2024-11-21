@@ -33,15 +33,13 @@ namespace x64 {
 
 struct brdgmm_dw_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brdgmm_dw:", jcp_.isa, ""),
                 brdgmm_dw_convolution_fwd_t);
 
         status_t init(engine_t *engine);
-        jit_brdgmm_conv_conf_t jcp_;
+        jit_brdgmm_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
         std::vector<brgemm_desc_t> bcps_;
         std::vector<brgemm_batch_element_t> batches_;
         std::vector<int> bs_;

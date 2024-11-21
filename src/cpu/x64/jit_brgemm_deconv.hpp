@@ -38,9 +38,7 @@ template <cpu_isa_t isa>
 struct brgemm_deconvolution_fwd_t : public primitive_t {
 
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
-        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::hint_class *hint_fwd_pd)
-            : cpu_deconvolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
         pd_t(const pd_t &other)
             : cpu_deconvolution_fwd_pd_t(other)
@@ -81,9 +79,10 @@ struct brgemm_deconvolution_fwd_t : public primitive_t {
         bool has_strides_ = false;
 
     private:
-        std::string name_ = JIT_IMPL_NAME_HELPER("brg_deconv:", isa, "");
+        std::string name_;
 
         void init_name() {
+            name_ = JIT_IMPL_NAME_HELPER("brg_deconv:", isa, "");
             name_.append("+");
             name_.append(conv_pd_->name());
         }

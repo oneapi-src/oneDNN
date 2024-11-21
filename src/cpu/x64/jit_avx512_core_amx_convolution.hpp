@@ -40,9 +40,7 @@ namespace x64 {
 
 struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", jcp_.isa, ""),
                 jit_avx512_core_amx_convolution_fwd_t);
@@ -84,6 +82,7 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
             VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_CONV(zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);
 
+            // TODO: make `init_conf` assign initialized object to `jcp_`
             CHECK(jit_avx512_core_amx_fwd_kernel_t::init_conf(jcp_, *desc(),
                     src_md_, weights_md_, dst_md_, bias_md_, attr_,
                     dnnl_get_max_threads()));
@@ -95,7 +94,7 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        jit_conv_conf_t jcp_;
+        jit_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
 
     protected:
         bool zero_points_ok() const {
@@ -153,9 +152,7 @@ private:
 
 struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
+        using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", jcp_.isa, ""),
                 jit_avx512_core_amx_convolution_bwd_data_t);
@@ -177,19 +174,19 @@ struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
             VDISPATCH_CONV(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
-            status_t status = jit_avx512_core_amx_bwd_data_kernel_t::init_conf(
-                    jcp_, *desc(), diff_src_md_, weights_md_, diff_dst_md_,
-                    nullptr /* no bias */, attr_, dnnl_get_max_threads());
-            if (status != status::success) return status;
+            // TODO: make `init_conf` assign initialized object to `jcp_`
+            CHECK(jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jcp_,
+                    *desc(), diff_src_md_, weights_md_, diff_dst_md_,
+                    nullptr /* no bias */, attr_, dnnl_get_max_threads()));
 
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx512_core_amx_bwd_data_kernel_t::init_scratchpad(
                     scratchpad, jcp_, *attr());
 
-            return status;
+            return status::success;
         }
 
-        jit_conv_conf_t jcp_;
+        jit_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     };
 
     jit_avx512_core_amx_convolution_bwd_data_t(const pd_t *apd)
@@ -235,10 +232,8 @@ private:
 
 struct jit_avx512_core_amx_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+        using cpu_convolution_bwd_weights_pd_t::
+                cpu_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", jcp_.isa, ""),
                 jit_avx512_core_amx_convolution_bwd_weights_t);
@@ -262,21 +257,19 @@ struct jit_avx512_core_amx_convolution_bwd_weights_t : public primitive_t {
                             utils::one_of(diff_bias_md_.data_type, f32, bf16)),
                     VERBOSE_UNSUPPORTED_BIAS_CFG);
 
-            status_t status
-                    = jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(jcp_,
-                            *desc(), src_md_, diff_weights_md_, diff_bias_md_,
-                            diff_dst_md_, dnnl_get_max_threads());
-            if (status != status::success) return status;
+            // TODO: make `init_conf` assign initialized object to `jcp_`
+            CHECK(jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(jcp_,
+                    *desc(), src_md_, diff_weights_md_, diff_bias_md_,
+                    diff_dst_md_, dnnl_get_max_threads()));
 
             auto scratchpad = scratchpad_registry().registrar();
-            status = jit_avx512_core_amx_bwd_weights_kernel_t::init_scratchpad(
-                    scratchpad, jcp_, src_md_, diff_weights_md_, diff_dst_md_);
-            if (status != status::success) return status;
+            CHECK(jit_avx512_core_amx_bwd_weights_kernel_t::init_scratchpad(
+                    scratchpad, jcp_, src_md_, diff_weights_md_, diff_dst_md_));
 
-            return status;
+            return status::success;
         }
 
-        jit_conv_conf_t jcp_;
+        jit_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     };
 
     jit_avx512_core_amx_convolution_bwd_weights_t(const pd_t *apd)

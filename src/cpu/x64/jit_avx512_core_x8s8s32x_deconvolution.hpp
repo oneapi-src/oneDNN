@@ -281,6 +281,7 @@ struct jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
             VDISPATCH_DECONVOLUTION(
                     attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 
+            // TODO: make `init_conf` assign initialized object to `jcp_`
             CHECK(_jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(jcp_,
                     *desc(), src_md_, weights_md_, dst_md_, with_bias(),
                     bias_md_, attr_, dnnl_get_max_threads()));
@@ -292,7 +293,7 @@ struct jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        jit_conv_conf_t jcp_;
+        jit_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     };
 
     jit_avx512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)

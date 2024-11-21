@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,9 +34,7 @@ namespace cpu {
 
 struct gemm_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(
                 GEMM_IMPL_STR, gemm_convolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
@@ -58,12 +56,14 @@ struct gemm_convolution_fwd_t : public primitive_t {
 
             auto scratchpad = scratchpad_registry().registrar();
 
+            // TODO: make `init_conf` assign initialized object to `jcp_`
+            jcp_ = conv_gemm_conf_t();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md_, weights_md_, dst_md_, bias_md_, attr_,
                     dnnl_get_max_threads());
         }
 
-        conv_gemm_conf_t jcp_;
+        conv_gemm_conf_t jcp_ = utils::zero<decltype(jcp_)>();
 
     protected:
         bool post_ops_ok() const {
@@ -138,9 +138,7 @@ private:
 
 struct gemm_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
+        using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_bwd_data_t,
                 USE_GLOBAL_SCRATCHPAD);
@@ -160,12 +158,14 @@ struct gemm_convolution_bwd_data_t : public primitive_t {
 
             auto scratchpad = scratchpad_registry().registrar();
 
+            // TODO: make `init_conf` assign initialized object to `jcp_`
+            jcp_ = conv_gemm_conf_t();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), diff_src_md_, weights_md_, diff_dst_md_, bias_md_,
                     attr_, dnnl_get_max_threads());
         }
 
-        conv_gemm_conf_t jcp_;
+        conv_gemm_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     };
 
     gemm_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
@@ -191,10 +191,8 @@ private:
 
 struct gemm_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+        using cpu_convolution_bwd_weights_pd_t::
+                cpu_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_convolution_bwd_weights_t,
                 USE_GLOBAL_SCRATCHPAD);
@@ -213,12 +211,14 @@ struct gemm_convolution_bwd_weights_t : public primitive_t {
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             auto scratchpad = scratchpad_registry().registrar();
+            // TODO: make `init_conf` assign initialized object to `jcp_`
+            jcp_ = conv_gemm_conf_t();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md_, diff_weights_md_, diff_dst_md_,
                     diff_bias_md_, attr_, dnnl_get_max_threads());
         }
 
-        conv_gemm_conf_t jcp_;
+        conv_gemm_conf_t jcp_ = utils::zero<decltype(jcp_)>();
     };
 
     gemm_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}

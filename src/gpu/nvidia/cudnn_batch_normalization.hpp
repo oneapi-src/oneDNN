@@ -133,10 +133,7 @@ struct cudnn_batch_normalization_bwd_t : public gpu::primitive_t {
     using gpu::primitive_t::primitive_t;
 
     struct pd_t : public batch_normalization_bwd_pd_t {
-        pd_t(const batch_normalization_desc_t *adesc,
-                const primitive_attr_t *attr,
-                const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : batch_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
+        using batch_normalization_bwd_pd_t::batch_normalization_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("cuda:cudnn:any", cudnn_batch_normalization_bwd_t);
 

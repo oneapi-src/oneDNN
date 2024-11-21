@@ -162,7 +162,8 @@ status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_convolution(
 
     CHECK(reorder_primitive_desc_create(
             src_reorder_pd_, engine, src_md(), &nspc_src_md_));
-    if (with_sum_)
+    const bool with_sum = attr()->post_ops_.find(primitive_kind::sum) != -1;
+    if (with_sum)
         CHECK(reorder_primitive_desc_create(
                 dst_pre_reorder_pd_, engine, dst_md(), &nspc_dst_md_));
     CHECK(reorder_primitive_desc_create(
@@ -171,7 +172,8 @@ status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_convolution(
 }
 
 status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
-    CHECK(reduce.reshape_activations(&matmul_dst_md_, dst_md(0), true));
+    CHECK(reduction_helper_.reshape_activations(
+            &matmul_dst_md_, dst_md(0), true));
 
     // initialize convolution bias as 1d plain tensor
     if (bias_md_.format_kind == format_kind::any)
@@ -181,9 +183,12 @@ status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
     // - conv src becomes matmul weights (ie matrix B)
     // - conv weights becomes matmul src (ie matrix A)
     // This allows to keep conv src and conv dst in ncsp layout.
-    CHECK(reduce.reshape_activations(&matmul_wei_md_, src_md(0), false));
-    CHECK(reduce.reshape_weights(&matmul_src_md_, weights_md(0), true));
-    if (with_bias()) CHECK(reduce.reshape_bias(&matmul_bia_md_, weights_md(1)));
+    CHECK(reduction_helper_.reshape_activations(
+            &matmul_wei_md_, src_md(0), false));
+    CHECK(reduction_helper_.reshape_weights(
+            &matmul_src_md_, weights_md(0), true));
+    if (with_bias())
+        CHECK(reduction_helper_.reshape_bias(&matmul_bia_md_, weights_md(1)));
     //primitive_desc_iface_t *matmul_pdi;
     primitive_attr_t _attr;
     post_ops_t _po;
@@ -200,7 +205,7 @@ status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init_matmul(engine_t *engine) {
     if (++it == it.end()) return status::unimplemented;
     matmul_pd_ = *it;
     if (weights_md_.format_kind == format_kind::any)
-        CHECK(reduce.reshape_weights(
+        CHECK(reduction_helper_.reshape_weights(
                 &weights_md_, matmul_pd_->src_md(), false /*to_matmul*/));
 
     return status::success;
@@ -227,6 +232,10 @@ status_t jit_uni_ncsp_convolution_fwd_t::pd_t::init(engine_t *engine) {
     VDISPATCH_CONV(IMPLICATION(with_bias(), weights_md(1)->data_type == f32),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_CONV(mayiuse(avx512_core), VERBOSE_UNSUPPORTED_ISA);
+
+    reduction_helper_ = reduction_helper_t(this);
+    // TODO: Support attributes in matmul-based convolution.
+    is_matmul_ = reduction_helper_.is_gemm() && attr()->has_default_values();
 
     if (is_matmul_)
         CHECK(init_matmul(engine));
@@ -560,6 +569,9 @@ status_t jit_uni_ncsp_convolution_bwd_data_t::pd_t::init(engine_t *engine) {
             && !mayiuse(avx512_core_bf16))
         return status::unimplemented;
 
+    reduction_helper_ = reduction_helper_t(this);
+    is_matmul_ = reduction_helper_.is_gemm() && attr()->has_default_values();
+
     if (is_matmul_)
         CHECK(init_matmul(engine));
     else
@@ -607,15 +619,19 @@ status_t jit_uni_ncsp_convolution_bwd_data_t::pd_t::init_convolution(
 
 status_t jit_uni_ncsp_convolution_bwd_data_t::pd_t::init_matmul(
         engine_t *engine) {
-    CHECK(reduce.reshape_activations(&matmul_wei_md_, diff_dst_md(0), true));
+    CHECK(reduction_helper_.reshape_activations(
+            &matmul_wei_md_, diff_dst_md(0), true));
     // initialize diff weights to plain format.
     CHECK(memory_desc_init_by_strides(weights_md_, weights_md_.ndims,
             weights_md_.dims, weights_md_.data_type, nullptr));
     // reshape weights to matmul format
     memory_desc_t weights_reshaped_md_;
-    CHECK(reduce.reshape_weights(&weights_reshaped_md_, &weights_md_, true));
-    CHECK(reduce.reshape_for_transpose(matmul_src_md_, weights_reshaped_md_));
-    CHECK(reduce.reshape_activations(&matmul_dst_md_, diff_src_md(), false));
+    CHECK(reduction_helper_.reshape_weights(
+            &weights_reshaped_md_, &weights_md_, true));
+    CHECK(reduction_helper_.reshape_for_transpose(
+            matmul_src_md_, weights_reshaped_md_));
+    CHECK(reduction_helper_.reshape_activations(
+            &matmul_dst_md_, diff_src_md(), false));
     primitive_attr_t _attr;
     matmul_desc_t matmul_d = matmul_desc_t();
     CHECK(matmul_desc_init(&matmul_d, &matmul_src_md_, &matmul_wei_md_, nullptr,

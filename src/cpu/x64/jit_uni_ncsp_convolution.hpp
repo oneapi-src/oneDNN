@@ -29,6 +29,7 @@ namespace cpu {
 namespace x64 {
 
 struct reduction_helper_t {
+    reduction_helper_t() : pd_(nullptr) {}
     reduction_helper_t(const convolution_pd_t *pd_) : pd_(pd_) {}
     status_t reshape_activations(
             memory_desc_t *o_md, const memory_desc_t *i_md, bool is_dst);
@@ -52,15 +53,7 @@ private:
 struct jit_uni_ncsp_convolution_fwd_t : public primitive_t {
 
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::hint_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , with_sum_(attr->post_ops_.find(primitive_kind::sum) != -1)
-            , reduce(this)
-            // TODO: attributes in matmul-based convolution
-            , is_matmul_(reduce.is_gemm() && attr->has_default_values()) {}
-
-        ~pd_t() = default;
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(name_.c_str(), jit_uni_ncsp_convolution_fwd_t);
 
@@ -81,9 +74,8 @@ struct jit_uni_ncsp_convolution_fwd_t : public primitive_t {
     private:
         status_t init_convolution(engine_t *engine);
         status_t init_matmul(engine_t *engine);
-        const bool with_sum_;
-        reduction_helper_t reduce;
-        bool is_matmul_;
+        reduction_helper_t reduction_helper_;
+        bool is_matmul_ = false;
         std::string name_ = "jit_uni_ncsp_convolution:";
         void init_name() {
             std::string suffix = is_matmul_ ? "matmul" : "conv";
@@ -119,13 +111,9 @@ private:
 
 struct jit_uni_ncsp_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
+        using cpu_convolution_bwd_weights_pd_t::
+                cpu_convolution_bwd_weights_pd_t;
 
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
-            , reduce(this) {}
-
-        ~pd_t() = default;
         DECLARE_COMMON_PD_T(
                 name_.c_str(), jit_uni_ncsp_convolution_bwd_weights_t);
 
@@ -139,7 +127,6 @@ struct jit_uni_ncsp_convolution_bwd_weights_t : public primitive_t {
 
     private:
         status_t init_convolution(engine_t *engine);
-        reduction_helper_t reduce;
         std::string name_;
         void init_scratchpad();
         void init_name() {
@@ -169,14 +156,8 @@ private:
 
 struct jit_uni_ncsp_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
+        using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
 
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
-            , reduce(this)
-            , is_matmul_(reduce.is_gemm() && attr->has_default_values()) {}
-
-        ~pd_t() = default;
         DECLARE_COMMON_PD_T(name_.c_str(), jit_uni_ncsp_convolution_bwd_data_t);
 
         status_t init(engine_t *engine);
@@ -194,7 +175,7 @@ struct jit_uni_ncsp_convolution_bwd_data_t : public primitive_t {
     private:
         status_t init_convolution(engine_t *engine);
         status_t init_matmul(engine_t *engine);
-        reduction_helper_t reduce;
+        reduction_helper_t reduction_helper_;
         bool is_matmul_ = false;
         std::string name_;
         void init_scratchpad();

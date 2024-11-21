@@ -82,10 +82,6 @@ private:
 struct acl_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
-        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
-                const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_deconvolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , acl_pd_conf() {}
 
         DECLARE_COMMON_PD_T(
                 "acl", acl_deconvolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
@@ -298,7 +294,7 @@ struct acl_deconvolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        acl_deconv_conf_t acl_pd_conf;
+        acl_deconv_conf_t acl_pd_conf = utils::zero<decltype(acl_pd_conf)>();
         acl_post_ops_t post_ops;
 
     private:

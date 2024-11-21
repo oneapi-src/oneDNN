@@ -32,17 +32,14 @@ struct acl_indirect_gemm_convolution_fwd_t : public primitive_t {
     using Op = arm_compute::experimental::op::CpuGemmDirectConv2d;
 
     struct pd_t : public cpu_convolution_fwd_pd_t {
-
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), acp_() {}
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("indirect_gemm:acl",
                 acl_indirect_gemm_convolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine);
 
-        acl_conv_conf_t acp_;
+        acl_conv_conf_t acp_ = utils::zero<decltype(acp_)>();
         acl_post_ops_t post_ops;
 
     private:

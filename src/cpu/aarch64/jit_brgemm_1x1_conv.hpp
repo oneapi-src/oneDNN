@@ -43,11 +43,7 @@ namespace aarch64 {
 template <cpu_isa_t isa>
 struct brgemm_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
-                const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
-            , with_sum(false)
-            , sum_scale(0) {}
+        using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgconv_1x1:", isa, ""),
                 brgemm_1x1_convolution_fwd_t);
@@ -55,13 +51,13 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
         status_t init(engine_t *engine);
 
         std::shared_ptr<brgemm_containers::brgemm_desc_container_t> brgs_;
-        bool with_sum;
-        float sum_scale;
+        bool with_sum = false;
+        float sum_scale = 0.f;
 
         bool need_postwork;
         int ic_chunks;
 
-        jit_brgemm_conv_conf_t jcp_;
+        jit_brgemm_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
 
     protected:
         bool arg_scales_ok() const {

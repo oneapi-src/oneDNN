@@ -316,7 +316,7 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::add_brg_descriptor(int vM,
     CHECK(brgemm_desc_set_attr(&brg, brgattr));
 
     auto LDD = jcp_.oc_without_padding;
-    brg.with_sum = with_sum;
+    brg.with_sum = with_sum_;
     brg.with_weights_scale_adjust = jcp_.scale_adjust_factor != 1.0f;
     CHECK(brgemm_desc_set_postops(&brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
     jcp_.amx_buf_size_per_thread = nstl::max(
@@ -596,7 +596,7 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
     const auto &p = attr()->post_ops_;
     const int sum_idx = p.find(primitive_kind::sum);
-    with_sum = (sum_idx != -1);
+    with_sum_ = (sum_idx != -1);
 
     // os_blocking is supported for exec_trans only
     assert(IMPLICATION(jcp_.exec_type != exec_trans, !jcp_.is_os_blocking));
