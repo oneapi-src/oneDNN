@@ -767,7 +767,8 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     bool has_post_ops = dst_md_ && attr_
             && (!attr_->post_ops_.has_default_values()
                     || !attr_->zero_points_.has_default_values()
-                    || !attr_->scales_.has_default_values());
+                    || !attr_->scales_.has_default_values()
+                    || !attr_->rounding_mode_.has_default_values());
 
     if (has_post_ops) {
         post_op_view_mapper_t view_mapper(dst_view);

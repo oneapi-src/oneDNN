@@ -71,9 +71,6 @@ status_t gen_reorder_t::pd_t::init(impl::engine_t *engine,
                         || utils::one_of(src_dt, bf16, f16, f32)
                         || utils::one_of(dst_dt, bf16, f16, f32));
     };
-    auto skip_mask = dnnl_primitive_attr::skip_mask_t::post_ops
-            | dnnl_primitive_attr::skip_mask_t::zero_points_runtime
-            | dnnl_primitive_attr::skip_mask_t::scales_runtime;
     VDISPATCH_REORDER(
             src_engine == dst_engine && src_engine->kind() == engine_kind::gpu,
             VERBOSE_BAD_ENGINE_KIND);
@@ -96,6 +93,9 @@ status_t gen_reorder_t::pd_t::init(impl::engine_t *engine,
     VDISPATCH_REORDER(IMPLICATION(src_dt == f64 || dst_dt == f64,
                               device_info->has_native(f64)),
             VERBOSE_UNSUPPORTED_DT_CFG);
+    using sm = dnnl_primitive_attr::skip_mask_t;
+    auto skip_mask = sm::post_ops | sm::zero_points_runtime | sm::scales_runtime
+            | sm::rounding_mode;
     VDISPATCH_REORDER(
             attr()->has_default_values(skip_mask), VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_REORDER(extra_ok(), VERBOSE_UNSUPPORTED_MD_FLAG, "extra_ok");
