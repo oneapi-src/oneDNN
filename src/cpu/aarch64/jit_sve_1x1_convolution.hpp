@@ -227,6 +227,35 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
             CHECK(get_depthwise_conv_desc(
                     cd_dw, src_md, attr_1x1, attr_dw, dw_po_index));
 
+            // The code below doesn't work because currently it requires `jcp_`
+            // member which is not available from the common interface. In turn,
+            // this means the common pd creation interface through an iterator
+            // can't be used and a specific convolution implementation's pd is
+            // required here. It restricts the usage of inherited
+            // `convolution_pd_t` constructor.
+            // ANCHOR: USING_INHERITED_IS_IMPOSSIBLE.
+            //
+            // ```cpp
+            // primitive_desc_iterator_t it(
+            //         engine, (op_desc_t *)&cd_dw, &attr_dw, nullptr);
+            // if (!it.is_initialized()) return status::out_of_memory;
+            // while (++it != it.end()) {
+            //     dw_conv_pd_ = *it;
+            //     break;
+            // }
+            // VDISPATCH_CONV_IC(dw_conv_pd_, "dw_conv_pd hasn't been created");
+            // ```
+            //
+            // ```compiler output
+            // error: ‘using element_type = struct dnnl::impl::primitive_desc_t’
+            // {aka ‘struct dnnl::impl::primitive_desc_t’} has no member named
+            // ‘jcp_’
+            // auto &jcp_dw = dw_conv_pd_->jcp_;
+            //                             ^~~~
+            // ```
+            //
+            // TODO: figure out the way to initialize fused conv through a
+            // normal interface without hacks accessing specific members.
             CHECK(safe_ptr_assign(
                     dw_conv_pd_, new dw_pd_t(&cd_dw, &attr_dw, nullptr)));
             CHECK(dw_conv_pd_->init(engine));
