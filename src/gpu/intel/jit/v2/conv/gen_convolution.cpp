@@ -83,6 +83,14 @@ public:
 
         if ((pd->is_bwd_d() || pd->is_fwd()) && pd->with_bias()) return false;
         if (!pd->attr()->has_default_values()) return false;
+
+        // Large buffer support is unimplemented
+        if (std::max({memory_desc_wrapper(pd->src_md()).size(),
+                    memory_desc_wrapper(pd->weights_md()).size(),
+                    memory_desc_wrapper(pd->dst_md()).size()})
+                > INT_MAX)
+            return false;
+
         return true;
     }
 
