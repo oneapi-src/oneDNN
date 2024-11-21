@@ -81,6 +81,13 @@ public:
             return false;
         }
 
+        // Large buffer support is unimplemented
+        if (std::max({memory_desc_wrapper(pd->src_md()).size(),
+                    memory_desc_wrapper(pd->weights_md()).size(),
+                    memory_desc_wrapper(pd->dst_md()).size()})
+                > INT_MAX)
+            return false;
+
         using sm = primitive_attr_t::skip_mask_t;
         auto skip_mask = sm::post_ops | sm::sum_dt;
         if (!pd->attr()->has_default_values(skip_mask)) return false;
