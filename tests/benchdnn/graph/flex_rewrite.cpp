@@ -1156,8 +1156,9 @@ void flex_rewrite::graph_attrs_rewrite(deserialized_graph &dgraph) {
 
     for (auto &aop : dgraph.ops_) {
         // save the graph-level config for ops
-        aop.fpmath_mode_ = fpmath_mode_.mode_;
-        aop.fpmath_mode_apply_to_int_ = bool2str(fpmath_mode_.apply_to_int_);
+        const auto &mode = dgraph.get_fpmath_mode();
+        aop.fpmath_mode_ = mode.first;
+        aop.fpmath_mode_apply_to_int_ = mode.second;
     }
 }
 

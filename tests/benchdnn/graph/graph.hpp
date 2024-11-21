@@ -69,7 +69,7 @@ struct prb_t {
 
         const auto &fpmath = dg.get_fpmath_mode();
         fpmath_mode.mode_ = fpmath.first;
-        fpmath_mode.apply_to_int_ = fpmath.second;
+        fpmath_mode.apply_to_int_ = str2bool(fpmath.second.c_str());
     }
 
     deserialized_graph dg;

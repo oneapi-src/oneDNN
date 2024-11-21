@@ -162,7 +162,7 @@ bool parse_graph_fpmath_mode(
                 fpmath_mode_vec.pop_back();
 
             size_t start_pos = 0;
-            auto subs = get_substr(mode, start_pos, ':');
+            auto mode_subs = get_substr(mode, start_pos, ':');
             if (start_pos != std::string::npos && start_pos >= mode.size()) {
                 BENCHDNN_PRINT(0, "%s \'%s\'\n",
                         "Error: dangling symbol at the end of input",
@@ -172,17 +172,17 @@ bool parse_graph_fpmath_mode(
 
             bool apply_to_int = false;
             if (start_pos != std::string::npos) {
-                subs = get_substr(mode, start_pos, '\0');
+                auto bool_subs = get_substr(mode, start_pos, '\0');
                 if (start_pos != std::string::npos) {
                     BENCHDNN_PRINT(0, "%s \'%s\'\n",
                             "Error: dangling symbol at the end of input",
                             mode.c_str());
                     SAFE_V(FAIL);
                 }
-                apply_to_int = str2bool(subs.c_str());
+                apply_to_int = str2bool(bool_subs.c_str());
             }
             fpmath_mode_vec.emplace_back(
-                    mode, apply_to_int, /* override_json_value = */ true);
+                    mode_subs, apply_to_int, /* override_json_value = */ true);
         }
     }
     return true;
