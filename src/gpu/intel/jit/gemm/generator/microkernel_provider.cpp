@@ -343,8 +343,10 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
     if (localA && !localB)
         s.loadBFirst = true;
 
-    if (s.slmA || s.slmB)
+    if (s.slmA || s.slmB) {
         s.slmBuffers = 1;
+        s.unrollKSLM = std::max(int(s.slmA) * s.ka_load, int(s.slmB) * s.kb_load);
+    }
 
     adjustStrategy(hw, problem, strategy);
 
