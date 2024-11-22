@@ -311,16 +311,22 @@ void jit_eltwise_injector_f32<hw>::sround_compute_fwd(int simd,
         const ngen::DataType dst_dt, int off) {
     // 2 regs for bias.
     auto bias = scratch_[0].ud();
-    auto u_r = r[0].ud()(16, 16, 1);
-    auto u_f = r[0].f()(16, 16, 1);
+    auto u_r = r[0].ud()(8, 8, 1);
+    auto u_f = r[0].f()(8, 8, 1);
 
     // Initialize indices in counter.
     int base_idx = off * simd;
-    h->template mov<uint16_t>(
-            8, bias.uw(0)(8, 8, 1), Immediate::uv(0, 1, 2, 3, 4, 5, 6, 7));
-    h->template mov<uint16_t>(8, bias.uw(8)(8, 8, 1),
-            Immediate::uv(8, 9, 10, 11, 12, 13, 14, 15));
-    h->add(16, bias.ud(), bias.uw(), Immediate::ud(base_idx));
+    h->template mov<uint16_t>(8, bias.uw(0)(1), Immediate::uv(0x01234567));
+    h->template mov<uint16_t>(8, bias.uw(8)(1), Immediate::uv(0x89abcdef));
+    if (base_idx) {
+        auto imm = Immediate::ud(base_idx);
+        if (hw >= gpu_xe_hpc)
+            h->add(16, bias.ud(), bias.uw(), imm);
+        else {
+            h->add(8, bias.ud(8)(1), bias.uw(8)(8, 8, 1), imm);
+            h->add(8, bias.ud(0)(1), bias.uw(0)(8, 8, 1), imm);
+        }
+    }
 
     const uint32_t dst_dt_digits = dnnl::impl::types::digits<uint32_t>(
             convert_ngen_type_to_dnnl(dst_dt));
@@ -372,34 +378,34 @@ void jit_eltwise_injector_f32<hw>::philox_4x32(
     auto addr = h->indirect[h->a0].ud(0)(0, 1, 0);
 
     // Compute key.
-    h->mov(4, key.uq(0)(4, 4, 1), uint64_t(0xBB67AE859E3779B9uLL));
+    if (hw >= gpu_xe_hpc)
+        h->mov(4, key.uq(0)(4, 4, 1), uint64_t(0xBB67AE859E3779B9uLL));
+    else {
+        h->mov(4, key.ud(0)(4, 4, 2), uint32_t(0x9E3779B9u));
+        h->mov(4, key.ud(1)(4, 4, 2), uint32_t(0xBB67AE85u));
+    }
 
-    h->template mov<uint16_t>(
-            4, offs.uw(16)(8, 8, 1), Immediate::uv(8, 8, 9, 9, 0, 0, 0, 0));
+    h->template mov<uint16_t>(4, offs.uw(16)(1), Immediate::uv(0x88990000));
     h->template mul<uint32_t>(
-            4, offs.ud(8)(4, 4, 1), key.ud(0)(4, 4, 1), offs.uw(16)(4, 4, 1));
-    h->add(4, offs.ud(8)(4, 4, 1), offs.ud(8)(4, 4, 1), sround_seed);
+            4, offs.ud(8)(1), key.ud(0)(4, 4, 1), offs.uw(16)(4, 4, 1));
+    h->add(4, offs.ud(8)(1), offs.ud(8)(4, 4, 1), sround_seed);
 
-    h->template mov<uint16_t>(
-            8, offs.uw(8)(8, 8, 1), Immediate::uv(4, 4, 5, 5, 6, 6, 7, 7));
-    h->template mov<uint16_t>(
-            8, offs.uw(0)(8, 8, 1), Immediate::uv(0, 0, 1, 1, 2, 2, 3, 3));
+    h->template mov<uint16_t>(8, offs.uw(8)(1), Immediate::uv(0x44556677));
+    h->template mov<uint16_t>(8, offs.uw(0)(1), Immediate::uv(0x00112233));
     h->template mul<uint32_t>(
-            8, key.ud(8)(8, 8, 1), key.ud(0)(8, 8, 1), offs.uw(8)(8, 8, 1));
+            8, key.ud(8)(1), key.ud(0)(8, 8, 1), offs.uw(8)(8, 8, 1));
     h->template mul<uint32_t>(
-            8, key.ud(0)(8, 8, 1), key.ud(0)(8, 8, 1), offs.uw(0)(8, 8, 1));
+            8, key.ud(0)(1), key.ud(0)(8, 8, 1), offs.uw(0)(8, 8, 1));
     h->add(16, key, key, sround_seed);
     // Compute ctr_mul.
-    h->mov(4, ctr_mul.ud(2)(4, 4, 4), 0xCD9E8D57);
-    h->mov(4, ctr_mul.ud(0)(4, 4, 4), 0xD2511F53);
+    h->mov(4, ctr_mul.ud(2)(4), 0xCD9E8D57);
+    h->mov(4, ctr_mul.ud(0)(4), 0xD2511F53);
     auto ctr_base_sub = offs.uw(8)(8, 8, 1);
     h->mov(8, ctr_base_sub, (ctr.getBase() * GRF::bytes(hw)) + ctr.getOffset());
 
     // Prepare first iter idx swizzle
-    h->template mov<uint16_t>(
-            8, off_inc.uw(0)(8, 8, 1), Immediate::uv(0, 3, 2, 1, 4, 7, 6, 5));
-    h->template mul<uint16_t>(
-            8, off_inc.uw(0)(8, 8, 1), off_inc.uw(0)(8, 8, 1), 4);
+    h->template mov<uint16_t>(8, off_inc.uw(0)(1), Immediate::uv(0x03214765));
+    h->template mul<uint16_t>(8, off_inc.uw(0)(1), off_inc.uw(0)(8, 8, 1), 4);
 
     //as_uint4(convert_ulong2(ctr.s31) * mul) ^ (uint4)(ctr.s20 ^ key, 0, 0).s3120
     auto philox_round = [&](ngen::Subregister &ctr, ngen::GRF &ctr_mul,
@@ -408,42 +414,47 @@ void jit_eltwise_injector_f32<hw>::philox_4x32(
 
         // Apply idx swizzle.
         h->add(8, h->a0, ctr_base_sub, off_inc);
-        h->template movi<uint32_t>(8, ctr.ud(0)(8, 8, 1), addr);
+        h->template movi<uint32_t>(8, ctr.ud(0)(1), addr);
         h->add(8, h->a0, h->a0, 32);
-        h->template movi<uint32_t>(8, ctr.ud(8)(8, 8, 1), addr);
+        h->template movi<uint32_t>(8, ctr.ud(8)(1), addr);
 
         // KEY packed with mul in ctr_mul, key in odd indices, ctr_mul in even.
         // Swizzle Key to avoid double swizzle as in ocl ((uint4)(ctr.s20 ^ key, 0, 0).s3120).
-        h->mov(4, ctr_mul.ud(1)(8, 8, 4), key.ud(idx + 1)(0, 1, 0));
-        h->mov(4, ctr_mul.ud(3)(8, 8, 4), key.ud(idx)(0, 1, 0));
+        h->mov(4, ctr_mul.ud(1)(4), key.ud(idx + 1)(0, 1, 0));
+        h->mov(4, ctr_mul.ud(3)(4), key.ud(idx)(0, 1, 0));
         // END SWIZZLE CTR_MUL
 
         // xor ctr.s02 ^ key.s10
-        h->xor_(8, ctr_mul.ud(1)(8, 8, 2), ctr_mul.ud(1)(8, 8, 2),
-                ctr.ud(1)(8, 8, 2));
+        h->xor_(8, ctr_mul.ud(1)(2), ctr_mul.ud(1)(8, 4, 2),
+                ctr.ud(1)(8, 4, 2));
 
         // EMULATE QW <- DW X DW
         // mul ctr.s31 * ctr_mul
-        auto ctrLo = ctr.ud(0)(8, 8, 2);
-        auto ctrHi = ctr.ud(1)(8, 8, 2);
+        auto ctrLo = ctr.ud(0)(8, 4, 2);
+        auto ctrHi = ctr.ud(1)(8, 4, 2);
 
-        auto acc = h->acc0.retype(DataType::ud)[ctrLo.getOffset()](
-                ctrLo.getHS());
-        h->mul(8, acc, ctr.ud(0)(8, 8, 2), ctr_mul.uw(0)(8, 8, 4));
-        h->mach(8, ctrLo, ctr.ud(0)(8, 8, 2), ctr_mul.ud(0)(8, 8, 2));
+        const auto grf_size = ngen::GRF::bytes(hw);
+        const int esize = grf_size / 8; // 8 = 2 * dword bytes
+        const int steps = utils::div_up(8, esize);
+
+        auto acc = h->acc0.retype(DataType::ud);
+        for (int i = 0, off = 0; i < steps; ++i, off += 2 * esize)
+            h->mul(esize, acc[i](2), ctr.ud(off)(8, 4, 2),
+                    ctr_mul.uw(off)(8, 2, 4));
+        h->mach(8, ctrLo, ctr.ud(0)(8, 4, 2), ctr_mul.ud(0)(8, 4, 2));
         h->mov(8, ctrHi, ctrLo);
-        h->mov(8, ctrLo, acc);
+        for (int i = 0, off = 0; i < steps; ++i, off += 2 * esize)
+            h->mov(esize, ctr.ud(off)(2), acc[i](2));
 
         // xor results
-        h->xor_(8, ctr.ud(1)(8, 8, 2), ctr.ud(1)(8, 8, 2),
-                ctr_mul.ud(1)(8, 8, 2));
+        h->xor_(8, ctr.ud(1)(2), ctr.ud(1)(8, 4, 2), ctr_mul.ud(1)(8, 4, 2));
 
         // Set idx swizzle for subsequent iterations.
         if (idx == 0) {
-            h->template mov<uint16_t>(8, off_inc.uw(0)(8, 8, 1),
-                    Immediate::uv(3, 0, 1, 2, 7, 4, 5, 6));
+            h->template mov<uint16_t>(
+                    8, off_inc.uw(0)(1), Immediate::uv(0x30127456));
             h->template mul<uint16_t>(
-                    8, off_inc.uw(0)(8, 8, 1), off_inc.uw(0)(8, 8, 1), 4);
+                    8, off_inc.uw(0)(1), off_inc.uw(0)(8, 8, 1), 4);
         }
     };
     philox_round(ctr, ctr_mul, key, 0);
