@@ -88,7 +88,7 @@ public:
 #define CASE(kind) \
     case primitive_kind::kind: \
         return get_##kind##_impl_list((const kind##_desc_t *)desc);
-        switch ((int) desc->kind) {
+        switch ((int)desc->primitive_kind) {
             CASE(batch_normalization);
             CASE(binary);
             CASE(convolution);

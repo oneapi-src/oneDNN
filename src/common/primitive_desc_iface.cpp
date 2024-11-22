@@ -37,7 +37,7 @@ status_t primitive_desc_create(primitive_desc_iface_t **primitive_desc_iface,
 
     if (!primitive_desc_iface) return invalid_arguments;
 
-    const bool known_primitive_kind = utils::one_of(op_desc->kind,
+    const bool known_primitive_kind = utils::one_of(op_desc->primitive_kind,
             batch_normalization, binary, convolution, deconvolution, eltwise,
             gemm, group_normalization, inner_product, layer_normalization, lrn,
             matmul, pooling, prelu, reduction, resampling, rnn, sdpa, shuffle,

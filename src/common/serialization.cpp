@@ -29,7 +29,7 @@ status_t serialize_desc(
         serialize_desc(sstream, *(const pkind##_desc_t *)op_desc); \
         break;
 
-    switch ((int)op_desc->kind) {
+    switch ((int)op_desc->primitive_kind) {
         CASE(batch_normalization)
         CASE(binary)
         CASE(concat)
