@@ -1555,6 +1555,7 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
             Cr_unrollX = panel;
             period = outerProductCount(hw, problem, strategy);
         }
+        period = std::min(period, 64);
 
         makeUnbackedRegLayout(Tc_compute, state.Cr_layout, Cr_unrollM, Cr_unrollN, globalCM, 1, strategy.C.tileR, strategy.C.tileC, true);
     }
