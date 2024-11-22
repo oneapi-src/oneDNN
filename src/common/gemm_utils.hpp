@@ -101,9 +101,10 @@ static inline status_t create_2d_desc(memory_desc_t *md_2d, int d0, int d1,
     }
 }
 
-static inline gemm_desc_t create_gemm_desc(const memory_desc_t *a_md,
-        const memory_desc_t *b_md, const memory_desc_t *c_md,
-        const memory_desc_t *bias_md, data_type_t acc_dt, engine_t *engine,
+static inline status_t create_gemm_desc(gemm_desc_t *_gemm_desc,
+        const memory_desc_t *a_md, const memory_desc_t *b_md,
+        const memory_desc_t *c_md, const memory_desc_t *bias_md,
+        data_type_t acc_dt, engine_t *engine,
         sum_ab_t sum_ab = sum_ab::sum_none,
         data_type_t sum_ab_dt = data_type::undef) {
     auto gemm_desc = gemm_desc_t();
@@ -121,7 +122,8 @@ static inline gemm_desc_t create_gemm_desc(const memory_desc_t *a_md,
                     data_type::f16, a_md->data_type, b_md->data_type)) {
         gemm_desc.acc_type = data_type::f16;
     }
-    return gemm_desc;
+    *_gemm_desc = gemm_desc;
+    return status::success;
 }
 
 static inline status_t create_gemm_pd(
@@ -131,8 +133,9 @@ static inline status_t create_gemm_pd(
         data_type_t acc_dt, const primitive_attr_t *attr, bool skip_ref = false,
         sum_ab_t sum_ab = sum_ab::sum_none,
         data_type_t sum_ab_dt = data_type::undef) {
-    auto gemm_desc = create_gemm_desc(
-            a_md, b_md, c_md, bias_md, acc_dt, engine, sum_ab, sum_ab_dt);
+    gemm_desc_t gemm_desc;
+    CHECK(create_gemm_desc(&gemm_desc, a_md, b_md, c_md, bias_md, acc_dt,
+            engine, sum_ab, sum_ab_dt));
 
     primitive_attr_t gemm_attr = *attr;
 
