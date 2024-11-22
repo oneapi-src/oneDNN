@@ -21,6 +21,7 @@
 #include "common/float16.hpp"
 #include "common/impl_registration.hpp"
 #include "common/type_helpers.hpp"
+#include "common/verbose_msg.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/jit/gemm/gemm_walk_orders.hpp"
 #include "gpu/intel/jit/utils/ngen_type_bridge.hpp"
@@ -110,6 +111,15 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(impl::engine_t *engine) {
                            utils::one_of(d->bias_type(), d->a_type(), f32)
                                    && d->bias_mask() < 8),
             VERBOSE_UNSUPPORTED_BIAS_CFG);
+
+    // Limit scope of large buffer implementation support as the ability test
+    // large buffers is limited by testing time.
+    VDISPATCH_GEMM(std::max({memory_desc_wrapper(src_md(0)).size(),
+                           memory_desc_wrapper(src_md(1)).size(),
+                           memory_desc_wrapper(src_md(2)).size(),
+                           memory_desc_wrapper(dst_md()).size()})
+                    <= std::numeric_limits<int32_t>::max(),
+            VERBOSE_SHAPE_RESTRICTION);
 
     VDISPATCH_GEMM_SC(init_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
 
