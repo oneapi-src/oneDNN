@@ -591,6 +591,9 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
 void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy, const char *tags)
 {
     auto *gemmAStrategy = &strategy.A, *gemmBStrategy = &strategy.B;
+    if (problem.A.needA64) strategy.A.forceA64();
+    if (problem.B.needA64) strategy.B.forceA64();
+    if (problem.C.needA64) strategy.C.forceA64();
 
     // 2D block accesses use 2D addressing where supported.
     auto use2DAddressing = [](MatrixAddressingStrategy &astrategy) {

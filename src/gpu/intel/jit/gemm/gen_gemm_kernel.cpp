@@ -376,9 +376,13 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     disable_systolic_ = !has_systolic;
     relaxed_acc_ = mode & mode_relaxed_acc;
 
-    align_a = nstl::max(align_a, int(types::data_type_size(a_type)));
-    align_b = nstl::max(align_b, int(types::data_type_size(b_type)));
-    align_c = nstl::max(align_c, int(types::data_type_size(c_type)));
+    auto a_type_size = types::data_type_size(a_type);
+    auto b_type_size = types::data_type_size(a_type);
+    auto c_type_size = types::data_type_size(a_type);
+
+    align_a = nstl::max(align_a, int(a_type_size));
+    align_b = nstl::max(align_b, int(b_type_size));
+    align_c = nstl::max(align_c, int(c_type_size));
 
     bool can_2d_a = (lda * problem_.Ta_ext <= 16777216);
     bool can_2d_b = (ldb * problem_.Tb_ext <= 16777216);
@@ -408,6 +412,18 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     problem_.A.setAlignment(align_a);
     problem_.B.setAlignment(align_b);
     problem_.C.setAlignment(align_c);
+
+    auto a_size = (trans_a ? m : k) * lda * a_type_size;
+    auto b_size = (trans_b ? k : n) * ldb * b_type_size;
+    auto c_size = n * ldc * c_type_size;
+
+    // Consolidate specialization logic to limit large buffer configurations
+    bool needA64 = std::max({a_size, b_size, c_size})
+            > std::numeric_limits<uint32_t>::max();
+    problem_.A.needA64 = needA64;
+    problem_.B.needA64 = needA64;
+    problem_.C.needA64 = needA64;
+
     if (batch_dims > 0) {
         problem_.batch = BatchMode::Strided;
         problem_.batchDims = batch_dims;
@@ -500,6 +516,8 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     auto tags = const_cast<char *>(base.tags);
     while (*tags)
         tags++;
+    if (problem_.A.needA64 || problem_.B.needA64 || problem_.C.needA64)
+        *tags++ = kcatalog::ReqBatchN;
     if (can_2d_a) *tags++ = kcatalog::ReqBlock2DA;
     if (can_2d_b) *tags++ = kcatalog::ReqBlock2DB;
     if (can_2d_c) *tags++ = kcatalog::ReqBlock2DC;
