@@ -130,107 +130,82 @@ status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::init(engine_t *engine) {
                                    diff_src_type, is_int8_supported)),
             VERBOSE_UNSUPPORTED_POSTOP);
 
-    const auto is_amx = brgemm_convolution_bwd_utils::is_amx(isa);
-
     CHECK(brgemm_convolution_bwd_utils::init_conf(jcp_, isa, desc_,
             diff_dst_md_, weights_md_, diff_src_md_, bias_md_, attr_,
             dnnl_get_max_threads()));
 
-    const auto adj_M = nstl::max(jcp_.M, jcp_.M_tail);
-
-    brgs_sz_ = adj_M * 2 * 2 * 2;
+    brgs_sz_ = 2 * 2 * 2 * 2;
     brgs_ = std::make_shared<brgemm_containers::brgemm_desc_container_t>();
     brgs_->resize(brgs_sz_);
 
-    const float alpha = 1.0;
-    const float beta = 1.0;
+    brg_indices_c = 0;
 
-    const auto &p = attr()->post_ops_;
-    const int sum_idx = p.find(primitive_kind::sum);
-    const bool with_sum = (sum_idx != -1);
+    auto ndims = jcp_.ndims;
 
-    const auto M_end = nstl::max(jcp_.M, jcp_.M_tail);
-    for (int i = 0; i < M_end; i++) {
-        auto vM = i + 1;
-        // init only needed brgemm descriptors
-        if (one_of(jcp_.exec_type, exec_trans, exec_vpad) && vM != jcp_.M
-                && vM != jcp_.M_tail)
-            continue;
-        for_(int i_init = 0; i_init < 2; i_init++)
-        for_(int i_N = 0; i_N < 2; i_N++)
-        for (int i_K = 0; i_K < 2; i_K++) {
-            auto vbeta = (i_init) ? 0 : beta;
-            auto vN = (i_N) ? jcp_.N_tail : jcp_.N;
-            auto vK = (i_K) ? jcp_.K_tail : jcp_.K;
-            auto vbrgM = jcp_.use_M_mask
-                    ? (vM == jcp_.M ? jcp_.brgM : jcp_.brgM_tail)
-                    : vM;
-            auto brg_idx = get_brg_idx(jcp_.max_batch, i, i_init, i_N, i_K);
-            // if brgemm_desc_t already created then skip this iteration
-            if ((*brgs_)[brg_idx] != nullptr) continue;
-            brgemm_desc_t brg;
-            if (vN == 0 || vK == 0) continue;
-            brgemm_strides_t brg_strides;
-            brg_strides.stride_a = jcp_.brg_stride_a;
-            brg_strides.stride_b = jcp_.brg_stride_b;
-            brg.req_cal_comp_pads = jcp_.req_brg_comp_pad;
-            brg.req_comp_pads_with_bcast
-                    = jcp_.req_cal_comp_pad && jcp_.exec_type == exec_trans;
-            const auto strides_ptr
-                    = (jcp_.brg_type == brgemm_strd) ? &brg_strides : nullptr;
-            CHECK(brgemm_desc_init(&brg, isa, jcp_.brg_type, diff_dst_type,
-                    wei_type, false, false, brgemm_row_major, alpha, vbeta,
-                    jcp_.LDA, jcp_.LDB, jcp_.LDC, vbrgM, vN, vK, strides_ptr));
+    const auto KD = ndims_pick(jcp_.kd, 1, 1);
+    const auto KH = ndims_pick(jcp_.kh, jcp_.kh, 1);
 
-            brgemm_attr_t brgattr;
-            brgattr.use_uker = jcp_.use_uker;
-            brgattr.use_interleave_stores = jcp_.use_interleave_stores;
-            brgattr.hint_prefetching = jcp_.hint_prefetching;
-            brgattr.max_bs = jcp_.max_batch;
-            brgattr.hint_innermost_loop = jcp_.brgemm_bd_loop_innermost
-                    ? brgemm_bd_loop_innermost
-                    : brgemm_ld_loop_innermost;
-            if (jcp_.amx_tile_load_xx) {
-                // assuming 2x2 decomposition in amx brgemm kernel
-                // and overlap of input by kw
-                const auto bd_blocking = 2 * jcp_.amx_h;
-                const auto ld_blocking = 2 * 16;
-                brgattr.hint_expected_A_size
-                        = bd_blocking * jcp_.K * jcp_.kd_block * jcp_.kh_block;
-                brgattr.hint_expected_B_size = ld_blocking * jcp_.K
-                        * jcp_.kd_block * jcp_.kh_block * jcp_.kw_block;
-                brgattr.hint_expected_C_size = bd_blocking * ld_blocking;
-            } else {
-                brgattr.hint_expected_A_size = 0;
-                brgattr.hint_expected_B_size = 0;
-                brgattr.hint_expected_C_size = 0;
+    const auto KD_BLOCK = ndims_pick(jcp_.kd_block, 1, 1);
+    const auto KH_BLOCK = ndims_pick(jcp_.kh_block, jcp_.kh_block, 1);
+
+    const auto SW = jcp_.stride_w;
+    const auto IW = jcp_.iw;
+    // TODO: this is only needed if we have d/h padding exceeding kd/kh
+    int M_begin = 0;
+    int M_end = (jcp_.M_tail == jcp_.M) ? 1 : 2;
+    int N_begin = 0;
+    int N_end = (jcp_.N_tail == jcp_.N) ? 1 : 2;
+    int K_begin = 0;
+    int K_end = (jcp_.K_tail == jcp_.K) ? 1 : 2;
+    int i_init_begin = (div_up(jcp_.nb_oc, jcp_.nb_oc_blocking) == 1
+                               && KD_BLOCK == KD && KH_BLOCK == KH)
+            ? 1
+            : 0;
+    int i_init_end = 2;
+
+    for_(int i_N = N_begin; i_N < N_end; i_N++)
+    for_(int i_M = M_begin; i_M < M_end; i_M++)
+    for_(int i_init = i_init_begin; i_init < i_init_end; i_init++)
+    for (int i_K = K_begin; i_K < K_end; i_K++) {
+        auto M = (i_M) ? jcp_.M_tail : jcp_.M;
+        if (M <= 0) continue;
+        CHECK(add_brg_descriptor(M, i_N, i_K, i_init));
+    }
+
+    if (jcp_.exec_type == exec_base) {
+        // create brgemm kernels for iw_blocks with padded areas and
+        // apply post-ops on final iteration by kw to padded areas in iw_block
+        int kw_s {0}, kw_full_s {0}, kw_full_f {0}, kw_f {0}, iw_s {0},
+                M_without_overflow {0};
+
+        auto init_kernels_kw_loop = [&](int sw, int iw) -> status_t {
+            const auto iw_str = iw + sw;
+            get_kw_range(iw_str, iw, kw_s, kw_full_s, kw_full_f, kw_f);
+            for (int kw = kw_s; kw < kw_f; kw++) {
+                get_iw_range(iw_str, iw, kw, iw_s, M_without_overflow);
+                if (M_without_overflow <= 0) continue;
+                for_(int i_init = 0; i_init < 2; i_init++)
+                for_(int i_N = 0; i_N < 2; i_N++)
+                for (int i_K = 0; i_K < 2; i_K++) {
+                    CHECK(add_brg_descriptor(
+                            M_without_overflow, i_N, i_K, i_init));
+                }
             }
-
-            brgattr.wary_tail_read = false;
-            // use_M_mask is always 0 for brgemm_convolution_bwd_strided_t
-            brgattr.bd_mask = nullptr;
-            brgattr.bd_mask_level = jcp_.use_M_mask;
-
-            if (is_amx) {
-                brgattr.max_top_vpad = 0;
-                brgattr.max_bottom_vpad = 0;
-            } else {
-                brgattr.max_top_vpad = jcp_.max_vpad;
-                brgattr.max_bottom_vpad = jcp_.max_vpad;
+            return status::success;
+        };
+        for (int sw = 0; sw < SW; sw++) {
+            for (int iw = 0; iw < IW; iw += jcp_.iw_block) {
+                CHECK(init_kernels_kw_loop(sw, iw));
+                if (kw_f == jcp_.kw && kw_s == 0) break;
             }
-            brgattr.generate_skip_accumulation = true;
-            CHECK(brgemm_desc_set_attr(&brg, brgattr));
-
-            auto LDD = jcp_.stride_w * jcp_.ic_without_padding;
-            brg.with_sum = with_sum;
-            brg.with_weights_scale_adjust = jcp_.scale_adjust_factor != 1.0f;
-            CHECK(brgemm_desc_set_postops(
-                    &brg, attr(), &diff_src_md_, LDD, jcp_.bia_dt));
-            jcp_.amx_buf_size_per_thread = nstl::max(
-                    brg.get_wsp_buffer_size(), jcp_.amx_buf_size_per_thread);
-            brgs_->insert(brg_idx, brg);
+            for (int iw = (jcp_.nb_iw - 1) * jcp_.iw_block; iw >= 0;
+                    iw -= jcp_.iw_block) {
+                CHECK(init_kernels_kw_loop(sw, iw));
+                if (kw_f == jcp_.kw && kw_s == 0) break;
+            }
         }
     }
+    brgs_sz_ = brgs_->refs_size();
 
     auto scratchpad = scratchpad_registry().registrar();
     brgemm_convolution_bwd_utils::init_scratchpad(scratchpad, jcp_);
@@ -242,39 +217,119 @@ status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::init(engine_t *engine) {
 }
 
 template <cpu_isa_t isa>
-void brgemm_convolution_bwd_strided_t<isa>::get_kw_range(int iw, int iw_raw,
-        int &kw_s, int &kw_full_s, int &kw_full_f, int &kw_f) const {
-    // This function is needed for exec_base only
-    const auto _pd = pd();
-    const auto &jcp = _pd->jcp_;
+status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::add_brg_descriptor(
+        int vM, bool is_N_tail, bool is_K_tail, bool do_init) {
 
-    brgemm_convolution_bwd_utils::get_kw_range(
-            jcp, iw, iw_raw, kw_s, kw_full_s, kw_full_f, kw_f);
+    if (do_init && is_K_tail && jcp_.K > 0) return status::success;
+
+    const float alpha = 1.0;
+    const float beta = 1.0;
+
+    auto vbeta = do_init ? 0 : beta;
+    auto vN = is_N_tail ? jcp_.N_tail : jcp_.N;
+    auto vK = is_K_tail ? jcp_.K_tail : jcp_.K;
+
+    const auto is_amx = brgemm_convolution_bwd_utils::is_amx(isa);
+
+    if (vN == 0 || vK == 0) return status::success;
+
+    auto brg_idx = get_brg_idx(vM, do_init, is_N_tail, is_K_tail);
+    // if brgemm_desc_t already created then skip this iteration
+    if (brg_idx != -1) return status::success;
+
+    brgemm_desc_t brg;
+    brgemm_strides_t brg_strides;
+    brg_strides.stride_a = jcp_.brg_stride_a;
+    brg_strides.stride_b = jcp_.brg_stride_b;
+    brg.req_cal_comp_pads = jcp_.req_brg_comp_pad;
+    brg.req_comp_pads_with_bcast
+            = jcp_.req_cal_comp_pad && jcp_.exec_type == exec_trans;
+    const auto strides_ptr
+            = (jcp_.brg_type == brgemm_strd) ? &brg_strides : nullptr;
+    CHECK(brgemm_desc_init(&brg, isa, jcp_.brg_type, jcp_.src_dt, jcp_.wei_dt,
+            false, false, brgemm_row_major, alpha, vbeta, jcp_.LDA, jcp_.LDB,
+            jcp_.LDC, vM, vN, vK, strides_ptr));
+
+    brgemm_attr_t brgattr;
+    brgattr.use_uker = jcp_.use_uker;
+    brgattr.use_interleave_stores = jcp_.use_interleave_stores;
+    brgattr.hint_prefetching = jcp_.hint_prefetching;
+    brgattr.max_bs = jcp_.max_batch;
+    brgattr.hint_innermost_loop = jcp_.brgemm_bd_loop_innermost
+            ? brgemm_bd_loop_innermost
+            : brgemm_ld_loop_innermost;
+    if (jcp_.amx_tile_load_xx) {
+        // assuming 2x2 decomposition in amx brgemm kernel
+        // and overlap of input by kw
+        const auto bd_blocking = 2 * jcp_.amx_h;
+        const auto ld_blocking = 2 * 16;
+        brgattr.hint_expected_A_size
+                = bd_blocking * jcp_.K * jcp_.kd_block * jcp_.kh_block;
+        brgattr.hint_expected_B_size = ld_blocking * jcp_.K * jcp_.kd_block
+                * jcp_.kh_block * jcp_.kw_block;
+        brgattr.hint_expected_C_size = bd_blocking * ld_blocking;
+    } else {
+        brgattr.hint_expected_A_size = 0;
+        brgattr.hint_expected_B_size = 0;
+        brgattr.hint_expected_C_size = 0;
+    }
+
+    brgattr.wary_tail_read = false;
+    // use_M_mask is always 0 for brgemm_convolution_bwd_strided_t
+    brgattr.bd_mask = nullptr;
+    brgattr.bd_mask_level = jcp_.use_M_mask;
+
+    if (is_amx) {
+        brgattr.max_top_vpad = 0;
+        brgattr.max_bottom_vpad = 0;
+    } else {
+        brgattr.max_top_vpad = jcp_.max_vpad;
+        brgattr.max_bottom_vpad = jcp_.max_vpad;
+    }
+    brgattr.generate_skip_accumulation = true;
+    CHECK(brgemm_desc_set_attr(&brg, brgattr));
+
+    auto LDD = jcp_.stride_w * jcp_.ic_without_padding;
+    brg.with_sum = jcp_.with_sum;
+    brg.with_weights_scale_adjust = jcp_.scale_adjust_factor != 1.0f;
+    CHECK(brgemm_desc_set_postops(
+            &brg, attr(), &diff_src_md_, LDD, jcp_.bia_dt));
+    jcp_.amx_buf_size_per_thread = nstl::max(
+            brg.get_wsp_buffer_size(), jcp_.amx_buf_size_per_thread);
+    brg_idx = brgs_->insert(brg);
+
+    const std::array<int, 4> key = {vM, is_N_tail, is_K_tail, do_init};
+    if (brg_indices.find(key) == brg_indices.end()) {
+        brg_indices.insert({key, brg_idx});
+        brg_indices_c++;
+    }
+
+    return status::success;
 }
 
 template <cpu_isa_t isa>
-void brgemm_convolution_bwd_strided_t<isa>::get_iw_range(
+void brgemm_convolution_bwd_strided_t<isa>::pd_t::get_kw_range(int iw,
+        int iw_raw, int &kw_s, int &kw_full_s, int &kw_full_f,
+        int &kw_f) const {
+    // This function is needed for exec_base only
+    brgemm_convolution_bwd_utils::get_kw_range(
+            jcp_, iw, iw_raw, kw_s, kw_full_s, kw_full_f, kw_f);
+}
+
+template <cpu_isa_t isa>
+void brgemm_convolution_bwd_strided_t<isa>::pd_t::get_iw_range(
         int iw, int iw_raw, int kw, int &iw_s, int &M_without_overflow) const {
     // This function is needed for exec_base only
-    const auto _pd = pd();
-    const auto &jcp = _pd->jcp_;
 
     brgemm_convolution_bwd_utils::get_iw_range(
-            jcp, iw, iw_raw, kw, iw_s, M_without_overflow);
+            jcp_, iw, iw_raw, kw, iw_s, M_without_overflow);
 }
 
 template <cpu_isa_t isa>
-status_t brgemm_convolution_bwd_strided_t<isa>::add_brg_kernel(
-        int bs, int M, int i_N, int i_K, int i_init) {
-    if (M <= 0) return status::success;
+status_t brgemm_convolution_bwd_strided_t<isa>::add_brg_kernel(int brg_idx) {
     const auto _pd = pd();
-    const auto &jcp = _pd->jcp_;
     const auto &brgs = *(_pd->brgs_);
 
-    auto N = (i_N) ? jcp.N_tail : jcp.N;
-    auto K = (i_K) ? jcp.K_tail : jcp.K;
-    if (N <= 0 || K <= 0) return status::success;
-    auto brg_idx = _pd->get_brg_idx(bs, M - 1, i_init, i_N, i_K);
     auto brg = brgs[brg_idx];
     if (!brg_kernels_[brg_idx] && brg && brg->bcast_dim > 0 && brg->load_dim > 0
             && brg->reduce_dim > 0) {
@@ -306,7 +361,6 @@ status_t brgemm_convolution_bwd_strided_t<isa>::add_po_kernel(
     return status::success;
 }
 
-// TODO: consolidate with jit_brgemm_conv.cpp version.
 template <cpu_isa_t isa>
 void brgemm_convolution_bwd_strided_t<isa>::add_po_kernels(
         int i_N, int init_bcast_dim, int po_bcast_dim) {
@@ -318,9 +372,9 @@ void brgemm_convolution_bwd_strided_t<isa>::add_po_kernels(
     if (N <= 0) return;
     auto i_K = (jcp.K_tail > 0);
 
+    const auto brg_idx = _pd->get_any_brg_idx(i_N, i_K);
+
     if (init_bcast_dim > 0) {
-        auto brg_idx = _pd->get_brg_idx(
-                _pd->first_bs, init_bcast_dim - 1, 0, i_N, i_K);
         if (brgs[brg_idx]) {
             auto init_cfg = *(brgs[brg_idx]);
             auto ker_init_idx = get_ker_po_idx(init_bcast_dim - 1, false, i_N);
@@ -332,8 +386,6 @@ void brgemm_convolution_bwd_strided_t<isa>::add_po_kernels(
     }
 
     if ((need_postwork || jcp.use_buffer) && po_bcast_dim > 0) {
-        auto brg_idx = _pd->get_brg_idx(
-                _pd->first_bs, po_bcast_dim - 1, 0, i_N, i_K);
         if (brgs[brg_idx]) {
             auto po_cfg = *(brgs[brg_idx]);
             auto ker_po_idx = get_ker_po_idx(po_bcast_dim - 1, true, i_N);
@@ -390,27 +442,17 @@ void brgemm_convolution_bwd_strided_t<isa>::create_kernels() {
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
 
-    // TODO: this is only needed if we have d/h padding exceeding kd/kh
+    is_amx = brgemm_convolution_bwd_utils::is_amx(isa);
+
+    for (const auto &key_value_pair : _pd->brg_indices) {
+        const int brg_idx = key_value_pair.second;
+        add_brg_kernel(brg_idx);
+    }
+
     int M_begin = 0;
     int M_end = (jcp.M_tail == jcp.M) ? 1 : 2;
     int N_begin = 0;
     int N_end = (jcp.N_tail == jcp.N) ? 1 : 2;
-    int K_begin = 0;
-    int K_end = (jcp.K_tail == jcp.K) ? 1 : 2;
-    int i_init_begin = (div_up(jcp.nb_oc, jcp.nb_oc_blocking) == 1
-                               && KD_BLOCK == KD && KH_BLOCK == KH)
-            ? 1
-            : 0;
-    int i_init_end = 2;
-
-    for_(int i_N = N_begin; i_N < N_end; i_N++)
-    for_(int i_M = M_begin; i_M < M_end; i_M++)
-    for_(int i_init = i_init_begin; i_init < i_init_end; i_init++)
-    for (int i_K = K_begin; i_K < K_end; i_K++) {
-        auto M = (i_M) ? jcp.M_tail : jcp.M;
-        if (M <= 0) continue;
-        add_brg_kernel(jcp.max_batch, M, i_N, i_K, i_init);
-    }
 
     if (jcp.exec_type == exec_base) {
         for_(int i_N = N_begin; i_N < N_end; i_N++)
@@ -429,16 +471,10 @@ void brgemm_convolution_bwd_strided_t<isa>::create_kernels() {
 
         auto init_kernels_kw_loop = [&](int sw, int iw) {
             const auto iw_str = iw + sw;
-            get_kw_range(iw_str, iw, kw_s, kw_full_s, kw_full_f, kw_f);
+            _pd->get_kw_range(iw_str, iw, kw_s, kw_full_s, kw_full_f, kw_f);
             for (int kw = kw_s; kw < kw_f; kw++) {
-                get_iw_range(iw_str, iw, kw, iw_s, M_without_overflow);
+                _pd->get_iw_range(iw_str, iw, kw, iw_s, M_without_overflow);
                 if (M_without_overflow <= 0) continue;
-                for_(int i_init = 0; i_init < 2; i_init++)
-                for_(int i_N = 0; i_N < 2; i_N++)
-                for (int i_K = 0; i_K < 2; i_K++) {
-                    add_brg_kernel(jcp.max_batch, M_without_overflow, i_N, i_K,
-                            i_init);
-                }
 
                 bool is_iw_tail = (jcp.iw - iw < jcp.iw_block);
                 for_(int i_N = 0; i_N < 2; i_N++)
@@ -448,13 +484,13 @@ void brgemm_convolution_bwd_strided_t<isa>::create_kernels() {
                                       SW)
                             * SW;
                     if (M <= 0) continue;
-                    get_iw_range(iw_str, iw, kw, iw_s, M_without_overflow);
+                    _pd->get_iw_range(iw_str, iw, kw, iw_s, M_without_overflow);
                     iw_f = iw_s + (M_without_overflow * SW);
                     const auto init_bcast_dim
                             = ((i_side == 0) ? (iw_s - iw_str)
                                              : (iw_str + M - iw_f))
                             / SW;
-                    get_iw_range(
+                    _pd->get_iw_range(
                             iw_str, iw, kw_f - kw, iw_s, M_without_overflow);
                     iw_f = iw_s + (M_without_overflow * SW);
                     const auto po_bcast_dim
@@ -1186,7 +1222,7 @@ void brgemm_convolution_bwd_strided_t<isa>::ker_base(
             = bias ? bias + (bias_d.blk_off(g_ic) * bia_dsz) : nullptr;
     int kw_s {0}, kw_full_s {0}, kw_f {0}, kw_full_f {0}, kw_b(0), kw_e(0);
     int kd_s_(0), kh_s_(0), kd_f_(0), kh_f_(0);
-    get_kw_range(iw, iw_raw, kw_s, kw_full_s, kw_full_f, kw_f);
+    _pd->get_kw_range(iw, iw_raw, kw_s, kw_full_s, kw_full_f, kw_f);
 
     // od = (id + FP - kd * DD) / SD <-- general relation for all sets of (od, id, kd) that overlap
     // for a given index from diff_src, we need to find the appropriate stride sector
@@ -1287,7 +1323,7 @@ void brgemm_convolution_bwd_strided_t<isa>::ker_base(
     const auto kdhw_loop = [&]() {
         if (kw_e - kw_b <= 0 || kw_b >= jcp.kw) return;
         int iw_b {0}, M_without_overflow {0};
-        get_iw_range(iw, iw_raw, kw_b, iw_b, M_without_overflow);
+        _pd->get_iw_range(iw, iw_raw, kw_b, iw_b, M_without_overflow);
         const auto iw_e = iw_b + M_without_overflow;
         const auto do_init
                 = btc.occ == 0 && kd_b == kd_s && kh_b == kh_s && kw_b == kw_s;
@@ -1319,27 +1355,20 @@ void brgemm_convolution_bwd_strided_t<isa>::ker_base(
         const auto comp_ker_offs = get_comp_offset(
                 btc.g, btc.icb, 0, kd_s, kd_f, kh_s, kh_f, kw_b, kw_e);
 
-        const auto ker_i = iw_l - 1;
-        int kernel_idx[2][2];
-        kernel_idx[false][false]
-                = _pd->get_brg_idx(k_l, ker_i, false, is_ic_tail, false);
-        kernel_idx[true][false]
-                = _pd->get_brg_idx(k_l, ker_i, true, is_ic_tail, false);
-        kernel_idx[false][true]
-                = _pd->get_brg_idx(k_l, ker_i, false, is_ic_tail, true);
-        kernel_idx[true][true]
-                = _pd->get_brg_idx(k_l, ker_i, true, is_ic_tail, true);
+        const auto ker_i = iw_l;
 
         if (iw_l > 0 && k_l > 0) {
             if (nb_oc_b > 0) {
-                const auto brg_idx = kernel_idx[do_init][false];
+                const auto brg_idx
+                        = _pd->get_brg_idx(ker_i, do_init, is_ic_tail, false);
                 call_brgemm(iw_b, brg_idx, 0, nb_oc_b, comp_ker_offs,
                         do_postwork && !is_oc_tail, do_only_comp);
             }
 
             if (is_oc_tail) {
                 const auto use_init_ker = (do_init && nb_oc_b == 0);
-                const auto brg_oc_tail_idx = kernel_idx[use_init_ker][true];
+                const auto brg_oc_tail_idx = _pd->get_brg_idx(
+                        ker_i, use_init_ker, is_ic_tail, true);
                 call_brgemm(iw_b, brg_oc_tail_idx, nb_oc_b, 1, comp_ker_offs,
                         do_postwork, do_only_comp);
             }
@@ -1477,7 +1506,7 @@ void brgemm_convolution_bwd_strided_t<isa>::ker_trans(
 
     ptr_C = (jcp.use_buffer) ? btc.c_buffer : static_cast<char *>(ptr_D);
 
-    const auto ker_i = (jcp.M > 0 ? jcp.M : jcp.M_tail) - 1;
+    const auto ker_i = (jcp.M > 0 ? jcp.M : jcp.M_tail);
 
     bool is_first_call_postops = false,
          is_first_call_postops_state_changed = false;
@@ -1566,25 +1595,17 @@ void brgemm_convolution_bwd_strided_t<isa>::ker_trans(
                         btc.g, btc.icb, iw, kd_s, kd_f, kh_s, kh_f, 0, KW)
                 : get_comp_offset(btc.g, btc.icb, iw, 0, 0, 0, 0, 0, 0);
 
-        int kernel_idx[2][2];
-        kernel_idx[false][false]
-                = _pd->get_brg_idx(k_l, ker_i, false, is_ic_tail, false);
-        kernel_idx[true][false]
-                = _pd->get_brg_idx(k_l, ker_i, true, is_ic_tail, false);
-        kernel_idx[false][true]
-                = _pd->get_brg_idx(k_l, ker_i, false, is_ic_tail, true);
-        kernel_idx[true][true]
-                = _pd->get_brg_idx(k_l, ker_i, true, is_ic_tail, true);
-
         if (nb_oc_b > 0) {
-            const auto brg_idx = kernel_idx[do_init][false];
+            const auto brg_idx
+                    = _pd->get_brg_idx(ker_i, do_init, is_ic_tail, false);
             call_brgemm(brg_idx, 0, nb_oc_b, comp_ker_offs,
                     do_postwork && !is_oc_tail);
         }
 
         if (is_oc_tail) {
             const auto use_init_ker = (do_init && nb_oc_b == 0);
-            const auto brg_oc_tail_idx = kernel_idx[use_init_ker][true];
+            const auto brg_oc_tail_idx
+                    = _pd->get_brg_idx(ker_i, use_init_ker, is_ic_tail, true);
             call_brgemm(
                     brg_oc_tail_idx, nb_oc_b, 1, comp_ker_offs, do_postwork);
         }
