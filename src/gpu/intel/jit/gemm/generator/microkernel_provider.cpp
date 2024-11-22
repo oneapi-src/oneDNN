@@ -305,6 +305,9 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
     s.B_prefetch = s.B;
     s.A_prefetch.prefetch = s.B_prefetch.prefetch = true;
 
+    s.AO.newDP = s.A_scale.newDP = true;
+    s.BO.newDP = s.B_scale.newDP = true;
+
     if (!localA && block2DA) {
         if (!isPacked(problem.A.layout))
             s.A_prefetch.accessType = AccessType::Block2D;
