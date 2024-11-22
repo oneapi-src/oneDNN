@@ -1691,6 +1691,18 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t M, dim_t K,
         conf.copy_A_src_stride = in_ld * conf.a_dt_sz;
         // setting LDA parameter required for plain transpose
         conf.LDA = conf.K;
+
+        // jit_brgemm_matmul_copy_a_tranposed_impl_t::dst_stride
+        dim_t dst_stride = conf.LDA * conf.tr_a_dt_sz;
+
+        dim_t max_src_encode_stride = conf.K_blk * conf.copy_A_src_stride;
+        dim_t max_dst_encode_stride = conf.M_blk * dst_stride;
+
+        // Cannot encode EVEX compressed addresses
+        VCONDCHECK_BG(std::max(max_src_encode_stride, max_dst_encode_stride)
+                        <= std::numeric_limits<int32_t>::max(),
+                VERBOSE_UNSUPPORTED_MEM_STRIDE);
+
     } else {
         conf.blocked_B = !utils::one_of(in_tag, ab, ba, abc, acb);
         conf.transposed_B = utils::one_of(in_tag, ba, acb);
@@ -1705,6 +1717,16 @@ status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t M, dim_t K,
         conf.N_chunk_elems = conf.N; // To match seems unneeded assert.
         conf.s8s8_comp_b_str = utils::rnd_up(conf.N, conf.wei_n_blk);
         conf.s8s8_comp_n_str = conf.wei_n_blk;
+
+        dim_t max_wei_encode_off = conf.K_blk * conf.copy_B_wei_stride
+                + conf.wei_n_blk * conf.b_dt_sz;
+        dim_t max_dst_encode_off
+                = (conf.K_blk * conf.LDB + conf.wei_n_blk) * conf.tr_b_dt_sz;
+
+        // Cannot encode EVEX compressed addresses
+        VCONDCHECK_BG(std::max(max_wei_encode_off, max_dst_encode_off)
+                        <= std::numeric_limits<int32_t>::max(),
+                VERBOSE_UNSUPPORTED_MEM_STRIDE);
     }
 
     // The following members are different from the upper level `init_conf()`
