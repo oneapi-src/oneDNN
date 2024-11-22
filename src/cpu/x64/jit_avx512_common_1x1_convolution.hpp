@@ -98,14 +98,14 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
 
         const memory_desc_t *dst_md(
                 int index = 0, bool user_input = false) const override {
-            return jcp_.with_dw_conv
+            return dw_conv_pd_ && jcp_.with_dw_conv
                     ? dw_conv_pd_->dst_md(index, user_input)
                     : cpu_convolution_fwd_pd_t::dst_md(index, user_input);
         }
 
         const memory_desc_t *arg_md(
                 int arg, bool user_input = false) const override {
-            if (jcp_.with_dw_conv) {
+            if (dw_conv_pd_ && jcp_.with_dw_conv) {
                 switch (arg) {
                     case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_SRC:
                         return cpu_convolution_fwd_pd_t::dst_md(0, user_input);
