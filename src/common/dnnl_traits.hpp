@@ -26,8 +26,10 @@
 #include "c_types_map.hpp"
 #include "float16.hpp"
 #include "float8.hpp"
+#include "gemm_types.hpp"
 #include "nstl.hpp"
 #include "opdesc.hpp"
+#include "sdpa_types.hpp"
 #include "utils.hpp"
 #include "z_magic.hpp"
 

@@ -34,10 +34,13 @@ namespace impl {
 #define DNNL_ARG_ATTN_MASK DNNL_ARG_SHIFT
 
 // A descriptor for a scaled dot product attention (SDPA) operation.
-struct sdpa_desc_t {
-    // The kind of primitive. Used for self identifying the primitive
-    // descriptor. Must be sdpa.
-    dnnl_primitive_kind_t primitive_kind;
+struct sdpa_desc_t : public op_desc_t {
+    sdpa_desc_t() : op_desc_t(primitive_kind::sdpa) {}
+
+    std::unique_ptr<op_desc_t> clone() const override {
+        return utils::make_unique<sdpa_desc_t>(*this);
+    }
+
     memory_desc_t q_desc; /* queries */
     memory_desc_t k_desc; /* keys */
     memory_desc_t v_desc; /* values */

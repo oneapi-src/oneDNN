@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,9 +38,7 @@ const std::vector<uint8_t> &cache_blob_id_t::get(
         return sstream_.get_data();
     }
 
-    if (pd->op_desc()->kind == primitive_kind::zero_pad) {
-        return sstream_.get_data();
-    }
+    if (pd->kind() == primitive_kind::zero_pad) { return sstream_.get_data(); }
 
     assert(engine->kind() == engine_kind::gpu
             && engine->runtime_kind() == runtime_kind::ocl);

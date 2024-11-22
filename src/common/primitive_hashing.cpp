@@ -30,7 +30,7 @@ namespace primitive_hashing {
 key_t::key_t(const engine_t *engine, const op_desc_t *op_desc,
         const primitive_attr_t *attr, int pd_iterator_offset,
         const std::vector<memory_desc_t> &hint_mds, int skip_idx)
-    : primitive_kind_(op_desc->kind)
+    : primitive_kind_(op_desc->primitive_kind)
     , op_desc_(op_desc)
     , attr_(attr)
     , pd_iterator_offset_(pd_iterator_offset)

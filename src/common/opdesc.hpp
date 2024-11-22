@@ -17,17 +17,69 @@
 #ifndef COMMON_OPDESC_HPP
 #define COMMON_OPDESC_HPP
 
-#include <vector>
-
 #include "common/c_types_map.hpp"
-#include "common/gemm_types.hpp"
-#include "common/sdpa_types.hpp"
+#include "common/memory_desc.hpp"
+#include "common/utils.hpp"
+
+#include <vector>
+#include <type_traits>
 
 namespace dnnl {
 namespace impl {
 
-struct reorder_desc_t {
+#define DECLARE_COMMON_OP_DESC_CLONE(op_desc_kind_t) \
+    std::unique_ptr<op_desc_t> clone() const override { \
+        return utils::make_unique<op_desc_kind_t>(*this); \
+    }
+
+// A base class for all descriptors that allows to dispatch between them through
+// a dedicated `kind` field.
+struct op_desc_t {
+    virtual ~op_desc_t() = default;
+
+    virtual std::unique_ptr<op_desc_t> clone() const = 0;
+
+    // Converters to a inherited type.
+    template <typename T>
+    static const T *to_desc(const op_desc_t *op_desc) {
+        static_assert(!std::is_pointer<T>::value,
+                "T is not expected to be a pointer type.");
+        return utils::downcast<const T *>(op_desc);
+    }
+    template <typename T>
+    static T *to_desc(op_desc_t *op_desc) {
+        static_assert(!std::is_pointer<T>::value,
+                "T is not expected to be a pointer type.");
+        return utils::downcast<T *>(op_desc);
+    }
+
+    // The kind of primitive. Used for self-identifying the primitive desc.
     primitive_kind_t primitive_kind;
+
+protected:
+    op_desc_t() : primitive_kind(primitive_kind::undefined) {}
+    op_desc_t(primitive_kind_t pk) : primitive_kind(pk) {}
+    op_desc_t(const op_desc_t &) = default;
+    op_desc_t &operator=(const op_desc_t &) = default;
+    op_desc_t(op_desc_t &&) = default;
+    op_desc_t &operator=(op_desc_t &&) = default;
+};
+
+// A descriptor of a reorder operation.
+struct reorder_desc_t : public op_desc_t {
+    reorder_desc_t() = default;
+    reorder_desc_t(primitive_kind_t primitive_kind, const memory_desc_t *src_md,
+            const memory_desc_t *dst_md, engine_kind_t src_engine_kind,
+            engine_kind_t dst_engine_kind, bool is_cross_engine)
+        : op_desc_t(primitive_kind)
+        , src_md(src_md)
+        , dst_md(dst_md)
+        , src_engine_kind(src_engine_kind)
+        , dst_engine_kind(dst_engine_kind)
+        , is_cross_engine(is_cross_engine) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(reorder_desc_t);
+
     const memory_desc_t *src_md;
     const memory_desc_t *dst_md;
     engine_kind_t src_engine_kind;
@@ -35,12 +87,13 @@ struct reorder_desc_t {
     bool is_cross_engine;
 };
 
-struct concat_desc_t {
+// A descriptor of a concat operation.
+struct concat_desc_t : public op_desc_t {
     concat_desc_t() = default;
     concat_desc_t(primitive_kind_t primitive_kind, const memory_desc_t *dst_md,
             dim_t n, dim_t concat_dimension,
             const memory_desc_t *const *src_mds)
-        : primitive_kind(primitive_kind)
+        : op_desc_t(primitive_kind)
         , dst_md(dst_md)
         , n(n)
         , concat_dimension(concat_dimension) {
@@ -48,37 +101,45 @@ struct concat_desc_t {
             this->src_mds.push_back(src_mds[i]);
     }
 
-    primitive_kind_t primitive_kind;
+    DECLARE_COMMON_OP_DESC_CLONE(concat_desc_t);
+
     const memory_desc_t *dst_md;
     dim_t n;
     dim_t concat_dimension;
     std::vector<const memory_desc_t *> src_mds;
 };
 
-struct sum_desc_t {
+// A descriptor of a sum operation.
+struct sum_desc_t : public op_desc_t {
     sum_desc_t() = default;
     sum_desc_t(primitive_kind_t primitive_kind, const memory_desc_t *dst_md,
             dim_t n, const float *scales, const memory_desc_t *const *src_mds)
-        : primitive_kind(primitive_kind), dst_md(dst_md), n(n), scales(scales) {
+        : op_desc_t(primitive_kind), dst_md(dst_md), n(n), scales(scales) {
         for (dim_t i = 0; i < n; i++)
             this->src_mds.push_back(src_mds[i]);
     }
 
-    primitive_kind_t primitive_kind;
+    DECLARE_COMMON_OP_DESC_CLONE(sum_desc_t);
+
     const memory_desc_t *dst_md;
     dim_t n;
     const float *scales;
     std::vector<const memory_desc_t *> src_mds;
 };
 
-struct zero_pad_desc_t {
-    primitive_kind_t primitive_kind;
+// A descriptor of a zero padding operation.
+struct zero_pad_desc_t : public op_desc_t {
+    zero_pad_desc_t() : op_desc_t(primitive_kind::zero_pad) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(zero_pad_desc_t);
 };
 
-struct inner_product_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_inner_product.
-    primitive_kind_t primitive_kind;
+// A descriptor of a inner product operation.
+struct inner_product_desc_t : public op_desc_t {
+    inner_product_desc_t() : op_desc_t(primitive_kind::inner_product) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(inner_product_desc_t);
+
     // The kind of propagation. Possible values: forward_training,
     // forward_inference, backward_data,
     // backward_weights, and backward_bias.
@@ -103,10 +164,12 @@ struct inner_product_desc_t {
     data_type_t accum_data_type;
 };
 
-struct convolution_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_convolution.
-    primitive_kind_t primitive_kind;
+// A descriptor of a convolution operation.
+struct convolution_desc_t : public op_desc_t {
+    convolution_desc_t() : op_desc_t(primitive_kind::convolution) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(convolution_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, #dnnl_backward_data,
     // #dnnl_backward_weights, and #dnnl_backward_bias.
@@ -148,10 +211,11 @@ struct convolution_desc_t {
 using deconvolution_desc_t = convolution_desc_t;
 
 // A descriptor of a shuffle operation.
-struct shuffle_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_shuffle.
-    primitive_kind_t primitive_kind;
+struct shuffle_desc_t : public op_desc_t {
+    shuffle_desc_t() : op_desc_t(primitive_kind::shuffle) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(shuffle_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, and #dnnl_backward_data.
     prop_kind_t prop_kind;
@@ -166,10 +230,11 @@ struct shuffle_desc_t {
 };
 
 // A descriptor of resampling operation.
-struct resampling_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_resampling.
-    primitive_kind_t primitive_kind;
+struct resampling_desc_t : public op_desc_t {
+    resampling_desc_t() : op_desc_t(primitive_kind::resampling) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(resampling_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, #dnnl_backward_data,
     prop_kind_t prop_kind;
@@ -195,10 +260,11 @@ struct resampling_desc_t {
 //
 // 3D case:
 //     dst[mb, m, n] = src[mb, m, k] * weights[mb, k, n] + bias[mb, m, n]
-struct matmul_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_matmul.
-    primitive_kind_t primitive_kind;
+struct matmul_desc_t : public op_desc_t {
+    matmul_desc_t() : op_desc_t(primitive_kind::matmul) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(matmul_desc_t);
+
     // Source memory descriptor.
     memory_desc_t src_desc;
     // Weights memory descriptor.
@@ -212,10 +278,11 @@ struct matmul_desc_t {
 };
 
 // A descriptor of a element-wise operation.
-struct eltwise_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_eltwise.
-    primitive_kind_t primitive_kind;
+struct eltwise_desc_t : public op_desc_t {
+    eltwise_desc_t() : op_desc_t(primitive_kind::eltwise) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(eltwise_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
     prop_kind_t prop_kind;
@@ -269,10 +336,12 @@ struct eltwise_desc_t {
 };
 
 // A descriptor of a Batch Normalization operation.
-struct batch_normalization_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_batch_normalization.
-    primitive_kind_t primitive_kind;
+struct batch_normalization_desc_t : public op_desc_t {
+    batch_normalization_desc_t()
+        : op_desc_t(primitive_kind::batch_normalization) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(batch_normalization_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
     prop_kind_t prop_kind;
@@ -298,10 +367,12 @@ struct batch_normalization_desc_t {
 };
 
 // A descriptor of a Group Normalization operation.
-struct group_normalization_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_group_normalization.
-    primitive_kind_t primitive_kind;
+struct group_normalization_desc_t : public op_desc_t {
+    group_normalization_desc_t()
+        : op_desc_t(primitive_kind::group_normalization) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(group_normalization_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
     prop_kind_t prop_kind;
@@ -329,10 +400,12 @@ struct group_normalization_desc_t {
 };
 
 // A descriptor of a Layer Normalization operation.
-struct layer_normalization_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_layer_normalization.
-    primitive_kind_t primitive_kind;
+struct layer_normalization_desc_t : public op_desc_t {
+    layer_normalization_desc_t()
+        : op_desc_t(primitive_kind::layer_normalization) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(layer_normalization_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
     prop_kind_t prop_kind;
@@ -362,10 +435,11 @@ struct layer_normalization_desc_t {
 };
 
 // A descriptor of a Local Response Normalization (LRN) operation.
-struct lrn_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_lrn.
-    primitive_kind_t primitive_kind;
+struct lrn_desc_t : public op_desc_t {
+    lrn_desc_t() : op_desc_t(primitive_kind::lrn) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(lrn_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
     prop_kind_t prop_kind;
@@ -392,10 +466,11 @@ struct lrn_desc_t {
 };
 
 // A descriptor of reduction operation.
-struct reduction_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_reduction.
-    primitive_kind_t primitive_kind;
+struct reduction_desc_t : public op_desc_t {
+    reduction_desc_t() : op_desc_t(primitive_kind::reduction) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(reduction_desc_t);
+
     // The kind of reduction algorithm. Possible values:
     // #dnnl_reduction_max, #dnnl_reduction_min, #dnnl_reduction_sum,
     // #dnnl_reduction_mul, #dnnl_reduction_mean, #dnnl_reduction_norm_lp_max,
@@ -421,10 +496,11 @@ struct reduction_desc_t {
 };
 
 /// A descriptor of a Softmax operation.
-struct softmax_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_softmax.
-    primitive_kind_t primitive_kind;
+struct softmax_desc_t : public op_desc_t {
+    softmax_desc_t() : op_desc_t(primitive_kind::softmax) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(softmax_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, and #dnnl_backward_data.
     prop_kind_t prop_kind;
@@ -444,10 +520,11 @@ struct softmax_desc_t {
 };
 
 // A descriptor of a binary operation.
-struct binary_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_binary.
-    primitive_kind_t primitive_kind;
+struct binary_desc_t : public op_desc_t {
+    binary_desc_t() : op_desc_t(primitive_kind::binary) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(binary_desc_t);
+
     // The kind of the binary algorithm. Possible values:
     // #dnnl_binary_add, #dnnl_binary_mul, #dnnl_binary_max, #dnnl_binary_min,
     // #dnnl_binary_div and #dnnl_binary_sub.
@@ -459,10 +536,11 @@ struct binary_desc_t {
 };
 
 /// A descriptor of a PReLU operation.
-struct prelu_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_prelu.
-    primitive_kind_t primitive_kind;
+struct prelu_desc_t : public op_desc_t {
+    prelu_desc_t() : op_desc_t(primitive_kind::prelu) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(prelu_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, #dnnl_backward
     prop_kind_t prop_kind;
@@ -482,10 +560,11 @@ struct prelu_desc_t {
 };
 
 // A descriptor of a pooling operation.
-struct pooling_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_pooling.
-    primitive_kind_t primitive_kind;
+struct pooling_desc_t : public op_desc_t {
+    pooling_desc_t() : op_desc_t(primitive_kind::pooling) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(pooling_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
     prop_kind_t prop_kind;
@@ -517,10 +596,11 @@ struct pooling_desc_t {
 };
 
 // A descriptor for an RNN operation.
-struct rnn_desc_t {
-    // The kind of primitive. Used for self-identifying the primitive
-    // descriptor. Must be #dnnl_rnn.
-    dnnl_primitive_kind_t primitive_kind;
+struct rnn_desc_t : public op_desc_t {
+    rnn_desc_t() : op_desc_t(primitive_kind::rnn) {}
+
+    DECLARE_COMMON_OP_DESC_CLONE(rnn_desc_t);
+
     // The kind of propagation. Possible values: #dnnl_forward_training,
     // #dnnl_forward_inference, and #dnnl_backward.
     prop_kind_t prop_kind;
@@ -592,74 +672,7 @@ struct rnn_desc_t {
     float beta;
 };
 
-struct op_desc_t {
-    union {
-        primitive_kind_t kind;
-        convolution_desc_t convolution;
-        deconvolution_desc_t deconvolution;
-        shuffle_desc_t shuffle;
-        pooling_desc_t pooling;
-        prelu_desc_t prelu;
-        eltwise_desc_t eltwise;
-        softmax_desc_t softmax;
-        lrn_desc_t lrn;
-        batch_normalization_desc_t batch_normalization;
-        group_normalization_desc_t group_normalization;
-        layer_normalization_desc_t layer_normalization;
-        inner_product_desc_t inner_product;
-        rnn_desc_t rnn;
-        gemm_desc_t gemm;
-        concat_desc_t concat;
-        reorder_desc_t reorder;
-        sum_desc_t sum;
-        binary_desc_t binary;
-        matmul_desc_t matmul;
-        resampling_desc_t resampling;
-        zero_pad_desc_t zero_pad;
-        reduction_desc_t reduction;
-        sdpa_desc_t sdpa;
-    };
-
-#define DECL_CTOR_AND_CONVERTERS(c_type) \
-    op_desc_t(const c_type &) = delete; \
-    static op_desc_t *convert_from_c(c_type *_) { \
-        return reinterpret_cast<op_desc_t *>(_); \
-    } \
-    static const op_desc_t *convert_from_c(const c_type *_) { \
-        return reinterpret_cast<const op_desc_t *>(_); \
-    }
-
-    DECL_CTOR_AND_CONVERTERS(convolution_desc_t);
-    DECL_CTOR_AND_CONVERTERS(shuffle_desc_t);
-    DECL_CTOR_AND_CONVERTERS(pooling_desc_t);
-    DECL_CTOR_AND_CONVERTERS(prelu_desc_t);
-    DECL_CTOR_AND_CONVERTERS(eltwise_desc_t);
-    DECL_CTOR_AND_CONVERTERS(softmax_desc_t);
-    DECL_CTOR_AND_CONVERTERS(lrn_desc_t);
-    DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t);
-    DECL_CTOR_AND_CONVERTERS(group_normalization_desc_t);
-    DECL_CTOR_AND_CONVERTERS(layer_normalization_desc_t);
-    DECL_CTOR_AND_CONVERTERS(inner_product_desc_t);
-    DECL_CTOR_AND_CONVERTERS(rnn_desc_t);
-    DECL_CTOR_AND_CONVERTERS(gemm_desc_t);
-    DECL_CTOR_AND_CONVERTERS(concat_desc_t);
-    DECL_CTOR_AND_CONVERTERS(reorder_desc_t);
-    DECL_CTOR_AND_CONVERTERS(sum_desc_t);
-    DECL_CTOR_AND_CONVERTERS(binary_desc_t);
-    DECL_CTOR_AND_CONVERTERS(matmul_desc_t);
-    DECL_CTOR_AND_CONVERTERS(resampling_desc_t);
-    DECL_CTOR_AND_CONVERTERS(zero_pad_desc_t);
-    DECL_CTOR_AND_CONVERTERS(reduction_desc_t);
-    DECL_CTOR_AND_CONVERTERS(sdpa_desc_t);
-
-    // concat_desc_t and sum_desc_t have data members which have non-trivial
-    // special member functions hence the default destructor is implicitly
-    // deleted by the compiler which causes a warning on Windows so we should
-    // delete the destructor explicitly.
-    ~op_desc_t() = delete;
-
-#undef DECL_CTOR_AND_CONVERTERS
-};
+#undef DECLARE_COMMON_OP_DESC_CLONE
 
 } // namespace impl
 } // namespace dnnl
