@@ -133,11 +133,13 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     // Fused beta/post-op configuration.
     fuseBeta &= (kParallel || kParallelVariable);
     fusePostOps &= (kParallel || kParallelVariable);
+    relaxedAccumulation &= hasNativeAtomicAdd(hw, Tc_ext, problem.C, C);
 
     bool needsFusedPostOps = false;
 
     needsFusedPostOps |= (problem.cOffset == COffset::Post);
-    needsFusedPostOps |= (Tc.bits() != Tc_ext.bits());
+    if (!relaxedAccumulation)
+        needsFusedPostOps |= (Tc.bits() != Tc_ext.bits());
     for (size_t i = 0; i < problem.postOps.len(); i++)
         needsFusedPostOps |= (!problem.postOps[i].is_sum());
     if (problem.Ts != problem.Tc) {

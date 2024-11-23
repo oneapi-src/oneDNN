@@ -405,6 +405,8 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
             strategy.fusePostOps = true;
         else if (mod == "zt")
             strategy.zeroTempC = true;
+        else if (mod == "rx")
+            strategy.relaxedAccumulation = true;
         else if (mod == "fg") {
             float fillGoal;
             s >> fillGoal;
@@ -888,16 +890,17 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     if (strategy.C.smode == ScatterSIMD::Wide)              s << " wc";
     if (strategy.forceCopyC)                                s << " cc";
 
-    if (!strategy.jointSplit)       s << " njs";
-    if (strategy.mSplitThresh)      s << " ms" << strategy.mSplitThresh;
-    if (strategy.nSplitThresh)      s << " ns" << strategy.nSplitThresh;
+    if (!strategy.jointSplit)           s << " njs";
+    if (strategy.mSplitThresh)          s << " ms" << strategy.mSplitThresh;
+    if (strategy.nSplitThresh)          s << " ns" << strategy.nSplitThresh;
 
-    if (strategy.kParallel)         s << " kb";
-    if (strategy.kParallelVariable) s << " kv";
-    if (strategy.fuseBeta)          s << (strategy.altFusedBeta ? " afb" : " fb");
-    if (strategy.fusePostOps)       s << " fp";
-    if (strategy.zeroTempC)         s << " zt";
-    if (strategy.kPadding)          s << " pk" << strategy.kPadding;
+    if (strategy.kParallel)             s << " kb";
+    if (strategy.kParallelVariable)     s << " kv";
+    if (strategy.fuseBeta)              s << (strategy.altFusedBeta ? " afb" : " fb");
+    if (strategy.fusePostOps)           s << " fp";
+    if (strategy.zeroTempC)             s << " zt";
+    if (strategy.relaxedAccumulation)   s << " rx";
+    if (strategy.kPadding)              s << " pk" << strategy.kPadding;
 
     if (strategy.C.atomic && !strategy.kParallel && !strategy.kParallelVariable)
         s << " au";

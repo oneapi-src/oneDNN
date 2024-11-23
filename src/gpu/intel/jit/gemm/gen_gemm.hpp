@@ -424,6 +424,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                 set_mode(mode, kernel_desc_t::mode_f16x1);
             if (attr()->deterministic_)
                 set_mode(mode, kernel_desc_t::mode_deterministic);
+            if (attr()->acc_mode_ == accumulation_mode::relaxed)
+                set_mode(mode, kernel_desc_t::mode_relaxed_acc);
 
             if (wei_decomp_) {
                 acc_type = data_type::f32;

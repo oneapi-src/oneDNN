@@ -263,7 +263,9 @@ struct GEMMStrategyPOD : public CommonStrategy {
     bool fusePostOps = false;                    //   Fuse post-operations into kernel? (kParallel/kParallelVariable, requires linear ordering)
     bool altFusedBeta = false;                   //   Enable alternate beta fusion implementation? (requires sequential dispatch)
     bool zeroTempC = false;                      //   Use pre-zeroed temporary C memory.
-                                    ZPAD(K, 3)
+    bool relaxedAccumulation = false;            //   Allow downconversion of partial contributions to Tc_ext.
+                                                 //     If false (default), only downconvert C at the end of the calculation.
+                                    ZPAD(K, 2)
     int kPadding = 32;                           //   Pad k dimension when load balancing (kParallel/kParallelVariable)
     bool doubleWA = false;                       // Use explicit double broadcast instructions? (Gen9 only)
                                     ZPAD(L, 3)

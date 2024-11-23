@@ -344,23 +344,25 @@ void BLASKernelGenerator<hw>::atomicAddMatrixBlock(Type T, const GRF &src, const
                 auto rOld = rOldNew[0];
                 auto rNew = rOldNew[nregReal];
                 auto flagToDo = getPhysicalFlag(state.vflagEAtomicAdd, state);
+                auto ebytes = block.ebytes;
+                if (ebytes == 1) ebytes = block.count;
 
                 if (block.simdSize > 16) stub();    // Need 32 channels.
                 if (astrategy.newDP)
                     load(block.simdSize | maskMod, rOld, specLSC, astrategy.base, getAddress(addr, block, astrategy));
                 else if (astrategy.base.getModel() == ModelA64) {
-                    if (block.ebytes == 2)
+                    if (ebytes == 2)
                         load(block.simdSize | maskMod, rOld, scattered_byte(2), astrategy.base, addr);
-                    else if (block.ebytes == 4)
+                    else if (ebytes == 4)
                         load(block.simdSize | maskMod, rOld, scattered_dword(), astrategy.base, addr);
-                    else if (block.ebytes == 8)
+                    else if (ebytes == 8)
                         load(block.simdSize | maskMod, rOld, scattered_qword(), astrategy.base, addr);
                 } else {
-                    if (block.ebytes == 2)
+                    if (ebytes == 2)
                         load(block.simdSize | maskMod, rOld, scattered_byte(2), astrategy.base, addr);
-                    else if (block.ebytes == 4)
+                    else if (ebytes == 4)
                         load(block.simdSize | maskMod, rOld, surface_dword(ChannelMask::r), astrategy.base, addr);
-                    else if (block.ebytes == 8)
+                    else if (ebytes == 8)
                         stub();         // needs cmpwr2
                 }
                 Label labelMask;
@@ -385,15 +387,16 @@ void BLASKernelGenerator<hw>::atomicAddMatrixBlock(Type T, const GRF &src, const
                     mark(labelCmpXchgLoop);
 
                     auto dt = T.ngen();
-                    add(int(simd * block.ebytes / T.real()) | eoMod | NoMask, rNew.retype(dt), rOld.retype(dt), curSrc.retype(dt));
-                    mov<uint32_t>((simd * block.ebytes / 4) | eoMod | NoMask, rSave, rOld);
+                    auto hs = std::max(1, 4 / ebytes);
+                    add(int(simd * ebytes / T.real()) | eoMod | NoMask, rNew.retype(dt)[0](hs), rOld.retype(dt)[0](hs), curSrc.retype(dt)[0](hs));
+                    mov<uint32_t>((simd * hs * ebytes / 4) | eoMod | NoMask, rSave, rOld);
 
                     auto atomicMod = simd | flagToDo | eoMod;
                     auto cmpMod = simd | flagToDo | ne | flagToDo | eoMod;
 
                     if (astrategy.newDP)
                         atomic(AtomicOp::cmpwr, atomicMod, rOld, specLSC, astrategy.base, getAddress(addr[hoff], block, astrategy), rOld);
-                    else switch (block.ebytes) {
+                    else switch (ebytes) {
                         case 2: if (hw < HW::Gen12LP) hw_unsupported();
                                 atomic(AtomicOp::cmpwr, atomicMod, rOld, scattered_word(),  astrategy.base, addr[hoff], rOld); break;
                         case 4: atomic(AtomicOp::cmpwr, atomicMod, rOld, scattered_dword(), astrategy.base, addr[hoff], rOld); break;
@@ -401,11 +404,11 @@ void BLASKernelGenerator<hw>::atomicAddMatrixBlock(Type T, const GRF &src, const
                         default: stub();
                     }
 
-                    if (block.ebytes == 2)
+                    if (ebytes == 2)
                         cmp<uint16_t>(cmpMod, rSave[0][0](2), rOld[0](2));
-                    else if (block.ebytes == 4)
+                    else if (ebytes == 4)
                         cmp<uint32_t>(cmpMod, rSave, rOld);
-                    else if (block.ebytes == 8) {
+                    else if (ebytes == 8) {
                         if (strategy.emulate.emulate64) {
                             cmp<uint32_t>(simd | ne | flagToDo | eoMod, rSave[0][0](2), rOld[0](2));
                             cmp<uint32_t>(simd | ~flagToDo | ne | flagToDo | eoMod, rSave[0][1](2), rOld[1](2));

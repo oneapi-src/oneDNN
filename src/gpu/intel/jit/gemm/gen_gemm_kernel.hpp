@@ -91,6 +91,7 @@ protected:
     int m_ = -1, n_ = -1, k_ = -1;
     int eu_count_ = -1;
     bool disable_systolic_ = false;
+    bool relaxed_acc_ = false;
 
     status_t transfer_post_ops(gpu_post_ops_t &&post_ops, bool swap_ab);
 
@@ -105,6 +106,7 @@ struct gen_gemm_nocopy_kernel_desc_t : public gen_gemm_kernel_desc_t {
         mode_bf16x1 = 0x2,
         mode_f16x1 = 0x4,
         mode_w_decomp = 0x8,
+        mode_relaxed_acc = 0x10,
         mode_deterministic = 0x8000
     };
 

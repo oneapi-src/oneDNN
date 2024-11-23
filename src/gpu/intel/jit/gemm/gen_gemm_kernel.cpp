@@ -228,6 +228,7 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
     }
 #endif
 
+    strategy_.relaxedAccumulation |= relaxed_acc_;
     strategy_.systolicAvailable &= !disable_systolic_;
     try {
         strategy_.preflight(hw_, problem_);
@@ -373,6 +374,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     k_ = k;
     eu_count_ = eu_count;
     disable_systolic_ = !has_systolic;
+    relaxed_acc_ = mode & mode_relaxed_acc;
 
     align_a = nstl::max(align_a, int(types::data_type_size(a_type)));
     align_b = nstl::max(align_b, int(types::data_type_size(b_type)));
