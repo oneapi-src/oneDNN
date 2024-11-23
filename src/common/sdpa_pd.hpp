@@ -167,9 +167,10 @@ struct sdpa_pd_t : public primitive_desc_t {
 protected:
     sdpa_desc_t desc_;
 
-    sdpa_pd_t(const sdpa_desc_t *adesc, const primitive_attr_t *attr,
+    sdpa_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const hint_class *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind), desc_(*adesc) {}
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*op_desc_t::to_desc<sdpa_desc_t>(adesc)) {}
 
     bool set_default_format(memory_desc_t *md) {
         memory_desc_wrapper mdw(md);

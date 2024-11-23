@@ -78,10 +78,10 @@ protected:
     memory_desc_t src_md_;
     memory_desc_t weights_md_;
 
-    prelu_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
+    prelu_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const prelu_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(*op_desc_t::to_desc<prelu_desc_t>(adesc))
         , hint_fwd_pd_(hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , weights_md_(desc_.weights_desc) {}
@@ -133,7 +133,7 @@ struct prelu_fwd_pd_t : public prelu_pd_t {
 protected:
     memory_desc_t dst_md_;
 
-    prelu_fwd_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
+    prelu_fwd_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const prelu_fwd_pd_t *hint_fwd_pd)
         : prelu_pd_t(adesc, attr, hint_fwd_pd), dst_md_(desc_.dst_desc) {}
 
@@ -216,7 +216,7 @@ protected:
     memory_desc_t diff_weights_md_;
     memory_desc_t diff_dst_md_;
 
-    prelu_bwd_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
+    prelu_bwd_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const prelu_fwd_pd_t *hint_fwd_pd)
         : prelu_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)

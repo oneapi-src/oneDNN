@@ -115,10 +115,10 @@ protected:
 
     dims_t broadcast_dims_;
 
-    binary_pd_t(const binary_desc_t *adesc, const primitive_attr_t *attr,
+    binary_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const binary_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(*op_desc_t::to_desc<binary_desc_t>(adesc))
         , src0_md_(desc_.src_desc[0])
         , src1_md_(desc_.src_desc[1])
         , dst_md_(desc_.dst_desc) {

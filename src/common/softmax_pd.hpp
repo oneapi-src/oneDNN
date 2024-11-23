@@ -108,10 +108,10 @@ protected:
 
     memory_desc_t dst_md_;
 
-    softmax_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
+    softmax_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const softmax_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(*op_desc_t::to_desc<softmax_desc_t>(adesc))
         , hint_fwd_pd_(hint_fwd_pd)
         , dst_md_(desc_.dst_desc) {}
 
@@ -162,7 +162,7 @@ struct softmax_fwd_pd_t : public softmax_pd_t {
 protected:
     memory_desc_t src_md_;
 
-    softmax_fwd_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
+    softmax_fwd_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const softmax_fwd_pd_t *hint_fwd_pd)
         : softmax_pd_t(adesc, attr, hint_fwd_pd), src_md_(desc_.src_desc) {}
 
@@ -239,7 +239,7 @@ protected:
     memory_desc_t diff_src_md_;
     memory_desc_t diff_dst_md_;
 
-    softmax_bwd_pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
+    softmax_bwd_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const softmax_fwd_pd_t *hint_fwd_pd)
         : softmax_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)

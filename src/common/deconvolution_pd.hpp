@@ -163,11 +163,10 @@ protected:
     deconvolution_desc_t desc_;
     const deconvolution_fwd_pd_t *hint_fwd_pd_;
 
-    deconvolution_pd_t(const deconvolution_desc_t *adesc,
-            const primitive_attr_t *attr,
+    deconvolution_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const deconvolution_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(*op_desc_t::to_desc<deconvolution_desc_t>(adesc))
         , hint_fwd_pd_(hint_fwd_pd) {}
 
     bool attr_scales_ok(const std::vector<int> &supported_args
@@ -255,8 +254,7 @@ protected:
     memory_desc_t bias_md_;
     memory_desc_t dst_md_;
 
-    deconvolution_fwd_pd_t(const deconvolution_desc_t *adesc,
-            const primitive_attr_t *attr,
+    deconvolution_fwd_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const deconvolution_fwd_pd_t *hint_fwd_pd)
         : deconvolution_pd_t(adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
@@ -316,7 +314,7 @@ protected:
     memory_desc_t weights_md_;
     memory_desc_t diff_dst_md_;
 
-    deconvolution_bwd_data_pd_t(const deconvolution_desc_t *adesc,
+    deconvolution_bwd_data_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr,
             const deconvolution_fwd_pd_t *hint_fwd_pd)
         : deconvolution_pd_t(adesc, attr, hint_fwd_pd)
@@ -381,7 +379,7 @@ protected:
     memory_desc_t diff_bias_md_;
     memory_desc_t diff_dst_md_;
 
-    deconvolution_bwd_weights_pd_t(const deconvolution_desc_t *adesc,
+    deconvolution_bwd_weights_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr,
             const deconvolution_fwd_pd_t *hint_fwd_pd)
         : deconvolution_pd_t(adesc, attr, hint_fwd_pd)

@@ -107,11 +107,11 @@ protected:
     memory_desc_t stat_md_;
     memory_desc_t scaleshift_md_;
 
-    layer_normalization_pd_t(const layer_normalization_desc_t *adesc,
+    layer_normalization_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr,
             const layer_normalization_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(*op_desc_t::to_desc<layer_normalization_desc_t>(adesc))
         , hint_fwd_pd_(hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , stat_md_(desc_.stat_desc)
@@ -224,7 +224,7 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
 protected:
     memory_desc_t dst_md_;
 
-    layer_normalization_fwd_pd_t(const layer_normalization_desc_t *adesc,
+    layer_normalization_fwd_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr,
             const layer_normalization_fwd_pd_t *hint_fwd_pd)
         : layer_normalization_pd_t(adesc, attr, hint_fwd_pd)
@@ -336,7 +336,7 @@ protected:
     memory_desc_t diff_dst_md_;
     memory_desc_t diff_scaleshift_md_;
 
-    layer_normalization_bwd_pd_t(const layer_normalization_desc_t *adesc,
+    layer_normalization_bwd_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr,
             const layer_normalization_fwd_pd_t *hint_fwd_pd)
         : layer_normalization_pd_t(adesc, attr, hint_fwd_pd)

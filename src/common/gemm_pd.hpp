@@ -91,9 +91,10 @@ protected:
     // resolve the 'any' tags.
     gemm_desc_t desc_;
 
-    gemm_pd_t(const gemm_desc_t *adesc, const primitive_attr_t *attr,
+    gemm_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const hint_class *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind), desc_(*adesc) {}
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*op_desc_t::to_desc<gemm_desc_t>(adesc)) {}
 
     // By default, we just resolve 'any' with blocked layout and trivial strides
     bool set_default_format(memory_desc_t *md) {
