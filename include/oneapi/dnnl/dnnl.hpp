@@ -472,6 +472,8 @@ enum class algorithm {
     binary_eq = dnnl_binary_eq,
     /// Binary not equal
     binary_ne = dnnl_binary_ne,
+    /// Binary select
+    binary_select = dnnl_binary_select,
     /// Nearest Neighbor resampling method
     resampling_nearest = dnnl_resampling_nearest,
     /// Linear (Bilinear, Trilinear) resampling method
@@ -12670,6 +12672,39 @@ struct binary : public primitive {
             reset(pd);
         }
 
+        /// Constructs a primitive descriptor for an elementwise binary operator
+        /// primitive with support of ternary operators.
+        ///
+        /// @param aengine Engine to use.
+        /// @param aalgorithm Elementwise binary algorithm.
+        /// @param src0 Memory descriptor for source tensor #0.
+        /// @param src1 Memory descriptor for source tensor #1.
+        /// @param src2 Memory descriptor for source tensor #2 for ternary
+        ///     operations. Might be empty.
+        /// @param dst Memory descriptor for destination tensor.
+        /// @param attr Primitive attributes to use. Attributes are optional
+        ///     and default to empty attributes.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const engine &aengine, algorithm aalgorithm,
+                const memory::desc &src0, const memory::desc &src1,
+                const memory::desc &src2, const memory::desc &dst,
+                const primitive_attr &attr = default_attr(),
+                bool allow_empty = false) {
+
+            dnnl_primitive_desc_t pd = nullptr;
+            dnnl_status_t status = dnnl_binary_primitive_desc_create_v2(&pd,
+                    aengine.get(), dnnl::convert_to_c(aalgorithm), src0.get(),
+                    src1.get(), src2.get(), dst.get(), attr.get());
+
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        err_message_list::pd_creation("binary v2 operation"));
+            reset(pd);
+        }
+
         /// Constructs a primitive descriptor for a binary primitive from a C
         /// API primitive descriptor that must have a matching kind.
         ///
@@ -12685,6 +12720,9 @@ struct binary : public primitive {
 
         /// Returns the memory descriptor for source #1.
         memory::desc src1_desc() const { return base::src_desc(1); }
+
+        /// Returns the memory descriptor for source #2.
+        memory::desc src2_desc() const { return base::src_desc(2); }
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc()const
         memory::desc dst_desc() const { return base::dst_desc(0); }

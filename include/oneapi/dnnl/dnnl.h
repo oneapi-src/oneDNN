@@ -1500,7 +1500,7 @@ dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
 /// Creates a primitive descriptor for a binary primitive.
 ///
 /// @note
-///     Memory descriptors @p src1_desc and @p dst_desc are alloweded to be
+///     Memory descriptors @p src1_desc and @p dst_desc are allowed to be
 ///     initialized with #dnnl_format_tag_any or with format_kind set to
 ///     #dnnl_format_kind_any.
 ///
@@ -1526,6 +1526,37 @@ dnnl_status_t DNNL_API dnnl_binary_primitive_desc_create(
         dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t src0_desc,
         const_dnnl_memory_desc_t src1_desc, const_dnnl_memory_desc_t dst_desc,
         const_dnnl_primitive_attr_t attr);
+
+/// Creates a primitive descriptor for a binary primitive with support of
+/// ternary operators.
+///
+/// @note
+///     Memory descriptors @p src1_desc, @p src2_desc and @p dst_desc are
+///     allowed to be initialized with #dnnl_format_tag_any or with format_kind
+///     set to #dnnl_format_kind_any.
+///
+/// @note
+///     All memory descriptors must have the same number of dimensions.
+///     Element broadcasting is supported for memory descriptor @p src1_desc
+///     and is applied to @p src1_desc dimensions that have a size equal to 1.
+///     There is no broadcasting support for @p src2_desc.
+///
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
+/// @param alg_kind Algorithm kind.
+/// @param src0_desc Source 0 memory descriptor.
+/// @param src1_desc Source 1 memory descriptor.
+/// @param src2_desc Source memory descriptor for ternary operations. Might
+///     be empty.
+/// @param dst_desc Destination memory descriptor.
+/// @param attr Primitive attributes.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_binary_primitive_desc_create_v2(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t src0_desc,
+        const_dnnl_memory_desc_t src1_desc, const_dnnl_memory_desc_t src2_desc,
+        const_dnnl_memory_desc_t dst_desc, const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_binary
 

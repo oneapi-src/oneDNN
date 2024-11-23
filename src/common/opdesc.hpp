@@ -527,10 +527,12 @@ struct binary_desc_t : public op_desc_t {
 
     // The kind of the binary algorithm. Possible values:
     // #dnnl_binary_add, #dnnl_binary_mul, #dnnl_binary_max, #dnnl_binary_min,
-    // #dnnl_binary_div and #dnnl_binary_sub.
+    // #dnnl_binary_div, #dnnl_binary_sub, #dnnl_binary_ge, #dnnl_binary_gt,
+    // #dnnl_binary_le, #dnnl_binary_lt, #dnnl_binary_eq, #dnnl_binary_ne,
+    // and #dnnl_binary_select
     alg_kind_t alg_kind;
     // Source memory descriptors.
-    memory_desc_t src_desc[2];
+    memory_desc_t src_desc[3];
     // Destination memory descriptor.
     memory_desc_t dst_desc;
 };
