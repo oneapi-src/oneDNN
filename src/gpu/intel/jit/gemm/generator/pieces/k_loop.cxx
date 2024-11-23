@@ -962,8 +962,8 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
     // A/B 2D quantization parameter loads.
     auto reqLoadAq = every(kaq_load) | lookahead(ka_repackMain);
     auto reqLoadBq = every(kbq_load) | lookahead(kb_loadMain);
-    auto reqLoadAqLate = every(kaq_loadLate) | lookahead(ka_loadMain);
-    auto reqLoadBqLate = every(kbq_loadLate) | lookahead(kb_loadMain);
+    auto reqLoadAqLate = every(kaq_loadLate) | lookahead(kaq_loadLate);
+    auto reqLoadBqLate = every(kbq_loadLate) | lookahead(kbq_loadLate);
 
     if (readA && dequantize2DA) ls.schedule(reqLoadAq, [&](Iteration h) {
         if (ao2D) gemmALoad(state.A_offsetRegs, state.A_offsetLayout, state.A_offsetAddrs, problem.AO,      strategy.AO,      problem, strategy, state);
