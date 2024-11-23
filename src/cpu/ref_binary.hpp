@@ -49,6 +49,10 @@ struct ref_binary_t : public primitive_t {
             VDISPATCH_BINARY(
                     platform::has_data_type_support(src_md(1)->data_type),
                     VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_BINARY(IMPLICATION(is_ternary_op(),
+                                     platform::has_data_type_support(
+                                             src_md(2)->data_type)),
+                    VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_BINARY(
                     platform::has_data_type_support(dst_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
