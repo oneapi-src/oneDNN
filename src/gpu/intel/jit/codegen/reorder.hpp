@@ -634,7 +634,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             auto s = src.subregister(i, esize, src_type_size);
             auto d = dst.subregister(i, esize, dst_stride);
             // get sign bits
-            host->and_(esize | host->nz | host->f2[0], host->null.uw(),
+            host->and_(esize | host->nz | host->f0[1], host->null.uw(),
                     s.reinterpret(0, ngen::DataType::uw)(1), 0x8000);
             // multiply by hf 128 to force overflow of exponent
             host->mul(esize, s.reinterpret(0, ngen::DataType::hf)(1),
@@ -662,7 +662,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             host->mov(esize | host->f0[0],
                     s.reinterpret(0, ngen::DataType::uw)(1), 0x7F);
             // handle sign.
-            host->or_(esize | host->f2[0],
+            host->or_(esize | host->f0[1],
                     s.reinterpret(0, ngen::DataType::uw)(1),
                     s.reinterpret(0, ngen::DataType::uw)(1), 0x80);
 
