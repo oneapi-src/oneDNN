@@ -146,10 +146,10 @@ protected:
 
     memory_desc_t ws_md_;
 
-    pooling_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
+    pooling_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const pooling_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(*op_desc_t::to_desc<pooling_desc_t>(adesc))
         , hint_fwd_pd_(hint_fwd_pd)
         , ws_md_() {}
 
@@ -229,7 +229,7 @@ protected:
     memory_desc_t src_md_;
     memory_desc_t dst_md_;
 
-    pooling_fwd_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
+    pooling_fwd_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const pooling_fwd_pd_t *hint_fwd_pd)
         : pooling_pd_t(adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
@@ -302,7 +302,7 @@ protected:
     memory_desc_t diff_src_md_;
     memory_desc_t diff_dst_md_;
 
-    pooling_bwd_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
+    pooling_bwd_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const pooling_fwd_pd_t *hint_fwd_pd)
         : pooling_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)

@@ -100,11 +100,11 @@ protected:
     memory_desc_t stat_md_;
     memory_desc_t scaleshift_md_;
 
-    group_normalization_pd_t(const group_normalization_desc_t *adesc,
+    group_normalization_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr,
             const group_normalization_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(*op_desc_t::to_desc<group_normalization_desc_t>(adesc))
         , hint_fwd_pd_(hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , stat_md_(desc_.stat_desc)
@@ -175,7 +175,7 @@ struct group_normalization_fwd_pd_t : public group_normalization_pd_t {
 protected:
     memory_desc_t dst_md_;
 
-    group_normalization_fwd_pd_t(const group_normalization_desc_t *adesc,
+    group_normalization_fwd_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr, const hint_class *hint_fwd_pd)
         : group_normalization_pd_t(adesc, attr, hint_fwd_pd)
         , dst_md_(desc_.dst_desc) {}
@@ -285,7 +285,7 @@ protected:
     memory_desc_t diff_dst_md_;
     memory_desc_t diff_scaleshift_md_;
 
-    group_normalization_bwd_pd_t(const group_normalization_desc_t *adesc,
+    group_normalization_bwd_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr, const hint_class *hint_fwd_pd)
         : group_normalization_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)

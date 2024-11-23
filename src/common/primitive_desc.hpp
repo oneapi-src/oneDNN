@@ -469,13 +469,11 @@ protected:
             const primitive_attr_t *attr, engine_t *engine,
             const primitive_desc_t *hint_fwd) {
         using namespace dnnl::impl::status;
-        using pd_op_desc_t = typename pkind_traits<pd_t::base_pkind>::desc_type;
         if (adesc->primitive_kind != pd_t::base_pkind) return invalid_arguments;
         assert(hint_fwd ? hint_fwd->kind() == pd_t::base_pkind : true);
         auto hint
                 = reinterpret_cast<const typename pd_t::hint_class *>(hint_fwd);
-        auto _pd
-                = make_unique_pd<pd_t>((const pd_op_desc_t *)adesc, attr, hint);
+        auto _pd = make_unique_pd<pd_t>(adesc, attr, hint);
         if (_pd == nullptr) return out_of_memory;
         if (!_pd->is_initialized()) return out_of_memory;
         CHECK(_pd->init(engine));

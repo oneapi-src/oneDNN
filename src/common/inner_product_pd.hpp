@@ -132,11 +132,10 @@ protected:
     inner_product_desc_t desc_;
     const inner_product_fwd_pd_t *hint_fwd_pd_;
 
-    inner_product_pd_t(const inner_product_desc_t *adesc,
-            const primitive_attr_t *attr,
+    inner_product_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(*op_desc_t::to_desc<inner_product_desc_t>(adesc))
         , hint_fwd_pd_(hint_fwd_pd) {}
 
     bool set_default_formats_common_template(memory_desc_t &src_md,
@@ -250,8 +249,7 @@ protected:
     memory_desc_t bias_md_;
     memory_desc_t dst_md_;
 
-    inner_product_fwd_pd_t(const inner_product_desc_t *adesc,
-            const primitive_attr_t *attr,
+    inner_product_fwd_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
         : inner_product_pd_t(adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
@@ -316,7 +314,7 @@ protected:
     memory_desc_t weights_md_;
     memory_desc_t diff_dst_md_;
 
-    inner_product_bwd_data_pd_t(const inner_product_desc_t *adesc,
+    inner_product_bwd_data_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
         : inner_product_pd_t(adesc, attr, hint_fwd_pd)
@@ -388,7 +386,7 @@ protected:
     memory_desc_t diff_bias_md_;
     memory_desc_t diff_dst_md_;
 
-    inner_product_bwd_weights_pd_t(const inner_product_desc_t *adesc,
+    inner_product_bwd_weights_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
         : inner_product_pd_t(adesc, attr, hint_fwd_pd)

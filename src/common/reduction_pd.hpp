@@ -137,10 +137,10 @@ protected:
     memory_desc_t src_md_;
     memory_desc_t dst_md_;
 
-    reduction_pd_t(const reduction_desc_t *adesc, const primitive_attr_t *attr,
+    reduction_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const hint_class *hint_fwd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(*op_desc_t::to_desc<reduction_desc_t>(adesc))
         , src_md_(desc_.src_desc)
         , dst_md_(desc_.dst_desc) {}
 

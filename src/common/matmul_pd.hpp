@@ -209,10 +209,10 @@ protected:
     memory_desc_t bias_md_;
     memory_desc_t dst_md_;
 
-    matmul_pd_t(const matmul_desc_t *adesc, const primitive_attr_t *attr,
+    matmul_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const matmul_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(*op_desc_t::to_desc<matmul_desc_t>(adesc))
         , src_md_(desc_.src_desc)
         , weights_md_(desc_.weights_desc)
         , bias_md_(desc_.bias_desc)

@@ -182,11 +182,10 @@ protected:
     convolution_desc_t desc_;
     const convolution_fwd_pd_t *hint_fwd_pd_;
 
-    convolution_pd_t(const convolution_desc_t *adesc,
-            const primitive_attr_t *attr,
+    convolution_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const convolution_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(*op_desc_t::to_desc<convolution_desc_t>(adesc))
         , hint_fwd_pd_(hint_fwd_pd) {}
 
     bool set_default_formats_common_template(memory_desc_t &src_md,
@@ -310,8 +309,7 @@ protected:
     memory_desc_t bias_md_;
     memory_desc_t dst_md_;
 
-    convolution_fwd_pd_t(const convolution_desc_t *adesc,
-            const primitive_attr_t *attr,
+    convolution_fwd_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const convolution_fwd_pd_t *hint_fwd_pd)
         : convolution_pd_t(adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
@@ -389,7 +387,7 @@ protected:
     memory_desc_t bias_md_;
     memory_desc_t diff_dst_md_;
 
-    convolution_bwd_data_pd_t(const convolution_desc_t *adesc,
+    convolution_bwd_data_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr,
             const convolution_fwd_pd_t *hint_fwd_pd)
         : convolution_pd_t(adesc, attr, hint_fwd_pd)
@@ -409,7 +407,7 @@ struct convolution_bwd_weights_pd_t : public convolution_pd_t {
     typedef convolution_bwd_weights_pd_t base_class;
     typedef convolution_fwd_pd_t hint_class;
 
-    convolution_bwd_weights_pd_t(const convolution_desc_t *adesc,
+    convolution_bwd_weights_pd_t(const op_desc_t *adesc,
             const primitive_attr_t *attr,
             const convolution_fwd_pd_t *hint_fwd_pd)
         : convolution_pd_t(adesc, attr, hint_fwd_pd)
