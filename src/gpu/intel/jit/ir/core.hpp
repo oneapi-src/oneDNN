@@ -159,11 +159,14 @@ struct type_info_t {
 
 // Defines getter for a function argument.
 #define IR_DEFINE_ARG_GET(name, index) \
+    static const expr_t &arg_##name(const func_call_t &c) { \
+        ir_assert(c.func.is<self_type>()) << c; \
+        return c.args[index]; \
+    } \
     static const expr_t &arg_##name(const stmt_t &s) { \
         ir_assert(s.is<func_call_t>()) << s; \
         auto &c = s.as<func_call_t>(); \
-        ir_assert(c.func.is<self_type>()) << s; \
-        return c.args[index]; \
+        return arg_##name(c); \
     } \
     template <typename T> \
     static T &arg_##name(std::vector<T> &args) { \

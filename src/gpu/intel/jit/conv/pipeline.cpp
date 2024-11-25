@@ -1924,8 +1924,8 @@ private:
         for (auto &_c : calls) {
             auto &c = _c.as<func_call_t>();
             if (!c.func.is<send_t>()) continue;
-            auto &buf = (is_mem ? send_t::arg_mem_buf(_c)
-                                : send_t::arg_reg_buf(_c));
+            auto &buf = (is_mem ? send_t::arg_mem_buf(c)
+                                : send_t::arg_reg_buf(c));
             ret.insert(buf.as<ptr_t>().base);
         }
         return ret;

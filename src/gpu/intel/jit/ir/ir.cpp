@@ -317,7 +317,7 @@ public:
         // tmp0.s32            -> tmp0_0.u64
         // tmp1.s32 = tmp0.s32 -> tmp1.s32 = tmp0_0.u64
         if (!value.is_empty()) {
-            auto &value_type = expr_t(value).type();
+            auto value_type = expr_t(value).type();
             if (var.as<var_t>().type != value_type) {
                 auto var_old = var;
                 var = var_t::make(value_type, var.as<var_t>().name);
