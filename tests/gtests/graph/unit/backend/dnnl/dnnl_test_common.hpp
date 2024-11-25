@@ -235,6 +235,17 @@ static inline bool allclose(const std::vector<T> &a, const std::vector<T> &b,
     return flag;
 }
 
+// For some unknown reason, GCC 14.x (but to be precautios, 11.x is guarded) and
+// beyond can't compile this specific function.
+#if defined(__GNUC__) && __GNUC__ > 10 && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+// new_allocator.h:172:33: warning: ‘void operator delete(void*)’ called on
+// pointer ‘<unknown>’ with nonzero offset [1, 9223372036854775807]
+// [-Wfree-nonheap-object]
+//  172 |         _GLIBCXX_OPERATOR_DELETE(_GLIBCXX_SIZED_DEALLOC(__p, __n));
+//      |                                 ^
+#endif
 template <typename T>
 static inline bool allclose(
         const test_tensor &a, const test_tensor &b, float rtol, float atol) {
@@ -242,6 +253,9 @@ static inline bool allclose(
     auto bv = b.as_vec_type<T>();
     return allclose(av, bv, rtol, atol);
 }
+#if defined(__GNUC__) && __GNUC__ > 10 && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 static inline size_t product(std::vector<int64_t> &in) {
     if (in.empty()) return 0;
