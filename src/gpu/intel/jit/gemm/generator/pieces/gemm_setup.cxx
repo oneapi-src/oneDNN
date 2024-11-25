@@ -139,27 +139,28 @@ void BLASKernelGenerator<hw>::gemmCalcWorkshareAOffset(Subregister &off, Subregi
         }
     } else {
         auto Ta_ext = problem.Ta_ext;
-        off = state.ra.alloc_sub<uint32_t>(getHint(HintType::TempComp0, strategy));
+        auto Toff = A_strategy.base.isA64() ? DataType::uq : DataType::ud;
+        off = state.ra.alloc_sub(Toff, getHint(HintType::TempComp0, strategy));
 
         switch (A.layout) {
             case MatrixLayout::Pc:
-                mulConstant(1, off, lid, ma * ka * Ta_ext);
+                emulConstant(1, off, lid, ma * ka * Ta_ext, strategy, state);
                 break;
             case MatrixLayout::T:
                 if (splitLinear) stub();
                 if (splitM) {
-                    mul(1, off, state.inputs.lda, lid);
-                    mulConstant(1, off, off, ma);
+                    emul(1, off, state.inputs.lda, lid, strategy, state);
+                    emulConstant(1, off, off, ma, strategy, state);
                 } else
-                    mulConstant(1, off, lid, ka * Ta_ext);
+                    emulConstant(1, off, lid, ka * Ta_ext, strategy, state);
                 break;
             case MatrixLayout::N:
                 if (splitLinear) stub();
                 if (splitM)
-                    mulConstant(1, off, lid, ma * Ta_ext);
+                    emulConstant(1, off, lid, ma * Ta_ext, strategy, state);
                 else {
-                    mul(1, off, state.inputs.lda, lid);
-                    mulConstant(1, off, off, ka);
+                    emul(1, off, state.inputs.lda, lid, strategy, state);
+                    emulConstant(1, off, off, ka, strategy, state);
                 }
                 break;
             default: stub();
@@ -193,27 +194,28 @@ void BLASKernelGenerator<hw>::gemmCalcWorkshareBOffset(Subregister &off, Subregi
         }
     } else {
         auto Tb_ext = problem.Tb_ext;
-        off = state.ra.alloc_sub<uint32_t>(getHint(HintType::TempComp0, strategy));
+        auto Toff = B_strategy.base.isA64() ? DataType::uq : DataType::ud;
+        off = state.ra.alloc_sub(Toff, getHint(HintType::TempComp0, strategy));
 
         switch (B.layout) {
             case MatrixLayout::Pr:
-                mulConstant(1, off, lid, nb * kb * Tb_ext);
+                emulConstant(1, off, lid, nb * kb * Tb_ext, strategy, state);
                 break;
             case MatrixLayout::N:
                 if (splitLinear) stub();
                 if (splitN) {
-                    mul(1, off, state.inputs.ldb, lid);
-                    mulConstant(1, off, off, nb);
+                    emul(1, off, state.inputs.ldb, lid, strategy, state);
+                    emulConstant(1, off, off, nb, strategy, state);
                 } else
-                    mulConstant(1, off, lid, kb * Tb_ext);
+                    emulConstant(1, off, lid, kb * Tb_ext, strategy, state);
                 break;
             case MatrixLayout::T:
                 if (splitLinear) stub();
                 if (splitN)
-                    mulConstant(1, off, lid, nb * Tb_ext);
+                    emulConstant(1, off, lid, nb * Tb_ext, strategy, state);
                 else {
-                    mul(1, off, state.inputs.ldb, lid);
-                    mulConstant(1, off, off, kb);
+                    emul(1, off, state.inputs.ldb, lid, strategy, state);
+                    emulConstant(1, off, off, kb, strategy, state);
                 }
                 break;
             default: stub();
@@ -2145,13 +2147,14 @@ void BLASKernelGenerator<hw>::gemmCalcIncrements(const GEMMProblem &problem, con
     auto calcInterleavedIncrement = [&](bool isA, int inc) {
         auto &increments = isA ? state.ldaIncrements : state.ldbIncrements;
         auto &base       = isA ? state.lda           : state.ldb;
+        bool isA64 = isA ? strategy.A.base.isA64() : strategy.B.base.isA64();
         if (strategy.kInterleave) {
             int chunk = strategy.kInterleaveChunk;
             if (inc < chunk)
-                calcIncrement(increments, base, inc, strategy, state);
-            calcIncrement(increments, base, inc + chunk * (strategy.wg[LoopK] - 1), strategy, state);
+                calcIncrement(increments, base, inc, isA64, strategy, state);
+            calcIncrement(increments, base, inc + chunk * (strategy.wg[LoopK] - 1), isA64, strategy, state);
         } else
-            calcIncrement(increments, base, inc, strategy, state);
+            calcIncrement(increments, base, inc, isA64, strategy, state);
     };
 
     if (doA) {
@@ -2180,15 +2183,16 @@ void BLASKernelGenerator<hw>::gemmCalcQuantizationIncrements(const GEMMProblem &
     auto calcInterleavedQIncrement = [&](bool isA, SubregisterPair &base, LDIncrements &increments) {
         auto inc   = isA ? state.kaqStride  : state.kbqStride;
         auto group = isA ? problem.aqGroupK : problem.bqGroupK;
+        bool isA64 = isA ? strategy.A.base.isA64() : strategy.B.base.isA64();
         if (strategy.kInterleave) {
             int chunk = strategy.kInterleaveChunk;
             if (group < chunk) {
-                calcIncrement(increments, base, inc, strategy, state);
-                calcIncrement(increments, base, (inc * group + chunk * (strategy.wg[LoopK] - 1)) / group, strategy, state);
+                calcIncrement(increments, base, inc, isA64, strategy, state);
+                calcIncrement(increments, base, (inc * group + chunk * (strategy.wg[LoopK] - 1)) / group, isA64, strategy, state);
             } else
-                calcIncrement(increments, base, chunk * strategy.wg[LoopK] / group, strategy, state);
+                calcIncrement(increments, base, chunk * strategy.wg[LoopK] / group, isA64, strategy, state);
         } else
-            calcIncrement(increments, base, inc, strategy, state);
+            calcIncrement(increments, base, inc, isA64, strategy, state);
     };
 
     if (ao2D && problem.AO.layout == MatrixLayout::N)
