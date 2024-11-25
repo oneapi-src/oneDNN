@@ -1525,6 +1525,10 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
                              state.repackA ? state.Ar_layout :
                                              state.A_layout;
         makeSumLayout(false, Ta, As_srcLayout, Tc, state.As_layout, strategy, state);
+        if (Tc != Tc_compute) {
+            std::swap(state.Asr_layout, state.As_layout);   /* TODO: trim down */
+            makeUnbackedRegLayout(Tc_compute, state.As_layout, unrollM, 1, true, 1);
+        }
         if (state.systolicSumA)
             setupTeardownAccumulateSumSystolic(true, Tb, problem, strategy, state);
     }
@@ -1538,6 +1542,10 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
                              state.repackB ? state.Br_layout :
                                              state.B_layout;
         makeSumLayout(true,  Tb, Bs_srcLayout, Tc, state.Bs_layout, strategy, state);
+        if (Tc != Tc_compute) {
+            std::swap(state.Bsr_layout, state.Bs_layout);
+            makeUnbackedRegLayout(Tc_compute, state.Bs_layout, 1, unrollN, false, 1);
+        }
         if (state.systolicSumB)
             setupTeardownAccumulateSumSystolic(true, Ta, problem, strategy, state);
     }

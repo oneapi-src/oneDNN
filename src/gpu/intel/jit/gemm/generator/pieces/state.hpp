@@ -259,6 +259,7 @@ struct GEMMState : public CommonState {
     GRFMultirange Ao_regs, Bo_regs;                         // Outgoing data to copy to SLM.
     GRFMultirange Ao_regsRem, Bo_regsRem;
     GRFMultirange As_regs, Bs_regs;                         // A row sums/B column sums.
+    GRFMultirange Asr_regs, Bsr_regs;                       // A row sums/B column sums to be repacked.
     GRFMultirange Ap_regs, Bp_regs, Cp_regs;                // A/B/C prefetch registers.
     GRFMultirange A_offsetRegs, B_offsetRegs;               // A/B offsets (grouped).
     GRFMultirange A_scaleRegs, B_scaleRegs;                 // A/B scales (grouped).
@@ -325,6 +326,7 @@ struct GEMMState : public CommonState {
     std::vector<RegisterBlock> Ai_layoutRem, Bi_layoutRem;
     std::vector<RegisterBlock> Ao_layout, Bo_layout;
     std::vector<RegisterBlock> As_layout, Bs_layout;
+    std::vector<RegisterBlock> Asr_layout, Bsr_layout;
     std::vector<RegisterBlock> Ap_layout, Bp_layout, Cp_layout;
     std::vector<RegisterBlock> Ap_layoutAlt, Bp_layoutAlt;
     std::vector<RegisterBlock> A_offsetLayout, B_offsetLayout;
