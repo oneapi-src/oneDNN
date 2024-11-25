@@ -229,7 +229,7 @@ inline void array_copy(T *dst, const T *src, size_t size) {
     for (size_t i = 0; i < size; ++i)
         dst[i] = src[i];
 }
-#if defined(__GNUC__) && !defined(__clang__)
+#if defined(__GNUC__) && __GNUC__ > 8 && !defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
 
