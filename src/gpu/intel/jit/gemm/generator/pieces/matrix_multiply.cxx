@@ -588,13 +588,19 @@ void BLASKernelGenerator<hw>::outerProductSystolic(int h, int ha, int hb, int op
                     B = state.sysSumAll1s[0];
                     nb = elementsPerGRF(hw, Tb);
                     B_block = &sumBlock;
-                    C = findBlockReg(Tc, state.As_layout, x, 0, state.As_regs, nc, C_block);
+                    if (repackC)
+                        C = findBlockReg(Tc, state.Asr_layout, x % Cr_unrollM, 0, state.Asr_regs, nc, C_block);
+                    else
+                        C = findBlockReg(Tc, state.As_layout, x, 0, state.As_regs, nc, C_block);
                 } else {
                     A = state.sysSumAll1s[0];
                     na = elementsPerGRF(hw, Ta);
                     A_block = &sumBlock;
                     B = findBlockReg(Tb, B_layout, hhb, x, B_regs, nb, B_block);
-                    C = findBlockReg(Tc, state.Bs_layout, 0, x, state.Bs_regs, nc, C_block);
+                    if (repackC)
+                        C = findBlockReg(Tc, state.Bsr_layout, 0, x % Cr_unrollN, state.Bsr_regs, nc, C_block);
+                    else
+                        C = findBlockReg(Tc, state.Bs_layout, 0, x, state.Bs_regs, nc, C_block);
                 }
 
                 int nv = globalCM ? na : nb;
@@ -672,6 +678,10 @@ void BLASKernelGenerator<hw>::outerProductRepackC(int x0, int xr0, int nx, int h
     bool globalCM = isLayoutColMajor(C_layout);
     bool scaleA = state.lateScale2DA, scaleB = state.lateScale2DB;
 
+    bool sumA = problem.needsASums();
+    bool sumB = problem.needsBSums();
+    if (globalCM ? sumB : sumA) stub();
+
     if (Tc.size() != Tc_compute.size()) stub();
     if (state.C_buffers > 1) stub();
 
@@ -712,28 +722,42 @@ void BLASKernelGenerator<hw>::outerProductRepackC(int x0, int xr0, int nx, int h
     for (int x1 = 0; x1 < nx; x1 += 2 * nec) {
         int x = x0 + x1, xr = xr0 + x1;
         int xchunk = std::min(nx - x1, 2 * nec);
-        for (int y = 0; y < ny; y++) {
+        for (int y = 0; y < ny + sumA + sumB; y++) {
             auto i = globalCM ? x : y;
             auto j = globalCM ? y : x;
             auto ir = globalCM ? xr : y;
             auto jr = globalCM ? y : xr;
 
-            int ne, ner, nes[2];
-            const RegisterBlock *C_block, *Cr_block, *sblock;
-            auto C = findBlockReg(Tc, C_layout, i, j, C_regs, ne, C_block);
-            auto Cr = findBlockReg(Tc_compute, Cr_layout, ir, jr, Cr_regs, ner, Cr_block);
+            int ne = 0, ner = 0, nes[2] = {0, 0};
+            const RegisterBlock *C_block = nullptr, *Cr_block = nullptr;
+            const RegisterBlock *sblock = nullptr;
+            Subregister C, Cr;
+
+            bool doASum = sumA && y == ny;
+            bool doBSum = sumB && y == ny;
+
+            if (y < ny) {
+                C  = findBlockReg(Tc, C_layout, i, j, C_regs, ne, C_block);
+                Cr = findBlockReg(Tc_compute, Cr_layout, ir, jr, Cr_regs, ner, Cr_block);
+            } else if (doASum) {
+                C  = findBlockReg(Tc, state.As_layout, x, 0, state.As_regs, ne, C_block);
+                Cr = findBlockReg(Tc_compute, state.Asr_layout, xr, 0, state.Asr_regs, ner, Cr_block);
+            } else if (doBSum) {
+                C  = findBlockReg(Tc, state.Bs_layout, 0, x, state.Bs_regs, ne, C_block);
+                Cr = findBlockReg(Tc_compute, state.Bsr_layout, 0, xr, state.Bsr_regs, ner, Cr_block);
+            }
 
             std::array<Subregister, 2> scale;
             std::array<int, 2> scaleStride = {0, 0};
             int nscale = 0;
-            if (scaleA) {
+            if (scaleA && !doBSum) {
                 int js = ((jr + h) / problem.aqGroupK) % state.kaqLate;
                 scale[nscale] = findBlockReg(state.Ta_scaleInt, state.Ar_scaleLayout,
                                              i, js, state.Ar_scaleRegs, nes[0], sblock);
                 scaleStride[nscale] = globalCM ? 1 : 0;
                 nscale++;
             }
-            if (scaleB) {
+            if (scaleB && !doASum) {
                 int is = ((ir + h) / problem.bqGroupK) % state.kbqLate;
                 scale[nscale] = findBlockReg(state.Tb_scaleInt, state.Br_scaleLayout,
                                              is, j, state.Br_scaleRegs, nes[1], sblock);
@@ -741,12 +765,13 @@ void BLASKernelGenerator<hw>::outerProductRepackC(int x0, int xr0, int nx, int h
                 nscale++;
             }
 
-            ne = std::min(ne, ner);
+            ne = std::min({ne, ner, xchunk});
             if (scaleStride[0] == 1) ne = std::min(ne, nes[0]);
             if (scaleStride[1] == 1) ne = std::min(ne, nes[1]);
 
             if (ne < xchunk) stub();
-            if (C_block->crosspack != 1 || Cr_block->crosspack != 1) stub();
+            if ((C_block && C_block->crosspack != 1)
+                    || (Cr_block && Cr_block->crosspack != 1)) stub();
 
             WorkItem item = {C, Cr, ne, iacc, scale, scaleStride};
             bool coalesce = false;
