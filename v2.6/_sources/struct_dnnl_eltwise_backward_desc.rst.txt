@@ -1,0 +1,94 @@
+.. index:: pair: struct; dnnl::eltwise_backward::desc
+.. _doxid-structdnnl_1_1eltwise__backward_1_1desc:
+
+struct dnnl::eltwise_backward::desc
+===================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for an elementwise backward propagation primitive. :ref:`More...<details-structdnnl_1_1eltwise__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_eltwise_desc_t<doxid-structdnnl__eltwise__desc__t>` :target:`data<doxid-structdnnl_1_1eltwise__backward_1_1desc_1abadecbc220bc157796dad92492983a8a>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1eltwise__backward_1_1desc_1a1f2b7f03992121019de203d01a9fe664>`(
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			float alpha = 0,
+			float beta = 0
+			);
+	};
+.. _details-structdnnl_1_1eltwise__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for an elementwise backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1eltwise__backward_1_1desc_1a1f2b7f03992121019de203d01a9fe664:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		float alpha = 0,
+		float beta = 0
+		)
+
+Constructs a descriptor for an elementwise backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aalgorithm
+
+		- Elementwise algorithm kind.
+
+	*
+		- diff_data_desc
+
+		- Diff source and destination memory descriptors.
+
+	*
+		- data_desc
+
+		- Source memory descriptor.
+
+	*
+		- alpha
+
+		- The alpha parameter for the elementwise operation. Specific meaning depends on the algorithm.
+
+	*
+		- beta
+
+		- The beta parameter for the elementwise operation. Specific meaning depends on the algorithm.
+

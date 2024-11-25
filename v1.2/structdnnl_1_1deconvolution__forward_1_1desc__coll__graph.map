@@ -1,0 +1,8 @@
+<map id="dnnl::deconvolution_forward::desc" name="dnnl::deconvolution_forward::desc">
+<area shape="rect" id="node2" href="$structdnnl__convolution__desc__t.html" title="A descriptor of a convolution operation. " alt="" coords="700,109,883,136"/>
+<area shape="rect" id="node3" href="$structdnnl__memory__desc__t.html" title="Memory descriptor. " alt="" coords="373,109,535,136"/>
+<area shape="rect" id="node4" href="$structdnnl__wino__desc__t.html" title="Description of tensor of weights for winograd 2x3 convolution. " alt="" coords="38,33,175,60"/>
+<area shape="rect" id="node5" href="$structdnnl__blocking__desc__t.html" title="Generic description of blocked data layout for most memory formats. " alt="" coords="26,84,187,111"/>
+<area shape="rect" id="node6" href="$structdnnl__rnn__packed__desc__t.html" title="Description of tensor of packed weights for rnn. " alt="" coords="16,135,197,161"/>
+<area shape="rect" id="node7" href="$structdnnl__memory__extra__desc__t.html" title="Description of extra information stored in memory. " alt="" coords="5,185,208,212"/>
+</map>
