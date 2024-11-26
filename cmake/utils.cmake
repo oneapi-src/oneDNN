@@ -174,3 +174,17 @@ function(find_libm var)
         find_library(${var} m REQUIRED)
     endif()
 endfunction()
+
+include(CheckCXXCompilerFlag)
+macro(test_compiler_and_add_flag flag var)
+    set(CMAKE_REQUIRED_QUIET 1)
+    unset(COMPILER_SUPPORTS_FLAG CACHE)
+
+    if(NOT test_compiler_flag_nowarn)
+        append(CMAKE_REQUIRED_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
+        set(test_compiler_flag_nowarn true)
+    endif()
+
+    check_cxx_compiler_flag("${flag}" COMPILER_SUPPORTS_FLAG)
+    append_if(COMPILER_SUPPORTS_FLAG ${var} ${flag})
+endmacro()
