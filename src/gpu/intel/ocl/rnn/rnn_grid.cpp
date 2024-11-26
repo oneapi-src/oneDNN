@@ -50,30 +50,116 @@ using namespace dnnl::impl::memory_tracking::names;
 
 #define AOC array_offset_calculator
 
+static status_t init_layouts_data(rnn_offsets_t &off,
+        ocl_conf_t::inner_layouts_t &inner_layouts, const rnn_pd_t *pd,
+        const rnn_utils::conf_t &rnn) {
+    const memory_desc_wrapper &src_layer_d = pd->src_md(0);
+    const memory_desc_wrapper &src_iter_d = pd->src_md(1);
+    const memory_desc_wrapper &src_iter_c_d = pd->src_md(2);
+    const memory_desc_wrapper &weights_layer_d = pd->weights_md(0);
+    const memory_desc_wrapper &weights_iter_d = pd->weights_md(1);
+    const memory_desc_wrapper &bias_d = pd->weights_md(2);
+    const memory_desc_wrapper &dst_layer_d = pd->dst_md(0);
+    const memory_desc_wrapper &dst_iter_d = pd->dst_md(1);
+    const memory_desc_wrapper &dst_iter_c_d = pd->dst_md(2);
+    const memory_desc_wrapper &diff_src_layer_d = pd->diff_src_md(0);
+    const memory_desc_wrapper &diff_src_iter_d = pd->diff_src_md(1);
+    const memory_desc_wrapper &diff_src_iter_c_d = pd->diff_src_md(2);
+    const memory_desc_wrapper &diff_weights_layer_d = pd->diff_weights_md(0);
+    const memory_desc_wrapper &diff_weights_iter_d = pd->diff_weights_md(1);
+    const memory_desc_wrapper &diff_bias_d = pd->diff_weights_md(2);
+    const memory_desc_wrapper &diff_dst_layer_d = pd->diff_dst_md(0);
+    const memory_desc_wrapper &diff_dst_iter_d = pd->diff_dst_md(1);
+    const memory_desc_wrapper &diff_dst_iter_c_d = pd->diff_dst_md(2);
+
+    off.src_layer = gpu::intel::get_outer_strides(src_layer_d);
+    inner_layouts.src_layer = gpu::intel::get_inner_layout(src_layer_d);
+    off.src_iter = gpu::intel::get_outer_strides(src_iter_d);
+    inner_layouts.src_iter = gpu::intel::get_inner_layout(src_iter_d);
+    if (pd->with_src_iter_c()) {
+        off.src_iter_c = gpu::intel::get_outer_strides(src_iter_c_d);
+        inner_layouts.src_iter_c = gpu::intel::get_inner_layout(src_iter_c_d);
+    }
+    off.weights_layer = gpu::intel::get_outer_strides(weights_layer_d);
+    inner_layouts.weights_layer = gpu::intel::get_inner_layout(weights_layer_d);
+    off.weights_layer_comp_off
+            = weights_layer_d.dims()[0] * weights_layer_d.strides()[0];
+    off.weights_iter = gpu::intel::get_outer_strides(weights_iter_d);
+    inner_layouts.weights_iter = gpu::intel::get_inner_layout(weights_iter_d);
+    off.weights_iter_comp_off
+            = weights_iter_d.dims()[0] * weights_iter_d.strides()[0];
+    off.bias = gpu::intel::get_outer_strides(bias_d);
+    inner_layouts.bias = gpu::intel::get_inner_layout(bias_d);
+    off.dst_layer = gpu::intel::get_outer_strides(dst_layer_d);
+    inner_layouts.dst_layer = gpu::intel::get_inner_layout(dst_layer_d);
+    off.dst_iter = gpu::intel::get_outer_strides(dst_iter_d);
+    inner_layouts.dst_iter = gpu::intel::get_inner_layout(dst_iter_d);
+    if (pd->with_dst_iter_c()) {
+        off.dst_iter_c = gpu::intel::get_outer_strides(dst_iter_c_d);
+        inner_layouts.dst_iter_c = gpu::intel::get_inner_layout(dst_iter_c_d);
+    }
+
+    if (!pd->is_fwd()) {
+        if (!utils::everyone_is(rnn.diff_data_type,
+                    diff_src_layer_d.data_type(), diff_dst_layer_d.data_type()))
+            return status::unimplemented;
+        if (!utils::one_of(diff_src_iter_d.data_type(), rnn.diff_data_type,
+                    data_type::undef)
+                || !utils::one_of(diff_src_iter_c_d.data_type(),
+                        rnn.diff_data_type, data_type::undef)
+                || !utils::one_of(diff_dst_iter_d.data_type(),
+                        rnn.diff_data_type, data_type::undef)
+                || !utils::one_of(diff_dst_iter_c_d.data_type(),
+                        rnn.diff_data_type, data_type::undef))
+            return status::unimplemented;
+
+        off.diff_src_layer = gpu::intel::get_outer_strides(diff_src_layer_d);
+        inner_layouts.diff_src_layer
+                = gpu::intel::get_inner_layout(diff_src_layer_d);
+        off.diff_src_iter = gpu::intel::get_outer_strides(diff_src_iter_d);
+        inner_layouts.diff_src_iter
+                = gpu::intel::get_inner_layout(diff_src_iter_d);
+        if (pd->with_src_iter_c()) {
+            off.diff_src_iter_c
+                    = gpu::intel::get_outer_strides(diff_src_iter_c_d);
+            inner_layouts.diff_src_iter_c
+                    = gpu::intel::get_inner_layout(diff_src_iter_c_d);
+        }
+        off.diff_weights_layer
+                = gpu::intel::get_outer_strides(diff_weights_layer_d);
+        inner_layouts.diff_weights_layer
+                = gpu::intel::get_inner_layout(diff_weights_layer_d);
+        off.diff_weights_iter
+                = gpu::intel::get_outer_strides(diff_weights_iter_d);
+        inner_layouts.diff_weights_iter
+                = gpu::intel::get_inner_layout(diff_weights_iter_d);
+        off.diff_bias = gpu::intel::get_outer_strides(diff_bias_d);
+        inner_layouts.diff_bias = gpu::intel::get_inner_layout(diff_bias_d);
+        off.diff_dst_layer = gpu::intel::get_outer_strides(diff_dst_layer_d);
+        inner_layouts.diff_dst_layer
+                = gpu::intel::get_inner_layout(diff_dst_layer_d);
+        off.diff_dst_iter = gpu::intel::get_outer_strides(diff_dst_iter_d);
+        inner_layouts.diff_dst_iter
+                = gpu::intel::get_inner_layout(diff_dst_iter_d);
+        if (pd->with_dst_iter_c()) {
+            off.diff_dst_iter_c
+                    = gpu::intel::get_outer_strides(diff_dst_iter_c_d);
+            inner_layouts.diff_dst_iter_c
+                    = gpu::intel::get_inner_layout(diff_dst_iter_c_d);
+        }
+    }
+    return status::success;
+}
+
 static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
         const rnn_pd_t *rnn_pd, const rnn_utils::conf_t &rnn,
-        const compute::device_info_t &device_info,
-        const memory_desc_wrapper &src_layer_d,
-        const memory_desc_wrapper &src_iter_d,
-        const memory_desc_wrapper &src_iter_c_d,
-        const memory_desc_wrapper &weights_layer_d,
-        const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &bias_d,
-        const memory_desc_wrapper &dst_layer_d,
-        const memory_desc_wrapper &dst_iter_d,
-        const memory_desc_wrapper &dst_iter_c_d,
-        const memory_desc_wrapper &diff_src_layer_d,
-        const memory_desc_wrapper &diff_src_iter_d,
-        const memory_desc_wrapper &diff_src_iter_c_d,
-        const memory_desc_wrapper &diff_weights_layer_d,
-        const memory_desc_wrapper &diff_weights_iter_d,
-        const memory_desc_wrapper &diff_bias_d,
-        const memory_desc_wrapper &diff_dst_layer_d,
-        const memory_desc_wrapper &diff_dst_iter_d,
-        const memory_desc_wrapper &diff_dst_iter_c_d,
-        const memory_desc_wrapper &ws_d, rnn_offsets_t &off) {
+        const compute::device_info_t &device_info, rnn_offsets_t &off) {
 
     using namespace rnn_utils;
+
+    const memory_desc_wrapper &src_iter_c_d = rnn_pd->src_md(2);
+    const memory_desc_wrapper &weights_layer_d = rnn_pd->weights_md(0);
+    const memory_desc_wrapper &dst_iter_c_d = rnn_pd->dst_md(2);
 
     ocl_conf.src_dt = rnn.src_data_type;
     ocl_conf.src_c_dt = src_iter_c_d.data_type();
@@ -103,91 +189,7 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.copy_diff_dst_layer = rnn.copy_diff_dst_layer;
     ocl_conf.copy_diff_src_layer = rnn.copy_diff_src_layer;
 
-    if (!rnn.is_fwd) {
-        if (!utils::everyone_is(ocl_conf.diff_dt, diff_src_layer_d.data_type(),
-                    diff_dst_layer_d.data_type()))
-            return status::unimplemented;
-        if (!utils::one_of(diff_src_iter_d.data_type(), ocl_conf.diff_dt,
-                    data_type::undef)
-                || !utils::one_of(diff_src_iter_c_d.data_type(),
-                        ocl_conf.diff_dt, data_type::undef)
-                || !utils::one_of(diff_dst_iter_d.data_type(), ocl_conf.diff_dt,
-                        data_type::undef)
-                || !utils::one_of(diff_dst_iter_c_d.data_type(),
-                        ocl_conf.diff_dt, data_type::undef))
-            return status::unimplemented;
-    }
-
-    off.src_layer = gpu::intel::get_outer_strides(src_layer_d);
-    ocl_conf.inner_layouts.src_layer
-            = gpu::intel::get_inner_layout(src_layer_d);
-    off.src_iter = gpu::intel::get_outer_strides(src_iter_d);
-    ocl_conf.inner_layouts.src_iter = gpu::intel::get_inner_layout(src_iter_d);
-    if (ocl_conf.with_src_iter_c) {
-        off.src_iter_c = gpu::intel::get_outer_strides(src_iter_c_d);
-        ocl_conf.inner_layouts.src_iter_c
-                = gpu::intel::get_inner_layout(src_iter_c_d);
-    }
-    off.weights_layer = gpu::intel::get_outer_strides(weights_layer_d);
-    ocl_conf.inner_layouts.weights_layer
-            = gpu::intel::get_inner_layout(weights_layer_d);
-    off.weights_layer_comp_off
-            = weights_layer_d.dims()[0] * weights_layer_d.strides()[0];
-    off.weights_iter = gpu::intel::get_outer_strides(weights_iter_d);
-    ocl_conf.inner_layouts.weights_iter
-            = gpu::intel::get_inner_layout(weights_iter_d);
-    off.weights_iter_comp_off
-            = weights_iter_d.dims()[0] * weights_iter_d.strides()[0];
-    off.bias = gpu::intel::get_outer_strides(bias_d);
-    ocl_conf.inner_layouts.bias = gpu::intel::get_inner_layout(bias_d);
-    off.dst_layer = gpu::intel::get_outer_strides(dst_layer_d);
-    ocl_conf.inner_layouts.dst_layer
-            = gpu::intel::get_inner_layout(dst_layer_d);
-    off.dst_iter = gpu::intel::get_outer_strides(dst_iter_d);
-    ocl_conf.inner_layouts.dst_iter = gpu::intel::get_inner_layout(dst_iter_d);
-    if (ocl_conf.with_dst_iter_c) {
-        off.dst_iter_c = gpu::intel::get_outer_strides(dst_iter_c_d);
-        ocl_conf.inner_layouts.dst_iter_c
-                = gpu::intel::get_inner_layout(dst_iter_c_d);
-    }
-
-    if (!ocl_conf.is_fwd) {
-        off.diff_src_layer = gpu::intel::get_outer_strides(diff_src_layer_d);
-        ocl_conf.inner_layouts.diff_src_layer
-                = gpu::intel::get_inner_layout(diff_src_layer_d);
-        off.diff_src_iter = gpu::intel::get_outer_strides(diff_src_iter_d);
-        ocl_conf.inner_layouts.diff_src_iter
-                = gpu::intel::get_inner_layout(diff_src_iter_d);
-        if (ocl_conf.with_src_iter_c) {
-            off.diff_src_iter_c
-                    = gpu::intel::get_outer_strides(diff_src_iter_c_d);
-            ocl_conf.inner_layouts.diff_src_iter_c
-                    = gpu::intel::get_inner_layout(diff_src_iter_c_d);
-        }
-        off.diff_weights_layer
-                = gpu::intel::get_outer_strides(diff_weights_layer_d);
-        ocl_conf.inner_layouts.diff_weights_layer
-                = gpu::intel::get_inner_layout(diff_weights_layer_d);
-        off.diff_weights_iter
-                = gpu::intel::get_outer_strides(diff_weights_iter_d);
-        ocl_conf.inner_layouts.diff_weights_iter
-                = gpu::intel::get_inner_layout(diff_weights_iter_d);
-        off.diff_bias = gpu::intel::get_outer_strides(diff_bias_d);
-        ocl_conf.inner_layouts.diff_bias
-                = gpu::intel::get_inner_layout(diff_bias_d);
-        off.diff_dst_layer = gpu::intel::get_outer_strides(diff_dst_layer_d);
-        ocl_conf.inner_layouts.diff_dst_layer
-                = gpu::intel::get_inner_layout(diff_dst_layer_d);
-        off.diff_dst_iter = gpu::intel::get_outer_strides(diff_dst_iter_d);
-        ocl_conf.inner_layouts.diff_dst_iter
-                = gpu::intel::get_inner_layout(diff_dst_iter_d);
-        if (ocl_conf.with_dst_iter_c) {
-            off.diff_dst_iter_c
-                    = gpu::intel::get_outer_strides(diff_dst_iter_c_d);
-            ocl_conf.inner_layouts.diff_dst_iter_c
-                    = gpu::intel::get_inner_layout(diff_dst_iter_c_d);
-        }
-    }
+    CHECK(init_layouts_data(off, ocl_conf.inner_layouts, rnn_pd, rnn));
 
     ocl_conf.cell_kind = rnn_pd->cell_kind();
     ocl_conf.activation_kind = rnn_pd->activation_kind();
@@ -454,36 +456,6 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
     }
 
     return status::success;
-}
-
-template <prop_kind_t aprop>
-inline status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
-        const rnn_utils::conf_t &rnn, const rnn_pd_t *rnn_pd,
-        const compute::device_info_t &device_info, rnn_offsets_t &off) {
-
-    const memory_desc_wrapper fakedesc = rnn_pd->src_md(0);
-    return init_ocl_conf(ocl_conf, rnn_pd, rnn, device_info, rnn_pd->src_md(0),
-            rnn_pd->src_md(1), rnn_pd->src_md(2), rnn_pd->weights_md(0),
-            rnn_pd->weights_md(1), rnn_pd->weights_md(2), rnn_pd->dst_md(0),
-            rnn_pd->dst_md(1), rnn_pd->dst_md(2), fakedesc, fakedesc, fakedesc,
-            fakedesc, fakedesc, fakedesc, fakedesc, fakedesc, fakedesc,
-            rnn_pd->workspace_md(0), off);
-}
-
-template <>
-inline status_t init_ocl_conf<prop_kind::backward>(
-        rnn_utils::ocl_conf_t &ocl_conf, const rnn_utils::conf_t &rnn,
-        const rnn_pd_t *rnn_pd, const compute::device_info_t &device_info,
-        rnn_offsets_t &off) {
-    return init_ocl_conf(ocl_conf, rnn_pd, rnn, device_info, rnn_pd->src_md(0),
-            rnn_pd->src_md(1), rnn_pd->src_md(2), rnn_pd->weights_md(0),
-            rnn_pd->weights_md(1), rnn_pd->weights_md(2), rnn_pd->dst_md(0),
-            rnn_pd->dst_md(1), rnn_pd->dst_md(2), rnn_pd->diff_src_md(0),
-            rnn_pd->diff_src_md(1), rnn_pd->diff_src_md(2),
-            rnn_pd->diff_weights_md(0), rnn_pd->diff_weights_md(1),
-            rnn_pd->diff_weights_md(2), rnn_pd->diff_dst_md(0),
-            rnn_pd->diff_dst_md(1), rnn_pd->diff_dst_md(2),
-            rnn_pd->workspace_md(0), off);
 }
 
 template <>
@@ -756,9 +728,9 @@ status_t _simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
                 "memory_desc_init_by_tag()");
     }
 
-    VDISPATCH_RNN_SC(init_ocl_conf<aprop>(
-                             ocl_conf, rnn_conf, this, device_info, this->off),
-            "init_ocl_conf<>()");
+    VDISPATCH_RNN_SC(
+            init_ocl_conf(ocl_conf, this, rnn_conf, device_info, this->off),
+            "init_ocl_conf()");
 
     dim_t batch = rnn_conf.mb;
     dim_t n_gates = rnn_conf.n_gates;
