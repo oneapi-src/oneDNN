@@ -1250,8 +1250,7 @@ void jit_sve_conv_bwd_data_kernel_f32<isa>::store_output(int ur_w) {
 
     auto out_load = [=](int aux_output_offset, int idx, int prev_ofs) {
         int ofs = aux_output_offset;
-        if ((VL_OFS(ofs, isa) < LDRMAX) && (VL_OFS(ofs, isa) >= (-1 * LDRMAX))
-                && ((ofs & 0x3f) == 0)) {
+        if (ldr_imm_check(ofs) && (ofs % 64 == 0)) {
             add_imm(X_DEFAULT_ADDR, reg_src, ofs, X_TMP_0);
             ld1w(zreg_tmp(idx).s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
         } else {
@@ -1273,8 +1272,7 @@ void jit_sve_conv_bwd_data_kernel_f32<isa>::store_output(int ur_w) {
     auto out_str = [=](int j, int k, int aux_output_offset, int prev_ofs) {
         int ofs = aux_output_offset;
 
-        if ((VL_OFS(ofs, isa) < LDRMAX) && (VL_OFS(ofs, isa) >= (-1 * LDRMAX))
-                && ((ofs & 0x3f) == 0)) {
+        if (ldr_imm_check(ofs) && (ofs % 64) == 0) {
             add_imm(X_DEFAULT_ADDR, reg_src, ofs, X_TMP_0);
             st1w(zreg_out(j, k).s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
 
@@ -1415,8 +1413,7 @@ void jit_sve_conv_bwd_data_kernel_f32<isa>::compute_loop_fma(
     auto ker_load = [=](int i, int aux_kernel_offset) {
         int ofs = aux_kernel_offset;
 
-        if ((VL_OFS(ofs, isa) < LDRMAX) && (VL_OFS(ofs, isa) >= (-1 * LDRMAX))
-                && ((ofs & 0x3f) == 0)) {
+        if (ldr_imm_check(ofs) && (ofs % 64 == 0)) {
             add_imm(X_DEFAULT_ADDR, aux_reg_ker, ofs, X_TMP_0);
             ld1w(zreg_ker(i).s, P_ALL_ONE / T_z, ptr(X_DEFAULT_ADDR));
 
