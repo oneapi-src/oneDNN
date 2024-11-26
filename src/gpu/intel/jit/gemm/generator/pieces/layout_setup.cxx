@@ -274,7 +274,7 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
             //   (ditto for regular scattered float with new dataport messages.)
             //  Otherwise, fragment 2 is possible for DWord+ types but not implemented.
             if (remainderX) {
-                if (avoidFragment && *xblock == 1) {
+                if (avoidFragment && (*xblock == 1 || block.count == 1)) {
                     vxmask.isFixed = false;
                     vxmask.bitRep = (block.simdSize > 16) ? 32 : 16;
                     vxmask.maskRep = 1;
