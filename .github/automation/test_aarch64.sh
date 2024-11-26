@@ -50,47 +50,26 @@ if [[ $SKIP_TESTS == 1 ]]; then
     exit 0
 fi
 
+#  AArch64 does not support graph for now.
+SKIPPED_GRAPH_TEST_FAILURES="test_graph_unit_dnnl_sdp_decomp_cpu"
+SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_cpu"
+
+# described in issue: https://github.com/oneapi-src/oneDNN/issues/2175
+SKIPPED_TEST_FAILURES="test_benchdnn_modeC_matmul_multidims_cpu"
 #  We currently have some OS and config specific test failures.
 if [[ "$OS" == "Linux" ]]; then
     if [[ "$CMAKE_BUILD_TYPE" == "Debug" ]]; then
-        SKIPPED_TEST_FAILURES="cpu-primitives-deconvolution-cpp"
-        SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_brgemm_smoke_cpu"
-        SKIPPED_TEST_FAILURES+="|cpu-primitives-matmul-cpp"
-        SKIPPED_TEST_FAILURES+="|test_convolution_backward_weights_f32"
+        # as test_matmul is time consuming , we only run it in release mode to save time.
         SKIPPED_TEST_FAILURES+="|test_matmul"
-        SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_conv_smoke_cpu"
-        SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_deconv_smoke_cpu"
-        SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_matmul_smoke_cpu"
-        SKIPPED_TEST_FAILURES+="|cpu-graph-gqa-cpp"
-        SKIPPED_TEST_FAILURES+="|cpu-graph-mqa-cpp"
-        SKIPPED_TEST_FAILURES+="|cpu-graph-sdpa-cpp"
-        SKIPPED_TEST_FAILURES+="|cpu-graph-sdpa-stacked-qkv-cpp"
-        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_large_partition_cpu"
-        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_cpu"
-        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_cpu"
-    elif [[ "$CMAKE_BUILD_TYPE" == "Release" ]]; then
-        SKIPPED_TEST_FAILURES="cpu-primitives-deconvolution-cpp"
-        SKIPPED_TEST_FAILURES+="|cpu-graph-gqa-cpp"
-        SKIPPED_TEST_FAILURES+="|cpu-graph-mqa-cpp"
-        SKIPPED_TEST_FAILURES+="|cpu-graph-sdpa-cpp"
-        SKIPPED_TEST_FAILURES+="|cpu-graph-sdpa-stacked-qkv-cpp"
-        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_large_partition_cpu"
-        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_cpu"
-        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_cpu"
     fi
-elif [[ "$OS" == "Darwin" ]]; then
-    if [[ "$CMAKE_BUILD_TYPE" == "Debug" ]]; then
-        SKIPPED_TEST_FAILURES="cpu-primitives-deconvolution-cpp"
-        SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_brgemm_smoke_cpu"
-        SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_brgemm_ci_cpu"
-        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_cpu"
-        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_cpu"
-    elif [[ "$CMAKE_BUILD_TYPE" == "Release" ]]; then
-        SKIPPED_TEST_FAILURES="cpu-primitives-deconvolution-cpp"
-        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_sdp_decomp_cpu"
-        SKIPPED_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_cpu"
-    fi
+    SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-gqa-cpp"
+    SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-mqa-cpp"
+    SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-sdpa-cpp"
+    SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-sdpa-stacked-qkv-cpp"
+    SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_large_partition_cpu"
 fi
+
+SKIPPED_TEST_FAILURES+="|${SKIPPED_GRAPH_TEST_FAILURES}"
 
 if [[ "$OS" == "Darwin" ]]; then
     # Since macos does not build with OMP, we can use multiple ctest threads.
