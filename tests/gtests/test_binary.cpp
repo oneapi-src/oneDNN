@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,16 +34,17 @@ struct binary_test_params_t {
 };
 
 template <typename src0_data_t, typename src1_data_t = src0_data_t,
-        typename dst_data_t = src0_data_t>
+        typename src2_data_t = int8_t, typename dst_data_t = src0_data_t>
 class binary_test_t : public ::testing::TestWithParam<binary_test_params_t> {
 private:
     binary_test_params_t p;
-    data_type src0_dt, src1_dt, dst_dt;
+    data_type src0_dt, src1_dt, src2_dt, dst_dt;
 
 protected:
     void SetUp() override {
         src0_dt = data_traits<src0_data_t>::data_type;
         src1_dt = data_traits<src1_data_t>::data_type;
+        src2_dt = data_traits<src2_data_t>::data_type;
         dst_dt = data_traits<dst_data_t>::data_type;
 
         p = ::testing::TestWithParam<binary_test_params_t>::GetParam();
@@ -54,6 +55,9 @@ protected:
         SKIP_IF(unsupported_data_type(src1_dt),
                 "Engine does not support this data type.");
 
+        SKIP_IF(unsupported_data_type(src2_dt),
+                "Engine does not support this data type.");
+
         SKIP_IF(unsupported_data_type(dst_dt),
                 "Engine does not support this data type.");
 
@@ -62,6 +66,11 @@ protected:
                 "Engine does not support this data type combination.");
         SKIP_IF_HIP(!hip_check_data_types_combination(src0_dt, src1_dt, dst_dt),
                 "Engine does not support this data type combination.");
+
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu
+                        && p.aalgorithm == algorithm::binary_select,
+                "Engine does not support ternary operations for the binary "
+                "primitive.");
 
         for (auto tag : p.srcs_format) {
             MAYBE_UNUSED(tag);
@@ -150,6 +159,8 @@ protected:
             auto desc_A = memory::desc(p.dims, src0_dt, p.srcs_format[0]);
             // TODO: try to fit "reshape" logic here.
             auto desc_B = memory::desc(dims_B, src1_dt, p.srcs_format[1]);
+            auto desc_S = memory::desc(p.dims, src2_dt, p.srcs_format[0]);
+
             auto desc_C = memory::desc(p.dims, dst_dt, p.dst_format);
 
             const dnnl::impl::memory_desc_wrapper mdw_desc_A(desc_A.get());
@@ -158,14 +169,21 @@ protected:
             // default pd ctor
             auto pd = pd_t();
             // regular pd ctor
-            pd = pd_t(eng, p.aalgorithm, desc_A, desc_B, desc_C);
+            pd = p.aalgorithm == algorithm::binary_select
+                    ? pd_t(eng, p.aalgorithm, desc_A, desc_B, desc_S, desc_C)
+                    : pd_t(eng, p.aalgorithm, desc_A, desc_B, desc_C);
             // test all pd ctors
             // XXX: NVidia and AMD GPU support is sparse, attributes are not
             // supported consistently across all shapes
             if (!is_nvidia_gpu(eng) && !is_amd_gpu(eng))
-                if (!has_zero_dim)
-                    test_fwd_pd_constructors<pd_t>(
-                            pd, aa, p.aalgorithm, desc_A, desc_B, desc_C);
+                if (!has_zero_dim) {
+                    if (p.aalgorithm == algorithm::binary_select)
+                        test_fwd_pd_constructors<pd_t>(pd, aa, p.aalgorithm,
+                                desc_A, desc_B, desc_S, desc_C);
+                    else
+                        test_fwd_pd_constructors<pd_t>(
+                                pd, aa, p.aalgorithm, desc_A, desc_B, desc_C);
+                }
             // test non-md query interfaces
             ASSERT_EQ(pd.get_algorithm(), p.aalgorithm);
 
@@ -208,10 +226,24 @@ protected:
             // Remove zeroes in src1 to avoid division by zero
             remove_zeroes<src1_data_t>(mem_B);
 
-            prim.execute(strm,
-                    {{DNNL_ARG_SRC_0, mem_A}, {DNNL_ARG_SRC_1, mem_B},
-                            {DNNL_ARG_DST, mem_C},
-                            {DNNL_ARG_WORKSPACE, mem_ws}});
+            if (p.aalgorithm == algorithm::binary_select) {
+                // binary select operation requires an additional descriptor
+                // for conditional input
+                const auto src2_desc = pd.src_desc(2);
+                ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_SRC_2)
+                        == src2_desc);
+                auto mem_S = test::make_memory(src2_desc, test_engine);
+                fill_data<src2_data_t>(
+                        src2_desc.get_size() / sizeof(src2_data_t), mem_S);
+                prim.execute(strm,
+                        {{DNNL_ARG_SRC_0, mem_A}, {DNNL_ARG_SRC_1, mem_B},
+                                {DNNL_ARG_SRC_2, mem_S}, {DNNL_ARG_DST, mem_C},
+                                {DNNL_ARG_WORKSPACE, mem_ws}});
+            } else
+                prim.execute(strm,
+                        {{DNNL_ARG_SRC_0, mem_A}, {DNNL_ARG_SRC_1, mem_B},
+                                {DNNL_ARG_DST, mem_C},
+                                {DNNL_ARG_WORKSPACE, mem_ws}});
             strm.wait();
         }
     }
@@ -328,7 +360,9 @@ static auto zero_dim = []() {
             binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
                     algorithm::binary_eq, {4, 16, 7, 0}},
             binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
-                    algorithm::binary_ne, {4, 16, 7, 0}});
+                    algorithm::binary_ne, {4, 16, 7, 0}},
+            binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
+                    algorithm::binary_select, {4, 16, 7, 0}});
 };
 
 static auto simple_cases = []() {
@@ -356,7 +390,9 @@ static auto simple_cases = []() {
             binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
                     algorithm::binary_eq, {5, 16, 8, 7}},
             binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
-                    algorithm::binary_ne, {5, 16, 8, 7}});
+                    algorithm::binary_ne, {5, 16, 8, 7}},
+            binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
+                    algorithm::binary_select, {5, 16, 8, 7}});
 };
 
 #define INST_TEST_CASE(test) \
@@ -370,14 +406,14 @@ using binary_test_bf16 = binary_test_t<bfloat16_t>;
 using binary_test_f16 = binary_test_t<float16_t>;
 using binary_test_s8 = binary_test_t<int8_t>;
 using binary_test_u8 = binary_test_t<uint8_t>;
-using binary_test_s8u8s8 = binary_test_t<int8_t, uint8_t, int8_t>;
-using binary_test_u8s8u8 = binary_test_t<uint8_t, int8_t, uint8_t>;
-using binary_test_u8s8s8 = binary_test_t<uint8_t, int8_t, int8_t>;
-using binary_test_s8u8u8 = binary_test_t<int8_t, uint8_t, uint8_t>;
-using binary_test_s8f32u8 = binary_test_t<int8_t, float, uint8_t>;
-using binary_test_s8f32s8 = binary_test_t<int8_t, float, int8_t>;
-using binary_test_f32u8s8 = binary_test_t<float, uint8_t, int8_t>;
-using binary_test_f32f32u8 = binary_test_t<float, float, uint8_t>;
+using binary_test_s8u8s8 = binary_test_t<int8_t, uint8_t, int8_t, int8_t>;
+using binary_test_u8s8u8 = binary_test_t<uint8_t, int8_t, int8_t, uint8_t>;
+using binary_test_u8s8s8 = binary_test_t<uint8_t, int8_t, int8_t, int8_t>;
+using binary_test_s8u8u8 = binary_test_t<int8_t, uint8_t, int8_t, uint8_t>;
+using binary_test_s8f32u8 = binary_test_t<int8_t, float, int8_t, uint8_t>;
+using binary_test_s8f32s8 = binary_test_t<int8_t, float, int8_t, int8_t>;
+using binary_test_f32u8s8 = binary_test_t<float, uint8_t, int8_t, int8_t>;
+using binary_test_f32f32u8 = binary_test_t<float, float, int8_t, uint8_t>;
 
 INST_TEST_CASE(binary_test_f32)
 INST_TEST_CASE(binary_test_bf16)
