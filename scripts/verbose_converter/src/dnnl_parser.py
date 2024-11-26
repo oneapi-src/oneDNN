@@ -26,8 +26,8 @@ class LoggingContext:
         return self
 
     def __exit__(self, type, value, _):
-        if type is parse.ParseError:
-            self.logger.error(str(value))
+        if type is not None and issubclass(type, parse.ParseError):
+            self.logger.warning(str(value))
             return True
 
 

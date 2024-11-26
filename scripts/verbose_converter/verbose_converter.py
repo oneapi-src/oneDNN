@@ -26,8 +26,13 @@ from src.breakdown_generator import BreakdownGenerator  # type: ignore
 from src.dnnl_parser import LogParser  # type: ignore
 from src.utils import check_version  # type: ignore
 
+stream_handler = logging.StreamHandler(sys.stderr)
+fmt = logging.Formatter(fmt="{levelname}: {name}: {message}", style="{")
+# workaround for nvim-treesitter indent bug: }
+stream_handler.setFormatter(fmt)
 logger = logging.getLogger("verbose_converter")
 logger.setLevel(logging.CRITICAL + 10)  # off
+logger.addHandler(stream_handler)
 
 
 def one_line(multiline: str):
@@ -171,6 +176,7 @@ def main() -> int:
     args = args_parser.parse_args()
 
     # validate options
+    logger.setLevel(logging.ERROR)
     try:
         validate_option(args.action, action_opts, "Unknown action value")
         validate_option(
@@ -191,7 +197,7 @@ def main() -> int:
             for line in sys.stdin:
                 input_data.append(line)
         else:
-            logger.warn("No input was provided to the script")
+            logger.warning("No input was provided to the script")
             args_parser.print_help()
     else:
         try:
@@ -205,8 +211,8 @@ def main() -> int:
         if args.generator == "breakdown"
         else [args.events]
     )
-    verbose_level = [logging.WARN, logging.INFO][args.verbose_level]
-    logger.setLevel(verbose_level)
+    verbosity_levels = [logging.WARNING, logging.INFO]
+    logger.setLevel(verbosity_levels[args.verbose_level])
 
     for events in event_sets:
         try:
