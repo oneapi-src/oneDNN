@@ -215,6 +215,15 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
             conf_.not_bcasted_sp_dims += !bcast_dims[d];
     }
 
+    if (is_ternary_op()) {
+        conf_.is_ternary_op = is_ternary_op();
+        conf_.src2_type = src_md(2)->data_type;
+        VDISPATCH_BINARY(data_type_supported(conf_.src2_type, conf_.isa),
+                VERBOSE_ISA_DT_MISMATCH);
+        // The kernel does not work for AVX, SSE41
+        VDISPATCH_BINARY(mayiuse(avx2), "unsupported isa for ternary op");
+    }
+
     return status::success;
 }
 
@@ -290,7 +299,7 @@ bool jit_uni_binary_t::pd_t::alg_preserves_zero() const {
     using namespace alg_kind;
     return utils::one_of(desc()->alg_kind, binary_add, binary_max, binary_min,
             binary_mul, binary_sub, binary_ge, binary_gt, binary_le, binary_lt,
-            binary_eq, binary_ne);
+            binary_eq, binary_ne, binary_select);
 }
 
 bool jit_uni_binary_t::pd_t::check_scales_mask() const {
@@ -358,6 +367,7 @@ bool jit_uni_binary_t::pd_t::is_different_layouts_allowed(
 bool jit_uni_binary_t::pd_t::is_applicable() {
     const memory_desc_wrapper src0_d(src_md(0));
     const memory_desc_wrapper src1_d(src_md(1));
+    const memory_desc_wrapper src2_d(src_md(2));
     const memory_desc_wrapper dst_d(dst_md());
     const auto ndims = src0_d.ndims();
 
@@ -365,6 +375,9 @@ bool jit_uni_binary_t::pd_t::is_applicable() {
     // the next check
     bool ok = src0_d.is_dense(true) && src1_d.is_dense(true)
             && dst_d.is_dense(true);
+    ok = ok
+            && IMPLICATION(
+                    is_ternary_op(), src2_d.similar_to(src0_d, true, false, 0));
     if (!ok) return false;
 
     // TODO: fix implementation for tensor with paddings to work with any block
@@ -699,8 +712,8 @@ status_t jit_uni_binary_t::init(engine_t *engine) {
 }
 
 void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
-        const data_t *src1, data_t *dst, const float *scale0,
-        const float *scale1,
+        const data_t *src1, const data_t *src2, data_t *dst,
+        const float *scale0, const float *scale1,
         const std::vector<const void *> &post_ops_binary_rhs_arg_vec,
         const bcast_t bcast_type) const {
     const auto kernel = kernel_.get();
@@ -708,9 +721,14 @@ void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
+    const memory_desc_wrapper src2_d(pd()->src_md(2));
     const memory_desc_wrapper dst_d(pd()->dst_md(0));
+
     const int src0_type_size = types::data_type_size(src0_d.data_type());
     const int src1_type_size = types::data_type_size(src1_d.data_type());
+    const int src2_type_size = pd()->is_ternary_op()
+            ? types::data_type_size(src2_d.data_type())
+            : 0;
     const int dst_type_size = types::data_type_size(dst_d.data_type());
 
     const auto &conf = pd()->get_conf();
@@ -770,6 +788,7 @@ void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
                     p.src0 = src0 + (start + batch_off) * src0_type_size;
                     p.src1 = src1
                             + (start / outer_dims + batch_off) * src1_type_size;
+                    p.src2 = src2 + (start + batch_off) * src2_type_size;
                     p.dst = dst + (start + batch_off) * dst_type_size;
                     p.indices = &indices[0];
                     p.src1_stride_range = src1_stride_range;
@@ -806,6 +825,7 @@ void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
             p.src0 = src0 + start * simd_w * src0_type_size;
             p.src1 = src1
                     + (point_broadcast ? 0 : (start * simd_w * src1_type_size));
+            p.src2 = src2 + start * simd_w * src2_type_size;
             p.dst = dst + start * simd_w * dst_type_size;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
@@ -817,8 +837,8 @@ void jit_uni_binary_t::execute_no_bcast_strategy(const data_t *src0,
 }
 
 void jit_uni_binary_t::execute_bcast_per_batch_strategy(const data_t *src0,
-        const data_t *src1, data_t *dst, const float *scale0,
-        const float *scale1,
+        const data_t *src1, const data_t *src2, data_t *dst,
+        const float *scale0, const float *scale1,
         const std::vector<const void *> &post_ops_binary_rhs_arg_vec) const {
 
     const auto kernel = kernel_.get();
@@ -826,9 +846,14 @@ void jit_uni_binary_t::execute_bcast_per_batch_strategy(const data_t *src0,
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
+    const memory_desc_wrapper src2_d(pd()->src_md(2));
     const memory_desc_wrapper dst_d(pd()->dst_md(0));
+
     const int src0_type_size = types::data_type_size(src0_d.data_type());
     const int src1_type_size = types::data_type_size(src1_d.data_type());
+    const int src2_type_size = pd()->is_ternary_op()
+            ? types::data_type_size(src2_d.data_type())
+            : 0;
     const int dst_type_size = types::data_type_size(dst_d.data_type());
 
     const dim_t MB = src0_d.dims()[0];
@@ -856,6 +881,7 @@ void jit_uni_binary_t::execute_bcast_per_batch_strategy(const data_t *src0,
         const dim_t off = start * simd_w;
         p.src0 = src0 + (off + b * nelems0_per_b) * src0_type_size;
         p.src1 = src1 + off * src1_type_size;
+        p.src2 = src2 + (off + b * nelems0_per_b) * src2_type_size;
         p.dst = dst + (off + b * nelems0_per_b) * dst_type_size;
         p.scales_src0 = scale0;
         p.scales_src1 = scale1;
@@ -866,8 +892,8 @@ void jit_uni_binary_t::execute_bcast_per_batch_strategy(const data_t *src0,
 }
 
 void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
-        const data_t *src1, data_t *dst, const float *scale0,
-        const float *scale1,
+        const data_t *src1, const data_t *src2, data_t *dst,
+        const float *scale0, const float *scale1,
         const std::vector<const void *> &post_ops_binary_rhs_arg_vec,
         const op_t op_type, const bcast_t bcast_type,
         const bool blocked_oc_tail) const {
@@ -877,10 +903,16 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
+    const memory_desc_wrapper src2_d(pd()->src_md(2));
     const memory_desc_wrapper dst_d(pd()->dst_md(0));
+
     const int src0_type_size = types::data_type_size(src0_d.data_type());
     const int src1_type_size = types::data_type_size(src1_d.data_type());
+    const int src2_type_size = pd()->is_ternary_op()
+            ? types::data_type_size(src2_d.data_type())
+            : 0;
     const int dst_type_size = types::data_type_size(dst_d.data_type());
+
     const auto ndims = src0_d.ndims();
     const auto &dims = src0_d.dims();
     const dim_t MB = dims[0];
@@ -931,6 +963,7 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             p.dst = dst + off * dst_type_size;
             p.src0 = src0 + off * src0_type_size;
             p.src1 = src1 + src1_off(mb, C_blk, off) * src1_type_size;
+            p.src2 = src2 + off * src2_type_size;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
@@ -955,6 +988,7 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             p.dst = dst + off * dst_type_size;
             p.src0 = src0 + off * src0_type_size;
             p.src1 = src1 + src1_off(mb, sp, off) * src1_type_size;
+            p.src2 = src2 + off * src2_type_size;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
@@ -980,6 +1014,7 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
             p.dst = dst + off * dst_type_size;
             p.src0 = src0 + off * src0_type_size;
             p.src1 = src1 + src1_off(mb, c, off) * src1_type_size;
+            p.src2 = src2 + off * src2_type_size;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
@@ -990,8 +1025,8 @@ void jit_uni_binary_t::execute_bcast_per_c_strategy(const data_t *src0,
 }
 
 void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
-        const data_t *src1, data_t *dst, const float *scale0,
-        const float *scale1,
+        const data_t *src1, const data_t *src2, data_t *dst,
+        const float *scale0, const float *scale1,
         const std::vector<const void *> &post_ops_binary_rhs_arg_vec,
         const op_t op_type, const bool blocked_oc_tail) const {
     const auto kernel = kernel_.get();
@@ -1000,10 +1035,16 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
+    const memory_desc_wrapper src2_d(pd()->src_md(2));
     const memory_desc_wrapper dst_d(pd()->dst_md(0));
+
     const int src0_type_size = types::data_type_size(src0_d.data_type());
     const int src1_type_size = types::data_type_size(src1_d.data_type());
+    const int src2_type_size = pd()->is_ternary_op()
+            ? types::data_type_size(src2_d.data_type())
+            : 0;
     const int dst_type_size = types::data_type_size(dst_d.data_type());
+
     const auto ndims = src0_d.ndims();
     const auto &dims = src0_d.dims();
     const auto &bcast_dims = pd()->broadcast_dims();
@@ -1057,6 +1098,7 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
                             ? sp * simd_w
                             : (mb * SP_no_bcast + sp) * simd_w;
                     p.src1 = src1 + src1_off * src1_type_size;
+                    p.src2 = src2 + off * src2_type_size;
                     p.scales_src0 = scale0;
                     p.scales_src1 = scale1;
                     p.post_ops_binary_rhs_arg_vec
@@ -1079,6 +1121,7 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
             const dim_t src1_off
                     = bcast_dims[0] == 1 ? sp : mb * SP_no_bcast + sp;
             p.src1 = src1 + src1_off * src1_type_size;
+            p.src2 = src2 + off * src2_type_size;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
@@ -1100,6 +1143,7 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
             p.src0 = src0 + off * src0_type_size;
             const dim_t src1_off = bcast_dims[0] == 1 ? 0 : mb * SP_no_bcast;
             p.src1 = src1 + src1_off * src1_type_size;
+            p.src2 = src2 + off * src2_type_size;
             p.scales_src0 = scale0;
             p.scales_src1 = scale1;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
@@ -1112,6 +1156,8 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
 status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
     const auto src0 = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC_0);
     const auto src1 = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC_1);
+    const auto src2 = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC_2);
+
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     const auto &post_ops = pd()->attr()->post_ops_;
     const auto &post_ops_binary_rhs_arg_vec
@@ -1122,6 +1168,8 @@ status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
+    const memory_desc_wrapper src2_d(pd()->src_md(2));
+
     const auto ndims = src0_d.ndims();
     const auto &dims = src0_d.dims();
     const dim_t C = ndims >= 2 ? dims[1] : 0;
@@ -1137,6 +1185,7 @@ status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
     const bool has_oc_tail = C % simd_w;
     const bool point_broadcast_no_oc_tail = point_broadcast && !has_oc_tail;
     const auto alg = pd()->desc()->alg_kind;
+
     // Use strategy with kernel_tail for GreaterEqual op with oc_tail and
     // blocked format due to overwriting the vector tail by vcmpps.
     const bool vector_overwrite = utils::one_of(alg, alg_kind::binary_ge,
@@ -1148,18 +1197,19 @@ status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
 
     if ((bcast_type == bcast_t::none || point_broadcast_no_oc_tail)
             && !postops_per_oc_broadcast_exists && !blocked_oc_tail)
-        execute_no_bcast_strategy(src0, src1, dst, scales[0], scales[1],
+        execute_no_bcast_strategy(src0, src1, src2, dst, scales[0], scales[1],
                 post_ops_binary_rhs_arg_vec, bcast_type);
     else if (bcast_type == bcast_t::per_batch
             && !postops_per_oc_broadcast_exists && !blocked_oc_tail)
-        execute_bcast_per_batch_strategy(src0, src1, dst, scales[0], scales[1],
-                post_ops_binary_rhs_arg_vec);
+        execute_bcast_per_batch_strategy(src0, src1, src2, dst, scales[0],
+                scales[1], post_ops_binary_rhs_arg_vec);
     else if (bcast_type == bcast_t::per_w)
-        execute_bcast_per_w_strategy(src0, src1, dst, scales[0], scales[1],
-                post_ops_binary_rhs_arg_vec, op_type, blocked_oc_tail);
+        execute_bcast_per_w_strategy(src0, src1, src2, dst, scales[0],
+                scales[1], post_ops_binary_rhs_arg_vec, op_type,
+                blocked_oc_tail);
     else
-        execute_bcast_per_c_strategy(src0, src1, dst, scales[0], scales[1],
-                post_ops_binary_rhs_arg_vec, op_type, bcast_type,
+        execute_bcast_per_c_strategy(src0, src1, src2, dst, scales[0],
+                scales[1], post_ops_binary_rhs_arg_vec, op_type, bcast_type,
                 blocked_oc_tail);
 
     return status::success;
