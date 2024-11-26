@@ -62,33 +62,33 @@ int verify_input(const settings_t &s) {
     static constexpr int n_inputs = 2;
 
     if (s.prb_vdims.n_inputs() != n_inputs) {
-        fprintf(stderr,
+        BENCHDNN_PRINT(0, "%s\n",
                 "ERROR: binary driver: expect problem dimensions in format "
-                "`A0xA1x...:B0xB1x...`.\n");
+                "`A0xA1x...:B0xB1x...`.");
         SAFE_V(FAIL);
     }
 
     for (const auto &i_sdt : s.sdt) {
         if (i_sdt.size() != n_inputs) {
-            fprintf(stderr,
+            BENCHDNN_PRINT(0, "%s\n",
                     "ERROR: binary driver: expect data types in format "
-                    "`DT:DT`.\n");
+                    "`DT:DT`.");
             SAFE_V(FAIL);
         }
     }
 
     for (const auto &i_stag : s.stag) {
         if (i_stag.size() != n_inputs) {
-            fprintf(stderr,
+            BENCHDNN_PRINT(0, "%s\n",
                     "ERROR: binary driver: expect format tags in format "
-                    "`TAG:TAG`.\n");
+                    "`TAG:TAG`.");
             SAFE_V(FAIL);
         }
     }
 
     for (const auto &i_alg : s.alg) {
         if (!(i_alg > alg_t::BINARY_START && i_alg < alg_t::BINARY_END)) {
-            fprintf(stderr,
+            BENCHDNN_PRINT(0,
                     "ERROR: binary driver: algorithm `%s` does not belong to "
                     "binary algorithm type.\n",
                     attr_t::post_ops_t::kind2str(i_alg));

@@ -56,7 +56,7 @@ int fill_mem(
 
     const auto dt = mem_dt.dt();
     const int range = 16;
-    const int f_min = dt == dnnl_u8 ? 0 : -range / 2;
+    const int f_min = (dt == dnnl_u8 || input_idx == 2) ? 0 : -range / 2;
 
     benchdnn_parallel_nd(nelems, [&](int64_t i) {
         const int64_t gen = (12 * i + 5 * input_idx + 16) % (range + 1);
@@ -93,10 +93,14 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
-    TIME_C_PD(DNN_SAFE_STATUS(dnnl_binary_primitive_desc_create(
+    auto src2_d = prb->is_ternary_op() ? dnn_mem_t::init_md(prb->ndims,
+                          prb->vdims[0].data(), dnnl_s8, prb->stag[0])
+                                       : nullptr;
+
+    TIME_C_PD(DNN_SAFE_STATUS(dnnl_binary_primitive_desc_create_v2(
             &init_pd_args.pd, init_pd_args.engine, alg,
-            init_pd_args.src_md ? init_pd_args.src_md : src0_d, src1_d, dst_d,
-            dnnl_attr)));
+            init_pd_args.src_md ? init_pd_args.src_md : src0_d, src1_d, src2_d,
+            dst_d, dnnl_attr)));
 
     return dnnl_success;
 }
@@ -115,6 +119,12 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         if (is_bf16u8 && have_post_ops) {
             res->state = SKIPPED;
             res->reason = skip_reason::data_type_not_supported;
+            return;
+        }
+
+        if (prb->is_ternary_op()) {
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
             return;
         }
 
@@ -188,6 +198,7 @@ std::vector<int> supported_exec_args(dir_t dir) {
     static const std::vector<int> exec_args = {
             DNNL_ARG_SRC_0,
             DNNL_ARG_SRC_1,
+            DNNL_ARG_SRC_2,
             DNNL_ARG_DST,
     };
     return exec_args;
@@ -231,9 +242,12 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             case DNNL_ARG_SRC_1:
                 SAFE(fill_mem(prb, 1, mem, ref_mem), WARN);
                 break;
+            case DNNL_ARG_SRC_2:
+                SAFE(fill_mem(prb, 2, mem, ref_mem), WARN);
+                break;
             case DNNL_ARG_DST:
                 if (prb->attr.post_ops.find(alg_t::SUM) >= 0) {
-                    SAFE(fill_mem(prb, 2, mem, ref_mem), WARN);
+                    SAFE(fill_mem(prb, 3, mem, ref_mem), WARN);
 
                     // Bitwise mode for sum requires a copy due to data for
                     // post-op will be overwritten and it must be refreshed.

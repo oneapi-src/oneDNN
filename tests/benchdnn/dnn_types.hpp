@@ -274,6 +274,7 @@ struct attr_t {
             MIN,
             MUL,
             NE,
+            SELECT,
             SUB,
             BINARY_END, // a guard to check kind is binary
             // prelu
@@ -656,7 +657,8 @@ float compute_eltwise_fwd(
         attr_t::post_ops_t::kind_t kind, float src, float alpha, float beta);
 float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         float src, float alpha, float beta);
-float compute_binary(attr_t::post_ops_t::kind_t kind, float src0, float src1);
+float compute_binary(
+        attr_t::post_ops_t::kind_t kind, float src0, float src1, bool src2);
 void maybe_dropout(const attr_t &attr, float &val, int64_t offset,
         const dnn_mem_t &dropout);
 void maybe_round(const attr_t &attr, int arg, float &val, int64_t offset,
