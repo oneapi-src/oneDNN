@@ -47,6 +47,8 @@ struct multi_po_reorder_binary : public gpu_primitive_t {
                 VDISPATCH_BINARY(false, VERBOSE_UNSUPPORTED_ATTR);
             }
 
+            VDISPATCH_BINARY(!is_ternary_op(), VERBOSE_BAD_ALGORITHM);
+
             // Assumption: src_mds have different layouts with dst mem
             // descriptor matching only with one of the src mem descriptors
             // or, all of them have the same memory layout

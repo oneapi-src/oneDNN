@@ -67,6 +67,8 @@ struct simple_binary_t : public gpu_primitive_t {
                     !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md()),
                     VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
 
+            VDISPATCH_BINARY(!is_ternary_op(), VERBOSE_BAD_ALGORITHM);
+
             VDISPATCH_BINARY(IMPLICATION(!attr()->scales_.has_default_values(),
                                      check_scales_mask()),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
