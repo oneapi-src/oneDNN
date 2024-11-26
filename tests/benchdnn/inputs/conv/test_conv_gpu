@@ -164,6 +164,20 @@ mb128ic3ih230oc64oh112kh7sh2ph0
 --reset
 --batch=harness_conv_zero_points
 
+# Test strided tensors
+--reset
+--dt=u8:s8:u8,f16,f32
+--mb=1,16
+--dir=FWD_B,BWD_D
+--batch=shapes_mem_strided
+
+--reset
+--dt=bf16,f32
+--mb=1,16
+--dir=BWD_WB
+--batch=shapes_mem_strided
+
+
 # Test layers of some key GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
