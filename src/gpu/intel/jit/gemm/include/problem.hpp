@@ -241,11 +241,13 @@ struct GEMMProblem : public CommonProblem {
     bool downconvertBScales() const { return Tb == Type::f16 && Tb_scale == Type::f32; }
 
     bool earlyDequantizeA() const {
-        return (aOffset == ABOffset::Calc && Tao.asSigned().isSubsetOf(Ta))
+        return (aOffset == ABOffset::Calc && Tao.asSigned().isSubsetOf(Ta)
+                    && (Ta_ext.bits() < Ta.bits() || Ta.isFP()))
             || (aScale2D && (Ta_scale.isSubsetOf(Ta) || downconvertAScales()));
     }
     bool earlyDequantizeB() const {
-        return (bOffset == ABOffset::Calc && Tbo.asSigned().isSubsetOf(Tb))
+        return (bOffset == ABOffset::Calc && Tbo.asSigned().isSubsetOf(Tb)
+                    && (Tb_ext.bits() < Tb.bits() || Tb.isFP()))
             || (bScale2D && (Tb_scale.isSubsetOf(Tb) || downconvertBScales()));
     }
 
