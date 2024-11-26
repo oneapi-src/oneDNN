@@ -75,7 +75,10 @@ if(DNNL_SYCL_CUDA)
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/lstm.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/layer_normalization.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives/reorder.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/shuffle.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/shuffle.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/group_normalization.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/vanilla_rnn.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives/lbr_gru.cpp)
 endif()
 
 # Remove examples for Graph API if graph component is not enabled

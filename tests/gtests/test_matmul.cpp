@@ -260,9 +260,9 @@ protected:
         auto matmul_pd = pd_t(eng, src_md, weights_md, bia_md, dst_md, attr);
 
         auto aa = allows_attr_t {false};
-        aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_binary = !is_amd_gpu(eng);
         aa.po_eltwise = true;
-        aa.po_prelu = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_prelu = !is_amd_gpu(eng);
         aa.po_sum = true;
         // scales are not supported by HIP
         aa.scales = !is_amd_gpu(eng);

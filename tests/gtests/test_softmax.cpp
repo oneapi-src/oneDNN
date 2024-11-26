@@ -168,7 +168,7 @@ protected:
                                              : p.aprop_kind;
 
         allows_attr_t aa {false};
-        if (!(is_nvidia_gpu(eng) || is_amd_gpu(eng))) {
+        if (!is_amd_gpu(eng)) {
             aa.po_eltwise = true;
             aa.po_binary = true;
         }
