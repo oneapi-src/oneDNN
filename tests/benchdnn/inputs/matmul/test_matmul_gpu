@@ -95,6 +95,11 @@
 --attr-post-ops=sum+add:f32+add:u8:per_dim_01+mul:f32:per_dim_0+add:s8:per_tensor+add:f32:per_dim_01+linear:2:-1
 1x5x4x3x30x2:6x1x4x3x2x20
 
+# Test Strided
+--reset
+--dt=u8:s8:u8,f16,f32
+--batch=shapes_mem_strided
+
 # Test CI in Nightly
 --reset
 --batch=test_matmul_ci
