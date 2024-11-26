@@ -101,6 +101,15 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             if (!asc.get(DNNL_ARG_WEIGHTS).has_default_groups()) {
                 // Only grouping over K is supported.
                 ok = ok && asc.get(DNNL_ARG_WEIGHTS).group_dims_[1] == 1;
+                // Only 'per_ocic' mask is supported, but not 'per_tensor' in
+                // benchdnn terms. In numbers, it's '12' is supported while for
+                // 4D '15' is required.
+                const int mask = asc.get(DNNL_ARG_WEIGHTS).mask_;
+                const int ndims = weights_md_.ndims;
+                const int last_dim = (1 << (ndims - 1));
+                const int prelast_dim = (1 << (ndims - 2));
+                const bool mask_ok = (mask & ~(last_dim | prelast_dim)) == 0;
+                ok = ok && mask_ok;
             }
         }
         return ok;
