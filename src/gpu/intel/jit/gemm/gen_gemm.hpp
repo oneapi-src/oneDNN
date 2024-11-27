@@ -18,6 +18,7 @@
 #define GPU_INTEL_JIT_GEMM_GEN_GEMM_HPP
 
 #include <assert.h>
+#include <limits>
 #include <memory>
 
 #include "common/c_types_map.hpp"
@@ -431,6 +432,15 @@ struct gen_gemm_t : public gpu_gemm_t {
                 acc_type = data_type::f32;
                 set_mode(mode, kernel_desc_t::mode_w_decomp);
             }
+
+            // GEMM kernels down convert the following parameters to
+            // int/uint32_t
+            VDISPATCH_GEMM(std::max({eff_m(), eff_n(), d->k(), d->batch()})
+                            <= std::numeric_limits<int32_t>::max(),
+                    VERBOSE_SHAPE_RESTRICTION);
+            VDISPATCH_GEMM(std::max({eff_lda(), eff_ldb(), d->ldc()})
+                            <= std::numeric_limits<uint32_t>::max(),
+                    VERBOSE_SHAPE_RESTRICTION);
 
             // Call kernel selector to choose a kernel.
             gpu_post_ops_t gpu_post_ops;
