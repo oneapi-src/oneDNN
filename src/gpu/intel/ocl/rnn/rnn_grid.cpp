@@ -153,7 +153,8 @@ static status_t init_layouts_data(rnn_offsets_t &off,
 
 static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
         const rnn_pd_t *rnn_pd, const rnn_utils::conf_t &rnn,
-        const compute::device_info_t &device_info, rnn_offsets_t &off) {
+        int threads_per_eu, const compute::device_info_t &device_info,
+        rnn_offsets_t &off) {
 
     using namespace rnn_utils;
 
@@ -189,8 +190,6 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.copy_diff_dst_layer = rnn.copy_diff_dst_layer;
     ocl_conf.copy_diff_src_layer = rnn.copy_diff_src_layer;
 
-    CHECK(init_layouts_data(off, ocl_conf.inner_layouts, rnn_pd, rnn));
-
     ocl_conf.cell_kind = rnn_pd->cell_kind();
     ocl_conf.activation_kind = rnn_pd->activation_kind();
     ocl_conf.direction_kind = rnn_pd->direction();
@@ -198,7 +197,7 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
     ocl_conf.wei_qparam_mask = rnn_pd->attr()->rnn_weights_qparams_.mask_;
     ocl_conf.is_testmode = rnn.is_testmode;
 
-    ocl_conf.threads_per_eu = 0; // Currently unset, to be set later
+    ocl_conf.threads_per_eu = threads_per_eu;
     ocl_conf.subgroup_size = dev_getenv(
             "subgroup_size", device_info.max_subgroup_size(ocl_conf.acc_dt));
     auto max_elemwise_threads
@@ -248,6 +247,9 @@ static status_t init_ocl_conf(rnn_utils::ocl_conf_t &ocl_conf,
                 dim_t dhc_block = dhc_thr * dhc_tg;
                 dim_t mb_tg = b_thread;
                 dim_t mb_block = mb_thr * mb_tg;
+                if (size_t(dhc_tg * mb_tg) > device_info.max_wg_size(
+                            threads_per_eu == 4, ocl_conf.subgroup_size))
+                    break;
 
                 double score = [&]() {
                     // subslice efficiency
@@ -729,8 +731,8 @@ status_t _simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
     }
 
     VDISPATCH_RNN_SC(
-            init_ocl_conf(ocl_conf, this, rnn_conf, device_info, this->off),
-            "init_ocl_conf()");
+            init_layouts_data(off, ocl_conf.inner_layouts, this, rnn_conf),
+            "init_layouts_data()");
 
     dim_t batch = rnn_conf.mb;
     dim_t n_gates = rnn_conf.n_gates;
@@ -739,6 +741,7 @@ status_t _simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
     dim_t dhc = rnn_conf.dhc;
 
     auto fpmath_mode = this->attr()->fpmath_.mode_;
+    int threads_per_eu = 0;
 
     // The inputs of create_gemm_pd describe a gemm in column major.
     // Below, we have to transpose the a and b descriptor to describe
@@ -764,13 +767,13 @@ status_t _simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
         attr.deterministic_ = this->attr()->deterministic_;
         CHECK(dnnl::impl::create_gemm_pd(gemm_pd, engine, &a_md, &b_md, &c_md,
                 &glob_zero_md, c_dt, &attr));
-        if (ocl_conf.threads_per_eu == 0)
-            CHECK(gemm_pd->query(query::preferred_gpu_threads_per_eu, 0,
-                    &ocl_conf.threads_per_eu));
+        if (threads_per_eu == 0)
+            CHECK(gemm_pd->query(
+                    query::preferred_gpu_threads_per_eu, 0, &threads_per_eu));
         else if (get_verbose_dev_mode(verbose_t::debuginfo) > 1) {
             auto t = 0;
             CHECK(gemm_pd->query(query::preferred_gpu_threads_per_eu, 0, &t));
-            if (t != ocl_conf.threads_per_eu)
+            if (t != threads_per_eu)
                 verbose_printf("[WARNING] GEMM grf modes are inconsistent");
         }
         return status::success;
@@ -935,6 +938,10 @@ status_t _simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
                 gemm_diff_wei_layer_src_pd_ = gemm_diff_wei_layer_pd_;
         }
     }
+
+    VDISPATCH_RNN_SC(init_ocl_conf(ocl_conf, this, rnn_conf, threads_per_eu,
+                             device_info, this->off),
+            "init_ocl_conf()");
 
     init_scratchpad(rnn_conf.use_workspace ? 0 : workspace_size);
     return status::success;
