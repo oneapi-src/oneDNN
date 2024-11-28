@@ -46,6 +46,9 @@ class BreakdownGenerator:
         data: Dict[str, Aggregate] = defaultdict(Aggregate)
         ofs = ","
 
+        if not input:
+            return {}
+
         def key2str(key, value):
             def mds2str(mds):
                 return " ".join(map(str, mds))
