@@ -71,6 +71,7 @@
 #define VERBOSE_INCONSISTENT_PRB "problem is not mathematically consistent"
 #define VERBOSE_BAD_NDIMS "%s has a bad number of dimensions %d"
 #define VERBOSE_BAD_DIM "bad dimension %s:%d"
+#define VERBOSE_OUT_OF_RANGE_DIMS "out-of-range dimensions for %s"
 
 #define VERBOSE_UNSUPPORTED_ISA "unsupported isa"
 #define VERBOSE_UNSUPPORTED_DT "unsupported datatype"

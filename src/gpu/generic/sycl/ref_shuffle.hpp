@@ -46,19 +46,27 @@ struct ref_shuffle_t : public gpu::generic::sycl::primitive_t {
             auto src_data_md = invariant_src_md();
             auto dst_data_md = invariant_dst_md();
 
-            const bool ok = src_data_md->data_type == dst_data_md->data_type
-                    && (utils::one_of(src_data_md->data_type, bf16, f16, f32)
+            VDISPATCH_SHUFFLE(src_data_md->data_type == dst_data_md->data_type,
+                    VERBOSE_INCONSISTENT_DT, "src", "dst");
+            VDISPATCH_SHUFFLE(
+                    (utils::one_of(src_data_md->data_type, bf16, f16, f32)
                             || (is_fwd()
                                     && utils::one_of(src_data_md->data_type,
-                                            s32, s8, u8)))
-                    && set_default_formats_common()
-                    && IMPLICATION(is_fwd(),
-                            src_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && attr()->has_default_values()
-                    && memory_desc_wrapper(src_data_md)
-                            == memory_desc_wrapper(dst_data_md)
-                    && md_dims_in_range(src_md());
-            if (!ok) return status::unimplemented;
+                                            s32, s8, u8))),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SHUFFLE(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SHUFFLE(
+                    IMPLICATION(is_fwd(),
+                            src_md(0)->format_desc.blocking.inner_nblks == 0),
+                    VERBOSE_UNSUPPORTED_FORMAT_KIND);
+            VDISPATCH_SHUFFLE(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_SHUFFLE(memory_desc_wrapper(src_data_md)
+                            == memory_desc_wrapper(dst_data_md),
+                    VERBOSE_INCONSISTENT_MDS, "src", "dst");
+            VDISPATCH_SHUFFLE(md_dims_in_range(src_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "src");
             return init_conf();
         }
 

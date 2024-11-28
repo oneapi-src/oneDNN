@@ -48,20 +48,29 @@ struct ref_binary_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper src1_d(src_md(1));
             const memory_desc_wrapper dst_d(dst_md());
 
-            const bool ok = set_default_params() == status::success
-                    && attr_.set_default_formats(dst_md()) == status::success
-                    && check_data_types(src0_d, src1_d, dst_d)
-                    && check_formats(src0_d, src1_d, dst_d)
-                    && attr()->has_default_values(
-                            sm::scales_runtime | sm::post_ops)
-                    && !is_ternary_op()
-                    && IMPLICATION(
-                            !attr()->scales_.has_default_values(), scales_ok())
-                    && sycl_post_ops_t::post_ops_ok(attr())
-                    && md_dims_in_range(src_md(0))
-                    && md_dims_in_range(src_md(1))
-                    && md_dims_in_range(dst_md());
-            if (!ok) return status::unimplemented;
+            VDISPATCH_BINARY_SC(
+                    set_default_params(), VERBOSE_UNSUPPORTED_FORMAT_KIND);
+            VDISPATCH_BINARY_SC(attr_.set_default_formats(dst_md()),
+                    VERBOSE_UNSUPPORTED_TAG_S, "dst");
+            VDISPATCH_BINARY(check_data_types(src0_d, src1_d, dst_d),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_BINARY(check_formats(src0_d, src1_d, dst_d),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_BINARY(attr()->has_default_values(
+                                     sm::scales_runtime | sm::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_BINARY(!is_ternary_op(), VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_BINARY(IMPLICATION(!attr()->scales_.has_default_values(),
+                                     scales_ok()),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_BINARY(sycl_post_ops_t::post_ops_ok(attr()),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_BINARY(md_dims_in_range(src_md(0)),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "src(0)");
+            VDISPATCH_BINARY(md_dims_in_range(src_md(1)),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "src(1)");
+            VDISPATCH_BINARY(md_dims_in_range(dst_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "dst");
 
             return init_conf();
         }

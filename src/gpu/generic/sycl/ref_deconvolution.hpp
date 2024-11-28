@@ -49,16 +49,28 @@ struct ref_deconvolution_bwd_weights_t
             const memory_desc_wrapper diff_weights_d(diff_weights_md());
             const memory_desc_wrapper diff_dst_d(diff_dst_md());
 
-            const bool ok = desc()->prop_kind == prop_kind::backward_weights
-                    && check_convolution_work_amount(diff_weights_d, OC())
-                    && md_dims_in_range(src_md()) && set_default_formats()
-                    && check_convolution_data_types(
-                            data_d, diff_weights_d, diff_dst_d)
-                    && check_convolution_formats(
-                            data_d, diff_weights_d, diff_dst_d)
-                    && attr()->has_default_values()
-                    && desc()->alg_kind == alg_kind::deconvolution_direct;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_DECONVOLUTION(
+                    desc()->prop_kind == prop_kind::backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_DECONVOLUTION(
+                    check_convolution_work_amount(diff_weights_d, OC()),
+                    VERBOSE_IMPL_HEURISTIC_FAIL,
+                    "number of elements exceeds threshold");
+            VDISPATCH_DECONVOLUTION(md_dims_in_range(src_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "src");
+            VDISPATCH_DECONVOLUTION(
+                    set_default_formats(), VERBOSE_UNSUPPORTED_TAG_S);
+            VDISPATCH_DECONVOLUTION(check_convolution_data_types(
+                                            data_d, diff_weights_d, diff_dst_d),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_DECONVOLUTION(check_convolution_formats(
+                                            data_d, diff_weights_d, diff_dst_d),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_DECONVOLUTION(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_DECONVOLUTION(
+                    desc()->alg_kind == alg_kind::deconvolution_direct,
+                    VERBOSE_BAD_ALGORITHM);
 
             return init_conf();
         }

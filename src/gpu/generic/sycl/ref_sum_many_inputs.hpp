@@ -45,10 +45,12 @@ struct ref_sum_many_inputs_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper dst_d(dst_md());
 
             const int n = n_inputs();
-            const bool ok = set_default_params() == status::success
-                    && attr()->has_default_values()
-                    && n > DNNL_REF_SUM_MAX_NUM_TENSORS; // prevent inf recursion
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SUM_SC(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            // prevent inf recursion
+            VDISPATCH_SUM_SC(n > DNNL_REF_SUM_MAX_NUM_TENSORS,
+                    VERBOSE_BAD_PARAM, "n_inputs");
 
             // the first kernel handles up to 8 inputs and remaining ones up to 7
             const int n_kernels = n == 1

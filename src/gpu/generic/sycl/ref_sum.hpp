@@ -43,36 +43,38 @@ struct ref_sum_t : public gpu::generic::sycl::primitive_t {
             using namespace format_tag;
 
             const memory_desc_wrapper dst_d(dst_md());
-            if (!is_supported_type(dst_d.data_type()))
-                return status::unimplemented;
+            VDISPATCH_SUM(is_supported_type(dst_d.data_type()),
+                    VERBOSE_UNSUPPORTED_DT);
             // Block formats are not yet supported
             // Dimensions can not be > 6
-            if (!dst_d.is_plain() || dst_d.ndims() > xpu::sycl::md_t::max_dims)
-                return status::unimplemented;
+            VDISPATCH_SUM(!(!dst_d.is_plain()
+                                  || dst_d.ndims() > xpu::sycl::md_t::max_dims),
+                    VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "dst");
 
             const int n = n_inputs();
             const auto &scales = attr()->scales_;
             for (auto i = 0; i < n; ++i) {
                 const memory_desc_wrapper src_d(src_md(i));
-                if (!is_supported_type(src_d.data_type())) {
-                    return status::unimplemented;
-                }
+                VDISPATCH_SUM(is_supported_type(src_d.data_type()),
+                        VERBOSE_UNSUPPORTED_DT);
+
                 // Block formats are not yet supported
                 // Dimensions can not be > 6
-                if (!src_d.is_plain()
-                        || src_d.ndims() > xpu::sycl::md_t::max_dims) {
-                    return status::unimplemented;
-                }
-                if (!attr()->scales_.has_default_values()
-                        && !is_supported_type(
-                                scales.get(DNNL_ARG_SRC + i).data_type_)) {
-                    return status::unimplemented;
-                }
+                VDISPATCH_SUM(
+                        !(!src_d.is_plain()
+                                || src_d.ndims() > xpu::sycl::md_t::max_dims),
+                        VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "src");
+
+                VDISPATCH_SUM(!(!attr()->scales_.has_default_values()
+                                      && !is_supported_type(
+                                              scales.get(DNNL_ARG_SRC + i)
+                                                      .data_type_)),
+                        VERBOSE_UNSUPPORTED_ATTR);
             }
 
-            const bool ok = set_default_params() == status::success
-                    && n <= DNNL_REF_SUM_MAX_NUM_TENSORS;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SUM_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            DISPATCH_SUM(n <= DNNL_REF_SUM_MAX_NUM_TENSORS, VERBOSE_BAD_PARAM,
+                    "n_inputs");
 
             return init_conf();
         }

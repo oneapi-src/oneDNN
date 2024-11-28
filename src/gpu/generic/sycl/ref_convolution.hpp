@@ -88,21 +88,33 @@ struct ref_convolution_fwd_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper weights_d(weights_md());
             const memory_desc_wrapper dst_d(dst_md());
 
-            const bool ok = is_fwd()
-                    && check_convolution_work_amount(weights_d, OC())
-                    && set_default_formats() && md_dims_in_range(src_md())
-                    && attr_.set_default_formats(dst_md()) == status::success
-                    && check_convolution_data_types(data_d, weights_d, dst_d)
-                    && check_convolution_formats(data_d, weights_d, dst_d)
-                    && attr()->has_default_values(sm::scales_runtime
-                            | sm::zero_points_runtime | sm::post_ops
-                            | sm::sum_dt)
-                    && IMPLICATION(!attr()->scales_.has_default_values(),
+            VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(check_convolution_work_amount(weights_d, OC()),
+                    VERBOSE_IMPL_HEURISTIC_FAIL,
+                    "number of elements exceeds threshold");
+            VDISPATCH_CONV(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(md_dims_in_range(src_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "src");
+            VDISPATCH_CONV_SC(attr_.set_default_formats(dst_md()),
+                    VERBOSE_UNSUPPORTED_TAG_S, "dst");
+            VDISPATCH_CONV(
+                    check_convolution_data_types(data_d, weights_d, dst_d),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(check_convolution_formats(data_d, weights_d, dst_d),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(attr()->has_default_values(sm::scales_runtime
+                                   | sm::zero_points_runtime | sm::post_ops
+                                   | sm::sum_dt),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(
+                    IMPLICATION(!attr()->scales_.has_default_values(),
                             attr_scales_ok()
-                                    && check_convolution_scales_types(attr()))
-                    && sycl_post_ops_t::post_ops_ok(attr(), false)
-                    && set_default_alg_kind(alg_kind::convolution_direct);
-            if (!ok) return status::unimplemented;
+                                    && check_convolution_scales_types(attr())),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_CONV(sycl_post_ops_t::post_ops_ok(attr(), false),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
 
             return init_conf();
         }
@@ -146,23 +158,34 @@ struct ref_convolution_bwd_data_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper weights_d(weights_md());
             const memory_desc_wrapper diff_dst_d(diff_dst_md());
 
-            const bool ok = is_bwd_d()
-                    && check_convolution_work_amount(weights_d, OC())
-                    && md_dims_in_range(src_md()) && set_default_formats()
-                    && check_convolution_data_types(
-                            diff_data_d, weights_d, diff_dst_d)
-                    && check_convolution_formats(
-                            diff_data_d, weights_d, diff_dst_d)
-                    && attr()->has_default_values(sm::scales_runtime
-                            | sm::zero_points_runtime | sm::sum_dt
-                            | sm::post_ops)
-                    && sycl_post_ops_t::post_ops_ok(attr(), false)
-                    && IMPLICATION(!attr()->scales_.has_default_values(),
+            VDISPATCH_CONV(is_bwd_d(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(check_convolution_work_amount(weights_d, OC()),
+                    VERBOSE_IMPL_HEURISTIC_FAIL,
+                    "number of elements exceed threshold");
+            VDISPATCH_CONV(md_dims_in_range(src_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "src");
+            VDISPATCH_CONV(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(check_convolution_data_types(
+                                   diff_data_d, weights_d, diff_dst_d),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(check_convolution_formats(
+                                   diff_data_d, weights_d, diff_dst_d),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(attr()->has_default_values(sm::scales_runtime
+                                   | sm::zero_points_runtime | sm::sum_dt
+                                   | sm::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(sycl_post_ops_t::post_ops_ok(attr(), false),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_CONV(
+                    IMPLICATION(!attr()->scales_.has_default_values(),
                             attr_scales_ok()
-                                    && check_convolution_scales_types(attr()))
-                    && set_default_alg_kind(alg_kind::convolution_direct)
-                    && sycl_post_ops_t::post_ops_ok(attr(), false);
-            if (!ok) return status::unimplemented;
+                                    && check_convolution_scales_types(attr())),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
+            VDISPATCH_CONV(sycl_post_ops_t::post_ops_ok(attr(), false),
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             return init_conf();
         }
@@ -205,16 +228,23 @@ struct ref_convolution_bwd_weights_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper diff_weights_d(diff_weights_md());
             const memory_desc_wrapper diff_dst_d(diff_dst_md());
 
-            const bool ok = is_bwd_w()
-                    && check_convolution_work_amount(diff_weights_d, OC())
-                    && md_dims_in_range(src_md()) && set_default_formats()
-                    && check_convolution_data_types(
-                            data_d, diff_weights_d, diff_dst_d)
-                    && check_convolution_formats(
-                            data_d, diff_weights_d, diff_dst_d)
-                    && attr()->has_default_values()
-                    && set_default_alg_kind(alg_kind::convolution_direct);
-            if (!ok) return status::unimplemented;
+            VDISPATCH_CONV(is_bwd_w(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_CONV(check_convolution_work_amount(diff_weights_d, OC()),
+                    VERBOSE_IMPL_HEURISTIC_FAIL,
+                    "number of elements exceed threshold");
+            VDISPATCH_CONV(md_dims_in_range(src_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "src");
+            VDISPATCH_CONV(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(check_convolution_data_types(
+                                   data_d, diff_weights_d, diff_dst_d),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_CONV(check_convolution_formats(
+                                   data_d, diff_weights_d, diff_dst_d),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_CONV(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
+                    VERBOSE_BAD_ALGORITHM);
 
             return init_conf();
         }

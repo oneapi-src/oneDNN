@@ -51,15 +51,21 @@ struct ref_prelu_fwd_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper weights_d(weights_md(0));
             const memory_desc_wrapper dst_d(dst_md(0));
 
-            const bool ok = is_fwd() && set_default_formats()
-                    && (src_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && (weights_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && check_data_types(data_d, weights_d, dst_d)
-                    && md_dims_in_range(src_md())
-                    && md_dims_in_range(weights_md())
-                    && attr()->has_default_values();
-
-            if (!ok) return status::unimplemented;
+            VDISPATCH_PRELU(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_PRELU(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_PRELU((src_md(0)->format_desc.blocking.inner_nblks == 0),
+                    VERBOSE_UNSUPPORTED_FORMAT_KIND);
+            VDISPATCH_PRELU(
+                    (weights_md(0)->format_desc.blocking.inner_nblks == 0),
+                    VERBOSE_UNSUPPORTED_FORMAT_KIND);
+            VDISPATCH_PRELU(check_data_types(data_d, weights_d, dst_d),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_PRELU(md_dims_in_range(src_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "src");
+            VDISPATCH_PRELU(md_dims_in_range(weights_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "weights");
+            VDISPATCH_PRELU(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
             return init_conf();
         }
 
@@ -103,17 +109,26 @@ struct ref_prelu_bwd_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper diff_weights_d(diff_weights_md(0));
             const memory_desc_wrapper diff_dst_d(diff_dst_md(0));
 
-            const bool ok = !is_fwd() && set_default_formats()
-                    && (src_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && (weights_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && diff_src_md(0)->data_type == src_md(0)->data_type
-                    && diff_weights_md(0)->data_type == weights_md(0)->data_type
-                    && check_data_types(data_d, weights_d, diff_dst_d)
-                    && md_dims_in_range(diff_src_md())
-                    && md_dims_in_range(weights_md())
-                    && attr()->has_default_values();
-
-            if (!ok) return status::unimplemented;
+            VDISPATCH_PRELU(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_PRELU(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_PRELU((src_md(0)->format_desc.blocking.inner_nblks == 0),
+                    VERBOSE_UNSUPPORTED_FORMAT_KIND);
+            VDISPATCH_PRELU(
+                    (weights_md(0)->format_desc.blocking.inner_nblks == 0),
+                    VERBOSE_UNSUPPORTED_FORMAT_KIND);
+            VDISPATCH_PRELU(diff_src_md(0)->data_type == src_md(0)->data_type,
+                    VERBOSE_INCONSISTENT_DT, "src", "diff_src");
+            VDISPATCH_PRELU(
+                    diff_weights_md(0)->data_type == weights_md(0)->data_type,
+                    VERBOSE_INCONSISTENT_DT, "weights", "diff_weights");
+            VDISPATCH_PRELU(check_data_types(data_d, weights_d, diff_dst_d),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_PRELU(md_dims_in_range(diff_src_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "diff_src");
+            VDISPATCH_PRELU(md_dims_in_range(weights_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "weights");
+            VDISPATCH_PRELU(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
             CHECK(init_conf());
             CHECK(init_reduction(engine));

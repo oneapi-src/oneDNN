@@ -49,20 +49,28 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper bias_d(weights_md(1));
             const memory_desc_wrapper dst_d(dst_md());
 
-            const bool ok = set_default_params() == status::success
-                    && attr_.set_default_formats(dst_md()) == status::success
-                    && check_data_types(src_d, weights_d, dst_d)
-                    && check_formats(src_d, weights_d, dst_d)
-                    && attr()->has_default_values(sm::scales_runtime
+            VDISPATCH_MATMUL_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_MATMUL_SC(attr_.set_default_formats(dst_md()),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_MATMUL(check_data_types(src_d, weights_d, dst_d),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_MATMUL(check_formats(src_d, weights_d, dst_d),
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_MATMUL(
+                    attr()->has_default_values(sm::scales_runtime
                             | sm::zero_points_runtime | sm::post_ops
                             | sm::dropout | sm::scales_runtime_data_type
-                            | sm::zero_points_runtime_data_type)
-                    && IMPLICATION(
-                            !attr()->scales_.has_default_values(), scales_ok())
-                    && sycl_post_ops_t::post_ops_ok(attr())
-                    && md_dims_in_range(src_md())
-                    && md_dims_in_range(weights_md());
-            if (!ok) return status::unimplemented;
+                            | sm::zero_points_runtime_data_type),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_MATMUL(IMPLICATION(!attr()->scales_.has_default_values(),
+                                     scales_ok()),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_MATMUL(sycl_post_ops_t::post_ops_ok(attr()),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_MATMUL(md_dims_in_range(src_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "src");
+            VDISPATCH_MATMUL(md_dims_in_range(weights_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "weights");
 
             init_conf();
             return status::success;

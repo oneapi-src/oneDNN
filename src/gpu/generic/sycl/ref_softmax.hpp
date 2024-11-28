@@ -39,19 +39,28 @@ struct ref_sycl_softmax_fwd_t : public gpu::generic::sycl::primitive_t {
         status_t init(impl::engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
 
-            bool ok = is_fwd() && check_data_types(src_md()->data_type)
-                    && check_data_types(dst_md()->data_type)
-                    && (src_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && attr()->has_default_values(
-                            sm::scales_runtime | sm::post_ops)
-                    && attr_oscale_ok()
-                    && sycl_post_ops_t::post_ops_ok(attr(), true, false)
-                    && set_default_formats() == status::success
-                    && attr_.set_default_formats(dst_md()) == status::success
-                    && check_formats(src_md(), dst_md())
-                    && md_dims_in_range(src_md());
-
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SOFTMAX(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_SOFTMAX(check_data_types(src_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(check_data_types(dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(
+                    (src_md(0)->format_desc.blocking.inner_nblks == 0),
+                    VERBOSE_UNSUPPORTED_FORMAT_KIND);
+            VDISPATCH_SOFTMAX(attr()->has_default_values(
+                                      sm::scales_runtime | sm::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_SOFTMAX(attr_oscale_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_SOFTMAX(sycl_post_ops_t::post_ops_ok(attr(), true, false),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_SOFTMAX_SC(
+                    set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SOFTMAX_SC(attr_.set_default_formats(dst_md()),
+                    VERBOSE_UNSUPPORTED_TAG_S, "dst");
+            VDISPATCH_SOFTMAX(check_formats(src_md(), dst_md()),
+                    VERBOSE_UNSUPPORTED_TAG_S, "src,dst");
+            VDISPATCH_SOFTMAX(md_dims_in_range(src_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "src");
             return init_conf();
         }
 
@@ -104,19 +113,30 @@ struct ref_sycl_softmax_bwd_t : public gpu::generic::sycl::primitive_t {
 
         status_t init(impl::engine_t *engine) {
             using namespace data_type;
-            bool ok = !is_fwd()
-                    && utils::one_of(dst_md()->data_type, f32, bf16, f16)
-                    && utils::one_of(diff_src_md()->data_type, f32, bf16, f16)
-                    && (dst_md(0)->format_desc.blocking.inner_nblks == 0)
-                    && dst_md()->data_type == diff_dst_md()->data_type
-                    && attr()->has_default_values()
-                    && set_default_formats() == status::success
-                    && memory_desc_wrapper(diff_src_md()).is_plain()
-                    && memory_desc_wrapper(diff_dst_md()).is_plain()
-                    && memory_desc_wrapper(dst_md()).is_plain()
-                    && md_dims_in_range(diff_dst_md());
-
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SOFTMAX(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_SOFTMAX(
+                    utils::one_of(dst_md()->data_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(
+                    utils::one_of(diff_src_md()->data_type, f32, bf16, f16),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(
+                    (dst_md(0)->format_desc.blocking.inner_nblks == 0),
+                    VERBOSE_UNSUPPORTED_FORMAT_KIND);
+            VDISPATCH_SOFTMAX(dst_md()->data_type == diff_dst_md()->data_type,
+                    VERBOSE_INCONSISTENT_DT, "dst", "diff_dst");
+            VDISPATCH_SOFTMAX(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_SOFTMAX_SC(
+                    set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SOFTMAX(memory_desc_wrapper(diff_src_md()).is_plain(),
+                    VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "diff_src");
+            VDISPATCH_SOFTMAX(memory_desc_wrapper(diff_dst_md()).is_plain(),
+                    VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "diff_dst");
+            VDISPATCH_SOFTMAX(memory_desc_wrapper(dst_md()).is_plain(),
+                    VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "dst");
+            VDISPATCH_SOFTMAX(md_dims_in_range(diff_dst_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "diff_dst");
             return init_conf();
         }
 

@@ -44,17 +44,25 @@ struct ref_sycl_eltwise_fwd_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper src_d(src_md());
             const memory_desc_wrapper dst_d(dst_md());
 
-            const bool ok = is_fwd()
-                    && check_data_types(
-                            src_md()->data_type, dst_md()->data_type)
-                    && (src_md()->format_desc.blocking.inner_nblks == 0)
-                    && attr()->has_default_values(sm::post_ops)
-                    && set_default_formats_common() && src_d == dst_d
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && sycl_post_ops_t::post_ops_ok(attr())
-                    && md_dims_in_range(src_md());
-
-            if (!ok) return status::unimplemented;
+            VDISPATCH_ELTWISE(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_ELTWISE(
+                    check_data_types(src_md()->data_type, dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_ELTWISE((src_md()->format_desc.blocking.inner_nblks == 0),
+                    VERBOSE_UNSUPPORTED_FORMAT_KIND);
+            VDISPATCH_ELTWISE(attr()->has_default_values(sm::post_ops),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_ELTWISE(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_ELTWISE(
+                    src_d == dst_d, VERBOSE_INCONSISTENT_MDS, "src", "dst");
+            VDISPATCH_ELTWISE(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_ELTWISE(sycl_post_ops_t::post_ops_ok(attr()),
+                    VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_ELTWISE(md_dims_in_range(src_md()),
+                    VERBOSE_OUT_OF_RANGE_DIMS, "src");
             return init_conf();
         }
 
@@ -101,14 +109,20 @@ struct ref_sycl_eltwise_bwd_t : public gpu::generic::sycl::primitive_t {
             const memory_desc_wrapper diff_src_d(diff_src_md());
             const memory_desc_wrapper diff_dst_d(diff_dst_md());
 
-            const bool ok = !is_fwd()
-                    && check_data_types(data_md()->data_type,
-                            diff_src_md()->data_type, diff_dst_md()->data_type)
-                    && (data_md()->format_desc.blocking.inner_nblks == 0)
-                    && attr()->has_default_values()
-                    && set_default_formats_common() && diff_dst_d == diff_src_d;
-
-            if (!ok) return status::unimplemented;
+            VDISPATCH_ELTWISE(!is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_ELTWISE(
+                    check_data_types(data_md()->data_type,
+                            diff_src_md()->data_type, diff_dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_ELTWISE(
+                    (data_md()->format_desc.blocking.inner_nblks == 0),
+                    VERBOSE_UNSUPPORTED_FORMAT_KIND);
+            VDISPATCH_ELTWISE(
+                    attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_ELTWISE(
+                    set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_ELTWISE(diff_dst_d == diff_src_d,
+                    VERBOSE_INCONSISTENT_MDS, "diff_src", "diff_dst");
             return init_conf();
         }
 
