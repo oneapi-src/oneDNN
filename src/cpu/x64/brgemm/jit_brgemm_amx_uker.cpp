@@ -263,6 +263,9 @@ private:
         virtual bool operator==(const dim_iteration_t &rhs) const {
             return blocks == rhs.blocks;
         }
+        virtual bool operator!=(const dim_iteration_t &rhs) const {
+            return !operator==(rhs);
+        }
 
         size_t pos(size_t b) const {
             assert(b < blocks.size());
@@ -317,6 +320,9 @@ private:
                     && D_shift == rhs.D_shift && bd_mask == rhs.bd_mask
                     && zp_comp_pad_a_shift == rhs.zp_comp_pad_a_shift;
             return res;
+        }
+        bool operator!=(const dim_iteration_t &_rhs) const override {
+            return !operator==(_rhs);
         }
     };
 
