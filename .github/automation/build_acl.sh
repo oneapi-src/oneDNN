@@ -28,7 +28,7 @@ source ${SCRIPT_DIR}/common_aarch64.sh
 
 ACL_CONFIG=${ACL_CONFIG:-"Release"}
 ACL_ROOT_DIR=${ACL_ROOT_DIR:-"${PWD}/ComputeLibrary"}
-ACL_VERSION=${ACL_VERSION:-v24.09}
+ACL_VERSION=${ACL_VERSION:-v24.11.1}
 ACL_ARCH=${ACL_ARCH:-"armv8.2-a"}
 ACL_REPO="https://github.com/ARM-software/ComputeLibrary.git"
 
