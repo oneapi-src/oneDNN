@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/aarch64/matmul/acl_matmul.hpp"
+#include <mutex>
 
 namespace dnnl {
 namespace impl {
@@ -171,12 +172,20 @@ status_t acl_matmul_t::pd_t::init(engine_t *engine) {
 
 template <bool IsFixedFormat>
 status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
-
     status_t status = status::success;
     auto src_base = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto wei_base = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
 
-    auto amp = pd()->amp_;
+    const auto &amp = pd()->amp_;
+
+    std::unique_lock<std::mutex> locker {mtx_, std::defer_lock};
+
+    // Some of the underlying kernels used by ACL still require some state and
+    // are not safe to be called in parallel with different execution contexts.
+    // Eventually when all kernels are truly stateless, this guard can be
+    // removed.
+    if (!acl_obj_->asm_gemm.has_stateless_impl()) { locker.lock(); }
+
     bool is_transA = amp.is_transA;
     bool is_transB = amp.is_transB;
     bool do_transC = amp.do_transC;
