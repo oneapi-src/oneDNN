@@ -17,6 +17,7 @@
 #ifndef ACL_MATMUL_HPP
 #define ACL_MATMUL_HPP
 
+#include <mutex>
 #include "common/utils.hpp"
 #include "cpu/aarch64/acl_post_ops.hpp"
 #include "cpu/aarch64/matmul/acl_matmul_utils.hpp"
@@ -71,6 +72,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<acl_matmul_obj_t> acl_obj_;
+    mutable std::mutex mtx_;
 }; // acl_matmul_t
 
 } // namespace matmul
