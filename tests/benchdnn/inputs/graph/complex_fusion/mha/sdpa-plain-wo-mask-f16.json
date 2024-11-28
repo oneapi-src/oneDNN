@@ -1,0 +1,278 @@
+{
+  "version": "3.7.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "fpmath_mode_apply_to_int": "false",
+  "input_ports": [
+    0, 
+    1, 
+    4, 
+    9
+  ],
+  "output_ports": [
+    10
+  ],
+  "graph": [
+    {
+      "id": 3,
+      "name": "bmm1",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_b": {
+          "type": "bool",
+          "value": 1
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f16",
+          "shape": [
+            32, 
+            16, 
+            384, 
+            64
+          ],
+          "stride": [
+            393216, 
+            24576, 
+            64, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 1,
+          "dtype": "f16",
+          "shape": [
+            32, 
+            16, 
+            384, 
+            64
+          ],
+          "stride": [
+            393216, 
+            24576, 
+            64, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "f16",
+          "shape": [
+            32, 
+            16, 
+            384, 
+            384
+          ],
+          "stride": [
+            2359296, 
+            147456, 
+            384, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 6,
+      "name": "scale_div",
+      "kind": "Divide",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 2,
+          "dtype": "f16",
+          "shape": [
+            32, 
+            16, 
+            384, 
+            384
+          ],
+          "stride": [
+            2359296, 
+            147456, 
+            384, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 4,
+          "dtype": "f16",
+          "shape": [
+            1
+          ],
+          "stride": [
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 5,
+          "dtype": "f16",
+          "shape": [
+            32, 
+            16, 
+            384, 
+            384
+          ],
+          "stride": [
+            2359296, 
+            147456, 
+            384, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 8,
+      "name": "softmax",
+      "kind": "SoftMax",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": -1
+        }
+      },
+      "inputs": [
+        {
+          "id": 5,
+          "dtype": "f16",
+          "shape": [
+            32, 
+            16, 
+            384, 
+            384
+          ],
+          "stride": [
+            2359296, 
+            147456, 
+            384, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 7,
+          "dtype": "f16",
+          "shape": [
+            32, 
+            16, 
+            384, 
+            384
+          ],
+          "stride": [
+            2359296, 
+            147456, 
+            384, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 11,
+      "name": "bmm2",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_b": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 7,
+          "dtype": "f16",
+          "shape": [
+            32, 
+            16, 
+            384, 
+            384
+          ],
+          "stride": [
+            2359296, 
+            147456, 
+            384, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 9,
+          "dtype": "f16",
+          "shape": [
+            32, 
+            16, 
+            384, 
+            64
+          ],
+          "stride": [
+            393216, 
+            24576, 
+            64, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 10,
+          "dtype": "f16",
+          "shape": [
+            32, 
+            16, 
+            384, 
+            64
+          ],
+          "stride": [
+            393216, 
+            24576, 
+            64, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}
+
