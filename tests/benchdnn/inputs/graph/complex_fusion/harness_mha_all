@@ -1,64 +1,46 @@
-# Original graphs
---reset --case=complex_fusion/mha/JAX-MHA-inf-fp32.json
---reset --case=complex_fusion/mha/JAX-MHA-inf-bf16.json
---reset --case=complex_fusion/mha/JAX-MQA-inf-fp32.json
---reset --case=complex_fusion/mha/JAX-MQA-inf-bf16.json
---reset --case=complex_fusion/mha/MHA-GPT-inf-bf16-bs1.json
---reset --case=complex_fusion/mha/MHA-GPT-inf-fp32-bs1.json
---reset --case=complex_fusion/mha/MHA-GPT-inf-int8-bs1.json
---reset --case=complex_fusion/mha/MHA-LLaMa-inf-bf16-bs1.json
---reset --case=complex_fusion/mha/MHA-LLaMa-inf-fp32-bs1.json
---reset --case=complex_fusion/mha/MHA-LLaMa-inf-int8-bs1.json
---reset --case=complex_fusion/mha/MHA-bert_large-inf-bf16-bs1.json
---reset --case=complex_fusion/mha/MHA-bert_large-inf-fp32-bs1.json
---reset --case=complex_fusion/mha/MHA-bert_large-inf-int8-bs1.json
---reset --case=complex_fusion/mha/MHA-distill_bert-inf-bf16-bs1.json
---reset --case=complex_fusion/mha/MHA-distill_bert-inf-fp32-bs1.json
---reset --case=complex_fusion/mha/MHA-distill_bert-inf-int8-bs1.json
---reset --case=complex_fusion/mha/MHA-stable_diffusion-inf-bf16-bs1.json
---reset --case=complex_fusion/mha/MHA-stable_diffusion-inf-fp32-bs1.json
---reset --case=complex_fusion/mha/MHA-starcoder-inf-bf16-bs1.json
---reset --case=complex_fusion/mha/MHA-starcoder-inf-fp32-bs1.json
---reset --case=complex_fusion/mha/MHA-starcoder-inf-int8-bs1.json
---reset --case=complex_fusion/mha/MHA_backward-Bert_large-train-bf16-bs4.json
---reset --case=complex_fusion/mha/MHA_backward-Bert_large-train-fp32-bs4.json
---reset --case=complex_fusion/mha/MHA_forward-Bert_large-train-bf16-bs4.json
---reset --case=complex_fusion/mha/MHA_forward-Bert_large-train-fp32-bs4.json
---reset --case=complex_fusion/mha/dynamic_quantized_mha-Bert_large-inf-int8-bs1-fake.json
---reset --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
---reset --case=complex_fusion/mha/sdpa-plain-wo-scale-f16-bs1.json
---reset --case=complex_fusion/mha/sdpa-plain-wo-scale-bf16-bs1.json
---reset --case=complex_fusion/mha/sdpa-plain-wo-scale-fp32-bs1.json
---reset --case=complex_fusion/mha/sdpa-plain-wo-scale-int8-bs1.json
---reset --case=complex_fusion/mha/GQA-fp32.json
---reset --case=complex_fusion/mha/GQA-fp16.json
+# floating-point graphs
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/JAX-MHA-inf-fp32.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/JAX-MQA-inf-fp32.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/MHA-GPT-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/MHA-LLaMa-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/MHA-bert_large-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/MHA-distill_bert-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/MHA-stable_diffusion-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/MHA-starcoder-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/MHA_backward-Bert_large-train-fp32-bs4.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/MHA_forward-Bert_large-train-fp32-bs4.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/sdpa-plain-wo-scale-f16-bs1.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/GQA-fp16.json
 
-# Rewrited graphs
---reset --in-shapes=4:4x16x32x256+5:4x16x256x33+0:4x16x33x256+1:4x1x1x33+3:4x1x32x33 --case=complex_fusion/mha/MHA-GPT-inf-fp32-bs1.json
---reset --in-shapes=4:4x16x32x256+5:4x16x256x33+0:4x16x33x256+1:4x1x1x33+3:4x1x32x33 --case=complex_fusion/mha/MHA-GPT-inf-bf16-bs1.json
+# int8 graphs
+--reset --case=complex_fusion/mha/MHA-GPT-inf-int8-bs1.json
+--reset --case=complex_fusion/mha/MHA-LLaMa-inf-int8-bs1.json
+--reset --case=complex_fusion/mha/MHA-bert_large-inf-int8-bs1.json
+--reset --case=complex_fusion/mha/MHA-distill_bert-inf-int8-bs1.json
+--reset --case=complex_fusion/mha/MHA-starcoder-inf-int8-bs1.json
+--reset --case=complex_fusion/mha/dynamic_quantized_mha-Bert_large-inf-int8-bs1-fake.json
+--reset --case=complex_fusion/mha/sdpa-plain-wo-scale-int8-bs1.json
+
+# Re-written graphs
+--reset --dt=f32,bf16,f16 --in-shapes=4:4x16x32x256+5:4x16x256x33+0:4x16x33x256+1:4x1x1x33+3:4x1x32x33 --case=complex_fusion/mha/MHA-GPT-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --in-shapes=3:4x32x32x128+4:4x32x128x33+0:4x32x33x128+1:4x1x32x33 --case=complex_fusion/mha/MHA-LLaMa-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --in-shapes=3:20x16x384x64+4:20x16x64x384+0:20x16x384x64+1:20x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --in-shapes=3:10x16x384x64+4:10x1x64x384+0:10x1x384x64+1:10x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --in-shapes=4:56x12x128x64+5:56x12x64x128+0:56x12x128x64+1:56x1x1x128 --case=complex_fusion/mha/MHA-distill_bert-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --in-shapes=0:56x8x1024x80+1:56x8x77x80+2:56x8x77x80 --case=complex_fusion/mha/MHA-stable_diffusion-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --in-shapes=5:20x117x48x128+6:20x1x128x117+19:20x1x117x128 --case=complex_fusion/mha/MHA-starcoder-inf-fp32-bs1.json
+--reset --dt=f32,bf16,f16 --in-shapes=2514:32x16x512x64+2518:32x16x512x64+2543:32x1x512x512+2547:32x16x512x512+2525:32x16x512x64 --op-attrs=4837:shape:16384x1024 --case=complex_fusion/mha/MHA_forward-Bert_large-train-fp32-bs4.json
+--reset --dt=f32,bf16,f16 --in-shapes=2514:32x16x512x64+2518:32x16x512x64+2591:32x16x512x512+2545:32x16x512x512+2547:32x16x512x512+2525:32x16x512x64+2548:32x16x512x512+5178:16384x1024 --op-attrs=7392:shape:32x512x16x64 --case=complex_fusion/mha/MHA_backward-Bert_large-train-fp32-bs4.json
+--reset --dt=f32,bf16,f16 --in-shapes=0:20x16x384x64+1:20x16x384x64+8:20x16x384x64+5:20x1x1x384 --case=complex_fusion/mha/sdpa-plain-wo-scale-f16-bs1.json
+--reset --dt=f32,bf16,f16 --in-shapes=5:1x1x384x384 --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
+--reset --dt=f32,bf16,f16 --in-shapes=0:2x16x384x64+1:2x16x384x64+5:2x1x1x384+8:2x16x384x64  --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
+
+# Re-written int8 graphs
 --reset --in-shapes=5:4x16x32x256+4:4x16x256x33+0:4x16x33x256+1:4x1x1x33+3:4x1x32x33 --case=complex_fusion/mha/MHA-GPT-inf-int8-bs1.json
---reset --in-shapes=3:4x32x32x128+4:4x32x128x33+0:4x32x33x128+1:4x1x32x33 --case=complex_fusion/mha/MHA-LLaMa-inf-fp32-bs1.json
---reset --in-shapes=3:4x32x32x128+4:4x32x128x33+0:4x32x33x128+1:4x1x32x33 --case=complex_fusion/mha/MHA-LLaMa-inf-bf16-bs1.json
 --reset --in-shapes=4:4x32x32x128+3:4x32x128x33+0:4x32x33x128+1:4x1x32x33 --case=complex_fusion/mha/MHA-LLaMa-inf-int8-bs1.json
---reset --in-shapes=3:20x16x384x64+4:20x16x64x384+0:20x16x384x64+1:20x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-fp32-bs1.json
---reset --in-shapes=3:20x16x384x64+4:20x1x64x384+0:20x1x384x64+1:20x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-fp32-bs1.json
---reset --in-shapes=3:20x16x384x64+4:20x16x64x384+0:20x16x384x64+1:20x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-bf16-bs1.json
 --reset --in-shapes=4:20x16x384x64+3:20x16x64x384+0:20x16x384x64+1:20x1x1x384 --case=complex_fusion/mha/MHA-bert_large-inf-int8-bs1.json
---reset --in-shapes=4:56x12x128x64+5:56x12x64x128+0:56x12x128x64+1:56x1x1x128 --case=complex_fusion/mha/MHA-distill_bert-inf-fp32-bs1.json
---reset --in-shapes=4:56x12x128x64+5:56x12x64x128+0:56x12x128x64+1:56x1x1x128 --case=complex_fusion/mha/MHA-distill_bert-inf-bf16-bs1.json
 --reset --in-shapes=5:56x12x128x64+4:56x12x64x128+0:56x12x128x64+1:56x1x1x128 --case=complex_fusion/mha/MHA-distill_bert-inf-int8-bs1.json
---reset --in-shapes=0:56x8x1024x80+1:56x8x77x80+2:56x8x77x80 --case=complex_fusion/mha/MHA-stable_diffusion-inf-bf16-bs1.json
---reset --in-shapes=0:56x8x1024x80+1:56x8x77x80+2:56x8x77x80 --case=complex_fusion/mha/MHA-stable_diffusion-inf-fp32-bs1.json
---reset --in-shapes=5:20x117x48x128+6:20x1x128x117+19:20x1x117x128 --case=complex_fusion/mha/MHA-starcoder-inf-fp32-bs1.json
---reset --in-shapes=5:20x117x48x128+6:20x1x128x117+19:20x1x117x128 --case=complex_fusion/mha/MHA-starcoder-inf-bf16-bs1.json
 --reset --in-shapes=4:20x117x48x128+3:20x1x128x117+0:20x1x117x128 --case=complex_fusion/mha/MHA-starcoder-inf-int8-bs1.json
---reset --in-shapes=2514:32x16x512x64+2518:32x16x512x64+2543:32x1x512x512+2547:32x16x512x512+2525:32x16x512x64 --op-attrs=4837:shape:16384x1024 --case=complex_fusion/mha/MHA_forward-Bert_large-train-bf16-bs4.json
---reset --in-shapes=2514:32x16x512x64+2518:32x16x512x64+2543:32x1x512x512+2547:32x16x512x512+2525:32x16x512x64 --op-attrs=4837:shape:16384x1024 --case=complex_fusion/mha/MHA_forward-Bert_large-train-fp32-bs4.json
---reset --in-shapes=2514:32x16x512x64+2518:32x16x512x64+2591:32x16x512x512+2545:32x16x512x512+2547:32x16x512x512+2525:32x16x512x64+2548:32x16x512x512+5178:16384x1024 --op-attrs=7392:shape:32x512x16x64 --case=complex_fusion/mha/MHA_backward-Bert_large-train-bf16-bs4.json
---reset --in-shapes=2514:32x16x512x64+2518:32x16x512x64+2591:32x16x512x512+2545:32x16x512x512+2547:32x16x512x512+2525:32x16x512x64+2548:32x16x512x512+5178:16384x1024 --op-attrs=7392:shape:32x512x16x64 --case=complex_fusion/mha/MHA_backward-Bert_large-train-fp32-bs4.json
 --reset --in-shapes=4:32x16x384x64+3:32x16x64x384+0:32x16x384x64+1:32x1x1x384 --case=complex_fusion/mha/dynamic_quantized_mha-Bert_large-inf-int8-bs1-fake.json
---reset --in-shapes=3:20x16x384x64+4:20x16x64x384+0:20x16x384x64+1:20x1x1x384 --case=complex_fusion/mha/sdpa-plain-wo-scale-fp32-bs1.json
---reset --in-shapes=3:20x16x384x64+4:20x16x64x384+0:20x16x384x64+1:20x1x1x384 --case=complex_fusion/mha/sdpa-plain-wo-scale-bf16-bs1.json
 --reset --in-shapes=4:20x16x384x64+3:20x16x64x384+0:20x16x384x64+1:20x1x1x384 --case=complex_fusion/mha/sdpa-plain-wo-scale-int8-bs1.json
---reset --in-shapes=5:1x1x384x384 --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
---reset --in-shapes=0:2x16x384x64+1:2x16x384x64+5:2x1x1x384+8:2x16x384x64  --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
