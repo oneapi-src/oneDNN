@@ -91,11 +91,11 @@ struct memory_storage_t : public c_compatible {
     const memory_storage_t *root_storage() const { return root_storage_; }
 
 protected:
+    size_t offset_ = 0;
     virtual status_t init_allocate(size_t size) = 0;
 
 private:
     engine_t *engine_;
-    size_t offset_ = 0;
 
     const memory_storage_t *root_storage_;
 
