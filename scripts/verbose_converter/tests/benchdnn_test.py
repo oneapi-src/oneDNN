@@ -109,11 +109,13 @@ def generate_verbose(path_to_benchdnn, driver, batch):
 
     # Runtime dimension require execution verbose output.
     # BRGEMM driver through ukernel API supports verbose only at execution.
-    sub_env["ONEDNN_VERBOSE"] = "2"
+    profile_mode = "create"
     benchdnn_mode = "I"
     if driver in ("matmul", "reorder", "brgemm"):
-        sub_env["ONEDNN_VERBOSE"] = "1"
+        profile_mode = "exec"
         benchdnn_mode = "R"
+    # Add extra noise (dispatch, etc.) to ensure it gets filtered out
+    sub_env["ONEDNN_VERBOSE"] = f"dispatch,error,check,profile_{profile_mode}"
 
     sub_args = [
         benchdnn_exe,
