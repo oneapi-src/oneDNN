@@ -93,21 +93,29 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
 
         const memory_desc_t *src_md(
                 int index = 0, bool user_input = false) const override {
+            if (op_pds_.empty())
+                return cpu_convolution_fwd_pd_t::src_md(index, user_input);
             return op_pds_.front()->src_md(index, user_input);
         }
 
         const memory_desc_t *dst_md(
                 int index = 0, bool user_input = false) const override {
+            if (op_pds_.empty())
+                return cpu_convolution_fwd_pd_t::dst_md(index, user_input);
             return op_pds_.back()->dst_md(index, user_input);
         }
 
         const memory_desc_t *weights_md(
                 int index = 0, bool user_input = false) const override {
+            if (op_pds_.empty())
+                return cpu_convolution_fwd_pd_t::weights_md(index, user_input);
             return op_pds_.front()->weights_md(index, user_input); // for now
         }
 
         const memory_desc_t *arg_md(
                 int arg, bool user_input = false) const override {
+            if (op_pds_.empty())
+                return cpu_convolution_fwd_pd_t::arg_md(arg, user_input);
             // Binary post-op:
             // format_tag::any should be supported here since output dst_md
             // may be different from the intermediate one and they should be
