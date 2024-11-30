@@ -320,6 +320,9 @@ _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::pd_t::init_brgemm(
     bool allow_down_conversion_to_bf16
             = is_f32 && is_fpmath_bf16 && is_impl_bf16;
 
+    // Initialized rnn_ early to get correct verbose output
+    rnn_ = zero<decltype(rnn_)>();
+    rnn_.is_brgemm = true;
     VDISPATCH_RNN(
             one_of(cell_kind, alg_kind::vanilla_rnn, alg_kind::vanilla_lstm,
                     alg_kind::vanilla_gru, alg_kind::lbr_gru,
@@ -352,8 +355,6 @@ _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::pd_t::init_brgemm(
             VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_RNN(this->with_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
 
-    rnn_ = zero<decltype(rnn_)>();
-    rnn_.is_brgemm = true;
     VDISPATCH_RNN(init_conf<class_name>(rnn_, *this->desc(), *this->attr(),
                           this->src_md(0), this->src_md(1), this->src_md(2),
                           this->weights_md(0), this->weights_md(1),
