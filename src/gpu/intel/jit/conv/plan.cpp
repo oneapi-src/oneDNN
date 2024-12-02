@@ -1280,8 +1280,11 @@ struct fma_context_t {
         if (a_type.is_f16() && b_type.is_f16() && c_type.is_f32()) {
             return layout.retype(type_t::f32()).make_dense();
         }
-        if (layout.type().is_fp8())
-            return layout.make_dense().retype(type_t::f16());
+        if (layout.type().is_fp8()) {
+            auto alt_type = is_b ? a_type : b_type;
+            return layout.make_dense().retype(
+                    alt_type.is_fp8() ? type_t::f16() : alt_type);
+        }
 
         // mad with f16 requires aligned regioning for src1/src2.
         if (a_type.is_f16()) return layout.make_dense();
