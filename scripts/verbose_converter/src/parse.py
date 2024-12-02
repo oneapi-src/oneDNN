@@ -555,30 +555,43 @@ class Parser:
     def _fix_template(self, template) -> Optional[str]:
         return template
 
-    def __iter__(self) -> Iterator[Tuple[str, ir.Entry]]:
-        template = None
-        for line in map(str.rstrip, self.input):
-            if not line.startswith("onednn_verbose,"):
+    @staticmethod
+    def _parse_leading_fields(input: Iterable[str]):
+        MARKER = "onednn_verbose"
+        for line in map(str.rstrip, input):
+            if not line.startswith(f"{MARKER},"):
                 continue
-            without_marker = line.split(",", 1)[1]
-            operation, args = without_marker.split(",", 1)
+            try:
+                _, operation, args = line.split(",", 2)
+            except ValueError:
+                continue
             version = 0
-            if operation[0] == "v":
+            if operation.startswith("v"):
                 try:
                     version = int(operation[1:])
-                    operation, args = args.split(",", 1)
                 except ValueError:
                     pass
+                else:
+                    operation, args = args.split(",", 1)
             timestamp = None
             try:
                 timestamp = float(operation)
-                operation, args = args.split(",", 1)
             except ValueError:
                 pass
-            if operation == "graph":
-                continue
-            if operation == "primitive" or operation == "ukernel":
+            else:
                 operation, args = args.split(",", 1)
+            component = "primitive"
+            if operation in ("graph", "primitive", "ukernel"):
+                component = operation
+                operation, args = args.split(",", 1)
+            yield line, version, timestamp, component, operation, args
+
+    def __iter__(self) -> Iterator[Tuple[str, ir.Entry]]:
+        template = None
+        parsed = self._parse_leading_fields(self.input)
+        for line, version, timestamp, component, operation, args in parsed:
+            if component == "graph":
+                continue
             event = operation.split(":", 1)[0]
             if event == "info":
                 for marker in ("template", "prim_template"):
@@ -586,13 +599,18 @@ class Parser:
                         continue
                     fixed_template = self._fix_template(args[len(marker) + 1 :])
                     if fixed_template is not None:
-                        template = fixed_template
-                        first_component, rest = template.split(",", 1)
-                        # Timestamp is usually out of order with respect to the
-                        # template because of missing component for "graph",
-                        # "primitive", "ukernel", etc.
-                        if first_component == "timestamp":
-                            template = rest
+                        break
+                else:
+                    continue
+                first_component, rest = fixed_template.split(",", 1)
+                # Timestamp is usually out of order with respect to the
+                # template because of missing component for "graph",
+                # "primitive", "ukernel", etc.
+                if first_component == "timestamp":
+                    fixed_template = rest
+                if template != fixed_template:
+                    template = fixed_template
+                continue
             elif event in self.events:
                 with self.error_handler:
                     parsed = self.parse(
