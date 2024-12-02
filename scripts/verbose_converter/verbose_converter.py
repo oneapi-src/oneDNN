@@ -37,7 +37,7 @@ logger.addHandler(stream_handler)
 
 
 def one_line(multiline: str):
-    return " ".join(map(str.strip, multiline.split("\n")))
+    return " ".join(map(str.strip, multiline.split("\n"))).strip()
 
 
 class ConverterError(RuntimeError):
@@ -76,6 +76,15 @@ def convert(
     elif action == "generate":
         logger.info("Generating output ...")
         if generator == "benchdnn":
+            if "create_nested" in events:
+                logger.warning(
+                    one_line(
+                        """
+                        Benchdnn arguments generated from create_nested events
+                        may not work!
+                        """
+                    )
+                )
             return generate(InputGenerator(logger), log_parser, split_output)
         elif generator == "breakdown":
             return generate(BreakdownGenerator(logger), log_parser, agg_keys)
@@ -109,7 +118,7 @@ def main() -> int:
         "aux",
         "shapes",
     ]
-    event_opts = list(default_events)
+    event_opts = list(default_events) + ["create_nested"]
     args_parser = argparse.ArgumentParser(
         description="oneDNN log converter", formatter_class=RawTextHelpFormatter
     )
@@ -167,7 +176,7 @@ def main() -> int:
         "-e",
         "--events",
         nargs="+",
-        default=event_opts,
+        default=list(default_events),
         help=one_line(
             f"""
              events to parse (default: create and exec). Values: {event_opts}.
@@ -187,6 +196,8 @@ def main() -> int:
         validate_option(
             args.generator, generator_opts, "Unknown generator value"
         )
+        for event in args.events:
+            validate_option(event, event_opts, "Unknown event")
     except ConverterError as e:
         logger.error(str(e))
         return 1

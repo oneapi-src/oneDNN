@@ -541,7 +541,7 @@ class V1ParserImpl(ParserImpl):
 
 class Parser:
     _parser_impls: Dict[int, ParserImpl] = {}
-    _default_events = "exec", "create"
+    _default_events = "exec", "create", "create_nested"
 
     def __init__(
         self,
