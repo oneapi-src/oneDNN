@@ -26,6 +26,7 @@ from src.breakdown_generator import BreakdownGenerator  # type: ignore
 from src.dnnl_parser import LogParser  # type: ignore
 from src.utils import check_version  # type: ignore
 
+default_events = "exec", "create"
 stream_handler = logging.StreamHandler(sys.stderr)
 fmt = logging.Formatter(fmt="{levelname}: {name}: {message}", style="{")
 # workaround for nvim-treesitter indent bug: }
@@ -54,7 +55,7 @@ def convert(
     generator: str,
     split_output: bool,
     agg_keys: List[str],
-    events: Iterable[str] = ("create", "exec"),
+    events: Iterable[str] = default_events,
 ) -> Dict[str, str]:
     if not check_version():
         raise ConverterError("Unsupported Python version")
@@ -108,7 +109,7 @@ def main() -> int:
         "aux",
         "shapes",
     ]
-    event_opts = ["exec", "create"]
+    event_opts = list(default_events)
     args_parser = argparse.ArgumentParser(
         description="oneDNN log converter", formatter_class=RawTextHelpFormatter
     )

@@ -144,6 +144,10 @@ class ParseError(ValueError):
     pass
 
 
+class InvalidEntryError(ParseError):
+    pass
+
+
 class ParserImpl:
     default_template = (
         "operation,engine,primitive,implementation,prop_kind,"
@@ -466,17 +470,17 @@ class ParserImpl:
 
     def dnnl_to_ir(self):
         return {
-            "operation": ("operation", self.parse_operation),
-            "engine": ("engine", self.parse_engine),
-            "primitive": ("prim_kind", self.parse_prim_kind),
-            "implementation": ("impl", self.parse_impl),
-            "prop_kind": ("prop_kind", self.parse_prop_kind),
-            "memory_descriptors": ("mds", self.parse_mds),
-            "attributes": ("exts", self.parse_attrs),
-            "auxiliary": ("aux", self.parse_aux),
-            "problem_desc": ("shapes", self.parse_shapes),
-            "exec_time": ("time", self.parse_time),
-            "timestamp": ("timestamp", self.parse_timestamp),
+            "operation": ("operation", self.parse_operation, True),
+            "engine": ("engine", self.parse_engine, True),
+            "primitive": ("prim_kind", self.parse_prim_kind, True),
+            "implementation": ("impl", self.parse_impl, True),
+            "prop_kind": ("prop_kind", self.parse_prop_kind, True),
+            "memory_descriptors": ("mds", self.parse_mds, True),
+            "attributes": ("exts", self.parse_attrs, True),
+            "auxiliary": ("aux", self.parse_aux, True),
+            "problem_desc": ("shapes", self.parse_shapes, True),
+            "exec_time": ("time", self.parse_time, False),
+            "timestamp": ("timestamp", self.parse_timestamp, False),
         }
 
     def parse(self, line: str, template: Optional[str]):
@@ -486,23 +490,28 @@ class ParserImpl:
         fields = template.rstrip().split(",")
         values = line.rstrip().split(",")
         mapping = self.dnnl_to_ir()
-        for field, value in zip(fields, values):
-            if field not in mapping:
-                continue
-            key, parse = mapping[field]
+        min_fields = sum((mapping[field][2] for field in fields))
+        max_fields = len(fields)
+        if len(values) < min_fields:
+            raise InvalidEntryError("parse error: too few fields to parse")
+        if len(values) > max_fields:
+            raise InvalidEntryError("parse error: too many fields to parse")
+        mapped = dict(zip(fields, values))
+        for field, (key, parse, reqd) in mapping.items():
+            if field not in mapped:
+                if not reqd:
+                    continue
+                raise InvalidEntryError(f"parse error: missing {field} field")
+            value = mapped[field]
             try:
                 entry[key] = parse(value)
-            except ParseError:
-                raise ParseError(f"parsing entry error: {field}: {value}")
-            except ValueError as e:
-                raise ParseError(f"parse error: {line} ({str(e)})")
+            except (ParseError, ValueError) as e:
+                raise ParseError(f"parse error: {field}: {value} ({e!s})")
         return entry
 
 
 def register(*, version: int):
     def registrar(impl: type):
-        if version in ParserImpl._version_map:
-            raise ParseError(f"Competing parsers for version {version}")
         ParserImpl._version_map[version] = impl
         return impl
 
@@ -531,15 +540,14 @@ class V1ParserImpl(ParserImpl):
 
 class Parser:
     _parser_impls: Dict[int, ParserImpl] = {}
+    _default_events = "exec", "create"
 
     def __init__(
         self,
         input: Iterable[str],
-        events: Optional[Iterable[str]] = None,
+        events: Iterable[str] = _default_events,
         error_handler: ContextManager = nullcontext(),
     ):
-        if events is None:
-            events = "exec", "create"
         self.input = input
         self.events = set(events)
         self.error_handler = error_handler

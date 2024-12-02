@@ -884,7 +884,10 @@ class InputGenerator:
     def generate(self, input, split_by_driver=False):
         data: Dict[str, List[str]] = defaultdict(list)
         for value in input.values():
-            driver, args = self._generate_case(value)
+            try:
+                driver, args = self._generate_case(value)
+            except KeyError:
+                continue
             if not split_by_driver:
                 driver, args = "all", f"--{driver} {args}"
             data[driver].append(args)
