@@ -607,6 +607,7 @@ status_t kernel_desc_t::create_generator(
 }
 
 serialized_t kernel_desc_t::serialize() const {
+    ir_assert(is_finalized) << "Cannot serialize non-finalized descriptor";
     std::ostringstream oss;
     jit::stringify(oss, *this);
     auto str = oss.str();
@@ -619,6 +620,7 @@ kernel_desc_t kernel_desc_t::deserialize(const serialized_t &s) {
     std::string str(data.begin(), data.end());
     std::istringstream iss(str);
     auto desc = jit::parse<kernel_desc_t>(iss);
+    desc.is_finalized = true;
     return desc;
 }
 
