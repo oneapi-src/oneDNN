@@ -23,6 +23,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Set,
     Tuple,
 )
 
@@ -588,6 +589,8 @@ class Parser:
 
     def __iter__(self) -> Iterator[Tuple[str, ir.Entry]]:
         template = None
+        cache: Dict[str, dict] = {}
+        errors: Set[str] = set()
         parsed = self._parse_leading_fields(self.input)
         for line, version, timestamp, component, operation, args in parsed:
             if component == "graph":
@@ -610,16 +613,34 @@ class Parser:
                     fixed_template = rest
                 if template != fixed_template:
                     template = fixed_template
+                    cache.clear()
                 continue
-            elif event in self.events:
-                with self.error_handler:
-                    parsed = self.parse(
-                        f"{operation},{args}",
-                        template,
-                        version,
-                        timestamp,
-                    )
-                    yield line, parsed
+            if event not in self.events:
+                continue
+            leading_args, last_arg = args.rsplit(",", 1)
+            try:
+                time = float(last_arg)
+            except ValueError:
+                time = 0.0
+                leading_args = args
+            key = f"v{version},{component},{operation},{leading_args}"
+            if key in errors:
+                continue
+            success = False
+            with self.error_handler:
+                if key in cache:
+                    params = dict(cache[key])
+                    params.update(time=time, timestamp=timestamp)
+                else:
+                    new_line = f"{operation},{args}"
+                    params = self.parse(new_line, template, version)
+                    cache[key] = dict(params)
+                    if timestamp is not None:
+                        params.update(timestamp=timestamp)
+                yield line, ir.Entry(version=version, **params)
+                success = True
+            if not success:
+                errors.add(key)
 
     def items(self) -> Iterable[Tuple[int, Tuple[str, ir.Entry]]]:
         yield from enumerate(self)
@@ -632,15 +653,6 @@ class Parser:
             Parser._parser_impls[version] = ParserImpl._version_map[version]()
         return Parser._parser_impls[version]
 
-    def parse(
-        self,
-        line: str,
-        template: Optional[str],
-        version: int = 0,
-        timestamp: Optional[float] = None,
-    ):
+    def parse(self, line: str, template: Optional[str], version: int = 0):
         impl = self._get_impl(version)
-        entry = impl.parse(line, template)
-        if timestamp is not None:
-            entry.update(timestamp=timestamp)
-        return ir.Entry(**entry, version=version)
+        return impl.parse(line, template)
