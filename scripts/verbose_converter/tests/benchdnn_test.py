@@ -102,7 +102,7 @@ def filter_verbose(verbose: str, driver: str, filter_event: str):
     return "\n".join(found_cases)
 
 
-def generate_verbose(path_to_benchdnn, driver, batch):
+def generate_verbose(path_to_benchdnn, engine, driver, batch):
     benchdnn_exe = path_to_benchdnn + "/benchdnn"
     sub_env = os.environ.copy()
     sub_env["ONEDNN_PRIMITIVE_CACHE_CAPACITY"] = "0"
@@ -119,6 +119,7 @@ def generate_verbose(path_to_benchdnn, driver, batch):
 
     sub_args = [
         benchdnn_exe,
+        f"--engine={engine}",
         f"--{driver}",
         f"--mode={benchdnn_mode}",
         "-v1",
@@ -241,14 +242,14 @@ def compare(driver, ref_v, comp_v):
         )
 
 
-def test(path_to_benchdnn, driver, batch):
-    ref_verbose = generate_verbose(path_to_benchdnn, driver, batch)
+def test(path_to_benchdnn, engine, driver, batch):
+    ref_verbose = generate_verbose(path_to_benchdnn, engine, driver, batch)
     # XXX: Maybe generate batch and run benchdnn for each verbose line
     # separately to detect error on case level and not on batch level?
     # The reason behind testing on batch level is that ref_verbose generator
     # might introduce multiple verbose lines for single line in batch file
     com_batch = generate_batch(ref_verbose, driver)
-    com_verbose = generate_verbose(path_to_benchdnn, driver, com_batch)
+    com_verbose = generate_verbose(path_to_benchdnn, engine, driver, com_batch)
     compare(driver, ref_verbose, com_verbose)
 
 
@@ -258,6 +259,13 @@ def main():
     realpath_benchdnn = os.path.realpath(f"{realpath}/{relpath}")
     args_parser = argparse.ArgumentParser(
         description="benchdnn test", formatter_class=RawTextHelpFormatter
+    )
+    args_parser.add_argument(
+        "-e",
+        "--engine",
+        default="cpu",
+        choices=("cpu", "gpu"),
+        help="Engine to use to run tests",
     )
     args_parser.add_argument(
         "-d",
@@ -288,9 +296,9 @@ def main():
             driver, batch = case.split(",")
             batch = batch.split("\n", 1)[0]
             batch_file_path = f"{args.inputs_path}/{driver}/{batch}"
-            test_info = f"BENCHDNN TEST: {driver}, {batch}"
+            test_info = f"BENCHDNN TEST: {args.engine}, {driver}, {batch}"
             try:
-                test(args.benchdnn_path, driver, batch_file_path)
+                test(args.benchdnn_path, args.engine, driver, batch_file_path)
             except Exception as e:
                 print(f"{test_info}: FAILED {e!s}")
                 failed = True
