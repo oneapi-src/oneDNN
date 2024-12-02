@@ -567,9 +567,15 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     0, ngen::DataType::hf);
             dst = std::move(tmp_dst);
         }
-        if (do_pre_reorder)
+        if (do_pre_reorder) {
+            const int src_nregs
+                    = utils::div_up(width * 2 * src_stride, grf_size);
+            auto tmp_src = lex_scope.alloc_reg_buf_data(src_nregs).format(
+                    0, src_type);
             emit_reorder_1d_tile(
-                    hw, host, scope, width, src, src_stride, src, 1);
+                    hw, host, scope, width, src, src_stride, tmp_src, 1);
+            src = std::move(tmp_src);
+        }
         auto tmp1 = lex_scope.alloc_reg_buf_data(step_nregs);
         auto tmp2 = lex_scope.alloc_reg_buf_data(step_nregs);
         for (int i = 0; i < width; i += step) {
@@ -584,18 +590,20 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     s.reinterpret(0, ngen::DataType::ub)(1), 7);
             host->and_(esize, tmp2.subregister(0, ngen::DataType::uw)(1),
                     tmp2.subregister(0, ngen::DataType::uw)(1), 0x3F80);
-            host->cmp(esize | host->eq | host->f0[0], host->null.uw(),
-                    tmp2.subregister(0, ngen::DataType::uw)(1), 0x3F80);
+
+            host->xor_(esize, tmp1.subregister(0, ngen::DataType::uw)(1),
+                    tmp1.subregister(0, ngen::DataType::uw)(1), 0x7F00);
             host->mul(esize, tmp2.subregister(0, ngen::DataType::hf)(1),
                     tmp2.subregister(0, ngen::DataType::hf)(1),
                     ngen::Immediate::hf(0x5c00));
-            host->mov(esize | host->f0[0],
-                    tmp2.subregister(0, ngen::DataType::uw)(1), 0x7C01);
-            host->csel(esize | host->gt,
+            host->csel(esize | host->ze,
                     tmp2.subregister(0, ngen::DataType::hf)(1),
+                    ngen::Immediate::hf(0x7C01),
                     tmp2.subregister(0, ngen::DataType::hf)(1),
-                    -tmp2.subregister(0, ngen::DataType::hf)(1),
                     tmp1.subregister(0, ngen::DataType::hf)(1));
+            host->bfn(esize, 0xCA, tmp2.subregister(0, ngen::DataType::uw)(1),
+                    tmp2.subregister(0, ngen::DataType::uw)(1),
+                    tmp1.subregister(0, ngen::DataType::uw)(1), 0X8000);
             host->mov(esize, d.reinterpret(0, ngen::DataType::uw)(dst_stride),
                     tmp2.subregister(0, ngen::DataType::uw)(1));
         }
