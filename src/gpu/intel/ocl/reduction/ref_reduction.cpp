@@ -100,6 +100,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     }
 
     switch (conf.alg) {
+        case reduction_amax: kernel_ctx.define_int("IS_AMAX", 1); break;
         case reduction_max: kernel_ctx.define_int("IS_MAX", 1); break;
         case reduction_min: kernel_ctx.define_int("IS_MIN", 1); break;
         case reduction_mean: kernel_ctx.define_int("IS_MEAN", 1); break;

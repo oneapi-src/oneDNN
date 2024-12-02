@@ -225,6 +225,7 @@ typedef enum {
     dnnl_graph_op_reciprocal,
     dnnl_graph_op_reduce_l1,
     dnnl_graph_op_reduce_l2,
+    dnnl_graph_op_reduce_amax,
     dnnl_graph_op_reduce_max,
     dnnl_graph_op_reduce_mean,
     dnnl_graph_op_reduce_min,

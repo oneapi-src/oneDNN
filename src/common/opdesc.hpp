@@ -472,6 +472,7 @@ struct reduction_desc_t : public op_desc_t {
     DECLARE_COMMON_OP_DESC_CLONE(reduction_desc_t);
 
     // The kind of reduction algorithm. Possible values:
+    // #dnnl_reduction_amax,
     // #dnnl_reduction_max, #dnnl_reduction_min, #dnnl_reduction_sum,
     // #dnnl_reduction_mul, #dnnl_reduction_mean, #dnnl_reduction_norm_lp_max,
     // #dnnl_reduction_norm_lp_sum, #dnnl_reduction_norm_lp_power_p_max,
@@ -483,6 +484,7 @@ struct reduction_desc_t : public op_desc_t {
     memory_desc_t dst_desc;
     // Algorithm specific parameters.
     // Accordance table:
+    // #dnnl_reduction_amax: @p p and @p eps are ignored
     // #dnnl_reduction_max: @p p and @p eps are ignored
     // #dnnl_reduction_min: @p p and @p eps are ignored
     // #dnnl_reduction_norm_lp_max: @p p -- power, @p eps -- epsilon

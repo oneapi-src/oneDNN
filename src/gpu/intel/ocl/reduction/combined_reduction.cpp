@@ -271,7 +271,7 @@ status_t combined_reduction_t::pd_t::init_conf(impl::engine_t *engine) {
     // For now, if the reduction dim for any subproblem contains zero-padded elements,
     // only allow algs which can safely accumulate them without affecting the result.
     const bool alg_affected_by_zeros = utils::one_of(
-            desc()->alg_kind, reduction_min, reduction_max, reduction_mul);
+            desc()->alg_kind, reduction_min, reduction_amax, reduction_max, reduction_mul);
     bool accumulating_src_zpad = false;
     for (const auto &subprb : subprbs) {
         for (const auto &zpad : subprb.src_zpads) {
@@ -389,6 +389,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_BLOCK_READ", phase.with_block_reads ? 1 : 0);
 
     switch (conf.alg) {
+        case reduction_amax: kernel_ctx.define_int("IS_AMAX", 1); break;
         case reduction_max: kernel_ctx.define_int("IS_MAX", 1); break;
         case reduction_min: kernel_ctx.define_int("IS_MIN", 1); break;
         case reduction_mean: kernel_ctx.define_int("IS_MEAN", 1); break;

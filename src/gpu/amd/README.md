@@ -200,7 +200,7 @@ The Reduction primitive is implemented with the following API's:
 
 * Supported datatypes are `f32`, `f16`.
 * Only `NCDHW`, `NCHW`, `NCW`, `NC`, `N` formats are supported.
-* Supported algorithms are `reduction_max`, `reduction_min`, `reduction_sum`, `reduction_mul`,
+* Supported algorithms are `reduction_amax`, `reduction_max`, `reduction_min`, `reduction_sum`, `reduction_mul`,
   `reduction_mean`, `reduction_norm_lp_sum`, `reduction_norm_lp_power_p_sum`
 * `reduction_norm_lp_sum` algorithm supported only for the `p` value 2
 * `reduction_norm_lp_power_p_sum` supported only for the `p` value 1

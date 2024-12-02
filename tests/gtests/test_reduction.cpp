@@ -51,7 +51,8 @@ protected:
                 "Engine does not support this data type.");
         SKIP_IF(get_test_engine().get_kind() != engine::kind::cpu,
                 "Engine does not support this primitive.");
-        SKIP_IF_CUDA(p.aalgorithm != algorithm::reduction_max
+        SKIP_IF_CUDA(p.aalgorithm != algorithm::reduction_amax
+                        && algorithm::reduction_max
                         && p.aalgorithm != algorithm::reduction_min
                         && p.aalgorithm != algorithm::reduction_sum
                         && p.aalgorithm != algorithm::reduction_mul
@@ -152,6 +153,9 @@ static auto simple_cases = []() {
     return ::testing::Values(reduction_test_params_t {tag::nchw, tag::nchw,
                                      algorithm::reduction_sum, 0.0f, 0.0f,
                                      {1, 1, 1, 4}, {1, 1, 1, 1}},
+            reduction_test_params_t {tag::nchw, tag::nchw,
+                    algorithm::reduction_amax, 0.0f, 0.0f, {1, 1, 4, 4},
+                    {1, 1, 1, 4}},
             reduction_test_params_t {tag::nchw, tag::nchw,
                     algorithm::reduction_max, 0.0f, 0.0f, {1, 1, 4, 4},
                     {1, 1, 1, 4}},

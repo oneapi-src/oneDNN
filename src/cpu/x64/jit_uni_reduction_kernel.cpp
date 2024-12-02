@@ -71,6 +71,7 @@ void jit_uni_reduction_kernel_t<isa, Vmm>::init_acc() {
             starting_val = numeric_limits<float>::lowest();
             break;
         case reduction_min: starting_val = numeric_limits<float>::max(); break;
+        case reduction_amax:
         case reduction_mean:
         case reduction_sum: starting_val = 0.f; break;
         case reduction_mul: starting_val = 1.f; break;
@@ -86,6 +87,12 @@ template <cpu_isa_t isa, typename Vmm>
 void jit_uni_reduction_kernel_t<isa, Vmm>::init_compute_op() {
     using namespace alg_kind;
     switch (conf_.alg) {
+        case reduction_amax:
+            compute_op_ = [&](const Xbyak::Xmm &acc, const Xbyak::Xmm &to_acc) {
+                // TODO abs(to_acc)
+                uni_vmaxps(acc, acc, to_acc);
+            };
+            break;
         case reduction_max:
             compute_op_ = [&](const Xbyak::Xmm &acc, const Xbyak::Xmm &to_acc) {
                 uni_vmaxps(acc, acc, to_acc);

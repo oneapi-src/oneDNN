@@ -84,6 +84,10 @@ struct cudnn_reduction_impl_base_t {
             alg_kind_t alg_kind, cudnnReduceTensorOp_t *cudnn_alg_kind) const {
 
         switch (alg_kind) {
+            case alg_kind::reduction_amax:
+                *cudnn_alg_kind
+                        = cudnnReduceTensorOp_t::CUDNN_REDUCE_TENSOR_AMAX;
+                break;
             case alg_kind::reduction_max:
                 *cudnn_alg_kind
                         = cudnnReduceTensorOp_t::CUDNN_REDUCE_TENSOR_MAX;

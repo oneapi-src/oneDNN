@@ -23,6 +23,8 @@ namespace reduction {
 alg_t str2alg(const char *str) {
 #define CASE(_alg) \
     if (!strcasecmp(STRINGIFY(_alg), str)) return _alg
+    CASE(amax);
+    CASE(reduction_amax);
     CASE(max);
     CASE(reduction_max);
     CASE(min);
@@ -48,6 +50,7 @@ alg_t str2alg(const char *str) {
 }
 
 const char *alg2str(alg_t alg) {
+    if (alg == amax) return "amax";
     if (alg == max) return "max";
     if (alg == min) return "min";
     if (alg == sum) return "sum";
@@ -62,6 +65,7 @@ const char *alg2str(alg_t alg) {
 }
 
 dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
+    if (alg == amax) return dnnl_reduction_amax;
     if (alg == max) return dnnl_reduction_max;
     if (alg == min) return dnnl_reduction_min;
     if (alg == sum) return dnnl_reduction_sum;

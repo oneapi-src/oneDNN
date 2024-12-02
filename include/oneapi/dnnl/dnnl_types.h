@@ -2167,6 +2167,8 @@ typedef enum {
     dnnl_resampling_nearest = 0x2fff0,
     /// Linear Resampling Method
     dnnl_resampling_linear = 0x2fff1,
+    /// Reduction using amax
+    dnnl_reduction_amax,
     /// Reduction using max
     dnnl_reduction_max,
     /// Reduction using min

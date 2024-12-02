@@ -41,6 +41,11 @@ void jit_reduction_injector_f32<hw>::sum_fwd(
     eadd(h, simd, acc, acc, val);
 }
 template <gpu_gen_t hw>
+void jit_reduction_injector_f32<hw>::amax_fwd(
+        int simd, const ngen::GRF &acc, const ngen::GRF &val) {
+    h.amax_(simd, acc, acc, val);
+}
+template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::max_fwd(
         int simd, const ngen::GRF &acc, const ngen::GRF &val) {
     h.max_(simd, acc, acc, val);
@@ -61,6 +66,7 @@ void jit_reduction_injector_f32<hw>::initialize(
         int simd, const ngen::GRF &reg) {
     switch (alg_) {
         case dnnl_reduction_sum:
+        case dnnl_reduction_amax:
         case dnnl_reduction_mean: emov(h, simd, reg, 0.0f); break;
         case dnnl_reduction_max:
             emov(h, simd, reg, nstl::numeric_limits<float>::lowest());
@@ -176,6 +182,9 @@ void jit_reduction_injector_f32<hw>::compute(const ngen::GRF &src_ptr,
             case dnnl_reduction_sum:
             case dnnl_reduction_mean:
                 sum_fwd(simd, acc[i].f(), val[i].f());
+                break;
+            case dnnl_reduction_amax:
+                amax_fwd(simd, acc[i].f(), val[i].f());
                 break;
             case dnnl_reduction_max:
                 max_fwd(simd, acc[i].f(), val[i].f());
