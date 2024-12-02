@@ -888,6 +888,9 @@ void init_memory_args(
 
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         const prb_t *prb, const kernel_args_t &kernel_args, res_t *res) {
+
+    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) return OK;
+
     const auto &ref_engine = get_cpu_engine();
 
     // Move cfg out of filling since its creation is not free.
@@ -997,6 +1000,7 @@ int scales_post_processing(dnn_mem_map_t &mem_map) {
         dims_t dims = {16};
         auto new_md = dnn_mem_t::init_md(1, dims.data(), dt, tag::abx);
         dnn_mem_t new_m(new_md, get_test_engine());
+        if (!new_m.is_mapped()) new_m.map();
         for (int64_t i = 0; i < new_m.nelems(); i++) {
             new_m.set_elem(i, val);
         }
@@ -1131,6 +1135,13 @@ int doit(const prb_t *prb, res_t *res) {
     // "Library" args are needed to get dst for comparison.
     // "Reference" are used as usual.
     args_t args(mem_map), ref_args(ref_mem_map);
+
+    // The implementation memory must be mapped to setup point arguments for
+    // brgemm implementation call. This assumes that mapping is effectively a
+    // no-op on the target device.
+    for (auto &kv : mem_map) {
+        if (!kv.second.is_mapped()) kv.second.map();
+    }
 
     const char *src_ptr = (const char *)mem_map.at(DNNL_ARG_SRC);
     const char *wei_ptr = (const char *)mem_map.at(DNNL_ARG_WEIGHTS);
