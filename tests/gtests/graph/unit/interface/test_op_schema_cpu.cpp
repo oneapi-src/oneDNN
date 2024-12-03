@@ -3238,8 +3238,8 @@ TEST(test_interface_op_schema, Reduce) {
     const std::map<op_attr_t, bool> attrs_data
             = {{op_attr::keep_dims, false}, {op_attr::axes, false}};
     const std::vector<op_kind_t> configs {op_kind::ReduceL1, op_kind::ReduceL2,
-            op_kind::ReduceMax, op_kind::ReduceMean, op_kind::ReduceMin,
-            op_kind::ReduceProd, op_kind::ReduceSum};
+            op_kind::ReduceAMax, op_kind::ReduceMax, op_kind::ReduceMean,
+            op_kind::ReduceMin, op_kind::ReduceProd, op_kind::ReduceSum};
 
     for (auto op_kind_ : configs) {
         verify_op_schema(op_kind_, expected_in_size, expected_out_size,
@@ -3249,8 +3249,8 @@ TEST(test_interface_op_schema, Reduce) {
 
 TEST(test_interface_op_schema, InferReduceOutputShapeFromInput) {
     const std::vector<op_kind_t> configs {op_kind::ReduceL1, op_kind::ReduceL2,
-            op_kind::ReduceMax, op_kind::ReduceMean, op_kind::ReduceMin,
-            op_kind::ReduceProd, op_kind::ReduceSum};
+            op_kind::ReduceAMax, op_kind::ReduceMax, op_kind::ReduceMean,
+            op_kind::ReduceMin, op_kind::ReduceProd, op_kind::ReduceSum};
 
     for (auto op_kind_ : configs) {
         const op_schema_t *op_schema_
@@ -3273,8 +3273,8 @@ TEST(test_interface_op_schema, InferReduceOutputShapeFromInput) {
 TEST(test_interface_op_schema,
         InferReduceOutputShapeFromAttributeWithKeepingDims) {
     const std::vector<op_kind_t> configs {op_kind::ReduceL1, op_kind::ReduceL2,
-            op_kind::ReduceMax, op_kind::ReduceMean, op_kind::ReduceMin,
-            op_kind::ReduceProd, op_kind::ReduceSum};
+            op_kind::ReduceAMax, op_kind::ReduceMax, op_kind::ReduceMean,
+            op_kind::ReduceMin, op_kind::ReduceProd, op_kind::ReduceSum};
     const std::vector<int64_t> axes {2};
     const std::vector<int64_t> expected_out_shape = {1, 3, 1, 224};
 
@@ -3303,8 +3303,8 @@ TEST(test_interface_op_schema,
 TEST(test_interface_op_schema,
         InferReduceOutputShapeFromAttributeWithoutKeepingDims) {
     const std::vector<op_kind_t> configs {op_kind::ReduceL1, op_kind::ReduceL2,
-            op_kind::ReduceMax, op_kind::ReduceMean, op_kind::ReduceMin,
-            op_kind::ReduceProd, op_kind::ReduceSum};
+            op_kind::ReduceAMax, op_kind::ReduceMax, op_kind::ReduceMean,
+            op_kind::ReduceMin, op_kind::ReduceProd, op_kind::ReduceSum};
     const std::vector<int64_t> axes {0, 1, 2, 3};
     const std::vector<int64_t> expected_out_shape = {};
 
@@ -4300,8 +4300,8 @@ TEST(test_interface_op_schema, MultiplyDefaultAttribute) {
 
 TEST(test_interface_op_schema, ReduceDefaultAttribute) {
     const std::vector<op_kind_t> configs {op_kind::ReduceL1, op_kind::ReduceL2,
-            op_kind::ReduceMax, op_kind::ReduceMean, op_kind::ReduceMin,
-            op_kind::ReduceProd, op_kind::ReduceSum};
+            op_kind::ReduceAMax, op_kind::ReduceMax, op_kind::ReduceMean,
+            op_kind::ReduceMin, op_kind::ReduceProd, op_kind::ReduceSum};
 
     for (auto tmp_op_kind : configs) {
         op_t tmp_op {0, tmp_op_kind, std::string("reduce")};

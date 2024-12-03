@@ -38,6 +38,7 @@
 --reset --op-attrs=0:per_channel_broadcast:1 --case=op/f32/prelu.json
 --reset --case=op/f32/quantize.json
 --reset --case=op/f32/reducel1.json
+--reset --case=op/f32/reduceamax.json
 --reset --case=op/f32/reducemax.json
 --reset --case=op/f32/reducemean.json
 --reset --case=op/f32/reduceprod.json

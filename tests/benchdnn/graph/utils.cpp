@@ -319,6 +319,7 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
             {"Reciprocal", dnnl::graph::op::kind::Reciprocal},
             {"ReduceL1", dnnl::graph::op::kind::ReduceL1},
             {"ReduceL2", dnnl::graph::op::kind::ReduceL2},
+            {"ReduceAMax", dnnl::graph::op::kind::ReduceAMax},
             {"ReduceMax", dnnl::graph::op::kind::ReduceMax},
             {"ReduceMean", dnnl::graph::op::kind::ReduceMean},
             {"ReduceMin", dnnl::graph::op::kind::ReduceMin},

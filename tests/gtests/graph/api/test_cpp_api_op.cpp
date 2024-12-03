@@ -83,6 +83,7 @@ TEST(APIOp, CreateAllOps) {
             op::kind::Reciprocal,
             op::kind::ReduceL1,
             op::kind::ReduceL2,
+            op::kind::ReduceAMax,
             op::kind::ReduceMax,
             op::kind::ReduceMean,
             op::kind::ReduceMin,

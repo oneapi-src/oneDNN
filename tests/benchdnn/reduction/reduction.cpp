@@ -59,6 +59,7 @@ problem_bounds get_problem_bounds(alg_t alg, dnnl_data_type_t dt) {
     // Integer cases
     if (is_int) {
         switch (alg) {
+            case alg_t::amax:
             case alg_t::max:
             case alg_t::min: return MINMAX_INT;
             case alg_t::mul: return MUL_INT;
@@ -70,6 +71,7 @@ problem_bounds get_problem_bounds(alg_t alg, dnnl_data_type_t dt) {
     // Floating-point cases
     const bool is_f16 = (dt == dnnl_f16);
     switch (alg) {
+        case alg_t::amax:
         case alg_t::max:
         case alg_t::min: return MINMAX_FP;
         case alg_t::mul: return is_f16 ? MUL_F16 : MUL_F32;

@@ -64,9 +64,10 @@ TEST(test_reduce_compile, TestReduce) {
             [&]() { return f32_distribution(generator); });
 
     const std::vector<graph::op_kind_t> op_infos {graph::op_kind::ReduceL1,
-            graph::op_kind::ReduceL2, graph::op_kind::ReduceMax,
-            graph::op_kind::ReduceMean, graph::op_kind::ReduceMin,
-            graph::op_kind::ReduceProd, graph::op_kind::ReduceSum};
+            graph::op_kind::ReduceL2, graph::op_kind::ReduceAMax,
+            graph::op_kind::ReduceMax, graph::op_kind::ReduceMean,
+            graph::op_kind::ReduceMin, graph::op_kind::ReduceProd,
+            graph::op_kind::ReduceSum};
 
     for_(auto &op_kind : op_infos)
     for (auto keep_dims : keep_dims_vals) {
@@ -144,9 +145,10 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceAdd) {
     std::vector<bool> with_sum_infos {true, false};
 
     const std::vector<graph::op_kind_t> op_infos {graph::op_kind::ReduceL1,
-            graph::op_kind::ReduceL2, graph::op_kind::ReduceMax,
-            graph::op_kind::ReduceMean, graph::op_kind::ReduceMin,
-            graph::op_kind::ReduceProd, graph::op_kind::ReduceSum};
+            graph::op_kind::ReduceL2, graph::op_kind::ReduceAMax,
+            graph::op_kind::ReduceMax, graph::op_kind::ReduceMean,
+            graph::op_kind::ReduceMin, graph::op_kind::ReduceProd,
+            graph::op_kind::ReduceSum};
 
     for_(bool keep_dims : keep_dims_infos)
     for_(bool with_sum : with_sum_infos)
@@ -253,9 +255,10 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceRelu) {
 
     std::vector<bool> keep_dims_infos {true, false};
     const std::vector<graph::op_kind_t> op_infos {graph::op_kind::ReduceL1,
-            graph::op_kind::ReduceL2, graph::op_kind::ReduceMax,
-            graph::op_kind::ReduceMean, graph::op_kind::ReduceMin,
-            graph::op_kind::ReduceProd, graph::op_kind::ReduceSum};
+            graph::op_kind::ReduceL2, graph::op_kind::ReduceAMax,
+            graph::op_kind::ReduceMax, graph::op_kind::ReduceMean,
+            graph::op_kind::ReduceMin, graph::op_kind::ReduceProd,
+            graph::op_kind::ReduceSum};
 
     for_(bool keep_dims : keep_dims_infos)
     for (auto &akind : op_infos) {
@@ -346,9 +349,10 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceSwish) {
 
     std::vector<bool> keep_dims_infos {true, false};
     const std::vector<graph::op_kind_t> op_infos {graph::op_kind::ReduceL1,
-            graph::op_kind::ReduceL2, graph::op_kind::ReduceMax,
-            graph::op_kind::ReduceMean, graph::op_kind::ReduceMin,
-            graph::op_kind::ReduceProd, graph::op_kind::ReduceSum};
+            graph::op_kind::ReduceL2, graph::op_kind::ReduceAMax,
+            graph::op_kind::ReduceMax, graph::op_kind::ReduceMean,
+            graph::op_kind::ReduceMin, graph::op_kind::ReduceProd,
+            graph::op_kind::ReduceSum};
 
     for_(bool keep_dims : keep_dims_infos)
     for (auto &akind : op_infos) {
@@ -454,9 +458,10 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceWith3PostOps_CPU) {
             [&]() { return f32_distribution(generator); });
 
     const std::vector<graph::op_kind_t> op_infos {graph::op_kind::ReduceL1,
-            graph::op_kind::ReduceL2, graph::op_kind::ReduceMax,
-            graph::op_kind::ReduceMean, graph::op_kind::ReduceMin,
-            graph::op_kind::ReduceProd, graph::op_kind::ReduceSum};
+            graph::op_kind::ReduceL2, graph::op_kind::ReduceAMax,
+            graph::op_kind::ReduceMax, graph::op_kind::ReduceMean,
+            graph::op_kind::ReduceMin, graph::op_kind::ReduceProd,
+            graph::op_kind::ReduceSum};
 
     for (auto &akind : op_infos) {
         graph::op_t reduce {0, akind, "reduce"};
