@@ -131,7 +131,7 @@ status_t sdp_primitive_config_t::initial_check(
             = {graph::op_kind::Divide, graph::op_kind::Multiply,
                     graph::op_kind::Add, graph::op_kind::Select,
                     graph::op_kind::SoftMax};
-    op_ptr mm1 = nullptr, mm2 = nullptr;
+    op_ptr mm1 = nullptr, mm2 = nullptr, scale = nullptr;
     for (const auto &cur_op : sg->get_ops()) {
         if (cur_op->get_kind() != graph::op_kind::MatMul) continue;
         auto post_op = get_post_op(cur_op);
@@ -146,6 +146,7 @@ status_t sdp_primitive_config_t::initial_check(
             if (post_op->get_kind() == graph::op_kind::Divide
                     || post_op->get_kind() == graph::op_kind::Multiply) {
                 // Scale exists, update post_op and traverse to next op
+                scale = post_op;
                 post_op = get_post_op(post_op);
             }
             // mask
@@ -194,6 +195,12 @@ status_t sdp_primitive_config_t::initial_check(
     ok = ok && ltw(inputs[q_id]).vdims().size() == 4
             && ltw(inputs[k_id]).vdims().size() == 4
             && ltw(inputs[v_id]).vdims().size() == 4;
+
+    // sdp_primitive only supports single scale value.
+    if (scale) {
+        const auto &s = scale->get_input_value(1)->get_logical_tensor();
+        if (ltw(s).size() != 1) return status::unimplemented;
+    }
 
     return ok ? status::success : status::unimplemented;
 }

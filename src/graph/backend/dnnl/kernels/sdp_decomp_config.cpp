@@ -39,11 +39,15 @@ bool sdp_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
     dims wei1_user_dims = ltw(inputs[graph_inport[1]]).vdims();
     num_head_kv = wei1_user_dims[1];
 
-    //  Check batch size compatibility.
+    // Check batch size compatibility.
     dims wei2_user_dims = ltw(inputs[graph_inport[4]]).vdims();
     if (batch_size != wei1_user_dims[0] || batch_size != wei2_user_dims[0]) {
         return false;
     }
+
+    // Check scale size
+    size_t scale_sz = ltw(inputs[graph_inport[2]]).size();
+    if (scale_sz != 1) return false;
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
 // RATIO is an empirical value used to determine the numerical relationship
