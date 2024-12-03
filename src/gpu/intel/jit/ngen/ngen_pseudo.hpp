@@ -40,17 +40,6 @@ void min(const InstructionModifier &mod, const RegData &dst, const RegData &src0
 #endif
 
 template <typename DT = void>
-void amax_(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {
-    sel<DT>(mod | ge | f0[0], dst, src0, abs(src1));
-}
-#ifndef NGEN_WINDOWS_COMPAT
-template <typename DT = void>
-void amax(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {
-    sel<DT>(mod | ge | f0[0], dst, src0, abs(src1));
-}
-#endif
-
-template <typename DT = void>
 void max_(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {
     sel<DT>(mod | ge | f0[0], dst, src0, src1);
 }

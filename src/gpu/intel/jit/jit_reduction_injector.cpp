@@ -43,7 +43,7 @@ void jit_reduction_injector_f32<hw>::sum_fwd(
 template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::amax_fwd(
         int simd, const ngen::GRF &acc, const ngen::GRF &val) {
-    h.amax_(simd, acc, acc, val);
+    h.max_(simd, acc, acc, abs(val));
 }
 template <gpu_gen_t hw>
 void jit_reduction_injector_f32<hw>::max_fwd(

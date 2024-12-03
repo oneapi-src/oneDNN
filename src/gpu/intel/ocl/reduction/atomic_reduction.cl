@@ -31,6 +31,8 @@
 #define DEF_atomic_accumulate(dt) \
     dt atomic_accumulate(int alg, __global ATOMIC(dt) * atomic_p, dt data) { \
         switch (alg) { \
+            case (REDUCTION_AMAX): \
+                return atomic_max_global(atomic_p, abs(data)); \
             case (REDUCTION_MAX): return atomic_max_global(atomic_p, data); \
             case (REDUCTION_MIN): return atomic_min_global(atomic_p, data); \
             case (REDUCTION_MEAN): \

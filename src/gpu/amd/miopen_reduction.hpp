@@ -50,10 +50,10 @@ struct miopen_reduction_t : public gpu::primitive_t {
                     && utils::one_of(
                             dst_md()->data_type, data_type::f32, data_type::f16)
                     && check_format()
-                    && utils::one_of(desc()->alg_kind,
-                            alg_kind::reduction_amax, alg_kind::reduction_max,
-                            alg_kind::reduction_min, alg_kind::reduction_sum,
-                            alg_kind::reduction_mul, alg_kind::reduction_mean,
+                    && utils::one_of(desc()->alg_kind, alg_kind::reduction_amax,
+                            alg_kind::reduction_max, alg_kind::reduction_min,
+                            alg_kind::reduction_sum, alg_kind::reduction_mul,
+                            alg_kind::reduction_mean,
                             alg_kind::reduction_norm_lp_sum,
                             alg_kind::reduction_norm_lp_power_p_sum)
                     && IMPLICATION(

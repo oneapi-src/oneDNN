@@ -347,9 +347,8 @@ status_t atomic_reduction_t::pd_t::init_conf(impl::engine_t *engine) {
 
     // SRC zero-padding on reduced dims is not supported if alg is affected by zeros.
     reduction_subproblem_t &first_subprb = subprbs.front();
-    const bool alg_affected_by_zeros = utils::one_of(
-            desc()->alg_kind, reduction_min, reduction_amax, reduction_max,
-            reduction_mul);
+    const bool alg_affected_by_zeros = utils::one_of(desc()->alg_kind,
+            reduction_min, reduction_amax, reduction_max, reduction_mul);
     for (const auto &zpad : first_subprb.src_zpads) {
         if (alg_affected_by_zeros && is_reduction_dim[zpad.dim_idx]) {
             return status::unimplemented;

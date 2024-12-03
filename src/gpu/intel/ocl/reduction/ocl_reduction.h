@@ -45,6 +45,7 @@ IF_DOUBLE_SUPPORTED(DEF_fp_minmax_abs(double));
     dt __attribute__((overloadable)) \
             reduce(int alg, dt lhs, dt rhs, float power) { \
         switch (alg) { \
+            case (REDUCTION_AMAX): return max(abs(lhs), abs(rhs)); \
             case (REDUCTION_MAX): return max(lhs, rhs); \
             case (REDUCTION_MIN): return min(lhs, rhs); \
             case (REDUCTION_MUL): return lhs * rhs; \
@@ -77,6 +78,7 @@ IF_HALF_SUPPORTED(DEF_reduce(half));
     dt __attribute__((overloadable)) atomic_reduce( \
             int alg, __global ATOMIC(dt) * dst, dt rhs, float power) { \
         switch (alg) { \
+            case (REDUCTION_AMAX): return atomic_max_global(dst, abs(rhs)); \
             case (REDUCTION_MAX): return atomic_max_global(dst, rhs); \
             case (REDUCTION_MIN): return atomic_min_global(dst, rhs); \
             case (REDUCTION_LP_NORM_MAX): \
@@ -112,6 +114,7 @@ DEF_atomic_reduce(int);
 #define internal_def_init_acc(dt, min_val, max_val, zero_val, one_val) \
     void __attribute__((overloadable)) init_acc(int alg, dt *val) { \
         switch (alg) { \
+            case (REDUCTION_AMAX): *val = zero_val; return; \
             case (REDUCTION_MAX): *val = min_val; return; \
             case (REDUCTION_MIN): *val = max_val; return; \
             case (REDUCTION_MUL): *val = one_val; return; \

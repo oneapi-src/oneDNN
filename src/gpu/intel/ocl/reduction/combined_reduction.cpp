@@ -270,8 +270,8 @@ status_t combined_reduction_t::pd_t::init_conf(impl::engine_t *engine) {
     // Heuristic: Checking for src zero padding in the reduction loop is slow.
     // For now, if the reduction dim for any subproblem contains zero-padded elements,
     // only allow algs which can safely accumulate them without affecting the result.
-    const bool alg_affected_by_zeros = utils::one_of(
-            desc()->alg_kind, reduction_min, reduction_amax, reduction_max, reduction_mul);
+    const bool alg_affected_by_zeros = utils::one_of(desc()->alg_kind,
+            reduction_min, reduction_amax, reduction_max, reduction_mul);
     bool accumulating_src_zpad = false;
     for (const auto &subprb : subprbs) {
         for (const auto &zpad : subprb.src_zpads) {
