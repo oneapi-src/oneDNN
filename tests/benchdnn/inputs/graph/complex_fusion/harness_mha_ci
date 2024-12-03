@@ -11,6 +11,7 @@
 --reset --dt=f32,bf16,f16 --case=complex_fusion/mha/sdpa-plain-wo-scale-f16-bs1.json
 --reset --dt=f32,bf16,f16 --case=complex_fusion/mha/GQA-fp16.json
 --reset --dt=f32,bf16,f16 --case=complex_fusion/mha/sdpa-plain-wo-mask-f16.json
+--reset --dt=f32,bf16,f16 --case=complex_fusion/mha/sdpa-plain-scale-by-mul-f16.json
 
 # int8 graphs
 --reset --case=complex_fusion/mha/MHA-GPT-inf-int8-bs1.json
