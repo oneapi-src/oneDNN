@@ -34,8 +34,10 @@
 --reset --dt=f32,bf16,f16 --in-shapes=2514:32x16x512x64+2518:32x16x512x64+2543:32x1x512x512+2547:32x16x512x512+2525:32x16x512x64 --op-attrs=4837:shape:16384x1024 --case=complex_fusion/mha/MHA_forward-Bert_large-train-fp32-bs4.json
 --reset --dt=f32,bf16,f16 --in-shapes=2514:32x16x512x64+2518:32x16x512x64+2591:32x16x512x512+2545:32x16x512x512+2547:32x16x512x512+2525:32x16x512x64+2548:32x16x512x512+5178:16384x1024 --op-attrs=7392:shape:32x512x16x64 --case=complex_fusion/mha/MHA_backward-Bert_large-train-fp32-bs4.json
 --reset --dt=f32,bf16,f16 --in-shapes=0:20x16x384x64+1:20x16x384x64+8:20x16x384x64+5:20x1x1x384 --case=complex_fusion/mha/sdpa-plain-wo-scale-f16-bs1.json
---reset --dt=f32,bf16,f16 --in-shapes=5:1x1x384x384 --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
+--reset --dt=f32,bf16,f16 --in-shapes=5:1x1x384x384,5:1x16x384x384 --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
 --reset --dt=f32,bf16,f16 --in-shapes=0:2x16x384x64+1:2x16x384x64+5:2x1x1x384+8:2x16x384x64  --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
+--reset --dt=f32,bf16,f16 --in-shapes=0:32x16x128x64+1:32x16x128x64+5:32x16x128x128+8:32x16x128x64  --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
+--reset --dt=f32,bf16,f16 --in-shapes=0:acbd+1:acbd+8:acbd  --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
 
 # Re-written int8 graphs
 --reset --in-shapes=5:4x16x32x256+4:4x16x256x33+0:4x16x33x256+1:4x1x1x33+3:4x1x32x33 --case=complex_fusion/mha/MHA-GPT-inf-int8-bs1.json
