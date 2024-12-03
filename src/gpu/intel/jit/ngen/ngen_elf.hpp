@@ -173,7 +173,17 @@ private:
             uint32_t info = 0;
             uint64_t align = 0x10;
             uint64_t entrySize = 0;
-        } sectionHeaders[5];
+        } sectionHeaders[6];
+        struct SymbolEntry {
+                uint32_t name = 0;
+                enum Info : uint8_t {
+                    NoType = 0, Object = 1, Func = 2, Section = 3, File = 4, Common = 5, TLS = 6, LOOS = 10, HIOS = 12, LOPROC = 13, HIPROC = 15
+                } info = Info::NoType;
+                uint8_t other = 0;
+                uint16_t shndx = 0;
+                uint64_t value = 0;
+                uint64_t size = 0;
+        } symTable[3];
         struct Note {
             uint32_t nameSize = 8;
             uint32_t descSize = 4;
@@ -188,6 +198,8 @@ private:
             const char snStrTable[10] = ".shstrtab";
             const char snMetadata[9] = ".ze_info";
             const char snNote[21] = ".note.intelgt.compat";
+            const char snSym[8] = ".symtab";
+            const char kernelEntry[7] = "_entry";
             const char snText[6] = {'.', 't', 'e', 'x', 't', '.'};
         } stringTable;
 
@@ -195,7 +207,7 @@ private:
             return (sz + 0xF) & ~0xF;
         }
 
-        ZebinELF(size_t szKernelName, size_t szMetadata, size_t szKernel) {
+        ZebinELF(size_t szKernelName, size_t szMetadata, size_t szKernel, size_t offKernelEntry) {
             fileHeader.size = sizeof(fileHeader);
             fileHeader.sectionHeaderSize = sizeof(SectionHeader);
             fileHeader.sectionTableOff = offsetof(ZebinELF, sectionHeaders);
@@ -228,6 +240,28 @@ private:
             sectionHeaders[4].type = SectionHeader::Type::Note;
             sectionHeaders[4].offset = offsetof(ZebinELF, noteGfxCore);
             sectionHeaders[4].size = sizeof(noteGfxCore);
+
+            sectionHeaders[5].name = offsetof(StringTable, snSym);
+            sectionHeaders[5].type = SectionHeader::Type::SymbolTable;
+            sectionHeaders[5].offset = offsetof(ZebinELF, symTable);
+            sectionHeaders[5].size = sizeof(symTable);
+            sectionHeaders[5].link = 1; // String Table Header Index
+            sectionHeaders[5].info = sizeof(symTable)/sizeof(symTable[0]);
+            sectionHeaders[5].entrySize = sizeof(symTable[0]);
+
+            // The string for the kernel name is appended immediately following
+            // the StringTable structure.
+            symTable[1].name = sizeof(StringTable);
+            symTable[1].info = SymbolEntry::Info::Func;
+            symTable[1].shndx = 3; // Program Header Index
+            symTable[1].value = 0;
+            symTable[1].size = szKernel;
+
+            symTable[2].name = offsetof(StringTable, kernelEntry);
+            symTable[2].info = SymbolEntry::Info::NoType;
+            symTable[2].shndx = 3; // Program Header Index
+            symTable[2].value = offKernelEntry;
+            symTable[2].size = 0;
 
             noteGfxCore.payload = static_cast<uint32_t>(npack::encodeGfxCoreFamily(hw));
         }
@@ -358,7 +392,7 @@ std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary(const std::vector<uint8_t> 
 
     binary.resize(paddedSzELF + paddedSzMetadata + paddedSzKernel);
 
-    (void) new(binary.data()) ZebinELF(paddedSzKernelName, metadata.size(), kernel.size());
+    (void) new(binary.data()) ZebinELF(paddedSzKernelName, metadata.size(), kernel.size(), interface_.getSkipCrossThreadOffset());
     utils::copy_into(binary, ZebinELF::kernelNameOffset(), interface_.getExternalName());
     utils::copy_into(binary, paddedSzELF, metadata);
     utils::copy_into(binary, paddedSzELF + paddedSzMetadata, kernel);
