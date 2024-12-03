@@ -1387,7 +1387,6 @@ template <typename... Targs> void ignoredep(Targs&&... args) { NGEN_NAMESPACE::B
 template <typename... Targs> void subdep(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::subdep(std::forward<Targs>(args)...); } \
 template <typename... Targs> void wrdep(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::wrdep(std::forward<Targs>(args)...); } \
 template <typename DT = void, typename... Targs> void min_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template min_<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void amax_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template amax_<DT>(std::forward<Targs>(args)...); } \
 template <typename DT = void, typename... Targs> void max_(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template max_<DT>(std::forward<Targs>(args)...); } \
 template <typename DT = void, typename... Targs> void bfi(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template bfi<DT>(std::forward<Targs>(args)...); } \
 template <typename DT = void, typename... Targs> void cos(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template cos<DT>(std::forward<Targs>(args)...); } \
@@ -1463,7 +1462,6 @@ template <typename DT = void, typename... Targs> void xor(Targs&&... args) { NGE
 #else
 #define NGEN_FORWARD_MIN_MAX(hw) \
 template <typename DT = void, typename... Targs> void min(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template min<DT>(std::forward<Targs>(args)...); } \
-template <typename DT = void, typename... Targs> void amax(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template amax<DT>(std::forward<Targs>(args)...); } \
 template <typename DT = void, typename... Targs> void max(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template max<DT>(std::forward<Targs>(args)...); }
 #endif
 
