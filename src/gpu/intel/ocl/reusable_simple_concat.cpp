@@ -154,7 +154,7 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
     }
 
     rt_conf.lws_d = compute::get_optimal_lws(
-            rt_conf.gws_d, 0, device_info->gpu_arch());
+            rt_conf.gws_d, dim_idx::invalid, device_info->gpu_arch());
 
     conf.use_large_index = (total_bytes > std::numeric_limits<int>::max());
     return status::success;
