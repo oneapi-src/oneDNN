@@ -55,9 +55,15 @@ bool key_t::operator==(const key_t &rhs) const {
         && pd_iterator_offset_ == rhs.pd_iterator_offset_
         && impl_nthr_ == rhs.impl_nthr_
         && skip_idx_ == rhs.skip_idx_
-        && (*attr_) == (*rhs.attr_);
+        && (*attr_) == (*rhs.attr_)
+        && std::equal(
+            hint_mds_.begin(), hint_mds_.end(), rhs.hint_mds_.begin());
 
-    if (!ret) return false;
+    if (!ret) {
+        // ANCHOR: HASHING_DEBUGINFO_16.
+        VDEBUGINFO(16, primitive, hashing, "operator==,ret=%d", ret);
+        return ret;
+    }
 
 #define CASE(pkind) \
     case primitive_kind::pkind: \
@@ -98,10 +104,9 @@ bool key_t::operator==(const key_t &rhs) const {
 #undef CASE
     // clang-format on
 
-    if (!ret) return false;
-
-    return std::equal(
-            hint_mds_.begin(), hint_mds_.end(), rhs.hint_mds_.begin());
+    // ANCHOR: HASHING_DEBUGINFO_16.
+    VDEBUGINFO(16, primitive, hashing, "operator==,ret=%d", ret);
+    return ret;
 }
 
 // Combine hash of each memory_desc_t data member
