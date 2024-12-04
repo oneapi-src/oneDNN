@@ -308,7 +308,6 @@ int partition_data_displacer_t::gen_quantize_filling(
     ::graph::deserialized_op op = main_op;
     auto driver = opkind2driver(opstr2kind(op.kind_));
     bool is_f8_quantization = (dt == "f8_e5m2" || dt == "f8_e4m3");
-    bool is_f16 = dt == "f16";
 
     op.in_lts_[0].data_type_ = dt;
     if (op.in_lts_.size() > 1) {
@@ -344,11 +343,7 @@ int partition_data_displacer_t::gen_quantize_filling(
     }
 
     ::std::unordered_set<size_t> empty_set;
-    // As f8 and f16 support status is limited now, use test engine to ensure
-    // that primitive can be created and generate data
-    const auto &eng = is_f8_quantization || is_f16 ? get_test_engine()
-                                                   : get_cpu_engine();
-
+    const auto &eng = get_test_engine();
     ref_primitive_t ref_prim(op);
     ref_prim.init_prb(res);
     if (res->state == INVALID_ARGUMENTS) return FAIL;
