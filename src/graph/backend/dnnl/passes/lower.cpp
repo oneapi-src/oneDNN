@@ -848,6 +848,7 @@ static const std::unordered_map<graph::op_kind_t, handler_func> handler_table {
         // reduction
         ITEM(ReduceL1, reduction_handler),
         ITEM(ReduceL2, reduction_handler),
+        ITEM(ReduceAMax, reduction_handler),
         ITEM(ReduceMax, reduction_handler),
         ITEM(ReduceMean, reduction_handler),
         ITEM(ReduceMin, reduction_handler),

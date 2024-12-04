@@ -72,6 +72,7 @@ compiler_graph_impl_t::compiler_backend_supported_ops() {
                     {op_kind::TanhBackward, "tanh_bwd"}, {op_kind::Exp, "exp"},
                     {op_kind::ReduceL2, "reduce_l2"},
                     {op_kind::ReduceL1, "reduce_l1"},
+                    {op_kind::ReduceAMax, "reduce_amax"},
                     {op_kind::ReduceMax, "reduce_max"},
                     {op_kind::ReduceMean, "reduce_mean"},
                     {op_kind::ReduceProd, "reduce_prod"},
