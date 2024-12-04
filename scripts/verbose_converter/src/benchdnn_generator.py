@@ -14,8 +14,9 @@
 # limitations under the License.
 ################################################################################
 
+import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from . import ir
 
@@ -860,8 +861,8 @@ class InputGenerator:
     Generates an input for benchdnn from internal representation.
     """
 
-    def __init__(self, _: Any = None):  # Maintain old interface
-        pass
+    def __init__(self, logger: Optional[logging.Logger] = None):
+        self.logger = logger
 
     def _generate_case(self, entry: ir.Entry):
         Converter = get_converter(entry.prim_kind)
@@ -882,11 +883,15 @@ class InputGenerator:
         return converter.driver, " ".join(arg for arg in args if arg)
 
     def generate(self, input, split_by_driver=False):
+        missing: Set[str] = set()
         data: Dict[str, List[str]] = defaultdict(list)
         for value in input.values():
             try:
                 driver, args = self._generate_case(value)
-            except KeyError:
+            except KeyError as e:
+                if self.logger is not None and str(e) not in missing:
+                    missing.add(str(e))
+                    self.logger.warning(f"Missing converter: {e!s}")
                 continue
             if not split_by_driver:
                 driver, args = "all", f"--{driver} {args}"
