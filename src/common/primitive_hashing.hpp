@@ -59,11 +59,6 @@ struct key_t {
     engine_id_t engine_id_;
 
 private:
-    template <typename desc_t>
-    static const desc_t &cast_to_desc(const void *p) {
-        return *(reinterpret_cast<const desc_t *>(p));
-    }
-
     static primitive_kind_t get_pkind(primitive_kind_t pkind);
 
     // Thread ID is not used as part of the key, it's only used to get
@@ -156,8 +151,9 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
         // Combine hash for op_desc with the computed hash
 #define CASE(pkind) \
     case primitive_kind::pkind: \
-        seed = hash_combine( \
-                seed, get_desc_hash(*(pkind##_desc_t *)key.op_desc_)); \
+        seed = hash_combine(seed, \
+                get_desc_hash( \
+                        *op_desc_t::to_desc<pkind##_desc_t>(key.op_desc_))); \
         break;
 
         // clang-format off

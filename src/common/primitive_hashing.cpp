@@ -61,8 +61,8 @@ bool key_t::operator==(const key_t &rhs) const {
 
 #define CASE(pkind) \
     case primitive_kind::pkind: \
-        ret = cast_to_desc<pkind##_desc_t>(op_desc_) \
-                == cast_to_desc<pkind##_desc_t>(rhs.op_desc_); \
+        ret = *op_desc_t::to_desc<pkind##_desc_t>(op_desc_) \
+                == *op_desc_t::to_desc<pkind##_desc_t>(rhs.op_desc_); \
         break;
 
         switch ((int)primitive_kind_) {
@@ -71,8 +71,8 @@ bool key_t::operator==(const key_t &rhs) const {
             CASE(concat)
             // Use a custom comparison function that ignores alg_kind.
             case primitive_kind::convolution:
-                ret = compare_conv_opdesc(cast_to_desc<convolution_desc_t>(op_desc_),
-                cast_to_desc<convolution_desc_t>(rhs.op_desc_));
+                ret = compare_conv_opdesc(*op_desc_t::to_desc<convolution_desc_t>(op_desc_),
+                *op_desc_t::to_desc<convolution_desc_t>(rhs.op_desc_));
             break;
             CASE(deconvolution)
             CASE(eltwise)
