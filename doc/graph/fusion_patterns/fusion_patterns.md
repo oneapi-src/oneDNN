@@ -1,8 +1,7 @@
-Supported Fusion Patterns {#dev_guide_graph_fusion_patterns}
-============================================================
+Fusion Patterns {#dev_guide_graph_fusion_patterns}
+==================================================
 
-@anchor fusion_patterns
-## Fusion Patterns
+## Overview
 
 The following fusion patterns are subgraphs that the oneDNN Graph API recognizes
 as candidate for fusion. The patterns are described using oneDNN Graph
@@ -72,6 +71,9 @@ ReduceProd | ReduceSum]
 
 | Pattern | Description                  |
 |:--------|:-----------------------------|
+| Scaled Dot-Product Attention | Refer to @ref dev_guide_graph_sdpa for more details. |
+| Grouped Query Attention | Refer to @ref dev_guide_graph_gqa for more details. |
+| Gated Multi-Layer Perceptron (Gated-MLP) | Refer to @ref dev_guide_graph_gated_mlp for more details. |
 | Convolution + BiasAdd\f$^?\f$ + BatchNormInference\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks, for example ResNet, ResNext, SSD, etc. |
 | ConvTranspose + BiasAdd\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Generative Adversarial Networks. |
 | Interpolate + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used for image processing. |
@@ -83,7 +85,6 @@ ReduceProd | ReduceSum]
 | BatchNormInference + ReLU\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks, for example DenseNet. |
 | Reciprocal + Multiply\f$_{>out}\f$ | N/A |
 | Reorder + Add\f$_{>out}\f$ | N/A |
-| Scaled Dot-Product Attention | Refer to @ref dev_guide_graph_sdpa for more details. |
 
 #### Quantized Patterns
 
