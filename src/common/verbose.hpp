@@ -129,7 +129,8 @@ struct const_expr_value {
         if (dnnl::impl::get_verbose_dev_mode(verbose_t::debuginfo) \
                 >= (level)) { \
             VFORMAT(get_msec(), verbose_t::debuginfo, apitype, debuginfo, "", \
-                    #component "," msg, ##__VA_ARGS__); \
+                    #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
+                    __LINE__); \
         } \
     } while (0)
 
