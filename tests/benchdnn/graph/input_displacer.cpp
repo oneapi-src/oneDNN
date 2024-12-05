@@ -83,7 +83,8 @@ partition_data_displacer_t::partition_data_displacer_t(
                     break;
                 }
 
-                if (parent_op->kind_ == "Dequantize") {
+                if (parent_op->kind_ == "Dequantize"
+                        || parent_op->kind_ == "DynamicDequantize") {
                     // Dequantize is accepted when it doesn't have any
                     // predecessors in the partition (though it may have it in
                     // the graph).
@@ -296,7 +297,23 @@ int partition_data_displacer_t::displace_input_data(
     }
     dnnl_memory_desc_destroy(mem_replace.md_);
     dnnl_memory_desc_clone(&mem_replace.md_, md);
-    SAFE(mem.reorder(mem_replace), WARN);
+
+    // As int4->int4 reorder is not supported, use naive data copy and paste.
+    if (md->data_type == dnnl_s4 || md->data_type == dnnl_u4) {
+        const int64_t chunk_size = 64;
+        const int64_t n_chunks = div_up(mem.nelems(), chunk_size);
+        benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+            int64_t idx_start = idx_chunk * chunk_size;
+            int64_t idx_end = MIN2(idx_start + chunk_size, mem.nelems());
+
+            for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+                float e = mem_replace.get_elem(idx);
+                mem.set_elem(idx, e);
+            }
+        });
+    } else
+        SAFE(mem.reorder(mem_replace), WARN);
+
     if (is_reshaped_dims) dnnl_memory_desc_destroy(md);
     return OK;
 }
@@ -311,16 +328,17 @@ int partition_data_displacer_t::gen_quantize_filling(
 
     op.in_lts_[0].data_type_ = dt;
     if (op.in_lts_.size() > 1) {
-        if (is_f8_quantization) { // handle fp8 case.
-            op.in_lts_[1].data_type_ = dt;
-        } else { // handle int8 case
-            // matmul/conv/deconv does not support u8u8, replace it with u8s8
-            op.in_lts_[1].data_type_
-                    = ((op.kind_ == "MatMul" || op.kind_ == "Convolution"
-                               || op.kind_ == "ConvTranspose")
-                              && dt == "u8")
-                    ? "s8"
-                    : dt;
+        op.in_lts_[1].data_type_ = dt;
+        // Matmul/Conv/Deconv have limited support for quantized configurations.
+        if (op.kind_ == "MatMul" || op.kind_ == "Convolution"
+                || op.kind_ == "ConvTranspose") {
+            if (dt == "u8") {
+                // None of them supports u8u8, replace with u8s8.
+                op.in_lts_[1].data_type_ = "s8";
+            } else if (dt == "s4" || dt == "u4") {
+                // None of them supports x4x4, replace with f32x4.
+                op.in_lts_[0].data_type_ = "f32";
+            }
         }
     }
     if (driver == dnnl_driver_t::pool || driver == dnnl_driver_t::binary) {

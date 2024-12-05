@@ -19,6 +19,7 @@
 
 #include "ref_primitive.hpp"
 
+#include "src/common/memory_desc.hpp"
 #include "utils/fill.hpp"
 
 namespace graph {
