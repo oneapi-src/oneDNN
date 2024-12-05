@@ -57,13 +57,17 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
 
     const bool src_is_int8
             = utils::one_of(src_dt, data_type::s8, data_type::u8);
-    if (src_is_int8) attr_mask |= smask_t::zero_points_runtime;
+    const bool src_is_fp8
+            = utils::one_of(src_dt, data_type::f8_e5m2, data_type::f8_e4m3);
+    if (src_is_int8 || src_is_fp8) attr_mask |= smask_t::zero_points_runtime;
 
     // Matmul supports zero points for floating point data types as part of
     // weights decompression.
     const bool wei_is_int = utils::one_of(
             wei_dt, data_type::s8, data_type::u8, data_type::s4, data_type::u4);
-    if (wei_is_int) {
+    const bool wei_is_fp8
+            = utils::one_of(wei_dt, data_type::f8_e5m2, data_type::f8_e4m3);
+    if (wei_is_int || wei_is_fp8) {
         attr_mask |= smask_t::zero_points_runtime_data_type;
         attr_mask |= smask_t::zero_points_runtime_groups;
         attr_mask |= smask_t::scales_runtime_groups;
@@ -77,13 +81,18 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
 
     int ndims_src = desc.src_desc.ndims;
     int ndims_wei = desc.weights_desc.ndims;
+    int ndims_dst = desc.dst_desc.ndims;
     assert(ndims_src >= 2);
     assert(ndims_wei >= 2);
+    assert(ndims_dst >= 2);
     int src_qmask_M = 1 << (ndims_src - 2);
     int src_qmask_K = 1 << (ndims_src - 1);
 
     int wei_qmask_K = 1 << (ndims_wei - 2);
     int wei_qmask_N = 1 << (ndims_wei - 1);
+
+    int dst_qmask_K = 1 << (ndims_dst - 2);
+    int dst_qmask_N = 1 << (ndims_dst - 1);
 
     // Check scales
     if (!attr->scales_.has_default_values()) {
@@ -99,7 +108,11 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
                                      src_qmask_M + src_qmask_K),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
         // Masks for weights scales can be any - skipping them.
-        VCHECK_MATMUL_UNIMPL(mask_dst == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+        VCHECK_MATMUL_UNIMPL(engine->kind() == engine_kind::gpu
+                        ? utils::one_of(mask_dst, 0, dst_qmask_N, dst_qmask_K,
+                                dst_qmask_N + dst_qmask_K)
+                        : mask_dst == 0,
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
         // Check dependency between scales.
         // Source scales groups are supported for int8 source and must divide
         // or be divided by weights groups when both are greater than 1.
@@ -115,8 +128,9 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
                 src_scale_group_k > 1 && wei_scale_group_k > 1,
                 (src_scale_group_k % wei_scale_group_k == 0)
                         || (wei_scale_group_k % src_scale_group_k == 0));
-        VCHECK_MATMUL_UNIMPL(IMPLICATION(src_scale_group_k > 1,
-                                     src_is_int8 && groups_are_divisible),
+        VCHECK_MATMUL_UNIMPL(
+                IMPLICATION(src_scale_group_k > 1,
+                        (src_is_int8 || src_is_fp8) && groups_are_divisible),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
 
         // Groups per N are solely for weights decompression as it's impossible

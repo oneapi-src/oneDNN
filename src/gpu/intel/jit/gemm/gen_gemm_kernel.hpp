@@ -107,6 +107,7 @@ struct gen_gemm_nocopy_kernel_desc_t : public gen_gemm_kernel_desc_t {
         mode_f16x1 = 0x4,
         mode_w_decomp = 0x8,
         mode_relaxed_acc = 0x10,
+        mode_strict = 0x20,
         mode_deterministic = 0x8000
     };
 

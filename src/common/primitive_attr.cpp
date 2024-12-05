@@ -555,7 +555,8 @@ status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
     VCHECK_ATTR(mask >= 0, VERBOSE_BAD_PARAM, "mask");
     VCHECK_ATTR(arg >= 0, VERBOSE_BAD_PARAM, "arg");
     VCHECK_ATTR(ndims >= 0, VERBOSE_BAD_PARAM, "ndims");
-    VCHECK_ATTR(utils::one_of(data_type, f32, bf16, f16, e8m0),
+    VCHECK_ATTR(
+            utils::one_of(data_type, f32, bf16, f16, e8m0, f8_e5m2, f8_e4m3),
             VERBOSE_INVALID_DATATYPE, "scales");
     VCHECK_ATTR(IMPLICATION(!utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS),
                         data_type == f32 && ndims == 0)

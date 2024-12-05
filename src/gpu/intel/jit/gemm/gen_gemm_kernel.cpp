@@ -509,6 +509,8 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     bool fpmath_tf32 = mode & mode_tf32;
     bool fpmath_bf16 = mode & mode_bf16x1;
     bool fpmath_f16 = mode & mode_f16x1;
+    bool fpmath_strict = !(fpmath_tf32 || fpmath_bf16 || fpmath_f16)
+            && (mode & mode_strict) && (mode & mode_w_decomp);
 
     auto add_mode_matches = [&](bool has_mode, const char *(*match)(Type)) {
         if (!has_mode) return;
@@ -551,6 +553,44 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         if (dt.isInt4()) return "[FO]";
         return nullptr;
     });
+
+    if (fpmath_bf16
+            && (utils::one_of(Type::f32, problem_.Ta, problem_.Tb)
+                    || (problem_.Ta.isF8() || problem_.Tb.isF8()))
+            && (problem_.Ta.isInteger() || problem_.Tb.isInteger())) {
+        if (problem_.Ta.isInt8() || problem_.Ta.isInt4()) {
+            match_params.emplace_back(match_params[0]);
+            match_params.back().selector.precisions[1] = "B";
+        } else {
+            match_params.emplace_back(match_params[0]);
+            match_params.back().selector.precisions[0] = "B";
+        }
+    }
+
+    if (fpmath_f16
+            && (utils::one_of(Type::f32, problem_.Ta, problem_.Tb)
+                    || (problem_.Ta.isF8() || problem_.Tb.isF8()))
+            && (problem_.Ta.isInteger() || problem_.Tb.isInteger())) {
+        if (problem_.Ta.isInt8() || problem_.Ta.isInt4()) {
+            match_params.emplace_back(match_params[0]);
+            match_params.back().selector.precisions[1] = "H";
+        } else {
+            match_params.emplace_back(match_params[0]);
+            match_params.back().selector.precisions[0] = "H";
+        }
+    }
+
+    if (fpmath_strict) {
+        if (problem_.Tb.isInt4() && !(fpmath_f16 || fpmath_bf16)) {
+            match_params.emplace_back(match_params[0]);
+            match_params.back().selector.precisions[1]
+                    = match_params.back().selector.precisions[0];
+        } else {
+            match_params.emplace_back(match_params[0]);
+            match_params.back().selector.precisions[0]
+                    = match_params.back().selector.precisions[1];
+        }
+    }
 
     EvaluateParams eval_params;
 
