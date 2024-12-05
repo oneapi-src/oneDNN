@@ -20,7 +20,8 @@ import os
 import subprocess
 import sys
 from argparse import RawTextHelpFormatter
-from typing import List, Optional
+from collections import defaultdict
+from typing import Dict, List
 
 
 class TestingException(RuntimeError):
@@ -30,45 +31,59 @@ class TestingException(RuntimeError):
         super().__init__(dedent(msg))
 
 
+class FailedCase(TestingException):
+    def __init__(self, status: str, repro: str):
+        super().__init__(f"Failed case: {status}: {repro}")
+
+
 def convert_dir_benchdnn2verbose(dir):
-    return {
+    mapping = {
         "FWD_D": "forward_training",
         "FWD_B": "forward_training",
         "FWD_I": "forward_inference",
         "BWD_D": "backward_data",
         "BWD_W": "backward_weights",
         "BWD_DW": "backward",
-    }.get(dir)
+    }
+    return mapping.get(dir, "undef")
 
 
 def filter_verbose(verbose: str, driver: str, filter_event: str):
-    found_entry = False
     found_cases: List[str] = []
-    last_reorder: Optional[str] = None
-    known_prop_kind: Optional[str] = None
+    tentative_cases: Dict[str, List[str]] = defaultdict(list)
     for line in verbose.split("\n"):
         if "__REPRO" in line:
-            found_entry = False
-            # Adding reorders is deferred to here because we need to exclude all
-            # but the final one.
-            if driver == "reorder" and last_reorder is not None:
-                found_cases.append(last_reorder)
-                last_reorder = None
-        elif found_entry:
-            pass
-        elif "create: " in line:
-            # Detect prop kind in benchdnn log
+            # n: STATUS (Status message) __REPRO: repro
+            _, status_info, repro = map(str.strip, line.split(":", 2))
+            status_and_message = status_info.rsplit(None, 1)[0]
+            status = status_and_message.split("(", 1)[0].strip()
+            # workaround for nvim-treesitter indent bug: )
             argname = "prop" if driver == "rnn" else "dir"
-            for part in line.split():
+            known_prop_kind: str = "undef"
+            for part in repro.split():
                 if part.startswith(f"--{argname}="):
                     value = part[len(argname) + 3 :]
                     known_prop_kind = convert_dir_benchdnn2verbose(value)
                     break
-            else:
-                known_prop_kind = None
+
+            cases = tentative_cases[known_prop_kind]
+            tentative_cases.clear()
+            if status == "SKIPPED":
+                continue
+            elif "FAILED" in status:
+                raise FailedCase(status, repro)
+            elif not cases:
+                continue
+            found_cases.append(cases[-1])
         elif line.startswith("onednn_verbose,"):
             # Detect driver
             parts = line.split(",")
+            try:
+                float(parts[2])  # check for timestamp
+            except ValueError:
+                pass
+            else:
+                parts.pop(2)
             try:
                 component = parts[2]
                 event, *_ = parts[3].split(":", 1)
@@ -81,24 +96,22 @@ def filter_verbose(verbose: str, driver: str, filter_event: str):
                 continue
             if get_driver(primitive) != driver:
                 continue
-            # Filter out additional forward calls.
-            if known_prop_kind is not None and prop_kind != known_prop_kind:
-                continue
             # Filter out transform routine till it's properly supported. Use
             # impl name for that due to it's the only difference between two
             # ukernel calls.
             if driver == "brgemm" and impl_name == "pack_B":
                 continue
-            # Remove primitive creation time
+            # Remove primitive creation/run time
+            try:
+                float(parts[-1])
+            except ValueError:
+                continue
             without_time = ",".join(parts[:-1])
             # Filter out fill reorders. Only the last one is real.
-            if driver == "reorder":
-                last_reorder = without_time
-                continue
-            found_entry = True  # Skip to next __REPRO line
-            found_cases.append(without_time)
-    if driver == "reorder" and last_reorder is not None:
-        found_cases.append(last_reorder)
+            tentative_cases[prop_kind].append(without_time)
+            if prop_kind != "undef":
+                # In case the reproducer uses the default prop kind
+                tentative_cases["undef"].append(without_time)
     return "\n".join(found_cases)
 
 
@@ -122,7 +135,6 @@ def generate_verbose(path_to_benchdnn, engine, driver, batch):
         f"--engine={engine}",
         f"--{driver}",
         f"--mode={benchdnn_mode}",
-        "-v1",
         f"--batch={batch}",
     ]
     try:

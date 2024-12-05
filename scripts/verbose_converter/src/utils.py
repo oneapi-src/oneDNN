@@ -46,5 +46,7 @@ def check_version():
 
 def dedent(multiline):
     lines = multiline.split("\n")
+    if len(lines) == 1:
+        return lines[0].strip()
     indent = min(len(line) - len(line.lstrip()) for line in lines[1:])
     return (lines[0] + "\n".join(line[indent:] for line in lines[1:])).strip()
