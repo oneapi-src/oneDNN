@@ -166,7 +166,14 @@ struct inner_product_desc_t : public op_desc_t {
 
 // A descriptor of a convolution operation.
 struct convolution_desc_t : public op_desc_t {
-    convolution_desc_t() : op_desc_t(primitive_kind::convolution) {}
+    convolution_desc_t() : op_desc_t(primitive_kind::convolution) {
+        // Note: explicit zeroing due to an array type of `dims_t`. Hashing and
+        // operator== is relying on it.
+        utils::array_set(strides, 0, DNNL_MAX_NDIMS);
+        utils::array_set(dilates, 0, DNNL_MAX_NDIMS);
+        utils::array_set(padding[0], 0, DNNL_MAX_NDIMS);
+        utils::array_set(padding[1], 0, DNNL_MAX_NDIMS);
+    }
 
     DECLARE_COMMON_OP_DESC_CLONE(convolution_desc_t);
 
@@ -561,7 +568,15 @@ struct prelu_desc_t : public op_desc_t {
 
 // A descriptor of a pooling operation.
 struct pooling_desc_t : public op_desc_t {
-    pooling_desc_t() : op_desc_t(primitive_kind::pooling) {}
+    pooling_desc_t() : op_desc_t(primitive_kind::pooling) {
+        // Note: explicit zeroing due to an array type of `dims_t`. Hashing and
+        // operator== is relying on it.
+        utils::array_set(strides, 0, DNNL_MAX_NDIMS);
+        utils::array_set(kernel, 0, DNNL_MAX_NDIMS);
+        utils::array_set(padding[0], 0, DNNL_MAX_NDIMS);
+        utils::array_set(padding[1], 0, DNNL_MAX_NDIMS);
+        utils::array_set(dilation, 0, DNNL_MAX_NDIMS);
+    }
 
     DECLARE_COMMON_OP_DESC_CLONE(pooling_desc_t);
 
