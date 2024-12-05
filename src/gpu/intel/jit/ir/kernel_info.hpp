@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -123,8 +123,6 @@ enum class kernel_id_t {
 // Kernel arguments can be of the following kinds:
 // - Internal arguments: only scalar
 //   - Examples: common output scales (contain a single value)
-// - Resource arguments: stored to a resource storage during primitive creation
-//   - Examples: output scales or zero points
 // - User arguments: passed by the user at run time
 //   - Examples: source, weights, destination
 class kernel_info_t {
@@ -178,11 +176,6 @@ public:
         return vars;
     }
 
-    void register_resource_arg(const expr_t &var) {
-        // TODO: Check key uniqueness.
-        register_arg(var, arg_kind_t::resource, nargs(), /*is_input=*/true);
-    }
-
     void register_user_arg(const expr_t &var, int dnnl_arg, bool is_input) {
         register_arg(var, arg_kind_t::user, dnnl_arg, is_input);
     }
@@ -227,11 +220,6 @@ public:
 
     int nargs() const { return int(args_.size()); }
 
-    bool is_resource(int idx) const {
-        ir_assert(idx >= 0 && idx < nargs());
-        return args_[idx].kind == arg_kind_t::resource;
-    }
-
     bool is_scratchpad(int idx) const {
         ir_assert(idx >= 0 && idx < nargs());
         return args_[idx].kind == arg_kind_t::scratchpad;
@@ -255,10 +243,6 @@ public:
         bool is_input = args_[idx].is_input;
         int key = args_[idx].key;
         switch (args_[idx].kind) {
-            case arg_kind_t::resource:
-                return *(ctx.get_resource_mapper()
-                                 ->template get<gpu_resource_t>(primitive)
-                                 ->get_memory_storage(key));
             case arg_kind_t::scratchpad:
                 return ctx.get_scratchpad_grantor().get_memory_storage(key);
             case arg_kind_t::user: {
@@ -320,7 +304,6 @@ public:
                     } while (false);
                     break;
                 }
-                case arg_kind_t::resource:
                 case arg_kind_t::scratchpad:
                 case arg_kind_t::user: {
                     arg_list.set(i, *storage_list[i].get());
@@ -332,7 +315,7 @@ public:
     }
 
 private:
-    enum class arg_kind_t { internal, resource, scratchpad, user };
+    enum class arg_kind_t { internal, scratchpad, user };
 
     struct arg_t {
         arg_t(const expr_t &var, arg_kind_t kind, int key, bool is_input,
