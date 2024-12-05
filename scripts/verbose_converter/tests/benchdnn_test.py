@@ -198,37 +198,45 @@ def compare(driver, ref_v, comp_v):
                 return entry_args
         return None
 
-    def is_ambiguous(r, c):
+    def accept_results(r, c):
+        if r == c:
+            return True
+
         # TODO: Handle cases with non-unique md tags
         #  * multiple size-1 dimensions with the same stride
         #  * multiple dimensions with 0 stride
-        if driver != "matmul":
-            return False
-        # XXX: In matmul cases with runtime dims that resolve to ones, the bias
-        # memory descriptor will potentially have the wrong mask printed in the
-        # verbose line. We do not maintain enough information to always print
-        # the correct mask, but the reference and computed verbose lines will
-        # match, up to implementation name.
-        parts = r.split(",")
-        mds = parts[8].split()
-        aux = parts[10].split()
-        shapes = parts[11].split(":", 1)
-        wei, act = list(map(lambda x: list(map(int, x.split("x"))), shapes))
-        if find_named_entry("bia", mds) is None:
-            return False
-        rt_dim_mask = find_named_entry("runtime_dims_masks", aux)
-        if rt_dim_mask is None:
-            return False
-        wei_mask, act_mask = list(map(int, rt_dim_mask))
-        if wei[-2] == 1 and wei_mask & (1 << (len(wei) - 2)):
-            return without_impl(r) == without_impl(c)
-        if act[-1] == 1 and act_mask & (1 << (len(act) - 1)):
+        if driver == "matmul":
+            # In matmul cases with runtime dims that resolve to ones, the bias
+            # memory descriptor will potentially have the wrong mask printed in
+            # the verbose line. We do not maintain enough information to always
+            # print the correct mask, but the reference and computed verbose
+            # lines will match, up to implementation name.
+            parts = r.split(",")
+            mds = parts[8].split()
+            aux = parts[10].split()
+            shapes = parts[11].split(":", 1)
+            wei, act = list(map(lambda x: list(map(int, x.split("x"))), shapes))
+            if find_named_entry("bia", mds) is None:
+                return False
+            rt_dim_mask = find_named_entry("runtime_dims_masks", aux)
+            if rt_dim_mask is None:
+                return False
+            wei_mask, act_mask = list(map(int, rt_dim_mask))
+            if wei[-2] == 1 and wei_mask & (1 << (len(wei) - 2)):
+                return without_impl(r) == without_impl(c)
+            if act[-1] == 1 and act_mask & (1 << (len(act) - 1)):
+                return without_impl(r) == without_impl(c)
+        elif driver == "sum":
+            # There is no information in a sum verbose line about scales, so if
+            # dispatch depends on particular scale values, the implementation
+            # may change with default scales. In this case, we check that the
+            # rest of the verbose line is the same.
             return without_impl(r) == without_impl(c)
         return False
 
     file_map = {"reference": ref_v, "computed": comp_v}
     for r, c in zip(filter_lines(ref_v), filter_lines(comp_v)):
-        if r == c or is_ambiguous(r, c):
+        if accept_results(r, c):
             continue
         for log_type, content in file_map.items():
             with open(f"{driver}.{log_type}.log", "w") as fd:
@@ -251,6 +259,11 @@ def test(path_to_benchdnn, engine, driver, batch):
     com_batch = generate_batch(ref_verbose, driver)
     com_verbose = generate_verbose(path_to_benchdnn, engine, driver, com_batch)
     compare(driver, ref_verbose, com_verbose)
+    # XXX: Maybe run an additional loop
+    #    ref -> ref verbose -> com 1 -> com 1 verbose -> com 2 -> com 2 verbose
+    # Comparing com 1 and com 2 verbose instead would address the special cases
+    # in accept_results. We can even compare just the cases where ref and com 1
+    # don't match.
 
 
 def main():
