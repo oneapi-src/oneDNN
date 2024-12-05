@@ -174,3 +174,8 @@ function(find_libm var)
         find_library(${var} m REQUIRED)
     endif()
 endfunction()
+
+include(CheckCXXSourceCompiles)
+function(check_toolchain_for_endbr64)
+    check_cxx_source_compiles("int main() { asm volatile(\"endbr64\"); return 0; }" ENDBR64_SUPPORT_FLAG)
+endfunction()
