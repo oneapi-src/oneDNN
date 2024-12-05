@@ -41,24 +41,24 @@ struct sdpa_desc_t : public op_desc_t {
         return utils::make_unique<sdpa_desc_t>(*this);
     }
 
-    memory_desc_t q_desc; /* queries */
-    memory_desc_t k_desc; /* keys */
-    memory_desc_t v_desc; /* values */
+    memory_desc_t q_desc {}; /* queries */
+    memory_desc_t k_desc {}; /* keys */
+    memory_desc_t v_desc {}; /* values */
 
     // primitive_attr_t can't be used because of deleted copy-ctor, but desc_t
     // must be copyable.
-    runtime_scales_t kq_scales;
-    zero_points_t kq_zero_points;
-    runtime_scales_t vs_scales;
-    zero_points_t vs_zero_points;
+    runtime_scales_t kq_scales {};
+    zero_points_t kq_zero_points {};
+    runtime_scales_t vs_scales {};
+    zero_points_t vs_zero_points {};
 
-    memory_desc_t dst_desc;
-    memory_desc_t attn_mask_desc;
-    data_type_t scale_dt;
+    memory_desc_t dst_desc {};
+    memory_desc_t attn_mask_desc {};
+    data_type_t scale_dt {};
     // invert_scale = false: multiply by scale
     // invert_scale = true:  divide by scale
-    bool invert_scale;
-    dim_t kv_head_number;
+    bool invert_scale {};
+    dim_t kv_head_number {};
 
     // Number of queries.
     dnnl_dim_t queries() const { return q_desc.dims[q_desc.ndims - 2]; }

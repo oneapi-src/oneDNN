@@ -57,16 +57,16 @@ struct gemm_desc_t : public op_desc_t {
         return utils::make_unique<gemm_desc_t>(*this);
     }
 
-    memory_desc_t a_desc;
-    memory_desc_t b_desc;
-    memory_desc_t c_desc;
-    memory_desc_t bias_desc;
+    memory_desc_t a_desc {};
+    memory_desc_t b_desc {};
+    memory_desc_t c_desc {};
+    memory_desc_t bias_desc {};
     // Type for accumulating A*B.
-    dnnl_data_type_t acc_type;
+    dnnl_data_type_t acc_type {};
     // Sum across k dimension in either A or B tensor
     // and output to sum_ab tensor.
-    sum_ab_t sum_ab;
-    dnnl_data_type_t sum_ab_type;
+    sum_ab_t sum_ab {};
+    dnnl_data_type_t sum_ab_type {};
 
     // These accessors are to be used by the GEMM implementation. Because the
     // GEMM implementation currently assumes column major. These accessors
