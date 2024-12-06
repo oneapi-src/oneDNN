@@ -601,9 +601,18 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                     ngen::Immediate::hf(0x7C01),
                     tmp2.subregister(0, ngen::DataType::hf)(1),
                     tmp1.subregister(0, ngen::DataType::hf)(1));
-            host->bfn(esize, 0xCA, tmp2.subregister(0, ngen::DataType::uw)(1),
-                    tmp2.subregister(0, ngen::DataType::uw)(1),
-                    tmp1.subregister(0, ngen::DataType::uw)(1), 0X8000);
+            if (hw >= ngen::HW::XeHPG) {
+                host->bfn(esize, 0xCA,
+                        tmp2.subregister(0, ngen::DataType::uw)(1),
+                        tmp2.subregister(0, ngen::DataType::uw)(1),
+                        tmp1.subregister(0, ngen::DataType::uw)(1), 0x8000);
+            } else {
+                host->and_(esize, tmp1.subregister(0, ngen::DataType::uw)(1),
+                        tmp1.subregister(0, ngen::DataType::uw)(1), 0x8000);
+                host->or_(esize, tmp2.subregister(0, ngen::DataType::uw)(1),
+                        tmp2.subregister(0, ngen::DataType::uw)(1),
+                        tmp1.subregister(0, ngen::DataType::uw)(1));
+            }
             host->mov(esize, d.reinterpret(0, ngen::DataType::uw)(dst_stride),
                     tmp2.subregister(0, ngen::DataType::uw)(1));
         }
