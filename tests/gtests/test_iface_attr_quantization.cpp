@@ -524,12 +524,6 @@ TEST_F(attr_quantization_test_t, TestMatmul) {
                             gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
                                     data_type::f32, {1, 32})));
                 }
-            } else {
-                CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
-                        gen_attr_with_scales(arg, 1 << 1)));
-                // scales: unsupported mask only relevant for DST arg.
-                CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
-                        gen_attr_with_scales(arg, 1 << 2)));
             }
         }
     }
