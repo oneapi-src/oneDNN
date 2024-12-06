@@ -96,7 +96,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
 
             VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_CONV(IMPLICATION(!attr()->scales_.has_default_values(),
-                                   is_int8 | is_fp8),
+                                   is_int8 || is_fp8),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
 
             VDISPATCH_CONV(zero_points_ok(attr()), VERBOSE_UNSUPPORTED_ZP_CFG);
