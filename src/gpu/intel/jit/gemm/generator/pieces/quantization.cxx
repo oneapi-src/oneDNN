@@ -374,6 +374,7 @@ void BLASKernelGenerator<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst, con
     getLayoutDims(layoutDst, md, nd);
 
     bool s4 = Tsrc.isSigned();
+    bool f8 = Tdst.isF8();
     bool f32 = (Tdst == Type::f32);
     bool bf16 = (Tdst == Type::bf16);
 
@@ -381,7 +382,7 @@ void BLASKernelGenerator<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst, con
     const vector<RegisterBlock> *effLayoutDst = &layoutDst;
     GRFMultirange dstF16;
     const GRFMultirange *effDst = &dst;
-    if (f32 || bf16) {
+    if (f32 || bf16 || f8) {
         makeUnbackedRegLayout(Type::f16, layoutDstF16, m, n, isLayoutColMajor(layoutDst), 1);
         for (auto &block: layoutDstF16) {
             block.offsetR += layoutDst[0].offsetR;
@@ -426,7 +427,7 @@ void BLASKernelGenerator<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst, con
     }
 
     // 6) Convert to dst type if needed.
-    if (f32 || bf16) {
+    if (f32 || bf16 || f8) {
         copyRegisters(Type::f16, Tdst, layoutDstF16, layoutDst, dstF16, dst, offR, offC, false, strategy, state);
         safeReleaseRanges(dstF16, state);
     }
