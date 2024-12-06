@@ -30,11 +30,6 @@
 
 #include "cpu/cpu_softmax_pd.hpp"
 
-#define VCHECK_SOFTMAX(cond, msg, ...) \
-    VCONDCHECK(primitive, create, dispatch, softmax, (cond), \
-            status::unimplemented, "%s," msg, this->info(engine), \
-            ##__VA_ARGS__)
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -49,26 +44,31 @@ struct ref_softmax_fwd_t : public primitive_t {
             using namespace data_type;
             using skip_mask_t = primitive_attr_t::skip_mask_t;
 
-            bool ok = is_fwd()
-                    && utils::one_of(
-                            src_md()->data_type, f32, bf16, f16, s8, u8)
-                    && utils::one_of(
-                            dst_md()->data_type, f32, bf16, f16, s8, u8)
-                    && platform::has_data_type_support(src_md()->data_type)
-                    && platform::has_data_type_support(dst_md()->data_type);
-            if (!ok) return status::unimplemented;
-
-            VCHECK_SOFTMAX(
+            VDISPATCH_SOFTMAX(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_SOFTMAX(
+                    platform::has_data_type_support(src_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(
+                    platform::has_data_type_support(dst_md()->data_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(
+                    utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(
+                    utils::one_of(dst_md()->data_type, f32, bf16, f16, s8, u8),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SOFTMAX(
                     attr()->has_default_values(skip_mask_t::scales_runtime
                             | skip_mask_t::post_ops),
                     VERBOSE_UNSUPPORTED_ATTR);
-            VCHECK_SOFTMAX(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
-            VCHECK_SOFTMAX(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
-#undef VCHECK_SOFTMAX
+            VDISPATCH_SOFTMAX(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_SOFTMAX(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
 
-            ok = set_default_formats() == status::success
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
-            if (!ok) return status::unimplemented;
+            VDISPATCH_SOFTMAX(set_default_formats() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_SOFTMAX(
+                    attr_.set_default_formats(dst_md(0)) == status::success,
+                    VERBOSE_UNSUPPORTED_POSTOP);
 
             nthr_ = 0;
             init_scratchpad();
