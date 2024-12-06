@@ -159,6 +159,10 @@ struct matmul_pd_t : public primitive_desc_t {
         return 1 << (wei_ndims - 2);
     }
 
+    int dst_qmask_N() const { return wei_qmask_N(); }
+
+    int dst_qmask_M() const { return src_qmask_M(); }
+
     virtual bool attr_scales_ok(const std::vector<int> &supported_args
             = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
         if (attr()->scales_.has_default_values()) return true;
@@ -195,7 +199,13 @@ struct matmul_pd_t : public primitive_desc_t {
                                 sc.group_dims_[0] == 1
                                         && K() % sc.group_dims_[1] == 0);
             } else {
-                ok = ok && (mask == 0);
+                ok = ok
+                        && utils::one_of(mask, 0, dst_qmask_N(),
+                                dst_qmask_M() + dst_qmask_N());
+                ok = ok && utils::one_of(sc.ndims_, 0, 2)
+                        && IMPLICATION(sc.ndims_ == 2,
+                                sc.group_dims_[1] == 1
+                                        && M() % sc.group_dims_[0] == 0);
             }
         }
         return ok;
