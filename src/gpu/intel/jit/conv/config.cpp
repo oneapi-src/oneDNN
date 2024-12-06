@@ -958,7 +958,8 @@ status_t init_vec_size(conv_config_t &cfg) {
         dim_t vec_dim = prb.ab_swap_transpose
                 ? ((prb.is_bwd_w) ? prb.ic : prb.mb)
                 : ((prb.is_fwd || prb.is_bwd_w) ? prb.oc : prb.ic);
-        if (utils::rnd_up(vec_dim, grf_elems) < vec_size) vec_size = grf_elems;
+        if (utils::rnd_up(vec_dim, grf_elems) < vec_size || prb.is_bwd_d)
+            vec_size = grf_elems;
     }
     // SIMD32 produces invalid layouts in bwd_w.
     if (prb.is_bwd_w && !cfg.is_dpas_or_dpasw_fma()) {
