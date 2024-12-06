@@ -152,6 +152,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
     overload_quant_mask(prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy,
             DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+    overload_quant_mask(prb->attr.scales.get(DNNL_ARG_DST).policy,
+            DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
     overload_quant_mask(prb->attr.zero_points.get(DNNL_ARG_SRC).policy,
             DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
     overload_quant_mask(prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).policy,

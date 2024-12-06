@@ -42,12 +42,12 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
     const bool has_src_scale = !prb->attr.scales.get(DNNL_ARG_SRC).is_def();
     const bool has_wei_scale = !prb->attr.scales.get(DNNL_ARG_WEIGHTS).is_def();
     const bool has_dst_scale = !prb->attr.scales.get(DNNL_ARG_DST).is_def();
-    assert(IMPLICATION(has_dst_scale, dst_scales.nelems() == 1));
-    float dst_scale = has_dst_scale ? 1.f / dst_scales.get_elem(0) : 1.f;
     const int src_scale_mask = prb->attr.scales.get_mask(
             DNNL_ARG_SRC, dnnl_matmul, src_m.ndims());
     const int wei_scale_mask = prb->attr.scales.get_mask(
             DNNL_ARG_WEIGHTS, dnnl_matmul, wei_m.ndims());
+    const int dst_scale_mask = prb->attr.scales.get_mask(
+            DNNL_ARG_DST, dnnl_matmul, dst_m.ndims());
 
     const bool has_src_zp = !prb->attr.zero_points.get(DNNL_ARG_SRC).is_def();
     const bool has_wei_zp
@@ -144,6 +144,10 @@ void compute_ref_matmul(const prb_t *prb, const args_t &args) {
         if (has_dst_zp) {
             const auto dst_zp_idx = dst_m.get_idx(dst_off, dst_zp_mask);
             dst_zp = dst_zps.get_elem(dst_zp_idx);
+        }
+        float dst_scale = 1.f;
+        if (has_dst_scale) {
+            dst_scale = 1.f / dst_scales.get_elem(dst_scale_mask > 0 ? n : 0);
         }
         float dst_val = dst_scale * dst + dst_zp;
         maybe_round(prb->attr, DNNL_ARG_DST, dst_val, dst_off, prb->dst_dt());

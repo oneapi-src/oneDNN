@@ -116,7 +116,7 @@ attr_info_t attr_info_t::create(const primitive_attr_t *attr) {
 
     const auto &dst_scales = attr->scales_.get(DNNL_ARG_DST);
     attr_info.with_dst_scales = !dst_scales.has_default_values();
-    gpu_assert(dst_scales.mask_ == 0);
+    attr_info.dst_scales_mask = dst_scales.mask_;
 
     // zero points
     const auto &zp = attr->zero_points_;
