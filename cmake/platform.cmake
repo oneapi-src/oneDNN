@@ -120,6 +120,14 @@ endif()
 if(MSVC)
     set(USERCONFIG_PLATFORM "x64")
     append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "/WX")
+
+    # Generating frame pointers for easier performance profiling
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        append(CMAKE_CCXX_FLAGS "-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer")
+    else()
+        append(CMAKE_CCXX_FLAGS "/Oy-")
+    endif()
+
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
         append(CMAKE_CCXX_FLAGS "/MP")
         # increase number of sections in obj file
@@ -232,6 +240,9 @@ elseif(UNIX OR MINGW)
         # Align with GCC -Wall
         append(CMAKE_CCXX_FLAGS "-Wsign-compare")
     endif()
+
+    # Generating frame pointers for easier performance profiling
+    append(CMAKE_CCXX_FLAGS "-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer")
 
     platform_unix_and_mingw_common_ccxx_flags(CMAKE_CCXX_FLAGS)
     platform_unix_and_mingw_common_cxx_flags(CMAKE_CXX_FLAGS)
