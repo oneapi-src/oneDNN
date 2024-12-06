@@ -210,7 +210,8 @@ int attr_t::policy2mask(int arg, policy_t policy,
             default: SAFE(FAIL, CRIT); return -1;
         }
     } else if (prim_kind == dnnl_matmul) {
-        if ((arg != DNNL_ARG_SRC && arg != DNNL_ARG_WEIGHTS)
+        if ((arg != DNNL_ARG_SRC && arg != DNNL_ARG_WEIGHTS
+                    && arg != DNNL_ARG_DST)
                 || policy == policy_t::COMMON)
             return attr_t::get_default_mask(policy);
 

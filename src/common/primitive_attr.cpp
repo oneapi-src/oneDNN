@@ -558,11 +558,6 @@ status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
     VCHECK_ATTR(
             utils::one_of(data_type, f32, bf16, f16, e8m0, f8_e5m2, f8_e4m3),
             VERBOSE_INVALID_DATATYPE, "scales");
-    VCHECK_ATTR(IMPLICATION(!utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS),
-                        data_type == f32 && ndims == 0)
-                    || IMPLICATION(arg == DNNL_ARG_DST,
-                            utils::one_of(data_type, f32, e8m0)),
-            VERBOSE_INVALID_DATATYPE, "scales");
     VCHECK_ATTR(IMPLICATION(ndims, validate_dims(ndims, group_dims)),
             VERBOSE_BAD_PARAM, "group_dims");
     return attr->scales_.set(arg, mask, ndims, group_dims, data_type);
