@@ -951,7 +951,13 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         , is_avx2_ne_xf16_(mayiuse(avx2_vnni_2) && !mayiuse(avx512_core)
                   && (is_bf16_ || is_f16_))
         // Note: must be aligned with pd_t::init()->init_scratchpad();
-        , need_scratchpad_(pd_->is_fwd() && dst_d_.data_type() != f32)
+        , need_scratchpad_(pd_->is_fwd() && dst_d_.data_type() != f32
+                  && /* !relaxed_acc */ !(
+                          src_d_.data_type() == dst_d_.data_type()
+                          && !types::is_integral_dt(dst_d_.data_type())
+                          && utils::one_of(pd_->attr()->acc_mode_,
+                                  accumulation_mode::relaxed,
+                                  accumulation_mode::any)))
         , use_ext_aux_vmms_(!is_logsoftmax_ && n_vregs > 16)
         , axis_simd_full_(pd_->axis_size() / simd_w_)
         , axis_simd_tail_(pd_->axis_size() % simd_w_) {
@@ -1495,7 +1501,13 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
         , src_d_(pd_->invariant_src_md())
         , dst_d_(pd_->dst_md())
         // Note: must be aligned with pd_t::init()->init_scratchpad();
-        , need_scratchpad_(pd_->is_fwd() && dst_d_.data_type() != f32)
+        , need_scratchpad_(pd_->is_fwd() && dst_d_.data_type() != f32
+                  && /* !relaxed_acc */ !(
+                          src_d_.data_type() == dst_d_.data_type()
+                          && !types::is_integral_dt(dst_d_.data_type())
+                          && utils::one_of(pd_->attr()->acc_mode_,
+                                  accumulation_mode::relaxed,
+                                  accumulation_mode::any)))
         , axis_size_(pd_->axis_size())
         // `axis_stride_`, `axis_simd_full_` and `axis_simd_tail_` are only
         // different pieces from the dense version.

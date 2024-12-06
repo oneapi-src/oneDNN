@@ -100,12 +100,28 @@ argument index as specified by the following table.
 Attributes enable you to modify the behavior of the softmax primitive.
 The following attributes are supported by the softmax primitive:
 
-| Propagation | Type      | Operation                                            | Description                                                   | Restrictions                                                           |
-|:------------|:----------|:-----------------------------------------------------|:--------------------------------------------------------------|:-----------------------------------------------------------------------|
-| forward     | attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask) | Scales the corresponding tensor by the given scale factor(s). | Supported only for int8 softmax and one scale per tensor is supported. |
-| forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)         | Applies a @ref dnnl_api_binary operation to the result        | General binary post-op restrictions                                    |
-| forward     | Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)       | Applies an @ref dnnl_api_eltwise operation to the result.     |                                                                        |
+| Propagation | Type      | Operation                                                             | Description                                                   | Restrictions                                                           |
+|:------------|:----------|:----------------------------------------------------------------------|:--------------------------------------------------------------|:-----------------------------------------------------------------------|
+| forward     | attribute | [Scales](@ref dnnl::primitive_attr::set_scales_mask)                  | Scales the corresponding tensor by the given scale factor(s). | Supported only for int8 softmax and one scale per tensor is supported. |
+| forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)                          | Applies a @ref dnnl_api_binary operation to the result        | General binary post-op restrictions                                    |
+| forward     | Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)                        | Applies an @ref dnnl_api_eltwise operation to the result.     |                                                                        |
+| forward     | attribute | [Accumulation mode](@ref dnnl::primitive_attr::set_accumulation_mode) | Defines the implementation's accumulation arithmetic.         | Only the values `strict`, `relaxed`, and `any` are supported.          |
 
+#### Accumulation Mode
+
+You can optimize performance of the forward operation when the source and
+destination floating-point data types of the operation are equal and different
+from `f32`. When the destination data type is different from `f32`, additional
+memory will be used to accumulate data and store it in the destination memory
+buffer for a requested data type. Using the additional memory can be opted-out
+with an accumulation mode setting set to
+[relaxed](@ref dnnl::accumulation_mode::relaxed) or
+[any](@ref dnnl::accumulation_mode::any), which will use the precision of
+destination data type to accumulate intermediate results directly into the
+destination memory buffer. This performance optimization, however, results in
+in a minor decrease in accuracy. Depending on the actual data, the difference
+between `strict` and `relaxed` accumulation can reach several units in the last
+piece (ulps).
 
 ### Data Type Support
 

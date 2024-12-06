@@ -249,11 +249,12 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     const float trh = trh_f32;
 #else
     const bool is_strict_acc
-            = prb->attr.acc_mode == dnnl_accumulation_mode_strict;
-    // Relaxed fp16 computation can get an ulp difference with f32 ref values.
-    const float trh = is_flt_or_dbl || (trh_dt == dnnl_f16 && !is_strict_acc)
-            ? trh_f32
-            : 0.f;
+            = prb->attr.acc_mode == dnnl_accumulation_mode_strict
+            || prb->attr.acc_mode == dnnl_accumulation_mode_f32;
+    const bool is_relaxed_xf16
+            = !is_strict_acc && (trh_dt == dnnl_f16 || trh_dt == dnnl_bf16);
+    // Relaxed xf16 computation can get an ulp difference with f32 ref values.
+    const float trh = is_flt_or_dbl || is_relaxed_xf16 ? trh_f32 : 0.f;
 #endif
     cmp.set_threshold(trh);
 

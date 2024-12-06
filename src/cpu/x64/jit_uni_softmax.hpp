@@ -171,7 +171,17 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
 
     private:
         void init_scratchpad() {
-            if (dst_md()->data_type != data_type::f32) {
+            const auto src_dt = src_md()->data_type;
+            const auto dst_dt = dst_md()->data_type;
+            // Relaxed accumulation allows to downconvert intermediate results
+            // directly from xf16 or xf8 to dst avoiding scratchpad memory.
+            const bool relaxed_acc = src_dt == dst_dt
+                    && !types::is_integral_dt(dst_dt)
+                    && utils::one_of(attr()->acc_mode_,
+                            accumulation_mode::relaxed, accumulation_mode::any);
+            const bool need_scratchpad
+                    = dst_dt != data_type::f32 && !relaxed_acc;
+            if (need_scratchpad) {
                 auto scratchpad = scratchpad_registry().registrar();
                 // When stride != 1, then each thread operates over simd at a
                 // time, thus, increased scratchpad size.
