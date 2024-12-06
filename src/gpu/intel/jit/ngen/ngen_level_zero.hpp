@@ -21,6 +21,14 @@
 
 #include "gpu/intel/sycl/l0/level_zero/ze_api.h"
 
+#if defined(__linux__)
+#include <dlfcn.h>
+#elif defined(_WIN32)
+#include "windows.h"
+#else
+#error "Level Zero is supported on Linux and Windows only"
+#endif
+
 #include <sstream>
 
 #include "ngen_elf.hpp"
@@ -36,6 +44,47 @@ protected:
     ze_result_t status;
 };
 
+// Dynamically loaded level_zero functions
+namespace {
+
+void *find_ze_symbol(const char *symbol) {
+#if defined(__linux__)
+    void *handle = dlopen("libze_loader.so.1", RTLD_NOW | RTLD_LOCAL);
+#elif defined(_WIN32)
+    // Use LOAD_LIBRARY_SEARCH_SYSTEM32 flag to avoid DLL hijacking issue.
+    HMODULE handle = LoadLibraryExA(
+            "ze_loader.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+#endif
+    if (!handle) throw level_zero_error{ZE_RESULT_ERROR_UNINITIALIZED};
+
+#if defined(__linux__)
+    void *f = reinterpret_cast<void *>(dlsym(handle, symbol));
+#elif defined(_WIN32)
+    void *f = reinterpret_cast<void *>(GetProcAddress(handle, symbol));
+#endif
+
+    if (!f) throw level_zero_error{ZE_RESULT_ERROR_UNINITIALIZED};
+    return f;
+}
+
+template <typename F>
+F find_ze_symbol(const char *symbol) {
+    return (F)find_ze_symbol(symbol);
+}
+
+#define ZE_INDIRECT_API(f) \
+    template <typename... Args> ze_result_t call_##f(Args&&... args) { \
+        static auto f_ = find_ze_symbol<decltype(&f)>(#f);              \
+        return f_(std::forward<Args>(args)...);                         \
+    }
+
+ZE_INDIRECT_API(zeModuleCreate)
+ZE_INDIRECT_API(zeModuleDestroy)
+ZE_INDIRECT_API(zeDeviceGetProperties)
+ZE_INDIRECT_API(zeModuleGetNativeBinary)
+
+} // namespace
+    
 // Level Zero program generator class.
 template <HW hw>
 class LevelZeroCodeGenerator : public ELFCodeGenerator<hw>
@@ -87,7 +136,7 @@ ze_module_handle_t LevelZeroCodeGenerator<hw>::getModule(ze_context_handle_t con
     };
 
     ze_module_handle_t module;
-    detail::handleL0(zeModuleCreate(context, device, &moduleDesc, &module, nullptr));
+    detail::handleL0(call_zeModuleCreate(context, device, &moduleDesc, &module, nullptr));
 
     if (module == nullptr)
         throw level_zero_error{};
@@ -122,7 +171,7 @@ void LevelZeroCodeGenerator<hw>::detectHWInfo(ze_context_handle_t context, ze_de
     ze_device_ip_version_ext_t vprop = {ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT, nullptr, 0};
     ze_device_properties_t dprop = {ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES, &vprop};
 
-    if (zeDeviceGetProperties(device, &dprop) == ZE_RESULT_SUCCESS) {
+    if (call_zeDeviceGetProperties(device, &dprop) == ZE_RESULT_SUCCESS) {
         outProduct = npack::decodeHWIPVersion(vprop.ipVersion);
         outHW = getCore(outProduct.family);
         if (outProduct.family != ProductFamily::Unknown)
@@ -142,7 +191,7 @@ void LevelZeroCodeGenerator<hw>::detectHWInfo(ze_context_handle_t context, ze_de
     };
 
     ze_module_handle_t module;
-    detail::handleL0(zeModuleCreate(context, device, &moduleDesc, &module, nullptr));
+    detail::handleL0(call_zeModuleCreate(context, device, &moduleDesc, &module, nullptr));
 
     if (module == nullptr)
         throw level_zero_error{};
@@ -150,10 +199,10 @@ void LevelZeroCodeGenerator<hw>::detectHWInfo(ze_context_handle_t context, ze_de
     std::vector<uint8_t> binary;
     size_t binarySize;
 
-    detail::handleL0(zeModuleGetNativeBinary(module, &binarySize, nullptr));
+    detail::handleL0(call_zeModuleGetNativeBinary(module, &binarySize, nullptr));
     binary.resize(binarySize);
-    detail::handleL0(zeModuleGetNativeBinary(module, &binarySize, binary.data()));
-    detail::handleL0(zeModuleDestroy(module));
+    detail::handleL0(call_zeModuleGetNativeBinary(module, &binarySize, binary.data()));
+    detail::handleL0(call_zeModuleDestroy(module));
 
     ELFCodeGenerator<hw>::getBinaryHWInfo(binary, outHW, outProduct);
 }
