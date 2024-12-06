@@ -113,13 +113,24 @@ status_t jit_gemm_pd_t::init_post_ops() {
     if (!src_scales->has_default_values()) {
         const auto &mask = src_scales->mask_;
         bool convert = (mask == 0);
-        if (src_scales->ndims_ > 1)
+        if (src_scales->ndims_ > 1) {
             convert |= (src_scales->group_dims_[1] >= d->k());
+            convert |= (src_scales->group_dims_[0] >= d->n());
+        }
         if (convert) {
             if (mask == 0) {
                 dim_t dims = 1;
                 CHECK(memory_desc_init_by_tag(src_scales_md, 1, &dims,
                         src_scales->data_type_, format_tag::a));
+            } else if (src_scales->ndims_ > 1) {
+                int n_group = src_scales->group_dims_[0];
+                int k_group = src_scales->group_dims_[1];
+                dim_t dims[]
+                        = {(mask & (d->batch() > 1 ? 2 : 1)) ? d->n() / n_group
+                                                             : 1,
+                                d->k() / k_group};
+                CHECK(memory_desc_init_by_tag(src_scales_md, 2, dims,
+                        src_scales->data_type_, format_tag::ab));
             } else {
                 dim_t dims[] = {d->n(), 1};
                 CHECK(memory_desc_init_by_tag(src_scales_md, 2, dims,
@@ -134,17 +145,22 @@ status_t jit_gemm_pd_t::init_post_ops() {
         }
     }
     if (!c_scales->has_default_values()) {
-        ok = ok && (c_scales->mask_ == 0);
+        const auto &mask = c_scales->mask_;
+        bool convert = (mask == 0 || math::is_pow2(mask));
+        if (c_scales->ndims_ > 1)
+            convert |= (c_scales->group_dims_[0] >= d->m());
+        if (convert) {
+            ok = ok && (mask == 0 || mask == (1 << (d->c_desc.ndims - 1)));
+            dim_t dims = {(mask > 0) ? d->m() : 1};
+            CHECK(memory_desc_init_by_tag(c_scales_md, 1, &dims,
+                    c_scales->data_type_, format_tag::a));
 
-        dim_t dims = {1};
-        CHECK(memory_desc_init_by_tag(
-                c_scales_md, 1, &dims, f32, format_tag::a));
+            auto status = post_ops_.append_binary(binary_div, &c_scales_md);
+            if (status != status::success) return status;
 
-        auto status = post_ops_.append_binary(binary_div, &c_scales_md);
-        if (status != status::success) return status;
-
-        binary_srcs_.push_back(
-                binary_src_t {binary_src_t::scales, DNNL_ARG_DST});
+            binary_srcs_.push_back(
+                    binary_src_t {binary_src_t::scales, DNNL_ARG_DST});
+        }
     }
 
     return status::success;

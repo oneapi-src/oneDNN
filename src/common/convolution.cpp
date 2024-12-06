@@ -182,10 +182,6 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
             is_int8 = is_int8
                     || utils::one_of(dst_dt, data_type::s8, data_type::u8,
                             data_type::s32);
-        if (is_int8)
-            fwd_attr_mask |= smask_t::scales_runtime
-                    | smask_t::zero_points_runtime
-                    | smask_t::zero_points_runtime_data_type;
 
         VCHECK_CONV_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
                 VERBOSE_UNSUPPORTED_ATTR);
@@ -199,8 +195,7 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
             const bool with_groups
                     = desc.src_desc.ndims != desc.weights_desc.ndims;
             VCHECK_CONV_UNIMPL(utils::one_of(mask_wei, 0, with_groups ? 3 : 1)
-                            && utils::one_of(mask_dst, 0, 2)
-                            && utils::one_of(mask_src, 0, 3),
+                            && utils::one_of(mask_dst, 0, 2) && mask_src == 0,
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
         }
 
