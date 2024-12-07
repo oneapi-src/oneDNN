@@ -37,7 +37,6 @@
 namespace dnnl {
 namespace impl {
 
-const primitive_attr_t &default_attr();
 struct runtime_scales_t;
 const runtime_scales_t &default_runtime_scale();
 
