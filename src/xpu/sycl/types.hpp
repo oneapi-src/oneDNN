@@ -56,6 +56,30 @@ namespace sycl {
                     &CTX_OUT_STORAGE(arg)) \
                       ->get_inout_memory_arg(ctx.stream(), cgh)
 
+#define CTX_IN_SCRATCH_KERNEL_MEMORY(KEY) \
+    ctx.get_scratchpad_grantor() \
+                    .get_memory_storage(memory_tracking::names::KEY) \
+                    ->is_null() \
+            ? xpu::sycl::memory_storage_base_t::empty_in_memory_arg( \
+                    ctx.stream(), cgh) \
+            : utils::downcast<const xpu::sycl::memory_storage_base_t *>( \
+                    ctx.get_scratchpad_grantor() \
+                            .get_memory_storage(memory_tracking::names::KEY) \
+                            .get()) \
+                      ->get_in_memory_arg(ctx.stream(), cgh);
+
+#define CTX_OUT_SCRATCH_KERNEL_MEMORY(KEY) \
+    ctx.get_scratchpad_grantor() \
+                    .get_memory_storage(memory_tracking::names::KEY) \
+                    ->is_null() \
+            ? xpu::sycl::memory_storage_base_t::empty_out_memory_arg( \
+                    ctx.stream(), cgh) \
+            : utils::downcast<const xpu::sycl::memory_storage_base_t *>( \
+                    ctx.get_scratchpad_grantor() \
+                            .get_memory_storage(memory_tracking::names::KEY) \
+                            .get()) \
+                      ->get_out_memory_arg(ctx.stream(), cgh);
+
 #define CHECK_SYCL_KERNEL_ARG_TYPE(type) \
     static_assert(::sycl::is_device_copyable_v<type>)
 
