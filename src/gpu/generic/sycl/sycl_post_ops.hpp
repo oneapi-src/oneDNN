@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive_attr.hpp"
+#include "common/primitive_exec_types.hpp"
 #include "common/utils.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_math_utils.hpp"
