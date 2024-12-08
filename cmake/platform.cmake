@@ -233,6 +233,8 @@ elseif(UNIX OR MINGW)
         append(CMAKE_CCXX_FLAGS "-Wsign-compare")
     endif()
 
+    append(CMAKE_CCXX_FLAGS "-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer")
+
     platform_unix_and_mingw_common_ccxx_flags(CMAKE_CCXX_FLAGS)
     platform_unix_and_mingw_common_cxx_flags(CMAKE_CXX_FLAGS)
     platform_unix_and_mingw_noexcept_ccxx_flags(CMAKE_CMAKE_CCXX_NOEXCEPT_FLAGS)
