@@ -93,6 +93,7 @@ namespace types {
 inline size_t data_type_size(data_type_t data_type) {
     using namespace data_type;
     switch ((int)data_type) {
+        case f4_e3m0: return sizeof(prec_traits<f4_e3m0>::type);
         case f4_e2m1: return sizeof(prec_traits<f4_e2m1>::type);
         case e8m0: return sizeof(prec_traits<e8m0>::type);
         case f8_e5m2: return sizeof(prec_traits<f8_e5m2>::type);
@@ -139,6 +140,7 @@ inline T min_value(data_type_t data_type) {
     case x: \
         return static_cast<T>(nstl::numeric_limits<prec_traits<x>::type>::min())
     switch (data_type) {
+        CASE(f4_e3m0);
         CASE(f4_e2m1);
         CASE(e8m0);
         CASE(f8_e5m2);
@@ -166,6 +168,7 @@ inline T max_value(data_type_t data_type) {
     case x: \
         return static_cast<T>(nstl::numeric_limits<prec_traits<x>::type>::max())
     switch (data_type) {
+        CASE(f4_e3m0);
         CASE(f4_e2m1);
         CASE(e8m0);
         CASE(f8_e5m2);
@@ -195,6 +198,7 @@ inline float max_value(data_type_t data_type) {
         return static_cast<float>( \
                 nstl::numeric_limits<prec_traits<x>::type>::max())
     switch (data_type) {
+        CASE(f4_e3m0);
         CASE(f4_e2m1);
         CASE(e8m0);
         CASE(f8_e5m2);
@@ -233,6 +237,7 @@ inline T lowest_value(data_type_t data_type) {
         return static_cast<T>( \
                 nstl::numeric_limits<prec_traits<x>::type>::lowest())
     switch (data_type) {
+        CASE(f4_e3m0);
         CASE(f4_e2m1);
         CASE(e8m0);
         CASE(f8_e5m2);
@@ -261,6 +266,7 @@ inline T digits(data_type_t data_type) {
         return static_cast<T>( \
                 nstl::numeric_limits<prec_traits<x>::type>::digits)
     switch (data_type) {
+        CASE(f4_e3m0);
         CASE(f4_e2m1);
         CASE(e8m0);
         CASE(f8_e5m2);
@@ -419,6 +425,7 @@ inline data_type_t default_accum_data_type(
     // true
     if (one_of(src_dt, s8, u8, u4, s4) && (dst_dt != f32 || strict)) return s32;
 
+    if (one_of(f4_e3m0, src_dt, dst_dt)) return f32;
     if (one_of(f4_e2m1, src_dt, dst_dt)) return f32;
     if (one_of(f8_e5m2, src_dt, dst_dt)) return f32;
     if (one_of(f8_e4m3, src_dt, dst_dt)) return f32;
@@ -461,6 +468,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
             return f32;
     }
 
+    if (one_of(f4_e3m0, src_dt, wei_dt, dst_dt)) return f32;
     if (one_of(f4_e2m1, src_dt, wei_dt, dst_dt)) return f32;
     if (one_of(f8_e5m2, src_dt, wei_dt, dst_dt)) return f32;
     if (one_of(f8_e4m3, src_dt, wei_dt, dst_dt)) return f32;
@@ -1262,8 +1270,8 @@ inline bool memory_desc_sanity_check(int ndims, const dims_t dims,
     if (ndims == 0) return true;
 
     bool ok = dims != nullptr && 0 < ndims && ndims <= DNNL_MAX_NDIMS
-            && utils::one_of(data_type, f4_e2m1, e8m0, f8_e5m2, f8_e4m3, f16,
-                    bf16, f32, f64, s32, s8, u8, s4, u4);
+            && utils::one_of(data_type, f4_e3m0, f4_e2m1, e8m0, f8_e5m2,
+                    f8_e4m3, f16, bf16, f32, f64, s32, s8, u8, s4, u4);
     if (!ok) return false;
 
     bool has_runtime_dims = false;
