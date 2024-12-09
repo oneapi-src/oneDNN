@@ -62,7 +62,8 @@
     HANDLE_IR_OBJECT(let_t) \
     HANDLE_IR_OBJECT(stmt_group_t) \
     HANDLE_IR_OBJECT(stmt_seq_t) \
-    HANDLE_IR_OBJECT(store_t)
+    HANDLE_IR_OBJECT(store_t) \
+    HANDLE_IR_OBJECT(while_t)
 
 #define HANDLE_TRAVERSE_TARGETS() \
     HANDLE_EXPR_IR_OBJECTS() \
@@ -2473,6 +2474,38 @@ public:
 private:
     stmt_seq_t(const std::vector<stmt_t> &vec)
         : stmt_impl_t(_type_info()), vec(vec) {}
+};
+
+// While loop statement with a condition.
+// C++ equivalent:
+//    while (cond) {
+//        body;
+//    }
+class while_t : public stmt_impl_t {
+public:
+    IR_DECL_STMT_TYPE_ID(while_t)
+
+    static stmt_t make(const expr_t &cond, const stmt_t &body = {}) {
+        return stmt_t(new while_t(cond, body));
+    }
+
+    bool is_equal(const object_impl_t &obj) const override {
+        if (!obj.is<self_type>()) return false;
+        auto &other = obj.as<self_type>();
+
+        return cond.is_equal(other.cond) && body.is_equal(other.body);
+    }
+
+    size_t get_hash() const override { return ir_utils::get_hash(cond, body); }
+
+    IR_DECLARE_TRAVERSERS()
+
+    expr_t cond;
+    stmt_t body;
+
+private:
+    while_t(const expr_t &cond, const stmt_t &body)
+        : stmt_impl_t(_type_info()), cond(cond), body(body) {}
 };
 
 // Function call attribute.
