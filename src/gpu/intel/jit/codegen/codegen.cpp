@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -299,6 +299,20 @@ public:
                 off, to_ngen(type.scalar()), type.elems(), stride);
         ngen_operand_t dst(dst_rbd, mod);
         eval(obj.value, scope, dst, obj.fill_mask0 && !mask_op.is_invalid());
+    }
+
+    void _visit(const while_t &obj) override {
+        auto scope = register_scope();
+
+        ngen::Label loop_end_label;
+        ngen::Label loop_begin_label;
+
+        host_->mark(loop_begin_label);
+        auto cond_op = eval(obj.cond, scope);
+        host_->jmpi(1 | ~cond_op.flag_register_mod(), loop_end_label);
+        visit(obj.body);
+        host_->jmpi(1, loop_begin_label);
+        host_->mark(loop_end_label);
     }
 
 private:

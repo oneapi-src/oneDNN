@@ -668,6 +668,20 @@ void ir_visitor_t::_visit(const unary_op_t &obj) {
     visit(obj.a);
 }
 
+object_t ir_mutator_t::_mutate(const while_t &obj) {
+    auto cond = mutate(obj.cond);
+    auto body = mutate(obj.body);
+
+    if (cond.is_same(obj.cond) && body.is_same(obj.body)) return obj;
+
+    return while_t::make(cond, body);
+}
+
+void ir_visitor_t::_visit(const while_t &obj) {
+    visit(obj.cond);
+    visit(obj.body);
+}
+
 // Catch missing mutates that are not expected to dispatch to the base
 // mutator
 object_t ir_mutator_t::_mutate(const nary_op_t &obj) {

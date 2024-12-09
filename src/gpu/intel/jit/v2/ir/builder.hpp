@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -563,6 +563,13 @@ public:
         enter_scope();
         body_func();
         emit(for_t::make(var, init, bound, exit_scope()));
+    }
+
+    template <typename BodyFuncT>
+    void _while(const expr_t &cond, const BodyFuncT &body_func) {
+        enter_scope();
+        body_func();
+        emit(while_t::make(cond, exit_scope()));
     }
 
     void emit(const stmt_t &stmt) { top_stmt() = top_stmt().append(stmt); }

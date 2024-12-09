@@ -237,6 +237,16 @@ public:
 
     void _visit(const var_t &obj) override { out_ << obj.name; }
 
+    void _visit(const while_t &obj) override {
+        print_indent();
+        out_ << "while (" << obj.cond << ") {\n";
+        add_indent();
+        visit(obj.body);
+        remove_indent();
+        print_indent();
+        out_ << "}\n";
+    }
+
 private:
     mem_usage_guard_t mem_usage_guard(int size) {
         return mem_usage_guard_t(&mem_usage_bytes_, size);
@@ -734,6 +744,9 @@ stmt_t get_stmt_body(const stmt_t &stmt) {
     auto *_for = stmt.as_ptr<for_t>();
     if (_for) return _for->body;
 
+    auto *_while = stmt.as_ptr<while_t>();
+    if (_while) return _while->body;
+
     auto *let = stmt.as_ptr<let_t>();
     if (let) return let->body;
 
@@ -755,6 +768,9 @@ stmt_t replace_stmt_body(const stmt_t &stmt, const stmt_t &new_body) {
         return for_t::make(_for->var, _for->init, _for->bound, new_body,
                 _for->step, _for->unroll);
     }
+
+    auto *_while = stmt.as_ptr<while_t>();
+    if (_while) { return while_t::make(_while->cond, new_body); }
 
     auto *let = stmt.as_ptr<let_t>();
     if (let) { return let_t::make(let->var, let->value, new_body); }
