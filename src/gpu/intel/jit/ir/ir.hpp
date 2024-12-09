@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -447,6 +447,8 @@ private:
 
 // IR utility functions.
 expr_t abs(const expr_t &e);
+expr_t max(const expr_t &a, const expr_t &b);
+expr_t min(const expr_t &a, const expr_t &b);
 
 expr_t cast(const expr_t &e, const type_t &type, bool saturate = false);
 
