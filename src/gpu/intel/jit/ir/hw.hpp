@@ -145,6 +145,8 @@ class exec_config_t {
 public:
     exec_config_t() = default;
     exec_config_t(const hw_t &hw) : hw_(hw) {}
+    exec_config_t(const hw_t &hw, int regs, int simd)
+        : hw_(hw), regs_(regs), simd_(simd) {}
 
     const hw_t &hw() const { return hw_; }
     int regs() const { return regs_; }

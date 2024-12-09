@@ -29,8 +29,7 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
-stmt_t build_ir(const kernel_desc_t &desc, const kernel_info_t &kernel_info,
-        const grid_context_t &grid_ctx);
+stmt_t build_ir(const kernel_desc_t &desc, const kernel_iface_t &kernel_iface);
 
 } // namespace conv
 } // namespace v2

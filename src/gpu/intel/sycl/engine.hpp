@@ -159,8 +159,8 @@ public:
         auto kernel_name = jitter->kernel_name();
 
         xpu::binary metadata_binary;
-        xpu::binary_t kernel_binary = jitter->get_binary(
-                ocl_engine->context(), ocl_engine->device(), metadata_binary);
+        xpu::binary_t kernel_binary
+                = jitter->get_binary(ocl_engine, metadata_binary);
         return create_kernel_from_binary(
                 *kernel, kernel_binary, metadata_binary, kernel_name);
     }
