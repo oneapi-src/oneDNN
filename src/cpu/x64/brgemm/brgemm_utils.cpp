@@ -208,7 +208,7 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
     // TODO: Calculating the number of available registers should be re-factored
     // to use one code here and in brgemm kernel generator on
     // "max_effective_vregs" calculation
-    constexpr int max_bcst_regs = 1;
+    const int max_bcst_regs = brg->n_bcast_1_load ? 0 : 1;
     const bool req_compensation = brg->req_s8s8_compensation
             || brg->zp_type_a != brgemm_broadcast_t::none;
     const bool req_zp_a_comp_pads
@@ -221,6 +221,11 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
     const int b_vnni_regs = brg->is_f16_b_non_amx_vnni() ? 2 : 0;
 
     const int max_isa_regs = isa_num_vregs(brg->isa_impl);
+    const int postops_regs = brg->attr()
+            ? injector::aux_vec_count(
+                    brg->attr()->post_ops_, brg->isa_impl, true)
+            : 0;
+
     // note: the 'adj_ld_block2' already removes the necessary registers
     // for 'embd_bcst'
     auto max_reg_count = max_isa_regs - max_bcst_regs - beta_regs
@@ -229,12 +234,8 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
         max_reg_count
                 = nstl::min(max_reg_count, max_isa_regs - max_bcst_regs - 5);
 
-    const int postops_regs = brg->attr()
-            ? injector::aux_vec_count(
-                    brg->attr()->post_ops_, brg->isa_impl, true)
-            : 0;
-    int max_bcast_block
-            = max_reg_count - nstl::max(adj_ld_block2, postops_regs);
+    int max_bcast_block = max_reg_count
+            - nstl::max(brg->n_bcast_1_load ? 1 : adj_ld_block2, postops_regs);
 
     if (brg->is_bf16_emu) {
         // in theory, vmm bf16_emu register indices overlap with other vmm
@@ -247,7 +248,7 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
     // non-VNNI INT8 dot product required 2 temp vectors
     if (brg->is_int8 && !brg->has_int8_vnni) max_bcast_block -= 2;
 
-    max_bcast_block /= adj_ld_block2;
+    max_bcast_block /= (adj_ld_block2 + brg->n_bcast_1_load);
 
     return max_bcast_block;
 }
@@ -278,12 +279,19 @@ status_t brgemm_blocking(brgemm_desc_t *brg) {
         brg->ldb = brg->load_dim / brg->ld_block;
         brg->ldb_tail = brg->load_dim % brg->ld_block;
 
+        int adj_ld_block2 = calculate_ldb_params(brg, 4);
+
+        brg->n_bcast_1_load
+                = (utils::one_of(brg->isa_impl, avx2, avx2_vnni, avx2_vnni_2)
+                          && adj_ld_block2 == 4)
+                || brg->brgattr.hint_loop_order == brgemm_lo_bl_1load;
+
+        int max_bcast_block = calculate_max_bcast_block(brg, adj_ld_block2);
+
+        // reduce 'ld_block2' to allow a larger 'bd_block'
         const int max_vpad = nstl::max(
                 brg->brgattr.max_top_vpad, brg->brgattr.max_bottom_vpad);
 
-        int adj_ld_block2 = calculate_ldb_params(brg, 4);
-        int max_bcast_block = calculate_max_bcast_block(brg, adj_ld_block2);
-        // reduce 'ld_block2' to allow a larger 'bd_block'
         if (is_superset(brg->isa_impl, avx2) && max_bcast_block < max_vpad) {
             for (int try_ld_block2 = 2; try_ld_block2 > 0; --try_ld_block2) {
                 adj_ld_block2 = calculate_ldb_params(brg, try_ld_block2);
