@@ -101,6 +101,13 @@ struct serialized_data_t {
             append<typename T::value_type>(d);
     };
 
+    template <typename T,
+            gpu_utils::enable_if_t<std::is_same<T, std::string>::value,
+                    bool> = true>
+    void append(const T &v) {
+        append(std::vector<char>(v.begin(), v.end()));
+    };
+
     template <typename Arg1, typename Arg2, typename... Args>
     void append(const Arg1 &a1, const Arg2 &a2, const Args &...args) {
         append(a1);
@@ -237,6 +244,15 @@ struct deserializer_t {
             pop(t);
             v.emplace_back(t);
         }
+    }
+
+    template <typename T,
+            gpu_utils::enable_if_t<std::is_same<T, std::string>::value,
+                    bool> = true>
+    void pop(T &v) {
+        std::vector<char> vec;
+        pop(vec);
+        v = T(vec.begin(), vec.end());
     }
 
     size_t idx;
