@@ -57,7 +57,8 @@ expr_t simplify_linear_mod(const expr_t &e, int64_t factor);
 //     init = expr(idxs[i] = 0)
 //     incs[i] = expr(idxs[i] + 1) - expr(idx[i]).
 void split_to_linear(const expr_t &expr, const std::vector<expr_t> &idxs,
-        expr_t &init, std::vector<expr_t> &incs);
+        const std::vector<expr_t> &start, expr_t &init,
+        std::vector<expr_t> &incs);
 
 } // namespace jit
 } // namespace intel
