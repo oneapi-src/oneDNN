@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include "gpu/intel/sycl/compat.hpp"
 #include "gpu/intel/sycl/device_info.hpp"
 #include "gpu/intel/sycl/engine.hpp"
+#include "gpu/intel/sycl/l0/utils.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 
 #include "gpu/intel/ocl/ocl_gpu_hw_info.hpp"
@@ -34,6 +35,7 @@ status_t device_info_t::init_arch(impl::engine_t *engine) {
     auto *sycl_engine
             = utils::downcast<const gpu::intel::sycl::engine_t *>(engine);
     auto &device = sycl_engine->device();
+    auto &ctx = sycl_engine->context();
 
     // skip cpu engines
     if (!device.is_gpu()) return status::success;
@@ -43,34 +45,23 @@ status_t device_info_t::init_arch(impl::engine_t *engine) {
 
     auto be = xpu::sycl::get_backend(device);
     if (be == xpu::sycl::backend_t::opencl) {
-        cl_int err = CL_SUCCESS;
-
         auto ocl_dev = xpu::sycl::compat::get_native<cl_device_id>(device);
         auto ocl_dev_wrapper = xpu::ocl::make_wrapper(ocl_dev);
 
-        auto ocl_ctx_wrapper = xpu::ocl::make_wrapper(
-                clCreateContext(nullptr, 1, &ocl_dev, nullptr, nullptr, &err));
-        OCL_CHECK(err);
+        auto ocl_ctx = xpu::sycl::compat::get_native<cl_context>(ctx);
+        auto ocl_ctx_wrapper = xpu::ocl::make_wrapper(ocl_ctx);
 
         gpu::intel::ocl::init_gpu_hw_info(engine, ocl_dev_wrapper,
                 ocl_ctx_wrapper, ip_version_, gpu_arch_, gpu_product_family_,
                 stepping_id_, native_extensions_, mayiuse_systolic_,
                 mayiuse_ngen_kernels_);
     } else if (be == xpu::sycl::backend_t::level0) {
-        // TODO: add support for L0 binary ngen check
-        // XXX: query from ocl_engine for now
-        std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
-                ocl_engine;
-        CHECK(gpu::intel::sycl::create_ocl_engine(&ocl_engine, sycl_engine));
+        auto ze_dev = xpu::sycl::compat::get_native<ze_device_handle_t>(device);
+        auto ze_ctx = xpu::sycl::compat::get_native<ze_context_handle_t>(ctx);
 
-        auto *dev_info = ocl_engine->device_info();
-        ip_version_ = dev_info->ip_version();
-        gpu_arch_ = dev_info->gpu_arch();
-        gpu_product_family_ = dev_info->gpu_product_family();
-        stepping_id_ = dev_info->stepping_id();
-        native_extensions_ = dev_info->native_extensions();
-        mayiuse_systolic_ = dev_info->mayiuse_systolic();
-        mayiuse_ngen_kernels_ = dev_info->mayiuse_ngen_kernels();
+        gpu::intel::sycl::init_gpu_hw_info(engine, ze_dev, ze_ctx, ip_version_,
+                gpu_arch_, gpu_product_family_, stepping_id_,
+                native_extensions_, mayiuse_systolic_, mayiuse_ngen_kernels_);
     } else {
         assert(!"not_expected");
     }
