@@ -32,6 +32,14 @@
 
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
+#include "gpu/nvidia/cudnn_gemm.hpp"
+#endif
+
+#ifdef GENERIC_SYCL_KERNELS_ENABLED
+#include "gpu/generic/sycl/ref_gemm.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -44,7 +52,9 @@ constexpr impl_list_item_t impl_list[] = {
         GPU_INSTANCE_INTEL(intel::jit::xe_hp_systolic_gemm_t)
         GPU_INSTANCE_INTEL(intel::ocl::gemm_with_post_ops_t)
         GPU_INSTANCE_INTEL(intel::jit::gen_gemm_t)
-        GPU_INSTANCE_INTEL_REF(intel::ocl::ref_gemm_t)
+        GPU_INSTANCE_INTEL(intel::ocl::ref_gemm_t)
+        GPU_INSTANCE_NVIDIA(nvidia::cudnn_gemm_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_gemm_t)
         nullptr,
 };
 // clang-format on

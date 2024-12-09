@@ -111,6 +111,7 @@ public:
 
         storage->usm_ptr_ = decltype(usm_ptr_)(usm_ptr_.get(), [](void *) {});
         storage->usm_kind_ = usm_kind_;
+        storage->offset_ = this->offset_;
 
         return storage;
     }
