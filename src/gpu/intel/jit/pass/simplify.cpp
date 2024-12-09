@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -855,6 +855,8 @@ public:
     void _visit(const ptr_t &obj) override { visit_new_scope(obj); }
 
     void _visit(const unary_op_t &obj) override { visit_new_scope(obj); }
+
+    void _visit(const ternary_op_t &obj) override { visit_new_scope(obj); }
 
     void _visit(const nary_op_t &obj) override {
         if (parent_nary_) {
