@@ -817,6 +817,7 @@ struct jit_brgemm_conv_conf_t {
     bool has_uneven_iw;
     int trans_dim_koef {1};
     bool extendable_k = false;
+    brgemm_kernel_loop_order_t brgemm_kernel_loop_order {brgemm_lo_default};
 };
 
 struct jit_shuffle_conf_t {
