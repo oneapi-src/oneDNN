@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,18 +41,15 @@ namespace v2 {
 namespace conv {
 
 void maybe_init_layout(
-        memory_desc_t &md, const layout_raw_tag_t &_tag, bool remove_a_dim) {
+        memory_desc_t &md, const layout_tag_t &_tag, bool remove_a_dim) {
     if (md.format_kind != format_kind::any) return;
-    auto tag = _tag;
-    dim_idx_t non_spatial_ndims = tag.ndims() - 3;
-    if (remove_a_dim) {
-        tag.remove_dim('a');
-        non_spatial_ndims--;
-    }
-    while (tag.ndims() > into<dim_idx_t>(md.ndims)) {
-        tag.remove_dim(dim_idx::as_tag(non_spatial_ndims));
-    }
-    jit::layout_t layout(md, tag.str(), /*do_normalize=*/false);
+    // This code sets the any memory descriptor as follows:
+    // - Blocking is set according to the tag from the kernel descriptor
+    // - Type is copied from the user descriptor
+    // XXX: When internal blocked layouts are added, this needs an adjustment.
+    // The user layout should be set to a plain layout for consistency with
+    // other layers.
+    auto layout = to_conv_layout(_tag, md, remove_a_dim);
     md = layout.to_dnnl(md.dims);
 }
 
@@ -61,11 +58,11 @@ status_t init_layouts(const kernel_desc_t &desc, convolution_pd_t *pd) {
     auto &wei_md = *const_cast<memory_desc_t *>(pd->invariant_wei_md());
     auto &dst_md = *const_cast<memory_desc_t *>(pd->invariant_dst_md());
     auto &bia_md = *const_cast<memory_desc_t *>(pd->invariant_bia_md());
-    maybe_init_layout(src_md, desc.src_tag.raw_tag(), false);
-    maybe_init_layout(wei_md, desc.wei_tag.raw_tag(), !pd->with_groups());
-    maybe_init_layout(dst_md, desc.dst_tag.raw_tag(), false);
-    maybe_init_layout(bia_md,
-            make_conv_layout_tag(tensor_kind_t::bia, "a").raw_tag(), false);
+    maybe_init_layout(src_md, desc.src_tag, false);
+    maybe_init_layout(wei_md, desc.wei_tag, !pd->with_groups());
+    maybe_init_layout(dst_md, desc.dst_tag, false);
+    maybe_init_layout(
+            bia_md, make_conv_layout_tag(tensor_kind_t::bia, "a"), false);
     return status::success;
 }
 

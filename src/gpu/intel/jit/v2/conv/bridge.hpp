@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,6 +83,32 @@ inline problem_t to_problem(
     prb.normalize();
 
     return prb;
+}
+
+inline jit::layout_t to_conv_layout(const layout_tag_t &_tag,
+        const memory_desc_t &md, bool remove_a_dim = false) {
+    auto tag = _tag.raw_tag();
+    dim_idx_t non_spatial_ndims = tag.ndims() - 3;
+    if (remove_a_dim) {
+        tag.remove_dim('a');
+        non_spatial_ndims--;
+    }
+    while (tag.ndims() > into<dim_idx_t>(md.ndims)) {
+        tag.remove_dim(dim_idx::as_tag(non_spatial_ndims));
+    }
+    return jit::layout_t(md, tag.str(), /*do_normalize=*/false);
+}
+
+inline jit::grid_info_t to_grid_info(
+        const grid_t &grid, const pvar_tile_t &tile) {
+    std::vector<dim_t> dims;
+    std::vector<expr_t> idxs;
+    for (int i = 0; i < grid_t::N; i++) {
+        dim_t size = grid.size(i, tile);
+        dims.push_back(size);
+        idxs.push_back(size == 1 ? 0 : grid.index_var(i));
+    }
+    return jit::grid_info_t(dims, idxs);
 }
 
 } // namespace conv
