@@ -458,29 +458,19 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     });
 }
 
-void init_kernel_info_div_magic(
-        kernel_info_t &kernel_info, const kernel_desc_t &desc) {
-    auto tg_grid = create_thread_group_grid(desc);
+void init_kernel_info_div_magic(kernel_info_t &kernel_info,
+        const grid_t &tg_grid, const pvar_tile_t &tg_dims, dim_t sw) {
     for (auto &d : tg_grid.all_dims()) {
-        auto var_size = var_t::make(type_t::u32(), d.str() + "_grid_size");
-        auto var_magic = var_t::make(type_t::u64(), d.str() + "_magic");
-        kernel_info.register_internal_arg(var_magic);
-        kernel_info.register_internal_arg(var_size);
-    }
-    auto sw_magic = var_t::make(type_t::u64(), "sw_magic");
-    kernel_info.register_internal_arg(sw_magic);
-}
-
-void init_dispatch_kernel_info_div_magic(
-        kernel_info_t &kernel_info, const pvar_tile_t &tg_dims, dim_t sw) {
-    for (auto &d : tg_dims) {
         uint32_t size = into<uint32_t>(tg_dims.at(d));
         uint64_t magic = ir_utils::idiv_magicgu_packed(size);
-        kernel_info.set_internal_arg(d.str() + "_grid_size", size);
-        kernel_info.set_internal_arg(d.str() + "_magic", magic);
+        auto magic_var = var_t::make(type_t::u64(), d.str() + "_magic");
+        auto size_var = var_t::make(type_t::u32(), d.str() + "_grid_size");
+        kernel_info.register_internal_arg(magic_var, magic);
+        kernel_info.register_internal_arg(size_var, size);
     }
-    kernel_info.set_internal_arg(
-            "sw_magic", ir_utils::idiv_magicgu_packed(into<uint32_t>(sw)));
+    auto sw_magic_var = var_t::make(type_t::u64(), "sw_magic");
+    kernel_info.register_internal_arg(
+            sw_magic_var, ir_utils::idiv_magicgu_packed(into<uint32_t>(sw)));
 }
 
 arg_helper_t::arg_helper_t(const kernel_desc_t &desc) : desc_(desc) {}
@@ -586,7 +576,25 @@ compute::range_t kernel_desc_t::local_range() const {
     return lws;
 }
 
-status_t kernel_desc_t::init_kernel_info(kernel_info_t &kernel_info) const {
+void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
+    auto tensor_config = get_tensor_config(*this);
+    for (auto &t : tensor_config.tensors()) {
+        kernel_iface.register_arg(t.name, type_t::byte_ptr());
+    }
+    for (auto &d : conv_dims()) {
+        kernel_iface.register_arg(d.str(), type_t::s32());
+    }
+    auto tg_grid = create_thread_group_grid(*this);
+    for (auto &d : tg_grid.all_dims()) {
+        kernel_iface.register_arg(d.str() + "_magic", type_t::u64());
+        kernel_iface.register_arg(d.str() + "_grid_size", type_t::u32());
+    }
+    kernel_iface.register_arg("sw_magic", type_t::u64());
+}
+
+void kernel_desc_t::init_kernel_info(
+        kernel_info_t &kernel_info, const kernel_params_base_t &_params) const {
+    auto &params = static_cast<const kernel_params_t &>(_params);
     auto tensor_config = get_tensor_config(*this);
     for (auto &t : tensor_config.tensors()) {
         auto buf = make_buffer(t.name);
@@ -597,8 +605,29 @@ status_t kernel_desc_t::init_kernel_info(kernel_info_t &kernel_info) const {
         kernel_info.register_internal_arg(var);
     }
 
-    init_kernel_info_div_magic(kernel_info, *this);
-    return status::success;
+    auto tg_grid = create_thread_group_grid(*this);
+    auto thr_grid = create_thread_grid(*this);
+    auto &shape = params.prb.shape();
+    for (auto &d : shape) {
+        kernel_info.set_internal_arg(d.str(), shape.at(d));
+    }
+    pvar_tile_t tg_dims;
+    for (auto &d : tg_grid.all_dims()) {
+        dim_t tg_size = thread_group_tile.get(d, 1);
+        dim_t iter_size = iter_tile.get(d, 1);
+        tg_dims[d] = utils::div_up(shape.at(d), tg_size * iter_size);
+    }
+    init_kernel_info_div_magic(
+            kernel_info, tg_grid, tg_dims, shape.at(pvars::sw));
+    compute::range_t gws = compute::range_t::empty();
+    compute::range_t lws = compute::range_t::empty();
+    for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
+        size_t tg_dim = thr_grid.size(i, thread_group_tile);
+        lws[i] = tg_dim * (i == 0 ? into<size_t>(simd) : 1);
+        gws[i] = tg_grid.size(i, tg_dims) * lws[i];
+    }
+    auto nd_range = compute::nd_range_t(gws, lws);
+    kernel_info.set_nd_range(nd_range);
 }
 
 status_t kernel_desc_t::create_kernel(compute::kernel_t &kernel,
@@ -641,7 +670,7 @@ void kernel_desc_t::show_help() {
 }
 
 grid_t create_thread_group_grid(const kernel_desc_t &desc) {
-    grid_t grid("tg_idx");
+    grid_t grid(jit::ir_builder_t::tg_idxs());
     switch (desc.prop) {
         case prop_kind::forward:
             grid.add_mapping(pvars::oc, 0);
@@ -697,36 +726,6 @@ grid_t create_thread_grid(const kernel_desc_t &desc) {
         if (!desc.thread_group_tile.has(d)) grid.unset(d);
     }
     return grid;
-}
-
-status_t kernel_params_t::init_dispatch_kernel_info(
-        kernel_info_t &kernel_info, const kernel_desc_base_t &_desc) const {
-    auto &desc = static_cast<const kernel_desc_t &>(_desc);
-    auto tg_grid = create_thread_group_grid(desc);
-    auto thr_grid = create_thread_grid(desc);
-    CHECK(desc.init_kernel_info(kernel_info));
-    auto &shape = prb.shape();
-    for (auto &d : shape) {
-        kernel_info.set_internal_arg(d.str(), shape.at(d));
-    }
-    pvar_tile_t tg_dims;
-    for (auto &d : tg_grid.all_dims()) {
-        dim_t tg_size = desc.thread_group_tile.get(d, 1);
-        dim_t iter_size = desc.iter_tile.get(d, 1);
-        tg_dims[d] = utils::div_up(shape.at(d), tg_size * iter_size);
-    }
-    init_dispatch_kernel_info_div_magic(
-            kernel_info, tg_dims, shape.at(pvars::sw));
-    compute::range_t gws = compute::range_t::empty();
-    compute::range_t lws = compute::range_t::empty();
-    for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
-        size_t tg_dim = thr_grid.size(i, desc.thread_group_tile);
-        lws[i] = tg_dim * (i == 0 ? into<size_t>(desc.simd) : 1);
-        gws[i] = tg_grid.size(i, tg_dims) * lws[i];
-    }
-    auto nd_range = compute::nd_range_t(gws, lws);
-    kernel_info.set_nd_range(nd_range);
-    return status::success;
 }
 
 } // namespace conv
