@@ -1956,6 +1956,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             * jcp.wei_dsz;
 
     jcp.loop_order = (bcast_amount < wei_amount) ? loop_ngcdhw : loop_ndhwgc;
+    jcp.brgemm_kernel_loop_order
+            = brgemm_kernel_loop_order_t::brgemm_lo_default;
 
     const int min_oc_block = jcp.acc_simd_w;
 

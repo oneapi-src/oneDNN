@@ -284,6 +284,8 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::add_brg_descriptor(int vM,
     brgattr.hint_innermost_loop = jcp_.brgemm_bd_loop_innermost
             ? brgemm_bd_loop_innermost
             : brgemm_innermost_undef;
+    brgattr.hint_loop_order = jcp_.brgemm_kernel_loop_order;
+
     if (jcp_.amx_tile_load_xx) {
         // assuming 2x2 decomposition in amx brgemm kernel
         // and overlap of input by kw
