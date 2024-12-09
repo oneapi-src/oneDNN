@@ -291,7 +291,7 @@ private:
     }
 
     Vmm bcst(int bd = 0) {
-        if (n_bcast_1_load) {
+        if (brg.n_bcast_1_load) {
             int idx = max_effective_vregs - 1 - (brg.ld_block2 * brg.bd_block)
                     - bd;
             assert(idx > 0);
@@ -301,7 +301,7 @@ private:
     }
 
     Vmm load(int ld = 0) {
-        if (n_bcast_1_load) {
+        if (brg.n_bcast_1_load) {
             return Vmm(0);
         } else {
             int idx = max_effective_vregs - 1 - (brg.ld_block2 * brg.bd_block)
@@ -443,7 +443,6 @@ private:
     int bdb_zp_comp_b_offset(int bd_block2) const noexcept;
     int zp_c_values_offset(int ld, bool is_tail = false) const noexcept;
 
-    bool n_bcast_1_load = false;
     bool vpad_exist = false;
     bool need_comp_pads = false;
 };
@@ -2091,7 +2090,7 @@ void jit_brgemm_kernel_t<Wmm>::compute_int8_compensation(int rd_loop, int bd_b,
         }
     };
 
-    if (n_bcast_1_load && brg.zp_type_a != brgemm_broadcast_t::none) {
+    if (brg.n_bcast_1_load && brg.zp_type_a != brgemm_broadcast_t::none) {
         mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
         const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
         mov(reg32_scratch, 0x1010101);
@@ -2188,7 +2187,7 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
 
     bool maybe_load_bytes = (rows_for_rd_tail > 0 || brg.brgattr.wary_tail_read)
             && is_rd_tail && rd_tail_size != 0 && (brg.is_bf16 || brg.is_int8);
-    if (n_bcast_1_load) {
+    if (brg.n_bcast_1_load) {
         for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
             bool have_to_load_bytes
                     = maybe_load_bytes && (rd == rd_loop - brg.rd_step);
@@ -2588,7 +2587,6 @@ void jit_brgemm_kernel_t<Wmm>::bdb_loop() {
     if (brg.is_tmm) {
         rows_for_rd_tail = 0;
         bd_blocks_for_rd_tail = 0;
-        n_bcast_1_load = false;
     } else {
         rows_for_rd_tail = 0;
         if (brg.rdb_tail != 0 && (brg.is_bf16 || brg.is_int8)) {
@@ -2602,19 +2600,6 @@ void jit_brgemm_kernel_t<Wmm>::bdb_loop() {
                                  rows_for_rd_tail - brg.bdb_tail
                                          + brg.brgattr.max_bottom_vpad),
                         brg.bd_block);
-
-        auto ld_block2 = (brg.ldb2 > 0)
-                ? brg.ld_block2
-                : ((brg.ldb2_tail > 0) ? brg.ldb2_tail : 1);
-        const int free_vregs = max_effective_vregs - brg.req_s8s8_compensation;
-        n_bcast_1_load = brg.is_int8
-                && ((brg.bd_block * (ld_block2 + 1) < free_vregs)
-                        && (bd_blocks_for_rd_tail == 0)
-                        && (rows_for_rd_tail == 0));
-        if (brg.brgattr.hint_loop_order != brgemm_lo_default)
-            n_bcast_1_load = (brg.brgattr.hint_loop_order == brgemm_lo_bl_1load)
-                    ? true
-                    : false;
     }
 
     auto bdb_loop_avx512 = [&](bool skip_accumulation) {
