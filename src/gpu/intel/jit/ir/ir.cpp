@@ -617,6 +617,14 @@ expr_t abs(const expr_t &e) {
     return -e;
 }
 
+expr_t max(const expr_t &a, const expr_t &b) {
+    return binary_op_t::make(op_kind_t::_max, a, b);
+}
+
+expr_t min(const expr_t &a, const expr_t &b) {
+    return binary_op_t::make(op_kind_t::_min, a, b);
+}
+
 expr_t cast(const expr_t &e, const type_t &type, bool saturate) {
     return const_fold(cast_t::make(type, e, saturate));
 }
