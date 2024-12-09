@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,10 +38,10 @@ public:
     reorder_ir_builder_t(const reorder_config_t &cfg,
             const kernel_info_t &kernel_info, const primitive_attr_t *attr,
             const memory_desc_t *dst_md)
-        : ir_builder_t(kernel_info)
-        , src_layout_(cfg.src_layout().user())
+        : src_layout_(cfg.src_layout().user())
         , dst_layout_(cfg.dst_layout().user())
         , cfg_(cfg)
+        , kernel_info_(kernel_info)
         , attr_(attr)
         , dst_md_(dst_md) {
         normalize_reorder_layouts(src_layout_, dst_layout_);
@@ -95,6 +95,7 @@ private:
     layout_t src_layout_;
     layout_t dst_layout_;
     const reorder_config_t &cfg_;
+    const kernel_info_t &kernel_info_;
     const primitive_attr_t *attr_;
     const memory_desc_t *dst_md_;
 };

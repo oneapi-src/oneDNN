@@ -40,16 +40,16 @@ public:
 
     pooling_kernel_t(pooling_config_t &cfg, const std::string &kernel_name,
             const kernel_info_t &kernel_info, const primitive_desc_t &pd)
-        : ir_kernel_t<hw>(kernel_name, cfg.exec_cfg(), kernel_info,
+        : ir_kernel_t<hw>(kernel_name, cfg.exec_cfg(),
                 kernel_info.nd_range().local_range(), /*require_dpas=*/false,
                 {GENERATOR_NAME, GENERATOR_LINE}) {
+        set_kernel_iface(kernel_info.iface());
         pooling_ir_builder_t builder(cfg, kernel_info, pd);
         stmt_t body = builder.stmt();
         setup_interface(body);
         generate_prologue();
         expr_binding_t expr_binding(hw);
-        bind_external_vars(
-                body, cfg.kernel_grid(), builder.local_id(), expr_binding);
+        bind_external_vars(body, expr_binding);
 
         // Generate assembly from IR.
         convert_ir_to_ngen<hw>(body, this, expr_binding);

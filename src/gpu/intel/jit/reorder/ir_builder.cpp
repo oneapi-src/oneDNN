@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -333,8 +333,10 @@ void reorder_ir_builder_t::compute_grid(const layout_t &src,
         kernel_grid_dims[grid_idx] *= outer;
         if (outer != 1 && grid_idx != max_grid_idx) grid_idx++;
     }
-    kernel_grid = grid_info_t(kernel_grid_dims, "grid_idx");
-    tg_grid = grid_info_t(tg_grid_dims, "tg_idx");
+    auto &tg_idxs = ir_builder_t::tg_idxs();
+    kernel_grid = grid_info_t(kernel_grid_dims,
+            std::vector<expr_t>(tg_idxs.begin(), tg_idxs.end()));
+    tg_grid = grid_info_t(tg_grid_dims, "thr_idx");
 }
 
 compute::nd_range_t reorder_ir_builder_t::nd_range(

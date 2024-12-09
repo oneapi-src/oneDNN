@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,9 +30,8 @@ namespace jit {
 class pooling_ir_builder_t : public ir_builder_t {
 public:
     pooling_ir_builder_t(pooling_config_t &cfg, const kernel_info_t &ki,
-            const primitive_desc_t &pd)
-        : ir_builder_t(ki) {
-        while ((stmt_ = try_build(*this, kernel_info_, cfg, pd)).is_empty()) {
+            const primitive_desc_t &pd) {
+        while ((stmt_ = try_build(*this, ki, cfg, pd)).is_empty()) {
             ir_warning() << "loop too large: cut and retry!" << std::endl;
             const bool cut_ok = cfg.cut();
             if (!cut_ok) ir_error_not_expected() << "minimal loop too large!";

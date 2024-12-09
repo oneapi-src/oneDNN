@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,20 +33,28 @@ class ir_builder_t {
 public:
     const stmt_t &stmt() const { return stmt_; }
 
-    const std::array<expr_t, 3> &local_id() const { return local_id_; }
+    static const std::array<expr_t, 3> &local_ids() {
+        static thread_local std::array<expr_t, 3> vars
+                = {var_t::make(type_t::u16(), "local_id0"),
+                        var_t::make(type_t::u16(), "local_id1"),
+                        var_t::make(type_t::u16(), "local_id2")};
+        return vars;
+    }
+
+    static const std::array<expr_t, 3> &tg_idxs() {
+        static thread_local std::array<expr_t, 3> vars
+                = {var_t::make(type_t::s32(), "tg_idx0"),
+                        var_t::make(type_t::s32(), "tg_idx1"),
+                        var_t::make(type_t::s32(), "tg_idx2")};
+        return vars;
+    }
 
 protected:
-    ir_builder_t(const kernel_info_t &kernel_info)
-        : kernel_info_(kernel_info) {}
-
     void init_kernel_grid(const grid_info_t &kernel_grid,
             const grid_info_t &tg_grid, int simd_size, constraint_set_t &cset,
             std::vector<stmt_t> &init_stmts);
 
     virtual void build() = 0;
-
-    const kernel_info_t &kernel_info_;
-    std::array<expr_t, 3> local_id_; // Local IDs (OpenCL) for the 0-th lane.
 
     stmt_t stmt_;
 };
