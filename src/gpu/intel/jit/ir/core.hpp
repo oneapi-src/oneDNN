@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -409,6 +409,12 @@ public:
         CASE(s32);
         CASE(s8);
         CASE(u8);
+        CASE(s16);
+        CASE(s32);
+        CASE(s64);
+        CASE(u16);
+        CASE(u32);
+        CASE(u64);
 #undef CASE
         ir_error_not_expected();
     }
