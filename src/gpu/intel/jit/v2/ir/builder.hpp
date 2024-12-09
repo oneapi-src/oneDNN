@@ -565,6 +565,13 @@ public:
         emit(for_t::make(var, init, bound, exit_scope()));
     }
 
+    template <typename BodyFuncT>
+    void _while(const expr_t &cond, const BodyFuncT &body_func) {
+        enter_scope();
+        body_func();
+        emit(while_t::make(cond, exit_scope()));
+    }
+
     void emit(const stmt_t &stmt) { top_stmt() = top_stmt().append(stmt); }
     stmt_t get_stmt() const { return top_stmt(); }
     void set_stmt(const stmt_t &stmt) {
