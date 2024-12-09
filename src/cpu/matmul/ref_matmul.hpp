@@ -52,17 +52,17 @@ struct ref_matmul_t : public primitive_t {
             VDISPATCH_MATMUL(
                     is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
             VDISPATCH_MATMUL(utils::one_of(src_type, f32, bf16, f16, f8_e5m2,
-                                     f8_e4m3, f4_e2m1),
+                                     f8_e4m3, f4_e2m1, f4_e3m0),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_MATMUL(utils::one_of(wei_type, f32, bf16, f16, f8_e5m2,
-                                     f8_e4m3, f4_e2m1, u8, s8, u4, s4),
+                                     f8_e4m3, f4_e2m1, f4_e3m0, u8, s8, u4, s4),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_MATMUL(utils::one_of(dst_type, f32, bf16, f16, f8_e5m2,
-                                     f8_e4m3, f4_e2m1),
+                                     f8_e4m3, f4_e2m1, f4_e3m0),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_MATMUL(
-                    (src_type == wei_type
-                            || utils::one_of(wei_type, u8, s8, u4, s4)),
+            VDISPATCH_MATMUL((src_type == wei_type
+                                     || utils::one_of(wei_type, u8, s8, u4, s4,
+                                             f4_e3m0)),
                     VERBOSE_UNSUPPORTED_DT);
             /* int8 weights decompression support */
             VDISPATCH_MATMUL(IMPLICATION(utils::one_of(wei_type, u8, s8),
