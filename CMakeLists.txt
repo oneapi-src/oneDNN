@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.18.2)
 
 if(POLICY CMP0022)
     cmake_policy(SET CMP0022 NEW)
@@ -82,12 +82,8 @@ set(PROJECT_NAME "oneDNN")
 set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library (oneDNN)")
 set(PROJECT_VERSION "3.7.0")
 
-if (CMAKE_VERSION VERSION_LESS 3.0)
-    project(${PROJECT_NAME} C CXX)
-else()
-    cmake_policy(SET CMP0048 NEW)
-    project(${PROJECT_NAME} VERSION "${PROJECT_VERSION}" LANGUAGES C CXX)
-endif()
+cmake_policy(SET CMP0048 NEW)
+project(${PROJECT_NAME} VERSION "${PROJECT_VERSION}" LANGUAGES C CXX)
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "oneDNN supports 64 bit platforms only")
@@ -141,28 +137,18 @@ include("cmake/host_compiler.cmake")
 include("cmake/configuring_primitive_list.cmake")
 
 if(UNIX OR MINGW)
-    if(CMAKE_VERSION VERSION_LESS "3.1.0")
-        # No CMAKE_<lang>_STANDARD, so add directly to CMAKE_<lang>_FLAGS
-        # (prepended so the user can override)
-        set(CMAKE_C_FLAGS "-std=c99 ${CMAKE_C_FLAGS}")
-        # Let SYCL to choose the C++ standard it needs.
-        if(NOT DNNL_WITH_SYCL)
-            set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
-        endif()
-    else()
-        # CMAKE_<lang>_STANDARD support, so set it to our defaults, unless
-        # overridden by the user
-        if(NOT DEFINED CMAKE_C_STANDARD)
-            set(CMAKE_C_STANDARD 99)
-        endif()
-        if(NOT DEFINED CMAKE_CXX_STANDARD AND NOT DNNL_WITH_SYCL)
-            set(CMAKE_CXX_STANDARD 11)
-        endif()
-
-        # Disable -std=gnuXX and -std=gnu++XX
-        set(CMAKE_C_EXTENSIONS OFF)
-        set(CMAKE_CXX_EXTENSIONS OFF)
+    # CMAKE_<lang>_STANDARD support, so set it to our defaults, unless
+    # overridden by the user
+    if(NOT DEFINED CMAKE_C_STANDARD)
+        set(CMAKE_C_STANDARD 99)
     endif()
+    if(NOT DEFINED CMAKE_CXX_STANDARD AND NOT DNNL_WITH_SYCL)
+        set(CMAKE_CXX_STANDARD 11)
+    endif()
+
+    # Disable -std=gnuXX and -std=gnu++XX
+    set(CMAKE_C_EXTENSIONS OFF)
+    set(CMAKE_CXX_EXTENSIONS OFF)
 endif()
 
 # Handle cases when OpenMP runtime is requested but not found: override CPU
