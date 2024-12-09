@@ -856,6 +856,8 @@ public:
 
     void _visit(const unary_op_t &obj) override { visit_new_scope(obj); }
 
+    void _visit(const ternary_op_t &obj) override { visit_new_scope(obj); }
+
     void _visit(const nary_op_t &obj) override {
         if (parent_nary_) {
             if (!(parent_nary_->op_kind == op_kind_t::_add
