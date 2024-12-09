@@ -243,7 +243,8 @@ public:
                                     make_kernel<zero_out_kernel_t>(primitive,
                                             /*register_kernel=*/false, engine,
                                             cfg.exec_cfg(), info,
-                                            cfg.is_dpas_or_dpasw_fma()));
+                                            cfg.is_dpas_or_dpasw_fma(),
+                                            engine));
                             break;
 
                         case kernel_id_t::zp_precalc:
@@ -405,8 +406,8 @@ private:
                 auto size_var = var_t::make(type_t::u32(), "size");
                 zero_out_info.register_internal_arg(
                         size_var, into<uint32_t>(compute_size));
-                zero_out_info.set_nd_range(zero_out_kernel_t<>::nd_range(
-                        cfg.simd(), into<int>(compute_size)));
+                zero_out_info.set_nd_range(zero_out_kernel_desc_t::nd_range(
+                        cfg.simd(), compute_size));
                 return zero_out_info;
             };
 
