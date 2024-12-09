@@ -234,6 +234,10 @@ type_t binary_op_type(op_kind_t op_kind, const type_t &a, const type_t &b,
         if (is_const(b_expr)) return a;
         return (a.size() >= b.size()) ? a : b;
     }
+    if (utils::one_of(op_kind, op_kind_t::_div, op_kind_t::_mod) && a.is_int()
+            && b.is_int()) {
+        return (a.is_signed() ? type_t::s32() : type_t::u32());
+    }
     return common_type(a, b);
 }
 

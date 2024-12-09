@@ -409,6 +409,12 @@ public:
         CASE(s32);
         CASE(s8);
         CASE(u8);
+        CASE(s16);
+        CASE(s32);
+        CASE(s64);
+        CASE(u16);
+        CASE(u32);
+        CASE(u64);
 #undef CASE
         ir_error_not_expected();
     }
