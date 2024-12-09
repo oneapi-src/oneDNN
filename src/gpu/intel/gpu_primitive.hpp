@@ -93,12 +93,17 @@ struct gpu_primitive_t : public gpu::primitive_t {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         if (cache_blob()) {
-            CHECK(compute_engine->create_kernel_from_cache_blob(cache_blob(),
-                    *kernel, jitter ? jitter->kernel_name() : nullptr));
+            VCHECK_KERNEL(
+                    compute_engine->create_kernel_from_cache_blob(cache_blob(),
+                            *kernel, jitter ? jitter->kernel_name() : nullptr),
+                    VERBOSE_KERNEL_CREATION_FAIL,
+                    jitter ? jitter->kernel_name() : "cached");
             CHECK(register_kernels({*kernel}));
             return status::success;
         }
-        CHECK(compute_engine->create_kernel(kernel, jitter));
+        VCHECK_KERNEL(compute_engine->create_kernel(kernel, jitter),
+                VERBOSE_KERNEL_CREATION_FAIL,
+                jitter ? jitter->kernel_name() : "");
         if (register_kernel) CHECK(register_kernels({*kernel}));
         return status::success;
     }
@@ -124,10 +129,11 @@ struct gpu_primitive_t : public gpu::primitive_t {
     status_t create_kernel(impl::engine_t *engine, compute::kernel_t *kernel,
             const char *kernel_name, const compute::kernel_ctx_t &kernel_ctx) {
         std::vector<compute::kernel_t> kernels(1);
-        auto status
-                = create_kernels(engine, &kernels, {kernel_name}, kernel_ctx);
-        if (status == status::success) *kernel = kernels[0];
-        return status;
+        VCHECK_KERNEL(
+                create_kernels(engine, &kernels, {kernel_name}, kernel_ctx),
+                VERBOSE_KERNEL_CREATION_FAIL, kernel_name);
+        *kernel = kernels[0];
+        return status::success;
     }
 
     template <typename T>
@@ -164,7 +170,8 @@ struct gpu_primitive_t : public gpu::primitive_t {
     status_t create_kernel(impl::engine_t *engine, compute::kernel_t &kernel,
             const char *kernel_name, const T &params) {
         std::vector<compute::kernel_t> kernels(1);
-        CHECK(create_kernels(engine, kernels, {kernel_name}, params));
+        VCHECK_KERNEL(create_kernels(engine, kernels, {kernel_name}, params),
+                VERBOSE_KERNEL_CREATION_FAIL, kernel_name);
         kernel = kernels[0];
         return status::success;
     }

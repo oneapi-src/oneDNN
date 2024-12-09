@@ -22,6 +22,9 @@
 #include "common/utils.hpp"
 #include "gpu/intel/compute/device_info.hpp"
 
+#define VCHECK_KERNEL(stat, msg, ...) \
+    VCHECK(common, create, check, runtime, stat, msg, ##__VA_ARGS__);
+
 // Uncomment this when aborting on ir_assert is desired:
 // #define GPU_ABORT_ON_ERROR
 

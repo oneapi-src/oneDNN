@@ -310,7 +310,10 @@ status_t ocl_gpu_engine_t::create_kernel(
     if (!jitter) return status::invalid_arguments;
     xpu::binary_t binary = jitter->get_binary(context(), device());
     if (binary.empty()) return status::runtime_error;
-    return create_kernel_from_binary(*kernel, binary, jitter->kernel_name());
+    VCHECK_KERNEL(
+            create_kernel_from_binary(*kernel, binary, jitter->kernel_name()),
+            VERBOSE_KERNEL_CREATION_FAIL, jitter->kernel_name());
+    return status::success;
 }
 
 status_t ocl_gpu_engine_t::create_program(

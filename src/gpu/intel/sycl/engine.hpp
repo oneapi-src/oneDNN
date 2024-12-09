@@ -109,8 +109,9 @@ public:
             const xpu::binary_t &binary,
             const char *kernel_name) const override {
         std::unique_ptr<::sycl::kernel> sycl_kernel;
-        CHECK(gpu::intel::sycl::compat::make_kernel(
-                sycl_kernel, kernel_name, this, binary));
+        VCHECK_KERNEL(gpu::intel::sycl::compat::make_kernel(
+                              sycl_kernel, kernel_name, this, binary),
+                VERBOSE_KERNEL_CREATION_FAIL, kernel_name);
 
         std::shared_ptr<gpu::intel::compute::kernel_impl_t> kernel_impl
                 = std::make_shared<sycl_interop_gpu_kernel_t>(
