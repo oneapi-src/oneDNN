@@ -19,6 +19,8 @@
 
 #include "gpu/intel/jit/codegen/kernel.hpp"
 #include "gpu/intel/jit/codegen/register_scope.hpp"
+#include "gpu/intel/jit/ir/kernel_desc.hpp"
+#include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
 #include "gpu/intel/jit/ngen/ngen.hpp"
 
@@ -28,32 +30,70 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
+class zero_out_kernel_desc_t : public kernel_desc_base_t {
+public:
+    static const size_t bytes_per_thr;
+
+    zero_out_kernel_desc_t() = default;
+    zero_out_kernel_desc_t(int regs, int simd, bool dpas)
+        : regs_(regs), simd_(simd), dpas_(dpas) {}
+    std::string kernel_name() const override;
+    exec_config_t exec_cfg(const impl::engine_t *engine) const override;
+    bool with_dpas() const override { return dpas_; }
+    compute::range_t local_range() const override;
+    void init_kernel_iface(kernel_iface_t &kernel_iface) const override;
+    void init_kernel_info(kernel_info_t &kernel_info,
+            const kernel_params_base_t &params) const override;
+    status_t create_kernel(compute::kernel_t &kernel,
+            gpu_primitive_t *primitive, impl::engine_t *engine) const override;
+    status_t create_generator(const compute::compute_engine_t &engine,
+            compute::kernel_t &kernel) const;
+    serialized_t serialize() const override;
+    static zero_out_kernel_desc_t deserialize(const serialized_t &s);
+
+    static compute::nd_range_t nd_range(int simd, size_t size);
+
+private:
+    int regs_ = 0;
+    int simd_ = 0;
+    bool dpas_ = false;
+};
+
+class zero_out_kernel_params_t : public kernel_params_base_t {
+public:
+    zero_out_kernel_params_t() = default;
+    zero_out_kernel_params_t(size_t size) : size(size) {}
+
+    size_t size = 0;
+};
+
 template <ngen::HW hw = ngen::HW::Unknown>
 class zero_out_kernel_t : public ir_kernel_t<hw> {
 public:
     IR_KERNEL_FORWARD(hw)
 
     zero_out_kernel_t(const exec_config_t &exec_cfg,
-            const kernel_info_t &kernel_info, bool require_dpas)
-        : ir_kernel_t<hw>("zero_out", exec_cfg,
-                kernel_info.nd_range().local_range(), require_dpas,
-                {GENERATOR_NAME, GENERATOR_LINE}) {
-        set_kernel_iface(kernel_info.iface());
+            const kernel_info_t &kernel_info, bool require_dpas,
+            const impl::engine_t *engine)
+        : zero_out_kernel_t<hw>(zero_out_kernel_desc_t(exec_cfg.regs(),
+                                        exec_cfg.simd(), require_dpas),
+                engine) {}
+
+    zero_out_kernel_t(
+            const kernel_desc_base_t &_desc, const impl::engine_t *engine)
+        : ir_kernel_t<hw>(_desc, engine, {GENERATOR_NAME, GENERATOR_LINE}) {
         setup_interface();
         generate_prologue();
-
-        std::vector<std::string> arg_names(kernel_info.nargs());
-        for (int i = 0; i < kernel_info.nargs(); i++) {
-            arg_names[i] = kernel_info.arg_name(i);
-        }
 
         int simd_size = getSIMD();
         bool use_lsc = (hw >= ngen::HW::XeHPG);
 
-        auto size = getArgument(arg_names[0]);
-        auto ptr = getArgument(arg_names[1]);
+        auto size = getArgument(kernel_iface().arg_name(0));
+        auto ptr = getArgument(kernel_iface().arg_name(1));
         auto global_id = ra_.template alloc_sub<uint32_t>();
         auto off0 = ra_.template alloc_sub<uint32_t>();
+        const int bytes_per_thr
+                = into<int>(zero_out_kernel_desc_t::bytes_per_thr);
 
         mul(1, global_id, r0.ud(1), getLocalSize(0).uw());
         add(1, global_id, global_id, getLocalID(0));
@@ -117,17 +157,7 @@ public:
 
         generate_epilogue();
     }
-
-    static compute::nd_range_t nd_range(int simd, int size) {
-        return compute::nd_range_t(
-                into<size_t>(utils::div_up(size, bytes_per_thr) * simd), simd);
-    }
-
-    static const int bytes_per_thr;
 };
-
-template <ngen::HW hw>
-const int zero_out_kernel_t<hw>::bytes_per_thr = 128;
 
 } // namespace jit
 } // namespace intel
