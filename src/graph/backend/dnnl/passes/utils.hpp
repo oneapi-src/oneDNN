@@ -203,6 +203,7 @@ inline const std::map<op_kind_t, dnnl::algorithm> &get_reduction_alg_map() {
             {graph::op_kind::ReduceL1,
                     dnnl::algorithm::reduction_norm_lp_power_p_sum},
             {graph::op_kind::ReduceL2, dnnl::algorithm::reduction_norm_lp_sum},
+            {graph::op_kind::ReduceAMax, dnnl::algorithm::reduction_amax},
             {graph::op_kind::ReduceMax, dnnl::algorithm::reduction_max},
             {graph::op_kind::ReduceMean, dnnl::algorithm::reduction_mean},
             {graph::op_kind::ReduceMin, dnnl::algorithm::reduction_min},
@@ -268,6 +269,7 @@ inline bool is_reduction_kind(op_kind_t kind) {
     const static std::set<op_kind_t> reduction_kinds = {
             graph::op_kind::ReduceL1,
             graph::op_kind::ReduceL2,
+            graph::op_kind::ReduceAMax,
             graph::op_kind::ReduceMax,
             graph::op_kind::ReduceMean,
             graph::op_kind::ReduceMin,

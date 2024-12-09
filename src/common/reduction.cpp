@@ -43,9 +43,10 @@ status_t reduction_desc_init(reduction_desc_t *reduction_desc,
     VCHECK_RED(!any_null(src_desc, dst_desc), VERBOSE_NULL_ARG);
     VCHECK_RED(src_desc->format_kind != format_kind::any,
             VERBOSE_UNSUPPORTED_TAG_S, "src");
-    VCHECK_RED(one_of(alg_kind, reduction_max, reduction_min, reduction_sum,
-                       reduction_mul, reduction_mean, reduction_norm_lp_max,
-                       reduction_norm_lp_sum, reduction_norm_lp_power_p_max,
+    VCHECK_RED(one_of(alg_kind, reduction_amax, reduction_max, reduction_min,
+                       reduction_sum, reduction_mul, reduction_mean,
+                       reduction_norm_lp_max, reduction_norm_lp_sum,
+                       reduction_norm_lp_power_p_max,
                        reduction_norm_lp_power_p_sum),
             VERBOSE_BAD_ALGORITHM);
     VCHECK_RED(IMPLICATION(one_of(alg_kind, reduction_norm_lp_max,

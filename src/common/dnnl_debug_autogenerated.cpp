@@ -1833,6 +1833,7 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_binary_ne) return "binary_ne";
     if (v == dnnl_resampling_nearest) return "resampling_nearest";
     if (v == dnnl_resampling_linear) return "resampling_linear";
+    if (v == dnnl_reduction_amax) return "reduction_amax";
     if (v == dnnl_reduction_max) return "reduction_max";
     if (v == dnnl_reduction_min) return "reduction_min";
     if (v == dnnl_reduction_sum) return "reduction_sum";
