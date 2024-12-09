@@ -106,6 +106,8 @@ typedef enum {
     dnnl_e8m0 = 13,
     /// [MX-compliant 4-bit float data type](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf) with 2-bit exponent and 1 bit mantissa.
     dnnl_f4_e2m1 = 14,
+    /// 4-bit float data type with 3-bit exponent and 0 bit mantissa.
+    dnnl_f4_e3m0 = 15,
 
     /// Parameter to allow internal only data_types without undefined behavior.
     /// This parameter is chosen to be valid for so long as sizeof(int) >= 2.
