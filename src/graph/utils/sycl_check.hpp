@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,24 +20,12 @@
 #ifdef DNNL_WITH_SYCL
 #if __has_include(<sycl/sycl.hpp>)
 #include <sycl/sycl.hpp>
-#elif __has_include(<CL/sycl.hpp>)
-#include <CL/sycl.hpp>
 #else
 #error "Unsupported compiler"
 #endif
 
-#if defined(__INTEL_LLVM_COMPILER)
-#if (__INTEL_LLVM_COMPILER < 20230000)
-#define DNNL_USE_SYCL121_API 1
-#else
-#define DNNL_USE_SYCL121_API 0
-#endif
-#elif defined(__LIBSYCL_MAJOR_VERSION)
-#if (__LIBSYCL_MAJOR_VERSION < 6)
-#define DNNL_USE_SYCL121_API 1
-#else
-#define DNNL_USE_SYCL121_API 0
-#endif
+#if defined(__INTEL_LLVM_COMPILER) && __INTEL_LLVM_COMPILER >= 20230000
+#elif defined(__LIBSYCL_MAJOR_VERSION) && __LIBSYCL_MAJOR_VERSION >= 6
 #else
 #error "Unsupported compiler"
 #endif

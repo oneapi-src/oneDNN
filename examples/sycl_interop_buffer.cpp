@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@
 /// @section sycl_interop_buffer_cpp_headers Public headers
 ///
 /// To start using oneDNN, we must first include the @ref dnnl.hpp
-/// header file in the application. We also include CL/sycl.hpp from DPC++ for
+/// header file in the application. We also include sycl/sycl.hpp from DPC++ for
 /// using SYCL APIs and @ref dnnl_debug.h, which  contains some debugging
 /// facilities such as returning a string representation
 /// for common oneDNN C types.
@@ -56,8 +56,6 @@
 
 #if __has_include(<sycl/sycl.hpp>)
 #include <sycl/sycl.hpp>
-#elif __has_include(<CL/sycl.hpp>)
-#include <CL/sycl.hpp>
 #else
 #error "Unsupported compiler"
 #endif
