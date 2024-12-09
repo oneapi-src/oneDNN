@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,16 +36,20 @@ class kernel_t;
 
 namespace jit {
 
+class kernel_iface_t;
 class kernel_info_t;
+class kernel_params_base_t;
 
 class kernel_desc_base_t {
 public:
     virtual ~kernel_desc_base_t() = default;
     virtual std::string kernel_name() const = 0;
-    virtual exec_config_t exec_cfg() const = 0;
+    virtual exec_config_t exec_cfg(const impl::engine_t *engine) const = 0;
     virtual bool with_dpas() const = 0;
     virtual compute::range_t local_range() const = 0;
-    virtual status_t init_kernel_info(kernel_info_t &kernel_info) const = 0;
+    virtual void init_kernel_iface(kernel_iface_t &kernel_iface) const = 0;
+    virtual void init_kernel_info(kernel_info_t &kernel_info,
+            const kernel_params_base_t &params) const = 0;
     virtual status_t create_kernel(compute::kernel_t &kernel,
             gpu_primitive_t *primitive, impl::engine_t *engine) const = 0;
     virtual serialized_t serialize() const = 0;
@@ -54,8 +58,6 @@ public:
 class kernel_params_base_t {
 public:
     virtual ~kernel_params_base_t() = default;
-    virtual status_t init_dispatch_kernel_info(kernel_info_t &kernel_info,
-            const kernel_desc_base_t &desc) const = 0;
 };
 
 } // namespace jit

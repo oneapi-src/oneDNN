@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <sstream>
 
 #include "gpu/intel/jit/ir/ir.hpp"
+#include "gpu/intel/jit/ir/ir_builder.hpp"
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/pass/dpas.hpp"
@@ -126,8 +127,8 @@ int get_reg_off(const send_1d_plan_t &plan, const pvar_coord_t<dim_t> &coord) {
 
 class idiv_fixup_mutator_t : public ir_mutator_t {
 public:
-    idiv_fixup_mutator_t(const kernel_info_t &kernel_info)
-        : kernel_info_(kernel_info) {}
+    idiv_fixup_mutator_t(const kernel_iface_t &kernel_iface)
+        : kernel_iface_(kernel_iface) {}
 
     object_t _mutate(const binary_op_t &obj) {
         bool is_var_idiv = (obj.op_kind == op_kind_t::_div) && obj.type.is_int()
@@ -137,33 +138,27 @@ public:
                 << "Cannot handle integer division, expected const var to "
                    "access magic value: "
                 << obj;
-        auto magic = kernel_info_.find_arg(obj.b.str() + "_magic");
+        auto magic = kernel_iface_.find_arg(obj.b.str() + "_magic");
         return ternary_op_t::make(
                 op_kind_t::_idiv, obj.a, cast(obj.b, type_t::u32()), magic);
     }
 
 private:
-    const kernel_info_t &kernel_info_;
+    const kernel_iface_t &kernel_iface_;
 };
 
-stmt_t fixup_idiv(const stmt_t &s, const kernel_info_t &kernel_info,
+stmt_t fixup_idiv(const stmt_t &s, const kernel_iface_t &kernel_iface,
         ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = idiv_fixup_mutator_t(kernel_info).mutate(s);
+    auto ret = idiv_fixup_mutator_t(kernel_iface).mutate(s);
     trace_pass("fixup_idiv", ret, ir_ctx);
     return ret;
 }
 
 class var_replacer_t : public ir_mutator_t {
 public:
-    var_replacer_t(const kernel_info_t &kernel_info,
-            const grid_context_t &grid_ctx, const grid_t &tg_grid)
-        : kernel_info_(kernel_info) {
-        for (int i = 0; i < grid_ctx.ndims(); i++) {
-            auto tg_idx = tg_grid.index_var(i);
-            var_map_.emplace(tg_idx, grid_ctx.tg_idx(i));
-        }
-    }
+    var_replacer_t(const kernel_iface_t &kernel_iface)
+        : kernel_iface_(kernel_iface) {}
     object_t _mutate(const var_t &obj) override {
         return map_var(obj.name, obj, /*is_const=*/false);
     }
@@ -184,20 +179,19 @@ private:
             const std::string &name, const expr_t &var, bool is_const_var) {
         auto it = var_map_.find(var);
         if (it != var_map_.end()) return it->second;
-        auto arg = kernel_info_.find_arg(name, /*allow_empty=*/!is_const_var);
+        auto arg = kernel_iface_.find_arg(name, /*allow_empty=*/!is_const_var);
         auto value = (arg.is_empty() ? var : arg);
         var_map_.emplace(var, value);
         return value;
     }
 
-    const kernel_info_t &kernel_info_;
+    const kernel_iface_t &kernel_iface_;
     object_map_t<expr_t, expr_t> var_map_;
 };
 
-stmt_t finalize_vars(const stmt_t &stmt, const kernel_info_t &kernel_info,
-        const grid_context_t &grid_ctx, const grid_t &tg_grid,
+stmt_t finalize_vars(const stmt_t &stmt, const kernel_iface_t &kernel_iface,
         ir_context_t &ir_ctx) {
-    auto ret = var_replacer_t(kernel_info, grid_ctx, tg_grid).mutate(stmt);
+    auto ret = var_replacer_t(kernel_iface).mutate(stmt);
     ret = inject_external_var_let(ret, ir_ctx);
     return ret;
 }
@@ -217,14 +211,14 @@ loop_nest_t make_loop_nest(
 class buffer_info_t {
 public:
     buffer_info_t(buffer_manager_t &buf_mgr, const kernel_desc_t &desc,
-            const kernel_info_t &kernel_info, const x2r_fma_plan_t &plan) {
+            const kernel_iface_t &kernel_iface, const x2r_fma_plan_t &plan) {
         for (auto &s : plan.stages) {
             if (!s.is_x2r()) continue;
             auto kind = s.x2r.tensor_kind;
             auto name = pick_abc(kind, desc.prop, "src", "wei", "dst");
             if (entries_.count(name) > 0) continue;
             auto &e = entries_[name];
-            e.mem_buf = kernel_info.find_arg(name);
+            e.mem_buf = kernel_iface.find_arg(name);
             if (s.x2r.reorder) {
                 e.reg_buf = buf_mgr.get(
                         to_string(kind), s.x2r.reorder.dst.size());
@@ -235,7 +229,7 @@ public:
         }
         auto c_name = pick_c(desc.prop, "src", "wei", "dst");
         auto &c_e = entries_[c_name];
-        c_e.mem_buf = kernel_info.find_arg(c_name);
+        c_e.mem_buf = kernel_iface.find_arg(c_name);
         c_e.reg_buf = buf_mgr.get("c", plan.c_layout.size());
         for (auto &abc :
                 {tensor_kind_t::a, tensor_kind_t::b, tensor_kind_t::c}) {
@@ -245,7 +239,7 @@ public:
 
         if (desc.with_bias_fwd() || desc.with_bias_bwd_w()) {
             auto &e = entries_["bia"];
-            e.mem_buf = kernel_info.find_arg("bia");
+            e.mem_buf = kernel_iface.find_arg("bia");
             if (!plan.bia_layout.is_empty())
                 e.reg_buf = buf_mgr.get("bia_reduced", plan.bia_layout.size());
         }
@@ -255,7 +249,7 @@ public:
             if (po.is_binary()) {
                 std::string name = "binary_" + std::to_string(i);
                 auto &e = entries_[name];
-                e.mem_buf = kernel_info.find_arg(name);
+                e.mem_buf = kernel_iface.find_arg(name);
             }
         }
     }
@@ -681,13 +675,11 @@ private:
 class conv_builder_t : public ir_builder_t {
 public:
     conv_builder_t(ir_context_t &ir_ctx, const kernel_desc_t &desc,
-            const kernel_info_t &kernel_info, const grid_context_t &grid_ctx,
-            const plan_t &plan)
-        : ir_builder_t(kernel_info, ir_ctx)
+            const kernel_iface_t &kernel_iface, const plan_t &plan)
+        : ir_builder_t(kernel_iface, ir_ctx)
         , desc_(desc)
-        , grid_ctx_(grid_ctx)
         , plan_(plan)
-        , buf_info_(buf_mgr(), desc, kernel_info, plan.x2r_fma)
+        , buf_info_(buf_mgr(), desc, kernel_iface, plan.x2r_fma)
         , loop_nest_(make_loop_nest(desc_.loop_desc, plan_.coord_info)) {
         loop();
         epilogue();
@@ -697,9 +689,8 @@ public:
         _stmt = off_scope().inject_let_stmts(_stmt);
         _stmt = inject_global_alloc(_stmt);
         _stmt = inject_index_let(_stmt);
-        _stmt = fixup_idiv(_stmt, kernel_info, ir_ctx);
-        _stmt = finalize_vars(
-                _stmt, kernel_info, grid_ctx_, plan_.tg_grid, ir_ctx);
+        _stmt = fixup_idiv(_stmt, kernel_iface, ir_ctx);
+        _stmt = finalize_vars(_stmt, kernel_iface, ir_ctx);
 
         _stmt = simplify(_stmt, ir_ctx);
         _stmt = optimize_alloc_let(_stmt, ir_ctx);
@@ -773,8 +764,8 @@ private:
 
     stmt_t inject_global_alloc(const stmt_t &stmt) const {
         std::vector<stmt_t> allocs;
-        for (int i = 0; i < kernel_info().nargs(); i++) {
-            auto &var = kernel_info().arg_var(i);
+        for (int i = 0; i < kernel_iface().nargs(); i++) {
+            auto &var = kernel_iface().arg_var(i);
             if (!var.type().is_ptr()) continue;
             allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
         }
@@ -796,8 +787,8 @@ private:
         for (auto &kv : plan_.virt_grid.idxs()) {
             ret = let_t::make(kv.first, kv.second, ret);
         }
-        for (int i = 0; i < grid_ctx_.ndims(); i++) {
-            auto value = grid_ctx_.local_id(i);
+        for (int i = 0; i < 3; i++) {
+            auto value = jit::ir_builder_t::local_ids()[i];
             if (i == 0) value /= plan_.desc.simd;
             auto thr_idx = plan_.thr_grid.index_var(i);
             ret = let_t::make(thr_idx, cast(value, thr_idx.type()), ret);
@@ -816,26 +807,24 @@ private:
         for (int i = 0; i < ndims; i++) {
             if (dims[i] == dim) break;
             auto i_dim_size
-                    = kernel_info().find_arg(dims[i].str() + "_grid_size");
-            auto i_magic = kernel_info().find_arg(dims[i].str() + "_magic");
+                    = kernel_iface().find_arg(dims[i].str() + "_grid_size");
+            auto i_magic = kernel_iface().find_arg(dims[i].str() + "_magic");
             value = ternary_op_t::make(
                     op_kind_t::_idiv, value, i_dim_size, i_magic);
         }
-        auto dim_size = kernel_info().find_arg(dim.str() + "_grid_size");
-        auto magic = kernel_info().find_arg(dim.str() + "_magic");
+        auto dim_size = kernel_iface().find_arg(dim.str() + "_grid_size");
+        auto magic = kernel_iface().find_arg(dim.str() + "_magic");
         value = ternary_op_t::make(op_kind_t::_imod, value, dim_size, magic);
         return value;
     }
 
     kernel_desc_t desc_;
-    grid_context_t grid_ctx_;
     plan_t plan_;
     buffer_info_t buf_info_;
     loop_nest_t loop_nest_;
 };
 
-stmt_t build_ir(const kernel_desc_t &desc, const kernel_info_t &kernel_info,
-        const grid_context_t &grid_ctx) {
+stmt_t build_ir(const kernel_desc_t &desc, const kernel_iface_t &kernel_iface) {
     auto plan = create_conv_plan(desc);
     if (!plan) ir_except_not_implemented("Cannot create plan.");
 
@@ -844,7 +833,7 @@ stmt_t build_ir(const kernel_desc_t &desc, const kernel_info_t &kernel_info,
 
     constraint_set_t cset;
     ir_context_t ir_ctx(desc.exec_cfg(), cset);
-    conv_builder_t builder(ir_ctx, desc, kernel_info, grid_ctx, plan);
+    conv_builder_t builder(ir_ctx, desc, kernel_iface, plan);
     auto stmt = builder.get_stmt();
     ir_trace() << "Convolution kernel body:\n" << stmt << std::endl;
     return stmt;

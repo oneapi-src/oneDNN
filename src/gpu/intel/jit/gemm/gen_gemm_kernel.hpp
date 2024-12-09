@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -152,7 +152,7 @@ struct gen_gemm_kernel_t : public jit_generator_base {
         : desc_(desc) {}
 
     const char *kernel_name() const override { return "gemm_kernel"; }
-    xpu::binary_t get_binary(cl_context context, cl_device_id device) override;
+    xpu::binary_t get_binary(const ocl::ocl_gpu_engine_t *engine) override;
 
     const gen_gemm_kernel_desc_t *desc() const { return &desc_; }
 

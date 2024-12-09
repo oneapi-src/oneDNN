@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,13 +26,17 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace intel {
+
+namespace ocl {
+class ocl_gpu_engine_t;
+}
+
 namespace jit {
 
 struct jit_generator_base {
     virtual ~jit_generator_base() = default;
     virtual const char *kernel_name() const = 0;
-    virtual xpu::binary_t get_binary(cl_context context, cl_device_id device)
-            = 0;
+    virtual xpu::binary_t get_binary(const ocl::ocl_gpu_engine_t *engine) = 0;
 };
 
 } // namespace jit

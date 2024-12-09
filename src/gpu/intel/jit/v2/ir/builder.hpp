@@ -433,15 +433,15 @@ inline stmt_t create_stmt(const send_plan_t &plan, const expr_t &mem_buf,
 
 class ir_builder_t {
 public:
-    ir_builder_t(const kernel_info_t &kernel_info, ir_context_t &ir_ctx)
-        : kernel_info_(kernel_info)
+    ir_builder_t(const kernel_iface_t &kernel_iface, ir_context_t &ir_ctx)
+        : kernel_iface_(kernel_iface)
         , buf_mgr_(std::make_shared<buffer_manager_t>(ir_ctx))
         , off_scope_(std::make_shared<offset_scope_t>(*buf_mgr_))
         , off_ctx_(off_scope_.get()) {
         enter_scope();
     }
     ir_builder_t(ir_builder_t &parent, const loop_nest_t &loop_nest)
-        : kernel_info_(parent.kernel_info_)
+        : kernel_iface_(parent.kernel_iface_)
         , buf_mgr_(parent.buf_mgr_)
         , off_scope_(parent.off_scope_)
         , off_ctx_(off_scope_.get(), loop_nest) {
@@ -449,7 +449,7 @@ public:
     }
     ir_builder_t(const ir_builder_t &parent) = delete;
     const hw_t &hw() const { return buf_mgr_->ir_ctx().hw(); }
-    const kernel_info_t &kernel_info() const { return kernel_info_; }
+    const kernel_iface_t &kernel_iface() const { return kernel_iface_; }
     ir_context_t &ir_ctx() { return buf_mgr_->ir_ctx(); }
     buffer_manager_t &buf_mgr() { return *buf_mgr_; }
     const offset_scope_t &off_scope() const { return *off_scope_; }
@@ -602,7 +602,7 @@ private:
         return ret;
     }
 
-    const kernel_info_t &kernel_info_;
+    const kernel_iface_t &kernel_iface_;
     std::shared_ptr<buffer_manager_t> buf_mgr_;
     std::shared_ptr<offset_scope_t> off_scope_;
     offset_ctx_t off_ctx_;

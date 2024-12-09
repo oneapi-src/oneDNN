@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "gpu/intel/config.hpp"
 #include "gpu/intel/jit/ir/blocking.hpp"
 #include "gpu/intel/jit/ir/hw.hpp"
+#include "gpu/intel/jit/ir/ir_builder.hpp"
 #include "gpu/intel/jit/ir/post_ops.hpp"
 #include "gpu/intel/jit/ir/problem.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
@@ -451,7 +452,9 @@ public:
                 dims[i] *= ir_utils::safe_divide(padded_dim(d), tg_block);
             }
         }
-        set_kernel_grid(grid_info_t(dims, "grid_idx"));
+        auto &tg_idxs = ir_builder_t::tg_idxs();
+        set_kernel_grid(grid_info_t(
+                dims, std::vector<expr_t>(tg_idxs.begin(), tg_idxs.end())));
     }
 
     void init_thread_group_grid(const std::array<pvar_tile_t, 3> &grid) {
@@ -460,7 +463,7 @@ public:
             for (auto &d : grid[i])
                 dims[i] *= thread_group_dim(d);
         }
-        set_thread_group_grid(grid_info_t(dims, "tg_idx"));
+        set_thread_group_grid(grid_info_t(dims, "thr_idx"));
     }
 
 protected:

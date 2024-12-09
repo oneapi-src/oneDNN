@@ -30,6 +30,7 @@
 #include "gpu/intel/jit/codegen/register_allocator.hpp"
 #include "gpu/intel/jit/emulation.hpp"
 #include "gpu/intel/jit/ir/ir.hpp"
+#include "gpu/intel/jit/ir/ir_builder.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
@@ -53,17 +54,16 @@ struct ir_generator_t : public jit_generator_base {
 
     const char *kernel_name() const override { return kernel_name_.c_str(); }
 
-    xpu::binary_t get_binary(cl_context context, cl_device_id device) override {
-        kernel_info_t kernel_info;
-        auto status = kernel_desc_.init_kernel_info(kernel_info);
-        if (status != status::success) return xpu::binary_t();
+    xpu::binary_t get_binary(const ocl::ocl_gpu_engine_t *engine) override {
         try {
 #define CASE(hw) \
     case ngen::HW::hw: { \
-        KernelT<ngen::HW::hw> kernel(kernel_desc_, kernel_info); \
-        return kernel.getBinary(context, device); \
+        KernelT<ngen::HW::hw> kernel(kernel_desc_, engine); \
+        return kernel.getBinary(engine->context(), engine->device()); \
     }
-            switch (kernel_desc_.exec_cfg().hw().to_ngen()) {
+            auto *device_info = engine->device_info();
+            auto hw = convert_dnnl_arch_to_ngen(device_info->gpu_arch());
+            switch (hw) {
                 REG_GEN9_ISA(CASE(Gen9));
                 REG_GEN11_ISA(CASE(Gen11));
                 REG_XELP_ISA(CASE(XeLP));
@@ -187,30 +187,27 @@ public:
     friend class ir_to_ngen_t<hw>;
     friend class send_impl_t;
 
-    ir_kernel_t(const kernel_desc_base_t &desc,
-            const kernel_info_t &kernel_info,
+    ir_kernel_t(const kernel_desc_base_t &desc, const impl::engine_t *engine,
             const debug_config_t &debug_config)
         : jit_generator<hw>(debug_config)
         , kernel_name_(desc.kernel_name())
-        , exec_cfg_(desc.exec_cfg())
-        , kernel_info_(kernel_info)
+        , exec_cfg_(desc.exec_cfg(engine))
         , local_range_(desc.local_range())
         , require_dpas_(desc.with_dpas())
         , regs_(exec_cfg_.regs())
         , ra_(hw, desc.kernel_name())
         , emu_strategy(hw, exec_cfg_.hw().stepping_id()) {
+        desc.init_kernel_iface(kernel_iface_);
         setStepping(exec_cfg_.hw().stepping_id());
         ra_.setRegisterCount(regs_);
     }
 
     ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
-            const kernel_info_t &kernel_info,
             const compute::range_t &local_range, bool require_dpas,
             const debug_config_t &debug_config)
         : jit_generator<hw>(debug_config)
         , kernel_name_(kernel_name)
         , exec_cfg_(exec_cfg)
-        , kernel_info_(kernel_info)
         , local_range_(local_range)
         , require_dpas_(require_dpas)
         , regs_(exec_cfg.regs())
@@ -221,6 +218,10 @@ public:
     }
 
     const exec_config_t &exec_cfg() { return exec_cfg_; }
+    const kernel_iface_t &kernel_iface() const { return kernel_iface_; }
+    void set_kernel_iface(const kernel_iface_t &kernel_iface) {
+        kernel_iface_ = kernel_iface;
+    }
 
     void setup_interface(const stmt_t &kernel_body = stmt_t()) {
         externalName(kernel_name_);
@@ -232,9 +233,9 @@ public:
         if (require_dpas_) requireDPAS();
         if (has_send_atomics(kernel_body)) requireGlobalAtomics();
 
-        for (int i = 0; i < kernel_info_.nargs(); i++) {
-            auto &name = kernel_info_.arg_name(i);
-            auto &type = kernel_info_.arg_type(i);
+        for (int i = 0; i < kernel_iface_.nargs(); i++) {
+            auto &name = kernel_iface_.arg_name(i);
+            auto &type = kernel_iface_.arg_type(i);
             if (type.is_ptr()) {
                 newArgument(name, ngen::ExternalArgumentType::GlobalPtr,
                         ngen::GlobalAccessType::Stateless);
@@ -270,8 +271,8 @@ public:
         for (int i = 0; i < 3; i++)
             ra_.claim(getLocalID(i));
 
-        for (int i = 0; i < kernel_info_.nargs(); i++) {
-            ra_.claim(getArgument(kernel_info_.arg_name(i)));
+        for (int i = 0; i < kernel_iface_.nargs(); i++) {
+            ra_.claim(getArgument(kernel_iface_.arg_name(i)));
         }
 
         if (emu_strategy.emulate64) {
@@ -289,51 +290,34 @@ public:
     }
 
     void bind_external_vars(const stmt_t &kernel_body,
-            const grid_info_t &kernel_grid,
-            const std::array<expr_t, 3> &local_id,
-            expr_binding_t &expr_binding) {
-        grid_context_t grid_ctx(/*create_empty=*/true);
-        for (int i = 0; i < 3; i++) {
-            grid_ctx.set_tg_idx(i, kernel_grid.idx(i));
-            grid_ctx.set_local_id(i, local_id[i]);
-        }
-        bind_external_vars(kernel_body, grid_ctx, expr_binding);
-    }
-
-    void bind_external_vars(const stmt_t &kernel_body,
             const walk_order_t &kernel_grid_walk_order,
-            const std::array<expr_t, 3> &local_id,
             expr_binding_t &expr_binding) {
-        grid_context_t grid_ctx(/*create_empty=*/true);
-        for (int i = 0; i < 3; i++) {
-            grid_ctx.set_local_id(i, local_id[i]);
-        }
-        bind_external_vars(kernel_body, grid_ctx, expr_binding);
+        bind_external_vars(kernel_body, expr_binding);
         bind_kernel_grid_walk_order(kernel_grid_walk_order, expr_binding);
     }
 
-    void bind_external_vars(const stmt_t &kernel_body,
-            const grid_context_t &grid_ctx, expr_binding_t &expr_binding) {
+    void bind_external_vars(
+            const stmt_t &kernel_body, expr_binding_t &expr_binding) {
         alloc_manager_t alloc_mgr(kernel_body);
 
         // Bind grid indices.
         int r0_sub_idxs[] = {1, 6, 7};
         for (int i = 0; i < 3; i++) {
-            if (grid_ctx.tg_idx(i).is_empty()) continue;
             auto tmp = ra_.template alloc_sub<int32_t>();
             mov(1, tmp, r0.ud(r0_sub_idxs[i]));
-            expr_binding.bind(grid_ctx.tg_idx(i), tmp);
+            expr_binding.bind(ir_builder_t::tg_idxs()[i], tmp);
         }
 
         // Bind local IDs.
         for (int i = 0; i < 3; i++) {
-            expr_binding.bind(grid_ctx.local_id(i), getLocalID(i).uw(0));
+            expr_binding.bind(
+                    ir_builder_t::local_ids()[i], getLocalID(i).uw(0));
         }
 
         // Bind arguments.
-        for (int i = 0; i < kernel_info_.nargs(); i++) {
-            auto &arg_var = kernel_info_.arg_var(i);
-            auto &name = kernel_info_.arg_name(i);
+        for (int i = 0; i < kernel_iface_.nargs(); i++) {
+            auto &arg_var = kernel_iface_.arg_var(i);
+            auto &name = kernel_iface_.arg_name(i);
             if (arg_var.type().is_ptr()) {
                 auto alloc_buf
                         = alloc_mgr.find_buffer(name, /*allow_empty=*/true);
@@ -1148,9 +1132,9 @@ protected:
         return ir_utils::safe_divide(local_size, exec_cfg_.simd());
     }
 
+    kernel_iface_t kernel_iface_;
     std::string kernel_name_;
     exec_config_t exec_cfg_;
-    kernel_info_t kernel_info_;
     compute::range_t local_range_;
     bool require_dpas_;
     bool require_signal_header_ = false;
@@ -1172,6 +1156,9 @@ protected:
 #define IR_KERNEL_FORWARD(hw) \
     NGEN_FORWARD_OPENCL(hw) \
     IR_KERNEL_EMULATION_FORWARD(hw) \
+    using ir_kernel_t<hw>::exec_cfg; \
+    using ir_kernel_t<hw>::kernel_iface; \
+    using ir_kernel_t<hw>::set_kernel_iface; \
     using ir_kernel_t<hw>::setup_interface; \
     using ir_kernel_t<hw>::bind_external_vars; \
     using ir_kernel_t<hw>::generate_prologue; \

@@ -35,10 +35,10 @@ public:
 
     zero_out_kernel_t(const exec_config_t &exec_cfg,
             const kernel_info_t &kernel_info, bool require_dpas)
-        : ir_kernel_t<hw>("zero_out", exec_cfg, kernel_info,
+        : ir_kernel_t<hw>("zero_out", exec_cfg,
                 kernel_info.nd_range().local_range(), require_dpas,
                 {GENERATOR_NAME, GENERATOR_LINE}) {
-
+        set_kernel_iface(kernel_info.iface());
         setup_interface();
         generate_prologue();
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -145,6 +145,8 @@ class exec_config_t {
 public:
     exec_config_t() = default;
     exec_config_t(const hw_t &hw) : hw_(hw) {}
+    exec_config_t(const hw_t &hw, int regs, int simd)
+        : hw_(hw), regs_(regs), simd_(simd) {}
 
     const hw_t &hw() const { return hw_; }
     int regs() const { return regs_; }

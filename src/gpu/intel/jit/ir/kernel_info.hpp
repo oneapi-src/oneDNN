@@ -26,6 +26,7 @@
 #include "common/primitive_exec_types.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"
+#include "gpu/intel/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -69,42 +70,51 @@ private:
     std::shared_ptr<memory_storage_ptr_t> ptr_;
 };
 
-class grid_context_t {
+class kernel_iface_t {
 public:
-    grid_context_t(bool create_empty = false) {
-        if (!create_empty) {
-            for (int i = 0; i < ndims(); i++) {
-                local_ids_[i] = var_t::make(
-                        type_t::u16(), "local_id" + std::to_string(i));
-                tg_idxs_[i] = var_t::make(
-                        type_t::s32(), "tg_idx" + std::to_string(i));
-            }
-        }
+    int nargs() const { return int(args_.size()); }
+    const expr_t &arg_var(int idx) const {
+        ir_assert(idx >= 0 && idx < nargs());
+        return args_[idx].var;
+    }
+    const std::string &arg_name(int idx) const {
+        return arg_var(idx).as<var_t>().name;
+    }
+    const type_t &arg_type(int idx) const { return arg_var(idx).type(); }
+    bool has(const std::string &name) const { return find_arg_impl(name); }
+
+    expr_t find_arg(const std::string &name, bool allow_empty = false) const {
+        auto *arg = find_arg_impl(name);
+        if (arg) return arg->var;
+        if (!allow_empty)
+            ir_error_not_expected() << "Argument not found: " << name;
+        return expr_t();
     }
 
-    int ndims() const { return grid_ndims_; }
-    void set_tg_idx(int idx, const expr_t &e) {
-        ir_assert(idx >= 0 && idx < ndims());
-        tg_idxs_[idx] = e;
-    }
-    void set_local_id(int idx, const expr_t &e) {
-        ir_assert(idx >= 0 && idx < ndims());
-        local_ids_[idx] = e;
-    }
+    void register_arg(const expr_t &var) { args_.emplace_back(var); }
 
-    const expr_t &tg_idx(int idx) const {
-        ir_assert(idx >= 0 && idx < ndims());
-        return tg_idxs_[idx];
-    }
-    const expr_t &local_id(int idx) const {
-        ir_assert(idx >= 0 && idx < ndims());
-        return local_ids_[idx];
+    void register_arg(const std::string &name, const type_t &type) {
+        register_arg(var_t::make(type, name));
     }
 
 private:
-    static const int grid_ndims_ = 3;
-    std::array<expr_t, grid_ndims_> tg_idxs_;
-    std::array<expr_t, grid_ndims_> local_ids_;
+    struct arg_t {
+        arg_t() = default;
+        arg_t(const expr_t &var) : var(var) {}
+        const std::string &name() const { return var.as<var_t>().name; }
+        bool is_ptr() const { return var.type().is_ptr(); }
+
+        expr_t var;
+    };
+
+    const arg_t *find_arg_impl(const std::string &name) const {
+        for (int i = 0; i < nargs(); i++) {
+            if (args_[i].name() == name) return &args_[i];
+        }
+        return nullptr;
+    }
+
+    std::vector<arg_t> args_;
 };
 
 enum class kernel_id_t {
@@ -161,19 +171,6 @@ public:
         auto *arg = find_arg_impl(name);
         ir_assert(arg) << "Cannot find argument: " << name;
         arg->value = value;
-    }
-
-    std::map<std::string, expr_t> get_vars() const {
-        std::map<std::string, expr_t> vars;
-        for (auto &arg : args_) {
-            if (arg.var.is<var_t>())
-                vars[arg.var.as<var_t>().name] = arg.var;
-            else if (arg.var.is<const_var_t>())
-                vars[arg.var.as<const_var_t>().name] = arg.var;
-            else
-                ir_error_not_expected();
-        }
-        return vars;
     }
 
     void register_user_arg(const expr_t &var, int dnnl_arg, bool is_input) {
@@ -236,6 +233,14 @@ public:
     }
 
     bool is_output(int idx) const { return !is_input(idx); }
+
+    kernel_iface_t iface() const {
+        kernel_iface_t iface;
+        for (int i = 0; i < nargs(); i++) {
+            iface.register_arg(args_[i].var);
+        }
+        return iface;
+    }
 
     memory_storage_wrapper_t arg_storage(int idx, const exec_ctx_t &ctx,
             const gpu_primitive_t *primitive) const {
@@ -381,7 +386,7 @@ public:
         for (int i = 0; i < kernel_count(); i++) {
             auto &e = entries_[i];
             kernel_info_t info;
-            CHECK(e.params->init_dispatch_kernel_info(info, *e.desc));
+            e.desc->init_kernel_info(info, *e.params);
             std::vector<memory_storage_wrapper_t> storage_list;
             info.init_memory_storage_list(storage_list, ctx, primitive);
             compute::kernel_arg_list_t arg_list;
@@ -407,6 +412,58 @@ private:
     };
 
     std::vector<entry_t> entries_;
+};
+
+class var_manager_t {
+public:
+    var_manager_t(kernel_iface_t &kernel_iface) : kernel_iface_(kernel_iface) {}
+
+    std::vector<expr_t> ptr_args() const {
+        std::vector<expr_t> ret;
+        for (int i = 0; i < kernel_iface_.nargs(); i++) {
+            auto &var = kernel_iface_.arg_var(i);
+            if (var.type().is_ptr()) ret.push_back(var);
+        }
+        return ret;
+    }
+
+    expr_t get_arg(const std::string &name, bool allow_empty = false) const {
+        return kernel_iface_.find_arg(name, allow_empty);
+    }
+
+    expr_t get_grid_size(const std::string &name) {
+        return get_internal_arg(type_t::u32(), name + "_grid_size");
+    }
+
+    expr_t get_idiv_magic(const expr_t &value) {
+        std::string name;
+        if (auto *op = value.as_ptr<binary_op_t>()) {
+            if (op->op_kind == op_kind_t::_div_up) {
+                ir_assert(is_const(op->b))
+                        << "Expected constant denominator: " << value;
+                if (is_one(op->b)) return get_idiv_magic(op->a);
+                ir_assert(op->a.is<var_t>() || op->a.is<const_var_t>())
+                        << "Expected var/const var: " << op->a;
+                name = op->a.str();
+                name += "_divup_" + op->b.str();
+            }
+        } else {
+            ir_assert(value.is<var_t>() || value.is<const_var_t>())
+                    << "Expected var/const var: " << value;
+            name = value.str();
+        }
+        return get_internal_arg(type_t::u64(), name + "_magic");
+    }
+
+    expr_t get_internal_arg(const type_t &type, const std::string &name) {
+        if (kernel_iface_.has(name)) return kernel_iface_.find_arg(name);
+        auto var = var_t::make(type, name);
+        kernel_iface_.register_arg(var);
+        return var;
+    }
+
+private:
+    kernel_iface_t &kernel_iface_;
 };
 
 } // namespace jit

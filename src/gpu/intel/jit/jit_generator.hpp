@@ -29,6 +29,7 @@
 #include "gpu/intel/jit/emulation.hpp"
 #include "gpu/intel/jit/jit_generator_base.hpp"
 #include "gpu/intel/jit/utils/ngen_type_bridge.hpp"
+#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
 #include "xpu/utils.hpp"
 
 #include "gpu/intel/jit/ngen/ngen_opencl.hpp"
@@ -37,6 +38,11 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace intel {
+
+namespace ocl {
+class ocl_gpu_engine_t;
+}
+
 namespace jit {
 
 using gpu_gen_t = ngen::HW;
@@ -157,8 +163,9 @@ public:
         return ngen::OpenCLCodeGenerator<hw>::getExternalName().c_str();
     }
 
-    xpu::binary_t get_binary(cl_context context, cl_device_id device) override {
-        return ngen::OpenCLCodeGenerator<hw>::getBinary(context, device);
+    xpu::binary_t get_binary(const ocl::ocl_gpu_engine_t *engine) override {
+        return ngen::OpenCLCodeGenerator<hw>::getBinary(
+                engine->context(), engine->device());
     }
 
 #ifdef CL_VERSION_2_0

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -499,7 +499,9 @@ public:
 
         set_dims_padded(grid_info_t(padded, ""));
         set_loop_grid(grid_info_t(lg, "lg_idx"));
-        set_kernel_grid(grid_info_t(kg, "kg_idx"));
+        auto &tg_idxs = ir_builder_t::tg_idxs();
+        set_kernel_grid(grid_info_t(
+                kg, std::vector<expr_t>(tg_idxs.begin(), tg_idxs.end())));
         set_thread_group_grid(grid_info_t(tg, "tg_idx"));
     }
 
