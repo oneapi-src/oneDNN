@@ -335,7 +335,12 @@ public:
             auto &arg_var = kernel_info_.arg_var(i);
             auto &name = kernel_info_.arg_name(i);
             if (arg_var.type().is_ptr()) {
-                auto alloc_buf = alloc_mgr.find_buffer(name);
+                auto alloc_buf
+                        = alloc_mgr.find_buffer(name, /*allow_empty=*/true);
+                if (alloc_buf.is_empty()) {
+                    ir_warning() << "Unused argument: " << arg_var << std::endl;
+                    continue;
+                }
                 ir_assert(alloc_buf.is_same(arg_var));
             }
             expr_binding.bind(arg_var, getArgument(name));
