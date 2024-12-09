@@ -572,7 +572,7 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     if (jcp_.K > 0) Kv.push_back(false);
     if (has_K_tail) Kv.push_back(true);
 
-    const auto first_K_init_only = jcp_.exec_type == exec_trans
+    const auto first_K_init_only = one_of(jcp_.exec_type, exec_trans, exec_vpad)
             && (jcp_.ic / jcp_.ic_block <= 1)
             && (KD_BLOCK == KD && KH_BLOCK == KH);
 
