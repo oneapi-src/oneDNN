@@ -195,6 +195,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
             if (s == "profile_exec") k |= verbose_t::exec_profile;
             // Enable profiling to external libraries
             if (s == "profile_externals") k |= verbose_t::profile_externals;
+            if (s == "warn") k |= verbose_t::warn;
             // we extract debug info debuginfo=XX. ignore if debuginfo is invalid.
             if (s.rfind("debuginfo=", 0) == 0)
                 k |= verbose_t::make_debuginfo(
@@ -1816,10 +1817,12 @@ dnnl_status_t dnnl_set_verbose(int level) {
     if (level < 0 || level > 2) return invalid_arguments;
 
     uint32_t verbose_level = verbose_t::none;
-    if (level == 1) verbose_level = verbose_t::error | verbose_t::exec_profile;
+    if (level == 1)
+        verbose_level
+                = verbose_t::error | verbose_t::exec_profile | verbose_t::warn;
     if (level == 2)
         verbose_level = verbose_t::error | verbose_t::exec_profile
-                | verbose_t::create_profile;
+                | verbose_t::create_profile | verbose_t::warn;
     // we put the lower byte of level as devinfo to preserve backward
     // compatibility with historical VERBOSE={1,2}
     if (level == 1 || level == 2) verbose_level |= (level << 24);

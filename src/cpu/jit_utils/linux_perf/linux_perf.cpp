@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -195,7 +195,7 @@ private:
         }
 #else
         if (use_tsc) {
-            VERROR(primitive, linux_perf,
+            VWARN(primitive, linux_perf,
                     "TSC timestamps is not supported. clock_gettime() is used "
                     "instead.");
         }

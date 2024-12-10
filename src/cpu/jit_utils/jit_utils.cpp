@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -97,7 +97,7 @@ void register_jit_code_vtune(const void *code, size_t code_size,
     }
 #else
     if (flags & DNNL_JIT_PROFILE_VTUNE)
-        VERROR(primitive, jit_profiling,
+        VWARN(primitive, jit_profiling,
                 "VTune Profiler integration is not supported");
 #endif
 #else

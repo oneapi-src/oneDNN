@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2024 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -204,7 +204,7 @@ struct stack_checker_t {
             size_t soft_stack_limit_in_bytes
                     = get_soft_stack_limit() * get_page_size();
             if (stack_consumption > soft_stack_limit_in_bytes) {
-                VERROR(common, stack_checker,
+                VWARN(common, stack_checker,
                         "'%s' consumed %lu bytes of "
                         "stack while the limit is %lu bytes",
                         context_.c_str(), stack_consumption,
