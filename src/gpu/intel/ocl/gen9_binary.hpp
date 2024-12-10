@@ -60,6 +60,7 @@ struct gen9_binary_t : public gpu_primitive_t {
                                     && utils::one_of(dst_md()->data_type, f16,
                                             f32, s8, u8))),
                     VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_BINARY(!is_ternary_op(), VERBOSE_BAD_ALGORITHM);
             VDISPATCH_BINARY(
                     IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(dst_md()->data_type, s8, u8)

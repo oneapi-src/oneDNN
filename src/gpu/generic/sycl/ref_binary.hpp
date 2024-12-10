@@ -54,6 +54,7 @@ struct ref_binary_t : public gpu::generic::sycl::primitive_t {
                     && check_formats(src0_d, src1_d, dst_d)
                     && attr()->has_default_values(
                             sm::scales_runtime | sm::post_ops)
+                    && !is_ternary_op()
                     && IMPLICATION(
                             !attr()->scales_.has_default_values(), scales_ok())
                     && sycl_post_ops_t::post_ops_ok(attr())
