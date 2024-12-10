@@ -713,6 +713,11 @@ public:
         _stmt = inject_global_alloc(_stmt);
         _stmt = fixup_idiv(_stmt, var_mgr, ir_ctx);
         _stmt = finalize_vars(_stmt, var_mgr, ir_ctx);
+        _stmt = merge_slm_buffers(_stmt, ir_ctx);
+        _stmt = inject_slm_reorder(_stmt, ir_ctx,
+                to_grid_info(plan_.thr_grid, desc_.thread_group_tile),
+                /*has_slm_usage=*/(bool)plan_.epilogue.slm_reduce);
+        _stmt = inject_send(_stmt, ir_ctx);
         _stmt = simplify(_stmt, ir_ctx);
         _stmt = optimize_alloc_let(_stmt, ir_ctx);
         _stmt = split_wide_stores(_stmt, ir_ctx);
