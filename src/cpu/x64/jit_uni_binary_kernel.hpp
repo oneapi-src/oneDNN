@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,7 +79,16 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const Reg64 reg_param_ = abi_param1;
     const Reg64 reg_src0_ = r8;
     const Reg64 reg_src1_ = r9;
+    const Reg64 reg_src2_ = rsi;
     const Reg64 reg_dst_ = r10;
+    // Note: for ternary operations, only src2 identical to src0 is supported.
+    // It means the processing of elements in both tensors is identical, thus,
+    // if the offset is in number of elements and not in bytes, multiplying such
+    // offset both src0 and src2 offsets by correspondent dt_size allows to
+    // compute them independently. This allows us to save a GPR (there's no
+    // `reg_offt_src2_` so far) until the moment a random broadcast for src2 is
+    // supported. There's no spare GPRs to use at the moment without code
+    // modifications.
     const Reg64 reg_offt_src0_ = r11;
     const Reg64 reg_outer_dims_range_ = r12;
     const Reg64 reg_offt_src1_ = rax;
@@ -117,9 +126,14 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const Vmm vmm_indices_ = Vmm(is_avx512 ? 30 : 7);
     const Vmm vmm_gathered_src_ = Vmm(is_avx512 ? 31 : 8);
 
-    const size_t unroll_regs_ = is_avx512 ? 8 : 4;
+    // For the ternary select operation, a conditional value is required
+    // for computation in addition to src0 and src1. The number of unroll
+    // registers are adjusted to accomodate for the extra input.
+    const size_t unroll_regs_ = is_avx512 ? (conf_.is_ternary_op ? 3 : 8)
+                                          : (conf_.is_ternary_op ? 1 : 4);
     const size_t offt_src0_;
     const size_t offt_src1_;
+    const size_t offt_src2_;
 
     static constexpr cpu_isa_t inject_isa
             = isa == avx512_core_bf16 ? avx512_core : isa;
@@ -134,10 +148,14 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     void load_kernel_params();
     Address src0_ptr(size_t offt = 0);
     Address src1_ptr(size_t offt = 0);
+    Address src2_ptr(size_t offt = 0);
     Address dst_ptr(size_t offt = 0);
+    Opmask get_select_opmask(int reg_idx);
     unsigned int cmp_predicate(alg_kind_t alg);
     void perform_op(
             const Vmm &v0, const Vmm &v1, const Vmm &s_src0, const Vmm &s_src1);
+    void perform_ternary_op(const Vmm &v0, const Vmm &v1, const Vmm &cond,
+            const Vmm &s_src0, const Vmm &s_src1, int reg_idx);
     void prepare_isa_kernel();
     void compute_bcast(bool tail);
     void load_src1(const Vmm &vreg_src1, const int offt, bool tail);

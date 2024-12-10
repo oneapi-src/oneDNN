@@ -93,7 +93,13 @@ jit_uni_binary_kernel_t<isa, Vmm>::jit_uni_binary_kernel_t(
     : binary_kernel_t(vreg_traits<Vmm>::vlen, pd, conf, jit_name(), tail_kernel)
     , offt_src0_(vlen_ / ((conf_.is_bf16 || conf_.is_f16) ? 2 : 1))
     , offt_src1_(conf_.use_stride_src1 ? offt_src0_ : 0)
-    , io_(this, isa, {conf_.src0_type, conf_.src1_type, conf_.dst_type},
+    , offt_src2_(offt_src0_)
+    , io_(this, isa,
+              conf_.is_ternary_op
+                      ? std::initializer_list<data_type_t> {conf_.src0_type,
+                              conf_.src1_type, conf_.src2_type, conf_.dst_type}
+                      : std::initializer_list<data_type_t> {conf_.src0_type,
+                              conf_.src1_type, conf_.dst_type},
               {false},
               io::io_tail_conf_t {simd_w_, tail_size_, tail_opmask_,
                       vmm_tail_vmask_.getIdx(), reg_tmp_},
@@ -214,7 +220,9 @@ void jit_uni_binary_kernel_t<isa, Vmm>::apply_postops(int unroll, bool tail) {
                 this, {reg_tmp1_}};
 
         mov(reg_tmp1_, reg_dst_);
-        add(reg_tmp1_, reg_offt_dst);
+        mov(reg_tmp_, reg_offt_dst);
+        if (!conf_.is_i8) shl(reg_tmp_, is_xf16(conf_.dst_type) ? 1 : 2);
+        add(reg_tmp1_, reg_tmp_);
 
         for (int vmm_idx = 1; vmm_idx < unroll + vmm_start_idx_; vmm_idx++) {
             rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, reg_tmp1_);
@@ -242,7 +250,9 @@ void jit_uni_binary_kernel_t<isa, Vmm>::load_kernel_params() {
                 ptr[reg_param_ + PARAM_OFF(spat_offt_count)]);
     mov(reg_src0_, ptr[reg_param_ + PARAM_OFF(src0)]);
     mov(reg_src1_, ptr[reg_param_ + PARAM_OFF(src1)]);
+    if (conf_.is_ternary_op) mov(reg_src2_, ptr[reg_param_ + PARAM_OFF(src2)]);
     mov(reg_dst_, ptr[reg_param_ + PARAM_OFF(dst)]);
+
     if (conf_.is_src_different_layouts) {
         mov(reg_tmp_, ptr[reg_param_ + PARAM_OFF(indices)]);
         uni_vmovdqu(vmm_indices_, ptr[reg_tmp_]);
@@ -257,9 +267,14 @@ void jit_uni_binary_kernel_t<isa, Vmm>::load_kernel_params() {
         mov(reg_scales_src1_, ptr[reg_param_ + PARAM_OFF(scales_src1)]);
 }
 
+// Note: unlike `src1_ptr(...)` and `dst_ptr(...)`, `offt` here is specified in
+// the number of elements without multiplying it by dt_size. See a comment for
+// `reg_offt_src0_` in the header file for more details.
 template <cpu_isa_t isa, typename Vmm>
 Address jit_uni_binary_kernel_t<isa, Vmm>::src0_ptr(size_t offt) {
-    return vmmword[reg_src0_ + reg_offt_src0_ + offt];
+    const auto src0_type_size = types::data_type_size(conf_.src0_type);
+    return vmmword[reg_src0_ + reg_offt_src0_ * src0_type_size
+            + offt * src0_type_size];
 }
 
 template <cpu_isa_t isa, typename Vmm>
@@ -268,8 +283,17 @@ Address jit_uni_binary_kernel_t<isa, Vmm>::src1_ptr(size_t offt) {
 }
 
 template <cpu_isa_t isa, typename Vmm>
+Address jit_uni_binary_kernel_t<isa, Vmm>::src2_ptr(size_t offt) {
+    const auto src2_type_size = types::data_type_size(conf_.src2_type);
+    return vmmword[reg_src2_ + reg_offt_src0_ * src2_type_size
+            + offt * src2_type_size];
+}
+
+template <cpu_isa_t isa, typename Vmm>
 Address jit_uni_binary_kernel_t<isa, Vmm>::dst_ptr(size_t offt) {
-    const Reg64 &reg_offt_dst = conf_.is_i8 ? reg_offt_dst_ : reg_offt_src0_;
+    const auto src0_type_size = types::data_type_size(conf_.src0_type);
+    const auto &reg_offt_dst
+            = conf_.is_i8 ? reg_offt_dst_ : (reg_offt_src0_ * src0_type_size);
     return vmmword[reg_dst_ + reg_offt_dst + offt];
 }
 
@@ -283,7 +307,7 @@ unsigned int jit_uni_binary_kernel_t<isa, Vmm>::cmp_predicate(alg_kind_t alg) {
         case binary_lt: return _cmp_lt_os;
         case binary_eq: return _cmp_eq_oq;
         case binary_ne: return _cmp_neq_uq;
-        default: assert(!"not supported operation!"); return -1;
+        default: assert(!"unsupported operation!"); return -1;
     }
 }
 
@@ -321,7 +345,59 @@ void jit_uni_binary_kernel_t<isa, Vmm>::perform_op(
             uni_vminps(v0, v0, vreg_one_);
         }
     } else
-        assert(!"not supported operation!");
+        assert(!"unsupported operation!");
+}
+
+template <cpu_isa_t isa, typename Vmm>
+Opmask jit_uni_binary_kernel_t<isa, Vmm>::get_select_opmask(int reg_idx) {
+    switch (reg_idx) {
+        case 0: return k5;
+        case 1: return k6;
+        case 2: return k7;
+        default: assert(!"unsupported range"); return k7;
+    }
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void jit_uni_binary_kernel_t<isa, Vmm>::perform_ternary_op(const Vmm &v0,
+        const Vmm &v1, const Vmm &cond, const Vmm &s_src0, const Vmm &s_src1,
+        int reg_idx) {
+    using namespace alg_kind;
+    const auto alg = pd_->desc()->alg_kind;
+    if (conf_.do_scale_src0) uni_vmulps(v0, v0, s_src0);
+    if (conf_.do_scale_src1 && offt_src1_ != 0 && !conf_.broadcast_src1_value)
+        uni_vmulps(v1, v1, s_src1);
+
+    uni_vpxor(vreg_zero_, vreg_zero_, vreg_zero_);
+
+    // The following kernel implementation for the ternary select operation
+    // dst = src2 ? src0 : src1
+    // is constructed using VCMMPS and VBLENDVPS instructions which process three
+    // elements at a time for the src0, src1 and the additional src2 tensor for
+    // conditional input. As a result, the number of unroll registers for the
+    //  operation must be reduced to accommodate for the third input. This cuts
+    // down on the performance of the operation but must be done due to the
+    // limited available Vmm registers to account for the extra input.
+    // TODO: Another more optimized alternative to investigate is to break down the
+    // select operation into a set of arithmetic operations:
+    // dst = src1 * (src2) + src0 * (1 - src2)
+    // wherein the values can be directly load from the src0 and src1 addresses
+    // without requiring additional tmp registers to hold the intermediate
+    // computations. But this will require additional offset pre-calculations to
+    // account for all the cases of broadcasting / tensor data types. Considering
+    // the current number of free GPRs during computation and the kernel structure,
+    // this provides little gain over the current kernel implementation.
+    if (alg == binary_select) {
+        if (is_avx512) {
+            const Opmask cond_mask = get_select_opmask(reg_idx);
+            vcmpps(cond_mask, cond, vreg_zero_, _cmp_eq_oq);
+            vblendmps(v0 | cond_mask, v0, v1);
+        } else {
+            uni_vcmpps(cond, cond, vreg_zero_, _cmp_eq_oq);
+            uni_vblendvps(v0, v0, v1, cond);
+        }
+    } else
+        assert(!"unsupported operation!");
 }
 
 template <cpu_isa_t isa, typename Vmm>
@@ -454,9 +530,7 @@ void jit_uni_binary_kernel_t<isa, Vmm>::compute_ne_xf16_dst_body(
 
         if (can_load_two_simdw_src0) {
             io_.at(conf_.src0_type)
-                    ->load_two_simdw_xf16(
-                            src0_ptr(offt_base
-                                    * types::data_type_size(conf_.src0_type)),
+                    ->load_two_simdw_xf16(src0_ptr(offt_base),
                             vreg_tmp_even_src0, vreg_tmp_odd_src0);
             io_.at(conf_.src0_type)
                     ->merge_interleaved_to_plain(
@@ -483,10 +557,7 @@ void jit_uni_binary_kernel_t<isa, Vmm>::compute_ne_xf16_dst_body(
             const int offt = simd_w_ * j + offt_base;
             if (!can_load_two_simdw_src0)
                 io_.at(conf_.src0_type)
-                        ->load(src0_ptr(offt
-                                       * types::data_type_size(
-                                               conf_.src0_type)),
-                                vreg_tmp_src0, tail);
+                        ->load(src0_ptr(offt), vreg_tmp_src0, tail);
             if (offt_src1_ && !can_load_two_simdw_src1)
                 load_src1(vreg_tmp_src1, offt, tail);
 
@@ -510,17 +581,21 @@ void jit_uni_binary_kernel_t<isa, Vmm>::compute_dst_body(
                 : Vmm(unroll + i + vmm_start_idx_);
         const Vmm vreg_tmp_src1 = offt_src1_ ? vreg_tmp : vreg_bcast_src1_;
         const int offt = simd_w_ * i;
-        io_.at(conf_.src0_type)
-                ->load(src0_ptr(offt * types::data_type_size(conf_.src0_type)),
-                        vreg_tmp_src0, tail);
+        io_.at(conf_.src0_type)->load(src0_ptr(offt), vreg_tmp_src0, tail);
         if (offt_src1_) load_src1(vreg_tmp_src1, offt, tail);
 
         // avoid multiple multiplication on input scale for broadcasted vreg
         // not needed for different layouts
         if (!conf_.is_src_different_layouts)
             uni_vmovups(vreg_tmp, vreg_tmp_src1);
-        perform_op(
-                vreg_tmp_src0, vreg_tmp, vreg_scales_src0_, vreg_scales_src1_);
+        if (conf_.is_ternary_op) {
+            const Vmm vreg_tmp_src2 = Vmm(2 * unroll + i + vmm_start_idx_);
+            io_.at(conf_.src2_type)->load(src2_ptr(offt), vreg_tmp_src2, tail);
+            perform_ternary_op(vreg_tmp_src0, vreg_tmp, vreg_tmp_src2,
+                    vreg_scales_src0_, vreg_scales_src1_, i);
+        } else
+            perform_op(vreg_tmp_src0, vreg_tmp, vreg_scales_src0_,
+                    vreg_scales_src1_);
     }
 }
 
@@ -532,7 +607,8 @@ void jit_uni_binary_kernel_t<isa, Vmm>::compute_dst(int unroll, bool tail) {
             && IMPLICATION(is_xf16(conf_.src1_type),
                     offt_src1_ && !conf_.is_src_different_layouts)
             && (is_ne_xf16_supported(isa, conf_.src0_type)
-                    || is_ne_xf16_supported(isa, conf_.src1_type)))
+                    || is_ne_xf16_supported(isa, conf_.src1_type))
+            && !conf_.is_ternary_op)
         compute_ne_xf16_dst_body(unroll, tail);
     else
         compute_dst_body(unroll, tail);
@@ -546,7 +622,6 @@ template <cpu_isa_t isa, typename Vmm>
 void jit_uni_binary_kernel_t<isa, Vmm>::forward() {
     Label unroll_loop, unroll_loop_tail, nelems_tail, end;
 
-    const auto src0_type_size = types::data_type_size(conf_.src0_type);
     const auto src1_type_size = types::data_type_size(conf_.src1_type);
     const auto dst_type_size = types::data_type_size(conf_.dst_type);
 
@@ -560,11 +635,12 @@ void jit_uni_binary_kernel_t<isa, Vmm>::forward() {
             xor_(reg_offt_dst_, reg_offt_dst_); // offt_dst to get addr of dst
         }
 
-        xor_(reg_offt_src0_,
-                reg_offt_src0_); // offt_src0 to get addr of src0/dst
+        // offt_src0 to get addr of src0/dst
+        xor_(reg_offt_src0_, reg_offt_src0_);
+        // offt_src1 to get addr of src1
         if (!conf_.is_src_different_layouts)
-            xor_(reg_offt_src1_,
-                    reg_offt_src1_); // offt_src1 to get addr of src1
+            xor_(reg_offt_src1_, reg_offt_src1_);
+
         if (conf_.use_stride_rhs_postops && !conf_.is_i8)
             xor_(reg_off_rhs_postops_, reg_off_rhs_postops_);
     }
@@ -572,7 +648,7 @@ void jit_uni_binary_kernel_t<isa, Vmm>::forward() {
 
     if (utils::one_of(alg, alg_kind::binary_ge, alg_kind::binary_gt,
                 alg_kind::binary_le, alg_kind::binary_lt, alg_kind::binary_eq,
-                alg_kind::binary_ne)) {
+                alg_kind::binary_ne, alg_kind::binary_select)) {
         Xmm xreg_one = Xmm(vreg_one_.getIdx());
         mov(reg_tmp_, float2int(1));
         uni_vmovq(xreg_one, reg_tmp_);
@@ -601,7 +677,8 @@ void jit_uni_binary_kernel_t<isa, Vmm>::forward() {
 
         compute_dst(unroll_regs_, treat_each_compute_step_as_tail);
         sub(reg_reverse_spat_offt_, offt * dst_type_size);
-        add(reg_offt_src0_, offt * src0_type_size);
+        add(reg_offt_src0_, offt);
+
         if (conf_.is_i8) {
             if (!conf_.broadcast_src1_value && !conf_.is_src_different_layouts)
                 add(reg_offt_src1_, offt * src1_type_size);
@@ -621,7 +698,7 @@ void jit_uni_binary_kernel_t<isa, Vmm>::forward() {
 
         compute_dst(1, treat_each_compute_step_as_tail);
         sub(reg_reverse_spat_offt_, simd_w_ * dst_type_size);
-        add(reg_offt_src0_, simd_w_ * src0_type_size);
+        add(reg_offt_src0_, simd_w_);
         if (conf_.is_i8) {
             if (!conf_.broadcast_src1_value && !conf_.is_src_different_layouts)
                 add(reg_offt_src1_, simd_w_ * src1_type_size);
@@ -644,7 +721,7 @@ void jit_uni_binary_kernel_t<isa, Vmm>::forward() {
         compute_dst(1, true);
         // need to increase if forward over outer dims
         if (is_src1_outer_dims_tail_) {
-            add(reg_offt_src0_, tail_size_ * src0_type_size);
+            add(reg_offt_src0_, tail_size_);
             if (conf_.is_i8)
                 add(reg_offt_dst_, tail_size_);
             else {
@@ -669,8 +746,8 @@ void jit_uni_binary_kernel_t<isa, Vmm>::forward_over_outer_dims() {
         xor_(reg_offt_dst_, reg_offt_dst_); // offt_dst to get addr of dst
     }
 
-    xor_(reg_offt_src0_,
-            reg_offt_src0_); // offt_src0 to get addr of src0/dst
+    // offt_src0 to get addr of src0/dst
+    xor_(reg_offt_src0_, reg_offt_src0_);
     if (conf_.use_stride_rhs_postops && !conf_.is_i8)
         xor_(reg_off_rhs_postops_, reg_off_rhs_postops_);
 

@@ -878,6 +878,7 @@ struct jit_binary_conf_t {
     bool is_i8 = false;
     bool is_bf16 = false;
     bool is_f16 = false;
+    bool is_ternary_op = false;
     bool is_src_different_layouts = false;
     dim_t outer_dims = 1;
     int src1_stride = 1;
@@ -886,12 +887,13 @@ struct jit_binary_conf_t {
 
     data_type_t src0_type = data_type::undef;
     data_type_t src1_type = data_type::undef;
+    data_type_t src2_type = data_type::undef;
     data_type_t dst_type = data_type::undef;
 };
 
 struct jit_binary_call_s {
     // keep all sizes at 8 bytes -- jit code expects this
-    const void *src0, *src1, *dst, *indices;
+    const void *src0, *src1, *src2, *dst, *indices;
     const float *scales_src0, *scales_src1;
     size_t spat_offt_count;
     const void *post_ops_binary_rhs_arg_vec;
