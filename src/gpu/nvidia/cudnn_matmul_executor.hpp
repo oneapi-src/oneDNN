@@ -392,12 +392,12 @@ struct cudnn_matmul_lt_exec_t final : public cudnn_matmul_lt_base_exec_t {
                             memory_tracking::names::key_matmul_dst_in_acc_dt)
                     : xpu::sycl::interop_memory_arg_t<
                             ::sycl::access::mode::read_write>();
-            auto arg_block_a_scratch = params->source_size_ != 0
+            auto arg_block_a_scratch = params->weight_size_ != 0
                     ? CTX_SCRATCH_SYCL_MEMORY(
                             memory_tracking::names::key_gemm_blocked_a)
                     : xpu::sycl::interop_memory_arg_t<
                             ::sycl::access::mode::read_write>();
-            auto arg_block_b_scratch = params->weight_size_ != 0
+            auto arg_block_b_scratch = params->source_size_ != 0
                     ? CTX_SCRATCH_SYCL_MEMORY(
                             memory_tracking::names::key_gemm_blocked_b)
                     : xpu::sycl::interop_memory_arg_t<
@@ -457,10 +457,10 @@ struct cudnn_matmul_lt_runtime_args_exec_t final
                 matmul_params->reorder_scratch_size_, cuda_stream->queue());
 
         uint8_t *block_a_scratch_ptr
-                = alloc_ptr(matmul_params->source_size_, cuda_stream->queue());
+                = alloc_ptr(matmul_params->weight_size_, cuda_stream->queue());
 
         uint8_t *block_b_scratch_ptr
-                = alloc_ptr(matmul_params->weight_size_, cuda_stream->queue());
+                = alloc_ptr(matmul_params->source_size_, cuda_stream->queue());
 
         uint8_t *block_c_scratch_ptr
                 = alloc_ptr(matmul_params->dest_size_, cuda_stream->queue());
