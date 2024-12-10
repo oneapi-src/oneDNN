@@ -84,8 +84,8 @@ offset_t offset_scope_t::get_offset(int version, const expr_t &base0,
     auto params = _params;
     expr_t _base_init;
     std::vector<expr_t> _loop_incs;
-    std::vector<expr_t> start(loop_nest.nloops(), expr_t(0));
-    split_to_linear(base, loop_nest.indices(), start, _base_init, _loop_incs);
+    split_to_linear(base, loop_nest.indices(), loop_nest.init_exprs(),
+            _base_init, _loop_incs);
 
     auto type = params.type.with_elems(params.esize);
     auto shift_vec
@@ -108,11 +108,11 @@ offset_t offset_scope_t::get_offset(int version, const expr_t &base0,
 
     expr_t comp_value = 0;
     for (size_t i = 0; i < loop_nest.nloops(); i++) {
-        auto loop_size = loop_nest[i].size;
         auto inc_value = simplify(_loop_incs[i] - comp_value);
         auto inc = to_simple_expr(inc_value);
         ret.loop_incs.push_back(inc);
-        comp_value = to_simple_expr(_loop_incs[i] * loop_size);
+        if (i == loop_nest.nloops() - 1) break;
+        comp_value = to_simple_expr(_loop_incs[i] * loop_nest[i].bound);
     }
 
     if (params.allow_reuse) {
