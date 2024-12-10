@@ -528,54 +528,29 @@ private:
     const kernel_desc_t &desc_;
 };
 
-class epilogue_builder_t : public ir_builder_t {
+class epilogue_tile_builder_t : public ir_builder_t {
 public:
-    epilogue_builder_t(ir_builder_t &parent, const buffer_info_t &buf_info,
-            const kernel_desc_t &desc, const epilogue_plan_t &plan)
+    epilogue_tile_builder_t(ir_builder_t &parent, const buffer_info_t &buf_info,
+            const kernel_desc_t &desc, const layout_t &c_layout,
+            const expr_t &c_mem_buf, const expr_t &c_reg_buf,
+            const pvar_coord_t<expr_t> &c_coord,
+            const pvar_coord_t<dim_t> &coord,
+            const epilogue_store_plan_t &store_plan)
         : ir_builder_t(parent, loop_nest_t())
         , buf_info_(buf_info)
-        , desc_(desc)
-        , plan_(plan) {
-        build_slm_reduce();
-        build_c_store();
-        build_bias_reduce_store();
+        , desc_(desc) {
+        dim_t off = c_layout.offset_in_bytes(coord);
+        auto store_layout
+                = store_plan.c_store.reg_layout().map(store_plan.tile);
+        layout_t payload_layout = store_layout;
+        auto payload_buf = build_post_ops(c_layout.map(store_plan.tile),
+                c_coord + coord, c_reg_buf + off, payload_layout);
+        payload_buf = reorder(payload_layout, store_layout, payload_buf);
+        store(store_plan.c_store, c_mem_buf, payload_buf, coord,
+                store_plan.tile);
     }
 
 private:
-    void build_slm_reduce() {
-        auto &slm_reduce = plan_.slm_reduce;
-        if (!slm_reduce) return;
-
-        auto &c_buf = buf_info_.reg_buf("c");
-        auto c_tmp_buf = alloc("c_reduce", slm_reduce.load.reg_layout().size());
-        auto c_slm_buf = alloc("slm", slm_reduce.slm_usage_bytes());
-        store(slm_reduce.store, c_slm_buf, c_buf);
-        barrier();
-        load(slm_reduce.load, c_slm_buf, c_tmp_buf);
-        zero_out(c_buf);
-        reduce(slm_reduce.reduce, c_tmp_buf, c_buf);
-    }
-
-    void build_c_store() {
-        auto &c_layout = plan_.c_reg_layout;
-        auto &c_mem_buf = buf_info_.mem_buf("c");
-        auto &c_reg_buf = buf_info_.reg_buf("c");
-        for_each(c_layout.int_dim_sizes(), plan_.tile,
-                [&](const pvar_coord_t<dim_t> &coord) {
-                    dim_t off = c_layout.offset_in_bytes(coord);
-                    auto store_layout
-                            = plan_.c_store.reg_layout().map(plan_.tile);
-                    layout_t payload_layout = store_layout;
-                    auto payload_buf = build_post_ops(c_layout.map(plan_.tile),
-                            plan_.c_coord + coord, c_reg_buf + off,
-                            payload_layout);
-                    payload_buf = reorder(
-                            payload_layout, store_layout, payload_buf);
-                    store(plan_.c_store, c_mem_buf, payload_buf, coord,
-                            plan_.tile);
-                });
-    }
-
     static uint16_t reverse_post_op_mask(uint16_t mask, int ndims) {
         uint16_t ret = 0;
         for (int i = 0; i < ndims; i++) {
@@ -646,20 +621,68 @@ private:
         return buf;
     }
 
+    const buffer_info_t &buf_info_;
+    const kernel_desc_t &desc_;
+};
+
+class epilogue_builder_t : public ir_builder_t {
+public:
+    epilogue_builder_t(ir_builder_t &parent, const buffer_info_t &buf_info,
+            const kernel_desc_t &desc, const epilogue_plan_t &plan)
+        : ir_builder_t(parent, loop_nest_t())
+        , buf_info_(buf_info)
+        , desc_(desc)
+        , plan_(plan) {
+        build_slm_reduce();
+        build_c_store();
+        build_bias_reduce_store();
+    }
+
+private:
+    void build_slm_reduce() {
+        auto &slm_reduce = plan_.slm_reduce;
+        if (!slm_reduce) return;
+
+        auto &c_buf = buf_info_.reg_buf("c");
+        auto c_tmp_buf = alloc("c_reduce", slm_reduce.load.reg_layout().size());
+        auto c_slm_buf = alloc("slm", slm_reduce.slm_usage_bytes());
+        store(slm_reduce.store, c_slm_buf, c_buf);
+        barrier();
+        load(slm_reduce.load, c_slm_buf, c_tmp_buf);
+        zero_out(c_buf);
+        reduce(slm_reduce.reduce, c_tmp_buf, c_buf);
+    }
+
+    void build_c_store() {
+        auto &store_plan = plan_.store;
+        auto &c_layout = plan_.c_reg_layout;
+        auto &c_mem_buf = buf_info_.mem_buf("c");
+        auto &c_reg_buf = buf_info_.reg_buf("c");
+        for_each(c_layout.int_dim_sizes(), store_plan.tile,
+                [&](const pvar_coord_t<dim_t> &coord) {
+                    epilogue_tile_builder_t builder(*this, buf_info_, desc_,
+                            c_layout, c_mem_buf, c_reg_buf, plan_.c_coord,
+                            coord, store_plan);
+                    emit(builder.get_init_stmt());
+                    emit(builder.get_stmt());
+                });
+    }
+
     void build_bias_reduce_store() {
-        if (plan_.bia_reduced_reg_layout.is_empty()) return;
+        if (plan_.bia_layout.is_empty()) return;
+        auto &store_plan = plan_.store;
         auto &bia_red_mem_buf = buf_info_.mem_buf("bia");
         auto &bia_red_reg_buf = buf_info_.reg_buf("bia");
         expr_t tmp_buf;
-        if (plan_.bia_reorder)
-            tmp_buf = alloc("bia_tmp", plan_.bia_reorder.dst.size());
+        if (store_plan.bia_reorder)
+            tmp_buf = alloc("bia_tmp", store_plan.bia_reorder.dst.size());
         auto payload_buf = bia_red_reg_buf;
-        if (plan_.bia_reorder) {
-            reorder(plan_.bia_reorder, bia_red_reg_buf, tmp_buf);
+        if (store_plan.bia_reorder) {
+            reorder(store_plan.bia_reorder, bia_red_reg_buf, tmp_buf);
             payload_buf = std::move(tmp_buf);
         }
-        _if(plan_.reduce_cond, [&]() {
-            store(plan_.bia_store, bia_red_mem_buf, payload_buf);
+        _if(plan_.bia_reduce_cond, [&]() {
+            store(store_plan.bia_store, bia_red_mem_buf, payload_buf);
         });
     }
 
