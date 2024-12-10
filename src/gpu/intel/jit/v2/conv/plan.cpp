@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -646,10 +646,32 @@ private:
         return true;
     }
 
-    bool init_epilogue_bia(const layout_t &bia_layout, epilogue_plan_t &plan,
+    bool init_epilogue_store_bia(bool is_atomic, const layout_t &bia_reg_layout,
+            const view_t &bia_mem_view, epilogue_store_plan_t &plan,
             prb_reqs_t &reqs) const {
+        auto params = get_send_params(tensor_kind_t::undef,
+                is_atomic ? send_op_t::atomic_fadd : send_op_t::store,
+                bia_mem_view);
+        auto store = try_create_send_plan(__func__, params, bia_mem_view);
+        if (!store) return false;
+        ir_check(reqs.implies(store.reqs()))
+                << "Bias store add needs additional requirements.";
+        plan.bia_store = store;
+        if (bia_reg_layout != store.reg_layout()) {
+            auto store_layout = store.reg_layout();
+            if (bia_reg_layout != store_layout) {
+                plan.bia_reorder = reorder_plan_t(desc_.hw);
+                plan.bia_reorder.src = std::move(bia_reg_layout);
+                plan.bia_reorder.dst = std::move(store_layout);
+            }
+        }
+        return true;
+    }
+
+    bool init_epilogue_bia(const layout_t &bia_reg_layout,
+            epilogue_plan_t &plan, prb_reqs_t &reqs) const {
         auto &bia_mapper = dim_mapper_manager_.mapper(tensor_kind_t::bia);
-        auto bia_iter_view
+        auto bia_mem_view
                 = view_t(dim_mapper_manager_.mapper(tensor_kind_t::bia),
                         bia_layout_, coord_info_.iter_coord(), desc_.iter_tile);
         auto reduce_cond = expr_t(true);
@@ -659,24 +681,10 @@ private:
                 reduce_cond
                         = reduce_cond & (coord_info_.iter_coord()[dim] == 0);
         }
-        plan.reduce_cond = std::move(reduce_cond);
-        auto bia_params = get_send_params(
-                tensor_kind_t::undef, send_op_t::store, bia_iter_view);
-        auto bia_store = create_send_plan(bia_params, bia_iter_view);
-        ir_check(reqs.implies(bia_store.reqs()))
-                << "Bias store needs additional requirements.";
-        auto tile = plan.tile;
-        plan.bia_store = bia_store;
-        plan.bia_reduced_reg_layout = bia_layout;
-        if (bia_layout != bia_store.reg_layout()) {
-            auto fma_layout = bia_layout.map(tile);
-            auto store_layout = bia_store.reg_layout().map(tile);
-            if (fma_layout != store_layout) {
-                plan.bia_reorder = reorder_plan_t(desc_.hw);
-                plan.bia_reorder.src = std::move(fma_layout);
-                plan.bia_reorder.dst = std::move(store_layout);
-            }
-        }
+        plan.bia_reduce_cond = std::move(reduce_cond);
+        plan.bia_layout = bia_reg_layout;
+        ir_check(init_epilogue_store_bia(/*is_atomic=*/false, bia_reg_layout,
+                bia_mem_view, plan.store, reqs));
         return true;
     }
 
@@ -758,6 +766,30 @@ private:
         return true;
     }
 
+    bool init_epilogue_store_plan(bool is_atomic, const layout_t &c_reg_layout,
+            const view_t &c_mem_view, epilogue_store_plan_t &plan,
+            prb_reqs_t &reqs) const {
+        auto params = get_send_params(tensor_kind_t::c,
+                is_atomic ? send_op_t::atomic_fadd : send_op_t::store,
+                c_mem_view);
+        // TODO: Implement fallback from 2D to block/scattered messages to
+        // allow partial use of 2D messages when possible.
+        auto store = try_create_send_plan(__func__, params, c_mem_view);
+        if (!store) return false;
+        auto &tile = store.entry_tile();
+        plan.tile = tile;
+        plan.c_store = store;
+        auto c_reg_tile_layout = c_reg_layout.map(tile);
+        auto store_layout = store.reg_layout().map(tile);
+        if (c_reg_tile_layout != store_layout) {
+            plan.reorder = reorder_plan_t(desc_.hw);
+            plan.reorder.src = std::move(c_reg_tile_layout);
+            plan.reorder.dst = std::move(store_layout);
+        }
+        reqs.add(plan.c_store.reqs());
+        return true;
+    }
+
     bool init_epilogue_plan(const layout_t &c_fma_layout,
             virt_grid_t &virt_grid, epilogue_plan_t &plan,
             prb_reqs_t &reqs) const {
@@ -770,37 +802,10 @@ private:
                                         : coord_info_.iter_coord());
         auto c_tile = c_reg_layout.int_dim_sizes();
         auto c_mem_view = view_t(c_mapper, c_layout_, c_coord, c_tile);
-        int target_elems = 128 / c_layout_.type().size();
-        auto it_beg = begin(c_mem_view.layout());
-        auto it_end = end(c_mem_view.layout());
-        auto tile_last = it_beg;
-        for (auto it = it_beg; it != it_end; ++it) {
-            if (it.elems() > target_elems) break;
-            tile_last = it;
-        }
-        auto full_tile = desc_.iter_tile;
-        for (auto &d : desc_.iter_tile) {
-            if (mul_info_.is_k(d)) full_tile.unset(d);
-        }
-        auto params = get_send_params(
-                tensor_kind_t::c, send_op_t::store, c_mem_view);
-        // TODO: Implement fallback from 2D to block/scattered messages to
-        // allow partial use of 2D messages when possible.
-        auto c_store = try_create_send_plan(__func__, params, c_mem_view);
-        if (!c_store) return false;
-        auto &tile = c_store.entry_tile();
-        plan.tile = tile;
-        plan.c_store = c_store;
         plan.c_reg_layout = c_reg_layout;
-        plan.c_coord = c_coord;
-        auto c_reg_tile_layout = c_reg_layout.map(tile);
-        auto store_layout = c_store.reg_layout().map(tile);
-        if (c_reg_tile_layout != store_layout) {
-            plan.reorder = reorder_plan_t(desc_.hw);
-            plan.reorder.src = std::move(c_reg_tile_layout);
-            plan.reorder.dst = std::move(store_layout);
-        }
-        reqs.add(plan.c_store.reqs());
+        plan.c_coord = c_mem_view.coord();
+        ir_check(init_epilogue_store_plan(/*is_atomic=*/false, c_reg_layout,
+                c_mem_view, plan.store, reqs));
         return true;
     }
 
