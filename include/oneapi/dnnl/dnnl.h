@@ -3529,7 +3529,8 @@ dnnl_status_t DNNL_API dnnl_resampling_backward_primitive_desc_create(
 /// @param primitive_desc Output primitive descriptor.
 /// @param engine Engine to use.
 /// @param alg_kind reduction algorithm kind. Possible values:
-///     #dnnl_reduction_max, #dnnl_reduction_min, #dnnl_reduction_sum,
+///     #dnnl_reduction_amax, #dnnl_reduction_max,
+///     #dnnl_reduction_min, #dnnl_reduction_sum,
 ///     #dnnl_reduction_mul, #dnnl_reduction_mean, #dnnl_reduction_norm_lp_max,
 ///     #dnnl_reduction_norm_lp_sum, #dnnl_reduction_norm_lp_power_p_max,
 ///     #dnnl_reduction_norm_lp_power_p_sum.

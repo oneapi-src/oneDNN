@@ -51,6 +51,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, reduction_post_ops_fusion)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *reduction = pgraph->append_alternation(
                             {graph::op_kind::ReduceL1, graph::op_kind::ReduceL2,
+                                    graph::op_kind::ReduceAMax,
                                     graph::op_kind::ReduceMax,
                                     graph::op_kind::ReduceMean,
                                     graph::op_kind::ReduceMin,

@@ -34,6 +34,12 @@
 #else
 #define ACCUMULATE(x, y) fmax(x, y)
 #endif
+#elif defined(IS_AMAX)
+#if defined(SRC_DT_S8) || defined(SRC_DT_U8)
+#define ACCUMULATE(x, y) max(abs(x), abs(y))
+#else
+#define ACCUMULATE(x, y) fmax(fabs(x), fabs(y))
+#endif
 #elif defined(IS_MIN)
 #if defined(SRC_DT_S8) || defined(SRC_DT_U8)
 #define ACCUMULATE(x, y) min(x, y)
