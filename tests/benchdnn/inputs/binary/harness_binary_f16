@@ -4,7 +4,7 @@
 --inplace=true,false
 --ddt=f16 --sdt=f16:f16
 
---alg=ADD,MUL,MAX,MIN,DIV,SUB,GE,GT,LE,LT,EQ,NE
+--alg=ADD,MUL,MAX,MIN,DIV,SUB,GE,GT,LE,LT,EQ,NE,SELECT
 --batch=option_set_all
 --batch=option_set_src0_bcast
 

@@ -109,6 +109,8 @@ struct prb_t : public prb_vdims_t {
 
     const char *str() const { return repro.c_str(); }
 
+    const bool is_ternary_op() const { return alg == alg_t::SELECT; }
+
 private:
     std::string repro;
 

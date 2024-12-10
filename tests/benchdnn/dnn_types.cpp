@@ -532,6 +532,7 @@ static po_table_entry_t kind_table[] = {
         {pk_t::MIN, {"min", "binary_min"}, dnnl_binary_min},
         {pk_t::MUL, {"mul", "binary_mul"}, dnnl_binary_mul},
         {pk_t::NE, {"ne", "binary_ne"}, dnnl_binary_ne},
+        {pk_t::SELECT, {"select", "binary_select"}, dnnl_binary_select},
         {pk_t::SUB, {"sub", "binary_sub"}, dnnl_binary_sub},
         {pk_t::BINARY_END, {"binary_undef"}, dnnl_alg_kind_undef},
         // prelu
@@ -628,7 +629,11 @@ bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
     return kind > ELTWISE_START && kind < ELTWISE_END;
 }
 bool attr_t::post_ops_t::entry_t::is_binary_kind() const {
-    return kind > pk_t::BINARY_START && kind < pk_t::BINARY_END;
+    // binary select is a ternary operation and not currently
+    // supported in post-ops for the binary primitive
+    // TODO: add post-ops support for binary select operation
+    return kind > pk_t::BINARY_START && kind < pk_t::BINARY_END
+            && kind != pk_t::SELECT;
 }
 bool attr_t::post_ops_t::entry_t::is_prelu_kind() const {
     return kind == PRELU;
@@ -1577,7 +1582,7 @@ float compute_eltwise_bwd(
     return NAN;
 }
 
-float compute_binary(pk_t kind, float src0, float src1) {
+float compute_binary(pk_t kind, float src0, float src1, bool src2) {
     // don't compute on nan, propagate it
     if (std::isnan(src0) || std::isnan(src1)) return NAN;
 
@@ -1605,6 +1610,8 @@ float compute_binary(pk_t kind, float src0, float src1) {
         return src0 == src1;
     } else if (kind == pk_t::NE) {
         return src0 != src1;
+    } else if (kind == pk_t::SELECT) {
+        return src2 ? src0 : src1;
     } else {
         assert(!"operation not supported!");
     }
@@ -1664,7 +1671,7 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
             const auto &b = e.eltwise.beta;
             val = compute_eltwise_fwd(e.kind, val, a, b);
         } else if (e.is_binary_kind()) {
-            val = compute_binary(e.kind, val, *it_po);
+            val = compute_binary(e.kind, val, *it_po, false);
             it_po++;
         } else if (e.is_prelu_kind()) {
             val = val > 0 ? val : val * (*it_po);
