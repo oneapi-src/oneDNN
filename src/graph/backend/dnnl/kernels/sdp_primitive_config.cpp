@@ -231,7 +231,7 @@ status_t sdp_primitive_config_t::initial_check(
     // sdp_primitive only supports single scale value.
     if (scale) {
         const auto &s = scale->get_input_value(1)->get_logical_tensor();
-        if (ltw(s).size() != 1) return status::unimplemented;
+        if (ltw(s).nelems() != 1) return status::unimplemented;
     }
 
     return ok ? status::success : status::unimplemented;
