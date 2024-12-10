@@ -240,10 +240,10 @@ void kernel_desc_t::set_defaults() {
                 loop_desc.add(pvars::oc);
                 break;
             case prop_kind::backward_weights:
-                loop_desc.add(pvars::mb);
                 loop_desc.add(pvars::ow);
                 loop_desc.add(pvars::oh);
                 loop_desc.add(pvars::od);
+                loop_desc.add(pvars::mb);
                 break;
             default: ir_error_not_expected(); break;
         }
@@ -747,25 +747,25 @@ grid_t create_thread_group_grid(const kernel_desc_t &desc) {
         case prop_kind::forward:
             grid.add_mapping(pvars::oc, 0);
             grid.add_mapping(pvars::g, 1);
-            grid.add_mapping(pvars::od, 1);
-            grid.add_mapping(pvars::oh, 1);
             grid.add_mapping(pvars::ow, 1);
+            grid.add_mapping(pvars::oh, 1);
+            grid.add_mapping(pvars::od, 1);
             grid.add_mapping(pvars::mb, 2);
             break;
         case prop_kind::backward_data:
             grid.add_mapping(pvars::ic, 0);
             grid.add_mapping(pvars::g, 1);
-            grid.add_mapping(pvars::id, 1);
-            grid.add_mapping(pvars::ih, 1);
             grid.add_mapping(pvars::iw, 1);
+            grid.add_mapping(pvars::ih, 1);
+            grid.add_mapping(pvars::id, 1);
             grid.add_mapping(pvars::mb, 2);
             break;
         case prop_kind::backward_weights:
             grid.add_mapping(pvars::oc, 0);
             grid.add_mapping(pvars::ic, 1);
-            grid.add_mapping(pvars::kd, 1);
-            grid.add_mapping(pvars::kh, 1);
             grid.add_mapping(pvars::kw, 1);
+            grid.add_mapping(pvars::kh, 1);
+            grid.add_mapping(pvars::kd, 1);
             grid.add_mapping(pvars::g, 2);
             break;
         default: ir_error_not_expected();
