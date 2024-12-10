@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -329,12 +329,7 @@ public:
         return prop == prop_kind::backward_weights && !bias_type.is_undef();
     }
 
-    send_kind_t access_kind(send_op_t op, tensor_kind_t tensor) const {
-        if (use_2d_access && tensor != tensor_kind_t::undef)
-            return send_kind_t::_2d;
-        return send_kind_t::undef;
-    }
-
+    send_kind_t access_kind(send_op_t op, tensor_kind_t tensor) const;
     std::string kernel_name() const override { return "gen_conv_v2"; }
 
     exec_config_t exec_cfg() const override {

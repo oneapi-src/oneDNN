@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -717,6 +717,9 @@ public:
 
     send_plan_t build() const {
         send_params_t params = init_params_;
+        if (params.op == send_op_t::atomic_fadd) {
+            params.kind = send_kind_t::scattered;
+        }
         prb_reqs_t reqs;
         auto prover = reqs.prover(*params.external_reqs,
                 /*can_update=*/params.kind != send_kind_t::undef);
@@ -745,6 +748,7 @@ private:
         int inner_elems = inner_last.elems();
         int inner_bytes = type_size * inner_elems;
         int slot_size = ir_utils::max_pow2_divisor(inner_bytes);
+        if (params.op == send_op_t::atomic_fadd) slot_size = type_size;
         int grf_size = plan.hw.grf_size();
 
         if (slot_size < grf_size)
@@ -890,7 +894,13 @@ private:
                     = prover_t(prover, prover.can_update() && !ok_to_return());
             if (!mask_desc.is_uniform(it, _prover)) break;
             if (!it.is_dense()) break;
-            if (type_size * it.elems() > params.max_entry_reg_size) break;
+            int inner_bytes = type_size * it.elems();
+            if (inner_bytes > params.max_entry_reg_size) break;
+            if (params.kind == send_kind_t::scattered
+                    && inner_bytes > max_slot_size * max_slots)
+                break;
+            if (params.op == send_op_t::atomic_fadd && it.elems() > max_slots)
+                break;
             inner_last = it;
         }
         return inner_last;
