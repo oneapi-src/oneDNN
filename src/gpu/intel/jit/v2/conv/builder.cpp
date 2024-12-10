@@ -54,9 +54,9 @@ public:
     stmt_t init_stmt() const {
         stmt_t ret;
         for (int i = 0; i < nloops(); i++) {
-            ret = ret.append(loop_idxs_[i].store(0));
+            ret = ret.append(loop_idxs_[i].store(loop_nest_[i].init));
         }
-        ret = linear_idx_.store(linear_bound() - 1).append(ret);
+        ret = linear_idx_.store(loop_nest_.linear_bound() - 1).append(ret);
         return ret;
     }
 
@@ -73,7 +73,7 @@ public:
             stmt = stmt.append(off_ctx.inc_loop_stmt(i));
             if (i + 1 < nloops())
                 stmt = stmt.append(if_t::make(
-                        loop_idxs_[i].var() >= loop_nest_[i].size, body));
+                        loop_idxs_[i].var() >= loop_nest_[i].bound, body));
             body = std::move(stmt);
         }
         body = linear_idx_.inc_stmt(-1).append(body);
@@ -98,18 +98,6 @@ private:
 
         expr_t var() const { return load_t::make(type_t::s32(), buf, 0); }
     };
-
-    expr_t linear_bound() const {
-        expr_t ret;
-        for (int i = 0; i < nloops(); i++) {
-            if (ret.is_empty()) {
-                ret = loop_nest_[i].size;
-            } else {
-                ret *= loop_nest_[i].size;
-            }
-        }
-        return ret;
-    }
 
     loop_nest_t loop_nest_;
     std::vector<loop_index_t> loop_idxs_;
@@ -199,12 +187,16 @@ stmt_t finalize_vars(const stmt_t &stmt, const kernel_iface_t &kernel_iface,
 loop_nest_t make_loop_nest(
         const loop_desc_t &loop_desc, const coord_info_t &coord_info) {
     loop_nest_t ret;
+    expr_t linear_bound = 1;
     for (auto &e : loop_desc) {
         const auto &var = coord_info.loop_index(e.dim);
         const auto &size = coord_info.loop_size(e.dim);
         if (is_one(size)) continue;
-        ret.add_loop(e.dim, var, size);
+        expr_t init = 0;
+        linear_bound *= size;
+        ret.add_loop(e.dim, var, init, size);
     }
+    ret.set_linear_bound(linear_bound);
     return ret;
 }
 
@@ -679,8 +671,7 @@ public:
         : ir_builder_t(kernel_iface, ir_ctx)
         , desc_(desc)
         , plan_(plan)
-        , buf_info_(buf_mgr(), desc, kernel_iface, plan.x2r_fma)
-        , loop_nest_(make_loop_nest(desc_.loop_desc, plan_.coord_info)) {
+        , buf_info_(buf_mgr(), desc, kernel_iface, plan.x2r_fma) {
         loop();
         epilogue();
 
@@ -703,10 +694,13 @@ public:
 
 private:
     void loop() {
+        auto &loop_desc = desc_.loop_desc;
+        auto &coord_info = plan_.coord_info;
+        auto loop_nest = make_loop_nest(loop_desc, coord_info);
         prefetch_builder_t prefetch_builder(
-                *this, loop_nest_, buf_info_, plan_.prefetch);
+                *this, loop_nest, buf_info_, plan_.prefetch);
         x2r_mul_builder_t x2r_mul_builder(
-                *this, loop_nest_, buf_info_, desc_, plan_.x2r_fma);
+                *this, loop_nest, buf_info_, desc_, plan_.x2r_fma);
 
         zero_out(buf_info_.reg_buf("c"));
         if (!buf_info_.reg_buf("bia").is_empty())
@@ -714,13 +708,12 @@ private:
 
         emit(x2r_mul_builder.get_init_stmt());
         emit(prefetch_builder.get_init_stmt());
-        auto &coord_info = plan_.coord_info;
         int prefetch_dist = desc_.prefetch.dist;
         auto x2r_mul_stmt = x2r_mul_builder.get_stmt();
         auto prefetch_stmt = prefetch_builder.get_stmt();
         iterator_t prefetch_it;
         if (prefetch_dist > 0) {
-            prefetch_it = iterator_t(buf_mgr(), loop_nest_);
+            prefetch_it = iterator_t(buf_mgr(), loop_nest);
             emit(prefetch_it.init_stmt());
             for (int i = 0; i < prefetch_dist; i++) {
                 auto i_prefetch_stmt = prefetch_stmt;
@@ -744,16 +737,15 @@ private:
                     emit(prefetch_it.inc_stmt(prefetch_builder.off_ctx()));
                 }
                 return;
-            };
-            auto &loop = loop_nest_[i - 1];
+            }
+            auto &loop = loop_nest[i - 1];
             const auto &var = coord_info.loop_index(loop.dim);
-            const auto &bound = loop.size;
-            _for(var, 0, bound, [&]() {
+            _for(var, 0, loop.bound, [&]() {
                 emit_loop(i - 1);
                 emit(x2r_mul_builder.off_ctx().inc_loop_stmt((int)loop.idx));
             });
         };
-        emit_loop(loop_nest_.nloops());
+        emit_loop(loop_nest.nloops());
     }
 
     void epilogue() {
@@ -821,7 +813,6 @@ private:
     kernel_desc_t desc_;
     plan_t plan_;
     buffer_info_t buf_info_;
-    loop_nest_t loop_nest_;
 };
 
 stmt_t build_ir(const kernel_desc_t &desc, const kernel_iface_t &kernel_iface) {

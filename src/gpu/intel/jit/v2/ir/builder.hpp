@@ -35,22 +35,30 @@ struct loop_t {
     size_t idx = 0;
     pvar_t dim;
     expr_t var;
-    expr_t size;
+    expr_t init;
+    expr_t bound;
 
     loop_t() = default;
-    loop_t(size_t idx, const pvar_t &dim, const expr_t &var, const expr_t &size)
-        : idx(idx), dim(dim), var(var), size(size) {}
+    loop_t(size_t idx, const pvar_t &dim, const expr_t &var, const expr_t &init,
+            const expr_t &bound)
+        : idx(idx), dim(dim), var(var), init(init), bound(bound) {}
 };
 
 class loop_nest_t {
 public:
     loop_nest_t() = default;
 
-    void add_loop(const pvar_t &dim, const expr_t &idx, const expr_t &size) {
-        loops_.push_back(loop_t(loops_.size(), dim, idx, size));
+    void add_loop(const pvar_t &dim, const expr_t &idx, const expr_t &init,
+            const expr_t &bound) {
+        loops_.push_back(loop_t(loops_.size(), dim, idx, init, bound));
+    }
+
+    void set_linear_bound(const expr_t &linear_bound) {
+        linear_bound_ = linear_bound;
     }
 
     size_t nloops() const { return loops_.size(); }
+    const expr_t &linear_bound() const { return linear_bound_; }
     const loop_t &operator[](size_t idx) const { return loops_[idx]; }
     std::vector<expr_t> indices() const {
         std::vector<expr_t> ret;
@@ -61,12 +69,22 @@ public:
         return ret;
     }
 
+    std::vector<expr_t> init_exprs() const {
+        std::vector<expr_t> ret;
+        ret.reserve(nloops());
+        for (size_t i = 0; i < nloops(); i++) {
+            ret.push_back(loops_[i].init);
+        }
+        return ret;
+    }
+
     std::string str() const {
         std::ostringstream oss;
         oss << "nloops: " << nloops();
         for (size_t i = 0; i < nloops(); i++) {
             oss << std::endl;
-            oss << "  var: " << loops_[i].var << " size: " << loops_[i].size;
+            oss << "  var: " << loops_[i].var << " init: " << loops_[i].init
+                << " bound: " << loops_[i].bound;
         }
         return oss.str();
     }
@@ -75,6 +93,7 @@ public:
 
 private:
     std::vector<loop_t> loops_;
+    expr_t linear_bound_;
 };
 
 struct offset_params_t {
