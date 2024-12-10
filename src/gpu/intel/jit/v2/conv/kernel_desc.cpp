@@ -568,6 +568,14 @@ tensor_config_t get_tensor_config(const kernel_desc_t &desc) {
     return tensor_cfg;
 }
 
+send_kind_t kernel_desc_t::access_kind(
+        send_op_t op, tensor_kind_t tensor) const {
+    if (use_2d_access && tensor != tensor_kind_t::undef
+            && op != send_op_t::atomic_fadd)
+        return send_kind_t::_2d;
+    return send_kind_t::undef;
+}
+
 compute::range_t kernel_desc_t::local_range() const {
     auto thr_grid = create_thread_grid(*this);
     compute::range_t lws = compute::range_t::empty();
