@@ -26,7 +26,7 @@ namespace cpu {
 using namespace alg_kind;
 using namespace math;
 
-float compute_binary_scalar(alg_kind_t alg, float x, float y) {
+float compute_binary_scalar(alg_kind_t alg, float x, float y, bool c) {
     switch (alg) {
         case binary_add: return x + y;
         case binary_div: return x / y;
@@ -40,7 +40,8 @@ float compute_binary_scalar(alg_kind_t alg, float x, float y) {
         case binary_lt: return x < y;
         case binary_eq: return x == y;
         case binary_ne: return x != y;
-        default: assert(!"not supported operation!"); return NAN;
+        case binary_select: return c ? x : y;
+        default: assert(!"unsupported operation!"); return NAN;
     }
 }
 
@@ -136,15 +137,16 @@ ref_binary_scalar_t::ref_binary_scalar_t(alg_kind_t alg) : alg_(alg) {
             alg_kind::binary_min, alg_kind::binary_mul, alg_kind::binary_div,
             alg_kind::binary_sub, alg_kind::binary_ge, alg_kind::binary_gt,
             alg_kind::binary_le, alg_kind::binary_lt, alg_kind::binary_eq,
-            alg_kind::binary_ne));
+            alg_kind::binary_ne, alg_kind::binary_select));
 }
 
 ref_binary_scalar_t::ref_binary_scalar_t(
         const post_ops_t::entry_t::binary_t &binary)
     : ref_binary_scalar_t(binary.alg) {}
 
-float ref_binary_scalar_t::compute_scalar(float src0, float src1) const {
-    return compute_binary_scalar(alg_, src0, src1);
+float ref_binary_scalar_t::compute_scalar(
+        float src0, float src1, bool src2) const {
+    return compute_binary_scalar(alg_, src0, src1, src2);
 }
 
 ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
@@ -308,7 +310,7 @@ void ref_post_ops_t::execute(float &res, const args_t &args) const {
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
                 const float val_po = io::load_float_value(
                         src1_desc.data_type, src1_binary_po, off);
-                res = it_binary_po->compute_scalar(res, val_po);
+                res = it_binary_po->compute_scalar(res, val_po, false);
                 ++it_binary_po;
             } break;
             case primitive_kind::prelu: {

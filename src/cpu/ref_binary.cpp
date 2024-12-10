@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,6 +37,8 @@ namespace cpu {
 status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto src0 = CTX_IN_MEM(const void *, DNNL_ARG_SRC_0);
     const auto src1 = CTX_IN_MEM(const void *, DNNL_ARG_SRC_1);
+    const auto src2 = CTX_IN_MEM(const void *, DNNL_ARG_SRC_2);
+
     auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
     const float *scales[2];
@@ -45,10 +47,12 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
+    const memory_desc_wrapper src2_d(pd()->src_md(2));
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
     const auto src0_dt = src0_d.data_type();
     const auto src1_dt = src1_d.data_type();
+    const auto src2_dt = src2_d.data_type();
     const auto dst_dt = dst_d.data_type();
 
     const auto alg = pd()->desc()->alg_kind;
@@ -85,10 +89,11 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     }
 
     parallel_nd(nelems, [&](dim_t i) {
-        dims_t dims_src0, dims_src1; // decomposition for physical offsets
+        // decomposition for physical offsets
+        dims_t dims_src0, dims_src1, dims_src2;
         utils::l_dims_by_l_offset(dims_src0, i, dst_d.dims(), ndims);
         utils::l_dims_by_l_offset(dims_src1, i, dst_d.dims(), ndims);
-        auto off_C = dst_d.off_v(dims_src0);
+        auto off_D = dst_d.off_v(dims_src0);
 
         int mask_src0
                 = utils::get_dims_mask(dst_d.dims(), src0_d.dims(), ndims);
@@ -101,12 +106,22 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
 
         float x_f = io::load_float_value(src0_dt, src0, off_A);
         float y_f = io::load_float_value(src1_dt, src1, off_B);
-        float dst_f = io::load_float_value(dst_dt, dst, off_C);
+        float dst_f = io::load_float_value(dst_dt, dst, off_D);
 
         x_f *= scales[0][0];
         y_f *= scales[1][0];
 
-        float acc = compute_binary_scalar(alg, x_f, y_f);
+        bool c_f = false;
+        if (pd()->is_ternary_op()) {
+            utils::l_dims_by_l_offset(dims_src2, i, dst_d.dims(), ndims);
+            int mask_src2
+                    = utils::get_dims_mask(dst_d.dims(), src2_d.dims(), ndims);
+            utils::apply_mask_on_dims(dims_src2, ndims, mask_src2);
+            const auto off_C = src2_d.off_v(dims_src2);
+            c_f = static_cast<bool>(io::load_int_value(src2_dt, src2, off_C));
+        }
+
+        float acc = compute_binary_scalar(alg, x_f, y_f, c_f);
 
         if (has_postops) {
             ref_post_ops_t::args_t args;
@@ -117,7 +132,7 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
             ref_post_ops->execute(acc, args);
         }
 
-        io::store_float_value(dst_dt, acc, dst, off_C);
+        io::store_float_value(dst_dt, acc, dst, off_D);
     });
 
     return status::success;

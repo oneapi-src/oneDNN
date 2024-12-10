@@ -26,7 +26,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-float compute_binary_scalar(alg_kind_t alg, float x, float y);
+float compute_binary_scalar(alg_kind_t alg, float x, float y, bool c);
 float compute_eltwise_scalar_fwd(
         const alg_kind_t alg, float s, float alpha, float beta);
 float compute_eltwise_scalar_bwd(
@@ -36,7 +36,7 @@ struct ref_binary_scalar_t {
     ref_binary_scalar_t(alg_kind_t alg);
     ref_binary_scalar_t(const post_ops_t::entry_t::binary_t &binary);
 
-    float compute_scalar(float src0, float src1) const;
+    float compute_scalar(float src0, float src1, bool src2) const;
 
 private:
     const alg_kind_t alg_;
