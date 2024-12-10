@@ -124,6 +124,8 @@ std::unique_ptr<memory_storage_t> buffer_memory_storage_t::clone() const {
 
     storage->buffer_ = buffer_;
     storage->base_offset_ = base_offset_;
+    storage->set_offset(offset());
+
     return storage;
 }
 
