@@ -27,7 +27,7 @@
 #include "oneapi/dnnl/dnnl.hpp"
 
 #ifdef DNNL_WITH_SYCL
-#include "graph/utils/sycl_check.hpp"
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
 
 namespace dnnl {
