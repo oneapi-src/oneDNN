@@ -378,6 +378,8 @@ size_t get_desc_hash(const binary_desc_t &desc) {
     // Memory descriptors
     seed = hash_combine(seed, get_md_hash(desc.src_desc[0]));
     seed = hash_combine(seed, get_md_hash(desc.src_desc[1]));
+    if (desc.alg_kind == alg_kind::binary_select)
+        seed = hash_combine(seed, get_md_hash(desc.src_desc[2]));
     seed = hash_combine(seed, get_md_hash(desc.dst_desc));
     // Combined hash for binary op desc
     return seed;

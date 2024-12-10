@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,28 +78,19 @@ status_t binary_attr_check(const binary_desc_t &desc, const engine_t *engine,
         VCHECK_BINARY_UNIMPL(po.check_sum_consistency(dst_dt, false, true),
                 VERBOSE_UNSUPPORTED_POSTOP);
     }
-
     return status::success;
 }
 
-status_t dnnl_binary_primitive_desc_create(
-        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
-        alg_kind_t alg_kind, const memory_desc_t *src0_md,
-        const memory_desc_t *src1_md, const memory_desc_t *dst_md,
-        const primitive_attr_t *attr) {
+status_t binary_md_check(const engine_t *engine, alg_kind_t alg_kind,
+        const memory_desc_t *src0_md, const memory_desc_t *src1_md,
+        const memory_desc_t *src2_md, const memory_desc_t *dst_md) {
     VCHECK_BINARY(!any_null(src0_md, src1_md, dst_md), VERBOSE_NULL_ARG);
-    VCHECK_BINARY(
-            one_of(alg_kind, binary_add, binary_mul, binary_max, binary_min,
-                    binary_div, binary_sub, binary_ge, binary_gt, binary_le,
-                    binary_lt, binary_eq, binary_ne),
-            VERBOSE_BAD_ALGORITHM);
+    VCHECK_BINARY(IMPLICATION(alg_kind == binary_select, src2_md != nullptr),
+            VERBOSE_NULL_ARG);
+
     // TODO - Add support for mutual or bi-directional broadcasts
     VCHECK_BINARY(!memory_desc_wrapper(src0_md).format_any(),
             VERBOSE_UNSUPPORTED_TAG_S, "src0");
-
-    auto bod = binary_desc_t();
-    bod.primitive_kind = primitive_kind::binary;
-    bod.alg_kind = alg_kind;
 
     VCONDCHECK(primitive, create, check, binary,
             !memory_desc_wrapper(src0_md).has_runtime_dims_or_strides(),
@@ -111,10 +102,6 @@ status_t dnnl_binary_primitive_desc_create(
             !memory_desc_wrapper(dst_md).has_runtime_dims_or_strides(),
             status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
-    bod.src_desc[0] = *src0_md;
-    bod.src_desc[1] = *src1_md;
-    bod.dst_desc = *dst_md;
-
     const int ndims = dst_md->ndims;
     const dims_t &dims = dst_md->dims;
 
@@ -122,8 +109,19 @@ status_t dnnl_binary_primitive_desc_create(
             src0_md->ndims == ndims, VERBOSE_INCONSISTENT_NDIMS, "src0", "dst");
     VCHECK_BINARY(
             src1_md->ndims == ndims, VERBOSE_INCONSISTENT_NDIMS, "src1", "dst");
+
+    if (src2_md != nullptr) {
+        VCONDCHECK(primitive, create, check, binary,
+                !memory_desc_wrapper(src2_md).has_runtime_dims_or_strides(),
+                status::unimplemented, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+        VCHECK_BINARY(src2_md->ndims == ndims, VERBOSE_INCONSISTENT_NDIMS,
+                "src2", "dst");
+        VCHECK_BINARY(
+                src2_md->data_type == data_type::s8, VERBOSE_UNSUPPORTED_DT);
+    }
+
     for (int d = 0; d < ndims; ++d) {
-        //dims must equal eachother or equal 1 (broadcast)
+        //dims must equal each other or equal 1 (broadcast)
         VCHECK_BINARY(utils::one_of(src0_md->dims[d], 1, dims[d]),
                 VERBOSE_BAD_DIM, "src0", d);
         VCHECK_BINARY(utils::one_of(src1_md->dims[d], 1, dims[d]),
@@ -131,7 +129,46 @@ status_t dnnl_binary_primitive_desc_create(
         VCHECK_BINARY(IMPLICATION(src0_md->dims[d] != dims[d],
                               src1_md->dims[d] == dims[d]),
                 VERBOSE_INCONSISTENT_DIM, "src1", d, "dst", d);
+        // For inputs supporting ternary operators, the dimensions must match the
+        // src0 tensor as there is no broadcasting support for the tensor
+        if (src2_md != nullptr)
+            VCHECK_BINARY(src2_md->dims[d] == src0_md->dims[d], VERBOSE_BAD_DIM,
+                    "src2", d);
     }
+    return status::success;
+}
+
+status_t dnnl_binary_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        alg_kind_t alg_kind, const memory_desc_t *src0_md,
+        const memory_desc_t *src1_md, const memory_desc_t *dst_md,
+        const primitive_attr_t *attr) {
+
+    return dnnl_binary_primitive_desc_create_v2(primitive_desc_iface, engine,
+            alg_kind, src0_md, src1_md, nullptr, dst_md, attr);
+}
+
+status_t dnnl_binary_primitive_desc_create_v2(
+        primitive_desc_iface_t **primitive_desc_iface, engine_t *engine,
+        alg_kind_t alg_kind, const memory_desc_t *src0_md,
+        const memory_desc_t *src1_md, const memory_desc_t *src2_md,
+        const memory_desc_t *dst_md, const primitive_attr_t *attr) {
+    VCHECK_BINARY(
+            one_of(alg_kind, binary_add, binary_mul, binary_max, binary_min,
+                    binary_div, binary_sub, binary_ge, binary_gt, binary_le,
+                    binary_lt, binary_eq, binary_ne, binary_select),
+            VERBOSE_BAD_ALGORITHM);
+
+    CHECK(binary_md_check(engine, alg_kind, src0_md, src1_md, src2_md, dst_md));
+
+    auto bod = binary_desc_t();
+    bod.primitive_kind = primitive_kind::binary;
+    bod.alg_kind = alg_kind;
+
+    bod.src_desc[0] = *src0_md;
+    bod.src_desc[1] = *src1_md;
+    if (alg_kind == binary_select) bod.src_desc[2] = *src2_md;
+    bod.dst_desc = *dst_md;
 
     CHECK(binary_attr_check(bod, engine, attr));
     return primitive_desc_create(primitive_desc_iface, engine,

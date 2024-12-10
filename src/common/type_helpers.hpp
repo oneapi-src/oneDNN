@@ -648,6 +648,12 @@ inline bool operator==(const binary_desc_t &lhs, const binary_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(src_desc[0])
             && COMPARE_DESC_MEMBERS(src_desc[1])
             && COMPARE_DESC_MEMBERS(dst_desc);
+
+    // For ternary operators like select, the additional input for conditional 
+    // select must also be compared
+    if(utils::one_of(alg_kind::binary_select, lhs.alg_kind, rhs.alg_kind))
+        ret = ret && COMPARE_DESC_MEMBERS(src_desc[2]);
+
     return ret;
 }
 

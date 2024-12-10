@@ -300,6 +300,7 @@ void serialize_desc(
     // Memory descriptors
     serialize_md(sstream, desc.src_desc[0]);
     serialize_md(sstream, desc.src_desc[1]);
+    serialize_md(sstream, desc.src_desc[2]);
     serialize_md(sstream, desc.dst_desc);
 }
 
