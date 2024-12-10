@@ -38,6 +38,7 @@ void min(const InstructionModifier &mod, const RegData &dst, const RegData &src0
     sel<DT>(mod | lt | f0[0], dst, src0, src1);
 }
 #endif
+
 template <typename DT = void>
 void max_(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {
     sel<DT>(mod | ge | f0[0], dst, src0, src1);

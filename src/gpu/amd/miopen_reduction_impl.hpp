@@ -86,6 +86,10 @@ struct miopen_reduction_impl_base_t {
             miopenReduceTensorOp_t *miopen_alg_kind) const {
 
         switch (alg_kind) {
+            case alg_kind::reduction_amax:
+                *miopen_alg_kind
+                        = miopenReduceTensorOp_t::MIOPEN_REDUCE_TENSOR_AMAX;
+                break;
             case alg_kind::reduction_max:
                 *miopen_alg_kind
                         = miopenReduceTensorOp_t::MIOPEN_REDUCE_TENSOR_MAX;

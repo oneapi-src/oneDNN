@@ -142,6 +142,7 @@
 --reset --case=op/f32/quantize_f8_e5m2.json
 --reset --case=op/f32/reducel1.json
 --reset --case=op/f32/reducel2.json
+--reset --case=op/f32/reduceamax.json
 --reset --case=op/f32/reducemax.json
 --reset --case=op/f32/reducemean.json
 --reset --case=op/f32/reducemin.json
@@ -149,6 +150,7 @@
 --reset --case=op/f32/reducesum.json
 --reset --op-attrs=0:keep_dims:0 --case=op/f32/reducel1.json
 --reset --op-attrs=0:keep_dims:0 --case=op/f32/reducel2.json
+--reset --op-attrs=0:keep_dims:0 --case=op/f32/reduceamax.json
 --reset --op-attrs=0:keep_dims:0 --case=op/f32/reducemax.json
 --reset --op-attrs=0:keep_dims:0 --case=op/f32/reducemean.json
 --reset --op-attrs=0:keep_dims:0 --case=op/f32/reducemin.json
@@ -508,6 +510,27 @@
 --reset --in-shapes=0:16x1024 --op-attrs=0:axes:0 --case=op/f32/reducel2.json
 --reset --in-shapes=0:16x128 --op-attrs=0:axes:0 --case=op/f32/reducel2.json
 --reset --in-shapes=0:16x256 --op-attrs=0:axes:0x1 --case=op/f32/reducel2.json
+--reset --in-shapes=0:1x1024x14x14 --op-attrs=0:axes:2x3 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:1x256x56x56 --op-attrs=0:axes:1 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:1x512x56x56 --op-attrs=0:axes:1x2x3 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:64x1024x14x14 --op-attrs=0:axes:1 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:64x2048x7x7 --op-attrs=0:axes:2x3 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:64x20x7x7 --op-attrs=0:axes:2x3 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:64x512x28x28 --op-attrs=0:axes:0x1 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:1x128x150x150 --op-attrs=0:axes:1 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:1x256x7x7 --op-attrs=0:axes:2x3 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:1x256x9x9 --op-attrs=0:axes:1 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:1x1024x14x14*acdb --op-attrs=0:axes:2x3 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:1x256x56x56*acdb --op-attrs=0:axes:1 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:1x512x56x56*acdb --op-attrs=0:axes:1x2x3 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:64x1024x14x14*acdb --op-attrs=0:axes:1 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:64x2048x7x7*acdb --op-attrs=0:axes:2x3 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:64x20x7x7*acdb --op-attrs=0:axes:2x3 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:64x512x28x28*acdb --op-attrs=0:axes:0x1 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:16x1024 --op-attrs=0:axes:0 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:16x128 --op-attrs=0:axes:0 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:16x256 --op-attrs=0:axes:0x1 --case=op/f32/reduceamax.json
+--reset --in-shapes=0:64x20x7x7 --op-attrs=0:axes:2x3 --case=op/f32/reduceamax.json
 --reset --in-shapes=0:1x1024x14x14 --op-attrs=0:axes:2x3 --case=op/f32/reducemax.json
 --reset --in-shapes=0:1x256x56x56 --op-attrs=0:axes:1 --case=op/f32/reducemax.json
 --reset --in-shapes=0:1x512x56x56 --op-attrs=0:axes:1x2x3 --case=op/f32/reducemax.json

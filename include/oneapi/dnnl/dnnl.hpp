@@ -476,6 +476,8 @@ enum class algorithm {
     resampling_nearest = dnnl_resampling_nearest,
     /// Linear (Bilinear, Trilinear) resampling method
     resampling_linear = dnnl_resampling_linear,
+    /// Reduction using amax operation
+    reduction_amax = dnnl_reduction_amax,
     /// Reduction using max operation
     reduction_max = dnnl_reduction_max,
     /// Reduction using min operation

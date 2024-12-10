@@ -422,6 +422,7 @@ public:
             CASE(Reciprocal);
             CASE(ReduceL1);
             CASE(ReduceL2);
+            CASE(ReduceAMax);
             CASE(ReduceMax);
             CASE(ReduceMean);
             CASE(ReduceMin);
