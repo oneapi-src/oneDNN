@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -566,6 +566,14 @@ tensor_config_t get_tensor_config(const kernel_desc_t &desc) {
                 /*is_output=*/false, jit::layout_t());
     }
     return tensor_cfg;
+}
+
+send_kind_t kernel_desc_t::access_kind(
+        send_op_t op, tensor_kind_t tensor) const {
+    if (use_2d_access && tensor != tensor_kind_t::undef
+            && op != send_op_t::atomic_fadd)
+        return send_kind_t::_2d;
+    return send_kind_t::undef;
 }
 
 compute::range_t kernel_desc_t::local_range() const {
