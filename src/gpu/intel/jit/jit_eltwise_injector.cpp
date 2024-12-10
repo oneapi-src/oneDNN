@@ -316,16 +316,15 @@ void jit_eltwise_injector_f32<hw>::sround_compute_fwd(int simd,
 
     // Initialize indices in counter.
     int base_idx = off * simd;
-    h->template mov<uint16_t>(8, bias.uw(0)(1), Immediate::uv(0x01234567));
-    h->template mov<uint16_t>(8, bias.uw(8)(1), Immediate::uv(0x89abcdef));
-    if (base_idx) {
-        auto imm = Immediate::ud(base_idx);
-        if (hw >= gpu_xe_hpc)
-            h->add(16, bias.ud(), bias.uw(), imm);
-        else {
-            h->add(8, bias.ud(8)(1), bias.uw(8)(8, 8, 1), imm);
-            h->add(8, bias.ud(0)(1), bias.uw(0)(8, 8, 1), imm);
-        }
+    h->template mov<uint16_t>(8, bias.uw(0)(1), Immediate::uv(0x76543210));
+    h->template mov<uint16_t>(8, bias.uw(8)(1), Immediate::uv(0xfedcba98));
+    auto imm = Immediate::ud(base_idx);
+    if (hw >= gpu_xe_hpc)
+        h->add(16, bias.ud(), bias.uw(), imm);
+    else {
+        auto extra = scratch_[1].ud();
+        h->add(8, extra.ud(0)(1), bias.uw(8)(8, 8, 1), imm);
+        h->add(8, bias.ud(0)(1), bias.uw(0)(8, 8, 1), imm);
     }
 
     const uint32_t dst_dt_digits = dnnl::impl::types::digits<uint32_t>(
@@ -385,13 +384,13 @@ void jit_eltwise_injector_f32<hw>::philox_4x32(
         h->mov(4, key.ud(1)(4, 4, 2), uint32_t(0xBB67AE85u));
     }
 
-    h->template mov<uint16_t>(4, offs.uw(16)(1), Immediate::uv(0x88990000));
+    h->template mov<uint16_t>(4, offs.uw(16)(1), Immediate::uv(0x00009988));
     h->template mul<uint32_t>(
             4, offs.ud(8)(1), key.ud(0)(4, 4, 1), offs.uw(16)(4, 4, 1));
     h->add(4, offs.ud(8)(1), offs.ud(8)(4, 4, 1), sround_seed);
 
-    h->template mov<uint16_t>(8, offs.uw(8)(1), Immediate::uv(0x44556677));
-    h->template mov<uint16_t>(8, offs.uw(0)(1), Immediate::uv(0x00112233));
+    h->template mov<uint16_t>(8, offs.uw(8)(1), Immediate::uv(0x77665544));
+    h->template mov<uint16_t>(8, offs.uw(0)(1), Immediate::uv(0x33221100));
     h->template mul<uint32_t>(
             8, key.ud(8)(1), key.ud(0)(8, 8, 1), offs.uw(8)(8, 8, 1));
     h->template mul<uint32_t>(
@@ -404,7 +403,7 @@ void jit_eltwise_injector_f32<hw>::philox_4x32(
     h->mov(8, ctr_base_sub, (ctr.getBase() * GRF::bytes(hw)) + ctr.getOffset());
 
     // Prepare first iter idx swizzle
-    h->template mov<uint16_t>(8, off_inc.uw(0)(1), Immediate::uv(0x03214765));
+    h->template mov<uint16_t>(8, off_inc.uw(0)(1), Immediate::uv(0x56741230));
     h->template mul<uint16_t>(8, off_inc.uw(0)(1), off_inc.uw(0)(8, 8, 1), 4);
 
     //as_uint4(convert_ulong2(ctr.s31) * mul) ^ (uint4)(ctr.s20 ^ key, 0, 0).s3120
@@ -452,7 +451,7 @@ void jit_eltwise_injector_f32<hw>::philox_4x32(
         // Set idx swizzle for subsequent iterations.
         if (idx == 0) {
             h->template mov<uint16_t>(
-                    8, off_inc.uw(0)(1), Immediate::uv(0x30127456));
+                    8, off_inc.uw(0)(1), Immediate::uv(0x65472103));
             h->template mul<uint16_t>(
                     8, off_inc.uw(0)(1), off_inc.uw(0)(8, 8, 1), 4);
         }
