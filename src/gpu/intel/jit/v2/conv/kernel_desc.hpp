@@ -22,6 +22,7 @@
 #include "gpu/intel/jit/ir/hw.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
+#include "gpu/intel/jit/ir/primitive_plan.hpp"
 #include "gpu/intel/jit/v2/conv/problem.hpp"
 #include "gpu/intel/jit/v2/ir/reqs.hpp"
 #include "gpu/intel/jit/v2/ir/send.hpp"
@@ -257,6 +258,7 @@ struct extensions_t {
 pvar_tile_t min_dims_tile(const problem_t &prb);
 
 struct plan_t;
+class grid_t;
 
 class kernel_desc_t : public kernel_desc_base_t {
 public:
@@ -329,20 +331,15 @@ public:
         return prop == prop_kind::backward_weights && !bias_type.is_undef();
     }
 
-    send_kind_t access_kind(send_op_t op, tensor_kind_t tensor) const {
-        if (use_2d_access && tensor != tensor_kind_t::undef)
-            return send_kind_t::_2d;
-        return send_kind_t::undef;
-    }
-
+    send_kind_t access_kind(send_op_t op, tensor_kind_t tensor) const;
     std::string kernel_name() const override { return "gen_conv_v2"; }
 
     exec_config_t exec_cfg() const override {
-        exec_config_t ret(hw);
-        ret.set_regs(regs);
-        ret.set_simd(simd);
-        ret.set_vec_size(simd);
-        return ret;
+        return exec_config_t(hw, regs, simd);
+    }
+
+    exec_config_t exec_cfg(const impl::engine_t *engine) const override {
+        return exec_config_t(hw_t(engine), regs, simd);
     }
 
     compute::range_t local_range() const override;
@@ -372,11 +369,15 @@ public:
         spec_strategy = spec_strategy_t::none;
     }
 
-    status_t init_kernel_info(kernel_info_t &kernel_info) const override;
+    void init_kernel_iface(kernel_iface_t &kernel_iface) const override;
+    void init_kernel_info(kernel_info_t &kernel_info,
+            const kernel_params_base_t &params) const override;
     status_t create_kernel(compute::kernel_t &kernel,
             gpu_primitive_t *primitive, impl::engine_t *engine) const override;
     status_t create_generator(const compute::compute_engine_t &engine,
             compute::kernel_t &kernel) const;
+    status_t init_primitive_plan(primitive_init_plan_t &plan,
+            const problem_t &prb, convolution_pd_t *pd) const;
     serialized_t serialize() const override;
     static kernel_desc_t deserialize(const serialized_t &s);
     static void show_help();
@@ -408,6 +409,11 @@ public:
         for (int i = 0; i < N; i++)
             entries_[i].idx_var
                     = var_t::make(type_t::s32(), prefix + std::to_string(i));
+    }
+    grid_t(const std::array<expr_t, N> &idx_vars) {
+        for (int i = 0; i < N; i++) {
+            entries_[i].idx_var = idx_vars[i];
+        }
     }
 
     void add_mapping(const pvar_t &dim, int idx) {
@@ -484,9 +490,6 @@ grid_t create_thread_grid(const kernel_desc_t &desc);
 class kernel_params_t : public kernel_params_base_t {
 public:
     problem_t prb;
-
-    status_t init_dispatch_kernel_info(kernel_info_t &kernel_info,
-            const kernel_desc_base_t &_desc) const override;
 };
 
 } // namespace conv

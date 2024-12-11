@@ -316,8 +316,7 @@ status_t ocl_gpu_engine_t::create_kernel(
         compute::kernel_t *kernel, jit::jit_generator_base *jitter) const {
     if (!jitter) return status::invalid_arguments;
     xpu::binary_t metadata_binary;
-    xpu::binary_t kernel_binary
-            = jitter->get_binary(context(), device(), metadata_binary);
+    xpu::binary_t kernel_binary = jitter->get_binary(this, metadata_binary);
     if (kernel_binary.empty()) return status::runtime_error;
     return create_kernel_from_binary(
             *kernel, kernel_binary, metadata_binary, jitter->kernel_name());

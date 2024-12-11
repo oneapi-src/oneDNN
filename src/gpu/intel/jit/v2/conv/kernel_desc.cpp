@@ -17,6 +17,7 @@
 #include "gpu/intel/jit/v2/conv/kernel_desc.hpp"
 
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/jit/codegen/kernel.hpp"
@@ -239,10 +240,10 @@ void kernel_desc_t::set_defaults() {
                 loop_desc.add(pvars::oc);
                 break;
             case prop_kind::backward_weights:
-                loop_desc.add(pvars::mb);
                 loop_desc.add(pvars::ow);
                 loop_desc.add(pvars::oh);
                 loop_desc.add(pvars::od);
+                loop_desc.add(pvars::mb);
                 break;
             default: ir_error_not_expected(); break;
         }
@@ -458,31 +459,6 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     });
 }
 
-void init_kernel_info_div_magic(
-        kernel_info_t &kernel_info, const kernel_desc_t &desc) {
-    auto tg_grid = create_thread_group_grid(desc);
-    for (auto &d : tg_grid.all_dims()) {
-        auto var_size = var_t::make(type_t::u32(), d.str() + "_grid_size");
-        auto var_magic = var_t::make(type_t::u64(), d.str() + "_magic");
-        kernel_info.register_internal_arg(var_magic);
-        kernel_info.register_internal_arg(var_size);
-    }
-    auto sw_magic = var_t::make(type_t::u64(), "sw_magic");
-    kernel_info.register_internal_arg(sw_magic);
-}
-
-void init_dispatch_kernel_info_div_magic(
-        kernel_info_t &kernel_info, const pvar_tile_t &tg_dims, dim_t sw) {
-    for (auto &d : tg_dims) {
-        uint32_t size = into<uint32_t>(tg_dims.at(d));
-        uint64_t magic = ir_utils::idiv_magicgu_packed(size);
-        kernel_info.set_internal_arg(d.str() + "_grid_size", size);
-        kernel_info.set_internal_arg(d.str() + "_magic", magic);
-    }
-    kernel_info.set_internal_arg(
-            "sw_magic", ir_utils::idiv_magicgu_packed(into<uint32_t>(sw)));
-}
-
 arg_helper_t::arg_helper_t(const kernel_desc_t &desc) : desc_(desc) {}
 
 int arg_helper_t::key(const std::string &name) const {
@@ -498,7 +474,7 @@ int arg_helper_t::key(const std::string &name) const {
         if (is_fwd()) return DNNL_ARG_DST;
         if (is_bwd_d()) return DNNL_ARG_DIFF_DST;
         if (is_bwd_w()) return DNNL_ARG_DIFF_DST;
-    } else if (name == "bia") {
+    } else if (name == "bias") {
         if (is_fwd()) return DNNL_ARG_BIAS;
         if (is_bwd_d()) return DNNL_ARG_BIAS;
         if (is_bwd_w()) return DNNL_ARG_DIFF_BIAS;
@@ -511,7 +487,7 @@ bool arg_helper_t::is_input(const std::string &name) const {
     if (name == "src") return is_fwd() || is_bwd_w();
     if (name == "wei") return is_fwd() || is_bwd_d();
     if (name == "dst") return is_bwd_d() || is_bwd_w();
-    if (name == "bia") return desc_.with_bias_fwd();
+    if (name == "bias") return desc_.with_bias_fwd();
     ir_error_not_expected();
     return false;
 }
@@ -520,7 +496,7 @@ bool arg_helper_t::is_output(const std::string &name) const {
     if (name == "src") return is_bwd_d();
     if (name == "wei") return is_bwd_w();
     if (name == "dst") return is_fwd();
-    if (name == "bia") return desc_.with_bias_bwd_w();
+    if (name == "bias") return desc_.with_bias_bwd_w();
     ir_error_not_expected();
     return false;
 }
@@ -552,7 +528,7 @@ int arg_helper_t::post_op_key(size_t idx) const {
 tensor_config_t get_tensor_config(const kernel_desc_t &desc) {
     arg_helper_t h(desc);
     tensor_config_t tensor_cfg;
-    for (auto *t : {"src", "wei", "dst", "bia"}) {
+    for (auto *t : {"src", "wei", "dst", "bias"}) {
         bool is_input = h.is_input(t);
         bool is_output = h.is_output(t);
         if (!is_input && !is_output) continue;
@@ -568,6 +544,14 @@ tensor_config_t get_tensor_config(const kernel_desc_t &desc) {
     return tensor_cfg;
 }
 
+send_kind_t kernel_desc_t::access_kind(
+        send_op_t op, tensor_kind_t tensor) const {
+    if (use_2d_access && tensor != tensor_kind_t::undef
+            && op != send_op_t::atomic_fadd)
+        return send_kind_t::_2d;
+    return send_kind_t::undef;
+}
+
 compute::range_t kernel_desc_t::local_range() const {
     auto thr_grid = create_thread_grid(*this);
     compute::range_t lws = compute::range_t::empty();
@@ -578,19 +562,103 @@ compute::range_t kernel_desc_t::local_range() const {
     return lws;
 }
 
-status_t kernel_desc_t::init_kernel_info(kernel_info_t &kernel_info) const {
+void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
     auto tensor_config = get_tensor_config(*this);
     for (auto &t : tensor_config.tensors()) {
-        auto buf = make_buffer(t.name);
-        kernel_info.register_user_arg(buf, t.arg_key, t.is_input);
+        kernel_iface.register_arg(t.name, type_t::byte_ptr());
     }
-    for (auto &d : conv_dims()) {
-        auto var = var_t::make(type_t::s32(), d.str());
-        kernel_info.register_internal_arg(var);
-    }
+}
 
-    init_kernel_info_div_magic(kernel_info, *this);
-    return status::success;
+static bool try_parse_internal_arg(std::string s, pvar_t &dim, dim_t &denom,
+        const std::string &suffix = {}) {
+    size_t pos;
+    if (suffix.empty()) {
+        pos = s.size();
+    } else {
+        pos = s.find(suffix);
+        if (pos == std::string::npos) return false;
+    }
+    s = s.substr(0, pos);
+    const char *divup_tag = "_divup_";
+    size_t divup_pos = s.find(divup_tag);
+    denom = 1;
+    if (divup_pos != std::string::npos) {
+        auto pos = divup_pos + std::strlen(divup_tag);
+        denom = std::stoi(s.substr(pos));
+        s = s.substr(0, divup_pos);
+    }
+    dim = pvar_t(s);
+    return true;
+}
+
+bool try_register_internal_arg(kernel_info_t &kernel_info, const expr_t &var,
+        const pvar_tile_t &pvar_map) {
+    auto &type = var.type();
+    auto &name = var.as<var_t>().name;
+    pvar_t dim;
+    dim_t denom = 1;
+    if (try_parse_internal_arg(name, dim, denom, "_magic")) {
+        ir_assert(var.type().is_u64());
+        uint64_t value = ir_utils::idiv_magicgu_packed(
+                into<uint32_t>(utils::div_up(pvar_map.at(dim), denom)));
+        kernel_info.set_internal_arg(name, value);
+        return true;
+    }
+    if (try_parse_internal_arg(name, dim, denom)) {
+        ir_assert(!dim.is_undef());
+        if (type == type_t::s32()) {
+            int32_t value
+                    = into<int32_t>(utils::div_up(pvar_map.at(dim), denom));
+            kernel_info.set_internal_arg(name, value);
+        } else if (type == type_t::u32()) {
+            uint32_t value
+                    = into<uint32_t>(utils::div_up(pvar_map.at(dim), denom));
+            kernel_info.set_internal_arg(name, value);
+        }
+        return true;
+    }
+    return false;
+}
+
+void init_kernel_info(kernel_info_t &kernel_info, const problem_t &prb,
+        const grid_t &tg_grid, const pvar_tile_t &grid_dims) {
+    auto pvar_map = prb.shape();
+    for (auto &d : grid_dims) {
+        pvar_map[pvar_t(d.str() + "_grid_size")] = grid_dims.at(d);
+    }
+    for (int i = 0; i < kernel_info.nargs(); i++) {
+        auto &var = kernel_info.arg_var(i);
+        if (var.type().is_scalar()) {
+            ir_assert(try_register_internal_arg(kernel_info, var, pvar_map));
+        }
+    }
+}
+
+void kernel_desc_t::init_kernel_info(
+        kernel_info_t &kernel_info, const kernel_params_base_t &params) const {
+    auto &prb = static_cast<const kernel_params_t &>(params).prb;
+    auto tg_grid = create_thread_group_grid(*this);
+    auto thr_grid = create_thread_grid(*this);
+    auto &shape = prb.shape();
+    pvar_tile_t grid_dims;
+    for (auto &d : tg_grid.all_dims()) {
+        dim_t tg_size = thread_group_tile.get(d, 1);
+        dim_t iter_size = iter_tile.get(d, 1);
+        grid_dims[d] = utils::div_up(shape.at(d), tg_size * iter_size);
+    }
+    compute::range_t gws = compute::range_t::empty();
+    compute::range_t lws = compute::range_t::empty();
+    for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
+        size_t tg_dim = thr_grid.size(i, thread_group_tile);
+        lws[i] = tg_dim * (i == 0 ? into<size_t>(simd) : 1);
+        gws[i] = lws[i];
+    }
+    for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
+        gws[i] *= tg_grid.size(i, grid_dims);
+    }
+    conv::init_kernel_info(kernel_info, prb, tg_grid, grid_dims);
+    auto nd_range = compute::nd_range_t(gws, lws);
+    kernel_info.set_nd_range(nd_range);
 }
 
 status_t kernel_desc_t::create_kernel(compute::kernel_t &kernel,
@@ -604,6 +672,27 @@ status_t kernel_desc_t::create_generator(
         compute::kernel_t &kernel) const {
     ir_generator_t<kernel_t> ir_gen(*this);
     return engine.create_kernel(&kernel, &ir_gen);
+}
+
+status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
+        const problem_t &prb, convolution_pd_t *pd) const {
+    auto tensor_config = get_tensor_config(*this);
+    for (auto &t : tensor_config.tensors()) {
+        auto user_name = t.name;
+        auto &md = *pd->arg_md(t.arg_key);
+        auto user_layout = jit::layout_t(md);
+        plan.add_user_buffer(user_name, user_layout, t.is_input, t.is_output,
+                t.arg_key, /*zero_out=*/false);
+    }
+    kernel_params_t _params;
+    _params.prb = prb;
+    auto desc = std::make_shared<kernel_desc_t>(*this);
+    auto params = std::make_shared<kernel_params_t>(_params);
+    plan.set_regs(regs);
+    plan.set_simd(simd);
+    plan.set_dpas(fma == fma_kind_t::dpas);
+    plan.add_kernel(desc, params);
+    return status::success;
 }
 
 serialized_t kernel_desc_t::serialize() const {
@@ -633,30 +722,30 @@ void kernel_desc_t::show_help() {
 }
 
 grid_t create_thread_group_grid(const kernel_desc_t &desc) {
-    grid_t grid("tg_idx");
+    grid_t grid(jit::ir_builder_t::tg_idxs());
     switch (desc.prop) {
         case prop_kind::forward:
             grid.add_mapping(pvars::oc, 0);
             grid.add_mapping(pvars::g, 1);
-            grid.add_mapping(pvars::od, 1);
-            grid.add_mapping(pvars::oh, 1);
             grid.add_mapping(pvars::ow, 1);
+            grid.add_mapping(pvars::oh, 1);
+            grid.add_mapping(pvars::od, 1);
             grid.add_mapping(pvars::mb, 2);
             break;
         case prop_kind::backward_data:
             grid.add_mapping(pvars::ic, 0);
             grid.add_mapping(pvars::g, 1);
-            grid.add_mapping(pvars::id, 1);
-            grid.add_mapping(pvars::ih, 1);
             grid.add_mapping(pvars::iw, 1);
+            grid.add_mapping(pvars::ih, 1);
+            grid.add_mapping(pvars::id, 1);
             grid.add_mapping(pvars::mb, 2);
             break;
         case prop_kind::backward_weights:
             grid.add_mapping(pvars::oc, 0);
             grid.add_mapping(pvars::ic, 1);
-            grid.add_mapping(pvars::kd, 1);
-            grid.add_mapping(pvars::kh, 1);
             grid.add_mapping(pvars::kw, 1);
+            grid.add_mapping(pvars::kh, 1);
+            grid.add_mapping(pvars::kd, 1);
             grid.add_mapping(pvars::g, 2);
             break;
         default: ir_error_not_expected();
@@ -689,36 +778,6 @@ grid_t create_thread_grid(const kernel_desc_t &desc) {
         if (!desc.thread_group_tile.has(d)) grid.unset(d);
     }
     return grid;
-}
-
-status_t kernel_params_t::init_dispatch_kernel_info(
-        kernel_info_t &kernel_info, const kernel_desc_base_t &_desc) const {
-    auto &desc = static_cast<const kernel_desc_t &>(_desc);
-    auto tg_grid = create_thread_group_grid(desc);
-    auto thr_grid = create_thread_grid(desc);
-    CHECK(desc.init_kernel_info(kernel_info));
-    auto &shape = prb.shape();
-    for (auto &d : shape) {
-        kernel_info.set_internal_arg(d.str(), shape.at(d));
-    }
-    pvar_tile_t tg_dims;
-    for (auto &d : tg_grid.all_dims()) {
-        dim_t tg_size = desc.thread_group_tile.get(d, 1);
-        dim_t iter_size = desc.iter_tile.get(d, 1);
-        tg_dims[d] = utils::div_up(shape.at(d), tg_size * iter_size);
-    }
-    init_dispatch_kernel_info_div_magic(
-            kernel_info, tg_dims, shape.at(pvars::sw));
-    compute::range_t gws = compute::range_t::empty();
-    compute::range_t lws = compute::range_t::empty();
-    for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
-        size_t tg_dim = thr_grid.size(i, desc.thread_group_tile);
-        lws[i] = tg_dim * (i == 0 ? into<size_t>(desc.simd) : 1);
-        gws[i] = tg_grid.size(i, tg_dims) * lws[i];
-    }
-    auto nd_range = compute::nd_range_t(gws, lws);
-    kernel_info.set_nd_range(nd_range);
-    return status::success;
 }
 
 } // namespace conv

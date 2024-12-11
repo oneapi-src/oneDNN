@@ -35,22 +35,30 @@ struct loop_t {
     size_t idx = 0;
     pvar_t dim;
     expr_t var;
-    expr_t size;
+    expr_t init;
+    expr_t bound;
 
     loop_t() = default;
-    loop_t(size_t idx, const pvar_t &dim, const expr_t &var, const expr_t &size)
-        : idx(idx), dim(dim), var(var), size(size) {}
+    loop_t(size_t idx, const pvar_t &dim, const expr_t &var, const expr_t &init,
+            const expr_t &bound)
+        : idx(idx), dim(dim), var(var), init(init), bound(bound) {}
 };
 
 class loop_nest_t {
 public:
     loop_nest_t() = default;
 
-    void add_loop(const pvar_t &dim, const expr_t &idx, const expr_t &size) {
-        loops_.push_back(loop_t(loops_.size(), dim, idx, size));
+    void add_loop(const pvar_t &dim, const expr_t &idx, const expr_t &init,
+            const expr_t &bound) {
+        loops_.push_back(loop_t(loops_.size(), dim, idx, init, bound));
+    }
+
+    void set_linear_bound(const expr_t &linear_bound) {
+        linear_bound_ = linear_bound;
     }
 
     size_t nloops() const { return loops_.size(); }
+    const expr_t &linear_bound() const { return linear_bound_; }
     const loop_t &operator[](size_t idx) const { return loops_[idx]; }
     std::vector<expr_t> indices() const {
         std::vector<expr_t> ret;
@@ -61,12 +69,22 @@ public:
         return ret;
     }
 
+    std::vector<expr_t> init_exprs() const {
+        std::vector<expr_t> ret;
+        ret.reserve(nloops());
+        for (size_t i = 0; i < nloops(); i++) {
+            ret.push_back(loops_[i].init);
+        }
+        return ret;
+    }
+
     std::string str() const {
         std::ostringstream oss;
         oss << "nloops: " << nloops();
         for (size_t i = 0; i < nloops(); i++) {
             oss << std::endl;
-            oss << "  var: " << loops_[i].var << " size: " << loops_[i].size;
+            oss << "  var: " << loops_[i].var << " init: " << loops_[i].init
+                << " bound: " << loops_[i].bound;
         }
         return oss.str();
     }
@@ -75,6 +93,7 @@ public:
 
 private:
     std::vector<loop_t> loops_;
+    expr_t linear_bound_;
 };
 
 struct offset_params_t {
@@ -431,25 +450,44 @@ inline stmt_t create_stmt(const send_plan_t &plan, const expr_t &mem_buf,
             plan.reg_layout().int_dim_sizes());
 }
 
+class ir_builder_t;
+
+class var_ref_t {
+public:
+    var_ref_t(ir_builder_t *parent, const type_t &type, const expr_t &buf)
+        : parent_(parent), type_(type), buf_(buf) {
+        ir_assert(buf_.type().is_ptr());
+    }
+
+    operator expr_t() const { return load_t::make(type_, buf_, 0); }
+    var_ref_t &operator=(const expr_t &value);
+    var_ref_t &operator=(const var_ref_t &other) = default;
+    std::string str() const { return buf_.str(); }
+
+    IR_DEFINE_DUMP()
+
+private:
+    ir_builder_t *parent_;
+    type_t type_;
+    expr_t buf_;
+};
+
 class ir_builder_t {
 public:
-    ir_builder_t(const kernel_info_t &kernel_info, ir_context_t &ir_ctx)
-        : kernel_info_(kernel_info)
-        , buf_mgr_(std::make_shared<buffer_manager_t>(ir_ctx))
+    ir_builder_t(ir_context_t &ir_ctx)
+        : buf_mgr_(std::make_shared<buffer_manager_t>(ir_ctx))
         , off_scope_(std::make_shared<offset_scope_t>(*buf_mgr_))
         , off_ctx_(off_scope_.get()) {
         enter_scope();
     }
     ir_builder_t(ir_builder_t &parent, const loop_nest_t &loop_nest)
-        : kernel_info_(parent.kernel_info_)
-        , buf_mgr_(parent.buf_mgr_)
+        : buf_mgr_(parent.buf_mgr_)
         , off_scope_(parent.off_scope_)
         , off_ctx_(off_scope_.get(), loop_nest) {
         enter_scope();
     }
     ir_builder_t(const ir_builder_t &parent) = delete;
     const hw_t &hw() const { return buf_mgr_->ir_ctx().hw(); }
-    const kernel_info_t &kernel_info() const { return kernel_info_; }
     ir_context_t &ir_ctx() { return buf_mgr_->ir_ctx(); }
     buffer_manager_t &buf_mgr() { return *buf_mgr_; }
     const offset_scope_t &off_scope() const { return *off_scope_; }
@@ -460,6 +498,13 @@ public:
                         : _name);
         return buf_mgr_->get(name, size);
     }
+    var_ref_t alloc_var(const type_t &type, const std::string &_name) {
+        auto name = (buf_mgr_->has(_name)
+                        ? buf_mgr_->ir_ctx().create_tmp_name(_name)
+                        : _name);
+        auto buf = alloc(name, type.size());
+        return var_ref_t(this, type, buf);
+    }
     expr_t get_or_alloc(const std::string &name, int size) {
         return buf_mgr_->get(name, size);
     }
@@ -469,6 +514,20 @@ public:
         auto stmt = funcs::zero_out(reg_buf, size);
         emit(stmt);
     }
+
+    expr_t let(const std::string &prefix, const expr_t &value) {
+        auto name = buf_mgr_->ir_ctx().create_tmp_name(prefix);
+        auto var = var_t::make(value.type(), name);
+        let(var, value);
+        return var;
+    }
+
+    expr_t let(const expr_t &var, const expr_t &value) {
+        emit(let_t::make(var, value, stmt_t()));
+        return var;
+    }
+
+    expr_t let(const expr_t &value) { return let("tmp", value); }
 
     expr_t load(const view_t &mem_view, const expr_t &mem_buf,
             const expr_t &reg_buf = {}, layout_t *reg_layout = nullptr) {
@@ -565,6 +624,13 @@ public:
         emit(for_t::make(var, init, bound, exit_scope()));
     }
 
+    template <typename BodyFuncT>
+    void _while(const expr_t &cond, const BodyFuncT &body_func) {
+        enter_scope();
+        body_func();
+        emit(while_t::make(cond, exit_scope()));
+    }
+
     void emit(const stmt_t &stmt) { top_stmt() = top_stmt().append(stmt); }
     stmt_t get_stmt() const { return top_stmt(); }
     void set_stmt(const stmt_t &stmt) {
@@ -595,12 +661,17 @@ private:
         return ret;
     }
 
-    const kernel_info_t &kernel_info_;
     std::shared_ptr<buffer_manager_t> buf_mgr_;
     std::shared_ptr<offset_scope_t> off_scope_;
     offset_ctx_t off_ctx_;
     std::vector<stmt_t> stmt_stack_;
 };
+
+inline var_ref_t &var_ref_t::operator=(const expr_t &value) {
+    ir_assert(value.type() == type_);
+    parent_->emit(store_t::make(buf_, 0, value));
+    return *this;
+}
 
 } // namespace v2
 } // namespace jit

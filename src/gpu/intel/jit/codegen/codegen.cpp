@@ -301,6 +301,21 @@ public:
         eval(obj.value, scope, dst, obj.fill_mask0 && !mask_op.is_invalid());
     }
 
+    void _visit(const while_t &obj) override {
+        auto scope = register_scope();
+
+        ngen::Label loop_end_label;
+        ngen::Label loop_begin_label;
+
+        host_->mark(loop_begin_label);
+        // TODO: Check how to force re-evaluation.
+        auto cond_op = eval(obj.cond, scope);
+        host_->jmpi(1 | ~cond_op.flag_register_mod(), loop_end_label);
+        visit(obj.body);
+        host_->jmpi(1, loop_begin_label);
+        host_->mark(loop_end_label);
+    }
+
 private:
     ngen_register_scope_t register_scope() {
         return ngen_register_scope_t(host_->ra_);

@@ -300,6 +300,8 @@ stmt_t inject_alloc_stmts(const stmt_t &stmt, const buffer_manager_t &buf_mgr);
 // all let statements.
 stmt_t inject_let_stmts(const stmt_t &stmt, const std::vector<stmt_t> &lets);
 
+stmt_t inject_dangling_let_stmts(const stmt_t &stmt);
+
 template <typename T>
 struct expr_cast_helper_t {
     static T call(const expr_t &e) { return to_cpp<T>(e); }
@@ -447,6 +449,8 @@ private:
 
 // IR utility functions.
 expr_t abs(const expr_t &e);
+expr_t max(const expr_t &a, const expr_t &b);
+expr_t min(const expr_t &a, const expr_t &b);
 
 expr_t cast(const expr_t &e, const type_t &type, bool saturate = false);
 

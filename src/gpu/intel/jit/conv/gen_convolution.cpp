@@ -242,7 +242,8 @@ public:
                                     make_kernel<zero_out_kernel_t>(primitive,
                                             /*register_kernel=*/false, engine,
                                             cfg.exec_cfg(), info,
-                                            cfg.is_dpas_or_dpasw_fma()));
+                                            cfg.is_dpas_or_dpasw_fma(),
+                                            engine));
                             break;
 
                         case kernel_id_t::zp_precalc:
@@ -279,21 +280,6 @@ public:
         primitive->register_kernels(kernels_);
 
         conv_tiler_t::after_create_hook(cfg, primitive);
-        return status::success;
-    }
-
-    template <typename T>
-    status_t init_res_storage(const T *primitive, impl::engine_t *engine,
-            gpu_resource_t *r) const {
-        auto &data = *primitive->pd()->data;
-        auto &kernel_infos = data.kernel_infos;
-        for (int i = 0; i < int(kernel_infos.size()); i++) {
-            auto &kernel_info = kernel_infos[i];
-            for (int j = 0; j < kernel_info.nargs(); j++) {
-                if (!kernel_info.is_resource(j)) continue;
-                ir_error_not_expected();
-            }
-        }
         return status::success;
     }
 
@@ -419,8 +405,8 @@ private:
                 auto size_var = var_t::make(type_t::u32(), "size");
                 zero_out_info.register_internal_arg(
                         size_var, into<uint32_t>(compute_size));
-                zero_out_info.set_nd_range(zero_out_kernel_t<>::nd_range(
-                        cfg.simd(), into<int>(compute_size)));
+                zero_out_info.set_nd_range(zero_out_kernel_desc_t::nd_range(
+                        cfg.simd(), compute_size));
                 return zero_out_info;
             };
 
@@ -542,20 +528,10 @@ status_t gen_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     return impl_->execute(this, ctx);
 }
 
-status_t gen_convolution_fwd_t::init_res_storage(
-        impl::engine_t *engine, gpu_resource_t *r) const {
-    return impl_->init_res_storage(this, engine, r);
-}
-
 status_t gen_convolution_bwd_data_t::pd_t::init(impl::engine_t *engine) {
     VDISPATCH_CONV_IC(is_bwd_d(), VERBOSE_BAD_PROPKIND);
     CHECK(gen_convolution_t::init_pd(this, engine));
     return status::success;
-}
-
-status_t gen_convolution_bwd_data_t::init_res_storage(
-        impl::engine_t *engine, gpu_resource_t *r) const {
-    return impl_->init_res_storage(this, engine, r);
 }
 
 status_t gen_convolution_bwd_weights_t::pd_t::init(impl::engine_t *engine) {
@@ -576,11 +552,6 @@ status_t gen_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
 status_t gen_convolution_bwd_weights_t::init(impl::engine_t *engine) {
     impl_.reset(new gen_convolution_t());
     return impl_->init(this, engine);
-}
-
-status_t gen_convolution_bwd_weights_t::init_res_storage(
-        impl::engine_t *engine, gpu_resource_t *r) const {
-    return impl_->init_res_storage(this, engine, r);
 }
 
 status_t gen_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
