@@ -27,9 +27,13 @@ namespace gpu {
 namespace intel {
 namespace jit {
 namespace v2 {
+
+class var_manager_t;
+
 namespace conv {
 
-stmt_t build_ir(const kernel_desc_t &desc, const kernel_iface_t &kernel_iface);
+stmt_t build_ir(const exec_config_t &exec_cfg, const kernel_desc_t &desc,
+        var_manager_t &var_mgr);
 
 } // namespace conv
 } // namespace v2

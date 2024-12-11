@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "gpu/gpu_convolution_pd.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
+#include "gpu/intel/jit/ir/primitive_plan.hpp"
 #include "gpu/intel/jit/v2/conv/kernel.hpp"
 
 namespace dnnl {
@@ -30,7 +31,7 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-class exec_plan_t;
+class primitive_init_plan_t;
 
 namespace v2 {
 namespace conv {
@@ -40,7 +41,7 @@ class gen_convolution_t;
 class gen_convolution_fwd_t : public gpu_primitive_t {
 public:
     friend gen_convolution_t;
-    friend exec_plan_t;
+    friend primitive_init_plan_t;
     struct pd_t : public gpu_convolution_fwd_pd_t {
         friend gen_convolution_t;
         using gpu_convolution_fwd_pd_t::gpu_convolution_fwd_pd_t;
@@ -48,7 +49,7 @@ public:
         DECLARE_COMMON_PD_T("jit:ir_v2", gen_convolution_fwd_t);
         status_t init(impl::engine_t *engine);
 
-        std::shared_ptr<exec_plan_t> exec_plan;
+        std::shared_ptr<primitive_init_plan_t> init_plan;
     };
 
     using gpu_primitive_t::gpu_primitive_t;
@@ -65,7 +66,7 @@ private:
 class gen_convolution_bwd_data_t : public gpu_primitive_t {
 public:
     friend gen_convolution_t;
-    friend exec_plan_t;
+    friend primitive_init_plan_t;
     struct pd_t : public gpu_convolution_bwd_data_pd_t {
         friend gen_convolution_t;
         using gpu_convolution_bwd_data_pd_t::gpu_convolution_bwd_data_pd_t;
@@ -73,7 +74,7 @@ public:
         DECLARE_COMMON_PD_T("jit:ir_v2", gen_convolution_bwd_data_t);
         status_t init(impl::engine_t *engine);
 
-        std::shared_ptr<exec_plan_t> exec_plan;
+        std::shared_ptr<primitive_init_plan_t> init_plan;
     };
 
     using gpu_primitive_t::gpu_primitive_t;
@@ -90,7 +91,7 @@ private:
 class gen_convolution_bwd_weights_t : public gpu_primitive_t {
 public:
     friend gen_convolution_t;
-    friend exec_plan_t;
+    friend primitive_init_plan_t;
     struct pd_t : public gpu_convolution_bwd_weights_pd_t {
         friend gen_convolution_t;
         using gpu_convolution_bwd_weights_pd_t::
@@ -99,7 +100,7 @@ public:
         DECLARE_COMMON_PD_T("jit:ir_v2", gen_convolution_bwd_weights_t);
         status_t init(impl::engine_t *engine);
 
-        std::shared_ptr<exec_plan_t> exec_plan;
+        std::shared_ptr<primitive_init_plan_t> init_plan;
     };
 
     using gpu_primitive_t::gpu_primitive_t;

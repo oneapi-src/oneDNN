@@ -22,6 +22,7 @@
 #include "gpu/intel/jit/ir/hw.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
+#include "gpu/intel/jit/ir/primitive_plan.hpp"
 #include "gpu/intel/jit/v2/conv/problem.hpp"
 #include "gpu/intel/jit/v2/ir/reqs.hpp"
 #include "gpu/intel/jit/v2/ir/send.hpp"
@@ -371,6 +372,8 @@ public:
             gpu_primitive_t *primitive, impl::engine_t *engine) const override;
     status_t create_generator(const compute::compute_engine_t &engine,
             compute::kernel_t &kernel) const;
+    status_t init_primitive_plan(primitive_init_plan_t &plan,
+            const problem_t &prb, convolution_pd_t *pd) const;
     serialized_t serialize() const override;
     static kernel_desc_t deserialize(const serialized_t &s);
     static void show_help();

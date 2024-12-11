@@ -450,25 +450,44 @@ inline stmt_t create_stmt(const send_plan_t &plan, const expr_t &mem_buf,
             plan.reg_layout().int_dim_sizes());
 }
 
+class ir_builder_t;
+
+class var_ref_t {
+public:
+    var_ref_t(ir_builder_t *parent, const type_t &type, const expr_t &buf)
+        : parent_(parent), type_(type), buf_(buf) {
+        ir_assert(buf_.type().is_ptr());
+    }
+
+    operator expr_t() const { return load_t::make(type_, buf_, 0); }
+    var_ref_t &operator=(const expr_t &value);
+    var_ref_t &operator=(const var_ref_t &other) = default;
+    std::string str() const { return buf_.str(); }
+
+    IR_DEFINE_DUMP()
+
+private:
+    ir_builder_t *parent_;
+    type_t type_;
+    expr_t buf_;
+};
+
 class ir_builder_t {
 public:
-    ir_builder_t(const kernel_iface_t &kernel_iface, ir_context_t &ir_ctx)
-        : kernel_iface_(kernel_iface)
-        , buf_mgr_(std::make_shared<buffer_manager_t>(ir_ctx))
+    ir_builder_t(ir_context_t &ir_ctx)
+        : buf_mgr_(std::make_shared<buffer_manager_t>(ir_ctx))
         , off_scope_(std::make_shared<offset_scope_t>(*buf_mgr_))
         , off_ctx_(off_scope_.get()) {
         enter_scope();
     }
     ir_builder_t(ir_builder_t &parent, const loop_nest_t &loop_nest)
-        : kernel_iface_(parent.kernel_iface_)
-        , buf_mgr_(parent.buf_mgr_)
+        : buf_mgr_(parent.buf_mgr_)
         , off_scope_(parent.off_scope_)
         , off_ctx_(off_scope_.get(), loop_nest) {
         enter_scope();
     }
     ir_builder_t(const ir_builder_t &parent) = delete;
     const hw_t &hw() const { return buf_mgr_->ir_ctx().hw(); }
-    const kernel_iface_t &kernel_iface() const { return kernel_iface_; }
     ir_context_t &ir_ctx() { return buf_mgr_->ir_ctx(); }
     buffer_manager_t &buf_mgr() { return *buf_mgr_; }
     const offset_scope_t &off_scope() const { return *off_scope_; }
@@ -479,6 +498,13 @@ public:
                         : _name);
         return buf_mgr_->get(name, size);
     }
+    var_ref_t alloc_var(const type_t &type, const std::string &_name) {
+        auto name = (buf_mgr_->has(_name)
+                        ? buf_mgr_->ir_ctx().create_tmp_name(_name)
+                        : _name);
+        auto buf = alloc(name, type.size());
+        return var_ref_t(this, type, buf);
+    }
     expr_t get_or_alloc(const std::string &name, int size) {
         return buf_mgr_->get(name, size);
     }
@@ -488,6 +514,20 @@ public:
         auto stmt = funcs::zero_out(reg_buf, size);
         emit(stmt);
     }
+
+    expr_t let(const std::string &prefix, const expr_t &value) {
+        auto name = buf_mgr_->ir_ctx().create_tmp_name(prefix);
+        auto var = var_t::make(value.type(), name);
+        let(var, value);
+        return var;
+    }
+
+    expr_t let(const expr_t &var, const expr_t &value) {
+        emit(let_t::make(var, value, stmt_t()));
+        return var;
+    }
+
+    expr_t let(const expr_t &value) { return let("tmp", value); }
 
     expr_t load(const view_t &mem_view, const expr_t &mem_buf,
             const expr_t &reg_buf = {}, layout_t *reg_layout = nullptr) {
@@ -621,11 +661,70 @@ private:
         return ret;
     }
 
-    const kernel_iface_t &kernel_iface_;
     std::shared_ptr<buffer_manager_t> buf_mgr_;
     std::shared_ptr<offset_scope_t> off_scope_;
     offset_ctx_t off_ctx_;
     std::vector<stmt_t> stmt_stack_;
+};
+
+inline var_ref_t &var_ref_t::operator=(const expr_t &value) {
+    ir_assert(value.type() == type_);
+    parent_->emit(store_t::make(buf_, 0, value));
+    return *this;
+}
+
+class var_manager_t {
+public:
+    var_manager_t(const kernel_iface_t &kernel_iface)
+        : kernel_iface_(kernel_iface) {}
+
+    std::vector<expr_t> ptr_args() const {
+        std::vector<expr_t> ret;
+        for (int i = 0; i < kernel_iface_.nargs(); i++) {
+            auto &var = kernel_iface_.arg_var(i);
+            if (var.type().is_ptr()) ret.push_back(var);
+        }
+        return ret;
+    }
+
+    expr_t get_arg(const std::string &name, bool allow_empty = false) const {
+        return kernel_iface_.find_arg(name, allow_empty);
+    }
+
+    expr_t get_grid_size(const std::string &name) const {
+        return get_arg(type_t::u32(), name + "_grid_size");
+    }
+
+    expr_t get_idiv_magic(const expr_t &value) const {
+        std::string name;
+        if (auto *op = value.as_ptr<binary_op_t>()) {
+            if (op->op_kind == op_kind_t::_div_up) {
+                ir_assert(is_const(op->b))
+                        << "Expected constant denominator: " << value;
+                if (is_one(op->b)) return get_idiv_magic(op->a);
+                ir_assert(op->a.is<var_t>() || op->a.is<const_var_t>())
+                        << "Expected var/const var: " << op->a;
+                name = op->a.str();
+                name += "_divup_" + op->b.str();
+            }
+        } else {
+            ir_assert(value.is<var_t>() || value.is<const_var_t>())
+                    << "Expected var/const var: " << value;
+            name = value.str();
+        }
+        return get_arg(type_t::u64(), name + "_magic");
+    }
+
+    expr_t get_arg(const type_t &type, const std::string &name) const {
+        ir_assert(kernel_iface_.has(name)) << "Cannot find argument " << name;
+        auto var = kernel_iface_.find_arg(name);
+        ir_assert(var.type() == type) << "Type mismatch, found: " << var.type()
+                                      << " expected: " << type;
+        return var;
+    }
+
+private:
+    const kernel_iface_t &kernel_iface_;
 };
 
 } // namespace v2
