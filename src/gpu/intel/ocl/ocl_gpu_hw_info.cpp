@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ xpu::runtime_version_t get_driver_version(cl_device_id device) {
     return runtime_version;
 }
 
-void init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
+status_t init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
         cl_context context, uint32_t &ip_version, compute::gpu_arch_t &gpu_arch,
         int &gpu_product_family, int &stepping_id, uint64_t &native_extensions,
         bool &mayiuse_systolic, bool &mayiuse_ngen_kernels) {
@@ -71,13 +71,9 @@ void init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
     stepping_id = product.stepping;
 
     mayiuse_systolic = false;
-    status_t ret
-            = get_ocl_device_enabled_systolic_intel(device, mayiuse_systolic);
-    assert(ret == CL_SUCCESS);
-    ret = get_ocl_device_enabled_native_float_atomics(
-            device, native_extensions, is_xelpg);
-    assert(ret == CL_SUCCESS);
-    MAYBE_UNUSED(ret);
+    CHECK(get_ocl_device_enabled_systolic_intel(device, mayiuse_systolic));
+    CHECK(get_ocl_device_enabled_native_float_atomics(
+            device, native_extensions, is_xelpg));
 
     auto status
             = jit::gpu_supports_binary_format(&mayiuse_ngen_kernels, engine);
@@ -88,10 +84,9 @@ void init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
     }
 
     ip_version = 0;
-    if (clGetDeviceInfo(device, CL_DEVICE_IP_VERSION_INTEL, sizeof(ip_version),
-                &ip_version, nullptr)
-            != CL_SUCCESS)
-        ip_version = 0;
+    OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_IP_VERSION_INTEL,
+            sizeof(ip_version), &ip_version, nullptr));
+    return status::success;
 }
 
 } // namespace ocl
