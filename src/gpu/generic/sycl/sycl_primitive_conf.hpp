@@ -112,9 +112,6 @@ struct sycl_eltwise_conf_t {
 };
 
 struct sycl_matmul_conf_t {
-    xpu::sycl::md_t data_md;
-    xpu::sycl::md_t dst_md;
-    xpu::sycl::md_t weights_md;
     xpu::sycl::md_t bias_md;
     alg_kind_t alg_kind;
     bool transpose_data; //TODO can we remove?
