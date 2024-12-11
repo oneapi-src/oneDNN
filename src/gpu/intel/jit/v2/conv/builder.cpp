@@ -115,38 +115,37 @@ int get_reg_off(const send_1d_plan_t &plan, const pvar_coord_t<dim_t> &coord) {
 
 class idiv_fixup_mutator_t : public ir_mutator_t {
 public:
-    idiv_fixup_mutator_t(const kernel_iface_t &kernel_iface)
-        : kernel_iface_(kernel_iface) {}
+    idiv_fixup_mutator_t(var_manager_t &var_mgr) : var_mgr_(var_mgr) {}
 
-    object_t _mutate(const binary_op_t &obj) {
-        bool is_var_idiv = (obj.op_kind == op_kind_t::_div) && obj.type.is_int()
-                && !is_const(obj.b);
-        if (!is_var_idiv) return ir_mutator_t::_mutate(obj);
-        ir_assert(obj.b.is<const_var_t>())
-                << "Cannot handle integer division, expected const var to "
-                   "access magic value: "
-                << obj;
-        auto magic = kernel_iface_.find_arg(obj.b.str() + "_magic");
+    object_t _mutate(const binary_op_t &_obj) {
+        auto new_obj = ir_mutator_t::_mutate(_obj);
+        auto &obj = new_obj.as<binary_op_t>();
+        bool is_var_idivmod
+                = utils::one_of(obj.op_kind, op_kind_t::_div, op_kind_t::_mod)
+                && obj.type.is_int() && !is_const(obj.b);
+        if (!is_var_idivmod) return new_obj;
+        auto magic = var_mgr_.get_idiv_magic(obj.b);
+        auto i_op = (obj.op_kind == op_kind_t::_div ? op_kind_t::_idiv
+                                                    : op_kind_t::_imod);
         return ternary_op_t::make(
-                op_kind_t::_idiv, obj.a, cast(obj.b, type_t::u32()), magic);
+                i_op, obj.a, cast(obj.b, type_t::u32()), magic);
     }
 
 private:
-    const kernel_iface_t &kernel_iface_;
+    var_manager_t &var_mgr_;
 };
 
-stmt_t fixup_idiv(const stmt_t &s, const kernel_iface_t &kernel_iface,
-        ir_context_t &ir_ctx) {
+stmt_t fixup_idiv(
+        const stmt_t &s, var_manager_t &var_mgr, ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = idiv_fixup_mutator_t(kernel_iface).mutate(s);
+    auto ret = idiv_fixup_mutator_t(var_mgr).mutate(s);
     trace_pass("fixup_idiv", ret, ir_ctx);
     return ret;
 }
 
 class var_replacer_t : public ir_mutator_t {
 public:
-    var_replacer_t(const kernel_iface_t &kernel_iface)
-        : kernel_iface_(kernel_iface) {}
+    var_replacer_t(var_manager_t &var_mgr) : var_mgr_(var_mgr) {}
     object_t _mutate(const var_t &obj) override {
         return map_var(obj.name, obj, /*is_const=*/false);
     }
@@ -167,19 +166,24 @@ private:
             const std::string &name, const expr_t &var, bool is_const_var) {
         auto it = var_map_.find(var);
         if (it != var_map_.end()) return it->second;
-        auto arg = kernel_iface_.find_arg(name, /*allow_empty=*/!is_const_var);
+        expr_t arg;
+        if (!is_const_var) {
+            arg = var_mgr_.get_arg(name, /*allow_empty=*/true);
+        } else {
+            arg = var_mgr_.get_arg(var.type(), name);
+        }
         auto value = (arg.is_empty() ? var : arg);
         var_map_.emplace(var, value);
         return value;
     }
 
-    const kernel_iface_t &kernel_iface_;
+    var_manager_t &var_mgr_;
     object_map_t<expr_t, expr_t> var_map_;
 };
 
-stmt_t finalize_vars(const stmt_t &stmt, const kernel_iface_t &kernel_iface,
-        ir_context_t &ir_ctx) {
-    auto ret = var_replacer_t(kernel_iface).mutate(stmt);
+stmt_t finalize_vars(
+        const stmt_t &stmt, var_manager_t &var_mgr, ir_context_t &ir_ctx) {
+    auto ret = var_replacer_t(var_mgr).mutate(stmt);
     ret = inject_external_var_let(ret, ir_ctx);
     return ret;
 }
@@ -203,14 +207,14 @@ loop_nest_t make_loop_nest(
 class buffer_info_t {
 public:
     buffer_info_t(buffer_manager_t &buf_mgr, const kernel_desc_t &desc,
-            const kernel_iface_t &kernel_iface, const x2r_fma_plan_t &plan) {
+            const var_manager_t &var_mgr, const x2r_fma_plan_t &plan) {
         for (auto &s : plan.stages) {
             if (!s.is_x2r()) continue;
             auto kind = s.x2r.tensor_kind;
             auto name = pick_abc(kind, desc.prop, "src", "wei", "dst");
             if (entries_.count(name) > 0) continue;
             auto &e = entries_[name];
-            e.mem_buf = kernel_iface.find_arg(name);
+            e.mem_buf = var_mgr.get_arg(name);
             if (s.x2r.reorder) {
                 e.reg_buf = buf_mgr.get(
                         to_string(kind), s.x2r.reorder.dst.size());
@@ -221,7 +225,7 @@ public:
         }
         auto c_name = pick_c(desc.prop, "src", "wei", "dst");
         auto &c_e = entries_[c_name];
-        c_e.mem_buf = kernel_iface.find_arg(c_name);
+        c_e.mem_buf = var_mgr.get_arg(c_name);
         c_e.reg_buf = buf_mgr.get("c", plan.c_layout.size());
         for (auto &abc :
                 {tensor_kind_t::a, tensor_kind_t::b, tensor_kind_t::c}) {
@@ -231,7 +235,7 @@ public:
 
         if (desc.with_bias_fwd() || desc.with_bias_bwd_w()) {
             auto &e = entries_["bia"];
-            e.mem_buf = kernel_iface.find_arg("bia");
+            e.mem_buf = var_mgr.get_arg("bia");
             if (!plan.bia_layout.is_empty())
                 e.reg_buf = buf_mgr.get("bia_reduced", plan.bia_layout.size());
         }
@@ -241,7 +245,7 @@ public:
             if (po.is_binary()) {
                 std::string name = "binary_" + std::to_string(i);
                 auto &e = entries_[name];
-                e.mem_buf = kernel_iface.find_arg(name);
+                e.mem_buf = var_mgr.get_arg(name);
             }
         }
     }
@@ -667,22 +671,24 @@ private:
 class conv_builder_t : public ir_builder_t {
 public:
     conv_builder_t(ir_context_t &ir_ctx, const kernel_desc_t &desc,
-            const kernel_iface_t &kernel_iface, const plan_t &plan)
-        : ir_builder_t(kernel_iface, ir_ctx)
+            var_manager_t &var_mgr, const plan_t &plan)
+        : ir_builder_t(ir_ctx)
         , desc_(desc)
+        , var_mgr_(var_mgr)
         , plan_(plan)
-        , buf_info_(buf_mgr(), desc, kernel_iface, plan.x2r_fma) {
+        , buf_info_(buf_mgr(), desc, var_mgr, plan.x2r_fma) {
+        emit_thread_index_let();
+        emit_thread_group_index_let();
         loop();
         epilogue();
 
         auto _stmt = get_stmt();
         _stmt = inject_alloc_stmts(_stmt, buf_mgr());
+        _stmt = inject_dangling_let_stmts(_stmt);
         _stmt = off_scope().inject_let_stmts(_stmt);
         _stmt = inject_global_alloc(_stmt);
-        _stmt = inject_index_let(_stmt);
-        _stmt = fixup_idiv(_stmt, kernel_iface, ir_ctx);
-        _stmt = finalize_vars(_stmt, kernel_iface, ir_ctx);
-
+        _stmt = fixup_idiv(_stmt, var_mgr, ir_ctx);
+        _stmt = finalize_vars(_stmt, var_mgr, ir_ctx);
         _stmt = simplify(_stmt, ir_ctx);
         _stmt = optimize_alloc_let(_stmt, ir_ctx);
         _stmt = split_wide_stores(_stmt, ir_ctx);
@@ -756,66 +762,65 @@ private:
 
     stmt_t inject_global_alloc(const stmt_t &stmt) const {
         std::vector<stmt_t> allocs;
-        for (int i = 0; i < kernel_iface().nargs(); i++) {
-            auto &var = kernel_iface().arg_var(i);
-            if (!var.type().is_ptr()) continue;
+        for (auto &var : var_mgr_.ptr_args()) {
             allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
         }
         return inject_alloc_stmts(stmt, allocs);
     }
 
-    stmt_t inject_index_let(const stmt_t &stmt) const {
-        auto &tg_grid = plan_.tg_grid;
-        auto &coord_info = plan_.coord_info;
-        stmt_t ret = stmt;
-        for (auto &d : conv_index_dims(plan_.desc.prop)) {
-            const auto &tg_idx = coord_info.tg_index(d);
-            if (is_const(tg_idx)) continue;
-            auto base_tg_idx = tg_grid.index_var(d);
-            if (base_tg_idx.is_empty()) continue;
-            auto value = unpack_tg_index(d);
-            ret = let_t::make(tg_idx, value, ret);
-        }
-        for (auto &kv : plan_.virt_grid.idxs()) {
-            ret = let_t::make(kv.first, kv.second, ret);
-        }
+    void emit_thread_index_let() {
         for (int i = 0; i < 3; i++) {
             auto value = jit::ir_builder_t::local_ids()[i];
             if (i == 0) value /= plan_.desc.simd;
             auto thr_idx = plan_.thr_grid.index_var(i);
-            ret = let_t::make(thr_idx, cast(value, thr_idx.type()), ret);
+            let(thr_idx, cast(value, thr_idx.type()));
         }
-        return ret;
+        for (auto &kv : plan_.virt_grid.idxs()) {
+            let(kv.first, kv.second);
+        }
     }
 
-    expr_t unpack_tg_index(const pvar_t &dim) const {
+    expr_t unpack_tg_index(const pvar_t &dim, const expr_t &base_idx) const {
         auto &tg_grid = plan_.tg_grid;
-        auto base_idx = tg_grid.index_var(dim);
-        if (base_idx.is_empty()) return expr_t();
-
-        expr_t value = std::move(base_idx);
+        expr_t value = base_idx;
         auto &dims = tg_grid.dims(tg_grid.index(dim));
         int ndims = (int)dims.size();
         for (int i = 0; i < ndims; i++) {
-            if (dims[i] == dim) break;
-            auto i_dim_size
-                    = kernel_iface().find_arg(dims[i].str() + "_grid_size");
-            auto i_magic = kernel_iface().find_arg(dims[i].str() + "_magic");
-            value = ternary_op_t::make(
-                    op_kind_t::_idiv, value, i_dim_size, i_magic);
+            if (dims[i] == dim) {
+                if (i == ndims - 1) return value;
+                break;
+            }
+            auto grid_size = var_mgr_.get_grid_size(dims[i].str());
+            value = value / grid_size;
         }
-        auto dim_size = kernel_iface().find_arg(dim.str() + "_grid_size");
-        auto magic = kernel_iface().find_arg(dim.str() + "_magic");
-        value = ternary_op_t::make(op_kind_t::_imod, value, dim_size, magic);
+        auto grid_size = var_mgr_.get_grid_size(dim.str());
+        value = value % grid_size;
         return value;
     }
 
+    void emit_thread_group_index_let(const expr_t &_base_tg_idx = {}) {
+        auto &tg_grid = plan_.tg_grid;
+        auto &coord_info = plan_.coord_info;
+        for (auto &d : conv_index_dims(plan_.desc.prop)) {
+            const auto &tg_idx = coord_info.tg_index(d);
+            if (is_const(tg_idx)) continue;
+            auto base_tg_idx
+                    = (!_base_tg_idx.is_empty() ? _base_tg_idx
+                                                : tg_grid.index_var(d));
+            if (base_tg_idx.is_empty()) continue;
+            auto value = unpack_tg_index(d, base_tg_idx);
+            let(tg_idx, value);
+        }
+    }
+
     kernel_desc_t desc_;
+    var_manager_t &var_mgr_;
     plan_t plan_;
     buffer_info_t buf_info_;
 };
 
-stmt_t build_ir(const kernel_desc_t &desc, const kernel_iface_t &kernel_iface) {
+stmt_t build_ir(const exec_config_t &exec_cfg, const kernel_desc_t &desc,
+        var_manager_t &var_mgr) {
     auto plan = create_conv_plan(desc);
     if (!plan) ir_except_not_implemented("Cannot create plan.");
 
@@ -823,8 +828,8 @@ stmt_t build_ir(const kernel_desc_t &desc, const kernel_iface_t &kernel_iface) {
     ir_trace() << plan << std::endl;
 
     constraint_set_t cset;
-    ir_context_t ir_ctx(desc.exec_cfg(), cset);
-    conv_builder_t builder(ir_ctx, desc, kernel_iface, plan);
+    ir_context_t ir_ctx(exec_cfg, cset);
+    conv_builder_t builder(ir_ctx, desc, var_mgr, plan);
     auto stmt = builder.get_stmt();
     ir_trace() << "Convolution kernel body:\n" << stmt << std::endl;
     return stmt;
