@@ -111,7 +111,7 @@ const std::vector<pvar_t> &conv_layout_dims(
         case tensor_kind_t::wei: return wei_dims;
         case tensor_kind_t::dst:
             return src_dst_with_group ? dst_g_dims : dst_dims;
-        case tensor_kind_t::bia:
+        case tensor_kind_t::bias:
             return src_dst_with_group ? bia_g_dims : bia_dims;
         default: ir_error_not_expected();
     }
