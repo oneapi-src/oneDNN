@@ -20,6 +20,7 @@
 
 import argparse
 import subprocess
+import re
 
 # * Ensuring the scopes end in colon and same level scopes are comma delimited.
 # TODO: Limit scopes to an acceptable list of tags.
@@ -36,7 +37,7 @@ def __scopeCheck(msg: str):
     scopesArray = firstLine.split(":")[:-1]
 
     for scopes in scopesArray:
-        numWords = len(scopes.split())
+        numWords = len( [x for x in re.split(',| ', scopes) if x] )
         numCommas = scopes.count(",")
 
         if numWords != numCommas + 1:
@@ -79,7 +80,7 @@ def main():
       is_ok = is_ok and result
 
     if is_ok:
-        print("All commmit messages are formtted correctly. ")
+        print("All commmit messages are formatted correctly. ")
     else:
         print("Some commit message checks failed. Please align commit messages with Contributing Guidelines and update the PR.")
         exit(1)
