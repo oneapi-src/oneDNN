@@ -17,7 +17,7 @@
 #ifndef GRAPH_BACKEND_DNNL_PATTERNS_DATA_TYPE_CHECK_PASS_HPP
 #define GRAPH_BACKEND_DNNL_PATTERNS_DATA_TYPE_CHECK_PASS_HPP
 
-#include "graph/backend/dnnl/kernels/quantize.hpp"
+#include "graph/backend/dnnl/kernels/primitive_base/quantize.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/platform.hpp"
 #include "graph/backend/fake/pattern_utils.hpp"
@@ -237,9 +237,10 @@ public:
         // fused op, the graph will be fused into separate single op fusions.
         if (!reorder_fusion_list.empty()) {
             pattern_utils_t dnnl_pu;
-            const auto quantize_kernel_creater = []() -> kernel_ptr {
-                return std::make_shared<
-                        dnnl::impl::graph::dnnl_impl::quantize_dequantize_t>();
+            const auto quantize_kernel_creater = []() -> kernels_ptr {
+                const kernels_ptr kernels = {std::make_shared<
+                        dnnl::impl::graph::dnnl_impl::quantize_dequantize_t>()};
+                return kernels;
             };
             dnnl_pu.init_partition(agraph, reorder_fusion_list,
                     quantize_kernel_creater,

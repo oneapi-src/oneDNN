@@ -21,10 +21,13 @@ file(GLOB HEADERS
 
 file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/*.[ch]pp
     )
 
 file(GLOB_RECURSE SOURCES_EXTRA
-    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/*.[ch]pp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/decomp_kernel/*.[ch]pp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/ukernel/*.[ch]pp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/primitive_base/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/passes/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/patterns/*.[ch]pp
     )
@@ -32,6 +35,24 @@ file(GLOB_RECURSE SOURCES_EXTRA
 foreach(SOURCE_FILE ${SOURCES_EXTRA})
     list(APPEND SOURCES "${SOURCE_FILE}")
 endforeach()
+
+if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
+    file(GLOB_RECURSE SOURCES_DECOMP
+        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/decomp_kernel/*.[ch]pp
+        )
+    foreach(SOURCE_FILE ${SOURCES_DECOMP})
+        list(APPEND SOURCES "${SOURCE_FILE}")
+    endforeach()
+endif()
+
+if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+    file(GLOB_RECURSE SOURCES_UKERNEL
+        ${CMAKE_CURRENT_SOURCE_DIR}/kernels/ukernel/*.[ch]pp
+        )
+    foreach(SOURCE_FILE ${SOURCES_UKERNEL})
+        list(APPEND SOURCES "${SOURCE_FILE}")
+    endforeach()
+endif()
 
 # The build option is for debug and testing purpose. Please do not use it in
 # production.

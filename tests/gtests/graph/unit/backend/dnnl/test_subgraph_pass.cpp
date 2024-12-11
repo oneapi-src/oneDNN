@@ -26,7 +26,7 @@
 #include "backend/dnnl/dnnl_backend.hpp"
 #include "backend/dnnl/dnnl_partition_impl.hpp"
 
-#include "backend/dnnl/kernels/large_partition.hpp"
+#include "backend/dnnl/kernels/primitive_base/large_partition.hpp"
 #include "backend/dnnl/op_executable.hpp"
 #include "backend/dnnl/passes/constant_propagation.hpp"
 #include "backend/dnnl/passes/insert_ops.hpp"

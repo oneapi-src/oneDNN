@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph/backend/dnnl/kernels/large_partition.hpp"
+#include "graph/backend/dnnl/kernels/primitive_base/large_partition.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/patterns/utils.hpp"
@@ -381,8 +381,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_resnet50_stage_1_4_fusion)
                     output = int8_identical_bottleneck_resblock(
                             pgraph, output, false, true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_resnet50_stage_2_fusion)
@@ -409,8 +411,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_resnet50_stage_2_fusion)
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, false, true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_resnet50_stage_3_fusion)
@@ -436,8 +440,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_resnet50_stage_3_fusion)
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, false, true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_resnet34_stage_1_4_fusion)
@@ -450,8 +456,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_resnet34_stage_1_4_fusion)
                     output = int8_identical_basic_resblock(pgraph, output);
                     output = int8_identical_basic_resblock(pgraph, output);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_resnet34_stage_2_fusion)
@@ -466,8 +474,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_resnet34_stage_2_fusion)
                     for (size_t i = 0; i < identical_residual_block_num; i++)
                         output = int8_identical_basic_resblock(pgraph, output);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_resnet34_stage_3_fusion)
@@ -482,8 +492,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_resnet34_stage_3_fusion)
                     for (size_t i = 0; i < identical_residual_block_num; i++)
                         output = int8_identical_basic_resblock(pgraph, output);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, f32_resnet50_stage_1_4_fusion)
@@ -506,8 +518,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, f32_resnet50_stage_1_4_fusion)
                     output = identical_bottleneck_resblock(
                             pgraph, output, false, true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, f32_resnet50_stage_2_fusion)
@@ -533,8 +547,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, f32_resnet50_stage_2_fusion)
                         output = identical_bottleneck_resblock(
                                 pgraph, output, false, true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, f32_resnet50_stage_3_fusion)
@@ -558,8 +574,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, f32_resnet50_stage_3_fusion)
                         output = identical_bottleneck_resblock(
                                 pgraph, output, false, true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 // For itex int8 rn50 only (include the weight quantize into pattern)
@@ -577,8 +595,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     output = int8_identical_bottleneck_resblock(
                             pgraph, output, false, true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 // For itex int8 rn50 only (include the weight quantize into pattern)
@@ -597,8 +617,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, false, true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 // For itex int8 rn50 only (include the weight quantize into pattern)
@@ -616,8 +638,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, false, true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
@@ -634,8 +658,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     output = int8_identical_bottleneck_resblock(
                             pgraph, output, false, true, /* f32 output */ true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 // ResNeXt101 backbone is the composition of 4 stages, which has 102 conv inside
@@ -702,8 +728,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                         output = int8_identical_bottleneck_resblock(
                                 pgraph, output, true, true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
