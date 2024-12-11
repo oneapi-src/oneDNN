@@ -242,14 +242,14 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
         auto scale_dt = key_scales_dt();
         problem_kq.Ta_scale = jit::convert_dnnl_to_kernel_type(scale_dt);
         problem_kq.A_scale.alignment = uint8_t(types::data_type_size(scale_dt));
-        problem_kq.A_scale.layout = MatrixLayout::T;
+        problem_kq.A_scale.layout = MatrixLayout::N;
         problem_kq.aScale2D = true;
     }
     if (with_key_zp()) {
         auto zp_dt = key_zp_dt();
         problem_kq.Tao = jit::convert_dnnl_to_kernel_type(zp_dt);
         problem_kq.AO.alignment = uint8_t(types::data_type_size(zp_dt));
-        problem_kq.AO.layout = MatrixLayout::T;
+        problem_kq.AO.layout = MatrixLayout::N;
         problem_kq.aoPtrDims = kq_common_zp ? 0 : 2;
         problem_kq.aOffset = ABOffset::Calc;
     }
