@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ layout_desc_t make_conv_algo_layout_desc(
         prop_kind_t prop, tensor_kind_t tensor_kind) {
     auto desc = make_conv_layout_desc(tensor_kind, /*src_dst_with_group=*/true);
     switch (tensor_kind) {
-        case tensor_kind_t::bia:
+        case tensor_kind_t::bias:
         case tensor_kind_t::wei: return desc;
         case tensor_kind_t::src:
             if (prop == prop_kind::backward_data) return desc;
@@ -108,8 +108,8 @@ layout_tag_t append_groups(
         tensor_kind_t tensor_kind, const layout_tag_t &layout_tag, bool is_dw) {
     bool is_src = (tensor_kind == tensor_kind_t::src);
     bool is_dst = (tensor_kind == tensor_kind_t::dst);
-    bool is_bia = (tensor_kind == tensor_kind_t::bia);
-    if (!is_src && !is_dst && !is_bia) return layout_tag;
+    bool is_bias = (tensor_kind == tensor_kind_t::bias);
+    if (!is_src && !is_dst && !is_bias) return layout_tag;
     auto xc_dim = (is_src ? pvars::ic : pvars::oc);
     auto xc_letter = dim_idx::as_tag(layout_tag.desc().dim_index(xc_dim));
     auto new_g_letter = xc_letter;
@@ -141,8 +141,8 @@ layout_tag_t append_groups(
 uint32_t append_groups(tensor_kind_t tensor_kind, uint32_t mask, bool is_dw) {
     bool is_src = (tensor_kind == tensor_kind_t::src);
     bool is_dst = (tensor_kind == tensor_kind_t::dst);
-    bool is_bia = (tensor_kind == tensor_kind_t::bia);
-    if (!is_src && !is_dst && !is_bia) return mask;
+    bool is_bias = (tensor_kind == tensor_kind_t::bias);
+    if (!is_src && !is_dst && !is_bias) return mask;
     uint32_t c_mask = (mask >> 1) & 0x1;
     uint32_t n_mask = mask & 0x1;
     uint32_t dhw_mask = (mask >> 2);
@@ -262,7 +262,7 @@ dim_mapper_manager_t::dim_mapper_manager_t(
     src_mapper_ = init_src_mapper();
     wei_mapper_ = init_wei_mapper();
     dst_mapper_ = init_dst_mapper();
-    bia_mapper_ = init_bia_mapper();
+    bias_mapper_ = init_bias_mapper();
 }
 
 const dim_mapper_t &dim_mapper_manager_t::mapper(tensor_kind_t tensor) const {
@@ -279,7 +279,7 @@ const dim_mapper_t &dim_mapper_manager_t::mapper(tensor_kind_t tensor) const {
         case tensor_kind_t::c:
             return mapper(pick_c(prop_, tensor_kind_t::src, tensor_kind_t::wei,
                     tensor_kind_t::dst));
-        case tensor_kind_t::bia: return bia_mapper_;
+        case tensor_kind_t::bias: return bias_mapper_;
         default: ir_error_not_expected();
     }
     return src_mapper_;
@@ -335,12 +335,12 @@ dim_mapper_t dim_mapper_manager_t::init_wei_mapper() const {
     return mapper;
 }
 
-dim_mapper_t dim_mapper_manager_t::init_bia_mapper() const {
+dim_mapper_t dim_mapper_manager_t::init_bias_mapper() const {
     dim_mapper_t mapper;
     mapper.set_dim(pvars::g);
     mapper.set_dim(pvars::oc);
     mapper.set_layout_desc(
-            make_conv_algo_layout_desc(prop_, tensor_kind_t::bia));
+            make_conv_algo_layout_desc(prop_, tensor_kind_t::bias));
     return mapper;
 }
 

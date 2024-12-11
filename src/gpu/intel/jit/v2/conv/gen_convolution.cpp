@@ -62,7 +62,7 @@ status_t init_layouts(const kernel_desc_t &desc, convolution_pd_t *pd) {
     maybe_init_layout(wei_md, desc.wei_tag, !pd->with_groups());
     maybe_init_layout(dst_md, desc.dst_tag, false);
     maybe_init_layout(
-            bia_md, make_conv_layout_tag(tensor_kind_t::bia, "a"), false);
+            bia_md, make_conv_layout_tag(tensor_kind_t::bias, "a"), false);
     return status::success;
 }
 
