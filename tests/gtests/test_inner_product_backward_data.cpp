@@ -96,16 +96,18 @@ class inner_product_test_bwd_data_t
 protected:
     void SetUp() override {
         auto p = ::testing::TestWithParam<inprod_test_params_t>::GetParam();
-        SKIP_IF_CUDA(!cuda_check_format_tags(p.diff_src_format,
+        SKIP_IF_CUDA(!cuda_generic_check_format_tags(p.diff_src_format,
                              p.weights_format, p.diff_dst_format),
                 "Unsupported format tag");
         SKIP_IF_CUDA(p.ndims > 5, "Unsupported number of dimensions");
-        SKIP_IF_GENERIC(true, "Primitive not implemented");
+        SKIP_IF_GENERIC(!cuda_generic_check_format_tags(p.diff_src_format,
+                                p.weights_format, p.diff_dst_format),
+                "Unsupported format tag");
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
-    bool cuda_check_format_tags(memory::format_tag diff_src_format,
+    bool cuda_generic_check_format_tags(memory::format_tag diff_src_format,
             memory::format_tag wei_format, memory::format_tag diff_dst_format) {
         bool diff_src_ok = diff_src_format == memory::format_tag::ncdhw
                 || diff_src_format == memory::format_tag::ndhwc

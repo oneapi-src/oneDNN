@@ -253,6 +253,8 @@ enum {
     key_iprod_dst_bf16_convert_wsp,
     key_iprod_dst_reorder,
     key_iprod_int_dat_in_acc_dt,
+    key_iprod_src_reorder,
+    key_iprod_weights_reorder,
     key_lnorm_inv_sqrtvar,
     key_lnorm_tmp_mean,
     key_lnorm_tmp_var,
