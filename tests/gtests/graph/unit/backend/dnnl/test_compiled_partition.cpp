@@ -20,7 +20,7 @@
 #include "interface/tensor.hpp"
 
 #include "backend/dnnl/dnnl_partition_impl.hpp"
-#include "backend/dnnl/kernels/pool.hpp"
+#include "backend/dnnl/kernels/primitive_base/pool.hpp"
 
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
 #include "graph/unit/unit_test_common.hpp"

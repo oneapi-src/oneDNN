@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph/backend/dnnl/kernels/conv_transpose.hpp"
+#include "graph/backend/dnnl/kernels/primitive_base/conv_transpose.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/patterns/utils.hpp"
@@ -121,8 +121,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pgraph->append_optional(
                             popt_qout_graph, in_edges_t {in_edge(0, prep, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_convtranspose>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<quantized_convtranspose>()};
+            return kernels;
         });
 #endif
 /*
@@ -200,8 +202,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pgraph->append_optional(
                             popt_qout_graph, in_edges_t {in_edge(0, prep, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_convtranspose>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<quantized_convtranspose>()};
+            return kernels;
         });
 #endif
 /*
@@ -278,8 +282,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                                     in_edges_t {in_edge(0, prep, 0)});
                     pquant_out->append_decision_function(is_int8_quantization);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_convtranspose>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<quantized_convtranspose>()};
+            return kernels;
         });
 #endif
 /*
@@ -347,8 +353,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                             check_scales_equal_to_1);
                     pquant_out->append_decision_function(check_zps_values<0>);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_convtranspose>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<quantized_convtranspose>()};
+            return kernels;
         });
 #endif
 
@@ -378,8 +386,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, convtranspose_post_ops_fusion)
                     pgraph->create_input_port(0, convtranspose, 0);
                     pgraph->create_output_port(0, repetition_post_ops, 0);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<float_convtranspose_fwd>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<float_convtranspose_fwd>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END

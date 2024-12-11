@@ -143,17 +143,21 @@ status_t dnnl_partition_impl_t::compile(
         }
     }
 
-    kernel_ptr kernel = kernel_creator();
-    if (!kernel) return status::unimplemented;
+    kernels_ptr kernels = kernel_creator();
+    if (kernels.empty()) return status::unimplemented;
 
     status_t ret;
+    kernel_ptr kernel = nullptr;
 
     // compile kernel.
     // FIXME(qun) will modify the outputs inside the compile, which
     // break the constant semantics
-    ret = kernel->compile(part.get(), g_engine, inputs, outputs);
+    for (size_t i = 0; i < kernels.size(); i++) {
+        kernel = kernels[i];
+        ret = kernel->compile(part.get(), g_engine, inputs, outputs);
+        if (ret == status::success) break;
+    }
     if (ret != status::success) return ret;
-
     std::vector<logical_tensor_t> ordered_inputs;
     std::vector<logical_tensor_t> ordered_outputs;
     ret = get_ordered_inputs_outputs(inputs_, inputs, ordered_inputs);

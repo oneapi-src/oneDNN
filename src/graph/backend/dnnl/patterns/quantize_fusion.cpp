@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph/backend/dnnl/kernels/quantize.hpp"
+#include "graph/backend/dnnl/kernels/primitive_base/quantize.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/utils/pm/pbuilder.hpp"
@@ -55,8 +55,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, typecast_quantize_fusion)
                     pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, typecast, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantize_dequantize_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<quantize_dequantize_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END

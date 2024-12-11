@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph/backend/dnnl/kernels/concat.hpp"
+#include "graph/backend/dnnl/kernels/primitive_base/concat.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/patterns/utils.hpp"
@@ -85,8 +85,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_concat_fusion)
                             in_edges_t {in_edge(0, concat, 0)});
                     quant->append_decision_function(is_int8_quantization);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_concat>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels = {std::make_shared<quantized_concat>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END

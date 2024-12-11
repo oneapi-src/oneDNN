@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "graph/backend/dnnl/internal_ops.hpp"
-#include "graph/backend/dnnl/kernels/group_norm.hpp"
+#include "graph/backend/dnnl/kernels/primitive_base/group_norm.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/patterns/utils.hpp"
@@ -94,8 +94,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, groupnorm_post_ops_fusion)
                     pgraph->append_optional(
                             q_graph, in_edges_t {in_edge(0, prep, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<group_norm_fwd_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels = {std::make_shared<group_norm_fwd_t>()};
+            return kernels;
         });
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

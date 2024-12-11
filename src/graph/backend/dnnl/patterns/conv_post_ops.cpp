@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph/backend/dnnl/kernels/conv.hpp"
+#include "graph/backend/dnnl/kernels/primitive_base/conv.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/patterns/utils.hpp"
@@ -127,8 +127,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                             MAX_REPETITION,
                             in_edges_t {in_edge(0, popt_bias2, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<float_conv_fwd>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels = {std::make_shared<float_conv_fwd>()};
+            return kernels;
         });
 #endif
 /*
@@ -195,8 +196,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x8_conv_add_post_ops_cpu)
                     pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, prep, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_conv>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels = {std::make_shared<quantized_conv>()};
+            return kernels;
         });
 #endif
 
@@ -242,8 +244,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x8_conv_add_post_ops_gpu)
                     pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, prep, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_conv>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels = {std::make_shared<quantized_conv>()};
+            return kernels;
         });
 #endif
 
@@ -315,8 +318,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_conv_post_ops)
                     pgraph->append_optional(
                             popt_qout_graph, in_edges_t {in_edge(0, prep, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_conv>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels = {std::make_shared<quantized_conv>()};
+            return kernels;
         });
 
 /*
@@ -397,8 +401,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_conv_reshape_post_ops)
                     pgraph->append_optional(
                             popt_qout_graph, in_edges_t {in_edge(0, prep, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_conv>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels = {std::make_shared<quantized_conv>()};
+            return kernels;
         });
 
 /*
@@ -514,8 +519,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_cpu)
                     pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, ptc_out, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_conv>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels = {std::make_shared<quantized_conv>()};
+            return kernels;
         });
 #endif
 
@@ -607,8 +613,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_add_post_ops_gpu)
                     pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, ptc_out, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_conv>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels = {std::make_shared<quantized_conv>()};
+            return kernels;
         });
 #endif
 /*
@@ -707,8 +714,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x_tc_conv_post_ops)
                     pgraph->append_optional(popt_tcout_qout_graph,
                             in_edges_t {in_edge(0, prep, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<quantized_conv>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels = {std::make_shared<quantized_conv>()};
+            return kernels;
         });
 
 /*
@@ -768,8 +776,9 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_post_ops)
                     pgraph->append_optional(
                             popt_tc_graph, {in_edge(0, prep, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<float_conv_fwd>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels = {std::make_shared<float_conv_fwd>()};
+            return kernels;
         });
 
 /*
@@ -796,8 +805,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_conv_bwd_weights_bias)
                     pgraph->append_op(graph::op_kind::BiasAddBackward,
                             in_edges_t {in_edge(0, wildcard, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<conv_bwd_weights_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<conv_bwd_weights_t>()};
+            return kernels;
         });
 #endif
 

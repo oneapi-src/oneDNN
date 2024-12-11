@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph/backend/dnnl/kernels/large_partition.hpp"
+#include "graph/backend/dnnl/kernels/primitive_base/large_partition.hpp"
 
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
@@ -75,8 +75,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gated_mlp)
                     pgraph->append_op(graph::op_kind::MatMul,
                             in_edges_t {in_edge(0, bin, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 // gated mlp with swish decomposed to sigmoid and multiply.
@@ -109,8 +111,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gated_mlp_v1)
                     pgraph->append_op(graph::op_kind::MatMul,
                             in_edges_t {in_edge(0, bin, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
+            const kernels_ptr kernels
+                    = {std::make_shared<larger_partition_kernel_t>()};
+            return kernels;
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
