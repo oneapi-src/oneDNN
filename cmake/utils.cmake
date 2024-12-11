@@ -160,17 +160,7 @@ function(target_link_libraries_install target list)
 endfunction()
 
 function(find_libm var)
-    # This is to account for the linker cache in OSX11.  might work
-    # with lower than 3.9.4, but was not able to test with anything
-    # between 2.8 and 3.9. See here for more details:
-    # https://gitlab.kitware.com/cmake/cmake/-/issues/20863
-    if (APPLE AND (${CMAKE_HOST_SYSTEM_VERSION} VERSION_GREATER "20.0.0")
-           AND (${CMAKE_VERSION} VERSION_LESS "3.9.4"))
-        message(INFO "Using OSX11 and above with CMAKE older than 3.18 can cause linking issues.")
-        set(OSX11_AND_OLDER_CMAKE TRUE)
-    endif()
-
-    if(UNIX AND (NOT (APPLE AND OSX11_AND_OLDER_CMAKE)))
+    if(UNIX)
         find_library(${var} m REQUIRED)
     endif()
 endfunction()
