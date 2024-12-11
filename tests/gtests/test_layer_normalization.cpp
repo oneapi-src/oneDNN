@@ -135,7 +135,7 @@ protected:
                 || impl::utils::one_of(dst_md->get_data_type(),
                         memory::data_type::s8, memory::data_type::u8);
 
-        auto aa = allows_attr_t {false};
+        allows_attr_t aa {};
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         aa.po_eltwise = is_cpu;
         aa.po_binary = is_cpu;
