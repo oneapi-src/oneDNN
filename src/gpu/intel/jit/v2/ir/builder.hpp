@@ -450,25 +450,44 @@ inline stmt_t create_stmt(const send_plan_t &plan, const expr_t &mem_buf,
             plan.reg_layout().int_dim_sizes());
 }
 
+class ir_builder_t;
+
+class var_ref_t {
+public:
+    var_ref_t(ir_builder_t *parent, const type_t &type, const expr_t &buf)
+        : parent_(parent), type_(type), buf_(buf) {
+        ir_assert(buf_.type().is_ptr());
+    }
+
+    operator expr_t() const { return load_t::make(type_, buf_, 0); }
+    var_ref_t &operator=(const expr_t &value);
+    var_ref_t &operator=(const var_ref_t &other) = default;
+    std::string str() const { return buf_.str(); }
+
+    IR_DEFINE_DUMP()
+
+private:
+    ir_builder_t *parent_;
+    type_t type_;
+    expr_t buf_;
+};
+
 class ir_builder_t {
 public:
-    ir_builder_t(const kernel_iface_t &kernel_iface, ir_context_t &ir_ctx)
-        : kernel_iface_(kernel_iface)
-        , buf_mgr_(std::make_shared<buffer_manager_t>(ir_ctx))
+    ir_builder_t(ir_context_t &ir_ctx)
+        : buf_mgr_(std::make_shared<buffer_manager_t>(ir_ctx))
         , off_scope_(std::make_shared<offset_scope_t>(*buf_mgr_))
         , off_ctx_(off_scope_.get()) {
         enter_scope();
     }
     ir_builder_t(ir_builder_t &parent, const loop_nest_t &loop_nest)
-        : kernel_iface_(parent.kernel_iface_)
-        , buf_mgr_(parent.buf_mgr_)
+        : buf_mgr_(parent.buf_mgr_)
         , off_scope_(parent.off_scope_)
         , off_ctx_(off_scope_.get(), loop_nest) {
         enter_scope();
     }
     ir_builder_t(const ir_builder_t &parent) = delete;
     const hw_t &hw() const { return buf_mgr_->ir_ctx().hw(); }
-    const kernel_iface_t &kernel_iface() const { return kernel_iface_; }
     ir_context_t &ir_ctx() { return buf_mgr_->ir_ctx(); }
     buffer_manager_t &buf_mgr() { return *buf_mgr_; }
     const offset_scope_t &off_scope() const { return *off_scope_; }
@@ -479,6 +498,13 @@ public:
                         : _name);
         return buf_mgr_->get(name, size);
     }
+    var_ref_t alloc_var(const type_t &type, const std::string &_name) {
+        auto name = (buf_mgr_->has(_name)
+                        ? buf_mgr_->ir_ctx().create_tmp_name(_name)
+                        : _name);
+        auto buf = alloc(name, type.size());
+        return var_ref_t(this, type, buf);
+    }
     expr_t get_or_alloc(const std::string &name, int size) {
         return buf_mgr_->get(name, size);
     }
@@ -488,6 +514,20 @@ public:
         auto stmt = funcs::zero_out(reg_buf, size);
         emit(stmt);
     }
+
+    expr_t let(const std::string &prefix, const expr_t &value) {
+        auto name = buf_mgr_->ir_ctx().create_tmp_name(prefix);
+        auto var = var_t::make(value.type(), name);
+        let(var, value);
+        return var;
+    }
+
+    expr_t let(const expr_t &var, const expr_t &value) {
+        emit(let_t::make(var, value, stmt_t()));
+        return var;
+    }
+
+    expr_t let(const expr_t &value) { return let("tmp", value); }
 
     expr_t load(const view_t &mem_view, const expr_t &mem_buf,
             const expr_t &reg_buf = {}, layout_t *reg_layout = nullptr) {
@@ -621,12 +661,17 @@ private:
         return ret;
     }
 
-    const kernel_iface_t &kernel_iface_;
     std::shared_ptr<buffer_manager_t> buf_mgr_;
     std::shared_ptr<offset_scope_t> off_scope_;
     offset_ctx_t off_ctx_;
     std::vector<stmt_t> stmt_stack_;
 };
+
+inline var_ref_t &var_ref_t::operator=(const expr_t &value) {
+    ir_assert(value.type() == type_);
+    parent_->emit(store_t::make(buf_, 0, value));
+    return *this;
+}
 
 } // namespace v2
 } // namespace jit

@@ -52,7 +52,8 @@ kernel_t<hw>::kernel_t(
     this->require_signal_header_ = true;
 
     // Build IR for the kernel.
-    stmt_t body = build_ir(desc, kernel_iface());
+    var_manager_t var_mgr(kernel_iface());
+    stmt_t body = build_ir(exec_cfg(), desc, var_mgr);
 
     alloc_manager_t alloc_mgr(body);
     setup_interface(body);
