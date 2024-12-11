@@ -32,7 +32,7 @@ struct cache_blob_impl_t {
         : pos_(0), data_(data), size_(size) {}
 
     status_t add_binary(const uint8_t *binary, size_t binary_size) {
-        if (!binary || binary_size == 0) { return status::invalid_arguments; }
+        if (!binary && binary_size != 0) { return status::invalid_arguments; }
         if (pos_ + sizeof(binary_size) + binary_size > size_) {
             return status::invalid_arguments;
         }

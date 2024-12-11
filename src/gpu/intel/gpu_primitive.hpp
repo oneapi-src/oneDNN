@@ -54,20 +54,14 @@ struct gpu_primitive_t : public gpu::primitive_t {
         virtual status_t get_cache_blob_size_impl(
                 impl::engine_t *engine, size_t *size) const override {
             if (empty()) return status::success;
-            size_t sz = 0;
-            CHECK(kernel().get_binary_size(engine, &sz));
-            // We need additional sizeof(size_t) bytes to store the size
-            // of the binary when packing.
-            (*size) += sz + sizeof(size_t);
+            CHECK(kernel().get_blob_size(engine, size));
             return status::success;
         }
 
         virtual status_t get_cache_blob_impl(
                 impl::engine_t *engine, cache_blob_t &blob) const override {
             if (empty()) return status::success;
-            xpu::binary_t binary;
-            CHECK(kernel().get_binary(engine, binary));
-            CHECK(blob.add_binary(binary.data(), binary.size()));
+            CHECK(kernel().add_cache_blob(engine, blob));
             return status::success;
         }
 

@@ -97,24 +97,28 @@ public:
             if (!ocl_kernels[i]) continue;
             auto *k = utils::downcast<gpu::intel::ocl::ocl_gpu_kernel_t *>(
                     ocl_kernels[i].impl());
-            xpu::binary_t binary;
-            CHECK(k->get_binary(ocl_engine, binary));
-            CHECK(create_kernel_from_binary(
-                    kernels[i], binary, kernel_names[i]));
+            xpu::binary_t kernel_binary;
+            xpu::binary_t metadata_binary;
+            CHECK(k->get_kernel_binary(ocl_engine, kernel_binary));
+            CHECK(k->get_metadata_binary(ocl_engine, metadata_binary));
+            CHECK(create_kernel_from_binary(kernels[i], kernel_binary,
+                    metadata_binary, kernel_names[i]));
         }
         return status::success;
     }
 
     status_t create_kernel_from_binary(gpu::intel::compute::kernel_t &kernel,
-            const xpu::binary_t &binary,
+            const xpu::binary_t &kernel_binary,
+            const xpu::binary_t &metadata_binary,
             const char *kernel_name) const override {
         std::unique_ptr<::sycl::kernel> sycl_kernel;
         CHECK(gpu::intel::sycl::compat::make_kernel(
-                sycl_kernel, kernel_name, this, binary));
+                sycl_kernel, kernel_name, this, kernel_binary));
 
         std::shared_ptr<gpu::intel::compute::kernel_impl_t> kernel_impl
                 = std::make_shared<sycl_interop_gpu_kernel_t>(
                         std::move(sycl_kernel));
+        kernel_impl->set_metadata(metadata_binary);
         kernel = std::move(kernel_impl);
         return status::success;
     }
@@ -154,9 +158,11 @@ public:
 
         auto kernel_name = jitter->kernel_name();
 
-        xpu::binary_t binary = jitter->get_binary(
-                ocl_engine->context(), ocl_engine->device());
-        return create_kernel_from_binary(*kernel, binary, kernel_name);
+        xpu::binary metadata_binary;
+        xpu::binary_t kernel_binary = jitter->get_binary(
+                ocl_engine->context(), ocl_engine->device(), metadata_binary);
+        return create_kernel_from_binary(
+                *kernel, kernel_binary, metadata_binary, kernel_name);
     }
 
     status_t create_kernels(std::vector<gpu::intel::compute::kernel_t> *kernels,

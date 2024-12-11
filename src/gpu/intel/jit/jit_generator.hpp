@@ -138,7 +138,9 @@ public:
         return ngen::OpenCLCodeGenerator<hw>::getExternalName().c_str();
     }
 
-    xpu::binary_t get_binary(cl_context context, cl_device_id device) override {
+    xpu::binary_t get_binary(cl_context context, cl_device_id device,
+            xpu::binary_t &metadata) override {
+        UNUSED(metadata);
         return ngen::OpenCLCodeGenerator<hw>::getBinary(context, device);
     }
 

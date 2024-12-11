@@ -118,13 +118,13 @@ ocl_gpu_kernel_t::ocl_gpu_kernel_t(xpu::ocl::wrapper_t<cl_kernel> &&ocl_kernel,
     cache_ = std::make_shared<ocl_gpu_kernel_cache_t>(ocl_kernel_);
 }
 
-status_t ocl_gpu_kernel_t::get_binary(
+status_t ocl_gpu_kernel_t::get_kernel_binary(
         const impl::engine_t *engine, xpu::binary_t &binary) const {
     auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
     return get_ocl_program_binary(ocl_kernel(), ocl_engine->device(), binary);
 }
 
-status_t ocl_gpu_kernel_t::get_binary_size(
+status_t ocl_gpu_kernel_t::get_kernel_binary_size(
         const impl::engine_t *engine, size_t *binary_size) const {
     auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
     return get_ocl_program_binary_size(

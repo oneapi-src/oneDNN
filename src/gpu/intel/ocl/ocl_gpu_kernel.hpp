@@ -40,9 +40,9 @@ public:
 
     cl_kernel ocl_kernel() const { return ocl_kernel_; }
 
-    status_t get_binary(
+    status_t get_kernel_binary(
             const impl::engine_t *engine, xpu::binary_t &binary) const override;
-    status_t get_binary_size(
+    status_t get_kernel_binary_size(
             const impl::engine_t *engine, size_t *binary_size) const override;
 
     status_t parallel_for(impl::stream_t &stream,

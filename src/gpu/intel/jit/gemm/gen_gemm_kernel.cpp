@@ -890,7 +890,8 @@ void gen_gemm_kernel_t::init_interface() {
 }
 
 xpu::binary_t gen_gemm_kernel_t::get_binary(
-        cl_context context, cl_device_id device) {
+        cl_context context, cl_device_id device, xpu::binary_t &metadata) {
+    UNUSED(metadata);
     init_interface();
     maybe_print_verbose();
 
