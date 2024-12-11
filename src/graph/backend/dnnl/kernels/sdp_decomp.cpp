@@ -288,12 +288,18 @@ status_t sdp_decomp_kernel_t<quantized, dt>::execute_impl(
             auto &sub_mm1_post_add_tid
                     = res->mem_map[sdp_cfg_.sub_mm1_post_mem[start_index++]
                                            .get()][tid];
-            auto mask_input = inputs[sdp_cfg_.graph_inport[3]];
-            auto mask_strides = ltw(mask_input.get_logical_tensor()).vstrides();
+            const auto &mask_input = inputs[sdp_cfg_.graph_inport[3]];
+            const auto mask_strides
+                    = ltw(mask_input.get_logical_tensor()).vstrides();
+            const auto mask_dims = ltw(mask_input.get_logical_tensor()).vdims();
+            size_t mask_offset = 0;
+            if (mask_dims.size() == 4) {
+                if (mask_dims[0] != 1) mask_offset += bo * mask_strides[0];
+                if (mask_dims[1] != 1) mask_offset += bi * mask_strides[1];
+            }
             sub_mm1_post_add_tid.set_data_handle(
                     static_cast<char *>(mask_input.get_data_handle())
-                    + bo * mask_strides[0]
-                            * get_mem_dt_size(sub_mm1_post_add_tid));
+                    + mask_offset * get_mem_dt_size(sub_mm1_post_add_tid));
         }
         if (sdp_cfg_.has_select) {
             //connect select_graph and sdp_graph
