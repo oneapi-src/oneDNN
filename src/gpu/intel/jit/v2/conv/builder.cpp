@@ -234,10 +234,11 @@ public:
         }
 
         if (desc.with_bias_fwd() || desc.with_bias_bwd_w()) {
-            auto &e = entries_["bia"];
-            e.mem_buf = var_mgr.get_arg("bia");
-            if (!plan.bia_layout.is_empty())
-                e.reg_buf = buf_mgr.get("bia_reduced", plan.bia_layout.size());
+            auto &e = entries_["bias"];
+            e.mem_buf = var_mgr.get_arg("bias");
+            if (!plan.bias_layout.is_empty())
+                e.reg_buf
+                        = buf_mgr.get("bias_reduced", plan.bias_layout.size());
         }
 
         for (size_t i = 0; i < desc.post_ops.len(); i++) {
@@ -288,9 +289,9 @@ public:
                 if (s.x2r.tensor_kind == tensor_kind_t::b) {
                     uint32_t mask = (1 << 1) | (1 << 2);
                     auto &b_buf = buf_info_.reg_buf("b");
-                    if (!s.x2r.bia_layout.is_empty()) {
-                        reduce(s.x2r.layout, s.x2r.bia_layout, b_buf,
-                                buf_info_.reg_buf("bia"), mask);
+                    if (!s.x2r.bias_layout.is_empty()) {
+                        reduce(s.x2r.layout, s.x2r.bias_layout, b_buf,
+                                buf_info_.reg_buf("bias"), mask);
                     }
                 }
             }
@@ -591,7 +592,7 @@ private:
                 desc_.prop, desc_.src_tag, desc_.wei_tag, desc_.dst_tag);
         if (desc_.with_bias_fwd()) {
             build_post_op(coord, tile, alg_kind::binary_add, nullptr,
-                    f32_layout, buf, buf_info_.mem_buf("bia"), desc_.bias_type,
+                    f32_layout, buf, buf_info_.mem_buf("bias"), desc_.bias_type,
                     /*rhs_mask=*/0x2);
         }
         for (size_t i = 0; i < desc_.post_ops.len(); i++) {
@@ -669,20 +670,20 @@ private:
     }
 
     void build_bias_reduce_store() {
-        if (plan_.bia_layout.is_empty()) return;
+        if (plan_.bias_layout.is_empty()) return;
         auto &store_plan = plan_.store;
-        auto &bia_red_mem_buf = buf_info_.mem_buf("bia");
-        auto &bia_red_reg_buf = buf_info_.reg_buf("bia");
+        auto &bias_red_mem_buf = buf_info_.mem_buf("bias");
+        auto &bias_red_reg_buf = buf_info_.reg_buf("bias");
         expr_t tmp_buf;
-        if (store_plan.bia_reorder)
-            tmp_buf = alloc("bia_tmp", store_plan.bia_reorder.dst.size());
-        auto payload_buf = bia_red_reg_buf;
-        if (store_plan.bia_reorder) {
-            reorder(store_plan.bia_reorder, bia_red_reg_buf, tmp_buf);
+        if (store_plan.bias_reorder)
+            tmp_buf = alloc("bias_tmp", store_plan.bias_reorder.dst.size());
+        auto payload_buf = bias_red_reg_buf;
+        if (store_plan.bias_reorder) {
+            reorder(store_plan.bias_reorder, bias_red_reg_buf, tmp_buf);
             payload_buf = std::move(tmp_buf);
         }
-        _if(plan_.bia_reduce_cond, [&]() {
-            store(store_plan.bia_store, bia_red_mem_buf, payload_buf);
+        _if(plan_.bias_reduce_cond, [&]() {
+            store(store_plan.bias_store, bias_red_mem_buf, payload_buf);
         });
     }
 
@@ -732,8 +733,8 @@ private:
                 *this, loop_nest, buf_info_, desc_, plan_.x2r_fma);
 
         zero_out(buf_info_.reg_buf("c"));
-        if (!buf_info_.reg_buf("bia").is_empty())
-            zero_out(buf_info_.reg_buf("bia"));
+        if (!buf_info_.reg_buf("bias").is_empty())
+            zero_out(buf_info_.reg_buf("bias"));
 
         emit(x2r_mul_builder.get_init_stmt());
         emit(prefetch_builder.get_init_stmt());

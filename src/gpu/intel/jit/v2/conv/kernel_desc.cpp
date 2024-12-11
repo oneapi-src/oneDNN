@@ -474,7 +474,7 @@ int arg_helper_t::key(const std::string &name) const {
         if (is_fwd()) return DNNL_ARG_DST;
         if (is_bwd_d()) return DNNL_ARG_DIFF_DST;
         if (is_bwd_w()) return DNNL_ARG_DIFF_DST;
-    } else if (name == "bia") {
+    } else if (name == "bias") {
         if (is_fwd()) return DNNL_ARG_BIAS;
         if (is_bwd_d()) return DNNL_ARG_BIAS;
         if (is_bwd_w()) return DNNL_ARG_DIFF_BIAS;
@@ -487,7 +487,7 @@ bool arg_helper_t::is_input(const std::string &name) const {
     if (name == "src") return is_fwd() || is_bwd_w();
     if (name == "wei") return is_fwd() || is_bwd_d();
     if (name == "dst") return is_bwd_d() || is_bwd_w();
-    if (name == "bia") return desc_.with_bias_fwd();
+    if (name == "bias") return desc_.with_bias_fwd();
     ir_error_not_expected();
     return false;
 }
@@ -496,7 +496,7 @@ bool arg_helper_t::is_output(const std::string &name) const {
     if (name == "src") return is_bwd_d();
     if (name == "wei") return is_bwd_w();
     if (name == "dst") return is_fwd();
-    if (name == "bia") return desc_.with_bias_bwd_w();
+    if (name == "bias") return desc_.with_bias_bwd_w();
     ir_error_not_expected();
     return false;
 }
@@ -528,7 +528,7 @@ int arg_helper_t::post_op_key(size_t idx) const {
 tensor_config_t get_tensor_config(const kernel_desc_t &desc) {
     arg_helper_t h(desc);
     tensor_config_t tensor_cfg;
-    for (auto *t : {"src", "wei", "dst", "bia"}) {
+    for (auto *t : {"src", "wei", "dst", "bias"}) {
         bool is_input = h.is_input(t);
         bool is_output = h.is_output(t);
         if (!is_input && !is_output) continue;

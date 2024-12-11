@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ const std::vector<pvar_t> &conv_layout_dims(
         case tensor_kind_t::wei: return wei_dims;
         case tensor_kind_t::dst:
             return src_dst_with_group ? dst_g_dims : dst_dims;
-        case tensor_kind_t::bia:
+        case tensor_kind_t::bias:
             return src_dst_with_group ? bia_g_dims : bia_dims;
         default: ir_error_not_expected();
     }

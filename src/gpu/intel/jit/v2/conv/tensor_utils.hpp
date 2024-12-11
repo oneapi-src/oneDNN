@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,15 +58,15 @@ private:
 
     dim_mapper_t init_src_mapper() const;
     dim_mapper_t init_wei_mapper() const;
-    dim_mapper_t init_bia_mapper() const;
     dim_mapper_t init_dst_mapper() const;
+    dim_mapper_t init_bias_mapper() const;
 
     prop_kind_t prop_ = prop_kind::undef;
     prb_reqs_t reqs_;
     dim_mapper_t src_mapper_;
     dim_mapper_t wei_mapper_;
     dim_mapper_t dst_mapper_;
-    dim_mapper_t bia_mapper_;
+    dim_mapper_t bias_mapper_;
 };
 
 dim_mapper_t extend_mapper(
