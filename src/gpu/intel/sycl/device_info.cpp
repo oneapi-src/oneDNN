@@ -43,6 +43,7 @@ status_t device_info_t::init_arch(impl::engine_t *engine) {
     // skip other vendors
     if (!xpu::sycl::is_intel_device(device)) return status::success;
 
+    auto status = status::success;
     auto be = xpu::sycl::get_backend(device);
     if (be == xpu::sycl::backend_t::opencl) {
         auto ocl_dev = xpu::sycl::compat::get_native<cl_device_id>(device);
@@ -51,7 +52,7 @@ status_t device_info_t::init_arch(impl::engine_t *engine) {
         auto ocl_ctx = xpu::sycl::compat::get_native<cl_context>(ctx);
         auto ocl_ctx_wrapper = xpu::ocl::make_wrapper(ocl_ctx);
 
-        gpu::intel::ocl::init_gpu_hw_info(engine, ocl_dev_wrapper,
+        status = gpu::intel::ocl::init_gpu_hw_info(engine, ocl_dev_wrapper,
                 ocl_ctx_wrapper, ip_version_, gpu_arch_, gpu_product_family_,
                 stepping_id_, native_extensions_, mayiuse_systolic_,
                 mayiuse_ngen_kernels_);
@@ -59,14 +60,15 @@ status_t device_info_t::init_arch(impl::engine_t *engine) {
         auto ze_dev = xpu::sycl::compat::get_native<ze_device_handle_t>(device);
         auto ze_ctx = xpu::sycl::compat::get_native<ze_context_handle_t>(ctx);
 
-        gpu::intel::sycl::init_gpu_hw_info(engine, ze_dev, ze_ctx, ip_version_,
-                gpu_arch_, gpu_product_family_, stepping_id_,
+        status = gpu::intel::sycl::init_gpu_hw_info(engine, ze_dev, ze_ctx,
+                ip_version_, gpu_arch_, gpu_product_family_, stepping_id_,
                 native_extensions_, mayiuse_systolic_, mayiuse_ngen_kernels_);
     } else {
         assert(!"not_expected");
+        status = status::unimplemented;
     }
 
-    return status::success;
+    return status;
 }
 
 status_t device_info_t::init_device_name(impl::engine_t *engine) {
