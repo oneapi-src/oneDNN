@@ -304,9 +304,9 @@ corresponding to the indices along the specified axis.
 
 | src  | dst  |
 | :--- | :--- |
-| f32  | f32  |
-| f16  | f16  |
-| bf16 | bf16 |
+| f32  | s64  |
+| f16  | s64  |
+| bf16 | s64  |
 
 #### GreaterThan Op Support
 
@@ -338,11 +338,11 @@ shapes and auto-broadcasting is allowed.
 
 GreaterThan operation supports the following data type combinations.
 
-| src  | dst  |
-| :--- | :--- |
-| f32  | f32  |
-| f16  | f16  |
-| bf16 | bf16 |
+| src_0 / src_1  | dst     |
+| :------------- | :------ |
+| f32            | boolean |
+| f16            | boolean |
+| bf16           | boolean |
 
 #### Constant Op Support
 
