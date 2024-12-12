@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -779,12 +779,7 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
                 return unimplemented;
 
             // Check the proper memory desc has been passed to u8s8 and s8s8
-            // Note: currently rnn_u8s8_compensation and rnn_s8s8_compensation
-            // have common bit so we have to perform additional checks to
-            // separate these two cases
             const bool check_u8s8 = (od.extra().flags & rnn_u8s8_compensation)
-                    && !types::extra_flag_rnn_s8s8_compensation_is_set(
-                            od.extra().flags)
                     && od.extra().compensation_mask
                             == ((id.ndims() == 5) ? 27 /* 11011 */
                                                   : 13 /* 1101 */);
@@ -886,9 +881,7 @@ private:
                           .template get<void>(memory_tracking::names::
                                           key_reorder_rnn_weights_reduction);
         float *comp = reinterpret_cast<float *>(dst + compensation_offset);
-        const bool req_s8s8_comp = (dst_d.extra().flags & rnn_u8s8_compensation)
-                && !types::extra_flag_rnn_s8s8_compensation_is_set(
-                        dst_d.extra().flags);
+        const bool req_s8s8_comp = dst_d.extra().flags & rnn_u8s8_compensation;
         const auto mask_ok = [&](int mask) {
             return mask
                     == ((src_d.ndims() == 5) ? 27 /* 11011 */
