@@ -42,8 +42,9 @@ void zero_out_kernel_desc_t::init_kernel_iface(
     kernel_iface.register_arg("ptr", type_t::byte_ptr());
 }
 
-void zero_out_kernel_desc_t::init_kernel_info(
-        kernel_info_t &kernel_info, const kernel_params_base_t &_params) const {
+void zero_out_kernel_desc_t::init_kernel_info(kernel_info_t &kernel_info,
+        const kernel_params_base_t &_params,
+        const impl::engine_t *engine) const {
     auto &params = static_cast<const zero_out_kernel_params_t &>(_params);
     for (int i = 0; i < kernel_info.nargs(); i++) {
         auto &name = kernel_info.arg_name(i);

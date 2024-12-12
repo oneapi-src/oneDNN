@@ -70,14 +70,15 @@ primitive_init_plan_t::buffer_entry_t primitive_init_plan_t::find_buf(
 }
 
 kernel_info_t primitive_init_plan_t::create_kernel_info(
-        const kernel_desc_base_t &desc) const {
+        const kernel_desc_base_t &desc,
+        const std::unordered_map<std::string, std::string> &buf_map) const {
     kernel_iface_t iface;
     desc.init_kernel_iface(iface);
     kernel_info_t info;
     for (int i = 0; i < iface.nargs(); i++) {
         auto &name = iface.arg_name(i);
         auto &var = iface.arg_var(i);
-        auto buf = find_buf(name);
+        auto buf = find_buf(buf_map.count(name) == 0 ? name : buf_map.at(name));
         if (!buf) {
             info.register_internal_arg(var);
         } else if (buf.is_user()) {
@@ -92,11 +93,12 @@ kernel_info_t primitive_init_plan_t::create_kernel_info(
 
 status_t primitive_init_plan_t::add_kernel(primitive_exec_plan_t &exec_plan,
         const kernel_desc_base_t &desc, const kernel_params_base_t &params,
-        gpu_primitive_t *primitive, impl::engine_t *engine) const {
+        gpu_primitive_t *primitive, impl::engine_t *engine,
+        const std::unordered_map<std::string, std::string> &buf_map) const {
     compute::kernel_t kernel;
     CHECK(desc.create_kernel(kernel, primitive, engine));
-    auto kernel_info = create_kernel_info(desc);
-    desc.init_kernel_info(kernel_info, params);
+    auto kernel_info = create_kernel_info(desc, buf_map);
+    desc.init_kernel_info(kernel_info, params, engine);
     exec_plan.add_kernel(kernel, kernel_info);
     return status::success;
 }
@@ -106,7 +108,9 @@ status_t primitive_init_plan_t::add_zero_out_kernel(
         gpu_primitive_t *primitive, impl::engine_t *engine) const {
     auto desc = std::make_shared<zero_out_kernel_desc_t>(regs_, simd_, dpas_);
     auto params = std::make_shared<zero_out_kernel_params_t>(buf.layout.size());
-    return add_kernel(exec_plan, *desc, *params, primitive, engine);
+    std::unordered_map<std::string, std::string> buf_map;
+    buf_map["ptr"] = buf.name;
+    return add_kernel(exec_plan, *desc, *params, primitive, engine, buf_map);
 }
 
 status_t primitive_init_plan_t::add_reorder_kernel(
