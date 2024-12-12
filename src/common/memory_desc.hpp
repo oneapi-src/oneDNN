@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ const rnn_packed_memory_format_t ldio_p = rnn_packed_memory_format_t::ldio_p;
 // TODO: convert to 'enum class'.
 // Flags for memory special features
 enum memory_extra_flags_t {
-    dnnl_memory_extra_flag_none = 0x0U,
+    dnnl_memory_extra_flag_none = 0u,
     // Indicates the weights have an additional buffer, that depends on the
     // @p compensation_mask.
     //
@@ -64,13 +64,13 @@ enum memory_extra_flags_t {
     // the additional buffer would consist of OC values:
     // O[oc : 0,OC] =
     //  -128 * SUM(ic : 0,IC; kh : 0,KH; kw : 0,KW){ weights(oc, ic, kh, kw) }
-    dnnl_memory_extra_flag_compensation_conv_s8s8 = 0x1U,
-    dnnl_memory_extra_flag_scale_adjust = 0x2U,
-    dnnl_memory_extra_flag_rnn_u8s8_compensation = 0x4U,
+    dnnl_memory_extra_flag_compensation_conv_s8s8 = 1u,
+    dnnl_memory_extra_flag_scale_adjust = 2u,
+    dnnl_memory_extra_flag_rnn_u8s8_compensation = 4u,
     dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation
     = dnnl_memory_extra_flag_rnn_u8s8_compensation,
-    dnnl_memory_extra_flag_compensation_conv_asymmetric_src = 0x8U,
-    dnnl_memory_extra_flag_rnn_s8s8_compensation = 0x16U,
+    dnnl_memory_extra_flag_compensation_conv_asymmetric_src = 8u,
+    dnnl_memory_extra_flag_rnn_s8s8_compensation = 16u,
 };
 
 // Create aliases for extra flags to preserve the old behavior.

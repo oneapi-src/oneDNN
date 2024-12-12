@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -149,9 +149,7 @@ struct memory_desc_wrapper : public c_compatible {
     size_t additional_buffer_data_size(uint64_t flag_select) const {
         using namespace memory_extra_flags;
         if (flag_select & compensation_conv_s8s8) return sizeof(int32_t);
-        if ((flag_select & rnn_u8s8_compensation)
-                && !types::extra_flag_rnn_s8s8_compensation_is_set(flag_select))
-            return sizeof(float);
+        if (flag_select & rnn_u8s8_compensation) return sizeof(float);
         if (flag_select & compensation_conv_asymmetric_src)
             return sizeof(int32_t);
         return 0;
@@ -160,19 +158,16 @@ struct memory_desc_wrapper : public c_compatible {
     /** return true if memory format has additional buffer */
     bool is_additional_buffer() const {
         using namespace memory_extra_flags;
-        // Currently compensation is not required for rnn_s8s8_compensation,
-        // but it has common bit with rnn_u8s8_compensation constant so we have
-        // to exclude rnn_s8s8_compensation case explicitly
-        return ((extra().flags
-                        & (compensation_conv_s8s8 | rnn_u8s8_compensation
-                                | compensation_conv_asymmetric_src))
-                && !types::extra_flag_rnn_s8s8_compensation_is_set(
-                        extra().flags));
+        return extra().flags
+                & (compensation_conv_s8s8 | rnn_u8s8_compensation
+                        | compensation_conv_asymmetric_src);
     }
 
     /** returns the size required for a particular extra memory buffer */
     size_t additional_buffer_size(memory_extra_flags_t flag) const {
         using namespace memory_extra_flags;
+        const auto flags = extra().flags;
+        if (!(flags & flag)) return 0;
 
         const auto ndims = this->ndims();
         const auto &pdims = padded_dims();
@@ -186,18 +181,15 @@ struct memory_desc_wrapper : public c_compatible {
                       return (size_t)prod * buff_data_size;
                   };
 
-        if (extra().flags & compensation_conv_s8s8) {
+        if (flag == compensation_conv_s8s8) {
             return calculate_size(extra().compensation_mask,
                     additional_buffer_data_size(flag));
         }
-
-        if ((extra().flags & rnn_u8s8_compensation)
-                && !types::extra_flag_rnn_s8s8_compensation_is_set(
-                        extra().flags)) {
+        if (flag == rnn_u8s8_compensation) {
             return calculate_size(extra().compensation_mask,
                     additional_buffer_data_size(flag));
         }
-        if (extra().flags & compensation_conv_asymmetric_src) {
+        if (flag == compensation_conv_asymmetric_src) {
             return calculate_size(extra().asymm_compensation_mask,
                     additional_buffer_data_size(flag));
         }
