@@ -183,8 +183,8 @@ status_t check_isa_with_datatype(
             = IMPLICATION(bm_conf_utils.is_f32(),
                       one_of(isa, avx512_core, avx2) || bm_conf_utils.is_bf32())
             && IMPLICATION(bm_conf_utils.is_int8(),
-                    one_of(isa, avx512_core_amx, avx512_core_vnni, avx512_core,
-                            avx2_vnni_2, avx2_vnni))
+                    is_superset(isa, avx512_core)
+                            || is_superset(isa, avx2_vnni))
             && IMPLICATION(bm_conf_utils.is_bf16(),
                     one_of(isa, avx512_core_amx, avx512_core_bf16, avx2_vnni_2))
             && IMPLICATION(bm_conf_utils.is_f16(),
