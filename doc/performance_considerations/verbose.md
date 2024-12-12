@@ -27,6 +27,7 @@ the type of tracing information to display.
 |:---------------------------|:--------------------|:--------------------------------------------------|
 | `ONEDNN_VERBOSE`           | `none`              | no messages printed                               |
 | \                          | **`error`**         | **error messages**  (default)                     |
+| \                          | `warn`              | warning messages                                  |
 | \                          | `check`             | primitive creation parameter checking information |
 | \                          | `profile_create`    | primitive creation  timings                       |
 | \                          | `profile_exec`      | primitive execution timings                       |
@@ -195,6 +196,7 @@ Each subsequent line of primitive verbose information is formatted as a
 comma-separated list and contains the following, in order of appearance in the
 line from left to right:
 * `onednn_verbose` marker string
+* verbose mode version: `v0` or `v1` 
 * if `ONEDNN_VERBOSE_TIMESTAMP=1` is specified, start time of the call. On Linux
   this number represents amount of milliseconds since Unix epoch. On Windows
   this number represents amount of milliseconds since the last system start.
