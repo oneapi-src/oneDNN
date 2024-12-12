@@ -394,7 +394,7 @@ Cons:
 - The library needs to add three new operations to support a single causal mask,
 which may be excessive.
 - This approach may require additional logical operations (e.g., LessThan, And)
-to be added if other mask options are needed in the future.
+to be added if other mask types are needed in the future.
 - More user code is required to construct the causal mask subgraph, which adds
 complexity on the user side. This could potentially increase the learning curve and
 the likelihood of errors in implementation.
@@ -412,7 +412,7 @@ Another option is to introduce a dedicated operation for mask usage.
 
 | Attribute Name | Description | Value Type | Supported Values | Required or Optional |
 | :------------- | :---------- | :--------- | :--------------- | :------------------- |
-| [mask_option] (@ref dnnl::graph::op::attr::mask_option) | What kind of mask to apply | string     | causal_mask (default), causal_mask_bottom_right | Required             |
+| [mask_type] (@ref dnnl::graph::op::attr::mask_type) | What type of mask to apply | string     | causal_mask (default), causal_mask_bottom_right | Required             |
 
 ##### Execution arguments
 
@@ -462,7 +462,7 @@ Cons:
 
 - It is a higher-level and specialized operation, with a granularity that differs
 from other operations in oneDNN Graph API.
-- When new mask options are needed, the `Mask` operation would require extension,
+- When new mask types are needed, the `Mask` operation would require extension,
 although no new operations need to be added.
 - Compared to Option 1, this approach offers less flexibility in generating masks.
 
