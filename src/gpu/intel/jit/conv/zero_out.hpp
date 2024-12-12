@@ -43,7 +43,8 @@ public:
     compute::range_t local_range() const override;
     void init_kernel_iface(kernel_iface_t &kernel_iface) const override;
     void init_kernel_info(kernel_info_t &kernel_info,
-            const kernel_params_base_t &params) const override;
+            const kernel_params_base_t &params,
+            const impl::engine_t *engine) const override;
     status_t create_kernel(compute::kernel_t &kernel,
             gpu_primitive_t *primitive, impl::engine_t *engine) const override;
     status_t create_generator(const compute::compute_engine_t &engine,
