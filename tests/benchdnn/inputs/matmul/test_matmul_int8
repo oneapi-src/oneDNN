@@ -1,7 +1,7 @@
 # int8
 --reset
 
---dt=u8:s8:s8,s8:s8:f32
+--dt=u8:s8:s8,s8:s8:f32,s8:s8:f16,s8:u8:f16
 --stag=ab --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1,1:0,3:1
 --bia_dt=undef,f32 --bia_mask=2
