@@ -215,7 +215,7 @@ template <HW hw>
 template <typename S0>
 void BLASKernelGenerator<hw>::eaddScaled(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, Type src2, const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
-    if (src2.isInt4()) {
+    if (src2.isInt4() || src2.isF4()) {
         auto tmpRange = state.ra.alloc_range(2);
         auto tmp = tmpRange[0].retype(src1.getType());
         eshr(mod, tmp, src1, 1, strategy, state, loc);
@@ -229,7 +229,7 @@ template <HW hw>
 template <typename DT>
 void BLASKernelGenerator<hw>::emulConstant(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, Type src1, const CommonStrategy &strategy, const CommonState &state, ngen::SourceLocation loc)
 {
-    if (src1.isInt4())
+    if (src1.isInt4() || src1.isF4())
         eshr<DT>(mod, dst, src0, 1, strategy, state, loc);
     else
         emulConstant<DT>(mod, dst, src0, src1.size(), strategy, state, loc);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,16 +25,18 @@
 #include "internal/namespace_start.hxx"
 
 // DataType queries and helpers.
-static inline bool is4(ngen::DataType dt) { return one_of(dt, ngen::DataType::u4, ngen::DataType::s4); }
+static inline bool is4(ngen::DataType dt) { return one_of(dt, ngen::DataType::u4, ngen::DataType::s4, ngen::DataType::e2m1); }
 static inline bool isB(ngen::DataType dt) { return one_of(dt, ngen::DataType::ub, ngen::DataType::b); }
 static inline bool isW(ngen::DataType dt) { return one_of(dt, ngen::DataType::uw, ngen::DataType::w); }
 static inline bool isD(ngen::DataType dt) { return one_of(dt, ngen::DataType::ud, ngen::DataType::d); }
 static inline bool isQ(ngen::DataType dt) { return one_of(dt, ngen::DataType::uq, ngen::DataType::q); }
-static inline bool isFP8(ngen::DataType dt) { return one_of(dt, ngen::DataType::bf8, ngen::DataType::hf8); }
+static inline bool isFP8(ngen::DataType dt) { return one_of(dt, ngen::DataType::bf8, ngen::DataType::hf8 , ngen::DataType::e8m0); }
+static inline bool isFP4(ngen::DataType dt) { return one_of(dt, ngen::DataType::e2m1); }
+static inline bool isInt4(ngen::DataType dt) { return one_of(dt, ngen::DataType::u4, ngen::DataType::s4);}
 
 static inline bool isFP(ngen::DataType dt) {
     using namespace ngen;
-    return one_of(dt, DataType::bf8, DataType::hf8, DataType::bf, DataType::hf, DataType::tf32, DataType::f, DataType::df);
+    return one_of(dt, DataType::bf8, DataType::hf8, DataType::bf, DataType::hf, DataType::tf32, DataType::f, DataType::df,DataType::e2m1, DataType::e8m0);
 }
 static inline bool isInt(ngen::DataType dt) { return !isFP(dt); }
 

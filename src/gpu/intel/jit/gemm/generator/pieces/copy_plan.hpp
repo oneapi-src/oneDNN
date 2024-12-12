@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -183,6 +183,8 @@ protected:
     void planEmulatedHF8ToHF(CopyInstruction &i);
     void planEmulatedHFToHF8(CopyInstruction &i);
     void planFP8SIMD1Mov(CopyInstruction &i);
+    void planEmulatedHF4E2M1ToHF(CopyInstruction &i);
+    void planEmulatedFP8E8M0ToHF(CopyInstruction &i);
     void legalizeSIMD(bool initial = false);
     void legalizeRegions();
     void legalizeNegation();
