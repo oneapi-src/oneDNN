@@ -235,7 +235,6 @@ struct GEMMProblem : public CommonProblem {
     bool allowMatrixOffset() const { return (cOffset == COffset::Pre); }
 
     bool quantized2DA() const { return (aoPtrDims == 2) || aScale2D; }
-    bool quantized2DB() const { return (boPtrDims == 2) || bScale2D; }
 
     bool downconvertAScales() const { return Ta == Type::f16 && Ta_scale == Type::f32; }
     bool downconvertBScales() const { return Tb == Type::f16 && Tb_scale == Type::f32; }
@@ -249,7 +248,7 @@ struct GEMMProblem : public CommonProblem {
         return (bOffset == ABOffset::Calc && Tbo.asSigned().isSubsetOf(Tb)
                     && (Tb_ext.bits() < Tb.bits() || Tb.isFP()))
             || (bScale2D && (Tb_scale.isSubsetOf(Tb) || downconvertBScales()));
-    }
+    }    bool quantized2DB() const { return (boPtrDims == 2) || bScale2D; }
 
     Type Tc_compute() const {
         if (Ta.isInteger() && Tb.isInteger() && Tc == Type::f32)
@@ -308,6 +307,8 @@ void GEMMProblem::autoTypeConversions(ngen::HW hw, bool systolicAvailable)
 
         if (Ta.isF8()) Ta = Type::f16;
         if (Tb.isF8()) Tb = Type::f16;
+        if (Ta.isF4()) Ta = Type::f16;
+        if (Tb.isF4()) Tb = Type::f16;
 
     if (hw > HW::Gen9 && !systolicAvailable && Tc == Type::f32) {
         if (Ta == Type::f16) Ta = Type::f32;

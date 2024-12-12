@@ -43,6 +43,8 @@ public:
         s32  = 0x01190402,
         u64  = 0x011A0803,
         s64  = 0x011B0803,
+        f4_e2m1  = 0x1040100,
+        f8_e8m0  = 0x1080100,
         bf8  = 0x010E0100,
         hf8  = 0x010F0100,
         bf16 = 0x010C0201,
@@ -66,14 +68,15 @@ public:
     constexpr bool isInt4()           const { return uint32_t(val) & 0x20000000; }
     constexpr bool isInt8()           const { return (val == Type::u8)  || (val == Type::s8);  }
     constexpr bool isInt16()          const { return (val == Type::u16) || (val == Type::s16); }
-    constexpr bool isF8()             const { return (val == Type::bf8) || (val == Type::hf8); }
+    constexpr bool isF8()             const { return (val == Type::bf8) || (val == Type::hf8  || (val == Type::f8_e8m0)); }
+    constexpr bool isF4()             const { return (val == Type::f4_e2m1) ;}
     constexpr bool isSigned()         const { return (uint32_t(val) & 0x110000) != 0x100000; }
-    constexpr int bits()              const { return isInt4() ? 4 : (paddedSize() * 8); }
+    constexpr int bits()              const { return (isInt4() || isF4() )? 4 : (paddedSize() * 8); }
     constexpr int paddedSize()        const { return (uint32_t(val) >> 8) & 0xFF; }
     int log2Size()                    const { subByteCheck(); return uint32_t(val) & 0xFF; }
     int size()                        const { subByteCheck(); return paddedSize(); }
-    constexpr int perByte()           const { return isInt4() ? 2 : 1; }
-    void subByteCheck()               const { if (isInt4()) stub(); }
+    constexpr int perByte()           const { return  (isInt4() || isF4() ) ? 2 : 1; }
+    void subByteCheck()               const { if (isInt4() || isF4()) stub(); }
 
     constexpr Type arithmetic() const {
         return (val == tf32) ? Type(f32) : real();
@@ -108,13 +111,18 @@ public:
         return t.isInt4() ? a * 2 : a / int(1u << t.log2Size());
     }
 
+    // Not a valid nGEN DataType; for gemmstone internal use only
+    static  constexpr  ngen::DataType ngen_e2m1() { return  static_cast<ngen::DataType>(0x5A);}
+    static  constexpr  ngen::DataType ngen_e8m0() { return  static_cast<ngen::DataType>(0x59);}
+
+
     ngen::DataType ngen() const
     {
         using DT = ngen::DataType;
         auto none = DT::invalid;
         static const DT table[32] = {DT::hf,   DT::f,    DT::df,    none,
-                                     none,     none,     none,      none,
-                                     none,     none,     none,      none,
+                                     ngen_e2m1(),     none,     none,      none,
+                                     ngen_e8m0(),     none,     none,      none,
                                      DT::bf,   DT::tf32, DT::bf8,   DT::hf8,
                                      none,     none,     DT::u4,    DT::s4,
                                      DT::ub,   DT::b,    DT::uw,    DT::w,
@@ -162,6 +170,8 @@ inline char typeToChar(Type T)
         case Type::s64:   return 'L';
         case Type::bf16:  return 'B';
         case Type::tf32:  return 'T';
+        case Type::f4_e2m1:   return 'E';
+        case Type::f8_e8m0:   return 'X';
         default:          return '?';
     }
 }
@@ -184,6 +194,8 @@ inline Type charToType(char c)
         case 'I': return Type::s32;
         case 'B': return Type::bf16;
         case 'T': return Type::tf32;
+        case 'E': return Type::f4_e2m1;
+        case 'X': return Type::f8_e8m0;
         default:  return Type::invalid;
     }
 }
