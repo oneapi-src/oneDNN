@@ -121,8 +121,10 @@ struct ref_reorder_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT_CFG);
 
             VDISPATCH_REORDER_SC(init_conf(engine), "init_conf()");
-            init_scratchpad();
+            VDISPATCH_REORDER_SC(maybe_create_zp_precompute_conv_pd(dst_engine),
+                    VERBOSE_BAD_FLAGS);
 
+            init_scratchpad();
             return status::success;
         }
 
@@ -137,6 +139,9 @@ struct ref_reorder_t : public gpu_primitive_t {
     };
 
     status_t init(impl::engine_t *engine) override {
+        CHECK(pd()->maybe_create_zp_precompute_conv(
+                zp_precomp_conv_, engine, this));
+
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
@@ -161,6 +166,7 @@ struct ref_reorder_t : public gpu_primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::vector<compute::kernel_t> kernels_;
+    std::shared_ptr<impl::primitive_t> zp_precomp_conv_;
 };
 
 } // namespace ocl
