@@ -522,7 +522,7 @@ private:
     void fill_buf(const ngen_operand_t &buf_op, int size,
             const ngen_operand_t &pattern = {}) const {
         auto &rd = buf_op.reg_buf_data();
-        type_t type = type_t::u32();
+        type_t type = (pattern.is_invalid() ? type_t::f32() : type_t::u32());
         int grf_size = ngen::GRF::bytes(hw);
         int step = 2 * grf_size;
         for (int i = 0; i < size; i += step) {
