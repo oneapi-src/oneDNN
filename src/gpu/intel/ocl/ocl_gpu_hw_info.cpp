@@ -81,7 +81,11 @@ void init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
 
     auto status
             = jit::gpu_supports_binary_format(&mayiuse_ngen_kernels, engine);
-    if (status != status::success) mayiuse_ngen_kernels = false;
+    if (status != status::success) {
+        VWARN(common, runtime,
+                "ngen fallback (gpu does not support binary format kernels)");
+        mayiuse_ngen_kernels = false;
+    }
 
     ip_version = 0;
     if (clGetDeviceInfo(device, CL_DEVICE_IP_VERSION_INTEL, sizeof(ip_version),

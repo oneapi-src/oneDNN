@@ -220,8 +220,9 @@ inline status_t fuse_microkernels(cl_context context, cl_device_id device,
                 &device, &nbinary_size, &nbinary_data, nullptr, &status));
         OCL_CHECK(status);
         OCL_CHECK(clBuildProgram(program, 1, &device, "", nullptr, nullptr));
+    } else {
+        VWARN(common, runtime, "gpu microkernels not found");
     }
-
     return status::success;
 }
 

@@ -201,7 +201,12 @@ public:
                     kernel = binary_format_kernel_t<HW::Xe3>::make_kernel(
                             engine, skip_check);
                     break;
-                case compute::gpu_arch_t::unknown: kernel = nullptr; break;
+                case compute::gpu_arch_t::unknown:
+                    VWARN(common, runtime,
+                            "unknown gpu platform - optimizations are disabled "
+                            "for binary format kernel");
+                    kernel = nullptr;
+                    break;
             }
         }
         return kernel;
@@ -212,7 +217,11 @@ status_t gpu_supports_binary_format(bool *ok, impl::engine_t *engine) {
     *ok = false;
 
     auto gpu_engine = utils::downcast<compute::compute_engine_t *>(engine);
-    if (!gpu_engine) return status::invalid_arguments;
+
+    if (!gpu_engine) {
+        VERROR(common, runtime, "bad engine kind, expected a gpu engine");
+        return status::invalid_arguments;
+    }
 
     impl::stream_t *stream_generic;
     auto status = gpu_engine->get_service_stream(stream_generic);
@@ -231,6 +240,8 @@ status_t gpu_supports_binary_format(bool *ok, impl::engine_t *engine) {
         return status::success;
     }
 
+    VWARN(common, runtime, "binary kernel is not in zebin format");
+
     // Binary kernel check.
     uint32_t magic0 = MAGIC0;
     uint64_t magic1 = MAGIC1;
@@ -244,16 +255,28 @@ status_t gpu_supports_binary_format(bool *ok, impl::engine_t *engine) {
     std::unique_ptr<memory_storage_t> magic_buf, result_buf;
 
     status = engine->create_memory_storage(&storage, sizeof(int32_t));
-    if (status != status::success) return status::runtime_error;
+    if (status != status::success) {
+        VERROR(common, runtime,
+                "failed to create memory storage during binary kernel check");
+        return status::runtime_error;
+    }
     magic_buf.reset(storage);
 
     status = engine->create_memory_storage(&storage, sizeof(int32_t));
-    if (status != status::success) return status::runtime_error;
+    if (status != status::success) {
+        VERROR(common, runtime,
+                "failed to create memory storage during binary kernel check");
+        return status::runtime_error;
+    }
     result_buf.reset(storage);
 
     void *magic_host = nullptr;
     magic_buf->map_data(&magic_host, nullptr, sizeof(int32_t));
-    if (!magic_host) return status::runtime_error;
+    if (!magic_host) {
+        VERROR(common, runtime,
+                "failed to map data during binary kernel check");
+        return status::runtime_error;
+    }
 
     *reinterpret_cast<uint32_t *>(magic_host) = magic_ptr;
 
@@ -261,7 +284,11 @@ status_t gpu_supports_binary_format(bool *ok, impl::engine_t *engine) {
 
     void *result_host = nullptr;
     result_buf->map_data(&result_host, nullptr, sizeof(int32_t));
-    if (!result_host) return status::runtime_error;
+    if (!result_host) {
+        VERROR(common, runtime,
+                "failed to map data during binary kernel check");
+        return status::runtime_error;
+    }
 
     *reinterpret_cast<uint32_t *>(result_host) = 0;
 
@@ -286,14 +313,26 @@ status_t gpu_supports_binary_format(bool *ok, impl::engine_t *engine) {
     status = kernel.parallel_for(*stream, nd_range, arg_list,
             compute_stream->ctx().get_deps(), compute_stream->ctx().get_deps());
 
-    if (status != status::success) return status::runtime_error;
+    if (status != status::success) {
+        VERROR(common, runtime,
+                "failed to execute kernel during binary kernel check");
+        return status::runtime_error;
+    }
 
     status = stream->wait();
-    if (status != status::success) return status::runtime_error;
+    if (status != status::success) {
+        VERROR(common, runtime,
+                "failed to execute stream during binary kernel check");
+        return status::runtime_error;
+    }
 
     result_host = nullptr;
     result_buf->map_data(&result_host, nullptr, sizeof(int32_t));
-    if (!result_host) return status::runtime_error;
+    if (!result_host) {
+        VERROR(common, runtime,
+                "failed to map data during binary kernel check");
+        return status::runtime_error;
+    }
 
     auto result = *reinterpret_cast<uint32_t *>(result_host);
 
