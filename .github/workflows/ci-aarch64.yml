@@ -21,8 +21,29 @@ name: "CI AArch64"
 #* https://github.com/orgs/community/discussions/26940#discussioncomment-5686753
 on:
   push:
+    branches: [ main, 'rls-*' ]
+    paths:
+      - '.github/**'
+      - 'cmake/**'
+      - 'examples/**'
+      - 'include/**'
+      - 'src/cpu/*'
+      - 'src/cpu/common/**'
+      - 'src/cpu/aarch64/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - '.github/**'
+      - 'cmake/**'
+      - 'examples/**'
+      - 'include/**'
+      - 'src/cpu/*'
+      - 'src/cpu/common/**'
+      - 'src/cpu/aarch64/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
 
 #* Stop stale workflows when pull requests are updated: https://stackoverflow.com/a/70972844
 #* Does not apply to the main branch.
@@ -150,7 +171,7 @@ jobs:
           BUILD_TOOLSET: ${{ matrix.config.toolset }}
           CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
-          ONEDNN_THREADING: ${{ matrix.config.threading }}     
+          ONEDNN_THREADING: ${{ matrix.config.threading }}
 
   AArch64:
     needs: build-and-test
