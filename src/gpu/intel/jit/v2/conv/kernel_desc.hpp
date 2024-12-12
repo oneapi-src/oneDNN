@@ -278,6 +278,7 @@ public:
     pvar_tile_t thread_group_tile;
     loop_desc_t loop_desc;
 
+    bool use_stream_k = false;
     bool use_2d_access = false;
     align_desc_t align;
 
@@ -367,7 +368,8 @@ public:
 
     void init_kernel_iface(kernel_iface_t &kernel_iface) const override;
     void init_kernel_info(kernel_info_t &kernel_info,
-            const kernel_params_base_t &params) const override;
+            const kernel_params_base_t &params,
+            const impl::engine_t *engine) const override;
     status_t create_kernel(compute::kernel_t &kernel,
             gpu_primitive_t *primitive, impl::engine_t *engine) const override;
     status_t create_generator(const compute::compute_engine_t &engine,
@@ -506,6 +508,7 @@ struct trivial_key_validator_t<jit::v2::conv::kernel_desc_t> {
                 && (t.thread_group_tile == tmp.thread_group_tile)
                 && (t.loop_desc == tmp.loop_desc)
                 && (t.prefetch == tmp.prefetch) && (t.align == tmp.align)
+                && (t.use_stream_k == tmp.use_stream_k)
                 && (t.use_2d_access == tmp.use_2d_access)
                 && (t.is_finalized == tmp.is_finalized);
     }
