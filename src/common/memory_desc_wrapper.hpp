@@ -152,6 +152,8 @@ struct memory_desc_wrapper : public c_compatible {
         if (flag_select & rnn_u8s8_compensation) return sizeof(float);
         if (flag_select & compensation_conv_asymmetric_src)
             return sizeof(int32_t);
+        if (flag_select & compensation_gpu_conv_asymmetric_src)
+            return sizeof(int32_t);
         return 0;
     }
 
@@ -160,6 +162,7 @@ struct memory_desc_wrapper : public c_compatible {
         using namespace memory_extra_flags;
         return extra().flags
                 & (compensation_conv_s8s8 | rnn_u8s8_compensation
+                        | compensation_gpu_conv_asymmetric_src
                         | compensation_conv_asymmetric_src);
     }
 
@@ -193,6 +196,17 @@ struct memory_desc_wrapper : public c_compatible {
             return calculate_size(extra().asymm_compensation_mask,
                     additional_buffer_data_size(flag));
         }
+        if (flag == compensation_gpu_conv_asymmetric_src) {
+            dim_t dhw = 1;
+            for (const auto &o : extra().odhw)
+                dhw *= std::max(o, dim_t(1));
+            const int off = (!extra().odhw[1]) ? !extra().odhw[2] + 2
+                                               : !extra().odhw[0];
+            const bool with_groups = (ndims == (6 - off));
+            return dhw
+                    * calculate_size((with_groups) ? 3 : 1,
+                            additional_buffer_data_size(flag));
+        }
 
         return 0;
     }
@@ -212,6 +226,8 @@ struct memory_desc_wrapper : public c_compatible {
         buff_size += additional_buffer_size(compensation_conv_s8s8);
         buff_size += additional_buffer_size(rnn_u8s8_compensation);
         buff_size += additional_buffer_size(compensation_conv_asymmetric_src);
+        buff_size
+                += additional_buffer_size(compensation_gpu_conv_asymmetric_src);
         return buff_size;
     }
 

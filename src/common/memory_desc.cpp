@@ -471,8 +471,6 @@ status_t memory_desc_permute_axes(memory_desc_t &out_memory_desc,
     VCHECK_MEMORY(
             !memory_desc_wrapper(in_memory_desc).has_runtime_dims_or_strides(),
             invalid_arguments, VERBOSE_UNSUPPORTED_MEM_STRIDE);
-    VCHECK_MEMORY(in_memory_desc.extra.flags == 0, invalid_arguments,
-            VERBOSE_UNSUPPORTED_MD_FLAG, "extra");
 
     // verify that perm is indeed a permutation of [0 .. ndims)
     unsigned occurrence_mask = 0;
