@@ -140,6 +140,12 @@ void set_isa_impl(brgemm_desc_t *brg) {
                     is_isa_ok(avx512_core_amx_fp16), avx512_core_amx_fp16,
                     is_isa_ok(avx512_core_fp16), avx512_core_fp16,
                     is_isa_ok(avx2_vnni_2), avx2_vnni_2);
+        } else if (brg->dt_a == data_type::f32 && brg->dt_b == data_type::f16) {
+            // Distinguish f32:f16 case upconversion for f16 on AVX512_CORE and
+            // AVX2.
+            brg->isa_impl = utils::map(true, isa_undef,
+                    is_isa_ok(avx512_core_fp16), avx512_core_fp16,
+                    is_isa_ok(avx512_core), avx512_core, is_isa_ok(avx2), avx2);
         } else {
             brg->isa_impl = utils::map(true, isa_undef,
                     is_isa_ok(avx512_core_fp16), avx512_core_fp16);
@@ -249,6 +255,11 @@ status_t brgemm_blocking(brgemm_desc_t *brg) {
     if (brg->is_dgmm) return status::unimplemented;
     set_brg_vmm(brg);
     if (!(brg->is_tmm || brg->is_zmm || brg->is_ymm))
+        return status::unimplemented;
+    // f32:f16 configuration on AVX2 doesn't support tails with proper
+    // instruction sequence. Anchor: F32_F16_AVX2_NO_TAIL.
+    if (brg->isa_impl == avx2 && brg->dt_b == data_type::f16
+            && rd_step_compute_dt == data_type::f32 && brg->load_dim % 8 != 0)
         return status::unimplemented;
 
     if (!brg->is_tmm) {
