@@ -452,8 +452,8 @@ status_t larger_partition_kernel_t::ocl_execute_impl(const stream_t *g_stream,
 }
 #endif
 
-kernels_ptr large_partition_kernel_creator() {
-    return {std::make_shared<larger_partition_kernel_t>()};
+kernel_ptr large_partition_kernel_creator() {
+    return std::make_shared<larger_partition_kernel_t>();
 }
 
 } // namespace dnnl_impl

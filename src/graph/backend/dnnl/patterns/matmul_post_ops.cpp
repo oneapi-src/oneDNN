@@ -73,9 +73,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_matmul_post_ops)
                     // Optional select
                     optional_select(pgraph, prep, 2);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<float_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_matmul>();
         });
 
 /*
@@ -135,9 +134,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pgraph->append_optional(popt_reshape_post_graph,
                             in_edges_t {in_edge(0, ptranspose, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<float_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_matmul>();
         });
 
 /*
@@ -210,9 +208,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_matmul_post_ops)
                     pgraph->append_optional(popt_qout_graph,
                             in_edges_t {in_edge(0, p_select, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
         });
 /*
                     [quant_weight]*
@@ -274,9 +271,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x8_matmul_add_post_ops_cpu)
                     pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, prep, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
         });
 #endif
 /*
@@ -327,9 +323,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x8_matmul_add_post_ops_gpu)
                     pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, prep, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
         });
 #endif
 /*
@@ -434,9 +429,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops)
                             popt_add_graph, in_edges_t {in_edge(0, tc_out, 0)});
                     optional_smooth_quant(pgraph, add, true);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
         });
 /*
                     [quant_weight]*
@@ -539,9 +533,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                                     in_edges_t {in_edge(0, popt_post_ops, 0)});
                     optional_smooth_quant(pgraph, ptc_out, false);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
         });
 #endif
 /*
@@ -627,9 +620,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                                     in_edges_t {in_edge(0, popt_post_ops, 0)});
                     optional_smooth_quant(pgraph, ptc_out, false);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
         });
 #endif
 /*
@@ -720,9 +712,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, popt_reshape_post, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
         });
 
 /*
@@ -835,9 +826,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pgraph->append_op(graph::op_kind::Quantize,
                             in_edges_t {in_edge(0, typecast_dst, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
         });
 
 /*
@@ -871,9 +861,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_matmul_transpose_reorder)
                     pgraph->append_op(graph::op_kind::Reorder,
                             in_edges_t {in_edge(0, ptranspose, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<float_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_matmul>();
         });
 
 /*
@@ -942,9 +931,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_matmul_transpose_reorder)
                     pgraph->append_optional(popt_qout_graph,
                             in_edges_t {in_edge(0, preorder, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
         });
 
 /*
@@ -1033,9 +1021,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pgraph->append_optional(popt_tc_qout_graph,
                             in_edges_t {in_edge(0, preorder, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_matmul>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_matmul>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END

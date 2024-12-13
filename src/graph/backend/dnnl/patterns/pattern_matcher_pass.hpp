@@ -43,7 +43,8 @@ public:
 
     inline void init_partition(graph_t &backend_graph,
             std::vector<std::vector<op_t *>> &fusion_ops,
-            const FCreateKernel &kernel_creator, partition_kind_t pkind);
+            const std::vector<FCreateKernel> &kernel_creator,
+            partition_kind_t pkind);
 
     pattern_utils_t() = default;
     pattern_utils_t(const pattern_utils_t &) = delete;
@@ -68,7 +69,8 @@ inline void pattern_utils_t::match(graph_t &backend_graph,
 
 inline void pattern_utils_t::init_partition(graph_t &backend_graph,
         std::vector<std::vector<op_t *>> &fusion_ops,
-        const FCreateKernel &kernel_creator, partition_kind_t pkind) {
+        const std::vector<FCreateKernel> &kernel_creator,
+        partition_kind_t pkind) {
     for (auto &pairs : fusion_ops) {
         std::shared_ptr<dnnl_partition_impl_t> pimpl
                 = std::make_shared<dnnl_partition_impl_t>(
@@ -113,8 +115,8 @@ public:
         std::vector<graph::pass::Pattern> pgraphs
                 = get_attr<graph::pass::Pattern>("Pattern");
 
-        FCreateKernel kernel_creator
-                = get_attr<FCreateKernel>("FCreateKernel")[0];
+        std::vector<FCreateKernel> kernel_creator
+                = get_attr<FCreateKernel>("FCreateKernel");
 
         pattern_utils_t pu;
         for (const auto &pgraph : pgraphs) {
@@ -163,13 +165,13 @@ public:
 #if DNNL_CPU_RUNTIME == NONE
 #define DNNL_CPU_ONLY(...)
 #else
-#define DNNL_CPU_ONLY(...) __VA_ARGS__,
+#define DNNL_CPU_ONLY(...) __VA_ARGS__
 #endif
 
 #if DNNL_GPU_RUNTIME == NONE
 #define DNNL_GPU_ONLY(...)
 #else
-#define DNNL_GPU_ONLY(...) __VA_ARGS__,
+#define DNNL_GPU_ONLY(...) __VA_ARGS__
 #endif
 
 } // namespace pattern

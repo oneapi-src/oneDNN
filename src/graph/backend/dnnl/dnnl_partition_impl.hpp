@@ -97,18 +97,18 @@ public:
     ~dnnl_partition_impl_t() override = default;
 
     ///// The following are used only in backend for constructing object
-    void init(FCreateKernel kernel_creator);
+    void init(std::vector<FCreateKernel> kernel_creator);
     void add_op(const std::shared_ptr<op_t> &op);
 
     // init backend partition's input/output logical tensors
     // based on ops in the partition
     void init_inputs_outputs();
 
-    FCreateKernel get_kernel_creator() const;
+    std::vector<FCreateKernel> get_kernel_creator() const;
 
     /////////////// the followings are the implementation of interface
 
-    bool is_initialized() const override { return kernel_creator_ != nullptr; }
+    bool is_initialized() const override { return kernel_creator_.size() != 0; }
 
     std::shared_ptr<partition_impl_t> clone() const override;
 
@@ -123,7 +123,7 @@ public:
             std::vector<logical_tensor_t *> &outputs) const override;
 
 private:
-    FCreateKernel kernel_creator_;
+    std::vector<FCreateKernel> kernel_creator_;
 };
 
 } // namespace dnnl_impl

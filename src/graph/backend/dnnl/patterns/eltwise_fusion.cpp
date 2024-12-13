@@ -55,9 +55,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, eltwise_binary_fusion)
                             MAX_REPETITION,
                             in_edges_t {in_edge(0, peltwise, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<float_eltwise_fwd>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_eltwise_fwd>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END

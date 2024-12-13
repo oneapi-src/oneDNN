@@ -194,7 +194,7 @@ status_t sdp_primitive_config_t::initial_check(
             const auto &input_dims = ltw(input_lt).dims();
             if (static_cast<int>(group_shape.size()) != ltw(input_lt).ndims())
                 return status::invalid_arguments;
-            // Due to the precision issue of uker implementation, we only
+            // Due to the precision issue of ukernel implementation, we only
             // support group_num=1 case for now.
             for (size_t idx = 0; idx < group_shape.size(); ++idx) {
                 if (group_shape[idx] != 1

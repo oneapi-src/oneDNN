@@ -117,8 +117,8 @@ status_t dummy_kernel_t::ocl_execute_impl(const stream_t *g_stream,
 }
 #endif
 
-kernels_ptr dummy_kernel_creator() {
-    return {std::make_shared<dummy_kernel_t>()};
+kernel_ptr dummy_kernel_creator() {
+    return std::make_shared<dummy_kernel_t>();
 }
 
 } // namespace dnnl_impl

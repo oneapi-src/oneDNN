@@ -70,7 +70,7 @@ public:
     DNNL_DISALLOW_COPY_AND_ASSIGN(dummy_kernel_t)
 };
 
-kernels_ptr dummy_kernel_creator();
+kernel_ptr dummy_kernel_creator();
 
 } // namespace dnnl_impl
 } // namespace graph

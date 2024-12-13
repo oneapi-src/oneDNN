@@ -63,10 +63,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, sum_fusion)
                     pgraph->append_repetition(addgraph, {0, 0}, 1,
                             MAX_REPETITION, {in_edge(0, add_base, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<sum_t>()};
-            return kernels;
-        });
+        .set_attr<FCreateKernel>("FCreateKernel",
+                []() -> kernel_ptr { return std::make_shared<sum_t>(); });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

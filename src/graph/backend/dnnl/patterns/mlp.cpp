@@ -76,10 +76,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gated_mlp)
                     pgraph->append_op(graph::op_kind::MatMul,
                             in_edges_t {in_edge(0, bin, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels
-                    = {std::make_shared<larger_partition_kernel_t>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
         });
 
 // gated mlp with swish decomposed to sigmoid and multiply.
@@ -113,10 +111,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gated_mlp_v1)
                     pgraph->append_op(graph::op_kind::MatMul,
                             in_edges_t {in_edge(0, bin, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels
-                    = {std::make_shared<larger_partition_kernel_t>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
         });
 
 /*
@@ -170,10 +166,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, quantized_gated_mlp)
                             = {in_edge(0, bin, 0), in_edge(1, deq_down, 0)};
                     pgraph->append_op(graph::op_kind::MatMul, fc_down_edges);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels
-                    = {std::make_shared<larger_partition_kernel_t>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
         });
 
 // quantized gated mlp with swish decomposed to sigmoid and multiply.
@@ -214,11 +208,11 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, quantized_gated_mlp_v1)
                             = {in_edge(0, bin, 0), in_edge(1, deq_down, 0)};
                     pgraph->append_op(graph::op_kind::MatMul, fc_down_edges);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels
-                    = {std::make_shared<larger_partition_kernel_t>()};
-            return kernels;
-        });
+        .set_attr<FCreateKernel>("FCreateKernel",
+                []() -> kernel_ptr {
+                    return std::make_shared<larger_partition_kernel_t>();
+                } // namespace pattern
+        );
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

@@ -43,7 +43,7 @@ status_t get_ordered_inputs_outputs(
 }
 } // namespace
 
-void dnnl_partition_impl_t::init(FCreateKernel kernel_creator) {
+void dnnl_partition_impl_t::init(std::vector<FCreateKernel> kernel_creator) {
     init_inputs_outputs();
 
     // init kernel
@@ -89,7 +89,7 @@ void dnnl_partition_impl_t::init_inputs_outputs() {
     }
 }
 
-FCreateKernel dnnl_partition_impl_t::get_kernel_creator() const {
+std::vector<FCreateKernel> dnnl_partition_impl_t::get_kernel_creator() const {
     return kernel_creator_;
 }
 
@@ -119,13 +119,13 @@ status_t dnnl_partition_impl_t::compile(
     auto part = std::dynamic_pointer_cast<dnnl_partition_impl_t>(this->clone());
 
     // get kernel creator
-    auto kernel_creator = part->get_kernel_creator();
+    auto kernel_creators = part->get_kernel_creator();
 
     // This internal env var is used for test purpose. When setting
     // _DNNL_USE_LARGE_PARTITION_KERNEL to 1, all partitions will be
     // dispatched to the large partition kernel.
     if (graph::utils::getenv_int_internal("USE_LARGE_PARTITION_KERNEL", 0)) {
-        kernel_creator = large_partition_kernel_creator;
+        kernel_creators = {large_partition_kernel_creator};
     }
 
     // Dispatch to fake kernel if one of the output dimensions is zero.
@@ -138,13 +138,12 @@ status_t dnnl_partition_impl_t::compile(
     for (const auto &val : agraph.get_output_values()) {
         if (logical_tensor_wrapper_t(val->get_logical_tensor())
                         .has_zero_dim()) {
-            kernel_creator = dummy_kernel_creator;
+            kernel_creators = {dummy_kernel_creator};
             break;
         }
     }
 
-    kernels_ptr kernels = kernel_creator();
-    if (kernels.empty()) return status::unimplemented;
+    if (kernel_creators.empty()) return status::unimplemented;
 
     status_t ret;
     kernel_ptr kernel = nullptr;
@@ -152,8 +151,8 @@ status_t dnnl_partition_impl_t::compile(
     // compile kernel.
     // FIXME(qun) will modify the outputs inside the compile, which
     // break the constant semantics
-    for (size_t i = 0; i < kernels.size(); i++) {
-        kernel = kernels[i];
+    for (size_t i = 0; i < kernel_creators.size(); i++) {
+        kernel = kernel_creators[i]();
         ret = kernel->compile(part.get(), g_engine, inputs, outputs);
         if (ret == status::success) break;
     }
