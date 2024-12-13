@@ -22,7 +22,7 @@ namespace graph {
 namespace dnnl_impl {
 
 // An internal env var is provided to force using primitive based SDPA
-// implementation and skipping ukernel based optimization on GPU or
+// implementation and skipping uker based optimization on GPU or
 // decomposition based optimization on CPU. Currently it's for oneDNN debug
 // and testing only.
 bool force_primitive();
@@ -31,7 +31,7 @@ bool force_primitive();
 // env and params. Decomposition kernel is enabled when:
 // - CPU runtime is OMP or THREADPOOl.
 // - Primitive based implementation is not forced by the internal env var.
-bool enable_decomp_kernel();
+bool enable_decomp();
 
 } // namespace dnnl_impl
 } // namespace graph

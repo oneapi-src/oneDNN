@@ -17,7 +17,7 @@
 #ifndef GRAPH_BACKEND_DNNL_PATTERNS_DATA_TYPE_CHECK_PASS_HPP
 #define GRAPH_BACKEND_DNNL_PATTERNS_DATA_TYPE_CHECK_PASS_HPP
 
-#include "graph/backend/dnnl/kernels/primitive_base/quantize.hpp"
+#include "graph/backend/dnnl/kernels/prim/quantize.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/platform.hpp"
 #include "graph/backend/fake/pattern_utils.hpp"

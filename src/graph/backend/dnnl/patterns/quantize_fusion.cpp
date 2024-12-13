@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph/backend/dnnl/kernels/primitive_base/quantize.hpp"
+#include "graph/backend/dnnl/kernels/prim/quantize.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/utils/pm/pbuilder.hpp"

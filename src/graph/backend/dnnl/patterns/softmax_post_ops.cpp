@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "graph/backend/dnnl/internal_ops.hpp"
-#include "graph/backend/dnnl/kernels/primitive_base/softmax.hpp"
+#include "graph/backend/dnnl/kernels/prim/softmax.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/patterns/utils.hpp"

@@ -158,6 +158,20 @@ public:
 #define DNNL_BACKEND_REGISTER_PATTERN_DEF_END }
 
 #define MAX_REPETITION 5
+
+// Conditional macros for different vendors.
+#if DNNL_CPU_RUNTIME == NONE
+#define DNNL_CPU_ONLY(...)
+#else
+#define DNNL_CPU_ONLY(...) __VA_ARGS__,
+#endif
+
+#if DNNL_GPU_RUNTIME == NONE
+#define DNNL_GPU_ONLY(...)
+#else
+#define DNNL_GPU_ONLY(...) __VA_ARGS__,
+#endif
+
 } // namespace pattern
 } // namespace dnnl_impl
 } // namespace graph

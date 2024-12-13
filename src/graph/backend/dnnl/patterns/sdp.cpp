@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph/backend/dnnl/kernels/decomp_kernel/mqa_decomp.hpp"
-#include "graph/backend/dnnl/kernels/decomp_kernel/sdp_decomp.hpp"
-#include "graph/backend/dnnl/kernels/primitive_base/large_partition.hpp"
-#include "graph/backend/dnnl/kernels/primitive_base/matmul.hpp"
-#include "graph/backend/dnnl/kernels/ukernel/sdp_primitive.hpp"
+#include "graph/backend/dnnl/kernels/decomp/mqa_decomp.hpp"
+#include "graph/backend/dnnl/kernels/decomp/sdp_decomp.hpp"
+#include "graph/backend/dnnl/kernels/prim/large_partition.hpp"
+#include "graph/backend/dnnl/kernels/prim/matmul.hpp"
+#include "graph/backend/dnnl/kernels/uker/sdp_primitive.hpp"
 
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
@@ -132,10 +132,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion_cpu)
                     optional_transpose_reshape(pgraph, matmul_v, 0);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<>>(),
+            const kernels_ptr kernels = {
+                    DNNL_GPU_ONLY(std::make_shared<sdp_primitive_kernel_t<>>())
                             std::make_shared<sdp_decomp_kernel_t<>>(),
-                            std::make_shared<larger_partition_kernel_t>()};
+                    std::make_shared<larger_partition_kernel_t>()};
             return kernels;
         });
 
@@ -157,10 +157,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion_gpu)
                     optional_transpose_reshape(pgraph, matmul_v, 0);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<>>(),
-                            std::make_shared<sdp_decomp_kernel_t<>>(),
-                            std::make_shared<larger_partition_kernel_t>()};
+            const kernels_ptr kernels = {
+                    DNNL_GPU_ONLY(std::make_shared<sdp_primitive_kernel_t<>>())
+                            DNNL_CPU_ONLY(
+                                    std::make_shared<sdp_decomp_kernel_t<>>())
+                                    std::make_shared<
+                                            larger_partition_kernel_t>()};
             return kernels;
         });
 
@@ -205,10 +207,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_gqa_fusion)
                     optional_transpose_reshape(pgraph, reshape4, 0);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<>>(),
+            const kernels_ptr kernels = {
+                    DNNL_GPU_ONLY(std::make_shared<sdp_primitive_kernel_t<>>())
                             std::make_shared<sdp_decomp_kernel_t<>>(),
-                            std::make_shared<larger_partition_kernel_t>()};
+                    std::make_shared<larger_partition_kernel_t>()};
             return kernels;
         });
 
@@ -339,10 +341,11 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_sdp_fusion)
                             in_edges_t {in_edge(0, reshape_reorder_output, 0)});
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<true>>(),
+            const kernels_ptr kernels = {
+                    DNNL_GPU_ONLY(
+                            std::make_shared<sdp_primitive_kernel_t<true>>())
                             std::make_shared<sdp_decomp_kernel_t<true>>(),
-                            std::make_shared<larger_partition_kernel_t>()};
+                    std::make_shared<larger_partition_kernel_t>()};
             return kernels;
         });
 
@@ -424,9 +427,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_sdp_fusion)
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
             const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<true>>(),
-                            std::make_shared<sdp_decomp_kernel_t<true,
-                                    memory::data_type::bf16>>(),
+                    = {DNNL_GPU_ONLY(
+                               std::make_shared<sdp_primitive_kernel_t<true>>())
+                                    std::make_shared<sdp_decomp_kernel_t<true,
+                                            memory::data_type::bf16>>(),
                             std::make_shared<larger_partition_kernel_t>()};
             return kernels;
         });
@@ -454,9 +458,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, sdp_with_compressed_kv_fusion)
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
             const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<true>>(),
-                            std::make_shared<sdp_decomp_kernel_t<true,
-                                    memory::data_type::bf16>>(),
+                    = {DNNL_GPU_ONLY(
+                               std::make_shared<sdp_primitive_kernel_t<true>>())
+                                    std::make_shared<sdp_decomp_kernel_t<true,
+                                            memory::data_type::bf16>>(),
                             std::make_shared<larger_partition_kernel_t>()};
             return kernels;
         });
@@ -480,9 +485,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, sdp_with_compressed_v_fusion)
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
             const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<true>>(),
-                            std::make_shared<sdp_decomp_kernel_t<true,
-                                    memory::data_type::bf16>>(),
+                    = {DNNL_GPU_ONLY(
+                               std::make_shared<sdp_primitive_kernel_t<true>>())
+                                    std::make_shared<sdp_decomp_kernel_t<true,
+                                            memory::data_type::bf16>>(),
                             std::make_shared<larger_partition_kernel_t>()};
             return kernels;
         });
@@ -507,9 +513,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, sdp_with_compressed_k_fusion)
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
             const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<true>>(),
-                            std::make_shared<sdp_decomp_kernel_t<true,
-                                    memory::data_type::bf16>>(),
+                    = {DNNL_GPU_ONLY(
+                               std::make_shared<sdp_primitive_kernel_t<true>>())
+                                    std::make_shared<sdp_decomp_kernel_t<true,
+                                            memory::data_type::bf16>>(),
                             std::make_shared<larger_partition_kernel_t>()};
             return kernels;
         });
@@ -522,10 +529,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_gpt_sdp)
                     create_gpt_sdp(pgraph, /*bf16=*/false, /*int8=*/false);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<>>(),
+            const kernels_ptr kernels = {
+                    DNNL_GPU_ONLY(std::make_shared<sdp_primitive_kernel_t<>>())
                             std::make_shared<sdp_decomp_kernel_t<>>(),
-                            std::make_shared<larger_partition_kernel_t>()};
+                    std::make_shared<larger_partition_kernel_t>()};
             return kernels;
         });
 
@@ -537,10 +544,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bfloat16_gpt_sdp)
                     create_gpt_sdp(pgraph, /*bf16=*/true, /*int8=*/false);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<>>(),
+            const kernels_ptr kernels = {
+                    DNNL_GPU_ONLY(std::make_shared<sdp_primitive_kernel_t<>>())
                             std::make_shared<sdp_decomp_kernel_t<>>(),
-                            std::make_shared<larger_partition_kernel_t>()};
+                    std::make_shared<larger_partition_kernel_t>()};
             return kernels;
         });
 
@@ -552,10 +559,11 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_fp32_gpt_sdp)
                     create_gpt_sdp(pgraph, /*bf16=*/false, /*int8=*/true);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<true>>(),
+            const kernels_ptr kernels = {
+                    DNNL_GPU_ONLY(
+                            std::make_shared<sdp_primitive_kernel_t<true>>())
                             std::make_shared<sdp_decomp_kernel_t<true>>(),
-                            std::make_shared<larger_partition_kernel_t>()};
+                    std::make_shared<larger_partition_kernel_t>()};
             return kernels;
         });
 
@@ -568,9 +576,10 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bf16_gpt_sdp)
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
             const kernels_ptr kernels
-                    = {std::make_shared<sdp_primitive_kernel_t<true>>(),
-                            std::make_shared<sdp_decomp_kernel_t<true,
-                                    memory::data_type::bf16>>(),
+                    = {DNNL_GPU_ONLY(
+                               std::make_shared<sdp_primitive_kernel_t<true>>())
+                                    std::make_shared<sdp_decomp_kernel_t<true,
+                                            memory::data_type::bf16>>(),
                             std::make_shared<larger_partition_kernel_t>()};
             return kernels;
         });
