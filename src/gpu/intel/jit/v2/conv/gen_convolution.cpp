@@ -114,7 +114,7 @@ public:
         _desc.fit_to(prb);
         CHECK(init_layouts(_desc, pd));
         CHECK(pd->attr_.set_default_formats(out_md(pd)));
-        _desc.set_post_ops(pd->attr()->post_ops_, out_md(pd));
+        CHECK(_desc.set_post_ops(pd->attr()->post_ops_, out_md(pd), pd));
         if (!finalize_conv_desc(_desc, prb)) {
             ir_info() << "Cannot create kernel descriptor.\n";
             return status::runtime_error;

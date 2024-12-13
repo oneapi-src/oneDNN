@@ -328,8 +328,23 @@ void kernel_desc_t::fit_to(const problem_t &prb) {
     specialize(prb);
 }
 
-status_t kernel_desc_t::set_post_ops(
-        const post_ops_t &attr_post_ops, const memory_desc_t *out_md) {
+status_t kernel_desc_t::set_post_ops(const post_ops_t &attr_post_ops,
+        const memory_desc_t *out_md, const convolution_pd_t *pd) {
+    for (int i = 0; i < attr_post_ops.len(); i++) {
+        auto &e = attr_post_ops.entry_[i];
+        if (e.is_binary()) {
+            auto &md = e.binary.src1_desc;
+            ir_assert(out_md->ndims == md.ndims);
+            memory_desc_t axb_md;
+            CHECK(memory_desc_init_by_tag(axb_md, md.ndims, md.dims,
+                    md.data_type,
+                    utils::pick(md.ndims - 3, format_tag::acb, format_tag::acdb,
+                            format_tag::acdeb)));
+            if (memory_desc_wrapper(md) != memory_desc_wrapper(axb_md))
+                return status::unimplemented;
+        }
+    }
+
     // Adjust post-ops to be expressed in terms of the full layout, including
     // all spatial dimensions.
     int old_ndims = out_md->ndims;
