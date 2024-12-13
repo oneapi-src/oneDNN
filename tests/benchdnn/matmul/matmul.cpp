@@ -553,6 +553,17 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             res->reason = skip_reason::case_not_supported;
             return;
         }
+        if (!prb->attr.scales.is_def(DNNL_ARG_DST)
+                && prb->attr.scales.get(DNNL_ARG_DST).policy
+                        != attr_t::COMMON) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: Only Common dst scales are supported "
+                    "on CPU.\n",
+                    __FILE__, __LINE__);
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
+            return;
+        }
     }
 
     if (is_gpu()) {
