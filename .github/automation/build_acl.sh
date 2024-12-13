@@ -26,52 +26,33 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 # Defines MP, CC, CXX and OS.
 source ${SCRIPT_DIR}/common_aarch64.sh
 
-ACL_CONFIG=${ACL_CONFIG:-"Release"}
+CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-"Release"}
 ACL_ROOT_DIR=${ACL_ROOT_DIR:-"${PWD}/ComputeLibrary"}
-ACL_VERSION=${ACL_VERSION:-v24.11.1}
-ACL_ARCH=${ACL_ARCH:-"armv8.2-a"}
 ACL_REPO="https://github.com/ARM-software/ComputeLibrary.git"
 
-if [[ "$OS" == "Linux" ]]; then
-    ACL_MULTI_ISA_SUPPORT=1
-    if [[ "$ACL_THREADING" == "OMP" ]]; then
-        ACL_OPENMP=1
-    elif [[ "$ACL_THREADING" == "SEQ" ]]; then
-        ACL_OPENMP=0
-    fi
-    ACL_OS="linux"
-elif [[ "$OS" == "Darwin" ]]; then
-    ACL_MULTI_ISA_SUPPORT=0
+if [[ "$ACL_THREADING" == "OMP" ]]; then
+    ACL_OPENMP=1
+elif [[ "$ACL_THREADING" == "SEQ" ]]; then
     ACL_OPENMP=0
-    ACL_OS="macos"
-else
-    echo "Unknown OS: $OS"
-    exit 1
 fi
-
-if [[ "$ACL_CONFIG" == "Release" ]]; then
-    ACL_DEBUG=0
-elif [[ "$ACL_CONFIG" == "Debug" ]]; then
-    ACL_DEBUG=1
-else
-    echo "Unknown build config: $ACL_CONFIG"
-    exit 1
-fi
-
-echo "Compiler version:"
-$CC --version
 
 if [[ "$ACL_ACTION" == "clone" ]]; then
     set -x
     git clone --branch $ACL_VERSION --depth 1 $ACL_REPO $ACL_ROOT_DIR
     set +x
-elif [[ "$ACL_ACTION" == "build" ]]; then
-    cd $ACL_ROOT_DIR
+elif [[ "$ACL_ACTION" == "configure" ]]; then
     set -x
-    scons $MP Werror=0 debug=$ACL_DEBUG neon=1 opencl=0 embed_kernels=0 \
-        os=$ACL_OS arch=$ACL_ARCH build=native multi_isa=$ACL_MULTI_ISA_SUPPORT \
-        fixed_format_kernels=1 cppthreads=0 openmp=$ACL_OPENMP examples=0 \
-        validation_tests=0
+    cmake -S$ACL_ROOT_DIR -B$ACL_ROOT_DIR/build \
+	-DARM_COMPUTE_OPENMP=$ACL_OPENMP \
+	-DARM_COMPUTE_CPPTHREADS=0 \
+	-DARM_COMPUTE_WERROR=0 \
+	-DARM_COMPUTE_BUILD_EXAMPLES=1 \
+	-DARM_COMPUTE_BUILD_TESTING=1 \
+    -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
+    set +x
+elif [[ "$ACL_ACTION" == "build" ]]; then
+    set -x
+    cmake --build $ACL_ROOT_DIR/build 
     set +x
 else
     echo "Unknown action: $ACL_ACTION"
