@@ -684,8 +684,8 @@ private:
         }
         plan.bias_reduce_cond = std::move(reduce_cond);
         plan.bias_layout = bias_reg_layout;
-        ir_check(init_epilogue_store_bias(/*is_atomic=*/false, bias_reg_layout,
-                bias_mem_view, plan.store, reqs));
+        ir_check(init_epilogue_store_bias(/*is_atomic=*/desc_.use_stream_k,
+                bias_reg_layout, bias_mem_view, plan.store, reqs));
         return true;
     }
 
@@ -805,8 +805,8 @@ private:
         auto c_mem_view = view_t(c_mapper, c_layout_, c_coord, c_tile);
         plan.c_reg_layout = c_reg_layout;
         plan.c_coord = c_mem_view.coord();
-        ir_check(init_epilogue_store_plan(/*is_atomic=*/false, c_reg_layout,
-                c_mem_view, plan.store, reqs));
+        ir_check(init_epilogue_store_plan(/*is_atomic=*/desc_.use_stream_k,
+                c_reg_layout, c_mem_view, plan.store, reqs));
         return true;
     }
 

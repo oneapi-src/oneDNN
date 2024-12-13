@@ -188,8 +188,55 @@ stmt_t finalize_vars(
     return ret;
 }
 
-loop_nest_t make_loop_nest(
-        const loop_desc_t &loop_desc, const coord_info_t &coord_info) {
+// Stream-K parameters.
+// For more details refer to https://arxiv.org/pdf/2301.03598.
+struct stream_k_params_t {
+    bool enable = false;
+
+    // The following values are fixed for all threads.
+    // Total number of threadgroup-level reductions. One reduction is one
+    // thread-group wide iteration.
+    expr_t total_iters;
+    // Iterations per threadgroup (rounded up).
+    expr_t iters_per_tg;
+    // Iterations per one output tile, div_up(k, k_blk).
+    expr_t iters_per_tile;
+
+    // The following values are thread-specific.
+    // Index of this threadgroup.
+    expr_t tg_idx;
+    // Index of the first threadgroup for the current output tile.
+    expr_t tg_beg;
+    // Index of the last threadgroup for the current output tile.
+    expr_t tg_end;
+    // Linear index of the current output tile.
+    expr_t tile_idx;
+
+    // Linear index of the first reduction iteration.
+    expr_t local_beg;
+    // Linear index of the last reduction iteration.
+    expr_t local_end;
+    // Variables holding initial loop indices.
+    std::vector<expr_t> loop_inits;
+
+    stream_k_params_t() = default;
+
+    stream_k_params_t(bool enable, const loop_desc_t &loop_desc)
+        : enable(enable) {
+        if (!enable) return;
+        local_beg = var_t::make(type_t::s32(), "local_beg");
+        local_end = var_t::make(type_t::s32(), "local_end");
+        for (auto &e : loop_desc) {
+            loop_inits.push_back(
+                    var_t::make(type_t::s32(), e.dim.str() + "_init"));
+        }
+    }
+
+    operator bool() const { return enable; }
+};
+
+loop_nest_t make_loop_nest(const loop_desc_t &loop_desc,
+        const coord_info_t &coord_info, const stream_k_params_t &sk_params) {
     loop_nest_t ret;
     expr_t linear_bound = 1;
     for (auto &e : loop_desc) {
@@ -197,9 +244,14 @@ loop_nest_t make_loop_nest(
         const auto &size = coord_info.loop_size(e.dim);
         if (is_one(size)) continue;
         expr_t init = 0;
-        linear_bound *= size;
+        if (sk_params) {
+            init = sk_params.loop_inits[e.idx];
+        } else {
+            linear_bound *= size;
+        }
         ret.add_loop(e.dim, var, init, size);
     }
+    if (sk_params) linear_bound = sk_params.local_end - sk_params.local_beg;
     ret.set_linear_bound(linear_bound);
     return ret;
 }
@@ -701,10 +753,47 @@ public:
         , var_mgr_(var_mgr)
         , plan_(plan)
         , buf_info_(buf_mgr(), desc, var_mgr, plan.x2r_fma) {
+
+        stream_k_params_t sk_params(desc.use_stream_k, desc_.loop_desc);
         emit_thread_index_let();
-        emit_thread_group_index_let();
-        loop();
-        epilogue();
+        if (desc.use_stream_k) {
+            sk_params.total_iters
+                    = const_var_t::make(type_t::s32(), "sk_total_iters");
+            sk_params.iters_per_tg
+                    = const_var_t::make(type_t::s32(), "sk_iters_per_tg");
+            sk_params.iters_per_tile
+                    = const_var_t::make(type_t::s32(), "sk_iters_per_tile");
+            sk_params.tg_idx = jit::ir_builder_t::tg_idxs()[0];
+
+            auto iter = alloc_var(type_t::s32(), "sk_iter");
+            iter = sk_params.tg_idx * sk_params.iters_per_tg;
+            auto iter_end = let("sk_iter_end",
+                    min(sk_params.total_iters, iter + sk_params.iters_per_tg));
+
+            _while(iter < iter_end, [&]() {
+                sk_params.tile_idx
+                        = let("sk_tile_idx", iter / sk_params.iters_per_tile);
+                auto global_beg = let("sk_global_beg",
+                        sk_params.tile_idx * sk_params.iters_per_tile);
+                auto global_end = let(
+                        "sk_global_end", global_beg + sk_params.iters_per_tile);
+                let(sk_params.local_beg, iter - global_beg);
+                let(sk_params.local_end,
+                        min(iter_end, global_end) - global_beg);
+                sk_params.tg_beg
+                        = let("sk_tg_beg", global_beg / sk_params.iters_per_tg);
+                sk_params.tg_end = let("sk_tg_beg",
+                        (global_beg - 1) / sk_params.iters_per_tg + 1);
+                emit_thread_group_index_let(sk_params.tile_idx);
+                pipeline(sk_params);
+                epilogue();
+                iter = global_end;
+            });
+        } else {
+            emit_thread_group_index_let();
+            pipeline();
+            epilogue();
+        }
 
         auto _stmt = get_stmt();
         _stmt = inject_alloc_stmts(_stmt, buf_mgr());
@@ -728,10 +817,19 @@ public:
     }
 
 private:
-    void loop() {
+    void pipeline(const stream_k_params_t &sk_params = {}) {
         auto &loop_desc = desc_.loop_desc;
         auto &coord_info = plan_.coord_info;
-        auto loop_nest = make_loop_nest(loop_desc, coord_info);
+        auto value = sk_params.local_beg;
+        if (sk_params) {
+            // Unpack the initial loop offsets from a linear index.
+            for (auto &e : loop_desc) {
+                auto &size = coord_info.loop_size(e.dim);
+                let(sk_params.loop_inits[e.idx], value % size);
+                value /= size;
+            }
+        }
+        auto loop_nest = make_loop_nest(loop_desc, coord_info, sk_params);
         prefetch_builder_t prefetch_builder(
                 *this, loop_nest, buf_info_, plan_.prefetch);
         x2r_mul_builder_t x2r_mul_builder(
@@ -760,27 +858,45 @@ private:
                 emit(prefetch_it.inc_stmt(prefetch_builder.off_ctx()));
             }
         }
-        std::function<void(size_t)> emit_loop;
-        emit_loop = [&](size_t i) {
-            if (i == 0) {
-                // Innermost loop body.
+        if (desc_.use_stream_k) {
+            // Use iterator-based loop with Stream-K.
+            iterator_t mul_it(buf_mgr(), loop_nest);
+            emit(mul_it.init_stmt());
+            auto it_var = var_t::make(type_t::s32(), "sk_local_iter");
+            _for(it_var, 0, loop_nest.linear_bound(), [&]() {
                 if (prefetch_dist > 0) {
                     emit(prefetch_it.check_bounds_stmt(prefetch_stmt));
                 }
                 emit(x2r_mul_stmt);
+                emit(mul_it.inc_stmt(x2r_mul_builder.off_ctx()));
                 if (prefetch_dist > 0) {
                     emit(prefetch_it.inc_stmt(prefetch_builder.off_ctx()));
                 }
-                return;
-            }
-            auto &loop = loop_nest[i - 1];
-            const auto &var = coord_info.loop_index(loop.dim);
-            _for(var, 0, loop.bound, [&]() {
-                emit_loop(i - 1);
-                emit(x2r_mul_builder.off_ctx().inc_loop_stmt((int)loop.idx));
             });
-        };
-        emit_loop(loop_nest.nloops());
+        } else {
+            std::function<void(size_t)> emit_loop;
+            emit_loop = [&](size_t i) {
+                if (i == 0) {
+                    // Innermost loop body.
+                    if (prefetch_dist > 0) {
+                        emit(prefetch_it.check_bounds_stmt(prefetch_stmt));
+                    }
+                    emit(x2r_mul_stmt);
+                    if (prefetch_dist > 0) {
+                        emit(prefetch_it.inc_stmt(prefetch_builder.off_ctx()));
+                    }
+                    return;
+                }
+                auto &loop = loop_nest[i - 1];
+                const auto &var = coord_info.loop_index(loop.dim);
+                _for(var, 0, loop.bound, [&]() {
+                    emit_loop(i - 1);
+                    emit(x2r_mul_builder.off_ctx().inc_loop_stmt(
+                            (int)loop.idx));
+                });
+            };
+            emit_loop(loop_nest.nloops());
+        }
     }
 
     void epilogue() {
