@@ -496,8 +496,6 @@ DerivedEvaluateParams getDerivedParams(const kcatalog::Entry &e, const EvaluateP
     dp.threadCount *= (dp.wgCountK * p.sizes.batch);
 
     switch (e.selector.hw) {
-        case kcatalog::HWTagGen9:
-        case kcatalog::HWTagGen11:
         case kcatalog::HWTagGen12LP:
             dp.threadsPerEU = 7;
             break;
@@ -509,7 +507,6 @@ DerivedEvaluateParams getDerivedParams(const kcatalog::Entry &e, const EvaluateP
     int ssCount;
     switch (e.selector.hw) {
         case kcatalog::HWTagGen12LP:
-        case kcatalog::HWTagXeHP:
         case kcatalog::HWTagXeHPG:
             ssCount = p.euCount >> 4;
             break;
