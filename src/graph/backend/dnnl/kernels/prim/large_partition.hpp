@@ -110,7 +110,7 @@ public:
     DNNL_DISALLOW_COPY_AND_ASSIGN(larger_partition_kernel_t)
 };
 
-kernels_ptr large_partition_kernel_creator();
+kernel_ptr large_partition_kernel_creator();
 
 } // namespace dnnl_impl
 } // namespace graph

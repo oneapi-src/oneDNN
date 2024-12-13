@@ -23,4 +23,3 @@ endif()
 if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
     add_subdirectory(uker)
 endif()
-

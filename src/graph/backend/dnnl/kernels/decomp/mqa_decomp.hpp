@@ -43,7 +43,7 @@ namespace dnnl_impl {
 // The second template param dt is used to indicate the internal data type of
 // int8 mqa pattern. It doesn't take any effect if quantized param is false.
 template <bool quantized = false, memory::data_type dt = memory::data_type::f32>
-struct mqa_decomp_t : public kernel_base_t {
+struct mqa_decomp_kernel_t : public kernel_base_t {
 private:
     allocator_t *g_alloc_ = nullptr;
     // used for mqa internal memory planning
@@ -56,12 +56,12 @@ private:
     mqa_decomp_config_t mqa_cfg_;
 
 public:
-    mqa_decomp_t() {
+    mqa_decomp_kernel_t() {
         thread_local_cache_t<mqa_args_set_t> res_cache;
         res_cache.retain();
     }
 
-    ~mqa_decomp_t() override {
+    ~mqa_decomp_kernel_t() override {
         thread_local_cache_t<mqa_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
         res_cache.release();
@@ -82,7 +82,7 @@ public:
 
     class mqa_args_set_t {
     public:
-        mqa_args_set_t(mqa_decomp_t<quantized, dt> *mqa_kernel) {
+        mqa_args_set_t(mqa_decomp_kernel_t<quantized, dt> *mqa_kernel) {
             int nthr = mqa_kernel->mqa_cfg_.nthr;
             //construct new args
             auto args_ctor = [this, nthr](const std::unordered_map<int, memory>
@@ -163,8 +163,8 @@ public:
     }
 #endif
 
-    DEF_KERNEL_METHOD_STR(mqa_decomp_t)
-    DNNL_DISALLOW_COPY_AND_ASSIGN(mqa_decomp_t)
+    DEF_KERNEL_METHOD_STR(mqa_decomp_kernel_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(mqa_decomp_kernel_t)
 };
 
 } // namespace dnnl_impl

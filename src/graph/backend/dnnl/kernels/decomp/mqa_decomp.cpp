@@ -39,7 +39,7 @@ namespace graph {
 namespace dnnl_impl {
 
 template <bool quantized, memory::data_type dt>
-status_t mqa_decomp_t<quantized, dt>::compile_impl(
+status_t mqa_decomp_kernel_t<quantized, dt>::compile_impl(
         const dnnl_partition_impl_t *part, const engine_t *g_engine,
         const std::vector<logical_tensor_t> &inputs,
         const std::vector<logical_tensor_t> &outputs) {
@@ -120,8 +120,8 @@ status_t mqa_decomp_t<quantized, dt>::compile_impl(
 }
 
 template <bool quantized, memory::data_type dt>
-void mqa_decomp_t<quantized, dt>::prepare_sub_args(const grantor_t &var_grantor,
-        const int id, const size_t block_size,
+void mqa_decomp_kernel_t<quantized, dt>::prepare_sub_args(
+        const grantor_t &var_grantor, const int id, const size_t block_size,
         std::unordered_map<dnnl_memory_t, std::vector<memory>> &mem_map) {
     auto size_offset = id * block_size;
     mem_map[mqa_cfg_.sub_mm1_wei.get()][id].set_data_handle(
@@ -157,8 +157,8 @@ void mqa_decomp_t<quantized, dt>::prepare_sub_args(const grantor_t &var_grantor,
 }
 
 template <bool quantized, memory::data_type dt>
-status_t mqa_decomp_t<quantized, dt>::execute_impl(const stream_t *g_stream,
-        const std::vector<tensor_t> &inputs,
+status_t mqa_decomp_kernel_t<quantized, dt>::execute_impl(
+        const stream_t *g_stream, const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs) {
     dnnl::stream strm = make_dnnl_stream(p_engine_, *g_stream);
 
@@ -268,7 +268,7 @@ status_t mqa_decomp_t<quantized, dt>::execute_impl(const stream_t *g_stream,
     return status::success;
 }
 
-template struct mqa_decomp_t<false, dnnl::memory::data_type::f32>;
+template struct mqa_decomp_kernel_t<false, dnnl::memory::data_type::f32>;
 
 } // namespace dnnl_impl
 } // namespace graph

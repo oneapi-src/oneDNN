@@ -48,9 +48,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_relu_fusion)
                     pgraph->append_op(
                             graph::op_kind::ReLU, {in_edge(0, bn, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<batch_norm_fwd_t>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<batch_norm_fwd_t>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bn_fusion)
@@ -95,9 +94,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_bn_fusion)
                     pquant_data->append_decision_function(
                             check_output_dtype<impl::data_type::s8>);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<batch_norm_fwd_t>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<batch_norm_fwd_t>();
         });
 
 #define BATCHNORM_OUTPUT_NUM_CHECK(n1, n2) \
@@ -122,9 +120,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, bn_bwd_relu_bwd_fusion)
                                     2>);
                     bn_bwd->BATCHNORM_OUTPUT_NUM_CHECK(1, 3);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<batch_norm_bwd_t>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<batch_norm_bwd_t>();
         });
 #endif
 

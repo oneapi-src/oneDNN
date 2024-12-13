@@ -38,7 +38,7 @@ namespace impl {
 namespace graph {
 namespace dnnl_impl {
 template <bool quantized, memory::data_type dt>
-status_t sdp_decomp_t<quantized, dt>::compile_impl(
+status_t sdp_decomp_kernel_t<quantized, dt>::compile_impl(
         const dnnl_partition_impl_t *part, const engine_t *g_engine,
         const std::vector<logical_tensor_t> &inputs,
         const std::vector<logical_tensor_t> &outputs) {
@@ -155,8 +155,8 @@ status_t sdp_decomp_t<quantized, dt>::compile_impl(
 }
 
 template <bool quantized, memory::data_type dt>
-void sdp_decomp_t<quantized, dt>::prepare_sub_args(const grantor_t &var_grantor,
-        const int id, const size_t block_size,
+void sdp_decomp_kernel_t<quantized, dt>::prepare_sub_args(
+        const grantor_t &var_grantor, const int id, const size_t block_size,
         std::unordered_map<dnnl_memory_t, std::vector<memory>> &mem_map) {
     auto size_offset = id * block_size;
     mem_map[sdp_cfg_.sub_mm1_wei.get()][id].set_data_handle(
@@ -191,7 +191,7 @@ void sdp_decomp_t<quantized, dt>::prepare_sub_args(const grantor_t &var_grantor,
 }
 
 template <bool quantized, memory::data_type dt>
-void sdp_decomp_t<quantized, dt>::prepare_args_set(
+void sdp_decomp_kernel_t<quantized, dt>::prepare_args_set(
         const execution_args_set_t *res, const std::vector<tensor_t> &inputs,
         const scratchpad_t &scratchpad) {
     // update the data of partition in/outputs args
@@ -208,8 +208,8 @@ void sdp_decomp_t<quantized, dt>::prepare_args_set(
 }
 
 template <bool quantized, memory::data_type dt>
-status_t sdp_decomp_t<quantized, dt>::execute_impl(const stream_t *g_stream,
-        const std::vector<tensor_t> &inputs,
+status_t sdp_decomp_kernel_t<quantized, dt>::execute_impl(
+        const stream_t *g_stream, const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs) {
     dnnl::stream strm = make_dnnl_stream(p_engine_, *g_stream);
 
@@ -382,9 +382,9 @@ status_t sdp_decomp_t<quantized, dt>::execute_impl(const stream_t *g_stream,
     return status::success;
 }
 
-template struct sdp_decomp_t<false, dnnl::memory::data_type::f32>;
-template struct sdp_decomp_t<true, dnnl::memory::data_type::bf16>;
-template struct sdp_decomp_t<true, dnnl::memory::data_type::f32>;
+template struct sdp_decomp_kernel_t<false, dnnl::memory::data_type::f32>;
+template struct sdp_decomp_kernel_t<true, dnnl::memory::data_type::bf16>;
+template struct sdp_decomp_kernel_t<true, dnnl::memory::data_type::f32>;
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

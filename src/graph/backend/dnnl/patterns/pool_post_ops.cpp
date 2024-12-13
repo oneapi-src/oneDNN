@@ -50,9 +50,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_avg_pool)
                             = pgraph->append_op(graph::op_kind::AvgPool);
                     avgpool->append_decision_function(check_avgpool_attributes);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<float_pooling_fwd>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_pooling_fwd>();
         });
 
 /*
@@ -79,9 +78,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, fp_pool_post_ops)
                     pgraph->append_repetition(post_op_subgraph, {0, 0}, 1,
                             MAX_REPETITION, {in_edge(0, ppool, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<float_pooling_fwd>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_pooling_fwd>();
         });
 
 /*
@@ -127,9 +125,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_reshape_transpose)
                     qout->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_pooling>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_pooling>();
         });
 
 /*
@@ -177,9 +174,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_post_ops)
                     qout->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_pooling>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_pooling>();
         });
 
 /*
@@ -225,9 +221,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_add_post_ops_cpu)
                     qout->append_decision_function(
                             check_qtype_equal_to_per_tensor);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_pooling>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_pooling>();
         });
 #endif
 /*
@@ -269,9 +264,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_pool_add_post_ops_gpu)
                             in_edges_t {in_edge(0, prep, 0)});
                     qout->append_decision_function(is_int8_quantization);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_pooling>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_pooling>();
         });
 #endif
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END

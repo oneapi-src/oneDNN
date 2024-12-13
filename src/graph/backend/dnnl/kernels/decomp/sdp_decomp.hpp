@@ -43,7 +43,7 @@ namespace dnnl_impl {
 // The second template param dt is used to indicate the internal data type of
 // int8 sdp pattern. It doesn't take any effect if quantized param is false.
 template <bool quantized = false, memory::data_type dt = memory::data_type::f32>
-struct sdp_decomp_t : public kernel_base_t {
+struct sdp_decomp_kernel_t : public kernel_base_t {
 private:
     allocator_t *g_alloc_ = nullptr;
     // used for sdp internal memory planning
@@ -64,7 +64,7 @@ private:
     sdp_decomp_config_t sdp_cfg_;
 
 public:
-    sdp_decomp_t() {
+    sdp_decomp_kernel_t() {
         thread_local_cache_t<sdp_args_set_t> res_cache;
         res_cache.retain();
 
@@ -72,7 +72,7 @@ public:
         select_res_cache.retain();
     }
 
-    ~sdp_decomp_t() override {
+    ~sdp_decomp_kernel_t() override {
         thread_local_cache_t<sdp_args_set_t> res_cache;
         res_cache.remove_if_exist(reinterpret_cast<size_t>(this));
         res_cache.release();
@@ -101,7 +101,7 @@ public:
 
     class sdp_args_set_t {
     public:
-        sdp_args_set_t(sdp_decomp_t<quantized, dt> *sdp_kernel) {
+        sdp_args_set_t(sdp_decomp_kernel_t<quantized, dt> *sdp_kernel) {
             int nthr = sdp_kernel->sdp_cfg_.nthr;
             //construct new args
             auto args_ctor = [this, nthr](const std::unordered_map<int, memory>
@@ -182,8 +182,8 @@ public:
     }
 #endif
 
-    DEF_KERNEL_METHOD_STR(sdp_decomp_t)
-    DNNL_DISALLOW_COPY_AND_ASSIGN(sdp_decomp_t)
+    DEF_KERNEL_METHOD_STR(sdp_decomp_kernel_t)
+    DNNL_DISALLOW_COPY_AND_ASSIGN(sdp_decomp_kernel_t)
 };
 
 } // namespace dnnl_impl

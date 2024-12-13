@@ -85,9 +85,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_concat_fusion)
                             in_edges_t {in_edge(0, concat, 0)});
                     quant->append_decision_function(is_int8_quantization);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_concat>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_concat>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END

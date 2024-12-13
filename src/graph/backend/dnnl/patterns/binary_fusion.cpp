@@ -44,10 +44,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, reciprocal_multiply_fusion)
                     pgraph->append_op(graph::op_kind::Multiply,
                             in_edges_t {in_edge(0, reciprocal, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<binary_t>()};
-            return kernels;
-        });
+        .set_attr<FCreateKernel>("FCreateKernel",
+                []() -> kernel_ptr { return std::make_shared<binary_t>(); });
 
 // TODO(zitian): wait for the implementation of comparison ops:
 //      Gt, Ge, Le, Lt, Eq, Ne
@@ -71,10 +69,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, binary_post_ops_fusion)
                     pgraph->append_repetition(post_subgraph, {0, 0}, 1,
                             MAX_REPETITION, {in_edge(0, binary_op, 0)});
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<binary_t>()};
-            return kernels;
-        });
+        .set_attr<FCreateKernel>("FCreateKernel",
+                []() -> kernel_ptr { return std::make_shared<binary_t>(); });
 
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 

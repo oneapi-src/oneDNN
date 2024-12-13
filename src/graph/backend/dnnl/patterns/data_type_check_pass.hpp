@@ -237,13 +237,12 @@ public:
         // fused op, the graph will be fused into separate single op fusions.
         if (!reorder_fusion_list.empty()) {
             pattern_utils_t dnnl_pu;
-            const auto quantize_kernel_creater = []() -> kernels_ptr {
-                const kernels_ptr kernels = {std::make_shared<
-                        dnnl::impl::graph::dnnl_impl::quantize_dequantize_t>()};
-                return kernels;
+            const auto quantize_kernel_creater = []() -> kernel_ptr {
+                return std::make_shared<
+                        dnnl::impl::graph::dnnl_impl::quantize_dequantize_t>();
             };
             dnnl_pu.init_partition(agraph, reorder_fusion_list,
-                    quantize_kernel_creater,
+                    {quantize_kernel_creater},
                     dnnl::impl::graph::partition_kind_t::misc_post_ops);
         }
 

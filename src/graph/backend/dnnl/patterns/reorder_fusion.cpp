@@ -49,9 +49,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, reorder_sum_fusion)
                                 == "none";
                     });
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<float_reorder>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<float_reorder>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_fusion)
@@ -68,9 +67,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_fusion)
                             graph::op_kind::Quantize, {in_edge(0, reorder, 0)});
                     quant->append_decision_function(is_int8_quantization);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_reorder>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_reorder>();
         });
 
 /*
@@ -108,9 +106,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_cpu)
                             graph::op_kind::Quantize, {in_edge(0, add, 0)});
                     quant->append_decision_function(is_int8_quantization);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_reorder>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_reorder>();
         });
 #endif
 /*
@@ -150,9 +147,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, int8_reorder_sum_fusion_gpu)
                             graph::op_kind::Quantize, {in_edge(0, add, 0)});
                     quant->append_decision_function(is_int8_quantization);
                 })
-        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernels_ptr {
-            const kernels_ptr kernels = {std::make_shared<quantized_reorder>()};
-            return kernels;
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<quantized_reorder>();
         });
 #endif
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
