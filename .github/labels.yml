@@ -41,6 +41,28 @@ documentation:
 - changed-files:
   - any-glob-to-any-file: ['**/*.md', 'doc/**']
 
+# Common code
+component:build:
+  - any-glob-to-any-file: 'cmake/**'
+
+component:examples:
+  - any-glob-to-any-file: 'examples/**'
+
+component:tests:
+- changed-files:
+  - any-glob-to-any-file: 'tests/**'
+
+component:api:
+- changed-files:
+  - any-glob-to-any-file: 'include/**'
+
+component:graph-api:
+- changed-files:
+  - any-glob-to-any-file: 
+    - 'src/graph/**'
+    - 'tests/benchdnn/graph/**'
+    - 'tests/gtests/graph/**'
+
 # CPU Engine
 platform:cpu-aarch64:
 - changed-files:
