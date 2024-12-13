@@ -69,10 +69,7 @@ enum RestrictionTags : char {
 };
 
 enum HWTags : char {
-    HWTagGen9 = '9',
-    HWTagGen11 = 'B',
     HWTagGen12LP = 'C',
-    HWTagXeHP = 'D',
     HWTagXeHPG = 'E',
     HWTagXeHPC = 'F',
     HWTagXe2 = 'G',

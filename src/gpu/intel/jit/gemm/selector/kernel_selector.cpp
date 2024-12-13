@@ -266,10 +266,7 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, bool systolicAvailable, bool isInt
 
     switch (hw) {
         default: assert(!"Unknown architecture");
-        case ngen::HW::Gen9:    selector.hw = kcatalog::HWTagGen9;    break;
-        case ngen::HW::Gen11:   selector.hw = kcatalog::HWTagGen11;   break;
         case ngen::HW::Gen12LP: selector.hw = kcatalog::HWTagGen12LP; break;
-        case ngen::HW::XeHP:    selector.hw = kcatalog::HWTagXeHP;    break;
         case ngen::HW::XeHPG:   selector.hw = kcatalog::HWTagXeHPG;   break;
         case ngen::HW::XeHPC:   selector.hw = kcatalog::HWTagXeHPC;   break;
         case ngen::HW::Xe2:     selector.hw = kcatalog::HWTagXe2;     break;
