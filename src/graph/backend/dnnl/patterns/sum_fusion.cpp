@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "graph/backend/dnnl/internal_ops.hpp"
-#include "graph/backend/dnnl/kernels/primitive_base/sum.hpp"
+#include "graph/backend/dnnl/kernels/prim/sum.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 

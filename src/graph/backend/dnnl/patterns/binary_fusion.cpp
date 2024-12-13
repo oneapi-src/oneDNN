@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph/backend/dnnl/kernels/primitive_base/binary.hpp"
+#include "graph/backend/dnnl/kernels/prim/binary.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/patterns/utils.hpp"

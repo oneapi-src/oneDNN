@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "graph/backend/dnnl/kernels/primitive_base/eltwise.hpp"
-#include "graph/backend/dnnl/kernels/primitive_base/large_partition.hpp"
+#include "graph/backend/dnnl/kernels/prim/eltwise.hpp"
+#include "graph/backend/dnnl/kernels/prim/large_partition.hpp"
 #include "graph/backend/dnnl/patterns/fusions.hpp"
 #include "graph/backend/dnnl/patterns/pattern_matcher_pass.hpp"
 #include "graph/backend/dnnl/patterns/utils.hpp"
