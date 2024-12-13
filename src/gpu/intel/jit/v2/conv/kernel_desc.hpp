@@ -296,8 +296,8 @@ public:
     void finalize(const prb_reqs_t &final_reqs);
     bool can_fit(const problem_t &prb) const;
     void fit_to(const problem_t &prb);
-    status_t set_post_ops(
-            const post_ops_t &post_ops, const memory_desc_t *out_md);
+    status_t set_post_ops(const post_ops_t &post_ops,
+            const memory_desc_t *out_md, const convolution_pd_t *pd);
     bool matches(const problem_t &prb) const;
     std::string cmd_str() const;
     std::string brief_str() const;
