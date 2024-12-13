@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,11 +137,30 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     }
 #endif
 
-    if (!r_pd_) {
-        DNN_SAFE(dnnl_reorder_primitive_desc_create(&r_pd_, src.md_,
-                         src.engine(), dst.md_, dst.engine(), attr),
-                WARN);
+    while (!r_pd_) {
+        // Fallback to GPU reorder.
+        auto status = dnnl_reorder_primitive_desc_create(
+                &r_pd_, src.md_, src.engine(), dst.md_, dst.engine(), attr);
+        if (status == dnnl_success) break;
+        if (dnnl_memory_desc_equal(src.md_, dst.md_)) {
+            // If fail to create reorder pd, use plain data copy for identical
+            // mds.
+            BENCHDNN_PRINT(2, "%s\n", "[REORDER] Fallback to plain copy.");
+            const int64_t chunk_size = 64;
+            const int64_t n_chunks = div_up(src.nelems(), chunk_size);
+            benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+                int64_t idx_start = idx_chunk * chunk_size;
+                int64_t idx_end = MIN2(idx_start + chunk_size, src.nelems());
+                for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+                    float e = src.get_elem(idx);
+                    dst.set_elem(idx, e);
+                }
+            });
+            return OK;
+        }
+        return FAIL;
     }
+
     auto r_pd = make_benchdnn_dnnl_wrapper(r_pd_);
     const auto &scratchpad_md = query_md(r_pd, DNNL_ARG_SCRATCHPAD);
     const auto &scratchpad_engine
