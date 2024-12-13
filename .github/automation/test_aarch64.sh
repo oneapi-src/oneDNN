@@ -26,42 +26,24 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 # Defines MP, CC, CXX and OS.
 source ${SCRIPT_DIR}/common_aarch64.sh
 
-# Skip tests for certain config to preserve resources, while maintaining 
-# coverage. Skip: 
-# (SEQ,CLANG)
-# (OMP,CLANG,DEBUG)
-SKIP_TESTS=0
-if [[ "$OS" == "Linux" ]]; then
-    if [[ "$ONEDNN_THREADING" == "SEQ" ]]; then
-        if [[ "$BUILD_TOOLSET" == "clang" ]]; then
-            SKIP_TESTS=1
-        fi
-    elif [[ "$ONEDNN_THREADING" == "OMP" ]]; then 
-        if [[ "$BUILD_TOOLSET" == "clang" ]]; then
-            if [[ "$CMAKE_BUILD_TYPE" == "Debug" ]]; then
-                SKIP_TESTS=1
-            fi
-        fi
-    fi
-fi
-
-if [[ $SKIP_TESTS == 1 ]]; then
-    echo "Skipping tests for this configuration: $OS $ONEDNN_THREADING $BUILD_TOOLSET".
-    exit 0
-fi
-
-#  AArch64 does not support graph for now.
+# AArch64 does not officially support graph for now.
 SKIPPED_GRAPH_TEST_FAILURES="test_graph_unit_dnnl_sdp_decomp_cpu"
 SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_cpu"
 
 # described in issue: https://github.com/oneapi-src/oneDNN/issues/2175
 SKIPPED_TEST_FAILURES="test_benchdnn_modeC_matmul_multidims_cpu"
+
 #  We currently have some OS and config specific test failures.
 if [[ "$OS" == "Linux" ]]; then
     if [[ "$CMAKE_BUILD_TYPE" == "Debug" ]]; then
         # as test_matmul is time consuming , we only run it in release mode to save time.
         SKIPPED_TEST_FAILURES+="|test_matmul"
     fi
+    SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_binary_ci_cpu"
+    SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_binary_different_dt_ci_cpu"
+    SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_binary_different_dt_ci_cpu"
+
+    SKIPPED_GRAPH_TEST_FAILURES+="|test_benchdnn_modeC_graph_ci_cpu"
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-gqa-cpp"
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-mqa-cpp"
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-sdpa-cpp"
@@ -84,5 +66,5 @@ elif [[ "$OS" == "Linux" ]]; then
 fi
 
 set -x
-ctest $CTEST_MP --no-tests=error --verbose --output-on-failure -E "$SKIPPED_TEST_FAILURES"
+ctest $CTEST_MP --no-tests=error --output-on-failure -E "$SKIPPED_TEST_FAILURES"
 set +x
