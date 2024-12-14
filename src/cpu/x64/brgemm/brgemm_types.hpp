@@ -472,6 +472,7 @@ struct brgemm_kernel_params_t {
 
     const void *a_zp_compensations = nullptr;
     const void *b_zp_compensations = nullptr;
+    const void *a_zp_values = nullptr;
     const void *c_zp_values = nullptr;
     size_t skip_accm = 0;
     int32_t zp_a_val = 1;
@@ -582,7 +583,8 @@ struct brgemm_post_ops_data_t {
             const void *b_zp_compensations = nullptr,
             const void *c_zp_values = nullptr, bool skip_accumulation = false,
             int32_t zp_a_val = 1, bool do_only_comp = false,
-            bool do_only_zp_a_val = false, const float *dst_scales = nullptr)
+            bool do_only_zp_a_val = false, const float *dst_scales = nullptr,
+            const void *a_zp_values = nullptr)
         : bias(bias)
         , scales(scales)
         , binary_post_ops_rhs(binary_post_ops_rhs)
@@ -597,7 +599,8 @@ struct brgemm_post_ops_data_t {
         , zp_a_val {zp_a_val}
         , do_only_comp {do_only_comp}
         , do_only_zp_a_val {do_only_zp_a_val}
-        , dst_scales(dst_scales) {}
+        , dst_scales(dst_scales)
+        , a_zp_values(a_zp_values) {}
 
     const void *bias = nullptr;
     const float *scales = nullptr;
@@ -614,6 +617,7 @@ struct brgemm_post_ops_data_t {
     const bool do_only_comp = false;
     const bool do_only_zp_a_val = false;
     const float *dst_scales = nullptr;
+    const void *a_zp_values = nullptr;
 };
 
 } // namespace x64
