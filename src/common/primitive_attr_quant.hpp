@@ -241,6 +241,7 @@ struct zero_points_t : public c_compatible {
 
     // arg-specific checks
     bool common(int arg) const { return get_mask(arg) == 0; }
+    bool per_dim_1(int arg) const { return get_mask(arg) == 2; }
     bool has_default_values(int arg) const {
         return is_set(arg) == false && has_default_data_type(arg);
     }
