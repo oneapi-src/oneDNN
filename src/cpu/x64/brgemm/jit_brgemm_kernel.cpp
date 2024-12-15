@@ -2463,8 +2463,10 @@ void jit_brgemm_kernel_t<Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
             L_aligned(BS_loop_label, 64);
             {
                 if (first_bdb || last_bdb) {
-                    const auto vpad_first = -brg.brgattr.max_bottom_vpad;
-                    const auto vpad_last = brg.brgattr.max_top_vpad;
+                    const auto vpad_first
+                            = last_bdb ? (-brg.brgattr.max_bottom_vpad) : 1;
+                    const auto vpad_last
+                            = first_bdb ? brg.brgattr.max_top_vpad : -1;
                     const auto n_vpads = vpad_last - vpad_first + 2;
                     constexpr auto MAX_N_VPADS = 2 * brgemm_desc_t::MAX_VPAD;
                     assert(n_vpads < MAX_N_VPADS);
