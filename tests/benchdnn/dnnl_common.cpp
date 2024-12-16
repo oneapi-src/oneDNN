@@ -665,7 +665,7 @@ void skip_unimplemented_data_type(
     const bool has_f4_e2m1_support
             = is_gpu() || (is_cpu() && has_data_type_support(dnnl_f4_e2m1));
     const bool has_f4_e3m0_support
-            = is_gpu() || (is_cpu() && has_data_type_support(dnnl_f4_e3m0));
+            = (is_cpu() && has_data_type_support(dnnl_f4_e3m0));
     const bool has_f8_e5m2_support = is_gpu()
             || (is_cpu() && has_data_type_support(dnnl_f8_e5m2)
                     && (dir & FLAG_INF));
@@ -677,7 +677,7 @@ void skip_unimplemented_data_type(
     // f16 is supported on GPU for inference only.
     const bool has_f16_support = is_gpu() && (dir & FLAG_FWD);
     const bool has_f4_e2m1_support = is_gpu();
-    const bool has_f4_e3m0_support = is_gpu();
+    const bool has_f4_e3m0_support = false;
     const bool has_e8m0_support = is_gpu();
     const bool has_f8_e5m2_support = is_gpu();
     const bool has_f8_e4m3_support = is_gpu();
