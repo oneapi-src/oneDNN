@@ -30,6 +30,9 @@
 
 #include "graph/backend/dnnl/dnnl_partition_impl.hpp"
 
+#define VDISPATCH_GRAPH_SDP(msg, ...) \
+    VINFO(graph, create, dispatch, compile, msg, ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -65,17 +68,25 @@ public:
         if (enable_ukernel) {
             kernel = std::make_shared<sdp_primitive_kernel_t<quantized>>();
             ret = kernel->compile_impl(part, g_engine, inputs, outputs);
+            if (ret == status::success)
+                VDISPATCH_GRAPH_SDP("dispatch to sdp_primitive_kernel_t");
         }
 
         if (ret != status::success && enable_decomp) {
             kernel = std::make_shared<sdp_decomp_kernel_t<quantized, dt>>();
             ret = kernel->compile_impl(part, g_engine, inputs, outputs);
+            if (ret == status::success)
+                VDISPATCH_GRAPH_SDP("dispatch to sdp_decomp_kernel_t");
         }
 
         if (ret != status::success) {
             kernel = std::make_shared<larger_partition_kernel_t>();
             ret = kernel->compile_impl(part, g_engine, inputs, outputs);
+            if (ret == status::success)
+                VDISPATCH_GRAPH_SDP("dispatch to larger_partition_kernel_t");
         }
+        if (ret != status::success)
+            VDISPATCH_GRAPH_SDP("fail to dispatch to sdp kernel");
         return ret;
     }
 
