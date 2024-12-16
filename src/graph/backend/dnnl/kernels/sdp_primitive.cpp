@@ -181,7 +181,9 @@ status_t sdp_primitive_kernel_t<quantized>::get_prim_exec_args(
                 && res->find_value_mem_map(
                         cfg_.v_zero_points_.get(), mem_storage[9]);
 
-    if (!ok) return status::runtime_error;
+    VCONDCHECK(graph, exec, check, sdp_primitive_kernel, ok,
+            status::runtime_error,
+            "sdp_primitive_kernel get_prim_exec_args failed");
 
     memory_arg_t mem_arg_q = {mem_storage[0].get(), true};
     memory_arg_t mem_arg_k = {mem_storage[1].get(), true};
