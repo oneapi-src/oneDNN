@@ -1,6 +1,6 @@
 --reset
 --sdt=f32
---ddt=f4_e2m1
+--ddt=f4_e2m1,f4_e3m0
 --stag=bax,abx
 --dtag=abx,bax 2x64x14x14 2x56x14x14
 --dtag=abx,bax 2x64x64x3x3 2x56x56x3x3
@@ -9,7 +9,7 @@
 --dtag=gOIhw16i16o,gOIhw2i4o2i,gOIhw2o4i2o,gOIhw4o8i2o 4x16x16x3x3
 
 --reset
---sdt=f4_e2m1
+--sdt=f4_e2m1,f4_e3m0
 --ddt=f32
 --dtag=abx,bax
 --stag=bax,abx 2x64x14x14 2x56x14x14

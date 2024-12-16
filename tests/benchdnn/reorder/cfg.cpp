@@ -28,6 +28,7 @@ namespace reorder {
 
 const float int_max_exact = 1 << 24;
 const float f16_max_exact = 1 << 11;
+const float f4_max_exact = 1 << 3;
 
 #define REG(dt, min, max) \
     const dt_conf_s CONCAT2(_conf_, dt) = {CONCAT2(dnnl_, dt), min, max}; \
@@ -40,6 +41,7 @@ REG(bf16, -int_max_exact, int_max_exact);
 REG(f8_e5m2, -f16_max_exact, f16_max_exact);
 REG(f8_e4m3, -f16_max_exact, f16_max_exact);
 REG(f4_e2m1, -f16_max_exact, f16_max_exact);
+REG(f4_e3m0, -f4_max_exact, f4_max_exact);
 // Do not exceed max float value representable in integer. Otherwise, we get
 // a correctness issue caused by different computations in reference and the
 // library.
@@ -61,6 +63,7 @@ dt_conf_t dt2cfg(dnnl_data_type_t dt) {
     CASE(f8_e5m2);
     CASE(f8_e4m3);
     CASE(f4_e2m1);
+    CASE(f4_e3m0);
     CASE(s32);
     CASE(s8);
     CASE(u8);
@@ -81,6 +84,7 @@ dnnl_data_type_t cfg2dt(dt_conf_t cfg) {
     CASE(f8_e5m2);
     CASE(f8_e4m3);
     CASE(f4_e2m1);
+    CASE(f4_e3m0);
     CASE(s32);
     CASE(s8);
     CASE(u8);
