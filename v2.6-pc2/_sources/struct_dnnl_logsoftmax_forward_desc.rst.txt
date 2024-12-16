@@ -1,0 +1,83 @@
+.. index:: pair: struct; dnnl::logsoftmax_forward::desc
+.. _doxid-structdnnl_1_1logsoftmax__forward_1_1desc:
+
+struct dnnl::logsoftmax_forward::desc
+=====================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a logsoftmax forward propagation primitive. :ref:`More...<details-structdnnl_1_1logsoftmax__forward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_logsoftmax_desc_t<doxid-group__dnnl__api__logsoftmax_1ga312b4653a7712a595c96e23cddd7b8d8>` :target:`data<doxid-structdnnl_1_1logsoftmax__forward_1_1desc_1a77121b2ad9e4a8cd1439d1f2cc1d512d>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1logsoftmax__forward_1_1desc_1a2806d2d9e14e23b6d24bde6231c0d8bf>`();
+		:ref:`desc<doxid-structdnnl_1_1logsoftmax__forward_1_1desc_1a1a283895364e7edb1360afbd81ebef66>`(:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind, const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc, int logsoftmax_axis);
+	};
+.. _details-structdnnl_1_1logsoftmax__forward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a logsoftmax forward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1logsoftmax__forward_1_1desc_1a2806d2d9e14e23b6d24bde6231c0d8bf:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc()
+
+Default constructor. Produces an empty object.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1logsoftmax__forward_1_1desc_1a1a283895364e7edb1360afbd81ebef66:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind, const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc, int logsoftmax_axis)
+
+Constructs a descriptor for a logsoftmax forward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::forward_training <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa24775787fab8f13aa4809e1ce8f82aeb>`, and :ref:`dnnl::prop_kind::forward_inference <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa3b9fad4f80d45368f856b5403198ac4c>`.
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptor.
+
+	*
+		- logsoftmax_axis
+
+		- Axis over which softmax is computed.
+

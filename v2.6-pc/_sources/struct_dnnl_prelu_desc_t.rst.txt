@@ -1,0 +1,106 @@
+.. index:: pair: struct; dnnl_prelu_desc_t
+.. _doxid-structdnnl__prelu__desc__t:
+
+struct dnnl_prelu_desc_t
+========================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	struct dnnl_prelu_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__prelu__desc__t_1aff29bf3701a903a27811a40a8f6a5058>`;
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` :ref:`prop_kind<doxid-structdnnl__prelu__desc__t_1afbfd4827e0dbf22c13e851954da02272>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`data_desc<doxid-structdnnl__prelu__desc__t_1a30211d10b4b68bbe2fbd7601efe0b9e3>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`weights_desc<doxid-structdnnl__prelu__desc__t_1a94a1469ebb888eac5e8c36b16ed51e5d>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_data_desc<doxid-structdnnl__prelu__desc__t_1ab69f7ad8c0ffa8115eb8c2cdd6456b0f>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_weights_desc<doxid-structdnnl__prelu__desc__t_1ac343818c704141364aff18e148fcfd07>`;
+	};
+.. _details-structdnnl__prelu__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__prelu__desc__t_1aff29bf3701a903a27811a40a8f6a5058:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_prelu <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aa96f5fd519486bbb41cdf6e297b96b28f>`.
+
+.. index:: pair: variable; prop_kind
+.. _doxid-structdnnl__prelu__desc__t_1afbfd4827e0dbf22c13e851954da02272:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind
+
+The kind of propagation.
+
+Possible values: :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>`, :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`, :ref:`dnnl_backward <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a326a5e31769302972e7bded555e1cc10>`
+
+.. index:: pair: variable; data_desc
+.. _doxid-structdnnl__prelu__desc__t_1a30211d10b4b68bbe2fbd7601efe0b9e3:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` data_desc
+
+Source and destination memory descriptor.
+
+.. index:: pair: variable; weights_desc
+.. _doxid-structdnnl__prelu__desc__t_1a94a1469ebb888eac5e8c36b16ed51e5d:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` weights_desc
+
+Learnable parameter alpha memory descriptor.
+
+Alpha describes negative slope.
+
+.. index:: pair: variable; diff_data_desc
+.. _doxid-structdnnl__prelu__desc__t_1ab69f7ad8c0ffa8115eb8c2cdd6456b0f:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_data_desc
+
+Source and destination gradient memory descriptor.
+
+.. index:: pair: variable; diff_weights_desc
+.. _doxid-structdnnl__prelu__desc__t_1ac343818c704141364aff18e148fcfd07:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_weights_desc
+
+Learnable parameter alpha gradient memory descriptor.
+

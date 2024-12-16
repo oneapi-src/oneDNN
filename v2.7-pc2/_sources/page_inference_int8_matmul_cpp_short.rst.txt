@@ -1,0 +1,26 @@
+.. index:: pair: page; 
+.. _doxid-inference_int8_matmul_cpp_short:
+
+<Untitled>
+==========
+
+C++ API example demonstrating how one can use :ref:`MatMul <doxid-dev_guide_matmul>` fused with ReLU in INT8 inference.
+
+C++ API example demonstrating how one can use :ref:`MatMul <doxid-dev_guide_matmul>` fused with ReLU in INT8 inference.
+
+Concepts:
+
+* Asymmetric quantization
+  
+  * Run-time output scales: :ref:`dnnl::primitive_attr::set_output_scales() <doxid-structdnnl_1_1primitive__attr_1a4b81acc8e48886313154f75c1708ae02>` and :ref:`DNNL_RUNTIME_F32_VAL <doxid-group__dnnl__api__memory_1gab16365c11b4dc88fbb453edb51f1979f>`
+  
+  * Run-time zero points: :ref:`dnnl::primitive_attr::set_zero_points() <doxid-structdnnl_1_1primitive__attr_1aee82deb014cf9702ceb3e725156c25a1>` and :ref:`DNNL_RUNTIME_S32_VAL <doxid-group__dnnl__api__memory_1ga30139d5110e9e895ccd93fe503ca4c35>`
+
+* :ref:`Operation fusion <doxid-dev_guide_attributes_post_ops>`
+
+* Create primitive once, use multiple times
+  
+  * Run-time tensor shapes: :ref:`DNNL_RUNTIME_DIM_VAL <doxid-group__dnnl__api__memory_1gaa596c5a6102df77a550bad98f0d5cc12>`
+
+* Weights pre-packing: use :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>`
+
