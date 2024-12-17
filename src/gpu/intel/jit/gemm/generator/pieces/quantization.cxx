@@ -271,7 +271,7 @@ template <HW hw>
 void BLASKernelGenerator<hw>::gemmDequantizeOperation(bool doA, Type T, Type To, BinaryOp op,
                                                       const std::vector<RegisterBlock> &layout, const std::vector<RegisterBlock> &qlayout,
                                                       const GRFMultirange &regs, const GRFMultirange &qregs,
-                                                      int hq, const GEMMProblem &problem)
+                                                      int hq, const GEMMProblem &problem, CommonState &state)
 {
     int xqGroupK  = doA ? problem.aqGroupK : problem.bqGroupK;
     int xqGroupMN = doA ? problem.aqGroupM : problem.bqGroupN;
@@ -325,6 +325,16 @@ void BLASKernelGenerator<hw>::gemmDequantizeOperation(bool doA, Type T, Type To,
             int maxSIMD = (op == BinaryOp::Sub && T.isInt8()) ? 64 : 32;
             if (To == Type::f32) maxSIMD = elementsPerGRF(hw, To);
             int simd = std::min({ne * crosspack / strided, 2 * elementsPerGRF(hw, T) / strided, maxSIMD});
+            bool reqTmpQdata = false;
+            GRF tmpReg;
+            if(one_of(op, BinaryOp::Mul, BinaryOp::ScaleSub) && qdata.getOffset() != data.getOffset() && strideq != 0){
+                auto utype = one_of(To, Type::f16, Type::bf16) ? ngen::DataType::uw : ngen::DataType::ud;
+                tmpReg = state.ra.alloc();
+                auto tmpQdata = tmpReg.setOffset(data.getOffset()).setType(utype).setRegion(0, 0, strideq);
+                mov(simd, tmpQdata, qdata(strideq).setType(utype)); 
+                qdata = Subregister(tmpQdata, data.getOffset(), To.ngen());
+                reqTmpQdata = true;
+            }
             switch (op) {
                 case BinaryOp::Sub:
                     if (T.isInt8() && strided == 1) {
@@ -343,6 +353,8 @@ void BLASKernelGenerator<hw>::gemmDequantizeOperation(bool doA, Type T, Type To,
                 default: stub();
             }
             x0 += simd * strided / crosspack;
+            if(reqTmpQdata)
+                state.ra.release(tmpReg);
         }
         }
     }
@@ -406,7 +418,7 @@ void BLASKernelGenerator<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst, con
     int hab = doA ? offC : offR;
     if (!layoutOffset.empty()) {
         if (!problem) stub();
-        gemmDequantizeOperation(doA, Type::f16, Type::f16, BinaryOp::ScaleSub, *effLayoutDst, layoutOffset, *effDst, offset, hab, *problem);
+        gemmDequantizeOperation(doA, Type::f16, Type::f16, BinaryOp::ScaleSub, *effLayoutDst, layoutOffset, *effDst, offset, hab, *problem, state);
     } else {
         map(hw, Type::f16, *effDst, *effLayoutDst, strategy, [&](int esize, RegData r) {
             s4 ? mad(esize, r, Immediate::hf(0xA400), r, Immediate::hf(0x7800))
@@ -423,7 +435,7 @@ void BLASKernelGenerator<hw>::dequantizeInt4(bool doA, Type Tsrc, Type Tdst, con
     //      this could be scaled into the previous multiplication.
     if (!layoutScale.empty()) {
         if (!problem) stub();
-        gemmDequantizeOperation(doA, Type::f16, Tscale, BinaryOp::Mul, *effLayoutDst, layoutScale, *effDst, scale, hab, *problem);
+        gemmDequantizeOperation(doA, Type::f16, Tscale, BinaryOp::Mul, *effLayoutDst, layoutScale, *effDst, scale, hab, *problem, state);
     }
 
     // 6) Convert to dst type if needed.
@@ -498,12 +510,12 @@ void BLASKernelGenerator<hw>::gemmDequantizeAB(bool doA, Type Tsrc, Type Tdst,
             convert(src, Tsrc, Tx1_int, strategy, state);
 
         if (xo2D) {
-            gemmDequantizeOperation(doA, Tx1_int, Txo_int, BinaryOp::Sub, layoutDst, oLayout, dst, oRegs, hab, problem);
+            gemmDequantizeOperation(doA, Tx1_int, Txo_int, BinaryOp::Sub, layoutDst, oLayout, dst, oRegs, hab, problem, state);
             convert(dst, Tx1_int, Tx2_int, strategy, state);
         }
 
         if (xs2D) {
-            gemmDequantizeOperation(doA, Tx_scaleInt, Tx_scaleOp, BinaryOp::Mul, layoutDst, sLayout, dst, sRegs, hab, problem);
+            gemmDequantizeOperation(doA, Tx_scaleInt, Tx_scaleOp, BinaryOp::Mul, layoutDst, sLayout, dst, sRegs, hab, problem, state);
             convert(dst, Tx_scaleInt, Tdst, strategy, state);
         }
     }
