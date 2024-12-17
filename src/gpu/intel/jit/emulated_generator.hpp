@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2024 Intel Corporation
+ * Copyright 2024-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,9 +40,11 @@ protected:
     NGEN_FORWARD_OPENCL(hw);
 
 public:
-    emulated_generator_t(
-            const compute::device_info_t &device_info, const std::string &name)
-        : ra_(hw, name), emu_strategy(hw, device_info.stepping_id()) {}
+    emulated_generator_t(const compute::device_info_t &device_info,
+            const std::string &name, const debug_config_t &debug_config)
+        : jit_generator<hw>(debug_config)
+        , ra_(hw, name)
+        , emu_strategy(hw, device_info.stepping_id()) {}
 
 protected:
     reg_allocator_t ra_;

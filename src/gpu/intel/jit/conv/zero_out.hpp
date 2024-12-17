@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +36,8 @@ public:
     zero_out_kernel_t(const exec_config_t &exec_cfg,
             const kernel_info_t &kernel_info, bool require_dpas)
         : ir_kernel_t<hw>("zero_out", exec_cfg, kernel_info,
-                kernel_info.nd_range().local_range(), require_dpas) {
+                kernel_info.nd_range().local_range(), require_dpas,
+                {GENERATOR_NAME, GENERATOR_LINE}) {
 
         setup_interface();
         generate_prologue();

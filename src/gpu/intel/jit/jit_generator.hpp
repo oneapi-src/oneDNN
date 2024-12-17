@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,6 +111,19 @@ struct jit_reduction_injector_f32;
 template <gpu_gen_t hw>
 struct jit_post_op_injector;
 
+#if (!defined(NDEBUG) || defined(DNNL_DEV_MODE))
+#define GENERATOR_NAME __FILE__
+#define GENERATOR_LINE __LINE__
+#else
+#define GENERATOR_NAME "oneDNN"
+#define GENERATOR_LINE 0
+#endif
+
+struct debug_config_t {
+    const char *name;
+    uint32_t line;
+};
+
 template <gpu_gen_t hw>
 class jit_generator : public ngen::OpenCLCodeGenerator<hw>,
                       public jit_generator_base {
@@ -130,9 +143,15 @@ private:
     };
     std::unique_ptr<void, svm_deleter> dbg_memory_;
 #endif
-
+#ifdef DNNL_DEV_MODE
+    static constexpr bool enable_debug_lines = true;
+#else
+    static constexpr bool enable_debug_lines = false;
+#endif
 public:
-    jit_generator() = default;
+    jit_generator(const debug_config_t &debug_config)
+        : ngen::OpenCLCodeGenerator<hw>(0,
+                {debug_config.name, debug_config.line, enable_debug_lines}) {};
 
     const char *kernel_name() const override {
         return ngen::OpenCLCodeGenerator<hw>::getExternalName().c_str();

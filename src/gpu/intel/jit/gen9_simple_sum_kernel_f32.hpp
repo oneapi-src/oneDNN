@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2019-2024 Intel Corporation
+ * Copyright 2019-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,8 @@ namespace jit {
 
 class gen9_simple_sum_kernel_f32_t : public jit_generator<gpu_gen9> {
 public:
-    gen9_simple_sum_kernel_f32_t() : jit_generator<gpu_gen9>() {
+    gen9_simple_sum_kernel_f32_t()
+        : jit_generator<gpu_gen9>({GENERATOR_NAME, GENERATOR_LINE}) {
         using namespace ngen;
         constexpr auto GlobalPtr = ExternalArgumentType::GlobalPtr;
         constexpr auto Scalar = ExternalArgumentType::Scalar;

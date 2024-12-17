@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -187,9 +187,11 @@ public:
     friend class ir_to_ngen_t<hw>;
     friend class send_impl_t;
 
-    ir_kernel_t(
-            const kernel_desc_base_t &desc, const kernel_info_t &kernel_info)
-        : kernel_name_(desc.kernel_name())
+    ir_kernel_t(const kernel_desc_base_t &desc,
+            const kernel_info_t &kernel_info,
+            const debug_config_t &debug_config)
+        : jit_generator<hw>(debug_config)
+        , kernel_name_(desc.kernel_name())
         , exec_cfg_(desc.exec_cfg())
         , kernel_info_(kernel_info)
         , local_range_(desc.local_range())
@@ -203,8 +205,10 @@ public:
 
     ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
             const kernel_info_t &kernel_info,
-            const compute::range_t &local_range, bool require_dpas)
-        : kernel_name_(kernel_name)
+            const compute::range_t &local_range, bool require_dpas,
+            const debug_config_t &debug_config)
+        : jit_generator<hw>(debug_config)
+        , kernel_name_(kernel_name)
         , exec_cfg_(exec_cfg)
         , kernel_info_(kernel_info)
         , local_range_(local_range)
