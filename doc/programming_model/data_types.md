@@ -23,6 +23,7 @@ operations which take bool as inputs and/or outputs data type.
 | f8\_e4m3  | [OFP8 standard 8-bit floating-point](https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-06-20-pdf) with 4 exponent and 3 mantissa bits |
 | e8m0      | [MX standard 8-bit scaling type](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf)                                                                 |
 | f4\_e2m1  | [MX standard 4-bit floating-point](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf) with 2 exponent and 1 mantissa bits                           |
+| f4\_e3m0  | 4-bit floating-point with 3 exponent bits and no mantissa bit                                                                                                                           |
 
 
 @note
@@ -33,10 +34,10 @@ operations which take bool as inputs and/or outputs data type.
 
 oneDNN supports training and inference with the following data types:
 
-| Usage mode | CPU                                                                | GPU                                           |
-|:-----------|:-------------------------------------------------------------------|:----------------------------------------------|
-| Inference  | f32, bf16, f16, f8\_e5m2/f8\_e4m3, f4\_e2m1, s8/u8, s4/u4, boolean | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, f64 |
-| Training   | f32, bf16, f16                                                     | f32, bf16, f16, f64                           |
+| Usage mode | CPU                                                                          | GPU                                           |
+|:-----------|:-----------------------------------------------------------------------------|:----------------------------------------------|
+| Inference  | f32, bf16, f16, f8\_e5m2/f8\_e4m3, f4\_e2m1, f4\_e3m0, s8/u8, s4/u4, boolean | f32, bf16, f16, f8\_e5m2/f8\_e4m3, s8/u8, f64 |
+| Training   | f32, bf16, f16                                                               | f32, bf16, f16, f64                           |
 
 @note
     Using lower precision arithmetic may require changes in the deep learning
@@ -82,7 +83,7 @@ a primitive computation:
 
 The `Op` output datatype depends on the datatype of its inputs:
 - if `src`, `weights`, ... are floating-point datatype (f32, f16,
-  bf16, f8\_e5m2, f8\_e4m3, f4\_e2m1), then the `Op` outputs f32 elements.
+  bf16, f8\_e5m2, f8\_e4m3, f4\_e2m1, f4\_e3m0), then the `Op` outputs f32 elements.
 - if `src`, `weights`, ... are integral datatypes (s8, u8, s32), then
   the `Op` outputs s32 elements.
 - if the primitive allows to mix input datatypes, the `Op` outputs
@@ -167,7 +168,7 @@ types that oneDNN recognizes.
 | f16                | Intel AVX512-FP16                    |
 | boolean            | Intel AVX2                           |
 | f8\_e5m2, f8\_e4m3 | Intel AVX512-FP16                    |
-| f4\_e2m1           | TBA                                  |
+| f4\_e2m1, f4\_e3m0 | TBA                                  |
 
 @note
   See @ref dev_guide_int8_computations in the Developer Guide for additional
@@ -213,12 +214,12 @@ The following table indicates the data types with performant compute primitives
 for each uArch supported by oneDNN. Unless otherwise noted, all data types have 
 reference support on all architectures.
 
-| uArch  | Supported Data types                                      |
-|:-------|:----------------------------------------------------------|
-| Xe-LP  | f32, f16, s8, u8                                          |
-| Xe-HPG | f32, f16, bf16, s8, u8                                    |
-| Xe-HPC | f64, f32, bf16, f16, s8, u8                               |
-| TBA    | f64, f32, bf16, f16, s8, u8, f8\_e5m2, f8\_e4m3, f4\_e2m1 |
+| uArch  | Supported Data types                                                |
+|:-------|:--------------------------------------------------------------------|
+| Xe-LP  | f32, f16, s8, u8                                                    |
+| Xe-HPG | f32, f16, bf16, s8, u8                                              |
+| Xe-HPC | f64, f32, bf16, f16, s8, u8                                         |
+| TBA    | f64, f32, bf16, f16, s8, u8, f8\_e5m2, f8\_e4m3, f4\_e2m1, f4\_e3m0 |
 
 
 @note
