@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,7 +56,8 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
         const kernel_info_t &kernel_info, const compute::range_t &local_range,
         const layout_t &zp_dst)
     : ir_kernel_t<hw>("gen_conv", cfg.exec_cfg(), kernel_info, local_range,
-            utils::one_of(cfg.fma_kind(), fma_kind_t::dpas, fma_kind_t::dpasw))
+            utils::one_of(cfg.fma_kind(), fma_kind_t::dpas, fma_kind_t::dpasw),
+            {GENERATOR_NAME, GENERATOR_LINE})
     , prb_(cfg.prb())
     , cfg_(cfg) {
 

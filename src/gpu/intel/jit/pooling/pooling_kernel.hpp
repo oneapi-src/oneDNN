@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,8 @@ public:
     pooling_kernel_t(pooling_config_t &cfg, const std::string &kernel_name,
             const kernel_info_t &kernel_info, const primitive_desc_t &pd)
         : ir_kernel_t<hw>(kernel_name, cfg.exec_cfg(), kernel_info,
-                kernel_info.nd_range().local_range(), /*require_dpas=*/false) {
+                kernel_info.nd_range().local_range(), /*require_dpas=*/false,
+                {GENERATOR_NAME, GENERATOR_LINE}) {
         pooling_ir_builder_t builder(cfg, kernel_info, pd);
         stmt_t body = builder.stmt();
         setup_interface(body);

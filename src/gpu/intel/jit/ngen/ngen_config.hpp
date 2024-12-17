@@ -31,4 +31,13 @@ using half = dnnl::impl::float16_t;
 #define NGEN_BFLOAT16_TYPE
 #define NGEN_HALF_TYPE
 
+#if (!defined(NDEBUG) || defined(DNNL_DEV_MODE)) && (__cplusplus >= 202002L || _MSVC_LANG >= 202002L)
+#if __has_include(<version>)
+#include <version>
+#if __cpp_lib_source_location >= 201907L
+#define NGEN_ENABLE_SOURCE_LOCATION true
+#endif
+#endif
+#endif
+
 #endif /* header guard */
