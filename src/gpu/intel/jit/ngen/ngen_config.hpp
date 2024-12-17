@@ -30,5 +30,7 @@ using half = dnnl::impl::float16_t;
 
 #define NGEN_BFLOAT16_TYPE
 #define NGEN_HALF_TYPE
+#define NGEN_ENABLE_SOURCE_LOCATION true
+
 
 #endif /* header guard */

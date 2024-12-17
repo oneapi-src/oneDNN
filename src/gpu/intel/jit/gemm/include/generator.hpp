@@ -65,7 +65,7 @@ class BLASKernelGenerator : public GENERATOR_BASE(hw) {
 public:
     using super = GENERATOR_SUPER(hw);
 
-    BLASKernelGenerator() {}
+    BLASKernelGenerator(): GENERATOR_BASE(hw)({__FILE__, __LINE__}) {}
 
     FORWARD(hw)
 
