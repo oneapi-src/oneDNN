@@ -1,5 +1,3 @@
-#! /bin/bash
-
 #===============================================================================
 # Copyright 2019-2024 Intel Corporation
 #
@@ -16,9 +14,48 @@
 # limitations under the License.
 #===============================================================================
 
+# Reference:
+# https://learn.microsoft.com/en-us/azure/devops/pipelines/yaml-schema
+
 trigger:
-- main
-- rls-*
+  batch: true
+  branches:
+    include: [ main, 'rls-*' ]
+  paths:
+    include:
+      - .github
+      - cmake
+      - examples
+      - include
+      - src
+      - tests
+      - CMakeLists.txt
+    exclude:
+      - src/gpu
+      - src/cpu/aarch64
+      - src/cpu/ppc64
+      - src/cpu/rv64
+      - src/cpu/s390x
+
+pr:
+  autoCancel: true
+  branches:
+    include: [ main, 'rls-*' ]
+  paths:
+    include:
+      - .github
+      - cmake
+      - examples
+      - include
+      - src
+      - tests
+      - CMakeLists.txt
+    exclude:
+      - src/gpu
+      - src/cpu/aarch64
+      - src/cpu/ppc64
+      - src/cpu/rv64
+      - src/cpu/s390x
 
 jobs:
   - job: 'Ubuntu20'
