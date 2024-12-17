@@ -26,6 +26,10 @@
 #include "graph/backend/dnnl/common.hpp"
 #include "graph/backend/dnnl/layout_propagator.hpp"
 
+#define VCHECK_LAYOUT_PROPAGATION(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, layout_propagation, (cond), status, msg, \
+            ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -119,12 +123,14 @@ status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
                     = op_schema_registry_t::get_op_schema(op->get_kind());
             if (!opm) {
                 assertm(false, "no schema for current op");
-                return status::invalid_graph_op;
+                VCHECK_LAYOUT_PROPAGATION(false, status::invalid_graph_op,
+                        "no schema for current op");
             }
 
             if (!opm->has_additional_item("layout_propagator")) {
                 assertm(false, "no layout propagator in this op schema");
-                return status::invalid_graph_op;
+                VCHECK_LAYOUT_PROPAGATION(false, status::invalid_graph_op,
+                        "no layout propagator in this op schema");
             }
 
             auto cur_op = op->shared_from_this();
@@ -137,13 +143,16 @@ status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             return status;
         });
 
-        if (ret != status::success) return ret;
+        // if (ret != status::success) return ret;
+        VCHECK_LAYOUT_PROPAGATION(
+                ret == status::success, ret, "layout propagation failed");
         rewriter.run();
         propagation_number++;
         if (propagation_number >= LAYOUT_PROPAGATION_NUMBER) {
             assertm(false,
                     "expect layout propagation number to be less than 10");
-            return status::invalid_arguments;
+            VCHECK_LAYOUT_PROPAGATION(false, status::invalid_arguments,
+                    "expect layout propagation number to be less than 10");
         }
     } while (need_prop_once_more(sg));
 
@@ -161,7 +170,8 @@ status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             if (lt.id == sg->ins_[i].id) {
                 auto md = make_dnnl_memory_desc(lt);
                 auto status = fill_layout_info(&(sg->ins_[i]), md);
-                if (status != status::success) return status;
+                VCHECK_LAYOUT_PROPAGATION(status == status::success, status,
+                        "fill inputs layout info failed");
             }
         }
     }
@@ -173,7 +183,8 @@ status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             if (lt.id == sg->outs_[i].id) {
                 auto md = make_dnnl_memory_desc(lt);
                 auto status = fill_layout_info(&(sg->outs_[i]), md);
-                if (status != status::success) return status;
+                VCHECK_LAYOUT_PROPAGATION(status == status::success, status,
+                        "fill outputs layout info failed");
             }
         }
     }

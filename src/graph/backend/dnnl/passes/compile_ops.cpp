@@ -27,6 +27,10 @@
 
 #include "oneapi/dnnl/dnnl.hpp"
 
+#define VCHECK_COMPILE_OPS(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, compile_ops, (cond), status, msg, \
+            ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -45,12 +49,14 @@ status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
                 = op_schema_registry_t::get_op_schema(op->get_kind());
         if (!opm) {
             assertm(false, "no schema for current op");
-            return status::invalid_graph_op;
+            VCHECK_COMPILE_OPS(false, status::invalid_graph_op,
+                    "no schema for current op");
         }
 
         if (!opm->has_additional_item("executable_creator")) {
             assertm(false, "no executable creator in this op schema");
-            return status::invalid_graph_op;
+            VCHECK_COMPILE_OPS(false, status::invalid_graph_op,
+                    "no executable creator in this op schema");
         }
 
         auto cur_op = op->shared_from_this();
@@ -61,7 +67,8 @@ status_t compile_ops(std::shared_ptr<subgraph_t> &sg) {
 
         if (!exec) {
             assertm(false, "unimplemented op, can't compile it");
-            return status::unimplemented;
+            VCHECK_COMPILE_OPS(false, status::invalid_graph_op,
+                    "unimplemented op, can't compile it");
         }
 
         sg->execs_.emplace_back(exec);

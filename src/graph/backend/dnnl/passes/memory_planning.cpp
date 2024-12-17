@@ -33,6 +33,10 @@
 
 #include "oneapi/dnnl/dnnl.hpp"
 
+#define VCHECK_MEMORY_PLANNING(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, memory_planning, (cond), status, msg, \
+            ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -716,7 +720,9 @@ status_t memory_planner_t::book_buffers(std::shared_ptr<subgraph_t> &sg) {
                 persistent_registrar.book(info.index_,
                         persistent_buffer_assigner_.query_size(info.index_));
                 break;
-            default: return status::unimplemented;
+            default:
+                VCHECK_MEMORY_PLANNING(false, status::unimplemented,
+                        "unimplemented kind %d", info.kind_);
         }
     }
     return status::success;
@@ -770,7 +776,8 @@ status_t memory_planner_t::prepare_execution_args_set(
         }
         return status::success;
     });
-    if (ret != status::success) return ret;
+    VCHECK_MEMORY_PLANNING(
+            ret == status::success, ret, "prepare memory failed");
 
     // construct the dnnl execution args for each op
     ret = topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
@@ -778,12 +785,14 @@ status_t memory_planner_t::prepare_execution_args_set(
                 = op_schema_registry_t::get_op_schema(op->get_kind());
         if (!opm) {
             assertm(false, "no schema for current op");
-            return status::invalid_graph_op;
+            VCHECK_MEMORY_PLANNING(false, status::invalid_graph_op,
+                    "no schema for current op");
         }
 
         if (!opm->has_additional_item("arg_indices_getter")) {
             assertm(false, "no arg indices getter in this op schema");
-            return status::invalid_graph_op;
+            VCHECK_MEMORY_PLANNING(false, status::invalid_graph_op,
+                    "no arg indices getter in this op schema");
         }
 
         auto getter = opm->get_additional_item<arg_indices_getter_func>(
@@ -805,7 +814,8 @@ status_t memory_planner_t::prepare_execution_args_set(
             // find the corresponding memory object
             dnnl::memory mem;
             if (!exec_args_set_.find_value_mem_map(val, mem)) {
-                return status::invalid_arguments;
+                VCHECK_MEMORY_PLANNING(false, status::invalid_arguments,
+                        "can't find memory for value");
             }
 
             dnnl_exec_args.insert({dnnl_arg, mem});
@@ -867,20 +877,24 @@ status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
 
     // Assign external_input buffers to subgraph's inputs and their alias
     ret = assign_external_inputs_buffer(sg, inputs);
-    if (ret != status::success) return ret;
+    VCHECK_MEMORY_PLANNING(ret == status::success, ret,
+            "assign external inputs buffer failed");
 
     // Assign internal temporary buffer for all other edges
     ret = assign_internal_temporary_buffer(sg, edge_ref_count, mgr, false);
-    if (ret != status::success) return ret;
+    VCHECK_MEMORY_PLANNING(ret == status::success, ret,
+            "assign internal inputs buffer failed");
 
     // Replace some internal temporary buffers to user given external output
     // buffer
     ret = assign_external_outputs_buffer(sg, outputs, mgr);
-    if (ret != status::success) return ret;
+    VCHECK_MEMORY_PLANNING(ret == status::success, ret,
+            "assign external outputs buffer failed");
 
     // Replace some internal temporary buffers to cached persistent buffer
     ret = assign_internal_persistent_buffer(sg, mgr);
-    if (ret != status::success) return ret;
+    VCHECK_MEMORY_PLANNING(ret == status::success, ret,
+            "assign internal persistent buffer failed");
 
     // Reset the unreplaced internal temporary buffer
     temporary_buffer_assigner_.clear();
@@ -896,19 +910,21 @@ status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
     // Re-assign internal temporary buffer for reset ones (will re-do memory
     // sharing between temporary buffers)
     ret = assign_internal_temporary_buffer(sg, edge_ref_count, mgr, true);
-    if (ret != status::success) return ret;
+    VCHECK_MEMORY_PLANNING(ret == status::success, ret,
+            "re-assign internal inputs buffer failed");
 
     // Check which input/output pair of the subgraph can be inplaced
     ret = prepare_subgraph_inplace_pairs(sg, false);
-    if (ret != status::success) return ret;
+    VCHECK_MEMORY_PLANNING(
+            ret == status::success, ret, "prepare inplace pairs failed");
 
     ret = book_buffers(sg);
-    if (ret != status::success) return ret;
+    VCHECK_MEMORY_PLANNING(ret == status::success, ret, "book buffers failed");
 
     // Bind memory object to each value
     ret = prepare_execution_args_set(sg, p_engine, mgr);
-    if (ret != status::success) return ret;
-
+    VCHECK_MEMORY_PLANNING(
+            ret == status::success, ret, "prepare execution args failed");
     return status::success;
 }
 

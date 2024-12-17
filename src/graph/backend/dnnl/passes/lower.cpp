@@ -42,13 +42,8 @@
 #include "graph/backend/dnnl/passes/transform.hpp"
 #include "graph/backend/dnnl/passes/utils.hpp"
 
-#define VCHECK_INVALID_ARGUMENT(cond, msg, ...) \
-    VCONDCHECK(graph, create, check, compile, (cond), \
-            status::invalid_arguments, msg, ##__VA_ARGS__);
-
-#define VCHECK_UNIMPLEMENTED(cond, msg, ...) \
-    VCONDCHECK(graph, create, check, compile, (cond), status::unimplemented, \
-            msg, ##__VA_ARGS__);
+#define VCHECK_LOWER(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, lower, (cond), status, msg, ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {
@@ -557,27 +552,29 @@ static status_t dynamic_dequant_handler(
         const auto scale_lt = scales->get_logical_tensor();
 
         const auto ndims = ltw(src_lt).ndims();
-        VCHECK_INVALID_ARGUMENT((ndims == ltw(scale_lt).ndims()),
+        VCHECK_LOWER((ndims == ltw(scale_lt).ndims()),
+                status::invalid_arguments,
                 "scale and src should have the same number of dimensions "
                 "for grouped quantization");
-        VCHECK_INVALID_ARGUMENT(
-                (static_cast<size_t>(ndims) == group_shape.size()),
+        VCHECK_LOWER((static_cast<size_t>(ndims) == group_shape.size()),
+                status::invalid_arguments,
                 "group shape size should match the number of dimensions of "
                 "src");
-        VCHECK_UNIMPLEMENTED((ndims >= 2),
+        VCHECK_LOWER((ndims >= 2), status::unimplemented,
                 "group quantization requires at least two dimensions");
         const auto &src_dims = ltw(src_lt).vdims();
         const auto &scale_dims = ltw(scale_lt).vdims();
 
         for (int idx = 0; idx < ndims - 2; ++idx) {
-            VCHECK_INVALID_ARGUMENT((src_dims[idx] == scale_dims[idx]),
+            VCHECK_LOWER((src_dims[idx] == scale_dims[idx]),
+                    status::invalid_arguments,
                     "the scale shape should match the input shape on the "
                     "dimensions where no quantization is applied");
         }
 
         for (int idx = 0; idx < ndims; ++idx) {
-            VCHECK_INVALID_ARGUMENT(
-                    (src_dims[idx] == scale_dims[idx] * group_shape[idx]),
+            VCHECK_LOWER((src_dims[idx] == scale_dims[idx] * group_shape[idx]),
+                    status::invalid_arguments,
                     "unsupported scale shape and group shape on dimension %d, "
                     "src dim: %d, scale shape: %d, group shape: %d",
                     idx, static_cast<int>(src_dims[idx]),
@@ -620,7 +617,8 @@ static status_t dynamic_dequant_handler(
         const auto &scale_dims = ltw(scales->get_logical_tensor()).vdims();
         const auto &zp_dims = ltw(zps->get_logical_tensor()).vdims();
         for (size_t idx = 0; idx < scale_dims.size(); ++idx) {
-            VCHECK_INVALID_ARGUMENT((scale_dims[idx] == zp_dims[idx]),
+            VCHECK_LOWER((scale_dims[idx] == zp_dims[idx]),
+                    status::invalid_arguments,
                     "scale and zero point tensors should have the same shape");
         }
 

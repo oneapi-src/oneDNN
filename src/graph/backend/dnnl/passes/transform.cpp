@@ -40,10 +40,9 @@
 #include "graph/backend/dnnl/passes/transform.hpp"
 #include "graph/backend/dnnl/passes/utils.hpp"
 
-#define VCHECK_UNIMPLEMENTED(cond, msg, ...) \
-    VCONDCHECK(graph, create, check, compile, (cond), status::unimplemented, \
-            msg, ##__VA_ARGS__);
-
+#define VCHECK_TRANSFORM(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, transform, (cond), status, msg, \
+            ##__VA_ARGS__);
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -582,7 +581,8 @@ status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg) {
         fusion_ops.emplace_back(cur_op.get());
     }
 
-    if (fusion_ops.empty()) return status::success;
+    VCHECK_TRANSFORM(!fusion_ops.empty(), status::success,
+            "No fusion ops found for int8 concat");
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &concat_op : fusion_ops) {
@@ -635,7 +635,9 @@ status_t fuse_to_int8_pool(std::shared_ptr<subgraph_t> &sg) {
         }
     }
 
-    if (pool_ops.empty()) return status::success;
+    // if (pool_ops.empty()) return status::success;
+    VCHECK_TRANSFORM(!pool_ops.empty(), status::success,
+            "Pool ops are not found in int8 pool pattern");
 
     for (auto &pool_op : pool_ops) {
         value_ptr pool_in_val = pool_op->get_input_value(0);
@@ -703,7 +705,9 @@ status_t defer_src_zps_for_pool(std::shared_ptr<subgraph_t> &sg) {
         }
     }
 
-    if (pool_ops.empty()) return status::success;
+    // if (pool_ops.empty()) return status::success;
+    VCHECK_TRANSFORM(!pool_ops.empty(), status::success,
+            "Pool ops are not found when defer src zps for pool");
 
     for (auto &pool_op : pool_ops) {
         value_ptr pool_in_val = pool_op->get_input_value(0);
@@ -845,11 +849,14 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
             return status::success;
         });
 
-        if (ret != status::success) return ret;
+        // if (ret != status::success) return ret;
+        VCHECK_TRANSFORM(
+                ret == status::success, ret, "Failed to find fusible groups");
 
         if (fuse_groups.empty()) {
             changed = false;
-            return status::success;
+            VCHECK_TRANSFORM(false, status::success,
+                    "No fusible groups found for post ops");
         }
         subgraph_rewriter_t rewriter(sg);
         for (auto &fuse_group : fuse_groups) {
@@ -993,13 +1000,15 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
     bool changed = true;
     do {
         auto ret = fuse_post_ops_func(changed);
-        if (ret != status::success) return ret;
+        VCHECK_TRANSFORM(ret == status::success, ret,
+                "Failed to fuse post ops into base ops");
         cnt++;
     } while (changed && cnt <= max_num_limit);
 
     assertm(cnt <= max_num_limit + 1,
             "Failed to fuse all post ops since there has unsupported ones.");
-    if (cnt > max_num_limit + 1) return status::unimplemented;
+    VCHECK_TRANSFORM(cnt <= max_num_limit + 1, status::unimplemented,
+            "Failed to fuse all post ops since there has unsupported ones");
     return status::success;
 }
 
@@ -1132,10 +1141,13 @@ status_t fuse_src_scales(std::shared_ptr<subgraph_t> &sg) {
                 int ndims = scale_op->get_input_value(0)
                                     ->get_logical_tensor()
                                     .ndims;
-                if ((!trans_flag && axis != ndims - 1 && axis != -1)
-                        || (trans_flag && axis != ndims - 2 && axis != -2)) {
-                    return status::unimplemented;
-                }
+                VCHECK_TRANSFORM(
+                        (!trans_flag && (axis == ndims - 1 || axis == -1))
+                                || (trans_flag
+                                        && (axis == ndims - 2 || axis == -2)),
+                        status::unimplemented,
+                        "Matmul only support applying per channel scale "
+                        "along the last dimension for DNNL_ARG_WEIGHTS.");
             }
             int64_t key = -1;
             if (next_op.has_attr(op_attr::fusion_info_key)) {
@@ -1792,7 +1804,8 @@ status_t fuse_mul_sigmoid_to_swish(std::shared_ptr<subgraph_t> &sg) {
         mul_other_offsets.emplace_back(mul_other_offset);
     }
 
-    if (swish_patterns.empty()) return status::success;
+    VCHECK_TRANSFORM(!swish_patterns.empty(), status::success,
+            "No swish pattern found.");
 
     // fuse swish pattern to a swish op
     subgraph_rewriter_t rewriter(sg);
@@ -2056,7 +2069,8 @@ status_t fuse_reciprocal_mul_to_div(std::shared_ptr<subgraph_t> &sg) {
                 std::pair<op_t *, op_t *> {cur_op.get(), &csm_op});
     }
 
-    if (div_patterns.empty()) return status::success;
+    VCHECK_TRANSFORM(
+            !div_patterns.empty(), status::success, "No div patterns found.");
 
     subgraph_rewriter_t rewriter(sg);
     for (size_t i = 0; i < div_patterns.size(); ++i) {
@@ -2177,7 +2191,8 @@ status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg) {
         if (list.size() > 1) op_lists.emplace_back(list);
     }
 
-    if (op_lists.empty()) return status::success;
+    VCHECK_TRANSFORM(!op_lists.empty(), status::success,
+            "No ops need to fuse as dnnl_sum.");
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &list : op_lists) {
@@ -2259,7 +2274,8 @@ status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                     = binary_doable(ltw(src0_lt).vdims(), ltw(src1_lt).vdims());
         }
 
-        if (!shape_check_ok) return status::invalid_shape;
+        VCHECK_TRANSFORM(shape_check_ok, status::invalid_shape,
+                "Binary op shape check failed.");
 
         // insert unsqueeze op
         int32_t src0_ndims = src0_lt.ndims;
@@ -2426,11 +2442,13 @@ status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             return status::success;
         });
 
-        if (ret != status::success) return ret;
+        VCHECK_TRANSFORM(ret == status::success, ret,
+                "error while trying to find adjacent reorders.");
 
         if (fuse_groups.empty()) {
             changed = false;
-            return status::success;
+            VCHECK_TRANSFORM(
+                    false, status::success, "No adjacent reorders found.");
         }
 
         subgraph_rewriter_t rewriter(sg);
@@ -2555,7 +2573,8 @@ status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
                     fused_op, *p_engine, mgr, pd_cache);
             const memory::desc scratchpad_desc = pd.scratchpad_desc();
             auto status = fill_layout_info(scratchpad_val, scratchpad_desc);
-            if (status != status::success) return status;
+            VCHECK_TRANSFORM(status == status::success, status,
+                    "Failed to fill layout info for scratchpad value.");
 
             rewriter.to_insert(fused_op);
             rewriter.to_remove(op1->shared_from_this());
@@ -2571,12 +2590,14 @@ status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
     bool changed = true;
     do {
         auto ret = fuse_two_adjacent_reorders(changed);
-        if (ret != status::success) return ret;
+        VCHECK_TRANSFORM(ret == status::success, ret,
+                "Failed to fuse adjacent reorders.");
         cnt++;
     } while (changed && cnt <= max_num_limit);
 
     assertm(cnt <= max_num_limit + 1, "reorder fusion failed.");
-    if (cnt > max_num_limit + 1) return status::unimplemented;
+    VCHECK_TRANSFORM(cnt <= max_num_limit + 1, status::unimplemented,
+            "reorder fusion failed.");
 
     return status::success;
 }
@@ -2728,7 +2749,8 @@ status_t fuse_dynamic_mul_scales_add_zps(std::shared_ptr<subgraph_t> &sg) {
         visited.insert(&consumer_op);
     }
 
-    if (fuse_groups.empty()) return status::success;
+    VCHECK_TRANSFORM(!fuse_groups.empty(), status::success,
+            "No ops need to fuse as dynamic mul_scales and add_zps.");
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &fuse_ops : fuse_groups) {
@@ -2805,7 +2827,8 @@ status_t fuse_dynamic_sub_zps_mul_scales(std::shared_ptr<subgraph_t> &sg) {
         visited.insert(&consumer_op);
     }
 
-    if (fuse_groups.empty()) return status::success;
+    VCHECK_TRANSFORM(!fuse_groups.empty(), status::success,
+            "No ops need to fuse as dynamic sub_zps and mul_scales.");
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &fuse_ops : fuse_groups) {
@@ -2887,7 +2910,8 @@ impl::status_t convert_dynamic_quantize_ops(std::shared_ptr<subgraph_t> &sg) {
         visited.insert(cur_op.get());
     }
 
-    if (convert_ops.empty()) return impl::status::success;
+    VCHECK_TRANSFORM(!convert_ops.empty(), status::success,
+            "No ops need to convert as dynamic quantize ops.");
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &cur_op : convert_ops) {
@@ -2964,10 +2988,10 @@ status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         };
 
         if (qtype == "per_channel") {
-            VCHECK_UNIMPLEMENTED(
-                    (!(cur_op->has_attr(op_attr::with_runtime_src_zps)
-                            || cur_op->has_attr(
-                                    op_attr::with_runtime_dst_zps))),
+            VCHECK_TRANSFORM((!(cur_op->has_attr(op_attr::with_runtime_src_zps)
+                                     || cur_op->has_attr(
+                                             op_attr::with_runtime_dst_zps))),
+                    status::unimplemented,
                     "reorder primitive does not support zero points for "
                     "per-channel quantization");
         }
@@ -3066,7 +3090,8 @@ status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg) {
 
         if (fusion.empty()) {
             changed = false;
-            return status::success;
+            VCHECK_TRANSFORM(
+                    false, status::success, "No common reorders found.");
         }
 
         // remove op2 and add it's consumers to op1
@@ -3100,14 +3125,17 @@ status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg) {
     bool changed = true;
     do {
         auto ret = cse_func(changed);
-        if (ret != status::success) return ret;
+        VCHECK_TRANSFORM(ret == status::success, ret,
+                "Failed to eliminate common reorders.");
         cnt++;
     } while (changed && cnt <= max_iter_num);
 
     assertm(cnt <= max_iter_num + 1,
             "Failed to eliminate common reorders since the pass can't "
             "converge.");
-    if (cnt > max_iter_num + 1) return status::unimplemented;
+    VCHECK_TRANSFORM(cnt <= max_iter_num + 1, status::unimplemented,
+            "Failed to eliminate common reorders since the pass can't "
+            "converge.");
 
     return status::success;
 }
@@ -3192,7 +3220,9 @@ status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg) {
         }
     }
 
-    if (bin_ops.empty()) return status::success;
+    // if (bin_ops.empty()) return status::success;
+    VCHECK_TRANSFORM(
+            !bin_ops.empty(), status::success, "No fusible binary ops found.");
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &bin_op : bin_ops) {
@@ -3334,7 +3364,8 @@ status_t remove_quant_data_with_no_effect(std::shared_ptr<subgraph_t> &sg) {
         }
     }
 
-    if (quant_data_ops.empty()) return status::success;
+    VCHECK_TRANSFORM(!quant_data_ops.empty(), status::success,
+            "No static scale or zp ops found.");
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &quant_data_op : quant_data_ops) {

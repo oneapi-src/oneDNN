@@ -64,9 +64,8 @@ status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
 
             // partition in/outs should not have default id. There must be some
             // errors in previous graph transformation stage
-            if (edge_id == std::numeric_limits<size_t>::max())
-                return status::invalid_graph;
-
+            VCHECK_UTILS(edge_id != std::numeric_limits<size_t>::max(),
+                    status::invalid_graph, "Invalid edge_id");
             bool found = false;
             for (const auto &given : givens) {
                 if (edge_id == given.id) {
@@ -86,7 +85,8 @@ status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
                                 }
                             }
                         }
-                        if (!valid) return status::invalid_arguments;
+                        VCHECK_UTILS(valid, status::invalid_arguments,
+                                "Invalid given logical tensor");
                     }
 
                     edge->set_logical_tensor(given);
@@ -95,16 +95,18 @@ status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
                 }
             }
 
-            if (!found) return status::invalid_arguments;
+            VCHECK_UTILS(found, status::invalid_arguments,
+                    "Can't find given logical tensor");
         }
         return status::success;
     };
 
     status_t ret;
     ret = func(graph_in_vals, inputs, true, true);
-    if (ret != status::success) return ret;
+    VCHECK_UTILS(ret == status::success, ret, "Failed to set inputs");
 
     ret = func(graph_out_vals, outputs, true, false);
+    VCHECK_UTILS(ret == status::success, ret, "Failed to set outputs");
     return ret;
 }
 
@@ -187,7 +189,8 @@ std::vector<value_t *> get_constant_block_output_values(
         return status::success;
     };
     status_t status = topo_order_visit(sg->get_output_ops(), func);
-    if (status != status::success) return {};
+    VCHECK_UTILS(status == status::success, {},
+            "Failed to get constant block output values");
     return ret;
 }
 
@@ -221,7 +224,7 @@ status_t infer_shape(std::shared_ptr<subgraph_t> &sg) {
     }
 
     auto ret = sg->infer_shape();
-    if (ret != status::success) return ret;
+    VCHECK_UTILS(ret == status::success, ret, "Failed to infer shape");
 
     // Fill the inferred shape and strides to subgraph's outputs
     for (size_t i = 0; i < sg->outs_.size(); i++) {
