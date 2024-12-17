@@ -16,10 +16,17 @@
 # limitations under the License.
 #===============================================================================
 
-echo "Using clang-format version: $(clang-format --version)"
+CLANG_FORMAT=clang-format-11
+
+echo "Checking ${CLANG_FORMAT}"
+if ! ${CLANG_FORMAT} --version; then
+    echo ${CLANG_FORMAT} is not available or not working correctly.
+    exit 1
+fi
+
 echo "Starting format check..."
 
-for filename in $(find "$(pwd)" -type f | grep -P ".*\.(c|cpp|h|hpp|cl)$"); do clang-format -style=file -i $filename; done
+for filename in $(find "$(pwd)" -type f | grep -P ".*\.(c|cpp|h|hpp|cl)$"); do ${CLANG_FORMAT} -style=file -i $filename; done
 
 RETURN_CODE=0
 echo $(git status) | grep "nothing to commit" > /dev/null
