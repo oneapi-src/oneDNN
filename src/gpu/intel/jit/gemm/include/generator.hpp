@@ -399,7 +399,7 @@ protected:
     void gemmRepack2DOffsetData(Type Text, Type Ts, Type Td, const std::vector<RegisterBlock> &layoutSrc, const std::vector<RegisterBlock> &layoutDst, const GRFMultirange &src, const GRFMultirange &dst, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void dequantizeInt4Shift(Type Tsrc, GRFMultirange src, const CommonStrategy &strategy);
     void dequantizeInt4(bool doA, Type Tsrc, Type Tdst, const std::vector<RegisterBlock> &layoutSrc, const std::vector<RegisterBlock> &layoutDst, const std::vector<RegisterBlock> &layoutOffset, const std::vector<RegisterBlock> &layoutScale, GRFMultirange src, GRFMultirange dst, GRFMultirange offset, GRFMultirange scale, Type Tscale, int offR, int offC, const GEMMProblem *problem, const CommonStrategy &strategy, CommonState &state, bool s4Shift = true);
-    void gemmDequantizeOperation(bool doA, Type T, Type To, BinaryOp op, const std::vector<RegisterBlock> &layout, const std::vector<RegisterBlock> &qlayout, const GRFMultirange &regs, const GRFMultirange &qregs, int hq, const GEMMProblem &problem);
+    void gemmDequantizeOperation(bool doA, Type T, Type To, BinaryOp op, const std::vector<RegisterBlock> &layout, const std::vector<RegisterBlock> &qlayout, const GRFMultirange &regs, const GRFMultirange &qregs, int hq, const GEMMProblem &problem, CommonState &state);
     void gemmDequantizeAB(bool doA, Type Tsrc, Type Tdst, const std::vector<RegisterBlock> &layoutSrc, const std::vector<RegisterBlock> &layoutDst, const GRFMultirange &src, const GRFMultirange &dst, int hab, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, bool s4Shift = true);
 
     // l3_prefetch.cxx
