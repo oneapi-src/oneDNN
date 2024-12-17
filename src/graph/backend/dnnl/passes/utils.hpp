@@ -87,6 +87,7 @@ public:
     status_t run(std::shared_ptr<subgraph_t> &sg) {
         status_t ret;
         for (size_t i = 0; i < passes_.size(); i++) {
+            std::cout << "Running pass: " << names_[i] << std::endl;
             ret = passes_[i](sg);
             if (ret != status::success) { return ret; }
 

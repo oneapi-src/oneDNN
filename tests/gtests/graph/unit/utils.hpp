@@ -170,20 +170,22 @@ static inline void verify_op_schema(const dnnl::impl::graph::op_kind_t op_kind_,
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
     EXPECT_TRUE(nullptr != op_schema_);
-
+    std::cout << "111" << std::endl;
     const std::set<size_t> input_size = op_schema_->get_num_inputs();
     EXPECT_TRUE(input_size.find(expected_in_size) != input_size.end());
-
+    std::cout << "222" << std::endl;
     const std::set<size_t> output_size = op_schema_->get_num_outputs();
     EXPECT_TRUE(output_size.find(expected_out_size) != output_size.end());
-
+    std::cout << "333" << std::endl;
     size_t attr_size = op_schema_->get_attrs().size();
     EXPECT_EQ(attr_size, expected_attr_size);
-
+    std::cout << "444" << std::endl;
     for (const auto &attr_data : attrs_data) {
         const auto &attr_name = attr_data.first;
         const auto is_required = attr_data.second;
+        std::cout << "attr_name: " << attr_name << std::endl;
         EXPECT_EQ(op_schema_->get_attrs().count(attr_name), 1U);
+        std::cout << "555" << std::endl;
         EXPECT_EQ(op_schema_->get_attrs().at(attr_name).required_, is_required);
     }
 }

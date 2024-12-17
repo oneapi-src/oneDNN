@@ -45,6 +45,7 @@ const op_attr_t with_runtime_dst_zps = 0x1000c;
 const op_attr_t is_bias_add = 0x1000d;
 const op_attr_t with_sum = 0x1000e;
 const op_attr_t keep_dst_layout = 0x1000f;
+const op_attr_t is_select = 0x10010;
 
 // int64_t
 const op_attr_t alg_kind = 0x10100;

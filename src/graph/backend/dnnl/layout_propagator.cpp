@@ -397,9 +397,12 @@ status_t layout_propagator_for_binary(op_ptr &op, const dnnl::engine &p_engine,
 
         return fill_layout_info(op->get_output_value(1), dnnl::memory::desc {});
     }
+    std::cout << "layout_propagator_for_binary 111" << std::endl;
 
     const auto &pd
             = binary_executable_t::create_desc(op, p_engine, mgr, pd_cache);
+
+    std::cout << "layout_propagator_for_binary 222" << std::endl;
 
     insert_reorder_after(
             op, 0, pd.dst_desc(), p_engine, mgr, pd_cache, rewriter);
