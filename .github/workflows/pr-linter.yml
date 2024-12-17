@@ -16,7 +16,7 @@
 # limitations under the License.
 # *******************************************************************************
 
-name: "PR Checks"
+name: "PR Linters"
 
 on:
   pull_request:
@@ -31,8 +31,8 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  commit-message-check:
-    name: Commit message checker
+  pr-formatting:
+    name: Formatting
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,3 +41,7 @@ jobs:
           fetch-depth: 0
       - name: Check commit messages
         run: python3 ./.github/automation/commit-msg-check.py "${{ github.event.pull_request.head.sha }}" "${{ github.event.pull_request.base.sha }}"
+      - name: Install clang-format
+        run: sudo apt update && sudo apt install -y "clang-format-11"
+      - name: Check code formatting
+        run: .github/automation/clang-format.sh

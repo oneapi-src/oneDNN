@@ -21,17 +21,6 @@ trigger:
 - rls-*
 
 jobs:
-  - job: 'ClangFormat'
-    pool:
-      vmImage: 'ubuntu-20.04'
-    steps:
-      - script: |
-          .github/automation/env/clang.sh 11
-        displayName: 'init'
-      - script: |
-          .github/automation/clang-format.sh
-        displayName: 'ClangFormat_Check'
-        failOnStderr: true 
   - job: 'Ubuntu20'
     timeoutInMinutes: 120
     pool:
