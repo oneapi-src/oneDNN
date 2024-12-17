@@ -162,7 +162,7 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
                             *wei_scale, wei_zero_point, true));
         }
 
-        // for efficiency reasons, OneDNN saves the inverse of the destination
+        // for efficiency reasons, oneDNN saves the inverse of the destination
         dst_tensor.info()->set_quantization_info(arm_compute::QuantizationInfo(
                 1.0 / (*dst_scale), dst_zero_point, true));
     }
