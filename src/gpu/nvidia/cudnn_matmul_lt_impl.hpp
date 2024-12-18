@@ -717,7 +717,7 @@ struct cudnn_matmul_lt_impl_t {
             }
             if (!params->w_blocked_) {
                 transform_matrix(lt_handle, params, a_layout, a,
-                        blocked_a_layout, block_a_scratch, !params->trans_a_,
+                        blocked_a_layout, block_a_scratch, params->trans_a_,
                         streamId);
                 a = block_a_scratch;
             }
