@@ -60,7 +60,7 @@ jobs:
       matrix:
         config: [
           { name: MacOS, label: macos-14, threading: SEQ, toolset: clang, build: Release, testset: SMOKE },
-          { name: c6g, label: ah-ubuntu_22_04-c6g_4x-50, threading: OMP, toolset: gcc, build: Release, testset: CI }, 
+          { name: c6g, label: ah-ubuntu_22_04-c6g_4x-50, threading: OMP, toolset: gcc, build: Release, testset: CI },
           { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50, threading: OMP, toolset: clang, build: Debug, testset: SMOKE },
           { name: c7g, label: ah-ubuntu_22_04-c7g_4x-50, threading: OMP, toolset: gcc, build: Release, testset: CI }
         ]
@@ -108,7 +108,7 @@ jobs:
       - name: Get ACL commit hash for cache key
         id: get_acl_commit_hash
         run: (cd ${{ github.workspace }}/ComputeLibrary && echo "ACLCommitHash=$(git rev-parse --short HEAD)") >> $GITHUB_OUTPUT
-  
+
       - name: Get system name
         id: get_system_name
         run: (echo "SystemName=$(uname)") >> $GITHUB_OUTPUT
@@ -172,10 +172,12 @@ jobs:
           CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
           ONEDNN_THREADING: ${{ matrix.config.threading }}
-
-  AArch64:
+  # This job adds a check named "CI AArch64" that represents overall
+  # workflow status and can be used in branch rulesets
+  status:
     needs: build-and-test
     runs-on: ubuntu-latest
+    name: "CI AArch64"
     steps:
       - name: Print success
         run: echo Success
