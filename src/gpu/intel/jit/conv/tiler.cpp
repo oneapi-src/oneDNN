@@ -1376,7 +1376,7 @@ private:
         if (tune_data_.reported_points() != created_configs_) return;
         if (created_configs_ < 8) return;
 
-        int beg = params_gen_.cur_index() + 1;
+        int beg = params_gen_.cur_index();
         int end = params_gen_.configs();
         if (beg == end) return;
 
