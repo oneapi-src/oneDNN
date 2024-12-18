@@ -59,6 +59,7 @@ TEST(APIOp, CreateAllOps) {
             op::kind::Exp,
             op::kind::GELU,
             op::kind::GELUBackward,
+            op::kind::GenIndex,
             op::kind::HardSwish,
             op::kind::HardSwishBackward,
             op::kind::Interpolate,

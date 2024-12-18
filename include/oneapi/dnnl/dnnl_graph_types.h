@@ -257,6 +257,7 @@ typedef enum {
     dnnl_graph_op_pow,
     dnnl_graph_op_group_norm,
     dnnl_graph_op_last_symbol,
+    dnnl_graph_op_gen_index,
 } dnnl_graph_op_kind_t;
 
 /// Attributes of operations

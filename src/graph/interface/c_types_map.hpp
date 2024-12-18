@@ -156,6 +156,7 @@ const op_kind_t End = dnnl_graph_op_end;
 const op_kind_t Exp = dnnl_graph_op_exp;
 const op_kind_t GELU = dnnl_graph_op_gelu;
 const op_kind_t GELUBackward = dnnl_graph_op_gelu_backward;
+const op_kind_t GenIndex = dnnl_graph_op_gen_index;
 const op_kind_t GroupNorm = dnnl_graph_op_group_norm;
 const op_kind_t HardSigmoid = dnnl_graph_op_hard_sigmoid;
 const op_kind_t HardSigmoidBackward = dnnl_graph_op_hard_sigmoid_backward;

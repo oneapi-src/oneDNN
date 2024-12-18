@@ -41,6 +41,7 @@
 #include "graph/backend/dnnl/kernels/prim/shuffle.hpp"
 #include "graph/backend/dnnl/kernels/prim/softmax.hpp"
 #include "graph/backend/dnnl/kernels/prim/sum.hpp"
+#include "graph/backend/dnnl/kernels/pure/gen_index.hpp"
 #include "graph/backend/dnnl/kernels/uker/sdp_primitive.hpp"
 
 #endif

@@ -194,7 +194,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_gqa_fusion)
         // clang-format off
         DNNL_GPU_ONLY(.set_attr<FCreateKernel>("FCreateKernel",
                 []() -> kernel_ptr {
-                    return std::make_shared<sdp_primitive_kernel_t<>>()
+                    return std::make_shared<sdp_primitive_kernel_t<>>();
                 }))
         DNNL_CPU_ONLY(.set_attr<FCreateKernel>("FCreateKernel",
                 []() -> kernel_ptr {
