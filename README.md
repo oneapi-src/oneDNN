@@ -296,8 +296,8 @@ Runtime-specific dependencies:
 ### Validated Configurations
 
 CPU engine was validated on RedHat\* Enterprise Linux 8 with
-* GNU Compiler Collection 5.4, 6.1, 7.2, 8.1, 9.1, 11.1, 11.3
-* Clang\* 7.1, 8.0, 9.0, 14.0.6
+* GNU Compiler Collection 8.5, 9.5, 11.1, 11.3
+* Clang\* 11.0, 14.0.6
 * [Intel oneAPI DPC++/C++ Compiler] 2024.0
 
 on Windows Server\* 2019 with
@@ -315,8 +315,8 @@ on Ubuntu 20.04 AArch64 with
 available at the time of release
 
 GPU engine was validated on Ubuntu\* 22.04 with
-* GNU Compiler Collection 7.2, 8.1, and 9.1
-* Clang 7.1, 8.0, 9.0
+* GNU Compiler Collection 8.5, and 9.5
+* Clang 11.0
 * [Intel oneAPI DPC++/C++ Compiler] 2024.0
 * [Intel Software for General Purpose GPU capabilities] latest stable version
 available at the time of release
