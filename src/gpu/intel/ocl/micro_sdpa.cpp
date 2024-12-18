@@ -264,7 +264,10 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
 
     problem_kq.B.layout = MatrixLayout::Pr;
     problem_kq.C.layout = MatrixLayout::T;
-    problem_kq.A.setAlignment(alignmentForLD(d->head_size() * problem.Ta));
+    const memory_desc_wrapper key_mdw(key_md());
+    auto ldk = static_cast<int>(
+            gemm_desc_t::get_ld(*key_md()) * key_mdw.data_type_size());
+    problem_kq.A.setAlignment(alignmentForLD(ldk));
     problem_kq.B.setAlignment(64); // Q is packed in VNNI format in SLM
     problem_kq.B.crosspack = 2;
     problem_kq.B.tileR = into<uint16_t>(d_max());
