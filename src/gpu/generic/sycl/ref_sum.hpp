@@ -73,7 +73,7 @@ struct ref_sum_t : public gpu::generic::sycl::primitive_t {
             }
 
             VDISPATCH_SUM_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
-            DISPATCH_SUM(n <= DNNL_REF_SUM_MAX_NUM_TENSORS, VERBOSE_BAD_PARAM,
+            VDISPATCH_SUM(n <= DNNL_REF_SUM_MAX_NUM_TENSORS, VERBOSE_BAD_PARAM,
                     "n_inputs");
 
             return init_conf();
