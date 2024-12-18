@@ -299,6 +299,7 @@ public:
         // Assign new f32 layout and buffer.
         reg_layout_ = std::move(f32_layout);
         reg_buf_ = std::move(f32_buf);
+        info_.retype(type_t::f32());
 
         return ret;
     }
