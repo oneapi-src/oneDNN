@@ -160,6 +160,8 @@ public:
         return ret;
     }
 
+    void retype(const type_t &new_type) { view_ = view_.retype(new_type); }
+
     void require_masked_update() { needs_masked_update_ = true; }
 
 private:
