@@ -394,6 +394,7 @@ public:
             CASE(Exp);
             CASE(GELU);
             CASE(GELUBackward);
+            CASE(GenIndex);
             CASE(GroupNorm);
             CASE(HardSigmoid);
             CASE(HardSigmoidBackward);

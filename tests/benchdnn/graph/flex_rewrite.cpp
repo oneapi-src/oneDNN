@@ -236,6 +236,7 @@ void flex_rewrite::infer_output_shape(
             case dnnl::graph::op::kind::Exp:
             case dnnl::graph::op::kind::GELU:
             case dnnl::graph::op::kind::GELUBackward:
+            case dnnl::graph::op::kind::GenIndex:
             case dnnl::graph::op::kind::HardSigmoid:
             case dnnl::graph::op::kind::HardSigmoidBackward:
             case dnnl::graph::op::kind::HardSwish:

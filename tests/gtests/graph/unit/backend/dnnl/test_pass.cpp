@@ -4733,6 +4733,7 @@ TEST(test_pass, DnnlSingleOpReplacement) {
             SoftMaxBackward,
             DynamicQuantize,
             DynamicDequantize,
+            GenIndex,
     };
     const auto engine_kind = get_test_engine_kind();
 

@@ -14,13 +14,17 @@
 # limitations under the License.
 #===============================================================================
 
+file(GLOB HEADERS
+    ${PROJECT_SOURCE_DIR}/include/*.h
+    ${PROJECT_SOURCE_DIR}/include/*.hpp
+    )
 
-add_subdirectory(prim)
-add_subdirectory(pure)
-if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE")
-    add_subdirectory(decomp)
-endif()
+file(GLOB SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
+    )
 
-if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
-    add_subdirectory(uker)
-endif()
+set(OBJ_LIB ${LIB_PACKAGE_NAME}_graph_backend_dnnl_pure)
+add_library(${OBJ_LIB} OBJECT ${HEADERS} ${SOURCES})
+
+set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)
