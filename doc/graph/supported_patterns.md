@@ -84,6 +84,7 @@ ReduceProd | ReduceSum]
 | Reciprocal + Multiply\f$_{>out}\f$ | N/A |
 | Reorder + Add\f$_{>out}\f$ | N/A |
 | Scaled Dot-Product Attention | Refer to @ref dev_guide_graph_sdpa for more details. |
+| Scaled Dot-Product Attention with Compressed Key/Value | Refer to @ref dev_guide_graph_compressed_sdpa for more details. |
 
 #### Quantized Patterns
 
