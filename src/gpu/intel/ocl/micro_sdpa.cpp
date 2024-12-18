@@ -242,14 +242,14 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
         auto scale_dt = key_scales_dt();
         problem_kq.Ta_scale = jit::convert_dnnl_to_kernel_type(scale_dt);
         problem_kq.A_scale.alignment = uint8_t(types::data_type_size(scale_dt));
-        problem_kq.A_scale.layout = MatrixLayout::T;
+        problem_kq.A_scale.layout = MatrixLayout::N;
         problem_kq.aScale2D = true;
     }
     if (with_key_zp()) {
         auto zp_dt = key_zp_dt();
         problem_kq.Tao = jit::convert_dnnl_to_kernel_type(zp_dt);
         problem_kq.AO.alignment = uint8_t(types::data_type_size(zp_dt));
-        problem_kq.AO.layout = MatrixLayout::T;
+        problem_kq.AO.layout = MatrixLayout::N;
         problem_kq.aoPtrDims = kq_common_zp ? 0 : 2;
         problem_kq.aOffset = ABOffset::Calc;
     }
@@ -264,7 +264,10 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
 
     problem_kq.B.layout = MatrixLayout::Pr;
     problem_kq.C.layout = MatrixLayout::T;
-    problem_kq.A.setAlignment(alignmentForLD(d->head_size() * problem.Ta));
+    const memory_desc_wrapper key_mdw(key_md());
+    auto ldk = static_cast<int>(
+            gemm_desc_t::get_ld(*key_md()) * key_mdw.data_type_size());
+    problem_kq.A.setAlignment(alignmentForLD(ldk));
     problem_kq.B.setAlignment(64); // Q is packed in VNNI format in SLM
     problem_kq.B.crosspack = 2;
     problem_kq.B.tileR = into<uint16_t>(d_max());
