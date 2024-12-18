@@ -75,8 +75,10 @@ status_t acl_lowp_matmul_sq_t::pd_t::init(engine_t *engine) {
                             && wei_d.data_type() == s8
                             && src_d.data_type() == s8
                     ? dst_d.data_type() == s8
-                    : dst_d.data_type() == u8
-                            && utils::one_of(bia_d.data_type(), f32, undef),
+                    : dst_d.data_type() == u8,
+            VERBOSE_UNSUPPORTED_DT_CFG);
+
+    VDISPATCH_MATMUL(utils::one_of(bia_d.data_type(), f32, undef),
             VERBOSE_UNSUPPORTED_DT_CFG);
 
     VDISPATCH_MATMUL(src_d.matches_tag(format_tag::ab)
@@ -223,7 +225,7 @@ status_t acl_lowp_matmul_sq_t::execute(const exec_ctx_t &ctx) const {
     acl_obj.wei_tensor.info()->set_quantization_info(
             arm_compute::QuantizationInfo(*wei_scale, -wei_zero_point, true));
 
-    // for efficiency reasons, oneDNN saves the inverse of the destination
+    // for efficiency reasons, OneDNN saves the inverse of the destination
     acl_obj.dst_tensor.info()->set_quantization_info(
             arm_compute::QuantizationInfo(
                     1.0 / (*dst_scale), dst_zero_point, true));
