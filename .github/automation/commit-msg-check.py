@@ -31,22 +31,22 @@ def __scopeCheck(msg: str):
     status = "Message scope: "
 
     if not re.match('^[a-z0-9]+(, [a-z0-9]+)*: ', msg):
-        print(f"{status} FAILED: Commit message must follow the format <scope>:[ <scope>:] <short description>")
+        print(f"{status} FAILED: Commit message must follow the format "
+               "<scope>:[ <scope>:] <short description>")
         return False
 
     print(f"{status} OK")
     return True
 
-# Ensuring a character limit for the first line.
+# Ensure  a character limit for the first line.
 def __numCharacterCheck(msg: str):
     status = "Message length:"
-    summary = msg.partition("\n")[0]
-    msgSummaryLen = len(summary)
-    if msgSummaryLen <= 72:
+    if len(msg) <= 72:
         print(f"{status} OK")
         return True
     else:
-        print(f"{status} FAILED: Commit message summary must not exceed 72 characters.")
+        print(f"{status} FAILED: Commit message summary must not "
+               "exceed 72 characters.")
         return False
 
 def main():
@@ -58,7 +58,8 @@ def main():
     head: str = args.head
 
     commit_range = base + ".." + head
-    messages = subprocess.run(["git", "rev-list", "--format=oneline", commit_range], capture_output=True, text=True).stdout
+    messages = subprocess.run(["git", "rev-list", "--format=oneline",
+        commit_range], capture_output=True, text=True).stdout
 
     is_ok = True
     for i in messages.splitlines():
@@ -72,7 +73,8 @@ def main():
     if is_ok:
         print("All commmit messages are formatted correctly. ")
     else:
-        print("Some commit message checks failed. Please align commit messages with Contributing Guidelines and update the PR.")
+        print("Some commit message checks failed. Please align commit messages "
+              "with Contributing Guidelines and update the PR.")
         exit(1)
 
 
