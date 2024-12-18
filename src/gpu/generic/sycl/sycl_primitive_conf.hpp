@@ -415,6 +415,17 @@ struct sycl_pooling_bwd_conf_t : public sycl_pooling_base_conf_t {
     xpu::sycl::md_t diff_dst_md;
 };
 
+struct sycl_simple_reduction_conf_t {
+    dnnl_alg_kind_t alg = dnnl_alg_kind_undef;
+    xpu::sycl::md_t src_md;
+    xpu::sycl::md_t dst_md;
+    float p;
+    float eps;
+    sycl_post_ops_t post_ops;
+    dim_t reduce_dims[xpu::sycl::md_t::max_dims];
+    int reduce_size = 1;
+};
+
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_shuffle_conf_t);
@@ -431,6 +442,7 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_pooling_bwd_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_convolution_fwd_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_convolution_bwd_data_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_convolution_bwd_weights_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_simple_reduction_conf_t);
 
 } // namespace sycl
 } // namespace generic
