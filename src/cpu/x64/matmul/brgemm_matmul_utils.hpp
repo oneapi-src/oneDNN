@@ -231,7 +231,6 @@ struct brgemm_matmul_conf_utils_t {
     inline bool use_buffer_b(bool use_heuristic = true) const {
         if (bgmmc.is_runtime_N) return true;
         if (bgmmc.is_bf16_with_int_wei) return true;
-        if (bgmmc.is_f32_f16) return true;
         if (bgmmc.is_f16_with_int_wei) return true;
         if (bgmmc.apply_scales_in_buffer_b) return true;
 

@@ -544,7 +544,7 @@ struct jit_brgemm_matmul_copy_a_transposed_impl_t
         , m_loop_dst_shift(columns_step * dst_stride)
         , k_loop_src_shift(rows_step * src_stride)
         , k_loop_dst_shift(rows_step * tr_typesize)
-        , is_f32(everyone_is(data_type::f32, conf_->src_dt, conf_->wei_dt))
+        , is_f32(conf_->src_dt == data_type::f32)
         , is_bf32(conf_->is_bf32)
         , is_dynamic_src_ld(conf_->is_runtime_M)
         // See the note in `create_brgemm_matmul_copy_b` why `orig_src_dt` used.
