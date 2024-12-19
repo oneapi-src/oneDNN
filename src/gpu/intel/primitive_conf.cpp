@@ -105,6 +105,7 @@ attr_info_t attr_info_t::create(const primitive_attr_t *attr) {
     attr_info.with_src_scales = !src_scales.has_default_values();
     attr_info.with_src0_scale = !src_scales.has_default_values();
     attr_info.src_scales_mask = src_scales.mask_;
+    attr_info.src_scales_data_type = src_scales.data_type_;
 
     const auto &src1_scales = attr->scales_.get(DNNL_ARG_SRC_1);
     attr_info.with_src1_scale = !src1_scales.has_default_values();
@@ -113,10 +114,12 @@ attr_info_t attr_info_t::create(const primitive_attr_t *attr) {
     const auto &wei_scales = attr->scales_.get(DNNL_ARG_WEIGHTS);
     attr_info.with_wei_scales = !wei_scales.has_default_values();
     attr_info.wei_scales_mask = wei_scales.mask_;
+    attr_info.wei_scales_data_type = wei_scales.data_type_;
 
     const auto &dst_scales = attr->scales_.get(DNNL_ARG_DST);
     attr_info.with_dst_scales = !dst_scales.has_default_values();
     attr_info.dst_scales_mask = dst_scales.mask_;
+    attr_info.dst_scales_data_type = dst_scales.data_type_;
 
     // zero points
     const auto &zp = attr->zero_points_;
@@ -825,6 +828,10 @@ status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_DST_SCALES", attr_info.with_dst_scales);
     kernel_ctx.define_int("SRC_SCALES_MASK", attr_info.src_scales_mask);
     kernel_ctx.define_int("WEI_SCALES_MASK", attr_info.wei_scales_mask);
+    kernel_ctx.define_int("DST_SCALES_MASK", attr_info.dst_scales_mask);
+    def_data_type(kernel_ctx, attr_info.src_scales_data_type, "SRC_SCALES");
+    def_data_type(kernel_ctx, attr_info.wei_scales_data_type, "WEI_SCALES");
+    def_data_type(kernel_ctx, attr_info.dst_scales_data_type, "DST_SCALES");
 
     kernel_ctx.define_int("WITH_SRC_ZPOINTS", attr_info.with_src_zpoints);
     kernel_ctx.define_int("WITH_WEI_ZPOINTS", attr_info.with_wei_zpoints);
