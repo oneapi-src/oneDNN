@@ -289,6 +289,8 @@ public:
     template <typename T>
     Xbyak::Address EVEX_compress_addr(
             Xbyak::Reg64 base, T raw_offt, bool bcast = false) {
+        assert(is_valid_isa(avx512_core));
+
         using Xbyak::Address;
         using Xbyak::Reg64;
         using Xbyak::RegExp;
