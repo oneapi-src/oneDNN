@@ -191,6 +191,7 @@ struct brgemm_matmul_conf_t {
     bool is_bf16_with_int_wei = false;
     bool is_f16_with_int_wei = false;
     bool is_f32_f16 = false;
+    bool is_f32_bf16 = false;
     bool is_int4_weights = false;
     bool req_wei_vnni_downconvert = false;
     bool is_runtime_M = false;
@@ -303,6 +304,8 @@ struct brgemm_matmul_conf_utils_t {
 
     inline bool is_f32_f16() const { return f32_f16_dt; }
 
+    inline bool is_f32_bf16() const { return f32_bf16_dt; }
+
     inline bool is_f16_with_int_wei() const { return f16_with_int_wei_dt; }
 
     inline bool with_weights_decompression() const {
@@ -341,7 +344,7 @@ private:
 
     const bool f32_dt, bf16_dt, f16_dt, f8_dt, int8_dt, bf32_dt;
     const bool weights_decompression_support, bf16_with_int_wei_dt, f32_f16_dt,
-            f16_with_int_wei_dt;
+            f32_bf16_dt, f16_with_int_wei_dt;
 
     const bool A_any_layout;
     const bool B_any_layout;
