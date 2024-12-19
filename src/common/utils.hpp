@@ -538,7 +538,14 @@ const char *format_cvt_impl(T &&t) {
 
 template <typename... Args>
 std::string format_impl(const char *fmt, Args... args) {
+    // volatile here is a workaround for GCC 8 format-truncation warning e.g.:
+    // ‘%d’ directive output truncated writing 1 byte into a region of size 0
+    // triggered by overaggressive optmization in '-O3'; fixed in GCC 9+
+#if defined(__GNUC__) && __GNUC__ == 8 && !defined(__clang__)
+    volatile size_t sz = snprintf(nullptr, 0, fmt, args...);
+#else
     size_t sz = snprintf(nullptr, 0, fmt, args...);
+#endif
     std::string buf(sz + 1, '\0');
     snprintf(&buf[0], sz + 1, fmt, args...);
     buf.resize(sz);
