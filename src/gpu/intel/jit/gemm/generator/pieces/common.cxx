@@ -583,10 +583,10 @@ void BLASKernelGenerator<hw>::calcIncrement(LDIncrements &increments, Subregiste
     // General scaling.
     SubregisterPair scaled;
     if (strategy.avoidIncConflicts)
-        scaled = SubregisterPair(state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm0, strategy)),
-                                 state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm1, strategy)));
+        scaled = SubregisterPair(state.ra.alloc_sub<int64_t>(getHint(HintType::LongTerm0, strategy)),
+                                 state.ra.alloc_sub<int64_t>(getHint(HintType::LongTerm1, strategy)));
     else
-        scaled = SubregisterPair(state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy)));
+        scaled = SubregisterPair(state.ra.alloc_sub<int64_t>(getHint(HintType::LongTerm, strategy)));
 
     int nr = strategy.avoidIncConflicts ? 2 : 1;
     for (int i = 0; i < nr; i++)
@@ -608,7 +608,7 @@ SubregisterPair BLASKernelGenerator<hw>::lookupIncrement(const LDIncrements &inc
     if (!release)
         return SubregisterPair();
 
-    auto result = state.ra.alloc_sub<int32_t>();
+    auto result = state.ra.alloc_sub<int64_t>();
     emulConstant(1, result, base, scale, strategy, state);
     *release = true;
 

@@ -40,9 +40,9 @@ __kernel void ref_gemm(__global A_DATA_T *a, __global B_DATA_T *b,
         int bias_mask, __global int *ao, __global int *bo, __global int *c0,
         int c0_mask, float beta) {
 
-    int n = get_global_id(0);
-    int m = get_global_id(1);
-    int mb = get_global_id(2);
+    long n = get_global_id(0);
+    long m = get_global_id(1);
+    long mb = get_global_id(2);
 
 #if WITH_BIAS
     bias += offset_bias0;
