@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -173,7 +173,7 @@ public:
         auto result = SWSBInfo(pipe(op), dist());
         if (combined.mode) {
             bool src, dst;
-            if (op == Opcode::send || op == Opcode::sendc)
+            if (isSend(op))
                 src = dst = true;
             else if (op == Opcode::dpas) {
                 src = (combined.mode <= 2);
@@ -200,7 +200,7 @@ public:
     }
     constexpr14 Pipe pipe(Opcode op) const {
         if (combined.mode) {
-            if (op == Opcode::send || op == Opcode::sendc)
+            if (isSend(op))
                 return (combined.mode == 1) ? Pipe::A : (combined.mode == 2) ? Pipe::F : Pipe::I;
             if (op == Opcode::dpas)
                 return Pipe::Default;
@@ -474,7 +474,7 @@ struct InstructionXeHPC : public Instruction12 {
     bool getOperandRegion(autoswsb::DependencyRegion &region, int opNum) const {
         return Instruction12::getOperandRegion<EncodingTagXeHPC>(region, opNum);
     }
- 
+
     bool eot() const {
         return Instruction12::eot();
     }
@@ -838,9 +838,9 @@ static inline int decodeDPASTypecodeBytes12(unsigned dt)
 
 inline ARFType normalizeARFType(ARFType type, HW hw)
 {
-   if (hw >= HW::Xe3 && type == ARFType::sp)
+    if (hw >= HW::Xe3 && type == ARFType::sp)
         type = ARFType::s;
-   return type;
+    return type;
 }
 
 template <typename Tag>

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,8 +33,8 @@ public:
     static inline HW getBinaryArch(const std::vector<uint8_t> &binary);
     static inline void getBinaryHWInfo(const std::vector<uint8_t> &binary, HW &outHW, Product &outProduct);
 
-    explicit ELFCodeGenerator(Product product_)  : BinaryCodeGenerator<hw>(product_) {}
-    explicit ELFCodeGenerator(int stepping_ = 0) : BinaryCodeGenerator<hw>(stepping_) {}
+    explicit ELFCodeGenerator(Product product_, DebugConfig debugConfig = {})  : BinaryCodeGenerator<hw>(product_, debugConfig) {}
+    explicit ELFCodeGenerator(int stepping_ = 0, DebugConfig debugConfig = {}) : BinaryCodeGenerator<hw>(stepping_, debugConfig) {}
 
 protected:
     NEOInterfaceHandler interface_{hw};
@@ -96,7 +96,7 @@ protected:
     int getArgumentSurface(const std::string &name) const                { return interface_.getArgumentSurface(name); }
     int getArgumentSurfaceIfExists(const std::string &name) const        { return interface_.getArgumentSurfaceIfExists(name); }
     GRF getLocalID(int dim) const                                        { return interface_.getLocalID(dim); }
-    RegData getSIMD1LocalID(int dim) const                               { return interface_.getSIMD1LocalID(dim); }
+    Subregister getSIMD1LocalID(int dim) const                           { return interface_.getSIMD1LocalID(dim); }
     Subregister getLocalSize(int dim) const                              { return interface_.getLocalSize(dim); }
 
     void prologue()                                                      { interface_.generatePrologue(*this); }
@@ -126,6 +126,40 @@ private:
             MachineIntelGT = 205,
             ZebinExec = 0xFF12
         };
+
+        enum DWARF_UT : uint8_t {
+            COMPILE = 0x01,
+        };
+        enum DWARF_TAG : uint8_t {
+            COMPILATION_UNIT = 0x11,
+            SUBPROGRAM = 0x2e,
+        };
+        enum DWARF_AT : uint8_t {
+            NAME = 0x03,
+            STMT_LIST = 0x10,
+            LOW_PC = 0x11,
+            HIGH_PC = 0x12,
+            DECL_COLUMN = 0x39,
+            DECL_FILE = 0x3a,
+            DECL_LINE = 0x3b,
+        };
+        enum DWARF_FORM : uint8_t {
+            ADDR = 0x1,
+            DATA2 = 0x05,
+            DATA4 = 0x06,
+            DATA8 = 0x07,
+            STRING = 0x08,
+            DATA1 = 0x0b,
+            STRP = 0x0e,
+            LINEPTR = 0x17,
+            FLAG_PRESENT = 0x19,
+            LINE_STRP = 0x1f,
+        };
+        enum DWARF_LNCT : uint8_t {
+            PATH = 0x1,
+            DIRECTORY_INDEX = 0x2,
+        };
+
         union TargetMetadata {
             uint32_t all;
             struct {
@@ -163,7 +197,7 @@ private:
         struct SectionHeader {
             uint32_t name;
             enum Type : uint32_t {
-                Null = 0, Program = 1, SymbolTable = 2, StringTable = 3, Note = 7, ZeInfo = 0xFF000011
+                Null = 0, Program = 1, SymbolTable = 2, StringTable = 3, RelocationWithAddend=4, Note = 7, ZeInfo = 0xFF000011
             } type;
             uint64_t flags = 0;
             uint64_t addr = 0;
@@ -173,16 +207,16 @@ private:
             uint32_t info = 0;
             uint64_t align = 0x10;
             uint64_t entrySize = 0;
-        } sectionHeaders[6];
+        } sectionHeaders[13];
         struct SymbolEntry {
-                uint32_t name = 0;
-                enum Info : uint8_t {
-                    NoType = 0, Object = 1, Func = 2, Section = 3, File = 4, Common = 5, TLS = 6, LOOS = 10, HIOS = 12, LOPROC = 13, HIPROC = 15
-                } info = Info::NoType;
-                uint8_t other = 0;
-                uint16_t shndx = 0;
-                uint64_t value = 0;
-                uint64_t size = 0;
+            uint32_t name = 0;
+            enum Info : uint8_t {
+                NoType = 0, Object = 1, Func = 2, Section = 3, File = 4, Common = 5, TLS = 6, LOOS = 10, HIOS = 12, LOPROC = 13, HIPROC = 15
+            } info = Info::NoType;
+            uint8_t other = 0;
+            uint16_t shndx = 0;
+            uint64_t value = 0;
+            uint64_t size = 0;
         } symTable[3];
         struct Note {
             uint32_t nameSize = 8;
@@ -193,6 +227,88 @@ private:
             const char name[8] = "IntelGT";
             uint32_t payload;
         } noteGfxCore;
+
+#pragma pack(push, 1)
+        struct DebugInfo {
+            struct {
+                uint32_t unitLength;
+                uint16_t version = 5;
+                uint8_t unitType = DWARF_UT::COMPILE;
+                uint8_t addressSize = sizeof(void*);
+                uint32_t debugAbbrevOffset = 0;
+            } CUHeader;
+            struct {
+                uint8_t abbrevCode = 1;
+                uint32_t name = 0;
+                uint32_t lineTable = 0;
+                uint64_t low_pc = 0;
+                uint64_t high_pc = 0;
+
+                struct {
+                    uint8_t abbrevCode = 2;
+                    uint32_t name;
+                    uint8_t file = 1;
+                    uint32_t line = 0;
+                    uint8_t column = 1;
+                    uint64_t low_pc = 0;
+                    uint64_t high_pc = 0;
+                } subProgram;
+
+                struct {
+                    uint8_t abbrevCode = 0;
+                } End;
+            } CU;
+        } debugInfo;
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+        struct DebugAbbrev {
+            struct {
+                uint8_t abbrevCode = 1;
+                uint8_t tag = DWARF_TAG::COMPILATION_UNIT;
+                uint8_t hasChildren = 1;
+
+                struct {
+                    uint8_t attrName;
+                    uint8_t attrForm;
+                } attributes[5] = {
+                    {DWARF_AT::NAME, DWARF_FORM::LINE_STRP},
+                    {DWARF_AT::STMT_LIST, DWARF_FORM::LINEPTR},
+                    {DWARF_AT::LOW_PC, DWARF_FORM::ADDR},
+                    {DWARF_AT::HIGH_PC, DWARF_FORM::ADDR},
+                    {0, 0},
+                };
+            } CU;
+            struct {
+                uint8_t abbrevCode = 2;
+                uint8_t tag = DWARF_TAG::SUBPROGRAM;
+                uint8_t hasChildren = 0;
+
+                struct {
+                    uint8_t attrName;
+                    uint8_t attrForm;
+                } attributes[7] = {
+                    {DWARF_AT::NAME, DWARF_FORM::STRP},
+                    {DWARF_AT::DECL_FILE, DWARF_FORM::DATA1},
+                    {DWARF_AT::DECL_LINE, DWARF_FORM::DATA4},
+                    {DWARF_AT::DECL_COLUMN, DWARF_FORM::DATA1},
+                    {DWARF_AT::LOW_PC, DWARF_FORM::ADDR},
+                    {DWARF_AT::HIGH_PC, DWARF_FORM::ADDR},
+                    {0, 0},
+                };
+            } subProgram;
+            struct {
+                uint8_t code = 0;
+            } end;
+        } debugAbbrev;
+#pragma pack(pop)
+
+        struct Rela {
+            uint64_t offset;
+            uint64_t info;
+            uint64_t addend;
+        };
+
         struct StringTable {
             const char zero = '\0';
             const char snStrTable[10] = ".shstrtab";
@@ -200,6 +316,11 @@ private:
             const char snNote[21] = ".note.intelgt.compat";
             const char snSym[8] = ".symtab";
             const char kernelEntry[7] = "_entry";
+            const char snDebugInfo[17] = ".rela.debug_info";
+            const char snDebugAbbrev[14] = ".debug_abbrev";
+            const char snDebugLine[17] = ".rela.debug_line";
+            const char snDebugLineStr[16] = ".debug_line_str";
+            const char snDebugStr[11] = ".debug_str";
             const char snText[6] = {'.', 't', 'e', 'x', 't', '.'};
         } stringTable;
 
@@ -207,13 +328,23 @@ private:
             return (sz + 0xF) & ~0xF;
         }
 
-        ZebinELF(size_t szKernelName, size_t szMetadata, size_t szKernel, size_t offKernelEntry) {
+        ZebinELF(size_t szKernelName, size_t szMetadata, size_t szKernel, size_t offKernelEntry,
+                 size_t szDebugLine, size_t szDebugLineStr, uint32_t file1, uint32_t subProgramLine) {
             fileHeader.size = sizeof(fileHeader);
             fileHeader.sectionHeaderSize = sizeof(SectionHeader);
             fileHeader.sectionTableOff = offsetof(ZebinELF, sectionHeaders);
             fileHeader.sectionCount = sizeof(sectionHeaders) / sizeof(SectionHeader);
 
             fileHeader.flags.all = 0;
+
+            debugInfo.CUHeader.unitLength = sizeof(debugInfo) - sizeof(debugInfo.CUHeader.unitLength);
+            debugInfo.CU.name = file1;
+            debugInfo.CU.lineTable = 0; // Offset into .debug_line, currently always 0
+            debugInfo.CU.high_pc = szKernel;
+
+            debugInfo.CU.subProgram.name = static_cast<uint32_t>(offsetof(StringTable, snText) + strlen(".text."));
+            debugInfo.CU.subProgram.line = subProgramLine;
+            debugInfo.CU.subProgram.high_pc = szKernel;
 
             sectionHeaders[0].name = 0;
             sectionHeaders[0].type = SectionHeader::Type::Null;
@@ -264,6 +395,48 @@ private:
             symTable[2].size = 0;
 
             noteGfxCore.payload = static_cast<uint32_t>(npack::encodeGfxCoreFamily(hw));
+
+
+            sectionHeaders[6].name = offsetof(StringTable, snDebugInfo) + 5;
+            sectionHeaders[6].type = SectionHeader::Type::Program;
+            sectionHeaders[6].offset = offsetof(ZebinELF, debugInfo);
+            sectionHeaders[6].size = sizeof(debugInfo);
+
+            sectionHeaders[7].name = offsetof(StringTable, snDebugAbbrev);
+            sectionHeaders[7].type = SectionHeader::Type::Program;
+            sectionHeaders[7].offset = offsetof(ZebinELF, debugAbbrev);
+            sectionHeaders[7].size = sizeof(debugAbbrev);
+
+            sectionHeaders[8] = sectionHeaders[1]; /* Dup of strtab */
+            sectionHeaders[8].name = offsetof(StringTable, snDebugStr);
+            sectionHeaders[8].type = SectionHeader::Type::Program;
+
+            sectionHeaders[9].name = offsetof(StringTable, snDebugLine) + 5;
+            sectionHeaders[9].type = SectionHeader::Type::Program;
+            sectionHeaders[9].offset = sectionHeaders[3].offset + align(szKernel);
+            sectionHeaders[9].size = szDebugLine;
+
+            sectionHeaders[10].name = offsetof(StringTable, snDebugLineStr);
+            sectionHeaders[10].type = SectionHeader::Type::Program;
+            sectionHeaders[10].offset = sectionHeaders[9].offset + align(szDebugLine);
+            sectionHeaders[10].size = szDebugLineStr;
+
+            sectionHeaders[11].name = offsetof(StringTable, snDebugLine);
+            sectionHeaders[11].type = SectionHeader::Type::RelocationWithAddend;
+            sectionHeaders[11].offset = sectionHeaders[10].offset + align(szDebugLineStr);
+            sectionHeaders[11].size = sizeof(Rela);
+            sectionHeaders[11].link = 5; // Symbol table header index
+            sectionHeaders[11].info = 9; // Debug Line header index
+            sectionHeaders[11].entrySize = sizeof(Rela);
+
+            sectionHeaders[12].name = offsetof(StringTable, snDebugInfo);
+            sectionHeaders[12].type = SectionHeader::Type::RelocationWithAddend;
+            sectionHeaders[12].offset = sectionHeaders[11].offset + align(sectionHeaders[11].size);
+            sectionHeaders[12].size = 4*sizeof(Rela);
+            sectionHeaders[12].link = 5; // Symbol table header index
+            sectionHeaders[12].info = 6; // Debug Line header index
+            sectionHeaders[12].entrySize = sizeof(Rela);
+
         }
 
         static size_t kernelNameOffset() {
@@ -350,7 +523,7 @@ template <typename... Targs> NGEN_NAMESPACE::Subregister getArgumentIfExists(Tar
 template <typename... Targs> int getArgumentSurface(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getArgumentSurface(std::forward<Targs>(args)...); } \
 template <typename... Targs> int getArgumentSurfaceIfExists(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getArgumentSurfaceIfExists(std::forward<Targs>(args)...); } \
 template <typename... Targs> NGEN_NAMESPACE::GRF getLocalID(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getLocalID(std::forward<Targs>(args)...); } \
-template <typename... Targs> NGEN_NAMESPACE::RegData getSIMD1LocalID(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getSIMD1LocalID(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::Subregister getSIMD1LocalID(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getSIMD1LocalID(std::forward<Targs>(args)...); } \
 template <typename... Targs> NGEN_NAMESPACE::Subregister getLocalSize(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getLocalSize(std::forward<Targs>(args)...); } \
 void prologue() { NGEN_NAMESPACE::ELFCodeGenerator<hw>::prologue(); } \
 void epilogue(const NGEN_NAMESPACE::RegData &r0_info = NGEN_NAMESPACE::RegData()) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::epilogue(r0_info); }
@@ -384,19 +557,48 @@ std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary(const std::vector<uint8_t> 
     // Generate metadata.
     metadata = interface_.generateZeInfo();
 
+    auto debugLine_ = super::debugLine.createDebugLine();
+    std::vector<char> debugLine = debugLine_.first;
+    uint64_t kernelRela = 1 | (1ull << 32);
+    typename ZebinELF::Rela debugLineRelocation = {
+        debugLine_.second, kernelRela, 0};
+    const std::vector<char> &debugLineStr = super::debugLine.getDebugLineStr();
+    uint32_t file1 = super::debugLine.fileEntries[1].strTableOffset;
+
+
+    std::array<typename ZebinELF::Rela, 4> debugInfoRelocation;
+    debugInfoRelocation[0] = {offsetof(typename ZebinELF::DebugInfo, CU.low_pc) , kernelRela, 0};
+    debugInfoRelocation[1] = {offsetof(typename ZebinELF::DebugInfo, CU.high_pc), kernelRela, kernel.size()};
+    debugInfoRelocation[2] = {offsetof(typename ZebinELF::DebugInfo, CU.subProgram.low_pc), kernelRela, 0};
+    debugInfoRelocation[3] = {offsetof(typename ZebinELF::DebugInfo, CU.subProgram.high_pc), kernelRela, kernel.size()};
+
     // Construct ELF.
     size_t paddedSzKernelName = interface_.getExternalName().length() + 1;
     size_t paddedSzELF = ZebinELF::align(sizeof(ZebinELF) + paddedSzKernelName);
     size_t paddedSzMetadata = ZebinELF::align(metadata.size());
     size_t paddedSzKernel = ZebinELF::align(kernel.size());
+    size_t paddedSzDebugLine = ZebinELF::align(debugLine.size());
+    size_t paddedSzDebugLineStr = ZebinELF::align(debugLineStr.size());
+    size_t paddedSzRelDebugLine = ZebinELF::align(sizeof(debugLineRelocation));
+    size_t paddedSzRelDebugInfo = ZebinELF::align(sizeof(debugInfoRelocation));
 
-    binary.resize(paddedSzELF + paddedSzMetadata + paddedSzKernel);
+    binary.resize(paddedSzELF + paddedSzMetadata + paddedSzKernel + paddedSzDebugLine + paddedSzDebugLineStr + paddedSzRelDebugLine + paddedSzRelDebugInfo);
 
-    (void) new(binary.data()) ZebinELF(paddedSzKernelName, metadata.size(), kernel.size(), interface_.getSkipCrossThreadOffset());
+    (void) new(binary.data()) ZebinELF(paddedSzKernelName, metadata.size(), kernel.size(), interface_.getSkipCrossThreadOffset(),
+                                       debugLine.size(), debugLineStr.size(), file1, super::debugLine.programLine);
     utils::copy_into(binary, ZebinELF::kernelNameOffset(), interface_.getExternalName());
-    utils::copy_into(binary, paddedSzELF, metadata);
-    utils::copy_into(binary, paddedSzELF + paddedSzMetadata, kernel);
-
+    size_t offset = paddedSzELF;
+    utils::copy_into(binary, offset, metadata);
+    offset += paddedSzMetadata;
+    utils::copy_into(binary, offset, kernel);
+    offset += paddedSzKernel;
+    utils::copy_into(binary, offset, debugLine);
+    offset += paddedSzDebugLine;
+    utils::copy_into(binary, offset, debugLineStr);
+    offset += paddedSzDebugLineStr;
+    utils::copy_into(binary, offset, debugLineRelocation);
+    offset += paddedSzRelDebugLine;
+    utils::copy_into(binary, offset, debugInfoRelocation);
     return binary;
 }
 

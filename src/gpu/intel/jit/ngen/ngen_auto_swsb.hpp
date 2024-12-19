@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -541,7 +541,7 @@ inline bool contains(const DependencyRegion &dep1, const DependencyRegion &dep2)
 // Check if an ARF type needs SWSB tracking.
 inline bool trackableARF(ARFType type)
 {
-  return (type == ARFType::acc || type == ARFType::a || type == ARFType::s);
+    return (type == ARFType::acc || type == ARFType::a || type == ARFType::s);
 }
 
 // Distance in an in-order pipe after which a dependency can be ignored.
@@ -1105,7 +1105,7 @@ void DependencyTable<consumer>::dump() const
                         if (i > NPipes)
                             std::cerr << '?';
                         else
-                           std::cerr << "AFILMSCO"[i % (NPipes + 1)];
+                            std::cerr << "AFILMSCO"[i % (NPipes + 1)];
                         break;
                 }
                 std::cerr << ":\t";
@@ -1264,6 +1264,9 @@ inline BasicBlockList getBasicBlocks(HW hw, const Program &program)
         bb.opRegions.resize(bb.iend - bb.istart);
         std::array<bool, 4> ignoreDeps = {false};
 
+        DependencyRegion subDstRegion(hw);
+        subDstRegion.clear();
+
         for (uint32_t n = bb.istart; n < bb.iend; n++) {
             auto &regions = bb.opRegions[n - bb.istart];
             const auto &insn = program[n];
@@ -1274,6 +1277,13 @@ inline BasicBlockList getBasicBlocks(HW hw, const Program &program)
                     case Directive::ignoredep_src0: ignoreDeps[1] = true; break;
                     case Directive::ignoredep_src1: ignoreDeps[2] = true; break;
                     case Directive::ignoredep_src2: ignoreDeps[3] = true; break;
+                    case Directive::subdep_dst:
+#ifdef NGEN_SAFE
+                        if (!subDstRegion.empty())
+                            throw invalid_directive_exception();
+#endif
+                        insn.getOperandRegion(subDstRegion, 0);
+                        break;
                     case Directive::wrdep:
                         regions[1].hw = hw;
                         insn.getOperandRegion(regions[1], 0);
@@ -1287,6 +1297,11 @@ inline BasicBlockList getBasicBlocks(HW hw, const Program &program)
                 regions[srcN + 1].hw = hw;
                 if (ignoreDeps[srcN + 1] || !insn.getOperandRegion(regions[srcN + 1], srcN))
                     regions[srcN + 1].clear();
+            }
+
+            if (!subDstRegion.empty()) {
+                regions[0] = subDstRegion;
+                subDstRegion.clear();
             }
 
             ignoreDeps.fill(false);
@@ -1381,7 +1396,7 @@ inline bool arfNeedsSync(ARFType type)
 }
 
 // Get preferred SBID for a given GRF.
-inline uint8_t preferredSBID(int tokens, uint8_t base)
+inline uint8_t preferredSBID(int tokens, uint16_t base)
 {
     if (tokens >= 32)
         return (base >> 2) & 0x1F;
@@ -2135,6 +2150,7 @@ inline void propagate(std::vector<BasicBlock> &BBs)
 
                     // Dependency is new and was not consumed.
                     // Add to produce table unless it's already implied by existing producers.
+                    if (&bb == pred) return;    /* pathological case, skip */
                     newDep.label = age + 1;
                     if (bb.producers.insert(newDep)) {
                         done = false;
