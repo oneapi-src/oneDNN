@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Arm Ltd. and affiliates
+* Copyright 2021-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,6 +97,9 @@ struct acl_inner_product_fwd_t : public primitive_t {
             const bool is_fp32_ok = expect_data_types(f32, f32, f32, f32, undef)
                     && attr()->has_default_values(
                             smask_t::post_ops | smask_t::fpmath_mode, f32);
+            const bool is_bf16_ok
+                    = expect_data_types(bf16, bf16, bf16, bf16, undef)
+                    && attr()->has_default_values(smask_t::post_ops, bf16);
             const bool is_fp32_bf16_ok
                     = expect_data_types(f32, bf16, f32, f32, undef)
                     && attr()->has_default_values(
@@ -105,8 +108,8 @@ struct acl_inner_product_fwd_t : public primitive_t {
                     = utils::one_of(weights_format_kind_received,
                             format_kind::any, format_kind::blocked);
             const bool ok = is_fwd() && !has_zero_dim_memory()
-                    && utils::one_of(
-                            true, is_fp16_ok, is_fp32_ok, is_fp32_bf16_ok)
+                    && utils::one_of(true, is_fp16_ok, is_fp32_ok,
+                            is_fp32_bf16_ok, is_bf16_ok)
                     && is_weights_md_format_ok
                     && set_default_params(true) == status::success;
 
@@ -253,8 +256,11 @@ struct acl_inner_product_fwd_t : public primitive_t {
 
             // Fallback
             int block_by = arm_compute::block_by(expected_weight_format);
+            bool is_bf16 = src_md()->data_type == data_type::bf16
+                    && weights_md()->data_type == data_type::bf16
+                    && dst_md()->data_type == data_type::bf16;
             if (is_4d && weights_md_.dims[inner_dim] % block_by != 0
-                    && aip.fc_info.enable_fast_math) {
+                    && (aip.fc_info.enable_fast_math || is_bf16)) {
                 aip.fc_info.enable_fast_math = false;
                 aip.weights_info.set_weight_format(
                         arm_compute::WeightFormat::ANY);
