@@ -1523,7 +1523,11 @@
 #endif
 
 #ifdef DST_SCALES_DATA_T
-#if DST_SCALES_DT_F16
+#if DST_SCALES_DT_HF8
+#define DST_SCALES_TO_REF(x) convert_float(cvt_f8_e4m3_to_hf(x))
+#elif DST_SCALES_DT_BF8
+#define DST_SCALES_TO_REF(x) convert_float(cvt_f8_e5m2_to_hf(x))
+#elif DST_SCALES_DT_F16
 #define DST_SCALES_TO_REF(x) convert_float(x)
 #elif DST_SCALES_DT_BF16
 #define DST_SCALES_TO_REF(x) cvt_bf16_to_f32(x)
@@ -1535,7 +1539,11 @@
 #endif
 
 #ifdef WEI_SCALES_DATA_T
-#if WEI_SCALES_DT_F16
+#if WEI_SCALES_DT_HF8
+#define WEI_SCALES_TO_REF(x) convert_float(cvt_f8_e4m3_to_hf(x))
+#elif WEI_SCALES_DT_BF8
+#define WEI_SCALES_TO_REF(x) convert_float(cvt_f8_e5m2_to_hf(x))
+#elif WEI_SCALES_DT_F16
 #define WEI_SCALES_TO_REF(x) convert_float(x)
 #elif WEI_SCALES_DT_BF16
 #define WEI_SCALES_TO_REF(x) cvt_bf16_to_f32(x)
@@ -1545,7 +1553,11 @@
 #endif
 
 #ifdef SRC_SCALES_DATA_T
-#if SRC_SCALES_DT_F16
+#if SRC_SCALES_DT_HF8
+#define SRC_SCALES_TO_REF(x) convert_float(cvt_f8_e4m3_to_hf(x))
+#elif SRC_SCALES_DT_BF8
+#define SRC_SCALES_TO_REF(x) convert_float(cvt_f8_e5m2_to_hf(x))
+#elif SRC_SCALES_DT_F16
 #define SRC_SCALES_TO_REF(x) convert_float(x)
 #elif SRC_SCALES_DT_BF16
 #define SRC_SCALES_TO_REF(x) cvt_bf16_to_f32(x)
