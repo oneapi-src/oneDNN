@@ -20,6 +20,7 @@
 
 import argparse
 import subprocess
+import re
 
 # * Ensuring the scopes end in colon and same level scopes are comma delimited.
 # TODO: Limit scopes to an acceptable list of tags.
@@ -36,7 +37,7 @@ def __scopeCheck(msg: str):
     scopesArray = firstLine.split(":")[:-1]
 
     for scopes in scopesArray:
-        numWords = len(scopes.split())
+        numWords = len(re.split(',| ', scopes))
         numCommas = scopes.count(",")
 
         if numWords != numCommas + 1:
