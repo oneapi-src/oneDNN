@@ -85,6 +85,7 @@ struct attr_info_t {
     bool with_dst_scales;
     bool src_scales_mask;
     bool wei_scales_mask;
+    bool dst_scales_mask;
 
     bool with_src_zpoints;
     bool with_wei_zpoints;

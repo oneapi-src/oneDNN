@@ -679,7 +679,19 @@ public:
         ir_assert(dst.type() == ngen::DataType::f);
         ir_assert(src0.type() == ngen::DataType::f);
         ir_assert(src1.type() == ngen::DataType::f);
-        ir_assert(src1.reg_data().getHS() == 0);
+
+        if (src1.reg_data().getHS() != 0) {
+            int nregs = std::max(1, (mod.getExecSize() * 4) / grf_size);
+            auto s1 = src1.reg_data();
+            auto tmp_range_ = ra_.alloc_range(nregs);
+            auto tmp = tmp_range_[0].retype(s1.getType());
+            auto t1 = tmp.f(s1.getOffset())
+                              .setRegion(s1.getVS(), s1.getWidth(), s1.getHS());
+            inv(mod, t1, s1);
+            emul(mod, dst.reg_data(), src0.reg_data(), t1);
+            ra_.safeRelease(tmp);
+            return;
+        }
 
         // fdiv_ieee() is not supported in XeHPG so we use a less precise, inv-based sequence.
         if (hw < ngen::HW::XeHPC) {
