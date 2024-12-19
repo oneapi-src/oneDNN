@@ -242,14 +242,14 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
         auto scale_dt = key_scales_dt();
         problem_kq.Ta_scale = jit::convert_dnnl_to_kernel_type(scale_dt);
         problem_kq.A_scale.alignment = uint8_t(types::data_type_size(scale_dt));
-        problem_kq.A_scale.layout = MatrixLayout::T;
+        problem_kq.A_scale.layout = MatrixLayout::N;
         problem_kq.aScale2D = true;
     }
     if (with_key_zp()) {
         auto zp_dt = key_zp_dt();
         problem_kq.Tao = jit::convert_dnnl_to_kernel_type(zp_dt);
         problem_kq.AO.alignment = uint8_t(types::data_type_size(zp_dt));
-        problem_kq.AO.layout = MatrixLayout::T;
+        problem_kq.AO.layout = MatrixLayout::N;
         problem_kq.aoPtrDims = kq_common_zp ? 0 : 2;
         problem_kq.aOffset = ABOffset::Calc;
     }
@@ -264,7 +264,10 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
 
     problem_kq.B.layout = MatrixLayout::Pr;
     problem_kq.C.layout = MatrixLayout::T;
-    problem_kq.A.setAlignment(alignmentForLD(d->head_size() * problem.Ta));
+    const memory_desc_wrapper key_mdw(key_md());
+    auto ldk = static_cast<int>(
+            gemm_desc_t::get_ld(*key_md()) * key_mdw.data_type_size());
+    problem_kq.A.setAlignment(alignmentForLD(ldk));
     problem_kq.B.setAlignment(64); // Q is packed in VNNI format in SLM
     problem_kq.B.crosspack = 2;
     problem_kq.B.tileR = into<uint16_t>(d_max());
@@ -331,7 +334,10 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
 
     problem_vs.B.layout = MatrixLayout::Pr;
     problem_vs.C.layout = MatrixLayout::N;
-    problem_vs.A.setAlignment(alignmentForLD(d->head_size() * problem.Ta));
+    const memory_desc_wrapper val_mdw(val_md());
+    auto ldv = static_cast<int>(
+            gemm_desc_t::get_ld(*val_md()) * val_mdw.data_type_size());
+    problem_vs.A.setAlignment(alignmentForLD(ldv));
     problem_vs.B.setAlignment(64); // S is packed in SLM
     problem_vs.B.crosspack = 16;
     sizes.m = d->values();
@@ -407,6 +413,7 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     auto ldk = gemm_desc_t::get_ld(*pd()->key_md()) * key_mdw.data_type_size();
     auto ldv = gemm_desc_t::get_ld(*pd()->val_md()) * val_mdw.data_type_size();
     auto lda = gemm_desc_t::get_ld(*pd()->dst_md()) * dst_mdw.data_type_size();
+    auto ldmsk = pd()->attn_mask_md()->dims[3] * msk_mdw.data_type_size();
     kernel_ctx.define_int("Q_ALIGN", jit::alignmentForLD(int(ldq)));
     kernel_ctx.define_int("K_ALIGN", jit::alignmentForLD(int(ldk)));
     kernel_ctx.define_int("V_ALIGN", jit::alignmentForLD(int(ldv)));
@@ -477,6 +484,7 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     if (d_full) {
         if (ldq % 4 == 0) kernel_ctx.define_int("BLOCK_Q", 1);
         if (lda % 4 == 0 && v_full) kernel_ctx.define_int("BLOCK_A", 1);
+        if (ldmsk % 4 == 0) kernel_ctx.define_int("BLOCK_MSK", 1);
         kernel_ctx.define_int("REMAINDER_Q", (d->queries() % tile_q) != 0);
     } else if (pd()->arch() >= compute::gpu_arch_t::xe_hpc) {
         auto vbytes = d->values() * val_mdw.data_type_size();
