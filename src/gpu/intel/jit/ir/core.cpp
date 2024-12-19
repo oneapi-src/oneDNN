@@ -234,6 +234,10 @@ type_t binary_op_type(op_kind_t op_kind, const type_t &a, const type_t &b,
         if (is_const(b_expr)) return a;
         return (a.size() >= b.size()) ? a : b;
     }
+    if (utils::one_of(op_kind, op_kind_t::_div, op_kind_t::_mod) && a.is_int()
+            && b.is_int()) {
+        return (a.is_signed() ? type_t::s32() : type_t::u32());
+    }
     return common_type(a, b);
 }
 
@@ -662,6 +666,20 @@ object_t ir_mutator_t::_mutate(const unary_op_t &obj) {
 
 void ir_visitor_t::_visit(const unary_op_t &obj) {
     visit(obj.a);
+}
+
+object_t ir_mutator_t::_mutate(const while_t &obj) {
+    auto cond = mutate(obj.cond);
+    auto body = mutate(obj.body);
+
+    if (cond.is_same(obj.cond) && body.is_same(obj.body)) return obj;
+
+    return while_t::make(cond, body);
+}
+
+void ir_visitor_t::_visit(const while_t &obj) {
+    visit(obj.cond);
+    visit(obj.body);
 }
 
 // Catch missing mutates that are not expected to dispatch to the base

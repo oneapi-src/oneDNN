@@ -56,9 +56,6 @@ public:
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    status_t init_res_storage(
-            impl::engine_t *engine, gpu_resource_t *r) const override;
-
     std::shared_ptr<gen_convolution_t> impl_;
 };
 
@@ -85,9 +82,6 @@ public:
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
-    status_t init_res_storage(
-            impl::engine_t *engine, gpu_resource_t *r) const override;
 
     std::shared_ptr<gen_convolution_t> impl_;
 };
@@ -116,9 +110,6 @@ public:
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
-    status_t init_res_storage(
-            impl::engine_t *engine, gpu_resource_t *r) const override;
 
     std::shared_ptr<gen_convolution_t> impl_;
 };

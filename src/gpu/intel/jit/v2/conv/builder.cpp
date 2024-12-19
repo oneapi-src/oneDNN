@@ -19,6 +19,7 @@
 #include <sstream>
 
 #include "gpu/intel/jit/ir/ir.hpp"
+#include "gpu/intel/jit/ir/ir_builder.hpp"
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/pass/dpas.hpp"
@@ -53,9 +54,9 @@ public:
     stmt_t init_stmt() const {
         stmt_t ret;
         for (int i = 0; i < nloops(); i++) {
-            ret = ret.append(loop_idxs_[i].store(0));
+            ret = ret.append(loop_idxs_[i].store(loop_nest_[i].init));
         }
-        ret = linear_idx_.store(linear_bound() - 1).append(ret);
+        ret = linear_idx_.store(loop_nest_.linear_bound() - 1).append(ret);
         return ret;
     }
 
@@ -72,7 +73,7 @@ public:
             stmt = stmt.append(off_ctx.inc_loop_stmt(i));
             if (i + 1 < nloops())
                 stmt = stmt.append(if_t::make(
-                        loop_idxs_[i].var() >= loop_nest_[i].size, body));
+                        loop_idxs_[i].var() >= loop_nest_[i].bound, body));
             body = std::move(stmt);
         }
         body = linear_idx_.inc_stmt(-1).append(body);
@@ -98,18 +99,6 @@ private:
         expr_t var() const { return load_t::make(type_t::s32(), buf, 0); }
     };
 
-    expr_t linear_bound() const {
-        expr_t ret;
-        for (int i = 0; i < nloops(); i++) {
-            if (ret.is_empty()) {
-                ret = loop_nest_[i].size;
-            } else {
-                ret *= loop_nest_[i].size;
-            }
-        }
-        return ret;
-    }
-
     loop_nest_t loop_nest_;
     std::vector<loop_index_t> loop_idxs_;
     loop_index_t linear_idx_;
@@ -126,44 +115,37 @@ int get_reg_off(const send_1d_plan_t &plan, const pvar_coord_t<dim_t> &coord) {
 
 class idiv_fixup_mutator_t : public ir_mutator_t {
 public:
-    idiv_fixup_mutator_t(const kernel_info_t &kernel_info)
-        : kernel_info_(kernel_info) {}
+    idiv_fixup_mutator_t(var_manager_t &var_mgr) : var_mgr_(var_mgr) {}
 
-    object_t _mutate(const binary_op_t &obj) {
-        bool is_var_idiv = (obj.op_kind == op_kind_t::_div) && obj.type.is_int()
-                && !is_const(obj.b);
-        if (!is_var_idiv) return ir_mutator_t::_mutate(obj);
-        ir_assert(obj.b.is<const_var_t>())
-                << "Cannot handle integer division, expected const var to "
-                   "access magic value: "
-                << obj;
-        auto magic = kernel_info_.find_arg(obj.b.str() + "_magic");
+    object_t _mutate(const binary_op_t &_obj) {
+        auto new_obj = ir_mutator_t::_mutate(_obj);
+        auto &obj = new_obj.as<binary_op_t>();
+        bool is_var_idivmod
+                = utils::one_of(obj.op_kind, op_kind_t::_div, op_kind_t::_mod)
+                && obj.type.is_int() && !is_const(obj.b);
+        if (!is_var_idivmod) return new_obj;
+        auto magic = var_mgr_.get_idiv_magic(obj.b);
+        auto i_op = (obj.op_kind == op_kind_t::_div ? op_kind_t::_idiv
+                                                    : op_kind_t::_imod);
         return ternary_op_t::make(
-                op_kind_t::_idiv, obj.a, cast(obj.b, type_t::u32()), magic);
+                i_op, obj.a, cast(obj.b, type_t::u32()), magic);
     }
 
 private:
-    const kernel_info_t &kernel_info_;
+    var_manager_t &var_mgr_;
 };
 
-stmt_t fixup_idiv(const stmt_t &s, const kernel_info_t &kernel_info,
-        ir_context_t &ir_ctx) {
+stmt_t fixup_idiv(
+        const stmt_t &s, var_manager_t &var_mgr, ir_context_t &ir_ctx) {
     trace_start();
-    auto ret = idiv_fixup_mutator_t(kernel_info).mutate(s);
+    auto ret = idiv_fixup_mutator_t(var_mgr).mutate(s);
     trace_pass("fixup_idiv", ret, ir_ctx);
     return ret;
 }
 
 class var_replacer_t : public ir_mutator_t {
 public:
-    var_replacer_t(const kernel_info_t &kernel_info,
-            const grid_context_t &grid_ctx, const grid_t &tg_grid)
-        : kernel_info_(kernel_info) {
-        for (int i = 0; i < grid_ctx.ndims(); i++) {
-            auto tg_idx = tg_grid.index_var(i);
-            var_map_.emplace(tg_idx, grid_ctx.tg_idx(i));
-        }
-    }
+    var_replacer_t(var_manager_t &var_mgr) : var_mgr_(var_mgr) {}
     object_t _mutate(const var_t &obj) override {
         return map_var(obj.name, obj, /*is_const=*/false);
     }
@@ -184,20 +166,24 @@ private:
             const std::string &name, const expr_t &var, bool is_const_var) {
         auto it = var_map_.find(var);
         if (it != var_map_.end()) return it->second;
-        auto arg = kernel_info_.find_arg(name, /*allow_empty=*/!is_const_var);
+        expr_t arg;
+        if (!is_const_var) {
+            arg = var_mgr_.get_arg(name, /*allow_empty=*/true);
+        } else {
+            arg = var_mgr_.get_arg(var.type(), name);
+        }
         auto value = (arg.is_empty() ? var : arg);
         var_map_.emplace(var, value);
         return value;
     }
 
-    const kernel_info_t &kernel_info_;
+    var_manager_t &var_mgr_;
     object_map_t<expr_t, expr_t> var_map_;
 };
 
-stmt_t finalize_vars(const stmt_t &stmt, const kernel_info_t &kernel_info,
-        const grid_context_t &grid_ctx, const grid_t &tg_grid,
-        ir_context_t &ir_ctx) {
-    auto ret = var_replacer_t(kernel_info, grid_ctx, tg_grid).mutate(stmt);
+stmt_t finalize_vars(
+        const stmt_t &stmt, var_manager_t &var_mgr, ir_context_t &ir_ctx) {
+    auto ret = var_replacer_t(var_mgr).mutate(stmt);
     ret = inject_external_var_let(ret, ir_ctx);
     return ret;
 }
@@ -205,26 +191,30 @@ stmt_t finalize_vars(const stmt_t &stmt, const kernel_info_t &kernel_info,
 loop_nest_t make_loop_nest(
         const loop_desc_t &loop_desc, const coord_info_t &coord_info) {
     loop_nest_t ret;
+    expr_t linear_bound = 1;
     for (auto &e : loop_desc) {
         const auto &var = coord_info.loop_index(e.dim);
         const auto &size = coord_info.loop_size(e.dim);
         if (is_one(size)) continue;
-        ret.add_loop(e.dim, var, size);
+        expr_t init = 0;
+        linear_bound *= size;
+        ret.add_loop(e.dim, var, init, size);
     }
+    ret.set_linear_bound(linear_bound);
     return ret;
 }
 
 class buffer_info_t {
 public:
     buffer_info_t(buffer_manager_t &buf_mgr, const kernel_desc_t &desc,
-            const kernel_info_t &kernel_info, const x2r_fma_plan_t &plan) {
+            const var_manager_t &var_mgr, const x2r_fma_plan_t &plan) {
         for (auto &s : plan.stages) {
             if (!s.is_x2r()) continue;
             auto kind = s.x2r.tensor_kind;
             auto name = pick_abc(kind, desc.prop, "src", "wei", "dst");
             if (entries_.count(name) > 0) continue;
             auto &e = entries_[name];
-            e.mem_buf = kernel_info.find_arg(name);
+            e.mem_buf = var_mgr.get_arg(name);
             if (s.x2r.reorder) {
                 e.reg_buf = buf_mgr.get(
                         to_string(kind), s.x2r.reorder.dst.size());
@@ -235,7 +225,7 @@ public:
         }
         auto c_name = pick_c(desc.prop, "src", "wei", "dst");
         auto &c_e = entries_[c_name];
-        c_e.mem_buf = kernel_info.find_arg(c_name);
+        c_e.mem_buf = var_mgr.get_arg(c_name);
         c_e.reg_buf = buf_mgr.get("c", plan.c_layout.size());
         for (auto &abc :
                 {tensor_kind_t::a, tensor_kind_t::b, tensor_kind_t::c}) {
@@ -244,10 +234,11 @@ public:
         }
 
         if (desc.with_bias_fwd() || desc.with_bias_bwd_w()) {
-            auto &e = entries_["bia"];
-            e.mem_buf = kernel_info.find_arg("bia");
-            if (!plan.bia_layout.is_empty())
-                e.reg_buf = buf_mgr.get("bia_reduced", plan.bia_layout.size());
+            auto &e = entries_["bias"];
+            e.mem_buf = var_mgr.get_arg("bias");
+            if (!plan.bias_layout.is_empty())
+                e.reg_buf
+                        = buf_mgr.get("bias_reduced", plan.bias_layout.size());
         }
 
         for (size_t i = 0; i < desc.post_ops.len(); i++) {
@@ -255,7 +246,7 @@ public:
             if (po.is_binary()) {
                 std::string name = "binary_" + std::to_string(i);
                 auto &e = entries_[name];
-                e.mem_buf = kernel_info.find_arg(name);
+                e.mem_buf = var_mgr.get_arg(name);
             }
         }
     }
@@ -298,9 +289,9 @@ public:
                 if (s.x2r.tensor_kind == tensor_kind_t::b) {
                     uint32_t mask = (1 << 1) | (1 << 2);
                     auto &b_buf = buf_info_.reg_buf("b");
-                    if (!s.x2r.bia_layout.is_empty()) {
-                        reduce(s.x2r.layout, s.x2r.bia_layout, b_buf,
-                                buf_info_.reg_buf("bia"), mask);
+                    if (!s.x2r.bias_layout.is_empty()) {
+                        reduce(s.x2r.layout, s.x2r.bias_layout, b_buf,
+                                buf_info_.reg_buf("bias"), mask);
                     }
                 }
             }
@@ -538,54 +529,29 @@ private:
     const kernel_desc_t &desc_;
 };
 
-class epilogue_builder_t : public ir_builder_t {
+class epilogue_tile_builder_t : public ir_builder_t {
 public:
-    epilogue_builder_t(ir_builder_t &parent, const buffer_info_t &buf_info,
-            const kernel_desc_t &desc, const epilogue_plan_t &plan)
+    epilogue_tile_builder_t(ir_builder_t &parent, const buffer_info_t &buf_info,
+            const kernel_desc_t &desc, const layout_t &c_layout,
+            const expr_t &c_mem_buf, const expr_t &c_reg_buf,
+            const pvar_coord_t<expr_t> &c_coord,
+            const pvar_coord_t<dim_t> &coord,
+            const epilogue_store_plan_t &store_plan)
         : ir_builder_t(parent, loop_nest_t())
         , buf_info_(buf_info)
-        , desc_(desc)
-        , plan_(plan) {
-        build_slm_reduce();
-        build_c_store();
-        build_bias_reduce_store();
+        , desc_(desc) {
+        dim_t off = c_layout.offset_in_bytes(coord);
+        auto store_layout
+                = store_plan.c_store.reg_layout().map(store_plan.tile);
+        layout_t payload_layout = store_layout;
+        auto payload_buf = build_post_ops(c_layout.map(store_plan.tile),
+                c_coord + coord, c_reg_buf + off, payload_layout);
+        payload_buf = reorder(payload_layout, store_layout, payload_buf);
+        store(store_plan.c_store, c_mem_buf, payload_buf, coord,
+                store_plan.tile);
     }
 
 private:
-    void build_slm_reduce() {
-        auto &slm_reduce = plan_.slm_reduce;
-        if (!slm_reduce) return;
-
-        auto &c_buf = buf_info_.reg_buf("c");
-        auto c_tmp_buf = alloc("c_reduce", slm_reduce.load.reg_layout().size());
-        auto c_slm_buf = alloc("slm", slm_reduce.slm_usage_bytes());
-        store(slm_reduce.store, c_slm_buf, c_buf);
-        barrier();
-        load(slm_reduce.load, c_slm_buf, c_tmp_buf);
-        zero_out(c_buf);
-        reduce(slm_reduce.reduce, c_tmp_buf, c_buf);
-    }
-
-    void build_c_store() {
-        auto &c_layout = plan_.c_reg_layout;
-        auto &c_mem_buf = buf_info_.mem_buf("c");
-        auto &c_reg_buf = buf_info_.reg_buf("c");
-        for_each(c_layout.int_dim_sizes(), plan_.tile,
-                [&](const pvar_coord_t<dim_t> &coord) {
-                    dim_t off = c_layout.offset_in_bytes(coord);
-                    auto store_layout
-                            = plan_.c_store.reg_layout().map(plan_.tile);
-                    layout_t payload_layout = store_layout;
-                    auto payload_buf = build_post_ops(c_layout.map(plan_.tile),
-                            plan_.c_coord + coord, c_reg_buf + off,
-                            payload_layout);
-                    payload_buf = reorder(
-                            payload_layout, store_layout, payload_buf);
-                    store(plan_.c_store, c_mem_buf, payload_buf, coord,
-                            plan_.tile);
-                });
-    }
-
     static uint16_t reverse_post_op_mask(uint16_t mask, int ndims) {
         uint16_t ret = 0;
         for (int i = 0; i < ndims; i++) {
@@ -626,7 +592,7 @@ private:
                 desc_.prop, desc_.src_tag, desc_.wei_tag, desc_.dst_tag);
         if (desc_.with_bias_fwd()) {
             build_post_op(coord, tile, alg_kind::binary_add, nullptr,
-                    f32_layout, buf, buf_info_.mem_buf("bia"), desc_.bias_type,
+                    f32_layout, buf, buf_info_.mem_buf("bias"), desc_.bias_type,
                     /*rhs_mask=*/0x2);
         }
         for (size_t i = 0; i < desc_.post_ops.len(); i++) {
@@ -656,20 +622,68 @@ private:
         return buf;
     }
 
+    const buffer_info_t &buf_info_;
+    const kernel_desc_t &desc_;
+};
+
+class epilogue_builder_t : public ir_builder_t {
+public:
+    epilogue_builder_t(ir_builder_t &parent, const buffer_info_t &buf_info,
+            const kernel_desc_t &desc, const epilogue_plan_t &plan)
+        : ir_builder_t(parent, loop_nest_t())
+        , buf_info_(buf_info)
+        , desc_(desc)
+        , plan_(plan) {
+        build_slm_reduce();
+        build_c_store();
+        build_bias_reduce_store();
+    }
+
+private:
+    void build_slm_reduce() {
+        auto &slm_reduce = plan_.slm_reduce;
+        if (!slm_reduce) return;
+
+        auto &c_buf = buf_info_.reg_buf("c");
+        auto c_tmp_buf = alloc("c_reduce", slm_reduce.load.reg_layout().size());
+        auto c_slm_buf = alloc("slm", slm_reduce.slm_usage_bytes());
+        store(slm_reduce.store, c_slm_buf, c_buf);
+        barrier();
+        load(slm_reduce.load, c_slm_buf, c_tmp_buf);
+        zero_out(c_buf);
+        reduce(slm_reduce.reduce, c_tmp_buf, c_buf);
+    }
+
+    void build_c_store() {
+        auto &store_plan = plan_.store;
+        auto &c_layout = plan_.c_reg_layout;
+        auto &c_mem_buf = buf_info_.mem_buf("c");
+        auto &c_reg_buf = buf_info_.reg_buf("c");
+        for_each(c_layout.int_dim_sizes(), store_plan.tile,
+                [&](const pvar_coord_t<dim_t> &coord) {
+                    epilogue_tile_builder_t builder(*this, buf_info_, desc_,
+                            c_layout, c_mem_buf, c_reg_buf, plan_.c_coord,
+                            coord, store_plan);
+                    emit(builder.get_init_stmt());
+                    emit(builder.get_stmt());
+                });
+    }
+
     void build_bias_reduce_store() {
-        if (plan_.bia_reduced_reg_layout.is_empty()) return;
-        auto &bia_red_mem_buf = buf_info_.mem_buf("bia");
-        auto &bia_red_reg_buf = buf_info_.reg_buf("bia");
+        if (plan_.bias_layout.is_empty()) return;
+        auto &store_plan = plan_.store;
+        auto &bias_red_mem_buf = buf_info_.mem_buf("bias");
+        auto &bias_red_reg_buf = buf_info_.reg_buf("bias");
         expr_t tmp_buf;
-        if (plan_.bia_reorder)
-            tmp_buf = alloc("bia_tmp", plan_.bia_reorder.dst.size());
-        auto payload_buf = bia_red_reg_buf;
-        if (plan_.bia_reorder) {
-            reorder(plan_.bia_reorder, bia_red_reg_buf, tmp_buf);
+        if (store_plan.bias_reorder)
+            tmp_buf = alloc("bias_tmp", store_plan.bias_reorder.dst.size());
+        auto payload_buf = bias_red_reg_buf;
+        if (store_plan.bias_reorder) {
+            reorder(store_plan.bias_reorder, bias_red_reg_buf, tmp_buf);
             payload_buf = std::move(tmp_buf);
         }
-        _if(plan_.reduce_cond, [&]() {
-            store(plan_.bia_store, bia_red_mem_buf, payload_buf);
+        _if(plan_.bias_reduce_cond, [&]() {
+            store(store_plan.bias_store, bias_red_mem_buf, payload_buf);
         });
     }
 
@@ -681,26 +695,29 @@ private:
 class conv_builder_t : public ir_builder_t {
 public:
     conv_builder_t(ir_context_t &ir_ctx, const kernel_desc_t &desc,
-            const kernel_info_t &kernel_info, const grid_context_t &grid_ctx,
-            const plan_t &plan)
-        : ir_builder_t(kernel_info, ir_ctx)
+            var_manager_t &var_mgr, const plan_t &plan)
+        : ir_builder_t(ir_ctx)
         , desc_(desc)
-        , grid_ctx_(grid_ctx)
+        , var_mgr_(var_mgr)
         , plan_(plan)
-        , buf_info_(buf_mgr(), desc, kernel_info, plan.x2r_fma)
-        , loop_nest_(make_loop_nest(desc_.loop_desc, plan_.coord_info)) {
+        , buf_info_(buf_mgr(), desc, var_mgr, plan.x2r_fma) {
+        emit_thread_index_let();
+        emit_thread_group_index_let();
         loop();
         epilogue();
 
         auto _stmt = get_stmt();
         _stmt = inject_alloc_stmts(_stmt, buf_mgr());
+        _stmt = inject_dangling_let_stmts(_stmt);
         _stmt = off_scope().inject_let_stmts(_stmt);
         _stmt = inject_global_alloc(_stmt);
-        _stmt = inject_index_let(_stmt);
-        _stmt = fixup_idiv(_stmt, kernel_info, ir_ctx);
-        _stmt = finalize_vars(
-                _stmt, kernel_info, grid_ctx_, plan_.tg_grid, ir_ctx);
-
+        _stmt = fixup_idiv(_stmt, var_mgr, ir_ctx);
+        _stmt = finalize_vars(_stmt, var_mgr, ir_ctx);
+        _stmt = merge_slm_buffers(_stmt, ir_ctx);
+        _stmt = inject_slm_reorder(_stmt, ir_ctx,
+                to_grid_info(plan_.thr_grid, desc_.thread_group_tile),
+                /*has_slm_usage=*/(bool)plan_.epilogue.slm_reduce);
+        _stmt = inject_send(_stmt, ir_ctx);
         _stmt = simplify(_stmt, ir_ctx);
         _stmt = optimize_alloc_let(_stmt, ir_ctx);
         _stmt = split_wide_stores(_stmt, ir_ctx);
@@ -712,24 +729,26 @@ public:
 
 private:
     void loop() {
+        auto &loop_desc = desc_.loop_desc;
+        auto &coord_info = plan_.coord_info;
+        auto loop_nest = make_loop_nest(loop_desc, coord_info);
         prefetch_builder_t prefetch_builder(
-                *this, loop_nest_, buf_info_, plan_.prefetch);
+                *this, loop_nest, buf_info_, plan_.prefetch);
         x2r_mul_builder_t x2r_mul_builder(
-                *this, loop_nest_, buf_info_, desc_, plan_.x2r_fma);
+                *this, loop_nest, buf_info_, desc_, plan_.x2r_fma);
 
         zero_out(buf_info_.reg_buf("c"));
-        if (!buf_info_.reg_buf("bia").is_empty())
-            zero_out(buf_info_.reg_buf("bia"));
+        if (!buf_info_.reg_buf("bias").is_empty())
+            zero_out(buf_info_.reg_buf("bias"));
 
         emit(x2r_mul_builder.get_init_stmt());
         emit(prefetch_builder.get_init_stmt());
-        auto &coord_info = plan_.coord_info;
         int prefetch_dist = desc_.prefetch.dist;
         auto x2r_mul_stmt = x2r_mul_builder.get_stmt();
         auto prefetch_stmt = prefetch_builder.get_stmt();
         iterator_t prefetch_it;
         if (prefetch_dist > 0) {
-            prefetch_it = iterator_t(buf_mgr(), loop_nest_);
+            prefetch_it = iterator_t(buf_mgr(), loop_nest);
             emit(prefetch_it.init_stmt());
             for (int i = 0; i < prefetch_dist; i++) {
                 auto i_prefetch_stmt = prefetch_stmt;
@@ -753,16 +772,15 @@ private:
                     emit(prefetch_it.inc_stmt(prefetch_builder.off_ctx()));
                 }
                 return;
-            };
-            auto &loop = loop_nest_[i - 1];
+            }
+            auto &loop = loop_nest[i - 1];
             const auto &var = coord_info.loop_index(loop.dim);
-            const auto &bound = loop.size;
-            _for(var, 0, bound, [&]() {
+            _for(var, 0, loop.bound, [&]() {
                 emit_loop(i - 1);
                 emit(x2r_mul_builder.off_ctx().inc_loop_stmt((int)loop.idx));
             });
         };
-        emit_loop(loop_nest_.nloops());
+        emit_loop(loop_nest.nloops());
     }
 
     void epilogue() {
@@ -773,69 +791,65 @@ private:
 
     stmt_t inject_global_alloc(const stmt_t &stmt) const {
         std::vector<stmt_t> allocs;
-        for (int i = 0; i < kernel_info().nargs(); i++) {
-            auto &var = kernel_info().arg_var(i);
-            if (!var.type().is_ptr()) continue;
+        for (auto &var : var_mgr_.ptr_args()) {
             allocs.push_back(alloc_t::make(var, 0, alloc_kind_t::global));
         }
         return inject_alloc_stmts(stmt, allocs);
     }
 
-    stmt_t inject_index_let(const stmt_t &stmt) const {
-        auto &tg_grid = plan_.tg_grid;
-        auto &coord_info = plan_.coord_info;
-        stmt_t ret = stmt;
-        for (auto &d : conv_index_dims(plan_.desc.prop)) {
-            const auto &tg_idx = coord_info.tg_index(d);
-            if (is_const(tg_idx)) continue;
-            auto base_tg_idx = tg_grid.index_var(d);
-            if (base_tg_idx.is_empty()) continue;
-            auto value = unpack_tg_index(d);
-            ret = let_t::make(tg_idx, value, ret);
-        }
-        for (auto &kv : plan_.virt_grid.idxs()) {
-            ret = let_t::make(kv.first, kv.second, ret);
-        }
-        for (int i = 0; i < grid_ctx_.ndims(); i++) {
-            auto value = grid_ctx_.local_id(i);
+    void emit_thread_index_let() {
+        for (int i = 0; i < 3; i++) {
+            auto value = jit::ir_builder_t::local_ids()[i];
             if (i == 0) value /= plan_.desc.simd;
             auto thr_idx = plan_.thr_grid.index_var(i);
-            ret = let_t::make(thr_idx, cast(value, thr_idx.type()), ret);
+            let(thr_idx, cast(value, thr_idx.type()));
         }
-        return ret;
+        for (auto &kv : plan_.virt_grid.idxs()) {
+            let(kv.first, kv.second);
+        }
     }
 
-    expr_t unpack_tg_index(const pvar_t &dim) const {
+    expr_t unpack_tg_index(const pvar_t &dim, const expr_t &base_idx) const {
         auto &tg_grid = plan_.tg_grid;
-        auto base_idx = tg_grid.index_var(dim);
-        if (base_idx.is_empty()) return expr_t();
-
-        expr_t value = std::move(base_idx);
+        expr_t value = base_idx;
         auto &dims = tg_grid.dims(tg_grid.index(dim));
         int ndims = (int)dims.size();
         for (int i = 0; i < ndims; i++) {
-            if (dims[i] == dim) break;
-            auto i_dim_size
-                    = kernel_info().find_arg(dims[i].str() + "_grid_size");
-            auto i_magic = kernel_info().find_arg(dims[i].str() + "_magic");
-            value = ternary_op_t::make(
-                    op_kind_t::_idiv, value, i_dim_size, i_magic);
+            if (dims[i] == dim) {
+                if (i == ndims - 1) return value;
+                break;
+            }
+            auto grid_size = var_mgr_.get_grid_size(dims[i].str());
+            value = value / grid_size;
         }
-        auto dim_size = kernel_info().find_arg(dim.str() + "_grid_size");
-        auto magic = kernel_info().find_arg(dim.str() + "_magic");
-        value = ternary_op_t::make(op_kind_t::_imod, value, dim_size, magic);
+        auto grid_size = var_mgr_.get_grid_size(dim.str());
+        value = value % grid_size;
         return value;
     }
 
+    void emit_thread_group_index_let(const expr_t &_base_tg_idx = {}) {
+        auto &tg_grid = plan_.tg_grid;
+        auto &coord_info = plan_.coord_info;
+        for (auto &d : conv_index_dims(plan_.desc.prop)) {
+            const auto &tg_idx = coord_info.tg_index(d);
+            if (is_const(tg_idx)) continue;
+            auto base_tg_idx
+                    = (!_base_tg_idx.is_empty() ? _base_tg_idx
+                                                : tg_grid.index_var(d));
+            if (base_tg_idx.is_empty()) continue;
+            auto value = unpack_tg_index(d, base_tg_idx);
+            let(tg_idx, value);
+        }
+    }
+
     kernel_desc_t desc_;
-    grid_context_t grid_ctx_;
+    var_manager_t &var_mgr_;
     plan_t plan_;
     buffer_info_t buf_info_;
-    loop_nest_t loop_nest_;
 };
 
-stmt_t build_ir(const kernel_desc_t &desc, const kernel_info_t &kernel_info,
-        const grid_context_t &grid_ctx) {
+stmt_t build_ir(const exec_config_t &exec_cfg, const kernel_desc_t &desc,
+        var_manager_t &var_mgr) {
     auto plan = create_conv_plan(desc);
     if (!plan) ir_except_not_implemented("Cannot create plan.");
 
@@ -843,8 +857,8 @@ stmt_t build_ir(const kernel_desc_t &desc, const kernel_info_t &kernel_info,
     ir_trace() << plan << std::endl;
 
     constraint_set_t cset;
-    ir_context_t ir_ctx(desc.exec_cfg(), cset);
-    conv_builder_t builder(ir_ctx, desc, kernel_info, grid_ctx, plan);
+    ir_context_t ir_ctx(exec_cfg, cset);
+    conv_builder_t builder(ir_ctx, desc, var_mgr, plan);
     auto stmt = builder.get_stmt();
     ir_trace() << "Convolution kernel body:\n" << stmt << std::endl;
     return stmt;

@@ -41,18 +41,15 @@ namespace v2 {
 namespace conv {
 
 void maybe_init_layout(
-        memory_desc_t &md, const layout_raw_tag_t &_tag, bool remove_a_dim) {
+        memory_desc_t &md, const layout_tag_t &_tag, bool remove_a_dim) {
     if (md.format_kind != format_kind::any) return;
-    auto tag = _tag;
-    dim_idx_t non_spatial_ndims = tag.ndims() - 3;
-    if (remove_a_dim) {
-        tag.remove_dim('a');
-        non_spatial_ndims--;
-    }
-    while (tag.ndims() > into<dim_idx_t>(md.ndims)) {
-        tag.remove_dim(dim_idx::as_tag(non_spatial_ndims));
-    }
-    jit::layout_t layout(md, tag.str(), /*do_normalize=*/false);
+    // This code sets the any memory descriptor as follows:
+    // - Blocking is set according to the tag from the kernel descriptor
+    // - Type is copied from the user descriptor
+    // XXX: When internal blocked layouts are added, this needs an adjustment.
+    // The user layout should be set to a plain layout for consistency with
+    // other layers.
+    auto layout = to_conv_layout(_tag, md, remove_a_dim);
     md = layout.to_dnnl(md.dims);
 }
 
@@ -61,11 +58,11 @@ status_t init_layouts(const kernel_desc_t &desc, convolution_pd_t *pd) {
     auto &wei_md = *const_cast<memory_desc_t *>(pd->invariant_wei_md());
     auto &dst_md = *const_cast<memory_desc_t *>(pd->invariant_dst_md());
     auto &bia_md = *const_cast<memory_desc_t *>(pd->invariant_bia_md());
-    maybe_init_layout(src_md, desc.src_tag.raw_tag(), false);
-    maybe_init_layout(wei_md, desc.wei_tag.raw_tag(), !pd->with_groups());
-    maybe_init_layout(dst_md, desc.dst_tag.raw_tag(), false);
-    maybe_init_layout(bia_md,
-            make_conv_layout_tag(tensor_kind_t::bia, "a").raw_tag(), false);
+    maybe_init_layout(src_md, desc.src_tag, false);
+    maybe_init_layout(wei_md, desc.wei_tag, !pd->with_groups());
+    maybe_init_layout(dst_md, desc.dst_tag, false);
+    maybe_init_layout(
+            bia_md, make_conv_layout_tag(tensor_kind_t::bias, "a"), false);
     return status::success;
 }
 
@@ -101,44 +98,8 @@ public:
         if (!pd->set_default_alg_kind(alg_kind::convolution_direct))
             return status::unimplemented;
 
-        pd->exec_plan = std::make_shared<exec_plan_t>();
-        CHECK(init_exec_plan(*pd->exec_plan, pd, engine));
-        return status::success;
-    }
-
-    gen_convolution_t() = default;
-
-    template <typename T>
-    status_t init(T *primitive, impl::engine_t *engine) {
-        auto &exec_plan = *primitive->pd()->exec_plan;
-        CHECK(exec_plan.create_kernels(kernels_, primitive, engine));
-        return status::success;
-    }
-
-    template <typename T>
-    status_t execute(const T *primitive, const exec_ctx_t &ctx) const {
-        auto &exec_plan = *primitive->pd()->exec_plan;
-        return exec_plan.execute(primitive, ctx, kernels_);
-    }
-
-private:
-    template <typename T>
-    static status_t init_exec_plan(
-            exec_plan_t &exec_plan, T *pd, impl::engine_t *engine) {
-        std::shared_ptr<kernel_desc_base_t> desc;
-        std::shared_ptr<kernel_params_base_t> params;
-        CHECK(init_conv(desc, params, pd, engine));
-        exec_plan.add_kernel(desc, params);
-        return status::success;
-    }
-
-    template <typename T>
-    static status_t init_conv(std::shared_ptr<kernel_desc_base_t> &desc,
-            std::shared_ptr<kernel_params_base_t> &params, T *pd,
-            impl::engine_t *engine) {
         auto prb = to_problem(pd, engine);
         kernel_desc_t _desc;
-        kernel_params_t _params;
         if (plan_preset_t::instance().is_set()) {
             _desc = plan_preset_t::instance().get();
         } else {
@@ -153,17 +114,31 @@ private:
         _desc.fit_to(prb);
         CHECK(init_layouts(_desc, pd));
         CHECK(pd->attr_.set_default_formats(out_md(pd)));
-        _desc.set_post_ops(pd->attr()->post_ops_, out_md(pd));
+        CHECK(_desc.set_post_ops(pd->attr()->post_ops_, out_md(pd), pd));
         if (!finalize_conv_desc(_desc, prb)) {
             ir_info() << "Cannot create kernel descriptor.\n";
             return status::runtime_error;
         }
-        _params.prb = std::move(prb);
-        desc = std::make_shared<kernel_desc_t>(_desc);
-        params = std::make_shared<kernel_params_t>(_params);
+        pd->init_plan = std::make_shared<primitive_init_plan_t>();
+        CHECK(_desc.init_primitive_plan(*pd->init_plan, prb, pd));
         return status::success;
     }
 
+    gen_convolution_t() = default;
+
+    template <typename T>
+    status_t init(T *primitive, impl::engine_t *engine) {
+        auto &init_plan = *primitive->pd()->init_plan;
+        CHECK(init_plan.create_exec_plan(exec_plan_, primitive, engine));
+        return status::success;
+    }
+
+    status_t execute(
+            const gpu_primitive_t *primitive, const exec_ctx_t &ctx) const {
+        return exec_plan_.execute(primitive, ctx);
+    }
+
+private:
     static const memory_desc_t *out_md(const convolution_pd_t *pd) {
         if (pd->is_fwd()) return pd->dst_md();
         if (pd->is_bwd_d()) return pd->diff_src_md();
@@ -172,7 +147,7 @@ private:
         return nullptr;
     }
 
-    std::vector<compute::kernel_t> kernels_;
+    primitive_exec_plan_t exec_plan_;
 };
 
 status_t gen_convolution_fwd_t::pd_t::init(impl::engine_t *engine) {

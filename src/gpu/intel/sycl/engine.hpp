@@ -155,9 +155,8 @@ public:
 
         auto kernel_name = jitter->kernel_name();
 
-        xpu::binary_t binary = jitter->get_binary(
-                ocl_engine->context(), ocl_engine->device());
-        return create_kernel_from_binary(*kernel, binary, kernel_name);
+        xpu::binary_t kernel_binary = jitter->get_binary(ocl_engine.get());
+        return create_kernel_from_binary(*kernel, kernel_binary, kernel_name);
     }
 
     status_t create_kernels(std::vector<gpu::intel::compute::kernel_t> *kernels,

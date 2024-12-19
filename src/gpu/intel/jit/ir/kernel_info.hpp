@@ -26,6 +26,7 @@
 #include "common/primitive_exec_types.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"
+#include "gpu/intel/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -69,42 +70,51 @@ private:
     std::shared_ptr<memory_storage_ptr_t> ptr_;
 };
 
-class grid_context_t {
+class kernel_iface_t {
 public:
-    grid_context_t(bool create_empty = false) {
-        if (!create_empty) {
-            for (int i = 0; i < ndims(); i++) {
-                local_ids_[i] = var_t::make(
-                        type_t::u16(), "local_id" + std::to_string(i));
-                tg_idxs_[i] = var_t::make(
-                        type_t::s32(), "tg_idx" + std::to_string(i));
-            }
-        }
+    int nargs() const { return int(args_.size()); }
+    const expr_t &arg_var(int idx) const {
+        ir_assert(idx >= 0 && idx < nargs());
+        return args_[idx].var;
+    }
+    const std::string &arg_name(int idx) const {
+        return arg_var(idx).as<var_t>().name;
+    }
+    const type_t &arg_type(int idx) const { return arg_var(idx).type(); }
+    bool has(const std::string &name) const { return find_arg_impl(name); }
+
+    expr_t find_arg(const std::string &name, bool allow_empty = false) const {
+        auto *arg = find_arg_impl(name);
+        if (arg) return arg->var;
+        if (!allow_empty)
+            ir_error_not_expected() << "Argument not found: " << name;
+        return expr_t();
     }
 
-    int ndims() const { return grid_ndims_; }
-    void set_tg_idx(int idx, const expr_t &e) {
-        ir_assert(idx >= 0 && idx < ndims());
-        tg_idxs_[idx] = e;
-    }
-    void set_local_id(int idx, const expr_t &e) {
-        ir_assert(idx >= 0 && idx < ndims());
-        local_ids_[idx] = e;
-    }
+    void register_arg(const expr_t &var) { args_.emplace_back(var); }
 
-    const expr_t &tg_idx(int idx) const {
-        ir_assert(idx >= 0 && idx < ndims());
-        return tg_idxs_[idx];
-    }
-    const expr_t &local_id(int idx) const {
-        ir_assert(idx >= 0 && idx < ndims());
-        return local_ids_[idx];
+    void register_arg(const std::string &name, const type_t &type) {
+        register_arg(var_t::make(type, name));
     }
 
 private:
-    static const int grid_ndims_ = 3;
-    std::array<expr_t, grid_ndims_> tg_idxs_;
-    std::array<expr_t, grid_ndims_> local_ids_;
+    struct arg_t {
+        arg_t() = default;
+        arg_t(const expr_t &var) : var(var) {}
+        const std::string &name() const { return var.as<var_t>().name; }
+        bool is_ptr() const { return var.type().is_ptr(); }
+
+        expr_t var;
+    };
+
+    const arg_t *find_arg_impl(const std::string &name) const {
+        for (int i = 0; i < nargs(); i++) {
+            if (args_[i].name() == name) return &args_[i];
+        }
+        return nullptr;
+    }
+
+    std::vector<arg_t> args_;
 };
 
 enum class kernel_id_t {
@@ -123,8 +133,6 @@ enum class kernel_id_t {
 // Kernel arguments can be of the following kinds:
 // - Internal arguments: only scalar
 //   - Examples: common output scales (contain a single value)
-// - Resource arguments: stored to a resource storage during primitive creation
-//   - Examples: output scales or zero points
 // - User arguments: passed by the user at run time
 //   - Examples: source, weights, destination
 class kernel_info_t {
@@ -163,24 +171,6 @@ public:
         auto *arg = find_arg_impl(name);
         ir_assert(arg) << "Cannot find argument: " << name;
         arg->value = value;
-    }
-
-    std::map<std::string, expr_t> get_vars() const {
-        std::map<std::string, expr_t> vars;
-        for (auto &arg : args_) {
-            if (arg.var.is<var_t>())
-                vars[arg.var.as<var_t>().name] = arg.var;
-            else if (arg.var.is<const_var_t>())
-                vars[arg.var.as<const_var_t>().name] = arg.var;
-            else
-                ir_error_not_expected();
-        }
-        return vars;
-    }
-
-    void register_resource_arg(const expr_t &var) {
-        // TODO: Check key uniqueness.
-        register_arg(var, arg_kind_t::resource, nargs(), /*is_input=*/true);
     }
 
     void register_user_arg(const expr_t &var, int dnnl_arg, bool is_input) {
@@ -227,11 +217,6 @@ public:
 
     int nargs() const { return int(args_.size()); }
 
-    bool is_resource(int idx) const {
-        ir_assert(idx >= 0 && idx < nargs());
-        return args_[idx].kind == arg_kind_t::resource;
-    }
-
     bool is_scratchpad(int idx) const {
         ir_assert(idx >= 0 && idx < nargs());
         return args_[idx].kind == arg_kind_t::scratchpad;
@@ -249,16 +234,20 @@ public:
 
     bool is_output(int idx) const { return !is_input(idx); }
 
+    kernel_iface_t iface() const {
+        kernel_iface_t iface;
+        for (int i = 0; i < nargs(); i++) {
+            iface.register_arg(args_[i].var);
+        }
+        return iface;
+    }
+
     memory_storage_wrapper_t arg_storage(int idx, const exec_ctx_t &ctx,
             const gpu_primitive_t *primitive) const {
         ir_assert(idx >= 0 && idx < nargs());
         bool is_input = args_[idx].is_input;
         int key = args_[idx].key;
         switch (args_[idx].kind) {
-            case arg_kind_t::resource:
-                return *(ctx.get_resource_mapper()
-                                 ->template get<gpu_resource_t>(primitive)
-                                 ->get_memory_storage(key));
             case arg_kind_t::scratchpad:
                 return ctx.get_scratchpad_grantor().get_memory_storage(key);
             case arg_kind_t::user: {
@@ -320,7 +309,6 @@ public:
                     } while (false);
                     break;
                 }
-                case arg_kind_t::resource:
                 case arg_kind_t::scratchpad:
                 case arg_kind_t::user: {
                     arg_list.set(i, *storage_list[i].get());
@@ -332,7 +320,7 @@ public:
     }
 
 private:
-    enum class arg_kind_t { internal, resource, scratchpad, user };
+    enum class arg_kind_t { internal, scratchpad, user };
 
     struct arg_t {
         arg_t(const expr_t &var, arg_kind_t kind, int key, bool is_input,
@@ -376,54 +364,6 @@ private:
     compute::nd_range_t nd_range_;
 
     std::vector<arg_t> args_;
-};
-
-class exec_plan_t {
-public:
-    int kernel_count() const { return (int)entries_.size(); }
-
-    status_t create_kernels(std::vector<compute::kernel_t> &kernels,
-            gpu_primitive_t *primitive, impl::engine_t *engine) const {
-        for (auto &e : entries_) {
-            compute::kernel_t kernel;
-            CHECK(e.desc->create_kernel(kernel, primitive, engine));
-            kernels.push_back(kernel);
-        }
-        return status::success;
-    }
-
-    template <typename T>
-    status_t execute(const T *primitive, const exec_ctx_t &ctx,
-            const std::vector<compute::kernel_t> &kernels) const {
-        for (int i = 0; i < kernel_count(); i++) {
-            auto &e = entries_[i];
-            kernel_info_t info;
-            CHECK(e.params->init_dispatch_kernel_info(info, *e.desc));
-            std::vector<memory_storage_wrapper_t> storage_list;
-            info.init_memory_storage_list(storage_list, ctx, primitive);
-            compute::kernel_arg_list_t arg_list;
-            info.set_args(arg_list, storage_list);
-            CHECK(primitive->parallel_for(
-                    ctx, info.nd_range(), kernels[i], arg_list));
-        }
-        return status::success;
-    }
-
-    void add_kernel(const std::shared_ptr<kernel_desc_base_t> &desc,
-            const std::shared_ptr<kernel_params_base_t> &params) {
-        entry_t e;
-        e.desc = desc;
-        e.params = params;
-        entries_.push_back(e);
-    }
-
-private:
-    struct entry_t {
-        std::shared_ptr<kernel_desc_base_t> desc;
-        std::shared_ptr<kernel_params_base_t> params;
-    };
-
-    std::vector<entry_t> entries_;
 };
 
 } // namespace jit

@@ -309,7 +309,7 @@ status_t ocl_gpu_engine_t::create_kernels_from_cache_blob(
 status_t ocl_gpu_engine_t::create_kernel(
         compute::kernel_t *kernel, jit::jit_generator_base *jitter) const {
     if (!jitter) return status::invalid_arguments;
-    xpu::binary_t binary = jitter->get_binary(context(), device());
+    xpu::binary_t binary = jitter->get_binary(this);
     if (binary.empty()) return status::runtime_error;
     VCHECK_KERNEL(
             create_kernel_from_binary(*kernel, binary, jitter->kernel_name()),

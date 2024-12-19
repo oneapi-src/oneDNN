@@ -890,7 +890,7 @@ void gen_gemm_kernel_t::init_interface() {
 }
 
 xpu::binary_t gen_gemm_kernel_t::get_binary(
-        cl_context context, cl_device_id device) {
+        const ocl::ocl_gpu_engine_t *engine) {
     init_interface();
     maybe_print_verbose();
 
@@ -899,7 +899,7 @@ xpu::binary_t gen_gemm_kernel_t::get_binary(
         gemm_kernel_generator_t<ngen::HW::arch> generator; \
         generator.setStepping(desc()->stepping_); \
         generator.gemm(*desc()->problem(), *desc()->strategy(), interface_); \
-        return generator.getBinary(context, device); \
+        return generator.getBinary(engine->context(), engine->device()); \
         break; \
     }
 
