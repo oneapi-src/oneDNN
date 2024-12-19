@@ -193,8 +193,10 @@ status_t check_isa_with_datatype(
             && IMPLICATION(bm_conf_utils.is_f32_f16(),
                     one_of(isa, avx512_core_amx_fp16, avx512_core_fp16,
                             avx2_vnni_2, avx512_core, avx2))
+            // `avx512_core_amx` is not allowed here since the kernel will try
+            // to do bf16 computation instead of conversion.
             && IMPLICATION(bm_conf_utils.is_f32_bf16(),
-                    one_of(isa, avx512_core_amx, avx512_core_bf16, avx2_vnni_2,
+                    one_of(isa, avx512_core_bf16, avx2_vnni_2,
                             avx512_core, avx2))
             && IMPLICATION(bm_conf_utils.is_int8_with_bf16_dst(),
                     is_superset(isa, avx512_core) || isa == avx2_vnni_2)
