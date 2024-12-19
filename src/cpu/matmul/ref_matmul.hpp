@@ -62,7 +62,7 @@ struct ref_matmul_t : public primitive_t {
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_MATMUL(
                     (src_type == wei_type
-                            || utils::one_of(wei_type, u8, s8, u4, s4)),
+                            || utils::one_of(wei_type, f16, u8, s8, u4, s4)),
                     VERBOSE_UNSUPPORTED_DT);
             /* int8 weights decompression support */
             VDISPATCH_MATMUL(IMPLICATION(utils::one_of(wei_type, u8, s8),
@@ -82,10 +82,10 @@ struct ref_matmul_t : public primitive_t {
                             utils::one_of(
                                     bia_type, f32, bf16, f16, f8_e5m2, f8_e4m3)
                                     && IMPLICATION(
-                                            src_type == f32, bia_type == f32)
-                                    && IMPLICATION(src_type == f16,
+                                            wei_type == f32, bia_type == f32)
+                                    && IMPLICATION(wei_type == f16,
                                             utils::one_of(bia_type, f32, f16))
-                                    && IMPLICATION(src_type == bf16,
+                                    && IMPLICATION(wei_type == bf16,
                                             utils::one_of(bia_type, f32, bf16))
                             // TODO: any implication on allowed bias
                             // data type for fp8?
