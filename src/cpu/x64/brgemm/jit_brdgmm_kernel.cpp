@@ -45,6 +45,7 @@ jit_brdgmm_kernel_base_t<Wmm>::jit_brdgmm_kernel_base_t(
     , max_vmms_(isa_num_vregs(brg.isa_impl))
     , compute_dst_zp_(brg.zp_type_c != brgemm_broadcast_t::none)
     , compute_src_zp_(brg.zp_type_a != brgemm_broadcast_t::none)
+    , is_src_zp_bcast_(brg.zp_type_a == brgemm_broadcast_t::per_tensor)
     , compute_compensation_(compute_src_zp_ || brg.req_s8s8_compensation)
     , has_vpad_(brg.brgattr.max_top_vpad > 0 || brg.brgattr.max_bottom_vpad > 0)
     , has_bpad_(brg.brgattr.max_top_bpad > 0 || brg.brgattr.max_bottom_bpad > 0)
@@ -147,7 +148,7 @@ void jit_brdgmm_kernel_base_t<Wmm>::read_params() {
     }
 
     if (compute_src_zp_) {
-        mov(reg_tmp, ptr[param1 + GET_OFF(zp_a_val)]);
+        mov(reg_tmp, ptr[param1 + GET_OFF(a_zp_values)]);
         mov(ptr[rsp + src_zp_value_], reg_tmp);
 
         mov(reg_tmp, ptr[param1 + GET_OFF(a_zp_compensations)]);
@@ -610,6 +611,17 @@ void jit_brdgmm_kernel_base_t<Wmm>::maybe_transpose_interleaved_vnni_to_plain(
 }
 
 template <typename Wmm>
+void jit_brdgmm_kernel_base_t<Wmm>::load_src_zp() {
+    mov(reg_src_zero_point, ptr[rsp + src_zp_value_]);
+    lea(reg_src_zero_point,
+            is_src_zp_bcast_
+                    ? ptr_b[reg_src_zero_point]
+                    : ptr[reg_src_zero_point + reg_aux_N * sizeof(int32_t)]);
+    if (!is_superset(brg.isa_impl, avx512_core) && is_src_zp_bcast_)
+        uni_vpbroadcastd(vmm_bcast(), ptr[reg_src_zero_point]);
+}
+
+template <typename Wmm>
 void jit_brdgmm_kernel_base_t<Wmm>::compute_int8_compensation(
         int m_blocks, int n_blocks, bool has_n_tail) {
 
@@ -620,12 +632,10 @@ void jit_brdgmm_kernel_base_t<Wmm>::compute_int8_compensation(
         lea(reg_s8s8_comp, ptr[reg_s8s8_comp + reg_aux_N * sizeof(int32_t)]);
     }
     if (compute_src_zp_) {
-        lea(reg_src_zero_point, ptr[rsp + src_zp_value_]);
+        load_src_zp();
         mov(reg_zp_compensation, ptr[rsp + zp_compensation_]);
         lea(reg_zp_compensation,
                 ptr[reg_zp_compensation + reg_aux_N * sizeof(int32_t)]);
-        if (!is_superset(brg.isa_impl, avx512_core))
-            uni_vpbroadcastd(vmm_bcast(), ptr[reg_src_zero_point]);
     }
 
     for_(int v_i = 0; v_i < v_substep; ++v_i)
@@ -640,16 +650,35 @@ void jit_brdgmm_kernel_base_t<Wmm>::compute_int8_compensation(
         }
         if (compute_src_zp_) {
             // zero_point: conv(src_x8, wei_s8) - src_shift_s32 * compensation_s32
-            const Vmm vmm_zp = vmm_zp_comp();
-            vmovups(vmm_zp,
-                    maybe_EVEX_compress_addr(reg_zp_compensation, offset));
-            if (is_superset(brg.isa_impl, avx512_core)) {
-                const bool src_zp_is_common = true;
-                vpmulld(vmm_zp, vmm_zp,
-                        maybe_EVEX_compress_addr(
-                                reg_src_zero_point, 0, src_zp_is_common));
+            const bool is_tail
+                    = n + 1 == n_blocks && has_n_tail && substep_simd < simd_w_;
+            const Vmm vmm_zp = isa_has_masks(brg.isa_impl)
+                    ? maybe_mask(vmm_zp_comp(), is_tail, false)
+                    : vmm_zp_comp();
+            if (IMPLICATION(is_tail, isa_has_masks(brg.isa_impl))) {
+                vmovups(vmm_zp,
+                        maybe_EVEX_compress_addr(reg_zp_compensation, offset));
+                if (is_src_zp_bcast_) {
+                    if (is_superset(brg.isa_impl, avx512_core))
+                        vpmulld(vmm_zp, vmm_zp,
+                                maybe_EVEX_compress_addr(
+                                        reg_src_zero_point, 0, true));
+                    else
+                        vpmulld(vmm_zp, vmm_zp, vmm_bcast());
+                } else
+                    vpmulld(vmm_zp, vmm_zp,
+                            maybe_EVEX_compress_addr(
+                                    reg_src_zero_point, offset));
             } else {
-                vpmulld(vmm_zp, vmm_zp, vmm_bcast());
+                const int tail_size = tail_length();
+                const Vmm ymm_tmp
+                        = vmm_bcast(); // used for bcast or tail processing in avx2
+                load_data(data_type::s32, vmm_zp,
+                        ptr[reg_zp_compensation + offset], tail_size);
+                if (!is_src_zp_bcast_)
+                    load_data(data_type::s32, ymm_tmp,
+                            ptr[reg_src_zero_point + offset], tail_size);
+                vpmulld(vmm_zp, vmm_zp, ymm_tmp);
             }
         }
         for (int m = 0; m < m_blocks; m++) {
@@ -795,7 +824,8 @@ void jit_brdgmm_kernel_base_t<Wmm>::load_b(
 
 template <typename Wmm>
 void jit_brdgmm_kernel_base_t<Wmm>::comp_dot_product(
-        compute_pad_kernel_t kernel_type, Vmm vmm_acc, Vmm vmmb) {
+        compute_pad_kernel_t kernel_type, Vmm vmm_acc, Vmm vmmb, int n,
+        bool is_tail_block) {
     switch (kernel_type) {
         case compute_pad_kernel_t::s8s8_kernel:
             vpdpbusd(vmm_acc, vmm_shift(), vmmb,
@@ -803,16 +833,39 @@ void jit_brdgmm_kernel_base_t<Wmm>::comp_dot_product(
                             ? Xbyak::EvexEncoding
                             : Xbyak::VexEncoding);
             break;
-        case compute_pad_kernel_t::zero_point_kernel:
-            if (is_superset(brg.isa_impl, avx512_core)) {
-                vpmulld(vmm_zp_comp(), vmmb,
-                        maybe_EVEX_compress_addr(reg_src_zero_point, 0, true));
+        case compute_pad_kernel_t::zero_point_kernel: {
+            const Vmm vmm_zp = isa_has_masks(brg.isa_impl)
+                    ? maybe_mask(vmm_zp_comp(), is_tail_block, false)
+                    : vmm_zp_comp();
+            const size_t offset = comp_offset(n);
+            if (IMPLICATION(is_tail_block, isa_has_masks(brg.isa_impl))) {
+                if (is_src_zp_bcast_) {
+                    if (is_superset(brg.isa_impl, avx512_core))
+                        vpmulld(vmm_zp, vmmb,
+                                maybe_EVEX_compress_addr(
+                                        reg_src_zero_point, 0, true));
+                    else
+                        vpmulld(vmm_zp, vmmb, vmm_bcast());
+                } else {
+                    const Xbyak::Address src_zp_addr = maybe_EVEX_compress_addr(
+                            reg_src_zero_point, offset);
+                    if (is_fast_vnni_int8()) {
+                        vmovups(vmm_zp, src_zp_addr);
+                        vpermd(vmm_zp, vmm_permute(), vmm_zp);
+                        vpmulld(vmm_zp, vmmb, vmm_zp);
+                    } else
+                        vpmulld(vmm_zp, vmmb, src_zp_addr);
+                }
             } else {
-                uni_vpbroadcastd(vmm_bcast(), ptr[reg_src_zero_point]);
-                vpmulld(vmm_zp_comp(), vmmb, vmm_bcast());
+                const Vmm ymm_tmp
+                        = vmm_bcast(); // used for bcast or tail processing in avx2
+                if (!is_src_zp_bcast_)
+                    load_data(data_type::s32, ymm_tmp,
+                            ptr[reg_src_zero_point + offset], tail_length());
+                vpmulld(vmm_zp, vmmb, ymm_tmp);
             }
             vpaddd(vmm_acc, vmm_acc, vmm_zp_comp());
-            break;
+        } break;
         default: assert(!"unsupported comp_kernel type");
     }
 }
@@ -853,21 +906,25 @@ void jit_brdgmm_kernel_base_t<Wmm>::pad_comp_kernel(
 
     for (int pad_i = max_m_unroll; pad_i > 0; --pad_i) {
         L(jmp_table_labels[pad_i]);
-        if (is_zero_point_kernel)
-            lea(reg_src_zero_point, ptr[rsp + src_zp_value_]);
+        if (is_zero_point_kernel) load_src_zp();
         if (pad_i > m_blocks) continue;
         const int m_i = get_mi(pad_i);
         int p_b_i = 0;
         for (int n_i = 0; n_i < n_blocks; ++n_i, ++p_b_i) {
-            if (get_substep_simd(n_i, 0, has_tail) <= 0) continue;
+            const int substep_simd = get_substep_simd(n_i, 0, has_tail);
+            if (substep_simd <= 0) continue;
             const Vmm vmm_acc = accm(m_blocks, n_blocks, m_i, n_i, 0);
+            const bool is_tail_block
+                    = n_i + 1 == n_blocks && has_tail && substep_simd < simd_w_;
             if (p_b_i < n_preload_b_vmms) {
-                comp_dot_product(kernel_type, vmm_acc, vmm_b(p_b_i));
+                comp_dot_product(
+                        kernel_type, vmm_acc, vmm_b(p_b_i), n_i, is_tail_block);
             } else {
                 // preloaded vmm_b not available
                 const Vmm vmm_wei = vmm_b(max_bvmms - 1);
                 load_b(vmm_wei, n_i, 0, has_tail, load_broadcast_wei);
-                comp_dot_product(kernel_type, vmm_acc, vmm_wei);
+                comp_dot_product(
+                        kernel_type, vmm_acc, vmm_wei, n_i, is_tail_block);
             }
         }
     }
@@ -885,8 +942,7 @@ void jit_brdgmm_kernel_base_t<Wmm>::batch_pad_kernel(
     auto kernel_body = [&](compute_pad_kernel_t kernel_type) {
         const bool is_zero_point_kernel
                 = kernel_type == compute_pad_kernel_t::zero_point_kernel;
-        if (is_zero_point_kernel)
-            lea(reg_src_zero_point, ptr[rsp + src_zp_value_]);
+        if (is_zero_point_kernel) load_src_zp();
         for (int nb_i = 0; nb_i < n_blocks; nb_i += max_bvmms) {
             const int n_e = nstl::min(nb_i + max_bvmms, n_blocks) - nb_i;
             for (int i = 0; i < n_e; ++i) {
@@ -898,9 +954,13 @@ void jit_brdgmm_kernel_base_t<Wmm>::batch_pad_kernel(
             for_(int m_i = 0; m_i < m_blocks; ++m_i)
             for (int i = 0; i < n_e; ++i) {
                 const int n_i = nb_i + i;
-                if (get_substep_simd(n_i, 0, has_tail) <= 0) continue;
+                const int substep_simd = get_substep_simd(n_i, 0, has_tail);
+                if (substep_simd <= 0) continue;
                 const Vmm vmm_acc = accm(m_blocks, n_blocks, m_i, n_i, 0);
-                comp_dot_product(kernel_type, vmm_acc, vmm_b(i));
+                const bool is_tail_block
+                        = n_i + 1 == n_e && has_tail && substep_simd < simd_w_;
+                comp_dot_product(
+                        kernel_type, vmm_acc, vmm_b(i), n_i, is_tail_block);
             }
         }
     };

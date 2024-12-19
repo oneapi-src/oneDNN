@@ -230,6 +230,7 @@ private:
     const int simd_w_;
     const int max_vmms_;
     const bool compute_dst_zp_, compute_src_zp_;
+    const bool is_src_zp_bcast_;
     const bool compute_compensation_; // code-path for either s8s8 or src_zp
     const bool has_vpad_; // vertical padding w.r.t. M dimension
     const bool has_bpad_; // batch pad is computed for the overlap between the
@@ -341,7 +342,8 @@ private:
     void load_b(
             Vmm vmmb, int n_i, int v_i, bool has_n_tail, bool wei_zp = false);
     void comp_dot_product(compute_pad_kernel_t kernel_type, Vmm vmm_acc,
-            Vmm vmmb); // int8 compensation dot_product (zp and s8s8)
+            Vmm vmmb, int n,
+            bool is_tail_block); // int8 compensation dot_product (zp and s8s8)
     void pad_comp_kernel(compute_pad_kernel_t kernel_type, int m_blocks,
             int n_blocks, int padding, const Xbyak::Reg64 reg_pad,
             const std::function<int(int)> &get_mi, bool has_tail = false);
@@ -360,6 +362,7 @@ private:
     void apply_post_ops(int m_blocks, int n_blocks, bool has_n_tail);
     void maybe_transpose_interleaved_vnni_to_plain(
             int m_blocks, int n_blocks, bool has_n_tail);
+    void load_src_zp();
     void compute_int8_compensation(int m_blocks, int n_blocks, bool has_n_tail);
     void store_accumulators(int m_blocks, int n_blocks, bool has_n_tail);
     void store_accumulators_without_post_ops(
