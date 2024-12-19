@@ -70,6 +70,8 @@ status_t acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::pd_t::init(
     CHECK(acl_convolution_utils::acl_init_conf(
             acp_, src_md_, weights_md_, dst_md_, bias_md_, *desc(), *attr()));
 
+    CHECK(post_ops.init(engine, attr_.post_ops_, dst_md_, acp_.act_info));
+
     // Validate convolution manually to check for return status
     ACL_CHECK_VALID(Op::validate(&acp_.src_tensor_info, &acp_.wei_tensor_info,
             acp_.with_bias ? &acp_.bia_tensor_info : nullptr,
@@ -83,10 +85,9 @@ status_t acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::pd_t::init(
             acp_.dilation_info, acp_.act_info, acp_.fast_math);
 
     auto scratchpad = scratchpad_registry().registrar();
-    const auto mem_req = conv.workspace();
-    return init_scratchpad(conv, scratchpad, gemm_conv_keys, engine, post_ops,
-            attr_.post_ops_, acp_.act_info, acp_.use_dst_acc_for_sum, dst_md_,
-            bias_md_, acp_.is_quantized);
+    return init_scratchpad(conv, scratchpad, gemm_conv_keys, engine,
+            post_ops, attr_.post_ops_, acp_.act_info, acp_.use_dst_acc_for_sum,
+            dst_md_, bias_md_, acp_.is_quantized);
 }
 
 template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,

@@ -75,8 +75,10 @@ status_t acl_lowp_matmul_sq_t::pd_t::init(engine_t *engine) {
                             && wei_d.data_type() == s8
                             && src_d.data_type() == s8
                     ? dst_d.data_type() == s8
-                    : dst_d.data_type() == u8
-                            && utils::one_of(bia_d.data_type(), f32, undef),
+                    : dst_d.data_type() == u8,
+            VERBOSE_UNSUPPORTED_DT_CFG);
+
+    VDISPATCH_MATMUL(utils::one_of(bia_d.data_type(), f32, undef),
             VERBOSE_UNSUPPORTED_DT_CFG);
 
     VDISPATCH_MATMUL(src_d.matches_tag(format_tag::ab)
