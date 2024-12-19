@@ -104,19 +104,22 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
             || (d0 < D0_WO_PADDING && d1 < D1_WO_PADDING && d2 < D2_WO_PADDING
                     && d3 < D3_WO_PADDING)) {
 
-#if A_SCALES || B_SCALES
-#define A_SCALE (A_SCALES ? a_scales[0] : 1)
-#if NDIMS == 2
-        const float b_scale
-                = B_SCALES ? WEI_SCALES_TO_REF(b_scales[scale_stride * d1]) : 1;
-#elif NDIMS == 3
-        const float b_scale
-                = B_SCALES ? WEI_SCALES_TO_REF(b_scales[scale_stride * d2]) : 1;
-#elif NDIMS == 4
-        const float b_scale
-                = B_SCALES ? WEI_SCALES_TO_REF(b_scales[scale_stride * d3]) : 1;
+        float a_scale = 1.f;
+        float b_scale = 1.f;
+#if A_SCALES
+        a_scale = a_scales[0];
 #endif
-        acc *= A_SCALE * b_scale;
+#if B_SCALES
+#if NDIMS == 2
+        b_scale = WEI_SCALES_TO_REF(b_scales[scale_stride * d1]);
+#elif NDIMS == 3
+        b_scale = WEI_SCALES_TO_REF(b_scales[scale_stride * d2]);
+#elif NDIMS == 4
+        b_scale = WEI_SCALES_TO_REF(b_scales[scale_stride * d3]);
+#endif
+#endif
+#if A_SCALES || B_SCALES
+        acc *= a_scale * b_scale;
 #endif
 
 #if WITH_BIAS == 1

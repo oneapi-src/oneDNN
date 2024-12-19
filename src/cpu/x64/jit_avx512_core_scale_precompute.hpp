@@ -73,14 +73,10 @@ struct jit_avx512_core_scale_precompute_t : public jit_generator {
         , with_wei_scales_(
                   !attr_->scales_.get(DNNL_ARG_WEIGHTS).has_default_values())
         , wei_scales_dt_(with_wei_scales_
-                          ? attr_->scales_.get(DNNL_ARG_WEIGHTS).data_type_
+                          ? attr_->scales_.get_data_type(DNNL_ARG_WEIGHTS)
                           : data_type::f32)
         , wei_scales_dsz_(types::data_type_size(wei_scales_dt_))
-        , wei_groups_ic_(with_wei_scales_
-                                  && attr_->scales_.get(DNNL_ARG_WEIGHTS).ndims_
-                                          > 0
-                          ? attr_->scales_.get(DNNL_ARG_WEIGHTS).group_dims_[0]
-                          : 1)
+        , wei_groups_ic_(attr_->scales_.get_group(DNNL_ARG_WEIGHTS, 0))
         , scale_adjust_factor_(scale_adjust_factor)
         , compute_scale_factor_(scale_adjust_factor_ != 1) {}
 

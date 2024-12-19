@@ -73,14 +73,14 @@ struct reorder_kernel_t {
                     = (i < src_md().ndims()) ? src_md().strides()[i] : INT_MAX;
         }
         dims_t dims_scales_src;
-        if (conf_.scale_src_mask != 0) {
+        if (conf_.scale_src_mask > 0) {
             for (int i = 0; i < max_supported_ndims; i++) {
                 dims_scales_src[i]
                         = conf_.scale_src_mask >> i & 1 ? dims[i] : 1;
             }
         }
         dims_t dims_scales_dst;
-        if (conf_.scale_dst_mask != 0) {
+        if (conf_.scale_dst_mask > 0) {
             for (int i = 0; i < max_supported_ndims; i++) {
                 dims_scales_dst[i]
                         = conf_.scale_dst_mask >> i & 1 ? dims[i] : 1;
@@ -97,7 +97,7 @@ struct reorder_kernel_t {
             auto src = src_mem.load(idx);
 
             if (conf_.do_scale_src) {
-                if (conf_.scale_src_mask != 0) {
+                if (conf_.scale_src_mask > 0) {
                     int scale_idx = 0;
                     for (int i = 0; i < max_supported_ndims; i++) {
                         if (i < src_md().ndims()) {
@@ -116,7 +116,7 @@ struct reorder_kernel_t {
             auto acc = src;
             acc = conf_.post_ops.apply(acc, dst_, dst_idx);
             if (conf_.do_scale_dst) {
-                if (conf_.scale_dst_mask != 0) {
+                if (conf_.scale_dst_mask > 0) {
                     int scale_idx = 0;
                     for (int i = 0; i < max_supported_ndims; i++) {
                         if (i < src_md().ndims()) {

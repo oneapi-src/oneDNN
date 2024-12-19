@@ -173,7 +173,9 @@ protected:
             = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
         bool ok = attr()->scales_.has_default_values(supported_args);
         for (int arg : supported_args) {
-            const auto &mask = attr()->scales_.get(arg).mask_;
+            if (attr()->scales_.get(arg).has_default_values()) continue;
+
+            const auto &mask = attr()->scales_.get_mask(arg);
             if (arg == DNNL_ARG_WEIGHTS)
                 ok = ok && (mask == 0 || mask == (with_groups() ? 3 : 1));
             else

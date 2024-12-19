@@ -2048,7 +2048,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         jcp.with_scales = !src_scales.has_default_values()
                 || !wei_scales.has_default_values()
                 || jcp.scale_adjust_factor != 1.0f;
-        jcp.is_ic_scale = wei_scales.mask_ != 0;
+        jcp.is_ic_scale = wei_scales.get_mask() > 0;
     }
 
     jcp.req_brg_comp_pad = false;

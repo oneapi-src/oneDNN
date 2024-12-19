@@ -101,10 +101,11 @@ struct cudnn_matmul_t : public gpu::primitive_t {
             if (!scales.has_default_values(supported_args)) return false;
             // cuDNN does not support scaling per dimension.
             for (auto arg : supported_args) {
-                auto &s = scales.get(arg);
-                if (scales.get(arg).mask_ != 0
-                        || !utils::one_of(
-                                s.data_type_, s8, s32, f32, f16, bf16))
+                if (scales.get(arg).has_default_values()) continue;
+
+                if (scales.get_mask(arg) > 0) return false;
+                if (!utils::one_of(
+                            scales.get_data_type(arg), s8, s32, f32, f16, bf16))
                     return false;
             }
             return true;

@@ -60,15 +60,13 @@ struct ref_sum_t : public gpu::generic::sycl::primitive_t {
 
                 // Block formats are not yet supported
                 // Dimensions can not be > 6
-                VDISPATCH_SUM(
-                        !(!src_d.is_plain()
-                                || src_d.ndims() > xpu::sycl::md_t::max_dims),
+                VDISPATCH_SUM(src_d.is_plain()
+                                && src_d.ndims() <= xpu::sycl::md_t::max_dims,
                         VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "src");
 
-                VDISPATCH_SUM(!(!attr()->scales_.has_default_values()
-                                      && !is_supported_type(
-                                              scales.get(DNNL_ARG_SRC + i)
-                                                      .data_type_)),
+                VDISPATCH_SUM(attr()->scales_.has_default_values()
+                                || is_supported_type(
+                                        scales.get_data_type(DNNL_ARG_SRC + i)),
                         VERBOSE_UNSUPPORTED_ATTR);
             }
 

@@ -33,7 +33,7 @@ void ref_matmul_t::pd_t::init_conf() {
     conf_.do_scale_dst
             = !attr()->scales_.get(DNNL_ARG_DST).has_default_values();
     conf_.single_weights_scale
-            = attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0;
+            = attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) == 0;
 
     conf_.use_data_zeropoints
             = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC_0);

@@ -56,19 +56,22 @@ struct cublas_lt_params : cublas_base_params {
                 || weights_d.has_runtime_dims_or_strides();
 
         if (attr->scales_.get(DNNL_ARG_SRC).has_default_values()) {
-            auto src_scale = attr->scales_.get(DNNL_ARG_SRC);
-            if (src_scale.mask_ != 0) { multi_src_scale_ = true; }
+            if (attr->scales_.get_mask(DNNL_ARG_SRC) > 0) {
+                multi_src_scale_ = true;
+            }
         }
 
         if (attr->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()) {
-            auto wei_scale = attr->scales_.get(DNNL_ARG_WEIGHTS);
-            if (wei_scale.mask_ != 0) { multi_wei_scale_ = true; }
+            if (attr->scales_.get_mask(DNNL_ARG_WEIGHTS) > 0) {
+                multi_wei_scale_ = true;
+            }
         }
 
         with_dst_scale_ = !attr->scales_.get(DNNL_ARG_DST).has_default_values();
         if (with_dst_scale_) {
-            auto dst_scale = attr->scales_.get(DNNL_ARG_DST);
-            if (dst_scale.mask_ != 0) { multi_dst_scale_ = true; }
+            if (attr->scales_.get_mask(DNNL_ARG_DST) > 0) {
+                multi_dst_scale_ = true;
+            }
         }
 
         // Initialise flags and variables for the imma case (E.g. imma_case_ flag).

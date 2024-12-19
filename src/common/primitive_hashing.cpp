@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <algorithm>
+#include "primitive_attr.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -232,20 +233,7 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
     }
 
     if (!attr.scales_.has_default_values()) {
-        // go through scales for all arguments
-        for (const auto &p : attr.scales_.scales_) {
-            // scales: arg
-            seed = hash_combine(seed, p.first);
-            // scales: mask
-            seed = hash_combine(seed, p.second.mask_);
-            // scales: groups
-            const int ndims = p.second.ndims_;
-            seed = hash_combine(seed, ndims);
-            if (ndims > 0)
-                seed = get_array_hash(seed, p.second.group_dims_, ndims);
-            // scales: data type
-            seed = hash_combine(seed, static_cast<size_t>(p.second.data_type_));
-        }
+        seed = attr.scales_.get_hash(seed);
     }
     // zero_points
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})

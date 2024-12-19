@@ -26,7 +26,7 @@ namespace impl {
 namespace cpu {
 
 void book_precomputed_scales(memory_tracking::registrar_t &scratchpad,
-        const arg_scales_t &attr_scales, size_t wei_scales_count,
+        const scales_t &attr_scales, size_t wei_scales_count,
         bool force_scales_book = false);
 
 bool req_copy_scales(

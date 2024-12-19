@@ -36,6 +36,8 @@
 namespace dnnl {
 namespace impl {
 
+const primitive_attr_t &default_attr();
+
 struct rnn_data_qparams_t : public c_compatible {
     rnn_data_qparams_t() : scale_(1.f), shift_(0.f) {}
     bool has_default_values() const { return (scale_ == 1. && shift_ == 0.); }
@@ -667,7 +669,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     }
 
     // NOTE: make sure that the types below have overloaded comparison operator
-    dnnl::impl::arg_scales_t scales_;
+    dnnl::impl::scales_t scales_;
     dnnl::impl::zero_points_t zero_points_;
     dnnl::impl::scratchpad_mode_t scratchpad_mode_;
     dnnl::impl::fpmath_t fpmath_;

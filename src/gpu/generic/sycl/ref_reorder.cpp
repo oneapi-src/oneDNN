@@ -34,10 +34,10 @@ status_t ref_reorder_t::pd_t::init_conf() {
 
     conf_.do_scale_src
             = !attr()->scales_.get(DNNL_ARG_SRC_0).has_default_values();
-    conf_.scale_src_mask = attr()->scales_.get(DNNL_ARG_SRC_0).mask_;
+    conf_.scale_src_mask = attr()->scales_.get_mask(DNNL_ARG_SRC_0);
     conf_.do_scale_dst
             = !attr()->scales_.get(DNNL_ARG_DST).has_default_values();
-    conf_.scale_dst_mask = attr()->scales_.get(DNNL_ARG_DST).mask_;
+    conf_.scale_dst_mask = attr()->scales_.get_mask(DNNL_ARG_DST);
     conf_.post_ops = sycl_post_ops_t(attr(), dst_md());
 
     return status::success;

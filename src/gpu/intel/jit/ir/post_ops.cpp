@@ -48,30 +48,32 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
             if (buf.is_empty()) continue;
             int key = kernel_info.key(scale_args[i].first)
                     & ~DNNL_ARG_ATTR_SCALES;
-            int mask = attr.scales_.get(key).mask_;
-            view_t view;
-            switch (key) {
-                case DNNL_ARG_SRC:
-                    ir_assert(mask == 0);
-                    view = po_vm_.create_view(type_t::f32(), mask);
-                    src_scales = add_input_tensor(view, buf);
-                    src_scales_mask = mask;
-                    break;
-                case DNNL_ARG_WEIGHTS:
-                    // Convert o/i weights mask to src/dst.
-                    // XXX: per_oc for BWD_D is treated as per_ic assuming it's
-                    // called from deconvolution.
-                    ir_assert(utils::one_of(mask, 0, 1, 3));
-                    view = po_vm_.create_view(
-                            type_t::f32(), (mask) ? 1 << 1 : 0);
-                    wei_scales = add_input_tensor(view, buf);
-                    wei_scales_mask = mask;
-                    break;
-                case DNNL_ARG_DST: // Invert dst scales right after load.
-                    ir_assert(mask == 0);
-                    view = po_vm_.create_view(type_t::f32(), mask);
-                    dst_scales = add_input_tensor(view, buf);
-                    break;
+            if (!attr.scales_.get(key).has_default_values()) {
+                int mask = attr.scales_.get_mask(key);
+                view_t view;
+                switch (key) {
+                    case DNNL_ARG_SRC:
+                        ir_assert(mask == 0);
+                        view = po_vm_.create_view(type_t::f32(), mask);
+                        src_scales = add_input_tensor(view, buf);
+                        src_scales_mask = mask;
+                        break;
+                    case DNNL_ARG_WEIGHTS:
+                        // Convert o/i weights mask to src/dst.
+                        // XXX: per_oc for BWD_D is treated as per_ic assuming
+                        // it's called from deconvolution.
+                        ir_assert(utils::one_of(mask, 0, 1, 3));
+                        view = po_vm_.create_view(
+                                type_t::f32(), (mask) ? 1 << 1 : 0);
+                        wei_scales = add_input_tensor(view, buf);
+                        wei_scales_mask = mask;
+                        break;
+                    case DNNL_ARG_DST: // Invert dst scales right after load.
+                        ir_assert(mask == 0);
+                        view = po_vm_.create_view(type_t::f32(), mask);
+                        dst_scales = add_input_tensor(view, buf);
+                        break;
+                }
             }
         }
         // Use virtual tensors for scalar scales airthmetic:

@@ -279,7 +279,7 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
         const void *wei_scales_ptr = attr_params->get_scales(DNNL_ARG_WEIGHTS);
         if (wei_scales_ptr == nullptr) return status::invalid_arguments;
 
-        int wei_mask = attr_.scales_.get(DNNL_ARG_WEIGHTS).mask_;
+        int wei_mask = attr_.scales_.get_mask(DNNL_ARG_WEIGHTS);
         if (wei_mask > 0) {
             for (dim_t i = 0; i < N_; i++) {
                 const float wei_scale_val = cpu::io::load_float_value(

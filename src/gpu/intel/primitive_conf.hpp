@@ -83,8 +83,7 @@ struct attr_info_t {
     bool with_src_scales;
     bool with_wei_scales;
     bool with_dst_scales;
-    bool src_scales_mask;
-    bool wei_scales_mask;
+    int wei_scales_mask;
 
     bool with_src_zpoints;
     bool with_wei_zpoints;

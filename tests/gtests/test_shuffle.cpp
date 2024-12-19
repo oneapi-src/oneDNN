@@ -69,7 +69,7 @@ protected:
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
 
-        auto aa = allows_attr_t {false};
+        allows_attr_t aa {};
 
         auto src_md = memory::desc(p.dims, p.src_dt, p.src_tag);
         auto dst_md = memory::desc(p.dims, p.dst_dt, p.dst_tag);
@@ -125,7 +125,7 @@ protected:
         // shuffle specific types and values
         using pd_t = shuffle_backward::primitive_desc;
         using hint_pd_t = shuffle_forward::primitive_desc;
-        allows_attr_t aa {false}; // doesn't support anything
+        allows_attr_t aa {}; // doesn't support anything
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);

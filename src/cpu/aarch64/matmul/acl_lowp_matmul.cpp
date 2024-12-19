@@ -66,11 +66,11 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
                     | smask_t::zero_points_runtime | smask_t::post_ops),
             "only scale, zero point and post-ops attrs supported");
 
-    VDISPATCH_MATMUL(attr()->scales_.get(DNNL_ARG_SRC).mask_ == 0
+    VDISPATCH_MATMUL(attr()->scales_.get_mask(DNNL_ARG_SRC) == 0
                     && attr()->zero_points_.get(DNNL_ARG_SRC) == 0
-                    && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0
+                    && attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) == 0
                     && attr()->zero_points_.get(DNNL_ARG_WEIGHTS) == 0
-                    && attr()->scales_.get(DNNL_ARG_DST).mask_ == 0
+                    && attr()->scales_.get_mask(DNNL_ARG_DST) == 0
                     && attr()->zero_points_.get(DNNL_ARG_DST) == 0,
             "common scales and zero points only");
 
