@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -134,6 +134,10 @@ class invalid_operand_count_exception : public std::runtime_error {
 public:
     invalid_operand_count_exception() : std::runtime_error("Invalid operand count") {}
 };
+class invalid_directive_exception : public std::runtime_error {
+public:
+    invalid_directive_exception() : std::runtime_error("Invalid directive") {}
+};
 class invalid_arf_exception : public std::runtime_error {
 public:
     invalid_arf_exception() : std::runtime_error("Invalid ARF specified") {}
@@ -249,6 +253,7 @@ enum class ProductFamily : int {
     ARL,
     GenericXeHPC,
     PVC,
+    PVCVG,
     GenericXe2,
     GenericXe3,
 };
@@ -268,7 +273,7 @@ static inline bool operator>=(const Product &p1, const Product &p2) { return !(p
 static inline bool operator<=(const Product &p1, const Product &p2) { return !(p2 < p1); }
 
 static inline constexpr14 PlatformType getPlatformType(ProductFamily family) {
-    switch(family) {
+    switch (family) {
         // Guaranteed integrated
         case ProductFamily::GenericGen9:
         case ProductFamily::GenericGen10:
@@ -287,6 +292,7 @@ static inline constexpr14 PlatformType getPlatformType(ProductFamily family) {
         case ProductFamily::GenericXeHPC:
         case ProductFamily::DG2:
         case ProductFamily::PVC:
+        case ProductFamily::PVCVG:
             return PlatformType::Discrete;
         case ProductFamily::Unknown:
             return PlatformType::Unknown;
@@ -322,6 +328,13 @@ static inline constexpr14 Core getCore(ProductFamily family)
     if (family >= ProductFamily::GenericGen10) return Core::Gen10;
     if (family >= ProductFamily::GenericGen9)  return Core::Gen9;
     return Core::Unknown;
+}
+
+static inline constexpr14 bool hasSystolic(ProductFamily family)
+{
+    if (family == ProductFamily::MTL) return false;
+    if (family == ProductFamily::PVCVG) return false;
+    return (family >= ProductFamily::GenericXeHP);
 }
 
 // Stepping IDs.
@@ -415,23 +428,24 @@ template <> inline DataType getDataType<int2>() { return DataType::s2; }
 
 // Math function codes.
 enum class MathFunction : uint8_t {
-    inv   = 1,
-    log   = 2,
-    exp   = 3,
-    sqt   = 4,
-    rsqt  = 5,
-    sin   = 6,
-    cos   = 7,
-    fdiv  = 9,
-    pow   = 10,
-    idiv  = 11,
-    iqot  = 12,
-    irem  = 13,
-    invm  = 14,
-    rsqtm = 15
+    inv   = 0x1,
+    log   = 0x2,
+    exp   = 0x3,
+    sqt   = 0x4,
+    rsqt  = 0x5,
+    sin   = 0x6,
+    cos   = 0x7,
+    fdiv  = 0x9,
+    pow   = 0xA,
+    idiv  = 0xB,
+    iqot  = 0xC,
+    irem  = 0xD,
+    invm  = 0xE,
+    rsqtm = 0xF,
+
 };
 
-static inline int mathArgCount(MathFunction func)
+static inline int mathArgCount(HW hw, MathFunction func)
 {
     static const char argCounts[16] = {0, 1, 1, 1, 1, 1, 1, 1, 0, 2, 2, 2, 2, 2, 2, 1};
     return argCounts[static_cast<uint8_t>(func) & 0xF];
@@ -574,6 +588,7 @@ public:
     void fixup(HW hw, int execSize, int execWidth, DataType defaultType, int srcN, int arity) {}
     constexpr DataType getType() const { return DataType::invalid; }
     constexpr bool isScalar() const { return false; }
+
 };
 
 static inline bool operator==(const RegData &r1, const RegData &r2);
@@ -599,6 +614,7 @@ protected:
         : base(base_), arf(arf_), off(off_), mods(0), type(static_cast<int>(type_)), indirect(indirect_), vs(vs_), width(width_), hs(hs_), _pad2(0), invalid(0) {}
 
 public:
+
     constexpr RegData()
         : base(0), arf(0), off(0), mods(0), type(0), indirect(0), vs(0), width(0), hs(0), _pad2(0), invalid(1) {}
 
@@ -654,6 +670,7 @@ public:
     friend inline bool operator!=(const RegData &r1, const RegData &r2);
 
     friend inline RegData abs(const RegData &r);
+
 };
 
 static_assert(sizeof(RegData) == 8, "RegData structure is not laid out correctly in memory.");
@@ -761,6 +778,7 @@ public:
     void fixup(HW hw, int execSize, int execWidth, DataType defaultType, int srcN, int arity) {
         rd.fixup(hw, execSize, execWidth, defaultType, srcN, arity);
     }
+
 };
 
 // Register regions.
@@ -898,7 +916,7 @@ public:
     constexpr14 Subregister tf32(int offset) const { return sub(offset, DataType::tf32); }
     constexpr14 Subregister  bf8(int offset) const { return sub(offset, DataType::bf8); }
     constexpr14 Subregister  hf8(int offset) const { return sub(offset, DataType::hf8); }
- 
+
     constexpr14 Register   uq() const { return retype(DataType::uq); }
     constexpr14 Register    q() const { return retype(DataType::q);  }
     constexpr14 Register   ud() const { return retype(DataType::ud); }
@@ -1116,6 +1134,7 @@ public:
     constexpr14 RegData &getBase()        { return base; }
     constexpr RegData getBase()     const { return base; }
     constexpr uint8_t getMMENum()   const { return mmeNum; }
+
 };
 
 static inline ExtendedReg operator|(const RegData &base, const SpecialAccumulatorRegister &acc)
@@ -1295,7 +1314,7 @@ inline Subregister Subregister::reinterpret(int offset, DataType type_) const
     r.setType(type_);
 
     int o = getOffset();
-    int oldbytes = getBytes(), newbytes = r.getBytes();
+    int oldbytes = getBits(), newbytes = r.getBits();
     int bitdiff = (oldbytes == 0) ? 0
                                   : (utils::log2(newbytes) - utils::log2(oldbytes));
 
@@ -1370,6 +1389,7 @@ public:
 
     void fixup(HW hw, int execSize, int execWidth, DataType defaultType, int srcN, int arity) {}
     constexpr DataType getType() const { return DataType::invalid; }
+
 };
 
 static inline GRFRange operator-(const GRF &reg1, const GRF &reg2)
@@ -1572,6 +1592,7 @@ enum class Directive {
     ignoredep_src0 = 1,
     ignoredep_src1 = 2,
     ignoredep_src2 = 3,
+    subdep_dst = 8,
     wrdep = 0x10,
     fencedep = 0x11,
 };
@@ -1912,16 +1933,16 @@ protected:
     }
 
     template <typename T> void shrinkSigned(T imm) {
-        if (imm == T(int16_t(imm)))       set<int16_t>(imm);
-        else if (imm == T(uint16_t(imm))) set<uint16_t>(imm);
-        else if (imm == T(int32_t(imm)))  set<int32_t>(imm);
-        else if (imm == T(uint32_t(imm))) set<uint32_t>(imm);
+        if (imm == T(int16_t(imm)))       set(int16_t(imm));
+        else if (imm == T(uint16_t(imm))) set(uint16_t(imm));
+        else if (imm == T(int32_t(imm)))  set(int32_t(imm));
+        else if (imm == T(uint32_t(imm))) set(uint32_t(imm));
         else                              set(imm);
     }
 
     template <typename T> void shrinkUnsigned(T imm) {
-        if (imm == T(uint16_t(imm)))      set<uint16_t>(imm);
-        else if (imm == T(uint32_t(imm))) set<uint32_t>(imm);
+        if (imm == T(uint16_t(imm)))      set(uint16_t(imm));
+        else if (imm == T(uint32_t(imm))) set(uint32_t(imm));
         else                              set(imm);
     }
 
@@ -2075,11 +2096,12 @@ public:
     Immediate forceInt32() const {
         auto result = *this;
         if (result.type == DataType::uw)
-            result.set<uint32_t>(uint16_t(payload));
+            result.set(uint32_t(uint16_t(payload)));
         else if (result.type == DataType::w)
-            result.set<int32_t>(int16_t(payload));
+            result.set(int32_t(int16_t(payload)));
         return result;
     }
+
 };
 
 // Compute ctrl field for bfn instruction.
@@ -2360,6 +2382,7 @@ public:
 };
 
 class hdc_base {
+public:
 protected:
     void hwCheck(HW hw) const {
 #ifdef NGEN_SAFE
