@@ -40,9 +40,11 @@ KERNEL_ATTR
 __kernel void ref_convolution_fwd(
         const __global SRC_DATA_T *src, const __global WEI_DATA_T *wei,
         const __global BIA_DATA_T *bias, __global DST_DATA_T *dst POST_OP_ARGS,
-        const __global float *src_scales, const __global float *wei_scales,
-        const __global float *dst_scales, const __global int *src_zpoints,
-        const __global WEI_ZP_T *wei_zpoints, const __global int *dst_zpoints
+        const __global SRC_SCALES_DATA_T *src_scales,
+        const __global WEI_SCALES_DATA_T *wei_scales,
+        const __global DST_SCALES_DATA_T *dst_scales,
+        const __global int *src_zpoints, const __global WEI_ZP_T *wei_zpoints,
+        const __global int *dst_zpoints
 #if WITH_SROUND
         ,
         __global uint *sround_seed_buf
@@ -97,13 +99,13 @@ __kernel void ref_convolution_fwd(
     POST_OP_DATA_T tmp = d;
 
 #if WITH_SRC_SCALES
-    tmp *= src_scales[0];
+    tmp *= SRC_SCALES_TO_REF(src_scales[0]);
 #endif
 #if WITH_WEI_SCALES
 #if WEI_SCALES_MASK == 0
-    tmp *= wei_scales[0];
+    tmp *= WEI_SCALES_TO_REF(wei_scales[0]);
 #else
-    tmp *= wei_scales[g * OC + oc];
+    tmp *= WEI_SCALES_TO_REF(wei_scales[g * OC + oc]);
 #endif
 #endif
 
@@ -142,7 +144,11 @@ __kernel void ref_convolution_fwd(
             g * OC + oc, 1, po_d2, 1, po_d3, 1, po_d4, 1, 0, 1);
 
 #if WITH_DST_SCALES
-    tmp /= dst_scales[0];
+#if DST_SCALES_MASK == 0
+    tmp /= DST_SCALES_TO_REF(dst_scales[0]);
+#else
+    tmp /= DST_SCALES_TO_REF(dst_scales[g * OC + oc]);
+#endif
 #endif
 
 #if WITH_DST_ZPOINTS
