@@ -223,6 +223,9 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
     A += DST_OFF(b1, b0, 0, 0, 0);
 #if WITH_ATTN_MASK
     msk += MSK_OFF(b1 % MSK_D0, b0 % MSK_D1, 0, 0);
+#ifndef BLOCK_MSK
+    int mask_aligned = (((size_t)msk) % 4) == 0;
+#endif
 #endif
 
 #if KEY_SCALES
@@ -320,9 +323,17 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         /* Load mask. No remainder handling needed assuming k block size is a power of 2. */
         mask_tile_type mask_tile;
 #if BROADCAST_MASK_Q
+#if BLOCK_MSK
         tile_load_block(&mask_tile, msk, 0, k0 + sg_i0_kq, 0);
 #else
-        tile_load_t(&mask_tile, msk, q, k, q, sg_j0_kq + wg_j0, k0 + sg_i0_kq);
+        if (mask_aligned) {
+            tile_load_block(&mask_tile, msk, 0, k0 + sg_i0_kq, 0);
+        } else {
+            tile_load_full(&mask_tile, msk, 0, k0 + sg_i0_kq, 0);
+        }
+#endif
+#else
+        tile_load_t(&mask_tile, msk, q, k, sg_j0_kq + wg_j0, k0 + sg_i0_kq);
 #endif
 #endif
 

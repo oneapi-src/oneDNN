@@ -413,6 +413,7 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     auto ldk = gemm_desc_t::get_ld(*pd()->key_md()) * key_mdw.data_type_size();
     auto ldv = gemm_desc_t::get_ld(*pd()->val_md()) * val_mdw.data_type_size();
     auto lda = gemm_desc_t::get_ld(*pd()->dst_md()) * dst_mdw.data_type_size();
+    auto ldmsk = pd()->attn_mask_md()->dims[3] * msk_mdw.data_type_size();
     kernel_ctx.define_int("Q_ALIGN", jit::alignmentForLD(int(ldq)));
     kernel_ctx.define_int("K_ALIGN", jit::alignmentForLD(int(ldk)));
     kernel_ctx.define_int("V_ALIGN", jit::alignmentForLD(int(ldv)));
@@ -483,6 +484,7 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     if (d_full) {
         if (ldq % 4 == 0) kernel_ctx.define_int("BLOCK_Q", 1);
         if (lda % 4 == 0 && v_full) kernel_ctx.define_int("BLOCK_A", 1);
+        if (ldmsk % 4 == 0) kernel_ctx.define_int("BLOCK_MSK", 1);
         kernel_ctx.define_int("REMAINDER_Q", (d->queries() % tile_q) != 0);
     } else if (pd()->arch() >= compute::gpu_arch_t::xe_hpc) {
         auto vbytes = d->values() * val_mdw.data_type_size();
