@@ -2235,23 +2235,14 @@ status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
     subgraph_rewriter_t rewriter(sg);
 
     for (auto &cur_op : sg->get_ops()) {
-        std::cout << "cur_op->get_kind(): " << cur_op->get_kind() << std::endl;
-        std::cout << "cur_op->get_name(): " << cur_op->get_name() << std::endl;
         if (cur_op->get_kind() != op_kind::dnnl_binary) continue;
-        bool is_select = cur_op->has_attr(op_attr::is_select)
-                ? cur_op->get_attr<bool>(op_attr::is_select)
-                : false;
         bool is_bias_add = cur_op->has_attr(op_attr::is_bias_add)
                 ? cur_op->get_attr<bool>(op_attr::is_bias_add)
                 : false;
 
         // check doable
-        auto src0_lt = is_select
-                ? cur_op->get_input_value(1)->get_logical_tensor()
-                : cur_op->get_input_value(0)->get_logical_tensor();
-        auto src1_lt = is_select
-                ? cur_op->get_input_value(2)->get_logical_tensor()
-                : cur_op->get_input_value(1)->get_logical_tensor();
+        auto src0_lt = cur_op->get_input_value(0)->get_logical_tensor();
+        auto src1_lt = cur_op->get_input_value(1)->get_logical_tensor();
 
         bool shape_check_ok = true;
         if (is_bias_add) {
@@ -2272,8 +2263,6 @@ status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         // insert unsqueeze op
         int32_t src0_ndims = src0_lt.ndims;
         int32_t src1_ndims = src1_lt.ndims;
-        std::cout << "src0_ndims: " << src0_ndims << std::endl;
-        std::cout << "src1_ndims: " << src1_ndims << std::endl;
         int32_t target_ndims = std::max(src0_ndims, src1_ndims);
         std::vector<int32_t> in_ndims {src0_ndims, src1_ndims};
 

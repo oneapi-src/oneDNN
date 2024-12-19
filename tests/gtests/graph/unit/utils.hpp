@@ -170,22 +170,16 @@ static inline void verify_op_schema(const dnnl::impl::graph::op_kind_t op_kind_,
     const op_schema_t *op_schema_
             = op_schema_registry_t::get_op_schema(op_kind_);
     EXPECT_TRUE(nullptr != op_schema_);
-    std::cout << "111" << std::endl;
     const std::set<size_t> input_size = op_schema_->get_num_inputs();
     EXPECT_TRUE(input_size.find(expected_in_size) != input_size.end());
-    std::cout << "222" << std::endl;
     const std::set<size_t> output_size = op_schema_->get_num_outputs();
     EXPECT_TRUE(output_size.find(expected_out_size) != output_size.end());
-    std::cout << "333" << std::endl;
     size_t attr_size = op_schema_->get_attrs().size();
     EXPECT_EQ(attr_size, expected_attr_size);
-    std::cout << "444" << std::endl;
     for (const auto &attr_data : attrs_data) {
         const auto &attr_name = attr_data.first;
         const auto is_required = attr_data.second;
-        std::cout << "attr_name: " << attr_name << std::endl;
         EXPECT_EQ(op_schema_->get_attrs().count(attr_name), 1U);
-        std::cout << "555" << std::endl;
         EXPECT_EQ(op_schema_->get_attrs().at(attr_name).required_, is_required);
     }
 }
@@ -1166,6 +1160,167 @@ inline void construct_select_float_MHA(dnnl::impl::graph::graph_t *agraph,
     agraph->add_op(&reorder_output);
 }
 
+inline void construct_select_float_MHA_nonBroadcast(
+        dnnl::impl::graph::graph_t *agraph,
+        impl::data_type_t dtype = impl::data_type::f32, int batch_size = 1,
+        int seq_len = 128, int num_head = 12, int head_dim = 768,
+        bool transpose = false, bool distil = true, bool gpt = false) {
+    using namespace dnnl::impl::graph;
+    using namespace dnnl::graph::tests;
+
+    int size_per_head = head_dim / num_head;
+    dims QKV_RESHAPED_SHAPE = {batch_size, seq_len, num_head, size_per_head};
+    dims EXTENDED_ATTENTION_MASK_SHAPE
+            = {batch_size, num_head, seq_len, seq_len};
+    dims QKV_TRANSPOSED_SHAPE = {batch_size, num_head, seq_len, size_per_head};
+    dims KEY_TRANSPOSED_SHAPE;
+    if (!transpose)
+        KEY_TRANSPOSED_SHAPE = {batch_size, num_head, size_per_head, seq_len};
+    else
+        KEY_TRANSPOSED_SHAPE = {batch_size, num_head, seq_len, size_per_head};
+    dims MATMUL_QK_OUTPUT_SHAPE = {batch_size, num_head, seq_len, seq_len};
+    dims MATMUL_V_OUTPUT_SHAPE = {batch_size, num_head, seq_len, size_per_head};
+
+    dims CONST_SHAPE = {batch_size, num_head, seq_len, seq_len};
+
+    dims QKV_TRANSPOSED_ORDER = {0, 2, 1, 3};
+    dims KEY_TRANSPOSED_ORDER = {0, 1, 3, 2};
+
+    size_t lt_id = 0;
+    size_t op_id = 0;
+
+    auto attention_mask_flt = unit::utils::logical_tensor_init(
+            lt_id++, EXTENDED_ATTENTION_MASK_SHAPE, dtype);
+
+    auto query_input = unit::utils::logical_tensor_init(
+            lt_id++, QKV_TRANSPOSED_SHAPE, dtype);
+
+    auto key_input = unit::utils::logical_tensor_init(
+            lt_id++, KEY_TRANSPOSED_SHAPE, dtype);
+
+    auto matmul_qk_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    auto fscore_scale
+            = unit::utils::logical_tensor_init(lt_id++, CONST_SHAPE, dtype);
+    fscore_scale.property = property_type::constant;
+    auto fscore_div_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    auto condition_input = unit::utils::logical_tensor_init(
+            lt_id++, EXTENDED_ATTENTION_MASK_SHAPE, impl::data_type::boolean);
+    auto select_other_input
+            = unit::utils::logical_tensor_init(lt_id++, CONST_SHAPE, dtype);
+    auto select_output = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    auto softmax_input = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    auto softmax_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    auto tc1_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, impl::data_type::f32);
+    auto tc2_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, dtype);
+
+    auto value_input = unit::utils::logical_tensor_init(
+            lt_id++, QKV_TRANSPOSED_SHAPE, dtype);
+
+    auto matmul_v_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_V_OUTPUT_SHAPE, dtype);
+
+    auto context_transpose_out = unit::utils::logical_tensor_init(
+            lt_id++, QKV_RESHAPED_SHAPE, dtype);
+
+    auto context_reshape_out = unit::utils::logical_tensor_init(
+            lt_id++, QKV_RESHAPED_SHAPE, dtype);
+
+    op_t matmul_qk {op_id++, op_kind::MatMul, "matmul_qk"};
+    matmul_qk.set_attr<bool>(op_attr::transpose_b, transpose);
+
+    op_t fscore_select {op_id++, op_kind::Select, "fscore_select"};
+
+    op_t fscore_div {op_id++, op_kind::Divide, "fscore_div"};
+    fscore_div.set_attr(op_attr::auto_broadcast, std::string("numpy"));
+    op_t fscore_add {op_id++, op_kind::Add, "fscore_add"};
+    fscore_add.set_attr(op_attr::auto_broadcast, std::string("numpy"));
+    op_t softmax {op_id++, op_kind::SoftMax, "softmax"};
+    softmax.set_attr(op_attr::axis, (int64_t)3);
+
+    op_t tc1 {op_id++, op_kind::TypeCast, "tc1"};
+    op_t tc2 {op_id++, op_kind::TypeCast, "tc2"};
+    op_t matmul_v {op_id++, op_kind::MatMul, "matmul_v"};
+
+    // transpose + reshape before output
+    op_t transpose_output {
+            op_id++, op_kind::StaticTranspose, "transpose_output"};
+    transpose_output.set_attr<std::vector<int64_t>>(
+            op_attr::order, QKV_TRANSPOSED_ORDER);
+
+    op_t reorder_output {op_id++, op_kind::Reorder, "reorder_output"};
+
+    matmul_qk.add_input(query_input);
+    matmul_qk.add_input(key_input);
+    matmul_qk.add_output(matmul_qk_out);
+    if (gpt) {
+        fscore_select.add_input(condition_input);
+        fscore_select.add_input(matmul_qk_out);
+        fscore_select.add_input(select_other_input);
+        fscore_select.add_output(select_output);
+        fscore_div.add_input(select_output);
+    } else {
+        fscore_div.add_input(matmul_qk_out);
+    }
+    fscore_div.add_input(fscore_scale);
+    fscore_div.add_output(fscore_div_out);
+
+    if (distil) {
+        fscore_select.add_input(condition_input);
+        fscore_select.add_input(select_other_input);
+        fscore_select.add_input(fscore_div_out);
+        fscore_select.add_output(select_output);
+        softmax.add_input(select_output);
+    } else if (gpt) {
+        fscore_add.add_input(fscore_div_out);
+        fscore_add.add_input(attention_mask_flt);
+        fscore_add.add_output(softmax_input);
+        softmax.add_input(softmax_input);
+    }
+    softmax.add_output(softmax_out);
+    if (gpt && dtype == impl::data_type::bf16) {
+        tc1.add_input(softmax_out);
+        tc1.add_output(tc1_out);
+        tc2.add_input(tc1_out);
+        tc2.add_output(tc2_out);
+        matmul_v.add_input(tc2_out);
+    } else {
+        matmul_v.add_input(softmax_out);
+    }
+    matmul_v.add_input(value_input);
+    matmul_v.add_output(matmul_v_out);
+
+    transpose_output.add_input(matmul_v_out);
+    transpose_output.add_output(context_transpose_out);
+
+    reorder_output.add_input(context_transpose_out);
+    reorder_output.add_output(context_reshape_out);
+
+    agraph->add_op(&matmul_qk);
+    agraph->add_op(&fscore_div);
+    agraph->add_op(&fscore_select);
+    if (gpt) agraph->add_op(&fscore_add);
+    agraph->add_op(&softmax);
+    if (gpt && dtype == impl::data_type::bf16) {
+        agraph->add_op(&tc1);
+        agraph->add_op(&tc2);
+    }
+    agraph->add_op(&matmul_v);
+    agraph->add_op(&transpose_output);
+    agraph->add_op(&reorder_output);
+}
+
 inline void construct_dnnl_float_JAX_MHA(dnnl::impl::graph::graph_t *agraph,
         impl::data_type_t dtype = impl::data_type::f32, int batch_size = 1,
         int seq_len = 384, int num_head = 16, int head_dim = 1024) {
@@ -1786,6 +1941,219 @@ inline void construct_select_int8_MHA(dnnl::impl::graph::graph_t *agraph,
     agraph->add_op(&quantize_output);
 }
 
+inline void construct_select_int8_MHA_nonBroadcast(
+        dnnl::impl::graph::graph_t *agraph, int batch_size = 1,
+        int seq_len = 128, int num_head = 12, int head_dim = 768,
+        bool transpose = false, bool distil = true, bool gpt = false) {
+    using namespace dnnl::impl::graph;
+    using namespace dnnl::graph::tests;
+
+    int size_per_head = head_dim / num_head;
+    dims QKV_RESHAPED_SHAPE = {batch_size, seq_len, num_head, size_per_head};
+    dims EXTENDED_ATTENTION_MASK_SHAPE
+            = {batch_size, num_head, seq_len, seq_len};
+    dims QKV_TRANSPOSED_SHAPE = {batch_size, num_head, seq_len, size_per_head};
+    dims KEY_TRANSPOSED_SHAPE;
+    if (!transpose)
+        KEY_TRANSPOSED_SHAPE = {batch_size, num_head, size_per_head, seq_len};
+    else
+        KEY_TRANSPOSED_SHAPE = {batch_size, num_head, seq_len, size_per_head};
+    dims MATMUL_QK_OUTPUT_SHAPE = {batch_size, num_head, seq_len, seq_len};
+    dims MATMUL_V_OUTPUT_SHAPE = {batch_size, num_head, seq_len, size_per_head};
+
+    dims CONST_SHAPE = {batch_size, num_head, seq_len, seq_len};
+
+    dims QKV_TRANSPOSED_ORDER = {0, 2, 1, 3};
+    dims KEY_TRANSPOSED_ORDER = {0, 1, 3, 2};
+
+    size_t lt_id = 0;
+    size_t op_id = 0;
+
+    auto attention_mask_flt = unit::utils::logical_tensor_init(
+            lt_id++, EXTENDED_ATTENTION_MASK_SHAPE, data_type::f32);
+
+    auto query_input = unit::utils::logical_tensor_init(
+            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::u8);
+    auto query_dequantize = unit::utils::logical_tensor_init(
+            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
+
+    auto key_input = unit::utils::logical_tensor_init(
+            lt_id++, KEY_TRANSPOSED_SHAPE, data_type::u8);
+    auto key_dequantize = unit::utils::logical_tensor_init(
+            lt_id++, KEY_TRANSPOSED_SHAPE, data_type::f32);
+
+    auto matmul_qk_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+
+    auto fscore_scale = unit::utils::logical_tensor_init(
+            lt_id++, CONST_SHAPE, data_type::f32);
+    fscore_scale.property = property_type::constant;
+    auto fscore_div_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+
+    auto condition_input = unit::utils::logical_tensor_init(
+            lt_id++, EXTENDED_ATTENTION_MASK_SHAPE, impl::data_type::boolean);
+    auto select_other_input = unit::utils::logical_tensor_init(
+            lt_id++, CONST_SHAPE, data_type::f32);
+    auto select_output = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+
+    auto softmax_input = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+
+    auto softmax_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+
+    auto softmax_out_q = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::u8);
+    auto softmax_out_deq = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_QK_OUTPUT_SHAPE, data_type::f32);
+
+    auto value_input = unit::utils::logical_tensor_init(
+            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::u8);
+
+    auto value_dequantize = unit::utils::logical_tensor_init(
+            lt_id++, QKV_TRANSPOSED_SHAPE, data_type::f32);
+
+    auto matmul_v_out = unit::utils::logical_tensor_init(
+            lt_id++, MATMUL_V_OUTPUT_SHAPE, data_type::f32);
+
+    auto context_transpose_out = unit::utils::logical_tensor_init(
+            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
+
+    auto context_reshape_out = unit::utils::logical_tensor_init(
+            lt_id++, QKV_RESHAPED_SHAPE, data_type::f32);
+    auto context_out = unit::utils::logical_tensor_init(
+            lt_id++, QKV_RESHAPED_SHAPE, data_type::u8);
+
+    op_t dequantize_query {op_id++, op_kind::Dequantize, "dequantize_query"};
+    dequantize_query.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_query.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_query.set_attr(op_attr::qtype, std::string("per_tensor"));
+    dequantize_query.set_attr(op_attr::axis, (int64_t)0);
+
+    op_t dequantize_key {op_id++, op_kind::Dequantize, "dequantize_key"};
+    dequantize_key.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_key.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_key.set_attr(op_attr::qtype, std::string("per_tensor"));
+    dequantize_key.set_attr(op_attr::axis, (int64_t)0);
+
+    op_t matmul_qk {op_id++, op_kind::MatMul, "matmul_qk"};
+    matmul_qk.set_attr<bool>(op_attr::transpose_b, transpose);
+
+    op_t fscore_select {op_id++, op_kind::Select, "fscore_select"};
+
+    op_t fscore_div {op_id++, op_kind::Divide, "fscore_div"};
+    fscore_div.set_attr(op_attr::auto_broadcast, std::string("numpy"));
+    op_t fscore_add {op_id++, op_kind::Add, "fscore_add"};
+    fscore_add.set_attr(op_attr::auto_broadcast, std::string("numpy"));
+    op_t softmax {op_id++, op_kind::SoftMax, "softmax"};
+    softmax.set_attr(op_attr::axis, (int64_t)3);
+
+    // quantize-dequantize softmax's output
+    op_t quantize_softmax {op_id++, op_kind::Quantize, "quantize_softmax"};
+    op_t dequantize_softmax {
+            op_id++, op_kind::Dequantize, "dequantize_softmax"};
+    quantize_softmax.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    quantize_softmax.set_attr(op_attr::zps, std::vector<int64_t>({0}));
+    quantize_softmax.set_attr(op_attr::qtype, std::string("per_tensor"));
+    quantize_softmax.set_attr(op_attr::axis, (int64_t)0);
+    dequantize_softmax.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_softmax.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_softmax.set_attr(op_attr::qtype, std::string("per_tensor"));
+    dequantize_softmax.set_attr(op_attr::axis, (int64_t)0);
+
+    op_t dequantize_value {op_id++, op_kind::Dequantize, "dequantize_value"};
+    dequantize_value.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    dequantize_value.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    dequantize_value.set_attr(op_attr::qtype, std::string("per_tensor"));
+    dequantize_value.set_attr(op_attr::axis, (int64_t)0);
+
+    op_t matmul_v {op_id++, op_kind::MatMul, "matmul_v"};
+
+    // transpose + reshape before output
+    op_t transpose_output {
+            op_id++, op_kind::StaticTranspose, "transpose_output"};
+    transpose_output.set_attr<std::vector<int64_t>>(
+            op_attr::order, QKV_TRANSPOSED_ORDER);
+
+    op_t reorder_output {op_id++, op_kind::Reorder, "reorder_output"};
+
+    op_t quantize_output {op_id++, op_kind::Quantize, "quantize_value"};
+    quantize_output.set_attr(op_attr::scales, std::vector<float>({0.12f}));
+    quantize_output.set_attr(op_attr::zps, std::vector<int64_t>({2}));
+    quantize_output.set_attr(op_attr::qtype, std::string("per_tensor"));
+    quantize_output.set_attr(op_attr::axis, (int64_t)0);
+
+    dequantize_query.add_input(query_input);
+    dequantize_query.add_output(query_dequantize);
+    dequantize_key.add_input(key_input);
+    dequantize_key.add_output(key_dequantize);
+    matmul_qk.add_input(query_dequantize);
+    matmul_qk.add_input(key_dequantize);
+    matmul_qk.add_output(matmul_qk_out);
+    if (gpt) {
+        fscore_select.add_input(condition_input);
+        fscore_select.add_input(matmul_qk_out);
+        fscore_select.add_input(select_other_input);
+        fscore_select.add_output(select_output);
+        fscore_div.add_input(select_output);
+    } else {
+        fscore_div.add_input(matmul_qk_out);
+    }
+    fscore_div.add_input(fscore_scale);
+    fscore_div.add_output(fscore_div_out);
+
+    if (distil) {
+        fscore_select.add_input(condition_input);
+        fscore_select.add_input(select_other_input);
+        fscore_select.add_input(fscore_div_out);
+        fscore_select.add_output(select_output);
+        softmax.add_input(select_output);
+    } else if (gpt) {
+        fscore_add.add_input(fscore_div_out);
+        fscore_add.add_input(attention_mask_flt);
+        fscore_add.add_output(softmax_input);
+        softmax.add_input(softmax_input);
+    }
+    softmax.add_output(softmax_out);
+    quantize_softmax.add_input(softmax_out);
+    quantize_softmax.add_output(softmax_out_q);
+    dequantize_softmax.add_input(softmax_out_q);
+    dequantize_softmax.add_output(softmax_out_deq);
+
+    dequantize_value.add_input(value_input);
+    dequantize_value.add_output(value_dequantize);
+
+    matmul_v.add_input(softmax_out_deq);
+    matmul_v.add_input(value_dequantize);
+    matmul_v.add_output(matmul_v_out);
+
+    transpose_output.add_input(matmul_v_out);
+    transpose_output.add_output(context_transpose_out);
+
+    reorder_output.add_input(context_transpose_out);
+    reorder_output.add_output(context_reshape_out);
+
+    quantize_output.add_input(context_reshape_out);
+    quantize_output.add_output(context_out);
+
+    agraph->add_op(&dequantize_query);
+    agraph->add_op(&dequantize_key);
+    agraph->add_op(&matmul_qk);
+    agraph->add_op(&fscore_div);
+    agraph->add_op(&fscore_select);
+    if (gpt) agraph->add_op(&fscore_add);
+    agraph->add_op(&softmax);
+    agraph->add_op(&quantize_softmax);
+    agraph->add_op(&dequantize_softmax);
+    agraph->add_op(&dequantize_value);
+    agraph->add_op(&matmul_v);
+    agraph->add_op(&transpose_output);
+    agraph->add_op(&reorder_output);
+    agraph->add_op(&quantize_output);
+}
+
 inline void construct_int8_bf16_MHA(dnnl::impl::graph::graph_t *agraph,
         int batch_size = 1, int seq_len = 384, int num_head = 16,
         int head_dim = 1024, bool transpose = false, bool attention_mask = true,
@@ -1800,6 +2168,91 @@ inline void construct_int8_bf16_MHA(dnnl::impl::graph::graph_t *agraph,
     else
         construct_select_int8_MHA(agraph, batch_size, seq_len, num_head,
                 head_dim, transpose, distil, gpt);
+
+    // change the f32 logical tensor to bf16
+    for (auto &op : agraph->get_ops()) {
+        for (auto &val : op->get_input_values()) {
+            if (val->get_logical_tensor().data_type
+                    == impl::graph::data_type::f32)
+                val->set_data_type(impl::graph::data_type::bf16);
+        }
+
+        for (auto &val : op->get_output_values()) {
+            if (val->get_logical_tensor().data_type
+                    == impl::graph::data_type::f32)
+                val->set_data_type(impl::graph::data_type::bf16);
+        }
+    }
+
+    // insert bf16->f32 typecase op before quantize and f32->bf16 op after
+    // dequantize
+    std::vector<std::shared_ptr<impl::graph::op_t>> target_ops;
+    for (auto &op : agraph->get_ops()) {
+        if (op->get_kind() == impl::graph::op_kind::Quantize
+                || op->get_kind() == impl::graph::op_kind::Dequantize) {
+            target_ops.emplace_back(op);
+        }
+    }
+
+    std::vector<std::shared_ptr<impl::graph::op_kind_t>> to_be_inserted;
+    size_t new_lt_id_start = 1000;
+    for (auto &op : target_ops) {
+        // insert bf16->f32 typecase op before quantize
+        if (op->get_kind() == impl::graph::op_kind::Quantize) {
+            auto bf16_to_f32
+                    = agraph->create_op(op_kind::TypeCast, "bf16_to_f32");
+
+            auto in_val = op->get_input_value(0);
+            in_val->remove_consumer(*op, 0);
+            in_val->add_consumer(*bf16_to_f32, bf16_to_f32->num_inputs());
+            bf16_to_f32->add_input(in_val);
+
+            auto new_lt = in_val->get_logical_tensor();
+            new_lt.id = new_lt_id_start++;
+            new_lt.data_type = impl::graph::data_type::f32;
+            auto new_val
+                    = std::make_shared<value_t>(*bf16_to_f32, 0, new_lt, false);
+            bf16_to_f32->add_output(new_val);
+
+            new_val->add_consumer(*op, 0);
+            op->connect_input(0, new_val);
+        }
+
+        // insert f32->bf16 op after dequantize
+        if (op->get_kind() == impl::graph::op_kind::Dequantize) {
+            auto f32_to_bf16
+                    = agraph->create_op(op_kind::TypeCast, "f32_to_bf16");
+
+            auto out_val = op->get_output_value(0);
+            f32_to_bf16->add_output(out_val);
+
+            auto new_lt = out_val->get_logical_tensor();
+            new_lt.id = new_lt_id_start++;
+            new_lt.data_type = impl::graph::data_type::f32;
+            auto new_val = std::make_shared<value_t>(*op, 0, new_lt, false);
+            op->connect_output(0, new_val);
+
+            new_val->add_consumer(*f32_to_bf16, f32_to_bf16->num_inputs());
+            f32_to_bf16->add_input(new_val);
+        }
+    }
+}
+
+inline void construct_int8_bf16_MHA_nonBroadcast(
+        dnnl::impl::graph::graph_t *agraph, int batch_size = 1,
+        int seq_len = 384, int num_head = 16, int head_dim = 1024,
+        bool transpose = false, bool attention_mask = true, bool distil = false,
+        bool gpt = false) {
+    using namespace dnnl::impl::graph;
+    using namespace dnnl::graph::tests;
+
+    // construct a int8 MHA pattern first
+    if (!distil && !gpt)
+        construct_int8_MHA(agraph, batch_size, seq_len, num_head, head_dim,
+                transpose, attention_mask);
+    else
+        construct_select_int8_MHA_nonBroadcast(agraph, batch_size, seq_len,
+                num_head, head_dim, transpose, distil, gpt);
 
     // change the f32 logical tensor to bf16
     for (auto &op : agraph->get_ops()) {

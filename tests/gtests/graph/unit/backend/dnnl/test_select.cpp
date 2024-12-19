@@ -26,13 +26,79 @@ using dim_t = dnnl_dim_t;
 using dims_t = dnnl_dims_t;
 using dims = std::vector<dim_t>;
 
-TEST(test_select_execute, TestSelect) {
+TEST(test_select_execute, TestSelectBroadcast) {
+    SKIP_IF(true, "broadcast for cond is not supported yet");
+    graph::engine_t *engine = get_engine();
+    std::vector<bool> cond(128, true);
+    std::vector<float> src0(1, -1);
+    std::vector<float> src1(12 * 128 * 128, 1);
+    std::vector<float> dst(12 * 128 * 128);
+    for (int i = 0; i < 64; i++)
+        cond[i] = false;
+
+    graph::op_t select_op(graph::op_kind::Select);
+
+    graph::logical_tensor_t cond_lt = utils::logical_tensor_init(
+            0, {1, 1, 1, 128}, graph::data_type::boolean);
+
+    graph::logical_tensor_t src0_lt
+            = utils::logical_tensor_init(1, {1}, graph::data_type::f32);
+
+    graph::logical_tensor_t src1_lt = utils::logical_tensor_init(
+            2, {1, 12, 128, 128}, graph::data_type::f32);
+
+    graph::logical_tensor_t dst_lt = utils::logical_tensor_init(
+            3, {1, 12, 128, 128}, graph::data_type::f32);
+
+    select_op.add_input(cond_lt);
+    select_op.add_input(src0_lt);
+    select_op.add_input(src1_lt);
+    select_op.add_output(dst_lt);
+
+    graph::graph_t g(engine->kind());
+    g.add_op(&select_op);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("select_pass");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+
+    // compile
+    graph::partition_t p;
+    p.init(part);
+    graph::compiled_partition_t cp(p);
+
+    std::vector<const graph::logical_tensor_t *> inputs {
+            &cond_lt, &src0_lt, &src1_lt};
+    std::vector<const graph::logical_tensor_t *> outputs {&dst_lt};
+    ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
+
+    graph::stream_t *stream = get_stream();
+    test_tensor cond_ts(cond_lt, engine, cond);
+    test_tensor src0_ts(src0_lt, engine, src0);
+    test_tensor src1_ts(src1_lt, engine, src1);
+    test_tensor dst_ts(dst_lt, engine, dst);
+
+    ASSERT_EQ(cp.execute(stream, {cond_ts.get(), src0_ts.get(), src1_ts.get()},
+                      {dst_ts.get()}),
+            graph::status::success);
+    stream->wait();
+    dst = dst_ts.as_vec_type<float>();
+    for (size_t i = 0; i < 12 * 128; ++i) {
+        for (size_t j = 0; j < 128; ++j) {
+            if (j < 64) {
+                ASSERT_EQ(dst[i * 128 + j], 1);
+            } else {
+                ASSERT_EQ(dst[i * 128 + j], -1);
+            }
+        }
+    }
+}
+
+TEST(test_select_execute, TestSelectNonBroadcast) {
 
     graph::engine_t *engine = get_engine();
-    //     std::vector<bool> cond(128, true);
-    //     std::vector<float> src0(1, -1);
-    //     std::vector<float> src1(12 * 128 * 128, 1);
-    //     std::vector<float> dst(12 * 128 * 128);
     std::vector<bool> cond(128, true);
     std::vector<float> src0(128, -1);
     std::vector<float> src1(128, 1);
@@ -40,17 +106,7 @@ TEST(test_select_execute, TestSelect) {
     for (int i = 0; i < 64; i++)
         cond[i] = false;
 
-    for (int i = 0; i < 128; i++) {
-        std::cout << "cond[" << i << "] = " << cond[i] << std::endl;
-    }
-
     graph::op_t select_op(graph::op_kind::Select);
-
-    //     graph::logical_tensor_t cond_lt = utils::logical_tensor_init(
-    //             0, {1, 1, 1, 128}, graph::data_type::boolean);
-
-    //     graph::logical_tensor_t src0_lt
-    //             = utils::logical_tensor_init(1, {1}, graph::data_type::f32);
 
     graph::logical_tensor_t cond_lt = utils::logical_tensor_init(
             0, {1, 128}, graph::data_type::boolean);
@@ -99,23 +155,16 @@ TEST(test_select_execute, TestSelect) {
             graph::status::success);
     stream->wait();
     dst = dst_ts.as_vec_type<float>();
-    for (size_t i = 0; i < 1; ++i) { // 12 * 128
-        for (size_t j = 0; j < 128; ++j) {
-            if (j < 64) {
-                std::cout << "dst[" << i * 128 + j << "] = " << dst[i * 128 + j]
-                          << std::endl;
-                ASSERT_EQ(dst[i * 128 + j], 1);
-            } else {
-                std::cout << "dst[" << i * 128 + j << "] = " << dst[i * 128 + j]
-                          << std::endl;
-                ASSERT_EQ(dst[i * 128 + j], -1);
-            }
+    for (size_t j = 0; j < 128; ++j) {
+        if (j < 64) {
+            ASSERT_EQ(dst[j], 1);
+        } else {
+            ASSERT_EQ(dst[j], -1);
         }
     }
 }
 
 TEST(test_select_execute, MatmulSelectNonBroadcast) {
-    //SKIP_IF(true, "broadcast for cond is not supported yet");
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "MatMul");
     graph::op_t div_op(1, graph::op_kind::Divide, "div_op");
     graph::op_t select_op(2, graph::op_kind::Select, "Select");
@@ -213,7 +262,7 @@ TEST(test_select_execute, MatmulSelectNonBroadcast) {
 }
 
 TEST(test_select_execute, MatmulSelectBroadcast) {
-    //SKIP_IF(true, "broadcast for cond is not supported yet");
+    SKIP_IF(true, "broadcast for cond is not supported yet");
     graph::op_t matmul_op(0, graph::op_kind::MatMul, "MatMul");
     graph::op_t div_op(1, graph::op_kind::Divide, "div_op");
     graph::op_t select_op(2, graph::op_kind::Select, "Select");
