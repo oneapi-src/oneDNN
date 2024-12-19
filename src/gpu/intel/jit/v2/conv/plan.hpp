@@ -193,7 +193,7 @@ struct x2r_plan_t : public base_plan_t {
     send_plan_t load;
     reorder_plan_t reorder;
     layout_t layout;
-    layout_t bia_layout;
+    layout_t bias_layout;
 
     using base_plan_t::base_plan_t;
 
@@ -280,7 +280,7 @@ struct x2r_fma_plan_t : public base_plan_t {
 
     pvar_tile_t outer;
     layout_t c_layout;
-    layout_t bia_layout;
+    layout_t bias_layout;
     std::vector<stage_t> stages;
 
     x2r_fma_plan_t(const hw_t &hw) : base_plan_t(hw) {}
@@ -362,17 +362,38 @@ struct slm_reduce_plan_t : public base_plan_t {
     }
 };
 
-struct epilogue_plan_t : public base_plan_t {
+struct epilogue_store_plan_t : public base_plan_t {
     pvar_tile_t tile;
-    slm_reduce_plan_t slm_reduce;
     reorder_plan_t reorder;
-    reorder_plan_t bia_reorder;
+    reorder_plan_t bias_reorder;
+    send_plan_t c_store;
+    send_plan_t bias_store;
+
+    std::string str() const {
+        if (!*this) return "(empty)";
+        std::ostringstream oss;
+        oss << "tile: " << tile << std::endl;
+        if (reorder)
+            oss << ir_utils::add_tag("reorder", bias_reorder.str())
+                << std::endl;
+        if (bias_reorder)
+            oss << ir_utils::add_tag("bias_reorder", bias_reorder.str())
+                << std::endl;
+        oss << ir_utils::add_tag("c_store", c_store.str()) << std::endl;
+        if (bias_store)
+            oss << ir_utils::add_tag("bias_store", bias_store.str());
+        return oss.str();
+    }
+};
+
+struct epilogue_plan_t : public base_plan_t {
+    slm_reduce_plan_t slm_reduce;
     layout_t c_reg_layout;
     pvar_coord_t<expr_t> c_coord;
-    layout_t bia_reduced_reg_layout;
-    send_plan_t c_store;
-    send_plan_t bia_store;
-    expr_t reduce_cond;
+    layout_t bias_layout;
+    expr_t bias_reduce_cond;
+
+    epilogue_store_plan_t store;
 
     using base_plan_t::base_plan_t;
 
@@ -382,17 +403,10 @@ struct epilogue_plan_t : public base_plan_t {
     std::string str() const {
         if (!*this) return "(empty)";
         std::ostringstream oss;
-        oss << "tile: " << tile << std::endl;
         if (slm_reduce)
             oss << ir_utils::add_tag("slm_reduce", slm_reduce.str())
                 << std::endl;
-        if (reorder)
-            oss << ir_utils::add_tag("reorder", reorder.str()) << std::endl;
-        if (bia_reorder)
-            oss << ir_utils::add_tag("bia_reorder", bia_reorder.str())
-                << std::endl;
-        oss << ir_utils::add_tag("c_store", c_store.str()) << std::endl;
-        oss << ir_utils::add_tag("bia_store", bia_store.str());
+        if (store) oss << ir_utils::add_tag("store", store.str()) << std::endl;
         return oss.str();
     }
 

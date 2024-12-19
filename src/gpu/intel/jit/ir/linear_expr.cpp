@@ -445,13 +445,17 @@ expr_t split_to_linear_impl(
 }
 
 void split_to_linear(const expr_t &expr, const std::vector<expr_t> &idxs,
-        expr_t &init, std::vector<expr_t> &incs) {
+        const std::vector<expr_t> &start, expr_t &init,
+        std::vector<expr_t> &incs) {
     incs = std::vector<expr_t>(idxs.size());
     init = to_linear(expr);
+    expr_t start_shift = 0;
     for (size_t i = 0; i < idxs.size(); i++) {
         init = split_to_linear_impl(init, idxs[i], incs[i]);
+        if (is_zero(start[i])) continue;
+        start_shift += start[i] * incs[i];
     }
-    init = init.as<linear_t>().to_expr();
+    init = init.as<linear_t>().to_expr() + start_shift;
 }
 
 } // namespace jit

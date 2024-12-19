@@ -183,10 +183,10 @@ public:
         return acc;
     }
 
-    layout_t bia_layout(
-            const layout_t &b_layout, const layout_t &bia_layout) const {
+    layout_t bias_layout(
+            const layout_t &b_layout, const layout_t &bias_layout) const {
         ir_assert(b_layout.has_const_sizes());
-        layout_t acc(bia_layout.desc(), acc_type());
+        layout_t acc(bias_layout.desc(), acc_type());
 
         for (auto &b : b_layout.blocks()) {
             if (is_k(b.dim)) continue;
@@ -414,10 +414,10 @@ private:
         b_layout_ = pick_b(desc_.prop, src_layout, wei_layout, dst_layout);
         c_layout_ = pick_c(desc_.prop, src_layout, wei_layout, dst_layout);
         if (desc_.with_bias_bwd_w()) {
-            auto bia_tag = make_conv_layout_tag(
-                    tensor_kind_t::bia, "a:" + desc_.bias_type.str());
-            bia_layout_ = make_conv_layout(
-                    tensor_kind_t::bia, bia_tag, desc_.is_dw, reqs_);
+            auto bias_tag = make_conv_layout_tag(
+                    tensor_kind_t::bias, "a:" + desc_.bias_type.str());
+            bias_layout_ = make_conv_layout(
+                    tensor_kind_t::bias, bias_tag, desc_.is_dw, reqs_);
         }
         auto &align = desc_.align;
         add_align_req(src_layout.blocks()[0].dim, src_layout.type(), align.src);
@@ -476,8 +476,8 @@ private:
         ir_check(init_epilogue_plan(
                 plan.x2r_fma.c_layout, plan.virt_grid, plan.epilogue, reqs));
         if (desc_.with_bias_bwd_w())
-            ir_check(init_epilogue_bia(
-                    plan.x2r_fma.bia_layout, plan.epilogue, reqs));
+            ir_check(init_epilogue_bias(
+                    plan.x2r_fma.bias_layout, plan.epilogue, reqs));
         return true;
     }
 
@@ -547,8 +547,8 @@ private:
         plan.reorder = std::move(reorder);
         plan.layout = std::move(reg_layout);
         if (desc_.with_bias_bwd_w() && abc == tensor_kind_t::b) {
-            auto bia_layout = mul_info_.bia_layout(plan.layout, bia_layout_);
-            plan.bia_layout = std::move(bia_layout);
+            auto bias_layout = mul_info_.bias_layout(plan.layout, bias_layout_);
+            plan.bias_layout = std::move(bias_layout);
         }
         return true;
     }
@@ -580,9 +580,9 @@ private:
         layout_t a_prev_layout;
         layout_t b_prev_layout;
         layout_t c_prev_layout;
-        layout_t bia_prev_layout;
+        layout_t bias_prev_layout;
         int c_off_elems = 0;
-        int bia_off_elems = 0;
+        int bias_off_elems = 0;
         auto &a_mapper = dim_mapper_manager_.mapper(tensor_kind_t::a);
         auto &b_mapper = dim_mapper_manager_.mapper(tensor_kind_t::b);
         for (int i = 0; i < outer_size; i++) {
@@ -605,10 +605,10 @@ private:
                 ir_check(init_x2r_plan(tensor_kind_t::b, b_sub_view, b));
                 b_prev_layout = b.layout;
                 if (desc_.with_bias_bwd_w()) {
-                    bia_prev_layout = b.bia_layout;
-                    b.bia_layout.set_base(bia_off_elems);
-                    bia_off_elems += ir_utils::safe_div(
-                            b.bia_layout.size(), b.bia_layout.type().size());
+                    bias_prev_layout = b.bias_layout;
+                    b.bias_layout.set_base(bias_off_elems);
+                    bias_off_elems += ir_utils::safe_div(
+                            b.bias_layout.size(), b.bias_layout.type().size());
                 }
                 plan.add_stage(b);
             }
@@ -625,20 +625,21 @@ private:
             plan.add_stage(fma);
         }
         plan.c_layout = c_prev_layout;
-        if (desc_.with_bias_bwd_w()) plan.bia_layout = bia_prev_layout;
+        if (desc_.with_bias_bwd_w()) plan.bias_layout = bias_prev_layout;
 
         if (!outer_dim.is_undef()) {
             int stride = ir_utils::safe_div(
                     c_prev_layout.size(), c_prev_layout.type().size());
             plan.c_layout.add_block(outer_dim, outer_size, stride);
             if (desc_.with_bias_bwd_w()) {
-                auto &bia_mapper
-                        = dim_mapper_manager_.mapper(tensor_kind_t::bia);
-                if (bia_mapper.has(outer_dim)) {
-                    int bia_stride = ir_utils::safe_div(bia_prev_layout.size(),
-                            bia_prev_layout.type().size());
-                    plan.bia_layout.add_block(
-                            outer_dim, outer_size, bia_stride);
+                auto &bias_mapper
+                        = dim_mapper_manager_.mapper(tensor_kind_t::bias);
+                if (bias_mapper.has(outer_dim)) {
+                    int bias_stride
+                            = ir_utils::safe_div(bias_prev_layout.size(),
+                                    bias_prev_layout.type().size());
+                    plan.bias_layout.add_block(
+                            outer_dim, outer_size, bias_stride);
                 }
             }
         }
@@ -646,37 +647,45 @@ private:
         return true;
     }
 
-    bool init_epilogue_bia(const layout_t &bia_layout, epilogue_plan_t &plan,
-            prb_reqs_t &reqs) const {
-        auto &bia_mapper = dim_mapper_manager_.mapper(tensor_kind_t::bia);
-        auto bia_iter_view
-                = view_t(dim_mapper_manager_.mapper(tensor_kind_t::bia),
-                        bia_layout_, coord_info_.iter_coord(), desc_.iter_tile);
+    bool init_epilogue_store_bias(bool is_atomic,
+            const layout_t &bias_reg_layout, const view_t &bias_mem_view,
+            epilogue_store_plan_t &plan, prb_reqs_t &reqs) const {
+        auto params = get_send_params(tensor_kind_t::undef,
+                is_atomic ? send_op_t::atomic_fadd : send_op_t::store,
+                bias_mem_view);
+        auto store = try_create_send_plan(__func__, params, bias_mem_view);
+        if (!store) return false;
+        ir_check(reqs.implies(store.reqs()))
+                << "Bias store add needs additional requirements.";
+        plan.bias_store = store;
+        if (bias_reg_layout != store.reg_layout()) {
+            auto store_layout = store.reg_layout();
+            if (bias_reg_layout != store_layout) {
+                plan.bias_reorder = reorder_plan_t(desc_.hw);
+                plan.bias_reorder.src = std::move(bias_reg_layout);
+                plan.bias_reorder.dst = std::move(store_layout);
+            }
+        }
+        return true;
+    }
+
+    bool init_epilogue_bias(const layout_t &bias_reg_layout,
+            epilogue_plan_t &plan, prb_reqs_t &reqs) const {
+        auto &bias_mapper = dim_mapper_manager_.mapper(tensor_kind_t::bias);
+        auto bias_mem_view = view_t(
+                dim_mapper_manager_.mapper(tensor_kind_t::bias), bias_layout_,
+                coord_info_.iter_coord(), desc_.iter_tile);
         auto reduce_cond = expr_t(true);
         for (int i = 0; i < c_layout_.desc().ndims(); i++) {
             auto dim = c_layout_.desc().prb_dim(i);
-            if (!bia_mapper.has(dim))
+            if (!bias_mapper.has(dim))
                 reduce_cond
                         = reduce_cond & (coord_info_.iter_coord()[dim] == 0);
         }
-        plan.reduce_cond = std::move(reduce_cond);
-        auto bia_params = get_send_params(
-                tensor_kind_t::undef, send_op_t::store, bia_iter_view);
-        auto bia_store = create_send_plan(bia_params, bia_iter_view);
-        ir_check(reqs.implies(bia_store.reqs()))
-                << "Bias store needs additional requirements.";
-        auto tile = plan.tile;
-        plan.bia_store = bia_store;
-        plan.bia_reduced_reg_layout = bia_layout;
-        if (bia_layout != bia_store.reg_layout()) {
-            auto fma_layout = bia_layout.map(tile);
-            auto store_layout = bia_store.reg_layout().map(tile);
-            if (fma_layout != store_layout) {
-                plan.bia_reorder = reorder_plan_t(desc_.hw);
-                plan.bia_reorder.src = std::move(fma_layout);
-                plan.bia_reorder.dst = std::move(store_layout);
-            }
-        }
+        plan.bias_reduce_cond = std::move(reduce_cond);
+        plan.bias_layout = bias_reg_layout;
+        ir_check(init_epilogue_store_bias(/*is_atomic=*/false, bias_reg_layout,
+                bias_mem_view, plan.store, reqs));
         return true;
     }
 
@@ -758,6 +767,30 @@ private:
         return true;
     }
 
+    bool init_epilogue_store_plan(bool is_atomic, const layout_t &c_reg_layout,
+            const view_t &c_mem_view, epilogue_store_plan_t &plan,
+            prb_reqs_t &reqs) const {
+        auto params = get_send_params(tensor_kind_t::c,
+                is_atomic ? send_op_t::atomic_fadd : send_op_t::store,
+                c_mem_view);
+        // TODO: Implement fallback from 2D to block/scattered messages to
+        // allow partial use of 2D messages when possible.
+        auto store = try_create_send_plan(__func__, params, c_mem_view);
+        if (!store) return false;
+        auto &tile = store.entry_tile();
+        plan.tile = tile;
+        plan.c_store = store;
+        auto c_reg_tile_layout = c_reg_layout.map(tile);
+        auto store_layout = store.reg_layout().map(tile);
+        if (c_reg_tile_layout != store_layout) {
+            plan.reorder = reorder_plan_t(desc_.hw);
+            plan.reorder.src = std::move(c_reg_tile_layout);
+            plan.reorder.dst = std::move(store_layout);
+        }
+        reqs.add(plan.c_store.reqs());
+        return true;
+    }
+
     bool init_epilogue_plan(const layout_t &c_fma_layout,
             virt_grid_t &virt_grid, epilogue_plan_t &plan,
             prb_reqs_t &reqs) const {
@@ -770,37 +803,10 @@ private:
                                         : coord_info_.iter_coord());
         auto c_tile = c_reg_layout.int_dim_sizes();
         auto c_mem_view = view_t(c_mapper, c_layout_, c_coord, c_tile);
-        int target_elems = 128 / c_layout_.type().size();
-        auto it_beg = begin(c_mem_view.layout());
-        auto it_end = end(c_mem_view.layout());
-        auto tile_last = it_beg;
-        for (auto it = it_beg; it != it_end; ++it) {
-            if (it.elems() > target_elems) break;
-            tile_last = it;
-        }
-        auto full_tile = desc_.iter_tile;
-        for (auto &d : desc_.iter_tile) {
-            if (mul_info_.is_k(d)) full_tile.unset(d);
-        }
-        auto params = get_send_params(
-                tensor_kind_t::c, send_op_t::store, c_mem_view);
-        // TODO: Implement fallback from 2D to block/scattered messages to
-        // allow partial use of 2D messages when possible.
-        auto c_store = try_create_send_plan(__func__, params, c_mem_view);
-        if (!c_store) return false;
-        auto &tile = c_store.entry_tile();
-        plan.tile = tile;
-        plan.c_store = c_store;
         plan.c_reg_layout = c_reg_layout;
-        plan.c_coord = c_coord;
-        auto c_reg_tile_layout = c_reg_layout.map(tile);
-        auto store_layout = c_store.reg_layout().map(tile);
-        if (c_reg_tile_layout != store_layout) {
-            plan.reorder = reorder_plan_t(desc_.hw);
-            plan.reorder.src = std::move(c_reg_tile_layout);
-            plan.reorder.dst = std::move(store_layout);
-        }
-        reqs.add(plan.c_store.reqs());
+        plan.c_coord = c_mem_view.coord();
+        ir_check(init_epilogue_store_plan(/*is_atomic=*/false, c_reg_layout,
+                c_mem_view, plan.store, reqs));
         return true;
     }
 
@@ -849,7 +855,7 @@ private:
     layout_t a_layout_;
     layout_t b_layout_;
     layout_t c_layout_;
-    layout_t bia_layout_;
+    layout_t bias_layout_;
     prb_reqs_t reqs_;
 };
 
