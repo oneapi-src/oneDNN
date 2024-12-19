@@ -45,7 +45,8 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
             using sm = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask = sm::post_ops | sm::zero_points_runtime
                     | sm::zero_points_runtime_data_type | sm::scales_runtime
-                    | sm::sum_dt | sm::rounding_mode;
+                    | sm::scales_runtime_data_type | sm::sum_dt
+                    | sm::rounding_mode;
 
             const bool is_int8 = utils::one_of(src_md_.data_type, s8, u8);
             const bool is_fp8
