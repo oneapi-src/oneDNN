@@ -56,7 +56,7 @@ const rnn_packed_memory_format_t ldio_p = rnn_packed_memory_format_t::ldio_p;
 // TODO: convert to 'enum class'.
 // Flags for memory special features
 enum memory_extra_flags_t {
-    dnnl_memory_extra_flag_none = 0x0U,
+    dnnl_memory_extra_flag_none = 0u,
     // Indicates the weights have an additional buffer, that depends on the
     // @p compensation_mask.
     //
@@ -64,13 +64,16 @@ enum memory_extra_flags_t {
     // the additional buffer would consist of OC values:
     // O[oc : 0,OC] =
     //  -128 * SUM(ic : 0,IC; kh : 0,KH; kw : 0,KW){ weights(oc, ic, kh, kw) }
-    dnnl_memory_extra_flag_compensation_conv_s8s8 = 0x1U,
-    dnnl_memory_extra_flag_scale_adjust = 0x2U,
-    dnnl_memory_extra_flag_rnn_u8s8_compensation = 0x4U,
+    dnnl_memory_extra_flag_compensation_conv_s8s8 = 1u,
+    dnnl_memory_extra_flag_scale_adjust = 2u,
+    dnnl_memory_extra_flag_rnn_u8s8_compensation = 4u,
     dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation
     = dnnl_memory_extra_flag_rnn_u8s8_compensation,
-    dnnl_memory_extra_flag_compensation_conv_asymmetric_src = 0x8U,
-    dnnl_memory_extra_flag_rnn_s8s8_compensation = 0x16U,
+    dnnl_memory_extra_flag_compensation_conv_asymmetric_src = 8u,
+    dnnl_memory_extra_flag_rnn_s8s8_compensation = 16u,
+    dnnl_memory_extra_flag_compensation_gpu_conv_asymmetric_src = 32u,
+    dnnl_memory_extra_flag_compensation_gpu_conv_asymmetric_src_bwd = 64u,
+    dnnl_memory_extra_flag_compensation_gpu_conv_asymmetric_src_swap = 128u,
 };
 
 // Create aliases for extra flags to preserve the old behavior.
@@ -87,6 +90,14 @@ const memory_extra_flags_t rnn_s8s8_compensation
         = dnnl_memory_extra_flag_rnn_s8s8_compensation;
 const memory_extra_flags_t compensation_conv_asymmetric_src
         = dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
+// *_conv_asymmetric_src output differs significantly on CPU and GPU so there's
+// need for a separate flag on GPU so that reorders could not mess these two up
+const memory_extra_flags_t compensation_gpu_conv_asymmetric_src
+        = dnnl_memory_extra_flag_compensation_gpu_conv_asymmetric_src;
+const memory_extra_flags_t compensation_gpu_conv_asymmetric_src_bwd
+        = dnnl_memory_extra_flag_compensation_gpu_conv_asymmetric_src_bwd;
+const memory_extra_flags_t compensation_gpu_conv_asymmetric_src_swap
+        = dnnl_memory_extra_flag_compensation_gpu_conv_asymmetric_src_swap;
 } // namespace memory_extra_flags
 
 // Generic description of blocked data layout for most memory formats.
@@ -208,7 +219,11 @@ struct memory_extra_desc_t {
         : flags(0)
         , compensation_mask(0)
         , scale_adjust(0.0f)
-        , asymm_compensation_mask(0) {}
+        , asymm_compensation_mask(0)
+        , idhw {0, 0, 0}
+        , odhw {0, 0, 0}
+        , pdhw {0, 0, 0}
+        , ddhw {0, 0, 0} {}
     // The flags contain arbitrary extra information, such as compensation.
     // @sa dnnl_memory_extra_flags_t
     uint64_t flags;
@@ -218,6 +233,14 @@ struct memory_extra_desc_t {
     float scale_adjust;
     // Compensation mask for asymmetric quantization
     int asymm_compensation_mask;
+    // Precomp GPU ZP convolution input spatials
+    dim_t idhw[3];
+    // Precomp GPU ZP convolution output spatials
+    dim_t odhw[3];
+    // Precomp GPU ZP convolution padding spatials
+    dim_t pdhw[3];
+    // Precomp GPU ZP convolution dilation spatials
+    dim_t ddhw[3];
 };
 
 status_t DNNL_API memory_desc_init_by_tag(memory_desc_t &memory_desc, int ndims,

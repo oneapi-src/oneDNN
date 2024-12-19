@@ -278,6 +278,9 @@ public:
     stmt_t build_prefetch_stmt(const view_t &c_view) const {
         ir_assert(needs_load());
 
+        // Disable prefetching for precomputed ZPs stored at the end of 'wei'
+        if ((mem_buf().str() == "wei") || (mem_buf().str() == "wei_user"))
+            return stmt_t();
         auto prefetch = make_access_builder(*ir_ctx_, mem_view(), mem_buf(),
                 expr_t(), send_op_t::prefetch, send_address_t::a64,
                 get_cache_hint(c_view));

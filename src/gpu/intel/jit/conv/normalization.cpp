@@ -175,9 +175,11 @@ void maybe_reshape_dims(dim_idx_t ndims, layout_t &layout,
 // this method only gets called when ZP precompute is in order;
 // in all other cases ZPs are applied ad-hoc, without a post-op
 view_t conv_post_op_view_mapper_t::create_src_zp_view(uint32_t mask) const {
-    auto map_o2k = [](view_t &v, dim_idx_t idx, dim_t O, dim_t I, dim_t KD,
-                           dim_t P, dim_t S) {
-        const bool needs_right_bound = ((O - 1) * S + (KD - P) >= I);
+    auto map_o2k = [](view_t &v, dim_idx_t idx, dim_t O, dim_t I, dim_t K,
+                           dim_t D, dim_t P, dim_t S) {
+        const auto KD = (K - 1) * (D + 1) + 1;
+        const bool needs_right_bound
+                = (KD > 1) ? ((O - 1) * S + (KD - P) >= I) : ((O - 1) * S >= I);
         expr_t o = v.vvars()[idx];
         if (KD >= I) {
             o = o * S;
@@ -218,9 +220,6 @@ view_t conv_post_op_view_mapper_t::create_src_zp_view(uint32_t mask) const {
     }
     dst = layout_t(dst.type(), dst.ndims(), dst.offset(), new_blk, false);
 
-    const auto KDD = (prb_.kd - 1) * (prb_.dd + 1) + 1;
-    const auto KDH = (prb_.kh - 1) * (prb_.dh + 1) + 1;
-    const auto KDW = (prb_.kw - 1) * (prb_.dw + 1) + 1;
     view_t view(vars, 6);
     view.set_vdim(vars[0], 1); // mb
     view.set_vdim(vars[1], prb_.g);
@@ -228,9 +227,9 @@ view_t conv_post_op_view_mapper_t::create_src_zp_view(uint32_t mask) const {
     view.set_tdim(0, vars[0]);
     view.set_tdim(1, vars[1]);
     view.set_tdim(2, vars[2]);
-    map_o2k(view, 3, prb_.od, prb_.id, KDD, prb_.pd, prb_.sd);
-    map_o2k(view, 4, prb_.oh, prb_.ih, KDH, prb_.ph, prb_.sh);
-    map_o2k(view, 5, prb_.ow, prb_.iw, KDW, prb_.pw, prb_.sw);
+    map_o2k(view, 3, prb_.od, prb_.id, prb_.kd, prb_.dd, prb_.pd, prb_.sd);
+    map_o2k(view, 4, prb_.oh, prb_.ih, prb_.kh, prb_.dh, prb_.ph, prb_.sh);
+    map_o2k(view, 5, prb_.ow, prb_.iw, prb_.kw, prb_.dw, prb_.pw, prb_.sw);
     view.set_tlayout(dst);
     return view;
 }
