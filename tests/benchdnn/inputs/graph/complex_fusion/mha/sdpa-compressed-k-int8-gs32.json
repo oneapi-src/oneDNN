@@ -32,13 +32,13 @@
             "value": [
               1,
               1,
-              32,
-              1
+              1,
+              32
             ]
           }, 
           "axis": {
             "type": "s64",
-            "value": 2
+            "value": 3
           }
         },
         "inputs": [
@@ -48,14 +48,14 @@
             "shape": [
               1,
               32,
-              128,
-              32
+              32,
+              128
             ],
             "stride": [
               131072,
               4096,
-              1,
-              128
+              128,
+              1
             ],
             "layout_type": "strided",
             "property_type": "variable"
@@ -66,13 +66,13 @@
             "shape": [
               1,
               32,
-              4,
-              32
+              32,
+              4
             ],
             "stride": [
               4096,
               128,
-              32,
+              4,
               1
             ],
             "layout_type": "strided",
@@ -84,13 +84,13 @@
             "shape": [
               1,
               32,
-              4,
-              32
+              32,
+              4
             ],
             "stride": [
               4096,
               128,
-              32,
+              4,
               1
             ],
             "layout_type": "strided",
@@ -104,13 +104,13 @@
             "shape": [
               1,
               32,
-              128,
-              32
+              32,
+              128
             ],
             "stride": [
               131072,
               4096,
-              32,
+              128,
               1
             ],
             "layout_type": "strided",
@@ -129,7 +129,7 @@
           },
           "transpose_b": {
             "type": "bool",
-            "value": 0
+            "value": 1
           }
         },
         "inputs": [
@@ -157,13 +157,13 @@
             "shape": [
               1,
               32,
-              128,
-              32
+              32,
+              128
             ],
             "stride": [
               131072,
               4096,
-              32,
+              128,
               1
             ],
             "layout_type": "strided",
