@@ -23,10 +23,19 @@
 #include <intrin.h>
 #endif
 
+#include <string>
+
 #ifdef NGEN_CPP11
 #define constexpr14
 #else
 #define constexpr14 constexpr
+#endif
+
+// Enables compatibility with C++11/C++14
+#ifdef __has_include
+#define NGEN_HAS_INCLUDE(x) __has_include(x)
+#else
+#define NGEN_HAS_INCLUDE(x) 0
 #endif
 
 namespace NGEN_NAMESPACE {
@@ -49,9 +58,9 @@ template <typename T> static inline constexpr14 int bsf(T x)
 #if defined(_MSC_VER)
     unsigned long index = 0;
     if (sizeof(T) > 4)
-        (void) _BitScanForward64(&index, x);
+        (void) _BitScanForward64(&index, (unsigned __int64) x);
     else
-        (void) _BitScanForward(&index, x);
+        (void) _BitScanForward(&index, (unsigned long) x);
     return index;
 #else
     if (sizeof(T) > 4)
@@ -83,9 +92,9 @@ template <typename T> static inline constexpr14 int popcnt(T x)
 {
 #if defined(_MSC_VER) && !defined(__clang__)
     if (sizeof(T) > 4)
-        return __popcnt64(x);
+        return int(__popcnt64((unsigned __int64) x));
     else
-        return __popcnt(x);
+        return __popcnt((unsigned int) x);
 #else
     if (sizeof(T) > 4)
         return __builtin_popcountll(x);
@@ -136,11 +145,24 @@ static inline void copy_into(std::vector<uint8_t> &dst, size_t dst_offset,
         dst[i + dst_offset] = src[i + src_offset];
 }
 
-template <typename Container>
+template <typename T>
+static inline void copy_into(std::vector<uint8_t> &dst, size_t dst_offset, const T & src) {
+    if (dst_offset + sizeof(T) > dst.size()) return;
+    memcpy(dst.data() + dst_offset, &src, sizeof(T));
+}
+
+template <typename T>
 static inline void copy_into(std::vector<uint8_t> &dst, size_t dst_offset,
-                             const Container &src)
+                             const std::vector<T> &src)
 {
+    static_assert(sizeof(T) == 1, "Unexpected element size");
     copy_into(dst, dst_offset, src, 0, src.size());
+}
+
+template <>
+inline void copy_into(std::vector<uint8_t> &dst, size_t dst_offset,
+                             const std::string &src) {
+  copy_into(dst, dst_offset, src, 0, src.size());
 }
 
 } /* namespace utils */
