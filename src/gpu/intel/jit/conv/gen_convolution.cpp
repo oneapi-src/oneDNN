@@ -183,7 +183,8 @@ public:
         }
 
         for (int try_iter = 0; try_iter < max_tries; try_iter++) {
-            if (try_iter != 0) tiler->move_next(cfg);
+            if (try_iter != 0 && !tiler->is_tuning_mode())
+                tiler->move_next(cfg);
             try {
                 cfg = data.pd_cfg;
                 cfg.set_pd(

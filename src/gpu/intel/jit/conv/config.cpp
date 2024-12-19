@@ -1794,6 +1794,7 @@ status_t init_cfg(conv_config_t &cfg, const primitive_t *prim) {
         auto try_cfg = cfg;
         auto status = try_init_cfg(try_cfg);
         if (status == status::success) {
+            if (cfg.tiler().is_tuning_mode()) cfg.tiler().move_next(cfg);
             cfg = std::move(try_cfg);
             return status::success;
         }
