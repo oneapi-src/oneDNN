@@ -224,9 +224,9 @@ inline const std::vector<graph::op_kind_t> &get_pooling_ops() {
 inline const std::vector<graph::op_kind_t> &get_reduction_ops() {
     const static std::vector<graph::op_kind_t> reduction_ops
             = {graph::op_kind::ReduceL1, graph::op_kind::ReduceL2,
-                    graph::op_kind::ReduceMax, graph::op_kind::ReduceMin,
-                    graph::op_kind::ReduceSum, graph::op_kind::ReduceProd,
-                    graph::op_kind::ReduceMean};
+                    graph::op_kind::ReduceAMax, graph::op_kind::ReduceMax,
+                    graph::op_kind::ReduceMin, graph::op_kind::ReduceSum,
+                    graph::op_kind::ReduceProd, graph::op_kind::ReduceMean};
     return reduction_ops;
 }
 

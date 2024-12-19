@@ -35,8 +35,8 @@ namespace jit {
 
 inline bool jit_reduction_injector_f32_is_supported(alg_kind_t alg) {
     using namespace alg_kind;
-    return utils::one_of(alg, reduction_sum, reduction_mean, reduction_max,
-            reduction_min, reduction_mul);
+    return utils::one_of(alg, reduction_sum, reduction_mean, reduction_amax,
+            reduction_max, reduction_min, reduction_mul);
 }
 
 template <gpu_gen_t hw>
@@ -84,6 +84,7 @@ private:
     reg_allocator_t &ra;
 
     void sum_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
+    void amax_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
     void max_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
     void min_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
     void mul_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);

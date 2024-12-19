@@ -29,6 +29,7 @@ namespace reduction {
 enum alg_t {
     undef,
     min,
+    amax,
     max,
     mul,
     sum,
@@ -38,6 +39,7 @@ enum alg_t {
     norm_lp_power_p_max,
     norm_lp_power_p_sum,
     reduction_min = min,
+    reduction_amax = amax,
     reduction_max = max,
     reduction_mul = mul,
     reduction_sum = sum,
