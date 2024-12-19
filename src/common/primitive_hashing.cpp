@@ -190,11 +190,9 @@ size_t get_md_hash(const memory_desc_t &md) {
 
     if (md.extra.flags != dnnl_memory_extra_flag_none) {
         seed = hash_combine(seed, md.extra.flags);
-        if ((md.extra.flags
-                    & (dnnl_memory_extra_flag_compensation_conv_s8s8
-                            | dnnl_memory_extra_flag_rnn_u8s8_compensation))
-                && !types::extra_flag_rnn_s8s8_compensation_is_set(
-                        md.extra.flags)) {
+        if (md.extra.flags
+                & (dnnl_memory_extra_flag_compensation_conv_s8s8
+                        | dnnl_memory_extra_flag_rnn_u8s8_compensation)) {
             seed = hash_combine(seed, md.extra.compensation_mask);
         }
 
@@ -205,6 +203,14 @@ size_t get_md_hash(const memory_desc_t &md) {
         if (md.extra.flags
                 & dnnl_memory_extra_flag_compensation_conv_asymmetric_src) {
             seed = hash_combine(seed, md.extra.asymm_compensation_mask);
+        }
+
+        if (md.extra.flags
+                & dnnl_memory_extra_flag_compensation_gpu_conv_asymmetric_src) {
+            seed = get_array_hash(seed, md.extra.idhw, 3);
+            seed = get_array_hash(seed, md.extra.odhw, 3);
+            seed = get_array_hash(seed, md.extra.pdhw, 3);
+            seed = get_array_hash(seed, md.extra.ddhw, 3);
         }
     }
     // Combined hash for a memory descriptor

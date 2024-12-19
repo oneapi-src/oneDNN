@@ -38,6 +38,9 @@ struct cpu_reorder_pd_t : public reorder_pd_t {
                 post_ops.len() == 1
                         && post_ops.entry_[0].kind == primitive_kind::sum);
         VDISPATCH_REORDER(args_ok, VERBOSE_UNSUPPORTED_POSTOP);
+        auto gpu_zp = memory_extra_flags::compensation_gpu_conv_asymmetric_src;
+        VDISPATCH_REORDER(!(dst_md()->extra.flags & gpu_zp),
+                VERBOSE_UNSUPPORTED_MD_FLAG, "extra");
         return status::success;
     }
 
