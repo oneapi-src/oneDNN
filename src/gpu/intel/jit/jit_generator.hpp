@@ -111,6 +111,11 @@ struct jit_reduction_injector_f32;
 template <gpu_gen_t hw>
 struct jit_post_op_injector;
 
+struct debug_config_t {
+    const char *name;
+    uint32_t line;
+};
+
 template <gpu_gen_t hw>
 class jit_generator : public ngen::OpenCLCodeGenerator<hw>,
                       public jit_generator_base {
@@ -130,9 +135,15 @@ private:
     };
     std::unique_ptr<void, svm_deleter> dbg_memory_;
 #endif
-
+#ifdef DNNL_DEV_MODE
+    static constexpr bool enable_debug_lines = true;
+#else
+    static constexpr bool enable_debug_lines = false;
+#endif
 public:
-    jit_generator() = default;
+    jit_generator(const debug_config_t &debug_config)
+        : ngen::OpenCLCodeGenerator<hw>(0,
+                {debug_config.name, debug_config.line, enable_debug_lines}) {};
 
     const char *kernel_name() const override {
         return ngen::OpenCLCodeGenerator<hw>::getExternalName().c_str();

@@ -52,7 +52,7 @@ class binary_format_kernel_t : public jit_generator<hw> {
     NGEN_FORWARD_OPENCL(hw);
 
 public:
-    binary_format_kernel_t() {
+    binary_format_kernel_t() : jit_generator<hw>({__FILE__, __LINE__}) {
 
         auto low_half = [](uint64_t q) -> uint32_t { return q & 0xFFFFFFFF; };
         auto high_half = [](uint64_t q) -> uint32_t { return q >> 32; };
