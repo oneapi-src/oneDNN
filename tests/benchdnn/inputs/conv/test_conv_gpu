@@ -146,6 +146,17 @@ mb128ic3ih230oc64oh112kh7sh2ph0
 --attr-rounding-mode=dst:stochastic
 --batch=shapes_basic_gpu
 
+# mixed fp8
+--reset --mb=1 --dt=f8_e5m2:f8_e5m2:bf16,f8_e4m3:f8_e4m3:bf16 --dir=fwd_d --batch=shapes_basic
+--reset --mb=1 --dt=f16:f8_e5m2:f8_e5m2,f32:f8_e4m3:f8_e4m3 --dir=bwd_d --batch=shapes_basic
+--reset --mb=1 --dt=f8_e5m2:f16:f8_e5m2,f8_e4m3:f32:f8_e4m3 --dir=bwd_w --batch=shapes_basic
+--reset --mb=1 --dt=f8_e5m2,f8_e4m3 --dir=fwd_d
+--attr-scales=wei:per_oc:bf16+dst:per_oc:bf16,\
+                      wei:common:2:bf16+src:common:2:bf16+dst:common:2:bf16,\
+                      wei:per_oc:f32+dst:per_oc:f32,\
+                      wei:common:2:f32+src:common:2:f32+dst:common:2:f32
+--batch=shapes_basic_gpu
+
 # dw gen9 fwd conv
 --reset
 --dt=f16,f16:f16:s8
