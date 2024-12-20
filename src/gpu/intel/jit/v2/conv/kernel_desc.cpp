@@ -25,6 +25,7 @@
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
 #include "gpu/intel/jit/v2/conv/bridge.hpp"
+#include "gpu/intel/jit/v2/conv/debug_settings.hpp"
 #include "gpu/intel/jit/v2/conv/kernel.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
 #include "gpu/intel/jit/v2/conv/problem.hpp"
@@ -797,6 +798,7 @@ status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
         auto user_layout = jit::layout_t(md);
         bool is_out_stream_k = use_stream_k && t.is_output;
         bool zero_out = is_out_stream_k;
+        if (debug_settings().skip_zero_out) zero_out = false;
         if (is_out_stream_k && compute_layout != user_layout) {
             user_name += "_user";
             scratchpad_key++;

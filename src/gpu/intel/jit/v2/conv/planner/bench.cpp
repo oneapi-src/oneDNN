@@ -17,6 +17,7 @@
 #include "gpu/intel/jit/v2/conv/planner/bench.hpp"
 
 #include "common/dnnl_thread.hpp"
+#include "gpu/intel/jit/v2/conv/debug_settings.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
 #include "gpu/intel/jit/v2/conv/plan_preset.hpp"
 #include "gpu/intel/jit/v2/conv/plan_registry.hpp"
@@ -531,10 +532,9 @@ bench_data_t bench(const bench_manager_t &bench_mger,
               << std::endl;
     clear_primitive_cache();
 
-    {
-        auto guard = plan_preset_t::instance().make_guard(kernel_desc);
-        if (!tasks[0].init_primitive(eng)) return {};
-    }
+    debug_settings_t dbg_settings;
+    if (kernel_desc.use_stream_k) { dbg_settings.skip_zero_out = true; }
+    auto dbg_guard = debug_settings_guard_t(dbg_settings);
 
     ir_assert(kernel_desc.spec_strategy == spec_strategy_t::none);
     auto kernel_desc_min_dims = kernel_desc;
