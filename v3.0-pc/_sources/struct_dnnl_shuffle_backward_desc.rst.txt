@@ -1,0 +1,72 @@
+.. index:: pair: struct; dnnl::shuffle_backward::desc
+.. _doxid-structdnnl_1_1shuffle__backward_1_1desc:
+
+struct dnnl::shuffle_backward::desc
+===================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a shuffle primitive backward propagation primitive. :ref:`More...<details-structdnnl_1_1shuffle__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_shuffle_desc_t<doxid-structdnnl__shuffle__desc__t>` :target:`data<doxid-structdnnl_1_1shuffle__backward_1_1desc_1a944af6972bd98b8546a12a0b13f80a07>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1shuffle__backward_1_1desc_1a62ed7c449986d9cb474a3570ba665966>`(const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc, int axis, int group_size);
+	};
+.. _details-structdnnl_1_1shuffle__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a shuffle primitive backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1shuffle__backward_1_1desc_1a62ed7c449986d9cb474a3570ba665966:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc, int axis, int group_size)
+
+Constructs a descriptor for a shuffle backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- diff_data_desc
+
+		- Diff source and diff destination memory descriptor.
+
+	*
+		- axis
+
+		- The axis along which the data is shuffled.
+
+	*
+		- group_size
+
+		- Shuffle group size.
+

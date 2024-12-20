@@ -1,0 +1,200 @@
+.. index:: pair: struct; dnnl::resampling_forward::desc
+.. _doxid-structdnnl_1_1resampling__forward_1_1desc:
+
+struct dnnl::resampling_forward::desc
+=====================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for resampling forward propagation. :ref:`More...<details-structdnnl_1_1resampling__forward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_resampling_desc_t<doxid-structdnnl__resampling__desc__t>` :target:`data<doxid-structdnnl_1_1resampling__forward_1_1desc_1a1d463c6749d27679228ed662f4680552>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1resampling__forward_1_1desc_1a3e4ba459a390370629921e99dadf3468>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+			);
+	
+		:ref:`desc<doxid-structdnnl_1_1resampling__forward_1_1desc_1a470b216f4b325eb45c4d2bcfbe503125>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const std::vector<float>& factors,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc
+			);
+	
+		:ref:`desc<doxid-structdnnl_1_1resampling__forward_1_1desc_1aaef30e659aa7dccaaf51bf0569a3cde6>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const std::vector<float>& factors,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+			);
+	};
+.. _details-structdnnl_1_1resampling__forward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for resampling forward propagation.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1resampling__forward_1_1desc_1a3e4ba459a390370629921e99dadf3468:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+		)
+
+Constructs a descriptor for a resampling forward propagation primitive using source and destination memory descriptors.
+
+.. note:: 
+
+   Destination memory descriptor may be initialized with :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::forward_training <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa24775787fab8f13aa4809e1ce8f82aeb>`, and :ref:`dnnl::prop_kind::forward_inference <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa3b9fad4f80d45368f856b5403198ac4c>`.
+
+	*
+		- aalgorithm
+
+		- resampling algorithm kind: either :ref:`dnnl::algorithm::resampling_nearest <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a091b262cfae5e610fcad1490bfb79431>`, or :ref:`dnnl::algorithm::resampling_linear <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a05731680a83c6dccd19a758b72a4ecbd>`
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+	*
+		- dst_desc
+
+		- Destination memory descriptor.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1resampling__forward_1_1desc_1a470b216f4b325eb45c4d2bcfbe503125:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const std::vector<float>& factors,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc
+		)
+
+Constructs a descriptor for a resampling forward propagation primitive using source memory descriptor and factors.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::forward_training <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa24775787fab8f13aa4809e1ce8f82aeb>`, and :ref:`dnnl::prop_kind::forward_inference <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa3b9fad4f80d45368f856b5403198ac4c>`.
+
+	*
+		- aalgorithm
+
+		- resampling algorithm kind: either :ref:`dnnl::algorithm::resampling_nearest <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a091b262cfae5e610fcad1490bfb79431>`, or :ref:`dnnl::algorithm::resampling_linear <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a05731680a83c6dccd19a758b72a4ecbd>`
+
+	*
+		- factors
+
+		- Vector of scaling factors for spatial dimension.
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1resampling__forward_1_1desc_1aaef30e659aa7dccaaf51bf0569a3cde6:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const std::vector<float>& factors,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+		)
+
+Constructs a descriptor for a resampling forward propagation primitive.
+
+.. note:: 
+
+   The destination memory descriptor may be initialized with :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::forward_training <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa24775787fab8f13aa4809e1ce8f82aeb>`, and :ref:`dnnl::prop_kind::forward_inference <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa3b9fad4f80d45368f856b5403198ac4c>`.
+
+	*
+		- aalgorithm
+
+		- resampling algorithm kind: either :ref:`dnnl::algorithm::resampling_nearest <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a091b262cfae5e610fcad1490bfb79431>`, or :ref:`dnnl::algorithm::resampling_linear <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a05731680a83c6dccd19a758b72a4ecbd>`
+
+	*
+		- factors
+
+		- Vector of scaling factors for spatial dimension.
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+	*
+		- dst_desc
+
+		- Destination memory descriptor.
+

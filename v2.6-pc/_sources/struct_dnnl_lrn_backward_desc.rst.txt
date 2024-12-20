@@ -1,0 +1,108 @@
+.. index:: pair: struct; dnnl::lrn_backward::desc
+.. _doxid-structdnnl_1_1lrn__backward_1_1desc:
+
+struct dnnl::lrn_backward::desc
+===============================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for an LRN backward propagation primitive. :ref:`More...<details-structdnnl_1_1lrn__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_lrn_desc_t<doxid-structdnnl__lrn__desc__t>` :target:`data<doxid-structdnnl_1_1lrn__backward_1_1desc_1a95c2713ddc2542f2d7ba108efa0f3bc9>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1lrn__backward_1_1desc_1a59aa96046c2bf2bc8c74ded21df266d7>`(
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+			:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>` local_size,
+			float alpha,
+			float beta,
+			float k = 1.f
+			);
+	};
+.. _details-structdnnl_1_1lrn__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for an LRN backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1lrn__backward_1_1desc_1a59aa96046c2bf2bc8c74ded21df266d7:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+		:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>` local_size,
+		float alpha,
+		float beta,
+		float k = 1.f
+		)
+
+Constructs a descriptor for an LRN backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aalgorithm
+
+		- LRN algorithm kind: either :ref:`dnnl::algorithm::lrn_across_channels <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640ab9e2d858b551792385a4b5b86672b24b>`, or :ref:`dnnl::algorithm::lrn_within_channel <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640aa25c4ccc5c7c9bd3a977a2089189a494>`.
+
+	*
+		- diff_data_desc
+
+		- Diff source and diff destination memory descriptor.
+
+	*
+		- data_desc
+
+		- Source memory descriptor.
+
+	*
+		- local_size
+
+		- Regularization local size.
+
+	*
+		- alpha
+
+		- The alpha regularization parameter.
+
+	*
+		- beta
+
+		- The beta regularization parameter.
+
+	*
+		- k
+
+		- The k regularization parameter.
+

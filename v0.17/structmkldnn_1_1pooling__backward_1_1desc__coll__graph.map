@@ -1,0 +1,6 @@
+<map id="mkldnn::pooling_backward::desc" name="mkldnn::pooling_backward::desc">
+<area shape="rect" id="node2" href="$structmkldnn__pooling__desc__t.html" title="A descriptor of a pooling operation. " alt="" coords="107,228,281,255"/>
+<area shape="rect" id="node3" href="$structmkldnn__memory__desc__t.html" title="Memory descriptor. " alt="" coords="103,95,285,121"/>
+<area shape="rect" id="node4" href="$structmkldnn__blocking__desc__t.html" title="Generic description of blocked data layout for most memory formats. " alt="" coords="5,5,188,32"/>
+<area shape="rect" id="node5" href="$structmkldnn__wino__desc__t.html" title="Description of tensor of weights for winograd 2x3 convolution. " alt="" coords="212,5,371,32"/>
+</map>

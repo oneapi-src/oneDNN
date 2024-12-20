@@ -1,0 +1,5 @@
+<map id="dnnl::pooling_backward::primitive_desc" name="dnnl::pooling_backward::primitive_desc">
+<area shape="rect" id="node2" href="$structdnnl_1_1primitive__desc.html" title="A base class for descriptors of all primitives that have an operation descriptor and that support ite..." alt="" coords="24,169,179,196"/>
+<area shape="rect" id="node3" href="$structdnnl_1_1primitive__desc__base.html" title="The base class for all primitive descriptors. " alt="" coords="5,95,197,121"/>
+<area shape="rect" id="node4" href="$classdnnl_1_1handle.html" title="dnnl::handle\&lt; dnnl\l_primitive_desc_t \&gt;" alt="" coords="25,5,177,47"/>
+</map>

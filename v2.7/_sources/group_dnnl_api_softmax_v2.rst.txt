@@ -1,0 +1,185 @@
+.. index:: pair: group; Softmax_v2
+.. _doxid-group__dnnl__api__softmax__v2:
+
+Softmax_v2
+==========
+
+.. toctree::
+	:hidden:
+
+	struct_dnnl_softmax_v2_desc_t.rst
+	struct_dnnl_softmax_v2_backward.rst
+	struct_dnnl_softmax_v2_forward.rst
+
+Overview
+~~~~~~~~
+
+A primitive to perform softmax. :ref:`More...<details-group__dnnl__api__softmax__v2>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	// structs
+
+	struct :ref:`dnnl_softmax_v2_desc_t<doxid-structdnnl__softmax__v2__desc__t>`;
+	struct :ref:`dnnl::softmax_v2_backward<doxid-structdnnl_1_1softmax__v2__backward>`;
+	struct :ref:`dnnl::softmax_v2_forward<doxid-structdnnl_1_1softmax__v2__forward>`;
+
+	// global functions
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_softmax_v2_forward_desc_init<doxid-group__dnnl__api__softmax__v2_1ga27daaa93517d7442a89b711138cf145c>`(
+		:ref:`dnnl_softmax_v2_desc_t<doxid-structdnnl__softmax__v2__desc__t>`* softmax_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc,
+		int softmax_axis
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_softmax_v2_backward_desc_init<doxid-group__dnnl__api__softmax__v2_1ga7073636827384d8b5778f13025f81915>`(
+		:ref:`dnnl_softmax_v2_desc_t<doxid-structdnnl__softmax__v2__desc__t>`* softmax_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc,
+		int softmax_axis
+		);
+
+.. _details-group__dnnl__api__softmax__v2:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A primitive to perform softmax.
+
+
+
+.. rubric:: See also:
+
+:ref:`Softmax <doxid-dev_guide_softmax>` in developer guide
+
+Global Functions
+----------------
+
+.. index:: pair: function; dnnl_softmax_v2_forward_desc_init
+.. _doxid-group__dnnl__api__softmax__v2_1ga27daaa93517d7442a89b711138cf145c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_softmax_v2_forward_desc_init(
+		:ref:`dnnl_softmax_v2_desc_t<doxid-structdnnl__softmax__v2__desc__t>`* softmax_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc,
+		int softmax_axis
+		)
+
+Initializes a descriptor for softmax v2 forward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- softmax_desc
+
+		- Output descriptor for a softmax primitive.
+
+	*
+		- prop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>` and :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`.
+
+	*
+		- alg_kind
+
+		- Softmax algorithm kind: either :ref:`dnnl_softmax_accurate <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a0df1f8d88eb88b4d6c955e8473f54ade>`, or :ref:`dnnl_softmax_log <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a92892f2d392fe424f3387b07dde9c680>`.
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+	*
+		- dst_desc
+
+		- Destination memory descriptor.
+
+	*
+		- softmax_axis
+
+		- Axis over which softmax is computed.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_softmax_v2_backward_desc_init
+.. _doxid-group__dnnl__api__softmax__v2_1ga7073636827384d8b5778f13025f81915:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_softmax_v2_backward_desc_init(
+		:ref:`dnnl_softmax_v2_desc_t<doxid-structdnnl__softmax__v2__desc__t>`* softmax_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc,
+		int softmax_axis
+		)
+
+Initializes a descriptor for softmax v2 backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- softmax_desc
+
+		- Output descriptor for a softmax primitive.
+
+	*
+		- alg_kind
+
+		- Softmax algorithm kind: either :ref:`dnnl_softmax_accurate <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a0df1f8d88eb88b4d6c955e8473f54ade>`, or :ref:`dnnl_softmax_log <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a92892f2d392fe424f3387b07dde9c680>`.
+
+	*
+		- diff_src_desc
+
+		- Diff source memory descriptor.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+
+	*
+		- dst_desc
+
+		- Destination memory descriptor.
+
+	*
+		- softmax_axis
+
+		- Axis over which softmax is computed.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
