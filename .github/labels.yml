@@ -43,9 +43,13 @@ documentation:
 
 # Common code
 component:build:
-  - any-glob-to-any-file: 'cmake/**'
+- changed-files:
+  - any-glob-to-any-file:
+    - 'cmake/**'
+    - 'CMakeLists.txt'
 
 component:examples:
+- changed-files:
   - any-glob-to-any-file: 'examples/**'
 
 component:tests:
@@ -58,7 +62,7 @@ component:api:
 
 component:graph-api:
 - changed-files:
-  - any-glob-to-any-file: 
+  - any-glob-to-any-file:
     - 'src/graph/**'
     - 'tests/benchdnn/graph/**'
     - 'tests/gtests/graph/**'
