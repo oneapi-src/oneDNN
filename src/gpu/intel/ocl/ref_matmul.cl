@@ -237,7 +237,11 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
                     d1, 1, d0, 1, m, 1, n, 1);
 
 #if WITH_DST_SCALES
+#if DST_SCALES_MASK == 0
         po_acc /= DST_SCALES_TO_REF(dst_scales[0]);
+#else
+        po_acc /= DST_SCALES_TO_REF(dst_scales[n]);
+#endif
 #endif
         po_acc += dst_zp;
         C[dst_off] = TO_DST(po_acc);
