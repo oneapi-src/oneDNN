@@ -63,7 +63,24 @@ zelLoaderTranslateHandle(
    zel_handle_type_t handleType,   //Handle Type
    void *handleIn,                  //Input: handle to translate from loader handle to driver handle
    void **handleOut);                //Output: Pointer to handleOut is set to driver handle if successful
-   
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for handling calls to released drivers in teardown.
+///
+ZE_DLLEXPORT ze_result_t ZE_APICALL
+zelSetDriverTeardown();
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for Enabling the Tracing Layer During Runtime.
+///
+ZE_DLLEXPORT ze_result_t ZE_APICALL
+zelEnableTracingLayer();
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for Disabling the Tracing Layer During Runtime.
+///
+ZE_DLLEXPORT ze_result_t ZE_APICALL
+zelDisableTracingLayer();
 
 #if defined(__cplusplus)
 } // extern "C"
