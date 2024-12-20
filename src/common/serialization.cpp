@@ -627,6 +627,11 @@ void serialize_desc(serialization_stream_t &sstream, const sdpa_desc_t &desc) {
     serialize_md(sstream, desc.attn_mask_desc);
     sstream.write(&desc.scale_dt);
     sstream.write(&desc.invert_scale);
+    sstream.write(&desc.kv_head_number);
+    serialize_runtime_scales(sstream, desc.kq_scales);
+    serialize_zero_points(sstream, desc.kq_zero_points, DNNL_ARG_WEIGHTS);
+    serialize_runtime_scales(sstream, desc.vs_scales);
+    serialize_zero_points(sstream, desc.vs_zero_points, DNNL_ARG_WEIGHTS);
 }
 
 } // namespace serialization
