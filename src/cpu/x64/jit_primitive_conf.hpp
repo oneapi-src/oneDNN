@@ -661,6 +661,7 @@ struct jit_brdgmm_conv_conf_t {
 enum conv_brgemm_loop_order_t {
     loop_ndhwgc,
     loop_ngcdhw,
+    loop_gcndhw,
 };
 
 enum conv_brgemm_exec_type_t {
