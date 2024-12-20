@@ -174,6 +174,33 @@ void serialize_post_ops(
     }
 }
 
+void serialize_runtime_scales(
+        serialization_stream_t &sstream, const runtime_scales_t &scales) {
+    // scales: mask
+    sstream.write(&scales.mask_);
+    // scales: groups
+    const int ndims = scales.ndims_;
+    sstream.write(&ndims);
+    if (ndims > 0) sstream.write(scales.group_dims_, ndims);
+    // scales: data type
+    sstream.write(&scales.data_type_);
+}
+
+void serialize_zero_points(
+        serialization_stream_t &sstream, const zero_points_t &zps, int arg) {
+    int mask = 0;
+    data_type_t dt = data_type::s32;
+    zps.get(arg, &mask, &dt);
+    // zero_points: mask
+    sstream.write(&mask);
+    // zero points: groups
+    const int ndims = zps.get_groups_ndims(arg);
+    sstream.write(&ndims);
+    if (ndims > 0) sstream.write(zps.get_groups(arg), ndims);
+    // zero_points: data type
+    sstream.write(&dt);
+}
+
 void serialize_attr(
         serialization_stream_t &sstream, const primitive_attr_t &attr) {
     // scratchpad_mode
@@ -192,14 +219,7 @@ void serialize_attr(
         for (const auto &p : attr.scales_.scales_) {
             // scales: arg
             sstream.write(&p.first);
-            // scales: mask
-            sstream.write(&p.second.mask_);
-            // scales: groups
-            const int ndims = p.second.ndims_;
-            sstream.write(&ndims);
-            if (ndims > 0) sstream.write(p.second.group_dims_, ndims);
-            // scales: data type
-            sstream.write(&p.second.data_type_);
+            serialize_runtime_scales(sstream, p.second);
         }
     }
     // zero_points
@@ -209,17 +229,7 @@ void serialize_attr(
             const auto &zps = attr.zero_points_;
             // zero_points: arg
             sstream.write(&arg);
-            int mask = 0;
-            data_type_t dt = data_type::s32;
-            zps.get(arg, &mask, &dt);
-            // zero_points: mask
-            sstream.write(&mask);
-            // zero points: groups
-            const int ndims = zps.get_groups_ndims(arg);
-            sstream.write(&ndims);
-            if (ndims > 0) sstream.write(zps.get_groups(arg), ndims);
-            // zero_points: data type
-            sstream.write(&dt);
+            serialize_zero_points(sstream, zps, arg);
         }
 
     // Rounding modes
