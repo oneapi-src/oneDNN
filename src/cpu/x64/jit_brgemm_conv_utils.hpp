@@ -71,6 +71,36 @@ void get_ow_range(const jit_brgemm_conv_conf_t &jcp, int ow, int kw, int &ow_s,
 void get_kw_range(const jit_brgemm_conv_conf_t &jcp, int ow, int &kw_s,
         int &kw_full_s, int &kw_full_f, int &kw_f);
 
+#define BRGEMM_CONV_NDHWGC_ORDER \
+    n, jcp.mb, odb, jcp.nb_od, ohb, jcp.nb_oh, owb, jcp.nb_ow, g, jcp.ngroups, \
+            ocb, jcp.nb_oc
+#define BRGEMM_CONV_NGCDHW_ORDER \
+    n, jcp.mb, g, jcp.ngroups, ocb, jcp.nb_oc, odb, jcp.nb_od, ohb, jcp.nb_oh, \
+            owb, jcp.nb_ow
+#define BRGEMM_CONV_GCNDHW_ORDER \
+    g, jcp.ngroups, ocb, jcp.nb_oc, n, jcp.mb, odb, jcp.nb_od, ohb, jcp.nb_oh, \
+            owb, jcp.nb_ow
+
+#define BRGEMM_CONV_ITERATOR_INIT \
+    if (jcp.loop_order == loop_ndhwgc) \
+        nd_iterator_init(start, BRGEMM_CONV_NDHWGC_ORDER); \
+    else if (jcp.loop_order == loop_ngcdhw) \
+        nd_iterator_init(start, BRGEMM_CONV_NGCDHW_ORDER); \
+    else if (jcp.loop_order == loop_gcndhw) \
+        nd_iterator_init(start, BRGEMM_CONV_GCNDHW_ORDER); \
+    else \
+        assert(!"Unknown loop order");
+
+#define BRGEMM_CONV_ITERATOR_STEP \
+    if (jcp.loop_order == loop_ndhwgc) \
+        nd_iterator_step(BRGEMM_CONV_NDHWGC_ORDER); \
+    else if (jcp.loop_order == loop_ngcdhw) \
+        nd_iterator_step(BRGEMM_CONV_NGCDHW_ORDER); \
+    else if (jcp.loop_order == loop_gcndhw) \
+        nd_iterator_step(BRGEMM_CONV_GCNDHW_ORDER); \
+    else \
+        assert(!"Unknown loop order");
+
 } // namespace brgemm_convolution_utils
 
 } // namespace x64
