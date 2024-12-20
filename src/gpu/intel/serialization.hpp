@@ -239,6 +239,8 @@ struct deserializer_t {
         }
     }
 
+    bool empty() const { return idx >= s.get_data().size(); }
+
     size_t idx;
     const serialized_data_t &s;
 };
