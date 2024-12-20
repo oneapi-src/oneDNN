@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -729,6 +729,7 @@ bool brg_blocking_t::fast_check_oc_block() const {
 }
 
 float brg_blocking_t::est_eff() {
+    const auto jcp = *this;
     const auto ocblock = oc_block / acc_simd_w;
 
     const auto brgemm_microkernel_eff
@@ -761,28 +762,18 @@ float brg_blocking_t::est_eff() {
             dim_t thr_job = 0;
             int start {0}, end {0};
             balance211(work_amount, nthr, ithr, start, end);
-            int n {0}, g {0}, ocb {0}, odp {0}, ohp {0}, spb {0};
-            if (loop_order == loop_ndhwgc)
-                nd_iterator_init(start, n, mb, odp, od, ohp, oh, spb, nb_sp, g,
-                        ngroups, ocb, nb_oc);
-            else if (loop_order == loop_ngcdhw)
-                nd_iterator_init(start, n, mb, g, ngroups, ocb, nb_oc, odp, od,
-                        ohp, oh, spb, nb_sp);
+            int n {0}, g {0}, ocb {0}, odb {0}, ohb {0}, owb {0};
+            BRGEMM_CONV_ITERATOR_INIT;
 
             for (auto work = start; work < end; work++) {
                 const int ocp = ocb * oc_block;
                 const auto oc_sz = nstl::min(oc - ocp, oc_block);
                 int sp_sz = 0;
-                const int spp = spb * sp_block;
+                const int spp = owb * sp_block;
                 sp_sz = nstl::min(sp - spp, sp_block);
                 thr_job += sp_sz * oc_sz;
 
-                if (loop_order == loop_ndhwgc)
-                    nd_iterator_step(n, mb, odp, od, ohp, oh, spb, nb_sp, g,
-                            ngroups, ocb, nb_oc);
-                else if (loop_order == loop_ngcdhw)
-                    nd_iterator_step(n, mb, g, ngroups, ocb, nb_oc, odp, od,
-                            ohp, oh, spb, nb_sp);
+                BRGEMM_CONV_ITERATOR_STEP;
             }
             thr_jobs[ithr] = thr_job;
         }

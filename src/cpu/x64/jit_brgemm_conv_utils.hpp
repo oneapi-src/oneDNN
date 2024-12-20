@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,6 +64,36 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
 status_t init_scratchpad_bwd_w(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
         memory_desc_t &diff_weights_md, memory_desc_t &diff_dst_md);
+
+#define BRGEMM_CONV_NDHWGC_ORDER \
+    n, jcp.mb, odb, jcp.nb_od, ohb, jcp.nb_oh, owb, jcp.nb_ow, g, jcp.ngroups, \
+            ocb, jcp.nb_oc
+#define BRGEMM_CONV_NGCDHW_ORDER \
+    n, jcp.mb, g, jcp.ngroups, ocb, jcp.nb_oc, odb, jcp.nb_od, ohb, jcp.nb_oh, \
+            owb, jcp.nb_ow
+#define BRGEMM_CONV_GCNDHW_ORDER \
+    g, jcp.ngroups, ocb, jcp.nb_oc, n, jcp.mb, odb, jcp.nb_od, ohb, jcp.nb_oh, \
+            owb, jcp.nb_ow
+
+#define BRGEMM_CONV_ITERATOR_INIT \
+    if (jcp.loop_order == loop_ndhwgc) \
+        nd_iterator_init(start, BRGEMM_CONV_NDHWGC_ORDER); \
+    else if (jcp.loop_order == loop_ngcdhw) \
+        nd_iterator_init(start, BRGEMM_CONV_NGCDHW_ORDER); \
+    else if (jcp.loop_order == loop_gcndhw) \
+        nd_iterator_init(start, BRGEMM_CONV_GCNDHW_ORDER); \
+    else \
+        assert(!"Unknown loop order");
+
+#define BRGEMM_CONV_ITERATOR_STEP \
+    if (jcp.loop_order == loop_ndhwgc) \
+        nd_iterator_step(BRGEMM_CONV_NDHWGC_ORDER); \
+    else if (jcp.loop_order == loop_ngcdhw) \
+        nd_iterator_step(BRGEMM_CONV_NGCDHW_ORDER); \
+    else if (jcp.loop_order == loop_gcndhw) \
+        nd_iterator_step(BRGEMM_CONV_GCNDHW_ORDER); \
+    else \
+        assert(!"Unknown loop order");
 
 } // namespace brgemm_convolution_utils
 
