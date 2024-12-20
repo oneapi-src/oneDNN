@@ -1344,26 +1344,34 @@ void stringify_to_cpp_file(const std::string &file_name,
         const std::string &var_name, const std::vector<std::string> &namespaces,
         const std::vector<std::string> &lines);
 
-template <typename T>
-std::string serialize_to_hex(const T &t) {
+inline std::string data_to_hex(const std::vector<uint8_t> &data) {
     std::ostringstream oss;
-    serialized_data_t s;
-    s.append(t);
-    for (uint8_t d : s.get_data()) {
+    for (auto v : data) {
         oss << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
-            << (int)d;
+            << into<int>(v);
     }
     return oss.str();
 }
 
-template <typename T>
-void deserialize_from_hex(T &t, const std::string &s_hex) {
+inline std::vector<uint8_t> hex_to_data(const std::string &s_hex) {
     std::vector<uint8_t> data;
     for (size_t i = 0; i < s_hex.size(); i += 2) {
         data.push_back(static_cast<uint8_t>(
                 std::stoi(s_hex.substr(i, 2), nullptr, 16)));
     }
-    auto s = serialized_t::from_data(std::move(data));
+    return data;
+}
+
+template <typename T>
+std::string serialize_to_hex(const T &t) {
+    serialized_data_t s;
+    s.append(t);
+    return data_to_hex(s.get_data());
+}
+
+template <typename T>
+void deserialize_from_hex(T &t, const std::string &s_hex) {
+    auto s = serialized_t::from_data(hex_to_data(s_hex));
     deserializer_t d(s);
     d.pop(t);
 }
