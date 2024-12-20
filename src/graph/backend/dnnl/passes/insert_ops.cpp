@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2024 Intel Corporation
+ * Copyright 2021-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -431,9 +431,6 @@ status_t insert_permute_for_dynamic_mul_scale_sub_zp(
             std::swap(group_shape[ndims - 1], group_shape[ndims - 2]);
             cur_op->set_attr<std::vector<int64_t>>(
                     op_attr::group_shape, group_shape);
-        } else { // per-channel quantization
-            const auto axis = cur_op->get_attr<int64_t>(op_attr::axis);
-            cur_op->set_attr<int64_t>(op_attr::axis, (2 * ndims - 3) - axis);
         }
     }
 
