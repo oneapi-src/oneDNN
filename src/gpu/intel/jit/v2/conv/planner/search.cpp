@@ -384,18 +384,12 @@ public:
     void search() {
         std::cout << "Starting kernel search" << std::endl;
         auto desc_groups = gen_desc_groups();
-        auto &registry = plan_registry();
         for (auto &dg : desc_groups) {
             auto bench_data_set = bench_kernel_desc_group(
                     bench_mger_, dg, bench_nprbs, max_descs);
             auto best = bench_data_set.find_best(registry_top_k);
             for (auto &bd : best) {
-                auto &d = bd.kernel_desc;
-                auto bd_model = bench(bench_mger_, d, model_nprbs);
-                if (!bd_model) continue;
-                auto model = model_fit(bd_model);
-                auto d_ext = try_extensions(bench_mger_, d);
-                registry.set(d_ext, model_set_t(model));
+                update_registry(bd.kernel_desc);
             }
         }
         std::cout << "Kernel search completed" << std::endl;
@@ -479,24 +473,20 @@ private:
         return tiles;
     }
 
-    // TODO: Use search_desc.
-    void search_desc(const kernel_desc_t &_desc) const {
-        auto iter_outer_tiles = generate_iter_outer_tiles(_desc);
+    void update_registry(const kernel_desc_t &desc) const {
         auto &registry = plan_registry();
-        for (auto &iter_outer : iter_outer_tiles) {
-            auto desc = _desc;
-            desc.iter_outer_tile = iter_outer;
-            std::cout << "Running benchmark for descriptor: " << desc.cmd_str()
-                      << std::endl;
-            auto bd = bench(bench_mger_, desc);
-            if (!bd) {
-                std::cout << "Benchmarking failed" << std::endl;
-                continue;
-            }
-            auto model = model_fit(bd);
-            registry.set(desc, model);
-            return;
+        auto bd = bench(bench_mger_, desc, model_nprbs);
+        if (!bd) return;
+        model_set_t model_set;
+        model_fit(bd, model_set);
+        auto d_ext = try_extensions(bench_mger_, desc);
+        if (d_ext.ext.has(extension_kind_t::stream_k)) {
+            // Fit another model for Stream-K.
+            auto d_sk = to_stream_k(d_ext);
+            auto bd = bench(bench_mger_, d_sk, model_nprbs);
+            model_fit(bd, model_set);
         }
+        registry.set(d_ext, model_set);
     }
 
     const bench_manager_t &bench_mger_;
@@ -666,7 +656,6 @@ void auto_search(
         kernel_desc_t desc;
         parse_result_t parse_result;
         iface.parse(line, desc, &parse_result);
-        //auto r = std::string(_r) + " --iter x --tg x";
         // TODO: Remove.
         desc.hw = hw_t(bench_mger.get_engine().get());
         kernel_search_manager_t mger(

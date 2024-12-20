@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ public:
         return src_tag_;
     }
     const pvar_tile_t &shape() const { return shape_; }
+    bool with_post_ops() const { return with_post_ops_; }
     pvar_map_t<dim_t> vars() const;
     bool is_depthwise() const {
         dim_t g = shape_.at(pvars::g);
@@ -70,6 +71,7 @@ public:
     void set_dst_tag(const layout_tag_t &tag) { dst_tag_ = tag; }
     void set_bias_type(const type_t &bias_type) { bias_type_ = bias_type; }
     void set_shape(const pvar_tile_t &shape) { shape_ = shape; }
+    void set_with_post_ops(bool value) { with_post_ops_ = value; }
     bool with_bias_fwd() const {
         return prop_ == prop_kind::forward && !bias_type_.is_undef();
     }
@@ -98,6 +100,7 @@ private:
     type_t bias_type_;
     pvar_tile_t shape_;
     std::array<int, 3> dhw_map_;
+    bool with_post_ops_ = false;
 };
 
 } // namespace conv

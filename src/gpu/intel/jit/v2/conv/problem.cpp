@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -156,12 +156,14 @@ std::string problem_t::desc_str() const {
 std::string problem_t::str() const {
     std::ostringstream oss;
     oss << "Conv problem" << std::endl;
-    oss << "  HW:          " << to_string(hw_.to_ngen()) << std::endl;
-    oss << "  Propagation: " << jit::to_string(prop_) << std::endl;
-    oss << "  Source:      " << src_tag_ << std::endl;
-    oss << "  Weights:     " << wei_tag_ << std::endl;
-    oss << "  Destination: " << dst_tag_ << std::endl;
-    oss << "  Descriptor:  " << desc_str();
+    oss << "  HW:            " << to_string(hw_.to_ngen()) << std::endl;
+    oss << "  Propagation:   " << jit::to_string(prop_) << std::endl;
+    oss << "  Source:        " << src_tag_ << std::endl;
+    oss << "  Weights:       " << wei_tag_ << std::endl;
+    oss << "  Destination:   " << dst_tag_ << std::endl;
+    oss << "  With post-ops: " << ir_utils::to_string(with_post_ops_)
+        << std::endl;
+    oss << "  Descriptor:    " << desc_str();
     return oss.str();
 }
 
