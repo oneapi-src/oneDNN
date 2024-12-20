@@ -25,6 +25,7 @@
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/v2/conv/builder.hpp"
 #include "gpu/intel/jit/v2/conv/kernel_desc.hpp"
+#include "gpu/intel/jit/v2/ir/builder.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -39,21 +40,21 @@ class kernel_t : public ir_kernel_t<hw> {
 public:
     IR_KERNEL_FORWARD(hw)
 
-    kernel_t(const kernel_desc_base_t &_desc, const kernel_info_t &kernel_info);
+    kernel_t(const kernel_desc_base_t &_desc, const impl::engine_t *engine);
 };
 
 template <ngen::HW hw>
 kernel_t<hw>::kernel_t(
-        const kernel_desc_base_t &_desc, const kernel_info_t &kernel_info)
-    : ir_kernel_t<hw>(_desc, kernel_info) {
+        const kernel_desc_base_t &_desc, const impl::engine_t *engine)
+    : ir_kernel_t<hw>(_desc, engine) {
 
     auto &desc = static_cast<const kernel_desc_t &>(_desc);
 
     this->require_signal_header_ = true;
 
     // Build IR for the kernel.
-    grid_context_t grid_ctx;
-    stmt_t body = build_ir(desc, kernel_info, grid_ctx);
+    var_manager_t var_mgr(kernel_iface());
+    stmt_t body = build_ir(exec_cfg(), desc, var_mgr);
 
     alloc_manager_t alloc_mgr(body);
     setup_interface(body);
@@ -62,7 +63,7 @@ kernel_t<hw>::kernel_t(
 
     // Bind "external" variables.
     expr_binding_t expr_binding(hw);
-    bind_external_vars(body, grid_ctx, expr_binding);
+    bind_external_vars(body, expr_binding);
 
     // Generate assembly from IR.
     convert_ir_to_ngen<hw>(body, this, expr_binding);

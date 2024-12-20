@@ -62,6 +62,10 @@ public:
 
         auto &mem_buf = send_t::arg_mem_buf(obj);
         auto &mem_off = send_t::arg_mem_off(obj);
+        // If header/offset is a pointer, then assume this send already has a
+        // proper header.
+        if (mem_off.type().is_ptr()) return obj;
+
         auto &reg_buf = send_t::arg_reg_buf(obj);
         auto &mask = send_t::arg_mask(obj);
         expr_t pattern;

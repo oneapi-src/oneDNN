@@ -33,7 +33,7 @@ enum class tensor_kind_t {
     src,
     wei,
     dst,
-    bia,
+    bias,
     a,
     b,
     c,

@@ -237,6 +237,16 @@ public:
 
     void _visit(const var_t &obj) override { out_ << obj.name; }
 
+    void _visit(const while_t &obj) override {
+        print_indent();
+        out_ << "while (" << obj.cond << ") {\n";
+        add_indent();
+        visit(obj.body);
+        remove_indent();
+        print_indent();
+        out_ << "}\n";
+    }
+
 private:
     mem_usage_guard_t mem_usage_guard(int size) {
         return mem_usage_guard_t(&mem_usage_bytes_, size);
@@ -601,6 +611,121 @@ stmt_t inject_let_stmts(const stmt_t &stmt, const std::vector<stmt_t> &lets) {
     return ret;
 }
 
+class var_counter_t : public ir_visitor_t {
+public:
+    var_counter_t(const object_set_t<expr_t> &vars) {
+        for (auto &v : vars) {
+            counts[v] = 0;
+        }
+    }
+
+    void _visit(const var_t &obj) override {
+        auto it = counts.find(obj);
+        if (it == counts.end()) return;
+        it->second++;
+    }
+
+    object_map_t<expr_t, int> counts;
+};
+
+object_map_t<expr_t, int> count_vars(
+        const stmt_t &stmt, const object_set_t<expr_t> &vars) {
+    var_counter_t counter(vars);
+    counter.visit(stmt);
+    return counter.counts;
+}
+
+class let_injector_t : public ir_mutator_t {
+public:
+    object_t _mutate(const stmt_seq_t &obj) override {
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        auto &stmt_vec = new_obj.as<stmt_seq_t>().vec;
+        int nstmts = (int)stmt_vec.size();
+        // 1. Collect total var references for dangling lets.
+        object_set_t<expr_t> let_vars;
+        for (auto &s : stmt_vec) {
+            if (is_dangling_let(s)) {
+                auto &var = s.as<let_t>().var;
+                let_vars.insert(var);
+            }
+        }
+        if (let_vars.empty()) return new_obj;
+        auto total_refs = count_vars(new_obj, let_vars);
+
+        // 2. Find scopes for dangling lets.
+        object_map_t<expr_t, stmt_t> var2let;
+        object_map_t<stmt_t, int> let_scope_ends;
+        object_map_t<expr_t, int> cur_refs;
+        for (auto &v : let_vars)
+            cur_refs[v] = 0;
+        for (int i = 0; i < nstmts; i++) {
+            auto &s = stmt_vec[i];
+            if (is_dangling_let(s)) {
+                var2let[s.as<let_t>().var] = s;
+                let_scope_ends[s] = i;
+            }
+            for (auto &kv : count_vars(s, let_vars)) {
+                auto &var = kv.first;
+                cur_refs[var] += kv.second;
+                if (cur_refs[var] == total_refs[var]) {
+                    let_vars.erase(var);
+                    let_scope_ends[var2let.at(var)] = i;
+                }
+            }
+        }
+
+        // 3. Nest let statements according to the scopes.
+        std::vector<entry_t> entries;
+        entries.emplace_back();
+        for (int i = 0; i < nstmts; i++) {
+            auto &s = stmt_vec[i];
+            if (is_dangling_let(s)) {
+                entry_t e;
+                e.let_stmt = s;
+                entries.push_back(e);
+            } else {
+                entries.back().append(s);
+            }
+            while (entries.size() >= 1) {
+                auto &last = entries.back();
+                if (last.let_stmt.is_empty()) break;
+                int end = let_scope_ends.at(last.let_stmt);
+                if (end > i) break;
+                auto new_stmt = last.make_let();
+                entries.pop_back();
+                entries.back().append(new_stmt);
+            }
+        }
+
+        stmt_t ret;
+        for (auto &e : entries) {
+            ir_assert(e.let_stmt.is_empty()) << e.let_stmt;
+            ret = ret.append(e.body);
+        }
+
+        return std::move(ret);
+    }
+
+private:
+    static bool is_dangling_let(const stmt_t &s) {
+        auto *let = s.as_ptr<let_t>();
+        return let && let->body.is_empty();
+    }
+
+    struct entry_t {
+        stmt_t body;
+        stmt_t let_stmt;
+
+        stmt_t make_let() const { return replace_stmt_body(let_stmt, body); }
+
+        void append(const stmt_t &s) { body = body.append(s); }
+    };
+};
+
+stmt_t inject_dangling_let_stmts(const stmt_t &stmt) {
+    return let_injector_t().mutate(stmt);
+}
+
 std::vector<expr_t> split_by_and(const expr_t &e) {
     auto *binary = e.as_ptr<binary_op_t>();
     if (!binary || binary->op_kind != op_kind_t::_and) return {e};
@@ -615,6 +740,14 @@ expr_t abs(const expr_t &e) {
     ir_assert(is_const(e)) << e;
     if (to_cpp<bool>(e >= 0)) return e;
     return -e;
+}
+
+expr_t max(const expr_t &a, const expr_t &b) {
+    return binary_op_t::make(op_kind_t::_max, a, b);
+}
+
+expr_t min(const expr_t &a, const expr_t &b) {
+    return binary_op_t::make(op_kind_t::_min, a, b);
 }
 
 expr_t cast(const expr_t &e, const type_t &type, bool saturate) {
@@ -726,6 +859,9 @@ stmt_t get_stmt_body(const stmt_t &stmt) {
     auto *_for = stmt.as_ptr<for_t>();
     if (_for) return _for->body;
 
+    auto *_while = stmt.as_ptr<while_t>();
+    if (_while) return _while->body;
+
     auto *let = stmt.as_ptr<let_t>();
     if (let) return let->body;
 
@@ -747,6 +883,9 @@ stmt_t replace_stmt_body(const stmt_t &stmt, const stmt_t &new_body) {
         return for_t::make(_for->var, _for->init, _for->bound, new_body,
                 _for->step, _for->unroll);
     }
+
+    auto *_while = stmt.as_ptr<while_t>();
+    if (_while) { return while_t::make(_while->cond, new_body); }
 
     auto *let = stmt.as_ptr<let_t>();
     if (let) { return let_t::make(let->var, let->value, new_body); }
