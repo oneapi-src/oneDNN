@@ -57,9 +57,9 @@ static inline status_t create_gated_mlp_pd(
     if (!utils::everyone_is(ndims, src_md->ndims, W_gate_md->ndims,
                 W_up_md->ndims, W_down_md->ndims))
         return status::invalid_arguments;
-    size_t mb = src_md->dims[0];
-    size_t ic = src_md->dims[1];
-    size_t oc = W_gate_md->dims[1];
+    long mb = src_md->dims[0];
+    long ic = src_md->dims[1];
+    long oc = W_gate_md->dims[1];
     if (W_gate_md->dims[0] != ic || W_gate_md->dims[1] != oc)
         return status::invalid_arguments;
     if (W_up_md->dims[0] != ic || W_up_md->dims[1] != oc)

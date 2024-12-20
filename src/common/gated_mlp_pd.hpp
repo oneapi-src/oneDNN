@@ -20,8 +20,8 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "common/c_types_map.hpp"
-#include "common/gated_mlp_utils.hpp"
 #include "common/primitive_desc.hpp"
+#include "common/gated_mlp_utils.hpp"
 #include "common/utils.hpp"
 
 namespace dnnl {
@@ -110,9 +110,10 @@ struct gated_mlp_pd_t : public primitive_desc_t {
 protected:
     gated_mlp_desc_t desc_;
 
-    gated_mlp_pd_t(const gated_mlp_desc_t *adesc, const primitive_attr_t *attr,
+    gated_mlp_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const hint_class *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind), desc_(*adesc) {}
+        : primitive_desc_t(attr, base_pkind)
+        , desc_(*op_desc_t::to_desc<gated_mlp_desc_t>(adesc)) {}
 
     bool set_default_format(memory_desc_t *md) {
         memory_desc_wrapper mdw(md);

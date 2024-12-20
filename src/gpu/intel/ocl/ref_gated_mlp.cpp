@@ -53,9 +53,9 @@ status_t ref_gated_mlp_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(6, IC);
     arg_list.set(7, OC);
 
-    compute::range_t gws = {(size_t)MB, (size_t)IC,
-            (size_t)OC}; //TODO: determine legit partition
-    auto nd_range = compute::nd_range_t(gws);
+    compute::range_t gws = { (size_t)utils::div_up(MB, 128) * 128  }; //TODO: determine legit partition, lws size
+    compute::range_t lws = { (size_t)128 };
+    auto nd_range = compute::nd_range_t(gws, lws);
 
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }

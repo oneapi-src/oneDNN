@@ -44,16 +44,16 @@ struct ref_gated_mlp_t : public gpu_primitive_t {
 
         status_t init(impl::engine_t *engine) {
             using namespace data_type;
-            using smask_t = primitive_attr_t::skip_mask_t;
+            //using smask_t = primitive_attr_t::skip_mask_t;
 
             /* Reference gated mlp is only enabled on-demand, for testing. */
             bool enable_ref
                     = gpu_utils::dev_getenv("enable_ref_gated_mlp", false);
             VDISPATCH_GATED_MLP(enable_ref, VERBOSE_SKIP_PRIMITIVE_IMPL);
 
-            VDISPATCH_GATED_MLP(
-                    attr()->has_default_values(smask_t::scales_runtime),
-                    VERBOSE_UNSUPPORTED_ATTR);
+            //VDISPATCH_GATED_MLP(
+                    //attr()->has_default_values(smask_t::scales_runtime),
+                    //VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_GATED_MLP(utils::everyone_is(2, src_md()->ndims,
                                         W_gate_md()->ndims, W_up_md()->ndims,
                                         W_down_md()->ndims, dst_md()->ndims),
@@ -96,10 +96,10 @@ struct ref_gated_mlp_t : public gpu_primitive_t {
         def_offsets(dst_off, kernel_ctx, "DST", ndims);
         kernel_ctx.define_int("NDIMS", ndims);
 
-        //TODO: STF here in context, or just kernel arg?
         //kernel_ctx.define_int("SIZE_MB", pd()->desc()->mb_sz());
+        //TODO: STF here in context, or just kernel arg? ^^ above for nregisters, batch size relatively stable
         //kernel_ctx.define_int("SIZE_IC", pd()->desc()->ic_sz());
-        //kernel_ctx.define_int("SIZE_OC", pd()->desc()->oc_sz());
+        kernel_ctx.define_int("SIZE_OC", pd()->desc()->oc_sz());
 
         //kernel_ctx.define_int("INVERT_SCALE", pd()->desc()->invert_scale); //TODO: scale + zp + activation type
         //kernel_ctx.define_int("WITH_ATTN_SCALE", pd()->with_attn_scale());
@@ -110,7 +110,7 @@ struct ref_gated_mlp_t : public gpu_primitive_t {
         def_data_type(kernel_ctx, pd()->W_up_md()->data_type, "W_UP");
         def_data_type(kernel_ctx, pd()->W_down_md()->data_type, "W_DOWN");
         def_data_type(kernel_ctx, pd()->dst_md()->data_type, "DST");
-        //def_data_type(kernel_ctx, pd()->desc()->scale_dt, "SCALE");
+        // def_data_type(kernel_ctx, pd()->desc()->scale_dt, "SCALE");
 
         CHECK(create_kernel(engine, &kernel_, "ref_gated_mlp", kernel_ctx));
         if (!kernel_) return status::runtime_error;

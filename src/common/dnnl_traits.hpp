@@ -169,35 +169,6 @@ struct typesize_traits_t<1> {
     using type = uint8_t;
 };
 
-#define PKIND_TRAITS_INST(op) \
-    template <> \
-    struct pkind_traits<primitive_kind::op> { \
-        typedef CONCAT2(op, _desc_t) desc_type; \
-    }
-PKIND_TRAITS_INST(convolution);
-PKIND_TRAITS_INST(deconvolution);
-PKIND_TRAITS_INST(shuffle);
-PKIND_TRAITS_INST(eltwise);
-PKIND_TRAITS_INST(softmax);
-PKIND_TRAITS_INST(pooling);
-PKIND_TRAITS_INST(prelu);
-PKIND_TRAITS_INST(lrn);
-PKIND_TRAITS_INST(batch_normalization);
-PKIND_TRAITS_INST(gated_mlp);
-PKIND_TRAITS_INST(group_normalization);
-PKIND_TRAITS_INST(layer_normalization);
-PKIND_TRAITS_INST(inner_product);
-PKIND_TRAITS_INST(rnn);
-PKIND_TRAITS_INST(gemm);
-PKIND_TRAITS_INST(zero_pad);
-PKIND_TRAITS_INST(binary);
-PKIND_TRAITS_INST(matmul);
-PKIND_TRAITS_INST(resampling);
-PKIND_TRAITS_INST(reduction);
-PKIND_TRAITS_INST(sum);
-PKIND_TRAITS_INST(sdpa);
-#undef PKIND_TRAITS_INST
-
 } // namespace impl
 } // namespace dnnl
 
