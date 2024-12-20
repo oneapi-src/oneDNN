@@ -768,6 +768,13 @@ size_t get_desc_hash(const sdpa_desc_t &desc) {
     // Scale type
     seed = hash_combine(seed, static_cast<size_t>(desc.scale_dt));
     seed = hash_combine(seed, desc.invert_scale);
+    seed = hash_combine(seed, desc.kv_head_number);
+    seed = hash_combine(seed, get_runtime_scale_hash(desc.kq_scales));
+    seed = hash_combine(
+            seed, get_zero_points_hash(desc.kq_zero_points, DNNL_ARG_WEIGHTS));
+    seed = hash_combine(seed, get_runtime_scale_hash(desc.vs_scales));
+    seed = hash_combine(
+            seed, get_zero_points_hash(desc.vs_zero_points, DNNL_ARG_WEIGHTS));
     // Combined hash for sdpa desc
     return seed;
 }
