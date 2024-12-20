@@ -213,6 +213,10 @@ bool kernel_desc_t::is_supported() const {
     ir_check(regs != 0) << "Invalid regs: " << regs;
     ir_check(is_tg_size_ok(*this))
             << "Invalid thread_group_tile: " << thread_group_tile;
+    if (use_stream_k) {
+        ir_check(c_type() == accumulator_type(a_type(), b_type()))
+                << "Output/accumulator types must match for Stream-K";
+    }
     ir_check(is_grf_usage_ok(*this)) << "GRF usage exceeded";
     return true;
 }
@@ -221,7 +225,13 @@ void kernel_desc_t::set(const std::string &s) {
     operator=(kernel_desc_t());
     if (s.empty()) return;
     auto &iface = parse_iface();
-    iface.parse(s, *this);
+    parse_result_t result;
+    iface.parse(s, *this, &result);
+    if (!result.is_set("--iter") || !result.is_set("--tg")) {
+        ir_info() << "Error: missing --iter and/or --tg parameters in kernel "
+                     "descriptor.\n";
+        ir_error_not_expected();
+    }
     set_defaults();
 }
 
@@ -297,6 +307,10 @@ bool fit_impl(const kernel_desc_t &desc, const problem_t &prb, bool exact) {
     ir_check(fit_tag(tensor_kind_t::c, desc, prb, exact));
     ir_check(prb.is_depthwise() == desc.is_dw)
             << "Mixing depthwise/non-depthwise descriptor and problem";
+    if (desc.use_stream_k) {
+        ir_check(!prb.with_bias_fwd() && !prb.with_post_ops())
+                << "Stream-K is incompatible with post-ops/bias";
+    }
     if (exact) {
         ir_check(prb.with_bias_bwd_w() == desc.with_bias_bwd_w())
                 << "Problem and descriptor bias reduction mismatch";
@@ -330,7 +344,14 @@ void fit_to_impl(kernel_desc_t &desc, const problem_t &prb) {
     fit_tag_to(tensor_kind_t::a, desc, prb);
     fit_tag_to(tensor_kind_t::b, desc, prb);
     fit_tag_to(tensor_kind_t::c, desc, prb);
-    desc.bias_type = prb.bias_type();
+    if (!prb.bias_type().is_undef()) {
+        if (desc.use_stream_k) {
+            auto acc_type = accumulator_type(desc.a_type(), desc.b_type());
+            desc.bias_type = acc_type;
+        } else {
+            desc.bias_type = prb.bias_type();
+        }
+    }
 }
 
 bool kernel_desc_t::can_fit(const problem_t &prb) const {
@@ -382,6 +403,7 @@ std::string kernel_desc_t::brief_str() const {
     oss << "i_" << iter_tile.str();
     oss << "_T_" << thread_group_tile.str();
     oss << "_p_" << prefetch.str();
+    oss << "_sk_" << (use_stream_k ? "1" : "0");
     return oss.str();
 }
 
@@ -624,9 +646,10 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
             dim_t dummy;
             if (reqs.get_value(e.dim, dummy)) continue;
             dim_t iter_size = iter_tile.get(e.dim, 1);
+            dim_t tg_size = thread_group_tile.get(e.dim, 1);
+            dim_t size = iter_size * tg_size;
             std::string bound_name = e.dim.str();
-            if (iter_size != 1)
-                bound_name += "_divup_" + std::to_string(iter_size);
+            if (size != 1) bound_name += "_divup_" + std::to_string(size);
             kernel_iface.register_arg(bound_name + "_magic", type_t::u64());
         }
     }
@@ -683,6 +706,44 @@ bool try_register_internal_arg(kernel_info_t &kernel_info, const expr_t &var,
     return false;
 }
 
+dim_t stream_k_thread_groups(
+        dim_t total_iters, dim_t max_thread_groups_per_wave) {
+    const dim_t min_iters_per_tg = 2;
+    dim_t ref_iters = utils::div_up(total_iters, min_iters_per_tg);
+    return std::min(ref_iters, max_thread_groups_per_wave);
+}
+
+type_t accumulator_type(const type_t &a_type, const type_t &b_type) {
+    ir_assert(a_type.size() == b_type.size());
+    return a_type.is_fp() ? type_t::f32() : type_t::s32();
+}
+
+kernel_desc_t to_stream_k(const kernel_desc_t &desc, bool check_ext) {
+    if (desc.use_stream_k) return desc;
+    if (check_ext && !desc.ext.has(extension_kind_t::stream_k))
+        return kernel_desc_t();
+    if (desc.with_bias_fwd()) return kernel_desc_t();
+
+    auto sk_desc = desc;
+    sk_desc.use_stream_k = true;
+    auto out_kind = pick_c(sk_desc.prop, tensor_kind_t::src, tensor_kind_t::wei,
+            tensor_kind_t::dst);
+    auto acc_type = accumulator_type(sk_desc.a_type(), sk_desc.b_type());
+    switch (out_kind) {
+        case tensor_kind_t::src:
+            sk_desc.src_tag = sk_desc.src_tag.with_type(acc_type);
+            break;
+        case tensor_kind_t::wei:
+            sk_desc.wei_tag = sk_desc.wei_tag.with_type(acc_type);
+            break;
+        case tensor_kind_t::dst:
+            sk_desc.dst_tag = sk_desc.dst_tag.with_type(acc_type);
+            break;
+        default: ir_error_not_expected();
+    }
+    return sk_desc;
+}
+
 void init_kernel_info(kernel_info_t &kernel_info, const problem_t &prb,
         const kernel_desc_t &desc, const grid_t &tg_grid,
         const pvar_tile_t &grid_dims, dim_t max_tgs, dim_t &stream_k_tgs) {
@@ -700,7 +761,7 @@ void init_kernel_info(kernel_info_t &kernel_info, const problem_t &prb,
             iters_per_tile *= dim_iters_per_tile;
         }
         dim_t total_iters = iters_per_tile * tg_grid.size(0, grid_dims);
-        stream_k_tgs = std::min(total_iters, max_tgs);
+        stream_k_tgs = stream_k_thread_groups(total_iters, max_tgs);
         dim_t iters_per_tg = utils::div_up(total_iters, stream_k_tgs);
         pvar_map[pvar_t("sk_iters_per_tile")] = iters_per_tile;
         pvar_map[pvar_t("sk_total_iters")] = total_iters;

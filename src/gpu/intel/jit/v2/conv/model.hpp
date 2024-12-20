@@ -35,11 +35,15 @@ using vec2d = std::vector<std::vector<float>>;
 enum class model_kind_t : uint8_t {
     undef = 0,
     data_parallel = 1,
+    stream_k = 2,
+    data_copy = 3,
 };
 
 static auto model_kind_names = nstl::to_array({
         make_enum_name(model_kind_t::undef, "undef"),
         make_enum_name(model_kind_t::data_parallel, "data_parallel"),
+        make_enum_name(model_kind_t::stream_k, "stream_k"),
+        make_enum_name(model_kind_t::data_copy, "data_copy"),
 });
 GPU_DEFINE_PARSE_ENUM(model_kind_t, model_kind_names)
 
@@ -52,11 +56,11 @@ public:
     const vec1d &coef() const { return coef_; }
     float predict(const vec1d &x) const;
     float predict(const problem_t &prb, const kernel_desc_t &desc) const;
-    float eff(const problem_t &prb, const kernel_desc_t &desc) const;
     void score(const bench_data_t &bd);
-    void stringify(std::ostream &out) const;
-    void parse(std::istream &in);
 
+    static void coef_ranges(model_kind_t kind, const vec2d &X, const vec1d &y,
+            std::vector<std::string> &coef_names, vec1d &coef_init,
+            vec1d &coef_min, vec1d &coef_max);
     static float predict(model_kind_t kind, const vec1d &x, const vec1d &coef);
     static size_t coef_count(model_kind_t kind);
 
@@ -69,11 +73,15 @@ class model_set_t {
 public:
     model_set_t() = default;
     model_set_t(const model_t &model) { models_.push_back(model); }
-    float eff(const problem_t &prb, const kernel_desc_t &desc) const;
+    void add(const model_t &model) { models_.push_back(model); }
+    float time(const problem_t &prb, const kernel_desc_t &desc) const;
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
 
 private:
+    float time(model_kind_t kind, const problem_t &prb,
+            const kernel_desc_t &desc) const;
+
     std::vector<model_t> models_;
 };
 

@@ -231,6 +231,7 @@ enum class extension_kind_t : uint32_t {
     out_b2 = 2,
     out_b4 = 4,
     bias = 8,
+    stream_k = 16,
 };
 
 static auto extension_kind_names = nstl::to_array({
@@ -239,6 +240,7 @@ static auto extension_kind_names = nstl::to_array({
         make_enum_name(extension_kind_t::out_b2, "out_b2"),
         make_enum_name(extension_kind_t::out_b4, "out_b4"),
         make_enum_name(extension_kind_t::bias, "bias"),
+        make_enum_name(extension_kind_t::stream_k, "stream_k"),
 });
 GPU_DEFINE_PARSE_ENUM(extension_kind_t, extension_kind_names)
 
@@ -484,6 +486,10 @@ private:
 
 grid_t create_thread_group_grid(const kernel_desc_t &desc);
 grid_t create_thread_grid(const kernel_desc_t &desc);
+dim_t stream_k_thread_groups(
+        dim_t total_iters, dim_t max_thread_groups_per_wave);
+type_t accumulator_type(const type_t &a_type, const type_t &b_type);
+kernel_desc_t to_stream_k(const kernel_desc_t &desc, bool check_ext = true);
 
 class kernel_params_t : public kernel_params_base_t {
 public:

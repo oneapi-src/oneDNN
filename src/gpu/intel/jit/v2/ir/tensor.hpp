@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -305,12 +305,20 @@ public:
     const layout_raw_tag_t &raw_tag() const { return raw_tag_; }
     bool matches(const layout_tag_t &other, const pvar_tile_t &sizes,
             bool check_type = true) const;
+    layout_tag_t with_type(const type_t &new_type) const {
+        return layout_tag_t(desc_, new_type, raw_tag_);
+    }
     std::string str() const;
     IR_DEFINE_DUMP()
 
-#if __cplusplus >= 202002L
-    bool operator==(const layout_tag_t &other) const = default;
-#endif
+    bool operator==(const layout_tag_t &other) const {
+        return (desc_ == other.desc_) && (type_ == other.type_)
+                && (raw_tag_ == other.raw_tag_);
+    }
+
+    bool operator!=(const layout_tag_t &other) const {
+        return !operator==(other);
+    }
 
     void stringify(std::ostream &out) const {
         jit::stringify(out, raw_tag_);

@@ -72,8 +72,8 @@ public:
         , iter_tile_(iter_tile)
         , bmnk_map_(bmnk_map)
         , a_type_(a_type)
-        , b_type_(b_type) {
-        init_acc_type();
+        , b_type_(b_type)
+        , acc_type_(accumulator_type(a_type, b_type)) {
         if (!init(a_desc, b_desc, c_desc)) return;
         is_valid_ = true;
     }
@@ -196,19 +196,6 @@ public:
     }
 
 private:
-    void init_acc_type() {
-        ir_assert(a_type_.size() == b_type_.size());
-        switch (fma_) {
-            case fma_kind_t::mad:
-                acc_type_ = a_type_.is_fp() ? type_t::f32() : type_t::s32();
-                break;
-            case fma_kind_t::dpas:
-                acc_type_ = a_type_.is_fp() ? type_t::f32() : type_t::s32();
-                break;
-            default: ir_error_not_expected();
-        }
-    }
-
     bool fma_type_supported(const type_t &type) const {
         switch (fma_) {
             case fma_kind_t::mad:
