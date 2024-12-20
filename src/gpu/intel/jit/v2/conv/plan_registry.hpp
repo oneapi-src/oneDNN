@@ -33,11 +33,11 @@ class plan_registry_t {
 public:
     struct entry_t {
         kernel_desc_t desc;
-        model_t model;
+        model_set_t model_set;
 
         entry_t() = default;
-        entry_t(const kernel_desc_t &desc, const model_t &model)
-            : desc(desc), model(model) {}
+        entry_t(const kernel_desc_t &desc, const model_set_t &model_set)
+            : desc(desc), model_set(model_set) {}
         void stringify(std::ostream &out) const;
         void parse(std::istream &in);
     };
@@ -45,9 +45,9 @@ public:
     plan_registry_t() = default;
     plan_registry_t(const char **entries);
 
-    void set(const kernel_desc_t &desc, const model_t &model) {
+    void set(const kernel_desc_t &desc, const model_set_t &model_set) {
         ir_assert(desc.is_finalized);
-        entries_.emplace_back(desc, model);
+        entries_.emplace_back(desc, model_set);
     }
     int size() const { return (int)entries_.size(); }
     kernel_desc_t find_best(const problem_t &prb) const;
