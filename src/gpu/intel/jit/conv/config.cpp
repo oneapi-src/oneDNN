@@ -1005,7 +1005,7 @@ bwd_d_optimize_kind_t bwd_d_optimize_kind_hint(const conv_problem_t &prb) {
     if (prb.is_stride1()) return bwd_d_optimize_kind_t::none;
 
     auto hint = bwd_d_optimize_kind_t::skip_strided_dhw;
-    if (prb.iw % prb.sw != 0 || prb.mb < 16)
+    if (prb.iw % prb.sw != 0 || (prb.mb < 16 && prb.sw <= 8))
         hint = bwd_d_optimize_kind_t::skip_strided_dh;
     return hint;
 }
