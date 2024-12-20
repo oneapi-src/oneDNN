@@ -32,10 +32,17 @@ namespace conv {
 using vec1d = std::vector<float>;
 using vec2d = std::vector<std::vector<float>>;
 
+enum class model_version_t : uint8_t {
+    undef = 0,
+    v1 = 1,
+};
+
 class model_t {
 public:
     model_t() = default;
-    model_t(const vec1d &coef) : coef_(coef) {}
+    model_t(model_version_t version, const vec1d &coef)
+        : version_(version), coef_(coef) {}
+    model_version_t version() const { return version_; }
     const vec1d &coef() const { return coef_; }
     float predict(const vec1d &x) const;
     float predict(const problem_t &prb, const kernel_desc_t &desc) const;
@@ -44,13 +51,30 @@ public:
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
 
-    static float predict(float kl, float waves, const vec1d &coef);
+    //static float predict(float kl, float waves, const vec1d &coef);
+    static float predict(
+            model_version_t version, const vec1d &x, const vec1d &coef);
+    static size_t coef_size(model_version_t version);
 
 private:
+    model_version_t version_;
     vec1d coef_;
 };
 
-void to_model_xy(const bench_data_t &bd, vec2d &X, vec1d &y);
+class model_set_t {
+public:
+    model_set_t() = default;
+    model_set_t(const model_t &model) { models_.push_back(model); }
+    float eff(const problem_t &prb, const kernel_desc_t &desc) const;
+    void stringify(std::ostream &out) const;
+    void parse(std::istream &in);
+
+private:
+    std::vector<model_t> models_;
+};
+
+void to_model_data(
+        const bench_data_t &bd, model_version_t &version, vec2d &X, vec1d &y);
 void dump_csv(const bench_data_t &bd, const model_t &model);
 void dump_model_params(const kernel_desc_t &kernel_desc, const model_t &model);
 
