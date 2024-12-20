@@ -974,10 +974,15 @@ inline bool operator==(const sdpa_desc_t &lhs, const sdpa_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(q_desc)
             && COMPARE_DESC_MEMBERS(k_desc)
             && COMPARE_DESC_MEMBERS(v_desc)
+            && COMPARE_DESC_MEMBERS(kq_scales)
+            && COMPARE_DESC_MEMBERS(kq_zero_points)
+            && COMPARE_DESC_MEMBERS(vs_scales)
+            && COMPARE_DESC_MEMBERS(vs_zero_points)
             && COMPARE_DESC_MEMBERS(dst_desc)
             && COMPARE_DESC_MEMBERS(attn_mask_desc)
             && COMPARE_DESC_MEMBERS(scale_dt)
-            && COMPARE_DESC_MEMBERS(invert_scale);
+            && COMPARE_DESC_MEMBERS(invert_scale)
+            && COMPARE_DESC_MEMBERS(kv_head_number);
     return ret;
 }
 
