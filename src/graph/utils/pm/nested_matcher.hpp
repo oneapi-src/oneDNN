@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -92,7 +92,12 @@ public:
     size_t hint_op_port = 0;
 };
 
-using graph_port_map = std::unordered_map<size_t, std::pair<op_t *, size_t>>;
+// one input port can have multiple consumers
+using graph_in_port_map
+        = std::unordered_multimap<size_t, std::pair<op_t *, size_t>>;
+// one output port corresponds to one producer
+using graph_out_port_map
+        = std::unordered_map<size_t, std::pair<op_t *, size_t>>;
 
 //
 // match context tracks a pattern graph match progress
@@ -111,8 +116,8 @@ public:
     match_context_t *get_parent_context() { return parent_ctx; };
     pb_graph_t *get_graph() { return graph_; };
 
-    graph_port_map in_port_map;
-    graph_port_map out_port_map;
+    graph_in_port_map in_port_map;
+    graph_out_port_map out_port_map;
 
 protected:
     match_context_t *parent_ctx;
@@ -208,6 +213,8 @@ bool match_pattern(op_t *first_op, const std::shared_ptr<pb_graph_t> &pattern,
 inline std::vector<op_t *> reorder_matched_list(
         const std::unordered_map<op_t *, pb_op_t *> &matched_op_map);
 
+// verify if all the in_ports of the graph have been filled
+bool verify_global_in_map(match_context_t *ctx);
 //
 // fill the current match_context's in/out port map
 // to pattern match_context. Useful for nested patterns
