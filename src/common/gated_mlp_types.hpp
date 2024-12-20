@@ -18,17 +18,24 @@
 #define COMMON_GATED_MLP_TYPES_HPP
 
 #include <assert.h>
+
+#include "oneapi/dnnl/dnnl_types.h"
+
 #include "common/c_types_map.hpp"
 #include "common/memory_desc.hpp"
+#include "common/opdesc.hpp"
 
 namespace dnnl {
 namespace impl {
 
 // A descriptor for a gated mlp (GLU) operation.
-struct gated_mlp_desc_t {
-    // The kind of primitive. Used for self identifying the primitive
-    // descriptor.
-    dnnl_primitive_kind_t primitive_kind;
+struct gated_mlp_desc_t : public op_desc_t  {
+    gated_mlp_desc_t() : op_desc_t(primitive_kind::gated_mlp) {}
+
+    std::unique_ptr<op_desc_t> clone() const override {
+        return utils::make_unique<gated_mlp_desc_t>(*this);
+    }
+
     memory_desc_t src_desc; /* input vector */
     memory_desc_t W_gate_desc; /* weights for gated portion */
     memory_desc_t W_up_desc; /* weights for linear portion */

@@ -23,9 +23,6 @@
 
 #include <vector>
 #include <type_traits>
-#include "common/gated_mlp_types.hpp"
-#include "common/gemm_types.hpp"
-#include "common/sdpa_types.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -683,76 +680,7 @@ struct rnn_desc_t : public op_desc_t {
     float beta {};
 };
 
-struct op_desc_t {
-    union {
-        primitive_kind_t kind;
-        convolution_desc_t convolution;
-        deconvolution_desc_t deconvolution;
-        shuffle_desc_t shuffle;
-        pooling_desc_t pooling;
-        prelu_desc_t prelu;
-        eltwise_desc_t eltwise;
-        softmax_desc_t softmax;
-        lrn_desc_t lrn;
-        batch_normalization_desc_t batch_normalization;
-        group_normalization_desc_t group_normalization;
-        layer_normalization_desc_t layer_normalization;
-        inner_product_desc_t inner_product;
-        rnn_desc_t rnn;
-        gemm_desc_t gemm;
-        concat_desc_t concat;
-        reorder_desc_t reorder;
-        sum_desc_t sum;
-        binary_desc_t binary;
-        matmul_desc_t matmul;
-        resampling_desc_t resampling;
-        zero_pad_desc_t zero_pad;
-        reduction_desc_t reduction;
-        sdpa_desc_t sdpa;
-        gated_mlp_desc_t gated_mlp;
-    };
-
-#define DECL_CTOR_AND_CONVERTERS(c_type) \
-    op_desc_t(const c_type &) = delete; \
-    static op_desc_t *convert_from_c(c_type *_) { \
-        return reinterpret_cast<op_desc_t *>(_); \
-    } \
-    static const op_desc_t *convert_from_c(const c_type *_) { \
-        return reinterpret_cast<const op_desc_t *>(_); \
-    }
-
-    DECL_CTOR_AND_CONVERTERS(convolution_desc_t);
-    DECL_CTOR_AND_CONVERTERS(shuffle_desc_t);
-    DECL_CTOR_AND_CONVERTERS(pooling_desc_t);
-    DECL_CTOR_AND_CONVERTERS(prelu_desc_t);
-    DECL_CTOR_AND_CONVERTERS(eltwise_desc_t);
-    DECL_CTOR_AND_CONVERTERS(softmax_desc_t);
-    DECL_CTOR_AND_CONVERTERS(lrn_desc_t);
-    DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t);
-    DECL_CTOR_AND_CONVERTERS(group_normalization_desc_t);
-    DECL_CTOR_AND_CONVERTERS(layer_normalization_desc_t);
-    DECL_CTOR_AND_CONVERTERS(inner_product_desc_t);
-    DECL_CTOR_AND_CONVERTERS(rnn_desc_t);
-    DECL_CTOR_AND_CONVERTERS(gemm_desc_t);
-    DECL_CTOR_AND_CONVERTERS(concat_desc_t);
-    DECL_CTOR_AND_CONVERTERS(reorder_desc_t);
-    DECL_CTOR_AND_CONVERTERS(sum_desc_t);
-    DECL_CTOR_AND_CONVERTERS(binary_desc_t);
-    DECL_CTOR_AND_CONVERTERS(matmul_desc_t);
-    DECL_CTOR_AND_CONVERTERS(resampling_desc_t);
-    DECL_CTOR_AND_CONVERTERS(zero_pad_desc_t);
-    DECL_CTOR_AND_CONVERTERS(reduction_desc_t);
-    DECL_CTOR_AND_CONVERTERS(sdpa_desc_t);
-    DECL_CTOR_AND_CONVERTERS(gated_mlp_desc_t);
-
-    // concat_desc_t and sum_desc_t have data members which have non-trivial
-    // special member functions hence the default destructor is implicitly
-    // deleted by the compiler which causes a warning on Windows so we should
-    // delete the destructor explicitly.
-    ~op_desc_t() = delete;
-
-#undef DECL_CTOR_AND_CONVERTERS
-};
+#undef DECLARE_COMMON_OP_DESC_CLONE
 
 } // namespace impl
 } // namespace dnnl

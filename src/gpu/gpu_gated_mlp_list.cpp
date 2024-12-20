@@ -18,7 +18,7 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
-//#include "gpu/intel/ocl/micro_sdpa.hpp"
+#include "gpu/intel/ocl/micro_gated_mlp.hpp"
 #include "gpu/intel/ocl/ref_gated_mlp.hpp"
 
 namespace dnnl {
@@ -29,8 +29,8 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_GATED_MLP_P({
-        //GPU_INSTANCE_INTEL(intel::ocl::micro_sdpa_t)
         GPU_INSTANCE_INTEL_DEVMODE(intel::ocl::ref_gated_mlp_t)
+        GPU_INSTANCE_INTEL(intel::ocl::micro_gated_mlp_t)
         nullptr,
 });
 // clang-format on

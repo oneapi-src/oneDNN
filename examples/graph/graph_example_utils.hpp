@@ -447,6 +447,55 @@ inline void write_dt(void *handle, dnnl::graph::tensor &ts) {
     assert(!"not expected");
 }
 
+inline void read_dt(void *handle, dnnl::graph::tensor &ts) {
+    dnnl::engine eng = ts.get_engine();
+    size_t size = ts.get_logical_tensor().get_mem_size();
+
+    if (!handle) throw std::runtime_error("handle is nullptr.");
+
+#ifdef DNNL_WITH_SYCL
+    bool is_cpu_sycl = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+            && eng.get_kind() == dnnl::engine::kind::cpu);
+    bool is_gpu_sycl = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+            && eng.get_kind() == dnnl::engine::kind::gpu);
+    if (is_cpu_sycl || is_gpu_sycl) {
+        // only usm is supported in graph API.
+        uint8_t *src_ptr = (uint8_t *)ts.get_data_handle();
+        if (!src_ptr)
+            throw std::runtime_error("get_data_handle returned nullptr.");
+        if (is_cpu_sycl) {
+            for (size_t i = 0; i < size; ++i)
+                ((uint8_t *)handle)[i] = src_ptr[i];
+        } else {
+            auto sycl_queue = dnnl::sycl_interop::get_queue(dnnl::stream(eng));
+            sycl_queue.memcpy(handle, src_ptr, size).wait();
+        }
+        return;
+    }
+#endif
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    if (eng.get_kind() == dnnl::engine::kind::gpu) {
+        // only usm is supported in graph API.
+        uint8_t *src_ptr = (uint8_t *)ts.get_data_handle();
+        if (!src_ptr)
+            throw std::runtime_error("get_data_handle returned nullptr.");
+        //ocl_memcpy(eng, handle, src_ptr, size); //TODO: fixme
+        ocl_memcpy(eng, handle, src_ptr, size);
+        return;
+    }
+#endif
+
+    if (eng.get_kind() == dnnl::engine::kind::cpu) {
+        uint8_t *src = static_cast<uint8_t *>(ts.get_data_handle());
+        if (!src) throw std::runtime_error("get_data_handle returned nullptr.");
+        for (size_t i = 0; i < size; ++i)
+            ((uint8_t*)handle)[i] = ((uint8_t *)src)[i];
+        return;
+    }
+
+    assert(!"not expected");
+}
+
 // Read from handle, write to tensor. Assume handle contains f32 data.
 inline void write_to_dnnl_tensor(void *handle, dnnl::graph::tensor &ts) {
     if (!handle) throw std::runtime_error("handle is nullptr.");
@@ -481,6 +530,22 @@ inline void write_to_dnnl_tensor(void *handle, dnnl::graph::tensor &ts) {
     } else {
         // directly write to ts.
         write_dt(handle, ts);
+    }
+}
+
+// Read from tensor, write to handle. Assume handle contains f32 data.
+inline void read_from_dnnl_tensor(void *handle, dnnl::graph::tensor &ts) {
+    if (!handle) throw std::runtime_error("handle is nullptr.");
+
+    dnnl::engine eng = ts.get_engine();
+    const dnnl::graph::logical_tensor lt = ts.get_logical_tensor();
+    const dnnl::graph::logical_tensor::data_type dt = lt.get_data_type();
+
+    if (dt != dnnl::graph::logical_tensor::data_type::f32) {
+        throw std::runtime_error("incorrect memory type, expected f32. TODO: fixme w/conversion");
+    } else {
+        // directly write to ts.
+        read_dt(handle, ts);
     }
 }
 

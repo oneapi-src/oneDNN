@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_desc.hpp"
 #include "common/primitive_attr_quant.hpp"
+#include "common/opdesc.hpp"
 
 #include <assert.h>
 
