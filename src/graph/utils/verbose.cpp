@@ -56,15 +56,6 @@ void print_verbose_header() {
     }
 }
 
-#if defined(DISABLE_VERBOSE)
-void partition_info_t::init(
-        const engine_t *engine, const compiled_partition_t *partition) {
-    UNUSED(engine);
-    UNUSED(partition);
-}
-
-#else
-
 namespace {
 
 std::string logical_tensor2dim_str(const logical_tensor_t &logical_tensor) {
@@ -241,6 +232,7 @@ std::string init_info_partition(const engine_t *engine,
 
 void partition_info_t::init(const engine_t *engine,
         const compiled_partition_t *compiled_partition) {
+    // Handles VERBOSE_DISABLE since `is_initialized_` is set to `true`.
     if (is_initialized_) return;
 
     std::call_once(initialization_flag_, [&] {
@@ -248,8 +240,6 @@ void partition_info_t::init(const engine_t *engine,
         is_initialized_ = true;
     });
 }
-
-#endif
 
 } // namespace utils
 } // namespace graph
