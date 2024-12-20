@@ -57,7 +57,10 @@ status_t engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
 
 void maybe_print_build_info(const std::vector<const char *> &kernel_names,
         const compute::kernel_ctx_t &kernel_ctx) {
-#ifndef DISABLE_VERBOSE
+#if defined(DISABLE_VERBOSE)
+    return;
+#endif
+
     // Print out kernel options if the correct verbosity is set
     if (get_verbose(verbose_t::debuginfo) >= 5) {
         std::ostringstream oss;
@@ -68,7 +71,6 @@ void maybe_print_build_info(const std::vector<const char *> &kernel_names,
                 VERBOSE_debug, "kernel options,%s,%s", oss.str().c_str(),
                 kernel_ctx.options().c_str());
     }
-#endif
 }
 
 status_t ocl_gpu_engine_t::init() {
