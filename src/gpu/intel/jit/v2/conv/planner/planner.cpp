@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -104,10 +104,11 @@ void init_params(
         params.mode = planner_mode_t::trace;
     }
     // Check if conv v2 is enabled.
-    bool enable_conv_v2 = gpu_utils::dev_getenv("enable_conv_v2", false);
+    bool enable_conv_v2
+            = gpu_utils::dev_getenv("ONEDNN_EXPERIMENTAL_GPU_CONV_V2", false);
     if (!enable_conv_v2) {
         std::cout << "Error: conv_v2 is not enabled, set "
-                     "enable_conv_v2=1 in environment."
+                     "ONEDNN_EXPERIMENTAL_GPU_CONV_V2=1 in environment."
                   << std::endl;
         exit(1);
     }
