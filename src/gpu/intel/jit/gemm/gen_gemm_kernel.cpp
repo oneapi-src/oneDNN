@@ -83,9 +83,57 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
 
     // Parse strategy string.
     strategy_ = GEMMStrategy(hw_, stepping_);
-    strategy_.unroll[LoopM] = entry_->driverInfo.unroll[LoopM];
-    strategy_.unroll[LoopN] = entry_->driverInfo.unroll[LoopN];
-    parseStrategy(entry_->strategy, hw_, problem_, strategy_);
+#ifdef DNNL_DEV_MODE
+    std::string ovr_strategy;
+    ovr_strategy = gpu_utils::dev_getenv("GEMM_KERNEL", ovr_strategy);
+    if (!ovr_strategy.empty()) {
+        // Warning: will override problem data types (including up/down
+        // conversions) - this will cause inaccuracies if precisions/layouts
+        // are chosen that are incompatible with the given problem
+        std::stringstream ss(ovr_strategy);
+        std::string val;
+        ss >> val;
+        gpu_assert(val == "gemm");
+        ss >> val;
+        const char *pstr = val.c_str();
+        pstr = parsePrecisions(pstr, problem_.Ta_ext, problem_.Ta);
+        pstr = parsePrecisions(pstr, problem_.Tb_ext, problem_.Tb);
+        pstr = parsePrecisions(pstr, problem_.Tc, problem_.Tc_ext);
+        ss >> val;
+        pstr = val.c_str();
+        pstr = parseLayout(pstr, problem_.A);
+        pstr = parseLayout(pstr, problem_.B);
+        pstr = parseLayout(pstr, problem_.C);
+
+        if (problem_.A.alignment == 0)
+            problem_.A.setAlignment(
+                    problem_.A.defaultAlignment(problem_.Ta_ext));
+        if (problem_.B.alignment == 0)
+            problem_.B.setAlignment(
+                    problem_.B.defaultAlignment(problem_.Tb_ext));
+        if (problem_.C.alignment == 0)
+            problem_.C.setAlignment(
+                    problem_.C.defaultAlignment(problem_.Tc_ext));
+
+        strategy_ = GEMMStrategy(hw_, stepping_);
+        ss >> strategy_.unroll[LoopM];
+        ss >> strategy_.unroll[LoopN];
+
+        ss >> val;
+        problem_.alpha = std::stoi(val);
+        ss >> val;
+        problem_.beta = std::stoi(val);
+
+        ovr_strategy = ss.str().substr(ss.tellg()); // remaining string
+        parseStrategy(ovr_strategy.c_str(), hw_, problem_, strategy_);
+    } else {
+#endif
+        strategy_.unroll[LoopM] = entry_->driverInfo.unroll[LoopM];
+        strategy_.unroll[LoopN] = entry_->driverInfo.unroll[LoopN];
+        parseStrategy(entry_->strategy, hw_, problem_, strategy_);
+#ifdef DNNL_DEV_MODE
+    }
+#endif
     strategy_.panelCheck
             |= (isPacked(problem_.A.layout) || isPacked(problem_.B.layout));
     adjustStrategy(hw_, problem_, strategy_, tags);
@@ -181,52 +229,6 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
             }
         }
     }
-
-#ifdef DNNL_DEV_MODE
-    std::string ovr_strategy;
-    ovr_strategy = gpu_utils::dev_getenv("GEMM_KERNEL", ovr_strategy);
-    if (!ovr_strategy.empty()) {
-        // Warning: will override problem data types (including up/down
-        // conversions) - this will cause inaccuracies if precisions/layouts
-        // are chosen that are incompatible with the given problem
-        std::stringstream ss(ovr_strategy);
-        std::string val;
-        ss >> val;
-        gpu_assert(val == "gemm");
-        ss >> val;
-        const char *pstr = val.c_str();
-        pstr = parsePrecisions(pstr, problem_.Ta_ext, problem_.Ta);
-        pstr = parsePrecisions(pstr, problem_.Tb_ext, problem_.Tb);
-        pstr = parsePrecisions(pstr, problem_.Tc, problem_.Tc_ext);
-        ss >> val;
-        pstr = val.c_str();
-        pstr = parseLayout(pstr, problem_.A);
-        pstr = parseLayout(pstr, problem_.B);
-        pstr = parseLayout(pstr, problem_.C);
-
-        if (problem_.A.alignment == 0)
-            problem_.A.setAlignment(
-                    problem_.A.defaultAlignment(problem_.Ta_ext));
-        if (problem_.B.alignment == 0)
-            problem_.B.setAlignment(
-                    problem_.B.defaultAlignment(problem_.Tb_ext));
-        if (problem_.C.alignment == 0)
-            problem_.C.setAlignment(
-                    problem_.C.defaultAlignment(problem_.Tc_ext));
-
-        strategy_ = GEMMStrategy(hw_, stepping_);
-        ss >> strategy_.unroll[LoopM];
-        ss >> strategy_.unroll[LoopN];
-
-        ss >> val;
-        problem_.alpha = std::stoi(val);
-        ss >> val;
-        problem_.beta = std::stoi(val);
-
-        ovr_strategy = ss.str().substr(ss.tellg()); // remaining string
-        parseStrategy(ovr_strategy.c_str(), hw_, problem_, strategy_);
-    }
-#endif
 
     strategy_.relaxedAccumulation |= relaxed_acc_;
     strategy_.systolicAvailable &= !disable_systolic_;
