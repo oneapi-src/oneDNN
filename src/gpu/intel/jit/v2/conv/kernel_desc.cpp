@@ -681,6 +681,13 @@ bool try_register_internal_arg(kernel_info_t &kernel_info, const expr_t &var,
     return false;
 }
 
+dim_t stream_k_thread_groups(
+        dim_t total_iters, dim_t max_thread_groups_per_wave) {
+    dim_t min_iters_per_tg = gpu_utils::dev_getenv("SK_MIN_TG_ITERS", 2);
+    dim_t ref_iters = utils::div_up(total_iters, min_iters_per_tg);
+    return std::min(ref_iters, max_thread_groups_per_wave);
+}
+
 void init_kernel_info(kernel_info_t &kernel_info, const problem_t &prb,
         const kernel_desc_t &desc, const grid_t &tg_grid,
         const pvar_tile_t &grid_dims, dim_t max_tgs, dim_t &stream_k_tgs) {
@@ -698,7 +705,7 @@ void init_kernel_info(kernel_info_t &kernel_info, const problem_t &prb,
             iters_per_tile *= dim_iters_per_tile;
         }
         dim_t total_iters = iters_per_tile * tg_grid.size(0, grid_dims);
-        stream_k_tgs = std::min(total_iters, max_tgs);
+        stream_k_tgs = stream_k_thread_groups(total_iters, max_tgs);
         dim_t iters_per_tg = utils::div_up(total_iters, stream_k_tgs);
         pvar_map[pvar_t("sk_iters_per_tile")] = iters_per_tile;
         pvar_map[pvar_t("sk_total_iters")] = total_iters;
