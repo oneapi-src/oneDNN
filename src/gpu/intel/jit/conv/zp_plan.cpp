@@ -1268,7 +1268,7 @@ public:
             const expr_t &c_buf, const split_dispatcher_t &sd,
             int subtile_idx) const {
         const auto comp_type = comp_layout_.type();
-        const auto mask_type = mask_layout_.type();
+        const auto mask_type = type_t::s16();
         const dim_t kw_dim = comp_layout_.dim(comp_kw_idx_);
         std::vector<int> comp_off;
         std::vector<int> mask_off;
