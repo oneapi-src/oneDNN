@@ -36,6 +36,7 @@ trigger:
       - src/cpu/ppc64
       - src/cpu/rv64
       - src/cpu/s390x
+      - src/xpu
 
 pr:
   autoCancel: true
@@ -56,6 +57,7 @@ pr:
       - src/cpu/ppc64
       - src/cpu/rv64
       - src/cpu/s390x
+      - src/xpu
 
 jobs:
   - job: 'Ubuntu20'
