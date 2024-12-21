@@ -77,7 +77,8 @@ public:
             return false;
         // Mixed types are not supported for backward by data.
         if (pd->is_bwd_d()
-                && pd->dst_md()->data_type != pd->diff_src_md()->data_type) {
+                && pd->diff_dst_md()->data_type
+                        != pd->diff_src_md()->data_type) {
             return false;
         }
 

@@ -260,6 +260,8 @@ const profiling_data_kind_t internal_only_start
         = (profiling_data_kind_t)(1 << 8);
 const profiling_data_kind_t cycles
         = (profiling_data_kind_t)(internal_only_start + 1);
+const profiling_data_kind_t time_per_kernel
+        = (profiling_data_kind_t)(internal_only_start + 2);
 } // namespace profiling_data_kind
 
 using format_tag_t = dnnl_format_tag_t;

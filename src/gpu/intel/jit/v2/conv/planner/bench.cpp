@@ -134,26 +134,45 @@ public:
         strm.wait();
         int ntasks = (int)vec.size();
         int nentries = 0;
+        int nkernels = 0;
         CHECK(dnnl_query_profiling_data(
                 strm.get(), profiling_data_kind::time, &nentries, nullptr));
+        CHECK(dnnl_query_profiling_data(strm.get(),
+                profiling_data_kind::time_per_kernel, &nkernels, nullptr));
         ir_assert(nentries == ntasks * iters);
 
         std::vector<uint64_t> entries(nentries);
+        std::vector<uint64_t> kernel_entries;
         CHECK(dnnl_query_profiling_data(strm.get(), profiling_data_kind::time,
                 &nentries, entries.data()));
-        for (int i = 0; i < ntasks * iters; i += iters) {
-            auto time = entries[i];
-            for (int j = 1; j < iters; j++) {
-                time = std::min(time, entries[i + j]);
-            }
-            vec[i / iters].set_time(time);
+        int kernels_per_entry = ir_utils::safe_div(nkernels, nentries);
+        if (kernels_per_entry > 1) {
+            kernel_entries.resize(nkernels);
+            CHECK(dnnl_query_profiling_data(strm.get(),
+                    profiling_data_kind::time_per_kernel, &nkernels,
+                    kernel_entries.data()));
         }
-
+        auto get_bench_time = [&](int i, int j) {
+            int idx = iters * i + j;
+            if (kernels_per_entry == 1) return bench_time_t(entries[idx]);
+            int beg = idx * kernels_per_entry;
+            int end = idx * kernels_per_entry + kernels_per_entry;
+            return bench_time_t(entries[idx], kernel_entries.begin() + beg,
+                    kernel_entries.begin() + end);
+        };
+        for (int i = 0; i < ntasks; i++) {
+            auto time = get_bench_time(i, 0);
+            for (int j = 1; j < iters; j++) {
+                auto j_time = get_bench_time(i, j);
+                time = time.min(j_time);
+            }
+            vec[i].set_time(time);
+        }
         return status::success;
     }
 
-    uint64_t time() const { return time_; }
-    void set_time(uint64_t time) { time_ = time; }
+    const bench_time_t &time() const { return time_; }
+    void set_time(const bench_time_t &time) { time_ = time; }
 
 protected:
     void set_primitive(const primitive &prim) { prim_ = prim; }
@@ -181,12 +200,13 @@ private:
     }
 
     primitive prim_;
-    uint64_t time_ = 0;
+    bench_time_t time_;
 };
 
 using problem_t = dnnl::impl::gpu::intel::jit::v2::conv::problem_t;
 using kernel_desc_t = dnnl::impl::gpu::intel::jit::v2::conv::kernel_desc_t;
 using bench_data_t = dnnl::impl::gpu::intel::jit::v2::conv::bench_data_t;
+using bench_time_t = dnnl::impl::gpu::intel::jit::v2::conv::bench_time_t;
 using pvar_tile_t = dnnl::impl::gpu::intel::jit::pvar_tile_t;
 namespace pvars = dnnl::impl::gpu::intel::jit::pvars;
 
@@ -489,7 +509,7 @@ std::vector<problem_t> generate_problems(const bench_input_params_t &params) {
             continue;
         auto prb = params.problem();
         prb.set_shape(shape);
-        if (!params.reqs.fits(prb.shape())) continue;
+        if (!params.reqs.fits(prb.shape() | prb.vars())) continue;
         ret.push_back(prb);
         if ((int)ret.size() >= params.nprbs) break;
     }
@@ -530,11 +550,6 @@ bench_data_t bench(const bench_manager_t &bench_mger,
     std::cout << "Running benchmark for descriptor: " << kernel_desc.cmd_str()
               << std::endl;
     clear_primitive_cache();
-
-    {
-        auto guard = plan_preset_t::instance().make_guard(kernel_desc);
-        if (!tasks[0].init_primitive(eng)) return {};
-    }
 
     ir_assert(kernel_desc.spec_strategy == spec_strategy_t::none);
     auto kernel_desc_min_dims = kernel_desc;
@@ -681,6 +696,23 @@ kernel_desc_t try_extensions(
             reqs_vec.push_back(d.reqs);
             out_type_sizes.push_back(desc_out_type.size());
         }
+    }
+
+    // Try Stream-K.
+    if (kernel_desc.prop != prop_kind::backward_data
+            || (kernel_desc.a_type() == type_t::f32()
+                    && kernel_desc.b_type() == type_t::f32())) {
+        std::cout << "TRY SK0\n";
+        auto d = to_stream_k(kernel_desc, /*check_ext=*/false);
+        if (!d.is_empty()) {
+            d.is_finalized = false;
+            d.set_defaults();
+            if (finalize_conv_desc(d, bench_mger.hw())
+                    && try_create(bench_mger, d)) {
+                ext.add(extension_kind_t::stream_k);
+            }
+        }
+        std::cout << "TRY SK1\n";
     }
 
     prb_reqs_t out_reqs;

@@ -29,12 +29,42 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
+// Stores device times for primitive execution.
+// Includes:
+// - Total time, computed via profiling queries as:
+//     the end of the last kernel - the start of the first kernel
+// - Kernel times: individual kernel times
+struct bench_time_t {
+    uint64_t total = 0;
+    std::vector<uint64_t> kernel_times;
+
+    bench_time_t() = default;
+    bench_time_t(uint64_t total) : total(total) {
+        kernel_times.push_back(total);
+    }
+    template <typename IteratorT>
+    bench_time_t(uint64_t total, IteratorT beg, IteratorT end) : total(total) {
+        kernel_times = std::vector<uint64_t>(beg, end);
+    }
+    int nkernels() const { return (int)kernel_times.size(); }
+
+    bench_time_t min(const bench_time_t &other) const {
+        bench_time_t ret = *this;
+        ret.total = std::min(ret.total, other.total);
+        for (int i = 0; i < nkernels(); i++) {
+            ret.kernel_times[i]
+                    = std::min(ret.kernel_times[i], other.kernel_times[i]);
+        }
+        return ret;
+    }
+};
+
 class bench_data_t {
 public:
     int id = -1;
     kernel_desc_t kernel_desc;
     std::vector<problem_t> prbs;
-    std::vector<uint64_t> times;
+    std::vector<bench_time_t> times;
 
     bench_data_t() = default;
     explicit bench_data_t(int id, const kernel_desc_t &kernel_desc)
@@ -43,7 +73,7 @@ public:
     int size() const { return (int)prbs.size(); }
     explicit operator bool() const { return size() > 0; }
 
-    void add(const problem_t &prb, uint64_t time) {
+    void add(const problem_t &prb, const bench_time_t &time) {
         prbs.push_back(prb);
         times.push_back(time);
     }

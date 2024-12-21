@@ -107,91 +107,199 @@ struct hw_config_t {
     }
 };
 
-struct sample_t {
-    problem_t prb;
-    kernel_desc_t kernel_desc;
-    uint64_t time_ns = 0;
+class sample_impl_t {
+public:
+    sample_impl_t(model_kind_t model_kind, const problem_t &prb,
+            const kernel_desc_t &desc)
+        : model_kind_(model_kind), prb_(prb), desc_(desc) {
+        hw_cfg_ = hw_config_t(prb_.hw(), desc_.fma, desc_.a_type());
+    }
+    virtual vec1d to_x() const = 0;
+    virtual float to_y() const = 0;
 
-    hw_config_t hw_cfg;
+protected:
+    model_kind_t model_kind_ = model_kind_t::undef;
+    problem_t prb_;
+    kernel_desc_t desc_;
+    hw_config_t hw_cfg_;
+};
+
+std::vector<std::string> feature_names(model_kind_t kind) {
+    switch (kind) {
+        case model_kind_t::data_parallel:
+            return std::vector<std::string>({"kl", "waves"});
+        case model_kind_t::stream_k: return std::vector<std::string>({"iters"});
+        case model_kind_t::data_copy:
+            return std::vector<std::string>({"bytes"});
+        default: ir_error_not_expected();
+    }
+    return std::vector<std::string>();
+}
+
+void to_bmnk(prop_kind_t prop, const pvar_tile_t &tile, dim_t &b, dim_t &m,
+        dim_t &n, dim_t &k) {
+    const auto t = to_gemm(tile, prop);
+    b = t[pvars::b];
+    m = t[pvars::m];
+    n = t[pvars::n];
+    k = t[pvars::k];
+}
+
+struct bmnk_helper_t {
     dim_t b, m, n, k;
     dim_t bt, mt, nt, kt;
     dim_t bl, ml, nl, kl;
     dim_t bi, mi, ni, ki;
-    float pad_eff = 0;
+    dim_t tiles;
+    dim_t iters;
 
-    sample_t() = default;
-    sample_t(const problem_t &prb, const kernel_desc_t &kernel_desc,
-            uint64_t time_ns = 0)
-        : prb(prb), kernel_desc(kernel_desc), time_ns(time_ns) {
-        hw_cfg = hw_config_t(
-                prb.hw(), kernel_desc.fma, kernel_desc.src_tag.type());
+    bmnk_helper_t(const problem_t &prb, const kernel_desc_t &desc) {
         auto padded_shape = prb.shape();
-        pad_eff = 1;
+        dim_t tmp_iters = 1;
         for (auto &d : padded_shape) {
             if (!is_conv_index(d)) continue;
-            dim_t tg = kernel_desc.thread_group_tile.get(d, 1);
-            dim_t iter = kernel_desc.iter_tile.get(d, 1);
+            dim_t tg = desc.thread_group_tile.get(d, 1);
+            dim_t iter = desc.iter_tile.get(d, 1);
             dim_t dim = padded_shape[d];
             dim_t padded_dim = utils::rnd_up(dim, tg * iter);
             padded_shape[d] = padded_dim;
-            pad_eff *= ((float)dim / padded_dim);
+            if (!to_gemm(d, prb.prop()).is_undef()) {
+                tmp_iters *= utils::div_up(dim, iter * tg);
+            }
         }
         to_bmnk(prb.prop(), padded_shape, b, m, n, k);
-        to_bmnk(prb.prop(), kernel_desc.thread_group_tile, bt, mt, nt, kt);
-        to_bmnk(prb.prop(), kernel_desc.iter_tile, bi, mi, ni, ki);
+        to_bmnk(prb.prop(), desc.thread_group_tile, bt, mt, nt, kt);
+        to_bmnk(prb.prop(), desc.iter_tile, bi, mi, ni, ki);
         bl = ml = nl = 1;
         kl = ir_utils::safe_div(k, kt * ki);
+        tiles = 1;
+        tiles *= ir_utils::safe_div(b, bl * bt * bi);
+        tiles *= ir_utils::safe_div(m, ml * mt * mi);
+        tiles *= ir_utils::safe_div(n, nl * nt * ni);
+        iters = tiles * kl;
+        ir_assert(tmp_iters == iters);
+    }
+};
+
+dim_t layout_size(const layout_tag_t &tag, const problem_t &prb) {
+    ir_assert(!tag.is_any() && !tag.is_empty());
+    pvar_tile_t tile;
+    for (auto &d : tag.desc().letter_map())
+        tile[d] = prb.shape().at(d);
+    dim_t elems = 1;
+    for (auto &e : tag.raw_tag().entries()) {
+        auto d = tag.desc().prb_dim(e.index());
+        dim_t e_block = (e.block != 0 ? e.block : tile.at(d));
+        elems *= e_block;
+        tile[d] = utils::div_up(tile[d], e_block);
+    }
+    ir_assert(tile.elems() == 1);
+    return elems * tag.type().size();
+}
+
+float conv_time_nsec(const bench_time_t &time) {
+    if (time.nkernels() == 0) return 0;
+    if (time.nkernels() == 1) return time.total;
+    ir_assert(utils::one_of(time.nkernels(), 2, 3))
+            << "Expecting zero-out -> conv [-> reorder] kernel sequence.";
+    return time.kernel_times[1];
+}
+
+class data_parallel_sample_t : public sample_impl_t {
+public:
+    data_parallel_sample_t() = default;
+    data_parallel_sample_t(const problem_t &prb, const kernel_desc_t &desc,
+            const bench_time_t &time)
+        : sample_impl_t(model_kind_t::data_parallel, prb, desc)
+        , nsec_(conv_time_nsec(time)) {
+        bmnk_helper_t h(prb, desc);
+        int tgs_per_wave = hw_cfg_.max_tgs_per_gpu(h.bt * h.mt * h.nt * h.kt);
+        kl_ = h.kl;
+        waves_ = (float)h.tiles / tgs_per_wave;
     }
 
-    static std::vector<std::string> feature_names() {
-        std::vector<std::string> ret;
-        ret.push_back("kl");
-        ret.push_back("waves");
-        return ret;
-    }
-
-    vec1d to_x() const {
+    vec1d to_x() const override {
         std::vector<float> ret;
-        ret.push_back(kl);
-        ret.push_back(waves());
+        ret.push_back(kl_);
+        ret.push_back(waves_);
         return ret;
     }
 
-    float to_y() const { return time_ns; }
+    float to_y() const override { return nsec_; }
 
-    float ntgs() const {
-        float ntgs = 1.0f;
-        ntgs *= ir_utils::safe_div(b, bl * bt * bi);
-        ntgs *= ir_utils::safe_div(m, ml * mt * mi);
-        ntgs *= ir_utils::safe_div(n, nl * nt * ni);
-        ntgs *= ir_utils::safe_div(k, kl * kt * ki);
-        return ntgs;
+private:
+    uint64_t nsec_ = 0;
+    dim_t kl_ = 0;
+    float waves_ = 0;
+};
+
+class stream_k_sample_t : public sample_impl_t {
+public:
+    stream_k_sample_t() = default;
+    stream_k_sample_t(const problem_t &prb, const kernel_desc_t &desc,
+            const bench_time_t &time)
+        : sample_impl_t(model_kind_t::stream_k, prb, desc)
+        , nsec_(conv_time_nsec(time)) {
+        bmnk_helper_t h(prb, desc);
+        iters_ = h.iters;
     }
 
-    float ops() const { return 2.0f * b * m * n * k; }
+    vec1d to_x() const override { return vec1d({(float)iters_}); }
+    float to_y() const override { return nsec_; }
 
-    float waves() const {
-        int tgs_per_wave = hw_cfg.max_tgs_per_gpu(bt * mt * nt * kt);
-        return ntgs() / tgs_per_wave;
+private:
+    uint64_t nsec_ = 0;
+    dim_t iters_;
+};
+
+class data_copy_sample_t : public sample_impl_t {
+public:
+    data_copy_sample_t() = default;
+    data_copy_sample_t(const problem_t &prb, const kernel_desc_t &desc,
+            const bench_time_t &time)
+        : sample_impl_t(model_kind_t::data_copy, prb, desc)
+        , nsec_(time.total - conv_time_nsec(time)) {
+        auto &desc_tag = desc.layout_tag(tensor_kind_t::c);
+        auto prb_tag = prb.layout_tag(tensor_kind_t::c);
+        if (desc.use_stream_k) bytes_ += layout_size(desc_tag, prb);
+        if (prb_tag.is_any()) prb_tag = desc_tag.with_type(prb_tag.type());
+        if (prb_tag != desc_tag) {
+            bytes_ += layout_size(prb_tag, prb);
+            bytes_ += layout_size(desc_tag, prb);
+        }
     }
 
-    float eff() const {
-        float sec = time_ns / 1e9;
-        return ops() / 1e9 / sec / hw_cfg.max_gops_per_sec();
-    }
+    vec1d to_x() const override { return vec1d({(float)bytes_}); }
+    float to_y() const override { return nsec_; }
 
-    static void to_bmnk(prop_kind_t prop, const pvar_tile_t &tile, dim_t &b,
-            dim_t &m, dim_t &n, dim_t &k) {
-        const auto t = to_gemm(tile, prop);
-        b = t[pvars::b];
-        m = t[pvars::m];
-        n = t[pvars::n];
-        k = t[pvars::k];
-    }
+private:
+    uint64_t nsec_ = 0;
+    dim_t bytes_ = 0;
+};
 
-    static model_version_t model_version(const kernel_desc_t &desc) {
-        return model_version_t::v1;
+class sample_t {
+public:
+    sample_t(model_kind_t kind, const problem_t &prb, const kernel_desc_t &desc,
+            const bench_time_t &time = bench_time_t()) {
+        switch (kind) {
+            case model_kind_t::data_parallel:
+                impl_ = std::make_shared<data_parallel_sample_t>(
+                        prb, desc, time);
+                break;
+            case model_kind_t::stream_k:
+                impl_ = std::make_shared<stream_k_sample_t>(prb, desc, time);
+                break;
+            case model_kind_t::data_copy:
+                impl_ = std::make_shared<data_copy_sample_t>(prb, desc, time);
+                break;
+            default: ir_error_not_expected();
+        }
     }
+    vec1d to_x() const { return impl_->to_x(); }
+    float to_y() const { return impl_->to_y(); }
+
+private:
+    std::shared_ptr<sample_impl_t> impl_;
 };
 
 float coef_kl(float x, float a, float b) {
@@ -233,7 +341,7 @@ float coef_wp(float x, float a, float b) {
 //   and a few extra threadgroups a distinct increase in time is typically
 //   observed. This effect is more pronounced with a smaller number of full
 //   waves.
-float predict_v1(const vec1d &x, const vec1d &coef) {
+float predict_data_parallel(const vec1d &x, const vec1d &coef) {
     float kl = x[0];
     float waves = x[1];
     float waves_frac = waves - (int)waves;
@@ -248,32 +356,76 @@ float predict_v1(const vec1d &x, const vec1d &coef) {
     return Tw * (wf + wp * coef_wp(wf, a_wp, b_wp));
 }
 
-float model_t::predict(
-        model_version_t version, const vec1d &x, const vec1d &coef) {
-    switch (version) {
-        case model_version_t::v1: return predict_v1(x, coef);
-        default:
-            ir_error_not_expected()
-                    << "Unknown version: " << static_cast<int>(version);
+float predict_stream_k(const vec1d &x, const vec1d &coef) {
+    float iters = x[0];
+    float a = coef[0];
+    float b = coef[1];
+    return a + b * iters;
+}
+
+float predict_data_copy(const vec1d &x, const vec1d &coef) {
+    float bytes = x[0];
+    float a = coef[0];
+    float b = coef[1];
+    return a + b * bytes;
+}
+
+void model_t::coef_ranges(model_kind_t kind, const vec2d &X, const vec1d &y,
+        std::vector<std::string> &coef_names, vec1d &coef_init, vec1d &coef_min,
+        vec1d &coef_max) {
+    auto add = [&](const char *name, float init, float min, float max) {
+        coef_names.emplace_back(name);
+        coef_init.emplace_back(init);
+        coef_min.emplace_back(min);
+        coef_max.emplace_back(max);
+    };
+    switch (kind) {
+        case model_kind_t::data_parallel:
+            // Empirically-based parameter ranges.
+            add("T0", 1000, 1, 100000);
+            add("a_kl", 1, 0.0001f, 100);
+            add("b_kl", 1, 0.0001f, 100);
+            add("a_wp", 2, 1, 100);
+            add("b_wp", 1, 0.0001f, 100);
+            break;
+        case model_kind_t::stream_k:
+        case model_kind_t::data_copy: {
+            float t_min = *std::min_element(y.begin(), y.end());
+            float t_max = *std::max_element(y.begin(), y.end());
+            float t0 = *std::min_element(y.begin(), y.end());
+            float t1 = 0;
+            float x1 = 0;
+            for (size_t i = 0; i < y.size(); i++) {
+                if (y[i] < 0.5 * t_max) continue;
+                t1 += (y[i] - t_min);
+                x1 += X[i][0];
+            }
+            t1 /= x1;
+            add("T0", t0, t0 / 10, t0 * 10);
+            add("T1", t1, t1 / 10, t1 * 10);
+            break;
+        }
+        default: ir_error_not_expected() << "Unknown kind: " << to_string(kind);
+    }
+}
+
+float model_t::predict(model_kind_t kind, const vec1d &x, const vec1d &coef) {
+    switch (kind) {
+        case model_kind_t::data_parallel: return predict_data_parallel(x, coef);
+        case model_kind_t::stream_k: return predict_stream_k(x, coef);
+        case model_kind_t::data_copy: return predict_data_copy(x, coef);
+        default: ir_error_not_expected() << "Unknown kind: " << to_string(kind);
     }
     return 0;
 }
 
 float model_t::predict(const vec1d &x) const {
-    return predict(version_, x, coef_);
+    return predict(kind_, x, coef_);
 }
 
 float model_t::predict(const problem_t &prb, const kernel_desc_t &desc) const {
-    sample_t s(prb, desc);
+    sample_t s(kind_, prb, desc);
     return predict(s.to_x());
-}
-
-float model_t::eff(const problem_t &prb, const kernel_desc_t &desc) const {
-    using namespace ir_utils;
-    sample_t s(prb, desc);
-    auto x = s.to_x();
-    float raw_eff = s.ops() / predict(x);
-    return raw_eff * s.pad_eff;
 }
 
 void model_t::score(const bench_data_t &bd) {
@@ -282,12 +434,14 @@ void model_t::score(const bench_data_t &bd) {
     vec1d y_test;
     vec1d y_pred;
     for (int i = 0; i < bd.size(); i++) {
-        sample_t s(bd.prbs[i], bd.kernel_desc, bd.times[i]);
+        sample_t s(kind_, bd.prbs[i], bd.kernel_desc, bd.times[i]);
         y_test.push_back(s.to_y());
         y_pred.push_back(predict(bd.prbs[i], bd.kernel_desc));
     }
 }
 
+#if 0
+// TODO: Remove.
 void model_t::stringify(std::ostream &out) const {
     out << serialize_to_hex(coef_);
 }
@@ -296,15 +450,30 @@ void model_t::parse(std::istream &in) {
     auto s_data = stream_parse<std::string>(in);
     deserialize_from_hex(coef_, s_data);
 }
+#endif
 
-size_t model_t::coef_size(model_version_t version) {
-    switch (version) {
-        case model_version_t::v1: return 5;
-        default:
-            ir_error_not_expected()
-                    << "Unknown version: " << static_cast<int>(version);
+size_t model_t::coef_count(model_kind_t kind) {
+    switch (kind) {
+        case model_kind_t::data_parallel: return 5;
+        case model_kind_t::stream_k: return 2;
+        case model_kind_t::data_copy: return 2;
+        default: ir_error_not_expected() << "Unknown kind: " << to_string(kind);
     }
     return 0;
+}
+
+bool with_data_copy(const problem_t &prb, const kernel_desc_t &desc) {
+    if (desc.use_stream_k) return true;
+    auto &prb_tag = prb.layout_tag(tensor_kind_t::c);
+    auto &desc_tag = desc.layout_tag(tensor_kind_t::c);
+    bool is_layout_compatible
+            = (prb_tag.is_any() || prb_tag.raw_tag() == desc_tag.raw_tag());
+    bool is_type_compatible = (prb_tag.type().size() == desc_tag.type().size());
+    if (is_layout_compatible && is_type_compatible) return false;
+    if (is_layout_compatible
+            && desc.ext.has(extensions_t::out_size(prb_tag.type().size())))
+        return false;
+    return !is_layout_compatible || !is_type_compatible;
 }
 
 std::string to_str(const vec1d &x) {
@@ -318,19 +487,32 @@ std::string to_str(const vec1d &x) {
     return oss.str();
 }
 
-float model_set_t::eff(const problem_t &prb, const kernel_desc_t &desc) const {
-    auto version = sample_t::model_version(desc);
-    for (auto &m : models_) {
-        if (m.version() == version) return m.eff(prb, desc);
+float model_set_t::time(const problem_t &prb, const kernel_desc_t &desc) const {
+    float ret = 0;
+    if (desc.use_stream_k) {
+        ret += time(model_kind_t::stream_k, prb, desc);
+    } else {
+        ret += time(model_kind_t::data_parallel, prb, desc);
     }
-    ir_error_not_expected() << "Matching model not found: " << desc.str();
+    if (with_data_copy(prb, desc)) {
+        ret += time(model_kind_t::data_copy, prb, desc);
+    }
+    return ret;
+}
+
+float model_set_t::time(model_kind_t kind, const problem_t &prb,
+        const kernel_desc_t &desc) const {
+    for (auto &m : models_) {
+        if (m.kind() == kind) return m.predict(prb, desc);
+    }
+    ir_error_not_expected() << "Unknown kind: " << to_string(kind);
     return 0;
 }
 
 void model_set_t::stringify(std::ostream &out) const {
     serialized_data_t s;
     for (auto &m : models_) {
-        s.append(m.version());
+        s.append(m.kind());
         for (auto &c : m.coef()) {
             s.append(c);
         }
@@ -343,25 +525,24 @@ void model_set_t::parse(std::istream &in) {
     auto s = serialized_t::from_data(hex_to_data(s_data));
     deserializer_t d(s);
     while (!d.empty()) {
-        auto version = d.pop<model_version_t>();
-        size_t coef_size = model_t::coef_size(version);
-        vec1d coef(coef_size);
-        for (size_t i = 0; i < coef_size; i++) {
+        auto kind = d.pop<model_kind_t>();
+        size_t coef_count = model_t::coef_count(kind);
+        vec1d coef(coef_count);
+        for (size_t i = 0; i < coef_count; i++) {
             d.pop(coef[i]);
         }
-        models_.emplace_back(version, coef);
+        models_.emplace_back(kind, coef);
     }
 }
 
 void to_model_data(
-        const bench_data_t &bd, model_version_t &version, vec2d &X, vec1d &y) {
-    version = sample_t::model_version(bd.kernel_desc);
+        model_kind_t kind, const bench_data_t &bd, vec2d &X, vec1d &y) {
     X.clear();
     y.clear();
     X.reserve(bd.size());
     y.reserve(bd.size());
     for (int i = 0; i < bd.size(); i++) {
-        sample_t s(bd.prbs[i], bd.kernel_desc, bd.times[i]);
+        sample_t s(kind, bd.prbs[i], bd.kernel_desc, bd.times[i]);
         X.push_back(s.to_x());
         y.push_back(s.to_y());
     }
@@ -371,12 +552,12 @@ void dump_csv(const bench_data_t &bd, const model_t &model) {
     auto name = bd.kernel_desc.brief_str();
     std::ofstream out(name + ".csv");
     out << "desc,";
-    for (auto &name : sample_t::feature_names()) {
+    for (auto &name : feature_names(model.kind())) {
         out << name << ",";
     }
     out << "time,model_time" << std::endl;
     for (int i = 0; i < bd.size(); i++) {
-        sample_t s(bd.prbs[i], bd.kernel_desc, bd.times[i]);
+        sample_t s(model.kind(), bd.prbs[i], bd.kernel_desc, bd.times[i]);
         auto x = s.to_x();
         auto y = s.to_y();
         float model_time = model.predict(x);
