@@ -305,6 +305,9 @@ public:
     const layout_raw_tag_t &raw_tag() const { return raw_tag_; }
     bool matches(const layout_tag_t &other, const pvar_tile_t &sizes,
             bool check_type = true) const;
+    layout_tag_t with_type(const type_t &new_type) const {
+        return layout_tag_t(desc_, new_type, raw_tag_);
+    }
     std::string str() const;
     IR_DEFINE_DUMP()
 

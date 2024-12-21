@@ -490,7 +490,7 @@ std::vector<problem_t> generate_problems(const bench_input_params_t &params) {
             continue;
         auto prb = params.problem();
         prb.set_shape(shape);
-        if (!params.reqs.fits(prb.shape())) continue;
+        if (!params.reqs.fits(prb.shape() | prb.vars())) continue;
         ret.push_back(prb);
         if ((int)ret.size() >= params.nprbs) break;
     }
@@ -679,6 +679,21 @@ kernel_desc_t try_extensions(
             ext.add(extension_kind_t::bias);
             reqs_vec.push_back(d.reqs);
             out_type_sizes.push_back(desc_out_type.size());
+        }
+    }
+
+    // Try Stream-K.
+    if (kernel_desc.prop != prop_kind::backward_data
+            || (kernel_desc.a_type() == type_t::f32()
+                    && kernel_desc.b_type() == type_t::f32())) {
+        auto d = to_stream_k(kernel_desc, /*check_ext=*/false);
+        if (!d.is_empty()) {
+            d.is_finalized = false;
+            d.set_defaults();
+            if (finalize_conv_desc(d, bench_mger.hw())
+                    && try_create(bench_mger, d)) {
+                ext.add(extension_kind_t::stream_k);
+            }
         }
     }
 

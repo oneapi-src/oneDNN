@@ -109,6 +109,7 @@ void find_optimal_param(
         float p_val = p.val;
         float p_val_best = p_val;
         float r2_best = r2_score(X, y, params);
+        //std::cout << "params: " << params.str() << " r2_best: " << r2_best << std::endl;
         for (int sign : {-1, 1}) {
             p.set(p_val + sign * step);
             float r2 = r2_score(X, y, params);
@@ -125,14 +126,8 @@ void find_optimal_param(
 
 } // namespace
 
-model_t model_fit_v1(const vec2d &X, const vec1d &y, bool verbose) {
-    model_params_t params(model_version_t::v1);
-    // Empirically-based parameter ranges.
-    params.add("T0", 1000, 1, 100000);
-    params.add("a_kl", 1, 0.0001f, 100);
-    params.add("b_kl", 1, 0.0001f, 100);
-    params.add("a_wp", 2, 1, 100);
-    params.add("b_wp", 1, 0.0001f, 100);
+model_t model_fit(
+        model_params_t &params, const vec2d &X, const vec1d &y, bool verbose) {
     int nparams = params.size();
     // Perform a coordinate descent search optimizing one parameter at a time.
     // The goal is to maximize R2. See conv/model.cpp file for more details on
@@ -153,13 +148,17 @@ model_t model_fit_v1(const vec2d &X, const vec1d &y, bool verbose) {
 
 model_t model_fit(model_version_t version, const vec2d &X, const vec1d &y,
         bool verbose = false) {
-    switch (version) {
-        case model_version_t::v1: return model_fit_v1(X, y, verbose);
-        default:
-            ir_error_not_expected()
-                    << "Unknown version: " << static_cast<int>(version);
+    model_params_t params(version);
+    std::vector<std::string> param_names;
+    std::vector<float> param_values;
+    std::vector<float> param_min;
+    std::vector<float> param_max;
+    model_t::coef_ranges(
+            version, X, y, param_names, param_values, param_min, param_max);
+    for (size_t i = 0; i < param_names.size(); i++) {
+        params.add(param_names[i], param_values[i], param_min[i], param_max[i]);
     }
-    return model_t();
+    return model_fit(params, X, y, verbose);
 }
 
 model_t model_fit(const bench_data_t &bd) {

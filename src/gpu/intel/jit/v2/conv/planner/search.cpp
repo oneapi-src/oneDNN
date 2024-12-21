@@ -417,9 +417,17 @@ public:
                 auto &d = bd.kernel_desc;
                 auto bd_model = bench(bench_mger_, d, model_nprbs);
                 if (!bd_model) continue;
-                auto model = model_fit(bd_model);
+                model_set_t model_set(model_fit(bd_model));
                 auto d_ext = try_extensions(bench_mger_, d);
-                registry.set(d_ext, model_set_t(model));
+                if (d_ext.ext.has(extension_kind_t::stream_k)) {
+                    // Fit another model for Stream-K.
+                    auto d_sk = to_stream_k(d_ext);
+                    auto bd_model_sk = bench(bench_mger_, d_sk, model_nprbs);
+                    auto model_sk = model_fit(bd_model_sk);
+                    ir_assert(!model_sk.is_empty());
+                    model_set.add(model_sk);
+                }
+                registry.set(d_ext, model_set);
             }
         }
         std::cout << "Kernel search completed" << std::endl;

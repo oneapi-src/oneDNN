@@ -59,6 +59,15 @@ kernel_desc_t plan_registry_t::find_best(const problem_t &prb) const {
             best_eff = eff;
             best = e.desc;
         }
+        if (gpu_utils::dev_getenv("TRY_SK", true)) {
+            auto desc_sk = to_stream_k(e.desc);
+            if (desc_sk.is_empty() || !desc_sk.can_fit(prb)) continue;
+            float eff_sk = e.model_set.eff(prb, desc_sk);
+            if (eff_sk > best_eff) {
+                best_eff = eff_sk;
+                best = desc_sk;
+            }
+        }
     }
     return best;
 }

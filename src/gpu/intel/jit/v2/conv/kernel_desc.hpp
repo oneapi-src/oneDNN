@@ -488,6 +488,8 @@ grid_t create_thread_group_grid(const kernel_desc_t &desc);
 grid_t create_thread_grid(const kernel_desc_t &desc);
 dim_t stream_k_thread_groups(
         dim_t total_iters, dim_t max_thread_groups_per_wave);
+type_t accumulator_type(const type_t &a_type, const type_t &b_type);
+kernel_desc_t to_stream_k(const kernel_desc_t &desc, bool check_ext = true);
 
 class kernel_params_t : public kernel_params_base_t {
 public:

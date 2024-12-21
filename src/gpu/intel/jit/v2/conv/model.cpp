@@ -117,6 +117,11 @@ struct sample_t {
     dim_t bt, mt, nt, kt;
     dim_t bl, ml, nl, kl;
     dim_t bi, mi, ni, ki;
+    dim_t k_iters_per_tile;
+    dim_t ntgs;
+    dim_t tiles;
+    dim_t iters;
+    float iters_per_tg;
     float pad_eff = 0;
 
     sample_t() = default;
@@ -127,6 +132,8 @@ struct sample_t {
                 prb.hw(), kernel_desc.fma, kernel_desc.src_tag.type());
         auto padded_shape = prb.shape();
         pad_eff = 1;
+        dim_t stream_k_total_iters = 1;
+        //printf("prb: %s\n", prb.str().c_str());
         for (auto &d : padded_shape) {
             if (!is_conv_index(d)) continue;
             dim_t tg = kernel_desc.thread_group_tile.get(d, 1);
@@ -135,18 +142,47 @@ struct sample_t {
             dim_t padded_dim = utils::rnd_up(dim, tg * iter);
             padded_shape[d] = padded_dim;
             pad_eff *= ((float)dim / padded_dim);
+            //printf("dim = %s [%d, %d, %d]\n", d.str().c_str(), dim, iter, tg);
+            if (kernel_desc.use_stream_k
+                    && !to_gemm(d, prb.prop()).is_undef()) {
+                stream_k_total_iters *= utils::div_up(dim, iter * tg);
+            }
         }
         to_bmnk(prb.prop(), padded_shape, b, m, n, k);
         to_bmnk(prb.prop(), kernel_desc.thread_group_tile, bt, mt, nt, kt);
         to_bmnk(prb.prop(), kernel_desc.iter_tile, bi, mi, ni, ki);
         bl = ml = nl = 1;
-        kl = ir_utils::safe_div(k, kt * ki);
+        kl = k_iters_per_tile = ir_utils::safe_div(k, kt * ki);
+        tiles = 1;
+        tiles *= ir_utils::safe_div(b, bl * bt * bi);
+        tiles *= ir_utils::safe_div(m, ml * mt * mi);
+        tiles *= ir_utils::safe_div(n, nl * nt * ni);
+        iters = tiles * kl;
+        if (kernel_desc.use_stream_k) {
+            dim_t max_tgs = hw_cfg.max_tgs_per_gpu(bt * mt * nt * kt);
+            ntgs = stream_k_thread_groups(stream_k_total_iters, max_tgs);
+            iters_per_tg = (float)stream_k_total_iters / ntgs;
+#if 0
+            kl_f = stream_k_total_iters / (float)ntgs;
+            kl_f = stream_k_total_iters;
+#endif
+            //printf("prb: %s\n", prb.str().c_str());
+            //printf("  total_iters = %lld, ntgs = %lld kl = %lld\n", stream_k_total_iters, ntgs, kl);
+        } else {
+            ntgs = tiles;
+            iters_per_tg = kl;
+        }
     }
 
     static std::vector<std::string> feature_names() {
         std::vector<std::string> ret;
         ret.push_back("kl");
         ret.push_back("waves");
+        ret.push_back("ntgs");
+        ret.push_back("tiles");
+        ret.push_back("iters");
+        ret.push_back("k_iters_per_tile");
+        ret.push_back("iters_per_tg");
         return ret;
     }
 
@@ -154,25 +190,21 @@ struct sample_t {
         std::vector<float> ret;
         ret.push_back(kl);
         ret.push_back(waves());
+        ret.push_back(ntgs);
+        ret.push_back(tiles);
+        ret.push_back(iters);
+        ret.push_back(k_iters_per_tile);
+        ret.push_back(iters_per_tg);
         return ret;
     }
 
     float to_y() const { return time_ns; }
 
-    float ntgs() const {
-        float ntgs = 1.0f;
-        ntgs *= ir_utils::safe_div(b, bl * bt * bi);
-        ntgs *= ir_utils::safe_div(m, ml * mt * mi);
-        ntgs *= ir_utils::safe_div(n, nl * nt * ni);
-        ntgs *= ir_utils::safe_div(k, kl * kt * ki);
-        return ntgs;
-    }
-
     float ops() const { return 2.0f * b * m * n * k; }
 
     float waves() const {
         int tgs_per_wave = hw_cfg.max_tgs_per_gpu(bt * mt * nt * kt);
-        return ntgs() / tgs_per_wave;
+        return (float)ntgs / tgs_per_wave;
     }
 
     float eff() const {
@@ -190,7 +222,7 @@ struct sample_t {
     }
 
     static model_version_t model_version(const kernel_desc_t &desc) {
-        return model_version_t::v1;
+        return desc.use_stream_k ? model_version_t::v2 : model_version_t::v1;
     }
 };
 
@@ -248,10 +280,58 @@ float predict_v1(const vec1d &x, const vec1d &coef) {
     return Tw * (wf + wp * coef_wp(wf, a_wp, b_wp));
 }
 
+float predict_v2(const vec1d &x, const vec1d &coef) {
+    float iters = x[4];
+    float a = coef[0];
+    float b = coef[1];
+    return a + b * iters;
+}
+
+void model_t::coef_ranges(model_version_t version, const vec2d &X,
+        const vec1d &y, std::vector<std::string> &coef_names, vec1d &coef_init,
+        vec1d &coef_min, vec1d &coef_max) {
+    auto add = [&](const char *name, float init, float min, float max) {
+        coef_names.emplace_back(name);
+        coef_init.emplace_back(init);
+        coef_min.emplace_back(min);
+        coef_max.emplace_back(max);
+    };
+    switch (version) {
+        case model_version_t::v1:
+            // Empirically-based parameter ranges.
+            add("T0", 1000, 1, 100000);
+            add("a_kl", 1, 0.0001f, 100);
+            add("b_kl", 1, 0.0001f, 100);
+            add("a_wp", 2, 1, 100);
+            add("b_wp", 1, 0.0001f, 100);
+            break;
+        case model_version_t::v2: {
+            float t_min = *std::min_element(y.begin(), y.end());
+            float t_max = *std::max_element(y.begin(), y.end());
+            float t0 = *std::min_element(y.begin(), y.end());
+            float t1 = 0;
+            float x1 = 0;
+            for (size_t i = 0; i < y.size(); i++) {
+                if (y[i] < 0.5 * t_max) continue;
+                t1 += (y[i] - t_min);
+                x1 += X[i][4];
+            }
+            t1 /= x1;
+            add("T0", t0, t0 / 10, t0 * 10);
+            add("T1", t1, t1 / 10, t1 * 10);
+            break;
+        }
+        default:
+            ir_error_not_expected()
+                    << "Unknown version: " << static_cast<int>(version);
+    }
+}
+
 float model_t::predict(
         model_version_t version, const vec1d &x, const vec1d &coef) {
     switch (version) {
         case model_version_t::v1: return predict_v1(x, coef);
+        case model_version_t::v2: return predict_v2(x, coef);
         default:
             ir_error_not_expected()
                     << "Unknown version: " << static_cast<int>(version);
@@ -288,6 +368,7 @@ void model_t::score(const bench_data_t &bd) {
     }
 }
 
+// TODO: Remove.
 void model_t::stringify(std::ostream &out) const {
     out << serialize_to_hex(coef_);
 }
@@ -300,6 +381,7 @@ void model_t::parse(std::istream &in) {
 size_t model_t::coef_size(model_version_t version) {
     switch (version) {
         case model_version_t::v1: return 5;
+        case model_version_t::v2: return 2;
         default:
             ir_error_not_expected()
                     << "Unknown version: " << static_cast<int>(version);

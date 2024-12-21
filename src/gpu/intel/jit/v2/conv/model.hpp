@@ -35,6 +35,7 @@ using vec2d = std::vector<std::vector<float>>;
 enum class model_version_t : uint8_t {
     undef = 0,
     v1 = 1,
+    v2 = 2,
 };
 
 class model_t {
@@ -42,6 +43,7 @@ public:
     model_t() = default;
     model_t(model_version_t version, const vec1d &coef)
         : version_(version), coef_(coef) {}
+    bool is_empty() const { return version_ == model_version_t::undef; }
     model_version_t version() const { return version_; }
     const vec1d &coef() const { return coef_; }
     float predict(const vec1d &x) const;
@@ -51,7 +53,9 @@ public:
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
 
-    //static float predict(float kl, float waves, const vec1d &coef);
+    static void coef_ranges(model_version_t version, const vec2d &X,
+            const vec1d &y, std::vector<std::string> &coef_names,
+            vec1d &coef_init, vec1d &coef_min, vec1d &coef_max);
     static float predict(
             model_version_t version, const vec1d &x, const vec1d &coef);
     static size_t coef_size(model_version_t version);
@@ -65,6 +69,7 @@ class model_set_t {
 public:
     model_set_t() = default;
     model_set_t(const model_t &model) { models_.push_back(model); }
+    void add(const model_t &model) { models_.push_back(model); }
     float eff(const problem_t &prb, const kernel_desc_t &desc) const;
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
