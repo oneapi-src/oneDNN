@@ -3,8 +3,8 @@
 --reset --dt=bf16 --case=pattern/f32/bn_relu_fusion.json
 --reset --dt=bf16 --case=pattern/f32/conv_bias_post_ops_fusion.json
 # This fusion pattern is not support on GPU engine for now, will split into 2
-# partitions with GPU engine
---reset --dt=bf16 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+# partitions with GPU engine. Skip the partition number check for it.
+--reset --dt=bf16  --expected-n-partitions=0 --case=pattern/f32/conv_depthwise_fusion_cpu.json
 --reset --dt=bf16 --case=pattern/f32/conv_post_ops_fusion.json
 --reset --dt=bf16 --case=pattern/f32/convtranspose_post_ops_fusion.json
 --reset --dt=bf16 --case=pattern/f32/matmul_bias_post_ops_chain_fusion.json

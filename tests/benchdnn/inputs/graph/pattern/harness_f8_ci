@@ -1,2 +1,3 @@
---reset --case=pattern/f8/f8_conv_fwd.json
---reset --case=pattern/f8/f8_matmul.json
+# f8 cases: skip partition number check as they may not fuse on some platforms.
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_conv_fwd.json
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_matmul.json
