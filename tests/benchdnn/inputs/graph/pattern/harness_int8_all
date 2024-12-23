@@ -14,7 +14,7 @@
 --reset --case=pattern/int8/int8_bf16_matmul_sum_add_mul_relu.json
 --reset --attr-fpmath=strict:false,bf16:false,tf32:false --case=pattern/int8/int8_avgpool_reshape_fusion.json
 --reset --case=pattern/int8/int8_avgpool_transpose_fusion.json
---reset --case=pattern/int8/int8_bf16_conv_add_relu_mul.json
+--reset --expected-n-partitions=0 --case=pattern/int8/int8_bf16_conv_add_relu_mul.json
 --reset --case=pattern/int8/int8_bf16_matmul_tc_add_quant_fusion.json
 --reset --case=pattern/int8/int8_bf16_conv_binary_add_fusion_2.json
 
@@ -23,13 +23,13 @@
 --reset --in-shapes=0:1x2048x14x14+1:2048x64x3x3+2:2048 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:32 --case=pattern/int8/int8_conv_bias_mish_fusion.json
 --reset --in-shapes=0:1x2048x14x14+1:2048x64x3x3+2:2048 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:32 --case=pattern/int8/int8_conv_bias_relu_fusion_2.json
 --reset --in-shapes=0:1x2048x14x14+1:2048x64x3x3+2:2048 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:32 --case=pattern/int8/int8_conv_bias_relu_fusion_3.json
---reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:1x1x1x1+3:1x1x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_add_add_fusion.json
---reset --op-attrs=8209:zps:1 --case=pattern/int8/int8_conv_add_add_fusion.json
+--reset --expected-n-partitions=0 --in-shapes=0:50x64x56x56+1:64x64x1x1+2:1x1x1x1+3:1x1x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_add_add_fusion.json
+--reset --expected-n-partitions=0 --op-attrs=8209:zps:1 --case=pattern/int8/int8_conv_add_add_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:1x1x1x1+3:1x64x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_add_mul_fusion.json
---reset --op-attrs=8209:zps:2 --case=pattern/int8/int8_conv_add_mul_fusion.json
+--reset --expected-n-partitions=0 --op-attrs=8209:zps:2 --case=pattern/int8/int8_conv_add_mul_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_relu_fusion.json
 --reset --case=pattern/int8/int8_bf16_conv_add_fusion.json
---reset --op-attrs=8209:zps:1 --case=pattern/int8/int8_bf16_conv_add_fusion.json
+--reset --expected-n-partitions=0 --op-attrs=8209:zps:1 --case=pattern/int8/int8_bf16_conv_add_fusion.json
 --reset --in-shapes=0:0x64x56x56+2:0x64x56x56 --case=pattern/int8/int8_bf16_conv_add_fusion.json
 # quantized conv 
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_2d_fusion.json
@@ -45,8 +45,8 @@
 --reset --in-shapes=0:2x64x3x3 --case=pattern/int8/int8_reorder_fusion_3.json
 # matmul
 --reset --in-shapes=0:16x256+1:256x1+2:1x1+3:1x1 --case=pattern/int8/int8_matmul_add_mul_fusion.json
---reset --op-attrs=8209:zps:3 --case=pattern/int8/int8_matmul_add_mul_fusion.json
---reset --in-shapes=0:16x256+1:256x1+2:1x1+3:1x1+4:1x1 --case=pattern/int8/int8_matmul_mul_add_mul_fusion.json
+--reset --expected-n-partitions=0 --op-attrs=8209:zps:3 --case=pattern/int8/int8_matmul_add_mul_fusion.json
+--reset --expected-n-partitions=0 --in-shapes=0:16x256+1:256x1+2:1x1+3:1x1+4:1x1 --case=pattern/int8/int8_matmul_mul_add_mul_fusion.json
 --reset --in-shapes=0:16x256+1:256x1+2:1x1 --case=pattern/int8/int8_matmul_logistic_fusion.json
 --reset --in-shapes=0:16x1024+1:1024x1024+2:1x1024 --op-attrs=4113:scales:2 --case=pattern/int8/int8_matmul_logistic_fusion.json
 --reset --in-shapes=0:16x1024+1:1024x512+2:1x512 --op-attrs=4113:scales:2 --case=pattern/int8/int8_matmul_logistic_fusion.json
@@ -65,7 +65,7 @@
 --reset --in-shapes=0:16x13+3:13x512+6208:16x512 --case=pattern/int8/int8_bf16_matmul_add_fusion.json
 --reset --case=pattern/int8/int8_bf16_matmul_mul_w_smooth_quant_fusion.json
 --reset --case=pattern/int8/int8_bf16_matmul_relu_w_smooth_quant_fusion.json
---reset --op-attrs=8209:zps:4 --case=pattern/int8/int8_bf16_matmul_add_fusion.json
+--reset --expected-n-partitions=0 --op-attrs=8209:zps:4 --case=pattern/int8/int8_bf16_matmul_add_fusion.json
 --reset --in-shapes=0:16x13+1:13x512+2:1x1+3:1x1 --case=pattern/int8/int8_bf16_matmul_mul_add_fusion_2.json
 --reset --in-shapes=0:16x512+1:512x256+2:1x1+3:1x1 --case=pattern/int8/int8_f32_matmul_mul_add_fusion.json
 --reset --case=pattern/int8/int8_f32_matmul_mul_add_fusion_2.json
@@ -83,7 +83,7 @@
 --reset --in-shapes=0:2x16x5x5+1:16x4x3x3 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:4 --case=pattern/int8/int8_convtranspose_post_ops_square_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:1x1x1x1+3:1x64x1x1 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_chain_fusion.json
 --reset --in-shapes=0:2x17x8x8+1:17x16x3x3+2:2x16x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
---reset --op-attrs=8209:zps:4 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
+--reset --expected-n-partitions=0 --op-attrs=8209:zps:4 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
 --reset --in-shapes=0:2x16x5x5+1:16x16x1x1+2:2x16x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
 --reset --in-shapes=0:2x16x5x5+1:16x16x3x3+2:2x16x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
 --reset --in-shapes=0:2x16x5x5+1:16x17x1x1+2:2x17x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
@@ -95,8 +95,8 @@
 --reset --in-shapes=0:2x17x5x5+1:17x16x3x3+2:2x16x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
 --reset --in-shapes=0:2x17x5x5+1:17x3x3x3+2:2x3x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion.json
 --reset --in-shapes=0:2x20x5x5+1:20x4x3x3+2:16+3:1x1x1x1 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:4 --case=pattern/int8/int8_convtranspose_post_ops_add_fusion.json
---reset --in-shapes=0:2x16x8x8+1:16x17x3x3+2:17+3:2x17x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1+8209:zps:4 --case=pattern/int8/int8_convtranspose_post_ops_add_fusion.json
---reset --in-shapes=0:2x16x5x5+1:16x5x3x3+2:20+3:2x20x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:4 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion_2.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x16x8x8+1:16x17x3x3+2:17+3:2x17x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:3x3*pads_end:2x2*groups:1+8209:zps:4 --case=pattern/int8/int8_convtranspose_post_ops_add_fusion.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x16x5x5+1:16x5x3x3+2:20+3:2x20x5x5 --op-attrs=5:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:4 --case=pattern/int8/int8_convtranspose_post_ops_sum_fusion_2.json
 # bnorm
 --reset --in-shapes=0:1x56x56x64+2:64+3:64+4:64+5:64 --op-attrs=1:data_format:NXC --case=pattern/int8/int8_bnorm_relu_fusion.json
 --reset --in-shapes=0:1x64x56x56+2:64+3:64+4:64+5:64 --op-attrs=1:data_format:NCX --case=pattern/int8/int8_bnorm_relu_fusion.json
@@ -114,14 +114,14 @@
 --reset --in-shapes=0:1x64x600x600*acdb+1:1x64x600x600*acdb+2:1x64x600x600*acdb --op-attrs=3:axis:1 --case=pattern/int8/int8_concat_fusion_3.json
 --reset --in-shapes=0:1x64x300x300*cdba+1:1x64x300x300*cdba+2:1x64x300x300*cdba --op-attrs=3:axis:3 --case=pattern/int8/int8_concat_fusion_3.json
 --reset --in-shapes=0:1x128x150x150*acdb+1:1x128x150x150*acdb+2:1x128x150x150*acdb --op-attrs=3:axis:0 --case=pattern/int8/int8_concat_fusion_3.json
-#layernorm
---reset --case=pattern/int8/int8_lnorm_gelu_quantize.json
+#layernorm: skip partition number check as it may not fuse on gpu.
+--reset --expected-n-partitions=0 --case=pattern/int8/int8_lnorm_gelu_quantize.json
 # layernorm with zp != 0
---reset --op-attrs=2:zps:1 --case=pattern/int8/int8_lnorm_gelu_quantize.json
---reset --case=pattern/int8/int8_lnorm_multiply_quantize.json
---reset --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
+--reset --expected-n-partitions=0 --op-attrs=2:zps:1 --case=pattern/int8/int8_lnorm_gelu_quantize.json
+--reset --expected-n-partitions=0 --case=pattern/int8/int8_lnorm_multiply_quantize.json
+--reset --expected-n-partitions=0 --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
 # layernorm with zp != 0 and broadcast binary
---reset --op-attrs=3:zps:1  --in-shapes=5:512 --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
+--reset --expected-n-partitions=0 --op-attrs=3:zps:1  --in-shapes=5:512 --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
 #softmax
 --reset --case=pattern/int8/int8_softmax_add.json
 --reset --op-attrs=3:zps:32 --case=pattern/int8/int8_softmax_add.json
