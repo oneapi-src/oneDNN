@@ -41,46 +41,6 @@ namespace v2 {
 namespace conv {
 namespace planner {
 
-class search_iterator_t {
-public:
-    int add(const std::vector<int> &key_values) {
-        int key = (int)values_.size();
-        values_.push_back(key_values);
-        idxs_.push_back(0);
-        if (key == 0) {
-            idxs_[0] = -1;
-            total_ = 1;
-        }
-        total_ *= (int)key_values.size();
-        return key;
-    }
-
-    int nkeys() const { return (int)values_.size(); }
-
-    bool has_next() const { return idx_ + 1 < total_; }
-
-    void next() {
-        ir_assert(has_next());
-        int carry = 1;
-        for (int j = 0; j < nkeys(); j++) {
-            int new_idx = idxs_[j] + carry;
-            int bound = (int)values_[j].size();
-            idxs_[j] = new_idx % bound;
-            carry = new_idx / bound;
-            if (carry == 0) break;
-        }
-        idx_++;
-    }
-
-    int operator()(int key) const { return values_[key][idxs_[key]]; }
-
-private:
-    int idx_ = -1;
-    int total_ = 0;
-    std::vector<std::vector<int>> values_;
-    std::vector<int> idxs_;
-};
-
 // Flags specifying blocking restrictions for a convolution dimension.
 enum class tile_flags_t : uint32_t {
     undef = 0,
