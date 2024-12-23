@@ -255,7 +255,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     const bool params_ok
             = IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
             && IMPLICATION(jcp.src_zero_point,
-                    attr()->zero_points_.common(DNNL_ARG_SRC))
+                    attr()->zero_points_.common(DNNL_ARG_SRC)
+                            || attr()->zero_points_.per_dim_1(DNNL_ARG_SRC))
             && IMPLICATION(jcp.dst_zero_point,
                     attr()->zero_points_.common(DNNL_ARG_DST));
     VDISPATCH_CONV(params_ok, VERBOSE_UNSUPPORTED_ZP_CFG);
@@ -583,7 +584,7 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
 
     const int wei_scale_mask
@@ -753,8 +754,11 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
                 post_ops_data.scales = &oscales[jcp.is_oc_scale * ch];
                 post_ops_data.oc_logical_off = ch;
                 post_ops_data.dst_scales = dst_scales;
-                post_ops_data.zp_a_val
-                        = jcp.src_zero_point ? src_zero_point : 1;
+                const bool is_bcast_zp
+                        = pd()->attr()->zero_points_.common(DNNL_ARG_SRC);
+                post_ops_data.a_zp_values = jcp.src_zero_point
+                        ? src_zero_point + ch * !is_bcast_zp
+                        : nullptr;
                 post_ops_data.c_zp_values
                         = jcp.dst_zero_point ? dst_zero_point : nullptr;
                 post_ops_data.a_zp_compensations
