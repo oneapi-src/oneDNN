@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -91,7 +91,7 @@ status_t eltwise_fwd_t<quantized>::compile_impl(
         return this->memory_planner_.get_exec_args_set().clone();
     };
 
-    constant_key_ = generate_constant_cache_key(part->id(),
+    const_md_hash_ = generate_constant_md_hash(part->id(),
             memory_planner_.get_exec_args_set().get_persistent_mem_desc_list());
 
     return status::success;
@@ -138,9 +138,11 @@ status_t eltwise_fwd_t<quantized>::execute_impl(const stream_t *g_stream,
 
     constant_cache_t::cached_t c_buffer;
     if (enabled_constant_cache()) {
+        const size_t encoded_key
+                = encode_constant_cache_key(inputs, const_md_hash_);
         std::promise<constant_cache_t::cached_t> c_promise;
         constant_cache_t::value_t cached_value
-                = dnnl_constant_cache_get_or_add(p_engine_, constant_key_,
+                = dnnl_constant_cache_get_or_add(p_engine_, encoded_key,
                         memory_planner_.total_internal_persistent_size(),
                         c_promise.get_future());
         bool is_from_cache = cached_value.valid();
@@ -208,9 +210,11 @@ status_t eltwise_fwd_t<quantized>::sycl_execute_impl(const stream_t *g_stream,
 
     constant_cache_t::cached_t c_buffer;
     if (enabled_constant_cache()) {
+        const size_t encoded_key
+                = encode_constant_cache_key(inputs, const_md_hash_);
         std::promise<constant_cache_t::cached_t> c_promise;
         constant_cache_t::value_t cached_value
-                = dnnl_constant_cache_get_or_add(p_engine_, constant_key_,
+                = dnnl_constant_cache_get_or_add(p_engine_, encoded_key,
                         memory_planner_.total_internal_persistent_size(),
                         c_promise.get_future());
         bool is_from_cache = cached_value.valid();
@@ -284,9 +288,11 @@ status_t eltwise_fwd_t<quantized>::ocl_execute_impl(const stream_t *g_stream,
 
     constant_cache_t::cached_t c_buffer;
     if (enabled_constant_cache()) {
+        const size_t encoded_key
+                = encode_constant_cache_key(inputs, const_md_hash_);
         std::promise<constant_cache_t::cached_t> c_promise;
         constant_cache_t::value_t cached_value
-                = dnnl_constant_cache_get_or_add(p_engine_, constant_key_,
+                = dnnl_constant_cache_get_or_add(p_engine_, encoded_key,
                         memory_planner_.total_internal_persistent_size(),
                         c_promise.get_future());
         bool is_from_cache = cached_value.valid();

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2024 Intel Corporation
+ * Copyright 2024-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -102,6 +102,9 @@ struct kernel_base_t {
     virtual std::string str() const = 0;
 
     bool enabled_constant_cache() const;
+
+    size_t encode_constant_cache_key(
+            const std::vector<tensor_t> &inputs, size_t cache_key) const;
 
     const std::vector<inplace_pair_t> &get_inplace_pairs() const;
 
