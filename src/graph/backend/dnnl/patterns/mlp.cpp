@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,11 +50,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gated_mlp)
         .set_kind(partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    // TODO(xxx): we may need to describe the same input for fc_up and fc_gt.
                     pm::pb_op_t *fc_up
                             = pgraph->append_op(graph::op_kind::MatMul);
                     pm::pb_op_t *fc_gt
                             = pgraph->append_op(graph::op_kind::MatMul);
+                    pgraph->create_input_port(0, fc_up, 0);
+                    pgraph->create_input_port(0, fc_gt, 0);
 
                     // activations after fc_gt
                     auto alt_graph = std::make_shared<pb_graph_t>();
@@ -85,11 +86,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gated_mlp_v1)
         .set_kind(partition_kind_t::matmul_post_ops)
         .set_attr<FCreatePattern>("FCreatePattern",
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    // TODO(xxx): we may need to describe the same input for fc_up and fc_gt.
                     pm::pb_op_t *fc_up
                             = pgraph->append_op(graph::op_kind::MatMul);
                     pm::pb_op_t *fc_gt
                             = pgraph->append_op(graph::op_kind::MatMul);
+                    pgraph->create_input_port(0, fc_up, 0);
+                    pgraph->create_input_port(0, fc_gt, 0);
 
                     // swish (sigmoid + mul) after fc_gt
                     pm::pb_op_t *swish_sig = pgraph->append_op(
@@ -139,6 +141,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, quantized_gated_mlp)
                             graph::op_kind::MatMul, {in_edge(1, deq_up, 0)});
                     pm::pb_op_t *fc_gt = pgraph->append_op(
                             graph::op_kind::MatMul, {in_edge(1, deq_gate, 0)});
+                    pgraph->create_input_port(0, fc_up, 0);
+                    pgraph->create_input_port(0, fc_gt, 0);
 
                     // activations after fc_gt
                     auto alt_graph = std::make_shared<pb_graph_t>();
@@ -180,6 +184,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, quantized_gated_mlp_v1)
                             graph::op_kind::MatMul, {in_edge(1, deq_up, 0)});
                     pm::pb_op_t *fc_gt = pgraph->append_op(
                             graph::op_kind::MatMul, {in_edge(1, deq_gate, 0)});
+                    pgraph->create_input_port(0, fc_up, 0);
+                    pgraph->create_input_port(0, fc_gt, 0);
 
                     // swish (sigmoid + mul) after fc_gt
                     pm::pb_op_t *swish_sig = pgraph->append_op(
