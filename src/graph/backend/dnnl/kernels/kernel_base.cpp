@@ -43,6 +43,24 @@ bool kernel_base_t::enabled_constant_cache() const {
     return enabled;
 }
 
+size_t kernel_base_t::encode_constant_cache_key(
+        const std::vector<tensor_t> &inputs, size_t cache_key) const {
+    // Encode the constant memory address into cache key for differentiation
+    size_t encoded_cache_key = cache_key;
+    for (const auto &in : inputs) {
+        if (in.get_logical_tensor().property
+                == dnnl_graph_tensor_property_t::
+                        dnnl_graph_tensor_property_constant) {
+            auto data_handle = in.get_data_handle();
+            if (data_handle != nullptr) {
+                encoded_cache_key = hash_combine(encoded_cache_key,
+                        reinterpret_cast<uintptr_t>(data_handle));
+            }
+        }
+    }
+    return encoded_cache_key;
+}
+
 const std::vector<inplace_pair_t> &kernel_base_t::get_inplace_pairs() const {
     return inplace_pairs_;
 };
