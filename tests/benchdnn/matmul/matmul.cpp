@@ -152,6 +152,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
     overload_quant_mask(prb->attr.scales.get(DNNL_ARG_WEIGHTS).policy,
             DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
+    overload_quant_mask(prb->attr.scales.get(DNNL_ARG_DST).policy,
+            DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
     overload_quant_mask(prb->attr.zero_points.get(DNNL_ARG_SRC).policy,
             DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
     overload_quant_mask(prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).policy,
@@ -546,6 +548,17 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
                 = prb->wei_dt() == dnnl_s8 && prb->dst_dt() == dnnl_f16;
         if (is_x8s8f16) {
             BENCHDNN_PRINT(2, "[SKIP][%s:%d]: CPU doesn't support x8s8f16.\n",
+                    __FILE__, __LINE__);
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
+            return;
+        }
+        if (!prb->attr.scales.is_def(DNNL_ARG_DST)
+                && prb->attr.scales.get(DNNL_ARG_DST).policy
+                        != attr_t::COMMON) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: Only Common dst scales are supported "
+                    "on CPU.\n",
                     __FILE__, __LINE__);
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
