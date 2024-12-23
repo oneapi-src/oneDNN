@@ -1,0 +1,80 @@
+.. index:: pair: struct; dnnl::prelu_forward::desc
+.. _doxid-structdnnl_1_1prelu__forward_1_1desc:
+
+struct dnnl::prelu_forward::desc
+================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a PReLU forward propagation primitive. :ref:`More...<details-structdnnl_1_1prelu__forward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		dnnl_prelu_desc_t :target:`data<doxid-structdnnl_1_1prelu__forward_1_1desc_1ae25059906b48583dd78a1bffed9ae38c>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1prelu__forward_1_1desc_1abbadbbfa075f5aa7a99b80632ba4992a>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weight_desc
+			);
+	};
+.. _details-structdnnl_1_1prelu__forward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a PReLU forward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1prelu__forward_1_1desc_1abbadbbfa075f5aa7a99b80632ba4992a:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weight_desc
+		)
+
+Constructs a descriptor for a PReLU forward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::forward_training <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa24775787fab8f13aa4809e1ce8f82aeb>`, and :ref:`dnnl::prop_kind::forward_inference <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa3b9fad4f80d45368f856b5403198ac4c>`.
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptors.
+
+	*
+		- weight_desc
+
+		- Alpha parameters memory descriptor.
+

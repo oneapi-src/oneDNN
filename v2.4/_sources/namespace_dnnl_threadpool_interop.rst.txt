@@ -1,0 +1,182 @@
+.. index:: pair: namespace; dnnl::threadpool_interop
+.. _doxid-namespacednnl_1_1threadpool__interop:
+
+namespace dnnl::threadpool_interop
+==================================
+
+.. toctree::
+	:hidden:
+
+	struct_dnnl_threadpool_interop_threadpool_iface.rst
+
+Overview
+~~~~~~~~
+
+Threadpool interoperability namespace. :ref:`More...<details-namespacednnl_1_1threadpool__interop>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	namespace threadpool_interop {
+
+	// structs
+
+	struct :ref:`threadpool_iface<doxid-structdnnl_1_1threadpool__interop_1_1threadpool__iface>`;
+
+	// global functions
+
+	:ref:`dnnl::stream<doxid-structdnnl_1_1stream>` :ref:`make_stream<doxid-namespacednnl_1_1threadpool__interop_1aaa7ec7af54363d81f8d4bcd2ff4af80d>`(
+		const :ref:`dnnl::engine<doxid-structdnnl_1_1engine>`& aengine,
+		:ref:`threadpool_iface<doxid-structdnnl_1_1threadpool__interop_1_1threadpool__iface>`* threadpool
+		);
+
+	:ref:`threadpool_iface<doxid-structdnnl_1_1threadpool__interop_1_1threadpool__iface>`* :ref:`get_threadpool<doxid-namespacednnl_1_1threadpool__interop_1abf6eacb2add7d269b3c6f4d027874969>`(const :ref:`dnnl::stream<doxid-structdnnl_1_1stream>`& astream);
+
+	:ref:`status<doxid-group__dnnl__api__service_1ga7acc4d3516304ae68a1289551d8f2cdd>` :target:`sgemm<doxid-namespacednnl_1_1threadpool__interop_1ab3cf8c247c244566b9e50f5eb789e1fe>`(
+		char transa,
+		char transb,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` M,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` N,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` K,
+		float alpha,
+		const float* A,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` lda,
+		const float* B,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` ldb,
+		float beta,
+		float* C,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` ldc,
+		:ref:`threadpool_iface<doxid-structdnnl_1_1threadpool__interop_1_1threadpool__iface>`* tp
+		);
+
+	:ref:`status<doxid-group__dnnl__api__service_1ga7acc4d3516304ae68a1289551d8f2cdd>` :target:`gemm_u8s8s32<doxid-namespacednnl_1_1threadpool__interop_1a435542f030a30eea68a1bdabd2d8f0e4>`(
+		char transa,
+		char transb,
+		char offsetc,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` M,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` N,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` K,
+		float alpha,
+		const uint8_t* A,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` lda,
+		uint8_t ao,
+		const int8_t* B,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` ldb,
+		int8_t bo,
+		float beta,
+		int32_t* C,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` ldc,
+		const int32_t* co,
+		:ref:`threadpool_iface<doxid-structdnnl_1_1threadpool__interop_1_1threadpool__iface>`* tp
+		);
+
+	:ref:`status<doxid-group__dnnl__api__service_1ga7acc4d3516304ae68a1289551d8f2cdd>` :target:`gemm_s8s8s32<doxid-namespacednnl_1_1threadpool__interop_1a899b6242d6849325ac8b055cccb596fb>`(
+		char transa,
+		char transb,
+		char offsetc,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` M,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` N,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` K,
+		float alpha,
+		const int8_t* A,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` lda,
+		int8_t ao,
+		const int8_t* B,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` ldb,
+		int8_t bo,
+		float beta,
+		int32_t* C,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` ldc,
+		const int32_t* co,
+		:ref:`threadpool_iface<doxid-structdnnl_1_1threadpool__interop_1_1threadpool__iface>`* tp
+		);
+
+	} // namespace threadpool_interop
+.. _details-namespacednnl_1_1threadpool__interop:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Threadpool interoperability namespace.
+
+Global Functions
+----------------
+
+.. index:: pair: function; make_stream
+.. _doxid-namespacednnl_1_1threadpool__interop_1aaa7ec7af54363d81f8d4bcd2ff4af80d:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl::stream<doxid-structdnnl_1_1stream>` make_stream(
+		const :ref:`dnnl::engine<doxid-structdnnl_1_1engine>`& aengine,
+		:ref:`threadpool_iface<doxid-structdnnl_1_1threadpool__interop_1_1threadpool__iface>`* threadpool
+		)
+
+Constructs an execution stream for the specified engine and threadpool.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aengine
+
+		- Engine to create the stream on.
+
+	*
+		- threadpool
+
+		- Pointer to an instance of a C++ class that implements dnnl::threapdool_iface interface.
+
+
+
+.. rubric:: Returns:
+
+An execution stream.
+
+
+
+.. rubric:: See also:
+
+:ref:`Using oneDNN with Threadpool-based Threading <doxid-dev_guide_threadpool>`
+
+.. index:: pair: function; get_threadpool
+.. _doxid-namespacednnl_1_1threadpool__interop_1abf6eacb2add7d269b3c6f4d027874969:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`threadpool_iface<doxid-structdnnl_1_1threadpool__interop_1_1threadpool__iface>`* get_threadpool(const :ref:`dnnl::stream<doxid-structdnnl_1_1stream>`& astream)
+
+Returns the pointer to a threadpool that is used by an execution stream.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- astream
+
+		- An execution stream.
+
+
+
+.. rubric:: Returns:
+
+Output pointer to an instance of a C++ class that implements dnnl::threapdool_iface interface or NULL if the stream was created without threadpool.
+
+
+
+.. rubric:: See also:
+
+:ref:`Using oneDNN with Threadpool-based Threading <doxid-dev_guide_threadpool>`
+

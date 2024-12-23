@@ -1,0 +1,663 @@
+.. index:: pair: group; Deconvolution
+.. _doxid-group__dnnl__api__deconvolution:
+
+Deconvolution
+=============
+
+.. toctree::
+	:hidden:
+
+	struct_dnnl_deconvolution_backward_data.rst
+	struct_dnnl_deconvolution_backward_weights.rst
+	struct_dnnl_deconvolution_forward.rst
+
+Overview
+~~~~~~~~
+
+A primitive to perform 1D, 2D or 3D deconvolution. :ref:`More...<details-group__dnnl__api__deconvolution>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	// typedefs
+
+	typedef :ref:`dnnl_convolution_desc_t<doxid-structdnnl__convolution__desc__t>` :ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`;
+
+	// structs
+
+	struct :ref:`dnnl::deconvolution_backward_data<doxid-structdnnl_1_1deconvolution__backward__data>`;
+	struct :ref:`dnnl::deconvolution_backward_weights<doxid-structdnnl_1_1deconvolution__backward__weights>`;
+	struct :ref:`dnnl::deconvolution_forward<doxid-structdnnl_1_1deconvolution__forward>`;
+
+	// global functions
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_deconvolution_forward_desc_init<doxid-group__dnnl__api__deconvolution_1ga1d03ab188e31c1efeae37d3d4c60f757>`(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_dilated_deconvolution_forward_desc_init<doxid-group__dnnl__api__deconvolution_1ga394d097b787b65b164039ee8cc772405>`(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` dilates,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_deconvolution_backward_data_desc_init<doxid-group__dnnl__api__deconvolution_1ga290a50c4a7baceeca3197f22cbaadc64>`(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_dilated_deconvolution_backward_data_desc_init<doxid-group__dnnl__api__deconvolution_1ga13cda2eb1aa058275725cb0d8a841d43>`(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` dilates,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_deconvolution_backward_weights_desc_init<doxid-group__dnnl__api__deconvolution_1ga27fcb4f37f6bf58d7f2377b898bd1aba>`(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_dilated_deconvolution_backward_weights_desc_init<doxid-group__dnnl__api__deconvolution_1ga3b36d572a8ba5957bc1d3517e8d02c93>`(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` dilates,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		);
+
+.. _details-group__dnnl__api__deconvolution:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A primitive to perform 1D, 2D or 3D deconvolution.
+
+Supported variants are forward propagation, backward propagation, and weights gradient with or without bias.
+
+Typedefs
+--------
+
+.. index:: pair: typedef; dnnl_deconvolution_desc_t
+.. _doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	typedef :ref:`dnnl_convolution_desc_t<doxid-structdnnl__convolution__desc__t>` dnnl_deconvolution_desc_t
+
+A descriptor of a deconvolution operation.
+
+Global Functions
+----------------
+
+.. index:: pair: function; dnnl_deconvolution_forward_desc_init
+.. _doxid-group__dnnl__api__deconvolution_1ga1d03ab188e31c1efeae37d3d4c60f757:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_deconvolution_forward_desc_init(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		)
+
+Initializes a descriptor for a deconvolution forward propagation primitive.
+
+.. note:: 
+
+   Memory descriptors can be initialized with :ref:`dnnl_format_tag_any <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dafee39ac6fff0325cae43cd66495c18ac>` or with format_kind set to :ref:`dnnl_format_kind_any <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367da77ae35388e04dc3e98d90675a7110c83>`.
+   
+   
+Arrays ``strides``, ``padding_l``, and ``padding_r`` contain values for spatial dimensions only and hence must have the same number of elements as there are spatial dimensions. The order of values is the same as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- deconv_desc
+
+		- Output descriptor for a deconvolution primitive.
+
+	*
+		- prop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>` and :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`.
+
+	*
+		- alg_kind
+
+		- Deconvolution algorithm. Possible values are :ref:`dnnl_deconvolution_direct <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a575e3d69d108a8a1e62af755dda0ef5f>`, :ref:`dnnl_deconvolution_winograd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a9b11a60748225144fdb960988e9b0cb9>`.
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+	*
+		- weights_desc
+
+		- Weights memory descriptor.
+
+	*
+		- bias_desc
+
+		- Bias memory descriptor. Passing NULL, a zero memory descriptor, or a memory descriptor with format_kind set to :ref:`dnnl_format_kind_undef <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367dac86d377bba856ea7aa9679ecf65c8364>` disables the bias term.
+
+	*
+		- dst_desc
+
+		- Destination memory descriptor.
+
+	*
+		- strides
+
+		- Array of strides for spatial dimension.
+
+	*
+		- padding_l
+
+		- Array of padding values for low indices for each spatial dimension ``([[front,] top,] left)``.
+
+	*
+		- padding_r
+
+		- Array of padding values for high indices for each spatial dimension ``([[back,] bottom,] right)``. Can be NULL in which case padding is considered to be symmetrical.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_dilated_deconvolution_forward_desc_init
+.. _doxid-group__dnnl__api__deconvolution_1ga394d097b787b65b164039ee8cc772405:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_dilated_deconvolution_forward_desc_init(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` dilates,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		)
+
+Initializes a descriptor for a dilated deconvolution forward propagation primitive.
+
+.. note:: 
+
+   Memory descriptors can be initialized with :ref:`dnnl_format_tag_any <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dafee39ac6fff0325cae43cd66495c18ac>` or with format_kind set to :ref:`dnnl_format_kind_any <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367da77ae35388e04dc3e98d90675a7110c83>`.
+   
+   
+Arrays ``strides``, ``dilates``, ``padding_l``, and ``padding_r`` contain values for spatial dimensions only and hence must have the same number of elements as there are spatial dimensions. The order of values is the same as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- deconv_desc
+
+		- Output descriptor for a deconvolution primitive.
+
+	*
+		- prop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>` and :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`.
+
+	*
+		- alg_kind
+
+		- Deconvolution algorithm. Possible values are :ref:`dnnl_deconvolution_direct <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a575e3d69d108a8a1e62af755dda0ef5f>`, :ref:`dnnl_deconvolution_winograd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a9b11a60748225144fdb960988e9b0cb9>`.
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+	*
+		- weights_desc
+
+		- Weights memory descriptor.
+
+	*
+		- bias_desc
+
+		- Bias memory descriptor. Passing NULL, a zero memory descriptor, or a memory descriptor with format_kind set to :ref:`dnnl_format_kind_undef <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367dac86d377bba856ea7aa9679ecf65c8364>` disables the bias term.
+
+	*
+		- dst_desc
+
+		- Destination memory descriptor.
+
+	*
+		- strides
+
+		- Array of strides for spatial dimension.
+
+	*
+		- dilates
+
+		- Array of dilations for spatial dimension. A zero value means no dilation in the corresponding dimension.
+
+	*
+		- padding_l
+
+		- Array of padding values for low indices for each spatial dimension ``([[front,] top,] left)``.
+
+	*
+		- padding_r
+
+		- Array of padding values for high indices for each spatial dimension ``([[back,] bottom,] right)``. Can be NULL in which case padding is considered to be symmetrical.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_deconvolution_backward_data_desc_init
+.. _doxid-group__dnnl__api__deconvolution_1ga290a50c4a7baceeca3197f22cbaadc64:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_deconvolution_backward_data_desc_init(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		)
+
+Initializes a descriptor for a deconvolution backward propagation primitive.
+
+.. note:: 
+
+   Memory descriptors can be initialized with :ref:`dnnl_format_tag_any <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dafee39ac6fff0325cae43cd66495c18ac>` or with format_kind set to :ref:`dnnl_format_kind_any <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367da77ae35388e04dc3e98d90675a7110c83>`.
+   
+   
+Arrays ``strides``, ``padding_l``, and ``padding_r`` contain values for spatial dimensions only and hence must have the same number of elements as there are spatial dimensions. The order of values is the same as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- deconv_desc
+
+		- Output descriptor for a deconvolution primitive.
+
+	*
+		- alg_kind
+
+		- Deconvolution algorithm. Possible values are :ref:`dnnl_deconvolution_direct <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a575e3d69d108a8a1e62af755dda0ef5f>`, :ref:`dnnl_deconvolution_winograd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a9b11a60748225144fdb960988e9b0cb9>`.
+
+	*
+		- diff_src_desc
+
+		- Diff source memory descriptor.
+
+	*
+		- weights_desc
+
+		- Weights memory descriptor.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+
+	*
+		- strides
+
+		- Array of strides for spatial dimension.
+
+	*
+		- padding_l
+
+		- Array of padding values for low indices for each spatial dimension ``([[front,] top,] left)``.
+
+	*
+		- padding_r
+
+		- Array of padding values for high indices for each spatial dimension ``([[back,] bottom,] right)``. Can be NULL in which case padding is considered to be symmetrical.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_dilated_deconvolution_backward_data_desc_init
+.. _doxid-group__dnnl__api__deconvolution_1ga13cda2eb1aa058275725cb0d8a841d43:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_dilated_deconvolution_backward_data_desc_init(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` dilates,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		)
+
+Initializes a descriptor for a dilated deconvolution backward propagation primitive.
+
+.. note:: 
+
+   Memory descriptors can be initialized with :ref:`dnnl_format_tag_any <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dafee39ac6fff0325cae43cd66495c18ac>` or with format_kind set to :ref:`dnnl_format_kind_any <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367da77ae35388e04dc3e98d90675a7110c83>`.
+   
+   
+Arrays ``strides``, ``dilates``, ``padding_l``, and ``padding_r`` contain values for spatial dimensions only and hence must have the same number of elements as there are spatial dimensions. The order of values is the same as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- deconv_desc
+
+		- Output descriptor for a deconvolution primitive.
+
+	*
+		- alg_kind
+
+		- Deconvolution algorithm. Possible values are :ref:`dnnl_deconvolution_direct <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a575e3d69d108a8a1e62af755dda0ef5f>`, :ref:`dnnl_deconvolution_winograd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a9b11a60748225144fdb960988e9b0cb9>`.
+
+	*
+		- diff_src_desc
+
+		- Diff source memory descriptor.
+
+	*
+		- weights_desc
+
+		- Weights memory descriptor.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+
+	*
+		- strides
+
+		- Array of strides for spatial dimension.
+
+	*
+		- dilates
+
+		- Array of dilations for spatial dimension. A zero value means no dilation in the corresponding dimension.
+
+	*
+		- padding_l
+
+		- Array of padding values for low indices for each spatial dimension ``([[front,] top,] left)``.
+
+	*
+		- padding_r
+
+		- Array of padding values for high indices for each spatial dimension ``([[back,] bottom,] right)``. Can be NULL in which case padding is considered to be symmetrical.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_deconvolution_backward_weights_desc_init
+.. _doxid-group__dnnl__api__deconvolution_1ga27fcb4f37f6bf58d7f2377b898bd1aba:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_deconvolution_backward_weights_desc_init(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		)
+
+Initializes a descriptor for a deconvolution weights gradient primitive.
+
+.. note:: 
+
+   Memory descriptors can be initialized with :ref:`dnnl_format_tag_any <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dafee39ac6fff0325cae43cd66495c18ac>` or with format_kind set to :ref:`dnnl_format_kind_any <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367da77ae35388e04dc3e98d90675a7110c83>`.
+   
+   
+Arrays ``strides``, ``padding_l``, and ``padding_r`` contain values for spatial dimensions only and hence must have the same number of elements as there are spatial dimensions. The order of values is the same as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- deconv_desc
+
+		- Output descriptor for a deconvolution primitive.
+
+	*
+		- alg_kind
+
+		- Deconvolution algorithm. Possible values are :ref:`dnnl_deconvolution_direct <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a575e3d69d108a8a1e62af755dda0ef5f>`, :ref:`dnnl_deconvolution_winograd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a9b11a60748225144fdb960988e9b0cb9>`.
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+	*
+		- diff_weights_desc
+
+		- Diff weights memory descriptor.
+
+	*
+		- diff_bias_desc
+
+		- Diff bias memory descriptor. Passing NULL, a zero memory descriptor, or a memory descriptor with format_kind set to :ref:`dnnl_format_kind_undef <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367dac86d377bba856ea7aa9679ecf65c8364>` disables the bias term.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+
+	*
+		- strides
+
+		- Array of strides for spatial dimension.
+
+	*
+		- padding_l
+
+		- Array of padding values for low indices for each spatial dimension ``([[front,] top,] left)``.
+
+	*
+		- padding_r
+
+		- Array of padding values for high indices for each spatial dimension ``([[back,] bottom,] right)``. Can be NULL in which case padding is considered to be symmetrical.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_dilated_deconvolution_backward_weights_desc_init
+.. _doxid-group__dnnl__api__deconvolution_1ga3b36d572a8ba5957bc1d3517e8d02c93:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_dilated_deconvolution_backward_weights_desc_init(
+		:ref:`dnnl_deconvolution_desc_t<doxid-group__dnnl__api__deconvolution_1gafd99fc7c70359ba9434d6a9933d566c3>`* deconv_desc,
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_dst_desc,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` dilates,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_l,
+		const :ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding_r
+		)
+
+Initializes a descriptor for a dilated deconvolution weights gradient primitive.
+
+.. note:: 
+
+   Memory descriptors can be initialized with :ref:`dnnl_format_tag_any <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dafee39ac6fff0325cae43cd66495c18ac>` or with format_kind set to :ref:`dnnl_format_kind_any <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367da77ae35388e04dc3e98d90675a7110c83>`.
+   
+   
+Arrays ``strides``, ``dilates``, ``padding_l``, and ``padding_r`` contain values for spatial dimensions only and hence must have the same number of elements as there are spatial dimensions. The order of values is the same as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- deconv_desc
+
+		- Output descriptor for a deconvolution primitive.
+
+	*
+		- alg_kind
+
+		- Deconvolution algorithm. Possible values are :ref:`dnnl_deconvolution_direct <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a575e3d69d108a8a1e62af755dda0ef5f>`, :ref:`dnnl_deconvolution_winograd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a9b11a60748225144fdb960988e9b0cb9>`.
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+	*
+		- diff_weights_desc
+
+		- Diff weights memory descriptor.
+
+	*
+		- diff_bias_desc
+
+		- Diff bias memory descriptor. Passing NULL, a zero memory descriptor, or a memory descriptor with format_kind set to :ref:`dnnl_format_kind_undef <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367dac86d377bba856ea7aa9679ecf65c8364>` disables the bias term.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+
+	*
+		- strides
+
+		- Array of strides for spatial dimension.
+
+	*
+		- dilates
+
+		- Array of dilations for spatial dimension. A zero value means no dilation in the corresponding dimension.
+
+	*
+		- padding_l
+
+		- Array of padding values for low indices for each spatial dimension ``([[front,] top,] left)``.
+
+	*
+		- padding_r
+
+		- Array of padding values for high indices for each spatial dimension ``([[back,] bottom,] right)``. Can be NULL in which case padding is considered to be symmetrical.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+

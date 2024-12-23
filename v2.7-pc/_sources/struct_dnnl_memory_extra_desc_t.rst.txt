@@ -1,0 +1,96 @@
+.. index:: pair: struct; dnnl_memory_extra_desc_t
+.. _doxid-structdnnl__memory__extra__desc__t:
+
+struct dnnl_memory_extra_desc_t
+===============================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Description of extra information stored in memory. :ref:`More...<details-structdnnl__memory__extra__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_memory_extra_desc_t
+	{
+		// fields
+	
+		uint64_t :ref:`flags<doxid-structdnnl__memory__extra__desc__t_1a31ba8b2b692bb3f77023f8f5f1cb2bcb>`;
+		int :ref:`compensation_mask<doxid-structdnnl__memory__extra__desc__t_1a81e3983d9a062c65b346b54e32ca75f0>`;
+		float :ref:`scale_adjust<doxid-structdnnl__memory__extra__desc__t_1adbf548bbb58dd9dfaf9966621845b2a1>`;
+		int :ref:`asymm_compensation_mask<doxid-structdnnl__memory__extra__desc__t_1a8bf7bad194cd0865de05966e46f580ca>`;
+		char :ref:`reserved<doxid-structdnnl__memory__extra__desc__t_1a305aa924612dd8fcd21802707d0cc364>`[60];
+	};
+.. _details-structdnnl__memory__extra__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Description of extra information stored in memory.
+
+Fields
+------
+
+.. index:: pair: variable; flags
+.. _doxid-structdnnl__memory__extra__desc__t_1a31ba8b2b692bb3f77023f8f5f1cb2bcb:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	uint64_t flags
+
+The flags contain arbitrary extra information, such as compensation.
+
+
+
+.. rubric:: See also:
+
+:ref:`dnnl_memory_extra_flags_t <doxid-group__dnnl__api__memory_1ga29a3828f894856ee61f6a11cd4a39dca>`
+
+.. index:: pair: variable; compensation_mask
+.. _doxid-structdnnl__memory__extra__desc__t_1a81e3983d9a062c65b346b54e32ca75f0:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	int compensation_mask
+
+Compensation mask.
+
+.. index:: pair: variable; scale_adjust
+.. _doxid-structdnnl__memory__extra__desc__t_1adbf548bbb58dd9dfaf9966621845b2a1:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	float scale_adjust
+
+Scale applied to the data.
+
+.. index:: pair: variable; asymm_compensation_mask
+.. _doxid-structdnnl__memory__extra__desc__t_1a8bf7bad194cd0865de05966e46f580ca:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	int asymm_compensation_mask
+
+Compensation mask for asymmetric quantization.
+
+.. index:: pair: variable; reserved
+.. _doxid-structdnnl__memory__extra__desc__t_1a305aa924612dd8fcd21802707d0cc364:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	char reserved[60]
+
+For future backwards compatibility.
+

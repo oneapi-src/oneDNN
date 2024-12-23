@@ -1,0 +1,92 @@
+.. index:: pair: struct; dnnl::softmax_backward::desc
+.. _doxid-structdnnl_1_1softmax__backward_1_1desc:
+
+struct dnnl::softmax_backward::desc
+===================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a softmax backward propagation primitive. :ref:`More...<details-structdnnl_1_1softmax__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_softmax_desc_t<doxid-structdnnl__softmax__desc__t>` :target:`data<doxid-structdnnl_1_1softmax__backward_1_1desc_1a6ca73b3bbfb161f2afb128eb85255ef5>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1softmax__backward_1_1desc_1a7f6c07b464156be2ad8946e2108fb0f8>`();
+	
+		:ref:`desc<doxid-structdnnl_1_1softmax__backward_1_1desc_1a7c3b01c94cfd34670dc1176c57de0bf9>`(
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			int softmax_axis
+			);
+	};
+.. _details-structdnnl_1_1softmax__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a softmax backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1softmax__backward_1_1desc_1a7f6c07b464156be2ad8946e2108fb0f8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc()
+
+Default constructor. Produces an empty object.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1softmax__backward_1_1desc_1a7c3b01c94cfd34670dc1176c57de0bf9:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		int softmax_axis
+		)
+
+Constructs a descriptor for a softmax backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- diff_data_desc
+
+		- Diff source and diff destination memory descriptor.
+
+	*
+		- data_desc
+
+		- Destination memory descriptor.
+
+	*
+		- softmax_axis
+
+		- Axis over which softmax is computed.
+

@@ -1,0 +1,129 @@
+.. index:: pair: struct; dnnl::matmul::desc
+.. _doxid-structdnnl_1_1matmul_1_1desc:
+
+struct dnnl::matmul::desc
+=========================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a matmul primitive. :ref:`More...<details-structdnnl_1_1matmul_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_matmul_desc_t<doxid-structdnnl__matmul__desc__t>` :target:`data<doxid-structdnnl_1_1matmul_1_1desc_1a3678443172a65db160a2fdf2b6b46289>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1matmul_1_1desc_1a44e9e36ad615dc438fc96c74317fe487>`(
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+			);
+	
+		:ref:`desc<doxid-structdnnl_1_1matmul_1_1desc_1a6c302d130aa85dc058f3f19a2612bcd3>`(
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+			);
+	};
+.. _details-structdnnl_1_1matmul_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a matmul primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1matmul_1_1desc_1a44e9e36ad615dc438fc96c74317fe487:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+		)
+
+Constructs a descriptor for a matmul primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- src_desc
+
+		- Memory descriptor for source (matrix A).
+
+	*
+		- weights_desc
+
+		- Memory descriptor for weights (matrix B).
+
+	*
+		- dst_desc
+
+		- Memory descriptor for destination (matrix C).
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1matmul_1_1desc_1a6c302d130aa85dc058f3f19a2612bcd3:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc
+		)
+
+Constructs a descriptor for a matmul primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- src_desc
+
+		- Memory descriptor for source (matrix A).
+
+	*
+		- weights_desc
+
+		- Memory descriptor for weights (matrix B).
+
+	*
+		- dst_desc
+
+		- Memory descriptor for destination (matrix C).
+
+	*
+		- bias_desc
+
+		- Memory descriptor for bias.
+
