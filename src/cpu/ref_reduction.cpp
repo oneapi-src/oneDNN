@@ -41,6 +41,7 @@ void ref_reduction_t<src_type, dst_type, acc_type>::init_acc(
         case reduction_min:
             acc = static_cast<acc_t>(numeric_limits<src_t>::max());
             break;
+        case reduction_amax:
         case reduction_mean:
         case reduction_sum: acc = acc_t(0); break;
         case reduction_mul: acc = acc_t(1); break;
@@ -60,6 +61,7 @@ void ref_reduction_t<src_type, dst_type, acc_type>::accumulate(
     acc_t src_ = static_cast<acc_t>(src);
 
     switch (alg) {
+        case reduction_amax: acc = nstl::max(acc, nstl::abs(src_)); break;
         case reduction_max: acc = nstl::max(acc, src_); break;
         case reduction_min: acc = nstl::min(acc, src_); break;
         case reduction_mean:

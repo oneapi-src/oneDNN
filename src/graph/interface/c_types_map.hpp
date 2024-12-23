@@ -184,6 +184,7 @@ const op_kind_t Quantize = dnnl_graph_op_quantize;
 const op_kind_t Reciprocal = dnnl_graph_op_reciprocal;
 const op_kind_t ReduceL1 = dnnl_graph_op_reduce_l1;
 const op_kind_t ReduceL2 = dnnl_graph_op_reduce_l2;
+const op_kind_t ReduceAMax = dnnl_graph_op_reduce_amax;
 const op_kind_t ReduceMax = dnnl_graph_op_reduce_max;
 const op_kind_t ReduceMean = dnnl_graph_op_reduce_mean;
 const op_kind_t ReduceMin = dnnl_graph_op_reduce_min;

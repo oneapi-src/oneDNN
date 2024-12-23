@@ -644,6 +644,7 @@ void flex_rewrite::infer_output_shape(
             // infer_reduce_output_shape
             case dnnl::graph::op::kind::ReduceL1:
             case dnnl::graph::op::kind::ReduceL2:
+            case dnnl::graph::op::kind::ReduceAMax:
             case dnnl::graph::op::kind::ReduceMax:
             case dnnl::graph::op::kind::ReduceMean:
             case dnnl::graph::op::kind::ReduceMin:

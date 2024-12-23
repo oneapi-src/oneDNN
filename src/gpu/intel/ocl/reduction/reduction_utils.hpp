@@ -45,6 +45,7 @@ namespace ocl {
 //     dst = sum(src) + eps
 enum class reduction_alg_kind_t {
     undef = alg_kind::undef,
+    amax = alg_kind::reduction_amax,
     max = alg_kind::reduction_max,
     min = alg_kind::reduction_min,
     sum = alg_kind::reduction_sum,
@@ -68,6 +69,7 @@ enum class reduction_alg_kind_t {
 inline reduction_alg_kind_t from_alg(alg_kind_t alg, bool first, bool final) {
     using namespace alg_kind;
     switch (alg) {
+        case (reduction_amax): return reduction_alg_kind_t::amax;
         case (reduction_max): return reduction_alg_kind_t::max;
         case (reduction_min): return reduction_alg_kind_t::min;
         case (reduction_sum): return reduction_alg_kind_t::sum;
@@ -107,6 +109,7 @@ inline int to_int(reduction_alg_kind_t alg) {
 inline void def_reduction_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
 #define CASE(alg, str) \
     kernel_ctx.define_int("REDUCTION_" str, to_int(reduction_alg_kind_t::alg));
+    CASE(amax, "AMAX");
     CASE(max, "MAX");
     CASE(min, "MIN");
     CASE(sum, "SUM");

@@ -1628,6 +1628,7 @@ bool get_reduction_alg(
             map_kind_to_alg {{"ReduceSum", ::reduction::alg_t::sum},
                     {"ReduceProd", ::reduction::alg_t::mul},
                     {"ReduceMin", ::reduction::alg_t::min},
+                    {"ReduceAMax", ::reduction::alg_t::amax},
                     {"ReduceMax", ::reduction::alg_t::max},
                     {"ReduceMean", ::reduction::alg_t::mean},
                     {"ReduceL1", ::reduction::alg_t::norm_lp_power_p_sum},
