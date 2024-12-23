@@ -919,6 +919,10 @@ std::ostream &dump_global_params(std::ostream &s) {
 #endif
     if (canonical || cold_cache_mode != default_cold_cache_mode)
         s << "--cold-cache=" << cold_cache_mode << " ";
+#if defined(DNNL_WITH_SYCL)
+    if (canonical || use_sycl_graph != false)
+        s << "--use-sycl-graph=" << bool2str(use_sycl_graph) << " ";
+#endif
 
     return s;
 }

@@ -56,6 +56,7 @@
 int verbose {0};
 bool canonical {false};
 bool mem_check {true};
+bool use_sycl_graph {false};
 std::string skip_impl;
 stat_t benchdnn_stat {0};
 std::string driver_name;
