@@ -201,6 +201,8 @@ typedef enum {
     dnnl_graph_op_exp,
     dnnl_graph_op_gelu,
     dnnl_graph_op_gelu_backward,
+    dnnl_graph_op_gen_index,
+    dnnl_graph_op_greater_than,
     dnnl_graph_op_hard_swish,
     dnnl_graph_op_hard_swish_backward,
     dnnl_graph_op_interpolate,
