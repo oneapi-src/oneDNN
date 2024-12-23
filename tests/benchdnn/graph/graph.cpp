@@ -382,7 +382,7 @@ std::string case_to_str(const std::string &json_file,
         s << " ";
     }
 
-    if (expected_n_partitions != 0) {
+    if (expected_n_partitions != 1) {
         s << "--expected-n-partitions=" << std::to_string(expected_n_partitions)
           << " ";
     }
@@ -475,19 +475,6 @@ int doit(const prb_t *prb, res_t *res) {
         if (aop.kind_ == "End") { end_opid_v.emplace_back(aop.id_); }
     }
 
-    if (prb->expected_n_partition != 0) {
-        // If the expected partition num is specified by user with command line
-        // knob
-        if (partitions.size() != prb->expected_n_partition) {
-            BENCHDNN_PRINT(0,
-                    "Error: the expected number of partitions (%zu) doesn't "
-                    "coincide with the actual number of partitions returned "
-                    "(%zu).\n ",
-                    prb->expected_n_partition, partitions.size());
-            return res->state = FAILED, FAIL;
-        }
-    }
-
     if (partitions.empty()) {
         BENCHDNN_PRINT(0, "%s\n", "Error: partitions are empty");
         return res->state = FAILED, FAIL;
@@ -555,6 +542,16 @@ int doit(const prb_t *prb, res_t *res) {
         BENCHDNN_PRINT(3, "[INFO]: partition #%zd is unsupported!\n", i);
         res->state = UNIMPLEMENTED;
         return FAIL;
+    }
+
+    if (prb->expected_n_partition != 0
+            && partitions.size() != prb->expected_n_partition) {
+        BENCHDNN_PRINT(0,
+                "Error: the expected number of partitions (%zu) doesn't "
+                "coincide with the actual number of partitions returned "
+                "(%zu).\n ",
+                prb->expected_n_partition, partitions.size());
+        return res->state = FAILED, FAIL;
     }
 
     if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;

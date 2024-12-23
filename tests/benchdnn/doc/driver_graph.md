@@ -50,9 +50,10 @@ where *graph-knobs* are:
             Multiple attributes value changes may be specified using the `*`
             delimeter. Multiple ops modification may be specified using the `+`
             delimeter. By default, the option value is empty, meaning values are taken from original graph.
- - `--expected-n-partitions=INT` -- Specify the number of expected partitions 
+ - `--expected-n-partitions=INT` -- Specify the number of expected partitions
     returned from the graph. `INT` is a non-negative integer value. When `INT`
-    value is `0` (the default), the check is skipped.
+    value is `0`, the check is skipped. By default, the value is `1` which means
+    the graph should be fused as one partition.
  - `--dt={undef [default], f32, bf16, f16}` -- Specify the data types in the
    input JSON file. Currently, you can define data types for pure floating-point
    input graph only. For example, you can specify `--dt=f16` for an `f32` graph
