@@ -75,7 +75,7 @@ jobs:
           path: oneDNN
 
       - name: Get latest CMake and Ninja
-        uses: lukka/get-cmake@5979409e62bdf841487c5fb3c053149de97a86d3 # v3.31.2
+        uses: lukka/get-cmake@8567b9d9b63052b8430ef30042e13c3ba5288f16 # v3.31.3
         with:
           cmakeVersion: 3.31.0
           ninjaVersion: 1.12.0
