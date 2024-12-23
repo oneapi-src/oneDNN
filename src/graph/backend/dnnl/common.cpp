@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -646,7 +646,7 @@ dnnl::memory::format_tag get_format_tag(const dnnl::memory::desc &md) {
     return format_tag;
 }
 
-size_t generate_constant_cache_key(
+size_t generate_constant_md_hash(
         size_t part_id, const std::vector<dnnl::memory::desc> &const_mds) {
     size_t key = 0;
     key = hash_combine(key, part_id);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ private:
     memory_planner_t memory_planner_;
 
     std::function<std::shared_ptr<execution_args_set_t>()> resource_ctor_;
-    constant_cache_t::key_t constant_key_ = 0;
+    size_t const_md_hash_ = 0;
 
 public:
     batch_norm_fwd_t() {

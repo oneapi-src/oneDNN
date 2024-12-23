@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2024 Intel Corporation
+ * Copyright 2024-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,19 @@ bool kernel_base_t::enabled_constant_cache() const {
 
     const bool enabled = is_constant_cache_enabled(p_engine_);
     return enabled;
+}
+
+size_t kernel_base_t::encode_constant_cache_key(
+        const std::vector<tensor_t> &inputs, size_t cache_key) const {
+    // Encode the constant memory address into cache key for differentiation
+    size_t encoded_cache_key = cache_key;
+    for (const auto &in : inputs) {
+        if (logical_tensor_wrapper_t(in.get_logical_tensor()).is_constant()) {
+            encoded_cache_key = hash_combine(encoded_cache_key,
+                    reinterpret_cast<uintptr_t>(in.get_data_handle()));
+        }
+    }
+    return encoded_cache_key;
 }
 
 const std::vector<inplace_pair_t> &kernel_base_t::get_inplace_pairs() const {

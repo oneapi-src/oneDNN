@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -134,7 +134,7 @@ status_t conv_fwd_t<quantized>::compile_impl(const dnnl_partition_impl_t *part,
         return this->memory_planner_.get_exec_args_set().clone();
     };
 
-    constant_key_ = generate_constant_cache_key(part->id(),
+    const_md_hash_ = generate_constant_md_hash(part->id(),
             memory_planner_.get_exec_args_set().get_persistent_mem_desc_list());
 
     return status::success;
@@ -202,7 +202,7 @@ status_t conv_bwd_data_t::compile_impl(const dnnl_partition_impl_t *part,
         return this->memory_planner_.get_exec_args_set().clone();
     };
 
-    constant_key_ = generate_constant_cache_key(part->id(),
+    const_md_hash_ = generate_constant_md_hash(part->id(),
             memory_planner_.get_exec_args_set().get_persistent_mem_desc_list());
 
     return status::success;
