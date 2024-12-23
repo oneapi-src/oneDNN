@@ -47,9 +47,10 @@ struct settings_t : public base_settings_t {
     std::string json_file;
     std::vector<std::map<size_t, std::string>> in_shapes_vec {{{0, "default"}}};
     std::vector<std::map<size_t, std::string>> op_attrs_vec {{{0, "default"}}};
-    // `0` means not specified by user with command line knob, will skip
-    // the partition num check.
-    std::vector<size_t> expected_n_partition_vec {0};
+    // By default, we expect the graph should be fused as a single partition.
+    // The user can specify `--expected-n-partitions=0` to skip the partition
+    // number check.
+    std::vector<size_t> expected_n_partition_vec {1};
     std::vector<graph_fpmath_mode_t> fpmath_mode_vec {graph_fpmath_mode_t {}};
     std::vector<dnnl_data_type_t> dt {dnnl_data_type_undef};
 
