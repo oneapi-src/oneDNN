@@ -297,22 +297,7 @@ int partition_data_displacer_t::displace_input_data(
     }
     dnnl_memory_desc_destroy(mem_replace.md_);
     dnnl_memory_desc_clone(&mem_replace.md_, md);
-
-    // As int4->int4 reorder is not supported, use naive data copy and paste.
-    if (md->data_type == dnnl_s4 || md->data_type == dnnl_u4) {
-        const int64_t chunk_size = 64;
-        const int64_t n_chunks = div_up(mem.nelems(), chunk_size);
-        benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
-            int64_t idx_start = idx_chunk * chunk_size;
-            int64_t idx_end = MIN2(idx_start + chunk_size, mem.nelems());
-
-            for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-                float e = mem_replace.get_elem(idx);
-                mem.set_elem(idx, e);
-            }
-        });
-    } else
-        SAFE(mem.reorder(mem_replace), WARN);
+    SAFE(mem.reorder(mem_replace), WARN);
 
     if (is_reshaped_dims) dnnl_memory_desc_destroy(md);
     return OK;
