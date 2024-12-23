@@ -211,6 +211,35 @@ size_t get_md_hash(const memory_desc_t &md) {
     return seed;
 }
 
+// Generate a hash for runtime scales
+size_t get_runtime_scale_hash(const runtime_scales_t &scales) {
+    size_t seed = 0;
+    seed = hash_combine(seed, scales.mask_);
+    // scales: groups
+    const int ndims = scales.ndims_;
+    seed = hash_combine(seed, ndims);
+    if (ndims > 0) seed = get_array_hash(seed, scales.group_dims_, ndims);
+    // scales: data type
+    seed = hash_combine(seed, static_cast<size_t>(scales.data_type_));
+    return seed;
+}
+
+// Generate a hash for zero points
+size_t get_zero_points_hash(const zero_points_t &zps, int arg) {
+    size_t seed = 0;
+    int mask = 0;
+    zps.get(arg, &mask);
+    // zero_points: mask
+    seed = hash_combine(seed, mask);
+    // zero points: groups
+    const int ndims = zps.get_groups_ndims(arg);
+    seed = hash_combine(seed, ndims);
+    if (ndims > 0) seed = get_array_hash(seed, zps.get_groups(arg), ndims);
+    // zero points: data type
+    seed = hash_combine(seed, static_cast<size_t>(zps.get_data_type(arg)));
+    return seed;
+}
+
 // Combine hash of each primitive_attr_t data member
 size_t get_attr_hash(const primitive_attr_t &attr) {
     size_t seed = 0;
@@ -237,14 +266,7 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
             // scales: arg
             seed = hash_combine(seed, p.first);
             // scales: mask
-            seed = hash_combine(seed, p.second.mask_);
-            // scales: groups
-            const int ndims = p.second.ndims_;
-            seed = hash_combine(seed, ndims);
-            if (ndims > 0)
-                seed = get_array_hash(seed, p.second.group_dims_, ndims);
-            // scales: data type
-            seed = hash_combine(seed, static_cast<size_t>(p.second.data_type_));
+            seed = hash_combine(seed, get_runtime_scale_hash(p.second));
         }
     }
     // zero_points
@@ -253,18 +275,7 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
             const auto &zps = attr.zero_points_;
             // zero_points: arg
             seed = hash_combine(seed, arg);
-            int mask = 0;
-            zps.get(arg, &mask);
-            // zero_points: mask
-            seed = hash_combine(seed, mask);
-            // zero points: groups
-            const int ndims = zps.get_groups_ndims(arg);
-            seed = hash_combine(seed, ndims);
-            if (ndims > 0)
-                seed = get_array_hash(seed, zps.get_groups(arg), ndims);
-            // zero points: data type
-            seed = hash_combine(
-                    seed, static_cast<size_t>(zps.get_data_type(arg)));
+            seed = hash_combine(seed, get_zero_points_hash(zps, arg));
         }
     // post_ops: entry[:]
     for (int i = 0; i < attr.post_ops_.len(); i++) {
@@ -757,6 +768,13 @@ size_t get_desc_hash(const sdpa_desc_t &desc) {
     // Scale type
     seed = hash_combine(seed, static_cast<size_t>(desc.scale_dt));
     seed = hash_combine(seed, desc.invert_scale);
+    seed = hash_combine(seed, desc.kv_head_number);
+    seed = hash_combine(seed, get_runtime_scale_hash(desc.kq_scales));
+    seed = hash_combine(
+            seed, get_zero_points_hash(desc.kq_zero_points, DNNL_ARG_WEIGHTS));
+    seed = hash_combine(seed, get_runtime_scale_hash(desc.vs_scales));
+    seed = hash_combine(
+            seed, get_zero_points_hash(desc.vs_zero_points, DNNL_ARG_WEIGHTS));
     // Combined hash for sdpa desc
     return seed;
 }
