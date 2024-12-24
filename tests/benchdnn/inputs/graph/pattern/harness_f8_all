@@ -1,6 +1,7 @@
---reset --case=pattern/f8/f8_conv_add_add_fusion.json
---reset --case=pattern/f8/f8_conv_fwd.json
---reset --case=pattern/f8/f8_conv_post_ops_fusion.json
---reset --case=pattern/f8/f8_conv_post_ops_int8_add_fusion.json
---reset --case=pattern/f8/f8_conv_bias_relu_fusion.json
---reset --case=pattern/f8/f8_matmul.json
+# f8 cases: skip partition number check as they may not fuse on some platforms.
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_conv_add_add_fusion.json
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_conv_fwd.json
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_conv_post_ops_fusion.json
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_conv_post_ops_int8_add_fusion.json
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_conv_bias_relu_fusion.json
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_matmul.json

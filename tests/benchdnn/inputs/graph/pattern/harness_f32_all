@@ -24,28 +24,28 @@
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:64 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x3x3+2:64 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1 --case=pattern/f32/conv_bias_post_ops_fusion.json
 # This fusion pattern is not support on GPU engine for now, will split into 2
-# partitions with GPU engine
---reset --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --case=pattern/f32/conv_bias_relu_depthwise_bias_relu_fusion_cpu.json
---reset --case=pattern/f32/conv_bias_mul_mul_depthwise_bias_swish_fusion_cpu.json
---reset --in-shapes=0:2x128x56x56+1:128x128x1x1+3:128x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:128 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x24x56x56+1:144x24x1x1+3:144x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:144 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x256x28x28+1:256x256x1x1+3:256x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:256 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x32x112x112+1:64x32x1x1+3:64x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:64 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x512x14x14+1:512x512x1x1+3:512x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:512 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x64x28x28+1:384x64x1x1+3:384x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:384 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x96x14x14+1:576x96x1x1+3:576x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:576 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x128x28x28+1:256x128x1x1+3:256x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:256 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x160x7x7+1:960x160x1x1+3:960x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:960 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x24x56x56+1:144x24x1x1+3:144x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:144 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x256x14x14+1:512x256x1x1+3:512x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:512 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x32x112x112+1:32x32x1x1+3:32x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:32 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x32x28x28+1:192x32x1x1+3:192x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:192 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x512x14x14+1:512x512x1x1+3:512x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:512 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x512x7x7+1:1024x512x1x1+3:1024x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1024 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x64x28x28+1:384x64x1x1+3:384x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:384 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x64x56x56+1:128x64x1x1+3:128x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:128 --case=pattern/f32/conv_depthwise_fusion_cpu.json
---reset --in-shapes=0:2x96x14x14+1:576x96x1x1+3:576x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:576 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+# partitions with GPU engine. Skip the partition number check for them.
+--reset --expected-n-partitions=0 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --case=pattern/f32/conv_bias_relu_depthwise_bias_relu_fusion_cpu.json
+--reset --expected-n-partitions=0 --case=pattern/f32/conv_bias_mul_mul_depthwise_bias_swish_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x128x56x56+1:128x128x1x1+3:128x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:128 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x24x56x56+1:144x24x1x1+3:144x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:144 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x256x28x28+1:256x256x1x1+3:256x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:256 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x32x112x112+1:64x32x1x1+3:64x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:64 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x512x14x14+1:512x512x1x1+3:512x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:512 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x64x28x28+1:384x64x1x1+3:384x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:384 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x96x14x14+1:576x96x1x1+3:576x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:2x2*dilations:1x1*pads_begin:1x1*pads_end:0x0*groups:576 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x128x28x28+1:256x128x1x1+3:256x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:256 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x160x7x7+1:960x160x1x1+3:960x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:960 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x24x56x56+1:144x24x1x1+3:144x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:144 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x256x14x14+1:512x256x1x1+3:512x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:512 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x32x112x112+1:32x32x1x1+3:32x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:32 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x32x28x28+1:192x32x1x1+3:192x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:192 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x512x14x14+1:512x512x1x1+3:512x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:512 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x512x7x7+1:1024x512x1x1+3:1024x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:1024 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x64x28x28+1:384x64x1x1+3:384x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:384 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x64x56x56+1:128x64x1x1+3:128x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:128 --case=pattern/f32/conv_depthwise_fusion_cpu.json
+--reset --expected-n-partitions=0 --in-shapes=0:2x96x14x14+1:576x96x1x1+3:576x1x3x3 --op-attrs=0:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1+1:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:576 --case=pattern/f32/conv_depthwise_fusion_cpu.json
 --reset --case=pattern/f32/conv_post_ops_fusion.json
 --reset --case=pattern/f32/convtranspose_post_ops_fusion.json
 --reset --case=pattern/f32/matmul_bias_post_ops_chain_fusion.json
@@ -167,8 +167,8 @@
 # softmax
 --reset --case=pattern/f32/softmax_post_ops_unary_fusion.json
 --reset --case=pattern/f32/softmax_post_ops_binary_fusion.json
-# layernorm
---reset --case=pattern/f32/lnorm_gelu.json
+# layernorm: skip partition number check as it may not fuse on gpu.
+--reset --expected-n-partitions=0 --case=pattern/f32/lnorm_gelu.json
 # shuffle
 --reset --in-shapes=0:1x512x75x75 --op-attrs=0:shape:1x512x75x25x3+2:shape:1x512x75x75 --case=pattern/f32/shuffle_fusion.json
 # large scope
