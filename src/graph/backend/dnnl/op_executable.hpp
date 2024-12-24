@@ -2472,12 +2472,13 @@ struct genindex_executable_t : public op_executable_t {
     genindex_executable_t(std::shared_ptr<op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-#if defined(DNNL_WITH_SYCL) || DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-        assertm(false,
-                "genindex opexcutable is unimplemented under SYCL and OCL "
-                "runtime!");
-        throw std::runtime_error("Unimplement");
-#endif
+        if (p_engine.get_kind() == engine::kind::gpu) {
+            assertm(false,
+                    "genindex opexcutable is unimplemented "
+                    "under SYCL and OCL "
+                    "runtime!");
+            throw std::runtime_error("Unimplement");
+        }
         using ltw = logical_tensor_wrapper_t;
         auto input_lt = op->get_input_value(0)->get_logical_tensor();
         nelems_ = ltw(input_lt).nelems();
@@ -2495,13 +2496,17 @@ struct genindex_executable_t : public op_executable_t {
 #ifdef DNNL_WITH_SYCL
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<::sycl::event> &deps = {}) const override {}
+            const std::vector<::sycl::event> &deps = {}) const override {
+        return {};
+    }
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     cl_event execute_ocl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl_event> &deps = {}) const override {}
+            const std::vector<cl_event> &deps = {}) const override {
+        return {};
+    }
 #endif
 
 private:
