@@ -826,11 +826,11 @@ void fill_local_in_map(match_context_t *local_ctx, pb_node_t *cur_node,
                 auto it = local_ctx->in_port_map.find(iport);
                 if (it != local_ctx->in_port_map.end()) {
                     if (it->second.first->get_input_value(it->second.second)
-                            != cur_op->get_input_value(cur_op_port)) {
+                            != cur_op->get_input_value(con->second)) {
                         return;
                     }
                 }
-                local_ctx->in_port_map.insert({iport, {cur_op, cur_op_port}});
+                local_ctx->in_port_map.insert({iport, {cur_op, con->second}});
             }
         }
     }
