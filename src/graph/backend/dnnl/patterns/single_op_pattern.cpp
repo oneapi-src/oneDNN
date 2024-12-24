@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2024 Intel Corporation
+ * Copyright 2020-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -423,6 +423,18 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, reduce_pass)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_reduction>();
         });
+
+// GenIndex currently is CPU only
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gen_index_pass)
+        .set_priority(DEFAULT_P)
+        .set_engine_kind(engine_kind::cpu)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pgraph->append_op(graph::op_kind::GenIndex);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel",
+                []() -> kernel_ptr { return std::make_shared<genindex_t>(); });
 
 #undef DNNL_BACKEND_SINGLE_OP_TRANSFORM
 #undef DEFAULT_P
