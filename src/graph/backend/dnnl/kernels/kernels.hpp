@@ -24,6 +24,7 @@
 #include "graph/backend/dnnl/kernels/conv_transpose.hpp"
 #include "graph/backend/dnnl/kernels/dummy.hpp"
 #include "graph/backend/dnnl/kernels/eltwise.hpp"
+#include "graph/backend/dnnl/kernels/gen_index.hpp"
 #include "graph/backend/dnnl/kernels/group_norm.hpp"
 #include "graph/backend/dnnl/kernels/large_partition.hpp"
 #include "graph/backend/dnnl/kernels/layer_norm.hpp"
