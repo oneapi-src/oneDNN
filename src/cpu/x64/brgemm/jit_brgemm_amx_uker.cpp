@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_fp8cvt.hpp"
-#include "cpu/x64/jit_generator.hpp"
 
 #define GET_OFF(field) offsetof(brgemm_kernel_params_t, field)
 #define GET_OFF_BATCH_ELEMENT(field) offsetof(brgemm_batch_element_t, field)
@@ -39,9 +38,9 @@ namespace x64 {
 using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
-struct jit_brgemm_amx_uker_base_t : public jit_generator {
+struct jit_brgemm_amx_uker_base_t : public jit_base_brgemm_kernel_t {
     jit_brgemm_amx_uker_base_t(const brgemm_desc_t &abrg)
-        : jit_generator(jit_name(), abrg.isa_impl)
+        : jit_base_brgemm_kernel_t(jit_name(), abrg.isa_impl)
         , brg(abrg)
         , postops_injector_(nullptr) {
 
@@ -134,6 +133,8 @@ struct jit_brgemm_amx_uker_base_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_amx_uker_base_t)
 
     brgemm_desc_t brg;
+
+    const brgemm_desc_t &get_brg() const override { return brg; }
 
 private:
     using po_injector_t = injector::jit_uni_postops_injector_base_t<Zmm>;
