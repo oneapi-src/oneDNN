@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 #include "graph/unit/utils.hpp"
 
 #include "backend/dnnl/dnnl_constant_tensor_cache.hpp"
+#include "oneapi/dnnl/dnnl_graph.hpp"
 
 namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
@@ -7968,6 +7969,19 @@ TEST(test_matmul_execute_subgraph_int8, ShareCachedWeight) {
     std::vector<std::vector<int64_t>> dst_shapes {{4, 4096}, {32, 4096}};
     std::vector<std::shared_ptr<graph::compiled_partition_t>> cps;
     size_t prv_cache_size = 0;
+
+    // random generate src, weight and bias data random seed = 7.
+    // Weight tensor keeps same for different src.
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
+    std::vector<int8_t> weight_data(product(weight_shape));
+    std::generate(weight_data.begin(), weight_data.end(),
+            [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
+    test_tensor weight_s8_ts(weight_s8, engine, weight_data);
+
+    // set constant tensor cache capacity as 1GB
+    dnnl::graph::set_constant_tensor_cache_capacity(
+            static_cast<engine::kind>(engine->kind()), 1024);
     for (size_t i = 0; i < src_shapes.size(); ++i) {
         std::vector<int64_t> src_shape = src_shapes[i];
         std::vector<int64_t> dst_shape = dst_shapes[i];
@@ -7988,21 +8002,13 @@ TEST(test_matmul_execute_subgraph_int8, ShareCachedWeight) {
         cp.query_logical_tensor(dst_s8.id, &compiled_output);
 
         std::vector<uint8_t> src_data(product(src_shape));
-        std::vector<int8_t> weight_data(product(weight_shape));
 
-        // random generate src, weight and bias data random seed = 7
-        std::default_random_engine generator(7);
         std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
-        std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
         std::generate(src_data.begin(), src_data.end(), [&]() {
             return static_cast<uint8_t>(u8_distribution(generator));
         });
-        std::generate(weight_data.begin(), weight_data.end(), [&]() {
-            return static_cast<int8_t>(s8_distribution(generator));
-        });
 
         test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_data);
         test_tensor dst_s8_ts(compiled_output, engine);
         ASSERT_EQ(cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()},
                           {dst_s8_ts.get()}),
@@ -8011,7 +8017,6 @@ TEST(test_matmul_execute_subgraph_int8, ShareCachedWeight) {
         size_t curr_cache_size = graph::get_constant_tensor_cache(
                 engine->kind(), engine->index())
                                          ->get_size();
-
         if (i != 0) {
             // cache size should not change since no new weight cached
             ASSERT_EQ(prv_cache_size, curr_cache_size);
@@ -8020,4 +8025,157 @@ TEST(test_matmul_execute_subgraph_int8, ShareCachedWeight) {
 
         strm->wait();
     }
+    // Reset constant tensor cache capacity as 0
+    dnnl::graph::set_constant_tensor_cache_capacity(
+            static_cast<engine::kind>(engine->kind()), 0);
+}
+
+TEST(test_matmul_execute_subgraph_int8, NoShareCachedWeight) {
+    graph::engine_t *engine = get_engine();
+    graph::stream_t *strm = get_stream();
+    std::string qtype = "per_channel";
+
+    std::vector<int64_t> weight_shape = {1024, 1024};
+
+    float scale_src = 1 / 255.f; // map to 0~255
+    float scale_out = 1;
+    int64_t zp_src = 0;
+    int64_t zp_out = engine->kind() == graph::engine_kind::gpu ? 0 : 78;
+
+    size_t scales_wei_sizes = weight_shape.back();
+    std::vector<float> scale_wei(scales_wei_sizes, 1 / 127.f);
+    std::vector<int64_t> zp_wei(scales_wei_sizes, 0);
+
+    graph::op_t dqdata_op(1, graph::op_kind::Dequantize, "dqdata_op");
+    dqdata_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+    dqdata_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_src});
+    dqdata_op.set_attr<std::vector<float>>(graph::op_attr::scales, {scale_src});
+    dqdata_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+    graph::op_t dqweight_op(2, graph::op_kind::Dequantize, "dqweight_op");
+    dqweight_op.set_attr<std::string>(graph::op_attr::qtype, "per_channel");
+    dqweight_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, zp_wei);
+    dqweight_op.set_attr<std::vector<float>>(graph::op_attr::scales, scale_wei);
+    dqweight_op.set_attr<int64_t>(graph::op_attr::axis, 1);
+
+    graph::op_t matmul_op(3, graph::op_kind::MatMul, "matmul_op");
+    matmul_op.set_attr<bool>(graph::op_attr::transpose_a, false);
+    matmul_op.set_attr<bool>(graph::op_attr::transpose_b, false);
+
+    graph::op_t qout_op(4, graph::op_kind::Quantize, "qout_op");
+    qout_op.set_attr<std::string>(graph::op_attr::qtype, "per_tensor");
+    qout_op.set_attr<std::vector<int64_t>>(graph::op_attr::zps, {zp_out});
+    qout_op.set_attr<std::vector<float>>(graph::op_attr::scales, {scale_out});
+    qout_op.set_attr<int64_t>(graph::op_attr::axis, 0);
+
+    // prepare logical tensor
+    auto src_u8 = utils::logical_tensor_init(1, graph::data_type::u8);
+    auto src_f32_dq = utils::logical_tensor_init(2, graph::data_type::f32);
+    auto weight_s8
+            = utils::logical_tensor_init(4, weight_shape, graph::data_type::s8);
+    weight_s8.property = graph::property_type::constant;
+    auto weight_f32_dq = utils::logical_tensor_init(
+            5, weight_shape, graph::data_type::f32);
+    auto dst_f32 = utils::logical_tensor_init(7, graph::data_type::f32);
+    auto dst_s8 = utils::logical_tensor_init(8, graph::data_type::s8);
+
+    dqdata_op.add_input(src_u8);
+    dqdata_op.add_output(src_f32_dq);
+
+    dqweight_op.add_input(weight_s8);
+    dqweight_op.add_output(weight_f32_dq);
+
+    matmul_op.add_input(src_f32_dq);
+    matmul_op.add_input(weight_f32_dq);
+    matmul_op.add_output(dst_f32);
+
+    qout_op.add_input(dst_f32);
+    qout_op.add_output(dst_s8);
+
+    graph::graph_t g(engine->kind());
+    g.add_op(&dqdata_op);
+    g.add_op(&dqweight_op);
+    g.add_op(&matmul_op);
+    g.add_op(&qout_op);
+    g.finalize();
+
+    graph::pass::pass_base_ptr apass = get_pass("x8x8x_matmul_post_ops");
+    apass->run(g);
+    ASSERT_EQ(g.get_num_partitions(), 1U);
+    auto part = g.get_partitions()[0];
+    ASSERT_EQ(part->get_ops().size(), 4U);
+
+    graph::partition_t p;
+    p.init(part);
+
+    std::vector<std::vector<int64_t>> src_shapes {{4, 1024}, {32, 1024}};
+    std::vector<std::vector<int64_t>> dst_shapes {{4, 1024}, {32, 1024}};
+    std::vector<std::shared_ptr<graph::compiled_partition_t>> cps;
+    size_t prv_cache_size = 0;
+
+    //set constant tensor cache capacity as 1GB
+    dnnl::graph::set_constant_tensor_cache_capacity(
+            static_cast<engine::kind>(engine->kind()), 1024);
+
+    std::default_random_engine generator(7);
+    std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
+    std::vector<int8_t> weight_data(product(weight_shape));
+    // Construct different weight tensor obejct with different memory address.
+    std::vector<test_tensor> weight_s8_ts_vec;
+    for (size_t i = 0; i < src_shapes.size(); i++) {
+        std::generate(weight_data.begin(), weight_data.end(), [&]() {
+            return static_cast<int8_t>(s8_distribution(generator));
+        });
+        weight_s8_ts_vec.emplace_back(
+                test_tensor(weight_s8, engine, weight_data));
+    }
+
+    for (size_t i = 0; i < src_shapes.size(); ++i) {
+        std::vector<int64_t> src_shape = src_shapes[i];
+        std::vector<int64_t> dst_shape = dst_shapes[i];
+
+        src_u8 = utils::logical_tensor_init(1, src_shape, graph::data_type::u8);
+        dst_s8 = utils::logical_tensor_init(8, dst_shape, graph::data_type::s8);
+        std::vector<const graph::logical_tensor_t *> lt_ins {
+                &src_u8, &weight_s8};
+        std::vector<const graph::logical_tensor_t *> lt_outs {&dst_s8};
+
+        cps.push_back(std::make_shared<graph::compiled_partition_t>(p));
+        auto &cp = *cps.back();
+
+        ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
+                graph::status::success);
+
+        graph::logical_tensor_t compiled_output;
+        cp.query_logical_tensor(dst_s8.id, &compiled_output);
+
+        std::vector<uint8_t> src_data(product(src_shape));
+        std::uniform_real_distribution<float> u8_distribution(0.0f, 255.0f);
+        std::generate(src_data.begin(), src_data.end(), [&]() {
+            return static_cast<uint8_t>(u8_distribution(generator));
+        });
+
+        test_tensor src_u8_ts(src_u8, engine, src_data);
+        test_tensor dst_s8_ts(compiled_output, engine);
+        ASSERT_EQ(cp.execute(strm, {src_u8_ts.get(), weight_s8_ts_vec[i].get()},
+                          {dst_s8_ts.get()}),
+                graph::status::success);
+
+        size_t curr_cache_size = graph::get_constant_tensor_cache(
+                engine->kind(), engine->index())
+                                         ->get_size();
+
+        if (i != 0) {
+            // cache size changes since new weight tensor with different address
+            // will be cached
+            ASSERT_NE(prv_cache_size, curr_cache_size);
+        }
+        prv_cache_size = curr_cache_size;
+
+        strm->wait();
+    }
+
+    // Reset constant tensor cache capacity as 0
+    dnnl::graph::set_constant_tensor_cache_capacity(
+            static_cast<engine::kind>(engine->kind()), 0);
 }
