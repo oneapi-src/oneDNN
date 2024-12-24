@@ -40,9 +40,11 @@ protected:
     NGEN_FORWARD_OPENCL(hw);
 
 public:
-    emulated_generator_t(
-            const compute::device_info_t &device_info, const std::string &name)
-        : ra_(hw, name), emu_strategy(hw, device_info.stepping_id()) {}
+    emulated_generator_t(const compute::device_info_t &device_info,
+            const std::string &name, const debug_config_t &debug_config)
+        : jit_generator<hw>(debug_config)
+        , ra_(hw, name)
+        , emu_strategy(hw, device_info.stepping_id()) {}
 
 protected:
     reg_allocator_t ra_;
