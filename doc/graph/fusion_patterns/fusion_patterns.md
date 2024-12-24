@@ -73,6 +73,7 @@ ReduceProd | ReduceSum]
 |:--------|:-----------------------------|
 | Scaled Dot-Product Attention | Refer to @ref dev_guide_graph_sdpa for more details. |
 | Grouped Query Attention | Refer to @ref dev_guide_graph_gqa for more details. |
+| Scaled Dot-Product Attention with Compressed Key/Value | Refer to @ref dev_guide_graph_sdpa_compressed_kv for more details. |
 | Gated Multi-Layer Perceptron (Gated-MLP) | Refer to @ref dev_guide_graph_gated_mlp for more details. |
 | Convolution + BiasAdd\f$^?\f$ + BatchNormInference\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Convolution Neural Networks, for example ResNet, ResNext, SSD, etc. |
 | ConvTranspose + BiasAdd\f$^?\f$ + [Unary \| Binary]\f$^{0-3}\f$\f$_{>out}\f$ | This pattern is widely used in Generative Adversarial Networks. |
