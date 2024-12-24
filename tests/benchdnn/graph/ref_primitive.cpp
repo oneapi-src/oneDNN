@@ -100,7 +100,8 @@ int ref_primitive_t::init_prim(
     const bool is_quant_or_dequant = kind_ == dnnl::graph::op::kind::Dequantize
             || kind_ == dnnl::graph::op::kind::Quantize
             || kind_ == dnnl::graph::op::kind::DynamicDequantize
-            || kind_ == dnnl::graph::op::kind::DynamicQuantize;
+            || kind_ == dnnl::graph::op::kind::DynamicQuantize
+            || kind_ == dnnl::graph::op::kind::GreaterThan;
     // (De-)Quantize op is built on reorder which expects int8 dt for
     // zero-points attribute. Thus, skip them for forcing.
     const bool force_f32_prim_dt = !force_override && !is_quant_or_dequant;
