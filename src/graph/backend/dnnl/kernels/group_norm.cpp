@@ -143,9 +143,10 @@ status_t group_norm_fwd_t::execute_impl(const stream_t *g_stream,
 
     constant_cache_t::cached_t c_buffer;
     if (enabled_constant_cache()) {
+        size_t encoded_key = encode_constant_cache_key(inputs, constant_key_);
         std::promise<constant_cache_t::cached_t> c_promise;
         constant_cache_t::value_t cached_value
-                = dnnl_constant_cache_get_or_add(p_engine_, constant_key_,
+                = dnnl_constant_cache_get_or_add(p_engine_, encoded_key,
                         memory_planner_.total_internal_persistent_size(),
                         c_promise.get_future());
         bool is_from_cache = cached_value.valid();
@@ -212,9 +213,10 @@ status_t group_norm_fwd_t::sycl_execute_impl(const stream_t *g_stream,
 
     constant_cache_t::cached_t c_buffer;
     if (enabled_constant_cache()) {
+        size_t encoded_key = encode_constant_cache_key(inputs, constant_key_);
         std::promise<constant_cache_t::cached_t> c_promise;
         constant_cache_t::value_t cached_value
-                = dnnl_constant_cache_get_or_add(p_engine_, constant_key_,
+                = dnnl_constant_cache_get_or_add(p_engine_, encoded_key,
                         memory_planner_.total_internal_persistent_size(),
                         c_promise.get_future());
         bool is_from_cache = cached_value.valid();
@@ -287,9 +289,10 @@ status_t group_norm_fwd_t::ocl_execute_impl(const stream_t *g_stream,
 
     constant_cache_t::cached_t c_buffer;
     if (enabled_constant_cache()) {
+        size_t encoded_key = encode_constant_cache_key(inputs, constant_key_);
         std::promise<constant_cache_t::cached_t> c_promise;
         constant_cache_t::value_t cached_value
-                = dnnl_constant_cache_get_or_add(p_engine_, constant_key_,
+                = dnnl_constant_cache_get_or_add(p_engine_, encoded_key,
                         memory_planner_.total_internal_persistent_size(),
                         c_promise.get_future());
         bool is_from_cache = cached_value.valid();
