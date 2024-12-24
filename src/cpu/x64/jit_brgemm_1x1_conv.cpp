@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -200,7 +200,6 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init_brgemm_desc() {
         brgattr.hint_expected_B_size = vN * vK;
         brgattr.hint_expected_C_size = bd_blocking * vN;
 
-        brgattr.wary_tail_read = false;
         brgattr.use_uker = jcp_.use_uker;
         brgattr.use_interleave_stores = jcp_.use_interleave_stores;
         brgattr.hint_prefetching = jcp_.hint_prefetching;

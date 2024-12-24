@@ -147,7 +147,6 @@ private:
     enum {
         simd_w = 16,
         zmm_width_in_bytes = cpu_isa_traits<avx512_core>::vlen,
-        tile_size = 1024
     };
 
     // Register decomposition
@@ -260,7 +259,7 @@ private:
 
     struct dim_iteration_t {
         size_t idx = 0;
-        std ::vector<iteration_block_t> blocks;
+        std::vector<iteration_block_t> blocks;
         virtual bool operator==(const dim_iteration_t &rhs) const {
             return blocks == rhs.blocks;
         }
@@ -283,12 +282,12 @@ private:
             return blocks[b].block;
         }
 
-        int is_tail(size_t b) const {
+        bool is_tail(size_t b) const {
             assert(b < blocks.size());
             return blocks[b].is_tail;
         }
 
-        int block2() const { return blocks.size(); }
+        int block2() const { return static_cast<int>(blocks.size()); }
 
         int length() const {
             if (blocks.empty()) return 0;
@@ -409,6 +408,7 @@ private:
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
     Xbyak::Opmask fp_col_mask = Xbyak::Opmask(4);
+    Xbyak::Opmask rd_tail_mask = Xbyak::Opmask(5);
 
     // Zmm map below
     const Xbyak::Zmm &zmm_tmp_1() const noexcept { return this->zmm0; }
@@ -527,6 +527,10 @@ private:
 
     void maybe_pre_process_data(brgemm_iteration_t &bi, const Tmm &t1,
             reg64_t reg_base, size_t offset, reg64_t reg_stride,
+            matrix_kind_t mk);
+
+    bool maybe_pre_process_k_tail(brgemm_iteration_t &bi, int bdb,
+            const Tmm &t1, reg64_t reg_base, size_t offset, reg64_t reg_stride,
             matrix_kind_t mk);
 
     void maybe_tileloadd_nt(
@@ -1677,11 +1681,17 @@ void jit_brgemm_amx_uker_base_t::maybe_tileloadd_nt(
     auto reg_base = is_A ? reg_A : reg_B;
     auto reg_stride = is_A ? reg_stride_lda : reg_stride_ldb;
 
-    if (brg.is_input_convert())
+    if (brg.is_input_convert()) {
         // try_load_nt is not supported in maybe_pre_process_data as there is
         // no guarantee that the data is cache line aligned.
         maybe_pre_process_data(bi, t1, reg_base, offset, reg_stride, mk);
-    else if (load_nt)
+        return;
+    }
+
+    if (maybe_pre_process_k_tail(bi, xdb, t1, reg_base, offset, reg_stride, mk))
+        return;
+
+    if (load_nt)
         tileloaddt1(t1, ptr[reg_base + offset + reg_stride]);
     else
         tileloadd(t1, ptr[reg_base + offset + reg_stride]);
@@ -1782,10 +1792,9 @@ void jit_brgemm_amx_uker_base_t::fp8_to_f16_upconvert(brgemm_iteration_t &bi,
     assert(max_num_cols > 0);
 
     if (col_tail) {
-        const int tail_mask = (1 << col_tail) - 1;
-        auto reg_tmp_32 = reg_tmp_gpr.cvt32();
-        mov(reg_tmp_32, tail_mask);
-        kmovd(fp_col_mask, reg_tmp_32);
+        const auto tail_mask = (static_cast<size_t>(1) << col_tail) - 1;
+        mov(reg_tmp_gpr, tail_mask);
+        kmovq(fp_col_mask, reg_tmp_gpr);
     }
 
     // Note: using the same register used in col_tail, so order is important
@@ -1821,10 +1830,9 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert(brgemm_iteration_t &bi,
     assert(max_num_cols > 0);
 
     if (col_tail) {
-        const int tail_mask = (1 << col_tail) - 1;
-        auto reg_tmp_32 = reg_tmp_gpr.cvt32();
-        mov(reg_tmp_32, tail_mask);
-        kmovw(fp_col_mask, reg_tmp_32);
+        const auto tail_mask = (static_cast<size_t>(1) << col_tail) - 1;
+        mov(reg_tmp_gpr, tail_mask);
+        kmovq(fp_col_mask, reg_tmp_gpr);
     }
 
     // Note: using the same register used in col_tail, so order is important
@@ -1909,10 +1917,9 @@ void jit_brgemm_amx_uker_base_t::bf32_downconvert_to_vnni(
     };
 
     if (col_tail) {
-        const int tail_mask = (1 << col_tail) - 1;
-        auto reg_tmp_32 = reg_tmp_gpr.cvt32();
-        mov(reg_tmp_32, tail_mask);
-        kmovw(fp_col_mask, reg_tmp_32);
+        const auto tail_mask = (static_cast<size_t>(1) << col_tail) - 1;
+        mov(reg_tmp_gpr, tail_mask);
+        kmovq(fp_col_mask, reg_tmp_gpr);
     }
 
     // Note: using the same register used in col_tail, so order is important
@@ -1973,12 +1980,12 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
     auto &transform_buf = is_A ? transform_buf_map_A_ : transform_buf_map_B_;
 
     const auto transform_offset
-            = use_ils_ ? brg.get_num_C_tiles() * tile_size : 0;
+            = use_ils_ ? brg.get_num_C_tiles() * brgemm_desc_t::tilesize : 0;
     const auto max_bdb2 = tloop.bdis[0].block2();
     const auto max_rdb = tloop.rdis.size();
     const auto matrix_a_offset = transform_offset;
     const auto matrix_b_offset = transform_offset
-            + tile_size
+            + brgemm_desc_t::tilesize
                     * (nstl::max<int>(should_save_transform(mk),
                             should_save_transform(matrix_A) * brg.brgattr.max_bs
                                     * max_bdb2 * max_rdb));
@@ -1988,7 +1995,7 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
 
     if (transform_buf.find(key) != transform_buf.end()) {
         auto buf_idx = transform_buf[key];
-        auto offt = matrix_offset + buf_idx * tile_size;
+        auto offt = matrix_offset + buf_idx * brgemm_desc_t::tilesize;
         tileloadd(t1, ptr[reg_buf + reg_converted_stride + offt]);
         return;
     }
@@ -1997,7 +2004,7 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
     // save offset of the transformation if required.
     if (should_save_transform(mk)) {
         auto buf_idx = transform_buf.size();
-        buf_offt = matrix_offset + buf_idx * tile_size;
+        buf_offt = matrix_offset + buf_idx * brgemm_desc_t::tilesize;
         transform_buf[key] = buf_idx;
     }
 
@@ -2029,6 +2036,72 @@ void jit_brgemm_amx_uker_base_t::maybe_pre_process_data(brgemm_iteration_t &bi,
 
     // reset buf pointer.
     if (buf_offt) sub(reg_buf, buf_offt);
+}
+
+bool jit_brgemm_amx_uker_base_t::maybe_pre_process_k_tail(
+        brgemm_iteration_t &bi, int bdb, const Tmm &t1, reg64_t reg_base,
+        size_t offset, reg64_t reg_stride, matrix_kind_t mk) {
+    const auto &tloop = imap_[bi.apply_postops];
+
+    const auto need_k_tail_processing = mk == matrix_A && brg.amx_wary_k_tail()
+            && brg.rdb_tail != 0 && bi.bdi->idx == tloop.bdis.size() - 1
+            && bdb == bi.bdi->block2() - 1 && bi.last_bsi
+            && tloop.is_last_rdi(bi.rdi);
+
+    if (!need_k_tail_processing) return false;
+
+    auto transform_offset = brg.get_num_C_tiles() * brgemm_desc_t::tilesize
+            + brg.get_convert_wsp_buffer_size();
+
+    if (transform_offset) add(reg_buf, transform_offset);
+    mov(reg_converted_stride, zmm_width_in_bytes);
+
+    // reuse transformed data from matrix A for ldi > 0
+    if (bi.ldi->idx == 0) {
+        const auto num_rows = palette_.rows[t1.getIdx()];
+        const auto num_col_bytes = palette_.cols[t1.getIdx()];
+
+        const auto max_num_cols
+                = nstl::min<int>(num_col_bytes / brg.typesize_A, brg.rdb_tail);
+        const size_t col_tail
+                = max_num_cols % (zmm_width_in_bytes / brg.typesize_A);
+        if (col_tail) {
+            const auto tail_mask = (static_cast<size_t>(1) << col_tail) - 1;
+            mov(reg_tmp_gpr, tail_mask);
+            kmovq(rd_tail_mask, reg_tmp_gpr);
+        }
+        auto zmm_1 = zmm_tmp_1();
+        auto zmm_1_masked = col_tail ? zmm_1 | rd_tail_mask | T_z : zmm_1;
+
+        assert(max_num_cols > 0);
+
+        const auto reg_data_aux = reg_tmp_gpr;
+        lea(reg_data_aux, ptr[reg_base + offset]);
+
+        for (int r = 0; r < num_rows; ++r) {
+            switch (brg.dt_a) {
+                case data_type::bf16:
+                case data_type::f16:
+                    vmovdqu16(zmm_1_masked, ptr[reg_data_aux]);
+                    break;
+                case data_type::f8_e5m2:
+                case data_type::f8_e4m3:
+                case data_type::s8:
+                case data_type::u8:
+                    vmovdqu8(zmm_1_masked, ptr[reg_data_aux]);
+                    break;
+                default: assert(!"unsupported data type");
+            }
+            vmovups(ptr[reg_buf + r * zmm_width_in_bytes], zmm_1);
+            add(reg_data_aux, reg_stride);
+        }
+    }
+    // load into tmm from the transformed data.
+    tileloadd(t1, ptr[reg_buf + reg_converted_stride]);
+
+    // reset buf pointer
+    if (transform_offset) sub(reg_buf, transform_offset);
+    return true;
 }
 
 void jit_brgemm_amx_uker_base_t::gemm_microkernel_amx(brgemm_iteration_t &bi) {
@@ -2217,6 +2290,9 @@ jit_brgemm_amx_uker_base_t::find_similar(
         const bd_iteration_t *bdi, bool apply_postops) {
     auto &tloop = imap_[apply_postops];
     const auto cidx = bdi->idx;
+    // if wary_k_tail is true then last iteration is unique
+    if (brg.amx_wary_k_tail() && cidx == tloop.bdis.size() - 1) return nullptr;
+
     for (size_t i = (actual_ils(apply_postops) ? 1 : 0); i < cidx; i++) {
         if (*bdi == tloop.bdis[i]
                 && IMPLICATION(actual_ils(apply_postops),
@@ -2594,7 +2670,7 @@ void jit_brgemm_amx_uker_base_t::generate() {
     prepare_bd_mask();
 
     Label permute_index_table;
-    if (brg.is_input_convert()) {
+    if (brg.is_input_convert() || brg.amx_wary_k_tail()) {
         // save tiles description for later use
         brgemm_init_tiles(brg, (char *)(&palette_));
         // load permute indices

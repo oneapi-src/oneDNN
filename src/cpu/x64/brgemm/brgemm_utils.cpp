@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -250,6 +250,7 @@ status_t brgemm_blocking(brgemm_desc_t *brg) {
     set_brg_vmm(brg);
     if (!(brg->is_tmm || brg->is_zmm || brg->is_ymm))
         return status::unimplemented;
+    const auto L1 = platform::get_per_core_cache_size(1);
 
     if (!brg->is_tmm) {
         const int simd_w = is_superset(brg->isa_impl, avx512_core) ? 16 : 8;
@@ -289,8 +290,7 @@ status_t brgemm_blocking(brgemm_desc_t *brg) {
 
             float block_foot_print = static_cast<float>(brg->typesize_A)
                     * (bd_block * brg->reduce_dim);
-            if (block_foot_print <= static_cast<float>(
-                        platform::get_per_core_cache_size(1))
+            if (block_foot_print <= static_cast<float>(L1)
                     && (bd_block_eff > best_bd_block_eff)) {
                 brg->bd_block = bd_block;
                 best_bd_block_eff = bd_block_eff;
@@ -519,7 +519,7 @@ status_t brgemm_blocking(brgemm_desc_t *brg) {
                                   * brg->brgattr.hint_expected_B_size
                           + static_cast<size_t>(brg->typesize_C)
                                   * brg->brgattr.hint_expected_C_size)
-                >= platform::get_per_core_cache_size(1);
+                >= L1;
         brg->load_nt_A = try_load_nt_A && try_load_nt;
         brg->load_nt_B = try_load_nt_B && try_load_nt;
 
@@ -533,7 +533,6 @@ status_t brgemm_blocking(brgemm_desc_t *brg) {
             // TODO: Review these criterias
             size_t eff_K
                     = brg->reduce_dim * brg->typesize_A * brg->brgattr.K_koef;
-            auto L1 = platform::get_per_core_cache_size(1);
             auto low_K = (L1 - 4 * 1024) / (6 * 16);
 
             // TODO: if rdb_tail != 0 then we should limit
@@ -710,37 +709,26 @@ status_t brgemm_blocking(brgemm_desc_t *brg) {
             brg->load_nt_B
                     = (brg->brgattr.hint_load_nt_B == brgemm_hint_nt_true);
 
-        const bool reduce_by_words = brg->is_bf16_tmm || brg->is_f16_tmm
-                || brg->is_input_convert();
-        const auto max_rd_block = reduce_by_words ? 32 : 64;
-        const auto rd_block_step = (reduce_by_words && !brg->is_fp8) ? 2 : 4;
         // TODO: if rd_block calculated is very small then maybe it makes
         // sense to use 1x2 or 2x1 blocking with supporting rd_block
         // and rdb_tail
-        brg->rd_block = rd_block_step;
-        for (int i = max_rd_block; i > 0; i -= rd_block_step) {
-            if (brg->reduce_dim % i == 0) {
-                brg->rd_block = i;
-                break;
+        const auto rd_block_step = brg->rd_block_step();
+        const auto max_rd_block = brg->max_rd_block();
+        if (brg->amx_may_extend_k()) {
+            brg->rd_block = nstl::min(
+                    rnd_up(brg->reduce_dim, brg->rd_step), max_rd_block);
+        } else {
+            brg->rd_block = rd_block_step;
+            for (int i = max_rd_block; i > 0; i -= rd_block_step) {
+                if (brg->reduce_dim % i == 0) {
+                    brg->rd_block = i;
+                    break;
+                }
             }
         }
+
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
-
-        // Remove these guards in the future (add tail processing by reduction
-        // dimension)
-        // TODO: these checks do not work for fp8-f16 and f16-fp8 cfgs
-        if (!IMPLICATION(
-                    brg->rdb > 0 && brg->rdb_tail, brg->is_input_convert())) {
-            return status::unimplemented;
-        }
-        if (!IMPLICATION(
-                    (brg->rdb_tail
-                            % ((brg->is_bf16_tmm || brg->is_f16_tmm) ? 2 : 4))
-                            != 0,
-                    brg->is_input_convert())) {
-            return status::unimplemented;
-        }
 
         //TODO: check this condition
         brg->interleave_tilestores_ = brg->beta == 0

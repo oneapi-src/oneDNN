@@ -1391,7 +1391,8 @@ void jit_brgemm_kernel_t::gemm_microkernel_sve512(int bd_block2,
                     || brg.zp_type_a != brgemm_broadcast_t::none);
     if (brg.req_cal_comp_pads || comp_vpad) assert(!"unsupported\n");
 
-    bool maybe_load_bytes = (rows_for_rd_tail > 0 || brg.brgattr.wary_tail_read)
+    bool maybe_load_bytes
+            = (rows_for_rd_tail > 0 || brg.brgattr.wary_A_k_tail_read)
             && is_rd_tail && rd_tail_size != 0 && (brg.is_bf16 || brg.is_int8);
     if (n_bcast_1_load) {
         for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
@@ -1401,7 +1402,7 @@ void jit_brgemm_kernel_t::gemm_microkernel_sve512(int bd_block2,
             auto rows_by_load_bytes = have_to_load_bytes ? rows_for_rd_tail : 0;
             for (int bd = bd_b; bd < bd_e && !is_emdbd; bd++) {
                 const auto bd_by_load_bytes = (bd >= bd_e - rows_by_load_bytes
-                        || brg.brgattr.wary_tail_read);
+                        || brg.brgattr.wary_A_k_tail_read);
                 broadcast(bcst(bd), A_offset(bd, rd),
                         have_to_load_bytes && bd_by_load_bytes, brg.dt_a);
             }
@@ -1468,7 +1469,7 @@ void jit_brgemm_kernel_t::gemm_microkernel_sve512(int bd_block2,
                 if (!is_emdbd) {
                     const auto bd_by_load_bytes
                             = (bd >= bd_e - rows_by_load_bytes
-                                    || brg.brgattr.wary_tail_read);
+                                    || brg.brgattr.wary_A_k_tail_read);
                     broadcast(bcst(), A_offset(bd, rd),
                             have_to_load_bytes && bd_by_load_bytes, brg.dt_a);
                 }
@@ -1908,7 +1909,8 @@ brgemm_attr_t::brgemm_attr_t()
     , hint_innermost_loop(brgemm_ld_loop_innermost)
     , hint_loop_order(brgemm_kernel_loop_order_t::brgemm_lo_default)
     , hint_prefetching(brgemm_kernel_prefetching_t::brgemm_prf_default)
-    , wary_tail_read(true)
+    , wary_A_k_tail_read(true)
+    , extendable_k(false)
     , generate_skip_accumulation(false)
     , bd_mask_level(0)
     , use_uker(false)

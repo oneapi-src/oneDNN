@@ -139,7 +139,22 @@ struct DNNL_API brgemm_attr_t {
             = brgemm_kernel_prefetching_t::brgemm_prf_default;
     brgemm_prf_t hint_prfA, hint_prfB, hint_prfC;
 
-    bool wary_tail_read;
+    // This parameter determines how we will read the tail by K dimension from
+    // matrix A. For AMX if the parameter is true then the brgemm will first
+    // copy the data to the intermediate buffer and only then use the tileload.
+    // For non-AMX the A data are loaded byte by byte if flag is set
+    bool wary_A_k_tail_read {false};
+    // For AMX the K dimension given to the brgemm is required to be divisible
+    // by vnni granularity. In addition blocking by K dimension may not be
+    // optimal if K greater than tile size and divisible by it.
+    // The parameter 'extendable_k' enables the brgemm to use the optimal K
+    // block size assuming that the following requirements for the matrix B are
+    // fulfilled:
+    //  - It is ​​properly blocked (64 bytes block by K dimension).
+    //  - The dimension K is padded by zeros.
+    // For K tail handling in this case the brgemm behavior is determined by the
+    // 'wary_A_k_tail_read' parameter.
+    bool extendable_k {false};
     bool generate_skip_accumulation;
     // Value of bd_mask_level specifies how bd_mask is used in brgemm kernel
     // 0 – bd_mask is not used
@@ -296,6 +311,7 @@ struct brgemm_desc_t {
 
     static constexpr int MAX_VPAD = 100;
     static constexpr int AMX_TILES_NUM = 8;
+    static constexpr int tilesize = 1024;
 
     void set_attr(const primitive_attr_t *ppdattr);
     void set_dst_md(const memory_desc_t *pdst_md);
@@ -366,19 +382,21 @@ struct brgemm_desc_t {
         return (get_num_C_tiles() + get_num_A_tiles() + N);
     }
 
+    int get_convert_wsp_buffer_size() const noexcept {
+        if (!is_input_convert()) return 0;
+        const int n_bdb = bd_block2;
+        const int n_rdb = rdb + (rdb_tail != 0);
+        const int n_ldb = ldb + (ldb_tail != 0);
+        const int downcvt_tiles = brgattr.max_bs * n_rdb * (n_bdb + n_ldb);
+        return downcvt_tiles * tilesize;
+    }
+
     int get_wsp_buffer_size() const noexcept {
         int sz = 0;
         if (is_tmm) {
-            constexpr int tilesize = 1024;
             sz = get_num_C_tiles() * tilesize; // postops buffer
-            if (is_input_convert()) {
-                const int n_bdb = bd_block2;
-                const int n_rdb = rdb + (rdb_tail != 0);
-                const int n_ldb = ldb + (ldb_tail != 0);
-                const int downcvt_tiles
-                        = brgattr.max_bs * n_rdb * (n_bdb + n_ldb);
-                sz += downcvt_tiles * tilesize;
-            }
+            sz += get_convert_wsp_buffer_size();
+            if (amx_wary_k_tail()) sz += tilesize;
         }
         return sz;
     }
@@ -426,6 +444,22 @@ struct brgemm_desc_t {
     bool is_f16_b_non_amx_vnni() const {
         return dt_b == data_type::f16 && brgattr.b_is_vnni
                 && !is_superset(isa_impl, avx512_core_amx_fp16);
+    }
+
+    bool reduce_by_words() const {
+        return is_bf16_tmm || is_f16_tmm || is_input_convert();
+    }
+    int max_rd_block() const { return reduce_by_words() ? 32 : 64; }
+    int rd_block_step() const { return (reduce_by_words() && !is_fp8) ? 2 : 4; }
+
+    bool amx_may_extend_k() const {
+        return (is_superset(isa_impl, avx512_core_amx) && brgattr.extendable_k
+                && (reduce_dim % data_type_vnni_granularity(dt_a)
+                        || (reduce_dim > max_rd_block()
+                                && reduce_dim % max_rd_block())));
+    }
+    bool amx_wary_k_tail() const {
+        return amx_may_extend_k() && brgattr.wary_A_k_tail_read;
     }
 
     bool operator==(const brgemm_desc_t &rhs) const;
