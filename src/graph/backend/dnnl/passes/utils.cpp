@@ -249,7 +249,8 @@ const std::map<op_kind_t, dnnl::algorithm> &get_binary_alg_map() {
                     {graph::op_kind::Minimum, dnnl::algorithm::binary_min},
                     {graph::op_kind::Maximum, dnnl::algorithm::binary_max},
                     {graph::op_kind::Subtract, dnnl::algorithm::binary_sub},
-                    {graph::op_kind::BiasAdd, dnnl::algorithm::binary_add}};
+                    {graph::op_kind::BiasAdd, dnnl::algorithm::binary_add},
+                    {graph::op_kind::GreaterThan, dnnl::algorithm::binary_gt}};
     return binary_alg_map;
 }
 
