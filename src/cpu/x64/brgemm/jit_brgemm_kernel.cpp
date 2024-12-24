@@ -22,6 +22,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/brgemm/brgemm_types.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
@@ -276,6 +277,7 @@ private:
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
     Xbyak::Opmask fp8_col_mask = Xbyak::Opmask(4);
     Xbyak::Opmask kmask_fp8_aux = Xbyak::Opmask(5);
+    Xbyak::Opmask rd_tail_mask = Xbyak::Opmask(6);
 
     static int get_max_effective_vregs(const brgemm_desc_t &brg) {
         auto used_vregs = 0;
@@ -340,6 +342,8 @@ private:
     Vmm xmm_fp8_emu_aux4 = Vmm(4);
     Vmm xmm_fp8_emu_aux5 = Vmm(5);
 
+    Zmm zmm_tmp_1() const noexcept { return Zmm(1); }
+
     // Required in every dot product for INT8 non-VNNI computation.
     Vmm int8_ones_words() const noexcept {
         return Vmm(isa_num_vregs(brg.isa_impl) - 1);
@@ -397,17 +401,20 @@ private:
     void maybe_pre_process_data(matrix_kind_t matrix_kind, const Tmm &t1,
             reg64_t reg_base, size_t offset, reg64_t reg_stride, int num_rows,
             int num_col_bytes, bool is_rd_tail);
+    bool maybe_pre_process_k_tail(bool last_bdb, bool is_rd_tail, const Tmm &t1,
+            reg64_t reg_base, size_t offset, reg64_t reg_stride,
+            matrix_kind_t mk);
     void maybe_tileloadd_nt(matrix_kind_t matrix_kind, int idx, int offset,
-            bool is_rd_tail, bool is_tail);
+            bool is_rd_tail, bool is_tail, bool last_bdb);
     void dot_product(Vmm v1, Vmm v2, Vmm v3);
     void gemm_microkernel(int bd_block2, bool is_bdb_tail, int ld_block,
             bool is_rd_tail, bool is_ld_tail, int vpad, int rows_for_rd_tail);
-    void gemm_microkernel_amx(int bd_block2, bool is_bdb_tail, int ld_block,
-            bool is_rd_tail, bool is_ld_tail);
+    void gemm_microkernel_amx(int bd_block2, bool is_bdb_tail, int ld_block2,
+            bool is_rd_tail, bool is_ld_tail, bool last_bdb);
 
     void ldb_loop(int bd_block2, bool is_bdb_tail, int ld_block,
             int ldb_loop_length, bool is_reg_tail, bool is_ld_tail,
-            bool check_top_vpad, bool check_bottom_vpad, int rows_for_rd_tail,
+            bool first_bdb, bool last_bdb, int rows_for_rd_tail,
             bool skip_accumulation);
     void bdb_loop();
 
@@ -448,6 +455,7 @@ private:
     bool n_bcast_1_load = false;
     bool vpad_exist = false;
     bool need_comp_pads = false;
+    palette_config_t palette_;
 };
 
 template <typename Wmm>
@@ -1005,10 +1013,9 @@ void jit_brgemm_kernel_t<Wmm>::fp8_to_f16_upconvert(int num_rows,
     assert(max_num_cols > 0);
 
     if (col_tail) {
-        const int tail_mask = (1 << col_tail) - 1;
-        auto reg_tmp_32 = reg_tmp_gpr.cvt32();
-        mov(reg_tmp_32, tail_mask);
-        kmovd(fp8_col_mask, reg_tmp_32);
+        const auto tail_mask = (static_cast<size_t>(1) << col_tail) - 1;
+        mov(reg_tmp_gpr, tail_mask);
+        kmovq(fp8_col_mask, reg_tmp_gpr);
     }
     // Note: using the same register used in col_tail, so order is important
     const auto reg_data_aux = reg_tmp_gpr;
@@ -1883,9 +1890,8 @@ template <typename Wmm>
 void jit_brgemm_kernel_t<Wmm>::maybe_pre_process_data(matrix_kind_t matrix_kind,
         const Tmm &t1, reg64_t reg_base, size_t offset, reg64_t reg_stride,
         int num_rows, int num_col_bytes, bool is_rd_tail) {
-    constexpr int tile_size = 1024;
     const auto transform_offset = brg.brgattr.use_interleave_stores
-            ? brg.get_num_C_tiles() * tile_size
+            ? brg.get_num_C_tiles() * brgemm_desc_t::tilesize
             : 0;
     add(reg_buf_aux, transform_offset);
 
@@ -1908,7 +1914,7 @@ void jit_brgemm_kernel_t<Wmm>::maybe_pre_process_data(matrix_kind_t matrix_kind,
 
 template <typename Wmm>
 void jit_brgemm_kernel_t<Wmm>::maybe_tileloadd_nt(matrix_kind_t matrix_kind,
-        int idx, int offset, bool is_rd_tail, bool is_tail) {
+        int idx, int offset, bool is_rd_tail, bool is_tail, bool last_bdb) {
 
     const bool is_A = matrix_kind == matrix_kind_t::matrix_A;
 
@@ -1951,6 +1957,10 @@ void jit_brgemm_kernel_t<Wmm>::maybe_tileloadd_nt(matrix_kind_t matrix_kind,
         mov(reg64_fp8_aux, ptr[rsp + reg_val_tmp_1_]);
         mov(reg_buf_aux, ptr[rsp + reg_val_tmp_2_]);
     } else {
+        if (maybe_pre_process_k_tail(last_bdb, is_rd_tail, t1, reg_base, offset,
+                    reg_stride, matrix_kind))
+            return;
+
         const size_t cache_footprint = static_cast<size_t>(brg.typesize_A)
                         * brg.brgattr.hint_expected_A_size
                 + static_cast<size_t>(brg.typesize_B)
@@ -1966,8 +1976,73 @@ void jit_brgemm_kernel_t<Wmm>::maybe_tileloadd_nt(matrix_kind_t matrix_kind,
 }
 
 template <typename Wmm>
+bool jit_brgemm_kernel_t<Wmm>::maybe_pre_process_k_tail(bool last_bdb,
+        bool is_rd_tail, const Tmm &t1, reg64_t reg_base, size_t offset,
+        reg64_t reg_stride, matrix_kind_t mk) {
+
+    // TODO: check is it last bs to calculate need_k_tail_processing
+    const auto need_k_tail_processing = mk == matrix_A && brg.amx_wary_k_tail()
+            && brg.rdb_tail != 0 && last_bdb && is_rd_tail;
+
+    if (!need_k_tail_processing) return false;
+
+    const auto zmm_width_in_bytes = cpu_isa_traits<avx512_core>::vlen;
+
+    auto transform_offset = brg.get_num_C_tiles() * brgemm_desc_t::tilesize
+            + brg.get_convert_wsp_buffer_size();
+
+    //TODO: reuse transformed data from matrix A for ldi > 0
+    const auto num_rows = palette_.rows[t1.getIdx()];
+    const auto num_col_bytes = palette_.cols[t1.getIdx()];
+
+    const auto max_num_cols
+            = nstl::min<int>(num_col_bytes / brg.typesize_A, brg.rdb_tail);
+    const size_t col_tail
+            = max_num_cols % (zmm_width_in_bytes / brg.typesize_A);
+    if (col_tail) {
+        const auto tail_mask = (static_cast<size_t>(1) << col_tail) - 1;
+        mov(reg_tmp_gpr, tail_mask);
+        kmovq(rd_tail_mask, reg_tmp_gpr);
+    }
+    auto zmm_1 = zmm_tmp_1();
+    auto zmm_1_masked = col_tail ? zmm_1 | rd_tail_mask | T_z : zmm_1;
+
+    assert(max_num_cols > 0);
+
+    mov(ptr[rsp + reg_val_tmp_2_], reg_buf_aux);
+
+    mov(reg_buf_aux, ptr[rsp + reg_buf_offs_]);
+    if (transform_offset) add(reg_buf_aux, transform_offset);
+
+    for (int r = 0; r < num_rows; ++r) {
+        const auto row_offset = offset + r * brg.typesize_A * brg.LDA;
+        switch (brg.dt_a) {
+            case data_type::bf16:
+            case data_type::f16:
+                vmovdqu16(zmm_1_masked, ptr[reg_base + row_offset]);
+                break;
+            case data_type::f8_e5m2:
+            case data_type::f8_e4m3:
+            case data_type::s8:
+            case data_type::u8:
+                vmovdqu8(zmm_1_masked, ptr[reg_base + row_offset]);
+                break;
+            default: assert(!"unsupported data type");
+        }
+        vmovups(ptr[reg_buf_aux + r * zmm_width_in_bytes], zmm_1);
+    }
+    // load into tmm from the transformed data.
+    mov(reg_converted_stride, zmm_width_in_bytes);
+    tileloadd(t1, ptr[reg_buf_aux + reg_converted_stride]);
+    mov(reg_buf_aux, ptr[rsp + reg_val_tmp_2_]);
+
+    return true;
+}
+
+template <typename Wmm>
 void jit_brgemm_kernel_t<Wmm>::gemm_microkernel_amx(int bd_block2,
-        bool is_bdb_tail, int ld_block2, bool is_rd_tail, bool is_ld_tail) {
+        bool is_bdb_tail, int ld_block2, bool is_rd_tail, bool is_ld_tail,
+        bool last_bdb) {
     auto tdpbxxd = [this](const Tmm &x1, const Tmm &x2, const Tmm &x3) {
         if (brg.is_fp8) {
             if (brg.is_fp8_via_convert())
@@ -1995,14 +2070,14 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel_amx(int bd_block2,
         for (int bdb = 0; bdb < bd_block2; bdb++) {
             maybe_tileloadd_nt(matrix_kind_t::matrix_A, bdb,
                     rdb * rdb_A_offset() + A_offset(bdb, 0, true), is_rd_tail,
-                    is_bdb_tail);
+                    is_bdb_tail, last_bdb && bdb == bd_block2 - 1);
         }
         for (int ldb = 0; ldb < ld_block2; ldb++) {
 
             const int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
             maybe_tileloadd_nt(matrix_kind_t::matrix_B, idx,
                     rdb * rdb_B_offset() + B_offset(ldb, 0, true), is_rd_tail,
-                    is_ld_tail);
+                    is_ld_tail, false);
             for (int bdb = 0; bdb < bd_block2; bdb++) {
                 tdpbxxd(Tmm(brg.get_C_tensor(
                                 bdb, idx, is_bdb_tail, is_ld_tail)),
@@ -2179,7 +2254,8 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
         compute_int8_compensation(
                 rd_loop, bd_b, bd_e, bd_block, ld_block2, is_ld_tail, vpad);
 
-    bool maybe_load_bytes = (rows_for_rd_tail > 0 || brg.brgattr.wary_tail_read)
+    bool maybe_load_bytes
+            = (rows_for_rd_tail > 0 || brg.brgattr.wary_A_k_tail_read)
             && is_rd_tail && rd_tail_size != 0 && (brg.is_bf16 || brg.is_int8);
     if (n_bcast_1_load) {
         for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
@@ -2189,7 +2265,7 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
             auto rows_by_load_bytes = have_to_load_bytes ? rows_for_rd_tail : 0;
             for (int bd = bd_b; bd < bd_e && !is_emdbd; bd++) {
                 const auto bd_by_load_bytes = (bd >= bd_e - rows_by_load_bytes
-                        || brg.brgattr.wary_tail_read);
+                        || brg.brgattr.wary_A_k_tail_read);
                 broadcast(bcst(bd), A_offset(bd, rd),
                         have_to_load_bytes && bd_by_load_bytes, brg.dt_a);
             }
@@ -2321,7 +2397,7 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
                 if (!is_emdbd) {
                     const auto bd_by_load_bytes
                             = (bd >= bd_e - rows_by_load_bytes
-                                    || brg.brgattr.wary_tail_read);
+                                    || brg.brgattr.wary_A_k_tail_read);
                     broadcast(bcst(), A_offset(bd, rd),
                             have_to_load_bytes && bd_by_load_bytes, brg.dt_a);
                 }
@@ -2345,7 +2421,7 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
 template <typename Wmm>
 void jit_brgemm_kernel_t<Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
         int ld_block2, int ldb_loop_length, bool is_reg_tail, bool is_ld_tail,
-        bool check_top_vpad, bool check_bottom_vpad, int rows_for_rd_tail,
+        bool first_bdb, bool last_bdb, int rows_for_rd_tail,
         bool skip_accumulation) {
 
     Label ldb_loop_label;
@@ -2353,7 +2429,7 @@ void jit_brgemm_kernel_t<Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
 
     copy_post_ops_stack_values_to_aux(is_reg_tail);
 
-    auto ld_loop_body = [&](int vpad) {
+    auto ld_loop_body = [&](int vpad, bool last_bdb) {
         set_A_B_matrices();
 
         int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
@@ -2365,8 +2441,8 @@ void jit_brgemm_kernel_t<Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
 
         if (brg.is_tmm) {
             const bool is_rd_tail = false;
-            gemm_microkernel_amx(
-                    bd_block2, is_bdb_tail, ld_block2, is_rd_tail, is_ld_tail);
+            gemm_microkernel_amx(bd_block2, is_bdb_tail, ld_block2, is_rd_tail,
+                    is_ld_tail, last_bdb);
         } else {
             if (brg.rdb > 0) {
                 Label rdb_loop_label;
@@ -2390,7 +2466,7 @@ void jit_brgemm_kernel_t<Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
             const bool is_rd_tail = true;
             if (brg.is_tmm) {
                 gemm_microkernel_amx(bd_block2, is_bdb_tail, ld_block2,
-                        is_rd_tail, is_ld_tail);
+                        is_rd_tail, is_ld_tail, last_bdb);
             } else {
                 gemm_microkernel(bd_block2, is_bdb_tail, ld_block2, is_rd_tail,
                         is_ld_tail, vpad, rows_for_rd_tail);
@@ -2441,7 +2517,7 @@ void jit_brgemm_kernel_t<Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
             if (brg.brgattr.max_bs > 1) mov(reg_BS_loop, reg_BS);
             L_aligned(BS_loop_label, 64);
             {
-                if (check_top_vpad || check_bottom_vpad) {
+                if (first_bdb || last_bdb) {
                     const auto vpad_first = -brg.brgattr.max_bottom_vpad;
                     const auto vpad_last = brg.brgattr.max_top_vpad;
                     const auto n_vpads = vpad_last - vpad_first + 2;
@@ -2471,10 +2547,10 @@ void jit_brgemm_kernel_t<Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
                     for (int vpad = vpad_first; vpad <= vpad_last; vpad++) {
                         const auto label_vpad = vpad - vpad_first;
                         L(Vpad_loop_iter_label[label_vpad]);
-                        if (!check_top_vpad && vpad > 0) continue;
-                        if (!check_bottom_vpad && vpad < 0) continue;
+                        if (!first_bdb && vpad > 0) continue;
+                        if (!last_bdb && vpad < 0) continue;
                         auto real_vpad = vpad;
-                        if (check_bottom_vpad && brg.bdb_tail && vpad < 0) {
+                        if (last_bdb && brg.bdb_tail && vpad < 0) {
                             if (!is_bdb_tail) {
                                 // for last full block before
                                 // bdb_tail && -vpad greater than bdb_tail
@@ -2494,14 +2570,14 @@ void jit_brgemm_kernel_t<Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
                         }
                         cmp(reg_aux_A_vpad, vpad);
                         jne(Vpad_loop_iter_label[label_vpad + 1], T_NEAR);
-                        ld_loop_body(real_vpad);
+                        ld_loop_body(real_vpad, last_bdb);
                         jmp(Vpad_loop_end_label, T_NEAR);
                     }
                     L(Vpad_loop_iter_label[n_vpads - 1]);
-                    ld_loop_body(0);
+                    ld_loop_body(0, last_bdb);
                     L(Vpad_loop_end_label);
                 } else {
-                    ld_loop_body(0);
+                    ld_loop_body(0, last_bdb);
                 }
                 if (brg.brgattr.max_bs > 1) {
                     dec(reg_BS_loop);
@@ -2537,37 +2613,36 @@ void jit_brgemm_kernel_t<Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
 
 template <typename Wmm>
 void jit_brgemm_kernel_t<Wmm>::bdb_loop() {
-    auto do_ldb_loop = [this](int bd_block2, bool is_bdb_tail,
-                               bool check_top_vpad, bool check_bottom_vpad,
-                               int rows_for_rd_tail, bool skip_accumulation) {
+    auto do_ldb_loop = [this](int bd_block2, bool is_bdb_tail, bool first_bdb,
+                               bool last_bdb, int rows_for_rd_tail,
+                               bool skip_accumulation) {
         if (brg.ldb2 > 0) {
             const bool is_ld_reg_tail = false;
             const bool is_ld_tail = false;
             ldb_loop(bd_block2, is_bdb_tail, brg.ld_block2, brg.ldb2,
-                    is_ld_reg_tail, is_ld_tail, check_top_vpad,
-                    check_bottom_vpad, rows_for_rd_tail, skip_accumulation);
+                    is_ld_reg_tail, is_ld_tail, first_bdb, last_bdb,
+                    rows_for_rd_tail, skip_accumulation);
         }
         if (brg.ldb2_tail > 0) {
             const bool is_ld_reg_tail = (brg.ldb2 == 0) ? false : true;
             const bool is_ld_tail = false;
             ldb_loop(bd_block2, is_bdb_tail, brg.ldb2_tail, 1, is_ld_reg_tail,
-                    is_ld_tail, check_top_vpad, check_bottom_vpad,
-                    rows_for_rd_tail, skip_accumulation);
+                    is_ld_tail, first_bdb, last_bdb, rows_for_rd_tail,
+                    skip_accumulation);
         }
         if (brg.ldb_tail > 0) {
             const bool is_ld_reg_tail
                     = (brg.ldb2 == 0 && brg.ldb2_tail == 0) ? false : true;
             const bool is_ld_tail = true;
             ldb_loop(bd_block2, is_bdb_tail, 1, 1, is_ld_reg_tail, is_ld_tail,
-                    check_top_vpad, check_bottom_vpad, rows_for_rd_tail,
-                    skip_accumulation);
+                    first_bdb, last_bdb, rows_for_rd_tail, skip_accumulation);
         }
     };
 
     auto bdb_loop_body = [this, do_ldb_loop](int bd_block2, bool is_bdb_tail,
-                                 bool check_top_vpad, bool check_bottom_vpad,
+                                 bool first_bdb, bool last_bdb,
                                  int rows_for_rd_tail, bool skip_accumulation) {
-        do_ldb_loop(bd_block2, is_bdb_tail, check_top_vpad, check_bottom_vpad,
+        do_ldb_loop(bd_block2, is_bdb_tail, first_bdb, last_bdb,
                 rows_for_rd_tail, skip_accumulation);
 
         if (brg.is_runtime_ldc) {
@@ -2710,26 +2785,60 @@ void jit_brgemm_kernel_t<Wmm>::bdb_loop() {
         L_aligned(bdb_loop_end_label, 64);
     };
     auto bdb_loop_amx = [&](bool skip_accumulation) {
-        Label bdb_loop_label;
-        if (brg.bd_block2 >= 1) {
-            mov(reg_bdb_loop, brg.bdb2);
-            mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
-            L_aligned(bdb_loop_label, 64);
-            {
-                bdb_loop_body(brg.bd_block2, false, false, false, 0,
-                        skip_accumulation);
-                mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
-                dec(reg_bdb_loop);
-                cmp(reg_bdb_loop, 0);
+        if (brg.amx_wary_k_tail()) {
+            Label bdb_loop_label;
+            auto bdblocks = brg.bdb2;
+            if (bdblocks > 1) {
+                mov(reg_bdb_loop, brg.bdb2);
                 mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
+                L_aligned(bdb_loop_label, 64);
+                {
+                    bdb_loop_body(brg.bd_block2, false, false, false, 0,
+                            skip_accumulation);
+                    mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
+                    dec(reg_bdb_loop);
+                    cmp(reg_bdb_loop, 1);
+                    mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
+                }
+                jg(bdb_loop_label, T_NEAR);
+                bdblocks = 1;
             }
-            jg(bdb_loop_label, T_NEAR);
+            if (bdblocks == 1) {
+                const bool last_bdb = brg.bdb2_tail == 0 && brg.bdb_tail == 0;
+                bdb_loop_body(brg.bd_block2, false, false, last_bdb, 0,
+                        skip_accumulation);
+            }
+
+            if (brg.bdb2_tail > 0) {
+                const bool last_bdb = brg.bdb_tail == 0;
+                bdb_loop_body(brg.bdb2_tail, false, false, last_bdb, 0,
+                        skip_accumulation);
+            }
+            if (brg.bdb_tail > 0)
+                do_ldb_loop(1, true, false, false, 0, skip_accumulation);
+
+        } else {
+            Label bdb_loop_label;
+            if (brg.bd_block2 >= 1) {
+                mov(reg_bdb_loop, brg.bdb2);
+                mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
+                L_aligned(bdb_loop_label, 64);
+                {
+                    bdb_loop_body(brg.bd_block2, false, false, false, 0,
+                            skip_accumulation);
+                    mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
+                    dec(reg_bdb_loop);
+                    cmp(reg_bdb_loop, 0);
+                    mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
+                }
+                jg(bdb_loop_label, T_NEAR);
+            }
+            if (brg.bdb2_tail > 0)
+                bdb_loop_body(brg.bdb2_tail, false, false, false, 0,
+                        skip_accumulation);
+            if (brg.bdb_tail > 0)
+                do_ldb_loop(1, true, false, false, 0, skip_accumulation);
         }
-        if (brg.bdb2_tail > 0)
-            bdb_loop_body(
-                    brg.bdb2_tail, false, false, false, 0, skip_accumulation);
-        if (brg.bdb_tail > 0)
-            do_ldb_loop(1, true, false, false, 0, skip_accumulation);
     };
 
     auto bdb_loop_general = [&](bool skip_accumulation) {
@@ -2800,6 +2909,11 @@ void jit_brgemm_kernel_t<Wmm>::generate() {
         vmovups(f16_perm_odd_vreg_, ptr[reg_tmp_gpr]);
     }
 
+    if (brg.is_tmm && brg.amx_wary_k_tail()) {
+        // save tiles description for later use
+        brgemm_init_tiles(brg, (char *)(&palette_));
+    }
+
     read_params();
 
     bdb_loop();
@@ -2865,7 +2979,8 @@ brgemm_attr_t::brgemm_attr_t()
     , hint_innermost_loop(brgemm_ld_loop_innermost)
     , hint_loop_order(brgemm_kernel_loop_order_t::brgemm_lo_default)
     , hint_prefetching(brgemm_kernel_prefetching_t::brgemm_prf_default)
-    , wary_tail_read(true)
+    , wary_A_k_tail_read(true)
+    , extendable_k(false)
     , generate_skip_accumulation(false)
     , bd_mask_level(0)
     , use_uker(false)

@@ -230,8 +230,6 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             brgattr.use_uker = true;
             brgattr.use_interleave_stores = true;
             brgattr.max_bs = bs;
-            brgattr.wary_tail_read = false;
-
             // TODO: change expected sizes to local chunks wrt L2 blocking
             brgattr.hint_expected_A_size = vM * vK * bs;
             brgattr.hint_expected_B_size = vN * vK * bs;

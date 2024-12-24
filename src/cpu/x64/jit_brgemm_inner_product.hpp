@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -126,7 +126,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 brgemm_attr_t brgattr;
                 if (jbgp_.is_amx) {
                     brgattr.max_bs = bs;
-                    brgattr.wary_tail_read = false;
+                    brgattr.wary_A_k_tail_read = false;
                     brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.ic;
                     brgattr.hint_expected_B_size = jbgp_.oc * jbgp_.ic;
                     brgattr.hint_expected_C_size = jbgp_.mb * jbgp_.oc;
@@ -321,7 +321,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                 if (jbgp_.is_amx) {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = bs;
-                    brgattr.wary_tail_read = false;
+                    brgattr.wary_A_k_tail_read = false;
                     brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.oc;
                     brgattr.hint_expected_B_size = jbgp_.oc * jbgp_.ic;
                     brgattr.hint_expected_C_size = jbgp_.mb * jbgp_.ic;
@@ -497,7 +497,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 if (jbgp_.is_amx) {
                     brgemm_attr_t brgattr;
                     brgattr.max_bs = bs;
-                    brgattr.wary_tail_read = false;
+                    brgattr.wary_A_k_tail_read = false;
                     brgattr.hint_expected_A_size = jbgp_.mb * jbgp_.ic;
                     brgattr.hint_expected_B_size = jbgp_.mb * jbgp_.oc;
                     brgattr.hint_expected_C_size = jbgp_.ic * jbgp_.oc;

@@ -265,7 +265,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
     brgattr.hint_expected_B_size = 0;
     brgattr.hint_expected_C_size = 0;
 
-    brgattr.wary_tail_read = false;
+    brgattr.wary_A_k_tail_read = false;
     brgattr.bd_mask_level = jcp_.use_M_mask;
 
     brgattr.max_top_vpad = jcp_.max_vpad;
