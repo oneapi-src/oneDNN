@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,9 +40,9 @@ namespace x64 {
 using namespace dnnl::impl::utils;
 using namespace Xbyak;
 template <typename Wmm>
-struct jit_brgemm_kernel_t : public jit_generator {
+struct jit_brgemm_kernel_t : public jit_base_brgemm_kernel_t {
     jit_brgemm_kernel_t(const brgemm_desc_t &abrg)
-        : jit_generator(jit_name(), abrg.isa_impl)
+        : jit_base_brgemm_kernel_t(jit_name(), abrg.isa_impl)
         , brg(abrg)
         , postops_injector_(nullptr)
         , max_effective_vregs(get_max_effective_vregs(brg)) {
@@ -128,9 +128,11 @@ struct jit_brgemm_kernel_t : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_t)
 
-    brgemm_desc_t brg;
+    const brgemm_desc_t &get_brg() const override { return brg; }
 
 private:
+    brgemm_desc_t brg;
+
     enum matrix_kind_t { matrix_A, matrix_B };
     static constexpr int zmm_width_in_bytes_
             = cpu_isa_traits<avx512_core>::vlen;
