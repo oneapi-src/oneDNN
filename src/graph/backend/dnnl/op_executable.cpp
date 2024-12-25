@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2024 Intel Corporation
+ * Copyright 2022-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,11 +25,14 @@
 
 #include <graph/utils/utils.hpp>
 
+#include "common/dnnl_thread.hpp"
+
 #include "graph/backend/dnnl/common.hpp"
 #include "graph/backend/dnnl/dnnl_constant_tensor_cache.hpp"
 #include "graph/backend/dnnl/fusion_info.hpp"
 #include "graph/backend/dnnl/internal_attrs.hpp"
 #include "graph/backend/dnnl/op_executable.hpp"
+#include "graph/backend/dnnl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -1770,6 +1773,20 @@ groupnorm_executable_t::desc_t groupnorm_executable_t::create_desc(
     return {pd, false};
 }
 
+void genindex_executable_t ::execute(const stream &stream,
+        const std::unordered_map<int, memory> &args) const {
+    auto &output = args.find(DNNL_ARG_DST)->second;
+    auto output_ptr = static_cast<int32_t *>(output.get_data_handle());
+    dnnl::impl::parallel_nd(nelems_, [&](dim_t i) {
+        dims_t input_dims; // decomposition for physical offsets
+        dnnl::impl::utils::l_dims_by_l_offset(
+                input_dims, i, output_dims_, ndims_);
+        auto offset
+                = utils::offset_compute(output_strides_, input_dims, ndims_);
+        output_ptr[offset] = input_dims[axis_];
+    });
+}
+
 static void get_arg_indices_for_post_ops(const op_t *op, fusion_info_mgr_t &mgr,
         arg_indices_t &indices, size_t &base_index) {
     const fusion_info_t &fusion_info
@@ -2361,6 +2378,18 @@ arg_indices_t eltwise_bwd_executable_t::get_arg_indices(
 arg_indices_t groupnorm_executable_t::get_arg_indices(
         const op_t *op, fusion_info_mgr_t &mgr) {
     return get_arg_indices_for_lnorm_and_gnorm(op, mgr);
+}
+
+arg_indices_t genindex_executable_t::get_arg_indices(
+        const op_t *op, fusion_info_mgr_t &mgr) {
+    UNUSED(op);
+    UNUSED(mgr);
+
+    arg_indices_t arg_indices;
+    arg_indices.insert({DNNL_ARG_SRC, indices_t {input, 0}});
+    arg_indices.insert({DNNL_ARG_DST, indices_t {output, 0}});
+
+    return arg_indices;
 }
 
 } // namespace dnnl_impl
