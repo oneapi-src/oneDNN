@@ -53,6 +53,8 @@ struct settings_t : public base_settings_t {
     std::vector<size_t> expected_n_partition_vec {1};
     std::vector<graph_fpmath_mode_t> fpmath_mode_vec {graph_fpmath_mode_t {}};
     std::vector<dnnl_data_type_t> dt {dnnl_data_type_undef};
+    std::vector<std::map<size_t, dnnl_data_type_t>> dt_map {
+            {{SIZE_MAX, dnnl_data_type_undef}}};
 
     const char *perf_template_csv
             = "perf,%engine%,%DESC%,"
@@ -83,7 +85,8 @@ std::string case_to_str(const std::string &json_file,
         const std::map<size_t, std::string> &op_attrs,
         const graph_fpmath_mode_t &fpmath_mode,
         const size_t expected_n_partitions, const int64_t mb,
-        const dnnl_data_type_t dt);
+        const dnnl_data_type_t dt,
+        const std::map<size_t, dnnl_data_type_t> &dt_map);
 
 struct perf_report_t : public base_perf_report_t {
     perf_report_t(const std::string case_str, const char *perf_template)

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,6 +43,10 @@ bool parse_graph_fpmath_mode(
         std::vector<graph_fpmath_mode_t> &fpmath_mode_vec, const char *str);
 
 bool parse_input_file(std::string &json_file, const char *str);
+
+bool parse_dt(std::vector<dnnl_data_type_t> &dt,
+        std::vector<std::map<size_t, dnnl_data_type_t>> &dt_map,
+        const char *str, const std::string &option_name = "dt");
 
 std::map<std::string, std::string> parse_attrs(const std::string &attrs_str);
 
