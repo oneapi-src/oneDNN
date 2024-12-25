@@ -345,13 +345,25 @@ std::string case_to_str(const std::string &json_file,
         const std::map<size_t, std::string> &op_attrs,
         const graph_fpmath_mode_t &fpmath_mode,
         const size_t expected_n_partitions, const int64_t mb,
-        const dnnl_data_type_t dt) {
+        const dnnl_data_type_t dt,
+        const std::map<size_t, dnnl_data_type_t> &dt_map) {
     std::stringstream s;
     dump_global_params(s);
 
     if (mb != 0) { s << "--mb=" << mb << " "; }
 
     if (dt != dnnl_data_type_undef) { s << "--dt=" << dt << " "; }
+
+    const bool skip_dts = dt_map.empty()
+            || (dt_map.size() == 1 && dt_map.count(SIZE_MAX) == 1);
+    if (!skip_dts) {
+        s << "--dt=";
+        std::string tmp;
+        for (const auto &v : dt_map) {
+            tmp += (std::to_string(v.first) + ":" + dt2str(v.second) + "+");
+        }
+        s << tmp.substr(0, tmp.length() - 1) << " ";
+    }
 
     if (!(in_shapes.size() == 1 && in_shapes.count(0)
                 && in_shapes.at(0) == "default")) {
