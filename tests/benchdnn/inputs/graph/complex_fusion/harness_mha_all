@@ -63,5 +63,11 @@
 
 # phi3-mini-4k-instruct
 --reset
+--dt=0:s8+2:s8+6:s8+8:s8
 --in-shapes=0:1x32x96x384*abdc+1:1x32x1x384+2:1x32x1x384+3:1x32x384x96+5:1x1x384x384+6:1x32x384x96+7:1x32x384x1+8:1x32x384x1
---op-attrs=34107656704:group_shape:1x1x96x1+34107752448:group_shape:1x1x1x96 --in-shapes= --case=complex_fusion/mha/sdpa-compressed-kv-int8-gs128.json
+--op-attrs=0:group_shape:1x1x96x1+99:group_shape:1x1x1x96 --case=complex_fusion/mha/sdpa-compressed-kv-int4-gs32.json
+
+# 0: key, 2: key zps, 6: value, 8: value zps. Change them to use s8 data type.
+--reset --dt=0:s8+2:s8+6:s8+8:s8 --case=complex_fusion/mha/sdpa-compressed-kv-int4-gs32.json
+# Change group size to 128. It also affects the shapes of the scales and zps.
+--reset --dt=0:s8+2:s8+6:s8+8:s8 --op-attrs=0:group_shape:1x1x128x1+99:group_shape:1x1x1x128 --in-shapes=1:1x32x1x32+2:1x32x1x32+7:1x32x32x1+8:1x32x32x1 --case=complex_fusion/mha/sdpa-compressed-kv-int4-gs32.json
