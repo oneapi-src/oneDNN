@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2024 Intel Corporation
+ * Copyright 2021-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2464,6 +2464,59 @@ struct groupnorm_executable_t : public op_executable_t {
 
 private:
     dnnl::group_normalization_forward prim_;
+};
+
+struct genindex_executable_t : public op_executable_t {
+    DECLARE_ARG_INDICES_GETTER;
+
+    genindex_executable_t(std::shared_ptr<op_t> &op,
+            const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
+            pd_cache_t &pd_cache) {
+        if (p_engine.get_kind() == engine::kind::gpu) {
+            assertm(false,
+                    "genindex opexcutable is unimplemented "
+                    "under SYCL and OCL "
+                    "runtime!");
+            throw std::runtime_error("Unimplement");
+        }
+        using ltw = logical_tensor_wrapper_t;
+        const auto &input_lt = op->get_input_value(0)->get_logical_tensor();
+        nelems_ = ltw(input_lt).nelems();
+        ndims_ = ltw(input_lt).ndims();
+        axis_ = op->get_attr<int64_t>(dnnl::impl::graph::op_attr::axis);
+        const auto &output_lt = op->get_output_value(0)->get_logical_tensor();
+        for (int i = 0; i < ndims_; i++) {
+            output_dims_[i] = output_lt.dims[i];
+            output_strides_[i] = output_lt.layout.strides[i];
+        }
+    }
+
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const override;
+
+#ifdef DNNL_WITH_SYCL
+    ::sycl::event execute_sycl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<::sycl::event> &deps = {}) const override {
+        execute(stream, args);
+        return {};
+    }
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    cl_event execute_ocl(const stream &stream,
+            const std::unordered_map<int, memory> &args,
+            const std::vector<cl_event> &deps = {}) const override {
+        assertm(false,
+                "genindex op excutable is unimplemented "
+                "under OCL runtime!");
+        return {};
+    }
+#endif
+
+private:
+    int axis_, nelems_, ndims_;
+    dims_t output_dims_, output_strides_;
 };
 
 } // namespace dnnl_impl
