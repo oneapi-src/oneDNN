@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -115,6 +115,50 @@ bool parse_op_attrs(std::vector<std::map<size_t, std::string>> &op_attrs_vec,
     std::string op_attrs_str;
     if (!parse_string(op_attrs_str, str, "op-attrs")) return false;
     return parse_key_value(op_attrs_vec, op_attrs_str), true;
+}
+
+bool parse_dt(std::vector<dnnl_data_type_t> &dt,
+        std::vector<std::map<size_t, dnnl_data_type_t>> &dt_map,
+        const char *str, const std::string &option_name) {
+    std::string dts_str;
+    if (!parse_string(dts_str, str, option_name)) return false;
+
+    if (dts_str.find(":") == std::string::npos) {
+        // `dt` object: format like --dt=f32,bf16,f16
+        const bool has_dt_map
+                = dt_map.size() != 1 || (dt_map[0].count(SIZE_MAX) == 0);
+        if (has_dt_map) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: --dt is specified twice with different styles.");
+            SAFE_V(FAIL);
+        }
+
+        const std::vector<dnnl_data_type_t> def_dt = {dnnl_data_type_undef};
+        parser::parse_dt(dt, def_dt, str, option_name);
+    } else {
+        // `dt_map` object: format like --dt=0:f32+1:f32,0:f16+1:f16
+        const bool has_dt = dt.size() != 1 || dt[0] != dnnl_data_type_undef;
+        if (has_dt) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: --dt is specified twice with different styles.");
+            SAFE_V(FAIL);
+        }
+
+        std::vector<std::map<size_t, std::string>> dts_tmp;
+        parse_key_value(dts_tmp, dts_str, option_name);
+        dt_map.clear();
+        dt_map.resize(dts_tmp.size());
+        // convert size_t:string to size_t:dnnl_data_type_t
+        for (size_t i = 0; i < dts_tmp.size(); i++) {
+            std::map<size_t, dnnl_data_type_t> tmp;
+            for (const auto &v : dts_tmp[i]) {
+                tmp[v.first] = str2dt(v.second.c_str());
+            }
+            dt_map[i] = std::move(tmp);
+        }
+    }
+
+    return true;
 }
 
 bool parse_graph_expected_n_partitions(

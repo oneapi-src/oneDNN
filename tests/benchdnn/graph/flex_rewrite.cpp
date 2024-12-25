@@ -37,6 +37,7 @@ void flex_rewrite::rewrite(deserialized_graph &dgraph) {
     quantized_graph_rewrite(dgraph);
     graph_attrs_rewrite(dgraph);
     dt_rewrite(dgraph);
+    dt_map_rewrite(dgraph);
 }
 
 void flex_rewrite::split_ncx(const std::string &data_format, dims_t &in,
@@ -1157,6 +1158,45 @@ void flex_rewrite::dt_rewrite(deserialized_graph &dgraph) {
 
             for (auto &lt : aop.out_lts_) {
                 lt.data_type_ = str_dt;
+            }
+        }
+    }
+}
+
+void flex_rewrite::dt_map_rewrite(deserialized_graph &dgraph) {
+    // check the IDs and data types in dt_map.
+    for (const auto &v : dt_map_) {
+        if (v.second == dnnl_data_type_undef) return;
+
+        bool found_id = false;
+        for (auto &aop : dgraph.ops_) {
+            for (auto &lt : aop.in_lts_) {
+                if (lt.id_ == v.first) found_id = true;
+            }
+
+            for (auto &lt : aop.out_lts_) {
+                if (lt.id_ == v.first) found_id = true;
+            }
+        }
+
+        if (!found_id) {
+            BENCHDNN_PRINT(0,
+                    "graph: rewrite: ID `%zd` is not found in the graph\n",
+                    v.first);
+            SAFE_V(FAIL);
+        }
+    }
+
+    // rewrite
+    for (const auto &v : dt_map_) {
+        const std::string str_dt(dt2str(v.second));
+        for (auto &aop : dgraph.ops_) {
+            for (auto &lt : aop.in_lts_) {
+                if (lt.id_ == v.first) lt.data_type_ = str_dt;
+            }
+
+            for (auto &lt : aop.out_lts_) {
+                if (lt.id_ == v.first) lt.data_type_ = str_dt;
             }
         }
     }
