@@ -3,4 +3,4 @@
 --batch=test_graph_f16
 --batch=test_graph_int8
 --batch=test_graph_f8
---batch=complex_fusion/harness_mha_all
+--batch=test_graph_fusions
