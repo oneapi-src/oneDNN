@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,6 +121,15 @@ inline bool all_zero(const std::vector<int64_t> &vec) {
     auto no_zero_pos = std::find_if(
             vec.begin(), vec.end(), [](const int64_t &e) { return e != 0; });
     return no_zero_pos == vec.end();
+}
+
+inline dim_t offset_compute(
+        const std::vector<dim_t> &strides, const dims_t idx) {
+    dim_t off = 0;
+    for (size_t i = 0; i < strides.size(); i++) {
+        off += idx[i] * strides[i];
+    }
+    return off;
 }
 
 } // namespace utils

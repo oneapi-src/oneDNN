@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,7 +77,8 @@ namespace op_kind {
     X(dnnl_reorder, Dnnl_reorder) \
     X(dnnl_convtranspose_bwd_data, Dnnl_convtranspose_bwd_data) \
     X(dnnl_convtranspose_bwd_weights, Dnnl_convtranspose_bwd_weights) \
-    X(dnnl_groupnorm, Dnnl_groupnorm)
+    X(dnnl_groupnorm, Dnnl_groupnorm) \
+    X(dnnl_gen_index, Dnnl_gen_index)
 
 enum kind_t {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,
