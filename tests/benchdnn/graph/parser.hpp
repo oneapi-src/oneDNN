@@ -44,6 +44,10 @@ bool parse_graph_fpmath_mode(
 
 bool parse_input_file(std::string &json_file, const char *str);
 
+bool parse_dts(std::vector<dnnl_data_type_t> &dts,
+        std::vector<std::map<size_t, dnnl_data_type_t>> &dts_map,
+        const char *str, const std::string &option_name = "dt");
+
 std::map<std::string, std::string> parse_attrs(const std::string &attrs_str);
 
 // Convert f32 vec attrs string into f32 vec

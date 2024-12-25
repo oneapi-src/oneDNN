@@ -29,13 +29,14 @@ struct flex_rewrite {
     flex_rewrite(const std::map<size_t, std::string> &in_shapes,
             const std::map<size_t, std::string> &op_attrs,
             const graph_fpmath_mode_t &fpmath_mode, const int64_t mb,
-            const dnnl_data_type_t dt)
-
+            const dnnl_data_type_t dt,
+            const std::map<size_t, dnnl_data_type_t> &dts)
         : in_shapes_(in_shapes)
         , op_attrs_(op_attrs)
         , fpmath_mode_(fpmath_mode)
         , mb_(mb)
-        , dt_(dt) {}
+        , dt_(dt)
+        , dts_(dts) {}
 
     void rewrite(deserialized_graph &dgraph);
 
@@ -47,6 +48,7 @@ private:
     graph_fpmath_mode_t fpmath_mode_;
     int64_t mb_;
     dnnl_data_type_t dt_;
+    std::map<size_t, dnnl_data_type_t> dts_;
 
     void split_ncx(const std::string &data_format, dims_t &in, int64_t &n,
             int64_t &c, dims_t &x) const;
@@ -70,6 +72,7 @@ private:
             bool change_stride);
     void graph_attrs_rewrite(deserialized_graph &dgraph);
     void dt_rewrite(deserialized_graph &dgraph);
+    void dts_rewrite(deserialized_graph &dgraph);
 };
 
 } // namespace graph
