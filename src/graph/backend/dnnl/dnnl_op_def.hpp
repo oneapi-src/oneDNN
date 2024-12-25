@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -773,6 +773,21 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_eltwise_bwd, 1,
                 .SET_EXECUTABLE_CREATOR(
                         executable_creator<eltwise_bwd_executable_t>)
                 .SET_ARG_INDICES_GETTER(eltwise_bwd_executable_t))
+
+DNNL_GRAPH_OP_SCHEMA(dnnl_gen_index, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "input")
+                .set_output(0, "output")
+                // Attributes inherited from front GenIndex ops
+                .set_attr(op_attr::axis, true, attribute_kind::i)
+                // Analysis rules
+                .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_gen_index)
+                .SET_EXECUTABLE_CREATOR(
+                        executable_creator<genindex_executable_t>)
+                .SET_ARG_INDICES_GETTER(genindex_executable_t))
 
 DNNL_GRAPH_OP_SCHEMA(dnnl_shuffle, 1,
         op_schema_t()
