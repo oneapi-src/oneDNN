@@ -413,7 +413,9 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     auto ldk = gemm_desc_t::get_ld(*pd()->key_md()) * key_mdw.data_type_size();
     auto ldv = gemm_desc_t::get_ld(*pd()->val_md()) * val_mdw.data_type_size();
     auto lda = gemm_desc_t::get_ld(*pd()->dst_md()) * dst_mdw.data_type_size();
-    auto ldmsk = pd()->attn_mask_md()->dims[3] * msk_mdw.data_type_size();
+    auto ldmsk = pd()->with_attn_mask()
+            ? msk_mdw.dims()[3] * msk_mdw.data_type_size()
+            : 0;
     kernel_ctx.define_int("Q_ALIGN", jit::alignmentForLD(int(ldq)));
     kernel_ctx.define_int("K_ALIGN", jit::alignmentForLD(int(ldk)));
     kernel_ctx.define_int("V_ALIGN", jit::alignmentForLD(int(ldv)));
