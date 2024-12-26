@@ -328,11 +328,13 @@ bool check_dyn_quant_dequant_scales_zps(const op_t *n) {
         // in case of not setting value for zps
         if (sz_zps == DNNL_GRAPH_UNKNOWN_DIM) { return true; }
 
-        VCHECK_SHAPE_INFER((sz_scales == sz_zps),
-                "%s, scales and zps should keep same. given scale "
-                "size: %d, given zp size: %d.",
-                op_t::kind2str(n->get_kind()).c_str(),
-                static_cast<int>(sz_scales), static_cast<int>(sz_zps));
+        if (qtype == "per_group") {
+            VCHECK_SHAPE_INFER((sz_scales == sz_zps),
+                    "%s, scales and zps should keep same. given scale "
+                    "size: %d, given zp size: %d.",
+                    op_t::kind2str(n->get_kind()).c_str(),
+                    static_cast<int>(sz_scales), static_cast<int>(sz_zps));
+        }
 
         if (qtype == "per_tensor") {
             VCHECK_SHAPE_INFER((sz_zps == 1),
