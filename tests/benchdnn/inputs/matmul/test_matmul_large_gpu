@@ -1,0 +1,99 @@
+--reset --stag=any --wtag=any --dtag=any --dt=bf16:u8:bf16 --attr-fpmath=bf16:true 1x2:2x1789201856
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=bf16 407x35:35x14118450
+--reset --stag=any --wtag=any --dtag=any --dt=f16:u8:f16 --attr-fpmath=f16:true 39151x1:1x74148
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f32:f32:f32  65384832x120:120x2
+--reset --stag=ba --wtag=ab --dtag=ab --dt=bf16:bf16:bf16  584x213:213x3041378
+--reset --stag=any --wtag=any --dtag=any --dt=bf16:u8:bf16 --attr-fpmath=bf16:true 2x31:31x106350853
+--reset --stag=any --wtag=any --dtag=any --dt=f32:f32:f32 --attr-fpmath=tf32 5x1:1x615461344
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=tf32 83179x710:710x39802
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=bf16 653683x68:68x7348
+--reset --stag=any --wtag=any --dtag=any --dt=f32:f32:f32 --attr-fpmath=bf16 2x30:30x95573179
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=bf16 21x10:10x80125482
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:u8:f32  14219754x237:237x123
+--reset --stag=ab --wtag=ba --dtag=ab --dt=u8:u8:f32  1585984x387:387x1328
+--reset --stag=ab --wtag=ba --dtag=ab --dt=bf16:u8:bf16 --attr-fpmath=bf16:true 4185514x587:587x5
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=f16 26x111:111x35222113
+--reset --stag=any --wtag=any --dtag=any --dt=f32:u8:f32  3083732x116:116x1107
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=bf16 14569994x7:7x347
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f16:f16:f16  116947096x2:2x33
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f16:f16:f16  5939448x363:363x331
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f16:u4:f16 --attr-fpmath=f16:true 18390116x171:171x30
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:u8:bf16 --attr-fpmath=bf16:true 6549540x350:350x222
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:u8:f32  93894038x69:69x7
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=bf16 90044944x10:10x47
+--reset --stag=any --wtag=any --dtag=any --dt=f32:u4:f32  69212x8:8x87115
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:u8:bf16 --attr-fpmath=bf16:true 13632175x517:517x2
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f16:u8:f16 --attr-fpmath=f16:true 1598596x640:640x834
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f16:u8:f16 --attr-fpmath=f16:true 122689288x8:8x45
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:u8:bf16 --attr-fpmath=bf16:true 3x45:45x69754893
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:u4:bf16 --attr-fpmath=bf16:true 1x160:160x16222019
+--reset --stag=ba --wtag=ab --dtag=ab --dt=bf16:u8:bf16 --attr-fpmath=bf16:true 385x939:939x4924467
+--reset --stag=ba --wtag=ab --dtag=ab --dt=u8:u8:f32  1992978x632:632x842
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:u4:bf16 --attr-fpmath=bf16:true 6293x17:17x1043944
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=f16 1419x14:14x4981072
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:u4:bf16 --attr-fpmath=bf16:true 290x3:3x18647454
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f16:u4:f16 --attr-fpmath=f16:true 511410294x1:1x13
+--reset --stag=any --wtag=any --dtag=any --dt=bf16:u4:bf16 --attr-fpmath=bf16:true 259x39:39x9706702
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32  235484x36:36x18455
+--reset --stag=ab --wtag=ba --dtag=ab --dt=bf16:bf16:bf16  1422373x206:206x3619
+--reset --stag=any --wtag=any --dtag=any --dt=u8:u8:f32  300573x411:411x9003
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:u8:bf16 --attr-fpmath=bf16:true 2274028x205:205x1054
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f16:u4:f16 --attr-fpmath=f16:true 180x5:5x21585730
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:u4:bf16 --attr-fpmath=bf16:true 91x420:420x10884120
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f16:f16:f16  3842x46:46x852208
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f16:f16:f16  576225x3:3x5316
+--reset --stag=ab --wtag=ba --dtag=ab --dt=bf16:bf16:bf16  8x3:3x516510367
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=tf32 85x446:446x8841741
+--reset --stag=any --wtag=any --dtag=any --dt=f32:f32:f32 --attr-fpmath=tf32 624900425x2:2x2
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=tf32 113x119:119x20018389
+--reset --stag=ab --wtag=ba --dtag=ab --dt=bf16:u4:bf16 --attr-fpmath=bf16:true 52758381x73:73x37
+--reset --stag=any --wtag=any --dtag=any --dt=f32:f32:f32 --attr-fpmath=f16 11399472x667:667x2
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:u4:f32  7275826x471:471x30
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=bf16 5594x68:68x435719
+--reset --stag=any --wtag=any --dtag=any --dt=bf16:bf16:bf16  91x143:143x21960221
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f16:u8:f16 --attr-fpmath=f16:true 371009193x10:10x5
+--reset --stag=any --wtag=any --dtag=any --dt=u8:u8:f32  111x71:71x34901324
+--reset --stag=any --wtag=any --dtag=any --dt=f32:u8:f32  53230794x22:22x58
+--reset --stag=any --wtag=any --dtag=any --dt=u8:u8:f32  49580x8:8x67799
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=bf16 3977x7:7x1560002
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f16:u4:f16 --attr-fpmath=f16:true 14481532x2:2x385
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f16:u4:f16 --attr-fpmath=f16:true 225586555x2:2x26
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:bf16:bf16  11065238x94:94x130
+--reset --stag=any --wtag=any --dtag=any --dt=f32:f32:f32 --attr-fpmath=f16 158x1:1x48350582
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:bf16:bf16  31x40:40x114671774
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f16:f16:f16  14x420:420x8868905
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f16:f16:f16  2302287x84:84x1081
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f16:u4:f16 --attr-fpmath=f16:true 36x37:37x64148645
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f16:f16:f16  4x10:10x355914435
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32  1x1:1x2318406393
+--reset --stag=any --wtag=any --dtag=any --dt=f16:f16:f16  156147464x12:12x11
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f32:u4:f32  16409x7:7x451020
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:u8:f32  873x2:2x4574119
+--reset --stag=any --wtag=any --dtag=any --dt=f16:u4:f16 --attr-fpmath=f16:true 8616x584:584x252846
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f16:u4:f16 --attr-fpmath=f16:true 1278x42:42x2906077
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f16:u4:f16 --attr-fpmath=f16:true 126x5:5x59779114
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f16:f16:f16  1698721x52:52x1360
+--reset --stag=any --wtag=any --dtag=any --dt=bf16:bf16:bf16  1386988x652:652x2232
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:bf16:bf16  6840x25:25x445117
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=tf32 243x3:3x11621290
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:u8:f32  225x680:680x8365953
+--reset --stag=any --wtag=any --dtag=any --dt=f32:u4:f32  331x16:16x6457275
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f32:f32:f32 --attr-fpmath=f16 303052658x14:14x2
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=f16 28802x228:228x162201
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f16:u8:f16 --attr-fpmath=f16:true 56x92:92x18682172
+--reset --stag=any --wtag=any --dtag=any --dt=f32:f32:f32 --attr-fpmath=tf32 7195906x9:9x888
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f32:f32:f32  43279x22:22x68269
+--reset --stag=any --wtag=any --dtag=any --dt=bf16:u8:bf16 --attr-fpmath=bf16:true 226273600x30:30x1
+--reset --stag=any --wtag=any --dtag=any --dt=bf16:u8:bf16 --attr-fpmath=bf16:true 131531744x14:14x7
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f32:u8:f32  810823x720:720x2920
+--reset --stag=any --wtag=any --dtag=any --dt=bf16:bf16:bf16  449982x846:846x11975
+--reset --stag=ab --wtag=ba --dtag=ab --dt=f16:u8:f16 --attr-fpmath=f16:true 5879766x204:204x911
+--reset --stag=any --wtag=any --dtag=any --dt=f32:f32:f32 --attr-fpmath=tf32 290917x204:204x8805
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:u4:bf16 --attr-fpmath=bf16:true 249257x48:48x14627
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=tf32 348335902x2:2x5
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=f16 3978x4:4x1046982
+--reset --stag=any --wtag=any --dtag=any --dt=f32:f32:f32 --attr-fpmath=f16 222263587x29:29x2
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f16:u8:f16 --attr-fpmath=f16:true 45757x191:191x114496
+--reset --stag=ab --wtag=ba --dtag=ab --dt=u8:u8:f32  197x15:15x32179943
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:u8:f32  24988098x242:242x21
+--reset --stag=ba --wtag=ab --dtag=ab --dt=f32:f32:f32 --attr-fpmath=tf32 3637797x11:11x2280

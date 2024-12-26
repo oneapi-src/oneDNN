@@ -590,7 +590,9 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
 
 void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy, const char *tags)
 {
-    auto *gemmAStrategy = &strategy.A, *gemmBStrategy = &strategy.B;
+    if(problem.A.needA64) strategy.A.forceA64();
+    if(problem.B.needA64) strategy.B.forceA64();
+    if(problem.C.needA64) strategy.C.forceA64();
 
     // 2D block accesses use 2D addressing where supported.
     auto use2DAddressing = [](MatrixAddressingStrategy &astrategy) {
@@ -636,8 +638,8 @@ void adjustStrategy(HW hw, const GEMMProblem &problem, GEMMStrategy &strategy, c
         strategy.remHandling[LoopN] = RemainderHandling::General;
 
     // Also don't split remainder handling if padded.
-    if (gemmAStrategy->padded) strategy.remHandling[LoopM] = RemainderHandling::General;
-    if (gemmBStrategy->padded) strategy.remHandling[LoopN] = RemainderHandling::General;
+    if (strategy.A.padded) strategy.remHandling[LoopM] = RemainderHandling::General;
+    if (strategy.B.padded) strategy.remHandling[LoopN] = RemainderHandling::General;
 
     // But always use split remainder handling when prefetching C if it _isn't_ block 2D
     //  ... in that case there are no C prefetches on the remainder path.

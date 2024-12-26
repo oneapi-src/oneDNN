@@ -55,28 +55,28 @@ __kernel void ref_convolution_fwd(
     src += SRC_OFFSET0;
     dst += DST_OFFSET0;
 
-    const int n = GWS_GET_MB();
-    const int oc = GWS_GET_OC();
-    const int g = GWS_GET_G();
-    const int od = GWS_GET_OD();
-    const int oh = GWS_GET_OH();
-    const int ow = GWS_GET_OW();
+    const off_t n = GWS_GET_MB();
+    const off_t oc = GWS_GET_OC();
+    const off_t g = GWS_GET_G();
+    const off_t od = GWS_GET_OD();
+    const off_t oh = GWS_GET_OH();
+    const off_t ow = GWS_GET_OW();
 
     ACC_DATA_T d = 0;
-    for (int ic = 0; ic < IC; ++ic)
-        for (int kd = 0; kd < KD; ++kd)
-            for (int kh = 0; kh < KH; ++kh)
-                for (int kw = 0; kw < KW; ++kw) {
-                    const int id = od * SD - PD + kd * (1 + DD);
-                    const int ih = oh * SH - PH + kh * (1 + DH);
-                    const int iw = ow * SW - PW + kw * (1 + DW);
+    for (off_t ic = 0; ic < IC; ++ic)
+        for (off_t kd = 0; kd < KD; ++kd)
+            for (off_t kh = 0; kh < KH; ++kh)
+                for (off_t kw = 0; kw < KW; ++kw) {
+                    const off_t id = od * SD - PD + kd * (1 + DD);
+                    const off_t ih = oh * SH - PH + kh * (1 + DH);
+                    const off_t iw = ow * SW - PW + kw * (1 + DW);
 
                     if (id < 0 || id >= ID || ih < 0 || ih >= IH || iw < 0
                             || iw >= IW)
                         continue;
 
-                    const uint src_off = SRC_OFF(n, g * IC + ic, id, ih, iw);
-                    const uint wei_off = WEI_OFF(g, oc, ic, kd, kh, kw);
+                    const off_t src_off = SRC_OFF(n, g * IC + ic, id, ih, iw);
+                    const off_t wei_off = WEI_OFF(g, oc, ic, kd, kh, kw);
                     d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wei[wei_off]);
 #if WITH_SRC_ZPOINTS
                     const int src_zp
@@ -161,31 +161,31 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
         const __global float *src_scales, const __global float *wei_scales,
         const __global float *dst_scales, const __global int *src_zpoints,
         const __global WEI_ZP_T *wei_zpoints, const __global int *dst_zpoints) {
-    const int n = GWS_GET_MB();
-    const int ic = GWS_GET_IC();
-    const int g = GWS_GET_G();
-    const int id = GWS_GET_ID();
-    const int ih = GWS_GET_IH();
-    const int iw = GWS_GET_IW();
+    const off_t n = GWS_GET_MB();
+    const off_t ic = GWS_GET_IC();
+    const off_t g = GWS_GET_G();
+    const off_t id = GWS_GET_ID();
+    const off_t ih = GWS_GET_IH();
+    const off_t iw = GWS_GET_IW();
     ACC_DATA_T d = 0.0;
-    for_(int oc = 0; oc < OC; ++oc)
-    for_(int kd = 0; kd < KD; ++kd)
-    for_(int kh = 0; kh < KH; ++kh)
-    for (int kw = 0; kw < KW; ++kw) {
+    for_(off_t oc = 0; oc < OC; ++oc)
+    for_(off_t kd = 0; kd < KD; ++kd)
+    for_(off_t kh = 0; kh < KH; ++kh)
+    for (off_t kw = 0; kw < KW; ++kw) {
         if (iw + PW < kw * (1 + DW) || ih + PH < kh * (1 + DH)
                 || id + PD < kd * (1 + DD))
             continue;
-        int ow = iw - kw * (1 + DW) + PW;
-        int oh = ih - kh * (1 + DH) + PH;
-        int od = id - kd * (1 + DD) + PD;
+        off_t ow = iw - kw * (1 + DW) + PW;
+        off_t oh = ih - kh * (1 + DH) + PH;
+        off_t od = id - kd * (1 + DD) + PD;
         if (ow % SW != 0 || oh % SH != 0 || od % SD != 0) continue;
 
         ow /= SW;
         oh /= SH;
         od /= SD;
         if (oh < OH && ow < OW && od < OD) {
-            const uint dst_off = DST_OFF(n, g * OC + oc, od, oh, ow);
-            const uint wei_off = WEI_OFF(g, oc, ic, kd, kh, kw);
+            const off_t dst_off = DST_OFF(n, g * OC + oc, od, oh, ow);
+            const off_t wei_off = WEI_OFF(g, oc, ic, kd, kh, kw);
             d += DST_TO_REF(diff_dst[dst_off]) * WEI_TO_REF(wei[wei_off]);
 #if WITH_SRC_ZPOINTS
             const int src_zp
@@ -265,20 +265,20 @@ KERNEL_ATTR
 __kernel void ref_convolution_bwd_weights(const __global SRC_DATA_T *src,
         __global WEI_DATA_T *diff_wei, __global BIA_DATA_T *diff_bias,
         const __global DST_DATA_T *diff_dst) {
-    const int g = GWS_GET_G();
-    const int ic = GWS_GET_IC();
-    const int oc = GWS_GET_OC();
-    const int kd = GWS_GET_KD();
-    const int kh = GWS_GET_KH();
-    const int kw = GWS_GET_KW();
+    const off_t g = GWS_GET_G();
+    const off_t ic = GWS_GET_IC();
+    const off_t oc = GWS_GET_OC();
+    const off_t kd = GWS_GET_KD();
+    const off_t kh = GWS_GET_KH();
+    const off_t kw = GWS_GET_KW();
 
 #if WITH_BIAS
     if (ic == 0 && kh == 0 && kw == 0 & kd == 0) {
         ACC_DATA_T d = 0.0;
-        for (int n = 0; n < MB; ++n)
-            for (int od = 0; od < OD; ++od)
-                for (int oh = 0; oh < OH; ++oh)
-                    for (int ow = 0; ow < OW; ++ow) {
+        for (off_t n = 0; n < MB; ++n)
+            for (off_t od = 0; od < OD; ++od)
+                for (off_t oh = 0; oh < OH; ++oh)
+                    for (off_t ow = 0; ow < OW; ++ow) {
                         d += DST_TO_REF(
                                 diff_dst[DST_OFF(n, g * OC + oc, od, oh, ow)]);
                     }
@@ -287,10 +287,10 @@ __kernel void ref_convolution_bwd_weights(const __global SRC_DATA_T *src,
 #endif
 
     ACC_DATA_T dw = 0.0;
-    for (int n = 0; n < MB; ++n)
-        for (int od = 0; od < OD; ++od)
-            for (int oh = 0; oh < OH; ++oh)
-                for (int ow = 0; ow < OW; ++ow) {
+    for (off_t n = 0; n < MB; ++n)
+        for (off_t od = 0; od < OD; ++od)
+            for (off_t oh = 0; oh < OH; ++oh)
+                for (off_t ow = 0; ow < OW; ++ow) {
                     if (ow * SW + kw * (1 + DW) < PW
                             || oh * SH + kh * (1 + DH) < PH
                             || od * SD + kd * (1 + DD) < PD
@@ -299,9 +299,9 @@ __kernel void ref_convolution_bwd_weights(const __global SRC_DATA_T *src,
                             || od * SD + kd * (1 + DD) >= ID + PD)
                         continue;
 
-                    int id = od * SD - PD + kd * (1 + DD);
-                    int ih = oh * SH - PH + kh * (1 + DH);
-                    int iw = ow * SW - PW + kw * (1 + DW);
+                    off_t id = od * SD - PD + kd * (1 + DD);
+                    off_t ih = oh * SH - PH + kh * (1 + DH);
+                    off_t iw = ow * SW - PW + kw * (1 + DW);
 
                     dw += DST_TO_REF(
                                   diff_dst[DST_OFF(n, g * OC + oc, od, oh, ow)])

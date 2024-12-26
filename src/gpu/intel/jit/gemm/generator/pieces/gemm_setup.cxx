@@ -139,7 +139,8 @@ void BLASKernelGenerator<hw>::gemmCalcWorkshareAOffset(Subregister &off, Subregi
         }
     } else {
         auto Ta_ext = problem.Ta_ext;
-        off = state.ra.alloc_sub<uint32_t>(getHint(HintType::TempComp0, strategy));
+        auto Toff = A_strategy.base.isA64() ? DataType::uq : DataType::ud;
+        off = state.ra.alloc_sub(Toff, getHint(HintType::TempComp0, strategy));
 
         switch (A.layout) {
             case MatrixLayout::Pc:
@@ -148,8 +149,8 @@ void BLASKernelGenerator<hw>::gemmCalcWorkshareAOffset(Subregister &off, Subregi
             case MatrixLayout::T:
                 if (splitLinear) stub();
                 if (splitM) {
-                    mul(1, off, state.inputs.lda, lid);
-                    mulConstant(1, off, off, ma);
+                    emul(1, off, state.inputs.lda, lid, strategy, state);
+                    emulConstant(1, off, off, ma, strategy, state);
                 } else
                     mulConstant(1, off, lid, ka * Ta_ext);
                 break;
@@ -158,8 +159,8 @@ void BLASKernelGenerator<hw>::gemmCalcWorkshareAOffset(Subregister &off, Subregi
                 if (splitM)
                     mulConstant(1, off, lid, ma * Ta_ext);
                 else {
-                    mul(1, off, state.inputs.lda, lid);
-                    mulConstant(1, off, off, ka);
+                    emul(1, off, state.inputs.lda, lid, strategy, state);
+                    emulConstant(1, off, off, ka, strategy, state);
                 }
                 break;
             default: stub();
@@ -193,7 +194,8 @@ void BLASKernelGenerator<hw>::gemmCalcWorkshareBOffset(Subregister &off, Subregi
         }
     } else {
         auto Tb_ext = problem.Tb_ext;
-        off = state.ra.alloc_sub<uint32_t>(getHint(HintType::TempComp0, strategy));
+        auto Toff = B_strategy.base.isA64() ? DataType::uq : DataType::ud;
+        off = state.ra.alloc_sub(Toff, getHint(HintType::TempComp0, strategy));
 
         switch (B.layout) {
             case MatrixLayout::Pr:

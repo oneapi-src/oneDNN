@@ -137,6 +137,11 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf(
     const memory_desc_wrapper dst_mdw(dst_md());
     const memory_desc_wrapper bias_mdw(weights_md(1));
 
+    VDISPATCH_CONV_IC(std::max({src_mdw.nelems(true), weights_mdw.nelems(true),
+                              dst_mdw.nelems(true)})
+                    <= INT_MAX,
+            VERBOSE_SHAPE_RESTRICTION);
+
     set_default_conf(conf, cd, *src_md(), *weights_md(), *dst_md(),
             *weights_md(1), *attr());
 

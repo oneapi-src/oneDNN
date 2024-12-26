@@ -861,7 +861,7 @@ bool is_opencl_engine(const dnnl_engine_t &engine) {
 }
 
 bool is_nvidia_gpu(const dnnl_engine_t &engine) {
-#ifdef DNNL_WITH_SYCL
+#if defined(DNNL_WITH_SYCL) && DNNL_GPU_VENDOR == DNNL_VENDOR_NVIDIA
     if (!is_gpu(engine)) return false;
     constexpr int nvidia_vendor_id = 0x10DE;
     auto eng = dnnl::engine(engine, true);
@@ -874,7 +874,7 @@ bool is_nvidia_gpu(const dnnl_engine_t &engine) {
 }
 
 bool is_amd_gpu(const dnnl_engine_t &engine) {
-#ifdef DNNL_WITH_SYCL
+#if defined(DNNL_WITH_SYCL) && DNNL_GPU_VENDOR == DNNL_VENDOR_AMD
     if (!is_gpu(engine)) return false;
     constexpr int amd_vendor_id = 0x1002;
     auto eng = dnnl::engine(engine, true);
