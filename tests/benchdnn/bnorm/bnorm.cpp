@@ -392,8 +392,8 @@ int check_fwd_ws(dnn_mem_map_t &mem_map, res_t *res) {
             const bool ok = bit_set == want;
             res->errors += !ok;
 
-            bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                    || (verbose >= 50 && i < 30);
+            bool dump = (!ok && (res->errors < 10 || verbose >= 8))
+                    || verbose >= 9;
             if (dump) {
                 BENCHDNN_PRINT(0, "[%4ld] ws exp:%d got:%d (data:%g:%a)\n",
                         (long)(i + j), want, bit_set, data, data);

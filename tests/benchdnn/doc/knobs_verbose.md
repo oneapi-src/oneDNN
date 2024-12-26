@@ -37,8 +37,9 @@ following information is printed for certain verbosity levels.
 ## Level 7
 * Graph: prints the essential part of the graph (after the rewriter pass).
 
-## Level 50
+## Level 8
 * Full path of batch file used.
+* Correctness comparison: all failed points summary.
 
-## Level 99
-* A full version of comparison summary.
+## Level 9
+* Correctness comparison: all points summary.

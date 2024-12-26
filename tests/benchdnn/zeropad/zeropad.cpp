@@ -81,8 +81,8 @@ static int compare(const dnn_mem_t &test_mem, res_t *res) {
                 uint8_t mem_value = mem[type_size * idx + i];
                 bool idx_ok = (mem_value == dnnl_mem_default_value);
                 if (!idx_ok) errors++;
-                const bool dump = (!idx_ok && (errors < 10 || verbose >= 10))
-                        || (verbose >= 99);
+                const bool dump = (!idx_ok && (errors < 10 || verbose >= 8))
+                        || (verbose >= 9);
                 if (dump) {
                     BENCHDNN_PRINT(0,
                             "[%4ld][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT

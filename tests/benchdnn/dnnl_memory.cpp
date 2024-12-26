@@ -1079,8 +1079,8 @@ static int check_zero_padding_impl(
                 bool idx_ok = (mem.get_elem(idx) == 0);
                 if (!idx_ok) errors++;
 
-                const bool dump = (!idx_ok && (errors < 10 || verbose >= 10))
-                        || (verbose >= 99);
+                const bool dump = (!idx_ok && (errors < 10 || verbose >= 8))
+                        || (verbose >= 9);
                 if (dump) {
                     BENCHDNN_PRINT(0,
                             "[%4ld][arg:%d]"

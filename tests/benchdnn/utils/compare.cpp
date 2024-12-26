@@ -189,7 +189,7 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     const auto nelems_pad = nelems_per_thread * nthreads;
 
     diff_norm_t diff_norm;
-    const bool need_dump = verbose >= 99;
+    const bool need_dump = verbose >= 9;
 
     const auto compare_norm_values = [&](int64_t i) {
         if (i >= nelems) return;
@@ -304,7 +304,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     float all_max_diff = 0.f;
     float err_max_rdiff = 0.f;
     float err_max_diff = 0.f;
-    const bool need_dump = verbose >= 99;
+    const bool need_dump = verbose >= 9;
 
     // Make thread_data static so that acquiring the thread data can be
     // performed in a static thread_local variable to minimize locking
@@ -501,7 +501,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
         if (!ok) n_errors++;
 
         const bool dump
-                = need_dump || (!ok && (n_errors <= 10 || verbose >= 10));
+                = need_dump || (!ok && (n_errors <= 10 || verbose >= 8));
         if (dump)
             dumps.emplace_back(got_mem.md_, i, args.exp_f32, args.exp, args.got,
                     args.diff, args.rel_diff);
@@ -545,8 +545,9 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
                 [](const dump_point_ctx_t &a, const dump_point_ctx_t &b) {
                     return a.l_offset < b.l_offset;
                 });
+        // `verbose >= 8` means all failed points were requested.
         size_t max_dump_size
-                = (verbose >= 10 || dumps.size() < 10) ? dumps.size() : 10;
+                = verbose >= 8 ? dumps.size() : MIN2(dumps.size(), 10);
         for (size_t i = 0; i < max_dump_size; i++) {
             dump_point_values(get_kind_str(), dumps[i]);
         }
