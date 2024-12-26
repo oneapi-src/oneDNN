@@ -32,7 +32,7 @@
             "value": [
               1,
               1,
-              64,
+              128,
               1
             ]
           },
@@ -66,12 +66,12 @@
             "shape": [
               2,
               4,
-              2,
+              1,
               32
             ],
             "stride": [
-              256,
-              64,
+              128,
+              32,
               32,
               1
             ],
@@ -174,13 +174,13 @@
         ]
       },
       {
-        "id": 300,
-        "name": "scaleS",
-        "kind": "Divide",
+        "id": 500,
+        "name": "softmax",
+        "kind": "SoftMax",
         "attrs": {
-          "auto_broadcast": {
-            "type": "string",
-            "value": "numpy"
+          "axis": {
+            "type": "s64",
+            "value": 3
           }
         },
         "inputs": [
@@ -194,135 +194,7 @@
               32
             ],
             "stride": [
-              32768,
-              1024,
-              32,
-              1
-            ],
-            "layout_type": "strided",
-            "property_type": "variable"
-          },
-          {
-            "id": 4,
-            "dtype": "f16",
-            "shape": [],
-            "stride": [],
-            "layout_type": "strided",
-            "property_type": "undef"
-          }
-        ],
-        "outputs": [
-          {
-            "id": 16,
-            "dtype": "f16",
-            "shape": [
-              2,
-              4,
-              32,
-              32
-            ],
-            "stride": [
-              32768,
-              1024,
-              32,
-              1
-            ],
-            "layout_type": "strided",
-            "property_type": "variable"
-          }
-        ]
-      },
-      {
-        "id": 400,
-        "name": "applyMask",
-        "kind": "Add",
-        "attrs": {
-          "auto_broadcast": {
-            "type": "string",
-            "value": "numpy"
-          }
-        },
-        "inputs": [
-          {
-            "id": 16,
-            "dtype": "f16",
-            "shape": [
-              2,
-              4,
-              32,
-              32
-            ],
-            "stride": [
-              32768,
-              1024,
-              32,
-              1
-            ],
-            "layout_type": "strided",
-            "property_type": "variable"
-          },
-          {
-            "id": 5,
-            "dtype": "f16",
-            "shape": [
-              2,
-              1,
-              32,
-              32
-            ],
-            "stride": [
-              1024,
-              1024,
-              32,
-              1
-            ],
-            "layout_type": "strided",
-            "property_type": "variable"
-          }
-        ],
-        "outputs": [
-          {
-            "id": 18,
-            "dtype": "f16",
-            "shape": [
-              2,
-              4,
-              32,
-              32
-            ],
-            "stride": [
-              32768,
-              1024,
-              32,
-              1
-            ],
-            "layout_type": "strided",
-            "property_type": "variable"
-          }
-        ]
-      },
-      {
-        "id": 500,
-        "name": "softmax",
-        "kind": "SoftMax",
-        "attrs": {
-          "axis": {
-            "type": "s64",
-            "value": 3
-          }
-        },
-        "inputs": [
-          {
-            "id": 18,
-            "dtype": "f16",
-            "shape": [
-              2,
-              4,
-              32,
-              32
-            ],
-            "stride": [
-              32768,
+              4096,
               1024,
               32,
               1
@@ -342,7 +214,7 @@
               32
             ],
             "stride": [
-              32768,
+              4096,
               1024,
               32,
               1

@@ -2,45 +2,113 @@
 # Q: MB(2) x NUM_HEAD(4) x Q_SEQ_LEN(32)    x HEAD_SIZE(128)
 # V: MB(2) x NUM_HEAD(4) x KV_SEQ_LEN(32)    x HEAD_SIZE(128)
 #             K(s8)             Ks(f16)    Kzp(s8)    Q(f16)       Mask(f16)   V(s8)        Vs(f16)    Vzp(s8)
-# --in-shapes=0:2x4x128x32*abcd+1:2x4x2x32+2:2x4x2x32+3:2x4x32x128+5:2x1x32x32+6:2x4x32x128+7:2x4x32x2+8:2x4x32x2
-# --in-shapes=0:MBxNUM_HEADxHEAD_SIZExKV_SEQ_LEN*abcd+1:MBxNUM_HEADx2xKV_SEQ_LEN+2:MBxNUM_HEADx2xKV_SEQ_LEN+3:MBxNUM_HEADxQ_SEQ_LENxHEAD_SIZE+5:MBx1xQ_SEQ_LENxKV_SEQ_LEN+6:MBxNUM_HEADxKV_SEQ_LENxHEAD_SIZE+7:MBxNUM_HEADxKV_SEQ_LENx2+8:MBxNUM_HEADxKV_SEQ_LENx2
+# --in-shapes=0:2x4x128x32*abcd+1:2x4x1x32+2:2x4x1x32+3:2x4x32x128+5:2x1x32x32+6:2x4x32x128+7:2x4x32x1+8:2x4x32x1
+# --in-shapes=0:MBxNUM_HEADxHEAD_SIZExKV_SEQ_LEN*abcd+1:MBxNUM_HEADx1xKV_SEQ_LEN+2:MBxNUM_HEADx1xKV_SEQ_LEN+3:MBxNUM_HEADxQ_SEQ_LENxHEAD_SIZE+5:MBx1xQ_SEQ_LENxKV_SEQ_LEN+6:MBxNUM_HEADxKV_SEQ_LENxHEAD_SIZE+7:MBxNUM_HEADxKV_SEQ_LENx1+8:MBxNUM_HEADxKV_SEQ_LENx1
 # --case=complex_fusion/mha/sdpa-0kTs8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
 
+--expected-n-partitions=1
 
---in-shapes=,0:1x4x128x32*abdc+1:1x4x2x32+2:1x4x2x32+3:1x4x32x128*abcd+5:1x1x32x32+6:1x4x32x128*abcd+7:1x4x32x2+8:1x4x32x2,\
-             0:8x4x128x32*abdc+1:8x4x2x32+2:8x4x2x32+3:8x4x32x128*abcd+5:8x1x32x32+6:8x4x32x128*abcd+7:8x4x32x2+8:8x4x32x2,\
-             0:4x32x128x2049*abcd+1:4x32x2x2049+2:4x32x2x2049+3:4x32x2047x128+5:4x1x2047x2049+6:4x32x2049x128+7:4x32x2049x2+8:4x32x2049x2
+             #0:4x32x128x2049*abcd+1:4x32x1x2049+2:4x32x1x2049+3:4x32x2047x128+5:4x1x2047x2049+6:4x32x2049x128+7:4x32x2049x1+8:4x32x2049x1
 
---in-shapes=0:1x1x128x512*abcd+1:1x1x2x512+2:1x1x2x512+3:1x1x512x128+5:1x1x512x512+6:1x1x512x128+7:1x1x512x2+8:1x1x512x2,\
-            0:1x1x128x2049*abcd+1:1x1x2x2049+2:1x1x2x2049+3:1x1x2047x128+5:1x1x2047x2049+6:1x1x2049x128+7:1x1x2049x2+8:1x1x2049x2,\
-            0:1x1x128x2049*abcd+1:1x1x2x2049+2:1x1x2x2049+3:1x1x2048x128+5:1x1x2048x2049+6:1x1x2049x128+7:1x1x2049x2+8:1x1x2049x2
+--in-shapes=,0:1x4x128x32*abdc+1:1x4x1x32+2:1x4x1x32+3:1x4x32x128*abcd+5:1x1x32x32+6:1x4x32x128*abcd+7:1x4x32x1+8:1x4x32x1,\
+             0:4x4x128x32*abdc+1:4x4x1x32+2:4x4x1x32+3:4x4x32x128*abcd+5:4x1x32x32+6:4x4x32x128*abcd+7:4x4x32x1+8:4x4x32x1,\
+             0:8x4x128x32*abdc+1:8x4x1x32+2:8x4x1x32+3:8x4x32x128*abcd+5:8x1x32x32+6:8x4x32x128*abcd+7:8x4x32x1+8:8x4x32x1
+--case=complex_fusion/mha/sdpa-0kf16-3qf16-wscale-wmask-6vf16.json
 --case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
 --case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
-#--case=complex_fusion/mha/sdpa-0kf16-3qf16-wscale-wmask-6vf16.json
-#--case=complex_fusion/mha/sdpa-0kf16-3qf16-wscale-wmask-6vs8f16.json
-#--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vf16.json
+#--case=complex_fusion/mha/sdpa-0kf16-3qf16-6vs8f16.json
+--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vf16.json
 #--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
 
 
-#--reset
-#
-#--in-shapes=0:4x2x64x9*abdc+1:4x2x2x9+2:4x2x2x9+3:4x2x9x64+5:4x1x9x9+6:4x2x9x64+7:4x2x9x2+8:4x2x9x2,\
-#            0:4x2x64x10*abcd+1:4x2x2x10+2:4x2x2x10+3:4x2x10x64+5:4x1x10x10+6:4x2x10x64+7:4x2x10x2+8:4x2x10x2,\
-#            0:4x2x64x11*abcd+1:4x2x2x11+2:4x2x2x11+3:4x2x11x64+5:4x1x11x11+6:4x2x11x64+7:4x2x11x2+8:4x2x11x2,\
-#            0:4x2x64x7*abcd+1:4x2x2x7+2:4x2x2x7+3:4x2x7x64+5:4x1x7x7+6:4x2x7x64+7:4x2x7x2+8:4x2x7x2,\
-#            0:4x2x64x7*abcd+1:4x2x2x7+2:4x2x2x7+3:4x2x9x64+5:4x1x9x7+6:4x2x7x64+7:4x2x7x2+8:4x2x7x2,\
-#            0:4x2x64x9*abcd+1:4x2x2x9+2:4x2x2x9+3:4x2x2047x64+5:4x1x2047x9+6:4x2x9x64+7:4x2x9x2+8:4x2x9x2,\
-#            0:4x2x64x19*abcd+1:4x2x2x19+2:4x2x2x19+3:4x2x2047x64+5:4x1x2047x19+6:4x2x19x64+7:4x2x19x2+8:4x2x19x2,\
-#            0:4x2x64x39*abcd+1:4x2x2x39+2:4x2x2x39+3:4x2x2047x64+5:4x1x2047x39+6:4x2x39x64+7:4x2x39x2+8:4x2x39x2,\
-#            0:4x2x64x38*abcd+1:4x2x2x38+2:4x2x2x38+3:4x2x2047x64+5:4x1x2047x38+6:4x2x38x64+7:4x2x38x2+8:4x2x38x2,\
-#            0:4x2x64x40*abcd+1:4x2x2x40+2:4x2x2x40+3:4x2x2047x64+5:4x1x2047x40+6:4x2x40x64+7:4x2x40x2+8:4x2x40x2
-#--case=complex_fusion/mha/sdpa-0kf16-3qf16-wscale-wmask-6vf16.json
 
-            #0:4x2x64x49*abcd+1:4x2x2x49+2:4x2x2x49+3:4x2x2047x64:+5:4x1x2047x49+6:4x2x49x64:+7:4x2x49x2+8:4x2x49x2
+--in-shapes=0:1x1x128x2048*abcd+1:1x1x1x2048+2:1x1x1x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x1+8:1x1x2048x1
+--case=complex_fusion/mha/sdpa-0kf16-3qf16-wscale-wmask-6vf16.json
+#--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
+#--case=complex_fusion/mha/sdpa-0kf16-3qf16-6vs8f16.json
+#--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
 
 
+#--op-attrs=100:group_shape:1x1x64x1
+#--in-shapes=0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x1x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
+#            0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x384x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
+#            0:1x1x128x512*abcd+1:1x1x2x512+2:1x1x2x512+3:1x1x512x128+5:1x1x1x512+6:1x1x512x128+7:1x1x512x2+8:1x1x512x2,\
+#            0:1x1x128x128*abcd+1:1x1x2x128+2:1x1x2x128+3:1x1x128x128+5:1x1x128x128+6:1x1x128x128+7:1x1x128x2+8:1x1x128x2,\
+#            0:1x1x128x256*abcd+1:1x1x2x256+2:1x1x2x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x2+8:1x1x256x2,\
+#            0:1x1x128x2048*abcd+1:1x1x2x2048+2:1x1x2x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x2+8:1x1x2048x2
+#--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
+#--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
+#--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vf16.json
 
-#case(batch_size, q_seq_len, kv_seq_len, n_head, head_dim)	benchdnn graph correctness pass status(x means failure while √ means passed)
+--op-attrs=100:group_shape:1x1x128x1
+--in-shapes=0:1x1x128x384*abcd+1:1x1x1x384+2:1x1x1x384+3:1x1x384x128+5:1x1x1x384+6:1x1x384x128+7:1x1x384x1+8:1x1x384x1,\
+            0:1x1x128x384*abcd+1:1x1x1x384+2:1x1x1x384+3:1x1x384x128+5:1x1x384x384+6:1x1x384x128+7:1x1x384x1+8:1x1x384x1,\
+            0:1x1x128x512*abcd+1:1x1x1x512+2:1x1x1x512+3:1x1x512x128+5:1x1x1x512+6:1x1x512x128+7:1x1x512x1+8:1x1x512x1,\
+            0:1x1x128x128*abcd+1:1x1x1x128+2:1x1x1x128+3:1x1x128x128+5:1x1x128x128+6:1x1x128x128+7:1x1x128x1+8:1x1x128x1,\
+            0:1x1x128x256*abcd+1:1x1x1x256+2:1x1x1x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x1+8:1x1x256x1
+--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
+--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
+#--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vf16.json
+
+--in-shapes=0:1x1x128x2048*abcd+1:1x1x1x2048+2:1x1x1x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x1+8:1x1x2048x1
+--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
+#--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
+
+            #0:1x1x128x2049*abcd+1:1x1x1x2049+2:1x1x1x2049+3:1x1x2047x128+5:1x1x2047x2049+6:1x1x2049x128+7:1x1x2049x1+8:1x1x2049x1,\
+            #0:1x1x128x2049*abcd+1:1x1x1x2049+2:1x1x1x2049+3:1x1x2048x128+5:1x1x2048x2049+6:1x1x2049x128+7:1x1x2049x1+8:1x1x2049x1
+
+
+            #0:1x1x128x2049*abcd+1:1x1x2x2049+2:1x1x2x2049+3:1x1x2047x128+5:1x1x2047x2049+6:1x1x2049x128+7:1x1x2049x2+8:1x1x2049x2,\
+            #0:1x1x128x2049*abcd+1:1x1x2x2049+2:1x1x2x2049+3:1x1x2048x128+5:1x1x2048x2049+6:1x1x2049x128+7:1x1x2049x2+8:1x1x2049x2
+
+
+--op-attrs=100:group_shape:1x1x64x1+600:group_shape:1x1x1x64
+--in-shapes=0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x1x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
+            0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x384x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
+            0:1x1x128x512*abcd+1:1x1x2x512+2:1x1x2x512+3:1x1x512x128+5:1x1x1x512+6:1x1x512x128+7:1x1x512x2+8:1x1x512x2,\
+            0:1x1x128x128*abcd+1:1x1x2x128+2:1x1x2x128+3:1x1x128x128+5:1x1x128x128+6:1x1x128x128+7:1x1x128x2+8:1x1x128x2,\
+            0:1x1x128x256*abcd+1:1x1x2x256+2:1x1x2x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x2+8:1x1x256x2,\
+            0:1x1x128x2048*abcd+1:1x1x2x2048+2:1x1x2x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x2+8:1x1x2048x2
+#--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
+
+
+            #0:1x1x128x2049*abcd+1:1x1x2x2049+2:1x1x2x2049+3:1x1x2047x128+5:1x1x2047x2049+6:1x1x2049x128+7:1x1x2049x2+8:1x1x2049x2,\
+            #0:1x1x128x2049*abcd+1:1x1x2x2049+2:1x1x2x2049+3:1x1x2048x128+5:1x1x2048x2049+6:1x1x2049x128+7:1x1x2049x2+8:1x1x2049x2
+
+
+--op-attrs=100:group_shape:1x1x128x1+600:group_shape:1x1x1x128
+--in-shapes=0:1x1x128x384*abcd+1:1x1x1x384+2:1x1x1x384+3:1x1x384x128+5:1x1x1x384+6:1x1x384x128+7:1x1x384x1+8:1x1x384x1,\
+            0:1x1x128x384*abcd+1:1x1x1x384+2:1x1x1x384+3:1x1x384x128+5:1x1x384x384+6:1x1x384x128+7:1x1x384x1+8:1x1x384x1,\
+            0:1x1x128x512*abcd+1:1x1x1x512+2:1x1x1x512+3:1x1x512x128+5:1x1x1x512+6:1x1x512x128+7:1x1x512x1+8:1x1x512x1,\
+            0:1x1x128x128*abcd+1:1x1x1x128+2:1x1x1x128+3:1x1x128x128+5:1x1x128x128+6:1x1x128x128+7:1x1x128x1+8:1x1x128x1,\
+            0:1x1x128x256*abcd+1:1x1x1x256+2:1x1x1x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x1+8:1x1x256x1,\
+            0:1x1x128x2048*abcd+1:1x1x1x2048+2:1x1x1x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x1+8:1x1x2048x1
+#--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
+
+
+            #0:1x1x128x2049*abcd+1:1x1x1x2049+2:1x1x1x2049+3:1x1x2047x128+5:1x1x2047x2049+6:1x1x2049x128+7:1x1x2049x1+8:1x1x2049x1,\
+            #0:1x1x128x2049*abcd+1:1x1x1x2049+2:1x1x1x2049+3:1x1x2048x128+5:1x1x2048x2049+6:1x1x2049x128+7:1x1x2049x1+8:1x1x2049x1
+
+--reset
+--in-shapes=0:4x2x64x9*abdc+1:4x2x1x9+2:4x2x1x9+3:4x2x9x64+5:4x1x9x9+6:4x2x9x64+7:4x2x9x1+8:4x2x9x1,\
+            0:4x2x64x10*abcd+1:4x2x1x10+2:4x2x1x10+3:4x2x10x64+5:4x1x10x10+6:4x2x10x64+7:4x2x10x1+8:4x2x10x1,\
+            0:4x2x64x11*abcd+1:4x2x1x11+2:4x2x1x11+3:4x2x11x64+5:4x1x11x11+6:4x2x11x64+7:4x2x11x1+8:4x2x11x1,\
+            0:4x2x64x7*abcd+1:4x2x1x7+2:4x2x1x7+3:4x2x7x64+5:4x1x7x7+6:4x2x7x64+7:4x2x7x1+8:4x2x7x1,\
+            0:4x2x64x7*abcd+1:4x2x1x7+2:4x2x1x7+3:4x2x9x64+5:4x1x9x7+6:4x2x7x64+7:4x2x7x1+8:4x2x7x1,\
+            0:4x2x64x9*abcd+1:4x2x1x9+2:4x2x1x9+3:4x2x2047x64+5:4x1x2047x9+6:4x2x9x64+7:4x2x9x1+8:4x2x9x1,\
+            0:4x2x64x19*abcd+1:4x2x1x19+2:4x2x1x19+3:4x2x2047x64+5:4x1x2047x19+6:4x2x19x64+7:4x2x19x1+8:4x2x19x1,\
+            0:4x2x64x39*abcd+1:4x2x1x39+2:4x2x1x39+3:4x2x2047x64+5:4x1x2047x39+6:4x2x39x64+7:4x2x39x1+8:4x2x39x1,\
+            0:4x2x64x38*abcd+1:4x2x1x38+2:4x2x1x38+3:4x2x2047x64+5:4x1x2047x38+6:4x2x38x64+7:4x2x38x1+8:4x2x38x1,\
+            0:4x2x64x40*abcd+1:4x2x1x40+2:4x2x1x40+3:4x2x2047x64+5:4x1x2047x40+6:4x2x40x64+7:4x2x40x1+8:4x2x40x1,\
+            0:4x2x64x49*abcd+1:4x2x1x49+2:4x2x1x49+3:4x2x2047x64+5:4x1x2047x49+6:4x2x49x64+7:4x2x49x1+8:4x2x49x1
+--case=complex_fusion/mha/sdpa-0kf16-3qf16-wscale-wmask-6vf16.json
+--op-attrs=100:group_shape:1x1x64x1
+--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
+--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
+--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vf16.json
+
+
+
 
 
 # --in-shapes=0:MBxNUM_HEADxHEAD_SIZExKV_SEQ_LEN*abcd+1:MBxNUM_HEADx2xKV_SEQ_LEN+2:MBxNUM_HEADx2xKV_SEQ_LEN+3:MBxNUM_HEADxQ_SEQ_LENxHEAD_SIZE+5:MBx1xQ_SEQ_LENxKV_SEQ_LEN+6:MBxNUM_HEADxKV_SEQ_LENxHEAD_SIZE+7:MBxNUM_HEADxKV_SEQ_LENx2+8:MBxNUM_HEADxKV_SEQ_LENx2
