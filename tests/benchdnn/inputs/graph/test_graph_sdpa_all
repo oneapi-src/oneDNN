@@ -1,6 +1,8 @@
 # K: MB(2) x NUM_HEAD(4) x HEAD_SIZE(128) x KV_SEQ_LEN(32)
 # Q: MB(2) x NUM_HEAD(4) x Q_SEQ_LEN(32)    x HEAD_SIZE(128)
 # V: MB(2) x NUM_HEAD(4) x KV_SEQ_LEN(32)    x HEAD_SIZE(128)
+#            KQ attributes            VS attributes
+# --op-attrs=100:group_shape:1x1x128x1+600:group_shape:1x1x1x128
 #             K(s8)             Ks(f16)    Kzp(s8)    Q(f16)       Mask(f16)   V(s8)        Vs(f16)    Vzp(s8)
 # --in-shapes=0:2x4x128x32*abcd+1:2x4x1x32+2:2x4x1x32+3:2x4x32x128+5:2x1x32x32+6:2x4x32x128+7:2x4x32x1+8:2x4x32x1
 # --in-shapes=0:MBxNUM_HEADxHEAD_SIZExKV_SEQ_LEN*abcd+1:MBxNUM_HEADx1xKV_SEQ_LEN+2:MBxNUM_HEADx1xKV_SEQ_LEN+3:MBxNUM_HEADxQ_SEQ_LENxHEAD_SIZE+5:MBx1xQ_SEQ_LENxKV_SEQ_LEN+6:MBxNUM_HEADxKV_SEQ_LENxHEAD_SIZE+7:MBxNUM_HEADxKV_SEQ_LENx1+8:MBxNUM_HEADxKV_SEQ_LENx1
@@ -8,60 +10,89 @@
 
 --expected-n-partitions=1
 
-             #0:4x32x128x2049*abcd+1:4x32x1x2049+2:4x32x1x2049+3:4x32x2047x128+5:4x1x2047x2049+6:4x32x2049x128+7:4x32x2049x1+8:4x32x2049x1
-
+## Test batches of different sizes
 --in-shapes=,0:1x4x128x32*abdc+1:1x4x1x32+2:1x4x1x32+3:1x4x32x128*abcd+5:1x1x32x32+6:1x4x32x128*abcd+7:1x4x32x1+8:1x4x32x1,\
              0:4x4x128x32*abdc+1:4x4x1x32+2:4x4x1x32+3:4x4x32x128*abcd+5:4x1x32x32+6:4x4x32x128*abcd+7:4x4x32x1+8:4x4x32x1,\
-             0:8x4x128x32*abdc+1:8x4x1x32+2:8x4x1x32+3:8x4x32x128*abcd+5:8x1x32x32+6:8x4x32x128*abcd+7:8x4x32x1+8:8x4x32x1
+             0:8x4x128x32*abdc+1:8x4x1x32+2:8x4x1x32+3:8x4x32x128*abcd+5:8x1x32x32+6:8x4x32x128*abcd+7:8x4x32x1+8:8x4x32x1,\
+             0:1x1x128x2048*abcd+1:1x1x1x2048+2:1x1x1x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x1+8:1x1x2048x1
 --case=complex_fusion/mha/sdpa-0kf16-3qf16-wscale-wmask-6vf16.json
 --case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
 --case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
-#--case=complex_fusion/mha/sdpa-0kf16-3qf16-6vs8f16.json
+--case=complex_fusion/mha/sdpa-0kf16-3qf16-6vs8f16.json
 --case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vf16.json
-#--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
+--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
+--case=complex_fusion/mha/sdpa-0kf16-3qf16-6vs8f16.json
 
+## Test K tensor quantization with 2 groups OR 1 group for small sizes
+--op-attrs=100:group_shape:1x1x64x1
+--in-shapes=0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x1x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
+            0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x384x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
+            0:1x1x128x512*abcd+1:1x1x2x512+2:1x1x2x512+3:1x1x512x128+5:1x1x1x512+6:1x1x512x128+7:1x1x512x2+8:1x1x512x2,\
+            0:1x1x128x128*abcd+1:1x1x2x128+2:1x1x2x128+3:1x1x128x128+5:1x1x128x128+6:1x1x128x128+7:1x1x128x2+8:1x1x128x2,\
+            0:1x1x128x256*abcd+1:1x1x2x256+2:1x1x2x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x2+8:1x1x256x2,\
+            0:1x1x128x2048*abcd+1:1x1x2x2048+2:1x1x2x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x2+8:1x1x2048x2,\
+            0:4x2x64x9*abdc+1:4x2x1x9+2:4x2x1x9+3:4x2x9x64+5:4x1x9x9+6:4x2x9x64+7:4x2x9x1+8:4x2x9x1,\
+            0:4x2x64x10*abcd+1:4x2x1x10+2:4x2x1x10+3:4x2x10x64+5:4x1x10x10+6:4x2x10x64+7:4x2x10x1+8:4x2x10x1,\
+            0:4x2x64x11*abcd+1:4x2x1x11+2:4x2x1x11+3:4x2x11x64+5:4x1x11x11+6:4x2x11x64+7:4x2x11x1+8:4x2x11x1,\
+            0:4x2x64x7*abcd+1:4x2x1x7+2:4x2x1x7+3:4x2x7x64+5:4x1x7x7+6:4x2x7x64+7:4x2x7x1+8:4x2x7x1,\
+            0:4x2x64x7*abcd+1:4x2x1x7+2:4x2x1x7+3:4x2x9x64+5:4x1x9x7+6:4x2x7x64+7:4x2x7x1+8:4x2x7x1,\
+            0:4x2x64x9*abcd+1:4x2x1x9+2:4x2x1x9+3:4x2x2047x64+5:4x1x2047x9+6:4x2x9x64+7:4x2x9x1+8:4x2x9x1,\
+            0:4x2x64x19*abcd+1:4x2x1x19+2:4x2x1x19+3:4x2x2047x64+5:4x1x2047x19+6:4x2x19x64+7:4x2x19x1+8:4x2x19x1,\
+            0:4x2x64x39*abcd+1:4x2x1x39+2:4x2x1x39+3:4x2x2047x64+5:4x1x2047x39+6:4x2x39x64+7:4x2x39x1+8:4x2x39x1,\
+            0:4x2x64x38*abcd+1:4x2x1x38+2:4x2x1x38+3:4x2x2047x64+5:4x1x2047x38+6:4x2x38x64+7:4x2x38x1+8:4x2x38x1,\
+            0:4x2x64x40*abcd+1:4x2x1x40+2:4x2x1x40+3:4x2x2047x64+5:4x1x2047x40+6:4x2x40x64+7:4x2x40x1+8:4x2x40x1,\
+            0:4x2x64x49*abcd+1:4x2x1x49+2:4x2x1x49+3:4x2x2047x64+5:4x1x2047x49+6:4x2x49x64+7:4x2x49x1+8:4x2x49x1
+--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
+--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
+--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vf16.json
 
-
---in-shapes=0:1x1x128x2048*abcd+1:1x1x1x2048+2:1x1x1x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x1+8:1x1x2048x1
---case=complex_fusion/mha/sdpa-0kf16-3qf16-wscale-wmask-6vf16.json
-#--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
-#--case=complex_fusion/mha/sdpa-0kf16-3qf16-6vs8f16.json
-#--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
-
-
-#--op-attrs=100:group_shape:1x1x64x1
-#--in-shapes=0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x1x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
-#            0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x384x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
-#            0:1x1x128x512*abcd+1:1x1x2x512+2:1x1x2x512+3:1x1x512x128+5:1x1x1x512+6:1x1x512x128+7:1x1x512x2+8:1x1x512x2,\
-#            0:1x1x128x128*abcd+1:1x1x2x128+2:1x1x2x128+3:1x1x128x128+5:1x1x128x128+6:1x1x128x128+7:1x1x128x2+8:1x1x128x2,\
-#            0:1x1x128x256*abcd+1:1x1x2x256+2:1x1x2x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x2+8:1x1x256x2,\
-#            0:1x1x128x2048*abcd+1:1x1x2x2048+2:1x1x2x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x2+8:1x1x2048x2
-#--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
-#--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
-#--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vf16.json
-
+## Test K tensor quantization with 1 group per token
 --op-attrs=100:group_shape:1x1x128x1
 --in-shapes=0:1x1x128x384*abcd+1:1x1x1x384+2:1x1x1x384+3:1x1x384x128+5:1x1x1x384+6:1x1x384x128+7:1x1x384x1+8:1x1x384x1,\
             0:1x1x128x384*abcd+1:1x1x1x384+2:1x1x1x384+3:1x1x384x128+5:1x1x384x384+6:1x1x384x128+7:1x1x384x1+8:1x1x384x1,\
             0:1x1x128x512*abcd+1:1x1x1x512+2:1x1x1x512+3:1x1x512x128+5:1x1x1x512+6:1x1x512x128+7:1x1x512x1+8:1x1x512x1,\
             0:1x1x128x128*abcd+1:1x1x1x128+2:1x1x1x128+3:1x1x128x128+5:1x1x128x128+6:1x1x128x128+7:1x1x128x1+8:1x1x128x1,\
-            0:1x1x128x256*abcd+1:1x1x1x256+2:1x1x1x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x1+8:1x1x256x1
+            0:1x1x128x256*abcd+1:1x1x1x256+2:1x1x1x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x1+8:1x1x256x1,\
+            0:1x1x128x2048*abcd+1:1x1x1x2048+2:1x1x1x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x1+8:1x1x2048x1
+            #0:4x32x128x2049*abcd+1:4x32x1x2049+2:4x32x1x2049+3:4x32x2047x128+5:4x1x2047x2049+6:4x32x2049x128+7:4x32x2049x1+8:4x32x2049x1
 --case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
 --case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
-#--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vf16.json
-
---in-shapes=0:1x1x128x2048*abcd+1:1x1x1x2048+2:1x1x1x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x1+8:1x1x2048x1
---case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
-#--case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
-
-            #0:1x1x128x2049*abcd+1:1x1x1x2049+2:1x1x1x2049+3:1x1x2047x128+5:1x1x2047x2049+6:1x1x2049x128+7:1x1x2049x1+8:1x1x2049x1,\
-            #0:1x1x128x2049*abcd+1:1x1x1x2049+2:1x1x1x2049+3:1x1x2048x128+5:1x1x2048x2049+6:1x1x2049x128+7:1x1x2049x1+8:1x1x2049x1
+--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vf16.json
 
 
-            #0:1x1x128x2049*abcd+1:1x1x2x2049+2:1x1x2x2049+3:1x1x2047x128+5:1x1x2047x2049+6:1x1x2049x128+7:1x1x2049x2+8:1x1x2049x2,\
-            #0:1x1x128x2049*abcd+1:1x1x2x2049+2:1x1x2x2049+3:1x1x2048x128+5:1x1x2048x2049+6:1x1x2049x128+7:1x1x2049x2+8:1x1x2049x2
+## Test V tensor quantization with 2 groups OR 1 group for small sizes
+--op-attrs=600:group_shape:1x1x1x64
+--in-shapes=0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x1x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
+            0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x384x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
+            0:1x1x128x512*abcd+1:1x1x2x512+2:1x1x2x512+3:1x1x512x128+5:1x1x1x512+6:1x1x512x128+7:1x1x512x2+8:1x1x512x2,\
+            0:1x1x128x128*abcd+1:1x1x2x128+2:1x1x2x128+3:1x1x128x128+5:1x1x128x128+6:1x1x128x128+7:1x1x128x2+8:1x1x128x2,\
+            0:1x1x128x256*abcd+1:1x1x2x256+2:1x1x2x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x2+8:1x1x256x2,\
+            0:1x1x128x2048*abcd+1:1x1x2x2048+2:1x1x2x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x2+8:1x1x2048x2,\
+            #0:4x2x64x9*abdc+1:4x2x1x9+2:4x2x1x9+3:4x2x9x64+5:4x1x9x9+6:4x2x9x64+7:4x2x9x1+8:4x2x9x1,\
+            0:4x2x64x10*abcd+1:4x2x1x10+2:4x2x1x10+3:4x2x10x64+5:4x1x10x10+6:4x2x10x64+7:4x2x10x1+8:4x2x10x1,\
+            #0:4x2x64x11*abcd+1:4x2x1x11+2:4x2x1x11+3:4x2x11x64+5:4x1x11x11+6:4x2x11x64+7:4x2x11x1+8:4x2x11x1,\
+            #0:4x2x64x7*abcd+1:4x2x1x7+2:4x2x1x7+3:4x2x7x64+5:4x1x7x7+6:4x2x7x64+7:4x2x7x1+8:4x2x7x1,\
+            #0:4x2x64x7*abcd+1:4x2x1x7+2:4x2x1x7+3:4x2x9x64+5:4x1x9x7+6:4x2x7x64+7:4x2x7x1+8:4x2x7x1,\
+            #0:4x2x64x9*abcd+1:4x2x1x9+2:4x2x1x9+3:4x2x2047x64+5:4x1x2047x9+6:4x2x9x64+7:4x2x9x1+8:4x2x9x1,\
+            #0:4x2x64x19*abcd+1:4x2x1x19+2:4x2x1x19+3:4x2x2047x64+5:4x1x2047x19+6:4x2x19x64+7:4x2x19x1+8:4x2x19x1,\
+            #0:4x2x64x39*abcd+1:4x2x1x39+2:4x2x1x39+3:4x2x2047x64+5:4x1x2047x39+6:4x2x39x64+7:4x2x39x1+8:4x2x39x1,\
+            0:4x2x64x38*abcd+1:4x2x1x38+2:4x2x1x38+3:4x2x2047x64+5:4x1x2047x38+6:4x2x38x64+7:4x2x38x1+8:4x2x38x1,\
+            0:4x2x64x40*abcd+1:4x2x1x40+2:4x2x1x40+3:4x2x2047x64+5:4x1x2047x40+6:4x2x40x64+7:4x2x40x1+8:4x2x40x1
+            #0:4x2x64x49*abcd+1:4x2x1x49+2:4x2x1x49+3:4x2x2047x64+5:4x1x2047x49+6:4x2x49x64+7:4x2x49x1+8:4x2x49x1
+--case=complex_fusion/mha/sdpa-0kf16-3qf16-6vs8f16.json
 
+## Test V tensor quantization with 1 group per token
+--op-attrs=600:group_shape:1x1x1x128
+--in-shapes=0:1x1x128x384*abcd+1:1x1x1x384+2:1x1x1x384+3:1x1x384x128+5:1x1x1x384+6:1x1x384x128+7:1x1x384x1+8:1x1x384x1,\
+            0:1x1x128x384*abcd+1:1x1x1x384+2:1x1x1x384+3:1x1x384x128+5:1x1x384x384+6:1x1x384x128+7:1x1x384x1+8:1x1x384x1,\
+            0:1x1x128x512*abcd+1:1x1x1x512+2:1x1x1x512+3:1x1x512x128+5:1x1x1x512+6:1x1x512x128+7:1x1x512x1+8:1x1x512x1,\
+            0:1x1x128x128*abcd+1:1x1x1x128+2:1x1x1x128+3:1x1x128x128+5:1x1x128x128+6:1x1x128x128+7:1x1x128x1+8:1x1x128x1,\
+            0:1x1x128x256*abcd+1:1x1x1x256+2:1x1x1x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x1+8:1x1x256x1,\
+            0:1x1x128x2048*abcd+1:1x1x1x2048+2:1x1x1x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x1+8:1x1x2048x1
+            #0:4x32x128x2049*abcd+1:4x32x1x2049+2:4x32x1x2049+3:4x32x2047x128+5:4x1x2047x2049+6:4x32x2049x128+7:4x32x2049x1+8:4x32x2049x1
+--case=complex_fusion/mha/sdpa-0kf16-3qf16-6vs8f16.json
 
+## Test K and V tensor quantization with 2 groups per token
 --op-attrs=100:group_shape:1x1x64x1+600:group_shape:1x1x1x64
 --in-shapes=0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x1x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
             0:1x1x128x384*abcd+1:1x1x2x384+2:1x1x2x384+3:1x1x384x128+5:1x1x384x384+6:1x1x384x128+7:1x1x384x2+8:1x1x384x2,\
@@ -69,13 +100,12 @@
             0:1x1x128x128*abcd+1:1x1x2x128+2:1x1x2x128+3:1x1x128x128+5:1x1x128x128+6:1x1x128x128+7:1x1x128x2+8:1x1x128x2,\
             0:1x1x128x256*abcd+1:1x1x2x256+2:1x1x2x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x2+8:1x1x256x2,\
             0:1x1x128x2048*abcd+1:1x1x2x2048+2:1x1x2x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x2+8:1x1x2048x2
-#--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
-
-
             #0:1x1x128x2049*abcd+1:1x1x2x2049+2:1x1x2x2049+3:1x1x2047x128+5:1x1x2047x2049+6:1x1x2049x128+7:1x1x2049x2+8:1x1x2049x2,\
             #0:1x1x128x2049*abcd+1:1x1x2x2049+2:1x1x2x2049+3:1x1x2048x128+5:1x1x2048x2049+6:1x1x2049x128+7:1x1x2049x2+8:1x1x2049x2
+--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
 
 
+## Test K and V tensor quantization with 1 group per token
 --op-attrs=100:group_shape:1x1x128x1+600:group_shape:1x1x1x128
 --in-shapes=0:1x1x128x384*abcd+1:1x1x1x384+2:1x1x1x384+3:1x1x384x128+5:1x1x1x384+6:1x1x384x128+7:1x1x384x1+8:1x1x384x1,\
             0:1x1x128x384*abcd+1:1x1x1x384+2:1x1x1x384+3:1x1x384x128+5:1x1x384x384+6:1x1x384x128+7:1x1x384x1+8:1x1x384x1,\
@@ -83,12 +113,12 @@
             0:1x1x128x128*abcd+1:1x1x1x128+2:1x1x1x128+3:1x1x128x128+5:1x1x128x128+6:1x1x128x128+7:1x1x128x1+8:1x1x128x1,\
             0:1x1x128x256*abcd+1:1x1x1x256+2:1x1x1x256+3:1x1x256x128+5:1x1x256x256+6:1x1x256x128+7:1x1x256x1+8:1x1x256x1,\
             0:1x1x128x2048*abcd+1:1x1x1x2048+2:1x1x1x2048+3:1x1x2048x128+5:1x1x2048x2048+6:1x1x2048x128+7:1x1x2048x1+8:1x1x2048x1
-#--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
-
-
             #0:1x1x128x2049*abcd+1:1x1x1x2049+2:1x1x1x2049+3:1x1x2047x128+5:1x1x2047x2049+6:1x1x2049x128+7:1x1x2049x1+8:1x1x2049x1,\
             #0:1x1x128x2049*abcd+1:1x1x1x2049+2:1x1x1x2049+3:1x1x2048x128+5:1x1x2048x2049+6:1x1x2049x128+7:1x1x2049x1+8:1x1x2049x1
+--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
 
+
+## Small shapes no quantization
 --reset
 --in-shapes=0:4x2x64x9*abdc+1:4x2x1x9+2:4x2x1x9+3:4x2x9x64+5:4x1x9x9+6:4x2x9x64+7:4x2x9x1+8:4x2x9x1,\
             0:4x2x64x10*abcd+1:4x2x1x10+2:4x2x1x10+3:4x2x10x64+5:4x1x10x10+6:4x2x10x64+7:4x2x10x1+8:4x2x10x1,\
@@ -102,33 +132,74 @@
             0:4x2x64x40*abcd+1:4x2x1x40+2:4x2x1x40+3:4x2x2047x64+5:4x1x2047x40+6:4x2x40x64+7:4x2x40x1+8:4x2x40x1,\
             0:4x2x64x49*abcd+1:4x2x1x49+2:4x2x1x49+3:4x2x2047x64+5:4x1x2047x49+6:4x2x49x64+7:4x2x49x1+8:4x2x49x1
 --case=complex_fusion/mha/sdpa-0kf16-3qf16-wscale-wmask-6vf16.json
---op-attrs=100:group_shape:1x1x64x1
---case=complex_fusion/mha/sdpa-0ks8f16-3qf16-6vf16.json
---case=complex_fusion/mha/sdpa-0ks8f16-3qf16-wscale-wmask-6vf16.json
---case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vf16.json
 
 
+--in-shapes=0:4x32x128x384*abcd+1:4x32x1x384+2:4x32x1x384+3:4x32x384x128+5:4x1x384x384+6:4x32x384x128+7:4x32x384x1+8:4x32x384x1,\
+            #0:4x32x128x385*abcd+1:4x32x1x385+2:4x32x1x385+3:4x32x1x128+5:4x1x1x385+6:4x32x385x128+7:4x32x385x1+8:4x32x385x1,\
+            0:4x32x128x512*abcd+1:4x32x1x512+2:4x32x1x512+3:4x32x512x128+5:4x1x512x512+6:4x32x512x128+7:4x32x512x1+8:4x32x512x1,\
+            #0:4x32x128x513*abcd+1:4x32x1x513+2:4x32x1x513+3:4x32x1x128+5:4x1x1x513+6:4x32x513x128+7:4x32x513x1+8:4x32x513x1,\
+            0:4x32x128x1024*abcd+1:4x32x1x1024+2:4x32x1x1024+3:4x32x1024x128+5:4x1x1024x1024+6:4x32x1024x128+7:4x32x1024x1+8:4x32x1024x1,\
+            0:4x32x128x1025*abcd+1:4x32x1x1025+2:4x32x1x1025+3:4x32x1x128+5:4x1x1x1025+6:4x32x1025x128+7:4x32x1025x1+8:4x32x1025x1,\
+            0:4x32x128x1024*abcd+1:4x32x1x1024+2:4x32x1x1024+3:4x32x1024x128+5:4x1x1024x1024+6:4x32x1024x128+7:4x32x1024x1+8:4x32x1024x1,\
+            0:4x32x128x1025*abcd+1:4x32x1x1025+2:4x32x1x1025+3:4x32x1x128+5:4x1x1x1025+6:4x32x1025x128+7:4x32x1025x1+8:4x32x1025x1,\
+            0:4x32x128x384*abdc+1:4x32x1x384+2:4x32x1x384+3:4x32x384x128+5:4x1x384x384+6:4x32x384x128+7:4x32x384x1+8:4x32x384x1,\
+            #0:4x32x128x385*abdc+1:4x32x1x385+2:4x32x1x385+3:4x32x1x128+5:4x1x1x385+6:4x32x385x128+7:4x32x385x1+8:4x32x385x1,\
+            0:4x32x128x512*abdc+1:4x32x1x512+2:4x32x1x512+3:4x32x512x128+5:4x1x512x512+6:4x32x512x128+7:4x32x512x1+8:4x32x512x1,\
+            #0:4x32x128x513*abdc+1:4x32x1x513+2:4x32x1x513+3:4x32x1x128+5:4x1x1x513+6:4x32x513x128+7:4x32x513x1+8:4x32x513x1,\
+            0:4x32x128x1024*abdc+1:4x32x1x1024+2:4x32x1x1024+3:4x32x1024x128+5:4x1x1024x1024+6:4x32x1024x128+7:4x32x1024x1+8:4x32x1024x1,\
+            0:4x32x128x1025*abdc+1:4x32x1x1025+2:4x32x1x1025+3:4x32x1x128+5:4x1x1x1025+6:4x32x1025x128+7:4x32x1025x1+8:4x32x1025x1,\
+            0:4x32x128x1024*abdc+1:4x32x1x1024+2:4x32x1x1024+3:4x32x1024x128+5:4x1x1024x1024+6:4x32x1024x128+7:4x32x1024x1+8:4x32x1024x1,\
+            0:4x32x128x1025*abdc+1:4x32x1x1025+2:4x32x1x1025+3:4x32x1x128+5:4x1x1x1025+6:4x32x1025x128+7:4x32x1025x1+8:4x32x1025x1
+--case=complex_fusion/mha/sdpa-0kf16-3qf16-wscale-wmask-6vf16.json
+--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
+
+--in-shapes=0:4x32x96x384*abcd+1:4x32x1x384+2:4x32x1x384+3:4x32x384x96+5:4x1x384x384+6:4x32x384x96+7:4x32x384x1+8:4x32x384x1,\
+            #0:4x32x96x385*abcd+1:4x32x1x385+2:4x32x1x385+3:4x32x1x96+5:4x1x1x385+6:4x32x385x96+7:4x32x385x1+8:4x32x385x1,\
+            0:4x32x96x512*abcd+1:4x32x1x512+2:4x32x1x512+3:4x32x512x96+5:4x1x512x512+6:4x32x512x96+7:4x32x512x1+8:4x32x512x1,\
+            #0:4x32x96x513*abcd+1:4x32x1x513+2:4x32x1x513+3:4x32x1x96+5:4x1x1x513+6:4x32x513x96+7:4x32x513x1+8:4x32x513x1,\
+            0:4x32x96x1024*abcd+1:4x32x1x1024+2:4x32x1x1024+3:4x32x1024x96+5:4x1x1024x1024+6:4x32x1024x96+7:4x32x1024x1+8:4x32x1024x1,\
+            0:4x32x96x1025*abcd+1:4x32x1x1025+2:4x32x1x1025+3:4x32x1x96+5:4x1x1x1025+6:4x32x1025x96+7:4x32x1025x1+8:4x32x1025x1,\
+            0:4x32x96x384*abdc+1:4x32x1x384+2:4x32x1x384+3:4x32x384x96+5:4x1x384x384+6:4x32x384x96+7:4x32x384x1+8:4x32x384x1,\
+            #0:4x32x96x385*abdc+1:4x32x1x385+2:4x32x1x385+3:4x32x1x96+5:4x1x1x385+6:4x32x385x96+7:4x32x385x1+8:4x32x385x1,\
+            0:4x32x96x512*abdc+1:4x32x1x512+2:4x32x1x512+3:4x32x512x96+5:4x1x512x512+6:4x32x512x96+7:4x32x512x1+8:4x32x512x1,\
+            #0:4x32x96x513*abdc+1:4x32x1x513+2:4x32x1x513+3:4x32x1x96+5:4x1x1x513+6:4x32x513x96+7:4x32x513x1+8:4x32x513x1,\
+            0:4x32x96x1024*abdc+1:4x32x1x1024+2:4x32x1x1024+3:4x32x1024x96+5:4x1x1024x1024+6:4x32x1024x96+7:4x32x1024x1+8:4x32x1024x1,\
+            0:4x32x96x1025*abdc+1:4x32x1x1025+2:4x32x1x1025+3:4x32x1x96+5:4x1x1x1025+6:4x32x1025x96+7:4x32x1025x1+8:4x32x1025x1
+--case=complex_fusion/mha/sdpa-0kf16-3qf16-wscale-wmask-6vf16.json
+--op-attrs=100:group_shape:1x1x96x1+600:group_shape:1x1x1x96
+--case=complex_fusion/mha/sdpa-0ks8f16s8-3qf16-wscale-wmask-6vs8f16s8.json
 
 
+#llama-2-7b-chat shape: Q [1x32xSEQ_LENx128] KV [1x32xSEQ_LENx128]
+#llama-3-8b shape: Q [1x32xSEQ_LENx128] KV [1x8xSEQ_LENx128]
+#minicpm-1b-sft shape:  Q [1x24xSEQ_LENx64]  KV [1x8xSEQ_LENx64]
+#qwen2-7b shape: Q [1x28xSEQ_LENx128] KV [1x4xSEQ_LENx128]
+#phi3-mini-4k-instruct shape: Q [1x32xSEQ_LENx96] KV [1x32xSEQ_LENx96]
 
-# --in-shapes=0:MBxNUM_HEADxHEAD_SIZExKV_SEQ_LEN*abcd+1:MBxNUM_HEADx2xKV_SEQ_LEN+2:MBxNUM_HEADx2xKV_SEQ_LEN+3:MBxNUM_HEADxQ_SEQ_LENxHEAD_SIZE+5:MBx1xQ_SEQ_LENxKV_SEQ_LEN+6:MBxNUM_HEADxKV_SEQ_LENxHEAD_SIZE+7:MBxNUM_HEADxKV_SEQ_LENx2+8:MBxNUM_HEADxKV_SEQ_LENx2
 
-
-
-
-##+begin_src sh
-#  PROBLEMS=("4 2047 2049 32 128" "4 9 9 2 64" "4 10 10 2 64" "4 11 11 2 64" "4 7 7 2 64" "4 9 7 2 64" "4 2047 9 2 64" "4 2047 19 2 64" "4 2047 39 2 64" "4 2047 38 2 64" "4 2047 40 2 64" "4 2047 49 2 64")
+##+begin_src sh :results raw
+#  #PROBLEMS=("4 2047 2049 32 128" "4 9 9 2 64" "4 10 10 2 64" "4 11 11 2 64" "4 7 7 2 64" "4 9 7 2 64" "4 2047 9 2 64" "4 2047 19 2 64" "4 2047 39 2 64" "4 2047 38 2 64" "4 2047 40 2 64" "4 2047 49 2 64")
+#  PROBLEMS=("4 384 384 32 32 128" "4 512 512 32 32 128" "4 1024 1024 32 32 128"
+#            "4 384 384 32 8 128" "4 512 512 32 8 128" "4 1024 1024 32 8 128"
+#            "4 384 384 24 8 64" "4 512 512 24 8 64" "4 1024 1024 24 8 64"
+#            "4 384 384 28 4 128" "4 512 512 28 4 128" "4 1024 1024 28 4 128"
+#            "4 384 384 32 32 96" "4 512 512 32 32 96" "4 1024 1024 32 32 96"
+#            "")
 #
 #  for tuple in "${PROBLEMS[@]}":
 #  do
-#  MB=$(echo ${tuple} | awk -F' ' '{ print $1 }')
-#  Q_SEQ_LEN=$(echo ${tuple} | awk -F' ' '{ print $2 }')
-#  KV_SEQ_LEN=$(echo ${tuple} | awk -F' ' '{ print $3 }')
-#  NUM_HEAD=$(echo ${tuple} | awk -F' ' '{ print $4 }')
-#  HEAD_SIZE=$(echo ${tuple} | awk -F' ' '{ print $5 }')
-#  echo 0:${MB}x${NUM_HEAD}x${HEAD_SIZE}x${KV_SEQ_LEN}*abcd+1:${MB}x${NUM_HEAD}x2x${KV_SEQ_LEN}+2:${MB}x${NUM_HEAD}x2x${KV_SEQ_LEN}+3:${MB}x${NUM_HEAD}x${Q_SEQ_LEN}x${HEAD_SIZE}+5:${MB}x1x${Q_SEQ_LEN}x${KV_SEQ_LEN}+6:${MB}x${NUM_HEAD}x${KV_SEQ_LEN}x${HEAD_SIZE}+7:${MB}x${NUM_HEAD}x${KV_SEQ_LEN}x2+8:${MB}x${NUM_HEAD}x${KV_SEQ_LEN}x2,\\
+#    if [ ${#tuple} -ge 2 ]; then
+#        MB=$(echo ${tuple} | awk -F' ' '{ print $1 }')
+#        Q_SEQ_LEN=$(echo ${tuple} | awk -F' ' '{ print $2 }')
+#        KV_SEQ_LEN=$(echo ${tuple} | awk -F' ' '{ print $3 }')
+#        Q_NUM_HEAD=$(echo ${tuple} | awk -F' ' '{ print $4 }')
+#        KV_NUM_HEAD=$(echo ${tuple} | awk -F' ' '{ print $5 }')
+#        HEAD_SIZE=$(echo ${tuple} | awk -F' ' '{ print $6 }')
+#        echo 0:${MB}x${KV_NUM_HEAD}x${HEAD_SIZE}x${KV_SEQ_LEN}*abcd+1:${MB}x${KV_NUM_HEAD}x1x${KV_SEQ_LEN}+2:${MB}x${KV_NUM_HEAD}x1x${KV_SEQ_LEN}+3:${MB}x${Q_NUM_HEAD}x${Q_SEQ_LEN}x${HEAD_SIZE}+5:${MB}x1x${Q_SEQ_LEN}x${KV_SEQ_LEN}+6:${MB}x${KV_NUM_HEAD}x${KV_SEQ_LEN}x${HEAD_SIZE}+7:${MB}x${KV_NUM_HEAD}x${KV_SEQ_LEN}x1+8:${MB}x${KV_NUM_HEAD}x${KV_SEQ_LEN}x1,\\
+#        Q_SEQ_LEN=1
+#        KV_SEQ_LEN=$(($KV_SEQ_LEN+1))
+#        echo 0:${MB}x${KV_NUM_HEAD}x${HEAD_SIZE}x${KV_SEQ_LEN}*abcd+1:${MB}x${KV_NUM_HEAD}x1x${KV_SEQ_LEN}+2:${MB}x${KV_NUM_HEAD}x1x${KV_SEQ_LEN}+3:${MB}x${Q_NUM_HEAD}x${Q_SEQ_LEN}x${HEAD_SIZE}+5:${MB}x1x${Q_SEQ_LEN}x${KV_SEQ_LEN}+6:${MB}x${KV_NUM_HEAD}x${KV_SEQ_LEN}x${HEAD_SIZE}+7:${MB}x${KV_NUM_HEAD}x${KV_SEQ_LEN}x1+8:${MB}x${KV_NUM_HEAD}x${KV_SEQ_LEN}x1,\\
+#    fi
 #  done
 #
 ##+end_src
-#
-##+RESULTS:
