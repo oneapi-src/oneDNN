@@ -36,5 +36,6 @@ float saturate_and_round(dnnl_data_type_t dt, float value);
 bool is_integral_dt(dnnl_data_type_t dt);
 float maybe_saturate(dnnl_data_type_t dt, float value);
 float round_to_nearest_representable(dnnl_data_type_t dt, float value);
+uint64_t convert_to_hex(dnnl_data_type_t dt, float value);
 
 #endif

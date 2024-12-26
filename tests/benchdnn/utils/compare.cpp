@@ -34,14 +34,16 @@ namespace compare {
 namespace {
 struct dump_point_ctx_t {
     dump_point_ctx_t(const_dnnl_memory_desc_t md, int64_t l_offset,
-            float exp_f32, float exp, float got, float diff, float rel_diff)
+            float exp_f32, float exp, float got, float diff, float rel_diff,
+            int64_t ulps_diff)
         : md(md)
         , l_offset(l_offset)
         , exp_f32(exp_f32)
         , exp(exp)
         , got(got)
         , diff(diff)
-        , rel_diff(rel_diff) {}
+        , rel_diff(rel_diff)
+        , ulps_diff(ulps_diff) {}
 
     const_dnnl_memory_desc_t md;
     int64_t l_offset;
@@ -50,6 +52,7 @@ struct dump_point_ctx_t {
     float got;
     float diff;
     float rel_diff;
+    int64_t ulps_diff;
 };
 
 void dump_point_values(
@@ -62,9 +65,10 @@ void dump_point_values(
 
     BENCHDNN_PRINT(0,
             "[%4" PRId64
-            "]%s[%s] exp_f32:%12g exp:%12g got:%12g diff:%8g rdiff:%8g\n",
+            "]%s[%s] exp_f32:%12g exp:%12g got:%12g diff:%8g rdiff:%8g "
+            "udiff:%8ld\n",
             ctx.l_offset, kind_str.c_str(), ind_str.c_str(), ctx.exp_f32,
-            ctx.exp, ctx.got, ctx.diff, ctx.rel_diff);
+            ctx.exp, ctx.got, ctx.diff, ctx.rel_diff, ctx.ulps_diff);
 }
 
 void dump_norm_values(
@@ -165,6 +169,7 @@ compare_t::driver_check_func_args_t::driver_check_func_args_t(
     , got(got_f32.get_elem(idx))
     , diff(fabsf(exp - got))
     , rel_diff(diff / (fabsf(exp) > FLT_MIN ? fabsf(exp) : 1))
+    , ulps_diff(std::llabs(convert_to_hex(dt, exp) - convert_to_hex(dt, got)))
     , trh(trh) {}
 
 int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
@@ -234,7 +239,7 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             driver_check_func_args_t args(exp_mem, got_f32, i, dt, trh_);
             dump_point_values(get_kind_str(),
                     {got_mem.md_, i, args.exp_f32, args.exp, args.got,
-                            args.diff, args.rel_diff});
+                            args.diff, args.rel_diff, args.ulps_diff});
         }
     }
 
@@ -504,7 +509,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
                 = need_dump || (!ok && (n_errors <= 10 || verbose >= 8));
         if (dump)
             dumps.emplace_back(got_mem.md_, i, args.exp_f32, args.exp, args.got,
-                    args.diff, args.rel_diff);
+                    args.diff, args.rel_diff, args.ulps_diff);
 
         // Synchronization point, update global stats from thread stats.
         if (((i + 1) % nelems_per_thread == 0) || (i == nelems - 1)) {

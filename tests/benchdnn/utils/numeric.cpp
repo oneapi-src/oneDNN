@@ -204,3 +204,59 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
 
     return value;
 }
+
+// The function converts to hex the downcasted `value` to `dt` to hex. Thus,
+// if `dnnl_f16` is passed as `dt`, `value` will be downconverted to `float16_t`
+// first, and only then converted into hex.
+// The output type is taken the widest for convenience of use.
+uint64_t convert_to_hex(dnnl_data_type_t dt, float value) {
+    uint64_t val;
+    switch (dt) {
+        case dnnl_f32:
+            val = static_cast<uint64_t>(
+                    dnnl::impl::utils::bit_cast<uint32_t>(value));
+            break;
+        case dnnl_f64:
+            val = dnnl::impl::utils::bit_cast<uint64_t>(
+                    static_cast<double>(value));
+            break;
+        case dnnl_f4_e2m1:
+            // Note: implemented through f8_e5m2 as it can't be through int4.
+            val = static_cast<uint64_t>(dnnl::impl::utils::bit_cast<uint8_t>(
+                    dnnl::impl::float8_e5m2_t(value)));
+            break;
+        case dnnl_f4_e3m0:
+            // Note: implemented through f8_e5m2 as it can't be through int4.
+            val = static_cast<uint64_t>(dnnl::impl::utils::bit_cast<uint8_t>(
+                    dnnl::impl::float8_e5m2_t(value)));
+            break;
+        case dnnl_e8m0:
+            val = static_cast<uint64_t>(dnnl::impl::utils::bit_cast<uint8_t>(
+                    dnnl::impl::float8_e8m0_t(value)));
+            break;
+        case dnnl_f8_e5m2:
+            val = static_cast<uint64_t>(dnnl::impl::utils::bit_cast<uint8_t>(
+                    dnnl::impl::float8_e5m2_t(value)));
+            break;
+        case dnnl_f8_e4m3:
+            val = static_cast<uint64_t>(dnnl::impl::utils::bit_cast<uint8_t>(
+                    dnnl::impl::float8_e4m3_t(value)));
+            break;
+        case dnnl_bf16:
+            val = static_cast<uint64_t>(dnnl::impl::utils::bit_cast<uint16_t>(
+                    dnnl::impl::bfloat16_t(value)));
+            break;
+        case dnnl_f16:
+            val = static_cast<uint64_t>(dnnl::impl::utils::bit_cast<uint16_t>(
+                    dnnl::impl::float16_t(value)));
+            break;
+        case dnnl_s32:
+        case dnnl_s8:
+        case dnnl_u8:
+        case dnnl_s4:
+        case dnnl_u4: val = static_cast<uint64_t>(value); break;
+        default: SAFE_V(FAIL);
+    }
+
+    return val;
+}

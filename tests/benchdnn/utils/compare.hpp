@@ -39,6 +39,7 @@ struct compare_t {
         const float got = 0.f;
         const float diff = 0.f;
         const float rel_diff = 0.f;
+        const int64_t ulps_diff = 0;
         const float trh = 0.f;
     };
 
