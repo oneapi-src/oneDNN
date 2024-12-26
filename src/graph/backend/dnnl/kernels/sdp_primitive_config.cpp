@@ -19,6 +19,10 @@
 
 #include "common/compiler_workarounds.hpp"
 
+#define VCHECK_SDP_PRIMITIVE(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, sdp_primitive_kernel_t, (cond), status, \
+            msg, ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -63,7 +67,8 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
         if (post_op && mm1_post_op_kind.count(post_op->get_kind())) {
             // Locate mm1 and all post ops(scale and mask) here.
             // 1. locate mm1
-            if (mm1) return status::unimplemented;
+            VCHECK_SDP_PRIMITIVE(mm1 == nullptr, status::unimplemented,
+                    "Multiple mm1 found");
             mm1 = cur_op;
             // At least one of scale and mask exists
             if (post_op->get_kind() == op_kind::dnnl_binary) {
@@ -84,7 +89,8 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
                 }
             }
         } else {
-            if (mm2) return status::unimplemented;
+            VCHECK_SDP_PRIMITIVE(mm2 == nullptr, status::unimplemented,
+                    "Multiple mm2 found");
             mm2 = cur_op;
         }
     }
@@ -92,7 +98,9 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
     // Locate input/outputs: Q, K, V, dst, scale, mask
     mm1_ = mm1;
     mm2_ = mm2;
-    if (!mm1 || !mm2 || !final_op) return status::unimplemented;
+    VCHECK_SDP_PRIMITIVE((mm1 && mm2 && final_op), status::unimplemented,
+            "Not all ops are found");
+
     q_ = mm1->get_input_value(0);
     k_ = mm1->get_input_value(1);
     v_ = mm2->get_input_value(1);
@@ -136,7 +144,8 @@ status_t sdp_primitive_config_t::initial_check(
         const std::shared_ptr<subgraph_t> &sg,
         const std::vector<logical_tensor_t> &inputs) {
     // At least 3 inputs: Q, K, V
-    if (inputs.size() < 3) return status::invalid_arguments;
+    VCHECK_SDP_PRIMITIVE(inputs.size() >= 3, status::invalid_arguments,
+            "At least 3 inputs are required");
 
     // step1(pattern check): Not support sdpa variants with select as mask
     // We already have a pattern matcher to ensure that the sdpa patterns
@@ -175,9 +184,9 @@ status_t sdp_primitive_config_t::initial_check(
             mm1 = cur_op;
             // Not support select between mm1 and scale(optional)
             // GPT-J:[mm1] --> [select] --> [scale]* --> [mask]* --> ...
-            if (post_op->get_kind() == graph::op_kind::Select) {
-                return status::unimplemented;
-            }
+            VCHECK_SDP_PRIMITIVE(post_op->get_kind() != graph::op_kind::Select,
+                    status::unimplemented,
+                    "Not support select between mm1 and scale(optional)");
             // scale
             if (post_op->get_kind() == graph::op_kind::Divide
                     || post_op->get_kind() == graph::op_kind::Multiply) {
@@ -193,9 +202,10 @@ status_t sdp_primitive_config_t::initial_check(
 
             // Not support select after scale(optional) and mask(optional)
             // Distill-Bert:[mm1] --> [scale]* --> [mask]* --> [select] --> ...
-            if (post_op->get_kind() == graph::op_kind::Select) {
-                return status::unimplemented;
-            }
+            VCHECK_SDP_PRIMITIVE(post_op->get_kind() != graph::op_kind::Select,
+                    status::unimplemented,
+                    "Not support select after scale(optional) and "
+                    "mask(optional)");
         } else {
             mm2 = cur_op;
         }
@@ -214,27 +224,29 @@ status_t sdp_primitive_config_t::initial_check(
         return -1;
     };
 
-    if (impl::utils::one_of(nullptr, mm1, mm2)) return status::invalid_graph;
+    VCHECK_SDP_PRIMITIVE(
+            mm1 && mm2, status::invalid_graph, "mm1 or mm2 is not found");
 
     // step3(dims check): only support 4-dims now.
     int q_id = find_graph_inport(mm1->get_input_value(0));
     int k_id = find_graph_inport(mm1->get_input_value(1));
     int v_id = find_graph_inport(mm2->get_input_value(1));
 
-    bool ok = true;
-    ok = ok && (q_id != -1) && (k_id != -1) && (v_id != -1);
-    if (!ok) return status::unimplemented;
-    ok = ok && ltw(inputs[q_id]).vdims().size() == 4
-            && ltw(inputs[k_id]).vdims().size() == 4
-            && ltw(inputs[v_id]).vdims().size() == 4;
+    VCHECK_SDP_PRIMITIVE(q_id != -1 && k_id != -1 && v_id != -1,
+            status::unimplemented, "Q, K, V are not found");
+    VCHECK_SDP_PRIMITIVE(ltw(inputs[q_id]).vdims().size() == 4
+                    && ltw(inputs[k_id]).vdims().size() == 4
+                    && ltw(inputs[v_id]).vdims().size() == 4,
+            status::unimplemented, "Q, K, V should be 4-dims");
 
     // sdp_primitive only supports single scale value.
     if (scale) {
         const auto &s = scale->get_input_value(1)->get_logical_tensor();
-        if (ltw(s).nelems() != 1) return status::unimplemented;
+        VCHECK_SDP_PRIMITIVE(ltw(s).nelems() == 1, status::unimplemented,
+                "Scale should be single value");
     }
 
-    return ok ? status::success : status::unimplemented;
+    return status::success;
 }
 
 status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
@@ -281,14 +293,8 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
 
     auto status = sdpa_pd_->create_primitive(sdpa_prim_, p_engine.get());
 
-    if (status != status::success) {
-        if (get_verbose(verbose_t::create_dispatch, component_t::graph)) {
-            verbose_printf(
-                    "graph,create:dispatch,sdpa,could not create primitive, "
-                    "falling back\n");
-        }
-    }
-
+    VCONDCHECK(graph, create, dispatch, sdp, status == status::success, status,
+            "could not create sdp primitive, falling back\n");
     return status;
 }
 

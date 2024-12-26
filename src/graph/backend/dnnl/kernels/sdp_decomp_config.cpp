@@ -16,6 +16,10 @@
 
 #include "graph/backend/dnnl/kernels/sdp_decomp_config.hpp"
 
+#define VCHECK_SDP_DECOMP(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, sdp_decomp_kernel_t, (cond), status, msg, \
+            ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -25,10 +29,10 @@ bool sdp_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
         const std::vector<logical_tensor_t> &inputs) {
     // The order of input logical tensors in inputs is not certain, we need
     // to record the input offset in a certain order of ops.
-    auto op_status = record_input_offset(sg, inputs);
-    if (op_status != status::success) return false;
+    CHECK_BOOL(record_input_offset(sg, inputs));
     dims src1_user_dims = ltw(inputs[graph_inport[0]]).vdims();
-    if (src1_user_dims.size() != 4) return false;
+    VCHECK_SDP_DECOMP(src1_user_dims.size() == 4, false,
+            "Input dims should be 4, but got %zu", src1_user_dims.size());
 
     // Initialize SDP input dimension according to the src of mm1
     batch_size = src1_user_dims[0];
@@ -41,14 +45,17 @@ bool sdp_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
 
     // Check batch size compatibility.
     dims wei2_user_dims = ltw(inputs[graph_inport[4]]).vdims();
-    if (batch_size != wei1_user_dims[0] || batch_size != wei2_user_dims[0]) {
-        return false;
-    }
+    VCHECK_SDP_DECOMP(
+            batch_size == wei1_user_dims[0] && batch_size == wei2_user_dims[0],
+            false,
+            "Batch size mismatch, batch_size: %lld, wei1: %lld, wei2: %lld",
+            batch_size, wei1_user_dims[0], wei2_user_dims[0]);
 
     // Check scale size
     if (graph_inport[2] != -1) {
         auto scale_sz = ltw(inputs[graph_inport[2]]).nelems();
-        if (scale_sz != 1) return false;
+        VCHECK_SDP_DECOMP(scale_sz == 1, false,
+                "Only supports single scale value, but got %lld", scale_sz);
     }
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP
@@ -65,10 +72,13 @@ bool sdp_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
 #define RATIO 2
     // Initialize nthr with current threads num
     nthr = dnnl_get_current_num_threads();
-    return batch_size * num_head_q > RATIO * nthr;
-#else
-    return true;
+    VCHECK_SDP_DECOMP(batch_size * num_head_q > RATIO * nthr, false,
+            "Doesn't meet condition for decompose: Batch size * num_head_q "
+            "should be larger than ratio * nthr, but got batch_size %lld, "
+            "num_head_q %lld, ration %d , nthr %d",
+            batch_size, num_head_q, RATIO, nthr);
 #endif
+    return true;
 }
 
 template <bool quantized, memory::data_type dt>
@@ -78,7 +88,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
         const std::vector<logical_tensor_t> &inputs) {
 
     // Record the ops inside of SDP pattern for later usage
-    record_sdp_ops(sg, quantized);
+    CHECK(record_sdp_ops(sg, quantized));
 
     // Update SDPA input params. Sequence length for query and key/value are
     // NOT always same.
@@ -435,11 +445,12 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
                     graph::op_kind::SoftMax};
     for (const auto &cur_op : sg->get_ops()) {
         const auto &op_kind = cur_op->get_kind();
-        if (op_kind == graph::op_kind::DynamicDequantize
-                && cur_op->get_attr<std::string>(op_attr::qtype)
-                        == "per_group") {
-            return status::unimplemented;
-        }
+        VCHECK_SDP_DECOMP(
+                !(op_kind == graph::op_kind::DynamicDequantize
+                        && cur_op->get_attr<std::string>(op_attr::qtype)
+                                == "per_group"),
+                status::unimplemented,
+                "Not support per_group DynamicDequantize");
         // both mm1 and mm2 are found.
         if (mm1 && mm2) break;
         if (op_kind != graph::op_kind::MatMul) continue;
@@ -451,9 +462,9 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
             // TODO(xxx): Currently, p2 is not supported by decomp kernel.
             // p1: [matmul] --> [scale] --> [select] --> [mask] --> ...
             // p2: [matmul] --> [select] --> [scale] --> [mask] --> ...
-            if (post_op->get_kind() == graph::op_kind::Select) {
-                return status::unimplemented;
-            }
+            VCHECK_SDP_DECOMP(post_op->get_kind() != graph::op_kind::Select,
+                    status::unimplemented,
+                    "Not support select between matmul1 and scale");
             // find scale
             if (post_op->get_kind() == graph::op_kind::Divide
                     || post_op->get_kind() == graph::op_kind::Multiply) {
@@ -478,8 +489,8 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
             mm2 = cur_op;
         }
     }
-    if (impl::utils::one_of(nullptr, mm1, mm2)) return status::invalid_graph;
-
+    VCHECK_SDP_DECOMP(mm1 != nullptr && mm2 != nullptr, status::invalid_graph,
+            "Failed to find matmul1 or matmul2");
     int src1_id = find_graph_inport(mm1->get_input_value(0));
     graph_inport.emplace_back(src1_id);
     int wei1_id = find_graph_inport(mm1->get_input_value(1));
@@ -534,7 +545,8 @@ impl::status_t sdp_decomp_config_t::record_sdp_ops(
         auto post_op = get_post_op(cur_op);
         if (!post_op || post_op->get_kind() != op_kind::dnnl_softmax) continue;
         auto ppost_op = get_post_op(post_op);
-        if (!ppost_op) return status::invalid_graph;
+        VCHECK_SDP_DECOMP(ppost_op != nullptr, status::invalid_graph,
+                "Failed to find post post op for matmul");
 
         op_ptr reorder1;
         op_ptr reorder2;

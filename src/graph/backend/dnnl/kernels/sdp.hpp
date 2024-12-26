@@ -30,6 +30,9 @@
 
 #include "graph/backend/dnnl/dnnl_partition_impl.hpp"
 
+#define VDISPATCH_GRAPH_SDP(msg, ...) \
+    VINFO(graph, create, dispatch, compile, msg, ##__VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -76,6 +79,11 @@ public:
             kernel = std::make_shared<larger_partition_kernel_t>();
             ret = kernel->compile_impl(part, g_engine, inputs, outputs);
         }
+        if (ret == status::success)
+            VDISPATCH_GRAPH_SDP(
+                    "sdpa is dispatched to (%s)", kernel->str().c_str());
+        else
+            VDISPATCH_GRAPH_SDP("sdpa is failed to dispatch");
         return ret;
     }
 
