@@ -16,6 +16,8 @@
 
 #include "gpu/intel/jit/v2/conv/planner/planner.hpp"
 
+#include "oneapi/dnnl/dnnl_config.h"
+
 #include "gpu/intel/jit/v2/conv/model.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
 #include "gpu/intel/jit/v2/conv/plan_registry.hpp"
@@ -32,20 +34,7 @@ namespace v2 {
 namespace conv {
 namespace planner {
 
-enum class planner_mode_t {
-    undef,
-    trace,
-    bench,
-    search,
-    auto_search,
-};
-
-struct params_t {
-    planner_mode_t mode = planner_mode_t::undef;
-    kernel_desc_t desc;
-};
-
-static params_t params;
+static planner_params_t params;
 
 bool find_remove(const char *arg, std::string &s) {
     auto pos = s.find(arg);
@@ -124,12 +113,12 @@ void init_params(
             break;
         default: break;
     }
-    auto iface = params.desc.parse_iface();
-    iface.parse(cmd_args, params.desc);
+    auto &iface = params.desc.parse_iface();
+    iface.parse(cmd_args, params.desc, &params.parse_result);
     params.desc.set_defaults();
 }
 
-void planner_main(int argc, const char **argv) {
+void DNNL_API planner_main(int argc, const char **argv) {
     bench_manager_t bench_mger;
     init_params(argc, argv, bench_mger);
     switch (params.mode) {
@@ -149,14 +138,10 @@ void planner_main(int argc, const char **argv) {
             auto model = model_fit(bd);
             break;
         }
-        case planner_mode_t::auto_search: {
-            plan_registry() = plan_registry_t();
-            auto_search(bench_mger);
-            break;
-        }
+        case planner_mode_t::auto_search:
         case planner_mode_t::search: {
             plan_registry() = plan_registry_t();
-            search(bench_mger, params.desc);
+            search(bench_mger, params);
             break;
         }
         default: ir_error_not_expected();
