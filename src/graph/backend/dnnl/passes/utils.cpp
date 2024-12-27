@@ -64,9 +64,8 @@ status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
 
             // partition in/outs should not have default id. There must be some
             // errors in previous graph transformation stage
-            if (edge_id == std::numeric_limits<size_t>::max())
-                return status::invalid_graph;
-
+            VCHECK_UTILS(edge_id != std::numeric_limits<size_t>::max(),
+                    status::invalid_graph, "Invalid edge_id %zu", edge_id);
             bool found = false;
             for (const auto &given : givens) {
                 if (edge_id == given.id) {
@@ -86,7 +85,9 @@ status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
                                 }
                             }
                         }
-                        if (!valid) return status::invalid_arguments;
+                        VCHECK_UTILS(valid, status::invalid_arguments,
+                                "Invalid given logical tensor for given.id %zu",
+                                given.id);
                     }
 
                     edge->set_logical_tensor(given);
@@ -95,17 +96,15 @@ status_t set_given_inputs_outputs(std::shared_ptr<subgraph_t> &sg,
                 }
             }
 
-            if (!found) return status::invalid_arguments;
+            VCHECK_UTILS(found, status::invalid_arguments,
+                    "Can't find given logical tensor for edge_id %zu", edge_id);
         }
         return status::success;
     };
 
-    status_t ret;
-    ret = func(graph_in_vals, inputs, true, true);
-    if (ret != status::success) return ret;
-
-    ret = func(graph_out_vals, outputs, true, false);
-    return ret;
+    CHECK(func(graph_in_vals, inputs, true, true));
+    CHECK(func(graph_out_vals, outputs, true, false));
+    return status::success;
 }
 
 status_t set_given_inputs_outputs(std::vector<op_ptr> &subgraph,
@@ -187,7 +186,8 @@ std::vector<value_t *> get_constant_block_output_values(
         return status::success;
     };
     status_t status = topo_order_visit(sg->get_output_ops(), func);
-    if (status != status::success) return {};
+    VCHECK_UTILS(status == status::success, {},
+            "Failed to get constant block output values");
     return ret;
 }
 
@@ -220,8 +220,7 @@ status_t infer_shape(std::shared_ptr<subgraph_t> &sg) {
         }
     }
 
-    auto ret = sg->infer_shape();
-    if (ret != status::success) return ret;
+    CHECK(sg->infer_shape());
 
     // Fill the inferred shape and strides to subgraph's outputs
     for (size_t i = 0; i < sg->outs_.size(); i++) {
@@ -238,7 +237,7 @@ status_t infer_shape(std::shared_ptr<subgraph_t> &sg) {
         op->remove_attr(op_attr::dw_type);
     }
 
-    return ret;
+    return status::success;
 }
 
 const std::map<op_kind_t, dnnl::algorithm> &get_binary_alg_map() {
@@ -272,8 +271,11 @@ bool binary_doable(
 static bool post_binary_fusible_impl(const op_t *base_op,
         const std::vector<dim_t> &fused_shape,
         const std::vector<dim_t> &other_shape, engine_kind_t ekind) {
-    assertm(fused_shape.size() == other_shape.size(),
-            "must have same ndims, pls run binary_canonicalization pass first");
+    VCHECK_UTILS(fused_shape.size() == other_shape.size(), false,
+            "binary fusible ops must have same ndims, "
+            "fused_shape size is %zu, other_shape size is %zu."
+            "pls run binary_canonicalization pass first",
+            fused_shape.size(), other_shape.size());
     // full tensor and per tensor broadcasted
     if (fused_shape == other_shape
             || std::all_of(other_shape.begin(), other_shape.end(),
@@ -621,10 +623,10 @@ bool is_layout_reorder(const op_t *op) {
 }
 
 std::shared_ptr<op_t> clone_mul_scales(const std::shared_ptr<op_t> &scale_op) {
-    assertm(scale_op->num_inputs() <= 1,
-            "scale_op should have only one input value.");
-    assertm(!scale_op->has_attr(op_attr::with_runtime_scales),
-            "scale_op should be static");
+    VCHECK_UTILS(scale_op->num_inputs() <= 1
+                    && !scale_op->has_attr(op_attr::with_runtime_scales),
+            nullptr,
+            "scale_op should be static and have only one input value.");
     auto new_op = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
     new_op->set_attr<std::vector<float>>(op_attr::scales,
             scale_op->get_attr<std::vector<float>>(op_attr::scales));
@@ -636,10 +638,9 @@ std::shared_ptr<op_t> clone_mul_scales(const std::shared_ptr<op_t> &scale_op) {
 }
 
 bool inverse_mul_scales(std::shared_ptr<op_t> &scale_op) {
-    assertm(scale_op->num_inputs() <= 1,
-            "scale_op should have only one input value.");
-    assertm(!scale_op->has_attr(op_attr::with_runtime_scales),
-            "scale_op should be static");
+    VCHECK_UTILS(scale_op->num_inputs() <= 1
+                    && !scale_op->has_attr(op_attr::with_runtime_scales),
+            false, "scale_op should be static and have only one input value.");
     auto scales = scale_op->get_attr<std::vector<float>>(op_attr::scales);
     scales = dnnl_impl::utils::fmap(scales, [](float s) { return 1.f / s; });
     scale_op->set_attr(op_attr::scales, scales);

@@ -381,17 +381,16 @@ static status_t static_quant_handler(
 
     auto in_vals = op->get_input_values();
     auto out_vals = op->get_output_values();
-    assertm(in_vals.size() == 1 && out_vals.size() == 1,
-            "static quantize/dequantize should only have one input and "
-            "output");
-
+    VCHECK_INVALID_ARGUMENT(in_vals.size() == 1 && out_vals.size() == 1,
+            "static quantize/dequantize should only have one input and output"
+            " but got %zu input and %zu output",
+            in_vals.size(), out_vals.size());
+    VCHECK_INVALID_ARGUMENT(std::all_of(scales.begin(), scales.end(),
+                                    [](float i) { return i != 0.f; }),
+            "scales can't be zero");
     // int8 = f32 / scales + zps
     op_ptr mul_scales_op = std::make_shared<op_t>(op_kind::dnnl_mul_scales);
     op_ptr add_zps_op = std::make_shared<op_t>(op_kind::dnnl_add_zps);
-
-    assertm(std::all_of(scales.begin(), scales.end(),
-                    [](float i) { return i != 0.f; }),
-            "scales can't be zero");
 
     std::vector<float> inv_scales
             = dnnl_impl::utils::fmap(scales, [](float s) { return 1.f / s; });
@@ -439,8 +438,10 @@ static status_t static_dequant_handler(
 
     auto in_vals = cur_op->get_input_values();
     auto out_vals = cur_op->get_output_values();
-    assertm(in_vals.size() == 1 && out_vals.size() == 1,
-            "static dequantize should only have one input and output");
+    VCHECK_INVALID_ARGUMENT(in_vals.size() == 1 && out_vals.size() == 1,
+            "static dequantize should only have one input and output but "
+            "got %zu input and %zu output",
+            in_vals.size(), out_vals.size());
 
     // f32 = scales * (int8 - zps)
     op_ptr sub_zps_op = std::make_shared<op_t>(op_kind::dnnl_sub_zps);
@@ -484,9 +485,11 @@ static status_t dynamic_quant_handler(
 
     auto &in_vals = cur_op->get_input_values();
     auto &out_vals = cur_op->get_output_values();
-    assertm((in_vals.size() == 3 || in_vals.size() == 2)
+    VCHECK_INVALID_ARGUMENT((in_vals.size() == 3 || in_vals.size() == 2)
                     && out_vals.size() == 1,
-            "dynamic quantize must have 2 or 3 inputs and 1 output");
+            "dynamic quantize must have 2 or 3 inputs and 1 output, but "
+            "got %zu input and %zu output",
+            in_vals.size(), out_vals.size());
 
     // DynamicQuantize has optional zps
     bool has_zps = in_vals.size() == 3;
@@ -543,9 +546,11 @@ static status_t dynamic_dequant_handler(
 
     auto &in_vals = cur_op->get_input_values();
     auto &out_vals = cur_op->get_output_values();
-    assertm((in_vals.size() == 3 || in_vals.size() == 2)
+    VCHECK_INVALID_ARGUMENT((in_vals.size() == 3 || in_vals.size() == 2)
                     && out_vals.size() == 1,
-            "dynamic dequantize must have 2 or 3 inputs and 1 output");
+            "dynamic dequantize must have 2 or 3 inputs and 1 output, but "
+            "got %zu input and %zu output",
+            in_vals.size(), out_vals.size());
 
     // DynamicDequantize has optional zps
     bool has_zps = in_vals.size() == 3;
@@ -659,8 +664,10 @@ static status_t select_handler(
 
     auto in_vals = op->get_input_values();
     auto out_vals = op->get_output_values();
-    assertm(in_vals.size() == 3 && out_vals.size() == 1,
-            "select should have three inputs and a output");
+    VCHECK_INVALID_ARGUMENT(in_vals.size() == 3 && out_vals.size() == 1,
+            "select should have three input and one output but "
+            "got %zu input and %zu output",
+            in_vals.size(), out_vals.size());
     auto cond = in_vals[0];
     auto src0 = in_vals[1];
     auto src1 = in_vals[2];
@@ -909,13 +916,11 @@ status_t lower_down(std::shared_ptr<subgraph_t> &sg) {
 
     for (auto &cur_op : sg->get_ops()) {
         auto kind = cur_op->get_kind();
-        if (!handler_table.count(kind)) {
-            assertm(false,
-                    "All spec ops should be lowered to internal ops, except "
-                    "for some utility ops like End, Wildcard");
-            return status::invalid_graph_op;
-        }
-
+        VCHECK_INVALID_ARGUMENT(handler_table.count(kind),
+                "All spec ops should be lowered to internal ops, except "
+                "for some utility ops like End, Wildcard. Current op name is "
+                "%s",
+                cur_op->get_name().c_str());
         // lower this spec op to dnnl backend internal op
         const auto &handler = handler_table.at(kind);
         auto status = handler(cur_op, rewriter);
