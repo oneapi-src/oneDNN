@@ -253,7 +253,7 @@ int compare_t::compare_norm(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
     // Status may be propagated from previous tensor. Use stats from cur tensor.
     BENCHDNN_PRINT((res->errors ? 0 : 6),
-            "[COMPARE_STATS]%s: trh=%g (compare against [L2] rel_diff)\n",
+            "[COMPARE]%s[STATS]: trh:%g (compare against [L2] rel_diff)\n",
             get_kind_str().c_str(), trh_);
 
     if (res->state == EXECUTED) res->state = PASSED;
@@ -300,16 +300,41 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     const auto nthreads = benchdnn_get_max_threads();
     const auto nelems_per_thread = div_up(nelems, nthreads);
     const auto nelems_pad = nelems_per_thread * nthreads;
+    const bool need_dump = verbose >= 9;
+
+    // Stats collected for whole tensor.
+    struct p2p_stats_t {
+        // Maximum absolute difference.
+        float max_diff_ = 0.f;
+        // Maximum relative difference.
+        float max_rdiff_ = 0.f;
+        // Maximum ulps difference.
+        int64_t max_udiff_ = 0;
+
+        void update(float other_max_diff, float other_max_rdiff,
+                int64_t other_max_udiff) {
+            max_diff_ = MAX2(max_diff_, other_max_diff);
+            max_rdiff_ = MAX2(max_rdiff_, other_max_rdiff);
+            max_udiff_ = MAX2(max_udiff_, other_max_udiff);
+        }
+        void update(const p2p_stats_t &other) {
+            max_diff_ = MAX2(max_diff_, other.max_diff_);
+            max_rdiff_ = MAX2(max_rdiff_, other.max_rdiff_);
+            max_udiff_ = MAX2(max_udiff_, other.max_udiff_);
+        }
+        void reset() { *this = p2p_stats_t(); }
+    };
 
     // These global metrics are updated at the synchronization point.
     int64_t zeros = 0;
-    // "all_" stuff is across the whole tensor. "err_" stuff is just for points
-    // that didn't pass any criteria.
-    float all_max_rdiff = 0.f;
-    float all_max_diff = 0.f;
-    float err_max_rdiff = 0.f;
-    float err_max_diff = 0.f;
-    const bool need_dump = verbose >= 9;
+    // This collects stats across the whole tensor.
+    p2p_stats_t all_points {};
+    // This collects stats only for all failed points.
+    p2p_stats_t err_points {};
+    // Both data can be useful to see what failed points reported and what the
+    // whole tensor actually has. It happens that some custom conditions trigger
+    // to avoid certain points reporting a failure status which can be seen
+    // having data for both cases.
 
     // Make thread_data static so that acquiring the thread data can be
     // performed in a static thread_local variable to minimize locking
@@ -343,10 +368,8 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
         // Stats for all validated points per one thread.
         static thread_local int64_t ithr_zeros = 0;
-        static thread_local float ithr_all_max_rdiff = 0.f;
-        static thread_local float ithr_all_max_diff = 0.f;
-        static thread_local float ithr_err_max_rdiff = 0.f;
-        static thread_local float ithr_err_max_diff = 0.f;
+        static thread_local p2p_stats_t ithr_all_points {};
+        static thread_local p2p_stats_t ithr_err_points {};
 
         // This is valid because references to data are only invalidated by
         // erasing that element, but it does require that thread_data is a
@@ -498,11 +521,10 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
 
         // Update compare stats.
         if (fabsf(args.got) == 0) ithr_zeros++;
-        ithr_all_max_rdiff = MAX2(ithr_all_max_rdiff, args.rel_diff);
-        ithr_all_max_diff = MAX2(ithr_all_max_diff, args.diff);
-        if (!ok) ithr_err_max_rdiff = MAX2(ithr_err_max_rdiff, args.rel_diff);
-        if (!ok) ithr_err_max_diff = MAX2(ithr_err_max_diff, args.diff);
-
+        ithr_all_points.update(args.diff, args.rel_diff, args.ulps_diff);
+        if (!ok) {
+            ithr_err_points.update(args.diff, args.rel_diff, args.ulps_diff);
+        }
         if (!ok) n_errors++;
 
         const bool dump
@@ -517,15 +539,12 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             std::lock_guard<std::mutex> guard(m);
 
             zeros += ithr_zeros;
-            all_max_rdiff = MAX2(all_max_rdiff, ithr_all_max_rdiff);
-            all_max_diff = MAX2(all_max_diff, ithr_all_max_diff);
-            err_max_rdiff = MAX2(err_max_rdiff, ithr_err_max_rdiff);
-            err_max_diff = MAX2(err_max_diff, ithr_err_max_diff);
+            all_points.update(ithr_all_points);
+            err_points.update(ithr_err_points);
+
             ithr_zeros = 0;
-            ithr_all_max_rdiff = 0.f;
-            ithr_all_max_diff = 0.f;
-            ithr_err_max_rdiff = 0.f;
-            ithr_err_max_diff = 0.f;
+            ithr_all_points.reset();
+            ithr_err_points.reset();
         }
     };
 
@@ -574,14 +593,20 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     if (res->state != FAILED && is_mistrusted) res->state = MISTRUSTED;
 
     // Status may be propagated from previous tensor. Use stats from cur tensor.
+    BENCHDNN_PRINT((n_errors ? 0 : 6), "[COMPARE]%s[STATS]: trh:%g;\n",
+            get_kind_str().c_str(), trh_);
     BENCHDNN_PRINT((n_errors ? 0 : 6),
-            "[COMPARE_STATS]%s: trh=%g err_max_diff:%8g err_max_rdiff:%8g "
-            "all_max_diff:%8g all_max_rdiff:%8g\n",
-            get_kind_str().c_str(), trh_, err_max_diff, err_max_rdiff,
-            all_max_diff, all_max_rdiff);
-
+            "[COMPARE]%s[STATS][ERROR_POINTS]: max_diff:%g; "
+            "max_rdiff:%g; max_udiff:%ld;\n",
+            get_kind_str().c_str(), err_points.max_diff_, err_points.max_rdiff_,
+            err_points.max_udiff_);
+    BENCHDNN_PRINT((n_errors ? 0 : 6),
+            "[COMPARE]%s[STATS][ALL_POINTS]: max_diff:%g; max_rdiff:%g; "
+            "max_udiff:%ld;\n",
+            get_kind_str().c_str(), all_points.max_diff_, all_points.max_rdiff_,
+            all_points.max_udiff_);
     BENCHDNN_PRINT((is_mistrusted ? 2 : 6),
-            "[COMPARE_TRUST]%s: z:%2.0f%% (>%2.0f%%) (z: %ld, total: %ld)\n",
+            "[COMPARE]%s[TRUST]: z:%2.0f%% (>%2.0f%%) (z: %ld, total: %ld)\n",
             get_kind_str().c_str(), zeros_percent, zero_trust_percent,
             (long)zeros, (long)nelems);
 

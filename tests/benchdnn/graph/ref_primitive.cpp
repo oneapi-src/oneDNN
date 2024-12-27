@@ -275,7 +275,7 @@ void ref_primitive_t::check_correctness(
         const bool norm_check_allowed = allowed_error_points >= res->errors;
 
         BENCHDNN_PRINT(0,
-                "[COMPARE_STATS] Norm check is %s; error_to_total_ratio: "
+                "[COMPARE][STATS] Norm check is %s; error_to_total_ratio: "
                 "%zu/%zu; allowed_ratio: %zu/%zu;\n",
                 norm_check_allowed ? "allowed" : "prohibited", res->errors,
                 res->total, allowed_error_points, res->total);
