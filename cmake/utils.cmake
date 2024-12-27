@@ -142,6 +142,14 @@ macro(append_to_windows_path_list path_list path)
     endif()
 endmacro()
 
+# Strip paths from libraries before populating INSTALL_INTERFACE
+function(target_link_libraries_install target list)
+    foreach(lib ${list})
+        get_filename_component(base "${lib}" NAME)
+        target_link_libraries(${target} PUBLIC "$<INSTALL_INTERFACE:${base}>")
+    endforeach(lib)
+endfunction()
+
 function(find_libm var)
     if(UNIX)
         find_library(${var} m REQUIRED)
