@@ -209,9 +209,9 @@ target_include_directories(${LIB_PACKAGE_NAME} PUBLIC
     )
 
 target_link_libraries(${LIB_PACKAGE_NAME} PUBLIC "$<BUILD_INTERFACE:${EXTRA_SHARED_LIBS};${EXTRA_STATIC_LIBS}>")
-target_link_libraries(${LIB_PACKAGE_NAME} PUBLIC "$<INSTALL_INTERFACE:${EXTRA_SHARED_LIBS}>")
+target_link_libraries_install(${LIB_PACKAGE_NAME} "${EXTRA_SHARED_LIBS}")
 if(DNNL_LIBRARY_TYPE STREQUAL "STATIC")
-    target_link_libraries(${LIB_PACKAGE_NAME} PUBLIC "$<INSTALL_INTERFACE:${EXTRA_STATIC_LIBS}>")
+    target_link_libraries_install(${LIB_PACKAGE_NAME} "${EXTRA_STATIC_LIBS}")
 endif()
 
 set(LIB_EXPORT_NAME "${LIB_PACKAGE_NAME}-targets")
