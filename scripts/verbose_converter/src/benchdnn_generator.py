@@ -216,7 +216,7 @@ class Converter(metaclass=ConverterMeta):
 
     scratchpad_mode = attribute_flag("scratchpad")
     fpmath_mode = attribute_flag("fpmath")
-    acc_mode = attribute_flag("acc")
+    acc_mode = attribute_flag("acc_mode")
 
     @property
     def dropout(self):
