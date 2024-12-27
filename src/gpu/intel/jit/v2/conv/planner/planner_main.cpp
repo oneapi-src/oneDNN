@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/jit/v2/conv/planner/planner.hpp"
+#include "oneapi/dnnl/dnnl_config.h"
+
+namespace dnnl {
+namespace impl {
+namespace gpu {
+namespace intel {
+namespace jit {
+namespace v2 {
+namespace conv {
+namespace planner {
+void DNNL_API planner_main(int argc, const char **argv);
+}
+} // namespace conv
+} // namespace v2
+} // namespace jit
+} // namespace intel
+} // namespace gpu
+} // namespace impl
+} // namespace dnnl
 
 int main(int argc, const char **argv) {
     dnnl::impl::gpu::intel::jit::v2::conv::planner::planner_main(argc, argv);

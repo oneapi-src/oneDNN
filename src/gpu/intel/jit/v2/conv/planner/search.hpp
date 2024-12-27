@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #define GPU_INTEL_JIT_V2_CONV_PLANNER_SEARCH_HPP
 
 #include "gpu/intel/jit/v2/conv/planner/bench.hpp"
+#include "gpu/intel/jit/v2/conv/planner/planner.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -31,8 +32,7 @@ class kernel_desc_t;
 
 namespace planner {
 
-void search(const bench_manager_t &bench_mger, const kernel_desc_t &desc);
-void auto_search(const bench_manager_t &bench_mger);
+void search(const bench_manager_t &bench_mger, const planner_params_t &params);
 
 } // namespace planner
 } // namespace conv

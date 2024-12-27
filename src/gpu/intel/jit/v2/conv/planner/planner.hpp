@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,7 +17,8 @@
 #ifndef GPU_INTEL_JIT_V2_CONV_PLANNER_PLANNER_HPP
 #define GPU_INTEL_JIT_V2_CONV_PLANNER_PLANNER_HPP
 
-#include "oneapi/dnnl/dnnl_config.h"
+#include "gpu/intel/jit/utils/utils.hpp"
+#include "gpu/intel/jit/v2/conv/kernel_desc.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -28,7 +29,19 @@ namespace v2 {
 namespace conv {
 namespace planner {
 
-void DNNL_API planner_main(int argc, const char **argv);
+enum class planner_mode_t {
+    undef,
+    trace,
+    bench,
+    search,
+    auto_search,
+};
+
+struct planner_params_t {
+    planner_mode_t mode = planner_mode_t::undef;
+    kernel_desc_t desc;
+    parse_result_t parse_result;
+};
 
 } // namespace planner
 } // namespace conv
