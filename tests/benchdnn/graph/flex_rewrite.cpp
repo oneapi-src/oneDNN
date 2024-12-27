@@ -582,8 +582,10 @@ void flex_rewrite::infer_output_shape(
                 break;
             // infer_matmul_output_shape
             case dnnl::graph::op::kind::MatMul:
-                x = gi[aop.in_lts_[0].id_];
-                y = gi[aop.in_lts_[1].id_];
+                in0 = aop.in_lts_[0].id_;
+                in1 = aop.in_lts_[1].id_;
+                x = gi[in0];
+                y = gi[in1];
                 out0 = aop.out_lts_[0].id_;
                 if (x.size() > 1
                         && aop.attrs_.find("transpose_a") != aop.attrs_.end()
@@ -618,11 +620,12 @@ void flex_rewrite::infer_output_shape(
                     if (x[x.size() - 1] != y[y.size() - 2]) {
                         BENCHDNN_PRINT(0,
                                 "Error: updated shapes are not consistent. "
-                                "Expected element \'%lld\' from \'%s\' to be "
-                                "equal to element \'%lld\' from \'%s\'.\n",
-                                (long long)(x[x.size() - 1]),
+                                "Expected element \'%lld\' from \'(%zu):%s\' "
+                                "to be equal to element \'%lld\' from "
+                                "\'(%zu):%s\'.\n",
+                                (long long)(x[x.size() - 1]), in0,
                                 stdvec2string(x).c_str(),
-                                (long long)(y[y.size() - 2]),
+                                (long long)(y[y.size() - 2]), in1,
                                 stdvec2string(y).c_str());
                         SAFE_V(FAIL);
                     }
