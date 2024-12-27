@@ -1088,6 +1088,24 @@ T parse(const std::string &s) {
     return t;
 }
 
+class parse_result_t {
+public:
+    const std::unordered_map<std::string, std::string> &args() const {
+        return args_;
+    }
+    void set_arg(const std::string &name, const std::string &value) {
+        args_[name] = value;
+    }
+    bool is_set(const std::string &name) const { return args_.count(name) > 0; }
+    const std::string &arg_value(const std::string &name) const {
+        ir_assert(is_set(name)) << "Argument is not set: " << name;
+        return args_.at(name);
+    }
+
+private:
+    std::unordered_map<std::string, std::string> args_;
+};
+
 template <typename T>
 class parse_iface_t {
 public:
@@ -1172,11 +1190,13 @@ public:
         }
     }
 
-    void parse(std::istream &in, T &parent) const {
+    void parse(std::istream &in, T &parent,
+            parse_result_t *result = nullptr) const {
         parent = T();
         if (relaxed_) {
-            parse_relaxed(in, parent);
+            parse_relaxed(in, parent, result);
         } else {
+            ir_assert(!result);
             for (auto &e : entries_) {
                 if (!e.name.empty()) {
                     stream_match(in, e.name);
@@ -1188,9 +1208,10 @@ public:
         if (post_parse_func_) post_parse_func_(parent);
     }
 
-    void parse(const std::string &s, T &parent) const {
+    void parse(const std::string &s, T &parent,
+            parse_result_t *result = nullptr) const {
         std::istringstream iss(s);
-        parse(iss, parent);
+        parse(iss, parent, result);
     }
 
     int size() const { return static_cast<int>(entries_.size()); }
@@ -1219,7 +1240,8 @@ private:
         return -1;
     }
 
-    void parse_relaxed(std::istream &in, T &parent) const {
+    void parse_relaxed(std::istream &in, T &parent,
+            parse_result_t *result = nullptr) const {
         std::vector<bool> seen(entries_.size());
         while (true) {
             std::string name;
@@ -1235,6 +1257,7 @@ private:
             std::istringstream iss(value);
             entries_[idx].parse(iss, parent);
             seen[idx] = true;
+            if (result) result->set_arg(name, value);
         }
         for (size_t i = 0; i < entries_.size(); i++) {
             if (entries_[i].required && !seen[i]) {
