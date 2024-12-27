@@ -437,12 +437,12 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     iface->add<PACK(regs)>(
             "regs", "Number of registers (128 or 256).", /*required=*/true);
     iface->add<PACK(iter_tile)>("iter", "Iteration tile (e.g. mb32ic16oc16).",
-            /*required=*/true);
+            /*required=*/false);
     iface->add<PACK(iter_outer_tile)>("iter_outer",
             "Outer iteration tile (e.g. mb2).",
             /*required=*/false);
     iface->add<PACK(thread_group_tile)>(
-            "tg", "Threadgroup tile (e.g. ow4oc4).", /*required=*/true);
+            "tg", "Threadgroup tile (e.g. ow4oc4).", /*required=*/false);
     iface->add<PACK(loop_desc)>("loop_desc",
             "Loop description, variables ordered from innermost to outermost "
             "(e.g. kw,kh,kd,ic).");

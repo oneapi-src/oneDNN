@@ -614,6 +614,7 @@ bench_data_t bench(const bench_manager_t &bench_mger,
 
 bool try_create(
         const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc) {
+    clear_primitive_cache();
     bench_input_params_t params(kernel_desc, /*nprbs=*/1);
     bench_task_t task(generate_problems(params)[0]);
     auto engine = bench_mger.get_engine();
