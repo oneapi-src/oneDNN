@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -364,7 +364,18 @@ bool node_outputs_matcher_t::match_op_consumers() {
             auto node_consumer = current_node_output_.second[k];
             pb_node_t *out_node = node_consumer->first;
             // check if the out_node has been matched by previous out_ops
-            if (node_oport_matched_cons.count(k)) continue;
+            if (node_oport_matched_cons.count(k)) {
+                if (out_node->get_node_kind() == pb_node_kind::PB_NODE_KIND_OP)
+                    continue;
+                if (out_node->get_node_kind()
+                        == pb_node_kind::PB_NODE_KIND_ALTERNATION)
+                    continue;
+                // For repetition case, check if multi consumers exist
+                repetition_t *rep_node = dynamic_cast<repetition_t *>(out_node);
+                if (rep_node->get_body()->get_inner_consumer(0)->size() == 1)
+                    continue;
+            }
+
             binding_t out_bind(BIND_IN, out_op, op_consumer.get_offset(),
                     out_node, node_consumer->second);
 
