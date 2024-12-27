@@ -281,6 +281,17 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
     /* Prefetch first K tile. */
     cooperative_prefetch_2d_k(K, k, d, ugemm_kq_wg_tile_m, PREFETCH_D_MAX, ldk,
             sg_ij, sg_per_wg, SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
+
+#if KEY_SCALES == QUANTIZE_2D
+    cooperative_prefetch_2d(K_scales, ugemm_kq_wg_tile_m,
+            PREFETCH_D_MAX / KEY_GROUP_SIZE, ldkq, sg_ij, sg_per_wg,
+            SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
+#endif
+#if KEY_ZERO_POINTS == QUANTIZE_2D
+    cooperative_prefetch_2d(K_zp, ugemm_kq_wg_tile_m,
+            PREFETCH_D_MAX / KEY_GROUP_SIZE, ldkq, sg_ij, sg_per_wg,
+            SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
+#endif
 #endif
 
     /* Initialize S column sums in SLM to -inf */
@@ -405,8 +416,22 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         cooperative_prefetch_2d_maybe_rem(V, d, k - k0, D_MAX,
                 (ugemm_kq_wg_tile_m * PREFETCH_D_MAX) / D_MAX, ldv, sg_ij,
                 sg_per_wg, SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
-#endif
 
+#if VAL_SCALES == QUANTIZE_2D
+        /* Prefetch V scales. */
+        cooperative_prefetch_2d_maybe_rem(V_scales, d / VAL_GROUP_SIZE, k - k0,
+                d / VAL_GROUP_SIZE,
+                (ugemm_kq_wg_tile_m * PREFETCH_D_MAX) / D_MAX, ldvq, sg_ij,
+                sg_per_wg, SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
+#endif
+#if VAL_ZERO_POINTS == QUANTIZE_2D
+        /* Prefetch V zero points. */
+        cooperative_prefetch_2d_maybe_rem(V_zp, d / VAL_GROUP_SIZE, k - k0,
+                d / VAL_GROUP_SIZE,
+                (ugemm_kq_wg_tile_m * PREFETCH_D_MAX) / D_MAX, ldvq, sg_ij,
+                sg_per_wg, SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
+#endif
+#endif
 #ifndef ALT_MAX
         /* Read back WG-wide maxima */
         intel_work_group_barrier_wait(CLK_LOCAL_MEM_FENCE);
@@ -492,6 +517,17 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
                     k - k0 - ugemm_kq_wg_tile_m, d, ugemm_kq_wg_tile_m,
                     PREFETCH_D_MAX, ldk, sg_ij, sg_per_wg, SUBGROUP_SIZE,
                     LSC_LDCC_L1C_L3C);
+#if KEY_SCALES == QUANTIZE_2D
+            cooperative_prefetch_2d(
+                    K_scales + ((k0 + ugemm_kq_wg_tile_m) * ldkq),
+                    ugemm_kq_wg_tile_m, PREFETCH_D_MAX / KEY_GROUP_SIZE, ldkq,
+                    sg_ij, sg_per_wg, SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
+#endif
+#if KEY_ZERO_POINTS == QUANTIZE_2D
+            cooperative_prefetch_2d(K_zp + ((k0 + ugemm_kq_wg_tile_m) * ldkq),
+                    ugemm_kq_wg_tile_m, PREFETCH_D_MAX / KEY_GROUP_SIZE, ldkq,
+                    sg_ij, sg_per_wg, SUBGROUP_SIZE, LSC_LDCC_L1C_L3C);
+#endif
         }
 #endif
 #if WITH_ATTN_MASK && defined(PREFETCH_MASK)
