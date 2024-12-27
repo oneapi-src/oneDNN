@@ -40,10 +40,9 @@
 #include "graph/backend/dnnl/passes/transform.hpp"
 #include "graph/backend/dnnl/passes/utils.hpp"
 
-#define VCHECK_UNIMPLEMENTED(cond, msg, ...) \
-    VCONDCHECK(graph, create, check, compile, (cond), status::unimplemented, \
-            msg, ##__VA_ARGS__);
-
+#define VCHECK_TRANSFORM(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, transform, (cond), status, msg, \
+            ##__VA_ARGS__);
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -260,8 +259,9 @@ status_t convert_to_runtime_src_scales(std::shared_ptr<subgraph_t> &sg) {
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &cur_op : scales_ops) {
-        assertm(cur_op->num_outputs() == 1,
-                "scale_op should have only one output value.");
+        VCHECK_TRANSFORM(cur_op->num_outputs() == 1, status::invalid_graph_op,
+                "scale_op should have only one output value, but got %zu",
+                cur_op->num_outputs());
         auto out_val = cur_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
         if (consumers.empty()) continue;
@@ -318,8 +318,9 @@ status_t convert_to_runtime_src_zero_points(std::shared_ptr<subgraph_t> &sg) {
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &zp_op : zp_ops) {
-        assertm(zp_op->num_outputs() == 1,
-                "zp_op should have only one output value.");
+        VCHECK_TRANSFORM(zp_op->num_outputs() == 1, status::invalid_graph_op,
+                "zp_op should have only one output value, but got %zu",
+                zp_op->num_outputs());
         auto out_val = zp_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
 
@@ -377,8 +378,9 @@ status_t convert_to_runtime_dst_zero_points(std::shared_ptr<subgraph_t> &sg) {
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &zp_op : zp_ops) {
-        assertm(zp_op->num_outputs() == 1,
-                "zp_op should have only one output value.");
+        VCHECK_TRANSFORM(zp_op->num_outputs() == 1, status::invalid_graph_op,
+                "zp_op should have only one output value, but got %zu",
+                zp_op->num_outputs());
         auto in_val = zp_op->get_input_values()[0];
         bool is_output_zps = in_val->has_producer()
                 && impl::utils::one_of(in_val->get_producer().get_kind(),
@@ -426,8 +428,10 @@ status_t fold_mul_scales(std::shared_ptr<subgraph_t> &sg) {
                     || visited.count(cur_op.get()) != 0)
                 continue;
 
-            assertm(cur_op->num_outputs() == 1,
-                    "cur_op should have only one output value.");
+            VCHECK_TRANSFORM(cur_op->num_outputs() == 1, false,
+                    "dnnl_mul_scales should have only one output value, but "
+                    "got %zu",
+                    cur_op->num_outputs());
             auto out_val = cur_op->get_output_values()[0];
             auto consumers = out_val->get_consumers();
             if (consumers.empty()) continue;
@@ -493,8 +497,10 @@ impl::status_t fold_sub_zps_add_zps(std::shared_ptr<subgraph_t> &sg) {
                     || visited.count(cur_op.get()) != 0)
                 continue;
 
-            assertm(cur_op->num_outputs() == 1,
-                    "cur_op should have only one output value.");
+            VCHECK_TRANSFORM(cur_op->num_outputs() == 1, false,
+                    "dnnl_sub_zps should have only one output value, but got "
+                    "%zu",
+                    cur_op->num_outputs());
             auto out_val = cur_op->get_output_values()[0];
             auto consumers = out_val->get_consumers();
             if (consumers.empty()) continue;
@@ -593,8 +599,12 @@ status_t fuse_to_int8_concat(std::shared_ptr<subgraph_t> &sg) {
             rewriter.fuse_op_to_successor(scale_op.shared_from_this());
         }
 
-        assertm(concat_op->get_output_value(0)->get_consumers().size() == 1,
-                "concat's successor op should only have one consumer.");
+        VCHECK_TRANSFORM(
+                concat_op->get_output_value(0)->get_consumers().size() == 1,
+                status::invalid_graph,
+                "concat's successor op should only have one consumer, but got "
+                "%zu",
+                concat_op->get_output_value(0)->get_consumers().size());
         op_t &scale_op
                 = concat_op->get_output_value(0)->get_consumers()[0].get_op();
         op_t &zp_op = scale_op.get_output_value(0)->get_consumers()[0].get_op();
@@ -845,7 +855,8 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
             return status::success;
         });
 
-        if (ret != status::success) return ret;
+        VCHECK_TRANSFORM(ret == status::success, ret,
+                "Error finding fusible post_op groups");
 
         if (fuse_groups.empty()) {
             changed = false;
@@ -992,14 +1003,12 @@ status_t fuse_post_ops(std::shared_ptr<subgraph_t> &sg) {
 
     bool changed = true;
     do {
-        auto ret = fuse_post_ops_func(changed);
-        if (ret != status::success) return ret;
+        CHECK(fuse_post_ops_func(changed));
         cnt++;
     } while (changed && cnt <= max_num_limit);
 
-    assertm(cnt <= max_num_limit + 1,
-            "Failed to fuse all post ops since there has unsupported ones.");
-    if (cnt > max_num_limit + 1) return status::unimplemented;
+    VCHECK_TRANSFORM(cnt <= max_num_limit + 1, status::unimplemented,
+            "Failed to fuse all post ops since there has unsupported ones");
     return status::success;
 }
 
@@ -1019,8 +1028,9 @@ status_t fuse_src_zero_points(std::shared_ptr<subgraph_t> &sg) {
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &zp_op : zp_ops) {
-        assertm(zp_op->num_outputs() == 1,
-                "zp_op should have only one output value.");
+        VCHECK_TRANSFORM(zp_op->num_outputs() == 1, status::invalid_graph_op,
+                "zp_op should have only one output value, but got %zu",
+                zp_op->num_outputs());
         auto out_val = zp_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
 
@@ -1071,7 +1081,7 @@ status_t fuse_src_zero_points(std::shared_ptr<subgraph_t> &sg) {
                 auto zps = zp_op->get_attr<std::vector<int64_t>>(op_attr::zps);
                 not_all_zero = !utils::all_zero(zps);
                 if (not_all_zero) {
-                    assertm(zps.size() == 1,
+                    VCHECK_TRANSFORM(zps.size() == 1, status::unimplemented,
                             "zp attr only support scalar zp, need to use "
                             "runtime arg to support vector zp");
                     fusion_info.set_zero_points(
@@ -1105,8 +1115,9 @@ status_t fuse_src_scales(std::shared_ptr<subgraph_t> &sg) {
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &scale_op : scales_ops) {
-        assertm(scale_op->num_outputs() == 1,
-                "scale_op should have only one output value.");
+        VCHECK_TRANSFORM(scale_op->num_outputs() == 1, status::invalid_graph_op,
+                "scale_op should have only one output value, but got %zu",
+                scale_op->num_outputs());
         auto out_val = scale_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
         if (consumers.empty()) continue;
@@ -1132,10 +1143,15 @@ status_t fuse_src_scales(std::shared_ptr<subgraph_t> &sg) {
                 int ndims = scale_op->get_input_value(0)
                                     ->get_logical_tensor()
                                     .ndims;
-                if ((!trans_flag && axis != ndims - 1 && axis != -1)
-                        || (trans_flag && axis != ndims - 2 && axis != -2)) {
-                    return status::unimplemented;
-                }
+                VCHECK_TRANSFORM(
+                        (!trans_flag && (axis == ndims - 1 || axis == -1))
+                                || (trans_flag
+                                        && (axis == ndims - 2 || axis == -2)),
+                        status::unimplemented,
+                        "Matmul only support applying per channel scale "
+                        "along the last dimension for DNNL_ARG_WEIGHTS. "
+                        "trans_flag: %d, axis: %lld, ndims: %d",
+                        trans_flag, axis, ndims);
             }
             int64_t key = -1;
             if (next_op.has_attr(op_attr::fusion_info_key)) {
@@ -1161,7 +1177,8 @@ status_t fuse_src_scales(std::shared_ptr<subgraph_t> &sg) {
                         scale_op->shared_from_this(), true, offset);
                 rewriter.to_remove(scale_op->shared_from_this());
             } else {
-                assertm(false, "src scales must be runtime scales.");
+                VCHECK_TRANSFORM(false, status::unimplemented,
+                        "src scales must be runtime scales.");
             }
         }
     }
@@ -1315,8 +1332,9 @@ status_t fuse_dst_zero_points(std::shared_ptr<subgraph_t> &sg) {
 
     subgraph_rewriter_t rewriter(sg);
     for (auto &zp_op : zp_ops) {
-        assertm(zp_op->num_outputs() == 1,
-                "zp_op should have only one output value.");
+        VCHECK_TRANSFORM(zp_op->num_outputs() == 1, status::invalid_graph_op,
+                "zp_op should have only one output value, but got %zu",
+                zp_op->num_outputs());
         auto out_val = zp_op->get_output_values()[0];
         auto consumers = out_val->get_consumers();
 
@@ -2259,7 +2277,9 @@ status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
                     = binary_doable(ltw(src0_lt).vdims(), ltw(src1_lt).vdims());
         }
 
-        if (!shape_check_ok) return status::invalid_shape;
+        VCHECK_TRANSFORM(shape_check_ok, status::invalid_shape,
+                "Binary op shape check failed for op: %s .",
+                cur_op->get_name().c_str());
 
         // insert unsqueeze op
         int32_t src0_ndims = src0_lt.ndims;
@@ -2570,7 +2590,8 @@ status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             return status::success;
         });
 
-        if (ret != status::success) return ret;
+        VCHECK_TRANSFORM(ret == status::success, ret,
+                "Error finding adjacent reorders.");
 
         if (fuse_groups.empty()) {
             changed = false;
@@ -2698,8 +2719,7 @@ status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
             const auto &pd = reorder_executable_t::create_desc(
                     fused_op, *p_engine, mgr, pd_cache);
             const memory::desc scratchpad_desc = pd.scratchpad_desc();
-            auto status = fill_layout_info(scratchpad_val, scratchpad_desc);
-            if (status != status::success) return status;
+            CHECK(fill_layout_info(scratchpad_val, scratchpad_desc));
 
             rewriter.to_insert(fused_op);
             rewriter.to_remove(op1->shared_from_this());
@@ -2714,13 +2734,12 @@ status_t fuse_adjacent_reorders(std::shared_ptr<subgraph_t> &sg) {
 
     bool changed = true;
     do {
-        auto ret = fuse_two_adjacent_reorders(changed);
-        if (ret != status::success) return ret;
+        CHECK(fuse_two_adjacent_reorders(changed));
         cnt++;
     } while (changed && cnt <= max_num_limit);
 
-    assertm(cnt <= max_num_limit + 1, "reorder fusion failed.");
-    if (cnt > max_num_limit + 1) return status::unimplemented;
+    VCHECK_TRANSFORM(cnt <= max_num_limit + 1, status::unimplemented,
+            "Reorder fusion failed.");
 
     return status::success;
 }
@@ -3108,11 +3127,11 @@ status_t reorder_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         };
 
         if (qtype == "per_channel") {
-            VCHECK_UNIMPLEMENTED(
-                    (!(cur_op->has_attr(op_attr::with_runtime_src_zps)
-                            || cur_op->has_attr(
-                                    op_attr::with_runtime_dst_zps))),
-                    "reorder primitive does not support zero points for "
+            VCHECK_TRANSFORM((!(cur_op->has_attr(op_attr::with_runtime_src_zps)
+                                     || cur_op->has_attr(
+                                             op_attr::with_runtime_dst_zps))),
+                    status::unimplemented,
+                    "Reorder primitive does not support zero points for "
                     "per-channel quantization");
         }
 
@@ -3243,15 +3262,13 @@ status_t common_reorder_elimination(std::shared_ptr<subgraph_t> &sg) {
 
     bool changed = true;
     do {
-        auto ret = cse_func(changed);
-        if (ret != status::success) return ret;
+        CHECK(cse_func(changed));
         cnt++;
     } while (changed && cnt <= max_iter_num);
 
-    assertm(cnt <= max_iter_num + 1,
+    VCHECK_TRANSFORM(cnt <= max_iter_num + 1, status::unimplemented,
             "Failed to eliminate common reorders since the pass can't "
             "converge.");
-    if (cnt > max_iter_num + 1) return status::unimplemented;
 
     return status::success;
 }
@@ -3348,22 +3365,31 @@ status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg) {
             continue;
 
         op_t &scales_in0_op = bin_in0_val->get_producer();
-        assertm(scales_in0_op.get_kind() == op_kind::dnnl_mul_scales,
-                "the first predecessor of a binary op should be mul_scales.");
+        VCHECK_TRANSFORM(scales_in0_op.get_kind() == op_kind::dnnl_mul_scales,
+                status::invalid_graph,
+                "the first predecessor of a binary op should be mul_scales. "
+                "but got %s",
+                scales_in0_op.get_name().c_str());
         if (scales_in0_op.has_attr(op_attr::with_runtime_scales)
                 && scales_in0_op.get_attr<bool>(op_attr::with_runtime_scales))
             continue;
 
         op_t &scales_in1_op = bin_in1_val->get_producer();
-        assertm(scales_in1_op.get_kind() == op_kind::dnnl_mul_scales,
-                "the second predecessor of a binary op should be mul_scales.");
+        VCHECK_TRANSFORM(scales_in1_op.get_kind() == op_kind::dnnl_mul_scales,
+                status::invalid_graph,
+                "the second predecessor of a binary op should be mul_scales. "
+                "but got %s",
+                scales_in1_op.get_name().c_str());
         if (scales_in1_op.has_attr(op_attr::with_runtime_scales)
                 && scales_in1_op.get_attr<bool>(op_attr::with_runtime_scales))
             continue;
 
         op_t &scales_out_op = bin_out_val->get_consumers()[0].get_op();
-        assertm(scales_out_op.get_kind() == op_kind::dnnl_mul_scales,
-                "the successor of a binary op should be mul_scales.");
+        VCHECK_TRANSFORM(scales_out_op.get_kind() == op_kind::dnnl_mul_scales,
+                status::invalid_graph,
+                "the successor predecessor of a binary op should be "
+                "mul_scales. but got %s",
+                scales_out_op.get_name().c_str());
         if (scales_out_op.has_attr(op_attr::with_runtime_scales)
                 && scales_out_op.get_attr<bool>(op_attr::with_runtime_scales))
             continue;
@@ -3403,9 +3429,10 @@ status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg) {
         const auto multiplier = std::multiplies<float>();
         switch (bin_kind) {
             case dnnl::algorithm::binary_add:
-                assertm(std::all_of(in0_scales.begin(), in0_scales.end(),
+                VCHECK_TRANSFORM(
+                        std::all_of(in0_scales.begin(), in0_scales.end(),
                                 [](float v) { return v != 0.f; }),
-                        "scales can't be zero");
+                        status::invalid_arguments, "scales can't be zero");
                 new_scales_in0
                         = fuse_scales(in0_scales, inv_out_scales, multiplier);
                 new_scales_in1
@@ -3425,7 +3452,8 @@ status_t combine_binary_post_op_scales(std::shared_ptr<subgraph_t> &sg) {
                         {&scales_in0_op, &scales_in1_op, &scales_out_op});
                 break;
             default:
-                assertm(false, "unsupported binary post-op was provided.");
+                VCHECK_TRANSFORM(false, status::unimplemented,
+                        "unsupported binary post-op was provided.");
                 break;
         }
 
