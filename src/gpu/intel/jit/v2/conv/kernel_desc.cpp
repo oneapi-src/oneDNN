@@ -226,6 +226,9 @@ void kernel_desc_t::set(const std::string &s) {
 }
 
 void kernel_desc_t::set_defaults() {
+    src_tag = make_conv_layout_tag(tensor_kind_t::src, src_tag.str());
+    wei_tag = make_conv_layout_tag(tensor_kind_t::wei, wei_tag.str());
+    dst_tag = make_conv_layout_tag(tensor_kind_t::dst, dst_tag.str());
     if (loop_desc.is_empty()) {
         switch (prop) {
             case prop_kind::forward_training:
@@ -253,6 +256,12 @@ void kernel_desc_t::set_defaults() {
     if (is_dw) {
         reqs.set(pvars::ic, 1);
         reqs.set(pvars::oc, 1);
+    }
+    if (prop == prop_kind::backward_data) {
+        // XXX: No stride support in backward by data yet.
+        reqs.set(pvars::sw, 1);
+        reqs.set(pvars::sh, 1);
+        reqs.set(pvars::sd, 1);
     }
 }
 
@@ -472,14 +481,8 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     iface->add(po_entry);
 #undef PACK
 
-    iface->set_post_parse_func([](kernel_desc_t &desc) {
-        desc.src_tag
-                = make_conv_layout_tag(tensor_kind_t::src, desc.src_tag.str());
-        desc.wei_tag
-                = make_conv_layout_tag(tensor_kind_t::wei, desc.wei_tag.str());
-        desc.dst_tag
-                = make_conv_layout_tag(tensor_kind_t::dst, desc.dst_tag.str());
-    });
+    iface->set_post_parse_func(
+            [](kernel_desc_t &desc) { desc.set_defaults(); });
 }
 
 arg_helper_t::arg_helper_t(const kernel_desc_t &desc) : desc_(desc) {}
