@@ -267,7 +267,7 @@ class ParserImpl:
             name, args = spec.read_str(), ""
             if spec.read_literal(":"):
                 args = spec.buf
-            if name == "attr-acc":
+            if name == "attr-acc-mode":
                 parsed[name] = self.parse_acc_mode(args)
             elif name == "attr-deterministic":
                 parsed[name] = self.parse_deterministic(args)
@@ -275,6 +275,7 @@ class ParserImpl:
                 parsed[name] = self.parse_dropout(args)
             elif name == "attr-fpmath":
                 parsed[name] = self.parse_fpmath_mode(args)
+            # Kept for compatibility with v2.7 and below.
             elif name == "attr-oscale":
                 parsed[name] = self.parse_oscale(args)
             elif name == "attr-post-ops":

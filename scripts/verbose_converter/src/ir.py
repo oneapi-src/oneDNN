@@ -319,7 +319,7 @@ class RoundingMode(CompositeAttribute, enum.Enum):
 
 
 Attribute = Union[
-    str,  # acc, etc
+    str,  # acc-mode, etc
     FPMathMode,
     Dropout,
     List[PostOp],
@@ -371,7 +371,7 @@ class Attributes(Mapping):
     def __len__(self):
         return len(self._attributes)
 
-    acc = attribute_accessor("acc")
+    acc_mode = attribute_accessor("acc-mode")
     deterministic = attribute_accessor("deterministic")
     dropout = attribute_accessor("dropout")
     fpmath = attribute_accessor("fpmath")

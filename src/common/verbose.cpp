@@ -728,7 +728,8 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
 
     const accumulation_mode_t &am = attr->acc_mode_;
     if (am != accumulation_mode::strict) {
-        ss << field_delim() << "attr-acc:" << dnnl_accumulation_mode2str(am);
+        ss << field_delim()
+           << "attr-acc-mode:" << dnnl_accumulation_mode2str(am);
     }
 
     const auto &rm = attr->rounding_mode_;
@@ -1569,8 +1570,9 @@ std::string init_info_softmax(const engine_t *e, const pd_t *pd) {
        << " ";
     ss << md2fmt_str("dst", dst_md, pd->dst_md(0, true)->format_kind);
     if (!types::is_zero_md(diff_dst_md)) {
-        ss << md2fmt_str(
-                "diff_dst", diff_dst_md, pd->diff_dst_md(0, true)->format_kind);
+        ss << " "
+           << md2fmt_str("diff_dst", diff_dst_md,
+                      pd->diff_dst_md(0, true)->format_kind);
     }
 
     ss << "," << pd->attr() << ",";
