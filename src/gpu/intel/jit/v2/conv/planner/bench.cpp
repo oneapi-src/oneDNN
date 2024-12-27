@@ -687,6 +687,7 @@ kernel_desc_t try_extensions(
     if (kernel_desc.prop != prop_kind::backward_data
             || (kernel_desc.a_type() == type_t::f32()
                     && kernel_desc.b_type() == type_t::f32())) {
+        std::cout << "TRY SK0\n";
         auto d = to_stream_k(kernel_desc, /*check_ext=*/false);
         if (!d.is_empty()) {
             d.is_finalized = false;
@@ -696,6 +697,7 @@ kernel_desc_t try_extensions(
                 ext.add(extension_kind_t::stream_k);
             }
         }
+        std::cout << "TRY SK1\n";
     }
 
     prb_reqs_t out_reqs;
