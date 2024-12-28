@@ -16,66 +16,6 @@
 
 cmake_minimum_required(VERSION 3.13)
 
-# Use INTERFACE_LINK_LIBRARIES as the source of the link interface
-if(POLICY CMP0022)
-    cmake_policy(SET CMP0022 NEW)
-endif()
-
-# Do not mix INTERFACE_LINK_LIBRARIES signatures
-if(POLICY CMP0023)
-    cmake_policy(SET CMP0023 NEW)
-endif()
-
-# Compiler id for Apple's Clang is now AppleClang
-if(POLICY CMP0025)
-    cmake_policy(SET CMP0025 NEW)
-endif()
-
-# Foo::Bar always refers to an IMPORTED target
-if(POLICY CMP0028)
-    cmake_policy(SET CMP0028 NEW)
-endif()
-
-# Enable RPATH on MacOS/OSX
-if(POLICY CMP0042)
-    cmake_policy(SET CMP0042 NEW)
-endif()
-
-# The project() command manages VERSION variables
-if(POLICY CMP0042)
-    cmake_policy(SET CMP0048 NEW)
-endif()
-
-# Interpret unquoted if() arguments as variables or keywords
-if(POLICY CMP0054)
-    cmake_policy(SET CMP0054 NEW)
-endif()
-
-# Pass linker flags to try_compile
-if(POLICY CMP0056)
-    cmake_policy(SET CMP0056 NEW)
-endif()
-
-# Always link with full path
-if(POLICY CMP0060)
-    cmake_policy(SET CMP0060 NEW)
-endif()
-
-# Do not export symbols from executables
-if(POLICY CMP0065)
-    cmake_policy(SET CMP0065 NEW)
-endif()
-
-# Pass compiler flags to try_compile
-if(POLICY CMP0066)
-    cmake_policy(SET CMP0066 NEW)
-endif()
-
-# Use <PackageName>_ROOT env. variable as a prefix
-if(POLICY CMP0074)
-    cmake_policy(SET CMP0074 NEW)
-endif()
-
 # Install rules order
 if(POLICY CMP0082)
     cmake_policy(SET CMP0082 NEW)
