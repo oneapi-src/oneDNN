@@ -311,9 +311,14 @@ public:
     std::string str() const;
     IR_DEFINE_DUMP()
 
-#if __cplusplus >= 202002L
-    bool operator==(const layout_tag_t &other) const = default;
-#endif
+    bool operator==(const layout_tag_t &other) const {
+        return (desc_ == other.desc_) && (type_ == other.type_)
+                && (raw_tag_ == other.raw_tag_);
+    }
+
+    bool operator!=(const layout_tag_t &other) const {
+        return !operator==(other);
+    }
 
     void stringify(std::ostream &out) const {
         jit::stringify(out, raw_tag_);

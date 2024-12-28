@@ -135,7 +135,8 @@ void DNNL_API planner_main(int argc, const char **argv) {
         }
         case planner_mode_t::bench: {
             auto bd = bench(bench_mger, params.desc);
-            auto model = model_fit(bd);
+            model_set_t model_set;
+            model_fit(bd, model_set);
             break;
         }
         case planner_mode_t::auto_search:

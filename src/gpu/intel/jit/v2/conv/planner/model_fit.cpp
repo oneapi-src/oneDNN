@@ -27,12 +27,12 @@ namespace planner {
 
 namespace {
 
-float r2_score(model_version_t version, const vec2d &X, const vec1d &y,
-        const vec1d &coef) {
+float r2_score(
+        model_kind_t kind, const vec2d &X, const vec1d &y, const vec1d &coef) {
     std::vector<float> y_true, y_pred;
     for (size_t i = 0; i < X.size(); i++) {
         y_true.push_back(y[i]);
-        y_pred.push_back(model_t::predict(version, X[i], coef));
+        y_pred.push_back(model_t::predict(kind, X[i], coef));
     }
     float u = 0;
     float v = 0;
@@ -67,7 +67,7 @@ struct model_params_t {
     };
 
     model_params_t() = default;
-    model_params_t(model_version_t version) : version(version) {}
+    model_params_t(model_kind_t kind) : kind(kind) {}
 
     void add(const std::string &name, float val, float lo, float hi) {
         vec.emplace_back(param_t(name, val, lo, hi));
@@ -90,7 +90,7 @@ struct model_params_t {
         return oss.str();
     }
 
-    model_version_t version = model_version_t::undef;
+    model_kind_t kind = model_kind_t::undef;
     std::vector<param_t> vec;
 };
 
@@ -98,7 +98,7 @@ float r2_score(const vec2d &X, const vec1d &y, const model_params_t &params) {
     vec1d coef;
     for (int i = 0; i < params.size(); i++)
         coef.push_back(params[i].val);
-    return r2_score(params.version, X, y, coef);
+    return r2_score(params.kind, X, y, coef);
 }
 
 void find_optimal_param(
@@ -143,35 +143,30 @@ model_t model_fit(
     vec1d coef;
     for (int i = 0; i < params.size(); i++)
         coef.push_back(params[i].val);
-    return model_t(params.version, coef);
+    return model_t(params.kind, coef);
 }
 
-model_t model_fit(model_version_t version, const vec2d &X, const vec1d &y,
+model_t model_fit(model_kind_t kind, const vec2d &X, const vec1d &y,
         bool verbose = false) {
-    model_params_t params(version);
+    model_params_t params(kind);
     std::vector<std::string> param_names;
     std::vector<float> param_values;
     std::vector<float> param_min;
     std::vector<float> param_max;
     model_t::coef_ranges(
-            version, X, y, param_names, param_values, param_min, param_max);
+            kind, X, y, param_names, param_values, param_min, param_max);
     for (size_t i = 0; i < param_names.size(); i++) {
         params.add(param_names[i], param_values[i], param_min[i], param_max[i]);
     }
     return model_fit(params, X, y, verbose);
 }
 
-model_t model_fit(const bench_data_t &bd) {
-    if (!bd) {
-        std::cout << "Warning: empty bench_data." << std::endl;
-        return model_t();
-    }
+model_t model_fit(model_kind_t kind, const bench_data_t &bd) {
     // Step 1. Fit model.
-    model_version_t version;
     vec2d X;
     vec1d y;
-    to_model_data(bd, version, X, y);
-    auto model = model_fit(version, X, y);
+    to_model_data(kind, bd, X, y);
+    auto model = model_fit(kind, X, y);
 
     // Step 2. Remove outliers where the fitted model predicts significantly
     // higher times. For example this may happen due to better L1 cache reuse
@@ -185,10 +180,26 @@ model_t model_fit(const bench_data_t &bd) {
         X_adjusted.push_back(X[i]);
         y_adjusted.push_back(y[i]);
     }
-    model = model_fit(version, X_adjusted, y_adjusted, /*verbose=*/true);
+    model = model_fit(kind, X_adjusted, y_adjusted, /*verbose=*/true);
     dump_csv(bd, model);
     dump_model_params(bd.kernel_desc, model);
-    return model_t(model);
+    return model;
+}
+
+void model_fit(const bench_data_t &bd, model_set_t &model_set) {
+    if (!bd) {
+        std::cout << "Warning: empty bench_data." << std::endl;
+        return;
+    }
+    if (bd.kernel_desc.use_stream_k) {
+        auto model1 = model_fit(model_kind_t::stream_k, bd);
+        auto model2 = model_fit(model_kind_t::data_copy, bd);
+        model_set.add(model1);
+        model_set.add(model2);
+    } else {
+        auto model = model_fit(model_kind_t::data_parallel, bd);
+        model_set.add(model);
+    }
 }
 
 } // namespace planner

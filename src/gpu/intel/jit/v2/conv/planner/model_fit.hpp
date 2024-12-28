@@ -29,7 +29,7 @@ namespace v2 {
 namespace conv {
 namespace planner {
 
-model_t model_fit(const bench_data_t &bd);
+void model_fit(const bench_data_t &bd, model_set_t &model_set);
 
 } // namespace planner
 } // namespace conv
