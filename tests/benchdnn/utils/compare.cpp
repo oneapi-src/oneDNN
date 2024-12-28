@@ -393,6 +393,10 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             ok = (fabsf(args.exp) > 1e-5f ? args.rel_diff : args.diff) <= trh_;
             if (ok) break;
 
+            // If ulps_trh_ was set, check a diff against number of ulps.
+            ok = args.ulps_diff <= ulps_trh_;
+            if (ok) break;
+
             // When NaNs or infinity are allowed for the driver, check
             // that both exp and got are NaNs or infinity with same sign.
             ok = output_has_nans
@@ -593,8 +597,9 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
     if (res->state != FAILED && is_mistrusted) res->state = MISTRUSTED;
 
     // Status may be propagated from previous tensor. Use stats from cur tensor.
-    BENCHDNN_PRINT((n_errors ? 0 : 6), "[COMPARE]%s[STATS]: trh:%g;\n",
-            get_kind_str().c_str(), trh_);
+    BENCHDNN_PRINT((n_errors ? 0 : 6),
+            "[COMPARE]%s[STATS]: trh:%g; ulps_trh:%ld;\n",
+            get_kind_str().c_str(), trh_, ulps_trh_);
     BENCHDNN_PRINT((n_errors ? 0 : 6),
             "[COMPARE]%s[STATS][ERROR_POINTS]: max_diff:%g; "
             "max_rdiff:%g; max_udiff:%ld;\n",

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ struct compare_t {
 
     void set_norm_validation_mode(bool un) { use_norm_ = un; }
     void set_threshold(float trh) { trh_ = trh; }
+    void set_ulps_threshold(int64_t utrh) { ulps_trh_ = utrh; }
     void set_zero_trust_percent(float ztp) { zero_trust_percent_ = ztp; }
     void set_data_kind(data_kind_t dk) { kind_ = dk; }
     void set_op_output_has_nans(bool ohn) { op_output_has_nans_ = ohn; }
@@ -93,6 +94,24 @@ private:
     // reference. In this case `ref_mem` should also be reordered to a plain
     // layout for proper comparison.
     bool has_prim_ref_ = false;
+    // ULP, or unit in the last place, is a distance metric between exp and got
+    // values in "the number of bits". Thus, some 8-bit values (either integer
+    // or floating-point) 0xFE and 0xFF are 1 ulp apart, because
+    // `llabs(0x11111110 - 0x11111111) = 1`. This metric is relative to the
+    // given numbers because in most cases it would end up comparing
+    // mantissa bits of two floating-point values, while the absolute difference
+    // relies on actual values, and with higher exponent mask a difference in 1
+    // ulp may be expressed by bigger numbers.
+    // However, this doesn't suit much for comparing the numbers close to 0 as
+    // their exponent bits will be different, and this difference will be
+    // expressed with values of (1 << digits_dt) order, e.g, 256*N for bfloat16.
+    // So far, this criterion will be used as an additional one to mark a point
+    // passed, mostly for lower precision data types.
+    // Using a value of 7, translating into a diversion in the last three bits,
+    // should be fine.
+    // TODO: consider an opportunity to switch to this metric instead of
+    // rel_diff verification.
+    int64_t ulps_trh_ = 0;
 
     // Internal validation methods under `compare` interface.
     int compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
