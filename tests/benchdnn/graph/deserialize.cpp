@@ -326,6 +326,17 @@ void deserialized_graph::load(const std::string &pass_config_json) {
                 if (deg[aop.id_] == 0) { ops_.push_back(ops_map[aop.id_]); }
             }
         }
+
+        // Identifying if a graph represents an sdpa pattern.
+        // Consider a pattern sdpa when the softmax has parent and child ops.
+        if (!dg_stats_.is_sdpa_ && op.kind_ == "SoftMax") {
+            assert(op.in_lts_.size() == 1);
+            const auto &parent_op = get_op_by_out_lt(op.in_lts_[0].id_);
+            if (parent_op.empty()) continue;
+            const auto &child_op = get_op_by_in_lt(op.out_lts_[0].id_);
+            if (child_op.empty()) continue;
+            dg_stats_.is_sdpa_ = true;
+        }
     }
     if (ops_map.size() != ops_.size()) {
         BENCHDNN_PRINT(0, "FAIL: the graph %s is not a DAG.\n",

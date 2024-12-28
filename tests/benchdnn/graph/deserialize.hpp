@@ -128,6 +128,15 @@ struct deserialized_graph {
     // Returns an op based on its input logical tensor ID.
     const deserialized_op &get_op_by_in_lt(size_t in_lt_id) const;
 
+    // An information holder about the graph once it's loaded, needed to avoid
+    // multiple iterations over the ops in the graph and keep all data needed
+    // for querying in a single place.
+    struct dg_stats_t {
+        bool is_sdpa_ = false;
+    };
+    // Outputs the stats from the graph.
+    const dg_stats_t &get_dg_stats() const { return dg_stats_; }
+
     // Outputs the information about graph from operator<< into a string.
     std::string get_string() const;
 
@@ -169,6 +178,8 @@ private:
             "SqrtBackward", "TanhBackward"};
 
     bool check_tensor_with_mb(size_t tensor_id) const;
+
+    dg_stats_t dg_stats_;
 };
 std::ostream &operator<<(std::ostream &s, const deserialized_graph &dg);
 
