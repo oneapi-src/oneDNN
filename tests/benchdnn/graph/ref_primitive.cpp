@@ -205,8 +205,8 @@ int ref_primitive_t::execute_prim(res_t *res) const {
     return OK;
 }
 
-void ref_primitive_t::check_correctness(
-        const args_t &args, bool has_eltwise, bool has_nans, res_t *res) const {
+void ref_primitive_t::check_correctness(const args_t &args, bool has_eltwise,
+        bool has_nans, bool is_sdpa, res_t *res) const {
 
     static const std::unordered_map<size_t, data_kind_t>
             dnnl_arg_2_data_kind_map {
@@ -259,6 +259,7 @@ void ref_primitive_t::check_correctness(
 
         cmp.set_has_eltwise_post_op(has_eltwise);
         cmp.set_op_output_has_nans(has_nans);
+        cmp.set_ulps_threshold(7 * is_sdpa);
         dnn_mem_t mem_fp_abx(mem_fp, dnnl_f32, tag::abx, ::get_cpu_engine());
         // Reset `res` counters when more than a single arg is checked.
         res->errors = 0;

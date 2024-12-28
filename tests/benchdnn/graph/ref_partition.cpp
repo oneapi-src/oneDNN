@@ -345,8 +345,8 @@ int ref_partition_t::check_partition_correctness(
         // reset the state
         res->state = EXECUTED;
 
-        ref_prim->check_correctness(
-                output_args, has_eltwise, output_has_nans, res);
+        ref_prim->check_correctness(output_args, has_eltwise, output_has_nans,
+                dg_->get_dg_stats().is_sdpa_, res);
         if (res->state == FAILED) {
             BENCHDNN_PRINT(
                     2, "Op failed: {(%zu) %s}\n", op_id, op_kind.c_str());
