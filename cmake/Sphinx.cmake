@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021 Intel Corporation
+# Copyright 2021-2024 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ if(Sphinx_cmake_included)
 endif()
 set(Sphinx_cmake_included true)
 
-find_package(PythonInterp 2.7)
+find_package(Python 3.7 COMPONENTS Interpreter)
 find_package(Sphinx)
-if (PYTHONINTERP_FOUND AND SPHINX_FOUND)
+if (Python_FOUND AND SPHINX_FOUND)
     set(SPHINX_GENERATOR "html" CACHE STRING "specifies generator for Sphinx")
 
     set(SPHINX_OUTPUT_DIR
@@ -52,7 +52,7 @@ if (PYTHONINTERP_FOUND AND SPHINX_FOUND)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/doc/sphinx/_static
             ${SPHINX_SOURCE_DIR}/_static
-        COMMAND ${PYTHON_EXECUTABLE}
+        COMMAND ${Python_EXECUTABLE}
             ${CMAKE_CURRENT_BINARY_DIR}/cleanup.py ${SPHINX_SOURCE_DIR}
         COMMAND ${SPHINX_EXECUTABLE} -b ${SPHINX_GENERATOR}
             -D release=v${PROJECT_VERSION} -j auto rst ${SPHINX_OUTPUT_DIR}
@@ -60,4 +60,4 @@ if (PYTHONINTERP_FOUND AND SPHINX_FOUND)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/reference
         COMMENT "Generating API documentation with Sphinx" VERBATIM)
     add_custom_target(doc_sphinx DEPENDS ${SPHINX_STAMP_FILE} doc_doxyrest)
-endif(PYTHONINTERP_FOUND AND SPHINX_FOUND)
+endif(Python_FOUND AND SPHINX_FOUND)
