@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <cstring>
 #include <mutex>
 
+#include "common/utils.hpp"
 #include "gpu/intel/jit/conv/grf_usage.hpp"
 #include "gpu/intel/jit/conv/message_patterns.hpp"
 #include "gpu/intel/jit/conv/normalization.hpp"
@@ -834,12 +835,23 @@ status_t init_tensor_layouts(
     bia.set_user(user_bia_layout);
 
     if (cfg.zp_cfg().needs_src_reorder_precalc) {
+        const int esize = 16;
         using namespace memory_extra_flags;
         prepare_zp_precompute_conv(prb, wei_md.extra.idhw, wei_md.extra.odhw,
                 wei_md.extra.pdhw, wei_md.extra.ddhw);
-        wei_md.extra.flags |= compensation_gpu_conv_asymmetric_src;
-        if (prb.prop_kind() == prop_kind::backward_data)
+
+        wei_md.extra.dst_size = sizeof(float);
+        for (const auto &o : wei_md.extra.odhw)
+            wei_md.extra.dst_size *= std::max(o, dim_t(1));
+        if (prb.prop_kind() == prop_kind::backward_data) {
             wei_md.extra.flags |= compensation_gpu_conv_asymmetric_src_bwd;
+            wei_md.extra.dst_size *= utils::rnd_up(
+                    src_layout.dim(1) * src_layout.dim(2), esize);
+        } else {
+            wei_md.extra.dst_size *= utils::rnd_up(
+                    dst_layout.dim(1) * dst_layout.dim(2), esize);
+        }
+        wei_md.extra.flags |= compensation_gpu_conv_asymmetric_src;
     }
     return status::success;
 }

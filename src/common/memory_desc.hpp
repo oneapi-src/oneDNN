@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,6 +99,15 @@ const memory_extra_flags_t compensation_gpu_conv_asymmetric_src_bwd
 const memory_extra_flags_t compensation_gpu_conv_asymmetric_src_swap
         = dnnl_memory_extra_flag_compensation_gpu_conv_asymmetric_src_swap;
 } // namespace memory_extra_flags
+
+inline bool check_md_extra_flags(uint64_t flags) {
+    using namespace memory_extra_flags;
+    const uint64_t c = compensation_gpu_conv_asymmetric_src;
+    const uint64_t b = compensation_gpu_conv_asymmetric_src_bwd;
+    const uint64_t s = compensation_gpu_conv_asymmetric_src_swap;
+    return (flags == none) || (flags == c) || (flags == (c | b))
+            || (flags == (c | b | s));
+}
 
 // Generic description of blocked data layout for most memory formats.
 struct blocking_desc_t {
@@ -223,7 +232,8 @@ struct memory_extra_desc_t {
         , idhw {0, 0, 0}
         , odhw {0, 0, 0}
         , pdhw {0, 0, 0}
-        , ddhw {0, 0, 0} {}
+        , ddhw {0, 0, 0}
+        , dst_size(0) {}
     // The flags contain arbitrary extra information, such as compensation.
     // @sa dnnl_memory_extra_flags_t
     uint64_t flags;
@@ -241,6 +251,8 @@ struct memory_extra_desc_t {
     dim_t pdhw[3];
     // Precomp GPU ZP convolution dilation spatials
     dim_t ddhw[3];
+    // Precomp GPU ZP convolution destination size
+    dim_t dst_size;
 };
 
 status_t DNNL_API memory_desc_init_by_tag(memory_desc_t &memory_desc, int ndims,

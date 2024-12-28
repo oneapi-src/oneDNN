@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -312,7 +312,8 @@ inline bool memory_extra_desc_is_equal(
             && IMPLICATION(lhs.flags & compensation_conv_asymmetric_src,
                     lhs.asymm_compensation_mask == rhs.asymm_compensation_mask)
             && IMPLICATION(lhs.flags & compensation_gpu_conv_asymmetric_src,
-                    utils::array_cmp(lhs.idhw, rhs.idhw, 3)
+                    (lhs.dst_size == rhs.dst_size)
+                            && utils::array_cmp(lhs.idhw, rhs.idhw, 3)
                             && utils::array_cmp(lhs.odhw, rhs.odhw, 3)
                             && utils::array_cmp(lhs.pdhw, rhs.pdhw, 3)
                             && utils::array_cmp(lhs.ddhw, rhs.ddhw, 3));

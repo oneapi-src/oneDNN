@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -138,6 +138,7 @@ void serialize_md(serialization_stream_t &sstream, const memory_desc_t &md) {
             sstream.write(md.extra.odhw, 3);
             sstream.write(md.extra.pdhw, 3);
             sstream.write(md.extra.ddhw, 3);
+            sstream.write(&md.extra.dst_size);
         }
     }
 }

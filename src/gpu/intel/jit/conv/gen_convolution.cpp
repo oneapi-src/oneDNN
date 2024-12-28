@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 #include "common/impl_registration.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
-#include "gpu/gpu_utils.hpp"
+#include "gpu/gpu_zero_points_conv.hpp"
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/reorder/reorder_kernel.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
@@ -85,8 +85,9 @@ public:
                 dim_t I[3], O[3], P[3], D[3];
                 prepare_zp_precompute_conv(prb, I, O, P, D);
                 CHECK(create_zp_precompute_conv_pd(pd->data->zp_pd, engine,
-                        attr, pd->weights_md(), I, O, P, D, data_type::s32,
-                        pd->get_prop_kind()));
+                        attr, pd->weights_md(), I, O, P, D, data_type::f32,
+                        pd->get_prop_kind(),
+                        !pd->data->pd_cfg.zp_cfg().needs_src_conv_precalc));
                 if (pd->data->pd_cfg.zp_cfg().needs_src_conv_precalc) {
                     auto scratchpad = pd->scratchpad_registry().registrar();
                     scratchpad.book(memory_tracking::names::key_nested_multiple,

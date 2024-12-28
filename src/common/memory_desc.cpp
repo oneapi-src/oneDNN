@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -461,6 +461,7 @@ status_t memory_desc_reshape(memory_desc_t &out_memory_desc,
 
 status_t memory_desc_permute_axes(memory_desc_t &out_memory_desc,
         const memory_desc_t &in_memory_desc, const int *perm) {
+    using namespace memory_extra_flags;
     VCHECK_MEMORY(memory_desc_sanity_check(in_memory_desc), invalid_arguments,
             VERBOSE_MEM_DESC_CHECK_FAIL);
     VCHECK_MEMORY(one_of(in_memory_desc.format_kind, format_kind::any,
@@ -471,6 +472,8 @@ status_t memory_desc_permute_axes(memory_desc_t &out_memory_desc,
     VCHECK_MEMORY(
             !memory_desc_wrapper(in_memory_desc).has_runtime_dims_or_strides(),
             invalid_arguments, VERBOSE_UNSUPPORTED_MEM_STRIDE);
+    VCHECK_MEMORY(check_md_extra_flags(in_memory_desc.extra.flags),
+            invalid_arguments, VERBOSE_UNSUPPORTED_MD_FLAG, "extra");
 
     // verify that perm is indeed a permutation of [0 .. ndims)
     unsigned occurrence_mask = 0;

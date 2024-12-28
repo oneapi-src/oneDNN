@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 * Copyright 2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -427,6 +427,7 @@ std::ostream &operator<<(std::ostream &ss, const memory_extra_desc_t &extra) {
         ss << ":zdd" << extra.ddhw[0];
         ss << ":zdh" << extra.ddhw[1];
         ss << ":zdw" << extra.ddhw[2];
+        ss << ":zs" << extra.dst_size;
     }
     if (extra.flags & scale_adjust && extra.scale_adjust != 1.f)
         ss << ":sa" << extra.scale_adjust;

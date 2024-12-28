@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 #include "gpu/gpu_engine.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_stream.hpp"
-#include "gpu/gpu_utils.hpp"
+#include "gpu/gpu_zero_points_conv.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -70,16 +70,11 @@ protected:
     }
 
     bool extra_ok(bool accept_conv_asymm = false) const {
-        using namespace memory_extra_flags;
         if (!accept_conv_asymm)
-            return (src_md()->extra.flags == none)
-                    && (dst_md()->extra.flags == none);
-        const uint64_t c = compensation_gpu_conv_asymmetric_src;
-        const uint64_t b = compensation_gpu_conv_asymmetric_src_bwd;
-        const uint64_t s = compensation_gpu_conv_asymmetric_src_swap;
-        return utils::one_of(src_md()->extra.flags, c, c | b, c | b | s, none)
-                && utils::one_of(
-                        dst_md()->extra.flags, c, c | b, c | b | s, none);
+            return (src_md()->extra.flags == memory_extra_flags::none)
+                    && (dst_md()->extra.flags == memory_extra_flags::none);
+        return check_md_extra_flags(src_md()->extra.flags)
+                && check_md_extra_flags(dst_md()->extra.flags);
     }
 
     status_t maybe_create_zp_precompute_conv_pd(impl::engine_t *dst_engine) {
@@ -92,7 +87,7 @@ protected:
         if (!do_zp_precomp_conv_) return status::success;
 
         using namespace memory_extra_flags;
-        const auto out_type = data_type::s32;
+        const auto out_type = data_type::f32;
         primitive_attr_t attr;
         const bool is_bwd_d
                 = extra.flags & compensation_gpu_conv_asymmetric_src_bwd;

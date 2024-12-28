@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -197,15 +197,7 @@ struct memory_desc_wrapper : public c_compatible {
                     additional_buffer_data_size(flag));
         }
         if (flag == compensation_gpu_conv_asymmetric_src) {
-            dim_t dhw = 1;
-            for (const auto &o : extra().odhw)
-                dhw *= std::max(o, dim_t(1));
-            const int off = (!extra().odhw[1]) ? !extra().odhw[2] + 2
-                                               : !extra().odhw[0];
-            const bool with_groups = (ndims == (6 - off));
-            return dhw
-                    * calculate_size((with_groups) ? 3 : 1,
-                            additional_buffer_data_size(flag));
+            return extra().dst_size;
         }
 
         return 0;

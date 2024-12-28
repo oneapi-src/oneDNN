@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -211,6 +211,7 @@ size_t get_md_hash(const memory_desc_t &md) {
             seed = get_array_hash(seed, md.extra.odhw, 3);
             seed = get_array_hash(seed, md.extra.pdhw, 3);
             seed = get_array_hash(seed, md.extra.ddhw, 3);
+            seed = hash_combine(seed, md.extra.dst_size);
         }
     }
     // Combined hash for a memory descriptor
