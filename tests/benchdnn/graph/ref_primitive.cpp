@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,9 +101,13 @@ int ref_primitive_t::init_prim(
             || kind_ == dnnl::graph::op::kind::Quantize
             || kind_ == dnnl::graph::op::kind::DynamicDequantize
             || kind_ == dnnl::graph::op::kind::DynamicQuantize;
+    const bool is_binary_compare_op
+            = kind_ == dnnl::graph::op::kind::GreaterEqual;
     // (De-)Quantize op is built on reorder which expects int8 dt for
-    // zero-points attribute. Thus, skip them for forcing.
-    const bool force_f32_prim_dt = !force_override && !is_quant_or_dequant;
+    // zero-points attribute. Binary compare op output is boolean. Thus, skip
+    // them for forcing.
+    const bool force_f32_prim_dt
+            = !force_override && !(is_quant_or_dequant || is_binary_compare_op);
 
 #define CASE_INIT_PRIM(driver) \
     case dnnl_driver_t::driver: { \
