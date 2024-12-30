@@ -35,7 +35,6 @@ ONEDNN_BUILD_GRAPH=${ONEDNN_BUILD_GRAPH:-"ON"}
 if [[ "$ONEDNN_ACTION" == "configure" ]]; then
     set -x
     cmake \
-        -G $CMAKE_GENERATOR \
         -Bbuild -S. \
         -DDNNL_AARCH64_USE_ACL=ON \
         -DONEDNN_BUILD_GRAPH=$ONEDNN_BUILD_GRAPH \

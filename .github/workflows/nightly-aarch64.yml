@@ -15,41 +15,21 @@
 # limitations under the License.
 # *******************************************************************************
 
-name: "CI AArch64"
+name: "Nightly AArch64"
 
-#* To avoid duplicate jobs running when both push and PR is satisfied, we use this:
-#* https://github.com/orgs/community/discussions/26940#discussioncomment-5686753
 on:
-  push:
-    branches: [ main, 'rls-*' ]
-    paths:
-      - '.github/**'
-      - 'cmake/**'
-      - 'examples/**'
-      - 'include/**'
-      - 'src/common/**'
-      - 'src/cpu/*'
-      - 'src/cpu/aarch64/**'
-      - 'tests/**'
-      - 'CMakeLists.txt'
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - '.github/**'
-      - 'cmake/**'
-      - 'examples/**'
-      - 'include/**'
-      - 'src/common/**'
-      - 'src/cpu/*'
-      - 'src/cpu/aarch64/**'
-      - 'tests/**'
-      - 'CMakeLists.txt'
+  #* allow manual trigger of workflow when needed. Useful for a nightly.
+  workflow_dispatch:
+  schedule:
+    #* minute (0-59) hour (0-23) day (1-31) month (1-12)  day of the week (0 - 6)
+    #* cron jobs run on the default (main) branch.
+    #* set to run at 5am UCT
+  - cron: "0 5 * * *"
 
-#* Stop stale workflows when pull requests are updated: https://stackoverflow.com/a/70972844
-#* Does not apply to the main branch.
+#* Stop stale workflows, though we should never hit this unless it hangs for a whole day.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 # Declare default permissions as read only.
 permissions: read-all
@@ -59,10 +39,8 @@ jobs:
     strategy:
       matrix:
         config: [
-          { name: MacOS, label: macos-14, threading: SEQ, toolset: clang, build: Release, testset: SMOKE },
-          { name: c6g, label: ah-ubuntu_22_04-c6g_4x-50, threading: OMP, toolset: gcc, build: Release, testset: CI },
-          { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50, threading: OMP, toolset: clang, build: Debug, testset: SMOKE },
-          { name: c7g, label: ah-ubuntu_22_04-c7g_4x-50, threading: OMP, toolset: gcc, build: Release, testset: CI }
+          { name: c6g, label: ah-ubuntu_22_04-c6g_8x-100, threading: OMP, toolset: gcc, build: Release, testset: NIGHTLY },
+          { name: c7g, label: ah-ubuntu_22_04-c7g_8x-100, threading: OMP, toolset: gcc, build: Release, testset: NIGHTLY }
         ]
 
     name: ${{ matrix.config.name }}, ${{ matrix.config.toolset }}, ${{ matrix.config.threading }}, ${{ matrix.config.build }}
@@ -80,23 +58,16 @@ jobs:
           cmakeVersion: 3.31.0
           ninjaVersion: 1.12.0
 
-      - if: ${{ (startsWith(matrix.config.label,'ah-ubuntu') && (matrix.config.threading == 'OMP')) }}
+      - if: ${{ matrix.config.threading == 'OMP' }}
         name: Install openmp
         run: |
           sudo apt install -y libomp-dev
 
-      - if: ${{ (startsWith(matrix.config.label,'ah-ubuntu') && (matrix.config.toolset == 'gcc')) }}
-        name: Install gcc
+      - name: Install gcc
         run: |
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
           sudo apt update -y
           sudo apt install -y g++-13
-
-      - if: ${{ (startsWith(matrix.config.label,'ah-ubuntu') && (matrix.config.toolset == 'clang')) }}
-        name: Install clang
-        uses: KyleMayes/install-llvm-action@e0a8dc9cb8a22e8a7696e8a91a4e9581bec13181
-        with:
-          version: "17"
 
       - name: Clone ACL
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
@@ -105,23 +76,7 @@ jobs:
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
           ACL_VERSION: v24.11.1
 
-      - name: Get ACL commit hash for cache key
-        id: get_acl_commit_hash
-        run: (cd ${{ github.workspace }}/ComputeLibrary && echo "ACLCommitHash=$(git rev-parse --short HEAD)") >> $GITHUB_OUTPUT
-
-      - name: Get system name
-        id: get_system_name
-        run: (echo "SystemName=$(uname)") >> $GITHUB_OUTPUT
-
-      - name: Restore cached ACL
-        id: cache-acl-restore
-        uses: actions/cache/restore@v4
-        with:
-          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.config.toolset }}-${{ matrix.config.build }}-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
-          path: ${{ github.workspace }}/ComputeLibrary/build
-
       - name: Configure ACL
-        if:  ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
         env:
           ACL_ACTION: configure
@@ -133,18 +88,9 @@ jobs:
           GCC_VERSION: 13
 
       - name: Build ACL
-        if:  ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
         env:
           ACL_ACTION: build
-
-      - name: Save ACL in cache
-        if:  ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
-        id: cache-acl_build-save
-        uses: actions/cache/save@v4
-        with:
-          key: ${{ steps.cache-acl-restore.outputs.cache-primary-key }}
-          path: ${{ github.workspace }}/ComputeLibrary/build
 
       - name: Configure oneDNN
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
@@ -171,15 +117,16 @@ jobs:
         env:
           BUILD_TOOLSET: ${{ matrix.config.toolset }}
           CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
-          CTEST_PARALLEL_LEVEL: 6
+          CTEST_PARALLEL_LEVEL: 8
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
           ONEDNN_THREADING: ${{ matrix.config.threading }}
-  # This job adds a check named "CI AArch64" that represents overall
-  # workflow status and can be used in branch rulesets
+
+  #* This job adds a check named "Nightly AArch64" that represents overall
+  #* workflow status and can be used in branch rulesets
   status:
     needs: build-and-test
     runs-on: ubuntu-latest
-    name: "CI AArch64"
+    name: "Nightly AArch64"
     steps:
       - name: Print success
         run: echo Success

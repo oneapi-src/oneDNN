@@ -42,7 +42,8 @@ if [[ "$ACL_ACTION" == "clone" ]]; then
     set +x
 elif [[ "$ACL_ACTION" == "configure" ]]; then
     set -x
-    cmake -S$ACL_ROOT_DIR -B$ACL_ROOT_DIR/build \
+    cmake \
+    -S$ACL_ROOT_DIR -B$ACL_ROOT_DIR/build \
 	-DARM_COMPUTE_OPENMP=$ACL_OPENMP \
 	-DARM_COMPUTE_CPPTHREADS=0 \
 	-DARM_COMPUTE_WERROR=0 \
