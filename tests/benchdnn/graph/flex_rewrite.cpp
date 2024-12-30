@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -236,6 +236,8 @@ void flex_rewrite::infer_output_shape(
             case dnnl::graph::op::kind::Exp:
             case dnnl::graph::op::kind::GELU:
             case dnnl::graph::op::kind::GELUBackward:
+            case dnnl::graph::op::kind::GenIndex:
+            case dnnl::graph::op::kind::GreaterEqual:
             case dnnl::graph::op::kind::HardSigmoid:
             case dnnl::graph::op::kind::HardSigmoidBackward:
             case dnnl::graph::op::kind::HardSwish:
@@ -1136,6 +1138,18 @@ void flex_rewrite::dt_rewrite(deserialized_graph &dgraph) {
                                return aop.kind_ == k;
                            })) {
             dt_rewrite_norm(aop, str_dt);
+        } else if (aop.kind_ == "GenIndex") {
+            // GenIndex: only rewrite src dtype
+            aop.in_lts_[0].data_type_ = str_dt;
+        } else if (aop.kind_ == "GreaterEqual") {
+            // GreaterEqual: only rewrite src dtype when it's floating-point
+            if (std::any_of(fp_dts.begin(), fp_dts.end(),
+                        [&aop](const dnnl_data_type_t &fp_dt) {
+                            return aop.in_lts_[0].data_type_ == dt2str(fp_dt);
+                        })) {
+                aop.in_lts_[0].data_type_ = str_dt;
+                aop.in_lts_[1].data_type_ = str_dt;
+            }
         } else {
             for (auto &lt : aop.in_lts_) {
                 lt.data_type_ = str_dt;
@@ -1211,6 +1225,8 @@ void flex_rewrite::update_output_info(
         case dnnl::graph::op::kind::Exp:
         case dnnl::graph::op::kind::GELU:
         case dnnl::graph::op::kind::GELUBackward:
+        case dnnl::graph::op::kind::GenIndex:
+        case dnnl::graph::op::kind::GreaterEqual:
         case dnnl::graph::op::kind::GroupNorm:
         case dnnl::graph::op::kind::HardSigmoid:
         case dnnl::graph::op::kind::HardSigmoidBackward:
