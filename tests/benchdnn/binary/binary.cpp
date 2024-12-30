@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <algorithm>
+#include <random>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,17 +55,34 @@ int fill_mem(
                 mem_dt, mem_fp, nullptr, get_perf_fill_cfg(mem_dt.dt()));
     }
 
-    const auto dt = mem_dt.dt();
-    const int range = 16;
-    const int f_min = (dt == dnnl_u8 || input_idx == 2) ? 0 : -range / 2;
+    int min_val = MAX2(-8, static_cast<int>(lowest_dt(mem_dt.dt())));
+    // Tenrary op supports a third input which can't be negative so far.
+    if (input_idx == 2) min_val = 0;
 
-    benchdnn_parallel_nd(nelems, [&](int64_t i) {
-        const int64_t gen = (12 * i + 5 * input_idx + 16) % (range + 1);
-        const float scale = 1.25f;
-        float value = (f_min + gen) * scale;
-        // Remove zeroes in src1 to avoid division by zero
-        if (input_idx == 1 && value == 0.0f) value = 1.0f;
-        mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
+    /* Do fixed partitioning to have same filling for any number of threads */
+    static constexpr int64_t chunk_size = 64;
+    const int64_t n_chunks = div_up(nelems, chunk_size);
+    benchdnn_parallel_nd(n_chunks, [&](int64_t idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand int_seed(idx_start + nelems * input_idx + 1);
+        int_seed.discard(1);
+
+        std::uniform_int_distribution<> gen(min_val, 8);
+
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            float val = gen(int_seed);
+            // Make values for the src0 tensor floating-point.
+            if (input_idx == 0) val *= 0.5f;
+            // Remove zeroes in src1 to avoid division by zero.
+            if (input_idx == 1 && val == 0.0f) val = 1.0f;
+            val = round_to_nearest_representable(mem_dt.dt(), val);
+            mem_fp.set_elem(idx, val);
+        }
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
