@@ -6,7 +6,7 @@
 --dtag=any
 
 --dt=f32,bf16,f16
---bia_dt=undef,f32
+--bia-dt=undef,f32
 --bia_mask=2
 --attr-post-ops=,linear:2:1
 --batch=shapes_2d_ci
@@ -26,7 +26,7 @@
 --wtag=ab
 --dtag=ab
 --dt=f32,bf16,f16,u8:s8:s32
---bia_dt=undef,f32
+--bia-dt=undef,f32
 --bia_mask=2
 --attr-scales=
 --attr-zero-points=

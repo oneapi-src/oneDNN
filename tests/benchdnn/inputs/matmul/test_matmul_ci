@@ -1,7 +1,7 @@
 # Plain cases
 --reset
 --dt=f64,f32,bf16,f16,f8_e5m2,f8_e4m3,f8_e5m2:f8_e4m3:f32,u8:s8:s8,s8:s8:f32,s8:s8:f16,s8:u8:f16
---bia_dt=f32
+--bia-dt=f32
 --bia_mask=2
 --batch=shapes_2d_ci
 --batch=shapes_2d
@@ -125,52 +125,52 @@
 # test all the supported data type configurations + bias data types
 --reset
 --dt=f64,f32
---bia_dt=undef,f32
+--bia-dt=undef,f32
 --bia_mask=2,3  77x133:133x117
 --bia_mask=4,6  15x24x16:15x16x32
 --bia_mask=8,12 7x16x24x8:7x16x8x24
 
 --dt=bf16,bf16:bf16:f32
---bia_dt=undef,f32,bf16
+--bia-dt=undef,f32,bf16
 --bia_mask=2,3  77x133:133x117
 --bia_mask=4,6  15x24x16:15x16x32
 --bia_mask=8,12 7x16x24x8:7x16x8x24
 
 --dt=f16,f16:f16:f32
---bia_dt=undef,f32,f16
+--bia-dt=undef,f32,f16
 --bia_mask=2,3  77x133:133x117
 --bia_mask=4,6  15x24x16:15x16x32
 --bia_mask=8,12 7x16x24x8:7x16x8x24
 
 --dt=f8_e5m2,f8_e5m2:f8_e5m2:f32
---bia_dt=undef,f32,f8_e5m2
+--bia-dt=undef,f32,f8_e5m2
 --bia_mask=2,3  77x133:133x117
 --bia_mask=4,6  15x24x16:15x16x32
 --bia_mask=8,12 7x16x24x8:7x16x8x24
 
 --dt=f8_e4m3,f8_e4m3:f8_e4m3:f32
---bia_dt=undef,f32,f8_e4m3
+--bia-dt=undef,f32,f8_e4m3
 --bia_mask=2,3  77x133:133x117
 --bia_mask=4,6  15x24x16:15x16x32
 --bia_mask=8,12 7x16x24x8:7x16x8x24
 
 --dt=u8:s8:f32,u8:s8:s32,u8:s8:s8,u8:s8:u8,\
      s8:s8:f32,s8:s8:s32,s8:s8:s8,s8:s8:u8
---bia_dt=undef,f32,u8,s8,s32
+--bia-dt=undef,f32,u8,s8,s32
 --bia_mask=2,3  77x133:133x117
 --bia_mask=4,6  15x24x16:15x16x32
 --bia_mask=8,12 7x16x24x8:7x16x8x24
 
 --dt=u8:s8:bf16,u8:s8:f16,\
      s8:s8:bf16,s8:s8:f16
---bia_dt=undef,f32
+--bia-dt=undef,f32
 --bia_mask=2,3  77x133:133x117
 --bia_mask=4,6  15x24x16:15x16x32
 --bia_mask=8,12 7x16x24x8:7x16x8x24
 
 --reset
 --stag=abc --wtag=abc --dtag=abc
---bia_dt=f32 --bia_mask=0,1,2,3,4
+--bia-dt=f32 --bia_mask=0,1,2,3,4
 2x32x64:1x64x32
 
 # Basic post-ops with runtime dims 2D.
@@ -200,7 +200,7 @@
 # Rounding Mode
 --reset
 --dt=f8_e5m2,f8_e4m3
---bia_dt=f32
+--bia-dt=f32
 --attr-rounding-mode=dst:stochastic
 --batch=shapes_2d_ci
 --batch=shapes_2d
