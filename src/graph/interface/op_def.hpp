@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -435,6 +435,34 @@ DNNL_GRAPH_OP_SCHEMA(GELUBackward, 1,
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(GenIndex, 1,
+        op_schema_t()
+                .set_num_inputs(1)
+                .set_num_outputs(1)
+                .set_input(0, "src", "T1")
+                .set_output(0, "dst", "T2")
+                .set_attr(op_attr::axis, true, attribute_kind::i)
+                .set_type_constraints(
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
+                .set_shape_inference_function(infer_identity_output_shape))
+
+DNNL_GRAPH_OP_SCHEMA(GreaterEqual, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "src_0", "T1")
+                .set_input(1, "src_1", "T1")
+                .set_output(0, "dst", "T2")
+                .set_attr(op_attr::auto_broadcast, false, attribute_kind::s,
+                        "numpy", {"none", "numpy"})
+                .set_type_constraints("T1",
+                        {data_type::f32, data_type::bf16, data_type::f16,
+                                data_type::s32})
+                .set_type_constraints("T2", {data_type::boolean})
+                .set_shape_inference_function(
+                        infer_elemwise_arithmetic_output_shape))
 
 DNNL_GRAPH_OP_SCHEMA(GroupNorm, 1,
         op_schema_t()
