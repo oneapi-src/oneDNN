@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2024 Intel Corporation
+ * Copyright 2020-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -256,6 +256,8 @@ typedef enum {
     dnnl_graph_op_select,
     dnnl_graph_op_pow,
     dnnl_graph_op_group_norm,
+    dnnl_graph_op_gen_index,
+    dnnl_graph_op_greater_equal,
     dnnl_graph_op_last_symbol,
 } dnnl_graph_op_kind_t;
 
