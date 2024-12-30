@@ -388,6 +388,17 @@ class MultiDataTypeMixin:
         return "--dt=" + ":".join(dt for dt in dts if dt)
 
 
+class MultiDataTypeWithBiasMixin(MultiDataTypeMixin):
+    @property
+    def dts(self):
+        dts = super().dts
+        for md in self.entry.mds:
+            if md.arg != "bia":
+                continue
+            return f"{dts} --bia-dt={md.data_type}".strip()
+        return dts
+
+
 class NormalizationMixin:
     entry: ir.Entry
 
@@ -523,7 +534,7 @@ class LRNConverter(AlgorithmMixin, Converter):
         return f"--alg={algs[alg]}"
 
 
-class MatmulConverter(StridesMixin, MultiDataTypeMixin, Converter):
+class MatmulConverter(StridesMixin, MultiDataTypeWithBiasMixin, Converter):
     driver: str = "matmul"
 
     @staticmethod
@@ -543,15 +554,6 @@ class MatmulConverter(StridesMixin, MultiDataTypeMixin, Converter):
                 mask = md.flags.value.split("_")[1][4:]
                 return f"--bia_mask={mask}"
         return ""
-
-    @property
-    def dts(self):
-        dts = super().dts
-        for md in self.entry.mds:
-            if md.arg != "bia":
-                continue
-            return f"{dts} --bia_dt={md.data_type}".strip()
-        return dts
 
     @property
     def aux(self):

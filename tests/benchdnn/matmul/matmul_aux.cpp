@@ -90,7 +90,7 @@ std::string prb_t::set_repro_line() {
           << weights_runtime_dim_mask().to_ulong() << " ";
 
     if (canonical || bia_dt != def.bia_dt[0]) {
-        s << "--bia_dt=" << bia_dt << " ";
+        s << "--bia-dt=" << bia_dt << " ";
 
         if (canonical || bia_mask != def.bia_mask[0])
             s << "--bia_mask=" << bia_mask << " ";
