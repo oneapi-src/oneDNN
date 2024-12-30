@@ -28,16 +28,6 @@ project (DNNL_EXAMPLES)
 set(DNNL_CPU_RUNTIME "@DNNL_CPU_RUNTIME@")
 set(DNNL_GPU_RUNTIME "@DNNL_GPU_RUNTIME@")
 
-# link_directories() are relative to the source dir
-if(POLICY CMP0015)
-    cmake_policy(SET CMP0015 NEW)
-endif()
-
-# Use <PackageName>_ROOT env. variable as a prefix
-if(POLICY CMP0074)
-    cmake_policy(SET CMP0074 NEW)
-endif()
-
 set(DNNL_INSTALL_MODE "@DNNL_INSTALL_MODE@")
 set(IS_NEW_DIR_LAYOUT FALSE)
 if(DNNL_INSTALL_MODE STREQUAL "BUNDLE_V2")
