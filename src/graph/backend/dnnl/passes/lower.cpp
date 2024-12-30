@@ -91,6 +91,12 @@ static status_t binary_handler(
     new_op->merge_attributes(op->get_attributes());
     rewriter.replace_op(op, new_op);
     insert_empty_scratchpad(new_op);
+    if (op->get_kind() == graph::op_kind::GreaterEqual) {
+        auto out_vals = op->get_output_values();
+        auto dst = out_vals[0];
+        // GreaterEqual output's datatype is boolean. we treated it as u8
+        dst->set_data_type(dnnl::impl::data_type::u8);
+    }
     return status::success;
 }
 
@@ -816,6 +822,7 @@ static const std::unordered_map<graph::op_kind_t, handler_func> handler_table {
         ITEM(Divide, binary_handler),
         ITEM(Minimum, binary_handler),
         ITEM(Maximum, binary_handler),
+        ITEM(GreaterEqual, binary_handler),
         // eltwise fwd
         ITEM(Abs, eltwise_fwd_handler),
         ITEM(Clamp, eltwise_fwd_handler),
