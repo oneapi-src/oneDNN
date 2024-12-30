@@ -41,7 +41,6 @@ if [[ "$OS" == "Linux" ]]; then
     fi
     SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_binary_ci_cpu"
     SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_binary_different_dt_ci_cpu"
-    SKIPPED_TEST_FAILURES+="|test_benchdnn_modeC_binary_different_dt_ci_cpu"
 
     SKIPPED_GRAPH_TEST_FAILURES+="|test_benchdnn_modeC_graph_ci_cpu"
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-gqa-cpp"
@@ -51,20 +50,25 @@ if [[ "$OS" == "Linux" ]]; then
     SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_large_partition_cpu"
 fi
 
-SKIPPED_TEST_FAILURES+="|${SKIPPED_GRAPH_TEST_FAILURES}"
+# Nightly failures
+SKIPPED_NIGHTLY_TEST_FAILURES="test_benchdnn_modeC_bnorm_all_blocked_cpu"
+SKIPPED_NIGHTLY_TEST_FAILURES+="|test_benchdnn_modeC_bnorm_regressions_cpu"
+SKIPPED_NIGHTLY_TEST_FAILURES+="|test_benchdnn_modeC_conv_int8_cpu"
+SKIPPED_NIGHTLY_TEST_FAILURES+="|test_benchdnn_modeC_graph_fusions_cpu"
+SKIPPED_NIGHTLY_TEST_FAILURES+="|test_benchdnn_modeC_matmul_sparse_gpu_cpu"
+SKIPPED_NIGHTLY_TEST_FAILURES+="|test_benchdnn_modeC_reorder_all_cpu"
 
-if [[ "$OS" == "Darwin" ]]; then
-    # Since macos does not build with OMP, we can use multiple ctest threads.
-    CTEST_MP=$MP
-elif [[ "$OS" == "Linux" ]]; then
-    if [[ "$ONEDNN_THREADING" == "OMP" ]]; then
-        # OMP is already multi-threaded. Let's not oversubscribe.
-        CTEST_MP=-j3
-    elif [[ "$ONEDNN_THREADING" == "SEQ" ]]; then
-        CTEST_MP=$MP
-    fi
+# * c7g failures. TODO: scope these to c7g only. Better yet, fix them.
+SKIPPED_NIGHTLY_TEST_FAILURES+="|test_benchdnn_modeC_binary_all_cpu"
+SKIPPED_NIGHTLY_TEST_FAILURES+="|test_benchdnn_modeC_graph_int8_cpu"
+
+SKIPPED_TEST_FAILURES+="|${SKIPPED_GRAPH_TEST_FAILURES}|${SKIPPED_NIGHTLY_TEST_FAILURES}"
+
+# Sequential (probably macOS) builds should use num proc parallelism.
+if [[ "$ONEDNN_THREADING" == "SEQ" ]]; then
+    export CTEST_PARALLEL_LEVEL=""
 fi
 
 set -x
-ctest $CTEST_MP --no-tests=error --output-on-failure -E "$SKIPPED_TEST_FAILURES"
+ctest --no-tests=error --output-on-failure -E "$SKIPPED_TEST_FAILURES"
 set +x

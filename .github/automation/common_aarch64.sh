@@ -18,18 +18,11 @@
 # *******************************************************************************
 
 # Common variables for aarch64 ci. Exports: 
-# CC, CXX, OS, MP
+# CC, CXX, OS
 
 set -o errexit -o pipefail -o noclobber
 
 export OS=$(uname)
-
-# Num threads on system.
-if [[ "$OS" == "Darwin" ]]; then
-    export MP="-j$(sysctl -n hw.ncpu)"
-elif [[ "$OS" == "Linux" ]]; then
-    export MP="-j$(nproc)"
-fi
 
 if [[ "$BUILD_TOOLSET" == "gcc" ]]; then
     export CC=gcc-${GCC_VERSION}
@@ -44,4 +37,3 @@ echo "OS: $OS"
 echo "Toolset: $BUILD_TOOLSET"
 echo "CC: $CC"
 echo "CXX: $CXX"
-echo "MP: $MP"
