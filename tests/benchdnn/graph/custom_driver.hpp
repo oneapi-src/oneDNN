@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 namespace custom {
 
 enum alg_t {
+    GENINDEX,
     SELECT,
     TRANSPOSE,
     RESHAPE,
@@ -42,6 +43,7 @@ struct settings_t {
 
     ::std::unordered_map<int, arg_md_t> arg_mds_;
     ::std::vector<int64_t> order;
+    int64_t axis;
     alg_t alg;
 
     // A stub to be compliant with `base_settings_t`.
@@ -53,12 +55,14 @@ struct prb_t {
         arg_mds_ = s.arg_mds_;
         alg = s.alg;
         switch (alg) {
+            case GENINDEX: axis = s.axis; break;
             case TRANSPOSE: order = s.order; break;
             default: break;
         }
     }
     ::std::unordered_map<int, arg_md_t> arg_mds_;
     ::std::vector<int64_t> order;
+    int64_t axis;
     attr_t attr;
     alg_t alg;
 };
