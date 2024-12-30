@@ -400,6 +400,34 @@ inline graph::utils::pm::repetition_t *optional_select(
     return pselect;
 }
 
+// Implicit Causal Mask
+inline graph::utils::pm::repetition_t *optional_causal_mask(
+        const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
+        graph::utils::pm::pb_node_t *scaled_output) {
+    auto popt_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
+
+    graph::utils::pm::pb_op_t *gen_index_row
+            = popt_graph->append_op(graph::op_kind::GenIndex);
+    graph::utils::pm::pb_op_t *gen_index_col
+            = popt_graph->append_op(graph::op_kind::GenIndex);
+    graph::utils::pm::pb_op_t *greater_equal
+            = popt_graph->append_op(graph::op_kind::GreaterEqual,
+                    graph::utils::pm::in_edges_t {in_edge(0, gen_index_row, 0),
+                            {in_edge(1, gen_index_col, 0)}});
+    graph::utils::pm::pb_op_t *select = popt_graph->append_op(
+            graph::op_kind::Select,
+            graph::utils::pm::in_edges_t {in_edge(0, greater_equal, 0)});
+
+    popt_graph->create_input_port(0, gen_index_row, 0);
+    popt_graph->create_input_port(0, gen_index_col, 0);
+    popt_graph->create_input_port(0, select, 1);
+    popt_graph->create_input_port(1, select, 2);
+    popt_graph->create_output_port(0, select, 0);
+    auto pmask = pgraph->append_optional(popt_graph,
+            graph::utils::pm::in_edges_t {in_edge(0, scaled_output, 0)});
+    return pmask;
+}
+
 // Optional (transpose + reorder/staticReshape)
 inline graph::utils::pm::repetition_t *optional_transpose_reshape(
         const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
