@@ -153,6 +153,10 @@ namespace custom {
     ::custom::settings_t op_setting;
     auto opkind = opstr2kind(base_op_ref.kind_);
     switch (opkind) {
+        case ::graph::op::kind::GenIndex:
+            op_setting.alg = ::custom::alg_t::GENINDEX;
+            base_op_ref.get_attr_s64(op_setting.axis, "axis");
+            break;
         case ::graph::op::kind::Select:
             op_setting.alg = ::custom::alg_t::SELECT;
             break;
@@ -287,7 +291,8 @@ bool get_binary_alg(const deserialized_op &base_op_ref, ::binary::alg_t &alg) {
                     {"Maximum", ::binary::alg_t::MAX},
                     {"Minimum", ::binary::alg_t::MIN},
                     {"Multiply", ::binary::alg_t::MUL},
-                    {"Subtract", ::binary::alg_t::SUB}};
+                    {"Subtract", ::binary::alg_t::SUB},
+                    {"GreaterEqual", ::binary::alg_t::GE}};
 
     const auto &op_kind = base_op_ref.kind_;
     if (map_kind_to_alg.find(op_kind) == map_kind_to_alg.end()) return false;
