@@ -1,0 +1,143 @@
+.. index:: pair: struct; dnnl::layer_normalization_forward::desc
+.. _doxid-structdnnl_1_1layer__normalization__forward_1_1desc:
+
+struct dnnl::layer_normalization_forward::desc
+==============================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a layer normalization forward propagation primitive. :ref:`More...<details-structdnnl_1_1layer__normalization__forward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_layer_normalization_desc_t<doxid-structdnnl__layer__normalization__desc__t>` :target:`data<doxid-structdnnl_1_1layer__normalization__forward_1_1desc_1a4a84b0db8925359fee37a62900dc732e>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1layer__normalization__forward_1_1desc_1a4a7cdc2f605d5be0ab33d5ec2d8a7339>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& stat_desc,
+			float epsilon,
+			:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+			);
+	
+		:ref:`desc<doxid-structdnnl_1_1layer__normalization__forward_1_1desc_1a9132ed5dfb1f316bfe7b9e828a05a24d>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			float epsilon,
+			:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+			);
+	};
+.. _details-structdnnl_1_1layer__normalization__forward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a layer normalization forward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1layer__normalization__forward_1_1desc_1a4a7cdc2f605d5be0ab33d5ec2d8a7339:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& stat_desc,
+		float epsilon,
+		:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+		)
+
+Constructs a descriptor for layer normalization forward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::forward_training <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa24775787fab8f13aa4809e1ce8f82aeb>`, and :ref:`dnnl::prop_kind::forward_inference <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa3b9fad4f80d45368f856b5403198ac4c>`.
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptor.
+
+	*
+		- stat_desc
+
+		- Statistics memory descriptors.
+
+	*
+		- epsilon
+
+		- Layer normalization epsilon parameter.
+
+	*
+		- flags
+
+		- Layer normalization flags (:ref:`dnnl::normalization_flags <doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>`).
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1layer__normalization__forward_1_1desc_1a9132ed5dfb1f316bfe7b9e828a05a24d:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		float epsilon,
+		:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+		)
+
+Constructs a descriptor for layer normalization forward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::forward_training <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa24775787fab8f13aa4809e1ce8f82aeb>`, and :ref:`dnnl::prop_kind::forward_inference <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa3b9fad4f80d45368f856b5403198ac4c>`.
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptor.
+
+	*
+		- epsilon
+
+		- Layer normalization epsilon parameter.
+
+	*
+		- flags
+
+		- Layer normalization flags (:ref:`dnnl::normalization_flags <doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>`).
+

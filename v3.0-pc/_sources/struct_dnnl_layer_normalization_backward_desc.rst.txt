@@ -1,0 +1,227 @@
+.. index:: pair: struct; dnnl::layer_normalization_backward::desc
+.. _doxid-structdnnl_1_1layer__normalization__backward_1_1desc:
+
+struct dnnl::layer_normalization_backward::desc
+===============================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a layer normalization backward propagation primitive. :ref:`More...<details-structdnnl_1_1layer__normalization__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_layer_normalization_v2_desc_t<doxid-structdnnl__layer__normalization__v2__desc__t>` :target:`data<doxid-structdnnl_1_1layer__normalization__backward_1_1desc_1af16dd2e9c6c0a4b1021fd50c9faa74c1>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1layer__normalization__backward_1_1desc_1ac29473459e26afc6d6e5292a6f9d5c7e>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& stat_desc,
+			float epsilon,
+			:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+			);
+	
+		:ref:`desc<doxid-structdnnl_1_1layer__normalization__backward_1_1desc_1aac8a60f845b222f007692be17649b56c>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			float epsilon,
+			:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+			);
+	
+		:ref:`desc<doxid-structdnnl_1_1layer__normalization__backward_1_1desc_1ac059677ff16a631dc25240f54ff77e28>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& stat_desc,
+			float epsilon,
+			:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+			);
+	};
+.. _details-structdnnl_1_1layer__normalization__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a layer normalization backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1layer__normalization__backward_1_1desc_1ac29473459e26afc6d6e5292a6f9d5c7e:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& stat_desc,
+		float epsilon,
+		:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+		)
+
+Constructs a descriptor for layer normalization backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::backward_data <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438faa12627cacf73ecb7ef088beedd650e96>` and :ref:`dnnl::prop_kind::backward <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa195fe59b6f103787a914aead0f3db502>` (diffs for all parameters are computed in this case).
+
+	*
+		- diff_data_desc
+
+		- Diff source and diff destination memory descriptor.
+
+	*
+		- data_desc
+
+		- Source memory descriptor.
+
+	*
+		- stat_desc
+
+		- Statistics memory descriptors.
+
+	*
+		- epsilon
+
+		- Layer normalization epsilon parameter.
+
+	*
+		- flags
+
+		- Layer normalization flags (:ref:`dnnl::normalization_flags <doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>`).
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1layer__normalization__backward_1_1desc_1aac8a60f845b222f007692be17649b56c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		float epsilon,
+		:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+		)
+
+Constructs a descriptor for layer normalization backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::backward_data <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438faa12627cacf73ecb7ef088beedd650e96>` and :ref:`dnnl::prop_kind::backward <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa195fe59b6f103787a914aead0f3db502>` (diffs for all parameters are computed in this case).
+
+	*
+		- diff_data_desc
+
+		- Diff source and diff destination memory descriptor.
+
+	*
+		- data_desc
+
+		- Source memory descriptor.
+
+	*
+		- epsilon
+
+		- Layer normalization epsilon parameter.
+
+	*
+		- flags
+
+		- Layer normalization flags (:ref:`dnnl::normalization_flags <doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>`).
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1layer__normalization__backward_1_1desc_1ac059677ff16a631dc25240f54ff77e28:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& stat_desc,
+		float epsilon,
+		:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+		)
+
+Constructs a descriptor for layer normalization backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::backward_data <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438faa12627cacf73ecb7ef088beedd650e96>` and :ref:`dnnl::prop_kind::backward <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa195fe59b6f103787a914aead0f3db502>` (diffs for all parameters are computed in this case).
+
+	*
+		- diff_src_desc
+
+		- Diff source memory descriptor.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+
+	*
+		- src_desc
+
+		- Source memory descriptor.
+
+	*
+		- stat_desc
+
+		- Statistics memory descriptors.
+
+	*
+		- epsilon
+
+		- Layer normalization epsilon parameter.
+
+	*
+		- flags
+
+		- Layer normalization flags (:ref:`dnnl::normalization_flags <doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>`).
+

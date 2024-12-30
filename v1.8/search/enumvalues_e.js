@@ -1,0 +1,24 @@
+var searchData=
+[
+  ['reduction',['reduction',['../structdnnl_1_1primitive.html#ad1ec93215a0cf3aa0a32bae0c2cd9169a9477e24c78f1ca8ee9b03111f6227fc2',1,'dnnl::primitive']]],
+  ['reduction_5fd',['reduction_d',['../group__dnnl__api__primitives__common.html#gga94efdd650364f4d9776cfb9b711cbdc1a43b064d25fca4afec96d58b81af11f19',1,'dnnl']]],
+  ['reduction_5fmax',['reduction_max',['../group__dnnl__api__attributes.html#gga00377dd4982333e42e8ae1d09a309640a42483cece49698bff4fc700cd2de655c',1,'dnnl']]],
+  ['reduction_5fmean',['reduction_mean',['../group__dnnl__api__attributes.html#gga00377dd4982333e42e8ae1d09a309640ae2afc4d79ef0f2e8de6c4d7292ea1a8e',1,'dnnl']]],
+  ['reduction_5fmin',['reduction_min',['../group__dnnl__api__attributes.html#gga00377dd4982333e42e8ae1d09a309640a8cc607027ba7c9399ba610f22b88b3eb',1,'dnnl']]],
+  ['reduction_5fmul',['reduction_mul',['../group__dnnl__api__attributes.html#gga00377dd4982333e42e8ae1d09a309640aab991281eb5a55118f233a6d906be210',1,'dnnl']]],
+  ['reduction_5fnorm_5flp_5fmax',['reduction_norm_lp_max',['../group__dnnl__api__attributes.html#gga00377dd4982333e42e8ae1d09a309640a67f19545c23e777ffbae900ab1b8cde5',1,'dnnl']]],
+  ['reduction_5fnorm_5flp_5fpower_5fp_5fmax',['reduction_norm_lp_power_p_max',['../group__dnnl__api__attributes.html#gga00377dd4982333e42e8ae1d09a309640a423e9857dd013140a323235cd520bad5',1,'dnnl']]],
+  ['reduction_5fnorm_5flp_5fpower_5fp_5fsum',['reduction_norm_lp_power_p_sum',['../group__dnnl__api__attributes.html#gga00377dd4982333e42e8ae1d09a309640a161d82b9c140979ea6fc5ce7ad1afcbd',1,'dnnl']]],
+  ['reduction_5fnorm_5flp_5fsum',['reduction_norm_lp_sum',['../group__dnnl__api__attributes.html#gga00377dd4982333e42e8ae1d09a309640ad73ba421a6b061afe16e49a6acc0733a',1,'dnnl']]],
+  ['reduction_5fsum',['reduction_sum',['../group__dnnl__api__attributes.html#gga00377dd4982333e42e8ae1d09a309640af710a5a162f3ac1c005876b5c96a6087',1,'dnnl']]],
+  ['reorder',['reorder',['../structdnnl_1_1primitive.html#ad1ec93215a0cf3aa0a32bae0c2cd9169a8dbc5523c131d7900138d32d1dcbf093',1,'dnnl::primitive']]],
+  ['reorder_5fdst_5fengine',['reorder_dst_engine',['../group__dnnl__api__primitives__common.html#gga94efdd650364f4d9776cfb9b711cbdc1aa08e784e657998224809d67bde0787ce',1,'dnnl']]],
+  ['reorder_5fsrc_5fengine',['reorder_src_engine',['../group__dnnl__api__primitives__common.html#gga94efdd650364f4d9776cfb9b711cbdc1a783fb4ccfa962b218a2acbd35dd7ec27',1,'dnnl']]],
+  ['resampling',['resampling',['../structdnnl_1_1primitive.html#ad1ec93215a0cf3aa0a32bae0c2cd9169a4f9776b23053c32400f732de532df397',1,'dnnl::primitive']]],
+  ['resampling_5fd',['resampling_d',['../group__dnnl__api__primitives__common.html#gga94efdd650364f4d9776cfb9b711cbdc1afcc6f3d53b14544cb287a355c2f1f228',1,'dnnl']]],
+  ['resampling_5flinear',['resampling_linear',['../group__dnnl__api__attributes.html#gga00377dd4982333e42e8ae1d09a309640a05731680a83c6dccd19a758b72a4ecbd',1,'dnnl']]],
+  ['resampling_5fnearest',['resampling_nearest',['../group__dnnl__api__attributes.html#gga00377dd4982333e42e8ae1d09a309640a091b262cfae5e610fcad1490bfb79431',1,'dnnl']]],
+  ['rnn',['rnn',['../structdnnl_1_1primitive.html#ad1ec93215a0cf3aa0a32bae0c2cd9169a6eed45b9327120cabad6916919a9a600',1,'dnnl::primitive']]],
+  ['rnn_5fd',['rnn_d',['../group__dnnl__api__primitives__common.html#gga94efdd650364f4d9776cfb9b711cbdc1a5bada9b07803d3e657d5bdc592f7fc52',1,'dnnl']]],
+  ['runtime_5ferror',['runtime_error',['../group__dnnl__api__service.html#gga7acc4d3516304ae68a1289551d8f2cdda5b32065884bcc1f2ed126c47e6410808',1,'dnnl']]]
+];

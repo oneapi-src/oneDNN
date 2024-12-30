@@ -1,0 +1,87 @@
+.. index:: pair: struct; dnnl::prelu_backward::desc
+.. _doxid-structdnnl_1_1prelu__backward_1_1desc:
+
+struct dnnl::prelu_backward::desc
+=================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a PReLU backward propagation primitive. :ref:`More...<details-structdnnl_1_1prelu__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		dnnl_prelu_desc_t :target:`data<doxid-structdnnl_1_1prelu__backward_1_1desc_1a5dfd23abd161411c9fb9aa4bc18fe36b>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1prelu__backward_1_1desc_1ae1c1c57446536d54a274e3d00168785a>`(
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weight_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_desc
+			);
+	};
+.. _details-structdnnl_1_1prelu__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a PReLU backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1prelu__backward_1_1desc_1ae1c1c57446536d54a274e3d00168785a:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weight_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_desc
+		)
+
+Constructs a descriptor for a PReLU backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptors.
+
+	*
+		- weight_desc
+
+		- Alpha parameters memory descriptor.
+
+	*
+		- diff_data_desc
+
+		- Diff source and destination memory descriptors.
+
+	*
+		- diff_weights_desc
+
+		- Diff alpha parameters memory descriptor.
+

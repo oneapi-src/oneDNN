@@ -1,0 +1,164 @@
+.. index:: pair: group; Shuffle
+.. _doxid-group__dnnl__api__shuffle:
+
+Shuffle
+=======
+
+.. toctree::
+	:hidden:
+
+	struct_dnnl_shuffle_desc_t.rst
+	struct_dnnl_shuffle_backward.rst
+	struct_dnnl_shuffle_forward.rst
+
+Overview
+~~~~~~~~
+
+A primitive to shuffle tensor data along an axis. :ref:`More...<details-group__dnnl__api__shuffle>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	// structs
+
+	struct :ref:`dnnl_shuffle_desc_t<doxid-structdnnl__shuffle__desc__t>`;
+	struct :ref:`dnnl::shuffle_backward<doxid-structdnnl_1_1shuffle__backward>`;
+	struct :ref:`dnnl::shuffle_forward<doxid-structdnnl_1_1shuffle__forward>`;
+
+	// global functions
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_shuffle_forward_desc_init<doxid-group__dnnl__api__shuffle_1ga394497dcdf8de4028302170a59763453>`(
+		:ref:`dnnl_shuffle_desc_t<doxid-structdnnl__shuffle__desc__t>`* shuffle_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		int axis,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` group_size
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_shuffle_backward_desc_init<doxid-group__dnnl__api__shuffle_1gac9df6d5739e8010e13eff37337c0ddf2>`(
+		:ref:`dnnl_shuffle_desc_t<doxid-structdnnl__shuffle__desc__t>`* shuffle_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_data_desc,
+		int axis,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` group_size
+		);
+
+.. _details-group__dnnl__api__shuffle:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A primitive to shuffle tensor data along an axis.
+
+
+
+.. rubric:: See also:
+
+:ref:`Shuffle <doxid-dev_guide_shuffle>` in developer guide
+
+Global Functions
+----------------
+
+.. index:: pair: function; dnnl_shuffle_forward_desc_init
+.. _doxid-group__dnnl__api__shuffle_1ga394497dcdf8de4028302170a59763453:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_shuffle_forward_desc_init(
+		:ref:`dnnl_shuffle_desc_t<doxid-structdnnl__shuffle__desc__t>`* shuffle_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		int axis,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` group_size
+		)
+
+Initializes a descriptor for shuffle forward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- shuffle_desc
+
+		- Output descriptor for a shuffle primitive.
+
+	*
+		- prop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>` and :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`.
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptor.
+
+	*
+		- axis
+
+		- The axis along which the data is shuffled.
+
+	*
+		- group_size
+
+		- Shuffle group size.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_shuffle_backward_desc_init
+.. _doxid-group__dnnl__api__shuffle_1gac9df6d5739e8010e13eff37337c0ddf2:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_shuffle_backward_desc_init(
+		:ref:`dnnl_shuffle_desc_t<doxid-structdnnl__shuffle__desc__t>`* shuffle_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_data_desc,
+		int axis,
+		:ref:`dnnl_dim_t<doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` group_size
+		)
+
+Initializes a descriptor for shuffle backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- shuffle_desc
+
+		- Output descriptor for a shuffle primitive.
+
+	*
+		- diff_data_desc
+
+		- Diff source and diff destination memory descriptor.
+
+	*
+		- axis
+
+		- The axis along which the data is shuffled.
+
+	*
+		- group_size
+
+		- Shuffle group size.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+

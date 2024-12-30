@@ -1,0 +1,49 @@
+.. index:: pair: enum; dnnl_memory_extra_flags_t
+.. _doxid-group__dnnl__api__memory_1ga29a3828f894856ee61f6a11cd4a39dca:
+
+enum dnnl_memory_extra_flags_t
+==============================
+
+Overview
+~~~~~~~~
+
+Flags for memory special features. :ref:`More...<details-group__dnnl__api__memory_1ga29a3828f894856ee61f6a11cd4a39dca>`
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+
+	enum dnnl_memory_extra_flags_t
+	{
+	    :target:`dnnl_memory_extra_flag_none<doxid-group__dnnl__api__memory_1gga29a3828f894856ee61f6a11cd4a39dcaaab0f4c603740a21dc327d9417a86e229>`                             = 0x0U,
+	    :ref:`dnnl_memory_extra_flag_compensation_conv_s8s8<doxid-group__dnnl__api__memory_1gga29a3828f894856ee61f6a11cd4a39dcaaf6124ad1b5544bf291a9499e6293f827>`           = 0x1U,
+	    :target:`dnnl_memory_extra_flag_scale_adjust<doxid-group__dnnl__api__memory_1gga29a3828f894856ee61f6a11cd4a39dcaa79b79996e7a40775468e55e6628b3af0>`                     = 0x2U,
+	    :target:`dnnl_memory_extra_flag_rnn_u8s8_compensation<doxid-group__dnnl__api__memory_1gga29a3828f894856ee61f6a11cd4a39dcaa0910c7f32a10bc92f12c65a14834fe20>`            = 0x4U,
+	    :target:`dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation<doxid-group__dnnl__api__memory_1gga29a3828f894856ee61f6a11cd4a39dcaa4596d983b80e214f03545315452e9f16>`        = dnnl_memory_extra_flag_rnn_u8s8_compensation,
+	    :target:`dnnl_memory_extra_flag_compensation_conv_asymmetric_src<doxid-group__dnnl__api__memory_1gga29a3828f894856ee61f6a11cd4a39dcaaabe23453927e4002623e5f4f7b3510ae>` = 0x8U,
+	    :target:`dnnl_memory_extra_flag_rnn_s8s8_compensation<doxid-group__dnnl__api__memory_1gga29a3828f894856ee61f6a11cd4a39dcaa7f957ab943778f9899a6bed882dc7d04>`            = 0x16U,
+	};
+
+.. _details-group__dnnl__api__memory_1ga29a3828f894856ee61f6a11cd4a39dca:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Flags for memory special features.
+
+Enum Values
+-----------
+
+.. index:: pair: enumvalue; dnnl_memory_extra_flag_compensation_conv_s8s8
+.. _doxid-group__dnnl__api__memory_1gga29a3828f894856ee61f6a11cd4a39dcaaf6124ad1b5544bf291a9499e6293f827:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_memory_extra_flag_compensation_conv_s8s8
+
+Indicates the weights have an additional buffer, that depends on the ``compensation_mask``.
+
+For instance, in 4D case with the compensation mask equals (1 << 0) the additional buffer would consist of OC values: O[oc : 0,OC] = -128 \* SUM(ic : 0,IC; kh : 0,KH; kw : 0,KW){ weights(oc, ic, kh, kw) }
+

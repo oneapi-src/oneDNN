@@ -1,0 +1,174 @@
+.. index:: pair: group; LogSoftmax
+.. _doxid-group__dnnl__api__logsoftmax:
+
+LogSoftmax
+==========
+
+.. toctree::
+	:hidden:
+
+	struct_dnnl_logsoftmax_backward.rst
+	struct_dnnl_logsoftmax_forward.rst
+
+Overview
+~~~~~~~~
+
+A primitive to perform logsoftmax. :ref:`More...<details-group__dnnl__api__logsoftmax>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	// typedefs
+
+	typedef :ref:`dnnl_softmax_desc_t<doxid-structdnnl__softmax__desc__t>` :ref:`dnnl_logsoftmax_desc_t<doxid-group__dnnl__api__logsoftmax_1ga312b4653a7712a595c96e23cddd7b8d8>`;
+
+	// structs
+
+	struct :ref:`dnnl::logsoftmax_backward<doxid-structdnnl_1_1logsoftmax__backward>`;
+	struct :ref:`dnnl::logsoftmax_forward<doxid-structdnnl_1_1logsoftmax__forward>`;
+
+	// global functions
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_logsoftmax_forward_desc_init<doxid-group__dnnl__api__logsoftmax_1ga419884428ce50371d2171bc2099acf73>`(
+		:ref:`dnnl_logsoftmax_desc_t<doxid-group__dnnl__api__logsoftmax_1ga312b4653a7712a595c96e23cddd7b8d8>`* logsoftmax_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		int logsoftmax_axis
+		);
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_logsoftmax_backward_desc_init<doxid-group__dnnl__api__logsoftmax_1ga7c1a3e7de7a86715278ecc84a3354f52>`(
+		:ref:`dnnl_logsoftmax_desc_t<doxid-group__dnnl__api__logsoftmax_1ga312b4653a7712a595c96e23cddd7b8d8>`* logsoftmax_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_data_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		int logsoftmax_axis
+		);
+
+.. _details-group__dnnl__api__logsoftmax:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A primitive to perform logsoftmax.
+
+
+
+.. rubric:: See also:
+
+:ref:`LogSoftmax <doxid-dev_guide_logsoftmax>` in developer guide
+
+Typedefs
+--------
+
+.. index:: pair: typedef; dnnl_logsoftmax_desc_t
+.. _doxid-group__dnnl__api__logsoftmax_1ga312b4653a7712a595c96e23cddd7b8d8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	typedef :ref:`dnnl_softmax_desc_t<doxid-structdnnl__softmax__desc__t>` dnnl_logsoftmax_desc_t
+
+A descriptor of a LogSoftmax operation.
+
+An alias of Softmax structure, but primitive_kind must be :ref:`dnnl_logsoftmax <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aabe23960b7972fb6776b8c85131fd3724>`.
+
+Global Functions
+----------------
+
+.. index:: pair: function; dnnl_logsoftmax_forward_desc_init
+.. _doxid-group__dnnl__api__logsoftmax_1ga419884428ce50371d2171bc2099acf73:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_logsoftmax_forward_desc_init(
+		:ref:`dnnl_logsoftmax_desc_t<doxid-group__dnnl__api__logsoftmax_1ga312b4653a7712a595c96e23cddd7b8d8>`* logsoftmax_desc,
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		int logsoftmax_axis
+		)
+
+Initializes a descriptor for logsoftmax forward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- logsoftmax_desc
+
+		- Output descriptor for a logsoftmax primitive.
+
+	*
+		- prop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>` and :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`.
+
+	*
+		- data_desc
+
+		- Source and destination memory descriptor.
+
+	*
+		- logsoftmax_axis
+
+		- Axis over which logsoftmax is computed.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
+.. index:: pair: function; dnnl_logsoftmax_backward_desc_init
+.. _doxid-group__dnnl__api__logsoftmax_1ga7c1a3e7de7a86715278ecc84a3354f52:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_logsoftmax_backward_desc_init(
+		:ref:`dnnl_logsoftmax_desc_t<doxid-group__dnnl__api__logsoftmax_1ga312b4653a7712a595c96e23cddd7b8d8>`* logsoftmax_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* diff_data_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* data_desc,
+		int logsoftmax_axis
+		)
+
+Initializes a descriptor for logsoftmax backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- logsoftmax_desc
+
+		- Output descriptor for a logsoftmax primitive.
+
+	*
+		- diff_data_desc
+
+		- Diff source and diff destination memory descriptors.
+
+	*
+		- data_desc
+
+		- Destination memory descriptor.
+
+	*
+		- logsoftmax_axis
+
+		- Axis over which softmax is computed.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+
