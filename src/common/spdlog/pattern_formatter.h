@@ -3,18 +3,18 @@
 
 #pragma once
 
-#include <common/spdlog/common.h>
-#include <common/spdlog/details/log_msg.h>
-#include <common/spdlog/details/os.h>
-#include <common/spdlog/formatter.h>
+#include <spdlog/common.h>
+#include <spdlog/details/log_msg.h>
+#include <spdlog/details/os.h>
+#include <spdlog/formatter.h>
 
 #include <chrono>
 #include <ctime>
 #include <memory>
 
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 namespace spdlog {
 namespace details {
@@ -25,7 +25,10 @@ struct padding_info {
 
     padding_info() = default;
     padding_info(size_t width, padding_info::pad_side side, bool truncate)
-        : width_(width), side_(side), truncate_(truncate), enabled_(true) {}
+        : width_(width),
+          side_(side),
+          truncate_(truncate),
+          enabled_(true) {}
 
     bool enabled() const { return enabled_; }
     size_t width_ = 0;
@@ -36,18 +39,19 @@ struct padding_info {
 
 class SPDLOG_API flag_formatter {
 public:
-    explicit flag_formatter(padding_info padinfo) : padinfo_(padinfo) {}
+    explicit flag_formatter(padding_info padinfo)
+        : padinfo_(padinfo) {}
     flag_formatter() = default;
     virtual ~flag_formatter() = default;
-    virtual void format(const details::log_msg &msg, const std::tm &tm_time,
-            memory_buf_t &dest)
-            = 0;
+    virtual void format(const details::log_msg &msg,
+                        const std::tm &tm_time,
+                        memory_buf_t &dest) = 0;
 
 protected:
     padding_info padinfo_;
 };
 
-} // namespace details
+}  // namespace details
 
 class SPDLOG_API custom_flag_formatter : public details::flag_formatter {
 public:
@@ -60,18 +64,16 @@ public:
 
 class SPDLOG_API pattern_formatter final : public formatter {
 public:
-    using custom_flags
-            = std::unordered_map<char, std::unique_ptr<custom_flag_formatter>>;
+    using custom_flags = std::unordered_map<char, std::unique_ptr<custom_flag_formatter>>;
 
     explicit pattern_formatter(std::string pattern,
-            pattern_time_type time_type = pattern_time_type::local,
-            std::string eol = spdlog::details::os::default_eol,
-            custom_flags custom_user_flags = custom_flags());
+                               pattern_time_type time_type = pattern_time_type::local,
+                               std::string eol = spdlog::details::os::default_eol,
+                               custom_flags custom_user_flags = custom_flags());
 
     // use default pattern is not given
-    explicit pattern_formatter(
-            pattern_time_type time_type = pattern_time_type::local,
-            std::string eol = spdlog::details::os::default_eol);
+    explicit pattern_formatter(pattern_time_type time_type = pattern_time_type::local,
+                               std::string eol = spdlog::details::os::default_eol);
 
     pattern_formatter(const pattern_formatter &other) = delete;
     pattern_formatter &operator=(const pattern_formatter &other) = delete;
@@ -81,8 +83,7 @@ public:
 
     template <typename T, typename... Args>
     pattern_formatter &add_flag(char flag, Args &&...args) {
-        custom_handlers_[flag]
-                = details::make_unique<T>(std::forward<Args>(args)...);
+        custom_handlers_[flag] = details::make_unique<T>(std::forward<Args>(args)...);
         return *this;
     }
     void set_pattern(std::string pattern);
@@ -105,13 +106,13 @@ private:
     // Extract given pad spec (e.g. %8X)
     // Advance the given it pass the end of the padding spec found (if any)
     // Return padding.
-    static details::padding_info handle_padspec_(
-            std::string::const_iterator &it, std::string::const_iterator end);
+    static details::padding_info handle_padspec_(std::string::const_iterator &it,
+                                                 std::string::const_iterator end);
 
     void compile_pattern_(const std::string &pattern);
 };
-} // namespace spdlog
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
-#include "pattern_formatter-inl.h"
+    #include "pattern_formatter-inl.h"
 #endif

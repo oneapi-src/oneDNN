@@ -4,7 +4,7 @@
 #pragma once
 
 #ifndef SPDLOG_HEADER_ONLY
-#include <common/spdlog/details/periodic_worker.h>
+    #include <spdlog/details/periodic_worker.h>
 #endif
 
 namespace spdlog {
@@ -22,5 +22,5 @@ SPDLOG_INLINE periodic_worker::~periodic_worker() {
     }
 }
 
-} // namespace details
-} // namespace spdlog
+}  // namespace details
+}  // namespace spdlog

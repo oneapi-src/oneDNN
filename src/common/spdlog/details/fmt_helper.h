@@ -4,13 +4,13 @@
 
 #include <chrono>
 #include <iterator>
-#include <common/spdlog/common.h>
-#include <common/spdlog/fmt/fmt.h>
+#include <spdlog/common.h>
+#include <spdlog/fmt/fmt.h>
 #include <type_traits>
 
 #ifdef SPDLOG_USE_STD_FORMAT
-#include <charconv>
-#include <limits>
+    #include <charconv>
+    #include <limits>
 #endif
 
 // Some fmt helpers to efficiently format and pad ints and strings
@@ -64,32 +64,31 @@ SPDLOG_CONSTEXPR_FUNC unsigned int count_digits_fallback(T n) {
 
 template <typename T>
 inline unsigned int count_digits(T n) {
-    using count_type = typename std::conditional<(sizeof(T) > sizeof(uint32_t)),
-            uint64_t, uint32_t>::type;
+    using count_type =
+        typename std::conditional<(sizeof(T) > sizeof(uint32_t)), uint64_t, uint32_t>::type;
 #ifdef SPDLOG_USE_STD_FORMAT
     return count_digits_fallback(static_cast<count_type>(n));
 #else
     return static_cast<unsigned int>(fmt::
-// fmt 7.0.0 renamed the internal namespace to detail.
-// See: https://github.com/fmtlib/fmt/issues/1538
-#if FMT_VERSION < 70000
-                    internal
-#else
-                    detail
-#endif
-            ::count_digits(static_cast<count_type>(n)));
+    // fmt 7.0.0 renamed the internal namespace to detail.
+    // See: https://github.com/fmtlib/fmt/issues/1538
+    #if FMT_VERSION < 70000
+                                         internal
+    #else
+                                         detail
+    #endif
+                                     ::count_digits(static_cast<count_type>(n)));
 #endif
 }
 
 inline void pad2(int n, memory_buf_t &dest) {
-    if (n >= 0 && n < 100) // 0-99
+    if (n >= 0 && n < 100)  // 0-99
     {
         dest.push_back(static_cast<char>('0' + n / 10));
         dest.push_back(static_cast<char>('0' + n % 10));
-    } else // unlikely, but just in case, let fmt deal with it
+    } else  // unlikely, but just in case, let fmt deal with it
     {
-        fmt_lib::format_to(
-                std::back_inserter(dest), SPDLOG_FMT_STRING("{:02}"), n);
+        fmt_lib::format_to(std::back_inserter(dest), SPDLOG_FMT_STRING("{:02}"), n);
     }
 }
 
@@ -134,10 +133,9 @@ inline ToDuration time_fraction(log_clock::time_point tp) {
     using std::chrono::seconds;
     auto duration = tp.time_since_epoch();
     auto secs = duration_cast<seconds>(duration);
-    return duration_cast<ToDuration>(duration)
-            - duration_cast<ToDuration>(secs);
+    return duration_cast<ToDuration>(duration) - duration_cast<ToDuration>(secs);
 }
 
-} // namespace fmt_helper
-} // namespace details
-} // namespace spdlog
+}  // namespace fmt_helper
+}  // namespace details
+}  // namespace spdlog

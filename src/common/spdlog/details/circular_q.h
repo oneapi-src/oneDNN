@@ -7,7 +7,7 @@
 #include <cassert>
 #include <vector>
 
-#include "common/spdlog/common.h"
+#include "spdlog/common.h"
 
 namespace spdlog {
 namespace details {
@@ -26,17 +26,16 @@ public:
     circular_q() = default;
 
     explicit circular_q(size_t max_items)
-        : max_items_(max_items + 1) // one item is reserved as marker for full q
-        , v_(max_items_) {}
+        : max_items_(max_items + 1)  // one item is reserved as marker for full q
+          ,
+          v_(max_items_) {}
 
     circular_q(const circular_q &) = default;
     circular_q &operator=(const circular_q &) = default;
 
     // move cannot be default,
     // since we need to reset head_, tail_, etc to zero in the moved object
-    circular_q(circular_q &&other) SPDLOG_NOEXCEPT {
-        copy_moveable(std::move(other));
-    }
+    circular_q(circular_q &&other) SPDLOG_NOEXCEPT { copy_moveable(std::move(other)); }
 
     circular_q &operator=(circular_q &&other) SPDLOG_NOEXCEPT {
         copy_moveable(std::move(other));
@@ -49,7 +48,7 @@ public:
             v_[tail_] = std::move(item);
             tail_ = (tail_ + 1) % max_items_;
 
-            if (tail_ == head_) // overrun last item if full
+            if (tail_ == head_)  // overrun last item if full
             {
                 head_ = (head_ + 1) % max_items_;
                 ++overrun_counter_;
@@ -87,7 +86,9 @@ public:
 
     bool full() const {
         // head is ahead of the tail by 1
-        if (max_items_ > 0) { return ((tail_ + 1) % max_items_) == head_; }
+        if (max_items_ > 0) {
+            return ((tail_ + 1) % max_items_) == head_;
+        }
         return false;
     }
 
@@ -110,5 +111,5 @@ private:
         other.overrun_counter_ = 0;
     }
 };
-} // namespace details
-} // namespace spdlog
+}  // namespace details
+}  // namespace spdlog

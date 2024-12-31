@@ -48,7 +48,9 @@ if(NOT DNNL_CPU_RUNTIME STREQUAL "THREADPOOL")
     list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/stream_threadpool.cpp")
 endif()
 
-if(NOT DNNL_EXPERIMENTAL_LOGGING)
+if(DNNL_EXPERIMENTAL_LOGGING)
+    include_directories(${CMAKE_CURRENT_LIST_DIR})
+else()
     # avoid building and linking spdlog if logging support is not enabled
     list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/spdlog/*")
     list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/logging.cpp")

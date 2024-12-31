@@ -3,10 +3,14 @@
 
 #pragma once
 
+#if defined(SPDLOG_NO_TLS)
+    #error "This header requires thread local storage support, but SPDLOG_NO_TLS is defined."
+#endif
+
 #include <map>
 #include <string>
 
-#include <common/spdlog/common.h>
+#include <spdlog/common.h>
 
 // MDC is a simple map of key->string values stored in thread local storage whose content will be printed by the loggers.
 // Note: Not supported in async mode (thread local storage - so the async thread pool have different copy).
@@ -27,7 +31,9 @@ public:
     static std::string get(const std::string &key) {
         auto &context = get_context();
         auto it = context.find(key);
-        if (it != context.end()) { return it->second; }
+        if (it != context.end()) {
+            return it->second;
+        }
         return "";
     }
 
@@ -41,4 +47,4 @@ public:
     }
 };
 
-} // namespace spdlog
+}  // namespace spdlog
