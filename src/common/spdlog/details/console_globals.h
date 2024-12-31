@@ -4,7 +4,7 @@
 #pragma once
 
 #include <mutex>
-#include <common/spdlog/details/null_mutex.h>
+#include <spdlog/details/null_mutex.h>
 
 namespace spdlog {
 namespace details {
@@ -24,5 +24,5 @@ struct console_nullmutex {
         return s_mutex;
     }
 };
-} // namespace details
-} // namespace spdlog
+}  // namespace details
+}  // namespace spdlog

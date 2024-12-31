@@ -6,10 +6,10 @@
 #include <array>
 #include <memory>
 #include <mutex>
+#include <spdlog/details/console_globals.h>
+#include <spdlog/details/null_mutex.h>
+#include <spdlog/sinks/sink.h>
 #include <string>
-#include <common/spdlog/details/console_globals.h>
-#include <common/spdlog/details/null_mutex.h>
-#include <common/spdlog/sinks/sink.h>
 
 namespace spdlog {
 namespace sinks {
@@ -40,9 +40,8 @@ public:
 
     void log(const details::log_msg &msg) override;
     void flush() override;
-    void set_pattern(const std::string &pattern) final;
-    void set_formatter(
-            std::unique_ptr<spdlog::formatter> sink_formatter) override;
+    void set_pattern(const std::string &pattern) final override;
+    void set_formatter(std::unique_ptr<spdlog::formatter> sink_formatter) override;
 
     // Formatting codes
     const string_view_t reset = "\033[m";
@@ -103,16 +102,14 @@ public:
 };
 
 using ansicolor_stdout_sink_mt = ansicolor_stdout_sink<details::console_mutex>;
-using ansicolor_stdout_sink_st
-        = ansicolor_stdout_sink<details::console_nullmutex>;
+using ansicolor_stdout_sink_st = ansicolor_stdout_sink<details::console_nullmutex>;
 
 using ansicolor_stderr_sink_mt = ansicolor_stderr_sink<details::console_mutex>;
-using ansicolor_stderr_sink_st
-        = ansicolor_stderr_sink<details::console_nullmutex>;
+using ansicolor_stderr_sink_st = ansicolor_stderr_sink<details::console_nullmutex>;
 
-} // namespace sinks
-} // namespace spdlog
+}  // namespace sinks
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
-#include "ansicolor_sink-inl.h"
+    #include "ansicolor_sink-inl.h"
 #endif

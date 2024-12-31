@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include <common/spdlog/details/null_mutex.h>
-#include <common/spdlog/details/synchronous_factory.h>
-#include <common/spdlog/sinks/base_sink.h>
+#include <spdlog/details/null_mutex.h>
+#include <spdlog/details/synchronous_factory.h>
+#include <spdlog/sinks/base_sink.h>
 
 #include <mutex>
 
@@ -22,22 +22,20 @@ protected:
 using null_sink_mt = null_sink<details::null_mutex>;
 using null_sink_st = null_sink<details::null_mutex>;
 
-} // namespace sinks
+}  // namespace sinks
 
 template <typename Factory = spdlog::synchronous_factory>
 inline std::shared_ptr<logger> null_logger_mt(const std::string &logger_name) {
-    auto null_logger
-            = Factory::template create<sinks::null_sink_mt>(logger_name);
+    auto null_logger = Factory::template create<sinks::null_sink_mt>(logger_name);
     null_logger->set_level(level::off);
     return null_logger;
 }
 
 template <typename Factory = spdlog::synchronous_factory>
 inline std::shared_ptr<logger> null_logger_st(const std::string &logger_name) {
-    auto null_logger
-            = Factory::template create<sinks::null_sink_st>(logger_name);
+    auto null_logger = Factory::template create<sinks::null_sink_st>(logger_name);
     null_logger->set_level(level::off);
     return null_logger;
 }
 
-} // namespace spdlog
+}  // namespace spdlog

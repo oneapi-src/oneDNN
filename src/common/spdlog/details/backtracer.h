@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <common/spdlog/details/circular_q.h>
-#include <common/spdlog/details/log_msg_buffer.h>
+#include <spdlog/details/circular_q.h>
+#include <spdlog/details/log_msg_buffer.h>
 
 #include <atomic>
 #include <functional>
@@ -17,7 +17,7 @@ namespace spdlog {
 namespace details {
 class SPDLOG_API backtracer {
     mutable std::mutex mutex_;
-    std::atomic<bool> enabled_ {false};
+    std::atomic<bool> enabled_{false};
     circular_q<log_msg_buffer> messages_;
 
 public:
@@ -37,9 +37,9 @@ public:
     void foreach_pop(std::function<void(const details::log_msg &)> fun);
 };
 
-} // namespace details
-} // namespace spdlog
+}  // namespace details
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
-#include "backtracer-inl.h"
+    #include "backtracer-inl.h"
 #endif

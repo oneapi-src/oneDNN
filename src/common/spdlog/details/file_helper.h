@@ -3,8 +3,8 @@
 
 #pragma once
 
+#include <spdlog/common.h>
 #include <tuple>
-#include <common/spdlog/common.h>
 
 namespace spdlog {
 namespace details {
@@ -44,19 +44,18 @@ public:
     // ".mylog" => (".mylog". "")
     // "my_folder/.mylog" => ("my_folder/.mylog", "")
     // "my_folder/.mylog.txt" => ("my_folder/.mylog", ".txt")
-    static std::tuple<filename_t, filename_t> split_by_extension(
-            const filename_t &fname);
+    static std::tuple<filename_t, filename_t> split_by_extension(const filename_t &fname);
 
 private:
     const int open_tries_ = 5;
     const unsigned int open_interval_ = 10;
-    std::FILE *fd_ {nullptr};
+    std::FILE *fd_{nullptr};
     filename_t filename_;
     file_event_handlers event_handlers_;
 };
-} // namespace details
-} // namespace spdlog
+}  // namespace details
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
-#include "file_helper-inl.h"
+    #include "file_helper-inl.h"
 #endif

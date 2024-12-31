@@ -8,8 +8,8 @@
 // If user requests a non existing logger, nullptr will be returned
 // This class is thread safe
 
-#include <common/spdlog/common.h>
-#include <common/spdlog/details/periodic_worker.h>
+#include <spdlog/common.h>
+#include <spdlog/details/periodic_worker.h>
 
 #include <chrono>
 #include <functional>
@@ -67,8 +67,7 @@ public:
     void flush_every(std::chrono::duration<Rep, Period> interval) {
         std::lock_guard<std::mutex> lock(flusher_mutex_);
         auto clbk = [this]() { this->flush_all(); };
-        periodic_flusher_
-                = details::make_unique<periodic_worker>(clbk, interval);
+        periodic_flusher_ = details::make_unique<periodic_worker>(clbk, interval);
     }
 
     std::unique_ptr<periodic_worker> &get_flusher() {
@@ -78,8 +77,7 @@ public:
 
     void set_error_handler(err_handler handler);
 
-    void apply_all(
-            const std::function<void(const std::shared_ptr<logger>)> &fun);
+    void apply_all(const std::function<void(const std::shared_ptr<logger>)> &fun);
 
     void flush_all();
 
@@ -123,9 +121,9 @@ private:
     size_t backtrace_n_messages_ = 0;
 };
 
-} // namespace details
-} // namespace spdlog
+}  // namespace details
+}  // namespace spdlog
 
 #ifdef SPDLOG_HEADER_ONLY
-#include "registry-inl.h"
+    #include "registry-inl.h"
 #endif

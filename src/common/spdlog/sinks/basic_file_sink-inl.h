@@ -4,20 +4,20 @@
 #pragma once
 
 #ifndef SPDLOG_HEADER_ONLY
-#include <common/spdlog/sinks/basic_file_sink.h>
+    #include <spdlog/sinks/basic_file_sink.h>
 #endif
 
-#include <common/spdlog/common.h>
-#include <common/spdlog/details/os.h>
+#include <spdlog/common.h>
+#include <spdlog/details/os.h>
 
 namespace spdlog {
 namespace sinks {
 
 template <typename Mutex>
-SPDLOG_INLINE basic_file_sink<Mutex>::basic_file_sink(
-        const filename_t &filename, bool truncate,
-        const file_event_handlers &event_handlers)
-    : file_helper_ {event_handlers} {
+SPDLOG_INLINE basic_file_sink<Mutex>::basic_file_sink(const filename_t &filename,
+                                                      bool truncate,
+                                                      const file_event_handlers &event_handlers)
+    : file_helper_{event_handlers} {
     file_helper_.open(filename, truncate);
 }
 
@@ -27,8 +27,7 @@ SPDLOG_INLINE const filename_t &basic_file_sink<Mutex>::filename() const {
 }
 
 template <typename Mutex>
-SPDLOG_INLINE void basic_file_sink<Mutex>::sink_it_(
-        const details::log_msg &msg) {
+SPDLOG_INLINE void basic_file_sink<Mutex>::sink_it_(const details::log_msg &msg) {
     memory_buf_t formatted;
     base_sink<Mutex>::formatter_->format(msg, formatted);
     file_helper_.write(formatted);
@@ -39,5 +38,5 @@ SPDLOG_INLINE void basic_file_sink<Mutex>::flush_() {
     file_helper_.flush();
 }
 
-} // namespace sinks
-} // namespace spdlog
+}  // namespace sinks
+}  // namespace spdlog
