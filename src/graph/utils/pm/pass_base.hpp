@@ -137,7 +137,12 @@ public:
     template <typename value_type>
     pass_base &set_attr(const std::string &attr_name, // NOLINT(*)
             const value_type &value) {
-        attrs_.insert(make_pair(attr_name, value));
+        if (attrs_.find(attr_name) == attrs_.end()) {
+            attrs_.insert(
+                    make_pair(attr_name, std::vector<utils::any_t>(1, value)));
+        } else {
+            attrs_[attr_name].push_back(value);
+        }
         return *this;
     }
 
@@ -150,11 +155,13 @@ public:
     template <typename value_type>
     std::vector<value_type> get_attr(const std::string &attr_name) {
         std::vector<value_type> attr_vec;
-        for (auto it = attrs_.begin(); it != attrs_.end(); ++it) {
-            if (it->first == attr_name) {
-                attr_vec.push_back(utils::any_cast<value_type>(it->second));
-            }
+
+        if (attrs_.find(attr_name) != attrs_.end()) {
+            auto it = attrs_.find(attr_name);
+            for (size_t i = 0; i < it->second.size(); i++)
+                attr_vec.push_back(utils::any_cast<value_type>(it->second[i]));
         }
+
         return attr_vec;
     }
 
@@ -168,7 +175,7 @@ public:
     }
 
 protected:
-    std::unordered_multimap<std::string, utils::any_t> attrs_;
+    std::unordered_map<std::string, std::vector<utils::any_t>> attrs_;
 
 private:
     std::string backend_ {};
