@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ struct xbyak_gemm_t : public jit_generator {
         , hasBias(hasBias)
         , STACK_K_CAPACITY((STACK_CAPACITY - 256) / (SIZE * UNROLL_M)) {}
 
-    void generate() override ATTRIBUTE_OPTIMIZE {
+    void generate() override {
         using namespace Xbyak;
         bool isBeta0 = (beta == 0.0);
         bool isBetaN = (!isBeta0 && beta != 1.0);

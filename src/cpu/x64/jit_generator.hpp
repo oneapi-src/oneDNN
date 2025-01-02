@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,12 +37,6 @@
 
 #if defined(_WIN32)
 #define OFFSET_SHADOWSPACE 0x28
-#endif
-
-#if GCC_WA_NO_TREE_DOMINATOR_OPTS
-#define ATTRIBUTE_OPTIMIZE __attribute__((optimize("no-tree-dominator-opts")))
-#else
-#define ATTRIBUTE_OPTIMIZE
 #endif
 
 #define DECLARE_CPU_JIT_AUX_FUNCTIONS(gen_name) \

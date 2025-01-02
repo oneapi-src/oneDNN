@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2024 Intel Corporation
+# Copyright 2017-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,13 +52,6 @@ if(NOT OpenMP_CXX_FOUND AND MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "(Clang|Intel
         # The ICX driver doesn't link OpenMP library even if `/Qopenmp`
         # was specified.
         set(OpenMP_FLAGS "/Qopenmp -Xclang --dependent-lib=libiomp5md")
-    else()
-        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10.0")
-            # version < 10 can't pass cl-style `/openmp` flag
-            set(OpenMP_FLAGS "-Xclang -fopenmp")
-            # ... and requires explicit linking against omp library
-            set(OpenMP_CXX_LIBRARIES "libomp.lib")
-        endif()
     endif()
     set(OpenMP_C_FLAGS ${OpenMP_FLAGS})
     set(OpenMP_CXX_FLAGS ${OpenMP_FLAGS})
