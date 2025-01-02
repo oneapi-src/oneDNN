@@ -1,0 +1,84 @@
+{
+  "version": "3.7.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "fpmath_mode_apply_to_int": "false",
+  "input_ports": [
+    0, 
+    1
+  ],
+  "output_ports": [
+    2
+  ],
+  "graph": [
+    {
+      "id": 0,
+      "name": "greaterequal",
+      "kind": "GreaterEqual",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            32, 
+            32
+          ],
+          "stride": [
+            16384,
+            1024,
+            32, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            1,
+            16,
+            32, 
+            32
+          ],
+          "stride": [
+            16384,
+            1024,
+            32, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "boolean",
+          "shape": [
+            1,
+            16,
+            32, 
+            32
+          ],
+          "stride": [
+            16384,
+            1024,
+            32, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}
