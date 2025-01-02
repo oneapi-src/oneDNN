@@ -1,3 +1,7 @@
+HeaderFilterRegex: '/(examples|include|src|tests)/.*\.hpp'
+
+FormatStyle: file
+
 Checks: >
     -*,
     readability-identifier-naming,
