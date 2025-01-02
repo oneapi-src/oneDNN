@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2024 Intel Corporation
+ * Copyright 2020-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -825,7 +825,7 @@ SC_API void dnnl_brgemm_call(brgemm_kernel_info *brg_desc, const void *A,
         brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
                 num * sizeof(brgemm_batch_element_t));
 #else
-#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
+#if SC_IS_DPCPP()
         std::unique_ptr<brgemm_batch_element_t[]> batch_v(
                 new brgemm_batch_element_t[num]);
         brgemm_batch_element_t *batch = batch_v.get();
@@ -876,7 +876,7 @@ SC_API void dnnl_brgemm_call_postops(brgemm_kernel_info *brg_desc,
         brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
                 num * sizeof(brgemm_batch_element_t));
 #else
-#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
+#if SC_IS_DPCPP()
         std::unique_ptr<brgemm_batch_element_t[]> batch_v(
                 new brgemm_batch_element_t[num]);
         brgemm_batch_element_t *batch = batch_v.get();
@@ -930,7 +930,7 @@ SC_API void dnnl_brgemm_list_call(brgemm_kernel_info *brg_desc,
     brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
             batch_num * sizeof(brgemm_batch_element_t));
 #else
-#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
+#if SC_IS_DPCPP()
     std::unique_ptr<brgemm_batch_element_t[]> batch_v(
             new brgemm_batch_element_t[batch_num]);
     brgemm_batch_element_t *batch = batch_v.get();
@@ -995,7 +995,7 @@ SC_API void dnnl_brgemm_list_call_postops(brgemm_kernel_info *brg_desc,
     brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
             batch_num * sizeof(brgemm_batch_element_t));
 #else
-#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
+#if SC_IS_DPCPP()
     std::unique_ptr<brgemm_batch_element_t[]> batch_v(
             new brgemm_batch_element_t[batch_num]);
     brgemm_batch_element_t *batch = batch_v.get();
@@ -1087,7 +1087,7 @@ SC_API int dnnl_brgemm_init_update(const void *A, const void *B, void *C,
         brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
                 batch_num * sizeof(brgemm_batch_element_t));
 #else
-#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
+#if SC_IS_DPCPP()
         std::unique_ptr<brgemm_batch_element_t[]> batch_v(
                 new brgemm_batch_element_t[batch_num]);
         brgemm_batch_element_t *batch = batch_v.get();
@@ -1154,7 +1154,7 @@ SC_API int dnnl_brgemm_update(const void *A, const void *B, void *C, int num,
         brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
                 batch_num * sizeof(brgemm_batch_element_t));
 #else
-#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
+#if SC_IS_DPCPP()
         std::unique_ptr<brgemm_batch_element_t[]> batch_v(
                 new brgemm_batch_element_t[batch_num]);
         brgemm_batch_element_t *batch = batch_v.get();
@@ -1214,7 +1214,7 @@ static int dnnl_brgemm_list_update_func(const void **A_list,
     brgemm_batch_element_t *batch = (brgemm_batch_element_t *)_malloca(
             batch_num * sizeof(brgemm_batch_element_t));
 #else
-#if SC_IS_DPCPP() || (defined(CLANGVERSION) && CLANGVERSION <= 3)
+#if SC_IS_DPCPP()
     std::unique_ptr<brgemm_batch_element_t[]> batch_v(
             new brgemm_batch_element_t[batch_num]);
     brgemm_batch_element_t *batch = batch_v.get();

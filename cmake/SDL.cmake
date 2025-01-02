@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2024 Intel Corporation
+# Copyright 2017-2025 Intel Corporation
 # Copyright 2021 FUJITSU LIMITED
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,14 +30,10 @@ macro(sdl_unix_common_ccxx_flags var)
     append(${var} "-fPIC -Wformat -Wformat-security")
 endmacro()
 
-macro(sdl_gnu_common_ccxx_flags var gnu_version)
-    if(${gnu_version} VERSION_LESS 4.9)
-        append(${var} "-fstack-protector-all")
-    else()
-        append(${var} "-fstack-protector-strong")
-        if(NOT (${gnu_version} VERSION_LESS 8.0) AND (DNNL_TARGET_ARCH STREQUAL "X64"))
-            append(${var} "-fcf-protection=full")
-        endif()
+macro(sdl_gnu_common_ccxx_flags var)
+    append(${var} "-fstack-protector-strong")
+    if(DNNL_TARGET_ARCH STREQUAL "X64")
+        append(${var} "-fcf-protection=full")
     endif()
 endmacro()
 
@@ -65,7 +61,7 @@ if(UNIX)
         append(ONEDNN_SDL_COMPILER_FLAGS "-D_FORTIFY_SOURCE=2")
     endif()
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-        sdl_gnu_common_ccxx_flags(ONEDNN_SDL_COMPILER_FLAGS CMAKE_CXX_COMPILER_VERSION)
+        sdl_gnu_common_ccxx_flags(ONEDNN_SDL_COMPILER_FLAGS)
         sdl_gnu_src_ccxx_flags(CMAKE_SRC_CCXX_FLAGS)
         sdl_gnu_example_ccxx_flags(CMAKE_EXAMPLE_CCXX_FLAGS)
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?[Cc]lang")

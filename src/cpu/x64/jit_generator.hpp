@@ -39,12 +39,6 @@
 #define OFFSET_SHADOWSPACE 0x28
 #endif
 
-#if GCC_WA_NO_TREE_DOMINATOR_OPTS
-#define ATTRIBUTE_OPTIMIZE __attribute__((optimize("no-tree-dominator-opts")))
-#else
-#define ATTRIBUTE_OPTIMIZE
-#endif
-
 #define DECLARE_CPU_JIT_AUX_FUNCTIONS(gen_name) \
     const char *name() const override { return STRINGIFY(gen_name); } \
     const char *source_file() const override { return __FILE__; } \

@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2024 Intel Corporation
+# Copyright 2024-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,13 +98,13 @@ message(STATUS "Host compiler version: ${DPCPP_HOST_COMPILER_MAJOR_VER}.${DPCPP_
 
 # Check the version of the provided host compiler.
 if(DPCPP_HOST_COMPILER_KIND STREQUAL "GNU")
-    if((DPCPP_HOST_COMPILER_MAJOR_VER LESS 7) OR (DPCPP_HOST_COMPILER_MAJOR_VER EQUAL 7 AND DPCPP_HOST_COMPILER_MINOR_VER LESS 4))
-        message(FATAL_ERROR "The minimum version of ${DPCPP_HOST_COMPILER_KIND} host compiler is 7.4.")
+    if(DPCPP_HOST_COMPILER_MAJOR_VER LESS 8)
+        message(FATAL_ERROR "The minimum version of ${DPCPP_HOST_COMPILER_KIND} host compiler is 8.0.")
     endif()
 endif()
 
 if(DPCPP_HOST_COMPILER_KIND STREQUAL "CLANG")
-    if(DPCPP_HOST_COMPILER_MAJOR_VER LESS 8)
-        message(FATAL_ERROR "The minimum version of ${DPCPP_HOST_COMPILER_KIND} host compiler is 8.0.")
+    if(DPCPP_HOST_COMPILER_MAJOR_VER LESS 11)
+        message(FATAL_ERROR "The minimum version of ${DPCPP_HOST_COMPILER_KIND} host compiler is 11.0.")
     endif()
 endif()

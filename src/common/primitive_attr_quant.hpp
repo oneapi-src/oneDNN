@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,10 +42,7 @@ struct runtime_scales_t;
 const runtime_scales_t &default_runtime_scale();
 
 struct runtime_scales_t : public c_compatible {
-    // Clang-3.8.1 raises an error for a default initialization of a const
-    // object. Const runtime_scales_t object is used as default_scales.
-    // runtime_scales_t() = default;
-    runtime_scales_t() {}
+    runtime_scales_t() = default;
 
     runtime_scales_t &operator=(const runtime_scales_t &rhs) {
         mask_ = rhs.mask_;
