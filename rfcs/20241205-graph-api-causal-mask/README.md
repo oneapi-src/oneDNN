@@ -128,7 +128,7 @@ Users can set boolean flags (`use_causal_mask` for top-left alignment,
 cuDNN frontend API [4] to utilize these causal masks.
 The graph construction inside the library differs for each alignment:
 
-- Top-left causal mask: uses operations `GenIndex`, `Greater Than`, and `Select`.
+- Top-left causal mask: uses operations `GenIndex`, `GreaterEqual`, and `Select`.
 - Bottom-right causal mask: requires additional `Add` and `Sub` operations to shift
   the mask.
 
@@ -259,8 +259,8 @@ will fuse the subgraphs into SDPA kernels based on backend capabilities.
 Users can construct the subgraph using the following structure:
 
 1. The `GenIndex` operation generates indexes for rows and columns.
-2. These indexes are then compared using the `GreaterThan` operation.
-3. When the row index exceeds the column index, it indicates future tokens. The
+2. These indexes are then compared using the `GreaterEqual` operation.
+3. When the column index exceeds the row index, it indicates future tokens. The
    `Select` operation then sets these future token positions to -inf.
 
 ![causal mask subgraph top left](images/causal_mask_subgraph_top_left.png)
@@ -276,7 +276,7 @@ Users can construct the subgraph using the following structure:
 2. The condition for masking is changed (indicated by the yellow blocks in the
    following image), if the column index is less than the row index + s_kv -
    s_q, it indicates future tokens. This condition can be represented with
-   `GreaterThan`, `Add`, `Sub`and two `Constant` operations.
+   `GreaterEqual`, `Add`, `Sub`and two `Constant` operations.
 3. The `Select` operation sets these future token positions to -inf.
 
 ![causal mask subgraph bottom_right](images/causal_mask_subgraph_bottom_right.png)
@@ -286,7 +286,7 @@ With this proposal, the SDPA pattern will support above subgraph-based masks:
 ![sdpa with causal mask subgraph](images/sdpa_w_causal_mask_subgraph.png)
 
 To support this proposal, oneDNN Graph will need to support `GenInex` and
-`GreaterThan` and `Constant` operations additionally.
+`GreaterEqual` and `Constant` operations additionally.
 
 #### GenIndex Op Support
 
@@ -324,9 +324,9 @@ corresponding to the indices along the specified axis.
 | f16  | s32 |
 | bf16 | s32 |
 
-#### GreaterThan Op Support
+#### GreaterEqual Op Support
 
-`GreaterThan` performs element-wise comparison with two given tensors applying
+`GreaterEqual` performs element-wise comparison with two given tensors applying
 broadcast rules specified in the `auto_broadcast` attribute.
 
 ##### Attributes
@@ -354,7 +354,7 @@ shapes and auto-broadcasting is allowed.
 
 ##### Supported data types
 
-GreaterThan operation supports the following data type combinations.
+GreaterEqual operation supports the following data type combinations.
 
 | src_0 / src_1  | dst     |
 | :------------- | :------ |
