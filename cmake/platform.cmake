@@ -362,12 +362,6 @@ elseif(UNIX OR MINGW)
             append(CMAKE_CCXX_FLAGS "-Wno-ignored-attributes")
         endif()
 
-        # XXX: Suppress an erroneous warning of nested lambda visibility
-        #  exceeding that of the containing class (GCC Bugzilla - Bug 80947).
-        if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8 AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 6.0)
-            append(CMAKE_CCXX_FLAGS "-Wno-attributes")
-        endif()
-
         if(DNNL_TARGET_ARCH STREQUAL "AARCH64")
             if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
                 set(DEF_ARCH_OPT_FLAGS "-O3")
@@ -484,11 +478,6 @@ if (DNNL_TARGET_ARCH STREQUAL "RV64")
 
     message(STATUS "Can compile RVV Intrinsics: ${CAN_COMPILE_RVV_INTRINSICS}")
     message(STATUS "DNNL_RISCV_USE_RVV_INTRINSICS: ${DNNL_RISCV_USE_RVV_INTRINSICS}")
-endif()
-
-# Old compiler versions do not support warnings available on newer compilers.
-if(CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?[Cc]lang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0.0)
-    append(CMAKE_CCXX_FLAGS "-Wno-unknown-warning-option")
 endif()
 
 append(CMAKE_C_FLAGS "${CMAKE_CCXX_FLAGS}")

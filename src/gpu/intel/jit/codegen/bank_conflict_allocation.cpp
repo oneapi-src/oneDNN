@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,12 +24,6 @@
 #include <string>
 #include <vector>
 #include <initializer_list>
-
-#if defined(__GNUC__) && __GNUC__ == 7
-// GCC 7.x issues a false positive warning 'array subscript is above array bounds'
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Warray-bounds"
-#endif
 
 namespace dnnl {
 namespace impl {
@@ -849,7 +843,3 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
-
-#if defined(__GNUC__) && __GNUC__ == 7
-#pragma GCC diagnostic pop
-#endif

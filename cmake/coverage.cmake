@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2024 Intel Corporation
+# Copyright 2019-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,11 +36,7 @@ if("${DNNL_CODE_COVERAGE}" STREQUAL "GCOV")
         message(FATAL_ERROR "GCOV not found in path")
     endif()
 
-    if(CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?[Cc]lang")
-        if("${CMAKE_CXX_COMPILER_VERSION}" VERSION_LESS 3)
-            message(FATAL_ERROR "Clang version must be 3.0.0 or greater! Aborting...")
-        endif()
-    elseif(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?[Cc]lang|GNU")
         message(FATAL_ERROR "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}")
     endif()
 
