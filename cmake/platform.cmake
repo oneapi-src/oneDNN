@@ -138,6 +138,8 @@ if(MSVC)
         append(CMAKE_CCXX_FLAGS "/Zc:preprocessor")
         # Set UTF-8 as default encoding to be consistent with other compilers
         append(CMAKE_CCXX_FLAGS "/utf-8")
+        # Enable __cplusplus macro to align behavior with other compilers
+        append(CMAKE_CCXX_FLAGS "/Zc:__cplusplus")
         # int64_t -> int (tent)
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4244")
         # workaround: macro outputs defined token in msvs header
