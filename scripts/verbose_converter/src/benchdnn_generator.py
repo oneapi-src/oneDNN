@@ -446,7 +446,7 @@ class ConcatConverter(CommonDataTypeMixin, MultiSourceMixin, Converter):
 class ConvolutionConverter(
     AlgorithmMixin,
     TagTripletMixin,
-    MultiDataTypeMixin,
+    MultiDataTypeWithBiasMixin,
     Converter,
 ):
     driver: str = "conv"
