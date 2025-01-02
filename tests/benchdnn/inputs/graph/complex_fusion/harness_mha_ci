@@ -22,6 +22,7 @@
 --reset --expected-n-partitions=0 --case=complex_fusion/mha/MHA-starcoder-inf-int8-bs1.json
 --reset --expected-n-partitions=0 --case=complex_fusion/mha/dynamic_quantized_mha-Bert_large-inf-int8-bs1-fake.json
 --reset --case=complex_fusion/mha/sdpa-plain-wo-scale-int8-bs1.json
---reset --case=complex_fusion/mha/sdpa-compressed-kv-int8-gs128.json
 --reset --case=complex_fusion/mha/sdpa-compressed-v-int8-gs32.json
 --reset --case=complex_fusion/mha/sdpa-compressed-kv-implicit-causal-mask-int8-gs128.json
+--reset --case=complex_fusion/mha/sdpa-compressed-kv-int4-gs32.json
+--reset --dt=0:s8+2:s8+6:s8+8:s8 --case=complex_fusion/mha/sdpa-compressed-kv-int4-gs32.json
