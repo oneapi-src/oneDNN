@@ -1,3 +1,5 @@
+HeaderFilterRegex: '.*'
+
 Checks: >
     -*,
     readability-identifier-naming,
