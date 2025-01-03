@@ -1,3 +1,12 @@
+# Enables checks in all project headers. Without this option all hits in
+# headers are ignored.
+HeaderFilterRegex: '.*'
+
+# This option requires clang-tidy >= v19.0. When enabled for older version
+# it renders whole file invalid and causes clang-tidy to use default
+# set of checks.
+ExcludeHeaderFilterRegex: '/src/(common/ittnotify|common/spdlog|cpu/aarch64/xbyak_aarch64|cpu/x64/xbyak|gpu/intel/jit/ngen|gpu/intel/sycl/l0/level_zero)/'
+
 Checks: >
     -*,
     readability-identifier-naming,
