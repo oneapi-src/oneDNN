@@ -294,6 +294,8 @@ status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::add_brg_descriptor(
     brg.with_weights_scale_adjust = jcp_.scale_adjust_factor != 1.0f;
     CHECK(brgemm_desc_set_postops(
             &brg, attr(), &diff_src_md_, LDD, jcp_.bia_dt));
+    CHECK(brgemm_desc_finalize(&brg));
+
     jcp_.amx_buf_size_per_thread = nstl::max(
             brg.get_wsp_buffer_size(), jcp_.amx_buf_size_per_thread);
     brg_idx = brgs_->insert(brg);

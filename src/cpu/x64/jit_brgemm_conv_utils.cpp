@@ -690,7 +690,6 @@ status_t brg_blocking_t::get_brgemm_ur(
         brgemm_utils::init_brgemm_conf(&brg, isa, brg_type, src_dt, wei_dt,
                 brgemm_row_major, alpha, vbeta, LDA, LDB, LDC, vM, vN, vK,
                 strides_ptr, is_bf32);
-        CHECK(brgemm_utils::brgemm_blocking(&brg));
 
         brgemm_attr_t brgattr;
         brgattr.max_bs = max_batch;
@@ -702,6 +701,7 @@ status_t brg_blocking_t::get_brgemm_ur(
 
         brg.with_sum = with_sum;
         CHECK(brgemm_desc_set_postops(&brg, attr, &dst_md, LDD, bia_dt));
+        CHECK(brgemm_utils::brgemm_blocking(&brg));
     }
 
     return status::success;

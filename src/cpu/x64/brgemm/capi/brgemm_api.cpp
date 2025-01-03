@@ -144,6 +144,11 @@ status_t brgemm_t::finalize() {
         VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_set_attr failed");
     }
 
+    status = brgemm_desc_finalize(&brgemm_desc_);
+    if (status != status::success) {
+        VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_finalize failed");
+    }
+
     // Note: API can't take a compensation buffer externally. Users must add
     // compensation on their own as a binary post-op.
     brgemm_desc_.req_s8s8_compensation = false;
