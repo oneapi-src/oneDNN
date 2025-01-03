@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -148,8 +148,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
     VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
     VDISPATCH_CONV(
             (isa != isa_undef) && mayiuse(isa), "undefined or unsupported isa");
-    VDISPATCH_CONV(
-            attr()->has_default_values(skip_mask), VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_CONV(attr()->has_default_values(skip_mask, dst_type),
+            VERBOSE_UNSUPPORTED_ATTR);
 
     auto &jcp = jcp_;
 
