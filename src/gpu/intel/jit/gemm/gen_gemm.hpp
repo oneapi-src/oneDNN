@@ -66,15 +66,21 @@ struct gen_gemm_t : public gpu_gemm_t {
             int stepping = dev_info_->stepping_id();
 
             const auto d = desc();
+            bool all_f8 = (utils::one_of(d->a_type(), f8_e5m2, f8_e4m3)
+                    && utils::one_of(d->b_type(), f8_e5m2, f8_e4m3)
+                    && utils::one_of(
+                            d->c_type(), f8_e5m2, f8_e4m3, f16, bf16, f32));
             wei_decomp_ = (utils::one_of(d->c_type(), f32, f16, bf16, f8_e5m2,
                                    f8_e4m3)
                                   && utils::one_of(d->a_type(), u8, s8, s4, u4)
                                   && utils::one_of(d->b_type(), f16, f32, bf16,
                                           f8_e5m2, f8_e4m3))
                     && attr()->mayiconvert(d->a_type(), f32);
-            dy_quant_enabled_ = (utils::one_of(d->c_type(), f32, f16, bf16)
-                    && utils::one_of(d->a_type(), u8, s8, s4, u4)
-                    && utils::one_of(d->b_type(), u8, s8));
+            dy_quant_enabled_
+                    = (utils::one_of(d->c_type(), f32, f16, bf16)
+                              && utils::one_of(d->a_type(), u8, s8, s4, u4)
+                              && utils::one_of(d->b_type(), u8, s8))
+                    || all_f8;
             quant_enabled_ = wei_decomp_ || dy_quant_enabled_;
             CHECK(set_default_formats(false));
 
@@ -152,7 +158,8 @@ struct gen_gemm_t : public gpu_gemm_t {
             } else if (d->a_type() == bf16) {
                 VDISPATCH_GEMM(
                         d->b_type() == bf16, VERBOSE_INCONSISTENT_DT, "a", "b");
-                VDISPATCH_GEMM(utils::one_of(d->c_type(), bf16, f32),
+                VDISPATCH_GEMM(
+                        utils::one_of(d->c_type(), bf16, f32, f8_e5m2, f8_e4m3),
                         VERBOSE_INCONSISTENT_DT, "a", "c");
                 VDISPATCH_GEMM(utils::one_of(d->acc_type, bf16, f32),
                         VERBOSE_INCONSISTENT_DT, "a", "acc");
@@ -422,6 +429,8 @@ struct gen_gemm_t : public gpu_gemm_t {
                 set_mode(mode, kernel_desc_t::mode_bf16x1);
             if (attr()->mayiconvert(f32, f16))
                 set_mode(mode, kernel_desc_t::mode_f16x1);
+            if (attr()->mayiconvert(f32, f32))
+                set_mode(mode, kernel_desc_t::mode_strict);
             if (attr()->deterministic_)
                 set_mode(mode, kernel_desc_t::mode_deterministic);
             if (attr()->acc_mode_ == accumulation_mode::relaxed)

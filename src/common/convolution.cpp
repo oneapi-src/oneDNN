@@ -161,16 +161,17 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
 
         auto fwd_attr_mask = smask_t::post_ops | smask_t::sum_dt
                 | smask_t::fpmath_mode | smask_t::rounding_mode;
+        const bool is_gpu = engine->kind() == engine_kind::gpu;
 
-        bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8);
-        if (engine->kind() == engine_kind::gpu)
-            is_int8 = is_int8
-                    || utils::one_of(dst_dt, data_type::s8, data_type::u8,
-                            data_type::s32);
-        if (is_int8)
+        const bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8) || (is_gpu && utils::one_of(dst_dt, data_type::s8, data_type::u8, data_type::s32));
+        const bool is_fp8 = is_gpu && (utils::one_of(src_dt, data_type::f8_e5m2, data_type::f8_e4m3) || utils::one_of(dst_dt, data_type::f8_e5m2, data_type::f8_e4m3));
+        const bool enable_quantization = is_int8 || is_fp8;
+        if (enable_quantization)
             fwd_attr_mask |= smask_t::scales_runtime
                     | smask_t::zero_points_runtime
-                    | smask_t::zero_points_runtime_data_type;
+                    | smask_t::zero_points_runtime_data_type
+                    | smask_t::scales_runtime_groups
+                    | smask_t::scales_runtime_data_type;
 
         VCHECK_CONV_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
                 VERBOSE_UNSUPPORTED_ATTR);
@@ -183,8 +184,8 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
             const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
             const bool with_groups
                     = desc.src_desc.ndims != desc.weights_desc.ndims;
-            VCHECK_CONV_UNIMPL(utils::everyone_is(0, mask_src, mask_dst)
-                            && utils::one_of(mask_wei, 0, with_groups ? 3 : 1),
+            VCHECK_CONV_UNIMPL(utils::one_of(mask_wei, 0, with_groups ? 3 : 1)
+                            && utils::one_of(mask_dst, 0, 2) && mask_src == 0,
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
         }
 
@@ -215,7 +216,7 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
                     VERBOSE_UNSUPPORTED_POSTOP);
         }
     } else {
-        auto bwd_attr_mask = smask_t::fpmath_mode;
+        auto bwd_attr_mask = smask_t::fpmath_mode | smask_t::accumulation_mode;
         VCHECK_CONV_UNIMPL(attr->has_default_values(bwd_attr_mask),
                 VERBOSE_UNSUPPORTED_ATTR);
     }

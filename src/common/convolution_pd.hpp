@@ -245,6 +245,8 @@ protected:
             const auto &mask = attr()->scales_.get(arg).mask_;
             if (arg == DNNL_ARG_WEIGHTS)
                 ok = ok && (mask == 0 || mask == (with_groups() ? 3 : 1));
+            else if (arg == DNNL_ARG_DST)
+                ok = ok && (mask == 0 || mask == 2);
             else
                 ok = ok && (mask == 0);
         }
