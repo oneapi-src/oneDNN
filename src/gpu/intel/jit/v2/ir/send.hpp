@@ -489,6 +489,8 @@ struct send_2d_desc_t {
     pvar_t h_dim;
     bool is_valid = false;
     expr_t base;
+    expr_t x_base;
+    expr_t y_base;
 
     send_2d_desc_t() = default;
     send_2d_desc_t(const view_t &view, const send_params_t &params,
@@ -510,7 +512,6 @@ struct send_2d_desc_t {
     bool is_supported(const view_t &view, const prover_t &prover) const {
         if (w % block_2d_x_alignment(type.size()) != 0) return false;
 
-        auto &plane = view.plane();
         auto width_bytes = W * type.size();
         auto pitch_bytes = P * type.size();
         int base_align = block_2d_base_alignment(hw);
@@ -524,7 +525,7 @@ struct send_2d_desc_t {
         if (!prover.require(pitch_bytes <= (1 << 24))) return false;
         if (!prover.require(pitch_bytes % 8 == 0)) return false;
         if (!prover.require(base % base_align == 0)) return false;
-        if (!prover.require(plane.x % x_align == 0)) return false;
+        if (!prover.require(x_base % x_align == 0)) return false;
         return true;
     }
 
@@ -853,8 +854,8 @@ private:
         plan_2d = send_2d_plan_t(plan.hw);
         plan_2d.desc = desc;
         plan_2d.base = desc.base;
-        plan_2d.x_base = plane.x;
-        plan_2d.y_base = plane.y;
+        plan_2d.x_base = desc.x_base;
+        plan_2d.y_base = desc.y_base;
         plan_2d.mask = mask_t(view.mask_desc());
         plan_2d.mask.clear(plane.x_dim);
         plan_2d.mask.clear(plane.y_dim);
