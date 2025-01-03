@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,13 +47,9 @@ public:
     status_t create_stream(
             impl::stream_t **stream, impl::stream_impl_t *stream_impl) override;
 
-    status_t create_binary_from_ocl_source(xpu::binary_t &binary,
-            const char *code_string,
-            const compute::kernel_ctx_t &kernel_ctx) const;
-
     status_t create_kernel_from_binary(compute::kernel_t &kernel,
-            const xpu::binary_t &binary,
-            const char *kernel_name) const override;
+            const xpu::binary_t &binary, const char *kernel_name,
+            const compute::program_src_t &src) const override;
 
     status_t create_kernels_from_cache_blob(const cache_blob_t &cache_blob,
             std::vector<compute::kernel_t> &kernels,
@@ -68,7 +64,8 @@ public:
 
     static status_t create_kernels_from_program(
             std::vector<compute::kernel_t> *kernels,
-            const std::vector<const char *> &kernel_names, cl_program program);
+            const std::vector<const char *> &kernel_names, cl_program program,
+            const compute::program_src_t &src);
 
     const impl_list_item_t *get_concat_implementation_list() const override {
         return gpu_impl_list_t::get_concat_implementation_list();
@@ -104,6 +101,7 @@ public:
     }
 
     status_t create_program(xpu::ocl::wrapper_t<cl_program> &program,
+            compute::program_src_t &src,
             const std::vector<const char *> &kernel_names,
             const compute::kernel_ctx_t &kernel_ctx) const;
 
@@ -115,7 +113,7 @@ protected:
     }
 
     status_t build_program_from_source(xpu::ocl::wrapper_t<cl_program> &program,
-            const char *code_string,
+            compute::program_src_t &src, const char *code_string,
             const compute::kernel_ctx_t &kernel_ctx) const;
 
     ~ocl_gpu_engine_t() override = default;

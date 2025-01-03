@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,6 +33,43 @@ namespace impl {
 namespace gpu {
 namespace intel {
 namespace compute {
+
+#if defined(__linux__) && (defined(DNNL_DEV_MODE) || !defined(NDEBUG))
+struct program_src_t {
+    program_src_t() = default;
+    program_src_t(const std::string &src_str) {
+        // Only enable if gdb-oneapi debugging is active
+        if (getenv_int("ZET_ENABLE_PROGRAM_DEBUGGING", 0) == 0) return;
+
+        const int name_size = 29;
+        char name[name_size] = "/tmp/dnnl_ocl_jit_src.XXXXXX";
+        int fd = mkstemp(name);
+        if (fd == -1) return;
+        write(fd, src_str.c_str(), src_str.length());
+        close(fd);
+
+        auto deleter = [](char *name) {
+            unlink(name);
+            delete[] name;
+        };
+
+        name_ = std::shared_ptr<char>(new char[name_size], deleter);
+        std::memcpy(name_.get(), name, name_size);
+    }
+    operator bool() const { return name_ != nullptr; };
+    const char *name() const { return name_.get(); }
+
+private:
+    std::shared_ptr<char> name_;
+};
+#else
+struct program_src_t {
+    program_src_t() = default;
+    program_src_t(const std::string &src_str) {}
+    operator bool() const { return false; }
+    const char *name() const { return nullptr; }
+};
+#endif
 
 class kernel_impl_t {
 public:
