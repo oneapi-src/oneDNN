@@ -84,11 +84,8 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
     } else {
         auto src_tag = memory_desc_matches_one_of_tag(
                 src_md, acdb, abcd, abdc, abc, acb, ab, ba);
-        auto wei_tag = memory_desc_matches_one_of_tag(
-                wei_md, acdb, abcd, abdc, abc, acb, ab, ba);
         auto dst_tag = memory_desc_matches_one_of_tag(dst_md, abcd, abc, ab);
-        ACL_CHECK_SUPPORT(
-                utils::one_of(format_tag::undef, src_tag, wei_tag, dst_tag),
+        ACL_CHECK_SUPPORT(utils::one_of(format_tag::undef, src_tag, dst_tag),
                 "Format tag is undefined");
     }
 
