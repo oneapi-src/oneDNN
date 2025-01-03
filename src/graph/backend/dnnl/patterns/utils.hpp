@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,6 +59,17 @@ bool check_input_num(op_t *op) {
 template <size_t N>
 bool check_output_num(op_t *op) {
     return op->num_outputs() == N;
+}
+
+template <data_type_t DTYPE>
+bool check_unsupported_input_dtype(op_t *op) {
+    for (size_t i = 0; i < op->num_inputs(); ++i) {
+        const logical_tensor_t &iport
+                = op->get_input_value(i)->get_logical_tensor();
+        if (iport.data_type == DTYPE) return false;
+    }
+
+    return true;
 }
 
 template <data_type_t DTYPE>
@@ -360,7 +371,6 @@ inline graph::utils::pm::pb_node_t *optional_smooth_quant(
     graph::utils::pm::pb_op_t *quant_out
             = p_curr_graph->append_op(graph::op_kind::Quantize,
                     graph::utils::pm::in_edges_t {in_edge(0, opt, 0)});
-    quant_out->append_decision_function(is_int8_quantization);
     if (optional_qout) {
         p_curr_graph->create_input_port(0, opt, 0);
         p_curr_graph->create_output_port(0, quant_out, 0);

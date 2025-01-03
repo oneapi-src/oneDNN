@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1742,7 +1742,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasSumNdx2d) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x8_matmul_add_post_ops_gpu"
+                                ? "x8x8x8_matmul_add_post_ops_gpu"
                                 : "x8x8x8_matmul_add_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -2152,7 +2152,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasAddMul) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x8_matmul_add_post_ops_gpu"
+                                ? "x8x8x8_matmul_add_post_ops_gpu"
                                 : "x8x8x8_matmul_add_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
@@ -4923,7 +4923,7 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasSumNdx2d) {
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
                 = get_pass(engine->kind() == graph::engine_kind::gpu
-                                ? "x8s8x8_matmul_add_post_ops_gpu"
+                                ? "x8x8x8_matmul_add_post_ops_gpu"
                                 : "x8x8x8_matmul_add_post_ops_cpu");
         apass->run(g);
         ASSERT_EQ(g.get_num_partitions(), 1U);
