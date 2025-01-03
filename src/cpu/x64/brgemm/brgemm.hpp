@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -129,6 +129,15 @@ status_t DNNL_API brgemm_desc_set_postops(brgemm_desc_t *brg,
 ///
 status_t DNNL_API brgemm_desc_set_attr(
         brgemm_desc_t *brg, const brgemm_attr_t &brgattr);
+
+/// Finalize BRGEMM descriptor.
+///
+/// @param brg Output BRGEMM descriptor
+/// This function must be called after all the fields of the descriptor are set.
+/// It finalizes the descriptor including internal blocking parameters to
+/// prepare it for the kernel creation.
+///
+status_t DNNL_API brgemm_desc_finalize(brgemm_desc_t *brg);
 
 /// Generates a BRGEMM kernel based on descriptor
 ///

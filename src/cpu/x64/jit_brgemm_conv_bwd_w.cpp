@@ -147,6 +147,7 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
                         * jcp_.kd * jcp_.kh * jcp_.kw;
 
                 CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                CHECK(brgemm_desc_finalize(&brg));
 
                 brgs_->insert(brg_idx, brg);
             }

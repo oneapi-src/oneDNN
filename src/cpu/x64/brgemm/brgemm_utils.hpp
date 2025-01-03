@@ -34,7 +34,7 @@ bool can_dispatch_uker(const brgemm_desc_t *brg);
 
 void maybe_try_bf32(brgemm_desc_t *brg);
 
-status_t brgemm_blocking(brgemm_desc_t *brg, bool attr_blocking = false);
+status_t brgemm_blocking(brgemm_desc_t *brg);
 
 status_t brdgmm_blocking(brgemm_desc_t *brg);
 

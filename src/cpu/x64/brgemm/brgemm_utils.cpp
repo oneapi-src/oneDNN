@@ -253,7 +253,7 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
     return max_bcast_block;
 }
 
-status_t brgemm_blocking(brgemm_desc_t *brg, bool attr_blocking) {
+status_t brgemm_blocking(brgemm_desc_t *brg) {
     const data_type_t ld_step_compute_dt
             = get_mac_emu_data_type(brg->dt_b, brg->isa_impl,
                     brg->isa_impl != avx2_vnni_2 && !brg->is_fp8_via_convert());
@@ -754,19 +754,16 @@ status_t brgemm_blocking(brgemm_desc_t *brg, bool attr_blocking) {
         // Remove these guards in the future (add tail processing by reduction
         // dimension)
         // TODO: these checks do not work for fp8-f16 and f16-fp8 cfgs
-        if (attr_blocking
-                && !IMPLICATION(brg->rdb > 0 && brg->rdb_tail,
-                        brg->is_input_convert() || brg->amx_wary_k_tail())) {
+        if (!IMPLICATION(brg->rdb > 0 && brg->rdb_tail,
+                    brg->is_input_convert() || brg->amx_wary_k_tail())) {
             return status::unimplemented;
         }
 
-        if (attr_blocking
-                && !IMPLICATION(
-                        (brg->rdb_tail
-                                % ((brg->is_bf16_tmm || brg->is_f16_tmm) ? 2
-                                                                         : 4))
-                                != 0,
-                        brg->is_input_convert() || brg->amx_wary_k_tail())) {
+        if (!IMPLICATION(
+                    (brg->rdb_tail
+                            % ((brg->is_bf16_tmm || brg->is_f16_tmm) ? 2 : 4))
+                            != 0,
+                    brg->is_input_convert() || brg->amx_wary_k_tail())) {
             return status::unimplemented;
         }
 
@@ -778,6 +775,23 @@ status_t brgemm_blocking(brgemm_desc_t *brg, bool attr_blocking) {
                 ? true
                 : false;
     }
+
+    // avx2_vnni_2 kernel with xf16 data type requires blocked weights.
+    if (brg->isa_impl == avx2_vnni_2 && brg->is_xf16()
+            && brg->LDB % brg->ld_block > 0)
+        return status::unimplemented;
+
+    brg->LDA2 = (brg->brgattr.LDA2 != 0) ? brg->brgattr.LDA2 : brg->LDA;
+    brg->LDB2 = (brg->brgattr.LDB2 != 0) ? brg->brgattr.LDB2 : brg->LDB;
+    brg->LDC2_M = (brg->brgattr.LDC2_M != 0) ? brg->brgattr.LDC2_M : brg->LDC;
+    brg->LDC2_N
+            = (brg->brgattr.LDC2_N != 0) ? brg->brgattr.LDC2_N : brg->ld_block;
+
+    brg->is_blocked = (brg->LDA2 != brg->LDA || brg->LDB2 != brg->LDB
+            || brg->LDC2_M != brg->LDC || brg->LDC2_N != brg->ld_block);
+
+    if (!IMPLICATION(brg->is_blocked, brg->layout == brgemm_row_major))
+        return status::invalid_arguments;
 
     return status::success;
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2023-2024 FUJITSU LIMITED
 * Copyright 2024 Arm Ltd. and affiliates
 *
@@ -414,6 +414,11 @@ status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
             && brg->prfC.dist2 < 0)
         brg->prfC.dist2 = 0;
 
+    return status::success;
+}
+
+status_t brgemm_desc_finalize(brgemm_t *brg) {
+    // TODO: implement functionality here similar to corresponding one in x64
     return status::success;
 }
 

@@ -159,6 +159,9 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
                 = bgmmc_.post_ops_applicable && bgmmc_.nthr_k > 1;
 
         CHECK(brgemm_desc_set_attr(&brg, brgattr));
+
+        CHECK(brgemm_desc_finalize(&brg));
+
         bgmmc_.wsp_tile_per_thr_bytes = nstl::max(
                 brg.get_wsp_buffer_size(), bgmmc_.wsp_tile_per_thr_bytes);
     }
