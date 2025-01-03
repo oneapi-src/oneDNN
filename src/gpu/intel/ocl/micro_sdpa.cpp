@@ -238,17 +238,20 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     micro::GEMMProtocol::Options opts_kq;
     opts_kq.localB = true;
     opts_kq.slmPtr = true;
+
     if (with_key_scales() && !kq_common_scales) {
         auto scale_dt = key_scales_dt();
         problem_kq.Ta_scale = jit::convert_dnnl_to_kernel_type(scale_dt);
-        problem_kq.A_scale.alignment = uint8_t(types::data_type_size(scale_dt));
+        problem_kq.A_scale.setAlignment(
+                int8_t(d->keys() * types::data_type_size(scale_dt)));
         problem_kq.A_scale.layout = MatrixLayout::N;
         problem_kq.aScale2D = true;
     }
     if (with_key_zp()) {
         auto zp_dt = key_zp_dt();
         problem_kq.Tao = jit::convert_dnnl_to_kernel_type(zp_dt);
-        problem_kq.AO.alignment = uint8_t(types::data_type_size(zp_dt));
+        problem_kq.AO.setAlignment(
+                int8_t(d->keys() * types::data_type_size(zp_dt)));
         problem_kq.AO.layout = MatrixLayout::N;
         problem_kq.aoPtrDims = kq_common_zp ? 0 : 2;
         problem_kq.aOffset = ABOffset::Calc;
@@ -312,7 +315,8 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     if (with_value_scales() && !vs_common_scales) {
         auto scale_dt = value_scales_dt();
         problem_vs.Ta_scale = jit::convert_dnnl_to_kernel_type(scale_dt);
-        problem_vs.A_scale.alignment = uint8_t(types::data_type_size(scale_dt));
+        problem_vs.A_scale.setAlignment(uint8_t(d->head_size()
+                / value_group_size() * types::data_type_size(scale_dt)));
         problem_vs.A_scale.layout = MatrixLayout::N;
         problem_vs.aScale2D = true;
     }
@@ -320,6 +324,8 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
         auto zp_dt = value_zp_dt();
         problem_vs.Tao = jit::convert_dnnl_to_kernel_type(zp_dt);
         problem_vs.AO.alignment = uint8_t(types::data_type_size(zp_dt));
+        problem_vs.AO.setAlignment(uint8_t(d->head_size() / value_group_size()
+                * types::data_type_size(zp_dt)));
         problem_vs.AO.layout = MatrixLayout::N;
         problem_vs.aoPtrDims = vs_common_zp ? 0 : 2;
         problem_vs.aOffset = ABOffset::Calc;
