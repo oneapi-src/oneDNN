@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2024 Intel Corporation
+# Copyright 2019-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,14 +22,17 @@
 
 file(READ ${CL_FILE} cl_file_lines)
 
-# Remove C++ style comments
-string(REGEX REPLACE "//[^\n]*\n" "\n" cl_file_lines "${cl_file_lines}")
-# Remove repeated whitespaces
-string(REGEX REPLACE " +" " " cl_file_lines "${cl_file_lines}")
-# Remove leading whitespaces
-string(REGEX REPLACE "\n " "\n" cl_file_lines "${cl_file_lines}")
-# Remove empty lines
-string(REGEX REPLACE "\n+" "\n" cl_file_lines "${cl_file_lines}")
+string(LENGTH "${cl_file_lines}" len)
+if(MINIFY OR len GREATER 65535)
+    # Remove C++ style comments
+    string(REGEX REPLACE "//[^\n]*\n" "\n" cl_file_lines "${cl_file_lines}")
+    # Remove repeated whitespaces
+    string(REGEX REPLACE " +" " " cl_file_lines "${cl_file_lines}")
+    # Remove leading whitespaces
+    string(REGEX REPLACE "\n " "\n" cl_file_lines "${cl_file_lines}")
+    # Remove empty lines
+    string(REGEX REPLACE "\n+" "\n" cl_file_lines "${cl_file_lines}")
+endif()
 
 string(LENGTH "${cl_file_lines}" len)
 if(len GREATER 65535)
