@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -703,6 +703,7 @@ status_t jit_brgemm_ip_fwd_conf_t::init_conf(cpu_isa_t isa,
                 jbgp.src_dt, jbgp.wei_dt, false, false, brgemm_row_major, 1.0f,
                 1.0f, jbgp.ic_without_padding, jbgp.oc_block,
                 jbgp.oc_without_padding, jbgp.os_block, jbgp.oc_block, jbgp.K);
+        if (st == success) st = brgemm_desc_finalize(&brg_desc);
 
         if (st == success) {
             int bd_block = brg_desc.bd_block;

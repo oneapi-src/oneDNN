@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -120,6 +120,11 @@ status_t DNNL_API brgemm_desc_set_postops(brgemm_t *brg,
 ///
 status_t DNNL_API brgemm_desc_set_attr(
         brgemm_t *brg, const brgemm_attr_t &brgattr);
+
+/// Finalize BRGEMM descriptor.
+///
+/// @param brg Output BRGEMM descriptor
+status_t DNNL_API brgemm_desc_finalize(brgemm_t *brg);
 
 /// Generates a BRGEMM kernel based on descriptor
 ///

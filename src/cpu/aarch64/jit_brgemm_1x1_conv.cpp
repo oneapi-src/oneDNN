@@ -115,6 +115,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         brg.with_weights_scale_adjust = jcp_.scale_adjust_factor != 1.0f;
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
+        CHECK(brgemm_desc_finalize(&brg));
         brgs_->insert(brg_idx, brg);
     }
 

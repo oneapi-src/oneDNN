@@ -371,6 +371,9 @@ int init_kernel(kernel_args_t &kernel_args) {
             WARN);
     if (res->state == SKIPPED) return OK;
 
+    SAFE(check_dnnl_status(brgemm_desc_finalize(&brgemm_desc), prb, res), WARN);
+    if (res->state == SKIPPED) return OK;
+
     kernel_args.generate_skip_accumulation_
             = brgemm_attr.generate_skip_accumulation;
 
