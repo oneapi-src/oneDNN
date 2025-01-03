@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,13 +47,11 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
         const bool is_fake_output) {
 
     // Init memory for all inputs and outputs that needs comparison
-    const auto &prim_dt = mem.dt();
     const auto &graph_dt = static_cast<dnnl_data_type_t>(lt.get_data_type());
     const bool is_boolean
             = lt.get_data_type() == logical_tensor::data_type::boolean;
-
-    // Use data type from graph path to represent boolean
-    const auto &c_data_type = is_boolean ? prim_dt : graph_dt;
+    // Use unsigned int8 to represent boolean data type
+    const auto &c_data_type = is_boolean ? dnnl_u8 : graph_dt;
 
     // Get memory tag of primitive memory
     int ndims = mem.ndims();
@@ -93,14 +91,9 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
             std::memcpy(graph_data_handle, prim_data_handle, graph_mem.size());
         };
 
-        // Not do reorder for boolean data tensor
-        if (!is_boolean && prim_dt != c_data_type) {
-            dnn_mem_t c_mem(ndims, mem.dims(), c_data_type, mtag, g_eng.get());
-            SAFE_V(c_mem.reorder(mem));
-            prim_to_graph_memcpy(mem_, c_mem);
-        } else {
-            prim_to_graph_memcpy(mem_, mem);
-        }
+        dnn_mem_t c_mem(ndims, mem.dims(), c_data_type, mtag, g_eng.get());
+        SAFE_V(c_mem.reorder(mem));
+        prim_to_graph_memcpy(mem_, c_mem);
     } else {
         if (is_fake_output) {
             dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
