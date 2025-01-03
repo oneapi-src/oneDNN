@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2021 Intel Corporation
+# Copyright 2020-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,6 +46,11 @@ endfunction()
 function(gen_gpu_kernel_list ker_list_templ ker_list_src ker_sources headers)
     set(_sources "${SOURCES}")
 
+    set(MINIFY "ON")
+    if(DNNL_DEV_MODE OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(MINIFY "OFF")
+    endif()
+
     set(KER_LIST_EXTERN)
     set(KER_LIST_ENTRIES)
     set(KER_HEADERS_EXTERN)
@@ -62,6 +67,7 @@ function(gen_gpu_kernel_list ker_list_templ ker_list_src ker_sources headers)
             COMMAND ${CMAKE_COMMAND}
                 -DCL_FILE="${header_path}"
                 -DGEN_FILE="${gen_file}"
+                -DMINIFY="${MINIFY}"
                 -P ${PROJECT_SOURCE_DIR}/cmake/gen_gpu_kernel.cmake
             DEPENDS ${header_path}
         )
@@ -81,6 +87,7 @@ function(gen_gpu_kernel_list ker_list_templ ker_list_src ker_sources headers)
             COMMAND ${CMAKE_COMMAND}
                 -DCL_FILE="${ker_path}"
                 -DGEN_FILE="${gen_file}"
+                -DMINIFY="${MINIFY}"
                 -P ${PROJECT_SOURCE_DIR}/cmake/gen_gpu_kernel.cmake
             DEPENDS ${ker_path}
         )

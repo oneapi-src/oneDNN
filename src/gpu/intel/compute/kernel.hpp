@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,10 +17,15 @@
 #ifndef GPU_INTEL_COMPUTE_KERNEL_HPP
 #define GPU_INTEL_COMPUTE_KERNEL_HPP
 
+#if defined(__linux__) && (defined(DNNL_DEV_MODE) || !defined(NDEBUG))
+#include <unistd.h>
+#endif
+
 #include <functional>
 #include <memory>
 #include <utility>
 
+#include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/intel/compute/kernel_arg_list.hpp"
 #include "gpu/intel/compute/utils.hpp"
@@ -33,6 +38,66 @@ namespace impl {
 namespace gpu {
 namespace intel {
 namespace compute {
+
+#if defined(__linux__) && (defined(DNNL_DEV_MODE) || !defined(NDEBUG))
+struct program_src_t {
+    program_src_t() = default;
+    program_src_t(const std::string &src_str) {
+        // Only enable if gdb-oneapi debugging is active
+        if (getenv_int("ZET_ENABLE_PROGRAM_DEBUGGING", 0) == 0) return;
+
+        const int name_size = 29;
+        char name[name_size] = "/tmp/dnnl_ocl_jit_src.XXXXXX";
+
+        // Ensure /tmp is a valid target for writing a temporary file
+        bool is_symlink = false;
+        status_t status = check_for_symlinks("/tmp", &is_symlink);
+        if (status != status::success || is_symlink) return;
+
+        // Guaranteed to have permissions 600 per the mkstemp specification,
+        // which is the minimum required for writing and then subsequently
+        // reading when debugging.
+        int fd = mkstemp(name);
+        if (fd == -1) return;
+
+        auto delete_fd = [&](int fd, char *name) {
+            // Unlink is called before close to ensure the file always exists
+            // and cannot be replaced with another file
+            unlink(name);
+            close(fd);
+        };
+
+        if (write(fd, src_str.c_str(), src_str.length()) == -1) {
+            delete_fd(fd, name);
+            return;
+        }
+        if (fsync(fd) == -1) {
+            delete_fd(fd, name);
+            return;
+        }
+
+        auto deleter = [&](char *name) {
+            delete_fd(fd, name);
+            delete[] name;
+        };
+
+        name_ = std::shared_ptr<char>(new char[name_size], deleter);
+        std::memcpy(name_.get(), name, name_size);
+    }
+    operator bool() const { return name_ != nullptr; };
+    const char *name() const { return name_.get(); }
+
+private:
+    std::shared_ptr<char> name_;
+};
+#else
+struct program_src_t {
+    program_src_t() = default;
+    program_src_t(const std::string &src_str) {}
+    operator bool() const { return false; }
+    const char *name() const { return nullptr; }
+};
+#endif
 
 class kernel_impl_t {
 public:

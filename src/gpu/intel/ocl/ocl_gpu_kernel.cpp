@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,9 +111,11 @@ private:
 };
 
 ocl_gpu_kernel_t::ocl_gpu_kernel_t(xpu::ocl::wrapper_t<cl_kernel> &&ocl_kernel,
-        const std::vector<gpu::intel::compute::scalar_type_t> &arg_types)
+        const std::vector<gpu::intel::compute::scalar_type_t> &arg_types,
+        compute::program_src_t src)
     : ocl_kernel_(std::move(ocl_kernel))
     , arg_types_(arg_types)
+    , src_(std::move(src))
     , save_events_(false) {
     cache_ = std::make_shared<ocl_gpu_kernel_cache_t>(ocl_kernel_);
 }

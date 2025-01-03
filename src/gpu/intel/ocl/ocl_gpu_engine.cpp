@@ -142,8 +142,8 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
         OCL_CHECK(err);
 
         std::shared_ptr<compute::kernel_impl_t> kernel_impl
-                = std::make_shared<ocl_gpu_kernel_t>(
-                        std::move(ocl_kernel), arg_types);
+                = std::make_shared<ocl_gpu_kernel_t>(std::move(ocl_kernel),
+                        arg_types, compute::program_src_t());
         (*kernels)[i] = std::move(kernel_impl);
     }
 
@@ -231,7 +231,8 @@ inline status_t fuse_microkernels(cl_context context, cl_device_id device,
 } // namespace
 
 status_t ocl_gpu_engine_t::build_program_from_source(
-        xpu::ocl::wrapper_t<cl_program> &program, const char *code_string,
+        xpu::ocl::wrapper_t<cl_program> &program, compute::program_src_t &src,
+        const char *code_string,
         const compute::kernel_ctx_t &kernel_ctx) const {
     std::string options = kernel_ctx.options();
 
@@ -250,6 +251,9 @@ status_t ocl_gpu_engine_t::build_program_from_source(
     CHECK(preprocess_headers(pp_code, code_string, kernel_ctx));
     std::string pp_code_str = pp_code.str();
     const char *pp_code_str_ptr = pp_code_str.c_str();
+
+    src = {pp_code_str};
+    if (src) { options += " -g -s " + std::string(src.name()); }
 
     debugdump_processed_source(
             pp_code_str, options, dev_info->get_cl_ext_options());
@@ -270,7 +274,8 @@ status_t ocl_gpu_engine_t::build_program_from_source(
 }
 
 status_t ocl_gpu_engine_t::create_kernel_from_binary(compute::kernel_t &kernel,
-        const xpu::binary_t &binary, const char *kernel_name) const {
+        const xpu::binary_t &binary, const char *kernel_name,
+        const compute::program_src_t &src) const {
     xpu::ocl::wrapper_t<cl_program> program;
     CHECK(xpu::ocl::create_program(
             program, this->device(), this->context(), binary));
@@ -285,7 +290,7 @@ status_t ocl_gpu_engine_t::create_kernel_from_binary(compute::kernel_t &kernel,
 
     std::shared_ptr<compute::kernel_impl_t> kernel_impl
             = std::make_shared<ocl_gpu_kernel_t>(
-                    std::move(ocl_kernel), arg_types);
+                    std::move(ocl_kernel), arg_types, src);
     kernel = std::move(kernel_impl);
 
     return status::success;
@@ -303,14 +308,14 @@ status_t ocl_gpu_engine_t::create_kernel(
     if (!jitter) return status::invalid_arguments;
     xpu::binary_t binary = jitter->get_binary(this);
     if (binary.empty()) return status::runtime_error;
-    VCHECK_KERNEL(
-            create_kernel_from_binary(*kernel, binary, jitter->kernel_name()),
+    VCHECK_KERNEL(create_kernel_from_binary(
+                          *kernel, binary, jitter->kernel_name(), {}),
             VERBOSE_KERNEL_CREATION_FAIL, jitter->kernel_name());
     return status::success;
 }
 
 status_t ocl_gpu_engine_t::create_program(
-        xpu::ocl::wrapper_t<cl_program> &program,
+        xpu::ocl::wrapper_t<cl_program> &program, compute::program_src_t &src,
         const std::vector<const char *> &kernel_names,
         const compute::kernel_ctx_t &kernel_ctx) const {
 
@@ -344,7 +349,7 @@ status_t ocl_gpu_engine_t::create_program(
             "kernels in a single .cl source file or split creation in groups "
             "based on their .cl source file.";
 
-    return build_program_from_source(program, source, kernel_ctx);
+    return build_program_from_source(program, src, source, kernel_ctx);
 }
 
 status_t ocl_gpu_engine_t::create_kernels(
@@ -356,13 +361,15 @@ status_t ocl_gpu_engine_t::create_kernels(
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
 
     xpu::ocl::wrapper_t<cl_program> program;
-    CHECK(create_program(program, kernel_names, kernel_ctx));
-    return create_kernels_from_program(kernels, kernel_names, program);
+    compute::program_src_t src;
+    CHECK(create_program(program, src, kernel_names, kernel_ctx));
+    return create_kernels_from_program(kernels, kernel_names, program, src);
 }
 
 status_t ocl_gpu_engine_t::create_kernels_from_program(
         std::vector<compute::kernel_t> *kernels,
-        const std::vector<const char *> &kernel_names, cl_program program) {
+        const std::vector<const char *> &kernel_names, cl_program program,
+        const compute::program_src_t &src) {
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); ++i) {
         if (!kernel_names[i]) continue;
@@ -375,7 +382,7 @@ status_t ocl_gpu_engine_t::create_kernels_from_program(
 
         std::shared_ptr<compute::kernel_impl_t> kernel_impl
                 = std::make_shared<ocl_gpu_kernel_t>(
-                        std::move(ocl_kernel), arg_types);
+                        std::move(ocl_kernel), arg_types, src);
         (*kernels)[i] = std::move(kernel_impl);
     }
 
