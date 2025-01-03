@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,6 +107,8 @@ send_2d_desc_t::send_2d_desc_t(const view_t &view, const send_params_t &params,
     w_dim = plane.w_dim;
     h_dim = plane.h_dim;
     base = get_2d_base(view);
+    x_base = plane.x;
+    y_base = plane.y;
     try_promote_count();
     is_valid = is_supported(view, prover);
 }
