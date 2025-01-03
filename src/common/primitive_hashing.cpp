@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -190,11 +190,9 @@ size_t get_md_hash(const memory_desc_t &md) {
 
     if (md.extra.flags != dnnl_memory_extra_flag_none) {
         seed = hash_combine(seed, md.extra.flags);
-        if ((md.extra.flags
-                    & (dnnl_memory_extra_flag_compensation_conv_s8s8
-                            | dnnl_memory_extra_flag_rnn_u8s8_compensation))
-                && !types::extra_flag_rnn_s8s8_compensation_is_set(
-                        md.extra.flags)) {
+        if (md.extra.flags
+                & (dnnl_memory_extra_flag_compensation_conv_s8s8
+                        | dnnl_memory_extra_flag_rnn_u8s8_compensation)) {
             seed = hash_combine(seed, md.extra.compensation_mask);
         }
 
@@ -205,6 +203,15 @@ size_t get_md_hash(const memory_desc_t &md) {
         if (md.extra.flags
                 & dnnl_memory_extra_flag_compensation_conv_asymmetric_src) {
             seed = hash_combine(seed, md.extra.asymm_compensation_mask);
+        }
+
+        if (md.extra.flags
+                & dnnl_memory_extra_flag_compensation_gpu_conv_asymmetric_src) {
+            seed = get_array_hash(seed, md.extra.idhw, 3);
+            seed = get_array_hash(seed, md.extra.odhw, 3);
+            seed = get_array_hash(seed, md.extra.pdhw, 3);
+            seed = get_array_hash(seed, md.extra.ddhw, 3);
+            seed = hash_combine(seed, md.extra.dst_size);
         }
     }
     // Combined hash for a memory descriptor

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -299,31 +299,24 @@ inline format_kind_t format_tag_to_kind(format_tag_t tag) {
     return format_kind::undef;
 }
 
-// Currently rnn_s8s8_compensation has common bits with rnn_u8s8_compensation
-// and scale_adjust constants so we have to perform additional checks to
-// separate these two cases
-inline bool extra_flag_rnn_s8s8_compensation_is_set(uint64_t flags) {
-    return ((flags & memory_extra_flags::rnn_s8s8_compensation)
-                   ^ memory_extra_flags::rnn_s8s8_compensation)
-            == 0;
-}
-
 inline bool memory_extra_desc_is_equal(
         const memory_extra_desc_t &lhs, const memory_extra_desc_t &rhs) {
     using namespace memory_extra_flags;
-    return true && lhs.flags == rhs.flags
+    return lhs.flags == rhs.flags
             && IMPLICATION(lhs.flags & compensation_conv_s8s8,
                     lhs.compensation_mask == rhs.compensation_mask)
-            && IMPLICATION((lhs.flags & rnn_u8s8_compensation)
-                            && !extra_flag_rnn_s8s8_compensation_is_set(
-                                    lhs.flags),
+            && IMPLICATION(lhs.flags & rnn_u8s8_compensation,
                     lhs.compensation_mask == rhs.compensation_mask)
-            && IMPLICATION((lhs.flags & scale_adjust)
-                            && !extra_flag_rnn_s8s8_compensation_is_set(
-                                    lhs.flags),
+            && IMPLICATION(lhs.flags & scale_adjust,
                     lhs.scale_adjust == rhs.scale_adjust)
             && IMPLICATION(lhs.flags & compensation_conv_asymmetric_src,
-                    lhs.asymm_compensation_mask == rhs.asymm_compensation_mask);
+                    lhs.asymm_compensation_mask == rhs.asymm_compensation_mask)
+            && IMPLICATION(lhs.flags & compensation_gpu_conv_asymmetric_src,
+                    (lhs.dst_size == rhs.dst_size)
+                            && utils::array_cmp(lhs.idhw, rhs.idhw, 3)
+                            && utils::array_cmp(lhs.odhw, rhs.odhw, 3)
+                            && utils::array_cmp(lhs.pdhw, rhs.pdhw, 3)
+                            && utils::array_cmp(lhs.ddhw, rhs.ddhw, 3));
 }
 
 inline bool blocking_desc_is_equal(const memory_desc_t &lhs_md,
