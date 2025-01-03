@@ -414,7 +414,6 @@ TEST_P(sycl_memory_buffer_test, MemoryOutOfScope) {
     s.wait();
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 TEST_P(sycl_memory_buffer_test, TestSparseMemoryCreation) {
     engine::kind eng_kind = GetParam();
 
@@ -522,7 +521,6 @@ TEST_P(sycl_memory_buffer_test, TestSparseMemoryMapUnmap) {
     ASSERT_NO_THROW(coo_mem.unmap_data(mapped_row_indices, 1));
     ASSERT_NO_THROW(coo_mem.unmap_data(mapped_col_indices, 2));
 }
-#endif
 
 namespace {
 struct PrintToStringParamName {

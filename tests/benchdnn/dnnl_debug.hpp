@@ -25,9 +25,7 @@
 #include "oneapi/dnnl/dnnl.h"
 
 dnnl_data_type_t str2dt(const char *str);
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 dnnl_sparse_encoding_t str2sparse_encoding(const char *str);
-#endif
 dnnl_format_tag_t str2fmt_tag(const char *str);
 
 /* status */
@@ -40,9 +38,7 @@ const char *dt2str(dnnl_data_type_t dt);
 const char *fmt_tag2str(dnnl_format_tag_t tag);
 
 /* encoding */
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 const char *sparse_encoding2str(dnnl_sparse_encoding_t encoding);
-#endif
 
 /* engine kind */
 const char *engine_kind2str(dnnl_engine_kind_t kind);

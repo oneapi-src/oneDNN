@@ -55,10 +55,8 @@ const_dnnl_primitive_desc_t query_pd(dnnl_primitive_t prim);
 
 dnnl_engine_kind_t query_engine_kind(const dnnl_engine_t &engine);
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 dnnl_sparse_encoding_t query_md_sparse_encoding(const_dnnl_memory_desc_t md);
 dnnl_dim_t query_md_nnz(const_dnnl_memory_desc_t md);
-#endif
 int query_md_num_handles(const_dnnl_memory_desc_t md);
 int query_md_ndims(const_dnnl_memory_desc_t md);
 int query_md_inner_nblks(const_dnnl_memory_desc_t md);

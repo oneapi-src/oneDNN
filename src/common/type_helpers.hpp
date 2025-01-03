@@ -995,10 +995,8 @@ inline bool operator==(const sdpa_desc_t &lhs, const sdpa_desc_t &rhs) {
 #undef COMPARE_FLOAT_DESC_ARRAY_MEMBERS
 
 inline bool is_dense_format_kind(const std::vector<const memory_desc_t *> mds) {
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     for (const auto *md : mds)
         if (md->format_kind == format_kind::sparse) return false;
-#endif
     return true;
 }
 

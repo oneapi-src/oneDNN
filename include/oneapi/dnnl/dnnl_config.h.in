@@ -163,9 +163,6 @@
 // When defined, experimental features are enabled.
 #cmakedefine DNNL_EXPERIMENTAL
 
-// When defined, experimental functionality for sparse domain is enabled.
-#cmakedefine DNNL_EXPERIMENTAL_SPARSE
-
 // When defined, experimental functionality for ukernels is enabled.
 #cmakedefine DNNL_EXPERIMENTAL_UKERNEL
 

@@ -51,7 +51,6 @@ using namespace dnnl::impl::cpu::matmul;
 
 // Some compilers do not allow guarding implementations with macros
 // in the impl list.
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 
 #define CPU_INSTANCE_SPARSE(...) \
     impl_list_item_t( \
@@ -62,11 +61,6 @@ using namespace dnnl::impl::cpu::matmul;
     impl_list_item_t( \
             impl_list_item_t::type_deduction_helper_t<__VA_ARGS__::pd_t>()),
 #else
-#define CPU_INSTANCE_SPARSE_X64(...)
-#endif
-
-#else
-#define CPU_INSTANCE_SPARSE(...)
 #define CPU_INSTANCE_SPARSE_X64(...)
 #endif
 
@@ -92,8 +86,6 @@ constexpr impl_list_item_t impl_list[] = REG_MATMUL_P({
         CPU_INSTANCE_AVX2(brgemm_matmul_t<avx2>)
         CPU_INSTANCE(ref_matmul_t)
         CPU_INSTANCE(ref_matmul_int8_t)
-        // These implementations are enabled only when DNNL_EXPERIMENTAL_SPARSE
-        // macro is defined.
         CPU_INSTANCE_SPARSE_X64(jit_uni_sparse_matmul_t)
         CPU_INSTANCE_SPARSE(ref_sparse_matmul_t)
         /* eol */

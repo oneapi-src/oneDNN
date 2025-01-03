@@ -75,7 +75,6 @@ dnnl_status_t DNNL_API dnnl_ocl_interop_memory_create(dnnl_memory_t *memory,
         const_dnnl_memory_desc_t memory_desc, dnnl_engine_t engine,
         dnnl_ocl_interop_memory_kind_t memory_kind, void *handle);
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 /// Creates a memory object with multiple handles.
 ///
 /// @param memory Output memory object.
@@ -102,7 +101,6 @@ dnnl_status_t DNNL_API dnnl_ocl_interop_memory_create_v2(dnnl_memory_t *memory,
         const_dnnl_memory_desc_t memory_desc, dnnl_engine_t engine,
         dnnl_ocl_interop_memory_kind_t memory_kind, int nhandles,
         void **handles);
-#endif
 
 /// Returns the memory allocation kind associated with a memory object.
 ///

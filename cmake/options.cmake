@@ -204,11 +204,6 @@ option(DNNL_EXPERIMENTAL
     using environment variables."
     OFF) # disabled by default
 
-option(DNNL_EXPERIMENTAL_SPARSE
-    "Enable experimental functionality for sparse domain. This option works
-    independently from DNNL_EXPERIMENTAL."
-    OFF) # disabled by default
-
 option(DNNL_EXPERIMENTAL_UKERNEL
     "Enable experimental functionality for ukernels. This option works
     independently from DNNL_EXPERIMENTAL."

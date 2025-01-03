@@ -51,7 +51,6 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
         if (dt == dnnl_data_type_undef) dt = prb->src_dt();
         const auto &src_rt_dims = get_runtime_dims(
                 prb->src_dims(), prb->src_runtime_dim_mask());
-#ifdef DNNL_EXPERIMENTAL_SPARSE
         auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
         auto src_sparsity = prb->sparse_options.get_sparsity(DNNL_ARG_SRC);
         if (src_encoding != dnnl_sparse_encoding_undef) {
@@ -69,7 +68,6 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
                 default: assert(!"unsupported encoding"); return nullptr;
             }
         } else
-#endif
             return dnn_mem_t::init_md(prb->ndims, src_rt_dims.data(), dt,
                     prb->stag, prb->strides[STRIDES_SRC]);
     }
@@ -78,7 +76,6 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
         if (dt == dnnl_data_type_undef) dt = prb->wei_dt();
         const auto &weights_rt_dims = get_runtime_dims(
                 prb->weights_dims(), prb->weights_runtime_dim_mask());
-#ifdef DNNL_EXPERIMENTAL_SPARSE
         auto wei_encoding = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
         auto wei_sparsity = prb->sparse_options.get_sparsity(DNNL_ARG_WEIGHTS);
 
@@ -100,7 +97,6 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> create_md(const prb_t *prb,
                 default: assert(!"unsupported encoding"); return nullptr;
             }
         } else
-#endif
             return dnn_mem_t::init_md(prb->ndims, weights_rt_dims.data(), dt,
                     prb->wtag, prb->strides[STRIDES_WEI]);
     }
@@ -178,13 +174,11 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
     if (is_cpu() && (prb->src_dt() == dnnl_f32 && prb->wei_dt() == dnnl_f32))
         return OK;
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     if (prb->sparse_options.get_encoding(DNNL_ARG_SRC)
                     != dnnl_sparse_encoding_undef
             || prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS)
                     != dnnl_sparse_encoding_undef)
         return OK;
-#endif
 
     // Create a new copy of prb to avoid potentially corrupting the test by
     // modifying prb in place.
@@ -207,9 +201,7 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
         prb_t prb_cpu {*prb, prim_ref_dt_i, tag::any, tag::any, tag::any,
                 {vdims_t(STRIDES_SIZE)}, prim_ref_bia_dt_i, prb->bia_mask,
                 {0, 0, 0},
-#ifdef DNNL_EXPERIMENTAL_SPARSE
                 sparse_options_t(),
-#endif
                 cpu_attr, prb->ctx_init, prb->ctx_exe, prb->impl_filter};
 
         init_pd_args_t<prb_t> init_pd_args(
@@ -244,7 +236,6 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
     return OK;
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 // The main idea is to generate values and metadata directly without generating
 // the dense matrix to avoid excessive memory consumption for large problem
 // sizes.
@@ -378,7 +369,6 @@ int fill_sparse_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
 
     return OK;
 }
-#endif
 
 int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
         dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
@@ -389,7 +379,6 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
     bool is_sparse_packed = false;
     bool is_any_sparse = false;
     std::vector<bool> nnz_mask;
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     const auto sparse_encoding = prb->sparse_options.get_encoding(kind);
     const bool is_sparse_csr_coo
             = sparse_encoding == dnnl_csr || sparse_encoding == dnnl_coo;
@@ -410,7 +399,6 @@ int fill_data(data_kind_t kind, const prb_t *prb, const cfg_t &cfg,
         std::default_random_engine rng(nnz);
         std::shuffle(nnz_mask.begin(), nnz_mask.end(), rng);
     }
-#endif
 
     // Refer to modes documentation for filling principles.
     // Note: sparse filling is more complex than a general one in a sense that
@@ -492,7 +480,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             prb->attr, res, dnnl_matmul, prb->src_dt(), prb->dst_dt());
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_matmul);
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     if ((is_nvidia_gpu() || is_amd_gpu()) && !prb->sparse_options.is_def()) {
         BENCHDNN_PRINT(2,
                 "[SKIP][%s:%d]: oneDNN doesn't support sparse matmul for "
@@ -539,7 +526,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
         res->reason = skip_reason::case_not_supported;
         return;
     }
-#endif
 
     if (is_cpu()) {
         const bool is_x8s8f16
@@ -805,7 +791,6 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
         auto &mem = entry.second; // `mem` is modified by filler (reorder).
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
         auto src_encoding = prb->sparse_options.get_encoding(DNNL_ARG_SRC);
         auto wei_encoding = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
 
@@ -827,9 +812,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 auto wei_fp_d = create_md(prb, WEI);
                 ref_mem_map.emplace(exec_arg, dnn_mem_t(wei_fp_d, ref_engine));
             }
-        } else
-#endif
-        {
+        } else {
             // Scratchpad memory relates to a primitive. If reference needs it,
             // use switch below to define a memory desc for it.
             if (exec_arg != DNNL_ARG_SCRATCHPAD) {

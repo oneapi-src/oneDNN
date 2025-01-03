@@ -750,7 +750,6 @@ status_t dnnl_memory_desc_query(
     return status::success;
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 status_t dnnl_memory_desc_query_v2(
         const memory_desc_t *md, query_t what, int index, void *result) {
     if (any_null(md, result)) return invalid_arguments;
@@ -796,7 +795,6 @@ status_t dnnl_memory_desc_query_v2(
     }
     return status::success;
 }
-#endif
 
 status_t dnnl_memory_desc_destroy(memory_desc_t *memory_desc) {
     delete memory_desc;

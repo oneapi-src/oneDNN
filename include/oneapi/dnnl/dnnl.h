@@ -881,7 +881,6 @@ dnnl_status_t DNNL_API dnnl_memory_desc_create_with_tag(
         dnnl_memory_desc_t *memory_desc, int ndims, const dnnl_dims_t dims,
         dnnl_data_type_t data_type, dnnl_format_tag_t tag);
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 /// Creates a memory descriptor for CSR encoding.
 ///
 /// @param memory_desc Output memory descriptor.
@@ -943,7 +942,6 @@ dnnl_status_t DNNL_API dnnl_memory_desc_create_with_coo_encoding(
 dnnl_status_t DNNL_API dnnl_memory_desc_create_with_packed_encoding(
         dnnl_memory_desc_t *memory_desc, int ndims, const dnnl_dims_t dims,
         dnnl_data_type_t data_type, dnnl_dim_t nnz);
-#endif
 
 /// Creates a memory descriptor for a region inside an area
 /// described by an existing memory descriptor.
@@ -1109,7 +1107,6 @@ dnnl_status_t DNNL_API dnnl_memory_desc_permute_axes(
 dnnl_status_t DNNL_API dnnl_memory_desc_query(
         const_dnnl_memory_desc_t memory_desc, dnnl_query_t what, void *result);
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 /// Queries a memory descriptor for various pieces of information. This version
 /// support additional queries #dnnl_query_sparse_encoding, #dnnl_query_nnz_s64
 /// #dnnl_query_num_handles_s32 and #dnnl_query_data_type for a particular
@@ -1167,7 +1164,6 @@ dnnl_status_t DNNL_API dnnl_memory_desc_query(
 dnnl_status_t DNNL_API dnnl_memory_desc_query_v2(
         const_dnnl_memory_desc_t memory_desc, dnnl_query_t what, int index,
         void *result);
-#endif
 
 /// Compares two memory descriptors.
 ///
@@ -1188,7 +1184,6 @@ int DNNL_API dnnl_memory_desc_equal(
 ///     descriptor.
 size_t DNNL_API dnnl_memory_desc_get_size(const_dnnl_memory_desc_t memory_desc);
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 /// Returns the size of the data that corresponds to the given index.
 ///
 /// @param memory_desc Memory descriptor.
@@ -1197,7 +1192,6 @@ size_t DNNL_API dnnl_memory_desc_get_size(const_dnnl_memory_desc_t memory_desc);
 /// @returns The number of bytes required for the requested data.
 size_t DNNL_API dnnl_memory_desc_get_size_v2(
         const_dnnl_memory_desc_t memory_desc, int index);
-#endif
 
 /// Returns the size of data type.
 ///
@@ -1229,7 +1223,6 @@ dnnl_status_t DNNL_API dnnl_memory_create(dnnl_memory_t *memory,
         const_dnnl_memory_desc_t memory_desc, dnnl_engine_t engine,
         void *handle);
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 /// Creates a memory object with multiple handles.
 ///
 /// @param memory Output memory object.
@@ -1250,7 +1243,6 @@ dnnl_status_t DNNL_API dnnl_memory_create(dnnl_memory_t *memory,
 dnnl_status_t DNNL_API dnnl_memory_create_v2(dnnl_memory_t *memory,
         const_dnnl_memory_desc_t memory_desc, dnnl_engine_t engine,
         int nhandles, void **handles);
-#endif
 
 /// Returns the memory descriptor for a memory object.
 ///
@@ -1296,7 +1288,6 @@ dnnl_status_t DNNL_API dnnl_memory_get_engine(
 dnnl_status_t DNNL_API dnnl_memory_map_data(
         const_dnnl_memory_t memory, void **mapped_ptr);
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 /// Maps a memory object and returns a host-side pointer to a memory buffer
 /// with a copy of its contents. The memory buffer corresponds to the given
 /// index.
@@ -1324,7 +1315,6 @@ dnnl_status_t DNNL_API dnnl_memory_map_data(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_map_data_v2(
         const_dnnl_memory_t memory, void **mapped_ptr, int index);
-#endif
 
 /// Unmaps a memory object and writes back any changes made to the previously
 /// mapped memory buffer. The pointer to the mapped buffer must be obtained
@@ -1343,7 +1333,6 @@ dnnl_status_t DNNL_API dnnl_memory_map_data_v2(
 dnnl_status_t DNNL_API dnnl_memory_unmap_data(
         const_dnnl_memory_t memory, void *mapped_ptr);
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 /// Unmaps a memory object and writes back any changes made to the previously
 /// mapped memory buffer. The pointer to the mapped buffer must be obtained
 /// via the dnnl_memory_map_data() call. The buffer corresponds to the given
@@ -1362,7 +1351,6 @@ dnnl_status_t DNNL_API dnnl_memory_unmap_data(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_unmap_data_v2(
         const_dnnl_memory_t memory, void *mapped_ptr, int index);
-#endif
 
 /// Returns memory object's data handle.
 ///
@@ -1385,7 +1373,6 @@ dnnl_status_t DNNL_API dnnl_memory_get_data_handle(
 dnnl_status_t DNNL_API dnnl_memory_set_data_handle(
         dnnl_memory_t memory, void *handle);
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 /// Returns an underlying memory buffer that corresponds to the given index.
 ///
 /// @param memory Memory object.
@@ -1409,7 +1396,6 @@ dnnl_status_t DNNL_API dnnl_memory_get_data_handle_v2(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_set_data_handle_v2(
         dnnl_memory_t memory, void *handle, int index);
-#endif
 
 /// Destroys a memory object.
 ///

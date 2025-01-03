@@ -75,10 +75,6 @@ if(DNNL_EXPERIMENTAL)
     message(STATUS "Experimental features are enabled")
 endif()
 
-if(DNNL_EXPERIMENTAL_SPARSE)
-    message(STATUS "Experimental functionality for sparse domain is enabled")
-endif()
-
 if(DNNL_EXPERIMENTAL_UKERNEL)
     if(DNNL_TARGET_ARCH STREQUAL "ARCH_GENERIC")
         message(FATAL_ERROR "ukernel API does not support generic architecture.")

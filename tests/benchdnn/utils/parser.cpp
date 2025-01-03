@@ -486,7 +486,6 @@ bool parse_tag(std::vector<std::string> &tag,
     return true;
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 bool parse_encoding(std::vector<sparse_options_t> &sparse_options,
         const char *str, const std::string &option_name /* = "encoding"*/) {
     static const std::string help
@@ -505,7 +504,6 @@ bool parse_encoding(std::vector<sparse_options_t> &sparse_options,
     return parse_vector_option(sparse_options, def, parse_sparse_options_func,
             str, option_name, help);
 }
-#endif
 
 bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
         const std::vector<std::vector<std::string>> &def_tag, const char *str,

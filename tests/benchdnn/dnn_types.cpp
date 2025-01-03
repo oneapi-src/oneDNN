@@ -832,7 +832,6 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     return s;
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 std::ostream &operator<<(std::ostream &s, dnnl_sparse_encoding_t se) {
     s << sparse_encoding2str(se);
     return s;
@@ -860,7 +859,6 @@ std::ostream &operator<<(
     }
     return s;
 }
-#endif
 
 std::ostream &operator<<(std::ostream &s, memory_kind_ext_t memory_kind) {
     switch (memory_kind) {
@@ -1697,7 +1695,6 @@ void update_cpu_ref_attrs(attr_t &attr, dnnl_data_type_t new_dt) {
     }
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 int sparse_options_t::from_str(const std::string &s) {
     *this = sparse_options_t();
     if (s.empty()) return OK;
@@ -1740,4 +1737,3 @@ int sparse_options_t::from_str(const std::string &s) {
     static const int expected_num_options = 3;
     return options_count == expected_num_options ? OK : FAIL;
 }
-#endif

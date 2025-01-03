@@ -206,7 +206,6 @@ const rounding_mode_t environment = dnnl_rounding_mode_environment;
 const rounding_mode_t stochastic = dnnl_rounding_mode_stochastic;
 } // namespace rounding_mode
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 using sparse_encoding_t = dnnl_sparse_encoding_t;
 namespace sparse_encoding {
 const sparse_encoding_t undef = dnnl_sparse_encoding_undef;
@@ -214,16 +213,6 @@ const sparse_encoding_t csr = dnnl_csr;
 const sparse_encoding_t coo = dnnl_coo;
 const sparse_encoding_t packed = dnnl_packed;
 } // namespace sparse_encoding
-#else
-// Declare dummy values to avoid guarding internal implementation.
-using sparse_encoding_t = int;
-namespace sparse_encoding {
-const sparse_encoding_t undef = 0;
-const sparse_encoding_t csr = 1;
-const sparse_encoding_t packed = 2;
-const sparse_encoding_t coo = 3;
-} // namespace sparse_encoding
-#endif
 
 using format_kind_t = dnnl_format_kind_t;
 namespace format_kind {
@@ -231,11 +220,7 @@ const format_kind_t undef = dnnl_format_kind_undef;
 const format_kind_t any = dnnl_format_kind_any;
 const format_kind_t blocked = dnnl_blocked;
 const format_kind_t opaque = dnnl_format_kind_opaque;
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 const format_kind_t sparse = dnnl_format_kind_sparse;
-#else
-const format_kind_t sparse = static_cast<format_kind_t>(4);
-#endif
 
 // Internal only format kinds.
 const format_kind_t internal_only_start = (format_kind_t)(1 << 8);
@@ -2045,15 +2030,9 @@ const query_t inner_nblks_s32 = dnnl_query_inner_nblks_s32;
 const query_t inner_blks = dnnl_query_inner_blks;
 const query_t inner_idxs = dnnl_query_inner_idxs;
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 const query_t sparse_encoding = dnnl_query_sparse_encoding;
 const query_t nnz_s64 = dnnl_query_nnz_s64;
 const query_t num_handles_s32 = dnnl_query_num_handles_s32;
-#else
-const query_t sparse_encoding = static_cast<query_t>(266);
-const query_t nnz_s64 = static_cast<query_t>(267);
-const query_t num_handles_s32 = static_cast<query_t>(268);
-#endif
 
 // Internal only query kinds.
 const query_t internal_only_start = (query_t)(1 << 12);
