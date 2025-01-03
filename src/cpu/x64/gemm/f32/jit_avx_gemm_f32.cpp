@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1966,7 +1966,7 @@ struct xbyak_gemm_t : public jit_generator {
         if (hasBias) { add(BIAS, unroll_m * SIZE); }
     }
 
-    void generate() override ATTRIBUTE_OPTIMIZE {
+    void generate() override {
         assert(IMPLICATION(!is_avx2, mayiuse(avx)));
 
         preamble();

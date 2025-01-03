@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ namespace x64 {
 
 class jit_avx512_core_f32_copy_an_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_f32_copy_an_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_avx512_core_f32_copy_an_kern();
@@ -34,11 +34,10 @@ public:
 
 class jit_avx512_core_f32_copy_at_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_f32_copy_at_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
     void generate_part1(const Xbyak::Label &, const Xbyak::Label &,
-            const Xbyak::Label &, const Xbyak::Label &) ATTRIBUTE_OPTIMIZE;
-    void generate_part2(Xbyak::Label, Xbyak::Label, Xbyak::Label,
-            Xbyak::Label) ATTRIBUTE_OPTIMIZE;
+            const Xbyak::Label &, const Xbyak::Label &);
+    void generate_part2(Xbyak::Label, Xbyak::Label, Xbyak::Label, Xbyak::Label);
 
 public:
     jit_avx512_core_f32_copy_at_kern();
@@ -46,7 +45,7 @@ public:
 
 class jit_avx512_core_f32_copy_bn_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_f32_copy_bn_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_avx512_core_f32_copy_bn_kern();
@@ -54,7 +53,7 @@ public:
 
 class jit_avx512_core_f32_copy_bt_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_f32_copy_bt_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_avx512_core_f32_copy_bt_kern();
@@ -62,7 +61,7 @@ public:
 
 class jit_avx2_f32_copy_an_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_f32_copy_an_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_avx2_f32_copy_an_kern();
@@ -70,7 +69,7 @@ public:
 
 class jit_avx2_f32_copy_at_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_f32_copy_at_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_avx2_f32_copy_at_kern();
@@ -78,7 +77,7 @@ public:
 
 class jit_avx2_f32_copy_bn_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_f32_copy_bn_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_avx2_f32_copy_bn_kern();
@@ -86,7 +85,7 @@ public:
 
 class jit_avx2_f32_copy_bt_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_f32_copy_bt_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_avx2_f32_copy_bt_kern();
@@ -94,7 +93,7 @@ public:
 
 class jit_avx_f32_copy_an_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_f32_copy_an_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_avx_f32_copy_an_kern();
@@ -102,7 +101,7 @@ public:
 
 class jit_avx_f32_copy_at_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_f32_copy_at_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_avx_f32_copy_at_kern();
@@ -110,7 +109,7 @@ public:
 
 class jit_avx_f32_copy_bn_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_f32_copy_bn_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_avx_f32_copy_bn_kern();
@@ -118,7 +117,7 @@ public:
 
 class jit_avx_f32_copy_bt_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_f32_copy_bt_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_avx_f32_copy_bt_kern();
@@ -126,11 +125,10 @@ public:
 
 class jit_avx_kernel_b0_sgemm_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_kernel_b0_sgemm_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
     void generate_part1(const Xbyak::Label &, const Xbyak::Label &,
-            const Xbyak::Label &, const Xbyak::Label &) ATTRIBUTE_OPTIMIZE;
-    void generate_part2(Xbyak::Label, Xbyak::Label, Xbyak::Label,
-            Xbyak::Label) ATTRIBUTE_OPTIMIZE;
+            const Xbyak::Label &, const Xbyak::Label &);
+    void generate_part2(Xbyak::Label, Xbyak::Label, Xbyak::Label, Xbyak::Label);
 
 public:
     jit_avx_kernel_b0_sgemm_kern();
@@ -138,11 +136,10 @@ public:
 
 class jit_avx_kernel_sgemm_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx_kernel_sgemm_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
-    void generate_part1(const Xbyak::Label &, const Xbyak::Label &,
-            const Xbyak::Label &) ATTRIBUTE_OPTIMIZE;
-    void generate_part2(
-            Xbyak::Label &, Xbyak::Label &, Xbyak::Label &) ATTRIBUTE_OPTIMIZE;
+    void generate() override;
+    void generate_part1(
+            const Xbyak::Label &, const Xbyak::Label &, const Xbyak::Label &);
+    void generate_part2(Xbyak::Label &, Xbyak::Label &, Xbyak::Label &);
 
 public:
     jit_avx_kernel_sgemm_kern();
@@ -150,7 +147,7 @@ public:
 
 class jit_sse41_f32_copy_an_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_f32_copy_an_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_sse41_f32_copy_an_kern();
@@ -158,7 +155,7 @@ public:
 
 class jit_sse41_f32_copy_at_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_f32_copy_at_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_sse41_f32_copy_at_kern();
@@ -166,7 +163,7 @@ public:
 
 class jit_sse41_f32_copy_bn_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_f32_copy_bn_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_sse41_f32_copy_bn_kern();
@@ -174,7 +171,7 @@ public:
 
 class jit_sse41_f32_copy_bt_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_f32_copy_bt_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_sse41_f32_copy_bt_kern();
@@ -182,7 +179,7 @@ public:
 
 class jit_sse41_kernel_b0_sgemm_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_kernel_b0_sgemm_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_sse41_kernel_b0_sgemm_kern();
@@ -190,7 +187,7 @@ public:
 
 class jit_sse41_kernel_sgemm_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_kernel_sgemm_kern);
-    void generate() override ATTRIBUTE_OPTIMIZE;
+    void generate() override;
 
 public:
     jit_sse41_kernel_sgemm_kern();

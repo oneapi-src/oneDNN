@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2024 Intel Corporation
+# Copyright 2021-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ if(DPCPP_HOST_COMPILER_KIND MATCHES "^(GNU|CLANG)$")
 
     if(DPCPP_HOST_COMPILER_KIND STREQUAL "GNU")
         platform_gnu_nowarn_ccxx_flags(DPCPP_CXX_NOWARN_FLAGS ${DPCPP_HOST_COMPILER_MAJOR_VER}.${DPCPP_HOST_COMPILER_MINOR_VER})
-        sdl_gnu_common_ccxx_flags(DPCPP_HOST_COMPILER_OPTS DPCPP_HOST_COMPILER_VER)
+        sdl_gnu_common_ccxx_flags(DPCPP_HOST_COMPILER_OPTS)
         sdl_gnu_src_ccxx_flags(DPCPP_SRC_CXX_FLAGS)
         sdl_gnu_example_ccxx_flags(DPCPP_EXAMPLE_CXX_FLAGS)
 
