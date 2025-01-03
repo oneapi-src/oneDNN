@@ -297,6 +297,10 @@ bool fit_impl(const kernel_desc_t &desc, const problem_t &prb, bool exact) {
     ir_check(fit_tag(tensor_kind_t::c, desc, prb, exact));
     ir_check(prb.is_depthwise() == desc.is_dw)
             << "Mixing depthwise/non-depthwise descriptor and problem";
+    if (desc.use_stream_k) {
+        ir_check(!prb.with_bias_fwd() && !prb.with_post_ops())
+                << "Stream-K is incompatible with post-ops/bias";
+    }
     if (exact) {
         ir_check(prb.with_bias_bwd_w() == desc.with_bias_bwd_w())
                 << "Problem and descriptor bias reduction mismatch";

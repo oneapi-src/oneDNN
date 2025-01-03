@@ -80,6 +80,7 @@ inline problem_t to_problem(
     prb.set_wei_tag(wei);
     prb.set_dst_tag(dst);
     prb.set_shape(shape);
+    if (pd->attr()->post_ops_.len() > 0) prb.set_with_post_ops(true);
     prb.normalize();
 
     return prb;
