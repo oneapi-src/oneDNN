@@ -130,9 +130,7 @@ Team: @oneapi-src/onednn-graph
 | Shaojie Cui        | @ShanSimu             | Intel Corporation | Code Owner |
 | Yonghao Gu         | @gyhintel             | Intel Corporation | Code Owner |
 | Rong Zhang         | @rongzha1             | Intel Corporation | Code Owner |
-| Zhailong Mu        | @muzhailong           | Intel Corporation | Code Owner |
 | Xiang Guo          | @xiang1guo            | Intel Corporation | Code Owner |
-| Jiaming Song       | @litchilitchy         | Intel Corporation | Code Owner |
 | Yixin Bao          | @ElaineBao            | Intel Corporation | Code Owner |
 
 ## CPU Engine
@@ -144,14 +142,11 @@ Team: @oneapi-src/onednn-cpu-x64
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Andrey Kalinin     | @ankalinin            | Intel Corporation | Maintainer |
-| Arthur Mitrano     | @aaraujom             | Intel Corporation | Maintainer |
-| Srinivas Putta     | @nivas-x86            | Intel Corporation | Maintainer |
 | Tatyana Primak     | @tprimak              | Intel Corporation | Maintainer |
 | David Eberius      | @davideberius         | Intel Corporation | Code Owner |
-| John Karasev       | @karashjoh000         | Intel Corporation | Code Owner |
 | Stefan Palicki     | @spalicki             | Intel Corporation | Code Owner |
 | Tomasz Czeszun     | @tczeszun             | Intel Corporation | Code Owner |
-| Xuxin Zen          | @xuxinzen             | Intel Corporation | Code Owner |
+| Xuxin Zeng         | @xuxinzen             | Intel Corporation | Code Owner |
 
 ### AArch64
 
@@ -216,10 +211,7 @@ Teams:
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Anton Mitkov       | @ShanoToni            | Codeplay Software | Code Owner |
-| Dylan Angus        | @dylan-angus-codeplay | Codeplay Software | Code Owner |
-| John Osorio        | @kala855              | Codeplay Software | Code Owner |
 | Mehdi Goli         | @mehdi-goli           | Codeplay Software | Code Owner |
-| Tadej Ciglarič     | @t4c1                 | Codeplay Software | Code Owner |
 | Svetlozar Georgiev | @sgeor255             | Codeplay Software | Code Owner |
 
 ## Support functions
@@ -231,7 +223,6 @@ Team: @oneapi-src/onednn-doc
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Vadim Pirogov      | @vpirogov             | Intel Corporation | Maintainer |
-| Deb Taylor         | @deb-intel            | Intel Corporation | Code Owner |
 
 ### DevOps
 
@@ -247,6 +238,5 @@ Team: @oneapi-src/onednn-devops
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
-| Harry Mao          | @harrymao2022         | Intel Corporation | Maintainer |
 | Tatyana Primak     | @tprimak              | Intel Corporation | Maintainer |
 | Vadim Pirogov      | @vpirogov             | Intel Corporation | Maintainer |
