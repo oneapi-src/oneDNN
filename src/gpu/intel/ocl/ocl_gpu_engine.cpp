@@ -269,16 +269,6 @@ status_t ocl_gpu_engine_t::build_program_from_source(
     return status::success;
 }
 
-status_t ocl_gpu_engine_t::create_binary_from_ocl_source(xpu::binary_t &binary,
-        const char *code_string,
-        const compute::kernel_ctx_t &kernel_ctx) const {
-    xpu::ocl::wrapper_t<cl_program> program;
-    CHECK(build_program_from_source(program, code_string, kernel_ctx));
-
-    CHECK(get_ocl_program_binary(program, device(), binary));
-    return status::success;
-}
-
 status_t ocl_gpu_engine_t::create_kernel_from_binary(compute::kernel_t &kernel,
         const xpu::binary_t &binary, const char *kernel_name) const {
     xpu::ocl::wrapper_t<cl_program> program;

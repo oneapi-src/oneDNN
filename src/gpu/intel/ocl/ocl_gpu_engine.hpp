@@ -47,10 +47,6 @@ public:
     status_t create_stream(
             impl::stream_t **stream, impl::stream_impl_t *stream_impl) override;
 
-    status_t create_binary_from_ocl_source(xpu::binary_t &binary,
-            const char *code_string,
-            const compute::kernel_ctx_t &kernel_ctx) const;
-
     status_t create_kernel_from_binary(compute::kernel_t &kernel,
             const xpu::binary_t &binary,
             const char *kernel_name) const override;
