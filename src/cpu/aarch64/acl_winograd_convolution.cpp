@@ -75,7 +75,8 @@ status_t acl_wino_convolution_fwd_t::pd_t::init(engine_t *engine) {
     auto scratchpad = scratchpad_registry().registrar();
     const auto aux_mem = conv.workspace();
     return init_scratchpad(conv, scratchpad, wino_conv_keys, engine, post_ops,
-            attr_.post_ops_, acp_.act_info, acp_.use_dst_acc_for_sum, dst_md_);
+            attr_.post_ops_, acp_.act_info, acp_.use_dst_acc_for_sum, dst_md_,
+            bias_md_, acp_.is_quantized);
 }
 
 status_t acl_wino_convolution_fwd_t::init(engine_t *engine) {
