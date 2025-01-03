@@ -143,6 +143,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 }
 
                 CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                CHECK(brgemm_desc_finalize(&brg));
 
                 if (jbgp_.is_amx)
                     jbgp_.amx_buf_size_per_thread
@@ -334,6 +335,9 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                     brgattr.fpmath_mode = attr()->fpmath_.mode_;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                }
+                CHECK(brgemm_desc_finalize(&brg));
+                if (jbgp_.is_amx) {
                     jbgp_.amx_buf_size_per_thread
                             = nstl::max(brg.get_wsp_buffer_size(),
                                     jbgp_.amx_buf_size_per_thread);
@@ -510,6 +514,9 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                     brgattr.fpmath_mode = attr()->fpmath_.mode_;
 
                     CHECK(brgemm_desc_set_attr(&brg, brgattr));
+                }
+                CHECK(brgemm_desc_finalize(&brg));
+                if (jbgp_.is_amx) {
                     jbgp_.amx_buf_size_per_thread
                             = nstl::max(brg.get_wsp_buffer_size(),
                                     jbgp_.amx_buf_size_per_thread);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -193,12 +193,16 @@ private:
                 p.alpha, p.beta, p.lda, p.ldb, p.ldc, p.M, p.N, p.K);
         if (res != dnnl_success) return res;
 
-        if (desc.is_tmm) {
-            res = brgemm_init_tiles(desc, palette);
-            if (res != dnnl_success) return res;
-        }
         if (!desc.is_tmm) {
             res = brgemm_desc_set_attr(&desc, p.attrs);
+            if (res != dnnl_success) return res;
+        }
+
+        res = brgemm_desc_finalize(&desc);
+        if (res != dnnl_success) return res;
+
+        if (desc.is_tmm) {
+            res = brgemm_init_tiles(desc, palette);
             if (res != dnnl_success) return res;
         }
 

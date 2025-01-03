@@ -280,6 +280,8 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
     brg.with_weights_scale_adjust = jcp_.scale_adjust_factor != 1.0f;
     CHECK(brgemm_desc_set_postops(&brg, attr(), &dst_md_, LDD, jcp_.bia_dt));
 
+    CHECK(brgemm_desc_finalize(&brg));
+
     brgemm_descriptors_->insert(brg_idx, brg, bd_mask, stoffs);
 
     return status::success;

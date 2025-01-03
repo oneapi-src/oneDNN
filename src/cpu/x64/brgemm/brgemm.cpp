@@ -261,13 +261,6 @@ status_t brgemm_desc_init(brgemm_desc_t *brg, cpu_isa_t isa,
                 brg->dt_b == u8, is_superset(brg->isa_impl, avx512_core_amx)))
         return status::unimplemented;
 
-    CHECK(brgemm_blocking(brg));
-
-    // avx2_vnni_2 kernel with xf16 data type requires blocked weights.
-    if (brg->isa_impl == avx2_vnni_2 && brg->is_xf16()
-            && brg->LDB % brg->ld_block > 0)
-        return status::unimplemented;
-
     return status::success;
 }
 
@@ -290,8 +283,6 @@ status_t brdgmm_desc_init(brgemm_desc_t *brg, cpu_isa_t isa,
     if (utils::everyone_is(
                 false, brg->is_int8, brg->is_bf16, brg->is_f32, brg->is_f16))
         return status::unimplemented;
-
-    CHECK(brdgmm_blocking(brg));
 
     return status::success;
 }
@@ -373,9 +364,6 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
     if (brg->is_int8 && brg->dt_d == bf16)
         brg->is_bf16_emu
                 = !(mayiuse(avx512_core_bf16) || brg->isa_impl == avx2_vnni_2);
-
-    // Rerun blocking heuristic due to reduced zmm register count
-    if (brg->is_bf16_emu && brg->is_dgmm) CHECK(brdgmm_blocking(brg));
 
     if (!brg->attr()) return status::success;
 
@@ -484,13 +472,6 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
     CHECK(init_zp_type(brg->zp_type_b, DNNL_ARG_WEIGHTS));
     CHECK(init_zp_type(brg->zp_type_c, DNNL_ARG_DST));
 
-    // Post-ops may use vector registers so brgemm/brdgmm blocking may need to
-    // be updated
-    if (brg->is_dgmm)
-        CHECK(brdgmm_blocking(brg));
-    else
-        CHECK(brgemm_blocking(brg));
-
     return status::success;
 }
 
@@ -520,42 +501,6 @@ status_t brgemm_desc_set_attr(
 
     if (brgattr.fpmath_mode != fpmath_mode::strict) maybe_try_bf32(brg);
 
-    const int max_vpad = nstl::max(brgattr.max_top_vpad,
-            brgattr.max_bottom_vpad); // these should be equal
-    bool hint_blocking_set
-            = (brgattr.hint_bd_block != 0 || brgattr.hint_bd_block2 != 0
-                    || brgattr.hint_ld_block != 0 || brgattr.hint_ld_block2 != 0
-                    || brgattr.hint_load_nt_A != brgemm_hint_nt_undef
-                    || brgattr.hint_load_nt_B != brgemm_hint_nt_undef
-                    || brgattr.hint_bs_group > 1 || brgattr.b_is_vnni);
-    if (brgattr.use_uker || brg->is_bf16_tmm || hint_blocking_set
-            || brgattr.bd_mask_level
-            || brgattr.fpmath_mode != fpmath_mode::strict || max_vpad > 0) {
-        if (brg->is_dgmm)
-            CHECK(brdgmm_blocking(brg));
-        else
-            CHECK(brgemm_blocking(brg, true));
-    }
-
-    if (!brg->is_dgmm) {
-        // virtual padding is restricted by bd_block size due to
-        // brgemm_kernel implementation. TODO: remove this restriction
-        const int min_bd_block
-                = brg->bdb_tail > 0 ? brg->bdb_tail : brg->bd_block;
-        if ((max_vpad > min_bd_block)) return status::unimplemented;
-    }
-
-    brg->LDA2 = (brgattr.LDA2 != 0) ? brgattr.LDA2 : brg->LDA;
-    brg->LDB2 = (brgattr.LDB2 != 0) ? brgattr.LDB2 : brg->LDB;
-    brg->LDC2_M = (brgattr.LDC2_M != 0) ? brgattr.LDC2_M : brg->LDC;
-    brg->LDC2_N = (brgattr.LDC2_N != 0) ? brgattr.LDC2_N : brg->ld_block;
-
-    brg->is_blocked = (brg->LDA2 != brg->LDA || brg->LDB2 != brg->LDB
-            || brg->LDC2_M != brg->LDC || brg->LDC2_N != brg->ld_block);
-
-    if (!IMPLICATION(brg->is_blocked, brg->layout == brgemm_row_major))
-        return status::invalid_arguments;
-
     // virtual padding is not supported for "amx"
     if ((brgattr.max_top_vpad > 0 || brgattr.max_bottom_vpad > 0)
             && (brg->is_tmm))
@@ -579,6 +524,28 @@ status_t brgemm_desc_set_attr(
 
     // TODO: update conditions once other implementations are enabled
     if (brg->is_fp8 && !brg->is_fp8_via_convert()) return status::unimplemented;
+
+    return status::success;
+}
+
+status_t brgemm_desc_finalize(brgemm_desc_t *brg) {
+    if (brg == nullptr) return status::invalid_arguments;
+
+    const int max_vpad = nstl::max(
+            brg->brgattr.max_top_vpad, brg->brgattr.max_bottom_vpad);
+
+    if (brg->is_dgmm)
+        CHECK(brdgmm_blocking(brg));
+    else
+        CHECK(brgemm_blocking(brg));
+
+    if (!brg->is_dgmm) {
+        // virtual padding is restricted by bd_block size due to
+        // brgemm_kernel implementation. TODO: remove this restriction
+        const int min_bd_block
+                = brg->bdb_tail > 0 ? brg->bdb_tail : brg->bd_block;
+        if ((max_vpad > min_bd_block)) return status::unimplemented;
+    }
 
     return status::success;
 }
