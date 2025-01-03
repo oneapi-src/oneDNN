@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,8 @@ class ocl_gpu_kernel_cache_t;
 class ocl_gpu_kernel_t : public compute::kernel_impl_t {
 public:
     ocl_gpu_kernel_t(xpu::ocl::wrapper_t<cl_kernel> &&ocl_kernel,
-            const std::vector<gpu::intel::compute::scalar_type_t> &arg_types);
+            const std::vector<gpu::intel::compute::scalar_type_t> &arg_types,
+            compute::program_src_t src);
     ~ocl_gpu_kernel_t() override = default;
 
     cl_kernel ocl_kernel() const { return ocl_kernel_; }
@@ -59,11 +60,13 @@ public:
 
     status_t dump() const override;
     std::string name() const override;
+    const compute::program_src_t &src() const { return src_; }
 
 private:
     xpu::ocl::wrapper_t<cl_kernel> ocl_kernel_;
     std::vector<gpu::intel::compute::scalar_type_t> arg_types_;
     std::shared_ptr<ocl_gpu_kernel_cache_t> cache_;
+    compute::program_src_t src_;
     bool save_events_;
 };
 
