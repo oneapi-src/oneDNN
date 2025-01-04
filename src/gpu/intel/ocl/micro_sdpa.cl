@@ -216,12 +216,12 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
     const bool need_sum_barrier = (ugemm_vs_barrier_count == 0);
 
     /* Locate K/Q/V/A matrices within batch */
-
     K += KEY_OFF(b1, b0_kv, 0, 0) / KEY_ELEMENTS_PER_BYTE;
     Q += QRY_OFF(b1, b0, 0, 0);
     V += VAL_OFF(b1, b0_kv, 0, 0) / VAL_ELEMENTS_PER_BYTE;
     A += DST_OFF(b1, b0, 0, 0, 0);
 #if WITH_ATTN_MASK
+    uint ldmsk = MSK_S2;
     msk += MSK_OFF(b1 % MSK_D0, b0 % MSK_D1, 0, 0);
 #ifndef BLOCK_MSK
     int mask_aligned = (((size_t)msk) % 4) == 0;
@@ -230,6 +230,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
 
 #if KEY_SCALES
     K_scales += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE;
+    uint num_key_groups = d / KEY_GROUP_SIZE;
 #endif
 #if KEY_SCALES == QUANTIZE_COMMON
     float k_scale = convert_float(*K_scales);
@@ -240,6 +241,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
 #endif
 #if VAL_SCALES
     V_scales += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE;
+    uint num_val_groups = d / VAL_GROUP_SIZE;
 #endif
 #if VAL_SCALES == QUANTIZE_COMMON
     float v_scale = convert_float(*V_scales);
@@ -247,48 +249,6 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
 #if VAL_ZERO_POINTS
     V_zp += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE
             / VAL_ZP_ELEMENTS_PER_BYTE;
-#endif
-
-#ifdef PREFETCH_K0
-    /* Prefetch first K tile. */
-    cooperative_prefetch_2d_k(
-            /* ptr */ K,
-            /* r */ k,
-            /* c */ d,
-            /* rmax */ ugemm_kq_wg_tile_m,
-            /* cmax */ PREFETCH_D_MAX,
-            /* ld */ ldk,
-            /* sg_id */ sg_ij,
-            /* n_sg */ sg_per_wg,
-            /* sg_size */ SUBGROUP_SIZE,
-            /* cache */ LSC_LDCC_L1C_L3C);
-
-#if KEY_SCALES == QUANTIZE_2D
-    cooperative_prefetch_2d_maybe_rem(
-            /* ptr */ K_scales,
-            /* r */ k,
-            /* c */ d / KEY_GROUP_SIZE,
-            /* rmax */ ugemm_kq_wg_tile_m,
-            /* cmax */ PREFETCH_D_MAX / KEY_GROUP_SIZE,
-            /* ld */ ldkq,
-            /* sg_id */ sg_ij,
-            /* n_sg */ sg_per_wg,
-            /* sg_size */ SUBGROUP_SIZE,
-            /* cache */ LSC_LDCC_L1C_L3C);
-#endif
-#if KEY_ZERO_POINTS == QUANTIZE_2D
-    cooperative_prefetch_2d_maybe_rem(
-            /* ptr */ K_zp,
-            /* r */ k,
-            /* c */ d / KEY_GROUP_SIZE,
-            /* rmax */ ugemm_kq_wg_tile_m,
-            /* cmax */ PREFETCH_D_MAX / KEY_GROUP_SIZE,
-            /* ld */ ldkq,
-            /* sg_id */ sg_ij,
-            /* n_sg */ sg_per_wg,
-            /* sg_size */ SUBGROUP_SIZE,
-            /* cache */ LSC_LDCC_L1C_L3C);
-#endif
 #endif
 
     /* Load Q tile, destined for SLM */
@@ -318,6 +278,48 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
     float iscale = 1.0;
 #endif
     scale *= 1.442695f; // log2(e)
+
+#ifdef PREFETCH_K0
+    /* Prefetch first K tile. */
+    cooperative_prefetch_2d_k(
+            /* ptr */ K,
+            /* r */ k,
+            /* c */ d,
+            /* rmax */ ugemm_kq_wg_tile_m,
+            /* cmax */ PREFETCH_D_MAX,
+            /* ld */ ldk,
+            /* sg_id */ sg_ij,
+            /* n_sg */ sg_per_wg,
+            /* sg_size */ SUBGROUP_SIZE,
+            /* cache */ LSC_LDCC_L1C_L3C);
+
+#if KEY_SCALES == QUANTIZE_2D
+    cooperative_prefetch_2d_maybe_rem(
+            /* ptr */ K_scales,
+            /* r */ k,
+            /* c */ num_key_groups,
+            /* rmax */ ugemm_kq_wg_tile_m,
+            /* cmax */ D_MAX / KEY_GROUP_SIZE,
+            /* ld */ ldkq,
+            /* sg_id */ sg_ij,
+            /* n_sg */ sg_per_wg,
+            /* sg_size */ SUBGROUP_SIZE,
+            /* cache */ LSC_LDCC_L1C_L3C);
+#endif
+#if KEY_ZERO_POINTS == QUANTIZE_2D
+    cooperative_prefetch_2d_maybe_rem(
+            /* ptr */ K_zp,
+            /* r */ k,
+            /* c */ num_key_groups,
+            /* rmax */ ugemm_kq_wg_tile_m,
+            /* cmax */ D_MAX / KEY_GROUP_SIZE,
+            /* ld */ ldkq,
+            /* sg_id */ sg_ij,
+            /* n_sg */ sg_per_wg,
+            /* sg_size */ SUBGROUP_SIZE,
+            /* cache */ LSC_LDCC_L1C_L3C);
+#endif
+#endif
 
     /* Initialize S column sums in SLM to -inf */
     const uint n_col_sg = DIV_UP(ugemm_kq_wg_tile_n, SUBGROUP_SIZE * sg_per_wg);
@@ -464,7 +466,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         /* Prefetch V scales. */
         cooperative_prefetch_2d_maybe_rem(
                 /* ptr */ V_scales,
-                /* r */ (d / VAL_GROUP_SIZE),
+                /* r */ num_val_groups,
                 /* c */ k - k0,
                 /* rmax */ PREFETCH_D_MAX / VAL_GROUP_SIZE,
                 /* cmax */ k_chunk,
@@ -478,7 +480,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         /* Prefetch V zero points. */
         cooperative_prefetch_2d_maybe_rem(
                 /* ptr */ V_zp,
-                /* r */ (d / VAL_GROUP_SIZE),
+                /* r */ num_val_groups,
                 /* c */ k - k0,
                 /* rmax */ PREFETCH_D_MAX / VAL_GROUP_SIZE,
                 /* cmax */ k_chunk,
@@ -570,12 +572,13 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
 #else
             const uint stride_k = 1;
 #endif
+
             cooperative_prefetch_2d_k(
                     /* ptr */ K + (k0 + ugemm_kq_wg_tile_m) * stride_k,
                     /* r */ k - k0 - ugemm_kq_wg_tile_m,
                     /* c */ d,
                     /* rmax */ ugemm_kq_wg_tile_m,
-                    /* cmax */ ugemm_kq_wg_tile_n,
+                    /* cmax */ D_MAX,
                     /* ld*/ ldk,
                     /* sg_id */ sg_ij,
                     /* n_sg */ sg_per_wg,
@@ -585,9 +588,9 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
             cooperative_prefetch_2d_maybe_rem(
                     /* ptr */ K_scales + (k0 + ugemm_kq_wg_tile_m),
                     /* r */ k - k0 - ugemm_kq_wg_tile_m,
-                    /* c */ d / KEY_GROUP_SIZE,
+                    /* c */ num_key_groups,
                     /* rmax */ ugemm_kq_wg_tile_m,
-                    /* cmax */ ugemm_kq_wg_tile_n / KEY_GROUP_SIZE,
+                    /* cmax */ D_MAX / KEY_GROUP_SIZE,
                     /* ld */ ldkq,
                     /* sg_id */ sg_ij,
                     /* n_sg */ sg_per_wg,
@@ -598,9 +601,9 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
             cooperative_prefetch_2d_maybe_rem(
                     /* ptr */ K_zp + (k0 + ugemm_kq_wg_tile_m),
                     /* r */ k - k0 - ugemm_kq_wg_tile_m,
-                    /* c */ d / KEY_GROUP_SIZE,
+                    /* c */ num_key_groups,
                     /* rmax */ ugemm_kq_wg_tile_m,
-                    /* cmax */ ugemm_kq_wg_tile_n / KEY_GROUP_SIZE,
+                    /* cmax */ D_MAX / KEY_GROUP_SIZE,
                     /* ld */ ldkq,
                     /* sg_id */ sg_ij,
                     /* n_sg */ sg_per_wg,
@@ -627,12 +630,12 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
                     /* cache */ LSC_LDCC_L1C_L3C);
 #else
             cooperative_prefetch_2d_maybe_rem(
-                    /* ptr */ msk + k0 + ugemm_kq_sg_tile_m + (wg_j0)*MSK_S2,
+                    /* ptr */ msk + k0 + ugemm_kq_sg_tile_m + (wg_j0)*ldmsk,
                     /* r */ k - k0 - ugemm_kq_wg_tile_m,
                     /* c */ q - wg_j0,
                     /* rmax */ ugemm_kq_wg_tile_m,
                     /* cmax */ (ugemm_kq_wg_tile_n * PREFETCH_D_MAX) / D_MAX,
-                    /* ld */ MSK_S2,
+                    /* ld */ ldmsk,
                     /* sg_id */ sg_ij,
                     /* n_sg */ sg_per_wg,
                     /* sg_size */ SUBGROUP_SIZE,
