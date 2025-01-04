@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2024 Intel Corporation
+ * Copyright 2021-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,10 @@
 #include "graph/backend/dnnl/passes/utils.hpp"
 
 #include "oneapi/dnnl/dnnl.hpp"
+
+#define VCHECK_MEMORY_PLANNING(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, memory_planning, (cond), status, msg, \
+            ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {
@@ -343,7 +347,8 @@ status_t memory_planner_t::assign_external_inputs_buffer(
                 // assign alias
                 auto aliases = alias_analyzer_.get_all_aliases(val);
                 for (auto &alias : aliases) {
-                    assertm(!buffer_assignments_.count(alias),
+                    VCHECK_MEMORY_PLANNING(!buffer_assignments_.count(alias),
+                            status::runtime_error,
                             "alias of input has been assigned buffer");
                     buffer_assignments_.insert(std::make_pair(alias, info));
                 }
@@ -716,7 +721,11 @@ status_t memory_planner_t::book_buffers(std::shared_ptr<subgraph_t> &sg) {
                 persistent_registrar.book(info.index_,
                         persistent_buffer_assigner_.query_size(info.index_));
                 break;
-            default: return status::unimplemented;
+            default:
+                VCHECK_MEMORY_PLANNING(false, status::unimplemented,
+                        "booking memory failed for unimplemented buffer kind "
+                        "%d",
+                        info.kind_);
         }
     }
     return status::success;
@@ -770,21 +779,20 @@ status_t memory_planner_t::prepare_execution_args_set(
         }
         return status::success;
     });
-    if (ret != status::success) return ret;
+    VCHECK_MEMORY_PLANNING(
+            ret == status::success, ret, "prepare memory failed");
 
     // construct the dnnl execution args for each op
     ret = topo_order_visit(sg->get_output_ops(), [&](op_t *op) {
         const op_schema_t *opm
                 = op_schema_registry_t::get_op_schema(op->get_kind());
-        if (!opm) {
-            assertm(false, "no schema for current op");
-            return status::invalid_graph_op;
-        }
+        VCHECK_MEMORY_PLANNING(opm != nullptr, status::invalid_graph_op,
+                "no schema for current op: %s", op->get_name().c_str());
 
-        if (!opm->has_additional_item("arg_indices_getter")) {
-            assertm(false, "no arg indices getter in this op schema");
-            return status::invalid_graph_op;
-        }
+        VCHECK_MEMORY_PLANNING(opm->has_additional_item("arg_indices_getter"),
+                status::invalid_graph_op,
+                "no arg indices getter in the schema of op: %s",
+                op->get_name().c_str());
 
         auto getter = opm->get_additional_item<arg_indices_getter_func>(
                 "arg_indices_getter");
@@ -805,7 +813,9 @@ status_t memory_planner_t::prepare_execution_args_set(
             // find the corresponding memory object
             dnnl::memory mem;
             if (!exec_args_set_.find_value_mem_map(val, mem)) {
-                return status::invalid_arguments;
+                VCHECK_MEMORY_PLANNING(false, status::invalid_arguments,
+                        "can't find memory for value id: %zu",
+                        val->get_logical_tensor().id);
             }
 
             dnnl_exec_args.insert({dnnl_arg, mem});
@@ -829,8 +839,6 @@ status_t memory_planner_t::prepare_execution_args_set(
 // - Assign internal allocated persistent buffer to corresponding edges.
 // - Prepare the memory objects which will be used in execution.
 status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
-    status_t ret;
-
     auto &mgr = sg->fusion_info_mgr_;
     const auto &p_engine = *(sg->p_engine_);
     const auto &inputs = sg->ins_;
@@ -866,21 +874,17 @@ status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
     }
 
     // Assign external_input buffers to subgraph's inputs and their alias
-    ret = assign_external_inputs_buffer(sg, inputs);
-    if (ret != status::success) return ret;
+    CHECK(assign_external_inputs_buffer(sg, inputs));
 
     // Assign internal temporary buffer for all other edges
-    ret = assign_internal_temporary_buffer(sg, edge_ref_count, mgr, false);
-    if (ret != status::success) return ret;
+    CHECK(assign_internal_temporary_buffer(sg, edge_ref_count, mgr, false));
 
     // Replace some internal temporary buffers to user given external output
     // buffer
-    ret = assign_external_outputs_buffer(sg, outputs, mgr);
-    if (ret != status::success) return ret;
+    CHECK(assign_external_outputs_buffer(sg, outputs, mgr));
 
     // Replace some internal temporary buffers to cached persistent buffer
-    ret = assign_internal_persistent_buffer(sg, mgr);
-    if (ret != status::success) return ret;
+    CHECK(assign_internal_persistent_buffer(sg, mgr));
 
     // Reset the unreplaced internal temporary buffer
     temporary_buffer_assigner_.clear();
@@ -895,20 +899,13 @@ status_t memory_planner_t::run(std::shared_ptr<subgraph_t> &sg) {
 
     // Re-assign internal temporary buffer for reset ones (will re-do memory
     // sharing between temporary buffers)
-    ret = assign_internal_temporary_buffer(sg, edge_ref_count, mgr, true);
-    if (ret != status::success) return ret;
-
+    CHECK(assign_internal_temporary_buffer(sg, edge_ref_count, mgr, true));
     // Check which input/output pair of the subgraph can be inplaced
-    ret = prepare_subgraph_inplace_pairs(sg, false);
-    if (ret != status::success) return ret;
+    CHECK(prepare_subgraph_inplace_pairs(sg, false));
 
-    ret = book_buffers(sg);
-    if (ret != status::success) return ret;
-
+    CHECK(book_buffers(sg));
     // Bind memory object to each value
-    ret = prepare_execution_args_set(sg, p_engine, mgr);
-    if (ret != status::success) return ret;
-
+    CHECK(prepare_execution_args_set(sg, p_engine, mgr));
     return status::success;
 }
 

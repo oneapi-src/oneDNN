@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2024 Intel Corporation
+ * Copyright 2021-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@
 
 #include "graph/backend/dnnl/common.hpp"
 #include "graph/backend/dnnl/layout_propagator.hpp"
+
+#define VCHECK_LAYOUT_PROPAGATION(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, layout_propagation, (cond), status, msg, \
+            ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {
@@ -117,15 +121,14 @@ status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
 
             const op_schema_t *opm
                     = op_schema_registry_t::get_op_schema(op->get_kind());
-            if (!opm) {
-                assertm(false, "no schema for current op");
-                return status::invalid_graph_op;
-            }
+            VCHECK_LAYOUT_PROPAGATION(opm != nullptr, status::invalid_graph_op,
+                    "no schema for current op: %s", op->get_name().c_str());
 
-            if (!opm->has_additional_item("layout_propagator")) {
-                assertm(false, "no layout propagator in this op schema");
-                return status::invalid_graph_op;
-            }
+            VCHECK_LAYOUT_PROPAGATION(
+                    opm->has_additional_item("layout_propagator"),
+                    status::invalid_graph_op,
+                    "no layout propagator in the schema of op: %s",
+                    op->get_name().c_str());
 
             auto cur_op = op->shared_from_this();
             auto propagator = opm->get_additional_item<layout_propagator_func>(
@@ -137,14 +140,14 @@ status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             return status;
         });
 
-        if (ret != status::success) return ret;
+        VCHECK_LAYOUT_PROPAGATION(
+                ret == status::success, ret, "layout propagation failed");
         rewriter.run();
         propagation_number++;
-        if (propagation_number >= LAYOUT_PROPAGATION_NUMBER) {
-            assertm(false,
-                    "expect layout propagation number to be less than 10");
-            return status::invalid_arguments;
-        }
+        VCHECK_LAYOUT_PROPAGATION(
+                propagation_number < LAYOUT_PROPAGATION_NUMBER,
+                status::invalid_arguments,
+                "expect layout propagation number to be less than 10");
     } while (need_prop_once_more(sg));
 
     // Add check for the layout type of partition outputs to make partition
@@ -160,8 +163,7 @@ status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             auto lt = in_val->get_logical_tensor();
             if (lt.id == sg->ins_[i].id) {
                 auto md = make_dnnl_memory_desc(lt);
-                auto status = fill_layout_info(&(sg->ins_[i]), md);
-                if (status != status::success) return status;
+                CHECK(fill_layout_info(&(sg->ins_[i]), md));
             }
         }
     }
@@ -172,8 +174,7 @@ status_t layout_propagation(std::shared_ptr<subgraph_t> &sg) {
             auto lt = out_val->get_logical_tensor();
             if (lt.id == sg->outs_[i].id) {
                 auto md = make_dnnl_memory_desc(lt);
-                auto status = fill_layout_info(&(sg->outs_[i]), md);
-                if (status != status::success) return status;
+                CHECK(fill_layout_info(&(sg->outs_[i]), md));
             }
         }
     }

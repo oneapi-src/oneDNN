@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2024 Intel Corporation
+ * Copyright 2021-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,10 @@
 #include "graph/backend/dnnl/internal_attrs.hpp"
 #include "graph/backend/dnnl/passes/insert_ops.hpp"
 #include "graph/backend/dnnl/passes/utils.hpp"
+
+#define VCHECK_INSERT_OPS(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, insert_ops, (cond), status, msg, \
+            ##__VA_ARGS__);
 
 namespace dnnl {
 namespace impl {
@@ -332,15 +336,21 @@ status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
             // reorder's input has blocked format with group
             // while output has plain format, perhaps for
             // backward path. No such case for now, disable
-            return status::unimplemented;
+            VCHECK_INSERT_OPS(false, status::unimplemented,
+                    "unsupported i/o dimentions to insert to_group for "
+                    "reorder, input ndims: %d, output ndims: %d",
+                    in_md.get_ndims(), out_md.get_ndims());
         } else if (in_md.get_ndims() + 1 == out_md.get_ndims()) {
             // reorder's input has plain format while output
             // has blocked format with group, typically for
             // weight prepacking
             auto group = out_md.get_dims()[0];
-            if (group * out_md.get_dims()[1] != in_md.get_dims()[0])
-                return status::invalid_shape;
-
+            VCHECK_INSERT_OPS(
+                    group * out_md.get_dims()[1] == in_md.get_dims()[0],
+                    status::invalid_shape,
+                    "unmatched shape to insert to_group for reorder, group: %d,"
+                    "output dims[1]: %d, input dims[0], %d",
+                    group, out_md.get_dims()[1], in_md.get_dims()[0]);
             // insert to_group op
             op_ptr to_group_op = std::make_shared<op_t>(op_kind::dnnl_to_group);
             to_group_op->set_attr<int64_t>(op_attr::groups, group);
@@ -348,7 +358,8 @@ status_t insert_to_group_for_reorder(std::shared_ptr<subgraph_t> &sg) {
             rewriter.insert_op_before(to_group_op, cur_op, 0);
         } else {
             // illegal shape
-            return status::invalid_shape;
+            VCHECK_INSERT_OPS(false, status::invalid_shape,
+                    "invalid shape to insert to_group for reorder");
         }
     }
 
@@ -573,7 +584,11 @@ status_t insert_unsqueeze_and_squeeze_for_matmul(
 
         int32_t src_ndims = op->get_input_value(0)->get_logical_tensor().ndims;
         int32_t wei_ndims = op->get_input_value(1)->get_logical_tensor().ndims;
-        assertm(src_ndims >= 1 && wei_ndims >= 1, "invalid dims");
+        VCHECK_INSERT_OPS(src_ndims >= 1 && wei_ndims >= 1,
+                status::invalid_shape,
+                "src_ndims and wei_ndims should >= 1, src_ndims: %d, "
+                "wei_ndims: %d",
+                src_ndims, wei_ndims);
 
         int32_t unsqueezed_dst_ndims
                 = std::max(std::max(src_ndims, wei_ndims), 2);
@@ -690,8 +705,9 @@ impl::status_t insert_runtime_u8_to_s8_for_matmul(
                 // add a binary add here.
             }
         } else {
-            assertm(cur_op->num_inputs() == index,
-                    "only support insert input at the end of inputs");
+            VCHECK_INSERT_OPS(cur_op->num_inputs() == index,
+                    status::unimplemented,
+                    "only support insert input for wei at the end of inputs");
             std::vector<int64_t> zp {-128};
             auto zps_op = std::make_shared<op_t>(op_kind::dnnl_add_zps);
             zps_op->set_attr<std::string>(op_attr::qtype, "per_tensor");
@@ -833,10 +849,11 @@ status_t insert_unsqueeze_for_prelu(std::shared_ptr<subgraph_t> &sg) {
         const bool per_channel_broadcast
                 = cur_op->get_attr<bool>(op_attr::per_channel_broadcast);
 
-        if (!prelu_doable(ltw(src_lt).vdims(), ltw(wei_lt).vdims(), data_format,
-                    per_channel_broadcast)) {
-            return status::invalid_shape;
-        }
+        const bool prelu_doable_status = prelu_doable(ltw(src_lt).vdims(),
+                ltw(wei_lt).vdims(), data_format, per_channel_broadcast);
+        VCHECK_INSERT_OPS(prelu_doable_status, status::invalid_shape,
+                "invalid shape to insert unsqueeze for prelu");
+
         // insert unsqueeze op
         int32_t src_ndims = src_lt.ndims;
         int32_t wei_ndims = wei_lt.ndims;
@@ -886,10 +903,11 @@ status_t insert_unsqueeze_and_squeeze_for_prelu_bwd(
         const bool per_channel_broadcast
                 = wei_vdims.size() == 1 && wei_vdims[0] != 1;
 
-        if (!prelu_doable(ltw(src_lt).vdims(), wei_vdims, data_format,
-                    per_channel_broadcast)) {
-            return status::invalid_shape;
-        }
+        const bool prelu_doable_status = prelu_doable(ltw(src_lt).vdims(),
+                wei_vdims, data_format, per_channel_broadcast);
+        VCHECK_INSERT_OPS(prelu_doable_status, status::invalid_shape,
+                "invalid shape to insert unsqueeze for prelu");
+
         // insert unsqueeze op
         int32_t src_ndims = src_lt.ndims;
         int32_t wei_ndims = wei_lt.ndims;
