@@ -144,6 +144,7 @@ Team: @oneapi-src/onednn-cpu-x64
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Andrey Kalinin     | @ankalinin            | Intel Corporation | Maintainer |
 | Tatyana Primak     | @tprimak              | Intel Corporation | Maintainer |
+| Alexey Makarevich  | @amakarev             | Intel Corporation | Code Owner |
 | David Eberius      | @davideberius         | Intel Corporation | Code Owner |
 | Stefan Palicki     | @spalicki             | Intel Corporation | Code Owner |
 | Tomasz Czeszun     | @tczeszun             | Intel Corporation | Code Owner |
