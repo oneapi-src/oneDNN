@@ -223,6 +223,7 @@ Team: @oneapi-src/onednn-doc
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Vadim Pirogov      | @vpirogov             | Intel Corporation | Maintainer |
+| Ranu Kundu         | @ranukund             | Intel Corporation | Code Owner |
 
 ### DevOps
 
