@@ -168,7 +168,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
         component_t::flag_kind filter_kind) noexcept {
 #if defined(DISABLE_VERBOSE)
     return verbose_t::none;
-#else
+#endif
     // we print all verbose by default
     static int flags = component_t::all;
     // record filter parsing result to instruct verbose printing
@@ -291,14 +291,13 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
     if (result) print_header(filter_status);
     bool filter_result = flags & filter_kind;
     return filter_result ? result : 0;
-#endif
 }
 
 static setting_t<bool> verbose_timestamp {false};
 bool get_verbose_timestamp() {
 #if defined(DISABLE_VERBOSE)
     return false;
-#else
+#endif
     if (verbose.get() == 0) return false;
 
     if (!verbose_timestamp.initialized()) {
@@ -308,28 +307,7 @@ bool get_verbose_timestamp() {
         verbose_timestamp.set(val);
     }
     return verbose_timestamp.get();
-#endif
 }
-
-#if defined(DISABLE_VERBOSE)
-void pd_info_t::init(
-        dnnl::impl::engine_t *, const dnnl::impl::primitive_desc_t *) {}
-
-std::string rt_mds2str(primitive_kind_t prim_kind, const memory_desc_t *src_md,
-        const memory_desc_t *wei_md, const memory_desc_t *bia_md,
-        const memory_desc_t *dst_md) {
-    return std::string();
-}
-
-std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
-        const memory_desc_t *src_md, const memory_desc_t *wei_md,
-        const memory_desc_t *dst_md) {
-    return std::string();
-}
-
-void verbose_printf_impl(const char *raw_fmt_str, verbose_t::flag_kind kind) {}
-
-#else
 
 std::ostream &operator<<(std::ostream &ss, engine_kind_t eng_kind) {
     ss << dnnl_engine_kind2str(eng_kind);
@@ -1670,6 +1648,10 @@ std::string rt_mds2str(primitive_kind_t prim_kind, const memory_desc_t *src_md,
     // Note: pass format_kind::undef since runtime dims-ed mds can't have
     // format_kind::any at any stage.
     std::string s;
+#if defined(DISABLE_VERBOSE)
+    return s;
+#endif
+
     switch ((int)prim_kind) {
         case primitive_kind::matmul:
             s = mds2str_matmul(src_md, format_kind::undef, wei_md,
@@ -1713,6 +1695,10 @@ std::string prepend_identifier_and_version(const char *fmt_str) {
 }
 
 void verbose_printf_impl(const char *raw_fmt_str, verbose_t::flag_kind kind) {
+#if defined(DISABLE_VERBOSE)
+    return;
+#endif
+
     const auto &fmt_str = prepend_identifier_and_version(raw_fmt_str);
 
 #ifdef DNNL_EXPERIMENTAL_LOGGING
@@ -1734,6 +1720,10 @@ std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
         const memory_desc_t *src_md, const memory_desc_t *wei_md,
         const memory_desc_t *dst_md) {
     std::string s;
+#if defined(DISABLE_VERBOSE)
+    return s;
+#endif
+
     switch ((int)prim_kind) {
         case primitive_kind::matmul:
             s = dims2fmt_str_matmul(src_md, wei_md);
@@ -1763,6 +1753,7 @@ std::string rt_dims2fmt_str(primitive_kind_t prim_kind,
 }
 
 void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
+    // Handles VERBOSE_DISABLE since `is_initialized_` is set to `true`.
     if (is_initialized_) return;
 
     std::call_once(initialization_flag_, [&] {
@@ -1808,7 +1799,6 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
         is_initialized_ = true;
     });
 }
-#endif
 
 } // namespace impl
 } // namespace dnnl
