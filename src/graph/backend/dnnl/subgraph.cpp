@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2024 Intel Corporation
+ * Copyright 2022-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -442,6 +442,26 @@ void subgraph_rewriter_t::insert_op_before(const op_ptr &inserted_op,
     auto new_val = std::make_shared<value_t>(*inserted_op, 0, new_lt, true);
     auto in_dtype = in_val->get_logical_tensor().data_type;
     new_val->set_data_type(in_dtype);
+
+    if (inserted_op->get_kind() == op_kind::dnnl_permute
+            && (base_op->get_kind() == op_kind::dnnl_mul_scales
+                    || base_op->get_kind() == op_kind::dnnl_sub_zps)) {
+        // Only abx tag is respected for scale and zps inputs, should set
+        // strides explicitly and execute reorder.
+
+        dnnl::memory::desc in_md
+                = make_dnnl_memory_desc(in_val->get_logical_tensor());
+        const auto &perm = inserted_op->get_attr<std::vector<int64_t>>(
+                op_attr::permutation);
+        std::vector<int> int_perm(perm.size(), -1);
+        for (size_t i = 0; i < perm.size(); i++) {
+            int_perm[i] = static_cast<int>(perm[i]);
+        }
+        dnnl::memory::desc out_md = in_md.permute_axes(int_perm);
+        const auto &dims = out_md.get_dims();
+        // set the strides with abx tag.
+        new_val->set_strides(get_dense_strides(dims));
+    }
 
     if (k == std::numeric_limits<size_t>::max()) {
         k = inserted_op->num_outputs();

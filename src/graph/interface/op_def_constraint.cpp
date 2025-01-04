@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -328,11 +328,38 @@ bool check_dyn_quant_dequant_scales_zps(const op_t *n) {
         // in case of not setting value for zps
         if (sz_zps == DNNL_GRAPH_UNKNOWN_DIM) { return true; }
 
-        VCHECK_SHAPE_INFER((sz_scales == sz_zps),
-                "%s, scales and zps should keep same. given scale "
-                "size: %d, given zp size: %d.",
-                op_t::kind2str(n->get_kind()).c_str(),
-                static_cast<int>(sz_scales), static_cast<int>(sz_zps));
+        if (qtype == "per_group") {
+            const auto &ndims
+                    = n->get_input_value(1)->get_logical_tensor().ndims;
+            const auto &scale_ndims
+                    = n->get_input_value(1)->get_logical_tensor().ndims;
+            const auto &scale_dims
+                    = n->get_input_value(1)->get_logical_tensor().dims;
+            const auto &zp_ndims
+                    = n->get_input_value(2)->get_logical_tensor().ndims;
+            const auto &zp_dims
+                    = n->get_input_value(2)->get_logical_tensor().dims;
+            VCHECK_SHAPE_INFER((ndims >= 2),
+                    "group quantization requires at least two dimensions");
+            VCHECK_SHAPE_INFER(((ndims == scale_ndims) && (ndims == zp_ndims)),
+                    "%s, input, scales and zps should keep the number of "
+                    "dimensions for group quantization",
+                    op_t::kind2str(n->get_kind()).c_str());
+            VCHECK_SHAPE_INFER(
+                    (std::equal(scale_dims, scale_dims + ndims, zp_dims)),
+                    "%s, scales and zps should keep the same shape for group "
+                    "quantization",
+                    op_t::kind2str(n->get_kind()).c_str());
+        }
+
+        if (qtype == "per_channel") {
+            VCHECK_SHAPE_INFER((sz_zps == 1 || sz_scales == sz_zps),
+                    "%s, zps should be 1 or equals to scales size for "
+                    "per_channel policy, given zps size: %d and scales size: "
+                    "%d",
+                    op_t::kind2str(n->get_kind()).c_str(),
+                    static_cast<int>(sz_zps), static_cast<int>(sz_scales));
+        }
 
         if (qtype == "per_tensor") {
             VCHECK_SHAPE_INFER((sz_zps == 1),

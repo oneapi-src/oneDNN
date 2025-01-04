@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -179,6 +179,11 @@ status_t sdp_primitive_config_t::initial_check(
             }
         }
         if (op_kind != graph::op_kind::MatMul) continue;
+        // TODO(zhitao): execute the reorder for scale and zps mannually if the
+        // transpose attribute is specified as true.
+        if (cur_op->has_attr(op_attr::transpose_b)
+                && cur_op->get_attr<bool>(op_attr::transpose_b))
+            return status::unimplemented;
         auto post_op = get_post_op(cur_op);
         if (post_op && mm1_post_op_kind.count(post_op->get_kind())) {
             mm1 = cur_op;
