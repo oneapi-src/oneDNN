@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -2060,6 +2060,14 @@ const query_t internal_only_start = (query_t)(1 << 12);
 const query_t zero_pad_d = internal_only_start;
 const query_t preferred_gpu_threads_per_eu = (query_t)(internal_only_start + 1);
 } // namespace query
+
+// There are no external values to map to because this is an internal feature
+// for now.
+using matmul_reduce_kind_t = int;
+namespace matmul_reduce_kind {
+const matmul_reduce_kind_t undef = 0;
+const matmul_reduce_kind_t src = 1;
+} // namespace matmul_reduce_kind
 
 using rnn_direction_t = dnnl_rnn_direction_t;
 

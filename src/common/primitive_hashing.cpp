@@ -576,6 +576,9 @@ size_t get_desc_hash(const matmul_desc_t &desc) {
     seed = hash_combine(seed, get_md_hash(desc.weights_desc));
     seed = hash_combine(seed, get_md_hash(desc.bias_desc));
     seed = hash_combine(seed, get_md_hash(desc.dst_desc));
+    seed = hash_combine(seed, get_md_hash(desc.reduce_desc));
+    // Reduce kind.
+    seed = hash_combine(seed, static_cast<size_t>(desc.reduce_kind));
     // Accumulator type
     seed = hash_combine(seed, static_cast<size_t>(desc.accum_data_type));
     // Combined hash for matmul op desc

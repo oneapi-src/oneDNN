@@ -23,19 +23,46 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+bool is_desired_mm_impl(
+        const std::shared_ptr<primitive_desc_t> &matmul_pd, bool with_reduce) {
+    // Fallback to a generic GEMM-based Inner Product is usually preferred
+    // rather than using a reference or GEMM-based MatMul implementations here.
+    //
+    // The only exception is AVX2 for which using the GEMM-based MatMul is
+    // allowed because it is placed higher on the list of implementations.
+    // It is only allowed when no reduciton is requested (i.e. fwd, bwd_d,
+    // bwd_w (w/o bias)).
+    const bool is_brg_matmul = std::string(matmul_pd->name()).find("brg_matmul")
+            != std::string::npos;
+    const bool is_gemm_matmul
+            = std::string(matmul_pd->name()).find("gemm") != std::string::npos;
+
+    if (is_brg_matmul) return true;
+
+    const bool is_avx2 = !mayiuse(avx512_core) && mayiuse(avx2);
+    if (is_avx2 && is_gemm_matmul && !with_reduce) return true;
+
+    return false;
+}
+
 status_t create_matmul_pd(std::shared_ptr<primitive_desc_t> &matmul_pd,
         engine_t *engine, const memory_desc_t *src_md,
         const memory_desc_t *wei_md, const memory_desc_t *dst_md,
-        const memory_desc_t *bia_md, const primitive_attr_t *attr) {
+        const memory_desc_t *bia_md, const memory_desc_t *reduce_md,
+        const primitive_attr_t *attr) {
     auto matmul_desc = matmul_desc_t();
 
-    CHECK(matmul_desc_init(&matmul_desc, src_md, wei_md, bia_md, dst_md));
+    CHECK(matmul_desc_init(&matmul_desc, src_md, wei_md, bia_md, dst_md,
+            reduce_md, matmul_reduce_kind::src));
 
     primitive_desc_iterator_t it(
             engine, (op_desc_t *)&matmul_desc, attr, nullptr);
 
-    matmul_pd = *(++it);
-    if (!matmul_pd) return status::unimplemented;
+    while (it != it.end()) {
+        matmul_pd = *(++it);
+        if (!matmul_pd) return status::unimplemented;
+        if (is_desired_mm_impl(matmul_pd, bool(reduce_md))) break;
+    }
 
     return status::success;
 }
@@ -236,16 +263,11 @@ status_t matmul_inner_product_fwd_t::pd_t::init_matmul_params(
                 weights_md(1)->data_type, format_tag::ab));
     }
 
-    CHECK(create_matmul_pd(matmul_pd_, engine, &mm_src_md, &mm_wei_md,
-            &mm_dst_md, with_bias() ? &mm_bia_md : nullptr, &matmul_attr));
-
-    // Fallback to a generic GEMM-based Inner Product is preferred rather
-    // than using a reference or GEMM-based MatMul implementations here.
-    const bool is_desired_mm_impl
-            = std::string(matmul_pd_->name()).find("brg_matmul")
-            != std::string::npos;
-    VDISPATCH_INNER_PRODUCT(is_desired_mm_impl, VERBOSE_PRIMITIVE_CREATION_FAIL,
-            "matmul:brg_matmul");
+    VDISPATCH_INNER_PRODUCT_SC(
+            create_matmul_pd(matmul_pd_, engine, &mm_src_md, &mm_wei_md,
+                    &mm_dst_md, with_bias() ? &mm_bia_md : nullptr, nullptr,
+                    &matmul_attr),
+            VERBOSE_PRIMITIVE_CREATION_FAIL, "matmul");
 
     // Try to initialize Inner Product weights layout based on the MatMul's one.
     if (weights_md()->format_kind == format_kind::any) {
@@ -274,9 +296,11 @@ status_t matmul_inner_product_fwd_t::pd_t::init_matmul_params(
             CHECK(init_matmul_md(
                     mm_wei_md, *weights_md(), format_tag::ba, true));
             // Re-create MatMul primitive descriptor.
-            CHECK(create_matmul_pd(matmul_pd_, engine, &mm_src_md, &mm_wei_md,
-                    &mm_dst_md, with_bias() ? &mm_bia_md : nullptr,
-                    &matmul_attr));
+            VDISPATCH_INNER_PRODUCT_SC(
+                    create_matmul_pd(matmul_pd_, engine, &mm_src_md, &mm_wei_md,
+                            &mm_dst_md, with_bias() ? &mm_bia_md : nullptr,
+                            nullptr, &matmul_attr),
+                    VERBOSE_PRIMITIVE_CREATION_FAIL, "matmul");
             ip_wei_tag = utils::pick(
                     weights_md()->ndims - 2, ab, acb, acdb, acdeb);
         }
@@ -311,8 +335,40 @@ status_t matmul_inner_product_bwd_data_t::pd_t::init_matmul_params(
     CHECK(init_matmul_md(mm_wei_md, *weights_md(), format_tag::ab));
     CHECK(init_matmul_md(mm_dst_md, *diff_src_md(), format_tag::ab));
 
-    CHECK(create_matmul_pd(matmul_pd_, engine, &mm_src_md, &mm_wei_md,
-            &mm_dst_md, nullptr, attr()));
+    VDISPATCH_INNER_PRODUCT_SC(
+            create_matmul_pd(matmul_pd_, engine, &mm_src_md, &mm_wei_md,
+                    &mm_dst_md, nullptr, nullptr, attr()),
+            VERBOSE_PRIMITIVE_CREATION_FAIL, "matmul");
+
+    return status::success;
+}
+
+status_t matmul_inner_product_bwd_weights_t::pd_t::init_matmul_params(
+        engine_t *engine) {
+    memory_desc_t mm_src_md {};
+    memory_desc_t mm_wei_md {};
+    memory_desc_t mm_dst_md {};
+
+    CHECK(init_matmul_md(mm_src_md, *diff_dst_md(), format_tag::ba, true));
+    CHECK(init_matmul_md(mm_wei_md, *src_md(), format_tag::ab));
+    CHECK(init_matmul_md(mm_dst_md, *diff_weights_md(), format_tag::ab));
+
+    memory_desc_t reduce_md {};
+
+    if (with_bias()) {
+        const memory_desc_t &diff_bias_md = *diff_weights_md(1);
+        dims_t reduce_dims {};
+        reduce_dims[0] = diff_bias_md.dims[0];
+        reduce_dims[1] = 1;
+
+        CHECK(memory_desc_reshape(reduce_md, diff_bias_md, 2, reduce_dims));
+    }
+
+    VDISPATCH_INNER_PRODUCT_SC(
+            create_matmul_pd(matmul_pd_, engine, &mm_src_md, &mm_wei_md,
+                    &mm_dst_md, nullptr, with_bias() ? &reduce_md : nullptr,
+                    attr()),
+            VERBOSE_PRIMITIVE_CREATION_FAIL, "matmul");
 
     return status::success;
 }
@@ -342,6 +398,25 @@ status_t matmul_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
     nested_scratchpad_t ns(ctx, key_nested, matmul_);
     matmul_ctx.set_scratchpad_grantor(ns.grantor());
 
+    return matmul_->execute(matmul_ctx);
+}
+
+status_t matmul_inner_product_bwd_weights_t::execute(
+        const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
+
+    exec_args_t matmul_args;
+    matmul_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_DIFF_DST);
+    matmul_args[DNNL_ARG_WEIGHTS] = ctx.args().at(DNNL_ARG_SRC);
+    matmul_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DIFF_WEIGHTS);
+
+    if (pd()->with_bias())
+        matmul_args[DNNL_ARG_REDUCE] = ctx.args().at(DNNL_ARG_DIFF_BIAS);
+
+    exec_ctx_t matmul_ctx(ctx, std::move(matmul_args));
+
+    nested_scratchpad_t ns(ctx, key_nested, matmul_);
+    matmul_ctx.set_scratchpad_grantor(ns.grantor());
     return matmul_->execute(matmul_ctx);
 }
 

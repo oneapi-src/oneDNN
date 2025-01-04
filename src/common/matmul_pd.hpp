@@ -38,6 +38,11 @@ namespace impl {
 
 status_t matmul_desc_init(matmul_desc_t *matmul_desc,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
+        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
+        const memory_desc_t *reduce_desc, matmul_reduce_kind_t reduce_kind);
+
+status_t matmul_desc_init(matmul_desc_t *matmul_desc,
+        const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc);
 
 struct matmul_pd_t : public primitive_desc_t {
@@ -57,6 +62,7 @@ struct matmul_pd_t : public primitive_desc_t {
 
         if (arg == DNNL_ARG_BIAS && with_bias()) return arg_usage_t::input;
 
+        if (arg == DNNL_ARG_REDUCE && with_reduce()) return arg_usage_t::output;
         if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
@@ -69,6 +75,7 @@ struct matmul_pd_t : public primitive_desc_t {
             case DNNL_ARG_WEIGHTS: return weights_md(0);
             case DNNL_ARG_BIAS: return weights_md(1);
             case DNNL_ARG_DST: return dst_md(0, user_input);
+            case DNNL_ARG_REDUCE: return reduce_md(0);
             default: return primitive_desc_t::arg_md(arg);
         }
     }
@@ -93,10 +100,16 @@ struct matmul_pd_t : public primitive_desc_t {
         return &glob_zero_md;
     }
 
+    const memory_desc_t *reduce_md(
+            int index = 0, bool user_input = false) const {
+        if (index == 0) return user_input ? &desc()->reduce_desc : &reduce_md_;
+        return &glob_zero_md;
+    }
+
     int n_inputs() const override {
         return 2 + with_bias() + n_binary_po_inputs() + n_prelu_po_inputs();
     }
-    int n_outputs() const override { return 1; }
+    int n_outputs() const override { return 1 + with_reduce(); }
 
     bool has_zero_dim_memory() const {
         return memory_desc_wrapper(src_md(0)).has_zero_dim()
@@ -113,6 +126,10 @@ struct matmul_pd_t : public primitive_desc_t {
     }
 
     bool with_bias() const { return bias_md_.ndims != 0; }
+    bool with_reduce() const { return reduce_md_.ndims != 0; }
+
+    matmul_reduce_kind_t reduce_kind() const { return desc_.reduce_kind; }
+
     bool batched() const { return ndims() > 2; }
 
     dim_t batch() const {
@@ -218,6 +235,7 @@ protected:
     memory_desc_t weights_md_;
     memory_desc_t bias_md_;
     memory_desc_t dst_md_;
+    memory_desc_t reduce_md_;
 
     matmul_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const matmul_pd_t *hint_fwd_pd)
@@ -226,11 +244,13 @@ protected:
         , src_md_(desc_.src_desc)
         , weights_md_(desc_.weights_desc)
         , bias_md_(desc_.bias_desc)
-        , dst_md_(desc_.dst_desc) {}
+        , dst_md_(desc_.dst_desc)
+        , reduce_md_(desc_.reduce_desc) {}
 
     // temporary solution to deal with format `any`
     bool set_default_formats() {
-        for (auto md : {&src_md_, &weights_md_, &bias_md_, &dst_md_}) {
+        for (auto md :
+                {&src_md_, &weights_md_, &bias_md_, &dst_md_, &reduce_md_}) {
             memory_desc_wrapper mdw(md);
             if (mdw.format_any()) {
                 if (mdw.has_runtime_dims_or_strides()) return false;
@@ -246,7 +266,7 @@ protected:
     // call this function.
     bool is_dense_format_kind() {
         return impl::is_dense_format_kind(
-                {&src_md_, &weights_md_, &bias_md_, &dst_md_});
+                {&src_md_, &weights_md_, &bias_md_, &dst_md_, &reduce_md_});
     }
 };
 

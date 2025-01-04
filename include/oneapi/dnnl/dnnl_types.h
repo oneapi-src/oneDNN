@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -2547,6 +2547,12 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 
 /// Bias tensor argument.
 #define DNNL_ARG_BIAS 41
+
+/// Reduce tensor argument.
+#define DNNL_ARG_REDUCE 42
+
+/// Note: when adding a new macro after `DNNL_ARG_REDUCE` please reserve a
+/// space for potential indices for `DNNL_ARG_REDUCE`.
 
 /// Mean values tensor argument.
 #define DNNL_ARG_MEAN 49
