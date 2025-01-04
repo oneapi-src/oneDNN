@@ -26,6 +26,11 @@ where *conv-knobs* are:
             specification for `src`, `weights`, and `dst` tensors through
             strides values. Refer to [option documentation](knob_strides.md)
             for details.
+ - `--bia-dt={undef [default], f32, bf16, f16, ...}` -- bias data type.
+            To run Inner Product without bias, use `undef` data type (default).
+            `--dir=FWD_B|BWD_WB` will set `--bia-dt` to `f32` to preserve
+            compatibility with the former behavior.
+            Refer to [data types](knobs_dt.md) for details.
  - `--alg={DIRECT [default], WINO, AUTO}` -- convolution algorithm. `WINO` is
             Winograd-based convolution. `AUTO` will pick one of `DIRECT` or
             `WINO` automatically, library-based decision.

@@ -4,7 +4,7 @@
 
 --dt=f32
 --stag=ab,ba --wtag=ab,ba --dtag=ab
---bia_dt=undef,f32 --bia_mask=2
+--bia-dt=undef,f32 --bia_mask=2
 
 --runtime_dims_masks=0
 --attr-scales=src:common:0.25+wei:common:0.5+dst:common:4

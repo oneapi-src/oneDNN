@@ -21,7 +21,7 @@ where *matmul-knobs* are:
             specification for `src`, `weights`, and `dst` tensors through
             strides values. Refer to [option documentation](knob_strides.md)
             for details.
- - `--bia_dt={undef [default], f32, s32, s8, u8}` -- bias data type.
+ - `--bia-dt={undef [default], f32, s32, s8, u8}` -- bias data type.
             To run MatMul without bias, use `undef` data type (default).
             Refer to [data types](knobs_dt.md) for details.
  - `--bia_mask=INT` -- a bit-mask that indicates which bias dimensions are
@@ -85,7 +85,7 @@ runtime, but sizes specified at creation time:
 Run single precision batched matrix multiplication with bias, of which only the
 full dimension is along the `n`-axis:
 ``` sh
-    ./benchdnn --matmul --bia_dt=f32 --bia_mask=4 2x10x30:2x30x20
+    ./benchdnn --matmul --bia-dt=f32 --bia_mask=4 2x10x30:2x30x20
 ```
 
 Run single precision batched matrix multiplication with strides so that `dst` tensor

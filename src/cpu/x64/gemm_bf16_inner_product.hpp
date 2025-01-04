@@ -74,11 +74,11 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
                     attr()->post_ops_.check_sum_consistency(
                             dst_md()->data_type, /* is_int8 */ false),
                     VERBOSE_UNSUPPORTED_POSTOP);
+            VDISPATCH_INNER_PRODUCT(set_default_params() == status::success,
+                    VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_INNER_PRODUCT(inner_product_utils::post_ops_ok(
                                             attr()->post_ops_, &dst_md_),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_INNER_PRODUCT(set_default_params() == status::success,
-                    VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_INNER_PRODUCT(dense_gemm_consitency_check(
                                             src_md(), weights_md(), dst_md()),
                     VERBOSE_INCOMPATIBLE_GEMM_FMT);

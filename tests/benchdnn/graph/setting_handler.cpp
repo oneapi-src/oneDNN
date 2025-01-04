@@ -125,6 +125,13 @@ bool get_driver_axis(const deserialized_op &base_op_ref, int &axis) {
     return true;
 }
 
+bool get_driver_bia_dt(const deserialized_op &base_op_ref,
+        dnnl_data_type_t &bia_dt, const dnnl_data_type_t dt) {
+    // bia_dt is the same as src_dt
+    bia_dt = base_op_ref.in_lts_.size() <= 2 ? dnnl_data_type_undef : dt;
+    return true;
+}
+
 bool get_prb_dims(const deserialized_op &base_op_ref, prb_dims_t &prb_dims) {
     prb_dims.dims = base_op_ref.in_lts_.front().shape_;
     prb_dims.ndims = static_cast<int>(prb_dims.dims.size());
@@ -551,12 +558,13 @@ bool get_conv_desc(const deserialized_op &base_op_ref, ::conv::desc_t &d) {
 bool get_conv_dir(const deserialized_op &base_op_ref, dir_t &dir) {
     const auto &op_kind = base_op_ref.kind_;
     if (op_kind == "Convolution") {
-        dir = base_op_ref.in_lts_.size() > 2 ? dir_t::FWD_B : dir_t::FWD_I;
+        dir = dir_t::FWD_I;
     } else if (op_kind == "ConvolutionBackwardData") {
         dir = dir_t::BWD_D;
     } else if (op_kind == "ConvolutionBackwardWeights") {
         dir = dir_t::BWD_W;
     } else {
+        assert(!"unexpected op_kind");
         return false;
     }
     return true;
@@ -666,6 +674,10 @@ bool get_conv_stag_and_dtag(
     DNN_GRAPH_CHECK_SETTINGS(
             conv::get_conv_dt(base_op_ref, op_setting.dt.front()), res);
     DNN_GRAPH_CHECK_SETTINGS(
+            get_driver_bia_dt(base_op_ref, op_setting.bia_dt.front(),
+                    op_setting.dt.front()[0]),
+            res);
+    DNN_GRAPH_CHECK_SETTINGS(
             conv::get_conv_stag_and_dtag(base_op_ref, op_setting), res);
     DNN_GRAPH_CHECK_SETTINGS(
             conv::get_conv_wtag(base_op_ref, op_setting.wtag.front()), res);
@@ -751,22 +763,18 @@ bool get_deconv_desc(const deserialized_op &base_op_ref, ::deconv::desc_t &d) {
 }
 
 bool get_deconv_dir(const deserialized_op &base_op_ref, dir_t &dir) {
-    bool ret = false;
     const auto &op_kind = base_op_ref.kind_;
     if (op_kind == "ConvTranspose") {
-        dir = base_op_ref.in_lts_.size() > 2 ? dir_t::FWD_B : dir_t::FWD_I;
-        ret = true;
+        dir = dir_t::FWD_I;
     } else if (op_kind == "ConvTransposeBackwardData") {
         dir = dir_t::BWD_D;
-        ret = true;
     } else if (op_kind == "ConvTransposeBackwardWeights") {
         dir = dir_t::BWD_W;
-        ret = true;
     } else {
         assert(!"unexpected op_kind");
         return false;
     }
-    return ret;
+    return true;
 }
 
 bool get_deconv_dt(
@@ -848,6 +856,10 @@ bool get_deconv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
             deconv::get_deconv_dir(base_op_ref, op_setting.dir.front()), res);
     DNN_GRAPH_CHECK_SETTINGS(
             deconv::get_deconv_dt(base_op_ref, op_setting.dt.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_driver_bia_dt(base_op_ref, op_setting.bia_dt.front(),
+                    op_setting.dt.front()[0]),
+            res);
     DNN_GRAPH_CHECK_SETTINGS(
             get_driver_stag_and_dtag(base_op_ref, op_setting.stag.front(),
                     op_setting.dtag.front(),
@@ -1307,13 +1319,9 @@ bool get_matmul_tags(const deserialized_op &base_op_ref, std::string &stag,
     return true;
 }
 
-bool get_matmul_bia_dt_mask(const deserialized_op &base_op_ref,
-        dnnl_data_type_t &bia_dt, const dnnl_data_type_t dt, int &bia_mask) {
-    bia_dt = dnnl_data_type_undef;
+bool get_matmul_bia_mask(const deserialized_op &base_op_ref, int &bia_mask) {
     if (base_op_ref.in_lts_.size() <= 2) return true;
 
-    // bia_dt is the same as src_dt
-    bia_dt = dt;
     const logical_tensor::dims &bias_shape = base_op_ref.in_lts_[2].shape_;
     const logical_tensor::dims &dst_shape = base_op_ref.out_lts_[0].shape_;
     if (bias_shape.size() != dst_shape.size()) {
@@ -1343,9 +1351,11 @@ bool get_matmul_bia_dt_mask(const deserialized_op &base_op_ref,
     DNN_GRAPH_CHECK_SETTINGS(
             matmul::get_matmul_dt(base_op_ref, op_setting.dt.front()), res);
     DNN_GRAPH_CHECK_SETTINGS(
-            matmul::get_matmul_bia_dt_mask(base_op_ref,
-                    op_setting.bia_dt.front(), op_setting.dt.front()[0],
-                    op_setting.bia_mask.front()),
+            get_driver_bia_dt(base_op_ref, op_setting.bia_dt.front(),
+                    op_setting.dt.front()[0]),
+            res);
+    DNN_GRAPH_CHECK_SETTINGS(matmul::get_matmul_bia_mask(
+                                     base_op_ref, op_setting.bia_mask.front()),
             res);
     DNN_GRAPH_CHECK_SETTINGS(
             matmul::get_matmul_tags(base_op_ref, op_setting.stag.front(),

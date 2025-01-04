@@ -11,19 +11,19 @@
 
 --reset
 --dt=bf16
---bia_dt=bf16 --bia_mask=2
+--bia-dt=bf16 --bia_mask=2
 
 --stag=ab --wtag=any --dtag=ab
 # 6 per each encoder stage, 36 in total
 40x1024:1024x1024n"Transformer_lt:Encoder_MM_1*36"
 
---bia_dt=undef
+--bia-dt=undef
 --stag=abcd --wtag=abdc --dtag=abcd
 1x16x40x64:1x16x64x40n"Transformer_lt:Encoder_MM_4*6"
 --stag=abcd --wtag=abcd --dtag=abcd
 1x16x40x40:1x16x40x64n"Transformer_lt:Encoder_MM_5*6"
 
---bia_dt=bf16 --bia_mask=2
+--bia-dt=bf16 --bia_mask=2
 --stag=ab --wtag=any --dtag=ab
 40x1024:1024x4096n"Transformer_lt:Encoder_MM_7*6"
 40x4096:4096x1024n"Transformer_lt:Encoder_MM_8*6"
@@ -35,12 +35,12 @@
 # number of calls depends on sequence length value
 # =============================================================================
 
---bia_dt=bf16 --bia_mask=2
+--bia-dt=bf16 --bia_mask=2
 --stag=ab --wtag=any --dtag=ab
 # 6 per each encoder and sequence length, 1440 in total for seq_len = 40
 4x1024:1024x1024n"Transformer_lt:Decoder_MM_1*1440"
 
---bia_dt=undef
+--bia-dt=undef
 --stag=abcd --wtag=abdc --dtag=abcd
 # 1 per each encoder and sequence length, 240 in total for seq_len = 40
 1x16x4x64:1x16x64x40n"Transformer_lt:Decoder_MM_4*240"
@@ -48,7 +48,7 @@
 # 1 per each encoder and sequence length, 240 in total for seq_len = 40
 1x16x4x40:1x16x40x64n"Transformer_lt:Decoder_MM_5*240"
 
---bia_dt=bf16 --bia_mask=2
+--bia-dt=bf16 --bia_mask=2
 --stag=ab --wtag=any --dtag=ab
 # 1 per each encoder and sequence length, 240 in total for seq_len = 40
 4x1024:1024x4096n"Transformer_lt:Decoder_MM_7*240"
@@ -64,7 +64,7 @@
 # instead of running whole set of such problems we fix sl = 20 and consider
 # this problem is running 6*seq_len times
 
---bia_dt=undef
+--bia-dt=undef
 --stag=abcd --wtag=abdc --dtag=abcd
 1x16x1x64:1x16x64x20n"Transformer_lt:Decoder_MM_xx20*240"
 --stag=abcd --wtag=abcd --dtag=abcd
