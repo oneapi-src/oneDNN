@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -620,10 +620,11 @@ status_t brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel) {
 status_t brgemm_init_tiles(const brgemm_desc_t &brg, char palette[64]) {
     if (!brg.is_tmm) return status::unimplemented;
 
-    //TODO: Add support of tail processing by reduction dimension
     auto rd_block = (!brg.rdb && brg.rdb_tail) ? brg.rdb_tail : brg.rd_block;
     if (brg.is_input_convert())
         rd_block = utils::rnd_up(rd_block, 2 /*vnni_granularity*/);
+    else
+        rd_block = utils::rnd_up(rd_block, brg.rd_step);
 
     palette_config_t *buff = (palette_config_t *)(palette);
 
@@ -765,7 +766,8 @@ int brgemm_cmp(const brgemm_desc_t &lhs, const brgemm_desc_t &rhs) {
     CMP_BRGEMM_FIELD(brgattr.hint_prfB.dist2);
     CMP_BRGEMM_FIELD(brgattr.hint_prfC.dist1);
     CMP_BRGEMM_FIELD(brgattr.hint_prfC.dist2);
-    CMP_BRGEMM_FIELD(brgattr.wary_tail_read);
+    CMP_BRGEMM_FIELD(brgattr.wary_A_k_tail_read);
+    CMP_BRGEMM_FIELD(brgattr.extendable_k);
     CMP_BRGEMM_FIELD(brgattr.generate_skip_accumulation);
     CMP_BRGEMM_FIELD(brgattr.bd_mask_level);
     CMP_BRGEMM_FIELD(brgattr.use_uker);

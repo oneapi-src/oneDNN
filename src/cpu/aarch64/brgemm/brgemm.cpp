@@ -513,7 +513,8 @@ int brgemm_cmp(const brgemm_t &lhs, const brgemm_t &rhs) {
     CMP_BRGEMM_FIELD(brgattr.hint_prfB.dist2);
     CMP_BRGEMM_FIELD(brgattr.hint_prfC.dist1);
     CMP_BRGEMM_FIELD(brgattr.hint_prfC.dist2);
-    CMP_BRGEMM_FIELD(brgattr.wary_tail_read);
+    CMP_BRGEMM_FIELD(brgattr.wary_A_k_tail_read);
+    CMP_BRGEMM_FIELD(brgattr.extendable_k);
     CMP_BRGEMM_FIELD(brgattr.generate_skip_accumulation);
     CMP_BRGEMM_FIELD(brgattr.bd_mask_level);
     CMP_BRGEMM_FIELD(brgattr.use_uker);

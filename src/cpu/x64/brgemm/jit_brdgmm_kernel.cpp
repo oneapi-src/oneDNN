@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 #include "cpu/x64/brgemm/jit_brdgmm_kernel.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
-#include "cpu/x64/jit_generator.hpp"
 
 #define GET_OFF(field) offsetof(brgemm_kernel_params_t, field)
 #define GET_OFF_BATCH_ELEMENT(field) offsetof(brgemm_batch_element_t, field)
@@ -39,7 +38,7 @@ using namespace Xbyak;
 template <typename Wmm>
 jit_brdgmm_kernel_base_t<Wmm>::jit_brdgmm_kernel_base_t(
         const brgemm_desc_t &abrd)
-    : jit_generator(jit_name(), abrd.isa_impl)
+    : jit_base_brgemm_kernel_t(jit_name(), abrd.isa_impl)
     , brg(abrd)
     , simd_w_(vreg_traits<Vmm>::vlen / brg.typesize_C)
     , max_vmms_(isa_num_vregs(brg.isa_impl))

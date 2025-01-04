@@ -133,7 +133,8 @@ struct DNNL_API brgemm_attr_t {
             = brgemm_kernel_prefetching_t::brgemm_prf_default;
     brgemm_prf_t hint_prfA, hint_prfB, hint_prfC;
 
-    bool wary_tail_read;
+    bool wary_A_k_tail_read {false};
+    bool extendable_k {false};
     bool generate_skip_accumulation;
     // Value of bd_mask_level specifies how bd_mask is used in brgemm kernel
     // 0 – bd_mask is not used

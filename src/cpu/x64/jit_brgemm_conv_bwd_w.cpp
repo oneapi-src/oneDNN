@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -133,7 +133,7 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(engine_t *engine) {
                 brgattr.hint_expected_B_size = 0;
                 brgattr.hint_expected_C_size = 0;
 
-                brgattr.wary_tail_read = false;
+                brgattr.wary_A_k_tail_read = false;
                 brgattr.bd_mask_level = jcp_.use_M_mask;
 
                 brgattr.max_top_vpad = 0;
