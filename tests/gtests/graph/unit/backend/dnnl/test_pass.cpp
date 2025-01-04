@@ -12939,8 +12939,8 @@ TEST(test_pass, FuseReduceAdd) {
           |
          add
     */
-    const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
-            ReduceMean, ReduceMin, ReduceProd, ReduceSum};
+    const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceAMax,
+            ReduceMax, ReduceMean, ReduceMin, ReduceProd, ReduceSum};
     const auto engine_kind = get_test_engine_kind();
 
     for (const auto &base_op : configs) {
@@ -12981,8 +12981,8 @@ TEST(test_pass, FuseReduceRelu) {
           |
         relu
     */
-    const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
-            ReduceMean, ReduceMin, ReduceProd, ReduceSum};
+    const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceAMax,
+            ReduceMax, ReduceMean, ReduceMin, ReduceProd, ReduceSum};
     const auto engine_kind = get_test_engine_kind();
 
     for (const auto &base_op : configs) {
@@ -13023,8 +13023,8 @@ TEST(test_pass_system, FuseReduceSwish) {
             \    |
             multiply
     */
-    const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
-            ReduceMean, ReduceMin, ReduceProd, ReduceSum};
+    const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceAMax,
+            ReduceMax, ReduceMean, ReduceMin, ReduceProd, ReduceSum};
     const auto engine_kind = get_test_engine_kind();
 
     for (const auto &base_op : configs) {
@@ -13130,8 +13130,8 @@ TEST(test_pass_system, FuseReduceWith3PostOps) {
 }
 
 TEST(test_pass, FailToFuseReduceWithEmptyScales) {
-    const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceMax,
-            ReduceMean, ReduceMin, ReduceProd, ReduceSum};
+    const std::vector<op_kind_t> configs {ReduceL1, ReduceL2, ReduceAMax,
+            ReduceMax, ReduceMean, ReduceMin, ReduceProd, ReduceSum};
     const auto engine_kind = get_test_engine_kind();
 
     for (const auto base_op : configs) {

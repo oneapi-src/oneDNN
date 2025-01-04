@@ -819,6 +819,7 @@ public:
         Reciprocal = dnnl_graph_op_reciprocal,
         ReduceL1 = dnnl_graph_op_reduce_l1,
         ReduceL2 = dnnl_graph_op_reduce_l2,
+        ReduceAMax = dnnl_graph_op_reduce_amax,
         ReduceMax = dnnl_graph_op_reduce_max,
         ReduceMean = dnnl_graph_op_reduce_mean,
         ReduceMin = dnnl_graph_op_reduce_min,
