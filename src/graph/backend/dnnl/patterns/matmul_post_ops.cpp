@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -283,7 +283,7 @@ features on GPU:
 Note: This pattern also accepts fp32 as weight input
 */
 #if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_matmul_add_post_ops_gpu)
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x8_matmul_add_post_ops_gpu)
         .set_priority(10.f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -305,8 +305,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8s8x8_matmul_add_post_ops_gpu)
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt, 0)});
                     dequant_weight->append_decision_function(
-                            check_input_dtype<graph::data_type::s8>);
-
+                            check_unsupported_input_dtype<
+                                    graph::data_type::u8>);
                     pm::pb_op_t *pmatmul
                             = pgraph->append_op(graph::op_kind::MatMul,
                                     in_edges_t {in_edge(0, dequant_data, 0),
@@ -361,8 +361,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
-                    dequant_data->append_decision_function(
-                            is_int8_quantization);
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
@@ -373,7 +371,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops)
                     auto popt_quant_wei_graph = std::make_shared<pb_graph_t>();
                     pm::pb_op_t *pquant = popt_quant_wei_graph->append_op(
                             graph::op_kind::Quantize);
-                    pquant->append_decision_function(is_int8_quantization);
                     pquant->append_decision_function(check_if_constant_weight);
                     popt_quant_wei_graph->create_input_port(0, pquant, 0);
                     popt_quant_wei_graph->create_output_port(0, pquant, 0);
@@ -383,8 +380,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8x8x_tc_matmul_post_ops)
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt_quant_wei, 0)});
-                    dequant_weight->append_decision_function(
-                            is_int8_quantization);
 
                     pm::pb_op_t *typecast_weight
                             = pgraph->append_op(graph::op_kind::TypeCast,
@@ -476,8 +471,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
-                    dequant_data->append_decision_function(
-                            is_int8_quantization);
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
@@ -497,8 +490,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     pm::pb_op_t *dequant_weight
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt_quant_wei, 0)});
-                    dequant_weight->append_decision_function(
-                            is_int8_quantization);
 
                     pm::pb_op_t *typecast_weight
                             = pgraph->append_op(graph::op_kind::TypeCast,
@@ -517,8 +508,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     // post add with dequant->typecast
                     pm::pb_op_t *pdequant_add
                             = pgraph->append_op(graph::op_kind::Dequantize);
-                    pdequant_add->append_decision_function(
-                            is_int8_quantization);
                     pm::pb_op_t *typecast_add
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, pdequant_add, 0)});
@@ -557,7 +546,7 @@ Note: This pattern also accepts fp32 as weight input
 */
 #if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
-        dnnl, x8s8x8_tc_matmul_add_post_ops_gpu)
+        dnnl, x8x8x8_tc_matmul_add_post_ops_gpu)
         .set_priority(10.5f)
         .set_engine_kind(engine_kind::gpu)
         .set_kind(partition_kind_t::quantized_matmul_post_ops)
@@ -565,8 +554,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     pm::pb_op_t *dequant_data
                             = pgraph->append_op(graph::op_kind::Dequantize);
-                    dequant_data->append_decision_function(
-                            is_int8_quantization);
                     pm::pb_op_t *typecast_data
                             = pgraph->append_op(graph::op_kind::TypeCast,
                                     in_edges_t {in_edge(0, dequant_data, 0)});
@@ -587,7 +574,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                             = pgraph->append_op(graph::op_kind::Dequantize,
                                     in_edges_t {in_edge(0, popt_quant_wei, 0)});
                     dequant_weight->append_decision_function(
-                            check_input_dtype<graph::data_type::s8>);
+                            check_unsupported_input_dtype<
+                                    graph::data_type::u8>);
 
                     pm::pb_op_t *typecast_weight
                             = pgraph->append_op(graph::op_kind::TypeCast,
@@ -606,8 +594,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(
                     // post add with dequant->typecast
                     pm::pb_op_t *pdequant_add
                             = pgraph->append_op(graph::op_kind::Dequantize);
-                    pdequant_add->append_decision_function(
-                            is_int8_quantization);
                     pdequant_add->append_decision_function(check_zps_values<0>);
                     pm::pb_op_t *typecast_add
                             = pgraph->append_op(graph::op_kind::TypeCast,

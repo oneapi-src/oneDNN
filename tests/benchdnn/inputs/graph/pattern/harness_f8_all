@@ -5,3 +5,7 @@
 --reset --expected-n-partitions=0 --case=pattern/f8/f8_conv_post_ops_int8_add_fusion.json
 --reset --expected-n-partitions=0 --case=pattern/f8/f8_conv_bias_relu_fusion.json
 --reset --expected-n-partitions=0 --case=pattern/f8/f8_matmul.json
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_bf16_matmul_add_fusion.json
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_bf16_matmul_sum_add_mul_relu.json
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_matmul_sum_add_mul_relu.json
+--reset --expected-n-partitions=0 --case=pattern/f8/f8_f32_matmul_mul_add_fusion.json
