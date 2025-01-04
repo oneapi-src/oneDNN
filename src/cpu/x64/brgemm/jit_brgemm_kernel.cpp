@@ -2158,10 +2158,12 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
             } else if (one_of(dt, data_type::s8, data_type::u8)) {
                 uni_vpbroadcastd(v1, ptr[reg_aux_A + offset]);
             } else if (dt == data_type::f16) {
-                if (brg.isa_impl == avx2_vnni_2)
+                if (brg.isa_impl == avx2_vnni_2) {
                     vbcstnesh2ps(v1, ptr[reg_aux_A + offset]);
-                else
+                } else if (is_superset(brg.isa_impl, avx512_core_fp16)) {
+                    // Broadcast is not supported for legacy f16-conversions.
                     vcvtph2psx(v1, ptr_b[reg_aux_A + offset]);
+                }
             }
         }
 
@@ -2202,26 +2204,34 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
                             vcvtneeph2ps(vmm_load, addr);
                         else
                             vcvtneoph2ps(vmm_load, addr);
+                    } else if (brg.is_f16_b_non_amx_vnni()) {
+                        const auto vnni_addr = ptr[reg_aux_B
+                                + B_offset(ld, utils::rnd_dn(rd, 2))];
+                        vmovups(vmm_load, vnni_addr);
+                        if (rd % 2 == 0)
+                            vpermw(vmm_load, f16_perm_even_vreg_, vmm_load);
+                        else
+                            vpermw(vmm_load, f16_perm_odd_vreg_, vmm_load);
+                        vcvtph2psx(vmm_load, Vmm_lower_t(vmm_load.getIdx()));
                     } else {
-                        if (brg.is_f16_b_non_amx_vnni()) {
-                            const auto vnni_addr = ptr[reg_aux_B
-                                    + B_offset(ld, utils::rnd_dn(rd, 2))];
-                            vmovups(vmm_load, vnni_addr);
-                            if (rd % 2 == 0)
-                                vpermw(vmm_load, f16_perm_even_vreg_, vmm_load);
-                            else
-                                vpermw(vmm_load, f16_perm_odd_vreg_, vmm_load);
-                            vcvtph2psx(
-                                    vmm_load, Vmm_lower_t(vmm_load.getIdx()));
-                        } else
-                            vcvtph2psx(vmm_load, addr);
+                        uni_vcvtph2psx(vmm_load, addr);
                     }
-                } else if (brg.dt_b == data_type::bf16
-                        && brg.isa_impl == avx2_vnni_2) {
-                    if (rd % 2 == 0)
-                        vcvtneebf162ps(vmm_load, addr);
-                    else
-                        vcvtneobf162ps(vmm_load, addr);
+                } else if (brg.dt_b == data_type::bf16) {
+                    if (brg.isa_impl == avx2_vnni_2) {
+                        if (rd % 2 == 0)
+                            vcvtneebf162ps(vmm_load, addr);
+                        else
+                            vcvtneobf162ps(vmm_load, addr);
+                    } else if (utils::one_of(brg.isa_impl, avx512_core, avx2)) {
+                        // Upconvert: load 16 bits and move them 16 bits left.
+                        uni_vpmovzxwd(vmm_load, addr);
+                        uni_vpslld(vmm_load, vmm_load, 16);
+                    } else if (is_ld_tail
+                            && !is_superset(brg.isa_impl, avx512_core)) {
+                        load_bytes(vmm_load, addr, ldb_B_offset(0, true));
+                    } else {
+                        uni_vmovups(vmm_load, addr);
+                    }
                 } else if (is_ld_tail) {
                     if (is_superset(brg.isa_impl, avx512_core)) {
                         uni_vmovups(vmm_load, addr);
@@ -2257,28 +2267,39 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
                             vcvtneeph2ps(vmm_load, addr);
                         else
                             vcvtneoph2ps(vmm_load, addr);
+                    } else if (brg.is_f16_b_non_amx_vnni()) {
+                        const auto actual_B_offset
+                                = B_offset(ld, utils::rnd_dn(rd, 2));
+                        const auto vnni_addr = ptr[reg_aux_B + actual_B_offset];
+                        vmovups(vmm_load, vnni_addr);
+                        if (rd % 2 == 0)
+                            vpermw(vmm_load, f16_perm_even_vreg_, vmm_load);
+                        else
+                            vpermw(vmm_load, f16_perm_odd_vreg_, vmm_load);
+                        vcvtph2psx(vmm_load, Vmm_lower_t(vmm_load.getIdx()));
+                    } else if (is_ld_tail
+                            && !is_superset(brg.isa_impl, avx512_core)) {
+                        load_bytes(vmm_load, addr, ldb_B_offset(0, true));
+                        vcvtph2ps(vmm_load, Xmm(vmm_load.getIdx()));
                     } else {
-                        if (brg.is_f16_b_non_amx_vnni()) {
-                            const auto actual_B_offset
-                                    = B_offset(ld, utils::rnd_dn(rd, 2));
-                            const auto vnni_addr
-                                    = ptr[reg_aux_B + actual_B_offset];
-                            vmovups(vmm_load, vnni_addr);
-                            if (rd % 2 == 0)
-                                vpermw(vmm_load, f16_perm_even_vreg_, vmm_load);
-                            else
-                                vpermw(vmm_load, f16_perm_odd_vreg_, vmm_load);
-                            vcvtph2psx(
-                                    vmm_load, Vmm_lower_t(vmm_load.getIdx()));
-                        } else
-                            vcvtph2psx(vmm_load, addr);
+                        uni_vcvtph2psx(vmm_load, addr);
                     }
-                } else if (brg.dt_b == data_type::bf16
-                        && brg.isa_impl == avx2_vnni_2) {
-                    if (rd % 2 == 0)
-                        vcvtneebf162ps(vmm_load, addr);
-                    else
-                        vcvtneobf162ps(vmm_load, addr);
+                } else if (brg.dt_b == data_type::bf16) {
+                    if (brg.isa_impl == avx2_vnni_2) {
+                        if (rd % 2 == 0)
+                            vcvtneebf162ps(vmm_load, addr);
+                        else
+                            vcvtneobf162ps(vmm_load, addr);
+                    } else if (utils::one_of(brg.isa_impl, avx512_core, avx2)) {
+                        // Upconvert: load 16 bits and move them 16 bits left.
+                        uni_vpmovzxwd(vmm_load, addr);
+                        uni_vpslld(vmm_load, vmm_load, 16);
+                    } else if (is_ld_tail
+                            && !is_superset(brg.isa_impl, avx512_core)) {
+                        load_bytes(vmm_load, addr, ldb_B_offset(0, true));
+                    } else {
+                        uni_vmovups(vmm_load, addr);
+                    }
                 } else if (is_ld_tail) {
                     if (is_superset(brg.isa_impl, avx512_core)) {
                         uni_vmovups(vmm_load, addr);
