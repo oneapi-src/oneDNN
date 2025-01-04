@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -291,6 +291,8 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
             {"Exp", dnnl::graph::op::kind::Exp},
             {"GELU", dnnl::graph::op::kind::GELU},
             {"GELUBackward", dnnl::graph::op::kind::GELUBackward},
+            {"GenIndex", dnnl::graph::op::kind::GenIndex},
+            {"GreaterEqual", dnnl::graph::op::kind::GreaterEqual},
             {"GroupNorm", dnnl::graph::op::kind::GroupNorm},
             {"HardSigmoid", dnnl::graph::op::kind::HardSigmoid},
             {"HardSigmoidBackward", dnnl::graph::op::kind::HardSigmoidBackward},
@@ -484,6 +486,9 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
                     {dnnl::graph::op::kind::GELU, dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::GELUBackward,
                             dnnl_driver_t::eltwise},
+                    {dnnl::graph::op::kind::GenIndex, dnnl_driver_t::custom},
+                    {dnnl::graph::op::kind::GreaterEqual,
+                            dnnl_driver_t::binary},
                     {dnnl::graph::op::kind::GroupNorm, dnnl_driver_t::gnorm},
                     {dnnl::graph::op::kind::HardSigmoid,
                             dnnl_driver_t::eltwise},
@@ -839,7 +844,8 @@ int get_prim_arg_name_from_graph_op_input_offset(
         case dnnl::graph::op::kind::Maximum:
         case dnnl::graph::op::kind::Minimum:
         case dnnl::graph::op::kind::Multiply:
-        case dnnl::graph::op::kind::Subtract: {
+        case dnnl::graph::op::kind::Subtract:
+        case dnnl::graph::op::kind::GreaterEqual: {
             if (input_offset == 0)
                 return DNNL_ARG_SRC_0;
             else if (input_offset == 1)

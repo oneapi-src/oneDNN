@@ -952,3 +952,5 @@
 --reset --case=op/f32/gnorm.json
 --reset --case=op/f32/static_reshape.json
 --reset --case=op/f32/static_transpose.json
+--reset --case=op/f32/genindex.json
+--reset --case=op/f32/greaterequal.json

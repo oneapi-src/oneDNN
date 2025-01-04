@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -144,6 +144,37 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion)
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<sdp_base_t<>>();
+        });
+
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_implicit_mask_fusion)
+        .set_priority(21.0f)
+        .set_engine_kind(engine_kind::cpu)
+        .set_kind(partition_kind_t::sdp)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
+
+                    std::shared_ptr<pb_graph_t> scale_graph;
+                    scale_graph = std::make_shared<pb_graph_t>();
+                    auto scale = scale_graph->append_alternation(
+                            {graph::op_kind::Divide, graph::op_kind::Multiply});
+                    scale_graph->create_input_port(0, scale, 0);
+                    scale_graph->create_output_port(0, scale, 0);
+                    auto optional_scale = pgraph->append_optional(
+                            scale_graph, {in_edge(0, matmul_qk, 0)});
+
+                    auto optional_mask
+                            = optional_causal_mask(pgraph, optional_scale);
+
+                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
+                            {in_edge(0, optional_mask, 0)});
+                    auto matmul_v = pgraph->append_op(
+                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
+                    // Optional transpose + reshape/reorder
+                    optional_transpose_reshape(pgraph, matmul_v, 0);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<larger_partition_kernel_t>();
         });
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_gqa_fusion)

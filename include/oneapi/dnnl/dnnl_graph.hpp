@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -846,6 +846,8 @@ public:
         TanhBackward = dnnl_graph_op_tanh_backward,
         TypeCast = dnnl_graph_op_type_cast,
         Wildcard = dnnl_graph_op_wildcard,
+        GenIndex = dnnl_graph_op_gen_index,
+        GreaterEqual = dnnl_graph_op_greater_equal,
         // Sentinel
         LastSymbol = dnnl_graph_op_last_symbol,
     };

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2024 Intel Corporation
+ * Copyright 2022-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -91,6 +91,12 @@ static status_t binary_handler(
     new_op->merge_attributes(op->get_attributes());
     rewriter.replace_op(op, new_op);
     insert_empty_scratchpad(new_op);
+    if (op->get_kind() == graph::op_kind::GreaterEqual) {
+        auto out_vals = op->get_output_values();
+        auto dst = out_vals[0];
+        // GreaterEqual output's datatype is boolean. we treated it as u8
+        dst->set_data_type(dnnl::impl::data_type::u8);
+    }
     return status::success;
 }
 
@@ -771,6 +777,14 @@ static status_t select_handler(
     return status::success;
 }
 
+static status_t gen_index_handler(
+        const std::shared_ptr<op_t> &op, subgraph_rewriter_t &rewriter) {
+    auto new_op = std::make_shared<op_t>(op_kind::dnnl_gen_index);
+    new_op->merge_attributes(op->get_attributes());
+    rewriter.replace_op(op, new_op);
+    return status::success;
+}
+
 #define ITEM(kind, func) \
     { \
         graph::op_kind::kind, handler_func { (func) } \
@@ -808,6 +822,7 @@ static const std::unordered_map<graph::op_kind_t, handler_func> handler_table {
         ITEM(Divide, binary_handler),
         ITEM(Minimum, binary_handler),
         ITEM(Maximum, binary_handler),
+        ITEM(GreaterEqual, binary_handler),
         // eltwise fwd
         ITEM(Abs, eltwise_fwd_handler),
         ITEM(Clamp, eltwise_fwd_handler),
@@ -881,6 +896,7 @@ static const std::unordered_map<graph::op_kind_t, handler_func> handler_table {
         ITEM(Concat, common_handler<op_kind::kDnnl_concat>),
         ITEM(SquaredDifference, squared_difference_handler),
         ITEM(Select, select_handler),
+        ITEM(GenIndex, gen_index_handler),
         // utility
         ITEM(Wildcard, dummy_handler),
         ITEM(End, dummy_handler),
