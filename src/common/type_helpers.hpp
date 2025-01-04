@@ -813,6 +813,8 @@ inline bool operator==(const matmul_desc_t &lhs, const matmul_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(weights_desc)
             && COMPARE_DESC_MEMBERS(bias_desc)
             && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(reduce_desc)
+            && COMPARE_DESC_MEMBERS(reduce_kind)
             && COMPARE_DESC_MEMBERS(accum_data_type);
     return ret;
 }

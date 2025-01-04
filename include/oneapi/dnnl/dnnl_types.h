@@ -2552,6 +2552,12 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// Bias tensor argument.
 #define DNNL_ARG_BIAS 41
 
+/// Reduce tensor argument.
+#define DNNL_ARG_REDUCE 42
+
+/// Note: when adding a new macro after `DNNL_ARG_REDUCE` please reserve a
+/// space for potential indices for `DNNL_ARG_REDUCE`.
+
 /// Mean values tensor argument.
 #define DNNL_ARG_MEAN 49
 /// Variance values tensor argument.

@@ -250,9 +250,15 @@ namespace dnnl {
 namespace impl {
 status_t matmul_desc_init(matmul_desc_t *matmul_desc,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
-        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc) {
+        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
+        const memory_desc_t *reduce_desc, matmul_reduce_kind_t reduce_kind) {
     VCHECK_MATMUL(
             !any_null(src_desc, weights_desc, dst_desc), VERBOSE_NULL_ARG);
+
+    // Note: This is an artificial limitation for the internal `reduce` feature
+    // to limit the scope to what is actually used.
+    VCHECK_MATMUL(
+            IMPLICATION(bias_desc, !reduce_desc), VERBOSE_UNSUPPORTED_BIAS_CFG);
 
     auto op_d = matmul_desc_t();
     op_d.primitive_kind = primitive_kind::matmul;
@@ -261,8 +267,17 @@ status_t matmul_desc_init(matmul_desc_t *matmul_desc,
     op_d.weights_desc = *weights_desc;
     if (bias_desc) op_d.bias_desc = *bias_desc;
     op_d.dst_desc = *dst_desc;
+    if (reduce_desc) {
+        VCHECK_MATMUL(reduce_desc->format_kind != format_kind::any,
+                VERBOSE_UNSUPPORTED_FORMAT_KIND);
+        op_d.reduce_desc = *reduce_desc;
+        op_d.reduce_kind = reduce_kind;
+        VCHECK_MATMUL(op_d.reduce_kind != matmul_reduce_kind::undef,
+                VERBOSE_BAD_PARAM);
+    }
 
     const bool with_bias = op_d.bias_desc.ndims != 0;
+    const bool with_reduce = op_d.reduce_desc.ndims != 0;
     const int ndims = dst_desc->ndims;
     VCHECK_MATMUL(ndims >= 2 && ndims <= DNNL_MAX_NDIMS, VERBOSE_BAD_NDIMS,
             "dst", ndims);
@@ -270,6 +285,8 @@ status_t matmul_desc_init(matmul_desc_t *matmul_desc,
             VERBOSE_INCONSISTENT_NDIMS, "src", "weights");
     VCHECK_MATMUL(IMPLICATION(with_bias, op_d.bias_desc.ndims == ndims),
             VERBOSE_BAD_NDIMS, "bias", op_d.bias_desc.ndims);
+    VCHECK_MATMUL(IMPLICATION(with_reduce, op_d.reduce_desc.ndims == ndims),
+            VERBOSE_BAD_NDIMS, "reduce", op_d.reduce_desc.ndims);
 
     // check: m, n, k
     const int m_idx = ndims - 2;
@@ -290,6 +307,15 @@ status_t matmul_desc_init(matmul_desc_t *matmul_desc,
                           one_of(op_d.bias_desc.dims[m_idx], 1,
                                   dst_desc->dims[m_idx])),
             VERBOSE_INCONSISTENT_DIM, "bias", m_idx, "dst", m_idx);
+
+    VCHECK_MATMUL(IMPLICATION(with_reduce,
+                          one_of(op_d.reduce_desc.dims[n_idx], 1,
+                                  dst_desc->dims[n_idx])),
+            VERBOSE_INCONSISTENT_DIM, "reduce", n_idx, "dst", n_idx);
+    VCHECK_MATMUL(IMPLICATION(with_reduce,
+                          one_of(op_d.reduce_desc.dims[m_idx], 1,
+                                  dst_desc->dims[m_idx])),
+            VERBOSE_INCONSISTENT_DIM, "reduce", m_idx, "dst", m_idx);
 
     const int bia_mask = with_bias
             ? utils::get_dims_mask(dst_desc->dims, op_d.bias_desc.dims, ndims)
@@ -317,6 +343,7 @@ status_t matmul_desc_init(matmul_desc_t *matmul_desc,
         const dim_t w_dim = weights_desc->dims[d];
         const dim_t d_dim = dst_desc->dims[d];
         const dim_t b_dim = with_bias ? op_d.bias_desc.dims[d] : 0;
+        const dim_t r_dim = with_reduce ? op_d.reduce_desc.dims[d] : 0;
 
         if (one_of(DNNL_RUNTIME_DIM_VAL, s_dim, w_dim, d_dim, b_dim)) {
 
@@ -335,6 +362,8 @@ status_t matmul_desc_init(matmul_desc_t *matmul_desc,
                     VERBOSE_INVALID_BROADCAST, "src", d);
             VCHECK_MATMUL(IMPLICATION(with_bias, one_of(b_dim, 1, d_dim)),
                     VERBOSE_INCONSISTENT_DIM, "bias", d, "dst", d);
+            VCHECK_MATMUL(IMPLICATION(with_reduce, one_of(r_dim, 1, d_dim)),
+                    VERBOSE_INCONSISTENT_DIM, "reduce", d, "dst", d);
         }
     }
 
@@ -345,6 +374,14 @@ status_t matmul_desc_init(matmul_desc_t *matmul_desc,
     *matmul_desc = op_d;
     return status::success;
 }
+
+status_t matmul_desc_init(matmul_desc_t *matmul_desc,
+        const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
+        const memory_desc_t *bias_desc, const memory_desc_t *dst_desc) {
+    return matmul_desc_init(matmul_desc, src_desc, weights_desc, bias_desc,
+            dst_desc, nullptr, matmul_reduce_kind::undef);
+}
+
 } // namespace impl
 } // namespace dnnl
 

@@ -95,7 +95,10 @@ struct brgemm_matmul_conf_t {
 
     cpu_isa_t isa;
 
+    matmul_reduce_kind_t reduce_kind;
+
     format_tag_t src_tag, wei_tag, dst_tag, bia_tag;
+    bool with_reduce;
     bool with_bias;
     bool with_sum;
     bool with_eltwise;
@@ -114,6 +117,7 @@ struct brgemm_matmul_conf_t {
     bool use_buffer_a_tail_only;
     bool use_buffer_b;
     bool use_buffer_c;
+    bool use_buffer_reduce;
 
     brgemm_matmul_bcast_desc_t bcast_A_desc;
     brgemm_matmul_bcast_desc_t bcast_B_desc;
@@ -123,13 +127,14 @@ struct brgemm_matmul_conf_t {
     data_type_t wei_dt;
     data_type_t acc_dt;
     data_type_t bia_dt;
+    data_type_t reduce_dt;
     data_type_t orig_src_dt;
     data_type_t orig_wei_dt;
     int nthr;
     int nthr_k;
 
     // Auxiliary values for init_config() and execute()
-    dim_t a_dt_sz, b_dt_sz, c_dt_sz, acc_dt_sz, bias_dt_sz;
+    dim_t a_dt_sz, b_dt_sz, c_dt_sz, acc_dt_sz, bias_dt_sz, reduce_dt_sz;
 
     // used for transposed buffer datatype when different from x_dt_sz
     // (e.g. used in BF32 implementations having to down-convert to BF16
@@ -164,6 +169,9 @@ struct brgemm_matmul_conf_t {
 
     dim_t buffer_b_chunk_sz;
     dim_t buffer_b_per_thread_sz;
+
+    dim_t buffer_reduce_per_thread_sz;
+
     dim_t s8s8_comp_ithr_str;
     dim_t s8s8_comp_b_str;
     dim_t s8s8_comp_n_str;

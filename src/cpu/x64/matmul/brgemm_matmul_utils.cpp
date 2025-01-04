@@ -1289,6 +1289,11 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.wei_dt = weights_d.data_type();
     bgmmc.orig_wei_dt = weights_d.data_type();
 
+    bgmmc.with_reduce = mmd.reduce_desc.format_kind != format_kind::undef;
+    bgmmc.reduce_dt
+            = bgmmc.with_reduce ? mmd.reduce_desc.data_type : data_type::undef;
+    bgmmc.reduce_kind = mmd.reduce_kind;
+
     bgmmc.with_bias = mmd.bias_desc.format_kind != format_kind::undef;
     bgmmc.bia_dt = bgmmc.with_bias ? mmd.bias_desc.data_type : data_type::undef;
     bgmmc.s8s8_compensation_required = bgmmc.src_dt == s8 && !isa_has_s8s8(isa);
@@ -1359,6 +1364,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.c_dt_sz = types::data_type_size(bgmmc.dst_dt);
     bgmmc.acc_dt_sz = types::data_type_size(bgmmc.acc_dt);
     if (bgmmc.with_bias) bgmmc.bias_dt_sz = types::data_type_size(bgmmc.bia_dt);
+    if (bgmmc.with_reduce)
+        bgmmc.reduce_dt_sz = types::data_type_size(bgmmc.reduce_dt);
 
     const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
@@ -1703,6 +1710,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
                 VERBOSE_BAD_DIM);
     }
 
+    bgmmc.use_buffer_reduce
+            = (bgmmc.reduce_dt != data_type::f32) || (bgmmc.nthr_k > 1);
+
     // Dispatch small shapes to VNNI for better performance
     const bool runtime_dims
             = bgmmc.is_runtime_M || bgmmc.is_runtime_N || bgmmc.is_runtime_K;
@@ -1863,6 +1873,12 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
     bgmmc.buffer_b_per_thread_sz
             = bgmmc.buffer_b_chunk_sz * bgmmc.brgemm_batch_size;
 
+    bgmmc.buffer_reduce_per_thread_sz = 0;
+    if (bgmmc.reduce_kind == matmul_reduce_kind::src) {
+        assert(bgmmc.acc_dt == f32);
+        bgmmc.buffer_reduce_per_thread_sz = bgmmc.M * bgmmc.acc_dt_sz;
+    }
+
     bgmmc.s8s8_comp_ithr_str
             = bgmmc.use_buffer_b ? bgmmc.wei_n_blk * bgmmc.N_chunk_size : 0;
     bgmmc.s8s8_comp_b_str = bgmmc.use_buffer_b
@@ -1993,6 +2009,14 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     if (bgmmc.use_buffer_c)
         scratchpad.book(key_brgemm_primitive_buffer,
                 bgmmc.nthr * bgmmc.buffer_c_per_thread_sz, default_data_align);
+
+    if (bgmmc.use_buffer_reduce) {
+        const bool is_reduce_f32 = bgmmc.reduce_dt == f32;
+        scratchpad.book(key_brgemm_primitive_buffer_reduce,
+                (bgmmc.nthr_k - is_reduce_f32)
+                        * bgmmc.buffer_reduce_per_thread_sz,
+                default_data_align);
+    }
 
     if (bgmmc.has_zero_point_a) {
         const auto num_elems = bgmmc.nthr * bgmmc.zp_a_comp_elems_per_thr;

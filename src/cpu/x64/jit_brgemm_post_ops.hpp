@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@
 #include "cpu/x64/jit_avx512_core_fp8cvt.hpp"
 #include "cpu/x64/jit_brgemm_primitive_conf.hpp"
 #include "cpu/x64/jit_generator.hpp"
+#include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -53,10 +54,14 @@ struct jit_brgemm_kernel_diff_bias_t : public jit_generator {
     jit_brgemm_kernel_diff_bias_t(const jit_brgemm_primitive_conf_t &ajbgp,
             const brgemm_desc_t &abrg);
 
+    jit_brgemm_kernel_diff_bias_t(const matmul::brgemm_matmul_conf_t &bgmmc,
+            const brgemm_desc_t &abrg);
+
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_diff_bias_t)
 
 private:
     brgemm_desc_t brg_;
+    matmul_reduce_kind_t reduce_kind_;
     data_type_t ddst_dt_;
     data_type_t bia_dt_;
     data_type_t acc_dt_;
@@ -83,6 +88,7 @@ private:
     Xbyak::Opmask k_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_tail_mask = Xbyak::Opmask(3);
     Xbyak::Opmask k_f16_perm_mask = Xbyak::Opmask(4);
+    Xbyak::Opmask k_store_mask = Xbyak::Opmask(5);
     Vmm vreg_unit = Vmm(31);
     Vmm vreg_perm = Vmm(30);
     Vmm vmm_tail_mask = Vmm(15); // use for avx tail loads
@@ -94,12 +100,26 @@ private:
     Vmm get_bias_reg(int n) const { return Vmm(n); }
     Vmm_lower_t get_bias_reg_lower(int n) const { return Vmm_lower_t(n); }
     Vmm get_ddst_reg(int n) const { return Vmm(n + n_max_regs_); }
+    Vmm get_workspace_reg() const {
+        assert(reduce_kind_ == matmul_reduce_kind::src);
+        return Vmm(1);
+    }
 
     void accumulate_bias(int idx, bool mask_flag);
+    void accumulate_bias(bool mask_flag);
     void store(int idx, bool mask_flag);
     void loop_by_N(int n_loop, int nb_tail);
+    void loop_by_K();
     void init_masks(int tail_length);
     void generate() override;
+
+private:
+    void horizontal_sum(Xbyak::Xmm src);
+    void horizontal_sum(Xbyak::Ymm src, Xbyak::Ymm workspace);
+    void horizontal_sum(Xbyak::Zmm src, Xbyak::Zmm workspace);
+
+    void generate_for_a();
+    void generate_for_b();
 };
 
 struct brgemm_kernel_post_ops_args_t {

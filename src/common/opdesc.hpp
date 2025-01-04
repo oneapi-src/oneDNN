@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -273,6 +273,10 @@ struct matmul_desc_t : public op_desc_t {
     memory_desc_t bias_desc {};
     // Destination memory descriptor.
     memory_desc_t dst_desc {};
+    // Reduce memory descriptor;
+    memory_desc_t reduce_desc {};
+    // Reduce kind.
+    matmul_reduce_kind_t reduce_kind {};
     // The accumulator data type. Initialized automatically.
     data_type_t accum_data_type {};
 };

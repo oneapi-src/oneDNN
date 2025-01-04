@@ -23,6 +23,7 @@
 #include "common/matmul_pd.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_desc_iterator.hpp"
+#include "cpu/x64/cpu_isa_traits.hpp"
 
 #include "cpu/cpu_inner_product_pd.hpp"
 
@@ -34,7 +35,7 @@ namespace x64 {
 status_t create_matmul_pd(std::shared_ptr<primitive_desc_t> &matmul_pd,
         engine_t *engine, const memory_desc_t *a_md, const memory_desc_t *b_md,
         const memory_desc_t *c_md, const memory_desc_t *ip_bia_md,
-        const primitive_attr_t *attr);
+        const memory_desc_t *reduce_md, const primitive_attr_t *attr);
 
 status_t init_matmul_md(memory_desc_t &mm_md, const memory_desc_t &ip_md,
         format_tag_t tag, bool swap_dims = false);
@@ -172,6 +173,74 @@ struct matmul_inner_product_bwd_data_t : public primitive_t {
 
     status_t init(impl::engine_t *engine) override {
         return pd()->matmul_pd_->create_primitive(matmul_, engine);
+    }
+
+    status_t execute(const exec_ctx_t &ctx) const override;
+
+private:
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::shared_ptr<impl::primitive_t> matmul_;
+};
+
+struct matmul_inner_product_bwd_weights_t : public primitive_t {
+    using primitive_t::primitive_t;
+    struct pd_t : public cpu_inner_product_bwd_weights_pd_t {
+        using cpu_inner_product_bwd_weights_pd_t::
+                cpu_inner_product_bwd_weights_pd_t;
+
+        DECLARE_COMMON_PD_T((matmul_pd_ ? matmul_pd_->name() : "matmul"),
+                matmul_inner_product_bwd_weights_t);
+
+        status_t init(impl::engine_t *engine) {
+            using namespace data_type;
+            using skip_mask_t = primitive_attr_t::skip_mask_t;
+
+            const auto src_dt = invariant_src_md()->data_type;
+            const auto diff_wei_dt = invariant_wei_md()->data_type;
+            const auto diff_dst_dt = invariant_dst_md()->data_type;
+
+            VDISPATCH_INNER_PRODUCT(
+                    get_prop_kind() == prop_kind::backward_weights,
+                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT_SC(set_formats(), VERBOSE_UNSUPPORTED_TAG);
+            VDISPATCH_INNER_PRODUCT(
+                    !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
+            VDISPATCH_INNER_PRODUCT(
+                    utils::one_of(src_dt, f32, bf16, f16, f8_e5m2, f8_e4m3),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(diff_dst_dt == src_dt,
+                    VERBOSE_INCONSISTENT_DT, "diff_dst", "src");
+            VDISPATCH_INNER_PRODUCT(utils::one_of(diff_wei_dt, f32, src_dt),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_INNER_PRODUCT(
+                    attr()->has_default_values(skip_mask_t::fpmath_mode),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_INNER_PRODUCT_SC(
+                    init_matmul_params(engine), "init_matmul_params");
+            init_scratchpad();
+
+            return status::success;
+        }
+
+        std::shared_ptr<primitive_desc_t> matmul_pd_;
+
+    private:
+        status_t init_matmul_params(engine_t *engine);
+        status_t set_formats() {
+            return set_training_formats(
+                    &src_md_, &diff_weights_md_, &diff_bias_md_, &diff_dst_md_);
+        }
+
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_nested,
+                    matmul_pd_->scratchpad_registry());
+        }
+    };
+
+    status_t init(impl::engine_t *engine) override {
+        CHECK(pd()->matmul_pd_->create_primitive(matmul_, engine));
+        return status::success;
     }
 
     status_t execute(const exec_ctx_t &ctx) const override;

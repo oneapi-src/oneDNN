@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@
 #include "cpu/x64/cpu_reducer.hpp"
 #include "cpu/x64/jit_avx512_core_scale_precompute.hpp"
 #include "cpu/x64/jit_avx512_sparse_decompress_kernel.hpp"
+#include "cpu/x64/jit_brgemm_post_ops.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_copy_utils.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
 
@@ -144,6 +145,11 @@ private:
             int k_blk_idx) const;
     void maybe_reduce_partial_results_and_apply_postops(
             const brg_matmul_exec_ctx_t &brgmm_ctx) const;
+    void maybe_reduce_A(const brg_matmul_exec_ctx_t &brgmm_ctx, int ithr,
+            int gemm_batch, int m_blk_idx, int n_blk_idx, int k_chunk_idx,
+            bool do_init, bool has_K_tail, bool do_K_tail) const;
+    void maybe_reduce_and_convert_partial_results_A(
+            const brg_matmul_exec_ctx_t &brgmm_ctx) const;
     void accumulate(
             char *result_ptr, const char *reduce_ptr, size_t size) const;
 
@@ -158,6 +164,10 @@ private:
     std::unique_ptr<jit_avx512_sparse_decompress_kernel_t>
             sparse_decompress_kernel_;
     std::unique_ptr<jit_avx512_core_scale_precompute_t> jit_scale_precompute_;
+
+    using reducer_t = x64::jit_brgemm_kernel_diff_bias_t<
+            typename cpu_isa_traits<isa>::Vmm>;
+    std::unique_ptr<reducer_t> reducers_[2][2];
 };
 
 } // namespace matmul
