@@ -117,6 +117,7 @@ Team: @oneapi-src/onednn-arch
 | Mourad Gouicem     | @mgouicem             | Intel Corporation | Maintainer |
 | Vadim Pirogov      | @vpirogov             | Intel Corporation | Maintainer |
 | Ankit Manerikar    | @avmanerikar          | Intel Corporation | Code Owner |
+| Stefan Palicki     | @spalicki             | Intel Corporation | Code Owner |
 
 ## Graph API
 
