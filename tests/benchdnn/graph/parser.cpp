@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -115,6 +115,34 @@ bool parse_op_attrs(std::vector<std::map<size_t, std::string>> &op_attrs_vec,
     std::string op_attrs_str;
     if (!parse_string(op_attrs_str, str, "op-attrs")) return false;
     return parse_key_value(op_attrs_vec, op_attrs_str), true;
+}
+
+bool parse_dts(std::vector<dnnl_data_type_t> &dt,
+        std::vector<std::map<size_t, dnnl_data_type_t>> &dts_map,
+        const char *str, const std::string &option_name) {
+    std::string dts_str;
+    if (!parse_string(dts_str, str, option_name)) return false;
+
+    if (dts_str.find(":") == std::string::npos) {
+        // --dt=f32,bf16,f16
+        const std::vector<dnnl_data_type_t> def_dt = {dnnl_data_type_undef};
+        parse_dt(dt, def_dt, str, option_name);
+    } else {
+        // --dt=0:f32+1:f32,0:f16+1:f16
+        std::vector<std::map<size_t, std::string>> dts_tmp;
+        parse_key_value(dts_tmp, dts_str, option_name);
+        dts_map.clear();
+        // convert size_t:string to size_t:dnnl_data_type_t
+        for (const auto &e : dts_tmp) {
+            std::map<size_t, dnnl_data_type_t> tmp;
+            for (const auto &v : e) {
+                tmp[v.first] = str2dt(v.second.c_str());
+            }
+            dts_map.push_back(tmp);
+        }
+    }
+
+    return true;
 }
 
 bool parse_graph_expected_n_partitions(

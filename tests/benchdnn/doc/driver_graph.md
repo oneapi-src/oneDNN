@@ -61,6 +61,14 @@ where *graph-knobs* are:
    field of all logical tensors in the input JSON file from `f32` to `f16`. If
    `--dt` is not specified or specified as `undef`, the original data types
    contained in the input JSON file will be used for testing.
+  - `--dt=ID:DT[+ID:DT]` -- Another format to specify the data types in the
+    input JSON file. `ID` specifies the input or output tensor of an operation
+    in the JSON file. `DT` is the target data type. Users can specify the data
+    types of multiple tensors using `+` to concatenate the `ID` and `DT` pairs.
+    An error will be raised if an `ID` is not contained in the JSON file. oneDNN
+    operations have restrictions for input and output tensor data types.
+    Changing the data type of a tesnor may lead to graph construction failures,
+    eg. fail to `add_op()` into graph.
 
 and *graph-case* is a JSON file which is dumped by a library or created from scratch.
 It must be passed to the graph driver as `--case=JSON_FILE`. Refer to the JSON
