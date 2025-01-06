@@ -110,7 +110,7 @@ struct hw_config_t {
 struct sample_t {
     problem_t prb;
     kernel_desc_t kernel_desc;
-    uint64_t time_ns = 0;
+    bench_time_t time;
 
     hw_config_t hw_cfg;
     dim_t b, m, n, k;
@@ -121,8 +121,8 @@ struct sample_t {
 
     sample_t() = default;
     sample_t(const problem_t &prb, const kernel_desc_t &kernel_desc,
-            uint64_t time_ns = 0)
-        : prb(prb), kernel_desc(kernel_desc), time_ns(time_ns) {
+            const bench_time_t &time = bench_time_t())
+        : prb(prb), kernel_desc(kernel_desc), time(time) {
         hw_cfg = hw_config_t(
                 prb.hw(), kernel_desc.fma, kernel_desc.src_tag.type());
         auto padded_shape = prb.shape();
@@ -157,7 +157,7 @@ struct sample_t {
         return ret;
     }
 
-    float to_y() const { return time_ns; }
+    float to_y() const { return time.total; }
 
     float ntgs() const {
         float ntgs = 1.0f;
@@ -176,7 +176,7 @@ struct sample_t {
     }
 
     float eff() const {
-        float sec = time_ns / 1e9;
+        float sec = time.total / 1e9;
         return ops() / 1e9 / sec / hw_cfg.max_gops_per_sec();
     }
 
@@ -268,7 +268,7 @@ void model_t::score(const bench_data_t &bd) {
     vec1d y_test;
     vec1d y_pred;
     for (int i = 0; i < bd.size(); i++) {
-        sample_t s(bd.prbs[i], bd.kernel_desc, bd.times[i]);
+        sample_t s(bd.prbs[i], bd.kernel_desc, bd.times[i].total);
         y_test.push_back(s.to_y());
         y_pred.push_back(predict(bd.prbs[i], bd.kernel_desc));
     }
@@ -300,7 +300,7 @@ void to_model_xy(const bench_data_t &bd, vec2d &X, vec1d &y) {
     X.reserve(bd.size());
     y.reserve(bd.size());
     for (int i = 0; i < bd.size(); i++) {
-        sample_t s(bd.prbs[i], bd.kernel_desc, bd.times[i]);
+        sample_t s(bd.prbs[i], bd.kernel_desc, bd.times[i].total);
         X.push_back(s.to_x());
         y.push_back(s.to_y());
     }

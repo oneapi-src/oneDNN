@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,8 +30,8 @@ std::string bench_data_t::str() const {
     std::ostringstream oss;
     for (int i = 0; i < size(); i++) {
         if (i > 0) oss << std::endl;
-        double gops_sec = prbs[i].ops() / times[i];
-        oss << "bench," << prbs[i].csv_str() << "," << times[i] << ","
+        double gops_sec = prbs[i].ops() / times[i].total;
+        oss << "bench," << prbs[i].csv_str() << "," << times[i].total << ","
             << gops_sec;
     }
     return oss.str();
@@ -62,7 +62,7 @@ std::vector<int> bench_data_set_t::find_best_idxs(int _nbest) const {
     std::vector<uint64_t> cur_times(nprbs, max_time);
     for (auto &bd : vec_) {
         for (int i = 0; i < nprbs; i++) {
-            best_times[i] = std::min(best_times[i], bd.times[i]);
+            best_times[i] = std::min(best_times[i], bd.times[i].total);
         }
     }
     std::unordered_set<int> best_idxs;
@@ -75,7 +75,8 @@ std::vector<int> bench_data_set_t::find_best_idxs(int _nbest) const {
             double geomean = 1.0;
             for (int j = 0; j < nprbs; j++) {
                 double ratio = best_times[j]
-                        / (double)std::min(cur_times[j], vec_[i].times[j]);
+                        / (double)std::min(
+                                cur_times[j], vec_[i].times[j].total);
                 geomean *= std::pow(ratio, 1.0 / nprbs);
             }
             if (geomean >= best_geomean) {
@@ -85,7 +86,8 @@ std::vector<int> bench_data_set_t::find_best_idxs(int _nbest) const {
         }
         ir_assert(best_idx != -1);
         for (int j = 0; j < nprbs; j++) {
-            cur_times[j] = std::min(cur_times[j], vec_[best_idx].times[j]);
+            cur_times[j]
+                    = std::min(cur_times[j], vec_[best_idx].times[j].total);
         }
         best_idxs.insert(best_idx);
     }
