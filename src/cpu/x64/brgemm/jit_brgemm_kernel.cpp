@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2202,19 +2202,17 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
                             vcvtneeph2ps(vmm_load, addr);
                         else
                             vcvtneoph2ps(vmm_load, addr);
+                    } else if (brg.is_f16_b_non_amx_vnni()) {
+                        const auto vnni_addr = ptr[reg_aux_B
+                                + B_offset(ld, utils::rnd_dn(rd, 2))];
+                        vmovups(vmm_load, vnni_addr);
+                        if (rd % 2 == 0)
+                            vpermw(vmm_load, f16_perm_even_vreg_, vmm_load);
+                        else
+                            vpermw(vmm_load, f16_perm_odd_vreg_, vmm_load);
+                        vcvtph2psx(vmm_load, Vmm_lower_t(vmm_load.getIdx()));
                     } else {
-                        if (brg.is_f16_b_non_amx_vnni()) {
-                            const auto vnni_addr = ptr[reg_aux_B
-                                    + B_offset(ld, utils::rnd_dn(rd, 2))];
-                            vmovups(vmm_load, vnni_addr);
-                            if (rd % 2 == 0)
-                                vpermw(vmm_load, f16_perm_even_vreg_, vmm_load);
-                            else
-                                vpermw(vmm_load, f16_perm_odd_vreg_, vmm_load);
-                            vcvtph2psx(
-                                    vmm_load, Vmm_lower_t(vmm_load.getIdx()));
-                        } else
-                            vcvtph2psx(vmm_load, addr);
+                        vcvtph2psx(vmm_load, addr);
                     }
                 } else if (brg.dt_b == data_type::bf16
                         && brg.isa_impl == avx2_vnni_2) {
@@ -2257,21 +2255,18 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
                             vcvtneeph2ps(vmm_load, addr);
                         else
                             vcvtneoph2ps(vmm_load, addr);
+                    } else if (brg.is_f16_b_non_amx_vnni()) {
+                        const auto actual_B_offset
+                                = B_offset(ld, utils::rnd_dn(rd, 2));
+                        const auto vnni_addr = ptr[reg_aux_B + actual_B_offset];
+                        vmovups(vmm_load, vnni_addr);
+                        if (rd % 2 == 0)
+                            vpermw(vmm_load, f16_perm_even_vreg_, vmm_load);
+                        else
+                            vpermw(vmm_load, f16_perm_odd_vreg_, vmm_load);
+                        vcvtph2psx(vmm_load, Vmm_lower_t(vmm_load.getIdx()));
                     } else {
-                        if (brg.is_f16_b_non_amx_vnni()) {
-                            const auto actual_B_offset
-                                    = B_offset(ld, utils::rnd_dn(rd, 2));
-                            const auto vnni_addr
-                                    = ptr[reg_aux_B + actual_B_offset];
-                            vmovups(vmm_load, vnni_addr);
-                            if (rd % 2 == 0)
-                                vpermw(vmm_load, f16_perm_even_vreg_, vmm_load);
-                            else
-                                vpermw(vmm_load, f16_perm_odd_vreg_, vmm_load);
-                            vcvtph2psx(
-                                    vmm_load, Vmm_lower_t(vmm_load.getIdx()));
-                        } else
-                            vcvtph2psx(vmm_load, addr);
+                        vcvtph2psx(vmm_load, addr);
                     }
                 } else if (brg.dt_b == data_type::bf16
                         && brg.isa_impl == avx2_vnni_2) {
