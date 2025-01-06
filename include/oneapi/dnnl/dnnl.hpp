@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -3863,9 +3863,35 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// @param aalgorithm Binary algorithm for the post-op.
     /// @param src1_desc Memory descriptor of a second operand.
     void append_binary(algorithm aalgorithm, const memory::desc &src1_desc) {
-        error::wrap_c_api(dnnl_post_ops_append_binary(get(),
-                                  convert_to_c(aalgorithm), src1_desc.get()),
+        error::wrap_c_api(
+                dnnl_post_ops_append_binary(get(), convert_to_c(aalgorithm),
+                        src1_desc.get(), nullptr),
                 "could not append a binary post-op");
+    }
+
+    /// Appends a binary post-op with ternary operators.
+    ///
+    /// The kind of this post operation is #dnnl_binary.
+    ///
+    /// In the simplest case when this is the only post operation, the
+    /// computations would be:
+    ///
+    ///     dst[:] <- binary_op (dst[:], another_input1[:], another_input2[:])
+    ///
+    /// where binary_op is configured with the given parameters. binary_op
+    /// supports broadcast semantics only for the second operand and not for the
+    /// third operand.
+    ///
+    /// @param aalgorithm Binary algorithm for the post-op.
+    /// @param src1_desc Memory descriptor of the second operand.
+    /// @param src2_desc Memory descriptor of the third operand.
+
+    void append_binary(algorithm aalgorithm, const memory::desc &src1_desc,
+            const memory::desc &src2_desc) {
+        error::wrap_c_api(
+                dnnl_post_ops_append_binary(get(), convert_to_c(aalgorithm),
+                        src1_desc.get(), src2_desc.get()),
+                "could not append a binary post-op with ternary operators");
     }
 
     /// Returns the parameters of a binary post-op.
@@ -3877,8 +3903,8 @@ struct post_ops : public handle<dnnl_post_ops_t> {
             int index, algorithm &aalgorithm, memory::desc &src1_desc) const {
         dnnl_alg_kind_t c_alg;
         const_dnnl_memory_desc_t cdesc;
-        error::wrap_c_api(
-                dnnl_post_ops_get_params_binary(get(), index, &c_alg, &cdesc),
+        error::wrap_c_api(dnnl_post_ops_get_params_binary(
+                                  get(), index, &c_alg, &cdesc, nullptr),
                 err_message_list::get_failure(
                         "parameters of a binary post-op"));
         aalgorithm = static_cast<dnnl::algorithm>(c_alg);
@@ -3886,6 +3912,33 @@ struct post_ops : public handle<dnnl_post_ops_t> {
         error::wrap_c_api(dnnl_memory_desc_clone(&cloned_md, cdesc),
                 err_message_list::clone_error("memory descriptor"));
         src1_desc = memory::desc(cloned_md);
+    }
+
+    /// Returns the parameters of a binary post-op with ternary operators.
+    ///
+    /// @param index Index of the binary post-op.
+    /// @param aalgorithm Output binary algorithm kind.
+    /// @param src1_desc Output memory descriptor of the second operand.
+    /// @param src2_desc Output memory descriptor of the third operand.
+    void get_params_binary(int index, algorithm &aalgorithm,
+            memory::desc &src1_desc, memory::desc &src2_desc) const {
+        dnnl_alg_kind_t c_alg;
+        const_dnnl_memory_desc_t cdesc1, cdesc2;
+        error::wrap_c_api(dnnl_post_ops_get_params_binary(
+                                  get(), index, &c_alg, &cdesc1, &cdesc2),
+                err_message_list::get_failure("parameters of a binary post-op "
+                                              "with ternary operators"));
+        aalgorithm = static_cast<dnnl::algorithm>(c_alg);
+        dnnl_memory_desc_t cloned_md1 = nullptr;
+        dnnl_memory_desc_t cloned_md2 = nullptr;
+
+        error::wrap_c_api(dnnl_memory_desc_clone(&cloned_md1, cdesc1),
+                err_message_list::clone_error("memory descriptor"));
+        src1_desc = memory::desc(cloned_md1);
+
+        error::wrap_c_api(dnnl_memory_desc_clone(&cloned_md2, cdesc2),
+                err_message_list::clone_error("memory descriptor"));
+        src2_desc = memory::desc(cloned_md2);
     }
 
     /// Appends a prelu forward post-op.
