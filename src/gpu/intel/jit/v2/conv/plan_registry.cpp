@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ kernel_desc_t plan_registry_t::find_best(const problem_t &prb) const {
     float best_eff = 0;
     for (auto &e : entries_) {
         if (!e.desc.can_fit(prb)) continue;
-        float eff = e.model.eff(prb, e.desc);
+        float eff = e.model_set.eff(prb, e.desc);
         if (eff > best_eff) {
             best_eff = eff;
             best = e.desc;
@@ -86,14 +86,14 @@ void plan_registry_t::entry_t::stringify(std::ostream &out) const {
     ir_assert(desc.is_finalized) << "Cannot stringify non-finalized descriptor";
     jit::stringify(out, desc);
     out << " model=";
-    jit::stringify(out, model);
+    jit::stringify(out, model_set);
 }
 
 void plan_registry_t::entry_t::parse(std::istream &in) {
     jit::parse(in, desc);
     desc.is_finalized = true;
     stream_match(in, "model=");
-    jit::parse(in, model);
+    jit::parse(in, model_set);
 }
 
 struct plan_registry_instance_t {
