@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -260,6 +260,8 @@ const profiling_data_kind_t internal_only_start
         = (profiling_data_kind_t)(1 << 8);
 const profiling_data_kind_t cycles
         = (profiling_data_kind_t)(internal_only_start + 1);
+const profiling_data_kind_t time_per_kernel
+        = (profiling_data_kind_t)(internal_only_start + 2);
 } // namespace profiling_data_kind
 
 using format_tag_t = dnnl_format_tag_t;
