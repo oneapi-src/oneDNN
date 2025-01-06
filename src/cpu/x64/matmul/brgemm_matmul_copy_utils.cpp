@@ -3390,6 +3390,11 @@ void jit_brgemm_matmul_copy_b_f32_t<Vmm>::load_data(
 
     switch (dt_in_) {
         case data_type::f32: uni_vmovups(vmm, op); break;
+        case data_type::bf16:
+            // Upconvert: load 16 bits and move them 16 bits left.
+            uni_vpmovzxwd(vmm, op);
+            uni_vpslld(vmm, vmm, 16);
+            break;
         case data_type::f16:
             if (is_superset(conf_->isa, avx512_core_fp16)) {
                 vcvtph2psx(vmm, op);
@@ -3602,6 +3607,11 @@ struct jit_brgemm_matmul_copy_b_transposed_t
         , use_fp16_instructions_(is_subset(conf_->isa, avx512_core_fp16)
                   && conf_->orig_wei_dt == data_type::f16
                   && conf_->wei_dt == data_type::f32)
+        // This variable is responsible for enabling to upconversion from bf16
+        // to f32 similarly to f16, mostly for proper tail handling.
+        , use_bf16_instructions_(is_subset(conf_->isa, avx512_core_bf16)
+                  && conf_->orig_wei_dt == data_type::bf16
+                  && conf_->wei_dt == data_type::f32)
         , max_tmp_idx(16
                   - (avx512_core_dot_product_
                                   ? 8
@@ -3648,6 +3658,7 @@ private:
     const bool req_apply_scales_;
     const bool avx512_core_dot_product_;
     const bool use_fp16_instructions_;
+    const bool use_bf16_instructions_;
     const int max_tmp_idx;
 
     const dim_t src_stride_, tr_src_stride_, scales_K_stride_, typesize_scale_;
@@ -3793,8 +3804,10 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::init_tail_mask(
         const int columns_tail, const bool use_int4_mask) {
     assert(IMPLICATION(use_int4_mask, is_src_int4_));
     if (columns_tail > 0) {
-        const int dt_step
-                = req_cvtps2xf16_ || use_fp16_instructions_ ? 1 : typesize_;
+        const int dt_step = req_cvtps2xf16_ || use_fp16_instructions_
+                        || use_bf16_instructions_
+                ? 1
+                : typesize_;
         const auto tail_mask = use_int4_mask
                 ? size_t(((size_t)1 << div_up(dt_step * columns_tail, 2)) - 1)
                 : size_t(((size_t)1 << dt_step * columns_tail) - 1);
@@ -3998,6 +4011,10 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::copy_row_x_col(
             } else {
                 vcvtph2ps(src_load, addr);
             }
+        } else if (use_bf16_instructions_) {
+            // Upconvert: load 16 bits and move them 16 bits left.
+            uni_vpmovzxwd(src_load, addr);
+            uni_vpslld(src_load, src_load, 16);
         } else {
             vmovdqu8(src_load, addr);
         }
@@ -4168,11 +4185,18 @@ void jit_brgemm_matmul_copy_b_transposed_t<Ymm>::copy_row_x_col(
                 // For f32:f16 case need to convert raw bytes after `load_bytes`
                 // into f32 values.
                 vcvtph2ps(vmm_src, Xmm(vmm_src.getIdx()));
+            } else if (use_bf16_instructions_) {
+                // Upconvert: move loaded 16 bits left.
+                uni_vpslld(vmm_src, vmm_src, 16);
             }
         } else {
             if (use_fp16_instructions_) {
                 // For non-tailed case can use the convert instruction directly.
                 vcvtph2ps(vmm_src, ptr[reg_src + i * src_stride_]);
+            } else if (use_bf16_instructions_) {
+                // Upconvert: load 16 bits and move them 16 bits left.
+                uni_vpmovzxwd(vmm_src, ptr[reg_src + i * src_stride_]);
+                uni_vpslld(vmm_src, vmm_src, 16);
             } else {
                 uni_vmovups(vmm_src, ptr[reg_src + i * src_stride_]);
             }
