@@ -1,7 +1,8 @@
 # f16
 --reset
 
---dt=f16:f16:f32,f16
+--skip-impl=ref
+--dt=f16:f16:f32,f16,f32:f16:f32
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1,1:0,3:1
 --bia_dt=undef,f32 --bia_mask=2
@@ -28,13 +29,13 @@
 
 # test any
 --reset
---dt=f16:f16:f32,f16
+--dt=f16:f16:f32,f16,f32:f16:f32
 --stag=ab,ba,any --wtag=ab,ba,any --dtag=ab,any
 --batch=shapes_2d
 
 # 3d
 --reset
---dt=f16:f16:f32,f16
+--dt=f16:f16:f32,f16,f32:f16:f32
 --stag=abc,acb --wtag=abc,acb --dtag=abc
 --bia_dt=undef,f32 --bia_mask=4,6
 
