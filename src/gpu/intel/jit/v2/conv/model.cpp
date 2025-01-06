@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -188,6 +188,10 @@ struct sample_t {
         n = t[pvars::n];
         k = t[pvars::k];
     }
+
+    static model_kind_t model_kind(const kernel_desc_t &desc) {
+        return model_kind_t::data_parallel;
+    }
 };
 
 float coef_kl(float x, float a, float b) {
@@ -229,7 +233,9 @@ float coef_wp(float x, float a, float b) {
 //   and a few extra threadgroups a distinct increase in time is typically
 //   observed. This effect is more pronounced with a smaller number of full
 //   waves.
-float model_t::predict(float kl, float waves, const vec1d &coef) {
+float predict_data_parallel(const vec1d &x, const vec1d &coef) {
+    float kl = x[0];
+    float waves = x[1];
     float waves_frac = waves - (int)waves;
     float wp = (waves_frac == 0 ? 1 : waves_frac);
     float wf = std::ceil(waves);
@@ -242,11 +248,16 @@ float model_t::predict(float kl, float waves, const vec1d &coef) {
     return Tw * (wf + wp * coef_wp(wf, a_wp, b_wp));
 }
 
+float model_t::predict(model_kind_t kind, const vec1d &x, const vec1d &coef) {
+    switch (kind) {
+        case model_kind_t::data_parallel: return predict_data_parallel(x, coef);
+        default: ir_error_not_expected() << "Unknown kind: " << to_string(kind);
+    }
+    return 0;
+}
+
 float model_t::predict(const vec1d &x) const {
-    ir_assert(x.size() == 2);
-    float kl = x[0];
-    float waves = x[1];
-    return model_t::predict(kl, waves, coef_);
+    return predict(kind_, x, coef_);
 }
 
 float model_t::predict(const problem_t &prb, const kernel_desc_t &desc) const {
@@ -283,6 +294,14 @@ void model_t::parse(std::istream &in) {
     deserialize_from_hex(coef_, s_data);
 }
 
+size_t model_t::coef_count(model_kind_t kind) {
+    switch (kind) {
+        case model_kind_t::data_parallel: return 5;
+        default: ir_error_not_expected() << "Unknown kind: " << to_string(kind);
+    }
+    return 0;
+}
+
 std::string to_str(const vec1d &x) {
     std::ostringstream oss;
     bool is_first = true;
@@ -294,7 +313,43 @@ std::string to_str(const vec1d &x) {
     return oss.str();
 }
 
-void to_model_xy(const bench_data_t &bd, vec2d &X, vec1d &y) {
+float model_set_t::eff(const problem_t &prb, const kernel_desc_t &desc) const {
+    auto kind = sample_t::model_kind(desc);
+    for (auto &m : models_) {
+        if (m.kind() == kind) return m.eff(prb, desc);
+    }
+    ir_error_not_expected() << "Matching model not found: " << desc.str();
+    return 0;
+}
+
+void model_set_t::stringify(std::ostream &out) const {
+    serialized_data_t s;
+    for (auto &m : models_) {
+        s.append(m.kind());
+        for (auto &c : m.coef()) {
+            s.append(c);
+        }
+    }
+    out << data_to_hex(s.get_data());
+}
+
+void model_set_t::parse(std::istream &in) {
+    auto s_data = stream_parse<std::string>(in);
+    auto s = serialized_t::from_data(hex_to_data(s_data));
+    deserializer_t d(s);
+    while (!d.empty()) {
+        auto kind = d.pop<model_kind_t>();
+        size_t coef_count = model_t::coef_count(kind);
+        vec1d coef(coef_count);
+        for (size_t i = 0; i < coef_count; i++) {
+            d.pop(coef[i]);
+        }
+        models_.emplace_back(kind, coef);
+    }
+}
+
+void to_model_data(
+        model_kind_t kind, const bench_data_t &bd, vec2d &X, vec1d &y) {
     X.clear();
     y.clear();
     X.reserve(bd.size());

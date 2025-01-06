@@ -395,7 +395,7 @@ public:
                 if (!bd_model) continue;
                 auto model = model_fit(bd_model);
                 auto d_ext = try_extensions(bench_mger_, d);
-                registry.set(d_ext, model);
+                registry.set(d_ext, model_set_t(model));
             }
         }
         std::cout << "Kernel search completed" << std::endl;
