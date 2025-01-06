@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -385,7 +385,7 @@ struct brgemm_desc_t {
     // This function indicates when VNNI granularity packing is expected by the
     // kernel.
     //
-    // Note: used in benchdnn only, not used inside the library.
+    // Note: used in benchdnn and ukernel only, not used inside the library.
     // Note: for `bf32` (or brgattr.fpmath_mode_ == bf16) the function returns
     //   `true` because the data transformation to vnni layout is internal and
     //   transparent to the user.
@@ -395,8 +395,10 @@ struct brgemm_desc_t {
             case f32: return false;
             // Note: `dt_a == f32` means implicit up-conversion of B to f32.
             case f16:
-                return brgattr.b_is_vnni
-                        || ((isa_impl != avx512_core_fp16) && (dt_a != f32));
+                return dt_a != f32
+                        && (is_f16_b_non_amx_vnni()
+                                || is_superset(isa_impl, avx512_core_amx_fp16)
+                                || is_superset(isa_impl, avx2_vnni_2));
             // Note: `dt_a == f32` means implicit up-conversion of B to f32.
             case bf16: return dt_a != f32;
             default: return true;
@@ -423,8 +425,10 @@ struct brgemm_desc_t {
     bool is_xf16() const noexcept { return is_bf16 || is_f16; }
 
     bool is_f16_b_non_amx_vnni() const {
+        // This function controls the code section which relies on
+        // `avx512_core_fp16` instructions directly.
         return dt_b == data_type::f16 && brgattr.b_is_vnni
-                && !is_superset(isa_impl, avx512_core_amx_fp16);
+                && isa_impl == avx512_core_fp16;
     }
 
     bool operator==(const brgemm_desc_t &rhs) const;
