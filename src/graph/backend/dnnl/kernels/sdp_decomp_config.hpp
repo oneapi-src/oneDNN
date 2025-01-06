@@ -79,23 +79,23 @@ public:
 
     // SDP input and output strides
     dims src1_strides, wei1_strides, wei2_strides, dst_strides,
-            post_add_strides;
+            post_add_strides, cond_strides, select_other_strides;
 
     // Thread nums during the workflow
     int nthr;
 
     // Used to record the exact input offset in subgraph
-    // [mm1_src,mm1_wei,mm1_scale,mm1_add,mm2_wei,select_condition,select_other_input]
+    // [mm1_src,mm1_wei,mm1_scale,mm1_add,mm2_wei,select_other_input,select_condition]
     std::vector<int> graph_inport;
 
     // Primitives that actually perform calculations
-    primitive sub_mm1_prim, sub_softmax_prim, sub_mm2_prim;
+    primitive sub_mm1_prim, sub_softmax_prim, sub_mm2_prim, sub_select_prim;
     sdp_reorder_t sub_reorder0, sub_reorder1, sub_reorder2, sub_reorder3;
 
     // Args used in the execution of primitives
     std::unordered_map<int, memory> sub_reorder0_args, sub_reorder1_args,
             sub_mm1_args, sub_softmax_args, sub_reorder2_args, sub_mm2_args,
-            sub_reorder3_args;
+            sub_reorder3_args, sub_select_args;
 
     // A map from memory to registry key, used to record the internal memories
     // location inside of the whole buffer.
@@ -110,6 +110,8 @@ public:
     memory sub_mm1_src, sub_mm1_wei, sub_mm1_dst;
     // sub_mm1_post_mem contains [post_scale, attn_mask(optional), post_binary(from select)...]
     std::vector<memory> sub_mm1_post_mem;
+    // select
+    memory sub_select_src0, sub_select_cond, sub_select_dst;
     //softmax
     memory sub_softmax_dst;
     //reorder2
@@ -130,7 +132,7 @@ public:
 
 private:
     // Used to record the ops contained in SDP
-    // sdp_op = [reorder1, mm1, softmax, reorder2, mm2]
+    // sdp_op = [reorder1, mm1, softmax, reorder2, mm2, select]
     // reorder1 is using mm1 weight u8->s8
     // reorder2 is using mm2 weight u8->s8
     std::vector<op_ptr> sdp_op;

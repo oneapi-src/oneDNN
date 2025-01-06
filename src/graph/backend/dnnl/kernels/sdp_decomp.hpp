@@ -136,6 +136,7 @@ public:
             args_ctor(
                     sdp_kernel->sdp_cfg_.sub_reorder1_args, sub_reorder1_args);
             args_ctor(sdp_kernel->sdp_cfg_.sub_mm1_args, sub_mm1_args);
+            args_ctor(sdp_kernel->sdp_cfg_.sub_select_args, sub_select_args);
             args_ctor(sdp_kernel->sdp_cfg_.sub_softmax_args, sub_softmax_args);
             args_ctor(
                     sdp_kernel->sdp_cfg_.sub_reorder2_args, sub_reorder2_args);
@@ -147,7 +148,8 @@ public:
         // execution args for each op in the subgraph
         std::vector<std::unordered_map<int, memory>> sub_reorder0_args,
                 sub_reorder1_args, sub_mm1_args, sub_softmax_args,
-                sub_reorder2_args, sub_mm2_args, sub_reorder3_args;
+                sub_reorder2_args, sub_mm2_args, sub_reorder3_args,
+                sub_select_args;
     };
 
     std::function<std::shared_ptr<sdp_args_set_t>()> resource_ctor_;

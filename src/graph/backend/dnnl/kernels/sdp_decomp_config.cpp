@@ -76,6 +76,9 @@ impl::status_t sdp_decomp_config_t::construct_params(
 
     // Update SDPA input params. Sequence length for query and key/value are
     // NOT always same.
+    std::cout << "lttmp start" << std::endl;
+    const auto &lt_tmp = sdp_op[1]->get_input_value(1);
+    std::cout << "lttmp end" << std::endl;
     const auto &lt_wei = sdp_op[1]->get_input_value(1)->get_logical_tensor();
     const ltw ltw_wei(lt_wei);
     seq_len_kv = ltw_wei.vdims()[3];
@@ -88,6 +91,8 @@ impl::status_t sdp_decomp_config_t::construct_params(
             ltw(inputs[graph_inport[1]]).data_type());
     memory::data_type dt_wei = quantized ? memory::data_type::s8 : dt_src_user;
     memory::data_type dt_inter = quantized ? dt : dt_src_user;
+    memory::data_type dt_cond = static_cast<memory::data_type>(
+            ltw(inputs[graph_inport[6]]).data_type());
 
     ////////////////////////////////////////////////////////////////////////
     ////////////// Start Creating primitives ///////////////////////////////
@@ -101,7 +106,8 @@ impl::status_t sdp_decomp_config_t::construct_params(
     memory::desc sub_src1_md, sub_wei1_user_md, sub_wei1_md, sub_mm1_src_md,
             sub_mm1_wei_md, sub_mm1_dst_md, sub_softmax_dst_md,
             sub_wei2_user_md, sub_mm2_wei_md, sub_mm2_dst_md, sub_dst_md,
-            sub_dst_user_md;
+            sub_dst_user_md, sub_select_src0_md, sub_select_cond_md,
+            sub_select_dst_md;
     std::vector<memory::desc> sub_mm1_post_md;
 
     // must use user mode to support concurrent execution
@@ -167,14 +173,41 @@ impl::status_t sdp_decomp_config_t::construct_params(
             sub_mm1_wei_md, sub_mm1_dst_md, sub_matmul1_attr);
     sub_mm1_prim = matmul(sub_mm1_pd);
 
+    // select
+    auto cond_md = make_dnnl_memory_desc(
+            sdp_op[5]->get_input_value(2)->get_logical_tensor());
+    cond_strides = cond_md.get_strides();
+
+    auto select_other_md = make_dnnl_memory_desc(
+            sdp_op[5]->get_input_value(0)->get_logical_tensor());
+    select_other_strides = select_other_md.get_strides();
+    // create select primitive attr
+    dnnl::primitive_attr sub_select_attr = make_primitive_attr(sdp_op[5], mgr);
+    sub_select_src0_md = memory::desc(sub_mm1_dst_dims, dt_inter,
+            {select_other_strides[0], select_other_strides[1],
+                    select_other_strides[2], select_other_strides[3]});
+    // use dt_inter?
+    sub_select_dst_md = memory::desc(sub_mm1_dst_dims, dt_inter, tag::abcd);
+    sub_select_cond_md = memory::desc(sub_mm1_dst_dims, dt_cond,
+            {cond_strides[0], cond_strides[1], cond_strides[2],
+                    cond_strides[3]});
+    auto sub_select_pd = binary::primitive_desc(p_engine,
+            algorithm::binary_select, sub_select_src0_md, sub_mm1_dst_md,
+            sub_select_cond_md, sub_select_dst_md, sub_select_attr);
+    sub_select_prim = binary(sub_select_pd);
+
     // softmax
     // create softmax primitive attr
     dnnl::primitive_attr sub_softmax_attr = make_primitive_attr(sdp_op[2], mgr);
     sub_softmax_dst_md = memory::desc(sub_mm1_dst_dims, dt_src_user, tag::abcd);
+    //     auto sub_softmax_pd = softmax_forward::primitive_desc(p_engine,
+    //             prop_kind::forward_inference, algorithm::softmax_accurate,
+    //             sub_mm1_dst_md, sub_softmax_dst_md, sub_mm1_dst_md.get_ndims() - 1,
+    //             sub_softmax_attr);
     auto sub_softmax_pd = softmax_forward::primitive_desc(p_engine,
             prop_kind::forward_inference, algorithm::softmax_accurate,
-            sub_mm1_dst_md, sub_softmax_dst_md, sub_mm1_dst_md.get_ndims() - 1,
-            sub_softmax_attr);
+            sub_select_dst_md, sub_softmax_dst_md,
+            sub_mm1_dst_md.get_ndims() - 1, sub_softmax_attr);
     sub_softmax_prim = softmax_forward(sub_softmax_pd);
 
     // reorder u8->s8 wei for second matmul
@@ -266,6 +299,11 @@ impl::status_t sdp_decomp_config_t::construct_params(
         sub_mm1_post_mem.emplace_back(
                 memory(sub_mm1_post_md[i], p_engine, nullptr));
     }
+    // select
+    sub_select_src0 = memory(sub_select_src0_md, p_engine, nullptr);
+    sub_select_cond = memory(sub_select_cond_md, p_engine, nullptr);
+    sub_select_dst = memory(sub_select_dst_md, p_engine, nullptr);
+
     // softmax
     sub_softmax_dst = memory(sub_softmax_dst_md, p_engine, nullptr);
     // reorder2
@@ -292,9 +330,16 @@ impl::status_t sdp_decomp_config_t::construct_params(
         sub_mm1_args.insert({DNNL_ARG_ATTR_MULTIPLE_POST_OP(i) | DNNL_ARG_SRC_1,
                 sub_mm1_post_mem[i]});
     }
+    sub_select_args = {{DNNL_ARG_SRC_0, sub_select_src0},
+            {DNNL_ARG_SRC_1, sub_mm1_dst}, {DNNL_ARG_SRC_2, sub_select_cond},
+            {DNNL_ARG_DST, sub_select_dst},
+            {DNNL_ARG_SCRATCHPAD, sub_scratchpad}};
 
+    //     sub_softmax_args
+    //             = {{DNNL_ARG_SRC, sub_mm1_dst}, {DNNL_ARG_DST, sub_softmax_dst},
+    //                     {DNNL_ARG_SCRATCHPAD, sub_scratchpad}};
     sub_softmax_args
-            = {{DNNL_ARG_SRC, sub_mm1_dst}, {DNNL_ARG_DST, sub_softmax_dst},
+            = {{DNNL_ARG_SRC, sub_select_dst}, {DNNL_ARG_DST, sub_softmax_dst},
                     {DNNL_ARG_SCRATCHPAD, sub_scratchpad}};
 
     sub_reorder2_args = {{DNNL_ARG_SRC, sub_wei2_user},
@@ -308,12 +353,14 @@ impl::status_t sdp_decomp_config_t::construct_params(
             = {{DNNL_ARG_SRC, sub_mm2_dst}, {DNNL_ARG_DST, sub_dst_user},
                     {DNNL_ARG_SCRATCHPAD, sub_scratchpad}};
 
-    // add scales and zps for mm1, softmax, mm2
+    // add scales and zps for mm1, select, softmax, mm2
     prepare_sdp_scales_zps(mgr, sdp_op[0], 1, sub_reorder1_args, p_engine);
     prepare_sdp_scales_zps(mgr, sdp_op[1], 2, sub_mm1_args, p_engine);
     prepare_sdp_scales_zps(mgr, sdp_op[2], 1, sub_softmax_args, p_engine);
     prepare_sdp_scales_zps(mgr, sdp_op[3], 1, sub_reorder2_args, p_engine);
     prepare_sdp_scales_zps(mgr, sdp_op[4], 2, sub_mm2_args, p_engine);
+    //prepare_sdp_scales_zps(mgr, sdp_op[5], 2, sub_mm2_args, p_engine);
+
     ////////////////////////////////////////////////////////////////////////
     /////////////// End Constructing exec args /////////////////////////////
     ////////////////////////////////////////////////////////////////////////
@@ -493,10 +540,14 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
     int wei2_id = find_graph_inport(mm2->get_input_value(1));
     graph_inport.emplace_back(wei2_id);
     if (has_select) {
-        int cond_id = find_graph_inport(select->get_input_value(0));
-        int src0_id = find_graph_inport(select->get_input_value(1));
-        graph_inport.emplace_back(cond_id);
+        // int cond_id = find_graph_inport(select->get_input_value(0));
+        // int src0_id = find_graph_inport(select->get_input_value(1));
+        // graph_inport.emplace_back(cond_id);
+        // graph_inport.emplace_back(src0_id);
+        int cond_id = find_graph_inport(select->get_input_value(2));
+        int src0_id = find_graph_inport(select->get_input_value(0));
         graph_inport.emplace_back(src0_id);
+        graph_inport.emplace_back(cond_id);
     } else {
         //placeholder
         graph_inport.emplace_back(-1);
@@ -550,7 +601,8 @@ void sdp_decomp_config_t::memory_planning(registry_t &sdp_registry) {
     // change the value of map here.
     mem_key_map = {{sub_max_src1_src2.get(), 0}, {sub_mm1_wei.get(), 1},
             {sub_max_dst1_wei2.get(), 2}, {sub_softmax_dst.get(), 0},
-            {sub_mm2_dst.get(), 3}, {sub_scratchpad.get(), 4}};
+            {sub_mm2_dst.get(), 3}, {sub_scratchpad.get(), 4},
+            {sub_select_dst.get(), 5}};
 
     temporary_registrar.book(mem_key_map[sub_max_src1_src2.get()],
             sub_max_src1_src2.get_desc().get_size());
@@ -562,6 +614,8 @@ void sdp_decomp_config_t::memory_planning(registry_t &sdp_registry) {
             mem_key_map[sub_mm2_dst.get()], sub_mm2_dst.get_desc().get_size());
     temporary_registrar.book(mem_key_map[sub_scratchpad.get()],
             sub_scratchpad.get_desc().get_size());
+    temporary_registrar.book(mem_key_map[sub_select_dst.get()],
+            sub_select_dst.get_desc().get_size());
 }
 
 impl::status_t sdp_decomp_config_t::prepare_sdp_scales_zps(
