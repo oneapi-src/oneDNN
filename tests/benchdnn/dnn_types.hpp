@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -336,6 +336,7 @@ struct attr_t {
             bool is_convolution_kind() const;
             bool is_eltwise_kind() const;
             bool is_binary_kind() const;
+            bool is_binary_kind_with_ternary_op() const;
             bool is_prelu_kind() const;
         };
 
