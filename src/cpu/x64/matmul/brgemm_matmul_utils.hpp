@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -190,6 +190,7 @@ struct brgemm_matmul_conf_t {
     bool is_bf32 = false;
     bool is_bf16_with_int_wei = false;
     bool is_f16_with_int_wei = false;
+    bool is_f32_f16 = false;
     bool is_int4_weights = false;
     bool req_wei_vnni_downconvert = false;
     bool is_runtime_M = false;
@@ -230,10 +231,8 @@ struct brgemm_matmul_conf_utils_t {
     inline bool use_buffer_b(bool use_heuristic = true) const {
         if (bgmmc.is_runtime_N) return true;
         if (bgmmc.is_bf16_with_int_wei) return true;
+        if (bgmmc.is_f16_with_int_wei) return true;
         if (bgmmc.apply_scales_in_buffer_b) return true;
-        if (utils::one_of(true, bgmmc.is_runtime_N, bgmmc.is_bf16_with_int_wei,
-                    bgmmc.is_f16_with_int_wei, bgmmc.apply_scales_in_buffer_b))
-            return true;
 
         if (bgmmc.is_amx)
             // use b_buffer for AMX when:
@@ -302,6 +301,8 @@ struct brgemm_matmul_conf_utils_t {
 
     inline bool is_bf16_with_int_wei() const { return bf16_with_int_wei_dt; }
 
+    inline bool is_f32_f16() const { return f32_f16_dt; }
+
     inline bool is_f16_with_int_wei() const { return f16_with_int_wei_dt; }
 
     inline bool with_weights_decompression() const {
@@ -339,7 +340,7 @@ private:
     brgemm_matmul_conf_t &bgmmc;
 
     const bool f32_dt, bf16_dt, f16_dt, f8_dt, int8_dt, bf32_dt;
-    const bool weights_decompression_support, bf16_with_int_wei_dt,
+    const bool weights_decompression_support, bf16_with_int_wei_dt, f32_f16_dt,
             f16_with_int_wei_dt;
 
     const bool A_any_layout;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,6 +60,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             = everyone_is(bf16, src_dt, wei_dt) && one_of(dst_dt, bf16, f32);
     const bool is_f16
             = everyone_is(f16, src_dt, wei_dt) && one_of(dst_dt, f16, f32);
+    const bool is_f32_f16
+            = src_dt == f32 && wei_dt == f16 && one_of(dst_dt, f16, f32);
     const bool is_bf16_with_int_wei = src_dt == bf16
             && one_of(wei_dt, s8, u8, s4, u4) && one_of(dst_dt, bf16, f32);
     const bool is_f16_with_int_wei = src_dt == f16
@@ -117,8 +119,9 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
     auto check_attr_zero_points
             = [&]() -> bool { return attr()->zero_points_.common(); };
-    const bool problem_dt_correct = one_of(true, is_int8, is_f8, is_bf16,
-            is_f32, is_f16, is_bf16_with_int_wei, is_f16_with_int_wei);
+    const bool problem_dt_correct
+            = one_of(true, is_int8, is_f8, is_bf16, is_f32, is_f16, is_f32_f16,
+                    is_bf16_with_int_wei, is_f16_with_int_wei);
 
     auto src_d = memory_desc_wrapper(src_md_);
     auto weights_d = memory_desc_wrapper(weights_md_);
@@ -156,6 +159,11 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     CHECK(init_brgemm_matmul_conf(isa, bgmmc_, *desc(), src_md_, weights_md_,
             dst_md_, bias_md_, attr_));
 
+    // f32:f16 configuration on AVX2 doesn't support tails with proper
+    // instruction sequence in copy routines. Anchor: F32_F16_AVX2_NO_TAIL.
+    VDISPATCH_MATMUL(IMPLICATION(is_f32_f16 && isa == avx2, bgmmc_.N % 8 == 0),
+            "unsupported configuration");
+
     const float alpha = 1.0;
     const float beta = 1.0;
     const float beta_init = 0.0;
@@ -171,7 +179,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     // non-amx isa. s8s8 proplem type is exception to avoid compensations
     // processing for tail kernel
     const auto backup_isa = is_amx && bgmmc_.is_runtime_M && !is_s8s8
-            ? (is_f16 || is_f16_with_int_wei
+            ? (is_f16 || is_f32_f16 || is_f16_with_int_wei
                             ? avx512_core_fp16
                             : (is_bf16 || is_bf16_with_int_wei
                                             ? avx512_core_bf16
