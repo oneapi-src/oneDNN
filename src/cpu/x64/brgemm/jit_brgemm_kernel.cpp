@@ -2216,12 +2216,22 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
                     } else {
                         uni_vcvtph2psx(vmm_load, addr);
                     }
-                } else if (brg.dt_b == data_type::bf16
-                        && brg.isa_impl == avx2_vnni_2) {
-                    if (rd % 2 == 0)
-                        vcvtneebf162ps(vmm_load, addr);
-                    else
-                        vcvtneobf162ps(vmm_load, addr);
+                } else if (brg.dt_b == data_type::bf16) {
+                    if (brg.isa_impl == avx2_vnni_2) {
+                        if (rd % 2 == 0)
+                            vcvtneebf162ps(vmm_load, addr);
+                        else
+                            vcvtneobf162ps(vmm_load, addr);
+                    } else if (utils::one_of(brg.isa_impl, avx512_core, avx2)) {
+                        // Upconvert: load 16 bits and move them 16 bits left.
+                        uni_vpmovzxwd(vmm_load, addr);
+                        uni_vpslld(vmm_load, vmm_load, 16);
+                    } else if (is_ld_tail
+                            && !is_superset(brg.isa_impl, avx512_core)) {
+                        load_bytes(vmm_load, addr, ldb_B_offset(0, true));
+                    } else {
+                        uni_vmovups(vmm_load, addr);
+                    }
                 } else if (is_ld_tail) {
                     if (is_superset(brg.isa_impl, avx512_core)) {
                         uni_vmovups(vmm_load, addr);
@@ -2274,12 +2284,22 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
                     } else {
                         uni_vcvtph2psx(vmm_load, addr);
                     }
-                } else if (brg.dt_b == data_type::bf16
-                        && brg.isa_impl == avx2_vnni_2) {
-                    if (rd % 2 == 0)
-                        vcvtneebf162ps(vmm_load, addr);
-                    else
-                        vcvtneobf162ps(vmm_load, addr);
+                } else if (brg.dt_b == data_type::bf16) {
+                    if (brg.isa_impl == avx2_vnni_2) {
+                        if (rd % 2 == 0)
+                            vcvtneebf162ps(vmm_load, addr);
+                        else
+                            vcvtneobf162ps(vmm_load, addr);
+                    } else if (utils::one_of(brg.isa_impl, avx512_core, avx2)) {
+                        // Upconvert: load 16 bits and move them 16 bits left.
+                        uni_vpmovzxwd(vmm_load, addr);
+                        uni_vpslld(vmm_load, vmm_load, 16);
+                    } else if (is_ld_tail
+                            && !is_superset(brg.isa_impl, avx512_core)) {
+                        load_bytes(vmm_load, addr, ldb_B_offset(0, true));
+                    } else {
+                        uni_vmovups(vmm_load, addr);
+                    }
                 } else if (is_ld_tail) {
                     if (is_superset(brg.isa_impl, avx512_core)) {
                         uni_vmovups(vmm_load, addr);

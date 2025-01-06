@@ -1,6 +1,6 @@
 --reset
 
---dt=bf16,bf16:bf16:f32
+--dt=bf16,bf16:bf16:f32,f32:bf16:f32
 --bia_dt=undef,f32,bf16
 --beta=0,1
 --attr-post-ops=,sum:2,relu

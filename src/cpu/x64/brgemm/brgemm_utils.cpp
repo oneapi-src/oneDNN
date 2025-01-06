@@ -53,7 +53,10 @@ void init_kernel_datatype(
     brg->is_int8 = utils::one_of(dt_a, data_type::u8, data_type::s8)
             && utils::one_of(dt_b, data_type::u8, data_type::s8);
     brg->is_bf16 = (dt_a == data_type::bf16) && (dt_b == data_type::bf16);
-    brg->is_f32 = (dt_a == data_type::f32) && (dt_b == data_type::f32);
+    // Note: f32:bf16 is treated as f32 case while f32:f16 has already been
+    // treated as f16. Probably, need a common ground here.
+    brg->is_f32 = (dt_a == data_type::f32)
+            && utils::one_of(dt_b, data_type::f32, data_type::bf16);
     brg->is_f16 = utils::one_of(data_type::f16, dt_a, dt_b);
     brg->is_fp8 = one_of(dt_a, data_type::f8_e5m2, data_type::f8_e4m3)
             && one_of(dt_b, data_type::f8_e5m2, data_type::f8_e4m3);
@@ -131,9 +134,20 @@ void set_isa_impl(brgemm_desc_t *brg) {
                 is_isa_ok(avx512_core_fp16), avx512_core_fp16, is_isa_ok(avx2),
                 avx2);
     } else if (brg->is_bf16) {
-        brg->isa_impl = utils::map(true, isa_undef, is_isa_ok(avx512_core_amx),
-                avx512_core_amx, is_isa_ok(avx512_core_bf16), avx512_core_bf16,
-                is_isa_ok(avx2_vnni_2), avx2_vnni_2);
+        if (brg->dt_a == data_type::f32 && brg->dt_b == data_type::bf16) {
+            // Distinguish f32:bf16 case upconversion for bf16 on AVX512_CORE
+            // and AVX2.
+            brg->isa_impl = utils::map(true, isa_undef,
+                    is_isa_ok(avx512_core_amx), avx512_core_amx,
+                    is_isa_ok(avx512_core_bf16), avx512_core_bf16,
+                    is_isa_ok(avx512_core), avx512_core, is_isa_ok(avx2_vnni_2),
+                    avx2_vnni_2, is_isa_ok(avx2), avx2);
+        } else {
+            brg->isa_impl = utils::map(true, isa_undef,
+                    is_isa_ok(avx512_core_amx), avx512_core_amx,
+                    is_isa_ok(avx512_core_bf16), avx512_core_bf16,
+                    is_isa_ok(avx2_vnni_2), avx2_vnni_2);
+        }
     } else if (brg->is_f16) {
         if (everyone_is(data_type::f16, brg->dt_a, brg->dt_b)) {
             brg->isa_impl = utils::map(true, isa_undef,

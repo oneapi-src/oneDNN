@@ -494,7 +494,8 @@ inline data_type_t get_mac_emu_data_type(const data_type_t data_type,
     using namespace data_type;
     if (req_emulation) switch (data_type) {
             case bf16:
-                if (isa == avx2_vnni_2) return f32;
+                if (utils::one_of(isa, avx2, avx2_vnni_2, avx512_core))
+                    return f32;
                 break;
             case f16:
                 if (utils::one_of(isa, avx2, avx2_vnni_2, avx512_core,
