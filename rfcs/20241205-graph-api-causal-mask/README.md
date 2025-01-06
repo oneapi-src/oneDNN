@@ -488,7 +488,10 @@ Cons:
 
 ## Conclusions
 
-The decision is to implement option 1.1.
+The decision is to adopt the subgraph approach and implement the top-left aligned
+causal mask (option 1.1) in oneDNN release v3.7. For the bottom-right aligned
+causal mask, we will revisit its design once the user requirements become more
+concrete.
 
 ## References
 
