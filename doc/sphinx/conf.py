@@ -51,7 +51,7 @@ sys.path.insert(1, os.path.abspath(doxyrest_share_path))
 # -- Project information -----------------------------------------------------
 
 project = 'oneDNN'
-copyright = '2016-2024 Intel Corporation'
+copyright = ''
 author = ''
 
 # -- General configuration ---------------------------------------------------
@@ -139,7 +139,8 @@ html_theme_options = {
     "repository_url": "https://github.com/oneapi-src/oneDNN",
     "repository_branch": "master",
     "use_repository_button": True,
-    "use_download_button": False
+    "use_download_button": False,
+    "extra_footer": "<div><a href='https://www.intel.com/content/www/us/en/privacy/intel-cookie-notice.html' data-cookie-notice='true'>Cookies</a> <a href='https://www.intel.com/content/www/us/en/privacy/intel-privacy-notice.html'>| Privacy</a> <a data-wap_ref='dns' id='wap_dns' href='https://www.intel.com/content/www/us/en/privacy intel-cookie- notice.html'>| Your Privacy Choices</a> <a data-wap_ref='nac' id='wap_nac' href='https://www.intel.com/content/www/us/en/privacy/privacy-residents-certain-states.html'>| Notice at Collection</a> </div>"
 }
 
 mathjax3_config = {
