@@ -701,6 +701,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_binary, 1,
                 .set_num_outputs(2)
                 .set_input(0, "a")
                 .set_input(1, "b")
+                .set_input(2, "cond")
                 .set_output(0, "output")
                 .set_output(1, "scratchpad")
                 // Attributes inherited from front binary ops (Add, Multiply,
@@ -713,6 +714,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_binary, 1,
                         {"NXC", "NCX"})
                 // New added attributes
                 .set_attr(op_attr::is_bias_add, false, attribute_kind::b, false)
+                .set_attr(op_attr::is_select, false, attribute_kind::b, false)
                 .set_attr(op_attr::fusion_info_key, false, attribute_kind::i,
                         (int64_t)-1)
                 .set_attr(op_attr::alg_kind, true, attribute_kind::i)

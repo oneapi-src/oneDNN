@@ -489,12 +489,15 @@ status_t infer_dnnl_binary_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &outputs) {
     const bool is_bias_add = n->has_attr(op_attr::is_bias_add)
             && n->get_attr<bool>(op_attr::is_bias_add);
-
-    auto ret = is_bias_add
-            ? infer_bias_add_output_shape(n, inputs, outputs)
-            : infer_elemwise_arithmetic_output_shape(n, inputs, outputs);
-
-    return ret;
+    const bool is_select = n->has_attr(op_attr::is_select)
+            && n->get_attr<bool>(op_attr::is_select);
+    if (is_select) {
+        return infer_select_output_shape(n, inputs, outputs);
+    } else if (is_bias_add) {
+        return infer_bias_add_output_shape(n, inputs, outputs);
+    } else {
+        return infer_elemwise_arithmetic_output_shape(n, inputs, outputs);
+    }
 }
 
 } // namespace dnnl_impl

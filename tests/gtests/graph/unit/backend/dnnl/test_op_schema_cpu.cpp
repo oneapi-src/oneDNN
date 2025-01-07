@@ -134,10 +134,11 @@ TEST(test_op_schema, DnnlBinary) {
     op_kind_t op_kind = dnnl_impl::op_kind::dnnl_binary;
     const size_t expected_in_size_lower = 2;
     const size_t expected_out_size = 2;
-    const size_t expected_attr_size = 7;
+    const size_t expected_attr_size = 8;
     const std::map<op_attr_t, bool> attrs_data
             = {{op_attr::auto_broadcast, false},
-                    {dnnl_impl::op_attr::alg_kind, true}};
+                    {dnnl_impl::op_attr::alg_kind, true},
+                    {dnnl_impl::op_attr::is_select, false}};
     verify_op_schema(op_kind, expected_in_size_lower, expected_out_size,
             expected_attr_size, attrs_data);
 
