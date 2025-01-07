@@ -78,7 +78,7 @@ post-ops).  The following formula governs the datatypes dynamic during
 a primitive computation:
 
 \f[
-\operatorname{convert_{dst\_dt}} ( \operatorname{dst\_zero\_point_{f32}} + \operatorname{postops_{f32}} (\operatorname{oscale_{f32}} * \operatorname{convert_{f32}} (\operatorname{Op}(\operatorname{src_{src\_dt}}, \operatorname{weights_{wei\_dt}}, ...))))
+\operatorname{convert_{dst\_dt}} ( \operatorname{zp_{dst}} + 1/\operatorname{scale_{dst}} * \operatorname{postops_{f32}} (\operatorname{convert_{f32}} (\operatorname{Op}(\operatorname{src_{src\_dt}}, \operatorname{weights_{wei\_dt}}, ...))))
 \f]
 
 The `Op` output datatype depends on the datatype of its inputs:
@@ -99,7 +99,15 @@ No downconversions are allowed by default, but can be enabled using
 the floating-point math controls described in @ref
 dev_guide_attributes_fpmath_mode.
 
-
+The \f$convert_{dst\_dt}\f$ conversion is guaranteed to be faithfully
+rounded but not guaranteed to be correctly rounded (the returned value
+is not always the closest one but one of the two closest representable
+value). In particular, some hardware platforms have no direct
+conversion instructions from f32 data type to low-precision data types
+such as fp8 or fp4, and will perform conversion through an
+intermediate data type (for example f16 or bf16), which may result in
+[double
+rounding](https://en.wikipedia.org/wiki/Rounding#Double_rounding).
 
 ### Rounding mode and denormal handling
 
