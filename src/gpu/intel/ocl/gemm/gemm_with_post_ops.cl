@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,10 +77,9 @@
 #define BIA_OFF(x1, x0, d, h, w) (x0)
 #endif
 __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
-        __global DST_DATA_T *dst POST_OP_ARGS, __global SPAD_DATA_T *scratchpad,
-        global float *a_scales, global WEI_SCALES_DATA_T *b_scales,
-        global DST_SCALES_DATA_T *c_scales, int scale_stride,
-        global int *dst_zp) {
+        __global DST_DATA_T *dst POST_OP_ARGS, global float *a_scales,
+        global WEI_SCALES_DATA_T *b_scales, global DST_SCALES_DATA_T *c_scales,
+        int scale_stride, global int *dst_zp) {
     const uint d0 = GWS_GET_D0();
     const uint d1 = GWS_GET_D1();
     const uint d2 = GWS_GET_D2();
@@ -93,11 +92,8 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src, __global BIA_DATA_T *bias,
 #else
     size_t data_idx = DST_OFF(d0, d1, 0, 0, 0);
 #endif
-#if USE_TEMP_DST == 1
-    ACC_DATA_T acc = SRC_TO_ACC(scratchpad[data_idx]);
-#else
+
     ACC_DATA_T acc = SRC_TO_ACC(src[data_idx]);
-#endif
     float accumulator = convert_float(acc);
     if ((d0 == D0_WO_PADDING && d1 == D1_WO_PADDING && d2 == D2_WO_PADDING
                 && d3 == D3_WO_PADDING)
