@@ -575,8 +575,7 @@ tensor_config_t get_tensor_config(
 
 send_kind_t kernel_desc_t::access_kind(
         send_op_t op, tensor_kind_t tensor) const {
-    if (use_2d_access && tensor != tensor_kind_t::undef
-            && op != send_op_t::atomic_fadd)
+    if (use_2d_access && tensor != tensor_kind_t::undef && !is_atomic(op))
         return send_kind_t::_2d;
     return send_kind_t::undef;
 }
