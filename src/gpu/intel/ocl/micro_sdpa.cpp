@@ -230,6 +230,7 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     switch (qry_md()->data_type) {
         case data_type::bf16: problem.Ta = problem.Tb = Type::bf16; break;
         case data_type::f16: problem.Ta = problem.Tb = Type::f16; break;
+		default: printf("data type not matched\n");
     };
     problem.Tc = problem.Tc_ext = Type::f32;
     problem.Ts = problem.Tc;

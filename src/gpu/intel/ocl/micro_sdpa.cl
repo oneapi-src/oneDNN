@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/ocl_types.h"
 #include "gpu/intel/ocl/sdpa_utils.h"
 #include "gpu/intel/ocl/tile_ops.h"
 
@@ -44,8 +43,13 @@ DECLARE_2D_TILE(q_tile_type, uint, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
 DECLARE_2D_TILE_BLOCK_OPS(
         q_tile_type, uint, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
 #elif Q_ALIGN < 4
-DECLARE_2D_TILE_LOAD_PACKED_HALF(
-        q_tile_type, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
+#ifdef QRY_DT_F16
+DECLARE_2D_TILE_LOAD_PACKED_VEC(
+        q_tile_type, half, half2, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
+#else //QRY_DT_BF16
+DECLARE_2D_TILE_LOAD_PACKED_VEC(
+        q_tile_type, ushort, ushort2, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
+#endif
 #endif
 
 #ifdef BLOCK_A
@@ -56,7 +60,7 @@ DECLARE_2D_TILE(a_tile_type_half, half, SUBGROUP_SIZE, ugemm_vs_sg_tile_m, 8, 1,
         ugemm_vs_sg_tile_n / 8)
 #endif
 
-DECLARE_2D_TILE(s_tile_type_half2, uint, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
+DECLARE_2D_TILE(s_tile_type_packed, uint, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
         ugemm_kq_c_type_block1 / 2, ugemm_kq_c_type_nblock0,
         ugemm_kq_c_type_nblock1)
 
@@ -447,11 +451,15 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         tile_vreduce_add(S_tile, &S_sum_tile1);
 
         /* Convert to half, VNNI format */
-        s_tile_type_half2 S_tile_half2;
-        tile_copy_to_half2(S_tile, S_tile_half2);
-
+        s_tile_type_packed S_tile_packed;
+#ifdef QRY_DT_F16
+        tile_copy_to_vec(S_tile, S_tile_packed, half2);
+#endif
+#ifdef QRY_DT_BF16
+        tile_copy_to_vec(S_tile, S_tile_packed, ushort2);
+#endif
         /* Store to SLM, in packed format */
-        tile_store_t_sys_src2(S_tile_half2, (local uint *)S_slm,
+        tile_store_t_sys_src2(S_tile_packed, (local uint *)S_slm,
                 ugemm_vs_sg_tile_n, ugemm_kq_wg_tile_m / 2, sg_i0_kq / 2,
                 sg_j0_kq);
         intel_work_group_barrier_arrive(CLK_LOCAL_MEM_FENCE);
