@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ inline jit::send_op_t to_ir(send_op_t op, bool is_2d = false) {
     switch (op) {
 #define CASE(name) \
     case v2::send_op_t::name: ret = jit::send_op_t::name; break;
+        CASE(atomic_add);
         CASE(atomic_fadd);
         CASE(load);
         CASE(prefetch);

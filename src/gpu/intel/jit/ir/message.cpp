@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,24 +30,6 @@ namespace impl {
 namespace gpu {
 namespace intel {
 namespace jit {
-
-std::ostream &operator<<(std::ostream &out, const send_op_t op) {
-    const char *s = nullptr;
-    switch (op) {
-        case send_op_t::atomic_fadd: s = "atomic_fadd"; break;
-        case send_op_t::atomic_cmpwr: s = "atomic_cmpwr"; break;
-        case send_op_t::load: s = "load"; break;
-        case send_op_t::load_2d: s = "load_2d"; break;
-        case send_op_t::prefetch: s = "prefetch"; break;
-        case send_op_t::prefetch_2d: s = "prefetch_2d"; break;
-        case send_op_t::store: s = "store"; break;
-        case send_op_t::store_2d: s = "store_2d"; break;
-        case send_op_t::undef: s = "undef"; break;
-        default: ir_error_not_expected(); s = "unknown";
-    }
-
-    return out << s;
-}
 
 stmt_t send_t::create_offset_store(const expr_t &header_buf,
         const expr_t &mem_buf, const expr_t &_mem_off,

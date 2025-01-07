@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ GPU_DEFINE_PARSE_ENUM(send_kind_t, send_kind_names)
 // Send operation kind.
 enum class send_op_t {
     undef,
+    atomic_add,
     atomic_fadd,
     atomic_cmpwr,
     load,
@@ -56,7 +57,19 @@ enum class send_op_t {
     store_2d,
 };
 
-std::ostream &operator<<(std::ostream &out, const send_op_t value);
+static auto send_op_names = nstl::to_array({
+        make_enum_name(send_op_t::undef, "undef"),
+        make_enum_name(send_op_t::atomic_add, "atomic_add"),
+        make_enum_name(send_op_t::atomic_fadd, "atomic_fadd"),
+        make_enum_name(send_op_t::atomic_cmpwr, "atomic_cmpwr"),
+        make_enum_name(send_op_t::load, "load"),
+        make_enum_name(send_op_t::load_2d, "load_2d"),
+        make_enum_name(send_op_t::prefetch, "prefetch"),
+        make_enum_name(send_op_t::prefetch_2d, "prefetch_2d"),
+        make_enum_name(send_op_t::store, "store"),
+        make_enum_name(send_op_t::store_2d, "store_2d"),
+});
+GPU_DEFINE_PARSE_ENUM(send_op_t, send_op_names)
 
 // Send address model.
 enum class send_address_t {
@@ -188,7 +201,7 @@ public:
     }
     std::string str() const override {
         std::ostringstream oss;
-        oss << op;
+        oss << to_string(op);
         oss << ".";
         oss << type.str();
         if (is_scattered()) oss << "x" << slots;
@@ -224,7 +237,10 @@ public:
         return call({mem_buf, mem_off, reg_buf, mask, x, y, pattern});
     }
 
-    bool is_atomic() const { return op == send_op_t::atomic_fadd; }
+    bool is_atomic() const {
+        return utils::one_of(op, send_op_t::atomic_add, send_op_t::atomic_fadd,
+                send_op_t::atomic_cmpwr);
+    }
     bool is_load() const { return op == send_op_t::load; }
     bool is_load_2d() const { return op == send_op_t::load_2d; }
     bool is_prefetch() const { return op == send_op_t::prefetch; }

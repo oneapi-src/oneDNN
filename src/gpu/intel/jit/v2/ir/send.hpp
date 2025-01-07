@@ -37,6 +37,7 @@ static const int max_slot_size = 8;
 
 enum class send_op_t {
     undef,
+    atomic_add,
     atomic_fadd,
     load,
     prefetch,
@@ -45,6 +46,7 @@ enum class send_op_t {
 
 static auto send_op_names = nstl::to_array({
         make_enum_name(send_op_t::undef, "undef"),
+        make_enum_name(send_op_t::atomic_add, "atomic_add"),
         make_enum_name(send_op_t::atomic_fadd, "atomic_fadd"),
         make_enum_name(send_op_t::load, "load"),
         make_enum_name(send_op_t::prefetch, "prefetch"),
@@ -52,6 +54,10 @@ static auto send_op_names = nstl::to_array({
 });
 
 GPU_DEFINE_PARSE_ENUM(send_op_t, send_op_names)
+
+inline bool is_atomic(send_op_t op) {
+    return utils::one_of(op, send_op_t::atomic_add, send_op_t::atomic_fadd);
+}
 
 enum class send_address_t {
     undef,
@@ -749,7 +755,7 @@ private:
         int inner_elems = inner_last.elems();
         int inner_bytes = type_size * inner_elems;
         int slot_size = ir_utils::max_pow2_divisor(inner_bytes);
-        if (params.op == send_op_t::atomic_fadd) slot_size = type_size;
+        if (is_atomic(params.op)) slot_size = type_size;
         int grf_size = plan.hw.grf_size();
 
         if (slot_size < grf_size)
@@ -900,8 +906,7 @@ private:
             if (params.kind == send_kind_t::scattered
                     && inner_bytes > max_slot_size * max_slots)
                 break;
-            if (params.op == send_op_t::atomic_fadd && it.elems() > max_slots)
-                break;
+            if (is_atomic(params.op) && it.elems() > max_slots) break;
             inner_last = it;
         }
         return inner_last;

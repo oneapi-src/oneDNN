@@ -651,7 +651,7 @@ private:
             const layout_t &bias_reg_layout, const view_t &bias_mem_view,
             epilogue_store_plan_t &plan, prb_reqs_t &reqs) const {
         auto params = get_send_params(tensor_kind_t::undef,
-                is_atomic ? send_op_t::atomic_fadd : send_op_t::store,
+                is_atomic ? send_op_t::atomic_add : send_op_t::store,
                 bias_mem_view);
         auto store = try_create_send_plan(__func__, params, bias_mem_view);
         if (!store) return false;
@@ -771,7 +771,7 @@ private:
             const view_t &c_mem_view, epilogue_store_plan_t &plan,
             prb_reqs_t &reqs) const {
         auto params = get_send_params(tensor_kind_t::c,
-                is_atomic ? send_op_t::atomic_fadd : send_op_t::store,
+                is_atomic ? send_op_t::atomic_add : send_op_t::store,
                 c_mem_view);
         // TODO: Implement fallback from 2D to block/scattered messages to
         // allow partial use of 2D messages when possible.
@@ -825,6 +825,11 @@ private:
     send_params_t get_send_params(tensor_kind_t abc, send_op_t op,
             const view_t &view, send_kind_t send_kind = send_kind_t::undef,
             send_address_t send_address = send_address_t::a64) const {
+        if (op == send_op_t::atomic_add) {
+            auto &type = view.type();
+            ir_assert(type.is_f32() || type.is_s32());
+            if (type.is_f32()) op = send_op_t::atomic_fadd;
+        }
         send_params_t params;
         params.hw = desc_.hw;
         params.kind = (send_kind != send_kind_t::undef
