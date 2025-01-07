@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/ocl_types.h"
 #include "gpu/intel/ocl/sdpa_utils.h"
 #include "gpu/intel/ocl/tile_ops.h"
 
@@ -38,14 +37,20 @@
 typedef ugemm_kq_c_type s_tile_type;
 typedef ugemm_vs_c_type a_tile_type;
 
+#ifdef QRY_DT_F16
+#define VEC_TYPE2 half2
+#else // data type is bf16
+#define VEC_TYPE2 ushort2
+#endif
+
 DECLARE_2D_TILE(q_tile_type, uint, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
 
 #ifdef BLOCK_Q
 DECLARE_2D_TILE_BLOCK_OPS(
         q_tile_type, uint, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
 #elif Q_ALIGN < 4
-DECLARE_2D_TILE_LOAD_PACKED_HALF(
-        q_tile_type, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
+DECLARE_2D_TILE_LOAD_PACKED_VEC(q_tile_type, QRY_DATA_T, VEC_TYPE2,
+        SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
 #endif
 
 #ifdef BLOCK_A
@@ -56,7 +61,7 @@ DECLARE_2D_TILE(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE, ugemm_vs_sg_tile_m,
         8, 1, ugemm_vs_sg_tile_n / 8)
 #endif
 
-DECLARE_2D_TILE(s_tile_type_half2, uint, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
+DECLARE_2D_TILE(s_tile_type_packed, uint, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
         ugemm_kq_c_type_block1 / 2, ugemm_kq_c_type_nblock0,
         ugemm_kq_c_type_nblock1)
 
@@ -260,16 +265,16 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     tile_load(&Q_tile, (global uint *)Q, (d + 1) >> 1, q, ldq >> 1, 0,
             wg_j0 + q0_copy);
 #else
-    tile_load_packed_half(&Q_tile, Q, d, q, ldq, 0, wg_j0 + q0_copy);
+    tile_load_packed_vec2(&Q_tile, Q, d, q, ldq, 0, wg_j0 + q0_copy);
 #endif
 
     /* Load scale */
 #if WITH_ATTN_SCALE
 #if INVERT_SCALE
-    float iscale = convert_float(*scale_ptr);
+    float iscale = CONVERT_FLOAT_T(*scale_ptr);
     float scale = native_recip(iscale);
 #else
-    float scale = convert_float(*scale_ptr);
+    float scale = CONVERT_FLOAT_T(*scale_ptr);
     float iscale = native_recip(scale);
 #endif
 #else
@@ -446,12 +451,12 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         tile_fill(S_sum_tile1, 0.0f);
         tile_vreduce_add(S_tile, &S_sum_tile1);
 
-        /* Convert to half, VNNI format */
-        s_tile_type_half2 S_tile_half2;
-        tile_copy_to_half2(S_tile, S_tile_half2);
+        /* Convert to half or bf16, VNNI format */
+        s_tile_type_packed S_tile_packed;
+        tile_copy_to_vec2(S_tile, S_tile_packed, VEC_TYPE2);
 
         /* Store to SLM, in packed format */
-        tile_store_t_sys_src2(S_tile_half2, (local uint *)S_slm,
+        tile_store_t_sys_src2(S_tile_packed, (local uint *)S_slm,
                 ugemm_vs_sg_tile_n, ugemm_kq_wg_tile_m / 2, sg_i0_kq / 2,
                 sg_j0_kq);
         intel_work_group_barrier_arrive(CLK_LOCAL_MEM_FENCE);
