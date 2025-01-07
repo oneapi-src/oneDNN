@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 #include "gpu/intel/ocl/reorder_common.h"
 #include "gpu/intel/ocl/types_interop.h"
 
-#define FROM_I4 ((SRC_DT_U4 || SRC_DT_S4) && (!DST_DT_U4 && !DST_DT_S4))
+#define FROM_I4 (SRC_DT_U4 || SRC_DT_S4)
 #define GWS_GET_THREAD_ID(index) \
     (off_t)(get_global_id(index) + offset.array[index])
 
