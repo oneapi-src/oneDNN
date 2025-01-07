@@ -631,6 +631,7 @@ void serialize_desc(serialization_stream_t &sstream, const sdpa_desc_t &desc) {
     sstream.write(&desc.scale_dt);
     sstream.write(&desc.invert_scale);
     sstream.write(&desc.kv_head_number);
+    sstream.write(&desc.causal_mask);
 }
 
 } // namespace serialization

@@ -106,6 +106,9 @@ struct sdpa_pd_t : public primitive_desc_t {
         return (attn_mask_md()->data_type != data_type::undef);
     }
 
+    /// If true, the attention mask is causal mask
+    bool with_causal_mask() const { return desc_.causal_mask; }
+
     /// If true, dequantize the K tensor using scaling in the KQ matmul
     bool with_key_scales() const {
         return (!desc()->kq_scales.has_default_values());

@@ -466,9 +466,12 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     kernel_ctx.define_int("INVERT_SCALE", d->invert_scale);
     kernel_ctx.define_int("WITH_ATTN_SCALE", pd()->with_attn_scale());
 
-    kernel_ctx.define_int("WITH_ATTN_MASK", pd()->with_attn_mask());
+    kernel_ctx.define_int("WITH_ATTN_MASK",
+            pd()->with_attn_mask() && !pd()->with_causal_mask());
     kernel_ctx.define_int(
             "BROADCAST_MASK_Q", msk_mdw.dims()[pd_t::mask_q_index] == 1);
+
+    kernel_ctx.define_int("WITH_CAUSAL_MASK", pd()->with_causal_mask());
 
     kernel_ctx.define_int("SUBGROUP_SIZE", pd()->sg_size());
     kernel_ctx.define_int("D_MAX", pd()->d_max());

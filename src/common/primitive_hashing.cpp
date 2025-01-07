@@ -776,6 +776,7 @@ size_t get_desc_hash(const sdpa_desc_t &desc) {
     seed = hash_combine(seed, static_cast<size_t>(desc.scale_dt));
     seed = hash_combine(seed, desc.invert_scale);
     seed = hash_combine(seed, desc.kv_head_number);
+    seed = hash_combine(seed, desc.causal_mask);
     // Combined hash for sdpa desc
     return seed;
 }
