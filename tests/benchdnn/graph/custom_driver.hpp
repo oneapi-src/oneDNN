@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,14 +49,13 @@ struct settings_t {
 };
 
 struct prb_t {
-    prb_t(const settings_t &s) {
-        arg_mds_ = s.arg_mds_;
-        alg = s.alg;
+    prb_t(const settings_t &s) : arg_mds_(s.arg_mds_), alg(s.alg) {
         switch (alg) {
             case TRANSPOSE: order = s.order; break;
             default: break;
         }
     }
+
     ::std::unordered_map<int, arg_md_t> arg_mds_;
     ::std::vector<int64_t> order;
     attr_t attr;

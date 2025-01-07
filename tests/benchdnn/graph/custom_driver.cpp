@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -257,15 +257,16 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
         if (prb->arg_mds_.find(exec_arg) == prb->arg_mds_.end()) {
             assert(!"missing required args");
             SAFE_V(FAIL);
-        };
-        auto arg_mds_ = prb->arg_mds_.find(exec_arg)->second;
-        dnnl_dims_t dnnl_dims;
-        auto dim = ::std::get<1>(arg_mds_);
-        for (size_t i = 0; i < dim.size(); i++) {
-            dnnl_dims[i] = dim[i];
         }
+        auto arg_mds_ = prb->arg_mds_.find(exec_arg)->second;
+        dnnl_dims_t dnnl_dims {};
+        auto dims = ::std::get<1>(arg_mds_);
+        for (size_t i = 0; i < dims.size(); i++) {
+            dnnl_dims[i] = dims[i];
+        }
+
         mem_map.emplace(exec_arg,
-                dnn_mem_t(static_cast<int>(dim.size()), dnnl_dims,
+                dnn_mem_t(static_cast<int>(dims.size()), dnnl_dims,
                         std::get<2>(arg_mds_), ::std::get<0>(arg_mds_),
                         test_engine));
     }
