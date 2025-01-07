@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -463,8 +463,9 @@ void def_data_type(compute::kernel_ctx_t &kernel_ctx, data_type_t dt,
 }
 
 void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
-        const memory_desc_info_t &md_info, const char *prefix) {
-    def_data_type(kernel_ctx, md_info.data_type, prefix);
+        const memory_desc_info_t &md_info, const char *prefix,
+        bool with_punning) {
+    def_data_type(kernel_ctx, md_info.data_type, prefix, with_punning);
     kernel_ctx.register_buffer_size(md_info.size);
 
     kernel_ctx.define_int(utils::format("%s_OFFSET0", prefix), md_info.offset0);

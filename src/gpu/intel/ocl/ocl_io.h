@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,6 +64,10 @@
     void __attribute__((overloadable)) \
             write(__global dst_dt *dst, __private src_dt *val) { \
         *dst = CONCAT2(into_, dst_dt)(*val); \
+    } \
+    void __attribute__((overloadable)) \
+            write(__global dst_dt *dst, __private src_dt val) { \
+        *dst = CONCAT2(into_, dst_dt)(val); \
     }
 
 // Loads
@@ -85,6 +89,7 @@ DEF_write(char, int);
 DEF_write(uchar, int);
 DEF_write(bf16, int);
 DEF_write(float, int);
+DEF_write(int, float);
 
 //******* Conditionally-available load/writes *********//
 
