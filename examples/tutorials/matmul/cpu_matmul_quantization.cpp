@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -203,7 +203,10 @@ int compare_vectors(const std::vector<float> &v1,
 
 } // namespace
 
-engine eng(engine::kind::cpu, 0); // We create a global engine for simplicity
+const engine &eng() {
+    static const engine eng(engine::kind::cpu, 0);
+    return eng;
+}
 
 // Quantize float data into X_int_m oneDNN memory using the q10n parameters
 //
@@ -218,21 +221,22 @@ void quantize(const std::vector<float> &X_f32, float scale_X, int32_t zp_X,
         memory &X_int_m) {
     using dt = memory::data_type;
 
-    stream s(eng);
+    stream s(eng());
 
     memory::desc x_int_md = X_int_m.get_desc();
     const auto &dims = x_int_md.get_dims();
 
     memory::desc x_f32_md({dims[0], dims[1]}, dt::f32, {dims[1], 1});
-    memory X_f32_m(x_f32_md, eng, (void *)X_f32.data());
+    memory X_f32_m(x_f32_md, eng(), (void *)X_f32.data());
 
     primitive_attr q10n_attr;
     q10n_attr.set_scales_mask(DNNL_ARG_DST, /* mask */ 0);
     q10n_attr.set_zero_points_mask(DNNL_ARG_DST, /* mask */ 0);
 
-    reorder::primitive_desc q10n_pd(eng, x_f32_md, eng, x_int_md, q10n_attr);
-    memory dst_scale_X_m({{1}, dt::f32, {1}}, eng, &scale_X);
-    memory zp_X_m({{1}, dt::s32, {1}}, eng, &zp_X);
+    reorder::primitive_desc q10n_pd(
+            eng(), x_f32_md, eng(), x_int_md, q10n_attr);
+    memory dst_scale_X_m({{1}, dt::f32, {1}}, eng(), &scale_X);
+    memory zp_X_m({{1}, dt::s32, {1}}, eng(), &zp_X);
     reorder(q10n_pd).execute(s,
             {{DNNL_ARG_SRC, X_f32_m}, {DNNL_ARG_DST, X_int_m},
                     {DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scale_X_m},
@@ -256,15 +260,15 @@ void f32_matmul_compute(int64_t M, int64_t N, int64_t K,
     memory::desc c_md({M, N}, memory::data_type::f32, {N, 1});
 
     // Wrap raw pointers into oneDNN memory objects
-    memory A_f32_m(a_md, eng, (void *)A_f32.data());
-    memory B_f32_m(b_md, eng, (void *)B_f32.data());
-    memory C_f32_m(c_md, eng, (void *)C_f32.data());
+    memory A_f32_m(a_md, eng(), (void *)A_f32.data());
+    memory B_f32_m(b_md, eng(), (void *)B_f32.data());
+    memory C_f32_m(c_md, eng(), (void *)C_f32.data());
 
     // Create a MatMul primitive
-    matmul::primitive_desc matmul_pd(eng, a_md, b_md, c_md);
+    matmul::primitive_desc matmul_pd(eng(), a_md, b_md, c_md);
     matmul matmul_p(matmul_pd);
 
-    stream s(eng);
+    stream s(eng());
     matmul_p.execute(s,
             {{DNNL_ARG_SRC, A_f32_m}, {DNNL_ARG_WEIGHTS, B_f32_m},
                     {DNNL_ARG_DST, C_f32_m}});
@@ -281,7 +285,7 @@ void f32_matmul_compute(int64_t M, int64_t N, int64_t K,
 void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
         const std::vector<float> &A_f32, const std::vector<float> &B_f32,
         std::vector<uint8_t> &C_u8, float &scale_C, int32_t &zp_C) {
-    stream s(eng);
+    stream s(eng());
 
     float scale_A, scale_B;
     int32_t zp_A, zp_B;
@@ -295,13 +299,13 @@ void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
     // Quantize matrix A_u8 using reorder primitive
     std::vector<uint8_t> A_u8(M * K, 0);
     memory::desc a_u8_md({M, K}, memory::data_type::u8, {K, 1});
-    memory A_u8_m(a_u8_md, eng, (void *)A_u8.data());
+    memory A_u8_m(a_u8_md, eng(), (void *)A_u8.data());
     quantize(A_f32, scale_A, zp_A, A_u8_m);
 
     // Quantize matrix B_s8 using reorder primitive
     std::vector<uint8_t> B_s8(K * N, 0);
     memory::desc b_s8_md({K, N}, memory::data_type::s8, {N, 1});
-    memory B_s8_m(b_s8_md, eng, (void *)B_s8.data());
+    memory B_s8_m(b_s8_md, eng(), (void *)B_s8.data());
     quantize(B_f32, scale_B, 0, B_s8_m);
 
     // Compute C_f32. We cannot directly compute C_u8 since we don't know the
@@ -319,7 +323,7 @@ void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
 
     std::vector<float> C_f32(M * N, 0);
     memory::desc c_f32_md({M, N}, memory::data_type::f32, {N, 1});
-    memory C_f32_m(c_f32_md, eng, (void *)C_f32.data());
+    memory C_f32_m(c_f32_md, eng(), (void *)C_f32.data());
 
     // Create and compute a reduced precision MatMul primitive
     {
@@ -329,12 +333,12 @@ void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
         matmul_attr.set_zero_points_mask(DNNL_ARG_SRC, /* mask */ 0);
 
         matmul::primitive_desc matmul_pd(
-                eng, a_u8_md, b_s8_md, c_f32_md, matmul_attr);
+                eng(), a_u8_md, b_s8_md, c_f32_md, matmul_attr);
         matmul matmul_p(matmul_pd);
 
-        memory scales_A_m({{1}, memory::data_type::f32, {1}}, eng, &scale_A);
-        memory scales_B_m({{1}, memory::data_type::f32, {1}}, eng, &scale_B);
-        memory zp_A_m({{1}, memory::data_type::s32, {1}}, eng, &zp_A);
+        memory scales_A_m({{1}, memory::data_type::f32, {1}}, eng(), &scale_A);
+        memory scales_B_m({{1}, memory::data_type::f32, {1}}, eng(), &scale_B);
+        memory zp_A_m({{1}, memory::data_type::s32, {1}}, eng(), &zp_A);
 
         matmul_p.execute(s,
                 {{DNNL_ARG_SRC, A_u8_m}, {DNNL_ARG_WEIGHTS, B_s8_m},
@@ -349,7 +353,7 @@ void dynamic_q10n_matmul(int64_t M, int64_t N, int64_t K,
 
     // Finally quantize the matrix C
     memory::desc c_u8_md({M, N}, memory::data_type::u8, {N, 1});
-    memory C_u8_m(c_u8_md, eng, (void *)C_u8.data());
+    memory C_u8_m(c_u8_md, eng(), (void *)C_u8.data());
     quantize(C_f32, scale_C, zp_C, C_u8_m);
 }
 
