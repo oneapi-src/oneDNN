@@ -544,7 +544,7 @@ private:
             emit(func.call({expr_t(rhs.elems()), rhs_buf}));
         }
         ir_assert(lhs.nblocks() > 0);
-        int max_simd = (2 * desc_.hw.grf_size()) / sizeof(float);
+        int max_simd = (2 * desc_.hw_desc.grf_size()) / sizeof(float);
         auto &lhs0 = lhs.blocks()[0];
         int elems = math::gcd(max_simd, lhs0.int_size());
         bool is_bcast = !rhs.dim_sizes().has(lhs0.dim);
@@ -966,7 +966,7 @@ private:
 
 stmt_t build_ir(const exec_config_t &exec_cfg, const kernel_desc_t &desc,
         var_manager_t &var_mgr) {
-    auto plan = create_conv_plan(desc);
+    auto plan = create_conv_plan(desc, exec_cfg.hw());
     if (!plan) ir_except_not_implemented("Cannot create plan.");
 
     ir_info() << desc << std::endl;

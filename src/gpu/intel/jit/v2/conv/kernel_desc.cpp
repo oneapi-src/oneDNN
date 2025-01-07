@@ -192,26 +192,27 @@ int estimate_grf_usage_bytes(const kernel_desc_t &desc) {
     return into<int>(abc_size);
 }
 
-bool is_tg_size_ok(const kernel_desc_t &desc) {
-    int max_tg_size = desc.hw.max_tg_size(desc.regs, desc.simd);
+bool is_tg_size_ok(const kernel_desc_t &desc, const hw_t &hw) {
+    int max_tg_size = hw.max_tg_size(desc.regs, desc.simd);
     return desc.thread_group_tile.elems() <= max_tg_size;
 }
 
 bool is_grf_usage_ok(const kernel_desc_t &desc) {
     int size = estimate_grf_usage_bytes(desc);
-    if (size > desc.hw.grf_size() * desc.regs) { return false; }
+    if (size > desc.hw_desc.grf_size() * desc.regs) { return false; }
     return true;
 }
 
-bool kernel_desc_t::is_supported() const {
+bool kernel_desc_t::is_supported(const hw_t &hw) const {
     ir_check(prop != prop_kind::undef)
             << "Invalid prop: " << ir_utils::to_string(prop);
-    ir_check(!hw.is_undef()) << "Invalid hw: " << jit::to_string(hw.to_ngen());
+    ir_check(hw_desc.hw != ngen::HW::Unknown)
+            << "Invalid hw: " << jit::to_string(hw_desc.hw);
     ir_check(fma != fma_kind_t::undef)
             << "Invalid fma: " << jit::to_string(fma);
     ir_check(simd != 0) << "Invalid simd: " << simd;
     ir_check(regs != 0) << "Invalid regs: " << regs;
-    ir_check(is_tg_size_ok(*this))
+    ir_check(is_tg_size_ok(*this, hw))
             << "Invalid thread_group_tile: " << thread_group_tile;
     if (use_stream_k) {
         ir_check(c_type() == accumulator_type(a_type(), b_type()))
@@ -417,7 +418,7 @@ std::string kernel_desc_t::str() const {
     oss << "Source tag:             " << src_tag << std::endl;
     oss << "Weights tag:            " << wei_tag << std::endl;
     oss << "Destination tag:        " << dst_tag << std::endl;
-    oss << "HW:                     " << jit::to_string(hw.to_ngen())
+    oss << "HW:                     " << jit::to_string(hw_desc.hw)
         << std::endl;
     oss << "FMA kind:               " << to_string(fma) << std::endl;
     oss << "SIMD:                   " << simd << std::endl;

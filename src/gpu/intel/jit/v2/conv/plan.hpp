@@ -452,7 +452,7 @@ struct plan_t : public base_plan_t {
     IR_DEFINE_DUMP()
 };
 
-plan_t create_conv_plan(const kernel_desc_t &desc);
+plan_t create_conv_plan(const kernel_desc_t &desc, const hw_t &hw);
 bool finalize_conv_desc(
         kernel_desc_t &desc, const problem_t &prb, plan_t *plan = nullptr);
 bool finalize_conv_desc(

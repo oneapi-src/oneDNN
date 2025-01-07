@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,11 +67,10 @@ struct bench_input_params_t {
     int nprbs = 0;
 
     bench_input_params_t() = default;
-    bench_input_params_t(
-            const kernel_desc_t &kernel_desc, int nprbs = default_nprbs)
-        : nprbs(nprbs) {
+    bench_input_params_t(const kernel_desc_t &kernel_desc, const hw_t &hw,
+            int nprbs = default_nprbs)
+        : hw(hw), nprbs(nprbs) {
         ir_assert(kernel_desc.is_finalized);
-        hw = kernel_desc.hw;
         prop = kernel_desc.prop;
         src_tag = kernel_desc.src_tag;
         wei_tag = kernel_desc.wei_tag;
