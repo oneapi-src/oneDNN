@@ -325,8 +325,9 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
         problem_vs.aOffset = ABOffset::Calc;
     }
     if (with_value_scales() || with_value_zp()) {
-        problem_vs.aqGroupM
-                = (vs_common_scales || vs_common_zp) ? 1 : value_group_size();
+        problem_vs.aqGroupM = (vs_common_scales || vs_common_zp)
+                ? 1
+                : utils::rnd_up_pow2(value_group_size());
         problem_vs.aqGroupK = 1;
     }
     opts_vs.scaleA = with_value_scales() && !vs_common_scales;
