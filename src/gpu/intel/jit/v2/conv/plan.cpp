@@ -335,7 +335,8 @@ private:
 class plan_builder_t {
 public:
     plan_builder_t() = default;
-    plan_builder_t(const kernel_desc_t &desc) : desc_(desc) {
+    plan_builder_t(const kernel_desc_t &desc, const hw_t &hw)
+        : desc_(desc), hw_(hw) {
         reqs_ = desc_.reqs;
         desc_.reqs = prb_reqs_t();
     }
@@ -437,12 +438,12 @@ private:
     }
 
     plan_t init_plan() {
-        plan_t plan(desc_.hw);
+        plan_t plan(hw_);
         if (!try_init_plan(plan, reqs_) || !check_plan(plan)) return plan_t();
 
         // Re-create plan to ensure all collected requirements are cross-used
         // between sub-plans.
-        plan = plan_t(desc_.hw);
+        plan = plan_t(hw_);
         if (!try_init_plan(plan, reqs_) || !check_plan(plan)) {
             ir_error_not_expected();
             return plan_t();
@@ -525,10 +526,10 @@ private:
         } else {
             auto &src = load.reg_layout();
             auto dst = mul_info_.to_compatible_layout(abc, load.reg_layout());
-            reorder = reorder_plan_t(desc_.hw, src, dst);
+            reorder = reorder_plan_t(hw_, src, dst);
             reg_layout = reorder.dst;
         }
-        plan = x2r_plan_t(desc_.hw);
+        plan = x2r_plan_t(hw_);
         plan.tensor_kind = abc;
         plan.load = std::move(load);
         plan.reorder = std::move(reorder);
@@ -545,7 +546,7 @@ private:
         auto inst_tile = mul_info_.inst_tile();
         auto acc_layout = mul_info_.acc_layout(a, b, c_layout_);
         ir_check(!acc_layout.is_empty()) << "init_fma_plan: cannot vectorize.";
-        plan = fma_plan_t(desc_.hw);
+        plan = fma_plan_t(hw_);
         plan.simd = desc_.simd;
         plan.fma = desc_.fma;
         plan.a_layout = a;
@@ -648,7 +649,7 @@ private:
         if (bias_reg_layout != store.reg_layout()) {
             auto store_layout = store.reg_layout();
             if (bias_reg_layout != store_layout) {
-                plan.bias_reorder = reorder_plan_t(desc_.hw);
+                plan.bias_reorder = reorder_plan_t(hw_);
                 plan.bias_reorder.src = std::move(bias_reg_layout);
                 plan.bias_reorder.dst = std::move(store_layout);
             }
@@ -691,7 +692,7 @@ private:
         ir_assert(k_tg > 1);
         ir_assert(desc_.thread_group_tile.elems() == k_tg)
                 << "Local k-slicing assumes no split by M/N.";
-        ir_check(c_layout.size() % desc_.hw.grf_size() == 0)
+        ir_check(c_layout.size() % hw_.grf_size() == 0)
                 << "init_slm_reduce_plan: c_layout is not aligned to a "
                    "reigster boundary.";
 
@@ -740,11 +741,11 @@ private:
 
         auto &load_layout = load.reg_layout();
         auto reduced_layout = load_layout.map(split_view.tile());
-        auto reduce = reduce_plan_t(desc_.hw, load_layout, reduced_layout);
+        auto reduce = reduce_plan_t(hw_, load_layout, reduced_layout);
         auto c_post_layout = std::move(reduced_layout);
         c_post_layout.remove(k_dim);
 
-        plan = slm_reduce_plan_t(desc_.hw);
+        plan = slm_reduce_plan_t(hw_);
         plan.store = std::move(store);
         plan.load = std::move(load);
         plan.reduce = std::move(reduce);
@@ -770,7 +771,7 @@ private:
         auto c_reg_tile_layout = c_reg_layout.map(tile);
         auto store_layout = store.reg_layout().map(tile);
         if (c_reg_tile_layout != store_layout) {
-            plan.reorder = reorder_plan_t(desc_.hw);
+            plan.reorder = reorder_plan_t(hw_);
             plan.reorder.src = std::move(c_reg_tile_layout);
             plan.reorder.dst = std::move(store_layout);
         }
@@ -798,11 +799,11 @@ private:
     }
 
     bool check_plan(const plan_t &plan) const {
-        int grf_bound = desc_.hw.grf_size() * desc_.regs;
+        int grf_bound = hw_.grf_size() * desc_.regs;
         int grf_bytes = plan.grf_usage_bytes();
         ir_check(grf_bytes <= grf_bound) << "check_plan: out of registers";
         int slm_bound = compute::device_info_t::max_slm_size_per_tg(
-                convert_ngen_arch_to_dnnl(desc_.hw.to_ngen()),
+                convert_ngen_arch_to_dnnl(hw_.to_ngen()),
                 into<int>(desc_.thread_group_tile.elems()), desc_.regs > 128);
         int slm_bytes = plan.slm_usage_bytes();
         ir_check(slm_bytes <= slm_bound) << "check_plan: out of SLM";
@@ -818,7 +819,7 @@ private:
             if (type.is_f32()) op = send_op_t::atomic_fadd;
         }
         send_params_t params;
-        params.hw = desc_.hw;
+        params.hw = hw_;
         params.kind = (send_kind != send_kind_t::undef
                         ? send_kind
                         : desc_.access_kind(op, abc));
@@ -837,6 +838,7 @@ private:
     }
 
     kernel_desc_t desc_;
+    hw_t hw_;
 
     dim_mapper_manager_t dim_mapper_manager_;
     multiply_info_t mul_info_;
@@ -852,8 +854,8 @@ private:
 };
 
 template <typename KernelDescT>
-plan_t create_conv_plan_impl(KernelDescT &desc, bool finalize) {
-    if (!desc.is_supported()) return plan_t();
+plan_t create_conv_plan_impl(KernelDescT &desc, const hw_t &hw, bool finalize) {
+    if (!desc.is_supported(hw)) return plan_t();
     ir_assert(!desc.has_spec_strategy())
             << "Kernel descriptor strategies are required to be specialized "
                "before plan creation";
@@ -861,7 +863,7 @@ plan_t create_conv_plan_impl(KernelDescT &desc, bool finalize) {
         ir_assert(desc.is_finalized)
                 << "Kernel descriptor must be finalized before plan creation";
     }
-    plan_builder_t builder(desc);
+    plan_builder_t builder(desc, hw);
     auto plan = builder.build();
     if (plan) {
         if (finalize) {
@@ -873,18 +875,17 @@ plan_t create_conv_plan_impl(KernelDescT &desc, bool finalize) {
     return plan;
 }
 
-plan_t create_conv_plan(const kernel_desc_t &desc) {
-    return create_conv_plan_impl(desc, /*finalize=*/false);
+plan_t create_conv_plan(const kernel_desc_t &desc, const hw_t &hw) {
+    return create_conv_plan_impl(desc, hw, /*finalize=*/false);
 }
 
 bool finalize_conv_desc_impl(kernel_desc_t &desc, const hw_t &hw,
         const problem_t *prb, plan_t *out_plan) {
     if (desc.is_empty()) return false;
     if (desc.hw_desc.hw != hw.to_ngen()) return false;
-    desc.hw = hw;
-    if (!desc.is_supported()) return false;
+    if (!desc.is_supported(hw)) return false;
     if (desc.is_finalized) return true;
-    auto plan = create_conv_plan_impl(desc, /*finalize=*/true);
+    auto plan = create_conv_plan_impl(desc, hw, /*finalize=*/true);
     if (plan) {
         if (out_plan) *out_plan = plan;
         if (prb && !desc.matches(*prb)) return false;

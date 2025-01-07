@@ -49,6 +49,7 @@ namespace conv {
 struct hw_desc_t {
     ngen::HW hw = ngen::HW::Unknown;
 
+    int grf_size() const { return ngen::GRF::bytes(hw); }
     void stringify(std::ostream &out) const { jit::stringify(out, hw); }
     void parse(std::istream &in) { jit::parse(in, hw); }
 #if __cplusplus >= 202002L
@@ -289,11 +290,10 @@ public:
     extensions_t ext;
     gpu_post_ops_t post_ops;
 
-    hw_t hw;
     bool is_finalized = false;
 
     bool is_empty() const { return prop == prop_kind::undef; }
-    bool is_supported() const;
+    bool is_supported(const hw_t &hw) const;
     void set(const std::string &s);
     void set_defaults();
     void finalize(const prb_reqs_t &final_reqs);

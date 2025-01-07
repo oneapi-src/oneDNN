@@ -340,11 +340,11 @@ public:
         descs_.push_back(desc);
     }
 
-    bench_input_params_t bench_input_params(int nprbs) const {
+    bench_input_params_t bench_input_params(int nprbs, const hw_t &hw) const {
         if (descs_.empty()) return bench_input_params_t();
         auto &kd = descs_.front();
         bench_input_params_t params;
-        params.hw = kd.hw;
+        params.hw = hw;
         params.prop = kd.prop;
         params.src_tag = kd.src_tag;
         params.wei_tag = kd.wei_tag;
@@ -575,7 +575,8 @@ bench_data_set_t bench_kernel_desc_group(const bench_manager_t &bench_mger,
         const search_kernel_desc_group_t &desc_group, int nprbs,
         int max_descs) {
     auto eng = bench_mger.get_engine();
-    bench_runner_t runner(bench_mger, desc_group.bench_input_params(nprbs));
+    bench_runner_t runner(
+            bench_mger, desc_group.bench_input_params(nprbs, bench_mger.hw()));
     bench_data_set_t bd_set;
     search_sequence_t seq(desc_group.descs(), max_descs);
     while (seq) {
@@ -656,8 +657,6 @@ void auto_search(
         kernel_desc_t desc;
         parse_result_t parse_result;
         iface.parse(line, desc, &parse_result);
-        // TODO: Remove.
-        desc.hw = hw_t(bench_mger.get_engine().get());
         kernel_search_manager_t mger(
                 bench_mger, search_params_t(desc, parse_result));
         mger.search();
