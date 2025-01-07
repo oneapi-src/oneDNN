@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -156,10 +156,7 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     def_data_type(kernel_ctx, desc_.acc_type, "SRC");
     def_data_type(kernel_ctx, is_int8 ? data_type::f32 : desc_.acc_type, "ACC");
     def_data_type(kernel_ctx, with_bias ? src_md(2)->data_type : c_type, "BIA");
-    def_data_type(kernel_ctx, desc()->acc_type, "SPAD");
     def_data_type(kernel_ctx, c_type, "DST");
-
-    kernel_ctx.define_int("USE_TEMP_DST", use_scratchpad_with_post_op_worker);
 
     kernel_ctx.define_int("WITH_BIAS", with_bias);
     kernel_ctx.define_int("NDIMS", ndims);
@@ -240,15 +237,14 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
     // Workaround correctness issue on Gen9
     if (arch == compute::gpu_arch_t::gen9) ctx.stream()->wait();
     compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, GEMM_CTX_ARG_STORAGE(c));
+    arg_list.set(0,
+            pd()->use_scratchpad() ? *c_mem_before_po_worker->memory_storage()
+                                   : GEMM_CTX_ARG_STORAGE(c));
     arg_list.set(1, GEMM_CTX_ARG_STORAGE(bias));
     arg_list.set(2, GEMM_CTX_ARG_STORAGE(c));
     const auto &args = ctx.args();
     int idx = append_post_ops_to_arg_list_gemm(
             args.exec_args, arg_list, 3, pd()->attr()->post_ops_);
-    arg_list.set(idx++,
-            pd()->use_scratchpad() ? *c_mem_before_po_worker->memory_storage()
-                                   : memory_storage_t::empty_storage());
     //a/b tensors are swapped for gemm
     arg_list.set(idx++, GEMM_CTX_ARG_STORAGE(b_scales));
     arg_list.set(idx++, GEMM_CTX_ARG_STORAGE(a_scales));
