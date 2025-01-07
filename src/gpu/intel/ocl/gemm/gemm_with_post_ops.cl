@@ -40,25 +40,27 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src,
 
     ACC_DATA_T acc;
     load(&acc, src + data_idx);
-    float accumulator = convert_float(acc);
+    POST_OP_DATA_T accumulator = 0;
     if (d0 < DST_D0 && d1 < DST_D1 && d2 < DST_D2 && d3 < DST_D3) {
         const float a_scale = A_SCALES ? a_scales[0] : 1;
         const uint b_scale_dim = (NDIMS == 2) ? d1 : (NDIMS == 3) ? d2 : d3;
         float b_scale = 1;
         if (B_SCALES) load(&b_scale, b_scales + scale_stride * b_scale_dim);
+        acc *= a_scale * b_scale;
 
         if (bias) {
             ACC_DATA_T b;
             load(&b, bias + BIAS_OFF(d0, d1, d2, d3, 0, 0));
-            accumulator += b;
+            acc += b;
         }
 
         // Apply postops
-        float sum_src = 0.0f;
+        POST_OP_DATA_T sum_src = 0.0f;
         if (WITH_SUM) load(&sum_src, dst + data_idx);
 
-        APPLY_POST_OPS_SERIAL(accumulator, float, sum_src, float, d0, 1, d1, 1,
-                d2, 1, d3, 1, 0, 1, 0, 1);
+        accumulator = AS_POST_OP_DATA_T(acc);
+        APPLY_POST_OPS_SERIAL(accumulator, POST_OP_DATA_T, sum_src,
+                POST_OP_DATA_T, d0, 1, d1, 1, d2, 1, d3, 1, 0, 1, 0, 1);
 
         if (C_SCALES) accumulator /= DST_SCALES_TO_REF(c_scales[0]);
         if (DST_ZERO_POINT) accumulator += dst_zp[0];
