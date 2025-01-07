@@ -392,6 +392,26 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
         tile_hbroadcast_min(&S_tile, k_mask);
 #endif
 
+#if WITH_CAUSAL_MASK
+        /* Apply causal mask */
+        for (int jj = 0;
+                jj < (ugemm_kq_c_type_block1 * ugemm_kq_c_type_nblock1); jj++) {
+            for (int ii0 = 0;
+                    ii0 < (ugemm_kq_c_type_block0 * ugemm_kq_c_type_nblock0);
+                    ii0 += SUBGROUP_SIZE) {
+                int iii = ii0 + get_sub_group_local_id();
+                int q_idx = wg_j0 + sg_j0_kq + iii;
+                int k_idx = k0 + sg_i0_kq + jj;
+
+                if (k_idx > q_idx) {
+                    tile_access(S_tile, ii0, jj, SUBGROUP_SIZE,
+                            ugemm_kq_c_type_block0, ugemm_kq_c_type_block1,
+                            ugemm_kq_c_type_nblock0)
+                            = -INFINITY;
+                }
+            }
+        }
+#endif
         /* Before softmax, we will need to scale columns by maximum values to avoid overflow. */
 
         /* Compute our maxima and reduce across SLM */

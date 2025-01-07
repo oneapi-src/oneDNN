@@ -60,6 +60,10 @@ struct sdpa_desc_t : public op_desc_t {
     bool invert_scale {};
     dim_t kv_head_number {};
 
+    // causal_mask = false: use mask descriptor
+    // causal_mask = true: causal mask used. mask descriptor not used
+    bool causal_mask {};
+
     // Number of queries.
     dnnl_dim_t queries() const { return q_desc.dims[q_desc.ndims - 2]; }
     // Head size.

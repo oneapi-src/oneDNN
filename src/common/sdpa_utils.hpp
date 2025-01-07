@@ -97,9 +97,9 @@ static inline status_t sdpa_attr_check(const memory_desc_t *q_desc,
 static inline sdpa_desc_t create_sdpa_desc(const memory_desc_t *q_md,
         const memory_desc_t *k_md, const memory_desc_t *v_md,
         const memory_desc_t *dst_md, const memory_desc_t *attn_mask_md,
-        data_type_t scale_dt, dim_t kv_head_number,
-        const primitive_attr_t *kq_attr, const primitive_attr_t *vs_attr,
-        bool invert_scale = false) {
+        data_type_t scale_dt, bool invert_scale, dim_t kv_head_number,
+        bool causal_mask, const primitive_attr_t *kq_attr,
+        const primitive_attr_t *vs_attr) {
     auto sdpa_desc = sdpa_desc_t();
     sdpa_desc.primitive_kind = primitive_kind::sdpa;
     sdpa_desc.q_desc = *q_md;
@@ -118,6 +118,7 @@ static inline sdpa_desc_t create_sdpa_desc(const memory_desc_t *q_md,
     sdpa_desc.scale_dt = scale_dt;
     sdpa_desc.invert_scale = invert_scale;
     sdpa_desc.kv_head_number = kv_head_number;
+    sdpa_desc.causal_mask = causal_mask;
     return sdpa_desc;
 }
 
@@ -126,13 +127,14 @@ static inline status_t create_sdpa_pd(
         const memory_desc_t *q_md, const memory_desc_t *k_md,
         const memory_desc_t *v_md, const memory_desc_t *dst_md,
         const memory_desc_t *attn_mask_md, data_type_t scale_dt,
-        bool invert_scale, const primitive_attr_t *attr, dim_t kv_head_number,
-        const primitive_attr_t *kq_attr = nullptr,
+        bool invert_scale, dim_t kv_head_number, bool causal_mask,
+        const primitive_attr_t *attr, const primitive_attr_t *kq_attr = nullptr,
         const primitive_attr_t *vs_attr = nullptr) {
     CHECK(sdpa_attr_check(q_md, k_md, v_md, engine, attr, kq_attr, vs_attr));
 
     auto sdpa_desc = create_sdpa_desc(q_md, k_md, v_md, dst_md, attn_mask_md,
-            scale_dt, kv_head_number, kq_attr, vs_attr, invert_scale);
+            scale_dt, invert_scale, kv_head_number, causal_mask, kq_attr,
+            vs_attr);
 
     int ndims = dst_md->ndims;
     int r = ndims - 2, c = ndims - 1;
