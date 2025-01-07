@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -437,7 +437,13 @@ static void fill_data(const memory::dim nelems, const memory &mem, data_t mean,
 
 inline void fill_data(memory::data_type dt, const memory &mem, float mean,
         float deviation, double sparsity = 1.) {
-    size_t nelems = mem.get_desc().get_size() / memory::data_type_size(dt);
+    const auto dt_size = memory::data_type_size(dt);
+    if (dt_size <= 0) {
+        assert(!"unexpected data type");
+        return;
+    }
+
+    size_t nelems = mem.get_desc().get_size() / dt_size;
     switch (dt) {
         case memory::data_type::f32:
             fill_data<float>(nelems, mem, mean, deviation, sparsity);
