@@ -30,3 +30,6 @@
 --stag=aBCde2c4b2c 4x16x16x3x3 2x16x6x3x2 2x2x10x2x3
 --stag=aBCde4b8c2b 4x16x16x3x3 2x16x6x3x2 2x2x10x2x3
 --stag=aBCde4c8b2c 4x16x16x3x3 2x16x6x3x2 2x2x10x2x3
+
+--reset
+--sdt=u4 --ddt=u4 --stag=ab --dtag=ba 15x16 16x15 16x16
