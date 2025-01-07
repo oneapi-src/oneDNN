@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1255,8 +1255,9 @@ dnnl_data_type_t convert_dt(const dnnl::graph::logical_tensor::data_type dt) {
         case graph_dt::s32: return dnnl_s32;
         case graph_dt::s8: return dnnl_s8;
         case graph_dt::u8: return dnnl_u8;
-        // use u8 instead of boolean in the reference path
-        // dnn_graph_mem_t will use the data type from the logical tensor and the u8 data handle
+        // Use `u8` instead of `boolean` in the reference path.
+        // `dnn_graph_mem_t` will use the data type from the logical tensor and
+        // the `u8` data handle.
         case graph_dt::boolean: return dnnl_u8;
         case graph_dt::f8_e5m2: return dnnl_f8_e5m2;
         case graph_dt::f8_e4m3: return dnnl_f8_e4m3;
