@@ -591,7 +591,15 @@ struct EmulationImplementation {
         bool emulate64 = strategy.emulate64_mul;
 
         if (s0Q) {
-            stub();
+            if (!s1D || !dstQ) stub();
+            auto temp = s1Signed ? state.temp[0].d() : state.temp[0].ud();
+            auto &src1Reg = [&]() -> ngen::RegData & {
+                if (std::is_base_of<ngen::RegData, S1>::value)
+                    return *reinterpret_cast<ngen::RegData *>(&src1);
+                g.mov(1, temp, src1);
+                return temp;
+            }();
+            return emulInternal(g, mod, dst, src1Reg, src0, strategy, state);
         } else if (s1Q) {
             if (!s0D || !dstQ) stub();
             auto s0Type = src0.getType();
