@@ -226,6 +226,7 @@ Team: @oneapi-src/onednn-doc
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Vadim Pirogov      | @vpirogov             | Intel Corporation | Maintainer |
 | Ranu Kundu         | @ranukund             | Intel Corporation | Code Owner |
+| Tao Lv             | @TaoLv                | Intel Corporation | Code Owner |
 
 ### DevOps
 
