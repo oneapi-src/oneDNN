@@ -140,33 +140,25 @@ status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
 status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     auto c_type = dst_md(0)->data_type;
-    const memory_desc_wrapper bia_d(src_md(2));
-    const memory_desc_wrapper dst_d(gemm_pd_->dst_md(0));
-    offsets_t off;
-    dim_t bia_off[4][MAX_NDIMS];
-    set_offsets(dst_d, off.dst_off);
-    set_offsets(bia_d, bia_off);
-    int ndims = dst_d.ndims();
-    def_offsets(off.dst_off, kernel_ctx, "DST", ndims);
-    def_offsets(bia_off, kernel_ctx, "BIA", ndims);
-    bool with_bias = !bia_d.is_zero();
+    const auto src_info = memory_desc_info_t::create(gemm_pd_->dst_md(0));
+    const auto bias_info = [&]() {
+        auto info = memory_desc_info_t::create(src_md(2));
+        if (info.data_type == data_type::undef) info.data_type = data_type::f32;
+        return info;
+    }();
+
+    def_memory_desc_info(kernel_ctx, src_info, "SRC", false);
+    def_memory_desc_info(kernel_ctx, bias_info, "BIAS", false);
+    def_memory_desc_info(
+            kernel_ctx, memory_desc_info_t::create(dst_md(0)), "DST", false);
+
+    int ndims = src_info.ndims;
     bool is_int8 = src_md(1)->data_type == data_type::s8;
     kernel_ctx.set_data_type(c_type);
     //here SRC is output tensor of gemm call
-    def_data_type(kernel_ctx, desc_.acc_type, "SRC");
     def_data_type(kernel_ctx, is_int8 ? data_type::f32 : desc_.acc_type, "ACC");
-    def_data_type(kernel_ctx, with_bias ? src_md(2)->data_type : c_type, "BIA");
-    def_data_type(kernel_ctx, c_type, "DST");
 
-    kernel_ctx.define_int("WITH_BIAS", with_bias);
     kernel_ctx.define_int("NDIMS", ndims);
-    kernel_ctx.define_int("BIA_NDIMS", bia_d.md_->ndims);
-    kernel_ctx.define_int("D0_WO_PADDING", gemm_pd_->dst_md()->dims[0]);
-    kernel_ctx.define_int("D1_WO_PADDING", gemm_pd_->dst_md()->dims[1]);
-    kernel_ctx.define_int(
-            "D3_WO_PADDING", ndims > 3 ? gemm_pd_->dst_md()->dims[3] : 1);
-    kernel_ctx.define_int(
-            "D2_WO_PADDING", ndims > 2 ? gemm_pd_->dst_md()->dims[2] : 1);
     CHECK(def_attr_info(
             kernel_ctx, attr_info_, attr()->post_ops_, *gemm_pd_->dst_md()));
     const auto &attr_scales = attr()->scales_;

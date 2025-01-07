@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -681,7 +681,8 @@ void def_data_type(compute::kernel_ctx_t &kernel_ctx, data_type_t dt,
         const std::string &str, bool with_punning = true);
 
 void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
-        const memory_desc_info_t &md_info, const char *prefix);
+        const memory_desc_info_t &md_info, const char *prefix,
+        bool with_punning = true);
 
 void def_binary_alg_kinds(compute::kernel_ctx_t &kernel_ctx);
 
