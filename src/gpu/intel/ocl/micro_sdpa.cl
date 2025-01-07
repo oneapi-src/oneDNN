@@ -160,7 +160,7 @@ DECLARE_2D_TILE_RSELECT(a_scale_tile_type, SUBGROUP_SIZE, ugemm_vs_sg_tile_n, 1,
 #define binary_add(x, y) ((x) + (y))
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) kernel void
-micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
+micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         const global VAL_DATA_T *V, global half *A,
         const global SCALE_DATA_T *scale_ptr, const global half *msk, int d,
         int k, int q, const global KEY_ATTR_SCALES_DATA_T *K_scales,
@@ -195,8 +195,9 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
     uint sg_j_vs = sg_ij / ugemm_vs_sg_per_wg_m;
 
     /* SLM allocations -- place in one array to work around compiler bug */
-#define Q_slm_size (D_MAX * ugemm_kq_wg_tile_n * sizeof(half))
-#define S_slm_size (ugemm_kq_wg_tile_m * ugemm_kq_wg_tile_n * sizeof(half))
+#define Q_slm_size (D_MAX * ugemm_kq_wg_tile_n * sizeof(QRY_DATA_T))
+#define S_slm_size \
+    (ugemm_kq_wg_tile_m * ugemm_kq_wg_tile_n * sizeof(QRY_DATA_T))
 #define S_sum_slm_size \
     (ugemm_kq_wg_tile_n * ugemm_kq_sg_per_wg_m * sizeof(float))
 #define S_max_slm_size (ugemm_kq_wg_tile_n * sizeof(float))
@@ -205,8 +206,8 @@ micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
     local char slm[Q_slm_size + S_slm_size + S_sum_slm_size + S_max_slm_size
             + ugemm_slm_size];
 
-    local half *Q_slm = (local half *)&slm[0];
-    local half *S_slm = (local half *)&slm[Q_slm_size];
+    local QRY_DATA_T *Q_slm = (local QRY_DATA_T *)&slm[0];
+    local QRY_DATA_T *S_slm = (local QRY_DATA_T *)&slm[Q_slm_size];
     local float *S_sum_slm = (local float *)&slm[Q_slm_size + S_slm_size];
     local float *S_max_slm
             = (local float *)&slm[Q_slm_size + S_slm_size + S_sum_slm_size];
