@@ -790,7 +790,7 @@ void BLASKernelGenerator<hw>::incAddrK(Type T, const vector<GRFRange> &addr, boo
 {
     if (isColMajor(atype.layout) == column) {
         bool release = false;
-        auto inc = lookupIncrement(incs, ld, k, astrategy.base.isA64(), strategy, state, &release);
+        auto inc = lookupIncrement(incs, ld, k, strategy, state, &release);
         incAddr(addr, inc, layout, atype, astrategy, strategy, state);
         if (release) state.ra.safeRelease(inc);
     } else

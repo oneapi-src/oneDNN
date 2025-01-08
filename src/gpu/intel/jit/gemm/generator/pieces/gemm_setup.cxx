@@ -2147,14 +2147,13 @@ void BLASKernelGenerator<hw>::gemmCalcIncrements(const GEMMProblem &problem, con
     auto calcInterleavedIncrement = [&](bool isA, int inc) {
         auto &increments = isA ? state.ldaIncrements : state.ldbIncrements;
         auto &base       = isA ? state.lda           : state.ldb;
-        bool isA64 = isA ? strategy.A.base.isA64() : strategy.B.base.isA64();
         if (strategy.kInterleave) {
             int chunk = strategy.kInterleaveChunk;
             if (inc < chunk)
-                calcIncrement(increments, base, inc, isA64, strategy, state);
-            calcIncrement(increments, base, inc + chunk * (strategy.wg[LoopK] - 1), isA64, strategy, state);
+                calcIncrement(increments, base, inc, strategy, state);
+            calcIncrement(increments, base, inc + chunk * (strategy.wg[LoopK] - 1), strategy, state);
         } else
-            calcIncrement(increments, base, inc, isA64, strategy, state);
+            calcIncrement(increments, base, inc, strategy, state);
     };
 
     if (doA) {
@@ -2183,16 +2182,15 @@ void BLASKernelGenerator<hw>::gemmCalcQuantizationIncrements(const GEMMProblem &
     auto calcInterleavedQIncrement = [&](bool isA, SubregisterPair &base, LDIncrements &increments) {
         auto inc   = isA ? state.kaqStride  : state.kbqStride;
         auto group = isA ? problem.aqGroupK : problem.bqGroupK;
-        bool isA64 = isA ? strategy.A.base.isA64() : strategy.B.base.isA64();
         if (strategy.kInterleave) {
             int chunk = strategy.kInterleaveChunk;
             if (group < chunk) {
-                calcIncrement(increments, base, inc, isA64, strategy, state);
-                calcIncrement(increments, base, (inc * group + chunk * (strategy.wg[LoopK] - 1)) / group, isA64, strategy, state);
+                calcIncrement(increments, base, inc, strategy, state);
+                calcIncrement(increments, base, (inc * group + chunk * (strategy.wg[LoopK] - 1)) / group, strategy, state);
             } else
-                calcIncrement(increments, base, chunk * strategy.wg[LoopK] / group, isA64, strategy, state);
+                calcIncrement(increments, base, chunk * strategy.wg[LoopK] / group, strategy, state);
         } else
-            calcIncrement(increments, base, inc, isA64, strategy, state);
+            calcIncrement(increments, base, inc, strategy, state);
     };
 
     if (ao2D && problem.AO.layout == MatrixLayout::N)

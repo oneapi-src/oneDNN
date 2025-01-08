@@ -1515,7 +1515,7 @@ void BLASKernelGenerator<hw>::gemmAIncrementInternal(Type Ta, const std::vector<
         incDecAddr(addrs, Subregister(), 0, ka_inc, layout, A, A_strategy, strategy, state, problem.backward());
     else if (A.layout == MatrixLayout::N) {
         bool release = false;
-        auto lda_ka = lookupIncrement(state.ldaIncrements, state.lda, ka_inc, strategy.A.base.isA64(), strategy, state, &release);
+        auto lda_ka = lookupIncrement(state.ldaIncrements, state.lda, ka_inc, strategy, state, &release);
         incDecAddr(addrs, lda_ka, layout, A, A_strategy, strategy, state, problem.backward());
         if (release) state.ra.safeRelease(lda_ka);
     } else {
@@ -1596,7 +1596,7 @@ void BLASKernelGenerator<hw>::gemmBIncrementInternal(Type Tb, const std::vector<
         incDecAddr(addrs, Subregister(), kb_inc, 0, layout, B, B_strategy, strategy, state, problem.backward());
     else if (B.layout == MatrixLayout::T) {
         bool release = false;
-        auto ldb_kb = lookupIncrement(state.ldbIncrements, state.ldb, kb_inc, strategy.B.base.isA64(), strategy, state, &release);
+        auto ldb_kb = lookupIncrement(state.ldbIncrements, state.ldb, kb_inc, strategy, state, &release);
         incDecAddr(addrs, ldb_kb, layout, B, B_strategy, strategy, state, problem.backward());
         if (release) state.ra.safeRelease(ldb_kb);
     } else {
