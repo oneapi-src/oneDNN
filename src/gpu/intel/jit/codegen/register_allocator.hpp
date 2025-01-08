@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@
 #define GPU_INTEL_JIT_CODEGEN_REGISTER_ALLOCATOR_HPP
 
 #include "common/z_magic.hpp"
-#include "gpu/intel/jit/ngen/ngen.hpp"
-#include "gpu/intel/jit/ngen/ngen_register_allocator.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
+#include "ngen/ngen.hpp"
+#include "ngen/ngen_register_allocator.hpp"
 
 namespace dnnl {
 namespace impl {

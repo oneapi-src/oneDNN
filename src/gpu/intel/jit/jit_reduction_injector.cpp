@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #include "oneapi/dnnl/dnnl_types.h"
 
 // Must be included before emulation.hpp
-#include "gpu/intel/jit/ngen/ngen.hpp"
+#include "ngen/ngen.hpp"
 
 #include "common/impl_registration.hpp"
 #include "common/nstl.hpp"
@@ -25,7 +25,7 @@
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/jit/emulation.hpp"
 #include "gpu/intel/jit/jit_reduction_injector.hpp"
-#include "gpu/intel/jit/ngen/ngen_core.hpp"
+#include "ngen/ngen_core.hpp"
 
 namespace dnnl {
 namespace impl {

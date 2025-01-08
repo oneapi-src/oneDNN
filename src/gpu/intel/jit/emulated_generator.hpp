@@ -18,13 +18,13 @@
 #define GPU_INTEL_JIT_EMULATED_GENERATOR_HPP
 
 // Must be included before emulation.hpp
-#include "gpu/intel/jit/ngen/ngen.hpp"
+#include "ngen/ngen.hpp"
 
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/jit/codegen/register_allocator.hpp"
 #include "gpu/intel/jit/emulation.hpp"
 #include "gpu/intel/jit/jit_generator.hpp"
-#include "gpu/intel/jit/ngen/ngen_core.hpp"
+#include "ngen/ngen_core.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -39,8 +39,8 @@
 #include "gpu/intel/jit/ir/tensor.hpp"
 #include "gpu/intel/jit/ir/walk_order.hpp"
 #include "gpu/intel/jit/jit_generator.hpp"
-#include "gpu/intel/jit/ngen/ngen.hpp"
-#include "gpu/intel/jit/ngen/ngen_register_allocator.hpp"
+#include "ngen/ngen.hpp"
+#include "ngen/ngen_register_allocator.hpp"
 #include "xpu/utils.hpp"
 
 namespace dnnl {

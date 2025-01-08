@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2024 Intel Corporation
+# Copyright 2020-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 set(CMAKE_CXX_CLANG_TIDY "")
 
-set(DIRS "codegen;conv;ir;ngen;pass;pooling;reorder;utils;v2")
+set(DIRS "codegen;conv;ir;pass;pooling;reorder;utils;v2")
 
 file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
@@ -29,7 +29,10 @@ foreach(d ${DIRS})
         )
     list(APPEND SOURCES "${d_sources}")
 endforeach()
-
+file(GLOB_RECURSE NGEN_SOURCES
+    ${PROJECT_SOURCE_DIR}/third_party/ngen/*.cpp
+    )
+list(APPEND SOURCES "${NGEN_SOURCES}")
 
 if(DNNL_EXPERIMENTAL)
     list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/v2/conv/planner/planner_main.cpp")

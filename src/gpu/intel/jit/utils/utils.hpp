@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,9 +31,9 @@
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/compute/device_info.hpp"
-#include "gpu/intel/jit/ngen/ngen.hpp"
 #include "gpu/intel/serialization.hpp"
 #include "gpu/intel/utils.hpp"
+#include "ngen/ngen.hpp"
 
 #ifdef DNNL_DEV_MODE
 #include "common/profiler.hpp"

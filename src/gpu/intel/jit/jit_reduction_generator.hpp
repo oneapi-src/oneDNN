@@ -24,9 +24,9 @@
 #include "gpu/intel/jit/emulated_generator.hpp"
 #include "gpu/intel/jit/jit_generator.hpp"
 #include "gpu/intel/jit/jit_reduction_injector.hpp"
-#include "gpu/intel/jit/ngen/ngen_core.hpp"
-#include "gpu/intel/jit/ngen/ngen_interface.hpp"
 #include "gpu/intel/utils.hpp"
+#include "ngen/ngen_core.hpp"
+#include "ngen/ngen_interface.hpp"
 
 namespace dnnl {
 namespace impl {
