@@ -54,6 +54,49 @@ status_t init_matmul_md(memory_desc_t &mm_md, const memory_desc_t &ip_md,
     }
 }
 
+static bool check_training_formats(const memory_desc_wrapper &src_d,
+        const memory_desc_wrapper &wei_d, const memory_desc_wrapper &bias_d,
+        const memory_desc_wrapper &dst_d) {
+    using namespace format_tag;
+    using namespace utils;
+
+    bool ok = src_d.matches_one_of_tag(ab, acb, acdb, acdeb)
+            && dst_d.matches_tag(ab);
+
+    if (!bias_d.is_zero()) ok = ok && bias_d.matches_tag(x);
+
+    ok = ok && IMPLICATION(src_d.matches_tag(ab), wei_d.matches_tag(ab))
+            && IMPLICATION(src_d.matches_tag(acb), wei_d.matches_tag(acb))
+            && IMPLICATION(src_d.matches_tag(acdb), wei_d.matches_tag(acdb))
+            && IMPLICATION(src_d.matches_tag(acdeb), wei_d.matches_tag(acdeb));
+
+    ok = ok && src_d.is_dense() && wei_d.is_dense() && dst_d.is_dense();
+    return ok;
+}
+
+status_t set_training_formats(memory_desc_t *src_md, memory_desc_t *wei_md,
+        memory_desc_t *bias_md, memory_desc_t *dst_md) {
+    using namespace format_tag;
+
+    const int ndims = src_md->ndims;
+    const auto tag = utils::pick(ndims - 2, ab, acb, acdb, acdeb);
+    if (src_md->format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(*src_md, tag));
+
+    if (wei_md->format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(*wei_md, tag));
+
+    if (dst_md->format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(*dst_md, ab));
+
+    if (bias_md && bias_md->format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(*bias_md, x));
+
+    return check_training_formats(src_md, wei_md, bias_md, dst_md)
+            ? status::success
+            : status::unimplemented;
+}
+
 int matmul_inner_product_fwd_t::pd_t::get_k_blk(format_tag_t tag) const {
     using namespace format_tag;
     switch (tag) {
@@ -258,10 +301,42 @@ status_t matmul_inner_product_fwd_t::pd_t::init_matmul_params(
     return status::success;
 }
 
+status_t matmul_inner_product_bwd_data_t::pd_t::init_matmul_params(
+        engine_t *engine) {
+    memory_desc_t mm_src_md {};
+    memory_desc_t mm_wei_md {};
+    memory_desc_t mm_dst_md {};
+
+    CHECK(init_matmul_md(mm_src_md, *diff_dst_md(), format_tag::ab));
+    CHECK(init_matmul_md(mm_wei_md, *weights_md(), format_tag::ab));
+    CHECK(init_matmul_md(mm_dst_md, *diff_src_md(), format_tag::ab));
+
+    CHECK(create_matmul_pd(matmul_pd_, engine, &mm_src_md, &mm_wei_md,
+            &mm_dst_md, nullptr, attr()));
+
+    return status::success;
+}
+
 status_t matmul_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
 
     exec_args_t matmul_args = ctx.args();
+    exec_ctx_t matmul_ctx(ctx, std::move(matmul_args));
+
+    nested_scratchpad_t ns(ctx, key_nested, matmul_);
+    matmul_ctx.set_scratchpad_grantor(ns.grantor());
+
+    return matmul_->execute(matmul_ctx);
+}
+
+status_t matmul_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
+
+    exec_args_t matmul_args;
+    matmul_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_DIFF_DST);
+    matmul_args[DNNL_ARG_WEIGHTS] = ctx.args().at(DNNL_ARG_WEIGHTS);
+    matmul_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DIFF_SRC);
+
     exec_ctx_t matmul_ctx(ctx, std::move(matmul_args));
 
     nested_scratchpad_t ns(ctx, key_nested, matmul_);
