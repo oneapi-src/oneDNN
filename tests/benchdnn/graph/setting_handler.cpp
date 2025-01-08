@@ -125,6 +125,13 @@ bool get_driver_axis(const deserialized_op &base_op_ref, int &axis) {
     return true;
 }
 
+bool get_driver_bia_dt(const deserialized_op &base_op_ref,
+        dnnl_data_type_t &bia_dt, const dnnl_data_type_t dt) {
+    // bia_dt is the same as src_dt
+    bia_dt = base_op_ref.in_lts_.size() <= 2 ? dnnl_data_type_undef : dt;
+    return true;
+}
+
 bool get_prb_dims(const deserialized_op &base_op_ref, prb_dims_t &prb_dims) {
     prb_dims.dims = base_op_ref.in_lts_.front().shape_;
     prb_dims.ndims = static_cast<int>(prb_dims.dims.size());
@@ -1303,13 +1310,9 @@ bool get_matmul_tags(const deserialized_op &base_op_ref, std::string &stag,
     return true;
 }
 
-bool get_matmul_bia_dt_mask(const deserialized_op &base_op_ref,
-        dnnl_data_type_t &bia_dt, const dnnl_data_type_t dt, int &bia_mask) {
-    bia_dt = dnnl_data_type_undef;
+bool get_matmul_bia_mask(const deserialized_op &base_op_ref, int &bia_mask) {
     if (base_op_ref.in_lts_.size() <= 2) return true;
 
-    // bia_dt is the same as src_dt
-    bia_dt = dt;
     const logical_tensor::dims &bias_shape = base_op_ref.in_lts_[2].shape_;
     const logical_tensor::dims &dst_shape = base_op_ref.out_lts_[0].shape_;
     if (bias_shape.size() != dst_shape.size()) {
@@ -1339,9 +1342,11 @@ bool get_matmul_bia_dt_mask(const deserialized_op &base_op_ref,
     DNN_GRAPH_CHECK_SETTINGS(
             matmul::get_matmul_dt(base_op_ref, op_setting.dt.front()), res);
     DNN_GRAPH_CHECK_SETTINGS(
-            matmul::get_matmul_bia_dt_mask(base_op_ref,
-                    op_setting.bia_dt.front(), op_setting.dt.front()[0],
-                    op_setting.bia_mask.front()),
+            get_driver_bia_dt(base_op_ref, op_setting.bia_dt.front(),
+                    op_setting.dt.front()[0]),
+            res);
+    DNN_GRAPH_CHECK_SETTINGS(matmul::get_matmul_bia_mask(
+                                     base_op_ref, op_setting.bia_mask.front()),
             res);
     DNN_GRAPH_CHECK_SETTINGS(
             matmul::get_matmul_tags(base_op_ref, op_setting.stag.front(),
