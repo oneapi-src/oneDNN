@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,8 +47,9 @@ std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *prb) {
     }
 
     return std::unique_ptr<prb_t>(new prb_t((desc_t)*prb, prb->dir, prb->dt,
-            prb->stag, prb->wtag, tag::any, {vdims_t(STRIDES_SIZE)}, prb->alg,
-            prb->mb, attr, prb->ctx_init, prb->ctx_exe, prb->impl_filter));
+            prb->bia_dt(), prb->stag, prb->wtag, tag::any,
+            {vdims_t(STRIDES_SIZE)}, prb->alg, prb->mb, attr, prb->ctx_init,
+            prb->ctx_exe, prb->impl_filter));
 }
 
 void get_fused_conv_dst_dims(const int ndims,
@@ -131,10 +132,10 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *prb) {
     cd.ndims = prb->ndims;
     cd.init_pad_r();
 
-    return std::unique_ptr<prb_t>(new prb_t(cd, prb->dir, dw_dt, tag::any,
-            tag::any, prb->dtag, {vdims_t(STRIDES_SIZE)}, alg_t::DIRECT,
-            prb->mb, fusion_attr, prb->ctx_init, prb->ctx_exe,
-            prb->impl_filter));
+    return std::unique_ptr<prb_t>(new prb_t(cd, prb->dir, dw_dt,
+            prb->get_dt(BIA), tag::any, tag::any, prb->dtag,
+            {vdims_t(STRIDES_SIZE)}, alg_t::DIRECT, prb->mb, fusion_attr,
+            prb->ctx_init, prb->ctx_exe, prb->impl_filter));
 }
 
 int init_ref_memory_args(dnn_mem_map_t &mem_map0, dnn_mem_map_t &mem_map1,

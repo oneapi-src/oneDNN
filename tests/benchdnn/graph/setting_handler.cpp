@@ -554,12 +554,13 @@ bool get_conv_desc(const deserialized_op &base_op_ref, ::conv::desc_t &d) {
 bool get_conv_dir(const deserialized_op &base_op_ref, dir_t &dir) {
     const auto &op_kind = base_op_ref.kind_;
     if (op_kind == "Convolution") {
-        dir = base_op_ref.in_lts_.size() > 2 ? dir_t::FWD_B : dir_t::FWD_I;
+        dir = dir_t::FWD_I;
     } else if (op_kind == "ConvolutionBackwardData") {
         dir = dir_t::BWD_D;
     } else if (op_kind == "ConvolutionBackwardWeights") {
         dir = dir_t::BWD_W;
     } else {
+        assert(!"unexpected op_kind");
         return false;
     }
     return true;
@@ -668,6 +669,10 @@ bool get_conv_stag_and_dtag(
             conv::get_conv_dir(base_op_ref, op_setting.dir.front()), res);
     DNN_GRAPH_CHECK_SETTINGS(
             conv::get_conv_dt(base_op_ref, op_setting.dt.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_driver_bia_dt(base_op_ref, op_setting.bia_dt.front(),
+                    op_setting.dt.front()[0]),
+            res);
     DNN_GRAPH_CHECK_SETTINGS(
             conv::get_conv_stag_and_dtag(base_op_ref, op_setting), res);
     DNN_GRAPH_CHECK_SETTINGS(
