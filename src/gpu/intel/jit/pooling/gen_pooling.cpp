@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/ir/post_ops.hpp"
 #include "gpu/intel/jit/ir/tensor_config.hpp"
-#include "gpu/intel/jit/ngen/ngen_register_allocator.hpp"
 #include "gpu/intel/jit/pooling/pooling_kernel.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
+#include "ngen/ngen_register_allocator.hpp"
 
 namespace dnnl {
 namespace impl {

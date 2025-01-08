@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 #include "gpu/intel/jit/codegen/register_allocator.hpp"
 #include "gpu/intel/jit/emulation.hpp"
 #include "gpu/intel/jit/jit_generator.hpp"
-#include "gpu/intel/jit/ngen/ngen_core.hpp"
+#include "ngen/ngen_core.hpp"
 
 namespace dnnl {
 namespace impl {

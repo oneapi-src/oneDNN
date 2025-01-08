@@ -22,9 +22,9 @@
 #include "gpu/intel/jit/codegen/register_scope.hpp"
 #include "gpu/intel/jit/ir/reorder.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
-#include "gpu/intel/jit/ngen/ngen.hpp"
 #include "gpu/intel/jit/utils/iterator.hpp"
 #include "gpu/intel/jit/utils/range.hpp"
+#include "ngen/ngen.hpp"
 
 namespace dnnl {
 namespace impl {

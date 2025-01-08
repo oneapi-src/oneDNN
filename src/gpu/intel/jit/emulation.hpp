@@ -17,7 +17,7 @@
 #ifndef GPU_INTEL_JIT_EMULATION_HPP
 #define GPU_INTEL_JIT_EMULATION_HPP
 
-#include "gpu/intel/jit/ngen/ngen_config.hpp"
+#include "ngen/ngen_config.hpp"
 #ifdef NGEN_ENABLE_SOURCE_LOCATION
 #include <source_location>
 #endif

@@ -18,8 +18,8 @@
 #include "oneapi/dnnl/dnnl_config.h"
 
 #include "gpu/intel/jit/binary_format.hpp"
-#include "gpu/intel/jit/ngen/ngen_level_zero.hpp"
 #include "gpu/intel/jit/utils/ngen_type_bridge.hpp"
+#include "ngen/ngen_level_zero.hpp"
 
 #if defined(__linux__)
 #include <dlfcn.h>

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@
 
 #include <array>
 
-#include "gpu/intel/jit/ngen/ngen_config.hpp"
-#include "gpu/intel/jit/ngen/ngen_decoder.hpp"
-#include "gpu/intel/jit/ngen/npack/neo_packager.hpp"
+#include "ngen/ngen_config.hpp"
+#include "ngen/ngen_decoder.hpp"
+#include "ngen/npack/neo_packager.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -20,7 +20,7 @@
 #include <memory>
 
 // Must be included before emulation.hpp
-#include "gpu/intel/jit/ngen/ngen.hpp"
+#include "ngen/ngen.hpp"
 
 #include "common/impl_registration.hpp"
 #include "common/nstl.hpp"
@@ -32,7 +32,7 @@
 #include "gpu/intel/ocl/ocl_gpu_engine.hpp"
 #include "xpu/utils.hpp"
 
-#include "gpu/intel/jit/ngen/ngen_opencl.hpp"
+#include "ngen/ngen_opencl.hpp"
 
 namespace dnnl {
 namespace impl {

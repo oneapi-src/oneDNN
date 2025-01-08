@@ -28,7 +28,7 @@
 #include "gpu/intel/jit/ir/eltwise.hpp"
 #include "gpu/intel/jit/ir/fma.hpp"
 #include "gpu/intel/jit/jit_eltwise_injector.hpp"
-#include "gpu/intel/jit/ngen/ngen.hpp"
+#include "ngen/ngen.hpp"
 
 namespace dnnl {
 namespace impl {
