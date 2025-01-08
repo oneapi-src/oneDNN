@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
 #include "common/logging.hpp"
 #include "common/utils.hpp"
 
-#include "common/spdlog/sinks/rotating_file_sink.h"
-#include "common/spdlog/spdlog.h"
+#include "spdlog/sinks/rotating_file_sink.h"
+#include "spdlog/spdlog.h"
 
 namespace dnnl {
 namespace impl {
