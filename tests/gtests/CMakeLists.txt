@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2024 Intel Corporation
+# Copyright 2016-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ if(WIN32 AND DNNL_WITH_SYCL)
     add_definitions(-DGTEST_HAS_SEH=0)
 endif()
 
-add_subdirectory (gtest)
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/gtest gtest)
 
 set(APP_NAME "gtest")
 set(MAIN_SRC_GTEST ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
