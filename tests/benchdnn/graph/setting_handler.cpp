@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -169,20 +169,13 @@ namespace custom {
             res->state = res_state_t::INVALID_ARGUMENTS;
             return op_setting;
     }
-    // Select op has boolean weights. It requires special handling for dt
-    // conversion because custom driver prb values directly translate into graph
-    // objects, there's no intermediate primitive layer that can be instructed
-    // to have f32 data type.
-    const bool op_is_select = opkind == ::graph::op::kind::Select;
 
     for (size_t i = 0; i < base_op_ref.in_lts_.size(); i++) {
         const auto arg = get_prim_arg_name_from_graph_op_input_offset(
                 opkind, static_cast<int>(i));
         const auto &lt = base_op_ref.in_lts_[i];
         auto dim = lt.shape_;
-        const auto orig_dt = convert_dt(lt.get_data_type());
-        const auto dt
-                = op_is_select && arg == DNNL_ARG_WEIGHTS ? orig_dt : dnnl_f32;
+        const auto dt = dnnl_f32;
         auto tag = strides2memory_tag(lt.stride_.size(), lt.stride_, false);
 
         // 0-dim means scalar input in graph, extend to 1-dim to match behavior.
@@ -197,9 +190,7 @@ namespace custom {
                 opkind, static_cast<int>(i));
         const auto &lt = base_op_ref.out_lts_[i];
         auto dim = lt.shape_;
-        const auto orig_dt = convert_dt(lt.get_data_type());
-        const auto dt
-                = op_is_select && arg == DNNL_ARG_WEIGHTS ? orig_dt : dnnl_f32;
+        const auto dt = dnnl_f32;
         auto tag = strides2memory_tag(lt.stride_.size(), lt.stride_, false);
 
         // 0-dim means scalar input in graph, extend to 1-dim to match behavior.
