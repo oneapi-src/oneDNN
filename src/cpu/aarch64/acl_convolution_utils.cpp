@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Arm Ltd. and affiliates
+* Copyright 2020-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "acl_convolution_utils.hpp"
+#include "cpu/aarch64/acl_convolution_utils.hpp"
 #include "common/convolution_pd.hpp"
 #include "common/utils.hpp"
 #include "oneapi/dnnl/dnnl.h"
@@ -283,6 +283,56 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     return status::success;
 }
+
+status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
+        memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, const convolution_desc_t &cd,
+        const primitive_attr_t &attr) {
+
+    // Under these conditions, fallback to faster GEMM-based convolution
+    // unless the user explicitly specifies Winograd algorithm
+    // clang-format off
+    if (one_of(true, src_md.dims[2] > 112, // ih
+                src_md.dims[3] > 112, // iw
+                src_md.dims[1] < 64, // ic
+                dst_md.dims[1] < 64, // oc
+                dnnl_get_max_threads() > 28)
+            && cd.alg_kind == alg_kind::convolution_auto) {
+        return status::unimplemented;
+    }
+    // clang-format on
+
+    // General Compute Library checks, memory tags are also set there
+    acp.alg_winograd = true;
+    CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
+
+    const bool shape_ok
+            // only unit strides allowed
+            = (acp.padstride_info.stride() == std::pair<uint, uint> {1, 1})
+            // Note: Compute Library supports arbitrary padding for wino kernels
+            // but we only allow small padding to be consistent with oneDNN
+            && (acp.padstride_info.pad().first <= 1) // padding left/right
+            && (acp.padstride_info.pad().second <= 1) // padding top/bottom
+            // only non-dilated convolutions allowed
+            && (acp.dilation_info == arm_compute::Size2D(1, 1));
+
+    ACL_CHECK_SUPPORT(!shape_ok, "shape not supported by winograd kernels");
+
+    // clang-format off
+    // Validate convolution manually to check for return status
+    ACL_CHECK_VALID(arm_compute::NEWinogradConvolutionLayer::validate(
+        &acp.src_tensor_info,
+        &acp.wei_tensor_info,
+        acp.with_bias ? &acp.bia_tensor_info : nullptr,
+        &acp.dst_tensor_info,
+        acp.padstride_info,
+        acp.act_info,
+        true)); // enable_fast_math flag in ACL Winograd
+    // clang-format on
+
+    return status::success;
+}
+
 } // namespace acl_convolution_utils
 
 } // namespace aarch64

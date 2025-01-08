@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2018-2024 Intel Corporation
-* Copyright 2024 Arm Ltd. and affiliates
+* Copyright 2024-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -205,8 +205,6 @@ enum {
     key_conv_ncsp_matmul_dst,
     key_conv_ncsp_diff_sp_sum,
     key_conv_padded_bias,
-    key_conv_permuted_inputs,
-    key_conv_permuted_outputs,
     key_conv_permuted_weights,
     key_conv_rtus_space,
     key_conv_store_wsp,
@@ -317,11 +315,9 @@ enum {
     key_softmax_interim_store,
     key_sum_reduction,
     key_sum_srcs_cvt,
-    key_wino_transformed_weights,
     key_wino_U,
     key_wino_V,
     key_wino_M,
-    key_wino_workspace,
     // These two keys should always be the last ones,
     // even though they are not in alphabetical order
     key_nested,

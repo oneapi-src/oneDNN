@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Arm Ltd. and affiliates
+* Copyright 2020-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,30 +89,13 @@ template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
         data_type_t bia_t>
 status_t acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::init(
         engine_t *engine) {
-    // commented due to hot fix solution for stateless API which should be replaced soon.
-    //     auto acp_ = pd()->acp_;
-    //     acl_obj_->conv.configure(&acp_.src_tensor_info, &acp_.wei_tensor_info,
-    //             acp_.with_bias ? &acp_.bia_tensor_info : nullptr,
-    //             &acp_.dst_tensor_info, acp_.padstride_info, acp_.weights_info,
-    //             acp_.dilation_info, acp_.act_info, acp_.fast_math);
-    //     acl_obj_->aux_mem_req = acl_obj_->conv.workspace();
-    return status::success;
-}
-
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
-        data_type_t bia_type>
-std::unique_ptr<acl_obj_t<typename acl_gemm_convolution_fwd_t<src_type,
-        wei_type, dst_type, bia_type>::Op>>
-acl_gemm_convolution_fwd_t<src_type, wei_type, dst_type,
-        bia_type>::reinitialize_acl_obj() const {
     auto acp_ = pd()->acp_;
-    std::unique_ptr<acl_obj_t<Op>> acl_obj = std::make_unique<acl_obj_t<Op>>();
-    acl_obj->conv.configure(&acp_.src_tensor_info, &acp_.wei_tensor_info,
+    acl_obj_->conv.configure(&acp_.src_tensor_info, &acp_.wei_tensor_info,
             acp_.with_bias ? &acp_.bia_tensor_info : nullptr,
             &acp_.dst_tensor_info, acp_.padstride_info, acp_.weights_info,
             acp_.dilation_info, acp_.act_info, acp_.fast_math);
-    acl_obj->aux_mem_req = acl_obj->conv.workspace();
-    return acl_obj;
+    acl_obj_->aux_mem_req = acl_obj_->conv.workspace();
+    return status::success;
 }
 
 template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
@@ -120,13 +103,8 @@ template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
 status_t
 acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::execute_forward(
         const exec_ctx_t &ctx) const {
-    // Temporary hotfix: We're using a local acl_obj instance in this method
-    // instead of the class member acl_obj_. This hotfix is to bypass persistent aux mem requirements but is not the ideal solution.
-    // It should be refactored or removed in the future when a more permanent fix is implemented.
-    auto acl_obj = reinitialize_acl_obj();
-
     return execute_forward_conv_acl<acl_obj_t<Op>, pd_t, src_data_t, wei_data_t,
-            dst_data_t, bia_data_t>(ctx, acl_obj.get(), pd(), gemm_conv_keys);
+            dst_data_t, bia_data_t>(ctx, acl_obj_.get(), pd(), gemm_conv_keys);
 }
 
 using namespace data_type;
