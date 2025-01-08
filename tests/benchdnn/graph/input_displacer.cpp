@@ -457,23 +457,23 @@ int partition_data_displacer_t::gen_quantize_filling(
                 // None of them supports u8u8, replace with u8s8.
                 op.in_lts_[1].data_type_ = "s8";
             } else if (dt == "s4" || dt == "u4") {
-                // None of them supports x4x4, replace with f32x4.
-                op.in_lts_[0].data_type_ = "f32";
+                // None of them supports x4x4, replace with f32x4f32 or
+                // xf16x4xf16.
+                op.in_lts_[0].data_type_ = op.out_lts_[0].data_type_;
             }
         }
     }
-    if (driver == dnnl_driver_t::pool || driver == dnnl_driver_t::binary) {
-        // pool does not support x8f32 on cpu
-        // binary does not support x8x8bf16 on gpu
-        // replace output with x8
+    if (driver == dnnl_driver_t::pool || driver == dnnl_driver_t::binary
+            || is_f8_quantization) {
+        // pool does not support x8f32 on cpu, and binary does not support
+        // x8x8bf16 on gpu, hence replace output with x8.
+        // f8 data types needs setting output data type to f8
         op.out_lts_[0].data_type_ = dt;
     } else if (op.out_lts_[0].data_type_ != "bf16") {
         if (op.in_lts_.size() > 1 && op.in_lts_[1].data_type_ == "s8") {
             // Use u8 as output data type for two-input operations to avoid
             // data overflow due to the specific driver logic.
             op.out_lts_[0].data_type_ = "u8";
-        } else if (is_f8_quantization) {
-            op.out_lts_[0].data_type_ = "f8_e5m2";
         } else {
             // Use f32 as output data type since not all primitives support
             // different data types for input and output.
