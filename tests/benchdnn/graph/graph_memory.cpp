@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,18 +42,13 @@ size_t get_benchdnn_device_limit() {
     return benchdnn_device_limit;
 }
 
+// Constructs memories for all inputs and outputs needed for comparison.
 dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
         const deserialized_lt &lt, const bool is_op_input,
         const bool is_fake_output) {
-
-    // Init memory for all inputs and outputs that needs comparison
     const auto &prim_dt = mem.dt();
-    const auto &graph_dt = static_cast<dnnl_data_type_t>(lt.get_data_type());
-    const bool is_boolean
-            = lt.get_data_type() == logical_tensor::data_type::boolean;
-
-    // Use data type from graph path to represent boolean
-    const auto &c_data_type = is_boolean ? prim_dt : graph_dt;
+    // Conversion from graph types to dnnl types + boolean to u8.
+    const auto &graph_dt = convert_dt(lt.get_data_type());
 
     // Get memory tag of primitive memory
     int ndims = mem.ndims();
@@ -77,7 +72,7 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     // otherwise use shape & tag from ref path side
 
     // Create memory for graph path
-    const auto data_type = static_cast<dnnl::memory::data_type>(c_data_type);
+    const auto data_type = static_cast<dnnl::memory::data_type>(graph_dt);
     if (is_op_input) {
         if (graph_dims_.empty()) graph_dims_.push_back(1);
         if (graph_strides_.empty()) graph_strides_.push_back(1);
@@ -93,12 +88,14 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
             std::memcpy(graph_data_handle, prim_data_handle, graph_mem.size());
         };
 
-        // Not do reorder for boolean data tensor
-        if (!is_boolean && prim_dt != c_data_type) {
-            dnn_mem_t c_mem(ndims, mem.dims(), c_data_type, mtag, g_eng.get());
+        if (prim_dt != graph_dt) {
+            // Call a reorder (for data conversion) when reference memory
+            // doesn't coincide with the graph memory...
+            dnn_mem_t c_mem(ndims, mem.dims(), graph_dt, mtag, g_eng.get());
             SAFE_V(c_mem.reorder(mem));
             prim_to_graph_memcpy(mem_, c_mem);
         } else {
+            // ... otherwise, perform a plain memcpy.
             prim_to_graph_memcpy(mem_, mem);
         }
     } else {
@@ -106,7 +103,7 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
             dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
             mem_ = dnn_mem_t(md.get(), g_eng.get());
         } else {
-            mem_ = dnn_mem_t(mem.md_, c_data_type, mtag, g_eng.get());
+            mem_ = dnn_mem_t(mem.md_, graph_dt, mtag, g_eng.get());
         }
     }
 }
