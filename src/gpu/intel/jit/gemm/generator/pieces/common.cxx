@@ -566,7 +566,7 @@ Subregister BLASKernelGenerator<hw>::findLDMultiple(const LDMultiples &multiples
 
 // Calculate and cache a specific ld multiple.
 template <HW hw>
-void BLASKernelGenerator<hw>::calcIncrement(LDIncrements &increments, SubregisterPair &base, int scale,  bool isA64, const CommonStrategy &strategy, CommonState &state)
+void BLASKernelGenerator<hw>::calcIncrement(LDIncrements &increments, SubregisterPair &base, int scale,  const CommonStrategy &strategy, CommonState &state)
 {
     // Check for existing increment.
     for (auto &inc: increments)
@@ -581,13 +581,12 @@ void BLASKernelGenerator<hw>::calcIncrement(LDIncrements &increments, Subregiste
     }
 
     // General scaling.
-    DataType t = isA64 ? DataType::q : DataType::ud;
     SubregisterPair scaled;
     if (strategy.avoidIncConflicts)
-        scaled = SubregisterPair(state.ra.alloc_sub(t, getHint(HintType::LongTerm0, strategy)),
-                                 state.ra.alloc_sub(t, getHint(HintType::LongTerm1, strategy)));
+        scaled = SubregisterPair(state.ra.alloc_sub(increments.type, getHint(HintType::LongTerm0, strategy)),
+                                 state.ra.alloc_sub(increments.type, getHint(HintType::LongTerm1, strategy)));
     else
-        scaled = SubregisterPair(state.ra.alloc_sub(t, getHint(HintType::LongTerm, strategy)));
+        scaled = SubregisterPair(state.ra.alloc_sub(increments.type, getHint(HintType::LongTerm, strategy)));
 
     int nr = strategy.avoidIncConflicts ? 2 : 1;
     for (int i = 0; i < nr; i++)
@@ -598,7 +597,7 @@ void BLASKernelGenerator<hw>::calcIncrement(LDIncrements &increments, Subregiste
 
 // Get a multiple of lda/ldb for address increments.
 template <HW hw>
-SubregisterPair BLASKernelGenerator<hw>::lookupIncrement(const LDIncrements &increments, const SubregisterPair &base, int scale, bool isA64, const CommonStrategy &strategy, CommonState &state, bool *release)
+SubregisterPair BLASKernelGenerator<hw>::lookupIncrement(const LDIncrements &increments, const SubregisterPair &base, int scale, const CommonStrategy &strategy, CommonState &state, bool *release)
 {
     if (release) *release = false;
 
@@ -609,7 +608,7 @@ SubregisterPair BLASKernelGenerator<hw>::lookupIncrement(const LDIncrements &inc
     if (!release)
         return SubregisterPair();
 
-    auto result = state.ra.alloc_sub(isA64 ? DataType::q: DataType::ud);
+    auto result = state.ra.alloc_sub(increments.type);
     emulConstant(1, result, base, scale, strategy, state);
     *release = true;
 
