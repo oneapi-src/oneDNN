@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1036,31 +1036,6 @@ static bool parse_global_skip_impl(
             /* use_impl = */ false, str, option_name, help);
 }
 
-// TODO: remove
-static bool parse_fast_ref_gpu(
-        const char *str, const std::string &option_name = "fast-ref-gpu") {
-    bool parsed = parse_single_value_option(fast_ref, default_fast_ref,
-            str2bool, str, option_name, std::string());
-
-    static bool msg_printed = false;
-    if (parsed && !msg_printed) {
-        BENCHDNN_PRINT(0, "%s\n",
-                "Warning: \'--fast-ref-gpu\' is deprecated. Use \'--fast-ref\' "
-                "instead.");
-        msg_printed = true;
-    }
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE
-    if (parsed && fast_ref) {
-        fast_ref = false;
-        fprintf(stderr,
-                "%s driver: WARNING: option `fast_ref` is not supported "
-                "for GPU only configurations.\n",
-                driver_name.c_str());
-    }
-#endif
-    return parsed;
-}
-
 bool parse_ctx(std::vector<thr_ctx_t> &ctx,
         const std::vector<thr_ctx_t> &def_ctx, const char *str,
         const std::string &option_name) {
@@ -1396,11 +1371,11 @@ bool parse_bench_settings(const char *str) {
             || parse_attr_same_pd_check(str) || parse_canonical(str)
             || parse_check_ref_impl(str) || parse_cold_cache(str)
             || parse_cpu_isa_hints(str) || parse_engine(str)
-            || parse_fast_ref(str) || parse_fast_ref_gpu(str)
-            || parse_fix_times_per_prb(str) || parse_global_impl(str)
-            || parse_global_skip_impl(str) || parse_max_ms_per_prb(str)
-            || parse_num_streams(str) || parse_repeats_per_prb(str)
-            || parse_mem_check(str) || parse_memory_kind(str) || parse_mode(str)
+            || parse_fast_ref(str) || parse_fix_times_per_prb(str)
+            || parse_global_impl(str) || parse_global_skip_impl(str)
+            || parse_max_ms_per_prb(str) || parse_num_streams(str)
+            || parse_repeats_per_prb(str) || parse_mem_check(str)
+            || parse_memory_kind(str) || parse_mode(str)
             || parse_mode_modifier(str) || parse_start(str)
             || parse_stream_kind(str) || parse_verbose(str);
 
