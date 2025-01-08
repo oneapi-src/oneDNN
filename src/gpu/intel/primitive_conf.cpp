@@ -546,8 +546,7 @@ void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
 }
 
 bool post_ops_with_binary_ok(const primitive_attr_t *attr,
-        const data_type_t dst_dt, const int max_ndims_supported,
-        const int prelu_mask_supported) {
+        const data_type_t dst_dt, const int max_ndims_supported) {
     const auto &p = attr->post_ops_;
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
@@ -569,10 +568,6 @@ bool post_ops_with_binary_ok(const primitive_attr_t *attr,
                     if (bin_desc.dims[dim_idx] != 1) is_po_ok = false;
                 }
             }
-        }
-        if (is_prelu(po_idx)) {
-            if (p.entry_[po_idx].prelu.mask > prelu_mask_supported)
-                is_po_ok = false;
         }
         if (is_sum(po_idx)) {
             if (p.entry_[po_idx].sum.zero_point != 0) return false;

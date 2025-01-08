@@ -91,8 +91,8 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_CONV_SC(attr_.set_default_formats(dst_md(0)),
                     VERBOSE_UNSUPPORTED_POSTOP);
-            VDISPATCH_CONV(post_ops_with_binary_ok(
-                                   attr(), dst_md()->data_type, 5, 0xffff),
+            VDISPATCH_CONV(
+                    post_ops_with_binary_ok(attr(), dst_md()->data_type, 5),
                     VERBOSE_UNSUPPORTED_POSTOP);
 
             VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
