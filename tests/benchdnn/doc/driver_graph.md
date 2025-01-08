@@ -6,73 +6,73 @@
     ./benchdnn --graph [benchdnn-knobs] [graph-knobs] [graph-case] ...
 ```
 
-where *graph-knobs* are:
+* [graph-knobs] can have the following attributes:
 
- - `--mb=INT` -- Override minibatch size specified in the JSON file default
-    case. When set to `0`, use batch size as defined by the
-    individual test case. The option doesn't take effect for
-    operations that don't support the `mb` concept. The default is `0`.
+  - `--mb=INT` -- Override minibatch size specified in the JSON file default
+      case. When set to `0`, use batch size as defined by the
+      individual test case. The option doesn't take effect for
+      operations that don't support the `mb` concept. The default is `0`.
 
- - `--in-shapes=ID:SHAPE[*TAG+ID:SHAPE*TAG+...]` -- Override a shape and
-    stride of a graph input tensor that includes `ID` in a graph with `SHAPE` and
-    `TAG` values. `SHAPE` and `TAG` are separated by a `*`. Multiple
-    inputs may be specified using the `+` delimiter.
+  - `--in-shapes=ID:SHAPE[*TAG+ID:SHAPE*TAG+...]` -- Override a shape and
+      stride of a graph input tensor that includes `ID` in a graph with `SHAPE` and
+      `TAG` values. `SHAPE` and `TAG` are separated by a `*`. Multiple
+      inputs may be specified using the `+` delimiter.
 
-    If both `--mb` and `--in-shapes` are set, `--mb` takes precedence
-    over `--in-shapes`.
+      If both `--mb` and `--in-shapes` are set, `--mb` takes precedence
+      over `--in-shapes`.
 
-    The shape of internal tensors and graph output tensors are inferred
-    by the graph driver automatically. By default, the option value is empty,
-    meaning values are taken from the original graph.
+      The shape of internal tensors and graph output tensors are inferred
+      by the graph driver automatically. By default, the option value is empty,
+      meaning values are taken from the original graph.
 
-    `TAG` means the memory layout of that tensor, represented by a string starting with `a`.
-    The order may differ; a different order means a different memory layout that users may
-    provide according to their own needs. Assume, for instance, a tensor with shape `[1,32,4,4]`
-    & stride `[512,16,4,1]`, the stride of which can be represented as a Tag `abcd`. If users
-    want to modify stride to `[128,1,128,32]`, `TAG` should be provided as `acdb`, and the
-    stride values will be calculated within the Benchdnn-graph.
+      `TAG` means the memory layout of that tensor, represented by a string starting with `a`.
+      The order may differ; a different order means a different memory layout that users may
+      provide according to their own needs. Assume, for instance, a tensor with shape `[1,32,4,4]`
+      & stride `[512,16,4,1]`, the stride of which can be represented as a Tag `abcd`. If users
+      want to modify stride to `[128,1,128,32]`, `TAG` should be provided as `acdb`, and the
+      stride values will be calculated within the Benchdnn-graph.
 
-    Below are several use options for `--in-shapes`:
-    1. Modify shape only: `--in-shapes=ID:SHAPE[+ID:SHAPE...]`. Users can modify
-            rank as well. Modifying shape to 1D tensor with shape `[0]` is also included:
-            `--in-shapes=ID:0[+ID:0+...]`.
-    2. Modify stride only: `--in-shapes=ID:TAG[+ID:TAG...]`.
-    3. Modify shape and stride: `--in-shapes=ID:SHAPE[*TAG+ID:SHAPE*TAG+...]`.
-            Users can modify rank as well.
-    4. Modify rank to 0; that is, a scalar with shape [], which is represented by `-`
-            in cml: `--in-shapes=ID:-[+ID:-+...]`.
+      Below are several use options for `--in-shapes`:
+      1. Modify shape only: `--in-shapes=ID:SHAPE[+ID:SHAPE...]`. Users can modify
+              rank as well. Modifying shape to 1D tensor with shape `[0]` is also included:
+              `--in-shapes=ID:0[+ID:0+...]`.
+      2. Modify stride only: `--in-shapes=ID:TAG[+ID:TAG...]`.
+      3. Modify shape and stride: `--in-shapes=ID:SHAPE[*TAG+ID:SHAPE*TAG+...]`.
+              Users can modify rank as well.
+      4. Modify rank to 0; that is, a scalar with shape [], which is represented by `-`
+              in cml: `--in-shapes=ID:-[+ID:-+...]`.
 
-    Examples are provided below.
+      Examples are provided below.
 
- - `--op-attrs=ID:ATTR_STRING[+ID:ATTR_STRING]` -- Override a series attributes
-            value of op with `ID` in the graph with `ATTR_STRING` values.
-            `ATTR_STRING` is `ATTR_NAME:ATTR_VALUE[*ATTR_NAME:ATTR_VALUE]`.
-            Multiple attributes value changes may be specified using the `*`
-            delimeter. Multiple ops modification may be specified using the `+`
-            delimeter. By default, the option value is empty, meaning values are taken from original graph.
- - `--expected-n-partitions=INT` -- Specify the number of expected partitions
-    returned from the graph. `INT` is a non-negative integer value. When `INT`
-    value is `0`, the check is skipped. By default, the value is `1` which means
-    the graph should be fused as one partition.
- - `--dt={undef [default], f32, bf16, f16}` -- Specify the data types in the
-   input JSON file. Currently, you can define data types for pure floating-point
-   input graph only. For example, you can specify `--dt=f16` for an `f32` graph
-   and then test it in `f16`. It has the same effect as changing the data type
-   field of all logical tensors in the input JSON file from `f32` to `f16`. If
-   `--dt` is not specified or specified as `undef`, the original data types
-   contained in the input JSON file will be used for testing.
-  - `--dt=ID:DT[+ID:DT]` -- Another format to specify the data types in the
-    input JSON file. `ID` specifies the input or output tensor of an operation
-    in the JSON file. `DT` is the target data type. To specify the data types of
-    multiple tensors, use `+` to concatenate the `ID` and `DT` pairs. An error
-    will occur if `ID` is not contained in the JSON file. oneDNN operations have
-    restrictions for input and output tensor data types. Changing the data type
-    of a tensor may lead to graph construction failures, for example, failure to
-    perform the `add_op()` operation in the graph.
+  - `--op-attrs=ID:ATTR_STRING[+ID:ATTR_STRING]` -- Override a series attributes
+              value of op with `ID` in the graph with `ATTR_STRING` values.
+              `ATTR_STRING` is `ATTR_NAME:ATTR_VALUE[*ATTR_NAME:ATTR_VALUE]`.
+              Multiple attributes value changes may be specified using the `*`
+              delimeter. Multiple ops modification may be specified using the `+`
+              delimeter. By default, the option value is empty, meaning values are taken from original graph.
+  - `--expected-n-partitions=INT` -- Specify the number of expected partitions
+      returned from the graph. `INT` is a non-negative integer value. When `INT`
+      value is `0`, the check is skipped. By default, the value is `1` which means
+      the graph should be fused as one partition.
+  - `--dt={undef [default], f32, bf16, f16}` -- Specify the data types in the
+    input JSON file. Currently, you can define data types for pure floating-point
+    input graph only. For example, you can specify `--dt=f16` for an `f32` graph
+    and then test it in `f16`. It has the same effect as changing the data type
+    field of all logical tensors in the input JSON file from `f32` to `f16`. If
+    `--dt` is not specified or specified as `undef`, the original data types
+    contained in the input JSON file will be used for testing.
+    - `--dt=ID:DT[+ID:DT]` -- Another format to specify the data types in the
+      input JSON file. `ID` specifies the input or output tensor of an operation
+      in the JSON file. `DT` is the target data type. To specify the data types of
+      multiple tensors, use `+` to concatenate the `ID` and `DT` pairs. An error
+      will occur if `ID` is not contained in the JSON file. oneDNN operations have
+      restrictions for input and output tensor data types. Changing the data type
+      of a tensor may lead to graph construction failures, for example, failure to
+      perform the `add_op()` operation in the graph.
 
-and *graph-case* is a JSON file which is dumped by a library or created from scratch.
-It must be passed to the graph driver as `--case=JSON_FILE`. Refer to the JSON
-file example at the end of this document.
+* [graph-case] is a JSON file which is dumped by a library or created from
+  scratch. It must be passed to the graph driver as `--case=JSON_FILE`. Refer to
+  the JSON file example at the end of this document.
 
 The oneDNN Graph serialization feature to dump JSON files at runtime may be enabled
 by using the `-DONEDNN_ENABLE_GRAPH_DUMP=ON` build time switch. By default, dump is
