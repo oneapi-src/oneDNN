@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_types.hpp"
 #include "common/gemm_utils.hpp"
+#include "common/math_utils.hpp"
 #include "common/primitive.hpp"
 #include "common/sdpa_pd.hpp"
 #include "common/type_helpers.hpp"
@@ -138,6 +139,16 @@ struct micro_sdpa_t : public gpu_primitive_t {
                         "if vs zero points data type is s4 or u4 then the "
                         "group size(%d) must be 16.",
                         value_group_size());
+            }
+
+            if (!desc()->vs_scales.has_default_values()
+                    || !desc()->vs_zero_points.has_default_values()) {
+                int vgs = value_group_size();
+                VDISPATCH_SDPA(
+                        math::is_pow2<int>(vgs) || vgs == val_md()->dims[3],
+                        "the value group size(%d) must be a power of 2 or "
+                        "equal to the number of values(%d).",
+                        vgs, val_md()->dims[3]);
             }
 
             CHECK(init_microkernels(engine));
