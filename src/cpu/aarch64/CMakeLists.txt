@@ -20,13 +20,6 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
     )
 
-file(GLOB XBYAK_AARCH64_FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/xbyak_aarch64/src/xbyak_aarch64_impl.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/xbyak_aarch64/src/util_impl.cpp
-    )
-
-list(REMOVE_ITEM SOURCES ${XBYAK_AARCH64_FILES})
-
 if(NOT DNNL_AARCH64_USE_ACL)
     file(GLOB_RECURSE ACL_FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/acl_*.[ch]
@@ -49,4 +42,4 @@ add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
 
-add_subdirectory(xbyak_aarch64)
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/xbyak_aarch64 xbyak_aarch64)

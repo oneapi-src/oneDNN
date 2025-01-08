@@ -31,8 +31,8 @@
 #define XBYAK_USE_MMAP_ALLOCATOR
 #endif
 
-#include "cpu/aarch64/xbyak_aarch64/xbyak_aarch64/xbyak_aarch64.h"
-#include "cpu/aarch64/xbyak_aarch64/xbyak_aarch64/xbyak_aarch64_util.h"
+#include "xbyak_aarch64/xbyak_aarch64/xbyak_aarch64.h"
+#include "xbyak_aarch64/xbyak_aarch64/xbyak_aarch64_util.h"
 
 namespace dnnl {
 namespace impl {
