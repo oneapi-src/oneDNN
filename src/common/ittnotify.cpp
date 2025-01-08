@@ -18,8 +18,8 @@
 #include "utils.hpp"
 
 #if defined(DNNL_ENABLE_ITT_TASKS)
-#include "common/ittnotify/ittnotify.h"
 #include "dnnl_debug.h"
+#include "ittnotify/ittnotify.h"
 #endif
 
 namespace dnnl {
