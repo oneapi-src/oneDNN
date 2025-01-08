@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Arm Ltd. and affiliates
+* Copyright 2020-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -47,10 +47,8 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
         acl_post_ops_t post_ops;
     };
 
-    // hot fix solution for stateless API which should be replaced soon.
-    // acl_gemm_convolution_fwd_t(const pd_t *apd)
-    //     : primitive_t(apd), acl_obj_(std::make_unique<acl_obj_t<Op>>()) {}
-    acl_gemm_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    acl_gemm_convolution_fwd_t(const pd_t *apd)
+        : primitive_t(apd), acl_obj_(std::make_unique<acl_obj_t<Op>>()) {}
 
     status_t init(engine_t *engine) override;
 
@@ -65,15 +63,8 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-
-    // hot fix solution for stateless API which should be replaced soon.
-    std::unique_ptr<acl_obj_t<Op>> reinitialize_acl_obj() const;
-
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
-    // commented due to hot fix solution for stateless API which should be replaced soon.
-    // std::unique_ptr<acl_obj_t<Op>> acl_obj_;
-
+    std::unique_ptr<acl_obj_t<Op>> acl_obj_;
 }; // acl_gemm_convolution_fwd_t
 
 } // namespace aarch64
