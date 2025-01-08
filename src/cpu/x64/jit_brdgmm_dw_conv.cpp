@@ -139,9 +139,9 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
             IMPLICATION(is_int8,
                     one_of(bia_type, data_type::undef, f32, s32, s8, u8)),
             VERBOSE_UNSUPPORTED_BIAS_CFG);
-    VDISPATCH_CONV(
-            IMPLICATION(!is_int8,
-                    one_of(bia_type, data_type::undef, src_type, dst_type)),
+    VDISPATCH_CONV(IMPLICATION(!is_int8,
+                           one_of(bia_type, data_type::undef, data_type::f32,
+                                   src_type, dst_type)),
             VERBOSE_UNSUPPORTED_BIAS_CFG);
     VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
             VERBOSE_BAD_ALGORITHM);
