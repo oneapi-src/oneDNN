@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -334,7 +334,8 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
 status_t brgemm_t::create_verbose_info() {
 #if defined(DISABLE_VERBOSE)
     return status::success;
-#else
+#endif
+
     const auto &d = brgemm_desc_;
     std::stringstream ss;
 
@@ -362,7 +363,6 @@ status_t brgemm_t::create_verbose_info() {
 
     verbose_info_ = ss.str();
     return status::success;
-#endif
 }
 
 dnnl_transform::dnnl_transform(dim_t K, dim_t N, pack_type_t in_pack_type,
@@ -476,7 +476,8 @@ status_t transform_t::execute(const void *src, void *dst) const {
 status_t transform_t::create_verbose_info() {
 #if defined(DISABLE_VERBOSE)
     return status::success;
-#else
+#endif
+
     std::stringstream ss;
 
     memory_desc_t src_md;
@@ -493,7 +494,6 @@ status_t transform_t::create_verbose_info() {
 
     verbose_info_ = ss.str();
     return status::success;
-#endif
 }
 
 ////////////////

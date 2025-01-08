@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,15 +55,6 @@ void print_verbose_header() {
                 "info,graph,backend,%zu:%s\n", i, bkd->get_name().c_str());
     }
 }
-
-#if defined(DISABLE_VERBOSE)
-void partition_info_t::init(
-        const engine_t *engine, const compiled_partition_t *partition) {
-    UNUSED(engine);
-    UNUSED(partition);
-}
-
-#else
 
 namespace {
 
@@ -241,6 +232,7 @@ std::string init_info_partition(const engine_t *engine,
 
 void partition_info_t::init(const engine_t *engine,
         const compiled_partition_t *compiled_partition) {
+    // Handles VERBOSE_DISABLE since `is_initialized_` is set to `true`.
     if (is_initialized_) return;
 
     std::call_once(initialization_flag_, [&] {
@@ -248,8 +240,6 @@ void partition_info_t::init(const engine_t *engine,
         is_initialized_ = true;
     });
 }
-
-#endif
 
 } // namespace utils
 } // namespace graph
