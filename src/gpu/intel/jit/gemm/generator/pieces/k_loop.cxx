@@ -633,6 +633,11 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
     ls.schedule_if(reqLoopCheck,
         [&](Iteration h) {
             add(1 | gt | f0[0], state.K, state.K, -unrollK);
+            if (lateKLoopCheck) {
+                state.raVFlag.lock(state.flagAP);
+                if (state.vflagsEnabled())
+                    state.activeVFlags[state.flagAP.index()].clear();
+            }
         },
         [&](Iteration h) {
             return (curPhase == LoopSequencer::PhaseMainLoop);
@@ -1407,8 +1412,6 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
                     add(1, state.K, state.K, state.kNoBarrierEnd);
                 if (prefetchCPeelLoops == 0)
                     gemmPrefetchC(problem, strategy, state);
-                if (lateKLoopCheck)
-                    state.raVFlag.lock(state.flagAP);
                 haveA_lastRSWA = false;
                 status << "k loop cooldown" << status_stream::endl;
                 break;
