@@ -29,8 +29,8 @@
 #error "Level Zero is supported on Linux and Windows only"
 #endif
 
-#include "gpu/intel/sycl/l0/level_zero/ze_api.h"
-#include "gpu/intel/sycl/l0/level_zero/ze_intel_gpu.h"
+#include "level_zero/ze_api.h"
+#include "level_zero/ze_intel_gpu.h"
 
 #if !defined(__SYCL_COMPILER_VERSION)
 #error "Unsupported compiler"

@@ -19,7 +19,7 @@
 
 #include "ngen_config.hpp"
 
-#include "gpu/intel/sycl/l0/level_zero/ze_api.h"
+#include "level_zero/ze_api.h"
 
 #if defined(__linux__)
 #include <dlfcn.h>
