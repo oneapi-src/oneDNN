@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
 * Copyright 2021 Arm Ltd. and affiliates
 *
@@ -222,8 +222,11 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     auto wei_d = dnn_mem_t::init_md(prb->ndims + prb->has_groups,
             prb->wei_dims().data(), force_f32_dt ? dnnl_f32 : prb->get_dt(WEI),
             prb->wtag, prb->strides[STRIDES_WEI]);
-    auto bia_d = dnn_mem_t::init_md(1, prb->bia_dims().data(),
-            force_f32_dt ? dnnl_f32 : prb->get_dt(BIA), tag::any);
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> bia_d {};
+    if (prb->bia_dt() != dnnl_data_type_undef) {
+        bia_d = dnn_mem_t::init_md(1, prb->bia_dims().data(),
+                force_f32_dt ? dnnl_f32 : prb->get_dt(BIA), tag::any);
+    }
     auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dst_dims().data(),
             force_f32_dt ? dnnl_f32 : prb->get_dt(DST), prb->dtag,
             prb->strides[STRIDES_DST]);
@@ -253,8 +256,7 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                         | DNNL_ARG_WEIGHTS,
                 wei_mask);
     }
-    const auto dw_bia_dt = prb->dir == FWD_B ? dnnl_f32 : dnnl_data_type_undef;
-    attr_args.prepare_dw_post_op(prb->attr, prb->get_dt(WEI), dw_bia_dt);
+    attr_args.prepare_dw_post_op(prb->attr, prb->get_dt(WEI), prb->bia_dt());
     auto dnnl_attr = make_benchdnn_dnnl_wrapper(
             create_dnnl_attr(prb->attr, attr_args));
 
@@ -262,7 +264,6 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
         case FWD_D:
         case FWD_B:
         case FWD_I:
-            if (prb->dir != FWD_B) bia_d.reset(nullptr);
             TIME_C_PD(DNN_SAFE_STATUS(
                     dnnl_convolution_forward_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine,
@@ -285,7 +286,6 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             break;
         case BWD_W:
         case BWD_WB:
-            if (prb->dir == BWD_W) bia_d.reset(nullptr);
             TIME_C_PD(DNN_SAFE_STATUS(
                     dnnl_convolution_backward_weights_primitive_desc_create(
                             &init_pd_args.pd, init_pd_args.engine, alg, src_d,
@@ -325,13 +325,22 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
     update_cpu_ref_attrs(cpu_attr);
     std::vector<std::vector<dnnl_data_type_t>> prim_ref_dt {
             prb->dt, {dnnl_f32}};
-    if (is_cpu()) prim_ref_dt.erase(prim_ref_dt.begin());
+    // If there's no bias, undef data type should be used for prim_ref as well.
+    dnnl_data_type_t cpu_bia_dt
+            = prb->bia_dt() == dnnl_data_type_undef ? prb->bia_dt() : dnnl_f32;
+    std::vector<dnnl_data_type_t> prim_ref_bia_dt {prb->bia_dt(), cpu_bia_dt};
+    if (is_cpu()) {
+        prim_ref_dt.erase(prim_ref_dt.begin());
+        prim_ref_bia_dt.erase(prim_ref_bia_dt.begin());
+    }
     dnnl_primitive_t prim_ref_ {};
 
-    for (const auto &prim_ref_dt_i : prim_ref_dt) {
-        prb_t prb_cpu {*prb, prb->dir, prim_ref_dt_i, tag::any, tag::any,
-                tag::any, {vdims_t(STRIDES_SIZE)}, DIRECT, prb->mb, cpu_attr,
-                prb->ctx_init, prb->ctx_exe, prb->impl_filter};
+    for_(const auto &prim_ref_dt_i : prim_ref_dt)
+    for (const auto &prim_ref_bia_dt_i : prim_ref_bia_dt) {
+        prb_t prb_cpu {*prb, prb->dir, prim_ref_dt_i, prim_ref_bia_dt_i,
+                tag::any, tag::any, tag::any, {vdims_t(STRIDES_SIZE)}, DIRECT,
+                prb->mb, cpu_attr, prb->ctx_init, prb->ctx_exe,
+                prb->impl_filter};
 
         init_pd_args_t<prb_t> init_pd_args(
                 /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
@@ -366,9 +375,9 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
 }
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
-    skip_unimplemented_data_type(
-            {prb->get_dt(SRC), prb->get_dt(WEI), prb->get_dt(DST)}, prb->dir,
-            res);
+    skip_unimplemented_data_type({prb->get_dt(SRC), prb->get_dt(WEI),
+                                         prb->get_dt(BIA), prb->get_dt(DST)},
+            prb->dir, res);
     skip_unimplemented_sum_po(prb->attr, res, dnnl_convolution,
             prb->get_dt(SRC), prb->get_dt(DST));
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_convolution);
@@ -550,7 +559,7 @@ std::vector<data_kind_t> get_kinds_to_check(const prb_t *prb) {
         check_kinds = {SRC};
     } else if (prb->dir & FLAG_BWD && prb->dir & FLAG_WEI) {
         check_kinds = {WEI};
-        if (prb->dir & FLAG_BIA) check_kinds.push_back(BIA);
+        if (prb->bia_dt() != dnnl_data_type_undef) check_kinds.push_back(BIA);
     } else {
         assert(!"unexpected!");
         SAFE_V(FAIL);

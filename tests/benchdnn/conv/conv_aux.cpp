@@ -412,6 +412,8 @@ std::string prb_t::set_repro_line() {
 
     if (canonical || dir != def.dir[0]) s << "--dir=" << dir << " ";
     if (canonical || !has_default_dts) s << "--dt=" << dt << " ";
+    if ((canonical || bia_dt_ != def.bia_dt[0]) && !(dir & FLAG_BIA))
+        s << "--bia-dt=" << bia_dt_ << " ";
     if (canonical || stag != def.stag[0]) s << "--stag=" << stag << " ";
     if (canonical || wtag != def.wtag[0]) s << "--wtag=" << wtag << " ";
     if (canonical || dtag != def.dtag[0]) s << "--dtag=" << dtag << " ";
