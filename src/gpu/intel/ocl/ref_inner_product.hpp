@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,26 +58,23 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
             VDISPATCH_INNER_PRODUCT_SC(
                     set_default_params(), VERBOSE_UNSUPPORTED_TAG);
 
-            VDISPATCH_INNER_PRODUCT(
-                    utils::one_of(true,
-                            expect_data_types(
-                                    u8, s8, data_type::undef, s8, s32),
-                            expect_data_types(
-                                    u8, s8, data_type::undef, u8, s32),
-                            expect_data_types(
-                                    u8, s8, data_type::undef, s32, s32),
-                            expect_data_types(
-                                    s8, s8, data_type::undef, s8, s32),
-                            expect_data_types(
-                                    s8, s8, data_type::undef, u8, s32),
-                            expect_data_types(
-                                    s8, s8, data_type::undef, s32, s32),
-                            expect_data_types(
-                                    bf16, bf16, data_type::undef, bf16, f32),
-                            expect_data_types(
-                                    bf16, bf16, data_type::undef, f32, f32),
-                            expect_data_types(f32, f32, f32, f32, f32),
-                            expect_data_types(f16, f16, f16, f16, f32)),
+            auto src_dt = src_md()->data_type;
+            auto dst_dt = dst_md()->data_type;
+            auto wei_dt = weights_md(0)->data_type;
+
+            const bool is_f32 = src_dt == f32
+                    && utils::one_of(wei_dt, f32, s8, u8)
+                    && utils::one_of(dst_dt, f32, f16, bf16);
+            const bool is_f16 = src_dt == f16
+                    && utils::one_of(wei_dt, f16, s8, u8)
+                    && utils::one_of(dst_dt, u8, s8, f16, bf16);
+            const bool is_bf16 = src_dt == bf16
+                    && utils::one_of(wei_dt, bf16, s8, u8)
+                    && utils::one_of(dst_dt, bf16, f32);
+            const bool is_int8 = utils::one_of(src_dt, u8, s8)
+                    && utils::one_of(wei_dt, u8, s8)
+                    && utils::one_of(dst_dt, f32, s8, u8, s32, f16, bf16);
+            VDISPATCH_INNER_PRODUCT((is_int8 || is_f32 || is_f16 || is_bf16),
                     VERBOSE_UNSUPPORTED_DT);
 
             VDISPATCH_INNER_PRODUCT(
