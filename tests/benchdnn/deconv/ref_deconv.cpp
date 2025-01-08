@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ void compute_ref_direct_fwd(const prb_t *prb, const args_t &args) {
                 float conv_res = 0;
                 ker(conv_res, g, mb, oc, od, oh, ow);
 
-                if (prb->dir & FLAG_BIA) {
+                if (prb->bia_dt() != dnnl_data_type_undef) {
                     const size_t bia_off = bia_off_f(prb, g, oc);
                     conv_res += ((float *)bia_m)[bia_off];
                 }
@@ -287,7 +287,7 @@ void compute_ref_direct_bwd_d(const prb_t *prb, const args_t &args) {
                 else
                     ker(conv_res, g, mb, ic, id, ih, iw);
 
-                if (prb->dir & FLAG_BIA) {
+                if (prb->bia_dt() != dnnl_data_type_undef) {
                     const size_t bia_off = (size_t)g * ICG + ic;
                     conv_res += ((float *)bia_m)[bia_off];
                 }
@@ -481,7 +481,7 @@ void compute_ref_bwd_w(
     // entry problem which is transposed - `p_tr`. Simpler to use the kernel
     // directly.
     // Take original memories, not `ref_conv_args`.
-    if (prb->dir & FLAG_BIA) {
+    if (prb->bia_dt() != dnnl_data_type_undef) {
         const dnn_mem_t &diff_bia_m = args.find(DNNL_ARG_DIFF_BIAS);
         const dnn_mem_t &diff_dst_m = args.find(DNNL_ARG_DIFF_DST);
         /* help compiler optimize the code */
@@ -512,8 +512,8 @@ void compute_ref_bwd_w(
 void compute_ref(
         const prb_t *prb, const args_t &args, dnnl_primitive_t prim_ref) {
     // Update prb descriptor to re-use convolution reference.
-    prb_t prb_tr((desc_t)*prb, prb->dir, prb->dt, prb->stag, prb->wtag,
-            prb->dtag, prb->alg, prb->mb, prb->attr, prb->ctx_init,
+    prb_t prb_tr((desc_t)*prb, prb->dir, prb->dt, prb->bia_dt(), prb->stag,
+            prb->wtag, prb->dtag, prb->alg, prb->mb, prb->attr, prb->ctx_init,
             prb->ctx_exe, prb->impl_filter);
     std::swap(prb_tr.ic, prb_tr.oc);
     std::swap(prb_tr.ih, prb_tr.oh);

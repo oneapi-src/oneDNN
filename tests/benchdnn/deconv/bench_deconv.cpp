@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ void check_correctness(
         const settings_t &s, driver_task_executor_t &task_executor) {
     for_(const auto &i_dir : s.dir)
     for_(const auto &i_dt : s.dt)
+    for_(const auto &i_bia_dt_ : s.bia_dt)
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_wtag : s.wtag)
     for_(const auto &i_dtag : s.dtag)
@@ -50,8 +51,23 @@ void check_correctness(
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
     for (const auto &i_mb : s.mb) {
-        const prb_t prb(s.desc, i_dir, i_dt, i_stag, i_wtag, i_dtag, i_alg,
-                i_mb, i_attr, i_ctx_init, i_ctx_exe, s.impl_filter);
+        auto i_bia_dt = i_bia_dt_;
+        if (i_dir & FLAG_BIA) {
+            if (i_bia_dt != dnnl_data_type_undef) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "Warning: `--dir=FWD_B,BWD_WB` options are "
+                        "incompatible with `--bia-dt` option. To specify a "
+                        "bias data type, use `--dir=FWD_D,FWD_I,BWD_W` values "
+                        "intead.");
+            }
+            // The f32/f64 data type should be used as the default for bias with
+            // directions that include a bias.
+            const bool is_f64 = (i_dt.size() == 1 && i_dt[0] == dnnl_f64)
+                    || (i_dt.size() > 1 && i_dt[1] == dnnl_f64);
+            i_bia_dt = is_f64 ? dnnl_f64 : dnnl_f32;
+        }
+        const prb_t prb(s.desc, i_dir, i_dt, i_bia_dt, i_stag, i_wtag, i_dtag,
+                i_alg, i_mb, i_attr, i_ctx_init, i_ctx_exe, s.impl_filter);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(
@@ -85,6 +101,7 @@ int bench(int argc, char **argv) {
                 || parse_batch(bench, argv[0])
                 || parse_dir(s.dir, def.dir, argv[0])
                 || parse_multi_dt(s.dt, def.dt, argv[0], "dt")
+                || parse_dt(s.bia_dt, def.bia_dt, argv[0], "bia-dt")
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.wtag, def.wtag, argv[0], "wtag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")

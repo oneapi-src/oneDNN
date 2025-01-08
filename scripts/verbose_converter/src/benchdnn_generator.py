@@ -56,16 +56,7 @@ class Converter(metaclass=ConverterMeta):
         if self.entry.prop_kind not in dirs:
             return ""
 
-        dir = dirs[self.entry.prop_kind]
-        for md in self.entry.mds:
-            if md.arg != "bia" or md.data_type == "undef":
-                continue
-            if "FWD" in dir:
-                return "FWD_B"
-            if dir == "BWD_W":
-                return "BWD_WB"
-            break
-        return dir
+        return dirs[self.entry.prop_kind]
 
     def _get_alg(self):
         return self.entry.aux.get("alg")
@@ -446,7 +437,7 @@ class ConcatConverter(CommonDataTypeMixin, MultiSourceMixin, Converter):
 class ConvolutionConverter(
     AlgorithmMixin,
     TagTripletMixin,
-    MultiDataTypeMixin,
+    MultiDataTypeWithBiasMixin,
     Converter,
 ):
     driver: str = "conv"

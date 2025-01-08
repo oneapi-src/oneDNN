@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -305,7 +305,7 @@ void compute_wino_ref_fwd(const prb_t *prb, const args_t &args) {
     SAFE_V(prb->kh == 3 ? OK : FAIL);
     SAFE_V(prb->kw == 3 ? OK : FAIL);
 
-    bool with_bias = prb->dir & FLAG_BIA;
+    bool with_bias = prb->bia_dt() != dnnl_data_type_undef;
     const int64_t t_pad = prb->ph;
     const int64_t l_pad = prb->pw;
     const int64_t wp_max = prb->iw + l_pad;
@@ -431,7 +431,7 @@ void compute_wino_ref_bwd_d(const prb_t *prb, const args_t &args) {
     const int64_t hp_max = prb->oh + t_pad;
     const int64_t p_dim = prb->mb * sp.h_tiles * sp.w_tiles;
 
-    bool with_bias = prb->dir & FLAG_BIA;
+    bool with_bias = prb->bia_dt() != dnnl_data_type_undef;
 
     benchdnn_parallel_nd(prb->mb, prb->oc, sp.h_tiles, sp.w_tiles,
             [&](int64_t img, int64_t c, int64_t hfm, int64_t wfm) {
@@ -621,7 +621,7 @@ void compute_wino_ref_bwd_w(const prb_t *prb, const args_t &args) {
 
     free_scratchpad(&sp);
 
-    if (prb->dir & FLAG_BIA) compute_ref_bwd_bias(prb, args);
+    if (prb->bia_dt() != dnnl_data_type_undef) compute_ref_bwd_bias(prb, args);
 }
 
 } // namespace deconv
