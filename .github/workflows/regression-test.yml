@@ -147,7 +147,7 @@ jobs:
 
       - shell: bash
         run: |
-          OMP_NUM_THREADS=4 sudo ${{ github.workspace }}/oneDNN/tests/regression/bench_regression.sh > 4_threads.txt
+          OMP_NUM_THREADS=4 sudo bash ${{ github.workspace }}/oneDNN/tests/regression/bench_regression.sh > 4_threads.txt
 
       - name: Upload regression test results
         uses: actions/upload-artifact@v4
