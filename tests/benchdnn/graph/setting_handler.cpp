@@ -759,22 +759,18 @@ bool get_deconv_desc(const deserialized_op &base_op_ref, ::deconv::desc_t &d) {
 }
 
 bool get_deconv_dir(const deserialized_op &base_op_ref, dir_t &dir) {
-    bool ret = false;
     const auto &op_kind = base_op_ref.kind_;
     if (op_kind == "ConvTranspose") {
-        dir = base_op_ref.in_lts_.size() > 2 ? dir_t::FWD_B : dir_t::FWD_I;
-        ret = true;
+        dir = dir_t::FWD_I;
     } else if (op_kind == "ConvTransposeBackwardData") {
         dir = dir_t::BWD_D;
-        ret = true;
     } else if (op_kind == "ConvTransposeBackwardWeights") {
         dir = dir_t::BWD_W;
-        ret = true;
     } else {
         assert(!"unexpected op_kind");
         return false;
     }
-    return ret;
+    return true;
 }
 
 bool get_deconv_dt(
@@ -856,6 +852,10 @@ bool get_deconv_wtag(const deserialized_op &base_op_ref, std::string &tag) {
             deconv::get_deconv_dir(base_op_ref, op_setting.dir.front()), res);
     DNN_GRAPH_CHECK_SETTINGS(
             deconv::get_deconv_dt(base_op_ref, op_setting.dt.front()), res);
+    DNN_GRAPH_CHECK_SETTINGS(
+            get_driver_bia_dt(base_op_ref, op_setting.bia_dt.front(),
+                    op_setting.dt.front()[0]),
+            res);
     DNN_GRAPH_CHECK_SETTINGS(
             get_driver_stag_and_dtag(base_op_ref, op_setting.stag.front(),
                     op_setting.dtag.front(),
