@@ -53,10 +53,10 @@ DECLARE_2D_TILE_LOAD_PACKED_VEC(
 #endif
 
 #ifdef BLOCK_A
-DECLARE_2D_TILE(a_tile_type_half, half, SUBGROUP_SIZE, ugemm_vs_sg_tile_m, 1, 1,
+DECLARE_2D_TILE(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE, ugemm_vs_sg_tile_m, 1, 1,
         ugemm_vs_sg_tile_n)
 #else
-DECLARE_2D_TILE(a_tile_type_half, half, SUBGROUP_SIZE, ugemm_vs_sg_tile_m, 8, 1,
+DECLARE_2D_TILE(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE, ugemm_vs_sg_tile_m, 8, 1,
         ugemm_vs_sg_tile_n / 8)
 #endif
 
@@ -93,23 +93,23 @@ DECLARE_2D_TILE_BLOCK_OPS(mask_tile_type, half, SUBGROUP_SIZE, mask_br, mask_bc,
 #endif
 
 #ifdef BLOCK_A
-DECLARE_2D_TILE_BLOCK_OPS(a_tile_type_half, half, SUBGROUP_SIZE,
+DECLARE_2D_TILE_BLOCK_OPS(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE,
         ugemm_vs_sg_tile_m, 1, 1, ugemm_vs_sg_tile_n)
 #endif
 #ifdef BLOCK_2D_A
-DECLARE_2D_TILE_BLOCK2D_OPS(a_tile_type_half, half, SUBGROUP_SIZE,
+DECLARE_2D_TILE_BLOCK2D_OPS(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE,
         ugemm_vs_sg_tile_m, 8, 1, ugemm_vs_sg_tile_n / 8)
 #endif
 
 #ifdef BLOCK_A
 DECLARE_2D_TILE_COPY_REBLOCK(a_tile_type, SUBGROUP_SIZE, ugemm_vs_c_type_block0,
         ugemm_vs_c_type_block1, ugemm_vs_c_type_nblock0,
-        ugemm_vs_c_type_nblock1, a_tile_type_half, SUBGROUP_SIZE,
+        ugemm_vs_c_type_nblock1, a_tile_type_dst, SUBGROUP_SIZE,
         ugemm_vs_sg_tile_m, 1, 1, ugemm_vs_sg_tile_n)
 #else
 DECLARE_2D_TILE_COPY_REBLOCK(a_tile_type, SUBGROUP_SIZE, ugemm_vs_c_type_block0,
         ugemm_vs_c_type_block1, ugemm_vs_c_type_nblock0,
-        ugemm_vs_c_type_nblock1, a_tile_type_half, SUBGROUP_SIZE,
+        ugemm_vs_c_type_nblock1, a_tile_type_dst, SUBGROUP_SIZE,
         ugemm_vs_sg_tile_m, 8, 1, ugemm_vs_sg_tile_n / 8)
 #endif
 
@@ -165,7 +165,7 @@ DECLARE_2D_TILE_RSELECT(a_scale_tile_type, SUBGROUP_SIZE, ugemm_vs_sg_tile_n, 1,
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) kernel void
 micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
-        const global VAL_DATA_T *V, global half *A,
+        const global VAL_DATA_T *V, global DST_DATA_T *A,
         const global SCALE_DATA_T *scale_ptr, const global half *msk, int d,
         int k, int q, const global KEY_ATTR_SCALES_DATA_T *K_scales,
         const global KEY_ATTR_ZP_DATA_T *K_zp,
@@ -237,7 +237,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     K_scales += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE;
 #endif
 #if KEY_SCALES == QUANTIZE_COMMON
-    float k_scale = convert_float(*K_scales);
+    float k_scale = CONVERT_FLOAT_T(*K_scales);
 #endif
 #if KEY_ZERO_POINTS
     K_zp += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE
@@ -247,7 +247,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     V_scales += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE;
 #endif
 #if VAL_SCALES == QUANTIZE_COMMON
-    float v_scale = convert_float(*V_scales);
+    float v_scale = CONVERT_FLOAT_T(*V_scales);
 #endif
 #if VAL_ZERO_POINTS
     V_zp += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE
@@ -264,16 +264,16 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     tile_load(&Q_tile, (global uint *)Q, (d + 1) >> 1, q, ldq >> 1, 0,
             wg_j0 + q0_copy);
 #else
-    tile_load_packed_half(&Q_tile, Q, d, q, ldq, 0, wg_j0 + q0_copy);
+    tile_load_packed_vec(&Q_tile, Q, d, q, ldq, 0, wg_j0 + q0_copy);
 #endif
 
     /* Load scale */
 #if WITH_ATTN_SCALE
 #if INVERT_SCALE
-    float iscale = convert_float(*scale_ptr);
+    float iscale = CONVERT_FLOAT_T(*scale_ptr);
     float scale = native_recip(iscale);
 #else
-    float scale = convert_float(*scale_ptr);
+    float scale = CONVERT_FLOAT_T(*scale_ptr);
     float iscale = native_recip(scale);
 #endif
 #else
@@ -588,18 +588,18 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     tile_elementwise(A_scale_tile, native_vrecip);
     tile_hbroadcast_mul(&A_tile, A_scale_tile);
 
-    /* Convert to half precision and store */
-    a_tile_type_half A_tile_half;
-    tile_copy_reblock(A_tile, &A_tile_half);
-
     uint sg_i0_vs = sg_i_vs * ugemm_vs_sg_tile_m;
     uint sg_j0_vs = sg_j_vs * ugemm_vs_sg_tile_n + wg_j0;
 
+    /* Convert to dst precision and store */
+    a_tile_type_dst A_tile_dst;
+    tile_copy_reblock(A_tile, &A_tile_dst);
+
 #ifdef BLOCK_2D_A
-    tile_store_block2d(A_tile_half, A, d, q, lda, sg_i0_vs, sg_j0_vs);
+    tile_store_block2d(A_tile_dst, A, d, q, lda, sg_i0_vs, sg_j0_vs);
 #elif defined(BLOCK_A)
-    tile_store_block_rem_q(A_tile_half, A, q, lda, sg_i0_vs, sg_j0_vs);
+    tile_store_block_rem_q(A_tile_dst, A, q, lda, sg_i0_vs, sg_j0_vs);
 #else
-    tile_store(A_tile_half, A, d, q, lda, sg_i0_vs, sg_j0_vs);
+    tile_store(A_tile_dst, A, d, q, lda, sg_i0_vs, sg_j0_vs);
 #endif
 }
