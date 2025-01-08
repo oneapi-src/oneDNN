@@ -74,6 +74,10 @@ private:
     void graph_attrs_rewrite(deserialized_graph &dgraph);
     void dt_rewrite(deserialized_graph &dgraph);
     void dt_map_rewrite(deserialized_graph &dgraph);
+    // Rewrite some linked attribute and shapes, such as group-shape and
+    // scale/zp shape of dynamic dequantization for per-group quantization, to
+    // simplify the cml input of rewriting.
+    void rewrite_linked_shape_and_attr(deserialized_graph &dgraph);
 };
 
 } // namespace graph

@@ -498,6 +498,7 @@ bool deserialized_graph::check_tensor_with_mb(size_t tensor_id,
         return mb_rewrite_ret.at(tensor_id);
 
     bool ret = true;
+    // TODO: initialize with false to avoid multiple re-initialization
     for (const auto &aop : in_lt_2_ops_.at(tensor_id)) {
         const bool matmul_mb_rewrite = (aop.kind_ == "MatMul")
                 && aop.in_lts_[0].shape_.size() > 2
