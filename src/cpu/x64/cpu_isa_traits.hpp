@@ -47,8 +47,8 @@
 #pragma warning(disable : 4267)
 #endif
 #include "common/compiler_workarounds.hpp"
-#include "cpu/x64/xbyak/xbyak.h"
-#include "cpu/x64/xbyak/xbyak_util.h"
+#include "xbyak/xbyak.h"
+#include "xbyak/xbyak_util.h"
 
 namespace dnnl {
 namespace impl {
