@@ -4,7 +4,7 @@
 --dt=f8_e4m3:f8_e4m3:f32,f8_e4m3,f8_e5m2:f8_e5m2:f32,f8_e5m2
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1,1:0,3:1
---bia_dt=undef,f32,f16,bf16 --bia_mask=2
+--bia-dt=undef,f32,f16,bf16 --bia_mask=2
 
 --attr-scales=
 --attr-post-ops=
@@ -21,7 +21,7 @@
 
 --stag=ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=3:1,3:3
---bia_dt=f8_e4m3,f8_e5m2,f16,bf16 --bia_mask=1,2,3
+--bia-dt=f8_e4m3,f8_e5m2,f16,bf16 --bia_mask=1,2,3
 --attr-scales=src:common:0.25+wei:common:0.5+dst:common:4
 --attr-post-ops=add:f32,sum+mul:s32:per_oc+linear:2:-1
 --batch=shapes_2d
@@ -36,7 +36,7 @@
 --reset
 --dt=f8_e4m3:f8_e4m3:f32,f8_e4m3,f8_e5m2:f8_e5m2:f32,f8_e5m2
 --stag=abc,acb --wtag=abc,acb --dtag=abc
---bia_dt=undef,f32 --bia_mask=4,6
+--bia-dt=undef,f32 --bia_mask=4,6
 
 --runtime_dims_masks=0,1:1
 --attr-post-ops=,sum
@@ -54,7 +54,7 @@
 --dt=f8_e4m3:f8_e4m3:f32,f8_e4m3,f8_e5m2:f8_e5m2:f32,f8_e5m2
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1,0:2,2:3
---bia_dt=undef,f32
+--bia-dt=undef,f32
 --bia_mask=2
 
 --attr-scales=src:common:0.25+wei:common:0.5+dst:common:4
@@ -74,7 +74,7 @@
 # batch size smaller than num_threads
 --reset
 --stag=abc --wtag=abc --dtag=abc
---dt=f8_e4m3,f8_e5m2 --bia_dt=f32 --bia_mask=4
+--dt=f8_e4m3,f8_e5m2 --bia-dt=f32 --bia_mask=4
 2x20x30:2x30x4
 2x20x30:1x30x4
 

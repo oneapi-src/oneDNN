@@ -5,7 +5,7 @@
 --dt=u8:s8:u8,s8:s8:f32
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,1:0
---bia_dt=undef,f32,u8 --bia_mask=2
+--bia-dt=undef,f32,u8 --bia_mask=2
 
 --attr-scales=src:common:0.25+wei:common:0.5+dst:common:4
 --attr-post-ops=,sum,relu
@@ -18,7 +18,7 @@
 --dt=u8:s8:u8,s8:s8:f32
 --stag=ab,ba --wtag=ab,ba --dtag=ab
 --runtime_dims_masks=0,2:1
---bia_dt=undef,f32,u8 --bia_mask=2
+--bia-dt=undef,f32,u8 --bia_mask=2
 
 --attr-scales=src:common:0.25+wei:common:0.5+dst:common:4
 --attr-zero-points=src:common:1+wei:common:-1+dst:common:2
@@ -37,7 +37,7 @@
 # zero point doesn't belong to the data type (e.g. -1 is not u8)
 --dt=u8:s8:s8
 --runtime_dims_masks=0
---bia_dt=undef
+--bia-dt=undef
 --attr-scales=src:common:0.25+wei:common:0.5+dst:common:1
 --attr-zero-points=src:common:-5, \
                    src:common:-2+wei:common:128+dst:common:-129
