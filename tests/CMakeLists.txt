@@ -18,6 +18,8 @@ if (NOT DNNL_BUILD_TESTS)
     return()
 endif()
 
+include_directories_with_host_compiler(${PROJECT_SOURCE_DIR}/third_party)
+
 # propagate TEST specific flags
 append(CMAKE_C_FLAGS "${CMAKE_TEST_CCXX_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_TEST_CCXX_FLAGS}")
