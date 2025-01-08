@@ -8,7 +8,7 @@
 #ifndef _ZE_STYPES_H
 #define _ZE_STYPES_H
 
-#include "gpu/intel/sycl/l0/level_zero/ze_api.h"
+#include "ze_api.h"
 
 #define ZE_STRUCTURE_TYPE_PITCHED_ALLOC_DEVICE_EXP_PROPERTIES (ze_structure_type_t)0x0002001D
 #define ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC (ze_structure_type_t)0x0002001E

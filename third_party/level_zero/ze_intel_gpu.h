@@ -8,8 +8,8 @@
 #ifndef _ZE_INTEL_GPU_H
 #define _ZE_INTEL_GPU_H
 
-#include "gpu/intel/sycl/l0/level_zero/ze_stypes.h"
-#include "gpu/intel/sycl/l0/level_zero/ze_api.h"
+#include "ze_stypes.h"
+#include "ze_api.h"
 
 #if defined(__cplusplus)
 #pragma once

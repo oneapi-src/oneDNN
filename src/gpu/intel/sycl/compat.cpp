@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include "gpu/intel/utils.hpp"
 #include "oneapi/dnnl/dnnl_config.h"
 
-#include "gpu/intel/sycl/l0/level_zero/ze_api.h"
+#include "level_zero/ze_api.h"
 
 #if __has_include(<sycl/backend/opencl.hpp>)
 #include <sycl/backend/opencl.hpp>
