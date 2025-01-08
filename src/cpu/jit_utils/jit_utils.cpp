@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 * Copyright 2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@
 #endif
 
 #if DNNL_ENABLE_JIT_PROFILING
-#include "common/ittnotify/jitprofiling.h"
+#include "ittnotify/jitprofiling.h"
 #ifdef __linux__
 #include "cpu/jit_utils/linux_perf/linux_perf.hpp"
 #endif
