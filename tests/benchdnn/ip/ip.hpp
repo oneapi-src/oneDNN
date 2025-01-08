@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ struct settings_t : public base_settings_t {
 
     std::vector<dir_t> dir {FWD_B};
     std::vector<std::vector<dnnl_data_type_t>> dt {{dnnl_f32}};
+    std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
 
     const char *perf_template_csv() const {
@@ -65,8 +66,8 @@ struct settings_t : public base_settings_t {
     void reset() { *this = settings_t(perf_template); }
 
     bool has_single_setup() const override {
-        return dir.size() == 1 && dt.size() == 1 && stag.size() == 1
-                && wtag.size() == 1 && dtag.size() == 1
+        return dir.size() == 1 && dt.size() == 1 && bia_dt.size() == 1
+                && stag.size() == 1 && wtag.size() == 1 && dtag.size() == 1
                 && base_settings_t::has_single_setup();
     }
 };
@@ -74,20 +75,22 @@ struct settings_t : public base_settings_t {
 struct prb_t : public desc_t {
     // A ctor with common interface across all drivers.
     prb_t(const settings_t &s)
-        : prb_t(s.desc, s.dir[0], s.dt[0], s.stag[0], s.wtag[0], s.dtag[0],
-                s.mb[0], s.attributes.front(), s.ctx_init[0], s.ctx_exe[0],
-                s.impl_filter) {
+        : prb_t(s.desc, s.dir[0], s.dt[0], s.bia_dt[0], s.stag[0], s.wtag[0],
+                s.dtag[0], s.mb[0], s.attributes.front(), s.ctx_init[0],
+                s.ctx_exe[0], s.impl_filter) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
     prb_t(const desc_t &desc, dir_t dir,
-            const std::vector<dnnl_data_type_t> &dt, const std::string &stag,
-            const std::string &wtag, const std::string &dtag, int64_t mb,
-            const attr_t &attr, const thr_ctx_t &ctx_init,
-            const thr_ctx_t &ctx_exe, const impl_filter_t &impl_filter)
+            const std::vector<dnnl_data_type_t> &dt, dnnl_data_type_t bia_dt,
+            const std::string &stag, const std::string &wtag,
+            const std::string &dtag, int64_t mb, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe,
+            const impl_filter_t &impl_filter)
         : desc_t(desc)
         , dir(dir)
         , dt(dt)
+        , bia_dt_(bia_dt)
         , stag(stag)
         , wtag(wtag)
         , dtag(dtag)
@@ -111,6 +114,7 @@ struct prb_t : public desc_t {
 
     dir_t dir;
     std::vector<dnnl_data_type_t> dt;
+    dnnl_data_type_t bia_dt_; // `_` to avoid conflicting name with bia_dt().
     std::string stag, wtag, dtag;
     int64_t user_mb;
     double ops;
@@ -129,9 +133,7 @@ struct prb_t : public desc_t {
 
     dnnl_data_type_t src_dt() const { return dt[0]; }
     dnnl_data_type_t wei_dt() const { return dt[1]; }
-    dnnl_data_type_t bia_dt() const {
-        return is_integral_dt(wei_dt()) ? dnnl_f32 : wei_dt();
-    } // TODO: customize
+    dnnl_data_type_t bia_dt() const { return bia_dt_; }
     dnnl_data_type_t dst_dt() const { return dt[2]; }
     dnnl_data_type_t get_dt(data_kind_t data_kind) const;
 

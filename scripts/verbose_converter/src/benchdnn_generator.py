@@ -493,7 +493,9 @@ class GroupNormalizationConverter(
         return "--tag=" + ":".join(tags)
 
 
-class InnerProductConverter(TagTripletMixin, MultiDataTypeMixin, Converter):
+class InnerProductConverter(
+    TagTripletMixin, MultiDataTypeWithBiasMixin, Converter
+):
     driver: str = "ip"
 
 

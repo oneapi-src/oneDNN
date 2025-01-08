@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ void compute_ref_fwd_ip(const prb_t *prb, const args_t &args) {
 
         d *= src_scale * wei_scale;
 
-        if (prb->dir & FLAG_BIA) {
+        if (prb->bia_dt() != dnnl_data_type_undef) {
             size_t bia_off = bia_off_f(prb, oc);
             d += ((float *)bia_m)[bia_off];
         }
@@ -104,7 +104,7 @@ void compute_ref_bwd_w_ip(const prb_t *prb, const args_t &args) {
     gemm("C", "T", "N", M, N, K, 1.f, (float *)diff_dst_m, M, (float *)src_m, N,
             0.f, (float *)diff_wei_m, N);
 
-    if (!(prb->dir & FLAG_BIA)) return;
+    if (prb->bia_dt() == dnnl_data_type_undef) return;
 
     benchdnn_parallel_nd(prb->oc, [&](int64_t oc) {
         size_t bia_off = bia_off_f(prb, oc);
