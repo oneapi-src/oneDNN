@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -168,7 +168,8 @@ private:
             "SigmoidBackward", "SoftMaxBackward", "SoftPlusBackward",
             "SqrtBackward", "TanhBackward"};
 
-    bool check_tensor_with_mb(size_t tensor_id) const;
+    bool check_tensor_with_mb(size_t tensor_id,
+            std::unordered_map<size_t, bool> &mb_rewrite_ret) const;
 };
 std::ostream &operator<<(std::ostream &s, const deserialized_graph &dg);
 

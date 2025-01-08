@@ -348,8 +348,11 @@ void deserialized_graph::load(const std::string &pass_config_json) {
         }
     }
 
+    // Keep the object out of the call due to recursion inside the call.
+    // Accumulates the state of mb rewrite of nested ops.
+    std::unordered_map<size_t, bool> mb_rewrite_ret;
     for (const auto &graph_in : graph_tensors_) {
-        if (check_tensor_with_mb(graph_in.first)) {
+        if (check_tensor_with_mb(graph_in.first, mb_rewrite_ret)) {
             graph_inputs_with_mb_.push_back(graph_in.first);
         }
     }
@@ -488,21 +491,39 @@ const deserialized_op &deserialized_graph::get_op_by_in_lt(
     return dummy;
 }
 
-bool deserialized_graph::check_tensor_with_mb(size_t tensor_id) const {
+bool deserialized_graph::check_tensor_with_mb(size_t tensor_id,
+        std::unordered_map<size_t, bool> &mb_rewrite_ret) const {
     if (in_lt_2_ops_.find(tensor_id) == in_lt_2_ops_.end()) return true;
+    if (mb_rewrite_ret.find(tensor_id) != mb_rewrite_ret.end())
+        return mb_rewrite_ret.at(tensor_id);
 
+    bool ret = true;
     for (const auto &aop : in_lt_2_ops_.at(tensor_id)) {
-        // those unsupport op need rewrite dst_shape / weight_shape also
+        const bool matmul_mb_rewrite = (aop.kind_ == "MatMul")
+                && aop.in_lts_[0].shape_.size() > 2
+                && (tensor_id == aop.in_lts_[0].id_
+                        || tensor_id == aop.in_lts_[1].id_);
+        // The second and third inputs of dynamic dequantize are allowed to
+        // rewrite md only when the sebsequent op supports mb rewriting.
+        const bool dynamicdq_mb_rewrite = (aop.kind_ == "DynamicDequantize")
+                && aop.in_lts_[0].shape_.size() > 2
+                && check_tensor_with_mb(aop.out_lts_[0].id_, mb_rewrite_ret)
+                && (tensor_id == aop.in_lts_[0].id_
+                        || tensor_id == aop.in_lts_[1].id_
+                        || tensor_id == aop.in_lts_[2].id_);
+
         if (std::find(unsupport_mb_rewrite_ops_.begin(),
                     unsupport_mb_rewrite_ops_.end(), aop.kind_)
                 != unsupport_mb_rewrite_ops_.end()) {
-            return false;
-            // bwd ops have multiple inputs with mb
+            // those unsupport op need rewrite dst_shape / weight_shape also
+            ret = false;
         } else if (std::find(bwd_ops_.begin(), bwd_ops_.end(), aop.kind_)
                 != bwd_ops_.end()) {
+            // bwd ops have multiple inputs with mb
+            ret = false;
             if (tensor_id == aop.in_lts_[0].id_
                     || tensor_id == aop.in_lts_[1].id_) {
-                check_tensor_with_mb(aop.out_lts_[0].id_);
+                ret = check_tensor_with_mb(aop.out_lts_[0].id_, mb_rewrite_ret);
                 // deal with LayerNormBackward
             } else if (aop.kind_ == "LayerNormBackward"
                     && ((tensor_id == aop.in_lts_[2].id_
@@ -511,13 +532,12 @@ bool deserialized_graph::check_tensor_with_mb(size_t tensor_id) const {
                             || (tensor_id == aop.in_lts_[3].id_
                                     && aop.in_lts_[3].shape_[0]
                                             == aop.in_lts_[0].shape_[0]))) {
-                check_tensor_with_mb(aop.out_lts_[0].id_);
-            } else {
-                return false;
+                ret = check_tensor_with_mb(aop.out_lts_[0].id_, mb_rewrite_ret);
             }
-            // binary ops need consider rank of 2 inputs
         } else if (std::find(binary_ops_.begin(), binary_ops_.end(), aop.kind_)
                 != binary_ops_.end()) {
+            // binary ops need consider rank of 2 inputs
+            ret = false;
             size_t max_rank_id = aop.in_lts_[0].shape_.size()
                             >= aop.in_lts_[1].shape_.size()
                     ? aop.in_lts_[0].id_
@@ -525,28 +545,29 @@ bool deserialized_graph::check_tensor_with_mb(size_t tensor_id) const {
             if ((aop.in_lts_[0].shape_.size() == aop.in_lts_[1].shape_.size()
                         && aop.in_lts_[1].shape_[0] != 1)
                     || tensor_id == max_rank_id) {
-                check_tensor_with_mb(aop.out_lts_[0].id_);
-            } else {
-                return false;
+                ret = check_tensor_with_mb(aop.out_lts_[0].id_, mb_rewrite_ret);
             }
-            // prelu input1 may has same shape with input0
         } else if (aop.kind_ == "PReLU" && tensor_id == aop.in_lts_[1].id_) {
+            // prelu input1 may has same shape with input0
+            ret = false;
             if (aop.in_lts_[0].shape_.size() == aop.in_lts_[1].shape_.size()) {
-                check_tensor_with_mb(aop.out_lts_[0].id_);
-            } else {
-                return false;
+                ret = check_tensor_with_mb(aop.out_lts_[0].id_, mb_rewrite_ret);
             }
-            // apply mb for all inputs of concat
-        } else if (aop.kind_ != "Concat" && tensor_id != aop.in_lts_[0].id_) {
-            return false;
-            // check consumer ops recursively
+        } else if (!(matmul_mb_rewrite || dynamicdq_mb_rewrite
+                           || aop.kind_ == "Concat")
+                && tensor_id != aop.in_lts_[0].id_) {
+            // Do not rewrite if the given tensor is not the first input of the
+            // op, except matmul, dynamic dequantize and concat.
+            ret = false;
         } else if (aop.kind_ == "End") {
-            return true;
+            ret = true;
         } else {
-            return check_tensor_with_mb(aop.out_lts_[0].id_);
+            ret = check_tensor_with_mb(aop.out_lts_[0].id_, mb_rewrite_ret);
         }
     }
-    return true;
+
+    mb_rewrite_ret.emplace(tensor_id, ret);
+    return ret;
 }
 
 } // namespace graph
