@@ -2299,7 +2299,7 @@ BinaryCodeGenerator<hw>::opSend(Opcode op, const InstructionModifier &mod, Share
     InstructionModifier emod = mod | defaultModifier;
 
     auto src0 = src0_;
-    bool src0Indirect = (hw >= HW::Xe3 && src0.isIndirect());
+    const bool src0Indirect = (hw >= HW::Xe3 && src0.isIndirect());
     if (src0Indirect)
         src0 = src0.getIndirectReg();
 

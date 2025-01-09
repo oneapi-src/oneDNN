@@ -548,7 +548,7 @@ void loadlid(int argBytes, int dims = 3, int simd = 8, const GRF &temp = GRF(127
         const int grfOW = grfSize / 16;
         int simdGRFs = (simd > 16 && grfSize < 64) ? 2 : 1;
         int insns = 0;
-        bool lsc = (hardware >= HW::XeHPG);
+        const bool lsc = (hardware >= HW::XeHPG);
         auto tempAddr = temp[lsc ? 0 : 2];
 
         if (dims > 0) {
