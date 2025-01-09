@@ -37,6 +37,9 @@ gen_gpu_kernel_list(
 
 list(APPEND SOURCES ${kernel_list_src})
 
+# Add gemmstone include
+include_directories(${OBJ_LIB} ${CMAKE_CURRENT_SOURCE_DIR}/../jit/gemm)
+
 set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_intel_ocl)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
