@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -519,7 +519,7 @@ void BLASKernelGenerator<hw>::loadLoadStoreDescriptors(bool load, bool store, Re
             descLoad.parts.responseLen = 0;
 
             int underlyingSIMD = std::max<int>(block.simdSize, maxScatteredSIMD(hw, astrategy) >> 1);
-            int log2GRFs = ilog2(underlyingSIMD * block.ebytes) - GRF::log2Bytes(hw);
+            int log2GRFs = ilog2(underlyingSIMD * (int)block.ebytes) - GRF::log2Bytes(hw);
             int log2Components = int(block.splitComplex);
 
             if (channel) mov(1, t2, 0x1000 << log2Components);
