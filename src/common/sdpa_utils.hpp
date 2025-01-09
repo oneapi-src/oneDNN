@@ -86,10 +86,12 @@ static inline status_t sdpa_attr_check(const memory_desc_t *q_desc,
         VCHECK_SDPA_ATTR_TYPE(utils::one_of(zp_dt, s4, u4, u8, s8, s32),
                 vs_attr, "zero_points", "u4, s4, u8, s8, or s32");
     }
-    smask_t attr_mask = smask_t::none;
 
-    VCHECK_SDPA_UNIMPL(
-            attr->has_default_values(attr_mask), VERBOSE_UNSUPPORTED_ATTR);
+    if (attr) {
+        smask_t attr_mask = smask_t::none;
+        VCHECK_SDPA_UNIMPL(
+                attr->has_default_values(attr_mask), VERBOSE_UNSUPPORTED_ATTR);
+    }
 
     return status::success;
 }
