@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2024 Intel Corporation
+# Copyright 2019-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,6 +36,9 @@ gen_gpu_kernel_list(
     "${CL_HEADERS}")
 
 list(APPEND SOURCES ${kernel_list_src})
+
+# Add gemmstone include
+include_directories(${OBJ_LIB} ${ONEDNN_GEMMSTONE_DIR}/..)
 
 set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_intel_ocl)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})

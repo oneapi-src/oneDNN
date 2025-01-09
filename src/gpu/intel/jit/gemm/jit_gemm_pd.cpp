@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/intel/jit/gemm/jit_gemm_pd.hpp"
-#include "gpu/intel/jit/gemm/include/generator.hpp"
+#include "gemmstone/include/generator.hpp"
 
 namespace dnnl {
 namespace impl {

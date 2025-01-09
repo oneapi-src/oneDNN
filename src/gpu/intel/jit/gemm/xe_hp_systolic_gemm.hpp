@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/gemm/gpu_gemm.hpp"
-#include "gpu/intel/jit/gemm/include/driver_info.hpp"
-#include "gpu/intel/jit/gemm/include/problem.hpp"
+#include "gemmstone/include/driver_info.hpp"
+#include "gemmstone/include/problem.hpp"
 #include "gpu/intel/jit/gemm/jit_gemm_pd.hpp"
 
 namespace dnnl {

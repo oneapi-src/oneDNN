@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2024 Intel Corporation
+# Copyright 2024-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@ file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
+
+set(ONEDNN_GEMMSTONE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/jit/gemm/gemmstone" CACHE PATH "Path to gemmstone source code")
 
 add_definitions_with_host_compiler(-DNGEN_CPP11)
 add_definitions_with_host_compiler(-DNGEN_SAFE)

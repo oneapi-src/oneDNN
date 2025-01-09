@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 #include "common/type_helpers.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/jit/gemm/gemm_walk_orders.hpp"
-#include "gpu/intel/jit/gemm/include/driver_info.hpp"
+#include "gemmstone/include/driver_info.hpp"
 
 namespace dnnl {
 namespace impl {
