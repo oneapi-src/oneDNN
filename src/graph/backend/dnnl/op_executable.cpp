@@ -1252,8 +1252,15 @@ binary_executable_t::desc_t binary_executable_t::create_desc(
             op->get_attr<int64_t>(op_attr::alg_kind));
 
     dnnl::binary::primitive_desc pd;
-    pd = dnnl::binary::primitive_desc(
-            p_engine, algo, src0, src1, dst, prm_attr);
+    if (algo == algorithm::binary_select) {
+        auto src2 = make_dnnl_memory_desc(
+                op->get_input_value(2)->get_logical_tensor());
+        pd = dnnl::binary::primitive_desc(
+                p_engine, algo, src0, src1, src2, dst, prm_attr);
+    } else {
+        pd = dnnl::binary::primitive_desc(
+                p_engine, algo, src0, src1, dst, prm_attr);
+    }
 
     pd_cache.insert({op.get(), pd});
 
@@ -1891,12 +1898,16 @@ arg_indices_t matmul_executable_t::get_arg_indices(
 arg_indices_t binary_executable_t::get_arg_indices(
         const op_t *op, fusion_info_mgr_t &mgr) {
     arg_indices_t arg_indices;
+    const algorithm algo = static_cast<dnnl::algorithm>(
+            op->get_attr<int64_t>(op_attr::alg_kind));
 
     // add input args
     size_t index = 0;
     arg_indices.insert({DNNL_ARG_SRC_0, indices_t {input, index++}});
     arg_indices.insert({DNNL_ARG_SRC_1, indices_t {input, index++}});
-
+    if (algo == algorithm::binary_select) {
+        arg_indices.insert({DNNL_ARG_SRC_2, indices_t {input, index++}});
+    }
     get_arg_indices_for_post_ops(op, mgr, arg_indices, index);
 
     // add output args

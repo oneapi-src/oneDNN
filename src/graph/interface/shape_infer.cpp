@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,9 +32,6 @@ namespace dnnl {
 namespace impl {
 namespace graph {
 
-// utils function
-namespace {
-
 std::string dims2str(const dims &dims) {
     if (dims.empty()) return std::string("");
 
@@ -44,8 +41,6 @@ std::string dims2str(const dims &dims) {
         str += ("x" + std::to_string(dims[d]));
     return str;
 }
-
-} // namespace
 
 /// convert shape to ncx or oix
 dims canonicalize(const dims &shape, const std::string &format) {

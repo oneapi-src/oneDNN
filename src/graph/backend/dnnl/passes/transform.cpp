@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2024 Intel Corporation
+ * Copyright 2021-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2268,6 +2268,9 @@ status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         std::vector<int32_t> in_ndims {src0_ndims, src1_ndims};
         for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
             if (in_ndims[i] == target_ndims) { continue; }
+            // For binary select op, broadcast for the third input is
+            // unsupported.
+            if (i == 2) { continue; }
 
             std::vector<int64_t> axes(target_ndims - in_ndims[i]);
             std::iota(axes.begin(), axes.end(), 0);
@@ -2293,6 +2296,147 @@ status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         cur_op->set_attr<bool>(op_attr::canonicalized, true);
     }
 
+    rewriter.run();
+    return infer_shape(sg);
+}
+
+status_t decompose_select_to_binary_ops(std::shared_ptr<subgraph_t> &sg) {
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &op : sg->get_ops()) {
+        if (op->get_kind() != op_kind::dnnl_binary) continue;
+        const algorithm algo = static_cast<dnnl::algorithm>(
+                op->get_attr<int64_t>(op_attr::alg_kind));
+
+        if (algo != algorithm::binary_select) continue;
+
+        // For the binary select primitive, broadcast semantics are not
+        // supported for the third conditional input tensor. For this case, the
+        // shape of the conditional input tensor must match that of the source 0
+        // tensor.
+        // The binary select primitive is unsupported on GPU.
+        const bool require_broadcast = need_broadcast_for_inputs(op, 0, 2);
+        if (!require_broadcast && sg->get_engine_kind() != engine_kind::gpu)
+            continue;
+
+        auto in_vals = op->get_input_values();
+        auto out_vals = op->get_output_values();
+
+        auto src0 = in_vals[0];
+        auto src1 = in_vals[1];
+        auto cond = in_vals[2];
+        cond->set_data_type(dnnl::impl::data_type::u8);
+
+        //TODO: This reorder can be removed once eltwise_clip support int8 input
+        op_ptr type_cast = std::make_shared<op_t>(op_kind::dnnl_reorder);
+        type_cast->set_attr<bool>(op_attr::change_layout, false);
+
+        op_ptr clip = std::make_shared<op_t>(op_kind::dnnl_eltwise);
+        clip->set_attr<int64_t>(op_attr::alg_kind,
+                static_cast<int64_t>(dnnl::algorithm::eltwise_clip));
+        clip->set_attr<float>(op_attr::alpha, 0.f);
+        clip->set_attr<float>(op_attr::beta, 1.f);
+
+        // After reorder and clip. The cond value is 0 or 1.
+        // Then output = src0.*cond+src1.*(cond*-1 + 1)
+        op_ptr mul1 = std::make_shared<op_t>(op_kind::dnnl_binary);
+        mul1->merge_attributes(op->get_attributes());
+        mul1->set_attr<int64_t>(op_attr::alg_kind,
+                static_cast<int64_t>(dnnl::algorithm::binary_mul));
+
+        op_ptr mul2 = std::make_shared<op_t>(op_kind::dnnl_binary);
+        mul2->merge_attributes(op->get_attributes());
+        mul2->set_attr<int64_t>(op_attr::alg_kind,
+                static_cast<int64_t>(dnnl::algorithm::binary_mul));
+
+        op_ptr linear = std::make_shared<op_t>(op_kind::dnnl_eltwise);
+        linear->set_attr<int64_t>(op_attr::alg_kind,
+                static_cast<int64_t>(dnnl::algorithm::eltwise_linear));
+        const float alpha_value = -1.0f, beta_value = 1.0f;
+        linear->set_attr<float>(op_attr::alpha, alpha_value);
+        linear->set_attr<float>(op_attr::beta, beta_value);
+
+        op_ptr add = std::make_shared<op_t>(op_kind::dnnl_binary);
+        add->set_attr<int64_t>(op_attr::alg_kind,
+                static_cast<int64_t>(dnnl::algorithm::binary_add));
+
+        // reconnect
+        src0->remove_consumer(*op, 0);
+        src1->remove_consumer(*op, 1);
+        cond->remove_consumer(*op, 2);
+
+        // first reorder and clip
+        cond->add_consumer(*type_cast, 0);
+        type_cast->add_input(cond);
+        logical_tensor_t float_cond = empty_logical_tensor_with_default_id();
+        auto float_cond_val
+                = std::make_shared<value_t>(*type_cast, 0, float_cond, true);
+        float_cond_val->set_data_type(dnnl::impl::data_type::f32);
+        type_cast->add_output(float_cond_val);
+        insert_empty_scratchpad(type_cast);
+
+        float_cond_val->add_consumer(*clip, 0);
+        clip->add_input(float_cond_val);
+        logical_tensor_t clip_cond = empty_logical_tensor_with_default_id();
+        auto clip_cond_val
+                = std::make_shared<value_t>(*clip, 0, clip_cond, true);
+        clip_cond_val->set_data_type(
+                float_cond_val->get_logical_tensor().data_type);
+        clip->add_output(clip_cond_val);
+        insert_empty_scratchpad(clip);
+
+        // first multiply
+        src0->add_consumer(*mul1, 0);
+        clip_cond_val->add_consumer(*mul1, 1);
+        mul1->add_input(src0);
+        mul1->add_input(clip_cond_val);
+
+        logical_tensor_t src0_cond = empty_logical_tensor_with_default_id();
+        auto src0_val = std::make_shared<value_t>(*mul1, 0, src0_cond, true);
+        src0_val->set_data_type(src0->get_logical_tensor().data_type);
+        mul1->add_output(src0_val);
+        insert_empty_scratchpad(mul1);
+
+        //cond.*{-1} + 1
+        clip_cond_val->add_consumer(*linear, 0);
+        linear->add_input(clip_cond_val);
+
+        logical_tensor_t cond_inv = empty_logical_tensor_with_default_id();
+        auto cond_inv_val
+                = std::make_shared<value_t>(*linear, 0, cond_inv, true);
+        cond_inv_val->set_data_type(
+                clip_cond_val->get_logical_tensor().data_type);
+        linear->add_output(cond_inv_val);
+        insert_empty_scratchpad(linear);
+
+        //src1.*(cond_inv)
+
+        src1->add_consumer(*mul2, 0);
+        cond_inv_val->add_consumer(*mul2, 1);
+        mul2->add_input(src1);
+        mul2->add_input(cond_inv_val);
+
+        logical_tensor_t src1_cond = empty_logical_tensor_with_default_id();
+        auto src1_val = std::make_shared<value_t>(*mul2, 0, src1_cond, true);
+        src1_val->set_data_type(src1->get_logical_tensor().data_type);
+        mul2->add_output(src1_val);
+        insert_empty_scratchpad(mul2);
+
+        src0_val->add_consumer(*add, 0);
+        src1_val->add_consumer(*add, 1);
+        add->add_input(src0_val);
+        add->add_input(src1_val);
+        add->add_output(out_vals[0]);
+        insert_empty_scratchpad(add);
+
+        // add new ops and delete select op
+        rewriter.to_insert(type_cast);
+        rewriter.to_insert(clip);
+        rewriter.to_insert(mul1);
+        rewriter.to_insert(linear);
+        rewriter.to_insert(mul2);
+        rewriter.to_insert(add);
+        rewriter.to_remove(op);
+    }
     rewriter.run();
     return infer_shape(sg);
 }

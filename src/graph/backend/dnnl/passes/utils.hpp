@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -347,6 +347,9 @@ std::shared_ptr<op_t> clone_mul_scales(const std::shared_ptr<op_t> &scale_op);
 
 // This function is used to inverse scales of a dnnl_mul_scales op
 bool inverse_mul_scales(std::shared_ptr<op_t> &scale_op);
+
+bool need_broadcast_for_inputs(
+        const std::shared_ptr<op_t> &op, size_t index1, size_t index2);
 
 } // namespace dnnl_impl
 } // namespace graph
