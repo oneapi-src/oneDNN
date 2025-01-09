@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -173,6 +173,16 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                                             alg_kind::deconvolution_direct,
                                             alg_kind::deconvolution_winograd),
                     VERBOSE_BAD_ALGORITHM);
+            // This implementation will check data types requirements through
+            // an underlying convolution implementation, however, convolution
+            // might be called without bias, thus, need to check bias data type
+            // if it was requested.
+            if (with_bias()) {
+                const auto bia_type = invariant_wei_md(1)->data_type;
+                VDISPATCH_DECONVOLUTION(utils::one_of(bia_type, f32, bf16, f16,
+                                                f8_e5m2, f8_e4m3),
+                        VERBOSE_UNSUPPORTED_DT);
+            }
             VDISPATCH_DECONVOLUTION(attr()->has_default_values(skip_mask),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_DECONVOLUTION(
@@ -464,18 +474,27 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
-            auto src_type = desc()->src_desc.data_type;
-            auto dwei_type = desc()->diff_weights_desc.data_type;
-            auto ddst_type = desc()->diff_dst_desc.data_type;
+            auto src_type = invariant_src_md()->data_type;
+            auto wei_type = invariant_wei_md(0)->data_type;
+            auto dst_type = invariant_dst_md()->data_type;
             VDISPATCH_DECONVOLUTION(
                     desc()->prop_kind == prop_kind::backward_weights,
                     VERBOSE_BAD_PROPKIND);
             VDISPATCH_DECONVOLUTION(utils::one_of(src_type, f32, bf16, f16),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_DECONVOLUTION(ddst_type == src_type,
+            VDISPATCH_DECONVOLUTION(dst_type == src_type,
                     VERBOSE_INCONSISTENT_DT, "diff_dst", "src");
-            VDISPATCH_DECONVOLUTION(utils::one_of(dwei_type, src_type, f32),
+            VDISPATCH_DECONVOLUTION(utils::one_of(wei_type, src_type, f32),
                     VERBOSE_UNSUPPORTED_DT);
+            // This implementation will check data types requirements through
+            // an underlying convolution implementation, however, convolution
+            // might be called without bias, thus, need to check bias data type
+            // if it was requested.
+            if (with_bias()) {
+                const auto bia_type = invariant_wei_md(1)->data_type;
+                VDISPATCH_DECONVOLUTION(utils::one_of(bia_type, f32, bf16, f16),
+                        VERBOSE_UNSUPPORTED_DT);
+            }
             VDISPATCH_DECONVOLUTION(utils::one_of(desc()->alg_kind,
                                             alg_kind::deconvolution_direct,
                                             alg_kind::deconvolution_winograd),
