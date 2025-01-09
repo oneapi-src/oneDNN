@@ -521,7 +521,7 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
         op.indirect.addrReg = rd.getIndirectOff();
         op.indirect.addrMode = 1;
         if (srcN >= 0)
-            op.indirect.vs = (rd.isVxIndirect()) ? 0xFFFF : pow2Encode(rd.getVS());
+            op.indirect.vs = (rd.isVxIndirect()) ? 0xF : pow2Encode(rd.getVS());
     } else {
         op.direct.regFile = getRegFile(rd);
         op.direct.subRegNum = rd.getByteOffset();
@@ -553,7 +553,7 @@ static inline constexpr14 BinaryOperand12 encodeBinaryOperand12(const RegData &r
         op.indirect.addrReg = rd.getIndirectOff();
         op.indirect.addrMode = 1;
         if (srcN >= 0) {
-            op.indirect.vs = (rd.isVxIndirect()) ? 0xFFFF : pow2Encode(rd.getVS());
+            op.indirect.vs = (rd.isVxIndirect()) ? 0xF : pow2Encode(rd.getVS());
             op.indirectXeHPC.addrOff0 = (rd.getOffset() & 1);
         }
     } else {
