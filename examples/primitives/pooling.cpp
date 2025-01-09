@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,6 +66,17 @@ void pooling_example(dnnl::engine::kind engine_kind) {
             DH = 1, // height-wise dilation
             DW = 1; // width-wise dilation
 
+    // oneDNN uses the following formula to calculate destination dimensions:
+    // dst = (src - ((weights - 1) * (dilation_onednn + 1) + 1)) / stride + 1
+    //
+    // PyTorch and TensorFlow use a different formula:
+    // dst = (src - ((weights - 1) * dilation_torch + 1)) / stride + 1
+    //
+    // As a result, the PyTorch and Tensorflow dilation parameters need to be
+    // adjusted by subtracting 1:
+    // dilation_onednn = dilation_torch - 1.
+    //
+    // Output tensor height and width.
     const memory::dim OH = (IH - ((KH - 1) * DH + KH) + PH_L + PH_R) / SH + 1;
     const memory::dim OW = (IW - ((KW - 1) * DW + KW) + PW_L + PW_R) / SW + 1;
 
