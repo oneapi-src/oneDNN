@@ -142,7 +142,9 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     auto c_type = dst_md(0)->data_type;
     const auto src_info = memory_desc_info_t::create(gemm_pd_->dst_md(0));
     const auto bias_info = [&]() {
-        auto info = memory_desc_info_t::create(src_md(2));
+        // If no bias, just default to same layout as dst - any valid layout will work, it's just a dummy
+        auto info = memory_desc_info_t::create(
+                with_bias() ? src_md(2) : dst_md(0));
         if (info.data_type == data_type::undef) info.data_type = data_type::f32;
         return info;
     }();
