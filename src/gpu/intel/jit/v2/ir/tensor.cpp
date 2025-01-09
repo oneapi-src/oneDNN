@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1370,7 +1370,7 @@ view_t view_t::scatterize(int stride_bytes, const prover_t &prover) const {
 layout_t split_layout(const layout_t &layout, dim_t inner_elems,
         dim_t outer_elems, std::vector<int> &inner_block_idxs,
         std::vector<int> &outer_block_idxs) {
-    int cur_elems = 1;
+    dim_t cur_elems = 1;
     auto in_inner = [&]() { return cur_elems < inner_elems; };
     auto in_outer = [&]() {
         return cur_elems >= inner_elems
@@ -1394,7 +1394,7 @@ layout_t split_layout(const layout_t &layout, dim_t inner_elems,
         } else if (in_outer()) {
             outer_block_idxs.push_back(i);
             if (cur_elems * b_size > inner_elems * outer_elems) {
-                int b_inner = ir_utils::safe_div(
+                dim_t b_inner = ir_utils::safe_div(
                         cur_elems, inner_elems * outer_elems);
                 int b_outer = ir_utils::safe_div(b_size, b_inner);
                 auto new_layout = layout.split_block(&b, b_inner, b_outer);
