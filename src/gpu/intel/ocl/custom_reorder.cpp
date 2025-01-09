@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -619,8 +619,8 @@ status_t custom_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
             if (!may_use_sg8 && vect_size == 8) {
                 return status_t::dnnl_unimplemented;
             }
-            for (dim_idx_t dim = last - 1;
-                    dim >= 0 && dim < MAX_NDIMS && temp_block == 1; dim--) {
+            for (dim_idx_t dim = last - 1; dim < MAX_NDIMS && temp_block == 1;
+                    dim--) {
                 if (padded_dims[dim] % 4 == 0) { temp_block = 4; }
                 if (padded_dims[dim] % 8 == 0) { temp_block = 8; }
                 if (padded_dims[dim] % 16 == 0) { temp_block = 16; }

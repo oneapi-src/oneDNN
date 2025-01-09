@@ -35,7 +35,7 @@ layout_t insert_dimension(const layout_t &layout, dim_idx_t dim_idx) {
 }
 
 layout_t remove_size_1_dimension(const layout_t &layout, dim_idx_t dim_idx) {
-    ir_assert(0 <= dim_idx && dim_idx < layout.ndims());
+    ir_assert(dim_idx != dim_idx::invalid && dim_idx < layout.ndims());
     ir_assert(layout.dim(dim_idx) == 1);
     dim_assignment_t a(layout.ndims(), layout.ndims() - 1);
     for (dim_idx_t i = 0; i < layout.ndims(); i++) {

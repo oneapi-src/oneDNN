@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -290,7 +290,7 @@ public:
     grid_splitter_t(const grid_info_t &grid)
         : grid_(grid), cur_idx_(grid.ndims() - 1), cur_stride_(1) {
         skip_size_1_dims();
-        ir_assert(cur_idx_ >= 0);
+        ir_assert(cur_idx_ != dim_idx::invalid);
     }
 
     dim_t cur_block() const {
@@ -1528,7 +1528,7 @@ public:
     }
 
     bool has_tmask(dim_idx_t tidx) const {
-        ir_assert(tidx >= 0 && tidx < ntdims());
+        ir_assert(tidx != dim_idx::invalid && tidx < ntdims());
         return !tdims_[tidx].mask().is_empty();
     }
 
@@ -1581,7 +1581,7 @@ public:
     }
 
     bool is_masked_vdim(dim_idx_t vidx) const {
-        ir_assert(vidx >= 0 && vidx < nvdims());
+        ir_assert(vidx != dim_idx::invalid && vidx < nvdims());
         ir_assert(has_zero_vstart())
                 << "Can't be reliably determined if the view is a sub-view.";
         for (dim_idx_t i = 0; i < ntdims(); i++) {
@@ -1900,8 +1900,8 @@ public:
         , assignments_(old_ndims, -1) {}
 
     void assign(dim_idx_t old_idx, dim_idx_t new_idx) {
-        ir_assert(0 <= old_idx && old_idx < old_ndims_);
-        ir_assert(0 <= new_idx && new_idx < new_ndims_);
+        ir_assert(old_idx != dim_idx::invalid && old_idx < old_ndims_);
+        ir_assert(new_idx != dim_idx::invalid && new_idx < new_ndims_);
         assignments_[old_idx] = new_idx;
     }
 
