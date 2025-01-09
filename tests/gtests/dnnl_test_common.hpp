@@ -101,7 +101,7 @@ dnnl::engine::kind get_test_engine_kind();
 dnnl::engine get_test_engine();
 #endif
 
-inline int get_vendor_id(const std::string &vendor) {
+inline uint32_t get_vendor_id(const std::string &vendor) {
     if (vendor == "nvidia") {
         return 0x10DE;
     } else if (vendor == "amd") {
@@ -109,7 +109,7 @@ inline int get_vendor_id(const std::string &vendor) {
     } else if (vendor == "intel") {
         return 0x8086;
     } else {
-        return -1;
+        return 0x0;
     }
 }
 
