@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018-2024 Intel Corporation
+# Copyright 2018-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -381,6 +381,8 @@ set(DNNL_USE_CLANG_TIDY "NONE" CACHE STRING
     - NONE (default)
       Clang-tidy is disabled.
     - CHECK
+      Enables checks from .clang-tidy for source code
+    - CHECK_ALL
       Enables checks from .clang-tidy.
     - FIX
       Enables checks from .clang-tidy and fix found issues.
