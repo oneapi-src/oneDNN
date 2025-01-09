@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -204,7 +204,7 @@ public:
     const expr_t &compute_expr() const { return info_.compute_expr(); }
 
     bool is_broadcast_dim(dim_idx_t dim_idx) const {
-        ir_assert(dim_idx >= 0 && dim_idx < mem_view().nvdims());
+        ir_assert(dim_idx != dim_idx::invalid && dim_idx < mem_view().nvdims());
         return (mask() & (1 << dim_idx)) == 0;
     }
 

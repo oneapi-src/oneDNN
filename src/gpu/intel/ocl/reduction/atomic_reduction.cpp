@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -237,7 +237,8 @@ status_t atomic_reduction_conf_t::init_dispatcher(
         src.append_block(all_dims[dim_idx], sizes[dim_idx]);
     }
     // the loop dim may have padding - update the outer block's stride to avoid it
-    size_t src_outer_idx = src.get_dim_idx(reduction_dims::outer);
+    dim_idx_t src_outer_idx = src.get_dim_idx(reduction_dims::outer);
+    gpu_assert(src_outer_idx != dim_idx::invalid);
     src.format_desc.blocking.strides[src_outer_idx]
             = outer_block.stride / conf.vect_size;
 
@@ -251,7 +252,8 @@ status_t atomic_reduction_conf_t::init_dispatcher(
     src.remove_dim(reduction_dims::local, false);
 
     // Once again, loop dim padding causes issues
-    size_t dst_outer_idx = dst.get_dim_idx(reduction_dims::outer);
+    dim_idx_t dst_outer_idx = dst.get_dim_idx(reduction_dims::outer);
+    gpu_assert(dst_outer_idx != dim_idx::invalid);
     dst.format_desc.blocking.strides[dst_outer_idx]
             = inner_block.block / conf.vect_size;
 
