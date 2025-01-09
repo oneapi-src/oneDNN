@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -249,10 +249,13 @@ protected:
                 int mant_digits
                         = dnnl::impl::nstl::numeric_limits<src_data_t>::digits;
                 int want_mant_digits = 3;
+                int digits_shift = mant_digits - want_mant_digits;
+                uint_type max_val = (uint_type)-1;
+                // Move left to keep mask value in uint_type range, move left
+                // to flush all digits but `want_mant_digits`.
+                uint_type mask = (max_val >> digits_shift) << digits_shift;
                 auto src_ptr = map_memory<src_data_t>(src_memory);
                 for (size_t i = 0; i < sz; i++) {
-                    uint_type mask = (uint_type)-1
-                            << (mant_digits - want_mant_digits);
                     *((uint_type *)&src_ptr[i]) &= mask;
                 }
             }
