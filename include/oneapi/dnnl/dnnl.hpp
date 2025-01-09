@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,7 @@
 
 #ifndef ONEAPI_DNNL_DNNL_HPP
 #define ONEAPI_DNNL_DNNL_HPP
+// NOLINTBEGIN(readability-identifier-naming)
 
 #include "oneapi/dnnl/dnnl_config.h"
 
@@ -14014,4 +14015,5 @@ namespace dnnl = ::dnnl;
 
 /// @} dnnl_api
 
+// NOLINTEND(readability-identifier-naming)
 #endif /* ONEAPI_DNNL_DNNL_HPP */

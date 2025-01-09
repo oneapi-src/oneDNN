@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 #ifndef ONEAPI_DNNL_DNNL_COMMON_HPP
 #define ONEAPI_DNNL_DNNL_COMMON_HPP
+// NOLINTBEGIN(readability-identifier-naming)
 
 /// @cond DO_NOT_DOCUMENT_THIS
 #include <algorithm>
@@ -524,4 +525,5 @@ inline dnnl_accumulation_mode_t convert_to_c(accumulation_mode mode) {
 
 /// @} dnnl_api
 
-#endif
+// NOLINTEND(readability-identifier-naming)
+#endif /* ONEAPI_DNNL_DNNL_COMMON_HPP */
