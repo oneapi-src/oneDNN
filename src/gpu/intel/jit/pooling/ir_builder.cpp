@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -236,9 +236,10 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             schedule.bind(fuse[0], kg.idx(idx));
     };
     auto odhw_to_schedule = [&](expr_t s1, expr_t ns, expr_t s0) {
-        int s0_idx = (s0.is_empty()) ? -1 : src_view.vvar_index(s0);
-        int s1_idx = src_view.vvar_index(s1);
-        int ns_idx = src_view.vvar_index(ns);
+        dim_idx_t s0_idx
+                = (s0.is_empty()) ? dim_idx::invalid : src_view.vvar_index(s0);
+        dim_idx_t s1_idx = src_view.vvar_index(s1);
+        dim_idx_t ns_idx = src_view.vvar_index(ns);
         ir_assert((s0_idx <= 4) && (s1_idx <= 4) && (ns_idx <= 4));
 
         // s1 and ns may swap sides, which affects their fusing order: it has
@@ -266,7 +267,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         schedule.bind(s1_tg, tg.idx(s1_idx - 2));
         s1_fuse.emplace_back(s1_kg);
 
-        if (s0_idx >= 0) {
+        if (s0_idx != dim_idx::invalid) {
             ir_assert(s0_idx == s1_idx + 1);
             const dim_t s0_tlg_unroll = lg[s0_idx];
             const dim_t s0_unroll = s0_tlg_unroll * tg[s0_idx - 2];
