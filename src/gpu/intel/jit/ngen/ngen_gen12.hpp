@@ -946,18 +946,18 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 case -1:
                     if (send.dstRegFile == RegFileARF) return false;
                     base = send.dstReg;
-                    len = send.descIsReg ? -1 : send.desc20_24;
+                    len = send.descIsReg ? -1 : (int)send.desc20_24;
                     if (len == 31) len++;
                     break;
                 case 0:
                     if (send.src0RegFile == RegFileARF) return false;
                     base = send.src0Reg;
-                    len = send.descIsReg ? -1 : (send.desc25_29 & 0xF);
+                    len = send.descIsReg ? -1 : (int)(send.desc25_29 & 0xF);
                     break;
                 case 1:
                     if (send.src1RegFile == RegFileARF) return false;
                     base = send.src1Reg;
-                    len = send.exDescIsReg ? -1 : send.exDesc6_10;
+                    len = send.exDescIsReg ? -1 : (int)send.exDesc6_10;
                     break;
                 case 2:
                 case 3: // TODO: May need to track indirect acc usage
