@@ -91,7 +91,8 @@ status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::init(engine_t *engine) {
                 | skip_mask_t::zero_points_runtime;
 
     const bool is_f32_supported
-            = everyone_is(f32, diff_src_type, wei_type, diff_dst_type);
+            = everyone_is(f32, diff_src_type, wei_type, diff_dst_type)
+            && IMPLICATION(with_bias(), bias_md_.data_type == f32);
 
     const bool is_xf16_supported = one_of(wei_type, bf16, f16)
             && wei_type == diff_dst_type && one_of(diff_src_type, wei_type, f32)
