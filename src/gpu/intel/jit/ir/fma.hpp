@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -157,9 +157,13 @@ public:
         return call({dst, src0, src1, src2});
     }
 
-    int dst_size() const { return exec_size * rcount * sizeof(uint32_t); }
+    int dst_size() const {
+        return exec_size * (int)(rcount * sizeof(uint32_t));
+    }
     int src0_size() const { return dst_size(); }
-    int src1_size() const { return exec_size * sdepth * sizeof(uint32_t); }
+    int src1_size() const {
+        return exec_size * (int)(sdepth * sizeof(uint32_t));
+    }
     int src2_size() const {
         const int dpas_size = sdepth * rcount * sizeof(uint32_t);
         return is_dpasw ? dpas_size / 2 : dpas_size;
