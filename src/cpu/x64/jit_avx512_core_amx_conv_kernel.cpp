@@ -3225,7 +3225,7 @@ void jit_avx512_core_amx_bwd_data_kernel_t::store_output_vector_xf16(
                 vpslld(zmm_in, zmm_in, 16);
                 break;
             case data_type::f16: vcvtph2ps(zmm_in_k, addr); break;
-            case data_type::f32: vaddps(zmm_in_k, addr); return;
+            case data_type::f32: vmovups(zmm_in_k, addr); break;
             default: assert(!"Unsupported data type in xf16 conv");
         }
         vaddps(zmm_out, zmm_in);
