@@ -1448,7 +1448,7 @@ private:
         std::vector<int> vec(vec_size);
         for (int i = 0; i < vec_size; i++) {
             if (!is_const(obj.vec[i])) return false;
-            int value = to_cpp<int64_t>(obj.vec[i]);
+            int64_t value = to_cpp<int64_t>(obj.vec[i]);
             if (value < int_min || value > int_max) return false;
             vec[i] = (int)value;
         }
