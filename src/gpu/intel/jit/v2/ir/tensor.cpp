@@ -837,6 +837,7 @@ int layout_t::to_linear_index(
         if (i_coord == coord) return i;
         advance(idx, blocks_, tile_blocks);
     }
+    ir_error_not_expected();
     return -1;
 }
 
