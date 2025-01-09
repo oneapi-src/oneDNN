@@ -19,6 +19,7 @@
 
 #ifndef ONEAPI_DNNL_DNNL_GRAPH_HPP
 #define ONEAPI_DNNL_DNNL_GRAPH_HPP
+// NOLINTBEGIN(readability-identifier-naming)
 
 #include "oneapi/dnnl/dnnl_common.hpp"
 #include "oneapi/dnnl/dnnl_graph.h"
@@ -1655,4 +1656,5 @@ namespace dnnl = ::dnnl;
 
 /// @} dnnl_api
 
-#endif
+// NOLINTEND(readability-identifier-naming)
+#endif /* ONEAPI_DNNL_DNNL_GRAPH_HPP */
