@@ -348,7 +348,7 @@ public:
                     if (total_simds <= thr_count) return dim_t(1);
                     const dim_t orig = num;
                     num = 0;
-                    for (int div = sqrtf(orig); div >= 1; div--)
+                    for (dim_t div = sqrtf(orig); div >= 1; div--)
                         if (orig % div == 0) {
                             if (total_simds >= thr_count * (orig / div))
                                 num = std::max<dim_t>(num, orig / div);

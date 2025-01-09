@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,13 +78,13 @@ std::vector<dim_t> tile_info_t::loop_blocks(dim_t size, int iter_blk) const {
 
 std::vector<dim_t> tile_info_t::get_factors(dim_t n) {
     std::vector<dim_t> ret;
-    int n_sqrt = std::sqrt(n);
-    for (int i = 1; i <= n_sqrt; i++) {
+    dim_t n_sqrt = std::sqrt(n);
+    for (dim_t i = 1; i <= n_sqrt; i++) {
         if (n % i == 0) ret.push_back(i);
     }
-    int lo = n_sqrt;
+    dim_t lo = n_sqrt;
     if (n_sqrt * n_sqrt == n) lo--;
-    for (int i = lo; i >= 1; i--) {
+    for (dim_t i = lo; i >= 1; i--) {
         if (n % i == 0) ret.push_back(n / i);
     }
     return ret;
