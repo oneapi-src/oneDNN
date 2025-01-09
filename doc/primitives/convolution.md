@@ -100,6 +100,12 @@ Here:
 - \f$OW = \left\lfloor{\frac{IW - DKW + PW_L + PW_R}{SW}}
         \right\rfloor + 1,\f$ where \f$DKW = 1 + (KW - 1) \cdot (DW + 1)\f$.
 
+@note In oneDNN, convolution without dilation is defined by setting the dilation
+parameters to `0`. This differs from PyTorch and TensorFlow, where a non-dilated
+case corresponds to a dilation value of `1`. As a result, the PyTorch and
+TensorFlow dilation parameters need to be adjusted by subtracting `1` (for example,
+\f$DH_onednn = DH_torch - 1\f$, and \f$DW_onednn = DW_torch - 1\f$).
+
 #### Deconvolution (Transposed Convolution)
 
 Deconvolutions (also called fractionally strided convolutions or transposed
