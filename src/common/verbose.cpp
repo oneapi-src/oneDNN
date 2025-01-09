@@ -392,6 +392,21 @@ std::ostream &operator<<(std::ostream &ss, const memory_extra_desc_t &extra) {
         ss << ":s8m" << extra.compensation_mask;
     if (extra.flags & compensation_conv_asymmetric_src)
         ss << ":zpm" << extra.asymm_compensation_mask;
+    if (extra.flags & compensation_gpu_conv_asymmetric_src) {
+        ss << ":zid" << extra.idhw[0];
+        ss << ":zih" << extra.idhw[1];
+        ss << ":ziw" << extra.idhw[2];
+        ss << ":zod" << extra.odhw[0];
+        ss << ":zoh" << extra.odhw[1];
+        ss << ":zow" << extra.odhw[2];
+        ss << ":zpd" << extra.pdhw[0];
+        ss << ":zph" << extra.pdhw[1];
+        ss << ":zpw" << extra.pdhw[2];
+        ss << ":zdd" << extra.ddhw[0];
+        ss << ":zdh" << extra.ddhw[1];
+        ss << ":zdw" << extra.ddhw[2];
+        ss << ":zs" << extra.dst_size;
+    }
     if (extra.flags & scale_adjust && extra.scale_adjust != 1.f)
         ss << ":sa" << extra.scale_adjust;
     return ss;

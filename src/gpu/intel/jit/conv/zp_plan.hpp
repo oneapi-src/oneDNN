@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,7 +46,6 @@ struct zp_plan_t : public base_plan_t {
     bool is_src_precomp_compatible() const;
     bool has_zp_src() const;
     bool has_zp_wei() const;
-    bool needs_precalc() const;
     int load_reg_buf_size() const;
     int mask_reg_buf_size() const;
     int comp_reg_buf_size() const;

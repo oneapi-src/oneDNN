@@ -46,7 +46,8 @@ public:
     bool is_common_src_zero_point = false;
     bool is_common_wei_zero_point = false;
     bool is_common_dst_zero_point = false;
-    bool needs_src_precalc = false;
+    bool needs_src_reorder_precalc = false;
+    bool needs_src_conv_precalc = false;
     int common_src_zero_point = 0;
     int common_wei_zero_point = 0;
     int common_dst_zero_point = 0;
@@ -75,8 +76,10 @@ public:
                   pd && pd->attr()->zero_points_.common(DNNL_ARG_WEIGHTS))
         , is_common_dst_zero_point(
                   pd && pd->attr()->zero_points_.common(DNNL_ARG_DST))
-        , needs_src_precalc(
-                  pd && do_src_compensation && is_src_precalc_compatible(pd))
+        , needs_src_reorder_precalc(
+                  pd && do_src_compensation && can_use_src_reorder_precalc(pd))
+        , needs_src_conv_precalc(pd && do_src_compensation
+                  && !needs_src_reorder_precalc && can_use_src_conv_precalc(pd))
         , common_src_zero_point(0)
         , common_wei_zero_point(0)
         , common_dst_zero_point(0) {
@@ -102,12 +105,22 @@ public:
     }
 
 private:
-    bool is_src_precalc_compatible(const primitive_desc_t *pd) {
+    bool can_use_src_reorder_precalc(const primitive_desc_t *pd) {
         if (pd->kind() != primitive_kind_t::dnnl_convolution) return false;
-        // In general, precomputed ZPs are slower than the regular ZPs up to a
-        // point where a nested convolution that does the precalc takes less
-        // time than the in-situ compensations; that usually happens around
-        // MB = 64, but the exact number is just a heuristic.
+        // Reorder-based precomputed ZPs are only available if the user did not
+        // specify the weights mem desc so the convolution can choose it freely
+        // and set a mem desc flag asking a reorder to precompute the values.
+        return (pd->invariant_wei_md()->format_kind == format_kind::any)
+                && pd->attr()->zero_points_.common(DNNL_ARG_SRC)
+                && pd->attr()->zero_points_.has_default_values(
+                        DNNL_ARG_WEIGHTS);
+    }
+    bool can_use_src_conv_precalc(const primitive_desc_t *pd) {
+        if (pd->kind() != primitive_kind_t::dnnl_convolution) return false;
+        // In general, conv-based precomputed ZPs are slower than the regular
+        // ZPs up to a point where a nested convolution that does the precalc
+        // takes less time than the in-situ compensations; that usually happens
+        // around MB = 64, but the exact number is just a heuristic.
         // TODO: a finer-grained estimate
         return (pd->invariant_src_md()->dims[0] >= 64)
                 && pd->attr()->zero_points_.has_default_values(

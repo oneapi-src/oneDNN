@@ -310,7 +310,13 @@ inline bool memory_extra_desc_is_equal(
             && IMPLICATION(lhs.flags & scale_adjust,
                     lhs.scale_adjust == rhs.scale_adjust)
             && IMPLICATION(lhs.flags & compensation_conv_asymmetric_src,
-                    lhs.asymm_compensation_mask == rhs.asymm_compensation_mask);
+                    lhs.asymm_compensation_mask == rhs.asymm_compensation_mask)
+            && IMPLICATION(lhs.flags & compensation_gpu_conv_asymmetric_src,
+                    (lhs.dst_size == rhs.dst_size)
+                            && utils::array_cmp(lhs.idhw, rhs.idhw, 3)
+                            && utils::array_cmp(lhs.odhw, rhs.odhw, 3)
+                            && utils::array_cmp(lhs.pdhw, rhs.pdhw, 3)
+                            && utils::array_cmp(lhs.ddhw, rhs.ddhw, 3));
 }
 
 inline bool blocking_desc_is_equal(const memory_desc_t &lhs_md,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1446,7 +1446,6 @@ private:
 
 struct zp_plan_impl_t : public base_plan_t {
     bool src_2d_loads = false;
-    bool needs_precalc = false;
     bool has_dpasw = false;
     split_dispatcher_t sd;
     send_plan_t load;
@@ -1526,8 +1525,9 @@ void zp_plan_t::init(const conv_config_t &cfg, bool src_2d_loads,
         const layout_t &wei_layout, const layout_t &dst_layout) {
     impl->src_2d_loads = src_2d_loads;
     impl->has_dpasw = cfg.fma_kind() == fma_kind_t::dpasw;
-    impl->needs_precalc = cfg.zp_cfg().needs_src_precalc;
-    bool do_src = cfg.zp_cfg().do_src_compensation && !impl->needs_precalc;
+    bool do_src = cfg.zp_cfg().do_src_compensation
+            && !cfg.zp_cfg().needs_src_reorder_precalc
+            && !cfg.zp_cfg().needs_src_conv_precalc;
     bool do_wei = cfg.zp_cfg().do_wei_compensation;
     send_plan_t impl_load;
 
@@ -1572,10 +1572,6 @@ bool zp_plan_t::has_zp_src() const {
 
 bool zp_plan_t::has_zp_wei() const {
     return impl->has_zp_wei();
-}
-
-bool zp_plan_t::needs_precalc() const {
-    return impl->needs_precalc;
 }
 
 int zp_plan_t::load_reg_buf_size() const {

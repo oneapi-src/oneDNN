@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -150,17 +150,19 @@ status_t ref_reorder_t::execute(const exec_ctx_t &ctx) const {
     CHECK(large_parallel_for(
             ctx, nd_range, kernels_[0], arg_list, arg_list.nargs()));
 
-    if (!conf.subbyte_pack) return status::success;
-
-    compute::kernel_arg_list_t repack_arg_list;
-    repack_arg_list.set(0, *tmp);
-    repack_arg_list.set(1, dst);
-    repack_arg_list.set(2, into<dim_t>(conf.nelems));
-    repack_arg_list.set(3, 4);
-    compute::range_t repack_gws((conf.nelems * 4 + 7) / 8);
-    compute::nd_range_t repack_nd_range(repack_gws);
-    return large_parallel_for(
-            ctx, repack_nd_range, kernels_[1], repack_arg_list, 4);
+    if (conf.subbyte_pack) {
+        compute::kernel_arg_list_t repack_arg_list;
+        repack_arg_list.set(0, *tmp);
+        repack_arg_list.set(1, dst);
+        repack_arg_list.set(2, into<dim_t>(conf.nelems));
+        repack_arg_list.set(3, 4);
+        compute::range_t repack_gws((conf.nelems * 4 + 7) / 8);
+        compute::nd_range_t repack_nd_range(repack_gws);
+        CHECK(large_parallel_for(
+                ctx, repack_nd_range, kernels_[1], repack_arg_list, 4));
+    }
+    CHECK(pd()->maybe_exec_zp_precompute_conv(ctx, zp_precomp_conv_));
+    return status::success;
 }
 
 } // namespace ocl

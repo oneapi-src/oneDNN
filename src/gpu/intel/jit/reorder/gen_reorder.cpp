@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ status_t gen_reorder_t::pd_t::init(impl::engine_t *engine,
             | sm::rounding_mode;
     VDISPATCH_REORDER(
             attr()->has_default_values(skip_mask), VERBOSE_UNSUPPORTED_ATTR);
-    VDISPATCH_REORDER(extra_ok(), VERBOSE_UNSUPPORTED_MD_FLAG, "extra_ok");
+    VDISPATCH_REORDER(extra_ok(true), VERBOSE_UNSUPPORTED_MD_FLAG, "extra_ok");
     VDISPATCH_REORDER(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);
     VDISPATCH_REORDER(scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 
@@ -148,6 +148,7 @@ status_t gen_reorder_t::pd_t::init(impl::engine_t *engine,
             check_layout(dst_layout), VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "dst");
     VDISPATCH_REORDER(compute_engine->mayiuse_ngen_kernels(),
             VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "ngen_kernels");
+
     auto *gpu_attr
             = utils::downcast<gpu_primitive_attr_t *>(attr()->gpu_attr_.get());
     hw_t hw(engine);
@@ -158,7 +159,8 @@ status_t gen_reorder_t::pd_t::init(impl::engine_t *engine,
     cfg->set_zp_cfg(zp_cfg);
     VDISPATCH_REORDER_SC(
             init_kernel_info(), "kernel initialization unsuccessful");
-
+    VDISPATCH_REORDER_SC(maybe_create_zp_precompute_conv_pd(dst_engine),
+            "failed to create nested zp precompute convolution");
     return status::success;
 }
 
@@ -202,6 +204,9 @@ status_t gen_reorder_t::pd_t::init_kernel_info() {
 }
 
 status_t gen_reorder_t::init(impl::engine_t *engine) {
+    CHECK(pd()->maybe_create_zp_precompute_conv(
+            zp_precomp_conv_, engine, this));
+
     auto &cfg = *pd()->cfg;
     auto &info = *pd()->kernel_info;
 
@@ -221,6 +226,7 @@ status_t gen_reorder_t::execute(const exec_ctx_t &ctx) const {
     info.set_args(arg_list, storage_list);
 
     CHECK(parallel_for(ctx, info.nd_range(), kernel_, arg_list));
+    CHECK(pd()->maybe_exec_zp_precompute_conv(ctx, zp_precomp_conv_));
     return status::success;
 }
 

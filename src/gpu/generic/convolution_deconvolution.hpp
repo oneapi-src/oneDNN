@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,12 +32,15 @@ namespace generic {
 
 static status_t weights_axes_permutation(
         memory_desc_t *o_md, const memory_desc_t *i_md, bool with_groups) {
+    using namespace memory_extra_flags;
     int perm[DNNL_MAX_NDIMS] {}; // deconv to conv weight permutation
     for (int d = 0; d < DNNL_MAX_NDIMS; ++d)
         perm[d] = d;
     nstl::swap(perm[0 + with_groups], perm[1 + with_groups]);
-
-    return memory_desc_permute_axes(*o_md, *i_md, perm);
+    CHECK(memory_desc_permute_axes(*o_md, *i_md, perm));
+    if (o_md->extra.flags & compensation_gpu_conv_asymmetric_src)
+        o_md->extra.flags |= compensation_gpu_conv_asymmetric_src_swap;
+    return status::success;
 }
 
 static status_t conv_descr_create(

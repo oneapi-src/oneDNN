@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,20 +27,18 @@ namespace impl {
 namespace gpu {
 namespace generic {
 
-void cross_engine_reorder_t::pd_t::init_scratchpad(impl::engine_t *engine) {
-    using namespace memory_tracking::names;
-    if (!do_reorder_) return;
-
-    auto *gpu_engine = utils::downcast<gpu::engine_t *>(engine);
-
-    const memory_desc_wrapper wspace_md(
-            desc()->src_engine_kind == reorder_engine_kind_ ? dst_md()
-                                                            : src_md());
-    auto scratchpad = scratchpad_registry().registrar();
-    scratchpad.book(memory_tracking::names::key_reorder_cross_space,
-            wspace_md.size(), 1, gpu_engine->get_buffer_alignment());
-    scratchpad.book(key_nested, reorder_pd_->scratchpad_registry().size(), 1,
-            gpu_engine->get_buffer_alignment());
+void cross_engine_reorder_t::pd_t::init_scratchpad(impl::engine_t *gpu_engine) {
+    if (do_reorder_) {
+        using namespace memory_tracking::names;
+        auto gpu_align = utils::downcast<gpu::engine_t *>(gpu_engine)
+                                 ->get_buffer_alignment();
+        auto scratchpad = scratchpad_registry().registrar();
+        auto needs_dst = desc()->src_engine_kind == reorder_engine_kind_;
+        memory_desc_wrapper wspace((needs_dst) ? dst_md() : src_md());
+        scratchpad.book(key_reorder_cross_space, wspace.size(), 1, gpu_align);
+        scratchpad.book(key_nested, reorder_pd_->scratchpad_registry().size(),
+                1, gpu_align);
+    }
 }
 
 status_t cross_engine_reorder_t::pd_t::init(impl::engine_t *engine,
@@ -50,7 +48,7 @@ status_t cross_engine_reorder_t::pd_t::init(impl::engine_t *engine,
                               dst_engine->kind()),
             VERBOSE_BAD_ENGINE_KIND);
     VDISPATCH_REORDER(attr_ok(), VERBOSE_UNSUPPORTED_ATTR);
-    VDISPATCH_REORDER(extra_ok(), VERBOSE_UNSUPPORTED_MD_FLAG, "extra_ok");
+    VDISPATCH_REORDER(extra_ok(true), VERBOSE_UNSUPPORTED_MD_FLAG, "extra_ok");
 
     memory_desc_wrapper src_mdw(src_md());
     memory_desc_wrapper dst_mdw(dst_md());
@@ -72,15 +70,29 @@ status_t cross_engine_reorder_t::pd_t::init(impl::engine_t *engine,
     primitive_attr_t r_attr(*attr());
     if (!r_attr.is_initialized()) return status::out_of_memory;
 
-    VDISPATCH_REORDER_SC(reorder_primitive_desc_create(reorder_pd_,
-                                 reorder_engine, src_md(), dst_md(), &r_attr),
+    auto clean_src_md = *src_md();
+    auto clean_dst_md = *dst_md();
+    clean_src_md.extra = clean_dst_md.extra = {};
+    VDISPATCH_REORDER_SC(
+            reorder_primitive_desc_create(reorder_pd_, reorder_engine,
+                    &clean_src_md, &clean_dst_md, &r_attr),
             VERBOSE_PRIMITIVE_CREATION_FAIL, "reorder");
-    init_scratchpad(engine);
 
     reorder_pd_t::init_desc(
             src_engine->kind(), dst_engine->kind(), true /* is_cross_engine */);
 
+    VDISPATCH_REORDER_SC(maybe_create_zp_precompute_conv_pd(dst_engine),
+            "failed to create nested zp precompute convolution");
+    init_scratchpad(
+            (dst_engine->kind() == engine_kind::gpu) ? dst_engine : src_engine);
     return status::success;
+}
+
+status_t cross_engine_reorder_t::init(impl::engine_t *engine) {
+    CHECK(pd()->maybe_create_zp_precompute_conv(
+            zp_precomp_conv_, engine, this));
+    if (!pd()->do_reorder_) return status::success;
+    return create_nested_primitive(reorder_, pd()->reorder_pd_, engine);
 }
 
 status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
@@ -158,6 +170,8 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
                     ctx.input(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC),
                     ctx.input(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST));
         }
+        if (status == status::success)
+            status = pd()->maybe_exec_zp_precompute_conv(ctx, zp_precomp_conv_);
     }
     return status;
 }

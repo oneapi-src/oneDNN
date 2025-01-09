@@ -108,12 +108,27 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
 
     if (po_vm_.can_use_simple_src_zps() && zp_cfg.do_src_compensation) {
         if (zp_cfg.is_runtime_src_zero_points) {
-            bool per_oc = !zp_cfg.is_common_src_zero_point
-                    || zp_cfg.needs_src_precalc;
-            auto view = po_vm_.create_src_zp_view((per_oc) ? 1 << 1 : 0);
+            auto view = po_vm_.create_src_zp_view(
+                    (!zp_cfg.is_common_src_zero_point) ? 1 << 1 : 0);
             auto buf = kernel_info.find_arg("src_zero_points");
-            auto in = add_input_tensor(view, buf);
-            post_ops_.emplace_back(c, c - in);
+            if (zp_cfg.needs_src_reorder_precalc) {
+                auto wei = kernel_info.find_arg("wei_user", true);
+                if (wei.is_empty()) wei = kernel_info.find_arg("wei");
+
+                layout_t tlayout(view.tlayout());
+                tlayout.set_offset(
+                        utils::div_up(schedule.b_view().tlayout().size(),
+                                tlayout.type().size()));
+                view.set_tlayout(tlayout);
+                layout_t scalar(zp_cfg.src_zp_type, 0,
+                        std::vector<dim_t>(view.vvars().size(), 1), false);
+                auto zp = add_input_tensor(view_t(scalar, view.vvars()), buf);
+                auto in = add_input_tensor(view, wei);
+                post_ops_.emplace_back(c, c - in * zp);
+            } else {
+                auto in = add_input_tensor(view, buf);
+                post_ops_.emplace_back(c, c - in);
+            }
         } else {
             auto func = eltwise_t::make(alg_kind::eltwise_linear,
                     /*scale=*/1.f,
