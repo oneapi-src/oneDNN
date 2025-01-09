@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,14 +38,14 @@ void init_extra_tensors(const zero_points_config_t &zp_cfg,
                 /*is_input=*/true, /*is_output=*/false, zp_layout);
     };
     if (zp_cfg.do_src_compensation && zp_cfg.is_runtime_src_zero_points) {
-        if (!zp_cfg.needs_src_precalc) {
-            add_zp_buffer("src_zero_points", zp_cfg.src_zp_type, DNNL_ARG_SRC,
-                    (zp_cfg.is_common_src_zero_point) ? 1 : ic);
-        } else {
+        if (zp_cfg.needs_src_conv_precalc) {
             ir_assert(zp_src);
             int arg_key = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC;
             tensor_cfg.add_tensor("src_zero_points", arg_key, /*is_input=*/true,
                     /*is_output=*/false, layout_t(zp_src, false), layout_t());
+        } else {
+            add_zp_buffer("src_zero_points", zp_cfg.src_zp_type, DNNL_ARG_SRC,
+                    (zp_cfg.is_common_src_zero_point) ? 1 : ic);
         }
     }
     if (zp_cfg.do_wei_compensation && zp_cfg.is_runtime_wei_zero_points) {

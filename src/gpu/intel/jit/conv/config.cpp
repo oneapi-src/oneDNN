@@ -20,6 +20,7 @@
 #include <cstring>
 #include <mutex>
 
+#include "common/utils.hpp"
 #include "gpu/intel/jit/conv/grf_usage.hpp"
 #include "gpu/intel/jit/conv/message_patterns.hpp"
 #include "gpu/intel/jit/conv/normalization.hpp"
@@ -659,6 +660,61 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
     if (user_dst_req == "user") dst_tag = user_dst_tag = "user";
 }
 
+void prepare_zp_precompute_conv(const conv_problem_t &prb, dim_t *idhw,
+        dim_t *odhw, dim_t *pdhw, dim_t *ddhw) {
+    const bool is_bwd_d = (prb.prop_kind() == prop_kind::backward_data);
+    using memory_dims = std::vector<dim_t>;
+    memory_dims I {prb.id, prb.ih, prb.iw};
+    memory_dims O {prb.od, prb.oh, prb.ow};
+    memory_dims K {prb.kd, prb.kh, prb.kw};
+    memory_dims S {prb.sd, prb.sh, prb.sw};
+    memory_dims D {prb.dd, prb.dh, prb.dw};
+    memory_dims P {prb.pd, prb.ph, prb.pw};
+    const int off = 5 - prb.ndims;
+    const auto *w = prb.conv_pd->weights_md();
+
+    // restore the original layout of the prb values
+    const auto *s
+            = (is_bwd_d) ? prb.conv_pd->diff_dst_md() : prb.conv_pd->src_md();
+    const auto *d
+            = (is_bwd_d) ? prb.conv_pd->diff_src_md() : prb.conv_pd->dst_md();
+    auto has_dim = [&](int i) {
+        return (s->dims[2 + i] > 1) || (d->dims[2 + i] > 1)
+                || (w->dims[2 + i + prb.with_groups] > 1);
+    };
+    auto move_back = [&](int i, int off) {
+        if (off == 0) return;
+        I[i - off] = O[i - off] = K[i - off] = S[i - off] = 1;
+        D[i - off] = P[i - off] = 0;
+        std::swap(I[i - off], I[i]);
+        std::swap(O[i - off], O[i]);
+        std::swap(K[i - off], K[i]);
+        std::swap(S[i - off], S[i]);
+        std::swap(D[i - off], D[i]);
+        std::swap(P[i - off], P[i]);
+    };
+    bool has_d = (off <= 0) && has_dim(0 - off);
+    bool has_h = (off <= 1) && has_dim(1 - off);
+    bool has_w = (off <= 2) && has_dim(2 - off);
+    if (!has_d && !has_h && !has_w) has_w = true;
+    move_back(1, has_d * (!has_h == has_w));
+    move_back(2, !has_w * (!has_h + 1));
+
+    for (int i = off; i < int(K.size()); i++) {
+        const auto KD = (K[i] - 1) * (D[i] + 1) + 1;
+        ir_assert(w->dims[2 + i + prb.with_groups - off] == K[i]);
+        O[i] = ir_utils::max_unique_pad_states(
+                O[i], I[i], KD, P[i], S[i], true);
+        I[i] = std::min(KD, I[i]);
+    }
+    for (int i = 0; i < 3; i++) {
+        idhw[i] = (i < off) ? 0 : I[i];
+        odhw[i] = (i < off) ? 0 : O[i];
+        pdhw[i] = (i < off) ? 0 : P[i];
+        ddhw[i] = (i < off) ? 0 : D[i];
+    }
+}
+
 status_t init_tensor_layouts(
         conv_config_t &cfg, convolution_pd_t *pd, impl::engine_t *engine) {
     const auto &prb = cfg.prb();
@@ -778,6 +834,27 @@ status_t init_tensor_layouts(
     bia.set_compute(bia_layout);
     bia.set_user(user_bia_layout);
 
+    if (cfg.zp_cfg().needs_src_reorder_precalc) {
+        auto get_channels = [](const layout_t &layout) {
+            const dim_t min_esize = 16;
+            return std::max(utils::rnd_up_pow2(layout.dim(1) * layout.dim(2)),
+                    min_esize);
+        };
+        using namespace memory_extra_flags;
+        prepare_zp_precompute_conv(prb, wei_md.extra.idhw, wei_md.extra.odhw,
+                wei_md.extra.pdhw, wei_md.extra.ddhw);
+
+        wei_md.extra.dst_size = sizeof(float);
+        for (const auto &o : wei_md.extra.odhw)
+            wei_md.extra.dst_size *= std::max(o, dim_t(1));
+        if (prb.prop_kind() == prop_kind::backward_data) {
+            wei_md.extra.flags |= compensation_gpu_conv_asymmetric_src_bwd;
+            wei_md.extra.dst_size *= get_channels(src_layout);
+        } else {
+            wei_md.extra.dst_size *= get_channels(dst_layout);
+        }
+        wei_md.extra.flags |= compensation_gpu_conv_asymmetric_src;
+    }
     return status::success;
 }
 

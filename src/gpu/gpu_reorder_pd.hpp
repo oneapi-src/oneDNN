@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #define GPU_GPU_REORDER_PD_HPP
 
 #include "common/reorder_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -28,10 +29,9 @@ struct gpu_reorder_pd_t : public reorder_pd_t {
 
 protected:
     bool attr_ok() const {
-        return attr()->has_default_values(
-                       dnnl_primitive_attr::skip_mask_t::zero_points_runtime
-                       | dnnl_primitive_attr::skip_mask_t::scales_runtime
-                       | dnnl_primitive_attr::skip_mask_t::post_ops)
+        using sm = dnnl_primitive_attr::skip_mask_t;
+        return attr()->has_default_values(sm::zero_points_runtime
+                       | sm::scales_runtime | sm::post_ops)
                 && post_ops_ok() && zero_points_ok();
     }
 
@@ -62,9 +62,27 @@ protected:
                         && post_ops.entry_[0].kind == primitive_kind::sum);
     }
 
-    bool extra_ok() const {
-        return src_md()->extra.flags == 0 && dst_md()->extra.flags == 0;
+    bool extra_ok(bool accept_conv_asymm = false) const {
+        if (!accept_conv_asymm)
+            return (src_md()->extra.flags == memory_extra_flags::none)
+                    && (dst_md()->extra.flags == memory_extra_flags::none);
+        return check_md_extra_flags_compensation_gpu(src_md()->extra.flags)
+                && check_md_extra_flags_compensation_gpu(dst_md()->extra.flags);
     }
+
+    status_t maybe_create_zp_precompute_conv_pd(impl::engine_t *dst_engine);
+
+public:
+    status_t maybe_create_zp_precompute_conv(
+            std::shared_ptr<impl::primitive_t> &zp_precomp_conv,
+            impl::engine_t *engine, gpu::primitive_t *primitive) const;
+
+    status_t maybe_exec_zp_precompute_conv(const exec_ctx_t &ctx,
+            const std::shared_ptr<impl::primitive_t> &zp_precomp_conv) const;
+
+private:
+    bool do_zp_precomp_conv_ = false;
+    std::shared_ptr<primitive_desc_t> zp_precomp_conv_pd_;
 };
 
 } // namespace gpu

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -675,6 +675,8 @@ int default_regs(const conv_config_t &cfg);
 void init_kernel_grid(conv_config_t &cfg);
 void init_walk_order(conv_config_t &cfg);
 void init_thread_group_grid(conv_config_t &cfg);
+void prepare_zp_precompute_conv(const conv_problem_t &prb, dim_t *idhw,
+        dim_t *odhw, dim_t *pdhw, dim_t *ddhw);
 std::array<pvar_tile_t, 3> get_kernel_grid_conv_dims(const conv_config_t &cfg);
 std::array<pvar_tile_t, 3> get_thread_group_grid_conv_dims(
         const conv_config_t &cfg);

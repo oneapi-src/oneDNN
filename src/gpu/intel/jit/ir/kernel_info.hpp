@@ -144,11 +144,11 @@ public:
     // Returns stage ID, kernels with smaller stage IDs are executed first.
     int stage_id() const {
         switch (id()) {
-            case kernel_id_t::pre_reorder: return 0;
             case kernel_id_t::zero_out: return 0;
             case kernel_id_t::zp_precalc: return 1;
-            case kernel_id_t::convolution: return 2;
-            case kernel_id_t::post_reorder: return 3;
+            case kernel_id_t::pre_reorder: return 2;
+            case kernel_id_t::convolution: return 3;
+            case kernel_id_t::post_reorder: return 4;
             default: ir_error_not_expected();
         }
         return -1;

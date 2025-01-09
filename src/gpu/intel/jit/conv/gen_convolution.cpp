@@ -25,6 +25,7 @@
 #include "common/impl_registration.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
+#include "gpu/gpu_zero_points_conv.hpp"
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/reorder/reorder_kernel.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
@@ -45,8 +46,7 @@ struct conv_pd_data_t {
     conv_config_t pd_cfg;
     tensor_config_t tensor_cfg;
     std::vector<kernel_info_t> kernel_infos;
-    std::shared_ptr<dnnl_primitive_desc> zp_pd;
-    std::shared_ptr<impl::primitive_t> zp_prim;
+    std::shared_ptr<primitive_desc_t> zp_pd;
 };
 
 class gen_convolution_t {
@@ -72,79 +72,31 @@ public:
             CHECK(init_pd_time_cfg(
                     prb, pd->data->pd_cfg, engine, pd, &pd->attr_));
 
-            if (pd->data->pd_cfg.zp_cfg().needs_src_precalc) {
-                memory::dims I {prb.id, prb.ih, prb.iw};
-                memory::dims O {prb.od, prb.oh, prb.ow};
-                memory::dims K {prb.kd, prb.kh, prb.kw};
-                memory::dims S {prb.sd, prb.sh, prb.sw};
-                memory::dims D {prb.dd, prb.dh, prb.dw};
-                memory::dims P {prb.pd, prb.ph, prb.pw};
-                const int off = 5 - prb.ndims;
-                const auto *w = pd->invariant_wei_md();
-                { // restore the original layout of the prb values
-                    const auto *s = pd->invariant_src_md();
-                    const auto *d = pd->invariant_dst_md();
-                    auto has_dim = [&](int i) {
-                        return (s->dims[2 + i] > 1) || (d->dims[2 + i] > 1)
-                                || (w->dims[2 + i + prb.with_groups] > 1);
-                    };
-                    auto move_back = [&](int i, int off) {
-                        if (off == 0) return;
-                        I[i - off] = O[i - off] = K[i - off] = S[i - off] = 1;
-                        D[i - off] = P[i - off] = 0;
-                        std::swap(I[i - off], I[i]);
-                        std::swap(O[i - off], O[i]);
-                        std::swap(K[i - off], K[i]);
-                        std::swap(S[i - off], S[i]);
-                        std::swap(D[i - off], D[i]);
-                        std::swap(P[i - off], P[i]);
-                    };
-                    bool has_d = (off <= 0) && has_dim(0 - off);
-                    bool has_h = (off <= 1) && has_dim(1 - off);
-                    bool has_w = (off <= 2) && has_dim(2 - off);
-                    if (!has_d && !has_h && !has_w) has_w = true;
-                    move_back(1, has_d * (!has_h == has_w));
-                    move_back(2, !has_w * (!has_h + 1));
-                }
-                memory::dims S1 {1, 1, 1};
-                memory::dims P1 {0, 0, 0};
-                memory::dims dims_src {1, dim_t(prb.g) * prb.ic};
-                memory::dims dims_dst {1, dim_t(prb.g) * prb.oc};
-
-                for (int i = off; i < int(K.size()); i++) {
-                    const auto KD = (K[i] - 1) * (D[i] + 1) + 1;
-                    dims_src.emplace_back(std::min(KD, I[i]));
-                    dims_dst.emplace_back(ir_utils::max_unique_pad_states(
-                            O[i], I[i], KD, P[i], S[i], true));
-                    P1[i] = dims_dst.back() - dims_src.back() - 1 + KD - P[i];
-                }
-                memory::desc src(dims_src, memory::data_type::s8,
-                        memory::format_tag::any);
-                memory::desc dst(dims_dst, memory::data_type::s32,
-                        memory::format_tag::any);
-
-                // create a nested conv and allocate a nested scratchpad for it
+            if (pd->data->pd_cfg.zp_cfg().needs_src_reorder_precalc
+                    || pd->data->pd_cfg.zp_cfg().needs_src_conv_precalc) {
                 primitive_attr_t attr;
-                int mask = 0;
-                CHECK(pd->attr_.zero_points_.get(DNNL_ARG_SRC, &mask));
-                attr.zero_points_.set(DNNL_ARG_SRC, mask);
-                attr.post_ops_.append_eltwise(
-                        1.f, alg_kind_t::dnnl_eltwise_linear, -1.f, 0.f);
-                dnnl_primitive_desc *zp_pd;
-                CHECK(dnnl_convolution_forward_primitive_desc_create(&zp_pd,
-                        engine, dnnl_prop_kind_t::dnnl_forward_inference,
-                        dnnl_alg_kind_t::dnnl_convolution_direct, src.get(), w,
-                        nullptr, dst.get(), S1.data() + off, D.data() + off,
-                        P.data() + off, P1.data() + off, &attr));
-                pd->data->zp_pd.reset(zp_pd, dnnl_primitive_desc_destroy);
-                auto scratchpad = pd->scratchpad_registry().registrar();
-                scratchpad.book(memory_tracking::names::key_nested_multiple,
-                        pd->data->zp_pd->impl()->scratchpad_registry());
+                if (pd->data->pd_cfg.zp_cfg().needs_src_conv_precalc) {
+                    int mask = 0;
+                    CHECK(pd->attr_.zero_points_.get(DNNL_ARG_SRC, &mask));
+                    attr.zero_points_.set(DNNL_ARG_SRC, mask);
+                    attr.post_ops_.append_eltwise(
+                            1.f, alg_kind::eltwise_linear, -1.f, 0.f);
+                }
+                dim_t I[3], O[3], P[3], D[3];
+                prepare_zp_precompute_conv(prb, I, O, P, D);
+                CHECK(create_zp_precompute_conv_pd(pd->data->zp_pd, engine,
+                        attr, pd->weights_md(), I, O, P, D, data_type::f32,
+                        pd->get_prop_kind(),
+                        !pd->data->pd_cfg.zp_cfg().needs_src_conv_precalc));
+                if (pd->data->pd_cfg.zp_cfg().needs_src_conv_precalc) {
+                    auto scratchpad = pd->scratchpad_registry().registrar();
+                    scratchpad.book(memory_tracking::names::key_nested_multiple,
+                            pd->data->zp_pd->scratchpad_registry());
+                }
             }
 
-            pd->data->tensor_cfg = get_tensor_config(pd->data->pd_cfg,
-                    (pd->data->zp_pd) ? pd->data->zp_pd->impl()->src_md()
-                                      : nullptr);
+            pd->data->tensor_cfg = get_tensor_config(
+                    pd->data->pd_cfg, zp_conv_md_in(*pd->data));
             pd->data->kernel_infos.reserve(max_kernels);
             CHECK(init_kernel_infos(pd));
 
@@ -176,7 +128,7 @@ public:
         int max_tries = 100;
         conv_config_t cfg;
         layout_t zp_dst;
-        if (data.zp_pd) zp_dst = layout_t(data.zp_pd->impl()->dst_md(), false);
+        if (data.zp_pd) zp_dst = layout_t(zp_conv_md_out(data), false);
 
         if (primitive->cache_blob()) {
             tiler->set_cur_version(primitive->version());
@@ -198,8 +150,17 @@ public:
                 ir_info() << cfg;
 
                 init_nd_ranges(primitive, cfg);
-
                 auto &kernel_infos = data.kernel_infos;
+
+                // This absolutely HAS to be executed first if present,
+                // since it adds its own version mark to the cache blob
+                for (int i = 0; i < int(kernel_infos.size()); i++)
+                    if (kernel_infos[i].id() == kernel_id_t::zp_precalc) {
+                        ir_assert(data.zp_pd);
+                        CHECK(primitive->create_nested_primitive(
+                                zp_prim_, data.zp_pd, engine));
+                    }
+
                 std::vector<compute::kernel_t> tmp_kernels;
                 for (int i = 0; i < int(kernel_infos.size()); i++) {
                     auto &info = kernel_infos[i];
@@ -248,10 +209,6 @@ public:
                             break;
 
                         case kernel_id_t::zp_precalc:
-                            ir_assert(data.zp_pd);
-                            if (!data.zp_prim)
-                                CHECK(data.zp_pd->impl()->create_primitive(
-                                        data.zp_prim, engine));
                             tmp_kernels.emplace_back();
                             continue;
 
@@ -319,12 +276,11 @@ public:
                                 new memory_t(ctx.stream()->engine(), md,
                                         std::move(s)));
                     };
-                    ir_assert(data.zp_prim);
+                    ir_assert(zp_prim_);
                     std::unique_ptr<memory_t, memory_deleter_t> zp_src, zp_dst;
-                    CHECK(scratchpad_arg(zp_src, "src_zero_points",
-                            data.zp_pd->impl()->src_md()));
                     CHECK(scratchpad_arg(
-                            zp_dst, "dst", data.zp_pd->impl()->dst_md()));
+                            zp_src, "src_zero_points", zp_conv_md_in(data)));
+                    CHECK(scratchpad_arg(zp_dst, "dst", zp_conv_md_out(data)));
 
                     exec_args_t e_args;
                     auto src_zp_idx = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC;
@@ -334,9 +290,9 @@ public:
                     e_args[DNNL_ARG_DST] = memory_arg_t {zp_dst.get(), false};
                     exec_ctx_t e_ctx(ctx, std::move(e_args));
                     const auto nm = memory_tracking::names::key_nested_multiple;
-                    nested_scratchpad_t ns(ctx, nm, data.zp_prim);
+                    nested_scratchpad_t ns(ctx, nm, zp_prim_);
                     e_ctx.set_scratchpad_grantor(ns.grantor());
-                    CHECK(data.zp_prim->execute(e_ctx));
+                    CHECK(zp_prim_->execute(e_ctx));
                 }
                 nsubmitted++;
                 if (nsubmitted == nkernels) break;
@@ -347,6 +303,20 @@ public:
     }
 
 private:
+    static const memory_desc_t *zp_conv_md_in(const conv_pd_data_t &data) {
+        if (!data.zp_pd) return nullptr;
+        const bool is_bwd_d
+                = (data.zp_pd->get_prop_kind() == prop_kind::backward_data);
+        return (is_bwd_d) ? data.zp_pd->diff_dst_md() : data.zp_pd->src_md();
+    }
+
+    static const memory_desc_t *zp_conv_md_out(const conv_pd_data_t &data) {
+        if (!data.zp_pd) return nullptr;
+        const bool is_bwd_d
+                = (data.zp_pd->get_prop_kind() == prop_kind::backward_data);
+        return (is_bwd_d) ? data.zp_pd->diff_src_md() : data.zp_pd->dst_md();
+    }
+
     template <typename T>
     static kernel_info_t &create_kernel_info(T *pd, kernel_id_t kernel_id) {
         auto &infos = pd->data->kernel_infos;
@@ -361,10 +331,8 @@ private:
     static status_t init_kernel_infos(T *pd) {
         auto &data = *pd->data;
         auto &cfg = data.pd_cfg;
-        const bool needs_zp_precalc = cfg.zp_cfg().needs_src_precalc;
-
         auto &conv_info = create_kernel_info(pd, kernel_id_t::convolution);
-        auto &zp_precalc_info = (needs_zp_precalc)
+        auto &zp_precalc_info = (cfg.zp_cfg().needs_src_conv_precalc)
                 ? create_kernel_info(pd, kernel_id_t::zp_precalc)
                 : conv_info;
 
@@ -374,8 +342,10 @@ private:
         // Initialize kernel arguments.
         int scratchpad_key = memory_tracking::names::key_none;
         for (auto &t : data.tensor_cfg.tensors()) {
-            const bool src_zp_precalc
-                    = needs_zp_precalc && (t.name == "src_zero_points");
+            const bool wei_reorder_precalc = (t.name == "wei")
+                    && cfg.zp_cfg().needs_src_reorder_precalc;
+            const bool src_conv_precalc = (t.name == "src_zero_points")
+                    && cfg.zp_cfg().needs_src_conv_precalc;
 
             const auto compute_buf = make_buffer(t.name);
             size_t compute_size = t.compute_layout.size();
@@ -390,7 +360,7 @@ private:
 
             auto add_compute_arg = [&](kernel_info_t &ki, const expr_t &buf,
                                            bool is_input) {
-                if (t.needs_reorder || src_zp_precalc)
+                if (t.needs_reorder || src_conv_precalc)
                     ki.register_scratchpad_arg(
                             buf, compute_arg_key, is_input, compute_size);
                 else
@@ -411,12 +381,12 @@ private:
                 return zero_out_info;
             };
 
-            if (t.needs_reorder || src_zp_precalc) {
+            if (t.needs_reorder || src_conv_precalc) {
                 int user_arg_key = compute_arg_key;
                 auto user_buf = make_buffer(t.name + "_user");
                 compute_arg_key = ++scratchpad_key;
 
-                if (!src_zp_precalc && t.is_input) {
+                if (!src_conv_precalc && t.is_input) {
                     auto &reorder_info
                             = create_kernel_info(pd, kernel_id_t::pre_reorder);
                     reorder_info.register_user_arg(user_buf, user_arg_key,
@@ -425,7 +395,7 @@ private:
                     reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
                             cfg.exec_cfg(), t.user_layout, t.compute_layout));
                 }
-                if (!src_zp_precalc && t.is_output) {
+                if (!src_conv_precalc && t.is_output) {
                     auto &reorder_info
                             = create_kernel_info(pd, kernel_id_t::post_reorder);
                     add_compute_arg(reorder_info, compute_buf, true);
@@ -434,7 +404,7 @@ private:
                     reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
                             cfg.exec_cfg(), t.compute_layout, t.user_layout));
                 }
-                if (src_zp_precalc) {
+                if (src_conv_precalc) {
                     scratchpad_book(++scratchpad_key);
                     create_zero_out_info().register_scratchpad_arg(compute_buf,
                             scratchpad_key, /*is_input=*/false, compute_size);
@@ -456,6 +426,12 @@ private:
                     add_compute_arg(zp_precalc_info, make_buffer("dst"), false);
                 }
                 scratchpad_book(compute_arg_key);
+                if (wei_reorder_precalc) {
+                    // user-supplied weights contain precomputed ZP values, so
+                    // the buffer is to be passed to the conv alongside weights
+                    conv_info.register_user_arg(
+                            user_buf, user_arg_key, t.is_input && !t.is_output);
+                }
             }
             if (t.needs_zero_out) {
                 add_compute_arg(create_zero_out_info(), compute_buf, false);
@@ -512,6 +488,7 @@ private:
 
     std::vector<compute::kernel_t> kernels_;
     std::vector<compute::nd_range_t> nd_ranges_;
+    std::shared_ptr<impl::primitive_t> zp_prim_;
 };
 
 status_t gen_convolution_fwd_t::pd_t::init(impl::engine_t *engine) {

@@ -28,6 +28,8 @@
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/jit/codegen/operand.hpp"
 #include "gpu/intel/jit/codegen/register_allocator.hpp"
+#include "gpu/intel/jit/codegen/register_scope.hpp"
+#include "gpu/intel/jit/codegen/reorder.hpp"
 #include "gpu/intel/jit/emulation.hpp"
 #include "gpu/intel/jit/ir/ir.hpp"
 #include "gpu/intel/jit/ir/ir_builder.hpp"
@@ -591,20 +593,28 @@ public:
     }
 
     void eadd3(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
-            const ngen_operand_t &src0, const ngen_operand_t &src1,
-            const ngen_operand_t &src2) {
+            const ngen_operand_t &_src0, const ngen_operand_t &_src1,
+            const ngen_operand_t &_src2) {
+        auto src0 = _src0;
+        auto src1 = _src1;
+        auto src2 = _src2;
+        auto scope = ngen_register_scope_t(ra_);
+        align_src_dst_offset(this, scope, mod, dst, src0);
+        align_src_dst_offset(this, scope, mod, dst, src1);
         if (hw >= ngen::HW::XeHP) {
             if (src2.is_reg_data()) {
-                add3(mod, dst.reg_data(), src0.reg_data(), src1.reg_data(),
-                        src2.reg_data());
+                align_src_dst_offset(this, scope, mod, dst, src2);
+                add3(mod, dst.reg_data(), fixup_ternary_rgn(src0.reg_data()),
+                        fixup_ternary_rgn(src1.reg_data()), src2.reg_data());
             } else {
-                add3(mod, dst.reg_data(), src0.reg_data(), src1.reg_data(),
-                        src2.immediate());
+                add3(mod, dst.reg_data(), fixup_ternary_rgn(src0.reg_data()),
+                        fixup_ternary_rgn(src1.reg_data()), src2.immediate());
             }
             return;
         }
         add(mod, dst.reg_data(), src0.reg_data(), src1.reg_data());
         if (src2.is_reg_data()) {
+            align_src_dst_offset(this, scope, mod, dst, src2);
             add(mod, dst.reg_data(), dst.reg_data(), src2.reg_data());
         } else {
             add(mod, dst.reg_data(), dst.reg_data(), src2.immediate());
@@ -612,26 +622,34 @@ public:
     }
 
     void emad(const ngen::InstructionModifier &mod, const ngen_operand_t &dst,
-            const ngen_operand_t &src0, const ngen_operand_t &src1,
-            const ngen_operand_t &src2) {
+            const ngen_operand_t &_src0, const ngen_operand_t &_src1,
+            const ngen_operand_t &_src2) {
+        auto src0 = _src0;
+        auto src1 = _src1;
+        auto src2 = _src2;
+        auto scope = ngen_register_scope_t(ra_);
+        align_src_dst_offset(this, scope, mod, dst, src1);
         if (src2.is_reg_data()) {
-            mad(mod, dst.reg_data(), src0.reg_data(), src1.reg_data(),
-                    src2.reg_data());
+            align_src_dst_offset(this, scope, mod, dst, src0);
+            align_src_dst_offset(this, scope, mod, dst, src2);
+            mad(mod, dst.reg_data(), fixup_ternary_rgn(src0.reg_data()),
+                    fixup_ternary_rgn(src1.reg_data()), src2.reg_data());
         } else if (hw < ngen::HW::XeLP) {
+            align_src_dst_offset(this, scope, mod, dst, src0);
             mul(mod, dst.reg_data(), src1.reg_data(), src2.immediate());
             add(mod, dst.reg_data(), dst.reg_data(), src0.reg_data());
         } else if (src0.is_immediate()
                 && (ngen_is_dw(src0.type())
                         || src0.type() == ngen::DataType::uw)) {
             // dword immediate src0 is not supported, move to a register.
-            auto tmp_src0 = ra_.alloc_sub(src0.type());
+            auto tmp_src0 = scope.alloc_sub(src0.type());
             mov(1, tmp_src0, src0.immediate());
-            mad(mod, dst.reg_data(), tmp_src0, src1.reg_data(),
-                    src2.immediate());
-            ra_.safeRelease(tmp_src0);
+            mad(mod, dst.reg_data(), tmp_src0,
+                    fixup_ternary_rgn(src1.reg_data()), src2.immediate());
         } else {
-            mad(mod, dst.reg_data(), src0.reg_data(), src1.reg_data(),
-                    src2.immediate());
+            align_src_dst_offset(this, scope, mod, dst, src0);
+            mad(mod, dst.reg_data(), fixup_ternary_rgn(src0.reg_data()),
+                    fixup_ternary_rgn(src1.reg_data()), src2.immediate());
         }
     }
 
@@ -1142,6 +1160,13 @@ protected:
             local_size *= (int)local_range_[i];
         }
         return ir_utils::safe_divide(local_size, exec_cfg_.simd());
+    }
+
+    static ngen::RegData fixup_ternary_rgn(const ngen::RegData &r) {
+        ngen::RegData retn = r;
+        return ((retn.getHS() == 1) && (retn.getVS() == retn.getWidth()))
+                ? retn.setRegion(1, 1, 0)
+                : retn;
     }
 
     kernel_iface_t kernel_iface_;

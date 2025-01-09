@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,8 @@ public:
             const conv_problem_t &prb, const zero_points_config_t &zp_cfg,
             const layout_t &zp_dst)
         : post_op_view_mapper_t(schedule.c_view())
-        , has_external_src_zps_(zp_cfg.needs_src_precalc)
+        , has_external_src_zps_(zp_cfg.needs_src_conv_precalc
+                  || zp_cfg.needs_src_reorder_precalc)
         , schedule_(schedule)
         , prb_(prb)
         , zp_dst_(zp_dst) {}

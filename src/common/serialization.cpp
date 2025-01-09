@@ -132,6 +132,14 @@ void serialize_md(serialization_stream_t &sstream, const memory_desc_t &md) {
                 & dnnl_memory_extra_flag_compensation_conv_asymmetric_src) {
             sstream.write(&md.extra.asymm_compensation_mask);
         }
+        if (md.extra.flags
+                & dnnl_memory_extra_flag_compensation_gpu_conv_asymmetric_src) {
+            sstream.write(md.extra.idhw, 3);
+            sstream.write(md.extra.odhw, 3);
+            sstream.write(md.extra.pdhw, 3);
+            sstream.write(md.extra.ddhw, 3);
+            sstream.write(&md.extra.dst_size);
+        }
     }
 }
 

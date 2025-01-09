@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,6 +38,9 @@ struct cpu_reorder_pd_t : public reorder_pd_t {
                 post_ops.len() == 1
                         && post_ops.entry_[0].kind == primitive_kind::sum);
         VDISPATCH_REORDER(args_ok, VERBOSE_UNSUPPORTED_POSTOP);
+        auto gpu_zp = memory_extra_flags::compensation_gpu_conv_asymmetric_src;
+        VDISPATCH_REORDER(!(dst_md()->extra.flags & gpu_zp),
+                VERBOSE_UNSUPPORTED_MD_FLAG, "extra");
         return status::success;
     }
 
