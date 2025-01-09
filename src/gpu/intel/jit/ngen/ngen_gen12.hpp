@@ -726,7 +726,7 @@ static inline void encodeTernarySrc0(Instruction12 &i, S0 src0, Tag tag)
 
     auto vs0 = encodeTernaryVS01(src0);
 
-    i.ternary.src0VS0 = vs0;
+    i.ternary.src0VS0 = vs0 & 1;
     i.ternary.src0VS1 = vs0 >> 1;
 }
 
@@ -745,7 +745,7 @@ static inline void encodeTernarySrc1(Instruction12 &i, S1 src1, Tag tag)
 
     auto vs1 = encodeTernaryVS01(src1);
 
-    i.ternary.src1VS0 = vs1;
+    i.ternary.src1VS0 = vs1 & 1;
     i.ternary.src1VS1 = vs1 >> 1;
 }
 
