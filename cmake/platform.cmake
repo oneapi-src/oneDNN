@@ -340,14 +340,20 @@ elseif(UNIX OR MINGW)
                    "-fsanitize-blacklist=${PROJECT_SOURCE_DIR}/.clang-ignorelist")
         endif()
 
-        if(DNNL_USE_CLANG_TIDY MATCHES "(CHECK|FIX)")
+        if(DNNL_USE_CLANG_TIDY MATCHES "(CHECK|CHECK_ALL|FIX)")
             find_program(CLANG_TIDY NAMES clang-tidy)
             if(NOT CLANG_TIDY)
                 message(FATAL_ERROR "Clang-tidy not found")
             else()
+                # FIXME: Remove --header-filter option once clang-tidy warnings
+                # are addressed
                 if(DNNL_USE_CLANG_TIDY STREQUAL "CHECK")
+                    set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY}
+                        --header-filter='')
+                    message(STATUS "Using clang-tidy to run checks for source")
+                elseif(DNNL_USE_CLANG_TIDY STREQUAL "CHECK_ALL")
                     set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY})
-                    message(STATUS "Using clang-tidy to run checks")
+                    message(STATUS "Using clang-tidy to run checks for source and headers")
                 elseif(DNNL_USE_CLANG_TIDY STREQUAL "FIX")
                     set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY}
                         -fix)
