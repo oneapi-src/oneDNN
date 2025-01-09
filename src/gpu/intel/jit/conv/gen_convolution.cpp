@@ -286,7 +286,7 @@ public:
         }
         if (!ok) return status::runtime_error;
         ir_assert(kernels_.size() == data.kernel_infos.size());
-        primitive->register_kernels(kernels_);
+        CHECK(primitive->register_kernels(kernels_));
 
         conv_tiler_t::after_create_hook(cfg, primitive);
         return status::success;
