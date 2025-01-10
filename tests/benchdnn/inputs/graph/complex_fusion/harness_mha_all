@@ -56,3 +56,8 @@
 --reset --expected-n-partitions=0 --in-shapes=4:20x117x48x128+3:20x1x128x117+0:20x1x117x128 --case=complex_fusion/mha/MHA-starcoder-inf-int8-bs1.json
 --reset --expected-n-partitions=0 --in-shapes=4:32x16x384x64+3:32x16x64x384+0:32x16x384x64+1:32x1x1x384 --case=complex_fusion/mha/dynamic_quantized_mha-Bert_large-inf-int8-bs1-fake.json
 --reset --in-shapes=4:20x16x384x64+3:20x16x64x384+0:20x16x384x64+1:20x1x1x384 --case=complex_fusion/mha/sdpa-plain-wo-scale-int8-bs1.json
+
+# phi3-mini-4k-instruct
+--reset
+--in-shapes=0:1x32x96x384*abdc+1:1x32x1x384+2:1x32x1x384+3:1x32x384x96+5:1x1x384x384+6:1x32x384x96+7:1x32x384x1+8:1x32x384x1
+--op-attrs=34107656704:group_shape:1x1x96x1+34107752448:group_shape:1x1x1x96 --in-shapes= --case=complex_fusion/mha/sdpa-compressed-kv-int8-gs128.json
