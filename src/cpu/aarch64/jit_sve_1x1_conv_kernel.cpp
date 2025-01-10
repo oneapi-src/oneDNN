@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
 * Copyright 2021-2024 FUJITSU LIMITED
+* Copyright 2024-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -620,6 +621,7 @@ status_t jit_sve_1x1_conv_kernel<isa_>::init_conf(jit_1x1_conv_conf_t &jcp,
 
     /* arch check */
     if (!mayiuse(isa_)) { return status::unimplemented; }
+    jcp.isa = isa_;
 
     if (!everyone_is(data_type::f32, src_d.data_type(), weights_d.data_type(),
                 dst_d.data_type())) {
