@@ -17,6 +17,11 @@
 #ifndef GPU_INTEL_JIT_EMULATION_HPP
 #define GPU_INTEL_JIT_EMULATION_HPP
 
+#include "gpu/intel/jit/ngen/ngen_config.hpp"
+#ifdef NGEN_ENABLE_SOURCE_LOCATION
+#include <source_location>
+#endif
+
 #include <exception>
 
 namespace dnnl {
@@ -66,9 +71,18 @@ struct EmulationState {
 // Implementation wrapped as static methods in non-instantiated class.
 // Clients should declare EmulationImplementation as a friend.
 struct EmulationImplementation {
+#ifdef NGEN_ENABLE_SOURCE_LOCATION
+    [[noreturn]] static void stub(
+            std::source_location where = std::source_location::current()) {
+        throw std::runtime_error(std::string("Unimplemented (at ")
+                + std::string(where.file_name()) + ":"
+                + std::to_string(where.line()) + ")");
+    }
+#else
     [[noreturn]] static void stub() {
         throw std::runtime_error("Unimplemented");
     }
+#endif
 
     template <typename DT, typename O>
     static void applyDefaultType(O &op) {
