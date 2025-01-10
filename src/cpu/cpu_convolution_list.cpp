@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2024 Intel Corporation
-* Copyright 2020-2024 Arm Ltd. and affiliates
+* Copyright 2020-2025 Arm Ltd. and affiliates
 * Copyright 2020-2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -145,14 +145,14 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE_AARCH64(jit_sve_1x1_convolution_fwd_t<f32,f32,f32,sve_512>)
             CPU_INSTANCE_AARCH64(jit_sve_convolution_fwd_t<f32,f32,f32,sve_512>)
             CPU_INSTANCE_AARCH64(jit_uni_dw_convolution_fwd_t<sve_256,data_type::f32>)
+            CPU_INSTANCE_AARCH64(jit_sve_1x1_convolution_fwd_t<f32,f32,f32,sve_256>)
+            CPU_INSTANCE_AARCH64(jit_sve_convolution_fwd_t<f32,f32,f32,sve_256>)
             CPU_INSTANCE_AARCH64_ACL(acl_depthwise_convolution_fwd_t)
             CPU_INSTANCE_AARCH64_ACL(acl_indirect_gemm_convolution_fwd_t)
             CPU_INSTANCE_AARCH64_ACL(acl_gemm_convolution_fwd_t<f32>)
             CPU_INSTANCE_AARCH64(brdgmm_dw_convolution_fwd_t<sve_256>)
             CPU_INSTANCE_AARCH64(brgemm_1x1_convolution_fwd_t<sve_256>)
             CPU_INSTANCE_AARCH64(brgemm_convolution_fwd_t<sve_256>)
-            CPU_INSTANCE_AARCH64(jit_sve_1x1_convolution_fwd_t<f32,f32,f32,sve_256>)
-            CPU_INSTANCE_AARCH64(jit_sve_convolution_fwd_t<f32,f32,f32,sve_256>)
             CPU_INSTANCE_X64(jit_uni_ncsp_convolution_fwd_t)
             CPU_INSTANCE(gemm_convolution_fwd_t)
             CPU_INSTANCE(ref_convolution_fwd_t)
