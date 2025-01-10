@@ -701,6 +701,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_binary, 1,
                 .set_num_outputs(2)
                 .set_input(0, "a")
                 .set_input(1, "b")
+                .set_input(2, "cond")
                 .set_output(0, "output")
                 .set_output(1, "scratchpad")
                 // Attributes inherited from front binary ops (Add, Multiply,

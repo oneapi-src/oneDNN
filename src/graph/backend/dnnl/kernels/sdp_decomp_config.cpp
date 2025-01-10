@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,6 +56,23 @@ bool sdp_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
         auto scale_sz = ltw(inputs[graph_inport[2]]).nelems();
         VCHECK_SDP_DECOMP(scale_sz == 1, false,
                 "Only supports single scale value, but got %lld", scale_sz);
+    }
+
+    // Check select cond and src0 shape
+    if (graph_inport[5] != -1 && graph_inport[6] != -1) {
+        const auto select_cond_dims = ltw(inputs[graph_inport[5]]).vdims();
+        const auto select_src0_dims = ltw(inputs[graph_inport[6]]).vdims();
+        VCHECK_SDP_DECOMP(select_cond_dims.size() == select_src0_dims.size(),
+                false,
+                "Select cond and src0 dims should be same, but got %zu and %zu",
+                select_cond_dims.size(), select_src0_dims.size());
+        for (size_t i = 0; i < select_cond_dims.size(); i++) {
+
+            VCHECK_SDP_DECOMP(select_cond_dims[i] == select_src0_dims[i], false,
+                    "Select cond and src0 dims should be same, but got %lld "
+                    "and %lld",
+                    select_cond_dims[i], select_src0_dims[i]);
+        }
     }
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP

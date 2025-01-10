@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,9 +15,9 @@
 *******************************************************************************/
 
 #include <algorithm>
-#include <unordered_set>
-
 #include "graph/interface/shape_infer.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
+#include <unordered_set>
 
 #include "graph/backend/dnnl/dnnl_shape_infer.hpp"
 #include "graph/backend/dnnl/internal_attrs.hpp"
@@ -484,17 +484,65 @@ status_t infer_dnnl_pool_bwd_output_shape(op_t *n,
     return status::success;
 }
 
+status_t infer_binary_select_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto in0 = logical_tensor_wrapper_t(inputs[0]);
+    auto in1 = logical_tensor_wrapper_t(inputs[1]);
+    auto in2 = logical_tensor_wrapper_t(inputs[2]);
+
+    const bool shapes_should_match = n->has_attr(op_attr::auto_broadcast)
+            ? "none" == n->get_attr<std::string>(op_attr::auto_broadcast)
+            : false;
+
+    dims input0_dims = in0.vdims();
+    dims input1_dims = in1.vdims();
+    dims input2_dims = in2.vdims();
+    dims inferred_out_shape;
+
+    if (shapes_should_match) { // no broadcast
+        VCHECK_INVALID_SHAPE(
+                (input0_dims == input1_dims && input1_dims == input2_dims),
+                "%s, all input dims should match each other if there is no "
+                "broadcast. input0 dims: %s, input1 dims: %s, input2 dims: %s ",
+                op_t::kind2str(n->get_kind()).c_str(),
+                dims2str(input0_dims).c_str(), dims2str(input1_dims).c_str(),
+                dims2str(input2_dims).c_str());
+        inferred_out_shape = std::move(input0_dims);
+    } else { // can broadcast
+        status_t ret1 = broadcast(input0_dims, input1_dims, inferred_out_shape);
+        VCHECK_INVALID_SHAPE((ret1 == status::success),
+                "%s, failed to implement numpy broadcasting",
+                op_t::kind2str(n->get_kind()).c_str());
+    }
+
+    auto out0 = logical_tensor_wrapper_t(outputs[0]);
+    // check if given or partial set shape aligns with inferred shape
+    if (!out0.is_shape_unknown() || out0.ndims() != -1) {
+        VCHECK_INVALID_SHAPE(validate(inferred_out_shape, out0.vdims()),
+                "%s, inferred out shape and output shape are not compatible",
+                op_t::kind2str(n->get_kind()).c_str());
+        if (!out0.is_shape_unknown()) return status::success;
+    }
+
+    set_shape_and_strides(*outputs[0], inferred_out_shape);
+    return status::success;
+}
+
 status_t infer_dnnl_binary_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
     const bool is_bias_add = n->has_attr(op_attr::is_bias_add)
             && n->get_attr<bool>(op_attr::is_bias_add);
-
-    auto ret = is_bias_add
-            ? infer_bias_add_output_shape(n, inputs, outputs)
-            : infer_elemwise_arithmetic_output_shape(n, inputs, outputs);
-
-    return ret;
+    const algorithm algo = static_cast<dnnl::algorithm>(
+            n->get_attr<int64_t>(op_attr::alg_kind));
+    if (algo == algorithm::binary_select) {
+        return infer_binary_select_output_shape(n, inputs, outputs);
+    } else if (is_bias_add) {
+        return infer_bias_add_output_shape(n, inputs, outputs);
+    } else {
+        return infer_elemwise_arithmetic_output_shape(n, inputs, outputs);
+    }
 }
 
 } // namespace dnnl_impl
