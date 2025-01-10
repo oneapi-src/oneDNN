@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2024 Intel Corporation
+ * Copyright 2021-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,6 +118,14 @@ status_t fuse_to_dnnl_sum(std::shared_ptr<subgraph_t> &sg);
 // This pass is used to insert unsqueeze op before dnnl_binary op's inputs to
 // make the input shape meet the requirement of oneDNN binary primitive
 status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg);
+
+// For now, we support two impl paths for select op: one is to use binary
+// primitive with select alorithm, the other is to use multiple binary ops(we
+// call it "legacy impl" here). However, during the lowering pass, we directly
+// lower the front-end select op to single binary select op, this pass is used
+// to decide which impl path to apply and then decompose the select binary op
+// back to multiple binary ops if it's the case to use legacy impl.
+status_t decompose_select_to_binary_ops(std::shared_ptr<subgraph_t> &sg);
 
 // This pass is used to swap two inputs to broadcast src1 which is optimized in
 // oneDNN binary primitive. Notice that this should be applied after

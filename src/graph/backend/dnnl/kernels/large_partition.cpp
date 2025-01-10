@@ -36,6 +36,8 @@ void larger_partition_kernel_t::setup_pipeline_stage1(
         pass_pipeline_t &pipeline) {
     // Directly lower down (1 to 1 mapping)
     BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+    // Decompose select to binary ops if necessary
+    BACKEND_DNNL_ADD_PASS(pipeline, decompose_select_to_binary_ops);
 
     // Indirectly lower down (N to 1 mapping)
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_reciprocal_mul_to_div);

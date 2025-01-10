@@ -250,7 +250,8 @@ const std::map<op_kind_t, dnnl::algorithm> &get_binary_alg_map() {
                     {graph::op_kind::Maximum, dnnl::algorithm::binary_max},
                     {graph::op_kind::Subtract, dnnl::algorithm::binary_sub},
                     {graph::op_kind::BiasAdd, dnnl::algorithm::binary_add},
-                    {graph::op_kind::GreaterEqual, dnnl::algorithm::binary_ge}};
+                    {graph::op_kind::GreaterEqual, dnnl::algorithm::binary_ge},
+                    {graph::op_kind::Select, dnnl::algorithm::binary_select}};
     return binary_alg_map;
 }
 
@@ -646,6 +647,21 @@ bool inverse_mul_scales(std::shared_ptr<op_t> &scale_op) {
     return true;
 }
 
+bool need_broadcast_for_inputs(
+        const std::shared_ptr<op_t> &op, size_t index1, size_t index2) {
+    auto in_vals = op->get_input_values();
+
+    const dims input1_dims
+            = logical_tensor_wrapper_t(in_vals[index1]->get_logical_tensor())
+                      .vdims();
+    const dims input2_dims
+            = logical_tensor_wrapper_t(in_vals[index2]->get_logical_tensor())
+                      .vdims();
+
+    if (input1_dims != input2_dims) { return true; }
+
+    return false;
+}
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

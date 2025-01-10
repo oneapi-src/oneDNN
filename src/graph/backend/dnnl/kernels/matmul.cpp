@@ -50,6 +50,9 @@ status_t matmul_t<quantized>::compile_impl(const dnnl_partition_impl_t *part,
     pass_pipeline_t pipeline(vis);
 
     BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+    // Decompose select to binary ops if necessary
+    BACKEND_DNNL_ADD_PASS(pipeline, decompose_select_to_binary_ops);
+
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_bias_add);
     // check if bias exists
     BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
