@@ -2037,8 +2037,8 @@ void matmul_amx_blocking_params_t::set_blocking_parameters(
 
         const dim_t current_k_tail = K % k_blk_;
 
-        extendable_k_
-                = !use_buffer_a && K % wei_k_blk && k_chunk_elems_ > wei_k_blk;
+        extendable_k_ = !use_buffer_a && K % wei_k_blk
+                && k_chunk_elems_ > wei_k_blk && !packed_sparse_weights;
 
         if (extendable_k_) {
             if (k_chunk_elems_ >= K) {
