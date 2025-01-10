@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -264,12 +264,11 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
     } else if (!block2DA) {
         s.A.accessType = AccessType::Block;
         if (systolic)
-            s.ka_load = (problem.A.layout == MatrixLayout::T) ? 32 : 16;
+            s.ka_load = (problem.A.layout == MatrixLayout::T) ? (64 / problem.Ta_ext) : 16;
         s.slmA = true;
-
     } else if (problem.A.layout == MatrixLayout::T) {
         s.A.accessType = AccessType::Block2DTranspose;
-        s.ka_load = 32;
+        s.ka_load = 64 / problem.Ta_ext;
     } else if (problem.A.layout == MatrixLayout::N) {
         s.A.accessType = AccessType::Block2DVNNI;
         s.A_copies = 2;
