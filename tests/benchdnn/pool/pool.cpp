@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 * Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -193,7 +193,8 @@ bool cuda_check_correctness(const prb_t *prb,
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
     // Threshold to compensate division error. CPU could live with 6.f coeff.
-    const float trh = 10.f * epsilon_dt(prb->dt[1]);
+    const float trh
+            = prb->alg == alg_t::max ? 0.f : 10.f * epsilon_dt(prb->dt[1]);
     cmp.set_threshold(trh);
     // Backward may have most zeroes for ker_in_pad with huge kernels problems.
     const float zero_percent = (prb->dir & FLAG_FWD) ? 99.f : 100.f;
