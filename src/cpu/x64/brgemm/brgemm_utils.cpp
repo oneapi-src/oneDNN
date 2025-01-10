@@ -252,7 +252,7 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
     return max_bcast_block;
 }
 
-status_t brgemm_blocking(brgemm_desc_t *brg) {
+status_t brgemm_blocking(brgemm_desc_t *brg, bool attr_blocking) {
     const data_type_t ld_step_compute_dt
             = get_mac_emu_data_type(brg->dt_b, brg->isa_impl,
                     brg->isa_impl != avx2_vnni_2 && !brg->is_fp8_via_convert());
@@ -749,6 +749,25 @@ status_t brgemm_blocking(brgemm_desc_t *brg) {
 
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
+
+        // Remove these guards in the future (add tail processing by reduction
+        // dimension)
+        // TODO: these checks do not work for fp8-f16 and f16-fp8 cfgs
+        if (attr_blocking
+                && !IMPLICATION(brg->rdb > 0 && brg->rdb_tail,
+                        brg->is_input_convert() || brg->amx_wary_k_tail())) {
+            return status::unimplemented;
+        }
+
+        if (attr_blocking
+                && !IMPLICATION(
+                        (brg->rdb_tail
+                                % ((brg->is_bf16_tmm || brg->is_f16_tmm) ? 2
+                                                                         : 4))
+                                != 0,
+                        brg->is_input_convert() || brg->amx_wary_k_tail())) {
+            return status::unimplemented;
+        }
 
         //TODO: check this condition
         brg->interleave_tilestores_ = brg->beta == 0
