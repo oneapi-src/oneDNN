@@ -69,7 +69,7 @@ struct prb_t {
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
 std::vector<int> supported_exec_args(const prb_t *prb);
 
-int fill_mem(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int f_min, int f_max);
+int fill_mem(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int f_min, int f_max, float f_value = 0);
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args);
 

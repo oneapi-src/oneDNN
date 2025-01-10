@@ -128,7 +128,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 SAFE(::custom::fill_mem(mem, ref_mem, 0, 4), WARN);
                 break;
             case DNNL_ARG_SRC_1:
-                SAFE(::custom::fill_mem(mem, ref_mem, -2, 1), WARN);
+                SAFE(::custom::fill_mem(mem, ref_mem, -2, 1, -std::numeric_limits<float>::infinity()), WARN);
                 break;
             case DNNL_ARG_WEIGHTS:
                 SAFE(::custom::fill_mem(mem, ref_mem, 0, 1), WARN);
@@ -291,7 +291,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
     }
 }
 
-int fill_mem(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int f_min, int f_max) {
+int fill_mem(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int f_min, int f_max, float f_value) {
 
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
@@ -306,7 +306,7 @@ int fill_mem(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int f_min, int f_max) {
         std::minstd_rand int_seed(nelems + idx_start + 1);
         std::uniform_int_distribution<> gen(f_min, f_max);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            float value = gen(int_seed);
+            float value = (f_value == 0) ? gen(int_seed) : f_value;
             mem_fp.set_elem(idx, round_to_nearest_representable(dt, value));
         }
     });
