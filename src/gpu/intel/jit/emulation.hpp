@@ -261,32 +261,48 @@ struct EmulationImplementation {
 
         bool dstQ = isQW(dst);
         bool s0Q = isQW(src0);
-        bool s0D = isDW(src0);
         bool isDF = (src0.getType() == DataType::df
                 && dst.getType() == DataType::df);
         bool unaligned = (mod.getExecSize() > 1 && src0.getHS() != 0
                 && src0.getOffset() != dst.getOffset());
+        bool emulateDF = isDF && unaligned && g.hardware >= ngen::HW::XeHP;
 
-        if ((dstQ && s0D) && strategy.emulate64) {
-            if (src0.getNeg()) stub();
-            bool s0Signed = isSigned(src0.getType());
-            RegData dstHi, dstLo;
-            splitToDW(dst, dstLo, dstHi);
-            g.mov(mod, dstLo, src0);
-            if (!s0Signed)
-                g.mov(mod, dstHi, 0);
-            else
-                g.asr(mod, dstHi, dstLo, uint16_t(31));
-        } else if (((dstQ || s0Q) && strategy.emulate64)
-                || (isDF && unaligned && g.hardware >= ngen::HW::XeHP)) {
-            if (dstQ != s0Q) stub();
+        if ((strategy.emulate64 && dstQ) || emulateDF) {
+            switch (src0.getType()) {
+                case DataType::ub:
+                case DataType::uw:
+                case DataType::ud: {
+                    RegData dstHi, dstLo;
+                    splitToDW(dst, dstLo, dstHi);
+                    g.mov(mod, dstLo, src0);
+                    g.mov(mod, dstHi, 0);
+                    break;
+                }
+                case DataType::d: {
+                    if (src0.getNeg()) stub();
+                    RegData dstHi, dstLo;
+                    splitToDW(dst, dstLo, dstHi);
+                    g.mov(mod, dstLo, src0);
+                    g.asr(mod, dstHi, src0, uint16_t(31));
+                    break;
+                }
+                case DataType::q:
+                case DataType::uq:
+                case DataType::df: {
+                    if (dstQ != s0Q) stub();
 
-            auto mod2x = mod;
-            mod2x.setExecSize(mod.getExecSize() * 2);
+                    auto mod2x = mod;
+                    mod2x.setExecSize(mod.getExecSize() * 2);
 
-            makeDWPair(dst, mod.getExecSize());
-            makeDWPair(src0, mod.getExecSize());
-            g.mov(mod2x, dst, src0);
+                    makeDWPair(dst, mod.getExecSize());
+                    makeDWPair(src0, mod.getExecSize());
+                    g.mov(mod2x, dst, src0);
+                    break;
+                }
+                default: stub(); break;
+            }
+        } else if (strategy.emulate64 && s0Q) {
+            stub();
         } else if (dst.getType() == DataType::f
                 && src0.getType() == DataType::bf
                 && (src0.getHS() != 1 || mod.getExecSize() == 1)) {
