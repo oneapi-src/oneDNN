@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_convolution_pd.hpp"
 #include "cpu/platform.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/injectors/injector_utils.hpp"
@@ -821,6 +822,13 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
     jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];
+
+    // Big int (> INT_MAX) values are unsupported and jcp fields may overflow
+    // TODO: change data type of jcp fields to size_t
+    VDISPATCH_CONV_IC(!((ndims == 5 && cd.dilates[ndims - 5] > INT_MAX)
+                              || (ndims >= 4 && cd.dilates[ndims - 4] > INT_MAX)
+                              || (cd.dilates[ndims - 3] > INT_MAX)),
+            VERBOSE_BAD_PARAM, "dilates");
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];
