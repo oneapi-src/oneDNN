@@ -46,7 +46,7 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src,
         const uint b_scale_dim = (NDIMS == 2) ? d1 : (NDIMS == 3) ? d2 : d3;
         float b_scale = 1;
         if (B_SCALES) load(&b_scale, b_scales + scale_stride * b_scale_dim);
-        acc *= a_scale * b_scale;
+        if (A_SCALES || B_SCALES) acc *= a_scale * b_scale;
 
         if (bias) {
             ACC_DATA_T b;
