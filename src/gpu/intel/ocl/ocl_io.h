@@ -77,6 +77,7 @@ DEF_load(float, char);
 DEF_load(float, uchar);
 DEF_load(int, char);
 DEF_load(int, uchar);
+DEF_load(int, int);
 DEF_load(float, bf16);
 
 // Writes
@@ -88,6 +89,7 @@ DEF_write(float, float);
 DEF_write(char, int);
 DEF_write(uchar, int);
 DEF_write(bf16, int);
+DEF_write(int, int);
 DEF_write(float, int);
 DEF_write(int, float);
 
