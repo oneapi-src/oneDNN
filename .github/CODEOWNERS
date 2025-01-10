@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2024 Intel Corporation
+# Copyright 2019-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,6 +44,14 @@
 # Documentation
 *.md  @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
 /doc/ @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
+
+# Third party components
+/third-party/ @oneapi-src/onednn-arch @intel-innersource/dnn-arch
+/third_party/level_zero/ @oneapi-src/onednn-gpu-intel @intel-innersource/dnn-gpu
+/third_party/mdapi/ @oneapi-src/onednn-gpu-intel @intel-innersource/dnn-gpu
+/third_party/ngen/ @oneapi-src/onednn-gpu-intel @intel-innersource/dnn-gpu
+/third_party/xbyak/ @oneapi-src/onednn-cpu-x64 @intel-innersource/dnn-cpu
+/third_party/xbyak_aarch64/ @oneapi-src/onednn-cpu-aarch64 @intel-innersource/dnn-arch
 
 # Governance and process
 /.github/CODEOWNERS @oneapi-src/onednn-maintain
