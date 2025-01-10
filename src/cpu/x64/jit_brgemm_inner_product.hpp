@@ -67,7 +67,9 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             // better readability
             if (!mayiuse(isa)) return status::unimplemented;
 
-            VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT(
+                    get_prop_kind() == prop_kind::forward_training,
+                    VERBOSE_BAD_PROPKIND);
             VDISPATCH_INNER_PRODUCT(
                     expect_data_types(src_dt, wei_dt, data_type::undef, dst_dt,
                             data_type::undef),
