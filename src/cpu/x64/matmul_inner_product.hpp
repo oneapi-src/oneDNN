@@ -62,13 +62,19 @@ struct matmul_inner_product_fwd_t : public primitive_t {
             if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
 
             // This implementation is currently enabled only for inference.
-            VDISPATCH_INNER_PRODUCT(
-                    get_prop_kind() == prop_kind::forward_inference,
-                    VERBOSE_BAD_PROPKIND);
+            VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
             VDISPATCH_INNER_PRODUCT(
                     !has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
             VDISPATCH_INNER_PRODUCT(attr()->has_default_values(skip_mask),
                     VERBOSE_UNSUPPORTED_ATTR);
+
+            if (get_prop_kind() == prop_kind::forward_training) {
+                VDISPATCH_INNER_PRODUCT_SC(
+                        set_training_formats(
+                                &src_md_, &weights_md_, &bias_md_, &dst_md_),
+                        VERBOSE_UNSUPPORTED_TAG);
+            }
+
             VDISPATCH_INNER_PRODUCT_SC(
                     init_matmul_params(engine), "init_matmul_params");
             init_scratchpad();
