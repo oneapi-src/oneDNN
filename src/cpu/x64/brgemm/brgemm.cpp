@@ -534,7 +534,7 @@ status_t brgemm_desc_set_attr(
         if (brg->is_dgmm)
             CHECK(brdgmm_blocking(brg));
         else
-            CHECK(brgemm_blocking(brg));
+            CHECK(brgemm_blocking(brg, true));
     }
 
     if (!brg->is_dgmm) {
