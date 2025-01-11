@@ -2102,7 +2102,8 @@ protected:
 
     constexpr static int reg_src_offs_ = 0;
     constexpr static int reg_tr_src_offs_ = 8;
-    constexpr static int stack_space_needed_ = 16;
+    constexpr static int reg_current_K_pad_offs_ = 16;
+    constexpr static int stack_space_needed_ = 24;
 
     const int comp_acc_idx_;
 
@@ -2708,9 +2709,14 @@ void jit_brgemm_matmul_copy_b_int8_t<Vmm>::generate() {
 
     auto compute_K_loop = [&](bool is_N_tail) {
         int ncolumns = is_N_tail ? conf_->N_tail : conf_->N_blk;
+        // 'param1' register (rcx on Windows) re-written in compute_K_loop_body
+        // so we need to read and keep 'current_K_pad' parameter in stack before
+        // the call
+        mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_pad)]);
+        mov(ptr[rsp + reg_current_K_pad_offs_], reg_K_iters);
         mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
         compute_K_loop_body(reg_K_iters, ncolumns, is_N_tail, false);
-        mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_pad)]);
+        mov(reg_K_iters, ptr[rsp + reg_current_K_pad_offs_]);
         compute_K_loop_body(reg_K_iters, ncolumns, is_N_tail, true);
     };
 
@@ -2900,7 +2906,8 @@ private:
     constexpr static int reg_src_offs = 0;
 
     constexpr static int reg_tr_src_offs = 8;
-    constexpr static int stack_space_needed = 16;
+    constexpr static int reg_current_K_pad_offs_ = 16;
+    constexpr static int stack_space_needed = 24;
 
     opmask_t kTail = k7;
     opmask_t kFFFF = k6;
@@ -3301,9 +3308,14 @@ void jit_brgemm_matmul_copy_b_bf16_t<Vmm>::generate() {
 
     auto compute_K_loop = [&](bool is_N_tail) {
         int ncolumns = is_N_tail ? conf_->N_tail : conf_->N_blk;
+        // 'param1' register (rcx on Windows) re-written in compute_K_loop_body
+        // so we need to read and keep 'current_K_pad' parameter in stack before
+        // the call
+        mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_pad)]);
+        mov(ptr[rsp + reg_current_K_pad_offs_], reg_K_iters);
         mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_iters)]);
         compute_K_loop_body(reg_K_iters, ncolumns, is_N_tail, false);
-        mov(reg_K_iters, ptr[param1 + GET_OFF(current_K_pad)]);
+        mov(reg_K_iters, ptr[rsp + reg_current_K_pad_offs_]);
         compute_K_loop_body(reg_K_iters, ncolumns, is_N_tail, true);
     };
 
