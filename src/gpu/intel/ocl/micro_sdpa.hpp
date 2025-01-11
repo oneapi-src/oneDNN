@@ -66,8 +66,11 @@ struct micro_sdpa_t : public gpu_primitive_t {
                         attn_mask_md()->dims[mask_k_index] == desc()->keys(),
                         VERBOSE_INVALID_BROADCAST, "attn_mask", mask_k_index);
             }
-            VDISPATCH_SDPA(utils::everyone_is(data_type::f16,
-                                   qry_md()->data_type, dst_md()->data_type),
+            VDISPATCH_SDPA(
+                    (utils::everyone_is(data_type::f16, qry_md()->data_type,
+                             dst_md()->data_type)
+                            || utils::everyone_is(data_type::bf16,
+                                    qry_md()->data_type, dst_md()->data_type)),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_SDPA(
                     utils::one_of(key_md()->data_type, f16, u8, s8, u4, s4),
@@ -75,6 +78,14 @@ struct micro_sdpa_t : public gpu_primitive_t {
             VDISPATCH_SDPA(
                     utils::one_of(val_md()->data_type, f16, u8, s8, u4, s4),
                     VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_SDPA(
+                    IMPLICATION(qry_md()->data_type == data_type::bf16,
+                            utils::everyone_is(data_type::bf16,
+                                    val_md()->data_type, key_md()->data_type,
+                                    attn_mask_md()->data_type,
+                                    desc()->scale_dt)),
+                    "Key and Value tensors (with scales and mask) should be "
+                    "bf16 if Query is bf16");
             VDISPATCH_SDPA(set_default_formats() == status::success,
                     VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_SDPA(desc()->values() == desc()->head_size(),
