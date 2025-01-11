@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/intel/ocl/ocl_types.h"
 #include "gpu/intel/ocl/sdpa_utils.h"
 #include "gpu/intel/ocl/tile_ops.h"
 
@@ -37,31 +38,25 @@
 typedef ugemm_kq_c_type s_tile_type;
 typedef ugemm_vs_c_type a_tile_type;
 
-#ifdef QRY_DT_F16
-#define VEC_TYPE2 half2
-#else // data type is bf16
-#define VEC_TYPE2 ushort2
-#endif
-
 DECLARE_2D_TILE(q_tile_type, uint, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
 
 #ifdef BLOCK_Q
 DECLARE_2D_TILE_BLOCK_OPS(
         q_tile_type, uint, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
 #elif Q_ALIGN < 4
-DECLARE_2D_TILE_LOAD_PACKED_VEC(q_tile_type, QRY_DATA_T, VEC_TYPE2,
-        SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
+DECLARE_2D_TILE_LOAD_PACKED_HALF(
+        q_tile_type, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
 #endif
 
 #ifdef BLOCK_A
-DECLARE_2D_TILE(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE, ugemm_vs_sg_tile_m,
-        1, 1, ugemm_vs_sg_tile_n)
+DECLARE_2D_TILE(a_tile_type_half, half, SUBGROUP_SIZE, ugemm_vs_sg_tile_m, 1, 1,
+        ugemm_vs_sg_tile_n)
 #else
-DECLARE_2D_TILE(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE, ugemm_vs_sg_tile_m,
-        8, 1, ugemm_vs_sg_tile_n / 8)
+DECLARE_2D_TILE(a_tile_type_half, half, SUBGROUP_SIZE, ugemm_vs_sg_tile_m, 8, 1,
+        ugemm_vs_sg_tile_n / 8)
 #endif
 
-DECLARE_2D_TILE(s_tile_type_packed, uint, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
+DECLARE_2D_TILE(s_tile_type_half2, uint, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
         ugemm_kq_c_type_block1 / 2, ugemm_kq_c_type_nblock0,
         ugemm_kq_c_type_nblock1)
 
@@ -83,34 +78,34 @@ DECLARE_2D_TILE(
 #define mask_nbc ugemm_kq_c_type_nblock1
 #endif
 
-DECLARE_2D_TILE(mask_tile_type, MSK_DATA_T, SUBGROUP_SIZE, mask_br, mask_bc,
-        mask_nbr, mask_nbc)
+DECLARE_2D_TILE(mask_tile_type, half, SUBGROUP_SIZE, mask_br, mask_bc, mask_nbr,
+        mask_nbc)
 DECLARE_2D_TILE(mask_tile_type_float, float, SUBGROUP_SIZE, mask_br, mask_bc,
         mask_nbr, mask_nbc)
 
 #if BROADCAST_MASK_Q
-DECLARE_2D_TILE_BLOCK_OPS(mask_tile_type, MSK_DATA_T, SUBGROUP_SIZE, mask_br,
-        mask_bc, mask_nbr, mask_nbc)
+DECLARE_2D_TILE_BLOCK_OPS(mask_tile_type, half, SUBGROUP_SIZE, mask_br, mask_bc,
+        mask_nbr, mask_nbc)
 #endif
 
 #ifdef BLOCK_A
-DECLARE_2D_TILE_BLOCK_OPS(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE,
+DECLARE_2D_TILE_BLOCK_OPS(a_tile_type_half, half, SUBGROUP_SIZE,
         ugemm_vs_sg_tile_m, 1, 1, ugemm_vs_sg_tile_n)
 #endif
 #ifdef BLOCK_2D_A
-DECLARE_2D_TILE_BLOCK2D_OPS(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE,
+DECLARE_2D_TILE_BLOCK2D_OPS(a_tile_type_half, half, SUBGROUP_SIZE,
         ugemm_vs_sg_tile_m, 8, 1, ugemm_vs_sg_tile_n / 8)
 #endif
 
 #ifdef BLOCK_A
 DECLARE_2D_TILE_COPY_REBLOCK(a_tile_type, SUBGROUP_SIZE, ugemm_vs_c_type_block0,
         ugemm_vs_c_type_block1, ugemm_vs_c_type_nblock0,
-        ugemm_vs_c_type_nblock1, a_tile_type_dst, SUBGROUP_SIZE,
+        ugemm_vs_c_type_nblock1, a_tile_type_half, SUBGROUP_SIZE,
         ugemm_vs_sg_tile_m, 1, 1, ugemm_vs_sg_tile_n)
 #else
 DECLARE_2D_TILE_COPY_REBLOCK(a_tile_type, SUBGROUP_SIZE, ugemm_vs_c_type_block0,
         ugemm_vs_c_type_block1, ugemm_vs_c_type_nblock0,
-        ugemm_vs_c_type_nblock1, a_tile_type_dst, SUBGROUP_SIZE,
+        ugemm_vs_c_type_nblock1, a_tile_type_half, SUBGROUP_SIZE,
         ugemm_vs_sg_tile_m, 8, 1, ugemm_vs_sg_tile_n / 8)
 #endif
 
@@ -165,10 +160,10 @@ DECLARE_2D_TILE_RSELECT(a_scale_tile_type, SUBGROUP_SIZE, ugemm_vs_sg_tile_n, 1,
 #define binary_add(x, y) ((x) + (y))
 
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) kernel void
-micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
-        const global VAL_DATA_T *V, global DST_DATA_T *A,
-        const global SCALE_DATA_T *scale_ptr, const global MSK_DATA_T *msk,
-        int d, int k, int q, const global KEY_ATTR_SCALES_DATA_T *K_scales,
+micro_sdpa(const global KEY_DATA_T *K, const global half *Q,
+        const global VAL_DATA_T *V, global half *A,
+        const global SCALE_DATA_T *scale_ptr, const global half *msk, int d,
+        int k, int q, const global KEY_ATTR_SCALES_DATA_T *K_scales,
         const global KEY_ATTR_ZP_DATA_T *K_zp,
         const global VAL_ATTR_SCALES_DATA_T *V_scales,
         const global VAL_ATTR_ZP_DATA_T *V_zp) {
@@ -200,9 +195,8 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     uint sg_j_vs = sg_ij / ugemm_vs_sg_per_wg_m;
 
     /* SLM allocations -- place in one array to work around compiler bug */
-#define Q_slm_size (D_MAX * ugemm_kq_wg_tile_n * sizeof(QRY_DATA_T))
-#define S_slm_size \
-    (ugemm_kq_wg_tile_m * ugemm_kq_wg_tile_n * sizeof(QRY_DATA_T))
+#define Q_slm_size (D_MAX * ugemm_kq_wg_tile_n * sizeof(half))
+#define S_slm_size (ugemm_kq_wg_tile_m * ugemm_kq_wg_tile_n * sizeof(half))
 #define S_sum_slm_size \
     (ugemm_kq_wg_tile_n * ugemm_kq_sg_per_wg_m * sizeof(float))
 #define S_max_slm_size (ugemm_kq_wg_tile_n * sizeof(float))
@@ -211,8 +205,8 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     local char slm[Q_slm_size + S_slm_size + S_sum_slm_size + S_max_slm_size
             + ugemm_slm_size];
 
-    local QRY_DATA_T *Q_slm = (local QRY_DATA_T *)&slm[0];
-    local QRY_DATA_T *S_slm = (local QRY_DATA_T *)&slm[Q_slm_size];
+    local half *Q_slm = (local half *)&slm[0];
+    local half *S_slm = (local half *)&slm[Q_slm_size];
     local float *S_sum_slm = (local float *)&slm[Q_slm_size + S_slm_size];
     local float *S_max_slm
             = (local float *)&slm[Q_slm_size + S_slm_size + S_sum_slm_size];
@@ -267,16 +261,16 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     tile_load(&Q_tile, (global uint *)Q, (d + 1) >> 1, q, ldq >> 1, 0,
             wg_j0 + q0_copy);
 #else
-    tile_load_packed_vec2(&Q_tile, Q, d, q, ldq, 0, wg_j0 + q0_copy);
+    tile_load_packed_half(&Q_tile, Q, d, q, ldq, 0, wg_j0 + q0_copy);
 #endif
 
     /* Load scale */
 #if WITH_ATTN_SCALE
 #if INVERT_SCALE
-    float iscale = CONVERT_FLOAT_T(*scale_ptr);
+    float iscale = convert_float(*scale_ptr);
     float scale = native_recip(iscale);
 #else
-    float scale = CONVERT_FLOAT_T(*scale_ptr);
+    float scale = convert_float(*scale_ptr);
     float iscale = native_recip(scale);
 #endif
 #else
@@ -526,12 +520,12 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         tile_fill(S_sum_tile1, 0.0f);
         tile_vreduce_add(S_tile, &S_sum_tile1);
 
-        /* Convert to half or bf16, VNNI format */
-        s_tile_type_packed S_tile_packed;
-        tile_copy_to_vec2(S_tile, S_tile_packed, VEC_TYPE2);
+        /* Convert to half, VNNI format */
+        s_tile_type_half2 S_tile_half2;
+        tile_copy_to_half2(S_tile, S_tile_half2);
 
         /* Store to SLM, in packed format */
-        tile_store_t_sys_src2(S_tile_packed, (local uint *)S_slm,
+        tile_store_t_sys_src2(S_tile_half2, (local uint *)S_slm,
                 ugemm_vs_sg_tile_n, ugemm_kq_wg_tile_m / 2, sg_i0_kq / 2,
                 sg_j0_kq);
         intel_work_group_barrier_arrive(CLK_LOCAL_MEM_FENCE);
@@ -709,17 +703,17 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     tile_hbroadcast_mul(&A_tile, A_scale_tile);
 
     /* Convert to half precision and store */
-    a_tile_type_dst A_tile_dst;
-    tile_copy_reblock(A_tile, &A_tile_dst);
+    a_tile_type_half A_tile_half;
+    tile_copy_reblock(A_tile, &A_tile_half);
 
     uint sg_i0_vs = sg_i_vs * ugemm_vs_sg_tile_m;
     uint sg_j0_vs = sg_j_vs * ugemm_vs_sg_tile_n + wg_j0;
 
 #ifdef BLOCK_2D_A
-    tile_store_block2d(A_tile_dst, A, d, q, lda, sg_i0_vs, sg_j0_vs);
+    tile_store_block2d(A_tile_half, A, d, q, lda, sg_i0_vs, sg_j0_vs);
 #elif defined(BLOCK_A)
-    tile_store_block_rem_q(A_tile_dst, A, q, lda, sg_i0_vs, sg_j0_vs);
+    tile_store_block_rem_q(A_tile_half, A, q, lda, sg_i0_vs, sg_j0_vs);
 #else
-    tile_store(A_tile_dst, A, d, q, lda, sg_i0_vs, sg_j0_vs);
+    tile_store(A_tile_half, A, d, q, lda, sg_i0_vs, sg_j0_vs);
 #endif
 }

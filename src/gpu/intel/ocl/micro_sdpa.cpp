@@ -277,11 +277,7 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     GEMMProblem problem;
     problem.Ta_ext = jit::convert_dnnl_to_kernel_type(key_md()->data_type);
     problem.Tb_ext = jit::convert_dnnl_to_kernel_type(qry_md()->data_type);
-    if (qry_md()->data_type == data_type::f16) {
-        problem.Ta = problem.Tb = Type::f16;
-    } else { // data_type is bf16
-        problem.Ta = problem.Tb = Type::bf16;
-    }
+    problem.Ta = problem.Tb = Type::f16;
     problem.Tc = problem.Tc_ext = Type::f32;
     problem.Ts = problem.Tc;
 
@@ -459,11 +455,7 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     kernel_ctx.define_int("NDIMS", ndims);
 
     def_data_type(kernel_ctx, key_mdw.data_type(), "KEY");
-    def_data_type(kernel_ctx, qry_mdw.data_type(), "QRY");
     def_data_type(kernel_ctx, val_mdw.data_type(), "VAL");
-    def_data_type(kernel_ctx, dst_mdw.data_type(), "DST");
-    def_data_type(kernel_ctx,
-            pd()->with_attn_mask() ? msk_mdw.data_type() : dnnl_f32, "MSK");
 
     def_data_type(kernel_ctx, pd()->key_scales_dt(), "KEY_ATTR_SCALES");
     def_data_type(kernel_ctx, pd()->value_scales_dt(), "VAL_ATTR_SCALES");
