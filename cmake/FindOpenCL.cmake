@@ -47,18 +47,18 @@ function(_FIND_OPENCL_VERSION)
   set(CMAKE_REQUIRED_QUIET ${OpenCL_FIND_QUIETLY})
 
   CMAKE_PUSH_CHECK_STATE()
-  foreach(VERSION "2_2" "2_1" "2_0" "1_2" "1_1" "1_0")
+  foreach(VERSION "3_0" "2_2" "2_1" "2_0" "1_2" "1_1" "1_0")
     set(CMAKE_REQUIRED_INCLUDES "${OpenCL_INCLUDE_DIR}")
 
     if(APPLE)
       CHECK_SYMBOL_EXISTS(
         CL_VERSION_${VERSION}
-        "${OpenCL_INCLUDE_DIR}/Headers/cl.h"
+        "Headers/cl.h"
         OPENCL_VERSION_${VERSION})
     else()
       CHECK_SYMBOL_EXISTS(
         CL_VERSION_${VERSION}
-        "${OpenCL_INCLUDE_DIR}/CL/cl.h"
+        "CL/cl.h"
         OPENCL_VERSION_${VERSION})
     endif()
 
