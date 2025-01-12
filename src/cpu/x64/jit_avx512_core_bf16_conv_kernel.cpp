@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 #include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
 #include "common/nstl.hpp"
@@ -1748,6 +1749,13 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
             return status::unimplemented;
     }
     jcp.ur_w_tail = jcp.iw % jcp.ur_w;
+
+    const auto diff_src_size = static_cast<dim_t>(jcp.typesize_out)
+            * jcp.ngroups * rnd_up(jcp.ic, jcp.ic_block) * jcp.id * jcp.ih
+            * jcp.iw;
+
+    VDISPATCH_CONV_IC(diff_src_size <= INT_MAX, VERBOSE_UNSUPPORTED_FEATURE,
+            "diff_src size > INT_MAX is not supported");
 
     if (is_iw_threading_available(jcp)) {
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
@@ -4481,14 +4489,25 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
 
         // TODO: Optimize memory allocation when threaded on height and depth
         if (jcp.transpose_src) {
-            jcp.tr_src_buf_size = jcp.tr_iw * jcp.ic_block * jcp.ih * jcp.id;
+            jcp.tr_src_buf_size = static_cast<size_t>(jcp.tr_iw) * jcp.ic_block
+                    * jcp.ih * jcp.id;
+            const auto src_max_size = jcp.tr_src_buf_size * jcp.typesize_in;
+            VDISPATCH_CONV_IC(src_max_size <= INT_MAX,
+                    VERBOSE_UNSUPPORTED_FEATURE,
+                    "src size > INT_MAX is not supported");
+
             jcp.tr_src_buf_count = jcp.global_transpose
                     ? jcp.nthr_mb * jcp.nb_ic * jcp.ngroups
                     : jcp.nthr;
         }
         if (jcp.transpose_dst) {
-            jcp.tr_diff_dst_buf_size
-                    = jcp.tr_ow * jcp.oc_block * jcp.oh * jcp.od;
+            jcp.tr_diff_dst_buf_size = static_cast<size_t>(jcp.tr_ow)
+                    * jcp.oc_block * jcp.oh * jcp.od;
+            const auto diff_dst_max_size
+                    = jcp.tr_diff_dst_buf_size * jcp.typesize_in;
+            VDISPATCH_CONV_IC(diff_dst_max_size <= INT_MAX,
+                    VERBOSE_UNSUPPORTED_FEATURE,
+                    "diff_dst size > INT_MAX is not supported");
             jcp.tr_diff_dst_buf_count = jcp.global_transpose
                     ? jcp.nthr_mb * jcp.nb_oc * jcp.ngroups
                     : jcp.nthr;
