@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1133,6 +1133,14 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     const bool is_bwd_d = jcp.prop_kind == backward_data;
     const bool is_bwd_w = jcp.prop_kind == backward_weights;
     const bool is_fwd = !is_bwd_d && !is_bwd_w;
+
+    const auto dst_max_size
+            = static_cast<size_t>(jcp.iw) * jcp.ih * jcp.id * jcp.ic * 4;
+    const auto src_max_size
+            = static_cast<size_t>(jcp.ow) * jcp.oh * jcp.od * jcp.oc * 4;
+    VDISPATCH_CONV_IC(dst_max_size <= INT_MAX && src_max_size <= INT_MAX,
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "dst/scr size > INT_MAX is not supported");
 
     bool is_int8_conv = (is_fwd ? utils::one_of(src_d.data_type(), s8, u8)
                                 : utils::one_of(dst_d.data_type(), s8, u8))
