@@ -1734,8 +1734,6 @@ bool get_reorder_attrs(const deserialized_op &base_op_ref,
         std::vector<int64_t> group_shape;
         base_op_ref.get_attr_s64_vector(group_shape, "group_shape");
         groups = {group_shape[ndims - 2], group_shape[ndims - 1]};
-        scale_dt = static_cast<dnnl_data_type_t>(
-                base_op_ref.in_lts_[1].get_data_type());
     }
 
     if (op_kind == "Dequantize" || op_kind == "Quantize") {
