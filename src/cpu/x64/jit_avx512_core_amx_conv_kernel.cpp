@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -5396,12 +5396,23 @@ status_t jit_avx512_core_amx_bwd_weights_kernel_t::init_conf(
         jcp.nthr_ic_b = nthr_ic_b;
 
         // TODO: Optimize memory allocation when threaded on height and depth
-        jcp.tr_src_buf_size = jcp.tr_iw * jcp.ic_block * jcp.ih * jcp.id;
+        jcp.tr_src_buf_size = static_cast<size_t>(jcp.tr_iw) * jcp.ic_block
+                * jcp.ih * jcp.id;
+        const auto src_max_size = jcp.tr_src_buf_size * jcp.typesize_in;
+        VDISPATCH_CONV_IC(src_max_size <= INT_MAX, VERBOSE_UNSUPPORTED_FEATURE,
+                "scr size > INT_MAX is not supported");
+
         jcp.tr_src_buf_count = jcp.global_transpose
                 ? jcp.nthr_mb * jcp.nb_ic * jcp.ngroups
                 : jcp.nthr;
 
-        jcp.tr_diff_dst_buf_size = jcp.tr_ow * jcp.oc_block * jcp.oh * jcp.od;
+        jcp.tr_diff_dst_buf_size = static_cast<size_t>(jcp.tr_ow) * jcp.oc_block
+                * jcp.oh * jcp.od;
+        const auto diff_dst_max_size
+                = jcp.tr_diff_dst_buf_size * jcp.typesize_in;
+        VDISPATCH_CONV_IC(diff_dst_max_size <= INT_MAX,
+                VERBOSE_UNSUPPORTED_FEATURE,
+                "diff_dst size > INT_MAX is not supported");
         jcp.tr_diff_dst_buf_count = jcp.global_transpose
                 ? jcp.nthr_mb * jcp.nb_oc * jcp.ngroups
                 : jcp.nthr;
