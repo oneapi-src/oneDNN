@@ -1782,7 +1782,10 @@ groupnorm_executable_t::desc_t groupnorm_executable_t::create_desc(
 
 void genindex_executable_t ::execute(const stream &stream,
         const std::unordered_map<int, memory> &args) const {
-    auto &output = args.find(DNNL_ARG_DST)->second;
+    const auto &it_dst = args.find(DNNL_ARG_DST);
+    if (it_dst == args.end()) return;
+
+    auto &output = it_dst->second;
     auto output_ptr = static_cast<int32_t *>(output.get_data_handle());
     dnnl::impl::parallel_nd(nelems_, [&](dim_t i) {
         dims_t input_dims; // decomposition for physical offsets
