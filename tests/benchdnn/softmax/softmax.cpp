@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 * Copyright 2024 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -258,9 +258,11 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 #endif
     cmp.set_threshold(trh);
 
-    // LogSoftMax is unstable enough when there are attributes on top.
-    const bool compare_with_norm
-            = (prb->alg == alg_t::LOGSOFTMAX && !prb->attr.is_def());
+    // LogSoftMax is unstable enough when there are compute attributes (such as
+    // post-ops or scales) on top of it.
+    const bool compare_with_norm = (prb->alg == alg_t::LOGSOFTMAX
+            && !prb->attr.is_def(
+                    /* skip_fpmath = */ true, /* skip_acc_mode = */ true));
     cmp.set_norm_validation_mode(compare_with_norm);
 
     const int64_t axis_size = prb->dims[prb->axis];
