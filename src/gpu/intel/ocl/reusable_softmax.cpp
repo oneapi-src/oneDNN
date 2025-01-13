@@ -23,6 +23,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
+using namespace compute;
 using namespace gpu_utils;
 
 class softmax_lws_strategy_t : public compute::lws_strategy_t {
@@ -78,6 +79,20 @@ static std::vector<dim_idx_t> get_dims(size_t ndims) {
     if (ndims >= 4) ret[idx++] = softmax_dims_t::sp1;
     if (ndims >= 5) ret[idx++] = softmax_dims_t::sp2;
     return ret;
+}
+
+status_t reusable_softmax_fwd_t::pd_t::init_dispatch_subgroup_per_reduction(
+        engine_t *engine) {
+    compute::range_t gws {(size_t)conf.subgroup_size};
+    compute::range_t lws {(size_t)conf.subgroup_size};
+    for (int i = 0; i < ndims(); i++) {
+        if (i == desc()->softmax_axis) { continue; }
+        gws[0] *= src_md()->dims[i];
+    }
+
+    rt_conf.gws_params.nd_range = compute::nd_range_t(gws, lws);
+
+    return status::success;
 }
 
 status_t reusable_softmax_fwd_t::pd_t::init_dispatch_default_reusable(
@@ -207,6 +222,19 @@ compute::kernel_ctx_t reusable_softmax_params_t::get_kernel_ctx() const {
     kernel_ctx.define_int("USE_WORKGROUP_REDUCTION",
             algorithm_number == one_reduction_per_workgroup);
     kernel_ctx.add_option("-cl-std=CL2.0");
+    kernel_ctx.define_int("WORKGROUP_SIZE", 128);
+
+    if (algorithm_number == vectorized) {
+        kernel_ctx.define_int("VECT_DT_N", 8);
+        kernel_ctx.define_int("USE_VECTORIZED_KERNEL", true);
+        kernel_ctx.define_int("SUBGROUP_SIZE", subgroup_size);
+    } else if (algorithm_number == small) {
+        kernel_ctx.define_int("VECT_DT_N", 8);
+        kernel_ctx.define_int("USE_SMALL_KERNEL", true);
+        kernel_ctx.define_int("SUBGROUP_SIZE", subgroup_size);
+    } else {
+        kernel_ctx.define_int("USE_GENERAL_KERNEL", true);
+    }
 
     kernel_ctx.set_data_type(src_data_type);
     def_data_type(kernel_ctx, src_data_type, "SRC");
