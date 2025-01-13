@@ -553,7 +553,7 @@ GRFRange RegisterAllocator::tryAllocRange(int nregs, Bundle baseBundle, BundleGr
                 // Range to check crosses 64-GRF boundary. Check first part using bitmasks,
                 // Check the rest using a loop (ho hum).
                 uint64_t mask = ~uint64_t(0) << first_bit;
-                ok = !(mask & ~free);
+                ok = !(mask & ~free) && (r_base + nregs <= (int)(sizeof(freeSub) / sizeof(freeSub[0])));
                 if (ok) for (int rr = 64 - first_bit; rr < nregs; rr++) {
                     if (freeSub[r_base + rr] != fullSubMask) {
                         ok = false;
