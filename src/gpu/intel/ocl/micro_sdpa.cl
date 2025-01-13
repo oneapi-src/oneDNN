@@ -39,8 +39,10 @@ typedef ugemm_vs_c_type a_tile_type;
 
 #ifdef QRY_DT_F16
 #define VEC_TYPE2 half2
-#else // data type is bf16
+#else if defined (QRY_DT_BF16)
 #define VEC_TYPE2 ushort2
+#else
+#error "data type not supported!"
 #endif
 
 DECLARE_2D_TILE(q_tile_type, uint, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
