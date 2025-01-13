@@ -1116,6 +1116,22 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_groupnorm, 1,
                         executable_creator<groupnorm_executable_t>)
                 .SET_ARG_INDICES_GETTER(groupnorm_executable_t))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_mask, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "input")
+                .set_input(1, "-inf")
+                .set_output(0, "output")
+                // Attributes inherited from front gen_index ops
+                .set_attr(op_attr::axis_row, true, attribute_kind::i)
+                .set_attr(op_attr::axis_col, true, attribute_kind::i)
+                // Analysis rules
+                .set_shape_inference_function(infer_identity_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_mask)
+                .SET_EXECUTABLE_CREATOR(executable_creator<memory_reparser_t>)
+                .SET_ARG_INDICES_GETTER(memory_reparser_t))
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl
