@@ -527,6 +527,8 @@ FlagRegister RegisterAllocator::allocFlag(bool sub)
 
 GRFRange RegisterAllocator::tryAllocRange(int nregs, Bundle baseBundle, BundleGroup bundleMask)
 {
+    if (nregs == 0) return GRFRange(0, 0);
+
     uint64_t freeWhole64[sizeof(freeWhole) / sizeof(uint64_t)];
     std::memcpy(freeWhole64, freeWhole, sizeof(freeWhole));
     bool ok = false;
