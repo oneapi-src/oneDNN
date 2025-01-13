@@ -402,22 +402,42 @@ std::ostream &operator<<(std::ostream &s, const deserialized_op &dop) {
     s << "}\n";
 
     const auto it_attr_scales = dop.attrs_.find("scales");
+    const auto it_attr_group_shape = dop.attrs_.find("group_shape");
     const bool has_scales = it_attr_scales != dop.attrs_.end();
-    if (has_scales) {
+    const bool has_group_shape = it_attr_group_shape != dop.attrs_.end();
+
+    if (has_scales || has_group_shape) {
         s << "    Attrs: { ";
 
-        const auto &scales_v = it_attr_scales->second.f32_vector_;
-        const auto size = scales_v.size();
-        std::string size_str = " (" + std::to_string(size) + ")";
-        s << "Scales" << (size > 1 ? size_str : "") << ": { ";
-        for (size_t i = 0; i < size; i++) {
-            s << scales_v[i];
-            if (i != size - 1) s << ",";
-            s << " ";
+        if (has_scales) {
+            const auto &scales_v = it_attr_scales->second.f32_vector_;
+            const auto size = scales_v.size();
+            std::string size_str = " (" + std::to_string(size) + ")";
+            s << "Scales" << (size > 1 ? size_str : "") << ": { ";
+            for (size_t i = 0; i < size; i++) {
+                s << scales_v[i];
+                if (i != size - 1) s << ",";
+                s << " ";
+            }
+            s << "} "; // Scales
         }
-        s << "} "; // Scales
+
+        if (has_group_shape) {
+            const auto &group_shape_v = it_attr_group_shape->second.s64_vector_;
+            const auto size = group_shape_v.size();
+            std::string size_str = " (" + std::to_string(size) + ")";
+            s << "Group shape:" << (size > 1 ? size_str : "") << ": { ";
+            for (size_t i = 0; i < size; i++) {
+                s << group_shape_v[i];
+                if (i != size - 1) s << ",";
+                s << " ";
+            }
+            s << "} "; // Group Shape
+        }
+
         s << "}\n"; // Attrs
     }
+
     return s;
 }
 
