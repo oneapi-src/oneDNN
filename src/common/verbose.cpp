@@ -181,9 +181,8 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
             // Legacy: we accept values 0,1,2
             // 0 and none erase previously set flags, including error
             if (s == "0" || s == "none") k = verbose_t::none;
-            if (s == "1") k |= verbose_t::exec_profile;
-            if (s == "2")
-                k |= verbose_t::exec_profile | verbose_t::create_profile;
+            if (s == "1") k |= verbose_t::level1;
+            if (s == "2") k |= verbose_t::level2;
             if (s == "all" || s == "-1") k |= verbose_t::all;
             if (s == "error") k |= verbose_t::error;
             if (s == "check")
@@ -1824,12 +1823,8 @@ dnnl_status_t dnnl_set_verbose(int level) {
     if (level < 0 || level > 2) return invalid_arguments;
 
     uint32_t verbose_level = verbose_t::none;
-    if (level == 1)
-        verbose_level
-                = verbose_t::error | verbose_t::exec_profile | verbose_t::warn;
-    if (level == 2)
-        verbose_level = verbose_t::error | verbose_t::exec_profile
-                | verbose_t::create_profile | verbose_t::warn;
+    if (level == 1) verbose_level = verbose_t::level1;
+    if (level == 2) verbose_level = verbose_t::level2;
     // we put the lower byte of level as devinfo to preserve backward
     // compatibility with historical VERBOSE={1,2}
     if (level == 1 || level == 2) verbose_level |= (level << 24);
