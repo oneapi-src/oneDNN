@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,6 +51,8 @@ const op_attr_t alg_kind = 0x10100;
 const op_attr_t fusion_info_key = 0x10103;
 const op_attr_t group_mask = 0x10104;
 const op_attr_t data_type = 0x10105;
+const op_attr_t axis_row = 0x10106;
+const op_attr_t axis_col = 0x10107;
 
 // string
 const op_attr_t dw_type = 0x10201;
@@ -86,6 +88,8 @@ static inline std::string internal_attr2str(op_attr_t attr) {
         CASE(keep_dst_layout);
         CASE(alg_kind);
         CASE(fusion_info_key);
+        CASE(axis_row);
+        CASE(axis_col);
         CASE(dw_type);
         CASE(kind);
         CASE(p);

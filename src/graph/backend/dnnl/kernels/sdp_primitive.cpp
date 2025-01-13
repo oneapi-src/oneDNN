@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,6 +63,7 @@ status_t sdp_primitive_kernel_t<quantized>::compile_impl(
     pass_pipeline_t pipeline = pass_pipeline_t(vis);
 
     BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+    BACKEND_DNNL_ADD_PASS(pipeline, fuse_implicit_causal_mask);
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_reshape_for_gqa);
     if (quantized) {
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);

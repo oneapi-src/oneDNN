@@ -78,7 +78,8 @@ namespace op_kind {
     X(dnnl_convtranspose_bwd_data, Dnnl_convtranspose_bwd_data) \
     X(dnnl_convtranspose_bwd_weights, Dnnl_convtranspose_bwd_weights) \
     X(dnnl_groupnorm, Dnnl_groupnorm) \
-    X(dnnl_gen_index, Dnnl_gen_index)
+    X(dnnl_gen_index, Dnnl_gen_index) \
+    X(dnnl_mask, Dnnl_mask)
 
 enum kind_t {
     kDNNL_INTERNAL_OP_STARTER = 0x1234,
