@@ -603,11 +603,12 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks(
     return v_masks;
 }
 
-bool attr_t::is_def(bool skip_fpmath) const {
+bool attr_t::is_def(bool skip_fpmath, bool skip_acc_mode) const {
     return scales.is_def() && zero_points.is_def() && post_ops.is_def()
             && scratchpad_mode == get_default_scratchpad_mode()
             && IMPLICATION(!skip_fpmath, fpmath_mode.is_def())
-            && acc_mode == dnnl_accumulation_mode_strict
+            && IMPLICATION(
+                    !skip_acc_mode, acc_mode == dnnl_accumulation_mode_strict)
             && rounding_mode.is_def() && deterministic.is_def()
             && dropout.is_def();
 }
