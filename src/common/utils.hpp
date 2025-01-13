@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -732,9 +732,13 @@ public:
 // Copyright 2005-2014 Daniel James.
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
+inline size_t hash_combine2(size_t seed, size_t v) {
+    return seed ^= v + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
 template <typename T>
 static size_t hash_combine(size_t seed, const T &v) {
-    return seed ^= std::hash<T> {}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    return hash_combine2(seed, std::hash<T> {}(v));
 }
 
 inline int float2int(float x) {

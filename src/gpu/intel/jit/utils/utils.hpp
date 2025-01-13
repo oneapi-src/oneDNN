@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,37 +75,39 @@ size_t get_hash(const std::vector<T> &v);
 
 template <typename T>
 void get_hash_impl(size_t &h, const T &t) {
-    h = hash_combine(h, get_hash(t));
+    h = hash_combine2(h, get_hash(t));
 }
 
 template <typename ArgHeadT, typename... ArgsT>
 void get_hash_impl(size_t &h, const ArgHeadT &head, const ArgsT &...args) {
     size_t h_head = get_hash(head);
-    h = hash_combine(h, h_head);
+    h = hash_combine2(h, h_head);
     get_hash_impl(h, args...);
 }
 
-template <typename E>
-struct enum_hash_t {
-    size_t operator()(const E &e) const noexcept {
-        return std::hash<size_t>()((size_t)e);
-    }
-};
-
 template <typename T, typename = void>
-struct get_std_hash_helper_t {
+struct hash_helper_t {};
+
+template <typename T>
+struct hash_helper_t<T,
+        typename std::enable_if<std::is_same<T, std::string>::value>::type> {
     static size_t call(const T &t) { return std::hash<T>()(t); }
 };
 
 template <typename T>
-struct get_std_hash_helper_t<T,
-        typename std::enable_if<std::is_enum<T>::value>::type> {
-    static size_t call(const T &t) { return enum_hash_t<T>()(t); }
+struct hash_helper_t<T,
+        typename std::enable_if<std::is_trivial<T>::value
+                && sizeof(T) <= sizeof(size_t)>::type> {
+    static size_t call(const T &t) {
+        uint8_t data[sizeof(size_t)] = {};
+        std::memcpy(data, &t, sizeof(T));
+        return utils::bit_cast<size_t>(data);
+    }
 };
 
 template <typename T, typename = void>
 struct get_hash_helper_t {
-    static size_t call(const T &t) { return get_std_hash_helper_t<T>::call(t); }
+    static size_t call(const T &t) { return hash_helper_t<T>::call(t); }
 };
 
 template <typename T>
@@ -122,7 +124,7 @@ template <typename T, size_t N>
 size_t get_hash(const std::array<T, N> &a) {
     size_t h = 0;
     for (auto &e : a)
-        h = hash_combine(h, get_hash(e));
+        h = hash_combine2(h, get_hash(e));
     return h;
 }
 
@@ -130,7 +132,7 @@ template <typename T>
 size_t get_hash(const std::vector<T> &v) {
     size_t h = 0;
     for (auto &e : v)
-        h = hash_combine(h, get_hash(e));
+        h = hash_combine2(h, get_hash(e));
     return h;
 }
 
@@ -138,8 +140,8 @@ template <typename Key, typename T, typename Compare, typename Allocator>
 size_t get_hash(const std::map<Key, T, Compare, Allocator> &m) {
     size_t h = 0;
     for (auto &kv : m) {
-        h = hash_combine(h, get_hash(kv.first));
-        h = hash_combine(h, get_hash(kv.second));
+        h = hash_combine2(h, get_hash(kv.first));
+        h = hash_combine2(h, get_hash(kv.second));
     }
     return h;
 }
@@ -156,7 +158,8 @@ size_t get_tuple_hash(const std::tuple<ArgsT...> &tup) {
     constexpr size_t end = std::tuple_size<std::tuple<ArgsT...>>::value - 1;
     size_t h = get_hash(std::get<idx>(tup));
     if (idx == end) return h;
-    return hash_combine(h, get_tuple_hash < idx == end ? idx : idx + 1 > (tup));
+    return hash_combine2(
+            h, get_tuple_hash < idx == end ? idx : idx + 1 > (tup));
 }
 
 template <typename... ArgsT>
@@ -167,6 +170,13 @@ size_t get_hash(const std::tuple<ArgsT...> &tup) {
 template <typename T>
 struct hasher_t {
     size_t operator()(const T &t) const { return t.get_hash(); }
+};
+
+template <typename E>
+struct enum_hash_t {
+    size_t operator()(const E &e) const noexcept {
+        return hash_helper_t<E>::call(e);
+    }
 };
 
 template <typename T, typename U, typename = void>

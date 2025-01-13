@@ -815,7 +815,7 @@ private:
 // Helper classes for containers to store object_t.
 struct object_id_hash_t {
     size_t operator()(const object_t &obj) const {
-        return std::hash<const object_impl_t *>()(obj.impl());
+        return ir_utils::get_hash(obj.impl());
     }
 };
 
