@@ -1302,8 +1302,11 @@ void align_src_dst_offset(GeneratorT *host, ngen_register_scope_t &scope,
     int dst_byte_off = dst.byte_offset();
     int esize = mod.getExecSize();
     int grf_size = ngen::GRF::bytes(scope.hw());
-    int grf_src = grf_size / src.hs();
-    int grf_dst = grf_size / dst.hs();
+    // within the current generator, HS == 0 can mean 2 things:
+    //   - <0; 1, 0>, i.e. a scalar value so HS is to be treated as 1
+    //   - <1; 1, 0>, which is a more compatible representation of <N; N, 1>
+    int grf_src = grf_size / std::max(src.hs(), 1);
+    int grf_dst = grf_size / std::max(dst.hs(), 1);
 
     // If src is aligned with dst, return.
     if ((is_xf || is_bf_to_f) && src_off % grf_src == dst_off % grf_dst) return;
