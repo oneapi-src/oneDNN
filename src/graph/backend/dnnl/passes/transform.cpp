@@ -3982,6 +3982,90 @@ impl::status_t swap_relu_mul_scales(std::shared_ptr<subgraph_t> &sg) {
     return infer_shape(sg);
 }
 
+status_t fuse_implicit_causal_mask(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<std::vector<op_ptr>> op_lists;
+    for (auto &cur_op : sg->get_ops()) {
+        // check if cur_op is GreaterEqual
+        if (cur_op->get_kind() != op_kind::dnnl_binary) continue;
+        if (static_cast<dnnl::algorithm>(
+                    cur_op->get_attr<int64_t>(op_attr::alg_kind))
+                != dnnl::algorithm::binary_ge)
+            continue;
+
+        // check if in_ops are GenIndex
+        auto in_val0 = cur_op->get_input_value(0);
+        if (!in_val0->has_producer()) continue;
+        auto &in_op0 = in_val0->get_producer();
+        if (in_op0.get_kind() != op_kind::dnnl_gen_index) continue;
+        if (in_op0.get_attr<int64_t>(op_attr::axis) != 2) continue;
+
+        auto in_val1 = cur_op->get_input_value(1);
+        if (!in_val1->has_producer()) continue;
+        auto &in_op1 = in_val1->get_producer();
+        if (in_op1.get_kind() != op_kind::dnnl_gen_index) continue;
+        if (in_op1.get_attr<int64_t>(op_attr::axis) != 3) continue;
+
+        // check if out_op is Select
+        auto out_val = cur_op->get_output_value(0);
+        if (out_val->get_consumers().size() != 1) continue;
+        auto &out_op = out_val->get_consumers()[0].get_op();
+        if (out_op.get_kind() != op_kind::dnnl_binary) continue;
+        if (static_cast<dnnl::algorithm>(
+                    out_op.get_attr<int64_t>(op_attr::alg_kind))
+                != dnnl::algorithm::binary_select)
+            continue;
+
+        // check if GenIndex and Select share the same input
+        if (in_op0.get_input_value(0) != in_op1.get_input_value(0)) continue;
+        if (in_op0.get_input_value(0) != out_op.get_input_value(0)) continue;
+
+        // ops in the list: GenIndex_row, GenIndex_col, GreaterEqual, Select
+        std::vector<op_ptr> list = {in_op0.shared_from_this(),
+                in_op1.shared_from_this(), cur_op, out_op.shared_from_this()};
+        op_lists.emplace_back(list);
+    }
+
+    if (op_lists.empty()) return status::success;
+
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &list : op_lists) {
+        op_ptr mask_op = std::make_shared<op_t>(op_kind::dnnl_mask);
+
+        // connect inputs for mask_op
+        auto in_val0 = list[0]->get_input_value(0);
+        in_val0->remove_consumer(*list[0], 0);
+        in_val0->remove_consumer(*list[1], 0);
+        in_val0->remove_consumer(*list[3], 0);
+        mask_op->connect_input(0, in_val0);
+
+        auto in_val1 = list[3]->get_input_value(1);
+        in_val1->remove_consumer(*list[3], 1);
+        mask_op->connect_input(1, in_val1);
+
+        // connect output for mask op
+        auto out_val = list[3]->get_output_value(0);
+        out_val->set_producer(*mask_op);
+        mask_op->add_output(out_val);
+
+        // set attrs for mask_op
+        const auto axis_row = list[0]->get_attr<int64_t>(op_attr::axis);
+        const auto axis_col = list[1]->get_attr<int64_t>(op_attr::axis);
+        mask_op->set_attr(op_attr::axis_row, axis_row);
+        mask_op->set_attr(op_attr::axis_col, axis_col);
+
+        // remove original ops
+        for (const auto &op : list) {
+            rewriter.to_remove(op);
+        }
+
+        // add mask_op to subgraph
+        rewriter.to_insert(mask_op);
+    }
+
+    rewriter.run();
+    return status::success;
+}
+
 impl::status_t fold_pre_mul_scale_into_bn(std::shared_ptr<subgraph_t> &sg) {
     const auto get_next_op = [](const op_ptr &op) -> op_ptr {
         const value_ptr out_val = op->get_output_value(0);
