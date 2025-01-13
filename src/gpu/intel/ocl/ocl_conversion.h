@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,6 +72,8 @@ def_std_into_sat(uchar, float);
 def_std_into_sat(uchar, int);
 IF_DOUBLE_SUPPORTED(def_std_into_sat(uchar, double));
 IF_HALF_SUPPORTED(def_std_into_sat(uchar, half));
+
+def_std_into_sat(int, float);
 
 IF_HALF_SUPPORTED(def_std_into(half, char));
 IF_HALF_SUPPORTED(def_std_into(half, uchar));
