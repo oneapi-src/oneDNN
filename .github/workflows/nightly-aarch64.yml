@@ -1,5 +1,5 @@
 # *******************************************************************************
-# Copyright 2024 Arm Limited and affiliates.
+# Copyright 2024-2025 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,18 +63,25 @@ jobs:
         run: |
           sudo apt install -y libomp-dev
 
+      - name: Read version file
+        id: get-versions
+        run: |
+          content=`cat ${{ github.workspace }}/oneDNN/.github/automation/ci-aarch64.json`
+          content="${content//[$'\t\r\n$ ']}"
+          echo "output=$content" >> $GITHUB_OUTPUT
+
       - name: Install gcc
         run: |
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
           sudo apt update -y
-          sudo apt install -y g++-13
+          sudo apt install -y g++-${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
 
       - name: Clone ACL
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
         env:
           ACL_ACTION: clone
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
-          ACL_VERSION: v24.11.1
+          ACL_VERSION: ${{ fromJson(steps.get-versions.outputs.output).dependencies.acl }}
 
       - name: Configure ACL
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
@@ -85,7 +92,7 @@ jobs:
           BUILD_TOOLSET: ${{ matrix.config.toolset }}
           CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
           CMAKE_GENERATOR: Ninja
-          GCC_VERSION: 13
+          GCC_VERSION: ${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
 
       - name: Build ACL
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
@@ -100,7 +107,7 @@ jobs:
           BUILD_TOOLSET: ${{ matrix.config.toolset }}
           CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
           CMAKE_GENERATOR: Ninja
-          GCC_VERSION: 13
+          GCC_VERSION: ${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
           ONEDNN_ACTION: configure
           ONEDNN_TEST_SET: ${{ matrix.config.testset }}
           ONEDNN_THREADING: ${{ matrix.config.threading }}
