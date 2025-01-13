@@ -1554,6 +1554,20 @@ status_t layout_propagator_for_groupnorm(op_ptr &op,
     return status;
 }
 
+status_t layout_propagator_for_mask(std::shared_ptr<op_t> &op,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
+    UNUSED(p_engine);
+    UNUSED(mgr);
+    UNUSED(pd_cache);
+    UNUSED(rewriter);
+    auto src_md = make_dnnl_memory_desc(
+            op->get_input_value(0)->get_logical_tensor());
+    value_ptr dst_val = op->get_output_value(0);
+    status_t status = fill_layout_info(dst_val, src_md);
+    return status;
+}
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl
