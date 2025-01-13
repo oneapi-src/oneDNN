@@ -58,6 +58,7 @@ void larger_partition_kernel_t::setup_pipeline_stage1(
     BACKEND_DNNL_ADD_PASS(pipeline, insert_bn_folding);
     BACKEND_DNNL_ADD_PASS(pipeline, check_with_bias);
 
+    BACKEND_DNNL_ADD_PASS(pipeline, insert_reorder_for_s32_binary);
     BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
     BACKEND_DNNL_ADD_PASS(pipeline, binary_broadcast_swap);
 

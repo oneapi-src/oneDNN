@@ -4064,6 +4064,39 @@ status_t fuse_implicit_causal_mask(std::shared_ptr<subgraph_t> &sg) {
     return status::success;
 }
 
+status_t insert_reorder_for_s32_binary(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<std::vector<op_ptr>> op_lists;
+    subgraph_rewriter_t rewriter(sg);
+    for (auto &cur_op : sg->get_ops()) {
+        // check if gpu
+        if (sg->get_engine_kind() != graph::engine_kind::gpu) continue;
+        // check if cur_op is GreaterEqual
+        if (cur_op->get_kind() != op_kind::dnnl_binary) continue;
+
+        // insert s32->f32 reorder
+        for (size_t i = 0; i < cur_op->num_inputs(); i++) {
+            auto in_val = cur_op->get_input_value(i);
+            if (in_val->get_logical_tensor().data_type != graph::data_type::s32)
+                continue;
+            op_ptr reorder_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
+            rewriter.insert_op_before(reorder_op, cur_op, i);
+            reorder_op->get_output_value(0)->set_data_type(graph::data_type::f32);
+        }
+
+        for (size_t i = 0; i < cur_op->num_outputs(); i++) {
+            auto out_val = cur_op->get_output_value(i);
+            if (out_val->get_logical_tensor().data_type != graph::data_type::s32)
+                continue;
+            op_ptr reorder_op = std::make_shared<op_t>(op_kind::dnnl_reorder);
+            rewriter.insert_op_after(reorder_op, cur_op, i);
+            reorder_op->get_input_value(0)->set_data_type(graph::data_type::f32);
+        }
+    }
+
+    rewriter.run();
+    return infer_shape(sg);
+}
+
 impl::status_t fold_pre_mul_scale_into_bn(std::shared_ptr<subgraph_t> &sg) {
     const auto get_next_op = [](const op_ptr &op) -> op_ptr {
         const value_ptr out_val = op->get_output_value(0);

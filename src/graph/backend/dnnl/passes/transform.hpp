@@ -283,6 +283,11 @@ impl::status_t replace_select_values(std::shared_ptr<subgraph_t> &sg);
 ///                   |
 status_t fuse_implicit_causal_mask(std::shared_ptr<subgraph_t> &sg);
 
+/// binary primitive doesn't support s32 data type on GPU
+/// this pass will insert an s32->f32 reorder for this case
+/// (currently only insert reorder for GreaterEqual)
+status_t insert_reorder_for_s32_binary(std::shared_ptr<subgraph_t> &sg);
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl
