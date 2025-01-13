@@ -240,13 +240,14 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                 = (s0.is_empty()) ? dim_idx::invalid : src_view.vvar_index(s0);
         dim_idx_t s1_idx = src_view.vvar_index(s1);
         dim_idx_t ns_idx = src_view.vvar_index(ns);
-        ir_assert((s0_idx <= 4) && (s1_idx <= 4) && (ns_idx <= 4));
+        ir_assert((s0_idx <= 4 || s0_idx == dim_idx::invalid) && (s1_idx <= 4)
+                && (ns_idx <= 4));
 
         // s1 and ns may swap sides, which affects their fusing order: it has
         // to strictly replicate that of the arguments passed to this lambda!
-        const bool need_swap = (s1_idx >= 0) && (s1_idx <= 1);
+        const bool need_swap = (s1_idx <= 1);
         // 2 spatials and 2 non-spatials disallowed; only 1 of each or bust
-        ir_assert(need_swap != ((ns_idx >= 0) && (ns_idx <= 1)));
+        ir_assert(need_swap != (ns_idx <= 1));
         if (need_swap) {
             std::swap(s1_idx, ns_idx);
             std::swap(s1, ns);
