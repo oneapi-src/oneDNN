@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
+using namespace compute;
 using namespace gpu_utils;
 
 class softmax_lws_strategy_t : public compute::lws_strategy_t {
@@ -78,6 +79,30 @@ static std::vector<dim_idx_t> get_dims(size_t ndims) {
     if (ndims >= 4) ret[idx++] = softmax_dims_t::sp1;
     if (ndims >= 5) ret[idx++] = softmax_dims_t::sp2;
     return ret;
+}
+
+bool reusable_softmax_fwd_t::pd_t::mayiuse_sg(
+        const int sg_size, compute::compute_engine_t *engine) {
+    auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
+    return compute_engine->mayiuse_sub_group(sg_size)
+            && compute_engine->mayiuse_block_reads_writes_with_sub_group(
+                    sg_size);
+}
+
+status_t reusable_softmax_fwd_t::pd_t::init_dispatch_vectorized(
+        engine_t *engine) {
+
+    compute::range_t gws = compute::range_t::empty(1);
+    compute::range_t lws = compute::range_t::empty(1);
+    lws[0] = 16;
+    const dim_t num_reductions
+            = utils::array_product(&src_md()->dims[0], ndims() - 1);
+    const dim_t num_threads = num_reductions * 16; // 16 threads in a subgroup
+    gws[0] = num_threads;
+
+    rt_conf.gws_params.nd_range = compute::nd_range_t(gws, lws);
+
+    return status::success;
 }
 
 status_t reusable_softmax_fwd_t::pd_t::init_dispatch_default_reusable(
@@ -193,6 +218,13 @@ compute::kernel_ctx_t reusable_softmax_params_t::get_kernel_ctx() const {
     kernel_ctx.define_int("USE_WORKGROUP_REDUCTION",
             algorithm_number == one_reduction_per_workgroup);
     kernel_ctx.add_option("-cl-std=CL2.0");
+    kernel_ctx.define_int("WORKGROUP_SIZE", 128);
+
+    if (algorithm_number == vectorized) {
+        kernel_ctx.define_int("VECT_DT_N", 8);
+        kernel_ctx.define_int("USE_VECTORIZED_KERNEL", true);
+        kernel_ctx.define_int("SUBGROUP_SIZE", subgroup_size);
+    }
 
     kernel_ctx.set_data_type(src_data_type);
     def_data_type(kernel_ctx, src_data_type, "SRC");

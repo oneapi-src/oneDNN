@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,8 @@ namespace ocl {
 enum softmax_algorithm_id_t {
     many_reductions_per_workgroup = 1,
     one_reduction_per_workgroup,
-    one_reduction_per_subgroup
+    one_reduction_per_subgroup,
+    vectorized
 };
 
 struct reusable_softmax_params_t {
@@ -72,6 +73,7 @@ struct reusable_softmax_params_t {
     data_type_t dst_data_type;
     int algorithm_number;
     bool is_logsoftmax;
+    int subgroup_size;
 
     uint8_t padding[3] = {0};
 
@@ -106,9 +108,11 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
             VDISPATCH_SOFTMAX(is_fwd(), VERBOSE_BAD_PROPKIND);
 
             // reusable implementation still too slow for half-precision
-            VDISPATCH_SOFTMAX(utils::one_of(src_dt, f64, f32, u8, s8),
+            VDISPATCH_SOFTMAX(
+                    utils::one_of(src_dt, f64, f32, f16, bf16, u8, s8),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_SOFTMAX(utils::one_of(dst_dt, f64, f32, u8, s8),
+            VDISPATCH_SOFTMAX(
+                    utils::one_of(dst_dt, f64, f32, f16, bf16, u8, s8),
                     VERBOSE_UNSUPPORTED_DT);
 
             VDISPATCH_SOFTMAX(IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
@@ -159,6 +163,7 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
             conf.is_logsoftmax = is_logsoftmax();
             conf.src_data_type = src_dt;
             conf.dst_data_type = dst_dt;
+            conf.subgroup_size = mayiuse_sg(32, compute_engine) ? 32 : 16;
 
             // run-time configuration setup
             rt_conf.softmax_axis_size = src_mdw.dims()[desc()->softmax_axis];
@@ -169,51 +174,64 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
                 }
             }
 
-            // empirically derived: select algorithm and parameters
             const auto nelems = src_mdw.nelems();
-            if (rt_conf.softmax_axis_size < 6 && nelems > 64000) {
-                conf.algorithm_number = many_reductions_per_workgroup;
-                CHECK(init_dispatch_default_reusable(compute_engine));
-            } else if (rt_conf.softmax_axis_size > 128) {
-                conf.algorithm_number = one_reduction_per_workgroup;
+            const bool use_vectorized = rt_conf.softmax_axis_size > 128
+                    && nelems > (1 << 19)
+                    && dnnl::impl::utils::div_up(rt_conf.softmax_axis_size, 16)
+                            <= 1024;
 
-                // select workgroup size/num works per reduction
-                int elements_per_worker;
-                if (nelems <= 64000)
-                    elements_per_worker = 1;
-                else if (rt_conf.softmax_axis_size <= 1024)
-                    elements_per_worker = 4;
-                else
-                    elements_per_worker = 15;
-                const size_t num_workers_per_workgroup
-                        = dnnl::impl::utils::div_up(
-                                rt_conf.softmax_axis_size, elements_per_worker);
+            if (use_vectorized) {
+                conf.algorithm_number = vectorized;
+                CHECK(init_dispatch_vectorized(compute_engine));
+            } else {
+                if (rt_conf.softmax_axis_size < 6 && nelems > 64000) {
+                    conf.algorithm_number = many_reductions_per_workgroup;
+                    CHECK(init_dispatch_default_reusable(compute_engine));
+                } else if (rt_conf.softmax_axis_size > 128) {
+                    conf.algorithm_number = one_reduction_per_workgroup;
 
-                // do not solve problems beyond hardware workgroup limit
-                auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
-                        attr()->gpu_attr_.get());
-                const bool large_grf_mode
-                        = gpu_attr && gpu_attr->threads_per_eu() == 4;
-                const size_t max_wg_size
-                        = compute_engine->device_info()->max_wg_size(
-                                large_grf_mode);
-                VDISPATCH_SOFTMAX(num_workers_per_workgroup <= max_wg_size,
-                        "softmax axis size too large");
+                    // select workgroup size/num works per reduction
+                    int elements_per_worker;
+                    if (nelems <= 64000)
+                        elements_per_worker = 1;
+                    else if (rt_conf.softmax_axis_size <= 1024)
+                        elements_per_worker = 4;
+                    else
+                        elements_per_worker = 15;
+                    const size_t num_workers_per_workgroup
+                            = dnnl::impl::utils::div_up(
+                                    rt_conf.softmax_axis_size,
+                                    elements_per_worker);
 
-                CHECK(init_dispatch_workgroup_per_reduction(
-                        compute_engine, num_workers_per_workgroup));
-            } else { // rt_conf.softmax_axis_size <= 128
-                conf.algorithm_number = one_reduction_per_subgroup;
-                CHECK(init_dispatch_workgroup_per_reduction(
-                        compute_engine, 16));
+                    // do not solve problems beyond hardware workgroup limit
+                    auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+                            attr()->gpu_attr_.get());
+                    const bool large_grf_mode
+                            = gpu_attr && gpu_attr->threads_per_eu() == 4;
+                    const size_t max_wg_size
+                            = compute_engine->device_info()->max_wg_size(
+                                    large_grf_mode);
+                    VDISPATCH_SOFTMAX(num_workers_per_workgroup <= max_wg_size,
+                            "softmax axis size too large");
+
+                    CHECK(init_dispatch_workgroup_per_reduction(
+                            compute_engine, num_workers_per_workgroup));
+                } else { // rt_conf.softmax_axis_size <= 128
+                    conf.algorithm_number = one_reduction_per_subgroup;
+                    CHECK(init_dispatch_workgroup_per_reduction(
+                            compute_engine, 16));
+                }
             }
 
             return status::success;
         }
 
+        bool mayiuse_sg(const int sg_size, compute::compute_engine_t *engine);
+
         status_t init_dispatch_default_reusable(engine_t *engine);
         status_t init_dispatch_workgroup_per_reduction(
                 engine_t *engine, const size_t num_workers_per_workgroup);
+        status_t init_dispatch_vectorized(engine_t *engine);
 
         reusable_softmax_params_t conf;
         reusable_softmax_runtime_params_t rt_conf;
