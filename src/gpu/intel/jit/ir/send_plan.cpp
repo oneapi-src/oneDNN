@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1009,7 +1009,7 @@ struct send_group_t {
                 cur_slots = std::min(cur_slots, slots - i);
                 uint32_t slot_mask = send_t::default_slot_mask;
                 if (!math::is_pow2(cur_slots)) {
-                    slot_mask = (1 << cur_slots) - 1;
+                    slot_mask = (1u << cur_slots) - 1;
                     cur_slots = utils::rnd_up_pow2(cur_slots);
                 }
                 type = fixup_type(type, send_params);
