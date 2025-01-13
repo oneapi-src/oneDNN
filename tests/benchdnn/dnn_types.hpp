@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -441,7 +441,7 @@ struct attr_t {
     dropout_t dropout;
     rounding_mode_t rounding_mode;
 
-    bool is_def(bool skip_fpmath = false) const;
+    bool is_def(bool skip_fpmath = false, bool skip_acc_mode = false) const;
 };
 
 struct isa_hints_t {
