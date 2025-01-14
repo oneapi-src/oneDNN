@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ std::string fill_cfg_t::print_verbose() const {
     std::stringstream ss;
 
     ss << "[FILL_CFG]";
-    if (!name_.empty()) ss << " name:" << name_;
+    if (!name_.empty()) ss << " name:\'" << name_ << "\';";
 
     // Predefined set is mutually excluded with a range setting.
     if (!predefined_set_.empty()) {
