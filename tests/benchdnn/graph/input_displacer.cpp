@@ -187,7 +187,7 @@ int partition_data_displacer_t::displace_input_data(
         const auto &user_set
                 = is_div ? pow2_div_vals : (is_mul ? pow2_mul_vals : dummy);
         fill_cfg_t fill_cfg(user_set, "Mul/Div displacer");
-        SAFE(gen_pow2_filling(mem_replace, mem.md_, fill_cfg, res), WARN);
+        SAFE(gen_fixed_set_filling(mem_replace, mem.md_, fill_cfg, res), WARN);
     } else {
         assert(!"unexepcted filling type");
     }
@@ -361,7 +361,7 @@ int partition_data_displacer_t::gen_quantize_filling(
     return OK;
 }
 
-int partition_data_displacer_t::gen_pow2_filling(dnn_mem_t &mem,
+int partition_data_displacer_t::gen_fixed_set_filling(dnn_mem_t &mem,
         const_dnnl_memory_desc_t md, const fill_cfg_t &fill_cfg,
         res_t *res) const {
 
