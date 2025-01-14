@@ -31,6 +31,8 @@ enum class filling_type_t {
     pow2,
     // Explicit causal mask from SDPA pattern.
     causal_mask,
+    // Implicit causal mask free input.
+    minus_infinity,
 };
 
 // tuple<

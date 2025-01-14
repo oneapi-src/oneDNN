@@ -30,7 +30,7 @@ partition_data_displacer_t::partition_data_displacer_t(
 
     static const std::unordered_set<std::string> main_op_kind {"Convolution",
             "ConvTranspose", "AvgPool", "MaxPool", "MatMul", "Add", "Divide",
-            "Maximum", "Minimum", "Multiply", "Substract"};
+            "Maximum", "Minimum", "Multiply", "Substract", "Select"};
 
     static const std::unordered_set<std::string> go_through_op_kind {
             "StaticTranspose", "StaticReshape", "TypeCast", "Quantize",
@@ -145,28 +145,51 @@ partition_data_displacer_t::partition_data_displacer_t(
         // 0    0    0    0
         // This is done to avoid taking future tokens into account by
         // influencing SoftMax input values.
-        while (aop.kind_ == "Add") {
+        while (aop.kind_ == "Add" || aop.kind_ == "Select") {
             auto *aop_out_lt = &aop.out_lts_[0];
             auto *child_op = &dg_->get_op_by_in_lt(aop_out_lt->id_);
             if (child_op->kind_ != "SoftMax") break;
 
-            // Search for an input lt without a parent, its input to modify.
+            // Search for an input lt without a parent, this is the one to
+            // modify for both explicit and implicit masks.
             const deserialized_lt *causal_mask_lt = nullptr;
+            size_t offset = SIZE_MAX;
             for (size_t i = 0; i < aop.in_lts_.size(); i++) {
                 auto *aop_in_lt = &aop.in_lts_[i];
                 auto *parent_op = &dg_->get_op_by_out_lt(aop_in_lt->id_);
-                if (parent_op->empty()) causal_mask_lt = aop_in_lt;
+                if (parent_op->empty()) {
+                    causal_mask_lt = aop_in_lt;
+                    offset = i;
+                    break;
+                }
             }
 
-            // Verify that found LT has 2D spatial.
-            const auto ndims = causal_mask_lt->shape_.size();
-            if (ndims < 2 || causal_mask_lt->shape_[ndims - 1] == 1
-                    || causal_mask_lt->shape_[ndims - 2] == 1)
-                break;
+            if (aop.kind_ == "Add") {
+                const auto ndims = causal_mask_lt->shape_.size();
+                if (ndims < 2) {
+                    BENCHDNN_PRINT(
+                            7, "%s\n", "Causal mask ndims is less than 2");
+                    break;
+                }
+
+                const auto M = causal_mask_lt->shape_[ndims - 1];
+                const auto N = causal_mask_lt->shape_[ndims - 2];
+                if (M == 1 || N == 1) {
+                    BENCHDNN_PRINT(
+                            7, "Causal mask shape has one: {%ld, %ld}\n", M, N);
+                    break;
+                }
+            }
+
+            filling_type_t filling_type = filling_type_t::undef;
+            if (aop.kind_ == "Add")
+                filling_type = filling_type_t::causal_mask;
+            else if (aop.kind_ == "Select")
+                filling_type = filling_type_t::minus_infinity;
 
             quantize_displace_.emplace(causal_mask_lt->id_,
-                    std::make_tuple(aop, SIZE_MAX, *causal_mask_lt,
-                            filling_type_t::causal_mask));
+                    std::make_tuple(
+                            aop, offset, *causal_mask_lt, filling_type));
             break;
         }
     }
@@ -223,6 +246,10 @@ int partition_data_displacer_t::displace_input_data(
         SAFE(gen_fixed_set_filling(mem_replace, mem.md_, fill_cfg, res), WARN);
     } else if (filling_type == filling_type_t::causal_mask) {
         SAFE(gen_causal_mask_filling(mem_replace, mem.md_, res), WARN);
+    } else if (filling_type == filling_type_t::minus_infinity) {
+        static const std::vector<float> user_set {-INFINITY};
+        fill_cfg_t fill_cfg(user_set, "Implicit_causal_mask");
+        SAFE(gen_fixed_set_filling(mem_replace, mem.md_, fill_cfg, res), WARN);
     } else {
         assert(!"unexepcted filling type");
     }
