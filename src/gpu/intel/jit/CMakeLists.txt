@@ -53,10 +53,3 @@ set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
 if(DNNL_EXPERIMENTAL)
     add_subdirectory(v2/conv/planner)
 endif()
-
-# Workaround for unordered_map related issues with DPC++ on Windows
-string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
-if(WIN32 AND UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "RELWITHMDD" AND CMAKE_BASE_NAME MATCHES "(icx|icpx)")
-    file(GLOB_RECURSE FILES_LIMIT_INLINE ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
-    set_source_files_properties(${FILES_LIMIT_INLINE} PROPERTIES COMPILE_FLAGS "/Ob1")
-endif()
