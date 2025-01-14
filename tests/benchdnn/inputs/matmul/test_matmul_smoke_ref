@@ -1,0 +1,123 @@
+--reset
+
+--match=.*NCF.* # Use NCF problems only from shapes_2d_ci
+--stag=any
+--wtag=any
+--dtag=any
+
+--dt=f32,bf16,f16
+--bia_dt=undef,f32
+--bia_mask=2
+--attr-post-ops=,linear:2:1
+--impl=ref
+--batch=shapes_2d_ci
+
+--dt=s8:s8:f32
+--attr-zero-points=src:common:1+wei:common:-1+dst:common:2
+--attr-scales=src:common:0.25+wei:per_oc+dst:common:2
+--impl=ref
+--batch=shapes_2d_ci
+
+--dt=u8:s8:s32
+--attr-zero-points=
+--attr-scales=src:common:0.25+wei:per_oc
+--impl=ref
+--batch=shapes_2d_ci
+
+# Run-time dimensions
+--stag=ab
+--wtag=ab
+--dtag=ab
+--dt=f32,bf16,f16,u8:s8:s32
+--bia_dt=undef,f32
+--bia_mask=2
+--attr-scales=
+--attr-zero-points=
+--attr-post-ops=,linear:2:1
+--runtime_dims_masks=1:0,3:3
+--impl=ref
+--batch=shapes_2d_ci
+
+# Decompression
+--reset
+--wtag=any,abc,acb
+--dt=s8:u4:f32,f16:s4:f16,s8:s8:f16,f16:s4:f32
+--attr-scales=wei:per_ocic:f16:192x1
+--attr-zero-points=wei:per_ocic:s4:192x1
+--attr-fpmath=f16:true
+--impl=ref
+12x4x576:12x576x192
+12x6x192:12x192x100
+
+--wtag=any,abcd,abdc
+--dt=s8:s4:f16
+--attr-fpmath=f16:true
+--attr-scales=src:per_ocic:f16:1x256+wei:per_tensor:f16:128x1
+--attr-zero-points=wei:per_tensor:s4:128x1,src:per_ocic:u4:1x256+wei:per_tensor:s4:128x1
+--impl=ref
+2x3x4x256:2x3x256x64
+2x3x6x256:2x3x256x100
+
+# Bias / DataType Combinations
+
+--reset
+--impl=ref
+
+--dt=f64,f32
+--bia-dt=undef,f32
+--bia_mask=2,3  77x133:133x117
+--bia_mask=4,6  15x24x16:15x16x32
+--bia_mask=8,12 7x16x24x8:7x16x8x24
+
+--dt=bf16,bf16:bf16:f32
+--bia-dt=undef,f32,bf16
+--bia_mask=2,3  77x133:133x117
+--bia_mask=4,6  15x24x16:15x16x32
+--bia_mask=8,12 7x16x24x8:7x16x8x24
+
+--dt=f16,f16:f16:f32
+--bia-dt=undef,f32,f16
+--bia_mask=2,3  77x133:133x117
+--bia_mask=4,6  15x24x16:15x16x32
+--bia_mask=8,12 7x16x24x8:7x16x8x24
+
+--dt=f8_e5m2,f8_e5m2:f8_e5m2:f32
+--bia-dt=undef,f32,f8_e5m2
+--bia_mask=2,3  77x133:133x117
+--bia_mask=4,6  15x24x16:15x16x32
+--bia_mask=8,12 7x16x24x8:7x16x8x24
+
+--dt=f8_e4m3,f8_e4m3:f8_e4m3:f32
+--bia-dt=undef,f32,f8_e4m3
+--bia_mask=2,3  77x133:133x117
+--bia_mask=4,6  15x24x16:15x16x32
+--bia_mask=8,12 7x16x24x8:7x16x8x24
+
+--dt=u8:s8:f32,u8:s8:s32,u8:s8:s8,u8:s8:u8,\
+     s8:s8:f32,s8:s8:s32,s8:s8:s8,s8:s8:u8
+--bia-dt=undef,f32,u8,s8,s32
+--bia_mask=2,3  77x133:133x117
+--bia_mask=4,6  15x24x16:15x16x32
+--bia_mask=8,12 7x16x24x8:7x16x8x24
+
+--dt=u8:s8:bf16,u8:s8:f16,\
+     s8:s8:bf16,s8:s8:f16
+--bia-dt=undef,f32
+--bia_mask=2,3  77x133:133x117
+--bia_mask=4,6  15x24x16:15x16x32
+--bia_mask=8,12 7x16x24x8:7x16x8x24
+
+# Strided
+--dt=u8:s8:u8,f16,f32
+--impl=ref
+--batch=shapes_mem_strided
+
+# Dropout
+--reset
+--match=.*NCF.* # Use NCF problems only from shapes_2d_ci
+--dt=f32,bf16
+--attr-fpmath=,bf16
+--impl=ref
+--attr-dropout=0.5:12345678
+--stag=ab --dtag=ab
+--batch=shapes_2d_ci
