@@ -76,6 +76,19 @@ public:
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs);
 
+    // This function will translate the subgraph containing
+    // implicit causal mask into a flag of causal_mask_
+    //     MatMul / Multiply
+    //        /      \
+    //    GenIndex GenIndex             causal_mask_ = true
+    //        \     /                           +
+    //      GreaterEqual in0 in1   -->   MatMul / Multiply
+    //               \  /   /                    |
+    //                Select                  SoftMax
+    //                   |
+    //                SoftMax
+    void fuse_implicit_causal_mask(std::shared_ptr<subgraph_t> &sg);
+
     // The function is used to check if the configuration of SDP is supported by
     // current implementation of micro kernel. Refer to the following limitation:
     // 1. only support limited pattern, variants with select op are not supported

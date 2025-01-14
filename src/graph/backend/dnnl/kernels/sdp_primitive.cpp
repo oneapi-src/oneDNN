@@ -63,7 +63,7 @@ status_t sdp_primitive_kernel_t<quantized>::compile_impl(
     pass_pipeline_t pipeline = pass_pipeline_t(vis);
 
     BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-    BACKEND_DNNL_ADD_PASS(pipeline, fuse_implicit_causal_mask);
+    //BACKEND_DNNL_ADD_PASS(pipeline, fuse_implicit_causal_mask);
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_reshape_for_gqa);
     if (quantized) {
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
