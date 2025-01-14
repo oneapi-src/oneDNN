@@ -45,3 +45,33 @@ jobs:
         run: sudo apt update && sudo apt install -y "clang-format-11"
       - name: Check code formatting
         run: .github/automation/clang-format.sh
+      - name: Install gcc
+        run: |
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+          sudo apt update -y
+          sudo apt install -y g++-13
+      - name: Install clang
+        uses: KyleMayes/install-llvm-action@e0a8dc9cb8a22e8a7696e8a91a4e9581bec13181
+        with:
+          version: "17"
+      - name: Get latest CMake
+        uses: lukka/get-cmake@acb35cf920333f4dc3fc4f424f1b30d5e7d561b4 # 3.31.4
+        with:
+          cmakeVersion: 3.31.0
+      - name: Install castxml package
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          python -m pip install --no-cache-dir --disable-pip-version-check castxml
+      - name: Build oneDNN
+        run: ${{ github.workspace }}/oneDNN/.github/automation/build.sh --build-dir ${{ github.workspace }}/oneDNN/build
+        working-directory: ${{ github.workspace }}/oneDNN
+        env:
+          ONEDNN_ACTION: build
+      - name: format-tags check
+        run: |
+          source venv/bin/activate
+          castxml --castxml-cc-gnu-c clang --castxml-output=1 -I${{ github.workspace }}/oneDNN/include -I${{ github.workspace }}/oneDNN/build/include ${{ github.workspace }}/oneDNN/include/oneapi/dnnl_types.h -o ${{ github.workspace }}/oneDNN/logs/types.xml
+          python ${{ github.workspace }}/oneDNN/scripts/generate_dnnl_debug.py ${{ github.workspace }}/oneDNN/logs/types.xml
+          python ${{ github.workspace }}/oneDNN/scripts/generate_format_tags.py
+          diff --git ${{ github.workspace }}/oneDNN/include/oneapi/dnnl/dnnl_debug.h ${{ github.workspace }}/oneDNN/build/include/oneapi/dnnl/dnnl_debug.h
