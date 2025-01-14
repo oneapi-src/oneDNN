@@ -27,6 +27,7 @@ namespace graph {
 enum class filling_type_t {
     undef = 0,
     quantization,
+    // Floating-point power-of-2 values for precise disivision/multiplication.
     pow2,
 };
 
@@ -55,8 +56,9 @@ private:
 
     int gen_quantize_filling(const ::graph::deserialized_op &main_op, int arg,
             dnn_mem_t &mem, const ::std::string &dt, res_t *res);
-    // Generates floating-point power-of-2 values in the target memory.
-    int gen_pow2_filling(dnn_mem_t &mem, const_dnnl_memory_desc_t lt,
+    // Generates values in the target memory based on predefined set of values
+    // from `fill_cfg`.
+    int gen_fixed_set_filling(dnn_mem_t &mem, const_dnnl_memory_desc_t md,
             const fill_cfg_t &fill_cfg, res_t *res) const;
 };
 
