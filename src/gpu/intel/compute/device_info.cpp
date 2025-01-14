@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,9 +72,12 @@ bool device_info_t::is_integrated() const {
 
 bool device_info_t::mayiuse_sub_group(int size) const {
     switch (gpu_arch()) {
-        case gpu_arch_t::xe2:
-        case gpu_arch_t::xe_hpc: return utils::one_of(size, 16, 32);
-        default: return utils::one_of(size, 8, 16, 32);
+        case gpu_arch_t::gen9:
+        case gpu_arch_t::gen11:
+        case gpu_arch_t::xe_lp:
+        case gpu_arch_t::xe_hp:
+        case gpu_arch_t::xe_hpg: return utils::one_of(size, 8, 16, 32);
+        default: return utils::one_of(size, 16, 32);
     }
 }
 
