@@ -400,14 +400,46 @@ inline graph::utils::pm::repetition_t *optional_select(
     return pselect;
 }
 
+inline graph::utils::pm::repetition_t *optional_scale(
+        const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
+        graph::utils::pm::pb_node_t *input) {
+    auto scale_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
+    auto scale = scale_graph->append_alternation(
+            {graph::op_kind::Divide, graph::op_kind::Multiply});
+    scale_graph->create_input_port(0, scale, 0);
+    scale_graph->create_output_port(0, scale, 0);
+    auto optional_scale
+            = pgraph->append_optional(scale_graph, {in_edge(0, input, 0)});
+    return optional_scale;
+}
+
+inline graph::utils::pm::repetition_t *optional_explicit_mask(
+        const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
+        graph::utils::pm::pb_node_t *scaled_output) {
+    auto mask_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
+    auto add = mask_graph->append_op(graph::op_kind::Add);
+    mask_graph->create_input_port(0, add, 0);
+    mask_graph->create_output_port(0, add, 0);
+    auto optional_mask = pgraph->append_optional(
+            mask_graph, {in_edge(0, scaled_output, 0)});
+    return optional_mask;
+}
+
 // Implicit Causal Mask
 inline graph::utils::pm::repetition_t *optional_causal_mask(
         const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
-        graph::utils::pm::pb_node_t *scaled_output) {
+        graph::utils::pm::pb_node_t *scaled_output, bool check_f16 = false) {
     auto popt_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
 
     graph::utils::pm::pb_op_t *gen_index_row
             = popt_graph->append_op(graph::op_kind::GenIndex);
+    if (check_f16) {
+        // sdpa_primitive only supports f16 on gpu
+        // for other dtypes, we don't have a reference implementation on gpu
+        // so filter them out
+        gen_index_row->append_decision_function(
+                check_input_dtype<graph::data_type::f16>);
+    }
     graph::utils::pm::pb_op_t *gen_index_col
             = popt_graph->append_op(graph::op_kind::GenIndex);
     graph::utils::pm::pb_op_t *greater_equal
