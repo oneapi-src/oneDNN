@@ -468,13 +468,13 @@ void sdpa_perf(engine::kind ekind, int argc, char **argv) {
         }
     }
 
-    bench(api_kind::graph, ekind, dnnl_f32, params, 2000.0 /*ms*/);
-    bench(api_kind::graph, ekind, dnnl_bf16, params, 2000.0 /*ms*/);
+    // bench(api_kind::graph, ekind, dnnl_f32, params, 2000.0 /*ms*/);
+    // bench(api_kind::graph, ekind, dnnl_bf16, params, 2000.0 /*ms*/);
     bench(api_kind::graph, ekind, dnnl_f16, params, 2000.0 /*ms*/);
 
-    bench(api_kind::primitive, ekind, dnnl_f32, params, 2000.0 /*ms*/);
-    bench(api_kind::primitive, ekind, dnnl_bf16, params, 2000.0 /*ms*/);
-    bench(api_kind::primitive, ekind, dnnl_f16, params, 2000.0 /*ms*/);
+    // bench(api_kind::primitive, ekind, dnnl_f32, params, 2000.0 /*ms*/);
+    // bench(api_kind::primitive, ekind, dnnl_bf16, params, 2000.0 /*ms*/);
+    // bench(api_kind::primitive, ekind, dnnl_f16, params, 2000.0 /*ms*/);
 }
 
 int main(int argc, char **argv) {
