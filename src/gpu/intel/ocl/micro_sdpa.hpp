@@ -72,10 +72,10 @@ struct micro_sdpa_t : public gpu_primitive_t {
                                     qry_md()->data_type, dst_md()->data_type)),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_SDPA(
-                    utils::one_of(key_md()->data_type, f16, u8, s8, u4, s4),
+                    utils::one_of(key_md()->data_type, bf16, f16, u8, s8, u4, s4),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_SDPA(
-                    utils::one_of(val_md()->data_type, f16, u8, s8, u4, s4),
+                    utils::one_of(val_md()->data_type, bf16, f16, u8, s8, u4, s4),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_SDPA(
                     IMPLICATION(qry_md()->data_type == data_type::bf16,

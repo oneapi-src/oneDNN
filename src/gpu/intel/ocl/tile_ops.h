@@ -148,6 +148,7 @@ DEF_BLOCK_LOAD_STORE16(uint, uint, )
                 pp, w - 1, h - 1, ld - 1, coord, as_##itype##vl(v)); \
     }
 
+DEF_BLOCK2D_LOAD_STORE(half, ushort, 8, 16, u16_m8k16v1, 16, 8)
 DEF_BLOCK2D_LOAD_STORE(half, ushort, 8, 16, u16_m4k32v1, 32, 4)
 DEF_BLOCK2D_LOAD_STORE(half, ushort, 16, 16, u16_m8k32v1, 32, 8)
 
@@ -648,11 +649,13 @@ __attribute__((overloadable)) void cooperative_prefetch_2d_internal(
         uint n_sg, uint sg_size, enum LSC_LDCC caching) {
     const uint cl_per_col = (rbytes + 63) >> 6;
     const uint cl = cl_per_col * c;
+
     const uint cl_per_sg = (cl + n_sg - 1) / n_sg;
     const uint cl_iters = (cl_per_sg + sg_size - 1) / sg_size;
 #pragma unroll
     for (uint ii_cl = 0; ii_cl < cl_iters; ii_cl++) {
-        uint i_cl = ii_cl + (sg_id * cl_per_sg) + get_sub_group_local_id();
+        uint i_cl = (ii_cl * cl_per_sg + sg_id) * sg_size
+                + get_sub_group_local_id();
         uint r_cl = i_cl % cl_per_col;
         uint c_cl = i_cl / cl_per_col;
         if (i_cl < cl) {
@@ -674,7 +677,8 @@ __attribute__((overloadable)) void cooperative_prefetch_2d_internal(
     const uint max_off = rbytes - 1 + (c - 1) * ld_bytes;
 #pragma unroll
     for (uint ii_cl = 0; ii_cl < cl_iters; ii_cl++) {
-        uint i_cl = ii_cl + (sg_id * cl_per_sg) + get_sub_group_local_id();
+        uint i_cl = (ii_cl * cl_per_sg + sg_id) * sg_size
+                + get_sub_group_local_id();
         uint r_cl = i_cl % cl_per_col;
         uint c_cl = i_cl / cl_per_col;
         uint pf_off = min(r_cl * 64 + c_cl * ld_bytes, max_off);
