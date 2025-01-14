@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,13 +51,13 @@ static inline DataType withSignedness(DataType dt, bool signedType)
 // Three-argument add.
 template <HW hw>
 template <typename DT, typename S0, typename S2>
-void BLASKernelGenerator<hw>::eadd3(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, const S2 &src2)
+void BLASKernelGenerator<hw>::eadd3(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, const S2 &src2, ngen::SourceLocation loc)
 {
     if ((hw >= HW::XeHP) && !(dst.getOffset() & 1))
-        add3<DT>(mod, dst, src0, src1, src2);
+        add3<DT>(mod, dst, src0, src1, src2, loc);
     else {
-        add<DT>(mod, dst, src1, src0);
-        add<DT>(mod, dst, dst, src2);
+        add<DT>(mod, dst, src1, src0, loc);
+        add<DT>(mod, dst, dst, src2, loc);
     }
 }
 
@@ -65,18 +65,18 @@ template <HW hw>
 template <typename S0>
 void BLASKernelGenerator<hw>::ecsel(const InstructionModifier &mod, const InstructionModifier &cmod, const FlagRegister &flag,
                                     const RegData &dst,  const S0 &src0,
-                                    const RegData &src1, const RegData &src2)
+                                    const RegData &src1, const RegData &src2, ngen::SourceLocation loc)
 {
     if (hw == HW::Gen9 || dst.getByteOffset() & 7) {
-        cmp(mod | cmod | flag, src2, 0);
-        sel(mod | ~flag, dst, src1, src0);
+        cmp(mod | cmod | flag, src2, 0, loc);
+        sel(mod | ~flag, dst, src1, src0, loc);
     } else
-        csel(mod | cmod | flag, dst, src0, src1, src2);
+        csel(mod | cmod | flag, dst, src0, src1, src2, loc);
 };
 
 template <HW hw>
 template <typename DT>
-void BLASKernelGenerator<hw>::emov(const ngen::InstructionModifier &mod, ngen::RegData dst, ngen::RegData src0, const CommonStrategy &strategy, CommonState &state)
+void BLASKernelGenerator<hw>::emov(const ngen::InstructionModifier &mod, ngen::RegData dst, ngen::RegData src0, const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
     EmulationImplementation::applyDefaultType<DT>(dst);
     EmulationImplementation::applyDefaultType<DT>(src0);
@@ -96,25 +96,25 @@ void BLASKernelGenerator<hw>::emov(const ngen::InstructionModifier &mod, ngen::R
     if (dst.getType() == DataType::f && src0.getType() == DataType::bf) {
         dst.setType(DataType::ud);
         src0.setType(DataType::uw);
-        shl(mod, dst, src0, 16);
+        shl(mod, dst, src0, 16, loc);
     } else if (!strategy.systolicAvailable && dst.getType() == DataType::bf && src0.getType() == DataType::f) {
         // Emulated f32->bf16 RTNE conversion.
         auto flag = state.emulate.flag;
         if (!flag.isValid()) stub();
         dst.setType(DataType::uw);
         src0.setType(DataType::ud);
-        add(mod, src0, src0, -0x8000);
-        and_(mod | nz | flag, null.ud(), src0, 0x1FFFF);
-        mov(mod, dst, EmulationImplementation::highWord(src0));
+        add(mod, src0, src0, -0x8000, loc);
+        and_(mod | nz | flag, null.ud(), src0, 0x1FFFF, loc);
+        mov(mod, dst, EmulationImplementation::highWord(src0), loc);
         // add(mod, src0, src0, 0x8000);       // Preserve src0 -- if nondestructive mov -- not needed
-        add(mod | flag, dst, dst, 1);
+        add(mod | flag, dst, dst, 1, loc);
     } else
-        EmulationImplementation::emov(*this, mod, dst, src0, strategy.emulate);
+        EmulationImplementation::emov(*this, mod, dst, src0, strategy.emulate, loc);
 }
 
 template <HW hw>
 template <typename DT>
-void BLASKernelGenerator<hw>::eadd(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1, const CommonStrategy &strategy, CommonState &state)
+void BLASKernelGenerator<hw>::eadd(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1, const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
     if (dst.getType() == DataType::f && src0.getType() == DataType::f && src1.getType() == DataType::bf && src1.getHS() != 1) {
         GRF alloced, temp = state.emulate.temp[0];
@@ -123,17 +123,17 @@ void BLASKernelGenerator<hw>::eadd(const InstructionModifier &mod, const RegData
 
         auto src1UW = src1;
         src1UW.setType(DataType::uw);
-        mov(mod, temp.uw(0)(1), src1UW);
-        add(mod, dst, src0, temp.bf(0)(1));
+        mov(mod, temp.uw(0)(1), src1UW, loc);
+        add(mod, dst, src0, temp.bf(0)(1), loc);
 
         state.ra.safeRelease(alloced);
     } else
-        EmulationImplementation::eadd<DT>(*this, mod, dst, src0, src1, strategy.emulate, state.emulate);
+        EmulationImplementation::eadd<DT>(*this, mod, dst, src0, src1, strategy.emulate, state.emulate, loc);
 }
 
 template <HW hw>
 template <typename S0>
-void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData &dst, const S0 &src0, RegData src1, RegData src2, const CommonStrategy &strategy, CommonState &state)
+void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData &dst, const S0 &src0, RegData src1, RegData src2, const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
     bool sub = false;
     if (src1.getNeg()) {
@@ -144,17 +144,17 @@ void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData
         src2 = -src2;
         sub = !sub;
     }
-    emad(mod, dst, src0, src1, src2, strategy, state, sub);
+    emad(mod, dst, src0, src1, src2, strategy, state, sub, loc);
 }
 
 template <HW hw>
 template <typename S0, typename S2>
-void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, const S2 &src2, const CommonStrategy &strategy, CommonState &state, bool sub)
+void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, const S2 &src2, const CommonStrategy &strategy, CommonState &state, bool sub, ngen::SourceLocation loc)
 {
     auto dstType = dst.getType();
     if ((hw >= HW::Gen10 && !sub && !(dst.getByteOffset() & 7) && !one_of(dstType, DataType::q, DataType::uq) && !one_of(src2.getType(), DataType::d, DataType::ud))
             || one_of(dstType, DataType::hf, DataType::f, DataType::df)) {
-        mad(mod, dst, src0, src1, src2);
+        mad(mod, dst, src0, src1, src2, loc);
     } else {
         auto ttype = withSignedness(dst.getType(), isSigned(src1.getType()) || isSigned(src2.getType()));
         RegData temp;
@@ -167,8 +167,8 @@ void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData
             temp = tempRange[0].retype(ttype);
         }
 
-        emul(unsaturated(mod), temp, src1, src2, strategy, state);
-        eadd(mod, dst, sub ? -temp : temp, src0, strategy, state);
+        emul(unsaturated(mod), temp, src1, src2, strategy, state, loc);
+        eadd(mod, dst, sub ? -temp : temp, src0, strategy, state, loc);
 
         state.ra.safeRelease(tempSub);
         state.ra.safeRelease(tempRange);
@@ -177,22 +177,22 @@ void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData
 
 template <HW hw>
 template <typename S0>
-void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, const Immediate &src2, const CommonStrategy &strategy, CommonState &state)
+void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, const Immediate &src2, const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
-    emad(mod, dst, src0, src1, src2, strategy, state, false);
+    emad(mod, dst, src0, src1, src2, strategy, state, false, loc);
 }
 
 template <HW hw>
 template <typename S0>
-void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, int32_t src2, const CommonStrategy &strategy, CommonState &state)
+void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, int32_t src2, const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
     auto dstType = dst.getType();
     if (src2 == 0)
-        emov(mod, dst, src0, strategy, state);
+        emov(mod, dst, src0, strategy, state, loc);
     else if (src2 == 1)
-        eadd(mod, dst, src1, src0, strategy, state);
+        eadd(mod, dst, src1, src0, strategy, state, loc);
     else if (hw >= HW::Gen10 && !(dst.getByteOffset() & 7) && (src2 >= -0x8000 && src2 < 0x10000) && !one_of(dstType, DataType::q, DataType::uq)) {
-        mad(mod, dst, src0, src1, src2);
+        mad(mod, dst, src0, src1, src2, loc);
     } else {
         auto ttype = isSigned(src1.getType()) ? DataType::d : DataType::ud;
         Subregister tempScalar;
@@ -204,8 +204,8 @@ void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData
             tempGRFs = state.ra.alloc_range(2);
             temp = tempGRFs[0].retype(ttype);
         }
-        emulConstant(unsaturated(mod), temp, src1, src2, strategy, state);
-        eadd(mod, dst, temp, src0, strategy, state);
+        emulConstant(unsaturated(mod), temp, src1, src2, strategy, state, loc);
+        eadd(mod, dst, temp, src0, strategy, state, loc);
         state.ra.safeRelease(tempScalar);
         state.ra.safeRelease(tempGRFs);
     }
@@ -213,31 +213,31 @@ void BLASKernelGenerator<hw>::emad(const InstructionModifier &mod, const RegData
 
 template <HW hw>
 template <typename S0>
-void BLASKernelGenerator<hw>::eaddScaled(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, Type src2, const CommonStrategy &strategy, CommonState &state)
+void BLASKernelGenerator<hw>::eaddScaled(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, Type src2, const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
     if (src2.isInt4()) {
         auto tmpRange = state.ra.alloc_range(2);
         auto tmp = tmpRange[0].retype(src1.getType());
-        eshr(mod, tmp, src1, 1, strategy, state);
-        eadd(mod, dst, tmp, src0, strategy, state);
+        eshr(mod, tmp, src1, 1, strategy, state, loc);
+        eadd(mod, dst, tmp, src0, strategy, state, loc);
         state.ra.safeRelease(tmpRange);
     } else
-        emad(mod, dst, src0, src1, src2.size(), strategy, state);
+        emad(mod, dst, src0, src1, src2.size(), strategy, state, loc);
 }
 
 template <HW hw>
 template <typename DT>
-void BLASKernelGenerator<hw>::emulConstant(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, Type src1, const CommonStrategy &strategy, const CommonState &state)
+void BLASKernelGenerator<hw>::emulConstant(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, Type src1, const CommonStrategy &strategy, const CommonState &state, ngen::SourceLocation loc)
 {
     if (src1.isInt4())
-        eshr<DT>(mod, dst, src0, 1, strategy, state);
+        eshr<DT>(mod, dst, src0, 1, strategy, state, loc);
     else
-        emulConstant<DT>(mod, dst, src0, src1.size(), strategy, state);
+        emulConstant<DT>(mod, dst, src0, src1.size(), strategy, state, loc);
 }
 
 template <HW hw>
 template <typename DT>
-void BLASKernelGenerator<hw>::emath(const InstructionModifier &mod, MathFunction fc, const RegData &dst, const RegData &src0, const GEMMStrategy &strategy, CommonState &state)
+void BLASKernelGenerator<hw>::emath(const InstructionModifier &mod, MathFunction fc, const RegData &dst, const RegData &src0, const GEMMStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
     if (hw == HW::XeHP && strategy.systolic && mod.getExecSize() <= 8) {
         // Workaround for DPAS + SIMD8 EM hang: use SIMD16 arithmetic.
@@ -247,27 +247,27 @@ void BLASKernelGenerator<hw>::emath(const InstructionModifier &mod, MathFunction
         auto temp = state.ra.alloc_range(2);
         auto tt = temp[0].retype(src0.getType());
 
-        mov(mod.getExecSize(), tt, src0);
-        math(mod16, fc, tt, tt);
-        mov(mod.getExecSize(), dst, tt);
+        mov(mod.getExecSize(), tt, src0, loc);
+        math(mod16, fc, tt, tt, loc);
+        mov(mod.getExecSize(), dst, tt, loc);
 
         state.ra.safeRelease(temp);
     } else
-        math(mod, fc, dst, src0);
+        math(mod, fc, dst, src0, loc);
 }
 
 template <HW hw>
-void BLASKernelGenerator<hw>::ejmpi(InstructionModifier mod, Label &dst)
+void BLASKernelGenerator<hw>::ejmpi(InstructionModifier mod, Label &dst, ngen::SourceLocation loc)
 {
     if (hw >= HW::XeHPC && mod.getPredCtrl() == PredCtrl::anyv && !mod.isPredInv()) {
         mod.setPredCtrl(PredCtrl::Normal);
-        jmpi(mod, dst);
+        jmpi(mod, dst, loc);
         auto flag = mod.getFlagReg();
         flag.setBase(flag.getBase() ^ 1);
         mod.setFlagReg(flag);
-        jmpi(mod, dst);
+        jmpi(mod, dst, loc);
     } else
-        jmpi(mod, dst);
+        jmpi(mod, dst, loc);
 }
 
 
