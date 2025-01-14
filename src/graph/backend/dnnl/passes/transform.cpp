@@ -2287,10 +2287,10 @@ status_t binary_canonicalization(std::shared_ptr<subgraph_t> &sg) {
         int32_t target_ndims = std::max(src0_ndims, src1_ndims);
         std::vector<int32_t> in_ndims {src0_ndims, src1_ndims};
         for (size_t i = 0; i < cur_op->num_inputs(); ++i) {
-            if (in_ndims[i] == target_ndims) { continue; }
             // For binary select op, broadcast for the third input is
             // unsupported.
             if (i == 2) { continue; }
+            if (in_ndims[i] == target_ndims) { continue; }
 
             std::vector<int64_t> axes(target_ndims - in_ndims[i]);
             std::iota(axes.begin(), axes.end(), 0);
