@@ -172,18 +172,6 @@ public:
     void dbg_alloc(cl_context context);
     void *dbg_memory() const { return dbg_memory_.get(); }
 #endif
-
-    void emath(ngen::MathFunction fc, int simd, ngen::GRF dst, ngen::GRF src) {
-        const int max_exec_size = ngen::GRF::bytes(hw) / sizeof(float);
-        for (; simd > 0; simd -= max_exec_size, dst++, src++)
-            this->math(nstl::min(simd, max_exec_size), fc, dst, src);
-    }
-    void eexp(int simd, const ngen::GRF &dst, const ngen::GRF &src) {
-        emath(ngen::MathFunction::exp, simd, dst, src);
-    }
-    void einv(int simd, const ngen::GRF &dst, const ngen::GRF &src) {
-        emath(ngen::MathFunction::inv, simd, dst, src);
-    }
 };
 
 #ifdef CL_VERSION_2_0
