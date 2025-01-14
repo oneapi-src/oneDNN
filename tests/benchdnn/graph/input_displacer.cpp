@@ -136,6 +136,39 @@ partition_data_displacer_t::partition_data_displacer_t(
                 }
             }
         }
+
+        // Alternatively, looking for Add->SoftMax chain, which represents
+        // explicit SDPA mask, and should be filled with upper-corner with -inf:
+        // 0 -inf -inf -inf
+        // 0    0 -inf -inf
+        // 0    0    0 -inf
+        // 0    0    0    0
+        // This is done to avoid taking future tokens into account by
+        // influencing SoftMax input values.
+        while (aop.kind_ == "Add") {
+            auto *aop_out_lt = &aop.out_lts_[0];
+            auto *child_op = &dg_->get_op_by_in_lt(aop_out_lt->id_);
+            if (child_op->kind_ != "SoftMax") break;
+
+            // Search for an input lt without a parent, its input to modify.
+            const deserialized_lt *causal_mask_lt = nullptr;
+            for (size_t i = 0; i < aop.in_lts_.size(); i++) {
+                auto *aop_in_lt = &aop.in_lts_[i];
+                auto *parent_op = &dg_->get_op_by_out_lt(aop_in_lt->id_);
+                if (parent_op->empty()) causal_mask_lt = aop_in_lt;
+            }
+
+            // Verify that found LT has 2D spatial.
+            const auto ndims = causal_mask_lt->shape_.size();
+            if (ndims < 2 || causal_mask_lt->shape_[ndims - 1] == 1
+                    || causal_mask_lt->shape_[ndims - 2] == 1)
+                break;
+
+            quantize_displace_.emplace(causal_mask_lt->id_,
+                    std::make_tuple(aop, SIZE_MAX, *causal_mask_lt,
+                            filling_type_t::causal_mask));
+            break;
+        }
     }
 }
 
@@ -188,6 +221,8 @@ int partition_data_displacer_t::displace_input_data(
                 = is_div ? pow2_div_vals : (is_mul ? pow2_mul_vals : dummy);
         fill_cfg_t fill_cfg(user_set, "Mul/Div displacer");
         SAFE(gen_fixed_set_filling(mem_replace, mem.md_, fill_cfg, res), WARN);
+    } else if (filling_type == filling_type_t::causal_mask) {
+        SAFE(gen_causal_mask_filling(mem_replace, mem.md_, res), WARN);
     } else {
         assert(!"unexepcted filling type");
     }
@@ -395,6 +430,36 @@ int partition_data_displacer_t::gen_fixed_set_filling(dnn_mem_t &mem,
     });
 
     mem = std::move(m);
+    return OK;
+}
+
+int partition_data_displacer_t::gen_causal_mask_filling(
+        dnn_mem_t &mem, const_dnnl_memory_desc_t md, res_t *res) const {
+
+    dnn_mem_t tmp_mem(md, get_test_engine());
+
+    const int ndims = query_md_ndims(md);
+    assert(ndims >= 2); // This was checked at displacer initialization.
+    const auto &dims = query_md_dims(md);
+    const int64_t batch = std::accumulate(dims, dims + ndims - 3, (dnnl_dim_t)1,
+            std::multiplies<dnnl_dim_t>());
+    const int64_t M = dims[ndims - 2];
+    const int64_t N = dims[ndims - 1];
+
+    benchdnn_parallel_nd(batch, M, N, [&](int64_t b, int64_t m, int64_t n) {
+        int64_t idx = b * M * N + m * N + n;
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand int_seed(idx + 1);
+        int_seed.discard(1);
+
+        float val = m >= n ? 0.f : -INFINITY;
+        tmp_mem.set_elem(idx, val);
+    });
+
+    mem = std::move(tmp_mem);
     return OK;
 }
 

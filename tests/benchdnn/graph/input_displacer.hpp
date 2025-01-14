@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ enum class filling_type_t {
     quantization,
     // Floating-point power-of-2 values for precise disivision/multiplication.
     pow2,
+    // Explicit causal mask from SDPA pattern.
+    causal_mask,
 };
 
 // tuple<
@@ -60,6 +62,9 @@ private:
     // from `fill_cfg`.
     int gen_fixed_set_filling(dnn_mem_t &mem, const_dnnl_memory_desc_t md,
             const fill_cfg_t &fill_cfg, res_t *res) const;
+    // Generates causal mask filling for "Add" operation.
+    int gen_causal_mask_filling(
+            dnn_mem_t &mem, const_dnnl_memory_desc_t md, res_t *res) const;
 };
 
 } // namespace graph
