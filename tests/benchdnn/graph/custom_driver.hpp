@@ -43,8 +43,8 @@ struct settings_t {
 
     ::std::unordered_map<int, arg_md_t> arg_mds_;
     ::std::vector<int64_t> order;
-    int64_t axis;
-    alg_t alg;
+    int64_t axis = -1;
+    alg_t alg = ALG_UNKNOWN;
 
     // A stub to be compliant with `base_settings_t`.
     void finalize() {};
@@ -61,9 +61,9 @@ struct prb_t {
 
     ::std::unordered_map<int, arg_md_t> arg_mds_;
     ::std::vector<int64_t> order;
-    int64_t axis;
+    int64_t axis = -1;
     attr_t attr;
-    alg_t alg;
+    alg_t alg = ALG_UNKNOWN;
 };
 
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args);
