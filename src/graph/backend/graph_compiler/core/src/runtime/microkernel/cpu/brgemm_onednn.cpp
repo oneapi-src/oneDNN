@@ -125,7 +125,7 @@ static brgemm_attr_t get_dnnl_brgemm_attrs(const attrs_setting_t &attrs) {
                         = static_cast<brgemm_kernel_prefetching_t>(it.second);
                 break;
             case attr_key::wary_tail_read:
-                dnnl_attrs.wary_tail_read = static_cast<bool>(it.second);
+                dnnl_attrs.wary_A_k_tail_read = static_cast<bool>(it.second);
                 break;
             case attr_key::generate_skip_accumulation:
                 dnnl_attrs.generate_skip_accumulation
