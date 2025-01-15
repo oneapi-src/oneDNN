@@ -33,6 +33,13 @@ enum class filling_type_t {
     causal_mask,
     // Implicit causal mask free input.
     minus_infinity,
+    // Explicit padding mask (1D case) through the Add op from SDPA pattern.
+    zero,
+    // TODO: `pow2`, `minus_infinity`, `zero` and `one` types can be replaced
+    // with the one defined by non empty fill_cfg which will become a member
+    // of displacer.
+    // Explicit padding mask (1D case) through the Select op from SDPA pattern.
+    one,
 };
 
 // tuple<
