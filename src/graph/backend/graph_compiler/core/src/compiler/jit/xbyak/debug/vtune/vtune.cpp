@@ -16,7 +16,7 @@
 
 #include <map>
 #include <memory>
-#include <common/ittnotify/jitprofiling.h>
+#include <ittnotify/jitprofiling.h>
 #include <compiler/jit/xbyak/debug/debug_info_mgr.hpp>
 #include <util/utils.hpp>
 
