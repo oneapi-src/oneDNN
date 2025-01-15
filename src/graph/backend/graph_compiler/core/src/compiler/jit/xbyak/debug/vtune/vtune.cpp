@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023 Intel Corporation
+ * Copyright 2023-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,9 @@
 
 #include <map>
 #include <memory>
-#include <common/ittnotify/jitprofiling.h>
+
 #include <compiler/jit/xbyak/debug/debug_info_mgr.hpp>
+#include <ittnotify/jitprofiling.h>
 #include <util/utils.hpp>
 
 namespace dnnl {
