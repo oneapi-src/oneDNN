@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
                     IMPLICATION(desc()->src_desc.data_type == f16,
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16)),
-                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+                    VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_INNER_PRODUCT(
                     (invariant_src_md()->format_desc.blocking.inner_nblks > 0
                             || invariant_wei_md()
@@ -82,7 +82,7 @@ struct convolution_inner_product_fwd_t : public gpu_primitive_t {
                             || (src_md_.format_kind == format_kind::any
                                     && weights_md_.format_kind
                                             == format_kind::any)),
-                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+                    VERBOSE_UNSUPPORTED_FORMAT_KIND);
 
             VDISPATCH_INNER_PRODUCT_SC(
                     init_conf(engine), VERBOSE_PRIMITIVE_CREATION_FAIL, "ip");
