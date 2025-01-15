@@ -205,6 +205,17 @@ struct matmul_pd_t : public primitive_desc_t {
                                 utils::one_of(
                                         1, sc.group_dims_[0], sc.group_dims_[1])
                                         && wei_k_group_ok && wei_n_group_ok);
+
+                // Mask over K dim is allowed for decompression feature only.
+                const bool is_decompression_or_dynquant
+                        = utils::one_of(weights_md(0)->data_type, data_type::s8,
+                                  data_type::u8, data_type::s4, data_type::u4)
+                        && IMPLICATION(
+                                !types::is_integral_dt(src_md()->data_type),
+                                attr()->fpmath_.apply_to_int_);
+                ok = ok
+                        && IMPLICATION((mask & wei_qmask_K()),
+                                is_decompression_or_dynquant);
             } else if (arg == DNNL_ARG_SRC) {
                 ok = ok
                         && utils::one_of(mask, 0, src_qmask_K(),
