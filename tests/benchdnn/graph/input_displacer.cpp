@@ -159,25 +159,50 @@ partition_data_displacer_t::partition_data_displacer_t(
             // modify for both explicit and implicit masks.
             const deserialized_lt *causal_mask_lt = nullptr;
             size_t offset = SIZE_MAX;
+            size_t qk_data_offset = SIZE_MAX;
+            // Select condition having a parent or not is the only reliable
+            // difference between explicit and implicit causal mask.
+            bool select_cond_has_parent = false;
+            // Need to iterate over all inputs to handle padding mask expressed
+            // through Select op.
             for (size_t i = 0; i < aop.in_lts_.size(); i++) {
                 auto *aop_in_lt = &aop.in_lts_[i];
                 auto *parent_op = &dg_->get_op_by_out_lt(aop_in_lt->id_);
-                if (!parent_op->empty()) continue;
+                if (!parent_op->empty()) {
+                    if (aop_in_lt->get_data_type()
+                            != logical_tensor::data_type::boolean) {
+                        // This is the qk_data, need to know its offset to
+                        // properly fill condition for padding mask.
+                        qk_data_offset = i;
+                    } else {
+                        // This means it's implicit causal mask.
+                        select_cond_has_parent = true;
+                    }
+                    continue;
+                }
 
-                // Explicit masks expressed through Select op would have cond
-                // tensor standalone and not filled for every point. This
-                // represents a padding mask and not supported for now.
-                if (aop_in_lt->get_data_type()
-                        == logical_tensor::data_type::boolean)
-                    break;
+                // Explicit padding mask expressed through the Select op would
+                // have two user inputs: condition, hinting where padding
+                // occurred and a special value (-inf) to use. In such scenario,
+                // unlike for implicit causal mask, it's required to update the
+                // condition to always take qk values instead of a special one.
+                //
+                // Checking for data type to make sure that in case of two user
+                // inputs, the condition one will be updated. For implicit
+                // causal mask, the condition would have a parent and a check
+                // for `causal_mask_lt` being non-empty will fail.
+                if (causal_mask_lt
+                        && aop_in_lt->get_data_type()
+                                != logical_tensor::data_type::boolean)
+                    continue;
 
                 causal_mask_lt = aop_in_lt;
                 offset = i;
-                break;
             }
             // No suitable tensor/subgraph for a mask displacement.
             if (!causal_mask_lt) break;
 
+            filling_type_t filling_type = filling_type_t::undef;
             if (aop.kind_ == "Add") {
                 const auto ndims = causal_mask_lt->shape_.size();
                 if (ndims < 2) {
@@ -186,22 +211,43 @@ partition_data_displacer_t::partition_data_displacer_t(
                     break;
                 }
 
-                const auto N = causal_mask_lt->shape_[ndims - 1];
                 const auto M = causal_mask_lt->shape_[ndims - 2];
-                if (M == 1 || N == 1) {
-                    BENCHDNN_PRINT(7,
-                            "[DISPLACE]: Causal mask shape has one: {%ld, "
-                            "%ld}\n",
-                            M, N);
-                    break;
+                if (M == 1) {
+                    // This is a padding mask case, when padded tokens should
+                    // be removed from the final computations. In case of
+                    // benchdnn, there's no such thing as padding as all tokens
+                    // are computed. To avoid numerical instabilities, a zero
+                    // mask can be applied without compromising validation
+                    // capabilities.
+                    filling_type = filling_type_t::zero;
+                } else {
+                    // This is a look-ahead (or causal) mask case, when future
+                    // tokens (row < col) are set to infinity to remove all
+                    // connections of current tokens to unissued ones.
+                    filling_type = filling_type_t::causal_mask;
+                }
+            } else if (aop.kind_ == "Select") {
+                if (select_cond_has_parent) {
+                    // Implicit causal mask case.
+                    filling_type = filling_type_t::minus_infinity;
+                } else {
+                    // Padding mask.
+                    assert(qk_data_offset == 1 || qk_data_offset == 2);
+                    // Fill condition depending on qk values tensor to use only
+                    // its values, which is equivalent of not using a mask.
+                    if (qk_data_offset == 1) {
+                        filling_type = filling_type_t::one;
+                    } else if (qk_data_offset == 2) {
+                        filling_type = filling_type_t::zero;
+                    }
                 }
             }
 
-            filling_type_t filling_type = filling_type_t::undef;
-            if (aop.kind_ == "Add")
-                filling_type = filling_type_t::causal_mask;
-            else if (aop.kind_ == "Select")
-                filling_type = filling_type_t::minus_infinity;
+            if (filling_type == filling_type_t::undef) {
+                BENCHDNN_PRINT(
+                        7, "%s\n", "[DISPLACE]: Filling type was not set");
+                break;
+            }
 
             quantize_displace_.emplace(causal_mask_lt->id_,
                     std::make_tuple(
@@ -265,6 +311,14 @@ int partition_data_displacer_t::displace_input_data(
     } else if (filling_type == filling_type_t::minus_infinity) {
         static const std::vector<float> user_set {-INFINITY};
         fill_cfg_t fill_cfg(user_set, "Implicit_causal_mask");
+        SAFE(gen_fixed_set_filling(mem_replace, mem.md_, fill_cfg, res), WARN);
+    } else if (filling_type == filling_type_t::zero) {
+        static const std::vector<float> user_set {0.f};
+        fill_cfg_t fill_cfg(user_set, "Explicit_padding_mask");
+        SAFE(gen_fixed_set_filling(mem_replace, mem.md_, fill_cfg, res), WARN);
+    } else if (filling_type == filling_type_t::one) {
+        static const std::vector<float> user_set {1.f};
+        fill_cfg_t fill_cfg(user_set, "Explicit_padding_mask");
         SAFE(gen_fixed_set_filling(mem_replace, mem.md_, fill_cfg, res), WARN);
     } else {
         assert(!"unexpected filling type");
