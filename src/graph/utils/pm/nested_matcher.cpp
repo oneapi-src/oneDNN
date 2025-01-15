@@ -981,8 +981,7 @@ bool match_alternation(const binding_t &bind_arg, match_context_t *ctx,
                 if (iter == local_ctx.in_port_map.end()) return false;
 
                 op_t *current_op = iter->second.first;
-                size_t current_port
-                        = local_ctx.in_port_map.find(0)->second.second;
+                size_t current_port = iter->second.second;
                 binding_t current_bind(BIND_OUT, current_op, current_port,
                         bind_arg.bind_node, bind_arg.bind_port);
                 return match_node_inputs(current_bind, ctx, matched_op_map);
