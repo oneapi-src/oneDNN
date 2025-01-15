@@ -382,6 +382,7 @@ std::string md2fmt_str(
         const char *name, const memory_desc_t *md, format_kind_t user_format);
 std::string md2dim_str(
         const memory_desc_t *md, dims_type_t dims_type = dims_type_t::dims);
+std::string arg2str(int arg);
 // Returns a verbose string of dimensions or descriptor from src, wei, and/or
 // dst memory descs. Can be called externally to provide info about actual
 // values of runtime dimensions.

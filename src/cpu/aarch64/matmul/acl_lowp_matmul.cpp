@@ -66,13 +66,19 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
                     | smask_t::zero_points_runtime | smask_t::post_ops),
             "only scale, zero point and post-ops attrs supported");
 
-    VDISPATCH_MATMUL(attr()->scales_.get(DNNL_ARG_SRC).mask_ == 0
-                    && attr()->zero_points_.get(DNNL_ARG_SRC) == 0
-                    && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0
+    VDISPATCH_MATMUL(attr()->zero_points_.get(DNNL_ARG_SRC) == 0
                     && attr()->zero_points_.get(DNNL_ARG_WEIGHTS) == 0
-                    && attr()->scales_.get(DNNL_ARG_DST).mask_ == 0
                     && attr()->zero_points_.get(DNNL_ARG_DST) == 0,
-            "common scales and zero points only");
+            "common zero points only");
+
+    static const std::vector<int> supported_args {
+            DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+    for (int arg : supported_args) {
+        if (attr()->scales_.has_default_values(arg)) continue;
+
+        VDISPATCH_MATMUL(attr()->scales_.get_mask(arg) == 0,
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+    }
 
     VDISPATCH_MATMUL(
             !has_runtime_dims_or_strides(), VERBOSE_RUNTIMEDIM_UNSUPPORTED);

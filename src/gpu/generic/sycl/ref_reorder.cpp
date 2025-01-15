@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,12 +32,10 @@ status_t ref_reorder_t::pd_t::init_conf() {
 
     conf_.wk_size = memory_desc_wrapper(src_md(0)).nelems();
 
-    conf_.do_scale_src
-            = !attr()->scales_.get(DNNL_ARG_SRC_0).has_default_values();
-    conf_.scale_src_mask = attr()->scales_.get(DNNL_ARG_SRC_0).mask_;
-    conf_.do_scale_dst
-            = !attr()->scales_.get(DNNL_ARG_DST).has_default_values();
-    conf_.scale_dst_mask = attr()->scales_.get(DNNL_ARG_DST).mask_;
+    conf_.do_scale_src = !attr()->scales_.has_default_values(DNNL_ARG_SRC_0);
+    conf_.scale_src_mask = attr()->scales_.get_mask(DNNL_ARG_SRC_0);
+    conf_.do_scale_dst = !attr()->scales_.has_default_values(DNNL_ARG_DST);
+    conf_.scale_dst_mask = attr()->scales_.get_mask(DNNL_ARG_DST);
     conf_.post_ops = sycl_post_ops_t(attr(), dst_md());
 
     return status::success;

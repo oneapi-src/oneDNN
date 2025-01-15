@@ -2788,13 +2788,10 @@ status_t jit_uni_reorder_t::pd_t::init_scratchpad() {
                 compensation_reduce_size);
     }
 
-    const memory_desc_wrapper input_d(src_md());
-    int scales_mask = -1;
-    bool is_set = false;
-    CHECK(attr()->scales_.get(DNNL_ARG_DST, &scales_mask, &is_set));
-
-    if (is_set && scales_mask > 0) {
-        get_D_values(input_d, scales_mask, nullptr, &D_mask_, nullptr);
+    if (!attr()->scales_.has_default_values(DNNL_ARG_DST)) {
+        const memory_desc_wrapper input_d(src_md());
+        int mask = attr()->scales_.get_mask(DNNL_ARG_DST);
+        get_D_values(input_d, mask, nullptr, &D_mask_, nullptr);
         if (D_mask_ > 1) {
             scratchpad.template book<float>(
                     memory_tracking::names::key_reorder_precomputed_dst_scales,

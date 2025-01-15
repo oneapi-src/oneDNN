@@ -182,29 +182,26 @@ struct matmul_pd_t : public primitive_desc_t {
 
     virtual bool attr_scales_ok(const std::vector<int> &supported_args
             = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
-        if (attr()->scales_.has_default_values()) return true;
+        const auto &scales = attr()->scales_;
+        if (scales.has_default_values()) return true;
 
-        bool ok = attr()->scales_.has_default_values(supported_args);
+        bool ok = scales.has_default_values(supported_args);
         for (int arg : supported_args) {
-            const auto &sc = attr()->scales_.get(arg);
-            const auto &mask = sc.mask_;
-            if (sc.has_default_values()) { continue; }
+            if (scales.has_default_values(arg)) { continue; }
 
+            const auto &mask = scales.get_mask(arg);
             if (arg == DNNL_ARG_WEIGHTS) {
-                const bool wei_k_group_ok
-                        = IMPLICATION(sc.ndims_ == 2 && sc.group_dims_[0] > 1,
-                                K() % sc.group_dims_[0] == 0);
-                const bool wei_n_group_ok
-                        = IMPLICATION(sc.ndims_ == 2 && sc.group_dims_[1] > 1,
-                                N() % sc.group_dims_[1] == 0);
+                const auto &g0 = scales.get_group(arg, 0);
+                const auto &g1 = scales.get_group(arg, 1);
+                const bool wei_k_group_ok = IMPLICATION(g0 > 1, K() % g1 == 0);
+                const bool wei_n_group_ok = IMPLICATION(g1 > 1, N() % g0 == 0);
 
                 // Any group is allowed to be greater than 1 but only one at a
                 // time, not both.
-                ok = ok && utils::one_of(sc.ndims_, 0, 2)
-                        && IMPLICATION(sc.ndims_ == 2,
-                                utils::one_of(
-                                        1, sc.group_dims_[0], sc.group_dims_[1])
-                                        && wei_k_group_ok && wei_n_group_ok);
+                ok = ok
+                        && IMPLICATION(!scales.get(arg).has_default_groups(),
+                                utils::one_of(1, g0, g1) && wei_k_group_ok
+                                        && wei_n_group_ok);
 
                 // Mask over K dim is allowed for decompression feature only.
                 const bool is_decompression_or_dynquant
@@ -220,20 +217,24 @@ struct matmul_pd_t : public primitive_desc_t {
                 ok = ok
                         && utils::one_of(mask, 0, src_qmask_K(),
                                 src_qmask_M() + src_qmask_K());
-                ok = ok && utils::one_of(sc.ndims_, 0, 2);
-                ok = ok && IMPLICATION((mask & src_qmask_K()), sc.ndims_ == 2);
                 ok = ok
-                        && IMPLICATION(sc.ndims_ == 2,
-                                sc.group_dims_[0] == 1
-                                        && K() % sc.group_dims_[1] == 0);
-            } else {
+                        && IMPLICATION((mask & src_qmask_K()),
+                                !scales.get(arg).has_default_groups());
+                ok = ok
+                        && IMPLICATION(!scales.get(arg).has_default_groups(),
+                                scales.get_group(arg, 0)
+                                        && K() % scales.get_group(arg, 1) == 0);
+            } else if (arg == DNNL_ARG_DST) {
                 ok = ok
                         && utils::one_of(mask, 0, dst_qmask_N(),
                                 dst_qmask_M() + dst_qmask_N());
-                ok = ok && utils::one_of(sc.ndims_, 0, 2)
-                        && IMPLICATION(sc.ndims_ == 2,
-                                sc.group_dims_[1] == 1
-                                        && M() % sc.group_dims_[0] == 0);
+                ok = ok
+                        && IMPLICATION(!scales.get(arg).has_default_groups(),
+                                scales.get_group(arg, 1) == 1
+                                        && (M() % scales.get_group(arg, 0))
+                                                == 0);
+            } else {
+                assert(!"Unsupported arg");
             }
         }
         return ok;

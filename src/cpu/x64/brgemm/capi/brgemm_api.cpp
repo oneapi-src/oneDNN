@@ -264,10 +264,9 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
     // TODO: delegate extra memory to scratchpad?
     std::vector<float> wei_scales_v(N_);
 
-    const bool has_src_scales
-            = !attr_.scales_.get(DNNL_ARG_SRC).has_default_values();
+    const bool has_src_scales = !attr_.scales_.has_default_values(DNNL_ARG_SRC);
     const bool has_wei_scales
-            = !attr_.scales_.get(DNNL_ARG_WEIGHTS).has_default_values();
+            = !attr_.scales_.has_default_values(DNNL_ARG_WEIGHTS);
 
     // Save src scale value to re-use it.
     float src_scale_val = 1.f;
@@ -284,7 +283,7 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
         const void *wei_scales_ptr = attr_params->get_scales(DNNL_ARG_WEIGHTS);
         if (wei_scales_ptr == nullptr) return status::invalid_arguments;
 
-        int wei_mask = attr_.scales_.get(DNNL_ARG_WEIGHTS).mask_;
+        int wei_mask = attr_.scales_.get_mask(DNNL_ARG_WEIGHTS);
         if (wei_mask > 0) {
             for (dim_t i = 0; i < N_; i++) {
                 const float wei_scale_val = cpu::io::load_float_value(
@@ -305,7 +304,7 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
 
     // Destination scales. Require manual extending to full simd broadcast.
     alignas(64) float dst_scales_buf[16] = {0};
-    if (!attr_.scales_.get(DNNL_ARG_DST).has_default_values()) {
+    if (!attr_.scales_.has_default_values(DNNL_ARG_DST)) {
         const void *dst_scales_ptr = attr_params->get_scales(DNNL_ARG_DST);
         if (dst_scales_ptr == nullptr) return status::invalid_arguments;
 

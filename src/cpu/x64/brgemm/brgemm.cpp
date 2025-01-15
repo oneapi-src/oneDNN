@@ -423,23 +423,26 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
     if (brg->with_scales) {
         // Note. the current version supports only two different output scale
         // types:
-        //     1) common (mask_ = 0)
+        //     1) common (mask = 0)
         //     2) per_n_dim_scale - broadcast across n dimension;
         //        for convolution and inner product promitives it corresponds
-        //        to "per_oc" mask_ = 1 << 1; for matmul - to
-        //        mask_ = (1 << (ndims - 1))), where ndims is number of
+        //        to "per_oc" mask = 1 << 1; for matmul - to
+        //        mask = (1 << (ndims - 1))), where ndims is number of
         //        dimensions for original matmul problem
-        // So if wei_scales.mask_ != 0 (not common) it's assumed here that scale
-        // type is per_n_dim_scale and driver which calls brgemm kernel checked
-        // that mask has correct value for this case
-        brg->is_oc_scale = wei_scales.mask_ != 0;
+        // So if wei_scales.get_mask() > 0 (not common) it's assumed here that
+        // scale type is per_n_dim_scale and driver which calls brgemm kernel
+        // checked that mask has correct value for this case
+        brg->is_oc_scale = wei_scales.get_mask() > 0;
     }
 
     const auto &dst_scales = attr->scales_.get(DNNL_ARG_DST);
     brg->with_dst_scales = !dst_scales.has_default_values();
-    const bool scales_ok = src_scales.mask_ == 0 && dst_scales.mask_ == 0
-            && attr->scales_.has_default_values(
-                    {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST});
+    const bool scales_ok = attr->scales_.has_default_values({DNNL_ARG_SRC,
+                                   DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
+            && IMPLICATION(!src_scales.has_default_values(),
+                    src_scales.get_mask() == 0)
+            && IMPLICATION(!dst_scales.has_default_values(),
+                    dst_scales.get_mask() == 0);
     if (!scales_ok) return status::unimplemented;
 
     auto init_zp_type

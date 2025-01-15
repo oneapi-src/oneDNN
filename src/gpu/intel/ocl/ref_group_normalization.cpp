@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -108,9 +108,9 @@ status_t ref_group_normalization_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
 
     kernel_ctx.define_int("WITH_SRC_SCALES",
-            !attr()->scales_.get(DNNL_ARG_SRC).has_default_values());
+            !attr()->scales_.has_default_values(DNNL_ARG_SRC));
     kernel_ctx.define_int("WITH_DST_SCALES",
-            !attr()->scales_.get(DNNL_ARG_DST).has_default_values());
+            !attr()->scales_.has_default_values(DNNL_ARG_DST));
     init_kernel_ctx_common(kernel_ctx, this);
 
     // promote macros defined by parameters to OpenCL command line

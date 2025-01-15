@@ -307,11 +307,15 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto &wei_scales = attr()->scales_.get(DNNL_ARG_WEIGHTS);
             auto &src_scales = attr()->scales_.get(DNNL_ARG_SRC);
 
-            if (quant_enabled_ && wei_scales.ndims_ > 1) wei_scales_2d_ = true;
-            if (quant_enabled_ && src_scales.ndims_ > 1) src_scales_2d_ = true;
+            if (quant_enabled_ && !wei_scales.has_default_groups())
+                wei_scales_2d_ = true;
+            if (quant_enabled_ && !src_scales.has_default_groups())
+                src_scales_2d_ = true;
 
             for (auto s : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-                auto mask = attr()->scales_.get(s).mask_;
+                if (attr()->scales_.has_default_values(s)) continue;
+
+                auto mask = attr()->scales_.get_mask(s);
                 VDISPATCH_GEMM(utils::one_of(mask, 0, mask_scalar, mask_per_oc,
                                        mask_per_ic)
                                 || (s == DNNL_ARG_WEIGHTS && wei_scales_2d_
@@ -322,12 +326,11 @@ struct gen_gemm_t : public gpu_gemm_t {
             }
 
             if (wei_scales_2d_) {
-                auto scales_group_k
-                        = wei_scales.ndims_ > 0 ? wei_scales.group_dims_[0] : 1;
+                auto scales_group_k = wei_scales.get_group(0);
                 if (scales_group_k >= d->k()) {
                     wei_scales_2d_ = false;
                 } else {
-                    wei_scales_type = wei_scales.data_type_;
+                    wei_scales_type = wei_scales.get_data_type();
                     if (!wei_zp_2d)
                         wei_q2d_group_k = scales_group_k;
                     else {
@@ -336,14 +339,13 @@ struct gen_gemm_t : public gpu_gemm_t {
                     }
                 }
                 // Non-trivial N group unsupported.
-                VDISPATCH_GEMM(wei_scales.group_dims_[1] == 1,
+                VDISPATCH_GEMM(wei_scales.get_group(1) == 1,
                         VERBOSE_UNSUPPORTED_SCALES_CFG);
             }
             if (src_scales_2d_) {
-                src_scales_type = src_scales.data_type_;
-                src_po_sc_ = src_scales.mask_ == 2;
-                auto scales_group_k
-                        = src_scales.ndims_ > 0 ? src_scales.group_dims_[1] : 1;
+                src_scales_type = src_scales.get_data_type();
+                src_po_sc_ = src_scales.get_mask() == 2;
+                auto scales_group_k = src_scales.get_group(1);
                 if (scales_group_k >= d->k())
                     src_scales_2d_ = false;
                 else {

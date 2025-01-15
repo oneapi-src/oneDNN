@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,13 +63,17 @@ struct gen9_binary_t : public gpu_primitive_t {
             VDISPATCH_BINARY(!is_ternary_op(), VERBOSE_BAD_ALGORITHM);
             VDISPATCH_BINARY(
                     IMPLICATION(!attr()->scales_.has_default_values(),
-                            utils::one_of(dst_md()->data_type, s8, u8)
-                                    && utils::everyone_is(
-                                            attr()->scales_.get(DNNL_ARG_SRC_0)
-                                                    .mask_,
-                                            attr()->scales_.get(DNNL_ARG_SRC_1)
-                                                    .mask_,
-                                            0)),
+                            utils::one_of(dst_md()->data_type, s8, u8)),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_BINARY(
+                    IMPLICATION(
+                            !attr()->scales_.has_default_values(DNNL_ARG_SRC_0),
+                            attr()->scales_.get_mask(DNNL_ARG_SRC_0) == 0),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_BINARY(
+                    IMPLICATION(
+                            !attr()->scales_.has_default_values(DNNL_ARG_SRC_1),
+                            attr()->scales_.get_mask(DNNL_ARG_SRC_1) == 0),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_BINARY(attr()->has_default_values(attr_skip_mask),
                     VERBOSE_UNSUPPORTED_ATTR);

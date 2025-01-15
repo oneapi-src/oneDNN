@@ -2655,7 +2655,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    jcp.is_oc_scale = wei_scales.mask_ != 0;
+    jcp.is_oc_scale = wei_scales.get_mask() > 0;
     jcp.dst_scale = !dst_scales.has_default_values();
 
     // Note: currently unsupported, results in seg-fault
@@ -3969,7 +3969,7 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    jcp.is_ic_scale = wei_scales.mask_ != 0;
+    jcp.is_ic_scale = wei_scales.get_mask() > 0;
     jcp.dst_scale = !dst_scales.has_default_values();
 
     return status::success;

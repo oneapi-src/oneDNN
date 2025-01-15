@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -174,8 +174,7 @@ status_t ref_deconvolution_fwd_t::compute_oscale(
 
     DEFINE_ARG_SCALES_BUFFER(src_scales, DNNL_ARG_SRC);
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
 
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
@@ -190,7 +189,7 @@ status_t ref_deconvolution_fwd_t::compute_oscale(
     const auto maybe_oscale = [](float &d, dim_t oc, const float *src_scales,
                                       const float *wei_scales, int wei_mask) {
         // scale_idx_mult = 1 for per_oc scales and 0, otherwise
-        const int wei_scale_idx_mult = wei_mask != 0;
+        const int wei_scale_idx_mult = wei_mask > 0;
         d *= src_scales[0] * wei_scales[oc * wei_scale_idx_mult];
     };
 
@@ -216,7 +215,7 @@ status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
     auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
 
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
-    const int dst_scale_mask = pd()->attr()->scales_.get(DNNL_ARG_DST).mask_;
+    const int dst_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_DST);
 
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
     const bool is_dst_zp_common
@@ -242,7 +241,7 @@ status_t ref_deconvolution_fwd_t::compute_ref_attrs(const exec_ctx_t &ctx,
     const auto maybe_scale
             = [](float &d, dim_t oc, const float *scales, int mask) {
                   // scale_idx_mult = 1 for per_oc scales and 0, otherwise
-                  const int scale_idx_mult = mask != 0;
+                  const int scale_idx_mult = mask > 0;
                   d *= scales[oc * scale_idx_mult];
               };
 
@@ -536,11 +535,10 @@ status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
 
     float *conv_output = scratchpad.get<float>(key_deconv_bias);
 
-    const auto &arg_scales = pd()->attr()->scales_;
-    const auto &src_scales = arg_scales.get(DNNL_ARG_SRC);
-    const auto &wei_scales = arg_scales.get(DNNL_ARG_WEIGHTS);
+    const auto &scales = pd()->attr()->scales_;
 
-    if (!src_scales.has_default_values() || !wei_scales.has_default_values()) {
+    if (!scales.has_default_values(DNNL_ARG_SRC)
+            || !scales.has_default_values(DNNL_ARG_WEIGHTS)) {
         compute_oscale(ctx, conv_output);
     }
 

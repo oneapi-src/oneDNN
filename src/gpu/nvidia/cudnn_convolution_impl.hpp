@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -143,13 +143,10 @@ public:
         with_bias = pd->with_bias();
         beta = 0.0f;
         do_scaling = !pd->attr()->scales_.has_default_values();
-        do_dst_scaling
-                = !pd->attr()->scales_.get(DNNL_ARG_DST).has_default_values();
-        do_src_scaling
-                = !pd->attr()->scales_.get(DNNL_ARG_SRC).has_default_values();
-        do_wei_scaling = !pd->attr()
-                                  ->scales_.get(DNNL_ARG_WEIGHTS)
-                                  .has_default_values();
+        do_dst_scaling = !pd->attr()->scales_.has_default_values(DNNL_ARG_DST);
+        do_src_scaling = !pd->attr()->scales_.has_default_values(DNNL_ARG_SRC);
+        do_wei_scaling
+                = !pd->attr()->scales_.has_default_values(DNNL_ARG_WEIGHTS);
         dnnl_descs[x] = *pd->invariant_src_md();
         dnnl_descs[weights] = *pd->invariant_wei_md();
         dnnl_descs[y] = *pd->invariant_dst_md();

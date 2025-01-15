@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -133,12 +133,12 @@ inline status_t get_scales_mask(
         return status::invalid_arguments;
 
     *src_mask = 0;
-    if (!s.get(DNNL_ARG_SRC).has_default_values())
-        *src_mask = s.get(DNNL_ARG_SRC).mask_;
+    if (!s.has_default_values(DNNL_ARG_SRC))
+        *src_mask = s.get_mask(DNNL_ARG_SRC);
 
     *dst_mask = 0;
-    if (!s.get(DNNL_ARG_DST).has_default_values())
-        *dst_mask = s.get(DNNL_ARG_DST).mask_;
+    if (!s.has_default_values(DNNL_ARG_DST))
+        *dst_mask = s.get_mask(DNNL_ARG_DST);
 
     // This is used in a check function.
     if (*src_mask > 0 && *dst_mask > 0 && *dst_mask != *src_mask)
@@ -152,11 +152,10 @@ inline bool simple_attr_check(const primitive_attr_t *attr,
     if (sum_support) skip_mask = skip_mask | smask_t::post_ops;
     if (!attr->has_default_values(skip_mask)) return false;
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
-        const auto &sc = attr->scales_.get(arg);
         // Data type for scales is not generally supported.
-        if (!sc.has_default_data_type()) return false;
+        if (!attr->scales_.has_default_data_type(arg)) return false;
         // Groups are generally not supported.
-        if (!sc.has_default_groups()) return false;
+        if (!attr->scales_.get(arg).has_default_groups()) return false;
     }
     if (many_scales_support) return true;
     int src_mask, dst_mask;
@@ -2263,8 +2262,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 | smask_t::zero_points_runtime_groups;
         VDISPATCH_REORDER_IC(
                 attr->has_default_values(skip_mask), VERBOSE_UNSUPPORTED_ATTR);
-        VDISPATCH_REORDER_IC(
-                attr->scales_.get(DNNL_ARG_DST).has_default_values(),
+        VDISPATCH_REORDER_IC(attr->scales_.has_default_values(DNNL_ARG_DST),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
         return status::success;
     }
@@ -2293,8 +2291,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const bool need_transform = input_d.strides()[input_d.ndims() - 1] != 1;
         // * Post-processing, including advanced dequantization parameters as
         //   groups.
-        const auto &sc_src = pd->attr()->scales_.get(DNNL_ARG_SRC);
-        const bool has_src_scales = !sc_src.has_default_values();
+        const auto &scales = pd->attr()->scales_;
+        const bool has_src_scales = !scales.has_default_values(DNNL_ARG_SRC);
         const auto &zps = pd->attr()->zero_points_;
         const bool has_src_zps = !zps.has_default_values(DNNL_ARG_SRC);
 
@@ -2331,11 +2329,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const int ndims = input_d.ndims();
         // Applied to the pre-last dimension.
-        const auto src_scales_group0
-                = sc_src.ndims_ > 0 ? sc_src.group_dims_[0] : 1;
+        const auto src_scales_group0 = scales.get_group(DNNL_ARG_SRC, 0);
         // Applied to the last dimension.
-        const auto src_scales_group1
-                = sc_src.ndims_ > 0 ? sc_src.group_dims_[1] : 1;
+        const auto src_scales_group1 = scales.get_group(DNNL_ARG_SRC, 1);
 
         memory_desc_t src_scales_md {};
         if (has_src_scales) {
@@ -2537,11 +2533,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         VDISPATCH_REORDER_IC(
                 attr->has_default_values(skip_mask), VERBOSE_UNSUPPORTED_ATTR);
         VDISPATCH_REORDER_IC(simple_po_check(attr), VERBOSE_UNSUPPORTED_POSTOP);
-        const auto &sc_dst = attr->scales_.get(DNNL_ARG_DST);
-        const bool has_dst_scales = !sc_dst.has_default_values();
+        const auto &scales = attr->scales_;
+        const bool has_dst_scales = !scales.has_default_values(DNNL_ARG_DST);
         if (has_dst_scales) {
-            VDISPATCH_REORDER_IC(sc_dst.has_default_data_type()
-                            && sc_dst.has_default_groups(),
+            VDISPATCH_REORDER_IC(scales.has_default_data_type(DNNL_ARG_DST)
+                            && scales.has_default_groups(DNNL_ARG_DST),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
         }
         VDISPATCH_REORDER_IC(
@@ -2565,14 +2561,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         ctx.zero_pad_output(DNNL_ARG_TO);
 
         const int ndims = input_d.ndims();
-        const auto &sc_src = pd->attr()->scales_.get(DNNL_ARG_SRC);
-        const bool has_src_scales = !sc_src.has_default_values();
+        const auto &scales = pd->attr()->scales_;
+        const bool has_src_scales = !scales.has_default_values(DNNL_ARG_SRC);
         // Applied to the pre-last dimension.
-        const auto src_scales_group0
-                = sc_src.ndims_ > 0 ? sc_src.group_dims_[0] : 1;
+        const auto src_scales_group0 = scales.get_group(DNNL_ARG_SRC, 0);
         // Applied to the last dimension.
-        const auto src_scales_group1
-                = sc_src.ndims_ > 0 ? sc_src.group_dims_[1] : 1;
+        const auto src_scales_group1 = scales.get_group(DNNL_ARG_SRC, 1);
         memory_desc_t src_scales_md {};
         if (has_src_scales) {
             get_quant_md(src_scales_md, ndims, input_d.dims(), src_scales_mask,
@@ -2580,8 +2574,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     src_scales_d.data_type());
         }
 
-        const auto &sc_dst = pd->attr()->scales_.get(DNNL_ARG_DST);
-        const bool has_dst_scales = !sc_dst.has_default_values();
+        const bool has_dst_scales = !scales.has_default_values(DNNL_ARG_DST);
         memory_desc_t dst_scales_md {};
         if (has_dst_scales) {
             get_quant_md(dst_scales_md, ndims, input_d.dims(), dst_scales_mask,
@@ -2690,12 +2683,14 @@ struct simple_reorder_t : public primitive_t {
                     spec>::is_applicable(src_md, dst_md, attr);
             if (status != status::success) return status;
 
-            int mask = -1;
-            bool is_set = false;
-            CHECK(attr->scales_.get(DNNL_ARG_DST, &mask, &is_set));
             const memory_desc_wrapper input_d(src_md);
-            if (input_d.has_runtime_dims_or_strides() && is_set && mask > 0)
-                return status::unimplemented;
+
+            int mask = -1;
+            if (!attr->scales_.has_default_values(DNNL_ARG_DST)) {
+                mask = attr->scales_.get_mask(DNNL_ARG_DST);
+                if (input_d.has_runtime_dims_or_strides() && mask > 0)
+                    return status::unimplemented;
+            }
 
             auto _pd = make_unique_pd<pd_t>(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
@@ -2709,7 +2704,7 @@ struct simple_reorder_t : public primitive_t {
             scratchpad.book(memory_tracking::names::key_reorder_space,
                     scratchpad_sz_, 1, 16);
 
-            if (is_set && mask > 0) {
+            if (mask > 0) {
                 dim_t D_mask;
                 _pd->get_D_values(input_d, mask, nullptr, &D_mask, nullptr);
                 scratchpad.template book<float>(

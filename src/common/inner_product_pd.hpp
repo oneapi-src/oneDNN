@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -184,7 +184,9 @@ protected:
             = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) const {
         bool ok = attr()->scales_.has_default_values(supported_args);
         for (auto arg : supported_args) {
-            int mask = attr()->scales_.get(arg).mask_;
+            if (attr()->scales_.has_default_values(arg)) continue;
+
+            int mask = attr()->scales_.get_mask(arg);
             if (arg == DNNL_ARG_WEIGHTS)
                 ok = ok && (mask == 0 || mask == (1 << 0));
             else

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1486,7 +1486,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    jcp.is_oc_scale = wei_scales.mask_ != 0;
+    jcp.is_oc_scale = wei_scales.get_mask() > 0;
     jcp.dst_scale = !dst_scales.has_default_values();
 
     jcp.has_vnni = mayiuse(avx512_core_vnni);
@@ -1765,7 +1765,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 void jit_avx512_core_x8s8s32x_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
-    const int wei_mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_mask = attr.scales_.get_mask(DNNL_ARG_WEIGHTS);
     const dim_t scales_count = wei_mask == 0 ? 1 : jcp.oc * jcp.ngroups;
     dim_t count = wei_mask == 0 ? (dim_t)16 : scales_count;
     scratchpad.book<float>(key_conv_adjusted_scales, count);

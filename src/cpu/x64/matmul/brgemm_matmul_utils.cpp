@@ -1369,19 +1369,19 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
-    bgmmc.with_scales = !src_scales.has_default_values()
-            || !wei_scales.has_default_values();
-    if (bgmmc.with_scales) {
+    const bool has_wei_scales = !wei_scales.has_default_values();
+    bgmmc.with_scales = !src_scales.has_default_values() || has_wei_scales;
+    if (has_wei_scales) {
         const auto wei_qmask_N = 1 << (bgmmc.ndims - 1);
         const auto wei_qmask_K = 1 << (bgmmc.ndims - 2);
-        bgmmc.is_oscale_per_k = wei_scales.mask_ & wei_qmask_K;
-        bgmmc.is_oscale_per_n = wei_scales.mask_ & wei_qmask_N;
+        bgmmc.is_oscale_per_k = wei_scales.get_mask() & wei_qmask_K;
+        bgmmc.is_oscale_per_n = wei_scales.get_mask() & wei_qmask_N;
         bgmmc.apply_scales_in_buffer_b = bgmmc.is_oscale_per_k
                 && bgmmc.with_wei_decompression && bgmmc.N * bgmmc.K != 1;
 
         // only common and per-oc-channel scales are supported
         // only per-ic-channel scales is supprted with weight decompression
-        VCONDCHECK_BG(wei_scales.mask_ == 0 || bgmmc.is_oscale_per_n
+        VCONDCHECK_BG(wei_scales.get_mask() == 0 || bgmmc.is_oscale_per_n
                         || IMPLICATION(bgmmc.is_oscale_per_k,
                                 bgmmc.with_wei_decompression),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
@@ -1390,8 +1390,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
     bgmmc.with_dst_scales = !dst_scales.has_default_values();
     // only common scales are supported
-    VCONDCHECK_BG(!(bgmmc.with_dst_scales && dst_scales.mask_ != 0),
-            VERBOSE_UNSUPPORTED_SCALES_CFG)
+    VCONDCHECK_BG(!(bgmmc.with_dst_scales && dst_scales.get_mask() > 0),
+            VERBOSE_UNSUPPORTED_SCALES_CFG);
 
     const auto &p = attr.post_ops_;
     bgmmc.with_sum = p.find(primitive_kind::sum) != -1;

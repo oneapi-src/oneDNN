@@ -85,15 +85,15 @@ struct cpu_reorder_pd_t : public reorder_pd_t {
             const float *dst_scales) const {
         using namespace dnnl::impl::memory_tracking::names;
 
-        int mask = -1;
-        bool is_set = false;
-        auto status = attr->scales_.get(DNNL_ARG_DST, &mask, &is_set);
-        if (status != status::success) return nullptr;
+        if (attr->scales_.has_default_values(DNNL_ARG_DST)) {
+            return dst_scales;
+        }
 
         // It's possible that mask > 0 but `count` is still `1`. This case is
         //   covered by `DEFINE_ARG_SCALES_BUFFER` macro and no need to inverse
         //   in such case.
-        if (is_set && mask > 0 && count > 1) {
+        int mask = attr->scales_.get_mask(DNNL_ARG_DST);
+        if (mask > 0 && count > 1) {
             auto loc_scales = scratchpad.template get<float>(
                     key_reorder_precomputed_dst_scales);
             if (!loc_scales) return nullptr;

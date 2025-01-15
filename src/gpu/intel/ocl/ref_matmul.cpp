@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,15 +84,13 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t K = a_d.dims()[last];
 
     const auto &attr_scales = pd()->attr()->scales_;
-    const int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = attr_scales.get_mask(DNNL_ARG_WEIGHTS);
     const bool wei_scale_per_k = wei_scale_mask & pd()->wei_qmask_K();
-    const auto wei_scale_group_ndim = attr_scales.get(DNNL_ARG_WEIGHTS).ndims_;
-    const auto wei_scale_group_k = wei_scale_group_ndim > 0
-            ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0]
+    const auto wei_scale_group_k
+            = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_groups()
+            ? attr_scales.get_group(DNNL_ARG_WEIGHTS, 0)
             : (wei_scale_per_k ? 1 : K);
-    const auto wei_scale_group_n = wei_scale_group_ndim > 0
-            ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[1]
-            : 1;
+    const auto wei_scale_group_n = attr_scales.get_group(DNNL_ARG_WEIGHTS, 1);
     const auto wei_scale_ngroups_k = K / wei_scale_group_k;
     // Identify wei_scales dimensions as user may not pass them.
     dims_t wei_scale_dims {};
@@ -120,11 +118,11 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t wei_scale_stride_b1
             = b_d.ndims() > 3 ? wei_scale_strides[b_d.ndims() - 4] : 0;
 
-    const int src_scale_mask = attr_scales.get(DNNL_ARG_SRC).mask_;
+    const int src_scale_mask = attr_scales.get_mask(DNNL_ARG_SRC);
     const bool src_scale_per_k = src_scale_mask & pd()->src_qmask_K();
-    const auto src_scale_group_ndim = attr_scales.get(DNNL_ARG_SRC).ndims_;
-    const auto src_scale_group_k = src_scale_group_ndim > 0
-            ? attr_scales.get(DNNL_ARG_SRC).group_dims_[1]
+    const auto src_scale_group_k
+            = !attr_scales.get(DNNL_ARG_SRC).has_default_groups()
+            ? attr_scales.get_group(DNNL_ARG_SRC, 1)
             : (src_scale_per_k ? 1 : K);
     const auto src_scale_ngroups_k = K / src_scale_group_k;
     // Identify src_scales dimensions as user may not pass them.

@@ -974,7 +974,9 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
         scales[i] = scale_args[i].second;
     if (!attr->scales_.has_default_values(scales)) return false;
     for (int arg : scales) {
-        int mask = attr->scales_.get(arg).mask_;
+        if (attr->scales_.has_default_values(arg)) continue;
+
+        int mask = attr->scales_.get(arg).get_mask();
         // XXX: per_oc for BWD_D is treated as per_ic assuming it's called from
         // deconvolution.
         if (arg == DNNL_ARG_WEIGHTS) {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -156,6 +156,11 @@ struct matmul_helper_t {
     static status_t get_quant_md(memory_desc_t &md, const int ndims,
             const dims_t in_dims, const int quant_mask, const dim_t g0,
             const dim_t g1, const data_type_t dt) {
+        if (dt == data_type::undef) {
+            md = glob_zero_md;
+            return status::success;
+        }
+
         dims_t quant_dims {};
         utils::copy_dims_with_mask(quant_dims, in_dims, ndims, quant_mask,
                 /* fill_with_ones = */ true);
@@ -172,6 +177,8 @@ struct matmul_helper_t {
     static dim_t get_quant_off(const dims_t &input_idx, const int ndims,
             const int quant_mask, const dim_t g0, const dim_t g1,
             const memory_desc_t &quant_md) {
+        if (types::is_zero_md(&quant_md)) return 0;
+
         dims_t quant_idx {};
         utils::array_copy(quant_idx, input_idx, ndims);
         utils::apply_mask_on_dims(quant_idx, ndims, quant_mask);

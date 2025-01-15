@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -128,8 +128,8 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
         with_eltwise_ = post_ops.find(primitive_kind::eltwise) != -1;
 
         const auto &attr_scales = pd_->attr()->scales_;
-        with_src_scales_ = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
-        with_dst_scales_ = !attr_scales.get(DNNL_ARG_DST).has_default_values();
+        with_src_scales_ = !attr_scales.has_default_values(DNNL_ARG_SRC);
+        with_dst_scales_ = !attr_scales.has_default_values(DNNL_ARG_DST);
 
         io::io_conf_t io_conf;
         io::io_tail_conf_t io_tail_conf(simd_w_, axis_simd_tail_,

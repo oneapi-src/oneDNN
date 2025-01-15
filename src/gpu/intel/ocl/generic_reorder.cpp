@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -791,8 +791,8 @@ status_t generic_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
     memcpy(&new_a, src_md(), sizeof(new_a));
     memcpy(&new_b, dst_md(), sizeof(new_b));
     compress(new_a, new_b, src_mask, dst_mask);
-    if (src_mask) CHECK(attr_copy.scales_.set(DNNL_ARG_SRC, src_mask));
-    if (dst_mask) CHECK(attr_copy.scales_.set(DNNL_ARG_DST, dst_mask));
+    if (src_mask >= 0) { CHECK(attr_copy.scales_.set(DNNL_ARG_SRC, src_mask)); }
+    if (dst_mask >= 0) { CHECK(attr_copy.scales_.set(DNNL_ARG_DST, dst_mask)); }
 
     if (!is_generic_faster_than_ref(new_a, new_b)) return status::unimplemented;
 

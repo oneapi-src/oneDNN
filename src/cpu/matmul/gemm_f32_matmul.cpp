@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,9 +50,9 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
 
     auto check_attr_scales = [&]() -> bool {
         bool ok = attr_scales_ok();
-        if (!attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
-                && !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()
-                && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ != 0) {
+        if (!attr()->scales_.has_default_values(DNNL_ARG_SRC)
+                && !attr()->scales_.has_default_values(DNNL_ARG_WEIGHTS)
+                && attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) > 0) {
             // This case requires scratchpad with unknown size
             if (N() == DNNL_RUNTIME_DIM_VAL) ok = false;
         }
@@ -131,10 +131,14 @@ status_t gemm_f32_matmul_t::pd_t::configure_attributes() {
 
     CHECK(params_.pp_attr_.copy_from(*attr()));
     params_.gemm_applies_output_scales_
-            = attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ == 0 && !with_bias();
+            = attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) == 0 && !with_bias();
     if (params_.gemm_applies_output_scales_) {
-        params_.pp_attr_.scales_.reset(DNNL_ARG_SRC);
-        params_.pp_attr_.scales_.reset(DNNL_ARG_WEIGHTS);
+        VDISPATCH_MATMUL_SC(params_.pp_attr_.scales_.set(
+                                    DNNL_ARG_SRC, default_quant_entry()),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+        VDISPATCH_MATMUL_SC(params_.pp_attr_.scales_.set(
+                                    DNNL_ARG_WEIGHTS, default_quant_entry()),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
     const auto &po = params_.pp_attr_.post_ops_;
@@ -186,11 +190,10 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
     const float *scales = precompute_scales(scratchpad, src_scales, wei_scales,
             src_d.dims()[ndims - 1], dst_d.dims()[ndims - 1], false,
-            wei_scale_mask != 0, pd()->attr());
+            wei_scale_mask > 0, pd()->attr());
 
     if (src_d.has_zero_dim() || weights_d.has_zero_dim()
             || dst_d.has_zero_dim())
@@ -237,7 +240,7 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const dim_t acc_ldc = dst_is_acc ? ldc : N;
     const int scale_idx_mult
-            = this->pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_
+            = this->pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS)
             == (1 << (ndims - 1));
 
     std::atomic<status_t> st(status::success);

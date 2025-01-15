@@ -130,7 +130,9 @@ struct sdpa_pd_t : public primitive_desc_t {
     }
 
     /// Returns the data type of the scales tensor for the KQ matmul
-    data_type_t key_scales_dt() const { return desc()->kq_scales.data_type_; }
+    data_type_t key_scales_dt() const {
+        return desc()->kq_scales.get_data_type();
+    }
 
     /// Returns the data type of the zero points tensor for the KQ matmul
     data_type_t key_zp_dt() const {
@@ -138,7 +140,9 @@ struct sdpa_pd_t : public primitive_desc_t {
     }
 
     /// Returns the data type of the scales tensor for the VS matmul
-    data_type_t value_scales_dt() const { return desc()->vs_scales.data_type_; }
+    data_type_t value_scales_dt() const {
+        return desc()->vs_scales.get_data_type();
+    }
 
     /// Returns the data type of the zero points tensor for the VS matmul
     data_type_t value_zp_dt() const {
@@ -198,18 +202,19 @@ protected:
 
 private:
     static int scale_group_size(
-            const runtime_scales_t &scales, const memory_desc_t &desc) {
+            const quant_entry_t &scales, const memory_desc_t &desc) {
         dim_t out = utils::array_product(desc.dims, desc.ndims);
+        const auto mask = scales.get_mask();
         if (scales.has_default_groups()) {
-            for (int idx : mask_iterator(scales.mask_)) {
+            for (int idx : mask_iterator(mask)) {
                 out /= desc.dims[idx];
             }
         } else {
-            for (int idx : mask_iterator(scales.mask_)) {
+            for (int idx : mask_iterator(mask)) {
                 if (idx < 2) {
                     out /= desc.dims[idx];
                 } else {
-                    out /= (desc.dims[idx] / scales.group_dims_[idx - 2]);
+                    out /= (desc.dims[idx] / scales.get_group(idx - 2));
                 }
             }
         }

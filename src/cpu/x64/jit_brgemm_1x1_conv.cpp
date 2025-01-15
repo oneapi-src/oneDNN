@@ -286,8 +286,8 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::init(engine_t *engine) {
     if (is_jit_supported && pd()->OC() > 1
             && req_copy_scales(attr, jcp.scale_adjust_factor)) {
         const auto &attr_scales = attr->scales_;
-        int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-        if (wei_scale_mask != 0) {
+        int wei_scale_mask = attr_scales.get_mask(DNNL_ARG_WEIGHTS);
+        if (wei_scale_mask > 0) {
             CHECK(safe_ptr_assign(jit_scale_precompute_,
                     new jit_avx512_core_scale_precompute_t(
                             attr, jcp.scale_adjust_factor)));
@@ -723,11 +723,10 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::execute_forward_all(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
     const float *oscales = scale_utils::precompute_scales(scratchpad,
             src_scales, wei_scales, pd()->IC(), pd()->OC(), false,
-            wei_scale_mask != 0, pd()->attr(), jit_scale_precompute_.get(),
+            wei_scale_mask > 0, pd()->attr(), jit_scale_precompute_.get(),
             jcp.scale_adjust_factor);
 
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);

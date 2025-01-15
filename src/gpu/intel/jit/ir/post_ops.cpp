@@ -50,12 +50,10 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
             if (buf.is_empty()) continue;
             int key = kernel_info.key(scale_args[i].first)
                     & ~DNNL_ARG_ATTR_SCALES;
-            auto scales = attr.scales_.get(key);
-            if (scales.has_default_values()) continue;
-            int mask = scales.mask_;
-            auto sc_type = scales.data_type_ == data_type::undef
-                    ? type_t::f32()
-                    : scales.data_type_;
+            if (attr.scales_.has_default_values(key)) continue;
+
+            int mask = attr.scales_.get_mask(key);
+            auto sc_type = attr.scales_.get_data_type(key);
             view_t view;
             switch (key) {
                 case DNNL_ARG_SRC:
@@ -67,8 +65,8 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
                     break;
                 case DNNL_ARG_WEIGHTS:
                     // Convert o/i weights mask to src/dst.
-                    // XXX: per_oc for BWD_D is treated as per_ic assuming it's
-                    // called from deconvolution.
+                    // XXX: per_oc for BWD_D is treated as per_ic assuming
+                    // it's called from deconvolution.
                     ir_assert(utils::one_of(mask, 0, 1, 3));
                     wei_scales_type = sc_type;
                     view = po_vm_.create_view(sc_type, (mask) ? 1 << 1 : 0);
@@ -76,7 +74,7 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
                     wei_scales_mask = mask;
                     break;
                 case DNNL_ARG_DST: // Invert dst scales right after load.
-                    ir_assert(utils::one_of(mask, 0, 2));
+                    ir_assert(mask == 0);
                     dst_scales_type = sc_type;
                     view = po_vm_.create_view(sc_type, mask);
                     dst_scales = add_input_tensor(view, buf);
@@ -297,7 +295,8 @@ bool post_op_context_t::init_need_to_restore_zero_padding(
             && out_md.dims[1] != out_md.padded_dims[1])
         return true;
     auto dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    if (!dst_scales.has_default_values() && dst_scales.mask_ != 0) return true;
+    if (!dst_scales.has_default_values() && dst_scales.get_mask() != 0)
+        return true;
     return false;
 }
 

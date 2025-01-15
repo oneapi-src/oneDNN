@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -136,9 +136,14 @@ struct ref_gemm_t : public gpu_gemm_t {
 
         bool attr_oscale_ok() const {
             const auto &scales = attr()->scales_;
-            return scales.get(DNNL_ARG_SRC).mask_ == 0
-                    && scales.get(DNNL_ARG_WEIGHTS).mask_ == 0
-                    && scales.get(DNNL_ARG_DST).mask_ == 0;
+            const bool src_scale_ok = scales.has_default_values(DNNL_ARG_SRC)
+                    || scales.get_mask(DNNL_ARG_SRC) == 0;
+            const bool wei_scale_ok
+                    = scales.has_default_values(DNNL_ARG_WEIGHTS)
+                    || scales.get_mask(DNNL_ARG_WEIGHTS) == 0;
+            const bool dst_scale_ok = scales.has_default_values(DNNL_ARG_DST)
+                    || scales.get_mask(DNNL_ARG_DST) == 0;
+            return src_scale_ok && wei_scale_ok && dst_scale_ok;
         }
 
         bool attr_zp_ok() const {

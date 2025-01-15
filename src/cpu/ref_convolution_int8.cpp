@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ namespace {
 void dequantize(float &d, dim_t g, dim_t C, dim_t c, const float *wei_scales,
         bool with_groups, int wei_mask, const float *src_scales) {
     // scale_idx_mult = 1 for per_channel scales and 0, otherwise
-    const int wei_scale_idx_mult = wei_mask != 0;
+    const int wei_scale_idx_mult = wei_mask > 0;
     float scale = 1.0f;
     if (src_scales) scale *= src_scales[0];
     if (wei_scales) scale *= wei_scales[(g * C + c) * wei_scale_idx_mult];
@@ -63,8 +63,7 @@ status_t ref_convolution_int8_fwd_t::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -290,8 +289,7 @@ status_t ref_convolution_int8_bwd_data_t::execute_backward_data(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(diff_dst_scales, DNNL_ARG_DST);
 
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());

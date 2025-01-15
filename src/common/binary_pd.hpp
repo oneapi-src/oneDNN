@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -179,10 +179,13 @@ protected:
 
     bool attr_scales_ok(const std::vector<int> &supported_args
             = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1, DNNL_ARG_DST}) const {
-        bool ok = attr()->scales_.has_default_values(supported_args);
-        for (int arg : supported_args) {
-            const auto &mask = attr()->scales_.get(arg).mask_;
-            ok = ok && (mask == 0);
+        const auto &scales = attr()->scales_;
+        bool ok = scales.has_default_values(supported_args);
+
+        for (const auto &arg : supported_args) {
+            if (scales.has_default_values(arg)) continue;
+
+            ok = ok && scales.get_mask(arg) == 0;
         }
         return ok;
     }

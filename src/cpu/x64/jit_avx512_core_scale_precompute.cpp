@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
     ;
     if (jit_scale_precompute) {
         const auto &attr_scales = attr->scales_;
-        const int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
+        const int wei_scale_mask = attr_scales.get_mask(DNNL_ARG_WEIGHTS);
         size_t size = 0;
         auto loc_scales = scratchpad.template get<float>(
                 memory_tracking::names::key_precomputed_scales, &size);
@@ -53,10 +53,10 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
         const auto wei_scale_stride_ic
                 = wei_scale_per_ic ? wei_scale_per_oc ? OC : 1 : 0;
         const auto with_wei_scale
-                = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
-        const auto wei_scale_groups_ndims
-                = with_wei_scale ? attr_scales.get(DNNL_ARG_WEIGHTS).ndims_ : 0;
-        const auto wei_scale_group_stride = wei_scale_groups_ndims > 0
+                = !attr_scales.has_default_values(DNNL_ARG_WEIGHTS);
+        const auto wei_scale_has_groups = with_wei_scale
+                && !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_groups();
+        const auto wei_scale_group_stride = wei_scale_has_groups
                 ? wei_scale_stride_ic * sizeof(float)
                 : 0;
 
@@ -66,14 +66,14 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
 
         assert(req_copy_scales(attr, scale_adjust_factor));
         assert(mayiuse(avx512_core));
-        assert(wei_scale_mask != 0);
-        if (wei_scale_groups_ndims > 0) {
+        assert(wei_scale_mask > 0);
+        if (wei_scale_has_groups) {
             assert(count == wei_scale_count);
             const auto wei_scale_groups_ic
-                    = attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0];
+                    = attr_scales.get_group(DNNL_ARG_WEIGHTS, 0);
             const dim_t wei_scale_nb_ic = IC / wei_scale_groups_ic;
             const auto wei_scale_dt_sz = types::data_type_size(
-                    attr_scales.get(DNNL_ARG_WEIGHTS).data_type_);
+                    attr_scales.get_data_type(DNNL_ARG_WEIGHTS));
             for (int nb_ic = 0; nb_ic < wei_scale_nb_ic; nb_ic++) {
                 const auto offset = nb_ic * wei_scale_stride_ic;
                 jrp.nelems_ = wei_scale_stride_ic;

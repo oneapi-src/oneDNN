@@ -244,13 +244,16 @@ status_t matmul_inner_product_fwd_t::pd_t::init_matmul_params(
             attr_.set_default_formats(dst_md(0)), VERBOSE_UNSUPPORTED_POSTOP);
 
     primitive_attr_t matmul_attr = *attr();
-    const auto wei_mask = matmul_attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
-    if (wei_mask == 1)
-        VDISPATCH_INNER_PRODUCT_SC(matmul_attr.scales_.set(DNNL_ARG_WEIGHTS,
-                                           1 << (mm_wei_md.ndims - 1)),
-                VERBOSE_UNSUPPORTED_ATTR);
-    else if (wei_mask != 0)
-        VDISPATCH_INNER_PRODUCT(false, VERBOSE_UNSUPPORTED_SCALES_CFG);
+    if (!matmul_attr.scales_.has_default_values(DNNL_ARG_WEIGHTS)) {
+        const auto wei_mask = matmul_attr.scales_.get_mask(DNNL_ARG_WEIGHTS);
+        if (wei_mask == 1) {
+            VDISPATCH_INNER_PRODUCT_SC(matmul_attr.scales_.set(DNNL_ARG_WEIGHTS,
+                                               1 << (mm_wei_md.ndims - 1)),
+                    VERBOSE_UNSUPPORTED_ATTR);
+        } else if (wei_mask > 0) {
+            VDISPATCH_INNER_PRODUCT(false, VERBOSE_UNSUPPORTED_SCALES_CFG);
+        }
+    }
 
     memory_desc_t mm_bia_md {};
     // Inner Product bias is always a vector while MatMul requires bias to have

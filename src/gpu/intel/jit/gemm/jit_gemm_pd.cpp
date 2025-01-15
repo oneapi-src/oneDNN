@@ -92,70 +92,66 @@ status_t jit_gemm_pd_t::init_post_ops() {
     }
 
     if (!wei_scales->has_default_values()) {
-        const auto &mask = wei_scales->mask_;
+        const auto &mask = wei_scales->get_mask();
         bool convert = (mask == 0 || math::is_pow2(mask));
-        if (wei_scales->ndims_ > 1)
-            convert |= (wei_scales->group_dims_[0] >= d->k());
+        if (!wei_scales->has_default_groups())
+            convert |= (wei_scales->get_group(0) >= d->k());
         if (convert) {
-            ok = ok && (mask == 0 || mask == (1 << (d->c_desc.ndims - 1)));
-
             dim_t dims = {(mask > 0) ? d->m() : 1};
             CHECK(memory_desc_init_by_tag(wei_scales_md, 1, &dims,
-                    wei_scales->data_type_, format_tag::a));
+                    wei_scales->get_data_type(), format_tag::a));
 
-            auto status = post_ops_.prepend_binary(binary_mul, &wei_scales_md);
-            if (status != status::success) return status;
+            CHECK(post_ops_.prepend_binary(binary_mul, &wei_scales_md));
 
             binary_srcs_.insert(binary_srcs_.begin(),
                     binary_src_t {binary_src_t::scales, DNNL_ARG_WEIGHTS});
         }
     }
     if (!src_scales->has_default_values()) {
-        const auto &mask = src_scales->mask_;
+        const auto &mask = src_scales->get_mask();
         bool convert = (mask == 0);
-        if (src_scales->ndims_ > 1) {
-            convert |= (src_scales->group_dims_[1] >= d->k());
+        if (!src_scales->has_default_groups()) {
+            convert |= (src_scales->get_group(1) >= d->k());
         }
         if (convert) {
             if (mask == 0) {
                 dim_t dims = 1;
                 CHECK(memory_desc_init_by_tag(src_scales_md, 1, &dims,
-                        src_scales->data_type_, format_tag::a));
-            } else if (src_scales->ndims_ > 1) {
-                int n_group = src_scales->group_dims_[0];
-                int k_group = src_scales->group_dims_[1];
+                        src_scales->get_data_type(), format_tag::a));
+            } else if (!src_scales->has_default_groups()) {
+                // TODO: is it inverted?
+                int n_group = src_scales->get_group(0);
+                int k_group = src_scales->get_group(1);
                 dim_t dims[]
                         = {(mask & (d->batch() > 1 ? 2 : 1)) ? d->n() / n_group
                                                              : 1,
                                 d->k() / k_group};
                 CHECK(memory_desc_init_by_tag(src_scales_md, 2, dims,
-                        src_scales->data_type_, format_tag::ab));
+                        src_scales->get_data_type(), format_tag::ab));
             } else {
                 dim_t dims[] = {d->n(), 1};
                 CHECK(memory_desc_init_by_tag(src_scales_md, 2, dims,
-                        src_scales->data_type_, format_tag::ab));
+                        src_scales->get_data_type(), format_tag::ab));
             }
 
-            auto status = post_ops_.prepend_binary(binary_mul, &src_scales_md);
-            if (status != status::success) return status;
+            CHECK(post_ops_.prepend_binary(binary_mul, &src_scales_md));
 
             binary_srcs_.insert(binary_srcs_.begin(),
                     binary_src_t {binary_src_t::scales, DNNL_ARG_SRC});
         }
     }
     if (!c_scales->has_default_values()) {
-        const auto &mask = c_scales->mask_;
+        const auto &mask = c_scales->get_mask();
         bool convert = (mask == 0 || math::is_pow2(mask));
-        if (c_scales->ndims_ > 1)
-            convert |= (c_scales->group_dims_[0] >= d->m());
+        if (!c_scales->has_default_groups())
+            convert |= (c_scales->get_group(0) >= d->m());
         if (convert) {
             ok = ok && (mask == 0 || mask == (1 << (d->c_desc.ndims - 1)));
             dim_t dims = {(mask > 0) ? d->m() : 1};
             CHECK(memory_desc_init_by_tag(c_scales_md, 1, &dims,
-                    c_scales->data_type_, format_tag::a));
+                    c_scales->get_data_type(), format_tag::a));
 
-            auto status = post_ops_.append_binary(binary_div, &c_scales_md);
-            if (status != status::success) return status;
+            CHECK(post_ops_.append_binary(binary_div, &c_scales_md));
 
             binary_srcs_.push_back(
                     binary_src_t {binary_src_t::scales, DNNL_ARG_DST});

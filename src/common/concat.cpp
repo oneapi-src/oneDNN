@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,10 +54,22 @@ status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
         VCHECK_CONCAT_UNIMPL(attr->has_default_values(smask_t::scales_runtime),
                 VERBOSE_UNSUPPORTED_ATTR);
         const auto &scales = attr->scales_;
-        if (!scales.has_default_values())
-            for (const auto &s : scales.scales_)
-                VCHECK_CONCAT_UNIMPL(
-                        s.second.mask_ == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+        if (!scales.has_default_values()) {
+            std::vector<int> supported_args(n);
+            for (int i = 0; i < n; i++) {
+                supported_args[i] = DNNL_ARG_MULTIPLE_SRC + i;
+            }
+            VCHECK_CONCAT_UNIMPL(
+                    attr->scales_.has_default_values(supported_args),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+            for (int arg : supported_args) {
+                if (scales.has_default_values(arg)) continue;
+
+                int mask = scales.get_mask(arg);
+                VCHECK_CONCAT_UNIMPL(mask == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+            }
+        }
     }
 
     const int ndims = src_mds[0]->ndims;

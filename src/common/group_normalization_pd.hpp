@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -190,17 +190,17 @@ protected:
         return IMPLICATION(use_scale() || use_shift(),
                 weights_md()->data_type == data_type::f32);
     }
-    bool attr_scales_ok() const {
+    bool attr_scales_ok(const std::vector<int> &supported_args
+            = {DNNL_ARG_SRC, DNNL_ARG_DST}) const {
         using namespace data_type;
         const auto &scales = attr()->scales_;
-        const std::vector<int> supported_args({DNNL_ARG_SRC, DNNL_ARG_DST});
         bool ok = scales.has_default_values(supported_args);
 
         for (const auto &arg : supported_args) {
-            const auto &sc = scales.get(arg);
-            if (!sc.has_default_values()) {
+            if (!scales.has_default_values(arg)) {
                 const data_type_t dt = arg_md(arg)->data_type;
-                ok = ok && utils::one_of(dt, s8, u8) && sc.mask_ == 0;
+                ok = ok && utils::one_of(dt, s8, u8);
+                ok = ok && scales.get_mask(arg) == 0;
             }
         }
         return ok;

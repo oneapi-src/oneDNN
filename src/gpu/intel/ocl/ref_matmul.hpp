@@ -233,19 +233,19 @@ struct ref_matmul_t : public gpu_primitive_t {
         def_data_type(kernel_ctx, pd()->bia_dt_, "BIA");
         def_data_type(kernel_ctx, pd()->desc()->accum_data_type, "ACC");
         def_data_type(kernel_ctx,
-                pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).data_type_,
+                pd()->attr()->scales_.get_data_type(DNNL_ARG_WEIGHTS),
                 "WEI_SCALES");
         def_data_type(kernel_ctx,
                 pd()->attr()->zero_points_.get_data_type(DNNL_ARG_WEIGHTS),
                 "WEI_ZP");
         def_data_type(kernel_ctx,
-                pd()->attr()->scales_.get(DNNL_ARG_SRC).data_type_,
+                pd()->attr()->scales_.get_data_type(DNNL_ARG_SRC),
                 "SRC_SCALES");
         def_data_type(kernel_ctx,
                 pd()->attr()->zero_points_.get_data_type(DNNL_ARG_SRC),
                 "SRC_ZP");
         def_data_type(kernel_ctx,
-                pd()->attr()->scales_.get(DNNL_ARG_DST).data_type_,
+                pd()->attr()->scales_.get_data_type(DNNL_ARG_DST),
                 "DST_SCALES");
         kernels_.resize(2);
         CHECK(create_kernel(engine, &kernels_[0], "ref_matmul", kernel_ctx));
