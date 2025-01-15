@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,6 +35,8 @@
 
 namespace dnnl {
 namespace impl {
+
+const primitive_attr_t &default_attr();
 
 struct rnn_data_qparams_t : public c_compatible {
     rnn_data_qparams_t() : scale_(1.f), shift_(0.f) {}
