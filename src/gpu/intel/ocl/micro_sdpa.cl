@@ -82,13 +82,13 @@ DECLARE_2D_TILE(
 #define mask_nbc ugemm_kq_c_type_nblock1
 #endif
 
-DECLARE_2D_TILE(mask_tile_type, half, SUBGROUP_SIZE, mask_br, mask_bc, mask_nbr,
+DECLARE_2D_TILE(mask_tile_type, MSK_DATA_T, SUBGROUP_SIZE, mask_br, mask_bc, mask_nbr,
         mask_nbc)
 DECLARE_2D_TILE(mask_tile_type_float, float, SUBGROUP_SIZE, mask_br, mask_bc,
         mask_nbr, mask_nbc)
 
 #if BROADCAST_MASK_Q
-DECLARE_2D_TILE_BLOCK_OPS(mask_tile_type, half, SUBGROUP_SIZE, mask_br, mask_bc,
+DECLARE_2D_TILE_BLOCK_OPS(mask_tile_type, MSK_DATA_T, SUBGROUP_SIZE, mask_br, mask_bc,
         mask_nbr, mask_nbc)
 #endif
 
@@ -166,7 +166,7 @@ DECLARE_2D_TILE_RSELECT(a_scale_tile_type, SUBGROUP_SIZE, ugemm_vs_sg_tile_n, 1,
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) kernel void
 micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         const global VAL_DATA_T *V, global DST_DATA_T *A,
-        const global SCALE_DATA_T *scale_ptr, const global half *msk, int d,
+        const global SCALE_DATA_T *scale_ptr, const global MSK_DATA_T *msk, int d,
         int k, int q, const global KEY_ATTR_SCALES_DATA_T *K_scales,
         const global KEY_ATTR_ZP_DATA_T *K_zp,
         const global VAL_ATTR_SCALES_DATA_T *V_scales,
@@ -237,7 +237,11 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     K_scales += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE;
 #endif
 #if KEY_SCALES == QUANTIZE_COMMON
-    float k_scale = CONVERT_FLOAT_T(*K_scales);
+#if KEY_DT_BF16
+    float k_scale = cvt_bf16_to_f32(*K_scales);
+#else
+    float k_scale = convert_float(*K_scales);
+#endif
 #endif
 #if KEY_ZERO_POINTS
     K_zp += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE
@@ -247,7 +251,11 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     V_scales += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE;
 #endif
 #if VAL_SCALES == QUANTIZE_COMMON
-    float v_scale = CONVERT_FLOAT_T(*V_scales);
+#if VAL_DT_BF16
+    float v_scale = cvt_bf16_to_f32(*V_scales);
+#else
+    float v_scale = convert_float(*V_scales);
+#endif
 #endif
 #if VAL_ZERO_POINTS
     V_zp += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE
@@ -270,10 +278,18 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     /* Load scale */
 #if WITH_ATTN_SCALE
 #if INVERT_SCALE
-    float iscale = CONVERT_FLOAT_T(*scale_ptr);
+#if SCALE_DT_BF16
+    float iscale = cvt_bf16_to_f32(*scale_ptr);
+#else
+    float iscale = convert_float(*scale_ptr);
+#endif
     float scale = native_recip(iscale);
 #else
-    float scale = CONVERT_FLOAT_T(*scale_ptr);
+#if SCALE_DT_BF16
+    float scale = cvt_bf16_to_f32(*scale_ptr);
+#else
+    float scale = convert_float(*scale_ptr);
+#endif
     float iscale = native_recip(scale);
 #endif
 #else

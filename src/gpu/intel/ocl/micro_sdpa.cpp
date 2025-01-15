@@ -405,6 +405,8 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     def_data_type(kernel_ctx, qry_mdw.data_type(), "QRY");
     def_data_type(kernel_ctx, val_mdw.data_type(), "VAL");
     def_data_type(kernel_ctx, dst_mdw.data_type(), "DST");
+	def_data_type(kernel_ctx,
+            pd()->with_attn_mask() ? msk_mdw.data_type() : dnnl_f32, "MSK");
 
     def_data_type(kernel_ctx, pd()->key_scales_dt(), "KEY_ATTR_SCALES");
     def_data_type(kernel_ctx, pd()->value_scales_dt(), "VAL_ATTR_SCALES");

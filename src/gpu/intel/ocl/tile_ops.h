@@ -33,7 +33,7 @@ __attribute__((overloadable)) half local_atomic_max(
 }
 
 __attribute__((overloadable)) ushort local_atomic_max(
-        local ushort *p, half v) { /* not implemented */
+        local ushort *p, ushort v) { /* not implemented */
     return v;
 }
 
@@ -93,22 +93,18 @@ __attribute__((overloadable)) int local_atomic_max(local int *p, int v) {
                 as_##itype##8(v.s89abcdef)); \
     }
 
-#ifdef QRY_DT_F16
 DEF_BLOCK_LOAD_STORE1(half, ushort, _us)
 DEF_BLOCK_LOAD_STORE(half, ushort, _us, 2)
 DEF_BLOCK_LOAD_STORE(half, ushort, _us, 4)
 DEF_BLOCK_LOAD_STORE(half, ushort, _us, 8)
 DEF_BLOCK_LOAD_STORE(half, ushort, _us, 16)
-#endif
 
-#ifdef QRY_DT_BF16
 typedef ushort ushort1 __attribute__((ext_vector_type(1)));
 DEF_BLOCK_LOAD_STORE1(ushort, ushort, _us)
 DEF_BLOCK_LOAD_STORE(ushort, ushort, _us, 2)
 DEF_BLOCK_LOAD_STORE(ushort, ushort, _us, 4)
 DEF_BLOCK_LOAD_STORE(ushort, ushort, _us, 8)
 DEF_BLOCK_LOAD_STORE(ushort, ushort, _us, 16)
-#endif
 
 DEF_BLOCK_LOAD_STORE1(uint, uint, )
 DEF_BLOCK_LOAD_STORE(uint, uint, , 2)
@@ -153,15 +149,11 @@ DEF_BLOCK_LOAD_STORE16(uint, uint, )
                 pp, w - 1, h - 1, ld - 1, coord, as_##itype##vl(v)); \
     }
 
-#ifdef QRY_DT_F16
 DEF_BLOCK2D_LOAD_STORE(half, ushort, 8, 16, u16_m4k32v1, 32, 4)
 DEF_BLOCK2D_LOAD_STORE(half, ushort, 16, 16, u16_m8k32v1, 32, 8)
-#endif
 
-#ifdef QRY_DT_BF16
 DEF_BLOCK2D_LOAD_STORE(ushort, ushort, 8, 16, u16_m4k32v1, 32, 4)
 DEF_BLOCK2D_LOAD_STORE(ushort, ushort, 16, 16, u16_m8k32v1, 32, 8)
-#endif
 
 #define tile_fill(t, v) \
     do { \
