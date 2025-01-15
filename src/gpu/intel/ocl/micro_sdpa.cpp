@@ -192,31 +192,6 @@ sdpa_config_t *choose_config_xehpc(
     return nullptr;
 }
 
-/// Returns true if a common scale value is used for each slice of the tensor
-/// operation. For 4D case it's when the mask's two first bits are on and two
-/// last bits are off.
-/// Examples:
-///   | mask      | result  |
-///   |-----------+---------|
-///   |  0 (0000) | true    |
-///   | 12 (0011) | false   |
-///   |  3 (1100) | true    |
-///   |  1 (1000) | true    |
-///   |  8 (0001) | false   |
-bool with_quantize_common(const runtime_scales_t &scales) {
-    return !scales.has_default_values()
-            && (((scales.mask_ & 3) != 0 && (scales.mask_ & 12) == 0)
-                    || scales.mask_ == 0);
-}
-
-/// Returns true if a common zero points value is used for each slice of the
-/// tensor operation
-bool with_quantize_common(const zero_points_t &zp) {
-    int mask = zp.get(DNNL_ARG_WEIGHTS);
-    return !zp.has_default_values()
-            && (((mask & 3) != 0 && (mask & 12) == 0) || mask == 0);
-}
-
 } /* anonymous namespace */
 
 status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
@@ -270,8 +245,11 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
                                                            : MatrixLayout::N;
     };
 
-    bool kq_common_scales = with_quantize_common(d->kq_scales);
-    bool kq_common_zp = with_quantize_common(d->kq_zero_points);
+    auto k_scales_q = key_scales_quant();
+    auto k_zp_q = key_zp_quant();
+
+    bool k_scales_2d = (k_scales_q == pd_t::quantization_t::grouped);
+    bool k_zp_2d = (k_zp_q == pd_t::quantization_t::grouped);
 
     /* Set up GEMMProblem structure for first GEMM: K^T * Q */
     GEMMProblem problem;
@@ -293,7 +271,7 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     opts_kq.localB = true;
     opts_kq.slmPtr = true;
 
-    if (with_key_scales() && !kq_common_scales) {
+    if (k_scales_2d) {
         auto scale_dt = key_scales_dt();
         problem_kq.Ta_scale = jit::convert_dnnl_to_kernel_type(scale_dt);
         problem_kq.A_scale.setAlignment(
@@ -307,16 +285,14 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
         problem_kq.AO.setAlignment(
                 int8_t(d->keys() * types::data_type_size(zp_dt)));
         problem_kq.AO.layout = MatrixLayout::N;
-        problem_kq.aoPtrDims = kq_common_zp ? 0 : 2;
+        problem_kq.aoPtrDims = k_zp_2d ? 2 : 0;
         problem_kq.aOffset = ABOffset::Calc;
     }
-
-    if (with_key_scales() || with_key_zp()) {
+    if (k_scales_2d || with_key_zp()) {
         problem_kq.aqGroupM = 1;
-        problem_kq.aqGroupK
-                = (kq_common_scales || kq_common_zp) ? 1 : key_group_size();
+        problem_kq.aqGroupK = (k_scales_2d || k_zp_2d) ? key_group_size() : 1;
     }
-    opts_kq.scaleA = with_key_scales() && !kq_common_scales;
+    opts_kq.scaleA = k_scales_2d;
     opts_kq.offsetA = with_key_zp();
 
     problem_kq.B.layout = MatrixLayout::Pr;
@@ -354,8 +330,11 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
                 ex.what());
     }
 
-    bool vs_common_scales = with_quantize_common(d->vs_scales);
-    bool vs_common_zp = with_quantize_common(d->vs_zero_points);
+    auto v_scales_q = value_scales_quant();
+    auto v_zp_q = value_zp_quant();
+
+    bool v_scales_2d = (v_scales_q == pd_t::quantization_t::grouped);
+    bool v_zp_2d = (v_zp_q == pd_t::quantization_t::grouped);
 
     /* Set up microkernel options */
     micro::GEMMProtocol::Options opts_vs;
@@ -366,7 +345,7 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     auto problem_vs = problem;
     problem_vs.Ta_ext = jit::convert_dnnl_to_kernel_type(val_md()->data_type);
     problem_vs.A.layout = convert_dnnl_to_kernel_layout(val_md());
-    if (with_value_scales() && !vs_common_scales) {
+    if (v_scales_2d) {
         auto scale_dt = value_scales_dt();
         problem_vs.Ta_scale = jit::convert_dnnl_to_kernel_type(scale_dt);
         problem_vs.A_scale.setAlignment(uint8_t(d->head_size()
@@ -381,16 +360,16 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
         problem_vs.AO.setAlignment(uint8_t(d->head_size() / value_group_size()
                 * types::data_type_size(zp_dt)));
         problem_vs.AO.layout = MatrixLayout::N;
-        problem_vs.aoPtrDims = vs_common_zp ? 0 : 2;
+        problem_vs.aoPtrDims = v_zp_2d ? 2 : 0;
         problem_vs.aOffset = ABOffset::Calc;
     }
-    if (with_value_scales() || with_value_zp()) {
-        problem_vs.aqGroupM = (vs_common_scales || vs_common_zp)
-                ? 1
-                : utils::rnd_up_pow2(value_group_size());
+    if (v_scales_2d || with_value_zp()) {
+        problem_vs.aqGroupM = (v_scales_2d || v_zp_2d)
+                ? utils::rnd_up_pow2(value_group_size())
+                : 1;
         problem_vs.aqGroupK = 1;
     }
-    opts_vs.scaleA = with_value_scales() && !vs_common_scales;
+    opts_vs.scaleA = v_scales_2d;
     opts_vs.offsetA = with_value_zp();
 
     problem_vs.B.layout = MatrixLayout::Pr;
@@ -489,21 +468,15 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     kernel_ctx.define_int("TRANSPOSE_K",
             gemm_desc_t::get_trans(*pd()->key_md()) == dnnl_trans);
 
-    int kq_scale_mask = (static_cast<int>(pd()->with_key_scales()) << 1)
-            | static_cast<int>(with_quantize_common(d->kq_scales));
-    kernel_ctx.define_int("KEY_SCALES", kq_scale_mask);
+    kernel_ctx.define_int(
+            "KEY_SCALES", static_cast<int>(pd()->key_scales_quant()));
+    kernel_ctx.define_int(
+            "VAL_SCALES", static_cast<int>(pd()->value_scales_quant()));
 
-    int vs_scale_mask = (static_cast<int>(pd()->with_value_scales()) << 1)
-            | static_cast<int>(with_quantize_common(d->vs_scales));
-    kernel_ctx.define_int("VAL_SCALES", vs_scale_mask);
-
-    int kq_zp_mask = (static_cast<int>(pd()->with_key_zp()) << 1)
-            | static_cast<int>(with_quantize_common(d->kq_zero_points));
-    kernel_ctx.define_int("KEY_ZERO_POINTS", kq_zp_mask);
-
-    int vs_zp_mask = (static_cast<int>(pd()->with_value_zp()) << 1)
-            | static_cast<int>(with_quantize_common(d->vs_zero_points));
-    kernel_ctx.define_int("VAL_ZERO_POINTS", vs_zp_mask);
+    kernel_ctx.define_int(
+            "KEY_ZERO_POINTS", static_cast<int>(pd()->key_zp_quant()));
+    kernel_ctx.define_int(
+            "VAL_ZERO_POINTS", static_cast<int>(pd()->value_zp_quant()));
 
     using namespace data_type;
     auto elems_per_byte = [](data_type_t dt) {
@@ -551,10 +524,11 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
 
     kernel_ctx.define_int("REMAINDER_K", !k_full);
 
+    if (ldmsk % 4 == 0) kernel_ctx.define_int("BLOCK_MSK", 1);
+
     if (d_full) {
         if (ldq % 4 == 0) kernel_ctx.define_int("BLOCK_Q", 1);
         if (lda % 4 == 0 && v_full) kernel_ctx.define_int("BLOCK_A", 1);
-        if (ldmsk % 4 == 0) kernel_ctx.define_int("BLOCK_MSK", 1);
         kernel_ctx.define_int("REMAINDER_Q", (d->queries() % tile_q) != 0);
     } else if (pd()->arch() >= compute::gpu_arch_t::xe_hpc) {
         auto vbytes = d->values() * val_mdw.data_type_size();

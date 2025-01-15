@@ -47,6 +47,14 @@ struct micro_sdpa_t : public gpu_primitive_t {
         static constexpr int mask_q_index = 2;
         static constexpr int mask_k_index = 3;
 
+        enum class quantization_t {
+            /* Quantization types. Keep in sync with #defines in .cl file. */
+            none = 0,
+            common = 1,
+            per_token = 2,
+            grouped = 3
+        };
+
         DECLARE_COMMON_PD_T("ocl:micro:any", micro_sdpa_t);
 
         status_t init(impl::engine_t *engine) {
@@ -100,8 +108,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
 
             int kq_scales_mask = desc()->kq_scales.mask_;
             int kq_zp_mask = desc()->kq_zero_points.get(DNNL_ARG_WEIGHTS);
-            if (!desc()->kq_scales.has_default_values()
-                    && !desc()->kq_zero_points.has_default_values())
+            if (with_key_scales() && with_key_zp())
                 VDISPATCH_SDPA(kq_scales_mask == kq_zp_mask,
                         "kq scales mask(%d) must equal kq zero point(%d) "
                         "mask",
@@ -127,8 +134,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
 
             int vs_scales_mask = desc()->vs_scales.mask_;
             int vs_zp_mask = desc()->vs_zero_points.get(DNNL_ARG_WEIGHTS);
-            if (!desc()->vs_scales.has_default_values()
-                    && !desc()->vs_zero_points.has_default_values())
+            if (with_value_scales() && with_value_zp())
                 VDISPATCH_SDPA(vs_scales_mask == vs_zp_mask,
                         "vs scales mask(%d) must equal vs zero point(%d) "
                         "mask",
@@ -152,8 +158,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
                         value_group_size());
             }
 
-            if (!desc()->vs_scales.has_default_values()
-                    || !desc()->vs_zero_points.has_default_values()) {
+            if (with_value_scales() || with_value_zp()) {
                 int vgs = value_group_size();
                 VDISPATCH_SDPA(
                         math::is_pow2<int>(vgs) || vgs == val_md()->dims[3],
@@ -199,6 +204,54 @@ struct micro_sdpa_t : public gpu_primitive_t {
         }
 
         compute::gpu_arch_t arch() const { return arch_; }
+
+        quantization_t key_scales_quant() const {
+            if (!with_key_scales()) return quantization_t::none;
+            if (is_common_mask(desc()->kq_scales.mask_))
+                return quantization_t::common;
+            if (!with_key_zp() && key_group_size() >= desc()->head_size())
+                return quantization_t::per_token;
+            return quantization_t::grouped;
+        }
+
+        quantization_t key_zp_quant() const {
+            if (!with_key_zp()) return quantization_t::none;
+            if (is_common_mask(desc()->kq_zero_points.get(DNNL_ARG_WEIGHTS)))
+                return quantization_t::common;
+            return quantization_t::grouped;
+        }
+
+        quantization_t value_scales_quant() const {
+            if (!with_value_scales()) return quantization_t::none;
+            if (is_common_mask(desc()->vs_scales.mask_))
+                return quantization_t::common;
+            // Functional, but slower than grouped.
+            // if (!with_value_zp() && value_group_size() >= desc()->head_size())
+            //    return quantization_t::per_token;
+            return quantization_t::grouped;
+        }
+
+        quantization_t value_zp_quant() const {
+            if (!with_value_zp()) return quantization_t::none;
+            if (is_common_mask(desc()->vs_zero_points.get(DNNL_ARG_WEIGHTS)))
+                return quantization_t::common;
+            return quantization_t::grouped;
+        }
+
+        /// Returns true if a common scale value is used for each slice of the tensor
+        /// operation. For 4D case it's when the mask's two first bits are on and two
+        /// last bits are off.
+        /// Examples:
+        ///   | mask      | result  |
+        ///   |-----------+---------|
+        ///   |  0 (0000) | true    |
+        ///   | 12 (0011) | false   |
+        ///   |  3 (1100) | true    |
+        ///   |  1 (1000) | true    |
+        ///   |  8 (0001) | false   |
+        static bool is_common_mask(unsigned mask) {
+            return ((mask & 3) != 0 && (mask & 12) == 0) || mask == 0;
+        }
 
     private:
         micro::Package gemm_kq_, gemm_vs_;

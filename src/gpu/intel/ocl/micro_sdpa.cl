@@ -21,11 +21,14 @@
 #include "gemm_kq.h"
 #include "gemm_vs.h"
 
-/* The quantization parameter may be unique for each token/element */
-#define QUANTIZE_2D 2
-
 /* The quantization parameter shares the same value across the work-group */
-#define QUANTIZE_COMMON 3
+#define QUANTIZE_COMMON 1
+
+/* One quantization parameter for each token */
+#define QUANTIZE_1D 2
+
+/* One quantization parameter for each group */
+#define QUANTIZE_2D 3
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define DIV_UP(x, y) (((x) + (y)-1) / (y))
@@ -91,6 +94,34 @@ DECLARE_2D_TILE(mask_tile_type_float, float, SUBGROUP_SIZE, mask_br, mask_bc,
 #if BROADCAST_MASK_Q
 DECLARE_2D_TILE_BLOCK_OPS(mask_tile_type, MSK_DATA_T, SUBGROUP_SIZE, mask_br,
         mask_bc, mask_nbr, mask_nbc)
+#endif
+
+#if KEY_SCALES == QUANTIZE_1D
+DECLARE_2D_TILE(k_scales_tile_type, KEY_ATTR_SCALES_DATA_T, SUBGROUP_SIZE,
+        ugemm_kq_sg_tile_m, 1, 1, 1)
+DECLARE_2D_TILE(k_scales_tile_type_float, float, SUBGROUP_SIZE,
+        ugemm_kq_sg_tile_m, 1, 1, 1)
+DECLARE_2D_TILE_BLOCK_OPS(k_scales_tile_type, KEY_ATTR_SCALES_DATA_T,
+        SUBGROUP_SIZE, ugemm_kq_sg_tile_m, 1, 1, 1)
+
+DECLARE_2D_TILE_HREDUCE(s_tile_type, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
+        ugemm_kq_c_type_block1, ugemm_kq_c_type_nblock0,
+        ugemm_kq_c_type_nblock1, k_scales_tile_type_float, SUBGROUP_SIZE,
+        ugemm_kq_sg_tile_m, 1, 1, 1)
+#endif
+
+#if VAL_SCALES == QUANTIZE_1D
+DECLARE_2D_TILE(v_scales_tile_type, KEY_ATTR_SCALES_DATA_T, SUBGROUP_SIZE,
+        ugemm_kq_sg_tile_m, 1, 1, 1)
+DECLARE_2D_TILE(v_scales_tile_type_float, float, SUBGROUP_SIZE,
+        ugemm_kq_sg_tile_m, 1, 1, 1)
+DECLARE_2D_TILE_BLOCK_OPS(v_scales_tile_type, KEY_ATTR_SCALES_DATA_T,
+        SUBGROUP_SIZE, ugemm_kq_sg_tile_m, 1, 1, 1)
+
+DECLARE_2D_TILE_HREDUCE(s_tile_type, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
+        ugemm_kq_c_type_block1, ugemm_kq_c_type_nblock0,
+        ugemm_kq_c_type_nblock1, v_scales_tile_type_float, SUBGROUP_SIZE,
+        ugemm_kq_sg_tile_m, 1, 1, 1)
 #endif
 
 #ifdef BLOCK_A
@@ -299,7 +330,19 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
             /* sg_size */ SUBGROUP_SIZE,
             /* cache */ LSC_LDCC_L1C_L3C);
 
-#if KEY_SCALES == QUANTIZE_2D
+#if KEY_SCALES == QUANTIZE_1D
+    cooperative_prefetch_2d_maybe_rem(
+            /* ptr */ K_scales,
+            /* r */ k,
+            /* c */ 1,
+            /* rmax */ ugemm_kq_wg_tile_m,
+            /* cmax */ 1,
+            /* ld */ ldkq,
+            /* sg_id */ sg_ij,
+            /* n_sg */ sg_per_wg,
+            /* sg_size */ SUBGROUP_SIZE,
+            /* cache */ LSC_LDCC_L1C_L3C);
+#elif KEY_SCALES == QUANTIZE_2D
     cooperative_prefetch_2d_maybe_rem(
             /* ptr */ K_scales,
             /* r */ k,
@@ -414,6 +457,10 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 #if KEY_SCALES == QUANTIZE_COMMON
 #define k_scale_op(x) ((x)*k_scale)
         tile_elementwise(S_tile, k_scale_op);
+#elif KEY_SCALES == QUANTIZE_1D
+        /* Load 1D K scales */
+        k_scales_tile_type k_scales_tile;
+        tile_load_block(&k_scales_tile, K_scales, 0, k0 + sg_i0_kq, 0);
 #endif
 
         /* Apply attention mask */
@@ -434,6 +481,13 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         /* Apply k mask */
 #if REMAINDER_K
         tile_hbroadcast_min(&S_tile, k_mask);
+#endif
+
+        /* Apply 1D K scales */
+#if KEY_SCALES == QUANTIZE_1D
+        k_scales_tile_type_float k_scales_tile_float;
+        tile_copy(k_scales_tile, k_scales_tile_float);
+        tile_hbroadcast_mul(&S_tile, k_scales_tile_float);
 #endif
 
 #if WITH_CAUSAL_MASK
@@ -468,7 +522,20 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
                 /* sg_size */ SUBGROUP_SIZE,
                 /* cache */ LSC_LDCC_L1C_L3C);
 
-#if VAL_SCALES == QUANTIZE_2D
+#if VAL_SCALES == QUANTIZE_1D
+        /* Prefetch 1D V scales. */
+        cooperative_prefetch_2d_maybe_rem(
+                /* ptr */ V_scales,
+                /* r */ 1,
+                /* c */ k - k0,
+                /* rmax */ 1,
+                /* cmax */ k_chunk,
+                /* ld */ ldvq,
+                /* sg_id */ sg_ij,
+                /* n_sg */ sg_per_wg,
+                /* sg_size */ SUBGROUP_SIZE,
+                /* cache */ LSC_LDCC_L1C_L3C);
+#elif VAL_SCALES == QUANTIZE_2D
         /* Prefetch V scales. */
         cooperative_prefetch_2d_maybe_rem(
                 /* ptr */ V_scales,
@@ -509,6 +576,12 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 #define scaled_exp(x) native_vexp2(x *scale)
         tile_elementwise(S_tile, scaled_exp);
 
+#if VAL_SCALES == QUANTIZE_1D
+        /* Load 1D V scales */
+        v_scales_tile_type v_scales_tile;
+        tile_load_block(&v_scales_tile, V_scales, 0, k0 + sg_i0_kq, 0);
+#endif
+
 #ifdef ALT_MAX
         /* Read back WG-wide maxima and adjust S to match */
         intel_work_group_barrier_wait(CLK_LOCAL_MEM_FENCE);
@@ -525,6 +598,13 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         s_sum_tile_type S_sum_tile1;
         tile_fill(S_sum_tile1, 0.0f);
         tile_vreduce_add(S_tile, &S_sum_tile1);
+
+#if VAL_SCALES == QUANTIZE_1D
+        /* Apply 1D V scales to S tile */
+        v_scales_tile_type_float v_scales_tile_float;
+        tile_copy(v_scales_tile, v_scales_tile_float);
+        tile_hbroadcast_mul(&S_tile, v_scales_tile_float);
+#endif
 
         /* Convert to half or bf16, VNNI format */
         s_tile_type_packed S_tile_packed;
@@ -590,7 +670,19 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
                     /* n_sg */ sg_per_wg,
                     /* sg_size */ SUBGROUP_SIZE,
                     /* cache*/ LSC_LDCC_L1C_L3C);
-#if KEY_SCALES == QUANTIZE_2D
+#if KEY_SCALES == QUANTIZE_1D
+            cooperative_prefetch_2d_maybe_rem(
+                    /* ptr */ K_scales + (k0 + ugemm_kq_wg_tile_m),
+                    /* r */ k - k0 - ugemm_kq_wg_tile_m,
+                    /* c */ 1,
+                    /* rmax */ ugemm_kq_wg_tile_m,
+                    /* cmax */ 1,
+                    /* ld */ ldkq,
+                    /* sg_id */ sg_ij,
+                    /* n_sg */ sg_per_wg,
+                    /* sg_size */ SUBGROUP_SIZE,
+                    /* cache */ LSC_LDCC_L1C_L3C);
+#elif KEY_SCALES == QUANTIZE_2D
             cooperative_prefetch_2d_maybe_rem(
                     /* ptr */ K_scales + (k0 + ugemm_kq_wg_tile_m),
                     /* r */ k - k0 - ugemm_kq_wg_tile_m,
