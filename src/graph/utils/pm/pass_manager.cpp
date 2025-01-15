@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ void pass_manager_t::print_passes(const std::string &pass_config_json) {
 }
 
 void pass_manager_t::print_passes(std::ostream *os) {
-    auto passes = get_passes();
+    const auto &passes = get_passes();
     json::json_writer_t write(os);
     write.begin_object();
     std::string hash = dnnl_version()->hash;
