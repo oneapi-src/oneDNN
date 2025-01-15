@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2024 Intel Corporation
+# Copyright 2021-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,7 +50,8 @@ add_library(${OBJ_LIB} OBJECT ${TEST_SRC})
 
 include_directories_with_host_compiler(${OBJ_LIB}
     PRIVATE
-    ${PROJECT_SOURCE_DIR}/tests/gtests/graph # gtest related headers
+    ${PROJECT_SOURCE_DIR}/third_party/gtest # gtest related headers
+    ${PROJECT_SOURCE_DIR}/tests/gtests/graph
     ${PROJECT_SOURCE_DIR}/src/
     ${PROJECT_SOURCE_DIR}/src/graph/backend/graph_compiler/core/src # for context
     ${CMAKE_CURRENT_SOURCE_DIR}/core
