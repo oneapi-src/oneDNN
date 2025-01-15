@@ -1008,7 +1008,8 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     int32_t po_offsets0[GEMM_MAX_PO] = {0}, po_offsets[GEMM_MAX_PO] = {0};
     for (int i = 0; i < po_count; i++)
         if (po_srcs[i])
-            po_offsets0[i] = po_srcs[i]->offset() / problem_.Tbinary[i];
+            po_offsets0[i]
+                    = into<int32_t>(po_srcs[i]->offset() / problem_.Tbinary[i]);
 
     if (pd()->with_ab_zero_points()) {
         ao = &GEMM_CTX_ARG_STORAGE(a_zero_point);

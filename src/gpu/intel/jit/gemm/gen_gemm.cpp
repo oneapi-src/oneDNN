@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -342,7 +342,8 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     int32_t po_offsets0[GEMM_MAX_PO] = {0}, po_offsets[GEMM_MAX_PO] = {0};
     for (int i = 0; i < po_count; i++)
         if (po_srcs[i])
-            po_offsets0[i] = po_srcs[i]->offset() / problem.Tbinary[i];
+            po_offsets0[i]
+                    = into<int32_t>(po_srcs[i]->offset() / problem.Tbinary[i]);
 
     int cmask = 0;
     if (pd()->with_c_zero_points()) {

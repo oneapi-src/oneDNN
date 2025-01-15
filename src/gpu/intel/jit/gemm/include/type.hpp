@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,13 +99,13 @@ public:
     }
     constexpr Type baseType() const { return *this; }
 
-    template <typename U> constexpr friend int operator*(U a, Type t) {
-        return t.isInt4() ? int((unsigned(a) + 1) >> 1) : int(a * (U(1) << t.log2Size()));
+    template <typename U> constexpr friend decltype(std::declval<U>()*1) operator*(U a, Type t) {
+        return t.isInt4() ?(a + 2 * (a >= 0) - 1) / 2 : a * int(1u << t.log2Size());
     }
-    template <typename U> constexpr friend int operator*(Type t, U a) { return a * t; }
-    template <typename U>           friend int operator*=(U &a, Type t) { a = a * t; return a; }
-    template <typename U> constexpr friend int operator/(U a, Type t) {
-        return t.isInt4() ? int(a * 2) : int(a / (U(1) << t.log2Size()));
+    template <typename U> constexpr friend decltype(std::declval<U>()*1) operator*(Type t, U a) { return a * t; }
+    template <typename U>           friend U operator*=(U &a, Type t) { a = a * t; return a; }
+    template <typename U> constexpr friend decltype(std::declval<U>()/1) operator/(U a, Type t) {
+        return t.isInt4() ? a * 2 : a / int(1u << t.log2Size());
     }
 
     ngen::DataType ngen() const
@@ -139,6 +139,8 @@ public:
         }
     }
 };
+
+static_assert((-9 * Type(Type::s4) == -5) && (9 * Type(Type::s4) == 5), "Round away from zero is required non-integer type sizes");
 
 inline char typeToChar(Type T)
 {
