@@ -64,14 +64,14 @@ jobs:
           source venv/bin/activate
           python -m pip install --no-cache-dir --disable-pip-version-check castxml
       - name: Build oneDNN
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build.sh --build-dir ${{ github.workspace }}/oneDNN/build
+        run: ${{ github.workspace }}/.github/automation/build.sh --build-dir ${{ github.workspace }}/build
         working-directory: ${{ github.workspace }}/oneDNN
         env:
           ONEDNN_ACTION: build
       - name: format-tags check
         run: |
           source venv/bin/activate
-          castxml --castxml-cc-gnu-c clang --castxml-output=1 -I${{ github.workspace }}/oneDNN/include -I${{ github.workspace }}/oneDNN/build/include ${{ github.workspace }}/oneDNN/include/oneapi/dnnl_types.h -o ${{ github.workspace }}/oneDNN/logs/types.xml
-          python ${{ github.workspace }}/oneDNN/scripts/generate_dnnl_debug.py ${{ github.workspace }}/oneDNN/logs/types.xml
-          python ${{ github.workspace }}/oneDNN/scripts/generate_format_tags.py
-          diff --git ${{ github.workspace }}/oneDNN/include/oneapi/dnnl/dnnl_debug.h ${{ github.workspace }}/oneDNN/build/include/oneapi/dnnl/dnnl_debug.h
+          castxml --castxml-cc-gnu-c clang --castxml-output=1 -I${{ github.workspace }}/include -I${{ github.workspace }}/build/include ${{ github.workspace }}/include/oneapi/dnnl_types.h -o ${{ github.workspace }}/logs/types.xml
+          python ${{ github.workspace }}/scripts/generate_dnnl_debug.py ${{ github.workspace }}/logs/types.xml
+          python ${{ github.workspace }}/scripts/generate_format_tags.py
+          diff --git ${{ github.workspace }}/include/oneapi/dnnl/dnnl_debug.h ${{ github.workspace }}/build/include/oneapi/dnnl/dnnl_debug.h
