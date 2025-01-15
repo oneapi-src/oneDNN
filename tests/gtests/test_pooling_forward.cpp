@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 * Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -333,7 +333,7 @@ protected:
         auto pool_prim_desc = pd_t(eng, p.aprop_kind, p.aalgorithm, p_src_desc,
                 p_dst_desc, strides, ker, dilation, pad_l, pad_r);
         // test all pd ctors
-        allows_attr_t aa {false};
+        allows_attr_t aa {};
         if (!(is_nvidia_gpu(eng) || is_amd_gpu(eng))) {
             aa.po_eltwise = true;
             aa.po_binary = true;

@@ -224,7 +224,7 @@ protected:
         dst = test::make_memory(sum_pd.dst_desc(), eng);
 
         // test all pd ctors
-        auto aa = allows_attr_t {false};
+        allows_attr_t aa {};
         if (p.is_output_omitted)
             test_fwd_pd_constructors<pd_t>(sum_pd, aa, p.scale, srcs_md);
         else {

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ protected:
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
 
-        auto aa = allows_attr_t {false};
+        allows_attr_t aa {};
 
         auto src_md = memory::desc(p.src_dims, p.src_dt, p.src_tag);
         auto wei_md = memory::desc(p.wei_dims, p.wei_dt, p.wei_tag);
@@ -151,7 +151,7 @@ protected:
         // prelu specific types and values
         using pd_t = prelu_backward::primitive_desc;
         using hint_pd_t = prelu_forward::primitive_desc;
-        allows_attr_t aa {false}; // doesn't support anything
+        allows_attr_t aa {}; // doesn't support anything
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,14 +74,10 @@ protected:
 
         const bool is_src_int8 = p.src_dt == memory::data_type::s8
                 || p.src_dt == memory::data_type::u8;
-        auto aa = allows_attr_t {
-                false, /* po_sum */
-                true, /* po_eltwise */
-                true, /* po_binary*/
-                false, /* po_prelu*/
-                false, /* zp */
-                is_src_int8, /* scales */
-        };
+        allows_attr_t aa {};
+        aa.po_eltwise = true;
+        aa.po_binary = true;
+        aa.scales = is_src_int8;
 
         auto src_md = memory::desc(p.dims, p.src_dt, p.src_tag);
         auto dst_md = memory::desc(p.dims, p.dst_dt, p.dst_tag);
@@ -195,7 +191,7 @@ protected:
         // group_normalization specific types and values
         using pd_t = group_normalization_backward::primitive_desc;
         using hint_pd_t = group_normalization_forward::primitive_desc;
-        allows_attr_t aa {false}; // doesn't support anything
+        allows_attr_t aa {}; // doesn't support anything
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);

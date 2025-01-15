@@ -858,12 +858,13 @@ inline std::string to_string(dnnl_stream_flags_t stream_flags) {
 
 // testing all available C++ primitive descriptor constructors
 struct allows_attr_t {
-    bool po_sum;
-    bool po_eltwise;
-    bool po_binary;
-    bool po_prelu;
-    bool zp;
-    bool scales;
+    bool po_sum = false;
+    bool po_eltwise = false;
+    bool po_binary = false;
+    bool po_prelu = false;
+    bool zp = false;
+    bool scales = false;
+    int scales_arg = DNNL_ARG_SRC;
 };
 
 using engine = dnnl::engine;
@@ -939,11 +940,13 @@ void test_fwd_pd_attr_zp(const engine &eng, bool supports_zero_point,
         EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_zp));
 }
 
+// Note: `arg` is needed to specify `DNNL_ARG_MULTIPLE_SRC` as a value for
+// supported scale for concat and sum.
 template <typename pd_t, typename... prim_params_t>
-void test_fwd_pd_attr_scales(const engine &eng, bool supports_scales,
+void test_fwd_pd_attr_scales(const engine &eng, bool supports_scales, int arg,
         const prim_params_t &...prim_params) {
     dnnl::primitive_attr attr_scales;
-    attr_scales.set_scales_mask(DNNL_ARG_SRC, 0);
+    attr_scales.set_scales_mask(arg, 0);
 
     if (supports_scales) { // Currently only used with binary ops
         EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_scales));
@@ -981,7 +984,8 @@ void test_fwd_pd_constructors(const pd_t &pd, const allows_attr_t &aa,
     test_fwd_pd_attr_po_binary<pd_t>(eng, aa.po_binary, prim_params...);
     test_fwd_pd_attr_po_prelu<pd_t>(eng, aa.po_prelu, prim_params...);
     test_fwd_pd_attr_zp<pd_t>(eng, aa.zp, prim_params...);
-    test_fwd_pd_attr_scales<pd_t>(eng, aa.scales, prim_params...);
+    test_fwd_pd_attr_scales<pd_t>(
+            eng, aa.scales, aa.scales_arg, prim_params...);
     // check allow empty, should not throw
     test_fwd_pd_allow_empty<pd_t>(test_pd, prim_params...);
 }

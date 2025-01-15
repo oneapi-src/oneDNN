@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -168,8 +168,9 @@ protected:
         // test construction from a C pd
         concat_pd = pd_t(concat_pd.get());
 
-        auto aa = allows_attr_t {false};
+        allows_attr_t aa {};
         aa.scales = true;
+        aa.scales_arg = DNNL_ARG_MULTIPLE_SRC;
 
         test_fwd_pd_constructors<pd_t>(concat_pd, aa, dst_desc,
                 static_cast<int>(p.concat_dimension), srcs_md);
