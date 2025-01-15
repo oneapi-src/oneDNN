@@ -20,6 +20,7 @@
 #include "gpu/intel/jit/v2/conv/plan.hpp"
 #include "gpu/intel/jit/v2/conv/plan_preset.hpp"
 #include "gpu/intel/jit/v2/conv/plan_registry.hpp"
+#include "gpu/intel/jit/v2/conv/tensor_utils.hpp"
 #include "gpu/intel/ocl/usm_utils.hpp"
 
 #include <algorithm>
@@ -236,6 +237,7 @@ public:
             memory::dims src_dims = {mb, g * ic, 1, ih, iw};
             memory::dims wei_dims = {g, oc, ic, 1, kh, kw};
             memory::dims dst_dims = {mb, g * oc, 1, oh, ow};
+            memory::dims bias_dims = {g * oc};
 
             memory::dims strides = {1, sh, sw};
             memory::dims padding_l = {0, ph, pw};
@@ -295,6 +297,12 @@ public:
                     auto diff_wei_md = to_memory_desc(
                             prb_.wei_tag(), wei_dims, /*is_wei=*/true);
                     auto diff_dst_md = to_memory_desc(prb_.dst_tag(), dst_dims);
+                    memory::desc diff_bias_md;
+                    if (!prb_.bias_type().is_undef()) {
+                        auto tag = make_conv_layout_tag(tensor_kind_t::bias,
+                                "a:" + prb_.bias_type().str());
+                        diff_bias_md = to_memory_desc(tag, bias_dims);
+                    }
 
                     // Uses the C API as fwd_hint is not currently optional
                     // under the C++ API.
@@ -302,7 +310,7 @@ public:
                     dnnl_primitive_desc_t c_pd = nullptr;
                     CHECK(dnnl_convolution_backward_weights_primitive_desc_create(
                             &c_pd, eng.get(), alg_kind::convolution_direct,
-                            src_md.get(), diff_wei_md.get(), nullptr,
+                            src_md.get(), diff_wei_md.get(), diff_bias_md.get(),
                             diff_dst_md.get(), &strides[0], nullptr,
                             &padding_l[0], &padding_r[0], nullptr, attr.get()));
                     auto pd = convolution_backward_weights::primitive_desc(
@@ -347,6 +355,7 @@ private:
             const memory::dims &dims, bool is_wei = false) const {
         auto type = static_cast<dnnl::memory::data_type>(to_dnnl(tag.type()));
         layout_raw_tag_t raw_tags[] = {
+                layout_raw_tag_t("a", 1),
                 layout_raw_tag_t("axb", 5),
                 layout_raw_tag_t("abx", 5),
                 layout_raw_tag_t("axbc", 6),

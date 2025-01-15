@@ -63,6 +63,7 @@ struct bench_input_params_t {
     layout_tag_t dst_tag;
     prb_reqs_t reqs;
     bool is_dw = false;
+    type_t bias_type;
     pvar_tile_t tile;
     int nprbs = 0;
 
@@ -77,6 +78,7 @@ struct bench_input_params_t {
         dst_tag = kernel_desc.dst_tag;
         reqs = kernel_desc.reqs;
         is_dw = kernel_desc.is_dw;
+        bias_type = kernel_desc.bias_type;
         tile = kernel_desc.iter_tile;
         for (auto &d : kernel_desc.thread_group_tile) {
             tile[d] = tile.get(d, 1) * kernel_desc.thread_group_tile[d];
@@ -90,6 +92,7 @@ struct bench_input_params_t {
         prb.set_src_tag(src_tag);
         prb.set_wei_tag(wei_tag);
         prb.set_dst_tag(dst_tag);
+        prb.set_bias_type(bias_type);
         return prb;
     }
 };
