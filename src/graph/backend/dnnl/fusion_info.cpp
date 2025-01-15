@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2024 Intel Corporation
+ * Copyright 2022-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -130,7 +130,7 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                     // last two dimensions.
                     std::vector<int64_t> groups(
                             group_shape.end() - 2, group_shape.end());
-                    int64_t mask = (1 << group_shape.size()) - 1;
+                    int mask = (1 << group_shape.size()) - 1;
 
                     attr.set_scales(DNNL_ARG_WEIGHTS, mask, groups,
                             static_cast<dnnl::memory::data_type>(
@@ -168,7 +168,7 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
                     // last two dimensions.
                     std::vector<int64_t> groups(
                             group_shape.end() - 2, group_shape.end());
-                    int64_t mask = (1 << group_shape.size()) - 1;
+                    int mask = (1 << group_shape.size()) - 1;
 
                     // Currently oneDNN only supports grouped zps on last two dimensions.
                     attr.set_zero_points(DNNL_ARG_WEIGHTS, mask, groups,
