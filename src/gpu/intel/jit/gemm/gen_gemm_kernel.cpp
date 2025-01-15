@@ -386,17 +386,6 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     align_b = nstl::max(align_b, int(b_type_size));
     align_c = nstl::max(align_c, int(c_type_size));
 
-    bool can_2d_a = (lda * problem_.Ta_ext <= 16777216);
-    bool can_2d_b = (ldb * problem_.Tb_ext <= 16777216);
-    bool can_2d_c = (ldc * problem_.Tc_ext <= 16777216);
-
-    // Xe2 requires stronger alignment for block 2D.
-    if (arch == compute::gpu_arch_t::xe2 || arch == compute::gpu_arch_t::xe3) {
-        can_2d_a &= (align_a % 16 == 0);
-        can_2d_b &= (align_b % 16 == 0);
-        can_2d_c &= (align_c % 16 == 0);
-    }
-
     // Set up problem structure.
     problem_.Ta = problem_.Ta_ext = convert_dnnl_to_kernel_type(a_type);
     problem_.Tb = problem_.Tb_ext = convert_dnnl_to_kernel_type(b_type);
@@ -514,6 +503,17 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     base.sizes.k = k;
     base.sizes.batch = batch;
     base.stepping = stepping;
+
+    bool can_2d_a = (lda * problem_.Ta_ext <= 16777216);
+    bool can_2d_b = (ldb * problem_.Tb_ext <= 16777216);
+    bool can_2d_c = (ldc * problem_.Tc_ext <= 16777216);
+
+    // Xe2 requires stronger alignment for block 2D.
+    if (arch == compute::gpu_arch_t::xe2 || arch == compute::gpu_arch_t::xe3) {
+        can_2d_a &= (align_a % 16 == 0);
+        can_2d_b &= (align_b % 16 == 0);
+        can_2d_c &= (align_c % 16 == 0);
+    }
 
     auto tags = const_cast<char *>(base.tags);
     while (*tags)
