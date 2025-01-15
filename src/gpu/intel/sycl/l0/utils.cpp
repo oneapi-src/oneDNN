@@ -293,10 +293,13 @@ bool compare_ze_devices(const ::sycl::device &lhs, const ::sycl::device &rhs) {
 }
 
 status_t get_device_ip(ze_device_handle_t device, uint32_t &ip_version) {
-    ze_device_properties_t deviceProps = {ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES};
-    ze_device_ip_version_ext_t devicePropsIP
-            = {ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT};
+    auto devicePropsIP = ze_device_ip_version_ext_t();
+    devicePropsIP.stype = ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT;
+
+    auto deviceProps = ze_device_properties_t();
+    deviceProps.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
     deviceProps.pNext = &devicePropsIP;
+
     CHECK(func_zeDeviceGetProperties(device, &deviceProps));
     ip_version = devicePropsIP.ipVersion;
     return status::success;
@@ -304,11 +307,13 @@ status_t get_device_ip(ze_device_handle_t device, uint32_t &ip_version) {
 
 status_t get_l0_device_enabled_systolic_intel(
         ze_device_handle_t device, bool &mayiuse_systolic) {
-    ze_device_module_properties_t deviceModProps
-            = {ZE_STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES};
     // Note: supported by Intel Driver 24.05 and onwards
-    ze_intel_device_module_dp_exp_properties_t deviceModPropsExt
-            = {ZE_STRUCTURE_INTEL_DEVICE_MODULE_DP_EXP_PROPERTIES};
+    auto deviceModPropsExt = ze_intel_device_module_dp_exp_properties_t();
+    deviceModPropsExt.stype
+            = ZE_STRUCTURE_INTEL_DEVICE_MODULE_DP_EXP_PROPERTIES;
+
+    auto deviceModProps = ze_device_module_properties_t();
+    deviceModProps.stype = ZE_STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES;
     deviceModProps.pNext = &deviceModPropsExt;
 
     CHECK(func_zeDeviceGetModuleProperties(device, &deviceModProps));
@@ -321,10 +326,13 @@ status_t get_l0_device_enabled_native_float_atomics(
         ze_device_handle_t device, uint64_t native_extensions) {
     using namespace gpu::intel::compute;
 
-    ze_device_properties_t deviceProps = {ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES};
-    ze_float_atomic_ext_properties_t fltAtom
-            = {ZE_STRUCTURE_TYPE_FLOAT_ATOMIC_EXT_PROPERTIES};
+    auto fltAtom = ze_float_atomic_ext_properties_t();
+    fltAtom.stype = ZE_STRUCTURE_TYPE_FLOAT_ATOMIC_EXT_PROPERTIES;
+
+    auto deviceProps = ze_device_properties_t();
+    deviceProps.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
     deviceProps.pNext = &fltAtom;
+
     CHECK(func_zeDeviceGetProperties(device, &deviceProps));
 
     ze_device_fp_atomic_ext_flags_t atomic_load_store
@@ -362,8 +370,9 @@ status_t get_l0_device_enabled_native_float_atomics(
 }
 
 status_t get_l0_device_eu_count(ze_device_handle_t device, int &eu_count) {
-    ze_device_properties_t deviceProps = {ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES};
-    ze_eu_count_ext_t eucnt = ze_eu_count_ext_t();
+    auto eucnt = ze_eu_count_ext_t();
+    auto deviceProps = ze_device_properties_t();
+    deviceProps.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
     deviceProps.pNext = &eucnt;
 
     CHECK(func_zeDeviceGetProperties(device, &deviceProps));
