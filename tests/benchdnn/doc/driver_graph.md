@@ -72,6 +72,11 @@ disabled. When the build option is on, and the `ONEDNN_GRAPH_DUMP=subgraph` envi
 variable is specified, the library generates JSON files with partitions
 returned.
 
+## Limitations
+
+* Graph driver doesn't support `--mode-modifier=M` or `--mode=F` (which contains
+  `--mode-modifier=M` in it).
+
 ## Example
 
 Run the demo `conv_post_ops_fusion` partition
