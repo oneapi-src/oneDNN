@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,6 +37,10 @@ namespace impl {
 #define VCHECK_REORDER(cond, msg, ...) \
     VCONDCHECK(primitive, create, check, reorder, (cond), \
             status::invalid_arguments, msg, ##__VA_ARGS__);
+
+#define VCHECK_REORDER_UNIMPL(cond, msg, ...) \
+    VCONDCHECK(primitive, create, check, reorder, (cond), \
+            status::unimplemented, msg, ##__VA_ARGS__);
 
 namespace {
 engine_t *get_reorder_engine(engine_t *src_engine, engine_t *dst_engine) {
@@ -100,24 +104,28 @@ status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
 
     // Check scales
     if (!attr->scales_.has_default_values()) {
+        static const std::vector<int> supported_args {
+                DNNL_ARG_SRC, DNNL_ARG_DST};
+        VCHECK_REORDER_UNIMPL(attr->scales_.has_default_values(supported_args),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+
         const auto &sc = attr->scales_;
         const auto &sc_src = sc.get(DNNL_ARG_SRC);
-        const int mask_src = sc_src.mask_;
+        const int mask_src = sc.get_mask(DNNL_ARG_SRC);
 
         VCHECK_REORDER(IMPLICATION(utils::one_of(src_md->data_type,
                                            data_type::s4, data_type::u4),
                                mask_src > 0),
                 VERBOSE_INVALID_DATATYPE, "mask for int4 source");
 
-        if (sc_src.ndims_ > 0) {
+        if (!sc_src.has_default_groups()) {
             const int src_ndims = s_mdw.ndims();
             const bool group_dims_are_consistent
-                    = IMPLICATION(sc_src.group_dims_[0] > 1,
-                              src_md->dims[src_ndims - 2]
-                                              % sc_src.group_dims_[0]
+                    = IMPLICATION(sc_src.get_group(0) > 1,
+                              src_md->dims[src_ndims - 2] % sc_src.get_group(0)
                                       == 0)
-                    && IMPLICATION(sc_src.group_dims_[1] > 1,
-                            src_md->dims[src_ndims - 1] % sc_src.group_dims_[1]
+                    && IMPLICATION(sc_src.get_group(1) > 1,
+                            src_md->dims[src_ndims - 1] % sc_src.get_group(1)
                                     == 0);
             VCHECK_REORDER(group_dims_are_consistent,
                     "groups dimensions are not consistent with reorder "
@@ -132,9 +140,8 @@ status_t reorder_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
                     "mask is not consistent with groups");
         }
 
-        const auto &sc_dst = sc.get(DNNL_ARG_DST);
-        VCHECK_REORDER(sc_dst.ndims_ == 0, VERBOSE_BAD_NDIMS, "dst scales",
-                sc_dst.ndims_);
+        VCHECK_REORDER(sc.get(DNNL_ARG_DST).has_default_groups(),
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
     bool is_cross_engine = src_engine != dst_engine

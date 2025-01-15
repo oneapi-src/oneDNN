@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -157,14 +157,14 @@ struct primitive_desc_t : public c_compatible {
         }
         if (arg & DNNL_ARG_ATTR_SCALES) {
             int scale_arg = arg & ~DNNL_ARG_ATTR_SCALES;
-            if (!attr()->scales_.get(scale_arg).has_default_values())
+            if (!attr()->scales_.has_default_values(scale_arg))
                 return arg_usage_t::input;
         }
         if ((arg == (DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
-                && !attr()->scales_.get(DNNL_ARG_SRC_0).has_default_values())
+                && !attr()->scales_.has_default_values(DNNL_ARG_SRC_0))
             return arg_usage_t::input;
         if ((arg == (DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1))
-                && !attr()->scales_.get(DNNL_ARG_SRC_1).has_default_values())
+                && !attr()->scales_.has_default_values(DNNL_ARG_SRC_1))
             return arg_usage_t::input;
         if (arg == DNNL_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
             return arg_usage_t::output;

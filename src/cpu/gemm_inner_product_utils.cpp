@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -157,17 +157,17 @@ pp_kernel_t::pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
     , bias_data_type_(bias_dt)
     , acc_data_type_(acc_dt)
     , dst_data_type_(dst_md->data_type)
-    , do_scale_(!attr->scales_.get(DNNL_ARG_SRC).has_default_values()
-              || !attr->scales_.get(DNNL_ARG_WEIGHTS).has_default_values())
+    , do_scale_(!attr->scales_.has_default_values(DNNL_ARG_SRC)
+              || !attr->scales_.has_default_values(DNNL_ARG_WEIGHTS))
     , ndims_(dst_md->ndims) {
 
-    if (do_scale_) {
-        int wei_mask = attr->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    if (!attr->scales_.has_default_values(DNNL_ARG_WEIGHTS)) {
+        int wei_mask = attr->scales_.get_mask(DNNL_ARG_WEIGHTS);
         // matmul: per_oc: 1 << (ndims_ - 1)
         // ip: per_oc: 1 << 0
         scale_idx_mult_ = wei_mask == (1 << (ndims_ - 1)) || wei_mask == 1 << 0;
     }
-    do_dst_scale_ = !attr->scales_.get(DNNL_ARG_DST).has_default_values();
+    do_dst_scale_ = !attr->scales_.has_default_values(DNNL_ARG_DST);
 
     post_ops_ = attr->post_ops_;
     const int eltwise_ind = post_ops_.find(primitive_kind::eltwise);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,12 +60,8 @@ struct ref_concat_t : public gpu::primitive_t {
             reorder_pds_.resize(n_ + use_tent_dst());
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
-                int mask = 0;
-                bool is_set = false;
-                VDISPATCH_CONCAT_SC(
-                        sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask, &is_set),
-                        VERBOSE_UNSUPPORTED_SCALES_CFG);
-                if (is_set) {
+                if (!sc.get(DNNL_ARG_MULTIPLE_SRC + i).has_default_values()) {
+                    int mask = sc.get_mask(DNNL_ARG_MULTIPLE_SRC + i);
                     VDISPATCH_CONCAT(mask == 0, "non-zero mask");
                     VDISPATCH_CONCAT_SC(r_attr.scales_.set(DNNL_ARG_SRC, mask),
                             VERBOSE_UNSUPPORTED_SCALES_CFG);

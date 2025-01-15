@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,19 +124,12 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     // arg scales section
     const auto &attr_scales = pd()->attr()->scales_;
     const bool with_wei_scales
-            = !attr_scales.get(DNNL_ARG_WEIGHTS).has_default_values();
-    const bool with_dst_scales
-            = !attr_scales.get(DNNL_ARG_DST).has_default_values();
-    const int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
+            = !attr_scales.has_default_values(DNNL_ARG_WEIGHTS);
+    const bool with_dst_scales = !attr_scales.has_default_values(DNNL_ARG_DST);
+    const int wei_scale_mask = attr_scales.get_mask(DNNL_ARG_WEIGHTS);
     const auto &wei_scale_dt = attr_scales.get_data_type(DNNL_ARG_WEIGHTS);
-    const bool wei_scale_per_k = wei_scale_mask & pd()->wei_qmask_K();
-    const auto wei_scale_group_ndim = attr_scales.get(DNNL_ARG_WEIGHTS).ndims_;
-    const auto wei_scale_group_k = wei_scale_group_ndim > 0
-            ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[0]
-            : (wei_scale_per_k ? 1 : K);
-    const auto wei_scale_group_n = wei_scale_group_ndim > 0
-            ? attr_scales.get(DNNL_ARG_WEIGHTS).group_dims_[1]
-            : 1;
+    const auto wei_scale_group_k = attr_scales.get_group(DNNL_ARG_WEIGHTS, 0);
+    const auto wei_scale_group_n = attr_scales.get_group(DNNL_ARG_WEIGHTS, 1);
     const auto wei_scale_ngroups_k = K / wei_scale_group_k;
     // Initialize a memory desc for quant entries for easier offset calculation.
     memory_desc_t wei_scale_md {};
@@ -144,15 +137,10 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
             wei_scale_mask, wei_scale_group_k, wei_scale_group_n,
             wei_scale_dt));
 
-    const bool with_src_scales
-            = !attr_scales.get(DNNL_ARG_SRC).has_default_values();
-    const int src_scale_mask = attr_scales.get(DNNL_ARG_SRC).mask_;
+    const bool with_src_scales = !attr_scales.has_default_values(DNNL_ARG_SRC);
+    const int src_scale_mask = attr_scales.get_mask(DNNL_ARG_SRC);
     const auto &src_scale_dt = attr_scales.get_data_type(DNNL_ARG_SRC);
-    const bool src_scale_per_k = src_scale_mask & pd()->src_qmask_K();
-    const auto src_scale_group_ndim = attr_scales.get(DNNL_ARG_SRC).ndims_;
-    const auto src_scale_group_k = src_scale_group_ndim > 0
-            ? attr_scales.get(DNNL_ARG_SRC).group_dims_[1]
-            : (src_scale_per_k ? 1 : K);
+    const auto src_scale_group_k = attr_scales.get_group(DNNL_ARG_SRC, 1);
     const auto src_scale_ngroups_k = K / src_scale_group_k;
     // Initialize a memory desc for quant entries for easier offset calculation.
     memory_desc_t src_scale_md {};

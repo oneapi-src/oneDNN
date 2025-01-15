@@ -618,18 +618,6 @@ std::string md2desc_str(const memory_desc_t *md) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &ss, const runtime_scales_t &scale) {
-    ss << scale.mask_;
-    ss << ":" << scale.data_type_;
-    if (scale.ndims_) {
-        ss << ":";
-        for (int i = 0; i < scale.ndims_ - 1; ++i)
-            ss << scale.group_dims_[i] << 'x';
-        ss << scale.group_dims_[scale.ndims_ - 1];
-    }
-    return ss;
-}
-
 std::ostream &operator<<(
         std::ostream &ss, const rnn_create_time_scales_t &rnn_scales) {
     ss << rnn_scales.mask_;
@@ -742,20 +730,13 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
     if (deterministic) {
         ss << field_delim() << "attr-deterministic:" << deterministic;
     }
+
+    // Fast exit if rest attributes were not specified.
     if (attr->has_default_values()) return ss;
 
-    const arg_scales_t &as = attr->scales_;
-    if (!as.has_default_values()) {
-        std::string delim = empty_delim;
-        ss << field_delim() << "attr-scales:";
-        for (const auto &map_entry : as.scales_) {
-            const auto &val = map_entry.second;
-            if (val.has_default_values()) continue;
-
-            int arg = map_entry.first;
-            ss << delim << arg2str(arg) << ":" << val;
-            delim = attr_delim;
-        }
+    const scales_t &scales = attr->scales_;
+    if (!scales.has_default_values()) {
+        ss << field_delim() << "attr-scales:" << scales.get_verbose();
     }
 
     const zero_points_t &zp = attr->zero_points_;

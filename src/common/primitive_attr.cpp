@@ -35,11 +35,6 @@ const primitive_attr_t &default_attr() {
     return default_attr_instance;
 }
 
-const runtime_scales_t &default_runtime_scale() {
-    static const runtime_scales_t default_runtime_scale_instance;
-    return default_runtime_scale_instance;
-}
-
 void rnn_create_time_scales_t::set_single_scale(float scale) {
     count_ = 1;
     mask_ = 0;
@@ -543,8 +538,9 @@ status_t dnnl_primitive_attr_set_scratchpad_mode(
 
 status_t dnnl_primitive_attr_set_scales_mask(
         primitive_attr_t *attr, int arg, int mask) {
-    bool ok = attr && mask >= 0 && arg >= 0;
-    if (!ok) return invalid_arguments;
+    VCHECK_ATTR(attr, VERBOSE_NULL_ARG);
+    VCHECK_ATTR(mask >= 0, VERBOSE_BAD_PARAM, "mask");
+    VCHECK_ATTR(arg >= 0, VERBOSE_BAD_PARAM, "arg");
     return attr->scales_.set(arg, mask);
 }
 
@@ -560,7 +556,7 @@ status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
             VERBOSE_INVALID_DATATYPE, "scales");
     VCHECK_ATTR(IMPLICATION(ndims, validate_dims(ndims, group_dims)),
             VERBOSE_BAD_PARAM, "group_dims");
-    return attr->scales_.set(arg, mask, ndims, group_dims, data_type);
+    return attr->scales_.set(arg, mask, data_type, ndims, group_dims);
 }
 
 status_t dnnl_primitive_attr_set_zero_points_mask(

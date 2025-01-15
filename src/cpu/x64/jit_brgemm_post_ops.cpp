@@ -579,7 +579,8 @@ dnnl::impl::cpu::x64::jit_brgemm_kernel_post_ops_t<
     const auto &wei_scales = attr_.scales_.get(DNNL_ARG_WEIGHTS);
     // per_oc: conv: 1 << 0, (1 << 1) + (1 << 0) (with groups)
     // per_oc: ip: 1 << 0
-    is_oc_scale_ = utils::one_of(wei_scales.mask_, 1 << 0, (1 << 1) + (1 << 0));
+    is_oc_scale_
+            = utils::one_of(wei_scales.get_mask(), 1 << 0, (1 << 1) + (1 << 0));
 
     inp_dt_ = brg_.dt_c;
     out_dt_ = brg_.dt_d;

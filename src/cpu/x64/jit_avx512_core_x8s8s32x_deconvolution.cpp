@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -294,7 +294,7 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
 
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    jcp.is_oc_scale = wei_scales.mask_ != 0;
+    jcp.is_oc_scale = wei_scales.get_mask() > 0;
     jcp.dst_scale = !dst_scales.has_default_values();
 
     jcp.dst_dt = dst_d.data_type();
@@ -386,7 +386,7 @@ bool _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::post_ops_ok(
 void _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
-    const int mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int mask = attr.scales_.get_mask(DNNL_ARG_WEIGHTS);
     const dim_t scales_count
             = mask == 0 ? 1 : static_cast<dim_t>(jcp.oc) * jcp.ngroups;
     const dim_t count = nstl::max<dim_t>(scales_count, 16);
@@ -1393,7 +1393,7 @@ const float *jit_avx512_core_x8s8s32x_deconvolution_fwd_t::adjust_oscales(
         const memory_tracking::grantor_t &scratchpad, const float *src_scales,
         const float *wei_scales) const {
     auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
-    int wei_mask = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    int wei_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
     float factor = (pd()->jcp_.signed_input && (!pd()->jcp_.has_vnni))
             ? 1.f / pd()->jcp_.wei_adj_scale
             : 1.0f;

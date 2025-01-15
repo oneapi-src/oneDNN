@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -120,8 +120,8 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
         const auto attr = pd()->attr();
         if (is_jit_supported && pd()->OC() > 1 && req_copy_scales(attr)) {
             const auto &attr_scales = attr->scales_;
-            int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-            if (wei_scale_mask != 0) {
+            int wei_scale_mask = attr_scales.get_mask(DNNL_ARG_WEIGHTS);
+            if (wei_scale_mask > 0) {
                 CHECK(safe_ptr_assign(jit_scale_precompute_,
                         new jit_avx512_core_scale_precompute_t(attr)));
                 CHECK(jit_scale_precompute_->create_kernel());
@@ -203,8 +203,8 @@ struct jit_avx512_core_amx_convolution_bwd_data_t : public primitive_t {
         const auto attr = pd()->attr();
         if (is_jit_supported && pd()->OC() > 1 && req_copy_scales(attr)) {
             const auto &attr_scales = attr->scales_;
-            int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-            if (wei_scale_mask != 0) {
+            int wei_scale_mask = attr_scales.get_mask(DNNL_ARG_WEIGHTS);
+            if (wei_scale_mask > 0) {
                 CHECK(safe_ptr_assign(jit_scale_precompute_,
                         new jit_avx512_core_scale_precompute_t(attr)));
                 CHECK(jit_scale_precompute_->create_kernel());

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -117,14 +117,17 @@ struct cudnn_reorder_lt_t : public gpu::primitive_t {
             return ok;
         }
 
-        bool scales_ok() const {
-            const auto &scales = attr()->scales_;
-            const auto &supported_args = {DNNL_ARG_FROM, DNNL_ARG_TO};
-            if (!scales.has_default_values(supported_args)) return false;
-            // cuDNN does not support scaling per dimension.
-            for (auto arg : supported_args)
-                if (scales.get(arg).mask_ != 0) return false;
-            return true;
+        bool scales_ok(const std::vector<int> &supported_args
+                = {DNNL_ARG_FROM, DNNL_ARG_TO}) const {
+            bool ok = attr()->scales_.has_default_values(supported_args);
+            for (int arg : supported_args) {
+                if (attr()->scales_.has_default_values(arg)) continue;
+
+                const auto &mask = attr()->scales_.get_mask(arg);
+                // cuDNN does not support scaling per dimension.
+                ok = ok && (mask == 0);
+            }
+            return ok;
         }
 
         bool post_ops_ok() const {
@@ -144,11 +147,6 @@ struct cudnn_reorder_lt_t : public gpu::primitive_t {
                     && post_ops_ok();
             if (!ok) return status::unimplemented;
 
-            primitive_attr_t r_attr;
-            int mask = 0;
-            bool is_set = false;
-            auto src = DNNL_ARG_DST;
-            auto dst = DNNL_ARG_SRC;
             if (src_float_) {
                 src_scratch_md_ = *src_md();
                 dst_scratch_md_ = create_temp_md(src_scratch_md_);
@@ -157,21 +155,23 @@ struct cudnn_reorder_lt_t : public gpu::primitive_t {
                 src_scratch_md_ = create_temp_md(dst_scratch_md_);
                 dst_scratch_md_ = *dst_md();
             }
-            attr()->scales_.get(src, &mask, &is_set);
-            if (is_set) { r_attr.scales_.set(src, mask); }
 
-            attr()->scales_.get(dst, &mask, &is_set);
-            if (is_set) { r_attr.scales_.set(dst, mask); }
+            primitive_attr_t r_attr;
+            if (!attr()->scales_.has_default_values(DNNL_ARG_SRC)) {
+                const auto mask = attr()->scales_.get_mask(DNNL_ARG_SRC);
+                r_attr.scales_.set(DNNL_ARG_SRC, mask);
+            }
 
-            status_t generic_ok = reorder_primitive_desc_create(
-                    generic_reorder_desc_, engine, &src_scratch_md_,
-                    &dst_scratch_md_, &r_attr);
-            ok = ok && (generic_ok == status::success);
+            if (!attr()->scales_.has_default_values(DNNL_ARG_DST)) {
+                const auto mask = attr()->scales_.get_mask(DNNL_ARG_DST);
+                r_attr.scales_.set(DNNL_ARG_DST, mask);
+            }
 
-            if (!ok) return status::unimplemented;
+            CHECK(reorder_primitive_desc_create(generic_reorder_desc_, engine,
+                    &src_scratch_md_, &dst_scratch_md_, &r_attr));
             init_scratchpad();
 
-            return dnnl_success;
+            return status::success;
         }
 
         void init_scratchpad() {

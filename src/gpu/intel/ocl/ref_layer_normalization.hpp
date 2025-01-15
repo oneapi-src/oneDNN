@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,9 +93,9 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
         CHECK(status);
 
         kernel_ctx.define_int("WITH_SRC_SCALES",
-                !pd()->attr()->scales_.get(DNNL_ARG_SRC).has_default_values());
+                !pd()->attr()->scales_.has_default_values(DNNL_ARG_SRC));
         kernel_ctx.define_int("WITH_DST_SCALES",
-                !pd()->attr()->scales_.get(DNNL_ARG_DST).has_default_values());
+                !pd()->attr()->scales_.has_default_values(DNNL_ARG_DST));
 
         CHECK(create_kernel(engine, &kernel_, "ref_lnorm_fwd", kernel_ctx));
         if (!kernel_) return status::runtime_error;

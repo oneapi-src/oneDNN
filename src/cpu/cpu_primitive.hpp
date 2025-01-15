@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@
     alignas(16) float CONCAT2(scales, _buf16)[16] = {0}; \
     const float *scales {nullptr}; \
     if ((attr)) { \
-        if ((attr)->scales_.get(arg).has_default_values()) { \
+        if ((attr)->scales_.has_default_values(arg)) { \
             utils::array_set(CONCAT2(scales, _buf16), 1.0f, 16); \
             scales = CONCAT2(scales, _buf16); \
         } else { \
@@ -92,7 +92,7 @@
 
 #define ASSIGN_ARG_SCALE_VALUE(scale, mem_arg) \
     alignas(16) float CONCAT2(CONCAT2(scales, _buf16), mem_arg)[16] = {0}; \
-    if (pd()->attr()->scales_.get(mem_arg).has_default_values()) { \
+    if (pd()->attr()->scales_.has_default_values(mem_arg)) { \
         utils::array_set(CONCAT2(CONCAT2(scales, _buf16), mem_arg), 1.0f, 16); \
         scale = CONCAT2(CONCAT2(scales, _buf16), mem_arg); \
     } else { \

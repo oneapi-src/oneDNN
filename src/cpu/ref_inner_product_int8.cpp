@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -76,13 +76,12 @@ status_t ref_inner_product_int8_fwd_t::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     const auto &attr_scales = pd()->attr()->scales_;
-    const bool with_dst_scales
-            = !attr_scales.get(DNNL_ARG_DST).has_default_values();
+    const bool with_dst_scales = !attr_scales.has_default_values(DNNL_ARG_DST);
 
     auto maybe_oscale = [&](float &d, dim_t oc) {
         // scale_idx_mult = 1 for per_oc scales and 0, otherwise
         const int scale_idx_mult
-                = attr_scales.get(DNNL_ARG_WEIGHTS).mask_ == (1 << 0);
+                = attr_scales.get_mask(DNNL_ARG_WEIGHTS) == (1 << 0);
         d *= src_scales[0] * wei_scales[oc * scale_idx_mult];
     };
 

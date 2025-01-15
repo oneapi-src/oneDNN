@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ struct ref_sycl_softmax_fwd_t : public gpu::generic::sycl::primitive_t {
             VDISPATCH_SOFTMAX(attr()->has_default_values(
                                       sm::scales_runtime | sm::post_ops),
                     VERBOSE_UNSUPPORTED_ATTR);
-            VDISPATCH_SOFTMAX(attr_oscale_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VDISPATCH_SOFTMAX(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_SOFTMAX(sycl_post_ops_t::post_ops_ok(attr(), true, false),
                     VERBOSE_UNSUPPORTED_POSTOP);
             VDISPATCH_SOFTMAX_SC(
@@ -66,15 +66,6 @@ struct ref_sycl_softmax_fwd_t : public gpu::generic::sycl::primitive_t {
 
         sycl_softmax_conf_t conf_;
         status_t init_conf();
-
-        bool attr_oscale_ok() const {
-            const auto &scales = attr()->scales_;
-            bool ok = true;
-            for (const auto &e : scales.scales_) {
-                ok = ok && e.second.mask_ == 0;
-            }
-            return ok;
-        }
 
         bool check_data_types(data_type_t src) {
             return utils::one_of(src, data_type::f32, data_type::bf16,

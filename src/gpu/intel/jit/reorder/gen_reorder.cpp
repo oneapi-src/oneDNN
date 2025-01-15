@@ -58,8 +58,13 @@ status_t gen_reorder_t::pd_t::init(impl::engine_t *engine,
         return true;
     };
     auto scales_ok = [&]() {
-        return (attr()->scales_.get(DNNL_ARG_SRC).mask_ == 0)
-                && (attr()->scales_.get(DNNL_ARG_DST).mask_ == 0);
+        const bool src_scale_ok
+                = attr()->scales_.has_default_values(DNNL_ARG_SRC)
+                || attr()->scales_.get_mask(DNNL_ARG_SRC) == 0;
+        const bool dst_scale_ok
+                = attr()->scales_.has_default_values(DNNL_ARG_DST)
+                || attr()->scales_.get_mask(DNNL_ARG_DST) == 0;
+        return src_scale_ok && dst_scale_ok;
     };
     auto is_bf16_or_f32_or_f8 = [](data_type_t dt) {
         return utils::one_of(dt, bf16, f32, f8_e5m2, f8_e4m3);

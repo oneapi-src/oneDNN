@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -215,9 +215,9 @@ struct gen9_softmax_fwd_t : public gpu_primitive_t {
         kernel_ctx.add_option("-cl-std=CL2.0");
         kernel_ctx.define_int("LOGSOFTMAX", pd()->is_logsoftmax());
         kernel_ctx.define_int("WITH_SRC_SCALES",
-                !pd()->attr()->scales_.get(DNNL_ARG_SRC).has_default_values());
+                !pd()->attr()->scales_.has_default_values(DNNL_ARG_SRC));
         kernel_ctx.define_int("WITH_DST_SCALES",
-                !pd()->attr()->scales_.get(DNNL_ARG_DST).has_default_values());
+                !pd()->attr()->scales_.has_default_values(DNNL_ARG_DST));
 
         const memory_desc_wrapper dst_mdw(pd()->dst_md());
         const memory_desc_wrapper src_mdw(pd()->src_md());

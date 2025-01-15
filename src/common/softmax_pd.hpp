@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -176,11 +176,18 @@ protected:
                 dst_md_, src_md_.format_desc.blocking);
     }
 
-    bool attr_scales_ok() const {
+    bool attr_scales_ok(const std::vector<int> &supported_args
+            = {DNNL_ARG_SRC, DNNL_ARG_DST}) const {
         const auto &scales = attr()->scales_;
-        bool ok = true;
-        for (const auto &e : scales.scales_) {
-            ok = ok && e.second.mask_ == 0;
+        bool ok = scales.has_default_values(supported_args);
+
+        for (const auto &arg : supported_args) {
+            if (scales.has_default_values(arg)) continue;
+
+            // TODO: disallow non-int8 scales?
+            // const data_type_t dt = arg_md(arg)->data_type;
+            // ok = ok && utils::one_of(dt, s8, u8);
+            ok = ok && scales.get_mask(arg) == 0;
         }
         return ok;
     }

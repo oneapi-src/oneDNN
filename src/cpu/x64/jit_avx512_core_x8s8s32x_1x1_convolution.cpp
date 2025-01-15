@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
             = scratchpad.template get<float>(key_conv_adjusted_scales);
     // Src scale is always a single value
     float src_scale = src_scales[0];
-    int wei_mask = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    int wei_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
     float factor = (pd()->jcp_.signed_input && (!pd()->jcp_.has_vnni))
             ? 1.f / pd()->jcp_.wei_adj_scale
             : 1.f;
@@ -92,7 +92,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
         auto dw_local_scales
                 = dw_scratchpad.template get<float>(key_conv_adjusted_scales);
         auto attr_dw = pd()->dw_conv_pd_->attr();
-        int wei_mask = attr_dw->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+        int wei_mask = attr_dw->scales_.get_mask(DNNL_ARG_WEIGHTS);
         dim_t count = wei_mask == 0 ? 1 : pd()->dw_conv_pd_->OC();
         float factor = 1.f / jcp_dw->wei_adj_scale;
         if (count == 1) {

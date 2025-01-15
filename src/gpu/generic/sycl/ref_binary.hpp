@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,8 +87,7 @@ struct ref_binary_t : public gpu::generic::sycl::primitive_t {
             const auto &scales = attr()->scales_;
             bool dt_ok = true;
             for (auto arg : supported_args) {
-                auto &s = scales.get(arg);
-                dt_ok = dt_ok && is_supported_type(s.data_type_);
+                dt_ok = dt_ok && is_supported_type(scales.get_data_type(arg));
             }
             return dt_ok && attr_scales_ok(supported_args);
         }

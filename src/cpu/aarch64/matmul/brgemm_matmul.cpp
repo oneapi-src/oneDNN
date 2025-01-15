@@ -72,9 +72,9 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         const std::vector<int> supported_args
                 = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
         bool ok = attr_scales_ok(supported_args);
-        if (!attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
-                && !attr()->scales_.get(DNNL_ARG_WEIGHTS).has_default_values()
-                && attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_ != 0) {
+        if (!attr()->scales_.has_default_values(DNNL_ARG_SRC)
+                && !attr()->scales_.has_default_values(DNNL_ARG_WEIGHTS)
+                && attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) > 0) {
             // This case requires scratchpad
             if (N() == DNNL_RUNTIME_DIM_VAL) ok = false;
         }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,16 +55,17 @@ status_t binary_attr_check(const binary_desc_t &desc, const engine_t *engine,
 
     // Check scales
     if (!attr->scales_.has_default_values()) {
-        VCHECK_BINARY_UNIMPL(attr->scales_.has_default_values(
-                                     {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1}),
+        static const std::vector<int> supported_args {
+                DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
+        VCHECK_BINARY_UNIMPL(attr->scales_.has_default_values(supported_args),
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
 
-        const auto &sc = attr->scales_;
-        const int mask_src_0 = sc.get(DNNL_ARG_SRC_0).mask_;
-        const int mask_src_1 = sc.get(DNNL_ARG_SRC_1).mask_;
+        for (int arg : supported_args) {
+            if (attr->scales_.has_default_values(arg)) continue;
 
-        VCHECK_BINARY_UNIMPL(utils::everyone_is(0, mask_src_0, mask_src_1),
-                VERBOSE_UNSUPPORTED_SCALES_CFG);
+            const int mask = attr->scales_.get_mask(arg);
+            VCHECK_BINARY_UNIMPL(mask == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+        }
     }
 
     // Check post-ops

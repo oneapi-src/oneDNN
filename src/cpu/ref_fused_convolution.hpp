@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2022 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -224,10 +224,10 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             primitive_attr_t attr_1x1(*attr());
             // erase dw_conv post-op scales
             for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-                auto &scale
-                        = attr_1x1.scales_.get(DNNL_ARG_ATTR_POST_OP_DW | arg);
-                if (!scale.has_default_values())
-                    attr_1x1.scales_.reset(DNNL_ARG_ATTR_POST_OP_DW | arg);
+                if (!attr_1x1.scales_.has_default_values(
+                            DNNL_ARG_ATTR_POST_OP_DW | arg))
+                    CHECK(attr_1x1.scales_.set(DNNL_ARG_ATTR_POST_OP_DW | arg,
+                            default_quant_entry()));
             }
             // erase post-ops after fusion as they will be handled separately
             auto &e = attr_1x1.post_ops_.entry_;
@@ -250,7 +250,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             arg_cache.append_ctx_arg(DNNL_ARG_SRC);
             arg_cache.append_ctx_arg(DNNL_ARG_WEIGHTS);
             for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
-                if (!attr_1x1.scales_.get(arg).has_default_values())
+                if (!attr_1x1.scales_.has_default_values(arg))
                     arg_cache.append_ctx_arg(DNNL_ARG_ATTR_SCALES | arg);
             if (desc()->bias_desc.data_type != data_type::undef)
                 arg_cache.append_ctx_arg(DNNL_ARG_BIAS);
@@ -316,12 +316,12 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 arg_cache.append_ctx_arg(DNNL_ARG_WEIGHTS,
                         DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
                 for (auto arg : {DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
-                    if (!attr_dw.scales_.get(arg).has_default_values())
+                    if (!attr_dw.scales_.has_default_values(arg))
                         arg_cache.append_ctx_arg(DNNL_ARG_ATTR_SCALES | arg,
                                 DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_SCALES
                                         | arg);
                 // dw_conv src_scale = 1x1_conv dst_scale
-                if (!attr_1x1.scales_.get(DNNL_ARG_DST).has_default_values())
+                if (!attr_1x1.scales_.has_default_values(DNNL_ARG_DST))
                     arg_cache.append_ctx_arg(
                             DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC,
                             DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);

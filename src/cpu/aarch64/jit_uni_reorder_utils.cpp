@@ -276,24 +276,21 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
 
     p.src_scale_type = scale_type_t::NONE;
     int src_mask = 0;
-    bool is_src_set = false;
-    CHECK(attr->scales_.get(DNNL_ARG_SRC, &src_mask, &is_src_set));
-    if (is_src_set) {
+    if (!attr->scales_.has_default_values(DNNL_ARG_SRC)) {
+        src_mask = attr->scales_.get_mask(DNNL_ARG_SRC);
         p.src_scale_type
                 = src_mask == 0 ? scale_type_t::COMMON : scale_type_t::MANY;
     }
 
     p.dst_scale_type = scale_type_t::NONE;
     int dst_mask = 0;
-    bool is_dst_set = false;
-    CHECK(attr->scales_.get(DNNL_ARG_DST, &dst_mask, &is_dst_set));
-    if (is_dst_set) {
+    if (!attr->scales_.has_default_values(DNNL_ARG_DST)) {
+        dst_mask = attr->scales_.get_mask(DNNL_ARG_DST);
         p.dst_scale_type
                 = dst_mask == 0 ? scale_type_t::COMMON : scale_type_t::MANY;
     }
 
-    if (is_src_set && is_dst_set && src_mask != dst_mask)
-        return status::unimplemented;
+    if (src_mask != dst_mask) return status::unimplemented;
 
     p.scale_adjust = (om_d.extra().flags & memory_extra_flags::scale_adjust)
             ? om_d.extra().scale_adjust

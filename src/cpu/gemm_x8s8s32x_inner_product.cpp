@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,10 +64,9 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
     const float *scales = precompute_scales(scratchpad, src_scales, wei_scales,
-            IC, OC, false, wei_scale_mask != 0, pd()->attr());
+            IC, OC, false, wei_scale_mask > 0, pd()->attr());
 
     int32_t *acc = pd()->dst_is_acc_
             ? (int32_t *)dst

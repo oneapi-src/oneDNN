@@ -95,14 +95,19 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
                         "memory_desc_reshape()");
             }
             primitive_attr_t gemm_attr = *attr();
-            auto wei_mask = gemm_attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
-            if (wei_mask == 1) //transpose mask for gemm
-                VDISPATCH_INNER_PRODUCT_SC(
-                        gemm_attr.scales_.set(
-                                DNNL_ARG_WEIGHTS, 1 << (b_md.ndims - 1)),
-                        VERBOSE_UNSUPPORTED_ATTR);
-            else if (wei_mask != 0)
-                return status::unimplemented;
+            if (!gemm_attr.scales_.has_default_values(DNNL_ARG_WEIGHTS)) {
+                auto wei_mask = gemm_attr.scales_.get_mask(DNNL_ARG_WEIGHTS);
+                if (wei_mask == 1) {
+                    // Transpose the mask for gemm.
+                    VDISPATCH_INNER_PRODUCT_SC(
+                            gemm_attr.scales_.set(
+                                    DNNL_ARG_WEIGHTS, 1 << (b_md.ndims - 1)),
+                            VERBOSE_UNSUPPORTED_SCALES_CFG);
+                } else {
+                    VDISPATCH_INNER_PRODUCT(
+                            wei_mask == 0, VERBOSE_UNSUPPORTED_ATTR);
+                }
+            }
             VDISPATCH_INNER_PRODUCT_SC(
                     create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
                             &bias_md, desc()->accum_data_type, &gemm_attr,

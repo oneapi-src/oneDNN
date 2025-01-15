@@ -2133,8 +2133,8 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     jcp.dst_os_stride = dst_d.is_blocking_desc()
             ? dst_d.blocking_desc().strides[ndims - 1]
             : 0;
-    jcp.scale_idx_mult = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_ != 0;
-    jcp.with_dst_scale = !attr.scales_.get(DNNL_ARG_DST).has_default_values();
+    jcp.scale_idx_mult = attr.scales_.get_mask(DNNL_ARG_WEIGHTS) > 0;
+    jcp.with_dst_scale = !attr.scales_.has_default_values(DNNL_ARG_DST);
     book_precomputed_scales(scratchpad, attr.scales_, jcp.ngroups * jcp.oc);
 
     if (jcp.zp.src_exists) {

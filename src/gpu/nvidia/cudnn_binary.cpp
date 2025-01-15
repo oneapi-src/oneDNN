@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020-2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,11 +35,11 @@ status_t cudnn_binary_t::execute(const exec_ctx_t &ctx) const {
     nvidia::stream_t *cuda_stream
             = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
-    if (!pd()->attr()->scales_.get(DNNL_ARG_SRC_0).has_default_values())
+    if (!pd()->attr()->scales_.has_default_values(DNNL_ARG_SRC_0))
         CHECK(stream_utils::copy_input_arg_to_host(ctx, cuda_stream,
                 &host_scales_[0], DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0,
                 sizeof(float)));
-    if (!pd()->attr()->scales_.get(DNNL_ARG_SRC_1).has_default_values())
+    if (!pd()->attr()->scales_.has_default_values(DNNL_ARG_SRC_1))
         CHECK(stream_utils::copy_input_arg_to_host(ctx, cuda_stream,
                 &host_scales_[1], DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1,
                 sizeof(float)));

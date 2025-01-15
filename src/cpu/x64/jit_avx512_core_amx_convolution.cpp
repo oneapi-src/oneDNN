@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,11 +99,10 @@ jit_avx512_core_amx_convolution_fwd_t::execute_forward_reduced_lowering(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
     const float *oscales = scale_utils::precompute_scales(
             ctx.get_scratchpad_grantor(), src_scales, wei_scales, pd()->IC(),
-            pd()->OC(), false, wei_scale_mask != 0, pd()->attr(),
+            pd()->OC(), false, wei_scale_mask > 0, pd()->attr(),
             jit_scale_precompute_.get());
 
     auto inp_p_buffer = ctx.get_scratchpad_grantor().template get<char>(
@@ -457,11 +456,10 @@ status_t jit_avx512_core_amx_convolution_fwd_t::execute_forward(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
     const float *oscales = scale_utils::precompute_scales(
             ctx.get_scratchpad_grantor(), src_scales, wei_scales, pd()->IC(),
-            pd()->OC(), false, wei_scale_mask != 0, pd()->attr(),
+            pd()->OC(), false, wei_scale_mask > 0, pd()->attr(),
             jit_scale_precompute_.get());
 
     // TODO: use block offset instead of hand-calculated one
@@ -831,11 +829,10 @@ status_t jit_avx512_core_amx_convolution_bwd_data_t::execute_backward(
     DEFINE_ARG_SCALES_BUFFER(wei_scales, DNNL_ARG_WEIGHTS);
     DEFINE_ARG_SCALES_BUFFER(dst_scales, DNNL_ARG_DST);
 
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
     const float *oscales = scale_utils::precompute_scales(
             ctx.get_scratchpad_grantor(), src_scales, wei_scales, pd()->IC(),
-            pd()->OC(), false, wei_scale_mask != 0, pd()->attr(),
+            pd()->OC(), false, wei_scale_mask > 0, pd()->attr(),
             jit_scale_precompute_.get());
 
     amx_utils::execute_backward_convolution_body(ctx, pd()->jcp_, kernel_,

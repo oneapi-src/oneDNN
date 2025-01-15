@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -164,12 +164,18 @@ status_t layer_normalization_attr_check(const layer_normalization_desc_t &desc,
 
         // Check scales
         if (!attr->scales_.has_default_values()) {
-            const auto &sc = attr->scales_;
-            const int mask_src = sc.get(DNNL_ARG_SRC).mask_;
-            const int mask_dst = sc.get(DNNL_ARG_DST).mask_;
-
-            VCHECK_LNORM_UNIMPL(utils::everyone_is(0, mask_src, mask_dst),
+            static const std::vector<int> supported_args {
+                    DNNL_ARG_SRC, DNNL_ARG_DST};
+            VCHECK_LNORM_UNIMPL(
+                    attr->scales_.has_default_values(supported_args),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+            for (int arg : supported_args) {
+                if (attr->scales_.has_default_values(arg)) continue;
+
+                const int mask = attr->scales_.get_mask(arg);
+                VCHECK_LNORM_UNIMPL(mask == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+            }
         }
 
         // Check post-ops

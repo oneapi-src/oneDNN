@@ -105,9 +105,9 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
                 = {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
         bool ok = attr_scales_ok(supported_args);
         const auto &asc = attr()->scales_;
-        if (!asc.get(DNNL_ARG_SRC).has_default_values()
-                && !asc.get(DNNL_ARG_WEIGHTS).has_default_values()
-                && asc.get(DNNL_ARG_WEIGHTS).mask_ != 0) {
+        if (!asc.has_default_values(DNNL_ARG_SRC)
+                && !asc.has_default_values(DNNL_ARG_WEIGHTS)
+                && asc.get_mask(DNNL_ARG_WEIGHTS) > 0) {
             // This case requires scratchpad
             if (N() == DNNL_RUNTIME_DIM_VAL) ok = false;
         }
@@ -118,14 +118,14 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             ok = ok && one_of(asc.get_data_type(DNNL_ARG_DST), undef, f32);
         }
         // Implementation has limited support w.r.t. scales groups.
-        if (!asc.get(DNNL_ARG_WEIGHTS).has_default_values()) {
+        if (!asc.has_default_values(DNNL_ARG_WEIGHTS)) {
             if (!asc.get(DNNL_ARG_WEIGHTS).has_default_groups()) {
                 // Only grouping over K is supported.
-                ok = ok && asc.get(DNNL_ARG_WEIGHTS).group_dims_[1] == 1;
+                ok = ok && asc.get_group(DNNL_ARG_WEIGHTS, 1) == 1;
                 // Only 'per_ocic' mask is supported, but not 'per_tensor' in
                 // benchdnn terms. In numbers, it's '12' is supported while for
                 // 4D '15' is required.
-                const int mask = asc.get(DNNL_ARG_WEIGHTS).mask_;
+                const int mask = asc.get_mask(DNNL_ARG_WEIGHTS);
                 const int ndims = weights_md_.ndims;
                 const int last_dim = (1 << (ndims - 1));
                 const int prelast_dim = (1 << (ndims - 2));
@@ -359,8 +359,8 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
     if (is_jit_supported && wei_scale_count > 1 && req_copy_scales(attr)
             && !bgmmc.req_transpose_scales) {
         const auto &attr_scales = attr->scales_;
-        int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-        if (wei_scale_mask != 0) {
+        int wei_scale_mask = attr_scales.get_mask(DNNL_ARG_WEIGHTS);
+        if (wei_scale_mask > 0) {
             CHECK(safe_ptr_assign(jit_scale_precompute_,
                     new jit_avx512_core_scale_precompute_t(attr)));
             CHECK(jit_scale_precompute_->create_kernel());
@@ -385,10 +385,13 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     matmul_helper_t helper(src_d, weights_d, dst_d);
 
     const auto &bgmmc = pd()->get_brgemm_matmul_conf();
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
-    const bool wei_scale_per_k = wei_scale_mask & pd()->wei_qmask_K();
-    const bool wei_scale_per_n = wei_scale_mask & pd()->wei_qmask_N();
+    const bool has_wei_scales
+            = !pd()->attr()->scales_.has_default_values(DNNL_ARG_WEIGHTS);
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
+    const bool wei_scale_per_k
+            = has_wei_scales && (wei_scale_mask & pd()->wei_qmask_K());
+    const bool wei_scale_per_n
+            = has_wei_scales && (wei_scale_mask & pd()->wei_qmask_N());
     const float *oscales = scale_utils::precompute_scales(
             ctx.get_scratchpad_grantor(), src_scales, wei_scales, pd()->K(),
             pd()->N(), wei_scale_per_k, wei_scale_per_n, pd()->attr(),

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -83,14 +83,17 @@ struct cudnn_reorder_t : public gpu::primitive_t {
             return ok;
         }
 
-        bool scales_ok() const {
-            const auto &scales = attr()->scales_;
-            const auto &supported_args = {DNNL_ARG_FROM, DNNL_ARG_TO};
-            if (!scales.has_default_values(supported_args)) return false;
-            // cuDNN does not support scaling per dimension.
-            for (auto arg : supported_args)
-                if (scales.get(arg).mask_ != 0) return false;
-            return true;
+        bool scales_ok(const std::vector<int> &supported_args
+                = {DNNL_ARG_FROM, DNNL_ARG_TO}) const {
+            bool ok = attr()->scales_.has_default_values(supported_args);
+            for (int arg : supported_args) {
+                if (attr()->scales_.has_default_values(arg)) continue;
+
+                const auto &mask = attr()->scales_.get_mask(arg);
+                // cuDNN does not support scaling per dimension.
+                ok = ok && (mask == 0);
+            }
+            return ok;
         }
 
         bool post_ops_ok() const {

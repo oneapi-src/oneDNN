@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 * Copyright 2024 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -191,7 +191,7 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
         memory_desc_t s32_dst_md_;
 
         bool default_scale(int ARG) const {
-            return attr()->scales_.get(ARG).has_default_values();
+            return attr()->scales_.has_default_values(ARG);
         }
 
     private:
@@ -215,10 +215,9 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
         }
 
         status_t create_scale_binary_pd(impl::engine_t *engine, int ARG) {
-            auto scale_md = dnnl_memory_desc();
-            scale_md.ndims = attr()->scales_.get(ARG).ndims_;
-            scale_md.data_type = attr()->scales_.get(ARG).data_type_;
-            scale_md.format_kind = dnnl_blocked;
+            memory_desc_t scale_md;
+            scale_md.data_type = attr()->scales_.get_data_type(ARG);
+            scale_md.format_kind = format_kind::blocked;
             auto format_desc = create_scaling_format_desc(ARG, scale_md);
 
             scale_md.format_desc = {format_desc};
@@ -246,7 +245,7 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
         }
 
         blocking_desc_t create_scaling_format_desc(
-                int ARG, dnnl_memory_desc &scale_md) {
+                int ARG, memory_desc_t &scale_md) {
             blocking_desc_t format_desc;
             memory_desc_t md;
             if (ARG == DNNL_ARG_SRC) {
@@ -255,11 +254,13 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
                 md = *weights_md(0);
             } else if (ARG == DNNL_ARG_DST) {
                 md = *dst_md();
+            } else {
+                assert(!"unexpected arg");
             }
 
             scale_md.ndims = md.ndims;
             for (int i = 0; i < md.ndims; i++) {
-                if (attr()->scales_.get(1).mask_ & (1 << i)) {
+                if (attr()->scales_.get_mask(ARG) & (1 << i)) {
                     scale_md.dims[i] = md.dims[i];
                 } else {
                     scale_md.dims[i] = 1;
@@ -303,20 +304,17 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
 
         bool single_scale(int ARG) const {
             const auto &scales = attr()->scales_;
-            return scales.get(ARG).mask_ == 0;
+            return scales.get_mask(ARG) == 0;
         }
 
-        bool scales_ok() {
-            data_type_t src_scale_dt
-                    = attr()->scales_.get(DNNL_ARG_SRC).data_type_;
-            data_type_t wei_scale_dt
-                    = attr()->scales_.get(DNNL_ARG_WEIGHTS).data_type_;
-            bool src_scales_ok = default_scale(DNNL_ARG_SRC)
-                    || utils::one_of(
-                            src_scale_dt, data_type::s8, data_type::s32);
-            bool wei_scales_ok = default_scale(DNNL_ARG_WEIGHTS)
-                    || utils::one_of(
-                            wei_scale_dt, data_type::s8, data_type::s32);
+        bool scales_ok() const {
+            bool src_scales_ok = IMPLICATION(!default_scale(DNNL_ARG_SRC),
+                    utils::one_of(attr()->scales_.get_data_type(DNNL_ARG_SRC),
+                            data_type::s8, data_type::s32));
+            bool wei_scales_ok = IMPLICATION(!default_scale(DNNL_ARG_WEIGHTS),
+                    utils::one_of(
+                            attr()->scales_.get_data_type(DNNL_ARG_WEIGHTS),
+                            data_type::s8, data_type::s32));
             return src_scales_ok && wei_scales_ok;
         }
 

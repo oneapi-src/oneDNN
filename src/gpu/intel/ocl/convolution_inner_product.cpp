@@ -198,7 +198,7 @@ status_t convolution_inner_product_fwd_t::execute_forward(
 
     const auto &args = ctx.args();
     for (const int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-        if (pd()->attr()->scales_.get(arg).has_default_values()) continue;
+        if (pd()->attr()->scales_.has_default_values(arg)) continue;
 
         c_args[DNNL_ARG_ATTR_SCALES | arg]
                 = args.at(DNNL_ARG_ATTR_SCALES | arg);

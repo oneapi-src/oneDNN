@@ -783,21 +783,22 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     const auto &src_scales = attr.scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
-    bgmmc.with_scales = !src_scales.has_default_values()
-            || !wei_scales.has_default_values();
-    if (bgmmc.with_scales) {
-        bgmmc.is_oscale_per_n = wei_scales.mask_ == 1 << (bgmmc.ndims - 1);
+    const bool has_wei_scales = !wei_scales.has_default_values();
+    bgmmc.with_scales = !src_scales.has_default_values() || has_wei_scales;
+    if (has_wei_scales) {
+        bgmmc.is_oscale_per_n
+                = wei_scales.get_mask() == (1 << (bgmmc.ndims - 1));
 
         // only common and per-oc-channel scales are supported
-        VCONDCHECK_BG(wei_scales.mask_ == 0 || bgmmc.is_oscale_per_n,
+        VCONDCHECK_BG(wei_scales.get_mask() == 0 || bgmmc.is_oscale_per_n,
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
     bgmmc.with_dst_scales = !dst_scales.has_default_values();
     // only common scales are supported
-    if (bgmmc.with_dst_scales && dst_scales.mask_ != 0)
-        return status::unimplemented;
+    VCONDCHECK_BG(!(bgmmc.with_dst_scales && dst_scales.get_mask() > 0),
+            VERBOSE_UNSUPPORTED_SCALES_CFG);
 
     const auto &p = attr.post_ops_;
     bgmmc.with_sum = p.find(primitive_kind::sum) != -1;

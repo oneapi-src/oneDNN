@@ -649,8 +649,8 @@ status_t brgemm_convolution_bwd_strided_t<isa>::init(engine_t *engine) {
     if (is_jit_supported && pd()->IC() > 1
             && req_copy_scales(attr, jcp.scale_adjust_factor)) {
         const auto &attr_scales = attr->scales_;
-        int wei_scale_mask = attr_scales.get(DNNL_ARG_WEIGHTS).mask_;
-        if (wei_scale_mask != 0) {
+        int wei_scale_mask = attr_scales.get_mask(DNNL_ARG_WEIGHTS);
+        if (wei_scale_mask > 0) {
             CHECK(safe_ptr_assign(jit_scale_precompute_,
                     new jit_avx512_core_scale_precompute_t(
                             attr, jcp.scale_adjust_factor)));
@@ -700,11 +700,10 @@ status_t brgemm_convolution_bwd_strided_t<isa>::execute(
 
     const memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
 
-    const int wei_scale_mask
-            = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_scale_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
     const float *oscales = scale_utils::precompute_scales(scratchpad,
             src_scales, wei_scales, pd()->OC(), pd()->IC(), false,
-            wei_scale_mask != 0, pd()->attr(), jit_scale_precompute_.get(),
+            wei_scale_mask > 0, pd()->attr(), jit_scale_precompute_.get(),
             jcp.scale_adjust_factor);
 
     brgemm_bwd_exec_ctx_t brgemm_ctx(ctx, _pd);

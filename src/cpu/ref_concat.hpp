@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,11 +58,10 @@ struct ref_concat_t : public primitive_t {
             reorder_pds_.resize(n_ + use_tent_dst());
             for (int i = 0; i < n_; ++i) {
                 primitive_attr_t r_attr;
-                if (!sc.get(DNNL_ARG_MULTIPLE_SRC + i).has_default_values()) {
-                    int mask = 0;
-                    CHECK(sc.get(DNNL_ARG_MULTIPLE_SRC + i, &mask, nullptr));
-                    if (mask != 0) return status::unimplemented;
-                    r_attr.scales_.set(DNNL_ARG_SRC, mask);
+                if (!sc.has_default_values(DNNL_ARG_MULTIPLE_SRC + i)) {
+                    int mask = sc.get_mask(DNNL_ARG_MULTIPLE_SRC + i);
+                    VDISPATCH_CONCAT(mask == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+                    CHECK(r_attr.scales_.set(DNNL_ARG_SRC, mask));
                 }
                 CHECK(reorder_primitive_desc_create(reorder_pds_[i], engine,
                         src_md(i), src_image_md(i), &r_attr));

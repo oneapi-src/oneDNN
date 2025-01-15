@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,23 +43,19 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
     // post-ops after depthwise post-op.
     auto &dw_po = attr_1x1.post_ops_.entry_[dw_po_index].depthwise_conv;
 
-    // erase 1x1 conv scales
-    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-        auto &scale = attr_dw.scales_.get(arg);
-        if (!scale.has_default_values()) attr_dw.scales_.reset(arg);
-    }
-
     const auto &dw_src_scales = attr_1x1.scales_.get(DNNL_ARG_DST);
     const auto &dw_wei_scales
             = attr_1x1.scales_.get(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
     const auto &dw_dst_scales
             = attr_1x1.scales_.get(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_DST);
+
+    assert(attr_dw.scales_.has_default_values());
     if (!dw_src_scales.has_default_values())
-        attr_dw.scales_.set(DNNL_ARG_SRC, dw_src_scales.mask_);
+        CHECK(attr_dw.scales_.set(DNNL_ARG_SRC, dw_src_scales.get_mask()));
     if (!dw_wei_scales.has_default_values())
-        attr_dw.scales_.set(DNNL_ARG_WEIGHTS, dw_wei_scales.mask_);
+        CHECK(attr_dw.scales_.set(DNNL_ARG_WEIGHTS, dw_wei_scales.get_mask()));
     if (!dw_dst_scales.has_default_values())
-        attr_dw.scales_.set(DNNL_ARG_DST, dw_dst_scales.mask_);
+        CHECK(attr_dw.scales_.set(DNNL_ARG_DST, dw_dst_scales.get_mask()));
 
     auto dw_po_len = attr_1x1.post_ops_.len() - (dw_po_index + 1);
     attr_dw.post_ops_.entry_.resize(dw_po_len);

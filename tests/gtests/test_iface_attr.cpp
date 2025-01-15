@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 * Copyright 2020-2021 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -281,15 +281,17 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScalesWithGroups) {
     for (auto arg : supported_args) {
         // single non-default scales for supported arg
         attr.set_scales(arg, 0, {});
-        // multiple scales with groups
+        // multiple scales with a single group dim
         attr.set_scales(arg, 1 << 0, {4});
+        // multiple scales with multiple group dims
+        attr.set_scales(arg, 1 << 0, {4, 1});
         // scales with groups and a data type
-        attr.set_scales(arg, 1 << 0, {4}, data_type::f32);
+        attr.set_scales(arg, 1 << 0, {4, 1}, data_type::f32);
     }
 
     for (auto arg : unsupported_args) {
         // multiple scales with groups for unsupported args
-        EXPECT_ANY_THROW(attr.set_scales(arg, 1 << 0, {4}));
+        EXPECT_ANY_THROW(attr.set_scales(arg, 1 << 0, {4, 1}));
         // multiple scales with non-default data type for unsupported args
         EXPECT_ANY_THROW(attr.set_scales(arg, 1 << 0, {}, data_type::bf16));
     }

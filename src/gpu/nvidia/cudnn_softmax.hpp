@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,19 +56,13 @@ struct cudnn_softmax_fwd_t : public gpu::primitive_t {
                     && set_default_formats() == status::success
                     && src_d.is_plain() && dst_d.is_plain() && dst_d == src_d
                     && IMPLICATION(!attr()->scales_.has_default_values(),
-                            check_scales_mask()
+                            attr_scales_ok()
                                     && dst_d.data_type() != data_type::s8);
             if (!ok) return status::unimplemented;
 
             softmax_impl_.reset(new cudnn_softmax_fwd_impl_t());
 
             return softmax_impl_->init(this);
-        }
-        bool check_scales_mask() const {
-            for (const auto &s : attr()->scales_.scales_) {
-                if (s.second.mask_ != 0) return false;
-            }
-            return true;
         }
 
         std::shared_ptr<cudnn_softmax_impl_base_t> softmax_impl_;

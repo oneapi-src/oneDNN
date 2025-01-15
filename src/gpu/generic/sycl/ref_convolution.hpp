@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ inline bool check_convolution_scales_types(const primitive_attr_t *attr) {
 
     const auto &scales = attr->scales_;
     for (auto arg : supported_args) {
-        auto dt = scales.get(arg).data_type_;
+        const auto dt = scales.get_data_type(arg);
         if (!is_supported_type(dt)) { return false; }
     }
     return true;

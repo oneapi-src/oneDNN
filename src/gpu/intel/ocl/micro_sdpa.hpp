@@ -92,7 +92,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
                     "tensors",
                     qry_md()->dims[1], key_md()->dims[1], val_md()->dims[1]);
 
-            int kq_scales_mask = desc()->kq_scales.mask_;
+            int kq_scales_mask = desc()->kq_scales.get_mask();
             int kq_zp_mask = desc()->kq_zero_points.get(DNNL_ARG_WEIGHTS);
             if (!desc()->kq_scales.has_default_values()
                     && !desc()->kq_zero_points.has_default_values())
@@ -119,7 +119,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
                         key_group_size());
             }
 
-            int vs_scales_mask = desc()->vs_scales.mask_;
+            int vs_scales_mask = desc()->vs_scales.get_mask();
             int vs_zp_mask = desc()->vs_zero_points.get(DNNL_ARG_WEIGHTS);
             if (!desc()->vs_scales.has_default_values()
                     && !desc()->vs_zero_points.has_default_values())

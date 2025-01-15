@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <algorithm>
+#include "primitive_attr.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -218,19 +219,6 @@ size_t get_md_hash(const memory_desc_t &md) {
     return seed;
 }
 
-// Generate a hash for runtime scales
-size_t get_runtime_scale_hash(const runtime_scales_t &scales) {
-    size_t seed = 0;
-    seed = hash_combine(seed, scales.mask_);
-    // scales: groups
-    const int ndims = scales.ndims_;
-    seed = hash_combine(seed, ndims);
-    if (ndims > 0) seed = get_array_hash(seed, scales.group_dims_, ndims);
-    // scales: data type
-    seed = hash_combine(seed, static_cast<size_t>(scales.data_type_));
-    return seed;
-}
-
 // Generate a hash for zero points
 size_t get_zero_points_hash(const zero_points_t &zps) {
     size_t seed = 0;
@@ -276,13 +264,7 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
     }
 
     if (!attr.scales_.has_default_values()) {
-        // go through scales for all arguments
-        for (const auto &p : attr.scales_.scales_) {
-            // scales: arg
-            seed = hash_combine(seed, p.first);
-            // scales: mask
-            seed = hash_combine(seed, get_runtime_scale_hash(p.second));
-        }
+        seed = hash_combine(seed, attr.scales_.get_hash());
     }
 
     seed = hash_combine(seed, get_zero_points_hash(attr.zero_points_));
@@ -776,9 +758,9 @@ size_t get_desc_hash(const sdpa_desc_t &desc) {
     seed = hash_combine(seed, get_md_hash(desc.q_desc));
     seed = hash_combine(seed, get_md_hash(desc.k_desc));
     seed = hash_combine(seed, get_md_hash(desc.v_desc));
-    seed = hash_combine(seed, get_runtime_scale_hash(desc.kq_scales));
+    seed = hash_combine(seed, desc.kq_scales.get_hash());
     seed = hash_combine(seed, get_zero_points_hash(desc.kq_zero_points));
-    seed = hash_combine(seed, get_runtime_scale_hash(desc.vs_scales));
+    seed = hash_combine(seed, desc.vs_scales.get_hash());
     seed = hash_combine(seed, get_zero_points_hash(desc.vs_zero_points));
     seed = hash_combine(seed, get_md_hash(desc.dst_desc));
     seed = hash_combine(seed, get_md_hash(desc.attn_mask_desc));

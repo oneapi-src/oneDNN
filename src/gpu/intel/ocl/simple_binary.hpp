@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ struct simple_binary_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         bool with_scales(int position) const {
-            return !attr()->scales_.get(position).has_default_values();
+            return !attr()->scales_.has_default_values(position);
         }
 
         bool with_scales() const {

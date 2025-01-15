@@ -178,18 +178,6 @@ void serialize_post_ops(
     }
 }
 
-void serialize_runtime_scales(
-        serialization_stream_t &sstream, const runtime_scales_t &scales) {
-    // scales: mask
-    sstream.write(&scales.mask_);
-    // scales: groups
-    const int ndims = scales.ndims_;
-    sstream.write(&ndims);
-    if (ndims > 0) sstream.write(scales.group_dims_, ndims);
-    // scales: data type
-    sstream.write(&scales.data_type_);
-}
-
 void serialize_zero_points(
         serialization_stream_t &sstream, const zero_points_t &zps) {
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
@@ -224,12 +212,7 @@ void serialize_attr(
 
     if (!attr.scales_.has_default_values()) {
         sstream.write("scale:");
-        // go through scales for all arguments
-        for (const auto &p : attr.scales_.scales_) {
-            // scales: arg
-            sstream.write(&p.first);
-            serialize_runtime_scales(sstream, p.second);
-        }
+        attr.scales_.serialize(sstream);
     }
     // zero_points
     if (!attr.zero_points_.has_default_values()) sstream.write("zp:");
@@ -626,9 +609,9 @@ void serialize_desc(serialization_stream_t &sstream, const sdpa_desc_t &desc) {
     serialize_md(sstream, desc.q_desc);
     serialize_md(sstream, desc.k_desc);
     serialize_md(sstream, desc.v_desc);
-    serialize_runtime_scales(sstream, desc.kq_scales);
+    desc.kq_scales.serialize(sstream);
     serialize_zero_points(sstream, desc.kq_zero_points);
-    serialize_runtime_scales(sstream, desc.vs_scales);
+    desc.vs_scales.serialize(sstream);
     serialize_zero_points(sstream, desc.vs_zero_points);
     serialize_md(sstream, desc.dst_desc);
     serialize_md(sstream, desc.attn_mask_desc);

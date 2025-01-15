@@ -203,10 +203,11 @@ sdpa_config_t *choose_config_xehpc(
 ///   |  3 (1100) | true    |
 ///   |  1 (1000) | true    |
 ///   |  8 (0001) | false   |
-bool with_quantize_common(const runtime_scales_t &scales) {
-    return !scales.has_default_values()
-            && (((scales.mask_ & 3) != 0 && (scales.mask_ & 12) == 0)
-                    || scales.mask_ == 0);
+bool with_quantize_common(const quant_entry_t &scale_entry) {
+    return !scale_entry.has_default_values()
+            && (((scale_entry.get_mask() & 3) != 0
+                        && (scale_entry.get_mask() & 12) == 0)
+                    || scale_entry.get_mask() == 0);
 }
 
 /// Returns true if a common zero points value is used for each slice of the

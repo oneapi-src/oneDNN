@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,12 +79,20 @@ private:
         memory_tensor_t data_mem(data_, conf_.data_md);
         memory_tensor_t scale_mem(scale_, conf_.data_scaleshift_md);
         memory_tensor_t shift_mem(shift_, conf_.data_scaleshift_md);
-        memory_plain_t rt_scale_mem(rt_scale_, conf_.scales_src_dt);
-        memory_plain_t dst_scale_mem(dst_scale_, conf_.scales_dst_dt);
         memory_tensor_t stat_mem(stat_, conf_.stat_md);
         memory_plain_t var_mem(var_, conf_.var_dt);
         memory_tensor_t dst_mem(dst_, conf_.dst_md);
 
+        float sr = 1.f;
+        if (!conf_.src_def) {
+            memory_plain_t rt_scale_mem(rt_scale_, conf_.scales_src_dt);
+            sr = rt_scale_mem.load(0);
+        }
+        float ds = 1.f;
+        if (!conf_.dst_def) {
+            memory_plain_t dst_scale_mem(dst_scale_, conf_.scales_dst_dt);
+            ds = dst_scale_mem.load(0);
+        }
         float eps = epsilon();
         const size_t s_off = conf_.stat_md.off_l(idx);
         auto v_mean = stat_mem.load(s_off);
@@ -104,8 +112,6 @@ private:
                 float s = data_mem.load(src_off);
                 float d = sm * (s - v_mean) + sv;
 
-                float sr = conf_.src_def ? 1.f : rt_scale_mem.load(0);
-                float ds = conf_.dst_def ? 1.f : dst_scale_mem.load(0);
                 d = (d * sr * (1.f / ds));
                 dst_mem.store(d, d_off);
             }
@@ -171,8 +177,6 @@ private:
         memory_tensor_t data_mem(data_, conf_.data_md);
         memory_tensor_t scale_mem(scale_, conf_.data_scaleshift_md);
         memory_tensor_t shift_mem(shift_, conf_.data_scaleshift_md);
-        memory_plain_t rt_scale_mem(rt_scale_, conf_.scales_src_dt);
-        memory_plain_t dst_scale_mem(dst_scale_, conf_.scales_dst_dt);
         memory_tensor_t stat_out_mem(mean_out_, conf_.stat_md);
         memory_plain_t var_out_mem(var_out_, conf_.var_dt);
         memory_tensor_t dst_mem(dst_, conf_.dst_md);
@@ -181,6 +185,17 @@ private:
             stat_out_mem.store(0, idx);
             var_out_mem.store(0, idx);
         }
+        float sr = 1.f;
+        if (!conf_.src_def) {
+            memory_plain_t rt_scale_mem(rt_scale_, conf_.scales_src_dt);
+            sr = rt_scale_mem.load(0);
+        }
+        float ds = 1.f;
+        if (!conf_.dst_def) {
+            memory_plain_t dst_scale_mem(dst_scale_, conf_.scales_dst_dt);
+            ds = dst_scale_mem.load(0);
+        }
+
         float eps = epsilon();
         const size_t s_off = conf_.stat_md.off_l(idx);
         float v_mean = 0.f;
@@ -217,9 +232,6 @@ private:
                 const auto d_off = dst_md().off_l(index);
                 float s = data_mem.load(src_off);
                 float d = sm * (s - v_mean) + sv;
-
-                float sr = conf_.src_def ? 1.f : rt_scale_mem.load(0);
-                float ds = conf_.dst_def ? 1.f : dst_scale_mem.load(0);
                 d = (d * sr * (1.f / ds));
 
                 dst_mem.store(d, d_off);

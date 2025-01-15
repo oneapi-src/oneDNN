@@ -70,17 +70,25 @@ struct gemm_matmul_t : public gpu_primitive_t {
                 return status::success;
             };
 
-            auto adjust_scales_mask = [&](arg_scales_t &scales, int arg,
-                                              int diff_dims) {
-                int mask = 0, nd = 0;
-                bool is_set = false;
-                data_type_t dt = dnnl_data_type_undef;
-                dims_t dims = {};
-                CHECK(attr()->scales_.get(arg, &mask, &is_set, &nd, dims, &dt));
-                mask = mask >> diff_dims;
-                if (is_set) { CHECK(scales.set(arg, mask, nd, dims, dt)); }
-                return status::success;
-            };
+            // The function shrinks the mask for scales and updates it in
+            // `scales` object.
+            auto adjust_scales_mask
+                    = [&](scales_t &scales, int arg, int diff_dims) {
+                          if (attr()->scales_.has_default_values(arg))
+                              return status::success;
+
+                          int mask = attr()->scales_.get_mask(arg) >> diff_dims;
+                          data_type_t dt = attr()->scales_.get_data_type(arg);
+                          int nd = 0;
+                          dims_t dims {};
+                          if (!attr()->scales_.get(arg).has_default_groups()) {
+                              nd = 2; // Note: hardcoded so far.
+                              dims[0] = attr()->scales_.get_group(arg, 0);
+                              dims[1] = attr()->scales_.get_group(arg, 1);
+                          }
+                          CHECK(scales.set(arg, mask, dt, nd, dims));
+                          return status::success;
+                      };
             if (!attr()->zero_points_.has_default_values()) {
                 CHECK(map_gemm_zp(DNNL_ARG_SRC, DNNL_ARG_B));
                 CHECK(map_gemm_zp(

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ const float *jit_avx512_core_x8s8s32x_convolution_fwd_t::adjust_oscales(
         const float *wei_scales) const {
     auto loc_scales = scratchpad.template get<float>(key_conv_adjusted_scales);
     const float src_scale = src_scales[0];
-    const int wei_mask = pd()->attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_mask = pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS);
     float factor = (pd()->jcp_.signed_input && (!pd()->jcp_.has_vnni))
             ? 1.f / pd()->jcp_.wei_adj_scale
             : 1.f;

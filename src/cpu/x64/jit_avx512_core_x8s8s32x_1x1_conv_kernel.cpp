@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1206,7 +1206,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
 
     const auto &wei_scales = attr.scales_.get(DNNL_ARG_WEIGHTS);
     const auto &dst_scales = attr.scales_.get(DNNL_ARG_DST);
-    jcp.is_oc_scale = wei_scales.mask_ != 0;
+    jcp.is_oc_scale = wei_scales.get_mask() > 0;
     jcp.dst_scale = !dst_scales.has_default_values();
 
     jcp.wei_adj_scale
@@ -1222,7 +1222,7 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_scratchpad(
         const jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
     using namespace dnnl::impl::memory_tracking::names;
 
-    const int wei_mask = attr.scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    const int wei_mask = attr.scales_.get_mask(DNNL_ARG_WEIGHTS);
     const dim_t scales_count
             = wei_mask == 0 ? 1 : static_cast<dim_t>(jcp.oc) * jcp.ngroups;
     const dim_t count = nstl::max<dim_t>(scales_count, (dim_t)jcp.ic_block);

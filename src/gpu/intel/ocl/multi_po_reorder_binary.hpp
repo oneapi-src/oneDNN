@@ -42,8 +42,8 @@ struct multi_po_reorder_binary_t : public gpu_primitive_t {
                 "multi_po_reorder_binary", multi_po_reorder_binary_t);
 
         status_t init(impl::engine_t *engine) {
-            if (attr()->scales_.get(DNNL_ARG_SRC_0).is_set_
-                    || attr()->scales_.get(DNNL_ARG_SRC_1).is_set_
+            if (!attr()->scales_.has_default_values(DNNL_ARG_SRC_0)
+                    || !attr()->scales_.get(DNNL_ARG_SRC_1).has_default_values()
                     || attr()->post_ops_.len() >= 1) {
                 VDISPATCH_BINARY(false, VERBOSE_UNSUPPORTED_ATTR);
             }
