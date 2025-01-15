@@ -169,7 +169,9 @@ void LevelZeroCodeGenerator<hw>::detectHWInfo(ze_context_handle_t context, ze_de
 #ifdef ZE_DEVICE_IP_VERSION_EXT_NAME
     // Try ZE_extension_device_ip_version first if available.
     ze_device_ip_version_ext_t vprop = {ZE_STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT, nullptr, 0};
-    ze_device_properties_t dprop = {ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES, &vprop};
+    auto dprop = ze_device_properties_t();
+    dprop.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+    dprop.pNext = &vprop;
 
     if (call_zeDeviceGetProperties(device, &dprop) == ZE_RESULT_SUCCESS) {
         outProduct = npack::decodeHWIPVersion(vprop.ipVersion);
