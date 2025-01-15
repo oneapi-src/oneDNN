@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -195,7 +195,7 @@ protected:
                 : pd_t(eng, p.aprop_kind, ip_src_desc, ip_weights_desc,
                         ip_dst_desc);
 
-        auto aa = allows_attr_t {false};
+        allows_attr_t aa {};
         aa.po_eltwise = true;
         aa.po_sum = true;
 #ifdef DNNL_SYCL_GENERIC

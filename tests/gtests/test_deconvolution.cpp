@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -309,7 +309,7 @@ protected:
                         *dec_src_desc, *dec_weights_desc, *dec_dst_desc,
                         strides, padL, padR);
 
-        auto aa = allows_attr_t {false};
+        allows_attr_t aa {};
 
 #ifndef DNNL_SYCL_GENERIC
         aa.po_binary = !is_amd_gpu(eng);
@@ -420,7 +420,7 @@ protected:
                         *dec_weights_desc, *dec_dst_desc, strides, padL, padR,
                         deconv_primitive_desc);
 
-        auto aa = allows_attr_t {false};
+        allows_attr_t aa {};
         test_bwd_pd_constructors<pd_t, hint_pd_t>(
                 deconv_bwd_data_primitive_desc, deconv_primitive_desc, aa,
                 algorithm::deconvolution_direct, *dec_src_desc,
@@ -493,7 +493,7 @@ protected:
                         *dec_weights_desc, *dec_bias_desc, *dec_dst_desc,
                         strides, padL, padR, deconv_primitive_desc);
 
-        auto aa = allows_attr_t {false};
+        allows_attr_t aa {};
         test_bwd_pd_constructors<pd_t, hint_pd_t>(
                 deconv_bwd_weights_primitive_desc, deconv_primitive_desc, aa,
                 algorithm::deconvolution_direct, *dec_src_desc,

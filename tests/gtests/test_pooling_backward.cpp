@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 * Copyright 2022-2023 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -233,7 +233,7 @@ protected:
         auto pool_bwd_prim_desc = pd_t(eng, p.aalgorithm, *src_desc, *dst_desc,
                 strides, ker, dilation, pad_l, pad_r, pool_prim_desc);
         // test all pd ctors
-        allows_attr_t aa {false}; // doesn't support anything
+        allows_attr_t aa {}; // doesn't support anything
         test_bwd_pd_constructors<pd_t, hint_pd_t>(pool_bwd_prim_desc,
                 pool_prim_desc, aa, p.aalgorithm, *src_desc, *dst_desc, strides,
                 ker, dilation, pad_l, pad_r);

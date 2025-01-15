@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -167,7 +167,7 @@ protected:
         prop_kind pk = !is_fwd(p.aprop_kind) ? prop_kind::forward_training
                                              : p.aprop_kind;
 
-        allows_attr_t aa {false};
+        allows_attr_t aa {};
         if (!is_amd_gpu(eng)) {
             aa.po_eltwise = true;
             aa.po_binary = true;
@@ -260,7 +260,7 @@ protected:
         // softmax specific types and values
         using pd_t = softmax_backward::primitive_desc;
         using hint_pd_t = softmax_forward::primitive_desc;
-        allows_attr_t aa {false}; // doesn't support anything
+        allows_attr_t aa {}; // doesn't support anything
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);

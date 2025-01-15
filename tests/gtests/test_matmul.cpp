@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -259,7 +259,7 @@ protected:
 
         auto matmul_pd = pd_t(eng, src_md, weights_md, bia_md, dst_md, attr);
 
-        auto aa = allows_attr_t {false};
+        allows_attr_t aa {};
         aa.po_binary = !is_amd_gpu(eng);
         aa.po_eltwise = true;
         aa.po_prelu = !is_amd_gpu(eng);

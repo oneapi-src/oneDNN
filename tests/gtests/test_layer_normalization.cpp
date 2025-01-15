@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -135,7 +135,7 @@ protected:
                 || impl::utils::one_of(dst_md->get_data_type(),
                         memory::data_type::s8, memory::data_type::u8);
 
-        auto aa = allows_attr_t {false};
+        allows_attr_t aa {};
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         aa.po_eltwise = is_cpu;
         aa.po_binary = is_cpu;

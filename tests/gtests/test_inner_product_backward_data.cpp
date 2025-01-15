@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2023 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -179,7 +179,7 @@ protected:
         auto ip_primitive_desc = pd_t(eng, ip_diff_src_desc, ip_weights_desc,
                 ip_diff_dst_desc, ip_fwd_pdesc);
 
-        allows_attr_t aa {false}; // doesn't support anything
+        allows_attr_t aa {}; // doesn't support anything
         test_bwd_pd_constructors<pd_t, hint_pd_t>(ip_primitive_desc,
                 ip_fwd_pdesc, aa, ip_diff_src_desc, ip_weights_desc,
                 ip_diff_dst_desc);

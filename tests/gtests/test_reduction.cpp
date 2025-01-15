@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,10 +85,10 @@ protected:
     void Test() {
         // reduction specific types and values
         using pd_t = reduction::primitive_desc;
-        allows_attr_t allowed_attributes {false}; // doesn't support anything
-        allowed_attributes.po_sum = true;
-        allowed_attributes.po_eltwise = true;
-        allowed_attributes.po_binary = true;
+        allows_attr_t aa {};
+        aa.po_sum = true;
+        aa.po_eltwise = true;
+        aa.po_binary = true;
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
@@ -101,8 +101,8 @@ protected:
         // regular pd ctor
         pd = pd_t(eng, p.aalgorithm, desc_src, desc_dst, p.p, p.eps);
         // test all pd ctors
-        test_fwd_pd_constructors<pd_t>(pd, allowed_attributes, p.aalgorithm,
-                desc_src, desc_dst, p.p, p.eps);
+        test_fwd_pd_constructors<pd_t>(
+                pd, aa, p.aalgorithm, desc_src, desc_dst, p.p, p.eps);
 
         EXPECT_ANY_THROW(reduction(pd, {}));
         // default primitive ctor
