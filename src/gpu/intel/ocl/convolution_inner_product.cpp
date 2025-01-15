@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -197,6 +197,13 @@ status_t convolution_inner_product_fwd_t::execute_forward(
             = memory_arg_t {conf.reorder_dst ? wspace_dst.get() : dst, false};
 
     const auto &args = ctx.args();
+    for (const int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+        if (pd()->attr()->scales_.get(arg).has_default_values()) continue;
+
+        c_args[DNNL_ARG_ATTR_SCALES | arg]
+                = args.at(DNNL_ARG_ATTR_SCALES | arg);
+    }
+
     for (int idx = 0; idx < pd()->attr()->post_ops_.len(); ++idx) {
         if (pd()->attr()->post_ops_.entry_[idx].is_binary()) {
             c_args[DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1]
