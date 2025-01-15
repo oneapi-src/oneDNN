@@ -50,7 +50,8 @@ add_library(${OBJ_LIB} OBJECT ${TEST_SRC})
 
 include_directories_with_host_compiler(${OBJ_LIB}
     PRIVATE
-    ${PROJECT_SOURCE_DIR}/tests/gtests/graph # gtest related headers
+    ${PROJECT_SOURCE_DIR}/third_party/gtest # gtest related headers
+    ${PROJECT_SOURCE_DIR}/tests/gtests/graph
     ${PROJECT_SOURCE_DIR}/src/
     ${PROJECT_SOURCE_DIR}/src/graph/backend/graph_compiler/core/src # for context
     ${CMAKE_CURRENT_SOURCE_DIR}/core
