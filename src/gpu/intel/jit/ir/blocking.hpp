@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ public:
         return loop_.is_empty() && thread_group_.is_empty() && iter_.is_empty();
     }
     bool is_spatial() const {
-        for (auto d : {pvars::iw, pvars::ow}) {
+        for (const auto &d : {pvars::iw, pvars::ow}) {
             if (iter_.has(d) && iter_[d] != 1) return true;
         }
         return false;
