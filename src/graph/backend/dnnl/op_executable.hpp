@@ -46,10 +46,22 @@
 #include "graph/backend/dnnl/fusion_info.hpp"
 #include "graph/backend/dnnl/internal_attrs.hpp"
 
+#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace graph {
 namespace dnnl_impl {
+
+#define OCL_CHECK(x) \
+    do { \
+        cl_int s = (x); \
+        if (s != CL_SUCCESS) { \
+            std::cout << "[" << __FILE__ << ":" << __LINE__ << "] '" << #x \
+                      << "' failed (status code: " << s << ")." << std::endl; \
+            exit(1); \
+        } \
+    } while (0)
 
 struct indices_t {
     // the type_t is used to indicate the indices is for input or output
@@ -2472,13 +2484,13 @@ struct genindex_executable_t : public op_executable_t {
     genindex_executable_t(std::shared_ptr<op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
             pd_cache_t &pd_cache) {
-        if (p_engine.get_kind() == engine::kind::gpu) {
-            assertm(false,
-                    "genindex opexcutable is unimplemented "
-                    "under SYCL and OCL "
-                    "runtime!");
-            throw std::runtime_error("Unimplement");
-        }
+        // if (p_engine.get_kind() == engine::kind::gpu) {
+        //     assertm(false,
+        //             "genindex opexcutable is unimplemented "
+        //             "under SYCL and OCL "
+        //             "runtime!");
+        //     throw std::runtime_error("Unimplement");
+        // }
         using ltw = logical_tensor_wrapper_t;
         const auto &input_lt = op->get_input_value(0)->get_logical_tensor();
         nelems_ = ltw(input_lt).nelems();
@@ -2489,7 +2501,19 @@ struct genindex_executable_t : public op_executable_t {
             output_dims_[i] = output_lt.dims[i];
             output_strides_[i] = output_lt.layout.strides[i];
         }
+
+        auto *compute_engine = dnnl::impl::utils::downcast<
+                dnnl::impl::gpu::intel::ocl::ocl_gpu_engine_t *>(
+                p_engine.get());
+        cl_program program = clCreateProgramWithSource(
+                compute_engine->context(), 1, &kernel_source, nullptr, nullptr);
+        auto dev = compute_engine->device();
+        clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
+        kernel_ = clCreateKernel(program, "gen_index", nullptr);
+        clReleaseProgram(program);
     }
+
+    ~genindex_executable_t() { clReleaseKernel(kernel_); }
 
     void execute(const stream &stream,
             const std::unordered_map<int, memory> &args) const override;
@@ -2507,9 +2531,40 @@ struct genindex_executable_t : public op_executable_t {
     cl_event execute_ocl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<cl_event> &deps = {}) const override {
-        assertm(false,
-                "genindex op excutable is unimplemented "
-                "under OCL runtime!");
+        auto src = args.at(DNNL_ARG_SRC);
+        auto dst = args.at(DNNL_ARG_DST);
+        cl_mem ocl_src = ocl_interop::get_mem_object(src);
+        cl_mem ocl_dst = ocl_interop::get_mem_object(dst);
+        // const size_t N = dst.get_desc().get_size();
+        const size_t N = 32;
+        printf("N: %zu\n", N);
+
+        auto *compute_engine = dnnl::impl::utils::downcast<
+                dnnl::impl::gpu::intel::ocl::ocl_gpu_engine_t *>(
+                stream.get_engine().get());
+        auto dev = compute_engine->device();
+        // clSetKernelArg(kernel_, 0, sizeof(ocl_src), &ocl_src);
+        // clSetKernelArg(kernel_, 1, sizeof(ocl_dst), &ocl_dst);
+        using F = cl_int (*)(cl_kernel, cl_uint, const void *);
+
+        cl_platform_id platform;
+        OCL_CHECK(clGetDeviceInfo(
+                dev, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr));
+
+        const char *f_name = "clSetKernelArgMemPointerINTEL";
+        auto usm_set_arg = reinterpret_cast<F>(
+                clGetExtensionFunctionAddressForPlatform(platform, f_name));
+        usm_set_arg(kernel_, 0, ocl_src);
+        usm_set_arg(kernel_, 1, ocl_dst);
+
+        printf("this is successful!\n");
+
+        cl_command_queue ocl_queue = ocl_interop::get_command_queue(stream);
+        cl_event event;
+        OCL_CHECK(clEnqueueNDRangeKernel(ocl_queue, kernel_, 1, nullptr, &N,
+                nullptr, 0, nullptr, &event));
+        clWaitForEvents(1, &event);
+        clReleaseEvent(event);
         return {};
     }
 #endif
@@ -2517,6 +2572,13 @@ struct genindex_executable_t : public op_executable_t {
 private:
     int axis_, nelems_, ndims_;
     dims_t output_dims_, output_strides_;
+    cl_kernel kernel_;
+    const char *kernel_source
+            = "__kernel void gen_index(__global float *src,  __global "
+              "int *dst) { \n"
+              "    int id = get_global_id(0); \n"
+              "    dst[id] = id; \n"
+              "} \n";
 };
 
 } // namespace dnnl_impl
