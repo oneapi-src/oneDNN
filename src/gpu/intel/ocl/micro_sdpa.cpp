@@ -279,8 +279,10 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     problem.Tb_ext = jit::convert_dnnl_to_kernel_type(qry_md()->data_type);
     if (qry_md()->data_type == data_type::f16) {
         problem.Ta = problem.Tb = Type::f16;
-    } else { // data_type is bf16
+    } else if (qry_md()->data_type == data_type::bf16) {
         problem.Ta = problem.Tb = Type::bf16;
+    } else {
+        VDISPATCH_SDPA(false, "Data-type not supported for GEMM micro kernels");
     }
     problem.Tc = problem.Tc_ext = Type::f32;
     problem.Ts = problem.Tc;
