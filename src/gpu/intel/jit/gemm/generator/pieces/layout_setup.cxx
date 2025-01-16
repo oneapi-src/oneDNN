@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -471,7 +471,7 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                         // As long as we do not need to write to this matrix, we can read
                         // in maskGranularity-sized chunks knowing we will never cross a page boundary.
 
-                        if (writable && (T.paddedSize() & (maskGranularity - 1)) && !T.is4Bit())
+                        if (writable && (T.paddedSize() & (maskGranularity - 1)))
                             return false;
                         if (!pseudo && oword && aoword)
                             hw_unsupported();

@@ -52,6 +52,7 @@ compute::scalar_type_t gen_gemm_kernel_desc_t::scalar_type() const {
         case Type::u32: return compute::scalar_type_t::_uint;
         case Type::s64: return compute::scalar_type_t::_long;
         case Type::u64: return compute::scalar_type_t::_ulong;
+        case Type::f4_e2m1: return compute::scalar_type_t::_f4_e2m1;
         case Type::bf8: return compute::scalar_type_t::_bfloat8;
         case Type::hf8: return compute::scalar_type_t::_hfloat8;
         case Type::bf16: return compute::scalar_type_t::_bfloat16;
@@ -79,7 +80,7 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
                 entry_->restrictions.alignment[2]));
     }
 
-    problem_.CO.setAlignment(problem_.Tco.size());
+    problem_.CO.setAlignment(problem_.Tco.paddedSize());
 
     // Parse strategy string.
     strategy_ = GEMMStrategy(hw_, stepping_);
@@ -587,6 +588,10 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
                     = match_params.back().selector.precisions[1];
         }
     }
+    add_mode_matches(true, [](Type dt) -> const char * {
+        if (dt.isFP4()) return "H";
+        return nullptr;
+    });
 
     EvaluateParams eval_params;
 
