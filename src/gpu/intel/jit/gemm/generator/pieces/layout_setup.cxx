@@ -471,7 +471,7 @@ bool BLASKernelGenerator<hw>::getBlockInfo(Type T, const MatrixAddressing &atype
                         // As long as we do not need to write to this matrix, we can read
                         // in maskGranularity-sized chunks knowing we will never cross a page boundary.
 
-                        if (writable && (T.paddedSize() & (maskGranularity - 1)))
+                        if (writable && (T.paddedSize() & (maskGranularity - 1)) && !T.is4Bit())
                             return false;
                         if (!pseudo && oword && aoword)
                             hw_unsupported();

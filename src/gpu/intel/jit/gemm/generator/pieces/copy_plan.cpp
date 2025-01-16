@@ -586,7 +586,7 @@ void CopyPlan::split2DRegions()
     auto is2D = [](const CopyOperand &op) { return op.inVS || op.inW; };
 
     for (auto &i: insns) {
-        if (is2D(i.dst) || is2D(i.src1) || is2D(i.src2))
+        if ((is2D(i.dst) && !is4Bit(i.dst.type)) || is2D(i.src1) || is2D(i.src2))
             stub("Unsupported 2D region");
         if (is2D(i.src0)) {
             if (i.flag) stub("Unsupported predication");

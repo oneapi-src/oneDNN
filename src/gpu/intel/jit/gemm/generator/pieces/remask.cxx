@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,8 +35,8 @@ void BLASKernelGenerator<hw>::setupTeardownRemask(Type T, int index, bool setup,
     if (T.paddedSize() > 4) T = Type::u32;
 
     if (setup) {
-        bool int4 = T.isInt4();
-        if (int4) {
+        bool halfByte = T.is4Bit();
+        if (halfByte) {
             nq = div_up(nq, 2);
             T = Type::u8;
         }
@@ -52,7 +52,7 @@ void BLASKernelGenerator<hw>::setupTeardownRemask(Type T, int index, bool setup,
         bool haveVariableOff = variableOffQ.isValid();
         bool haveFixedOff = (fixedOffQ != 0);
 
-        if (haveVariableOff || haveFixedOff || int4) {
+        if (haveVariableOff || haveFixedOff || halfByte) {
             auto nremQ = state.ra.alloc_sub<uint32_t>();
             freeRemQ = true;
 
@@ -62,7 +62,7 @@ void BLASKernelGenerator<hw>::setupTeardownRemask(Type T, int index, bool setup,
                 add(1, nremQ, remQ, -variableOffQ);
             else if (haveFixedOff)
                 add(1, nremQ, remQ, -fixedOffQ);
-            if (int4)
+            if (halfByte)
                 avg(1, nremQ, (haveVariableOff || haveFixedOff) ? nremQ : remQ, 0);
             remQ = nremQ;
         }
