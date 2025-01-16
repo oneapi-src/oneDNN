@@ -464,8 +464,9 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     def_data_type(kernel_ctx, qry_mdw.data_type(), "QRY");
     def_data_type(kernel_ctx, val_mdw.data_type(), "VAL");
     def_data_type(kernel_ctx, dst_mdw.data_type(), "DST");
-    def_data_type(kernel_ctx,
-            pd()->with_attn_mask() ? msk_mdw.data_type() : dnnl_f32, "MSK");
+    if (pd()->with_attn_mask()) {
+        def_data_type(kernel_ctx, msk_mdw.data_type(), "MSK");
+    }
 
     def_data_type(kernel_ctx, pd()->key_scales_dt(), "KEY_ATTR_SCALES");
     def_data_type(kernel_ctx, pd()->value_scales_dt(), "VAL_ATTR_SCALES");
@@ -630,14 +631,14 @@ status_t micro_sdpa_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(2, val);
     arg_list.set(3, dst);
     arg_list.set(4, scale);
-    arg_list.set(5, attn_mask);
-    arg_list.set(6, (int)D);
-    arg_list.set(7, (int)K);
-    arg_list.set(8, (int)Q);
-    arg_list.set(9, key_scales);
-    arg_list.set(10, key_zp);
-    arg_list.set(11, value_scales);
-    arg_list.set(12, value_zp);
+    arg_list.set(5, (int)D);
+    arg_list.set(6, (int)K);
+    arg_list.set(7, (int)Q);
+    arg_list.set(8, key_scales);
+    arg_list.set(9, key_zp);
+    arg_list.set(10, value_scales);
+    arg_list.set(11, value_zp);
+    if (pd()->with_attn_mask()) arg_list.set(12, attn_mask);
 
     compute::range_t lws = {(size_t)pd()->sg_size(), (size_t)sg_per_wg, 1};
     compute::range_t gws = lws;
