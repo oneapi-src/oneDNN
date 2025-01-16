@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ struct gpu_primitive_t : public gpu::primitive_t {
     private:
         bool empty_impl() const override { return !bool(kernel_); }
 
-        virtual status_t get_cache_blob_size_impl(
+        status_t get_cache_blob_size_impl(
                 impl::engine_t *engine, size_t *size) const override {
             if (empty()) return status::success;
             size_t sz = 0;
@@ -62,7 +62,7 @@ struct gpu_primitive_t : public gpu::primitive_t {
             return status::success;
         }
 
-        virtual status_t get_cache_blob_impl(
+        status_t get_cache_blob_impl(
                 impl::engine_t *engine, cache_blob_t &blob) const override {
             if (empty()) return status::success;
             xpu::binary_t binary;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ inline bool dense_gemm_consistency_check(const memory_desc_wrapper &src_d,
             && src_d.is_dense(true) && dst_d.is_dense() && wei_d.is_dense(true);
 }
 
-status_t template_set_default_params(memory_desc_t &src_md,
+inline status_t template_set_default_params(memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t *bias_md, int ndims, bool is_conv = false) {
     using namespace format_tag;
