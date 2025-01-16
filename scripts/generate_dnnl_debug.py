@@ -126,9 +126,7 @@ const char *dt2str(dnnl_data_type_t dt);
 const char *fmt_tag2str(dnnl_format_tag_t tag);
 
 /* encoding */
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 const char *sparse_encoding2str(dnnl_sparse_encoding_t encoding);
-#endif
 
 /* engine kind */
 const char *engine_kind2str(dnnl_engine_kind_t kind);
@@ -178,11 +176,9 @@ const char *fmt_tag2str(dnnl_format_tag_t tag) {
     return dnnl_fmt_tag2str(tag);
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 const char *sparse_encoding2str(dnnl_sparse_encoding_t encoding) {
     return dnnl_sparse_encoding2str(encoding);
 }
-#endif
 
 const char *engine_kind2str(dnnl_engine_kind_t kind) {
     return dnnl_engine_kind2str(kind);
@@ -330,30 +326,14 @@ def generate(ifile, banner_years):
             continue
         values = [v_value.attrib["name"] for v_value in v_enum.findall("EnumValue")]
 
-        if enum in ["dnnl_sparse_encoding_t"]:
-            h_body += "#ifdef DNNL_EXPERIMENTAL_SPARSE\n"
-            s_body += "#ifdef DNNL_EXPERIMENTAL_SPARSE\n"
-
         h_body += func_to_str_decl(enum, is_header=True) + ";\n"
         s_body += func_to_str(enum, values) + "\n"
 
-        if enum in ["dnnl_sparse_encoding_t"]:
-            h_body += "#endif\n"
-            s_body += "#endif\n"
-
         if enum in ["dnnl_format_tag_t", "dnnl_data_type_t", "dnnl_sparse_encoding_t"]:
-            if enum in ["dnnl_sparse_encoding_t"]:
-                h_benchdnn_body += "#ifdef DNNL_EXPERIMENTAL_SPARSE\n"
-                s_benchdnn_body += "#ifdef DNNL_EXPERIMENTAL_SPARSE\n"
-
             h_benchdnn_body += (
                 str_to_func_decl(enum, is_header=True, is_dnnl=False) + ";\n"
             )
             s_benchdnn_body += str_to_func(enum, values, is_dnnl=False) + "\n"
-
-            if enum in ["dnnl_sparse_encoding_t"]:
-                h_benchdnn_body += "#endif\n"
-                s_benchdnn_body += "#endif\n"
 
     bodies = [
         header(h_body),
@@ -372,8 +352,7 @@ def usage():
 Generates oneDNN debug header and source files with enum to string mapping.
 Input types.xml file can be obtained with CastXML[1]:
 $ castxml --castxml-cc-gnu-c clang --castxml-output=1 \\
-        -DDNNL_EXPERIMENTAL_SPARSE -Iinclude -Ibuild/include \\
-        include/oneapi/dnnl/dnnl_types.h -o types.xml
+        -Iinclude -Ibuild/include include/oneapi/dnnl/dnnl_types.h -o types.xml
 
 [1] https://github.com/CastXML/CastXML"""
         % sys.argv[0]

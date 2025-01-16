@@ -52,17 +52,14 @@ typedef enum {
     dnnl_blocked,
     /// A special format kind that indicates that tensor format is opaque.
     dnnl_format_kind_opaque,
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     /// Format kind for sparse tensors.
     dnnl_format_kind_sparse,
-#endif
     /// Parameter to allow internal only format kinds without undefined
     /// behavior. This parameter is chosen to be valid for so long as
     /// sizeof(int) >= 2.
     dnnl_format_kind_max = 0x7fff,
 } dnnl_format_kind_t;
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 /// Sparse encodings.
 typedef enum {
     /// Undefined sparse encoding kind, used for empty memory descriptors.
@@ -78,7 +75,6 @@ typedef enum {
     /// Coordinate Sparse Encoding (COO).
     dnnl_coo,
 } dnnl_sparse_encoding_t;
-#endif
 
 #ifdef DNNL_EXPERIMENTAL_PROFILING
 /// Profiling data kind.
@@ -2817,12 +2813,9 @@ typedef enum {
     dnnl_query_inner_nblks_s32, ///< number of innermost blocks
     dnnl_query_inner_blks, ///< vector of sizes of the innermost blocks
     dnnl_query_inner_idxs, ///< vector of logical indices of the blocks
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     dnnl_query_sparse_encoding, ///< Sparse encoding
     dnnl_query_nnz_s64, ///< Number of non-zero entries
-    dnnl_query_num_handles_s32, ///< Number of buffers required for a memory
-///  descriptor
-#endif
+    dnnl_query_num_handles_s32, ///< Number of buffers required for a memory descriptor
     // Max value to prevent UB for internal use only dnnl_query_t
     dnnl_query_max = 0x7fff,
 } dnnl_query_t;

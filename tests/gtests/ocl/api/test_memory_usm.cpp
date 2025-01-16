@@ -207,7 +207,6 @@ HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_usm_test_t, SharedMapUnmap) {
             dnnl::impl::xpu::ocl::usm::free);
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_usm_test_t, TestSparseMemoryCreation) {
     engine eng(engine::kind::gpu, 0);
     const int nnz = 12;
@@ -307,6 +306,5 @@ HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_usm_test_t, TestSparseMemoryMapUnmap) {
     ASSERT_NO_THROW(coo_mem.unmap_data(mapped_row_indices, 1));
     ASSERT_NO_THROW(coo_mem.unmap_data(mapped_col_indices, 2));
 }
-#endif
 
 } // namespace dnnl

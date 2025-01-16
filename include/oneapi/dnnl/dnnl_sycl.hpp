@@ -206,7 +206,6 @@ inline memory_kind get_memory_kind(const memory &amemory) {
     return static_cast<memory_kind>(ckind);
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 /// Creates a memory object with multiple handles.
 ///
 /// @param memory_desc Memory descriptor.
@@ -281,47 +280,6 @@ inline memory make_memory(const memory::desc &memory_desc,
     return make_memory(
             memory_desc, aengine, kind, std::vector<void *> {handle});
 }
-#else
-
-/// Creates a memory object.
-///
-/// Unless @p handle is equal to DNNL_MEMORY_NONE or DNNL_MEMORY_ALLOCATE, the
-/// constructed memory object will have the underlying buffer set. In this
-/// case, the buffer will be initialized as if:
-/// - dnnl::memory::set_data_handle() had been called, if @p memory_kind is
-///   equal to dnnl::sycl_interop::memory_kind::usm, or
-/// - dnnl::sycl_interop::set_buffer() has been called, if @p memory_kind is
-///   equal to dnnl::sycl_interop::memory_kind::buffer.
-///
-/// @param memory_desc Memory descriptor.
-/// @param aengine Engine to use.
-/// @param kind Memory allocation kind to specify the type of handle.
-/// @param handle Handle of the memory buffer to use as an underlying storage.
-///     - A USM pointer to the user-allocated buffer. In this case the library
-///       doesn't own the buffer. Requires @p memory_kind to be equal to
-///       dnnl::sycl_interop::memory_kind::usm.
-///     - A pointer to SYCL buffer. In this case the library doesn't own the
-///       buffer. Requires @p memory_kind be equal to be equal to
-///       dnnl::sycl_interop::memory_kind::buffer.
-///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
-///       allocate the buffer that corresponds to the memory allocation kind
-///       @p memory_kind for the memory object. In this case the library
-///       owns the buffer.
-///     - The DNNL_MEMORY_NONE specific value. Instructs the library to
-///       create memory object without an underlying buffer.
-///
-/// @returns Created memory object.
-inline memory make_memory(const memory::desc &memory_desc,
-        const engine &aengine, memory_kind kind,
-        void *handle = DNNL_MEMORY_ALLOCATE) {
-    dnnl_memory_t c_memory;
-    error::wrap_c_api(
-            dnnl_sycl_interop_memory_create(&c_memory, memory_desc.get(),
-                    aengine.get(), convert_to_c(kind), handle),
-            err_message_list::init_error("memory"));
-    return memory(c_memory);
-}
-#endif
 
 /// Constructs a memory object from a SYCL buffer.
 ///

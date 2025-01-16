@@ -55,12 +55,10 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
     dnnl_memory(dnnl::impl::engine_t *engine,
             const dnnl::impl::memory_desc_t *md,
             std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage);
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     dnnl_memory(dnnl::impl::engine_t *engine,
             const dnnl::impl::memory_desc_t *md,
             std::vector<std::unique_ptr<dnnl::impl::memory_storage_t>>
                     &&memory_storage);
-#endif
 
     /** returns memory's engine */
     dnnl::impl::engine_t *engine() const { return engine_; }

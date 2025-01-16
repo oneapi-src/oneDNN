@@ -485,7 +485,6 @@ struct isa_hints_t {
 
 using policy_t = attr_t::policy_t;
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 struct sparse_options_t {
     static constexpr dnnl_sparse_encoding_t def_encoding
             = dnnl_sparse_encoding_undef;
@@ -554,7 +553,6 @@ private:
 
 std::ostream &operator<<(
         std::ostream &s, const sparse_options_t &sparse_options);
-#endif
 
 std::ostream &operator<<(std::ostream &s, const policy_t &policy);
 std::ostream &operator<<(

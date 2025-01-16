@@ -169,7 +169,6 @@ cold_cache_t::cold_cache_t(
         for (size_t i = 0; i < n_buffers_; i++) {
             cc_entry[i] = dnn_mem_t(orig_cc_mem_md, get_test_engine());
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
             // Sparse memories require this call to replicate the exact original
             // data distribution because the data structure affects performance
             // in a direct way.
@@ -183,9 +182,7 @@ cold_cache_t::cold_cache_t(
                             i, __FILE__, __LINE__);
                     return;
                 }
-            } else
-#endif
-            {
+            } else {
                 // Reorders are expensive. If there are multiple buffers to
                 // fill, simply rely on default memory initialization.
                 if (n_mem_pool_buffers > 100) continue;

@@ -213,7 +213,6 @@ HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_buffer_test_cpp_t, BufferMapUnmap) {
     TEST_OCL_CHECK(clReleaseMemObject(ocl_mem));
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 HANDLE_EXCEPTIONS_FOR_TEST(
         ocl_memory_buffer_test_cpp_t, TestSparseMemoryCreation) {
     engine eng(engine::kind::gpu, 0);
@@ -331,6 +330,5 @@ HANDLE_EXCEPTIONS_FOR_TEST(
     ASSERT_NO_THROW(coo_mem.unmap_data(mapped_row_indices, 1));
     ASSERT_NO_THROW(coo_mem.unmap_data(mapped_col_indices, 2));
 }
-#endif
 
 } // namespace dnnl

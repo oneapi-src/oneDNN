@@ -27,7 +27,6 @@ Both kinds of experimental features can be enabled simultaneously.
 
 | Build time option                          | Description                                                        |
 |:-------------------------------------------|:-------------------------------------------------------------------|
-| ONEDNN_EXPERIMENTAL_SPARSE                 | Enable experimental API and functionality for sparse domain.       |
 | ONEDNN_EXPERIMENTAL_UKERNEL                | Enable experimental microkernel APIs and functionalities.          |
 | ONEDNN_EXPERIMENTAL_PROFILING              | Enable experimental profiling API.                                 |
 | ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND | Enable experimental graph compiler backend of the graph component. |
