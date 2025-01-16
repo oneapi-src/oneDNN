@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ inline allocator make_allocator(dnnl_graph_ocl_allocate_f ocl_malloc,
     dnnl_graph_allocator_t c_allocator = nullptr;
     error::wrap_c_api(dnnl_graph_ocl_interop_allocator_create(
                               &c_allocator, ocl_malloc, ocl_free),
-            err_message_list::init_error("allocator for opencl device"));
+            "could not create allocator for opencl device");
     return allocator(c_allocator);
 }
 
@@ -79,7 +79,7 @@ inline engine make_engine_with_allocator(
     dnnl_engine_t c_engine;
     error::wrap_c_api(dnnl_graph_ocl_interop_make_engine_with_allocator(
                               &c_engine, device, context, alloc.get()),
-            err_message_list::init_error("engine with allocator"));
+            "could not make an engine with allocator");
     return engine(c_engine);
 }
 
@@ -99,8 +99,7 @@ inline engine make_engine_with_allocator(cl_device_id device,
             dnnl_graph_ocl_interop_make_engine_from_cache_blob_with_allocator(
                     &c_engine, device, context, alloc.get(), cache_blob.size(),
                     cache_blob.data()),
-            err_message_list::init_error(
-                    "engine with allocator from cache blob"));
+            "could not make an engine with allocator from cache blob");
     return engine(c_engine);
 }
 
@@ -135,9 +134,8 @@ inline cl_event execute(compiled_partition &c_partition, stream &astream,
                     astream.get(), c_inputs.size(), c_inputs.data(),
                     c_outputs.size(), c_outputs.data(), c_deps,
                     (int)deps.size(), &ocl_event),
-            err_message_list::execute_error(
-                    "compiled_partition on a specified opencl "
-                    "stream"));
+            "could not execute the compiled_partition on a specified opencl "
+            "stream");
     return ocl_event;
 }
 
