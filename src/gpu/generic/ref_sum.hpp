@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ struct ref_sum_t : public gpu::primitive_t {
         using gpu_sum_pd_t::gpu_sum_pd_t;
 
         pd_t(const pd_t &rhs) = default;
-        ~pd_t() = default;
+        ~pd_t() override = default;
 
         DECLARE_SUM_PD_T("ref:any", ref_sum_t);
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ struct multi_concat_t : public gpu_primitive_t {
         using gpu_concat_pd_t::gpu_concat_pd_t;
 
         pd_t(const pd_t &rhs) = default;
-        ~pd_t() = default;
+        ~pd_t() override = default;
 
         DECLARE_CONCAT_PD_T("multi:any", multi_concat_t);
 

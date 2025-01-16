@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ struct multi_po_reorder_sum : public gpu_primitive_t {
         using gpu_sum_pd_t::gpu_sum_pd_t;
 
         pd_t(const pd_t &rhs) = default;
-        ~pd_t() = default;
+        ~pd_t() override = default;
 
         DECLARE_SUM_PD_T("multi_po_reorder_sum", multi_po_reorder_sum);
 

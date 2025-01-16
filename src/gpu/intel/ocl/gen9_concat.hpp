@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ struct gen9_concat_t : public gpu_primitive_t {
             : gpu_concat_pd_t(attr, dst_md, n, concat_dim, src_mds) {}
 
         pd_t(const pd_t &rhs) = default;
-        ~pd_t() = default;
+        ~pd_t() override = default;
 
         DECLARE_CONCAT_PD_T("gen9:any", gen9_concat_t);
 
@@ -87,7 +87,7 @@ struct gen9_concat_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_concat(ctx);
     }
 

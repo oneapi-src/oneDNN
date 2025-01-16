@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,9 +63,9 @@ struct gen9_simple_sum_t : public gpu_primitive_t {
 
     gen9_simple_sum_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    virtual status_t init(impl::engine_t *engine);
+    status_t init(impl::engine_t *engine) override;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const {
+    status_t execute(const exec_ctx_t &ctx) const override {
         status_t status = status::success;
         auto &output = CTX_OUT_CLEAN_STORAGE(DNNL_ARG_DST, status);
         CHECK(status);

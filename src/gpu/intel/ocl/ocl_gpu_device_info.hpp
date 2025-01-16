@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,11 +35,11 @@ public:
     std::string get_cl_ext_options() const;
 
 protected:
-    status_t init_device_name(impl::engine_t *engine);
-    status_t init_arch(impl::engine_t *engine);
-    status_t init_runtime_version(impl::engine_t *engine);
-    status_t init_extensions(impl::engine_t *engine);
-    status_t init_attributes(impl::engine_t *engine);
+    status_t init_device_name(impl::engine_t *engine) override;
+    status_t init_arch(impl::engine_t *engine) override;
+    status_t init_runtime_version(impl::engine_t *engine) override;
+    status_t init_extensions(impl::engine_t *engine) override;
+    status_t init_attributes(impl::engine_t *engine) override;
 };
 
 } // namespace ocl

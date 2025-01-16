@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -175,7 +175,7 @@ struct xe_hp_systolic_gemm_t : public gpu_gemm_t {
 public:
     xe_hp_systolic_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
-    virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
+    status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 private:
     status_t init_compute(impl::engine_t *engine);
