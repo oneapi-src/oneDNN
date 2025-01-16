@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl_types.h"
-
 #include "common/c_types_map.hpp"
 #include "common/convolution_pd.hpp"
 #include "common/dnnl_thread.hpp"
@@ -32,6 +30,8 @@
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_brgemm_conv_utils.hpp"
 #include "cpu/x64/jit_generator.hpp"
+
+#include <set>
 
 namespace dnnl {
 namespace impl {
@@ -631,50 +631,77 @@ status_t brg_blocking_t::get_brgemm_ur(
 
     LDD = oc_without_padding;
 
-    const float alpha = 1.0;
-    const float beta = 1.0;
-    const float beta_init = 0.0;
-
-    for (int i = 0; i < M; i++) {
-        auto vM = i + 1;
-        // init only needed brgemm descriptors
-        if ((utils::one_of(exec_type, exec_trans, exec_vpad) || is_1x1)
-                && vM != M && vM != M_tail)
-            continue;
-        for (int i_init = 0; i_init < 2; i_init++) {
-            for_(int i_N = 0; i_N < 2; i_N++)
-            for (int i_K = 0; i_K < 2; i_K++) {
-                auto vbeta = (i_init) ? beta_init : beta;
-                auto vN = (i_N) ? N_tail : N;
-                auto vK = (i_K) ? K_tail : K;
-                if (vN == 0 || vK == 0) continue;
-                brgemm_desc_t brg;
-                brgemm_strides_t brg_strides;
-                brg_strides.stride_a = ngroups * ic_without_padding
-                        * (dilate_w + 1) * src_dsz;
-                // weights are padded by oc_block and last_ic_block
-                brg_strides.stride_b = rnd_up(ic, vnni_block)
-                        * rnd_up(oc, oc_block) * wei_dsz;
-                const auto strides_ptr
-                        = (brg_type == brgemm_strd) ? &brg_strides : nullptr;
-                brgemm_utils::init_brgemm_conf(&brg, isa, brg_type, src_dt,
-                        wei_dt, brgemm_row_major, alpha, vbeta, LDA, LDB, LDC,
-                        vM, vN, vK, strides_ptr, is_bf32);
-                CHECK(brgemm_utils::brgemm_blocking(&brg));
-
-                brgemm_attr_t brgattr;
-                brgattr.max_bs = max_batch;
-                max_vpad = exec_type == exec_vpad ? nstl::max(l_pad, r_pad) : 0;
-                brgattr.max_top_vpad = max_vpad;
-                brgattr.max_bottom_vpad = max_vpad;
-                brgattr.fpmath_mode = attr->fpmath_.mode_;
-                CHECK(brgemm_desc_set_attr(&brg, brgattr));
-
-                brg.with_sum = with_sum;
-                CHECK(brgemm_desc_set_postops(
-                        &brg, attr, &dst_md, LDD, bia_dt));
+    // The code below will verify that for selected `brgemm_ur` all brgemm
+    // descriptors will be initialized successfully. If they do, stick to this
+    // `brgemm_ur`, otherwise, a new estimation will come.
+    //
+    // This set will filter only needed M for validating brgemm descriptors.
+    //
+    // Note: the same approach for `jcp_.exec_type == exec_base` to filter out
+    // M and extra brgemm descriptors is used in convolution implementation in
+    // `pd_t::init`. Maybe it's possible to align them, or make them relying on
+    // the same set of unique M values.
+    std::set<dim_t> unique_vM;
+    if (utils::one_of(exec_type, exec_trans, exec_vpad) || is_1x1) {
+        // Up to two M values for these exec_types.
+        unique_vM.emplace(M);
+        if (M_tail) unique_vM.emplace(M_tail);
+    } else {
+        // For `exec_base` exec_type need to compute all relevant M values.
+        for (int ow = 0; ow < this->ow; ow += this->ow_block) {
+            int kw_s = 0;
+            int kw_f = 0;
+            int dummy; // `kw_full_s` and `kw_full_f` are not needed here.
+            brgemm_convolution_utils::get_kw_range(
+                    /* jcp */ *this, ow, kw_s, dummy, dummy, kw_f);
+            for (int kw = kw_s; kw < kw_f; kw++) {
+                int ow_s = 0;
+                int ow_f = 0;
+                brgemm_convolution_utils::get_ow_range(
+                        /* jcp */ *this, ow, kw, ow_s, ow_f);
+                const auto M = ow_f - ow_s;
+                if (M <= 0) continue;
+                unique_vM.emplace(M);
             }
         }
+    }
+
+    const float alpha = 1.0f;
+    const float beta = 1.0f;
+    const float beta_init = 0.0f;
+
+    for_(auto vM : unique_vM)
+    for_(int i_init = 0; i_init < 2; i_init++)
+    for_(int i_N = 0; i_N < 2; i_N++)
+    for (int i_K = 0; i_K < 2; i_K++) {
+        auto vbeta = (i_init) ? beta_init : beta;
+        auto vN = (i_N) ? N_tail : N;
+        auto vK = (i_K) ? K_tail : K;
+        if (vN == 0 || vK == 0) continue;
+        brgemm_desc_t brg;
+        brgemm_strides_t brg_strides;
+        brg_strides.stride_a
+                = ngroups * ic_without_padding * (dilate_w + 1) * src_dsz;
+        // weights are padded by oc_block and last_ic_block
+        brg_strides.stride_b
+                = rnd_up(ic, vnni_block) * rnd_up(oc, oc_block) * wei_dsz;
+        const auto strides_ptr
+                = (brg_type == brgemm_strd) ? &brg_strides : nullptr;
+        brgemm_utils::init_brgemm_conf(&brg, isa, brg_type, src_dt, wei_dt,
+                brgemm_row_major, alpha, vbeta, LDA, LDB, LDC, vM, vN, vK,
+                strides_ptr, is_bf32);
+        CHECK(brgemm_utils::brgemm_blocking(&brg));
+
+        brgemm_attr_t brgattr;
+        brgattr.max_bs = max_batch;
+        max_vpad = exec_type == exec_vpad ? nstl::max(l_pad, r_pad) : 0;
+        brgattr.max_top_vpad = max_vpad;
+        brgattr.max_bottom_vpad = max_vpad;
+        brgattr.fpmath_mode = attr->fpmath_.mode_;
+        CHECK(brgemm_desc_set_attr(&brg, brgattr));
+
+        brg.with_sum = with_sum;
+        CHECK(brgemm_desc_set_postops(&brg, attr, &dst_md, LDD, bia_dt));
     }
 
     return status::success;
@@ -1978,6 +2005,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     bool try_exec_trans = false;
     bool try_exec_base = true;
 
+    // TODO: this logic seems not taking dilation into which can avoid pure
+    // kernel-in-pad cases.
     if (!is_amx(isa) && div_up(jcp.l_pad, jcp.stride_w) < jcp.kw
             && div_up(jcp.r_pad, jcp.stride_w) < jcp.kw) {
         try_exec_vpad = true;
