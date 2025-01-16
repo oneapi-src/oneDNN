@@ -85,15 +85,17 @@ DECLARE_2D_TILE(
 #define mask_nbc ugemm_kq_c_type_nblock1
 #endif
 
+#if WITH_ATTN_MASK
 DECLARE_2D_TILE(mask_tile_type, MSK_DATA_T, SUBGROUP_SIZE, mask_br, mask_bc,
         mask_nbr, mask_nbc)
-DECLARE_2D_TILE(mask_tile_type_float, float, SUBGROUP_SIZE, mask_br, mask_bc,
-        mask_nbr, mask_nbc)
-
 #if BROADCAST_MASK_Q
 DECLARE_2D_TILE_BLOCK_OPS(mask_tile_type, MSK_DATA_T, SUBGROUP_SIZE, mask_br,
         mask_bc, mask_nbr, mask_nbc)
 #endif
+#endif
+
+DECLARE_2D_TILE(mask_tile_type_float, float, SUBGROUP_SIZE, mask_br, mask_bc,
+        mask_nbr, mask_nbc)
 
 #ifdef BLOCK_A
 DECLARE_2D_TILE_BLOCK_OPS(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE,
@@ -169,11 +171,16 @@ DECLARE_2D_TILE_RSELECT(a_scale_tile_type, SUBGROUP_SIZE, ugemm_vs_sg_tile_n, 1,
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE))) kernel void
 micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         const global VAL_DATA_T *V, global DST_DATA_T *A,
-        const global SCALE_DATA_T *scale_ptr, const global MSK_DATA_T *msk,
-        int d, int k, int q, const global KEY_ATTR_SCALES_DATA_T *K_scales,
+        const global SCALE_DATA_T *scale_ptr, int d, int k, int q,
+        const global KEY_ATTR_SCALES_DATA_T *K_scales,
         const global KEY_ATTR_ZP_DATA_T *K_zp,
         const global VAL_ATTR_SCALES_DATA_T *V_scales,
-        const global VAL_ATTR_ZP_DATA_T *V_zp) {
+        const global VAL_ATTR_ZP_DATA_T *V_zp
+#if WITH_ATTN_MASK
+        ,
+        const global MSK_DATA_T *msk
+#endif
+) {
     uint sg_ij = sub_group_broadcast(get_local_id(1), 0);
     uint b0 = get_group_id(1);
     uint b1 = get_group_id(2);
