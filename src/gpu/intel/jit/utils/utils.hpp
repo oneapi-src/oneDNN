@@ -337,8 +337,7 @@ public:
         return false;
 #endif
     }
-    ir_check_log_level_t(int new_level) {
-        old_level_ = level_;
+    ir_check_log_level_t(int new_level) : old_level_(level_) {
         level_ = new_level;
     }
     ~ir_check_log_level_t() { level_ = old_level_; }

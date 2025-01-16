@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -138,10 +138,10 @@ zero_pool_t::zero_pool_t(compute::compute_engine_t *engine, size_t chunk_size,
         bool stream_private, bool in_order)
     : engine_(engine)
     , chunk_size_(chunk_size)
+    , chunk_count_(stream_private ? 1 : 16)
     , stream_private_(stream_private)
     , in_order_(in_order) {
 
-    chunk_count_ = stream_private ? 1 : 16;
     assert(chunk_count_ <= max_chunks);
 }
 
