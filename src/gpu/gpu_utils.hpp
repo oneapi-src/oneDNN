@@ -75,10 +75,10 @@ public:
     scales_query_t() = default;
     scales_query_t(const primitive_attr_t *attr, const memory_desc_wrapper &mdw,
             int arg)
-        : arg_(arg), ndims_(mdw.ndims()) {
-        scales_ = attr->scales_.get(arg);
-        count_ = get_attr_oscales_count(scales_.mask_, mdw);
-    }
+        : scales_(attr->scales_.get(arg))
+        , count_(get_attr_oscales_count(scales_.mask_, mdw))
+        , arg_(arg)
+        , ndims_(mdw.ndims()) {}
 
 private:
     runtime_scales_t scales_;
@@ -123,11 +123,10 @@ public:
     zero_points_query_t() = default;
     zero_points_query_t(const primitive_attr_t *attr,
             const memory_desc_wrapper &mdw, int arg)
-        : arg_(arg), ndims_(mdw.ndims()) {
-        zps_ = attr->zero_points_;
-        int mask = zps_.get(arg);
-        count_ = get_attr_oscales_count(mask, mdw);
-    }
+        : zps_(attr->zero_points_)
+        , count_(get_attr_oscales_count(zps_.get(arg), mdw))
+        , arg_(arg)
+        , ndims_(mdw.ndims()) {}
 
 private:
     zero_points_t zps_;

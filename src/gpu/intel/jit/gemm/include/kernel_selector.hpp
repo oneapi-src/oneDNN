@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -100,10 +100,8 @@ const kcatalog::Entry *upper_bound(const kcatalog::Catalog &catalog, const kcata
 
 class EntryIterator {
 public:
-    EntryIterator(const kcatalog::Catalog &catalog_, const MatchParams &pattern_): catalog(catalog_), pattern(pattern_) {
-        begin = lower_bound(catalog_, pattern_.selector);
-        end   = upper_bound(catalog_, pattern_.selector);
-        current = begin;
+    EntryIterator(const kcatalog::Catalog &catalog_, const MatchParams &pattern_)
+        : catalog(catalog_), pattern(pattern_), begin(lower_bound(catalog_, pattern_.selector)), end(upper_bound(catalog_, pattern_.selector)), current(begin) {
         findNextMatch();
     }
 

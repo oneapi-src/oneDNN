@@ -395,8 +395,7 @@ public:
 
     type_t(type_kind_t kind, uint32_t elems = 1) : kind_(kind), elems_(elems) {}
 
-    type_t(const std::string &s) {
-        elems_ = 1;
+    type_t(const std::string &s) : elems_(1) {
 #define CASE(x) \
     if (to_string(type_kind_t::x) == s) { \
         kind_ = type_kind_t::x; \
