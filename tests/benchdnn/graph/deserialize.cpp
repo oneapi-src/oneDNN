@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -450,7 +450,7 @@ dnnl::graph::graph deserialized_graph::to_graph(
             g.add_op(aop.create());
         } catch (const dnnl::error &e) {
             BENCHDNN_PRINT(0, "Error: Adding op %s failed: %s\n",
-                    aop.name_.c_str(), e.message.c_str());
+                    aop.name_.c_str(), e.message);
             SAFE_V(FAIL);
         }
     }

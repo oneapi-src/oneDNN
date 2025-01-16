@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,8 +94,8 @@ struct attr_params : public handle<dnnl_ukernel_attr_params_t> {
     attr_params() {
         dnnl_ukernel_attr_params_t c_params = nullptr;
         dnnl_status_t status = dnnl_ukernel_attr_params_create(&c_params);
-        error::wrap_c_api(status,
-                err_message_list::init_error("attributes memory storage"));
+        error::wrap_c_api(
+                status, "could not create an attributes memory storage");
         reset(c_params);
     }
 
@@ -107,8 +107,8 @@ struct attr_params : public handle<dnnl_ukernel_attr_params_t> {
         dnnl_status_t status = dnnl_ukernel_attr_params_set_post_ops_args(
                 get(), post_ops_args);
         if (status != dnnl_success)
-            error::wrap_c_api(status,
-                    err_message_list::set_failure("post operations arguments"));
+            error::wrap_c_api(
+                    status, "could not set post operations arguments");
     }
 
     /// Sets tensor A scales arguments to a storage.
@@ -118,8 +118,7 @@ struct attr_params : public handle<dnnl_ukernel_attr_params_t> {
         dnnl_status_t status
                 = dnnl_ukernel_attr_params_set_A_scales(get(), a_scales);
         if (status != dnnl_success)
-            error::wrap_c_api(
-                    status, err_message_list::set_failure("A scales argument"));
+            error::wrap_c_api(status, "could not set A scales argument");
     }
 
     /// Sets tensor B scales arguments to a storage.
@@ -132,8 +131,7 @@ struct attr_params : public handle<dnnl_ukernel_attr_params_t> {
         dnnl_status_t status
                 = dnnl_ukernel_attr_params_set_B_scales(get(), b_scales);
         if (status != dnnl_success)
-            error::wrap_c_api(
-                    status, err_message_list::set_failure("B scales argument"));
+            error::wrap_c_api(status, "could not set B scales argument");
     }
 
     /// Sets tensor D scales arguments to a storage.
@@ -143,8 +141,7 @@ struct attr_params : public handle<dnnl_ukernel_attr_params_t> {
         dnnl_status_t status
                 = dnnl_ukernel_attr_params_set_D_scales(get(), d_scales);
         if (status != dnnl_success)
-            error::wrap_c_api(
-                    status, err_message_list::set_failure("D scales argument"));
+            error::wrap_c_api(status, "could not set D scales argument");
     }
 };
 /// @} dnnl_api_ukernel_utils
@@ -186,8 +183,8 @@ struct brgemm : public handle<dnnl_brgemm_t> {
                 memory::convert_to_c(b_dt), memory::convert_to_c(c_dt));
 
         if (!allow_empty)
-            error::wrap_c_api(status,
-                    err_message_list::init_error("BRGeMM ukernel object"));
+            error::wrap_c_api(
+                    status, "could not create a BRGeMM ukernel object");
         reset(brgemm);
     }
 
@@ -200,8 +197,7 @@ struct brgemm : public handle<dnnl_brgemm_t> {
         dnnl_status_t status
                 = dnnl_brgemm_set_add_C(get(), static_cast<int>(add_C));
         if (status != dnnl_success)
-            error::wrap_c_api(
-                    status, err_message_list::set_failure("add_C attribute"));
+            error::wrap_c_api(status, "could not set add_C attribute");
     }
 
     /// Sets post-operations to a BRGeMM ukernel object:
@@ -221,8 +217,7 @@ struct brgemm : public handle<dnnl_brgemm_t> {
         dnnl_status_t status = dnnl_brgemm_set_post_ops(
                 get(), ldd, memory::convert_to_c(d_dt), po.get());
         if (status != dnnl_success)
-            error::wrap_c_api(
-                    status, err_message_list::set_failure("post operations"));
+            error::wrap_c_api(status, "could not set post operations");
     }
 
     /// Sets tensor A scales mask to a BRGeMM ukernel object.
@@ -234,8 +229,7 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     void set_A_scales(int a_scale_mask) {
         dnnl_status_t status = dnnl_brgemm_set_A_scales(get(), a_scale_mask);
         if (status != dnnl_success)
-            error::wrap_c_api(
-                    status, err_message_list::set_failure("A scales"));
+            error::wrap_c_api(status, "could not set A scales");
     }
 
     /// Sets tensor B scales mask to a BRGeMM ukernel object.
@@ -247,8 +241,7 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     void set_B_scales(int b_scale_mask) {
         dnnl_status_t status = dnnl_brgemm_set_B_scales(get(), b_scale_mask);
         if (status != dnnl_success)
-            error::wrap_c_api(
-                    status, err_message_list::set_failure("B scales"));
+            error::wrap_c_api(status, "could not set B scales");
     }
 
     /// Sets tensor D scales mask to a BRGeMM ukernel object.
@@ -260,8 +253,7 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     void set_D_scales(int d_scale_mask) {
         dnnl_status_t status = dnnl_brgemm_set_D_scales(get(), d_scale_mask);
         if (status != dnnl_success)
-            error::wrap_c_api(
-                    status, err_message_list::set_failure("D scales"));
+            error::wrap_c_api(status, "could not set D scales");
     }
 
     /// Finalizes initialization of a BRGeMM ukernel object.
@@ -317,8 +309,7 @@ struct brgemm : public handle<dnnl_brgemm_t> {
     void set_hw_context() const {
         dnnl_status_t status = dnnl_brgemm_set_hw_context(get());
         if (status != dnnl_success)
-            error::wrap_c_api(
-                    status, err_message_list::set_failure("hardware context"));
+            error::wrap_c_api(status, "could not set hardware context");
     }
 
     /// Releases the hardware-specific context. Affects the global state for
@@ -354,8 +345,8 @@ struct brgemm : public handle<dnnl_brgemm_t> {
         dnnl_status_t status = dnnl_brgemm_execute(get(), A, B,
                 (const dnnl_dim_t *)A_B_offsets.data(), C, scratchpad);
         if (status != dnnl_success)
-            error::wrap_c_api(status,
-                    err_message_list::execute_error("BRGeMM ukernel object"));
+            error::wrap_c_api(
+                    status, "could not execute a BRGeMM ukernel object");
     }
 
     /// Executes a BRGeMM ukernel object with post operations.
@@ -380,8 +371,8 @@ struct brgemm : public handle<dnnl_brgemm_t> {
                 (const dnnl_dim_t *)A_B_offsets.data(), C, D, scratchpad,
                 params.get());
         if (status != dnnl_success)
-            error::wrap_c_api(status,
-                    err_message_list::execute_error("BRGeMM ukernel object"));
+            error::wrap_c_api(
+                    status, "could not execute a BRGeMM ukernel object");
     }
 
     /// Returns a constant reference to a static instance of default constructed
@@ -435,8 +426,7 @@ struct transform : public handle<dnnl_transform_t> {
 
         if (!allow_empty)
             error::wrap_c_api(status,
-                    err_message_list::init_error(
-                            "BRGeMM ukernel packing B object"));
+                    "could not create a BRGeMM ukernel packing B object");
         reset(transform);
     }
 
@@ -456,8 +446,7 @@ struct transform : public handle<dnnl_transform_t> {
         dnnl_status_t status = dnnl_transform_execute(get(), in, out);
         if (status != dnnl_success)
             error::wrap_c_api(status,
-                    err_message_list::execute_error(
-                            "BRGeMM ukernel packing B object"));
+                    "could not execute a BRGeMM ukernel packing B object");
     }
 };
 

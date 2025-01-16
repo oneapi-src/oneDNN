@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@
 #include <cstdio>
 #define DNNL_THROW_ERROR(status, msg) \
     do { \
-        fputs(std::string(msg).c_str(), stderr); \
+        fputs(msg, stderr); \
         DNNL_TRAP(); \
     } while (0)
 #endif
@@ -84,75 +84,27 @@ namespace dnnl {
 /// the error message from the call site.
 struct error : public std::exception {
     dnnl_status_t status;
-    std::string message;
+    const char *message;
 
     /// Constructs an instance of an exception class.
     ///
     /// @param status The error status returned by a C API function.
     /// @param message The error message.
-    error(dnnl_status_t status, std::string message)
+    error(dnnl_status_t status, const char *message)
         : status(status), message(message) {}
 
     /// Returns the explanatory string.
-    const char *what() const noexcept override { return message.c_str(); }
+    const char *what() const noexcept override { return message; }
 
     /// A convenience function for wrapping calls to C API functions. Checks
     /// the return status and throws an dnnl::error in case of failure.
     ///
     /// @param status The error status returned by a C API function.
     /// @param message The error message.
-    static void wrap_c_api(dnnl_status_t status, std::string message) {
+    static void wrap_c_api(dnnl_status_t status, const char *message) {
         if (status != dnnl_success) DNNL_THROW_ERROR(status, message);
     }
 };
-
-/// @cond DO_NOT_DOCUMENT_THIS
-/// oneDNN exception message list.
-///
-/// Generates and returns error messages for common oneDNN API exceptions.
-namespace err_message_list {
-
-inline std::string init_error(const std::string &cobj) {
-    return "could not create " + cobj;
-}
-
-inline std::string execute_error(const std::string &cobj) {
-    return "could not execute " + cobj;
-}
-
-inline std::string clone_error(const std::string &cobj) {
-    return "could not clone " + cobj;
-}
-
-inline std::string get_failure(const std::string &cobj) {
-    return "could not get " + cobj;
-}
-
-inline std::string set_failure(const std::string &cobj) {
-    return "could not set " + cobj;
-}
-
-inline std::string pd_creation(const std::string &prim) {
-    return "could not create a primitive descriptor for the "
-                    + prim + " primitive. Run workload with "
-                    "environment variable ONEDNN_VERBOSE=all to get "
-                    "additional diagnostic information.";
-}
-
-inline std::string md_creation(const std::string &desc) {
-    return "could not create a memory descriptor for a " + desc;
-}
-
-inline std::string memory_creation() {
-    return "could not create a memory object.";
-}
-
-inline std::string desc_query(
-        const std::string &query, const std::string &desc) {
-    return "could not get " + query + " from " + desc + ".";
-}
-} // namespace err_message_list
-/// @endcond
 
 /// A class that provides the destructor for a oneDNN C API handle.
 template <typename T>
@@ -319,7 +271,7 @@ struct engine : public handle<dnnl_engine_t> {
         dnnl_engine_t engine;
         error::wrap_c_api(
                 dnnl_engine_create(&engine, convert_to_c(akind), index),
-                err_message_list::init_error("engine"));
+                "could not create an engine");
         reset(engine);
     }
 
@@ -328,7 +280,7 @@ struct engine : public handle<dnnl_engine_t> {
     kind get_kind() const {
         dnnl_engine_kind_t kind;
         error::wrap_c_api(dnnl_engine_get_kind(get(), &kind),
-                err_message_list::desc_query("kind", "engine"));
+                "could not get kind of an engine");
         return static_cast<engine::kind>(kind);
     }
 
@@ -397,7 +349,7 @@ struct stream : public handle<dnnl_stream_t> {
         dnnl_stream_t stream;
         error::wrap_c_api(dnnl_stream_create(&stream, aengine.get(),
                                   static_cast<dnnl_stream_flags_t>(aflags)),
-                err_message_list::init_error("stream"));
+                "could not create a stream");
         reset(stream);
     }
 
@@ -405,7 +357,7 @@ struct stream : public handle<dnnl_stream_t> {
     engine get_engine() const {
         dnnl_engine_t c_engine;
         error::wrap_c_api(dnnl_stream_get_engine(get(), &c_engine),
-                err_message_list::desc_query("engine", "stream object"));
+                "could not get an engine from a stream object");
         return engine(c_engine, true);
     }
 

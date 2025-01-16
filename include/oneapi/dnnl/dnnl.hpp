@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -226,7 +226,7 @@ inline dnnl_primitive_kind_t convert_to_c(primitive::kind akind) {
 const_dnnl_primitive_desc_t primitive::get_primitive_desc() const {
     const_dnnl_primitive_desc_t pd;
     error::wrap_c_api(dnnl_primitive_get_primitive_desc(get(), &pd),
-            err_message_list::desc_query("primitive descriptor", "primitive"));
+            "could not get a primitive descriptor from a primitive");
     return pd;
 }
 
@@ -237,20 +237,19 @@ dnnl::primitive::kind primitive::get_kind() const {
     dnnl_primitive_kind_t kind;
     error::wrap_c_api(dnnl_primitive_desc_query(
                               pd, dnnl_query_primitive_kind, 0, (void *)&kind),
-            err_message_list::desc_query(
-                    "primitive kind", "primitive descriptor"));
+            "could not get a primitive kind from a primitive descriptor");
     return static_cast<dnnl::primitive::kind>(kind);
 }
 
 std::vector<uint8_t> primitive::get_cache_blob() const {
     size_t size;
     error::wrap_c_api(dnnl_primitive_get_cache_blob(get(), &size, nullptr),
-            err_message_list::desc_query("cache blob size", "primitive"));
+            "could not get cache blob size from a primitive");
 
     std::vector<uint8_t> cache_blob(size);
     error::wrap_c_api(
             dnnl_primitive_get_cache_blob(get(), &size, cache_blob.data()),
-            err_message_list::desc_query("cache blob", "primitive"));
+            "could not get a cache blob from a primitive");
     return cache_blob;
 }
 
@@ -2754,7 +2753,7 @@ struct memory : public handle<dnnl_memory_t> {
             error::wrap_c_api(
                     dnnl_memory_desc_create_with_tag(&zero_md, 0, nullptr,
                             dnnl_data_type_undef, dnnl_format_tag_undef),
-                    err_message_list::init_error("zero memory descriptor"));
+                    "could not create a zero memory descriptor");
             reset(zero_md);
         }
 
@@ -2782,9 +2781,8 @@ struct memory : public handle<dnnl_memory_t> {
                     convert_to_c(aformat_tag));
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::init_error(
-                                "memory descriptor using a "
-                                "format tag"));
+                        "could not construct a memory descriptor using a "
+                        "format tag");
             reset(md);
         }
 
@@ -2813,8 +2811,8 @@ struct memory : public handle<dnnl_memory_t> {
                     strides.empty() ? nullptr : &strides[0]);
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::init_error("memory descriptor using "
-                                                     "strides"));
+                        "could not construct a memory descriptor using "
+                        "strides");
             reset(md);
         }
 #ifdef DNNL_EXPERIMENTAL_SPARSE
@@ -2847,7 +2845,8 @@ struct memory : public handle<dnnl_memory_t> {
                     convert_to_c(pointer_dt));
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::md_creation("CSR sparse encoding"));
+                        "could not create a memory descriptor for CSR sparse "
+                        "encoding");
             return desc {md};
         }
 
@@ -2878,7 +2877,8 @@ struct memory : public handle<dnnl_memory_t> {
                     convert_to_c(adata_type), nnz, convert_to_c(index_dt));
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::md_creation("COO sparse encoding"));
+                        "could not create a memory descriptor for COO sparse "
+                        "encoding");
             return desc {md};
         }
 
@@ -2911,8 +2911,8 @@ struct memory : public handle<dnnl_memory_t> {
                     convert_to_c(adata_type), nnz);
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::md_creation(
-                                "packed sparse encoding"));
+                        "could not create a memory descriptor for packed "
+                        "sparse encoding");
             return desc {md};
         }
 #endif
@@ -2930,8 +2930,7 @@ struct memory : public handle<dnnl_memory_t> {
             dnnl_memory_desc_t md = nullptr;
             error::wrap_c_api(
                     dnnl_memory_desc_create_with_blob(&md, blob.data()),
-                    err_message_list::init_error(
-                            "memory descriptor from blob"));
+                    "could not create a memory descriptor from blob");
             reset(md);
         }
 
@@ -2954,8 +2953,7 @@ struct memory : public handle<dnnl_memory_t> {
             dnnl_status_t status = dnnl_memory_desc_create_submemory(
                     &sub_md, get(), adims.data(), offsets.data());
             if (!allow_empty)
-                error::wrap_c_api(
-                        status, err_message_list::init_error("sub-memory"));
+                error::wrap_c_api(status, "could not construct a sub-memory");
             return desc(sub_md);
         }
 
@@ -3230,14 +3228,12 @@ struct memory : public handle<dnnl_memory_t> {
             size_t size;
             dnnl_status_t status
                     = dnnl_memory_desc_get_blob(nullptr, &size, get());
-            error::wrap_c_api(status,
-                    err_message_list::desc_query(
-                            "blob size", "memory descriptor"));
+            error::wrap_c_api(
+                    status, "could not get memory descriptor blob size");
 
             std::vector<uint8_t> out_blob(size);
             status = dnnl_memory_desc_get_blob(out_blob.data(), &size, get());
-            error::wrap_c_api(status,
-                    err_message_list::get_failure("memory descriptor blob"));
+            error::wrap_c_api(status, "could not get memory descriptor blob");
             return out_blob;
         }
 
@@ -3357,7 +3353,7 @@ struct memory : public handle<dnnl_memory_t> {
         dnnl_memory_t result;
         dnnl_status_t status = dnnl_memory_create_v2(&result, md.get(),
                 aengine.get(), (int)handles.size(), handles.data());
-        error::wrap_c_api(status, err_message_list::memory_creation());
+        error::wrap_c_api(status, "could not create a memory object");
         reset(result);
     }
 
@@ -3376,7 +3372,7 @@ struct memory : public handle<dnnl_memory_t> {
         status = dnnl_memory_create_v2(&result, md.get(), aengine.get(),
                 (int)handles.size(), handles.data());
 
-        error::wrap_c_api(status, err_message_list::memory_creation());
+        error::wrap_c_api(status, "could not create a memory object");
         reset(result);
     }
 #else
@@ -3403,7 +3399,7 @@ struct memory : public handle<dnnl_memory_t> {
         dnnl_memory_t result;
         error::wrap_c_api(
                 dnnl_memory_create(&result, md.get(), aengine.get(), handle),
-                err_message_list::memory_creation());
+                "could not create a memory object");
         reset(result);
     }
 
@@ -3421,11 +3417,10 @@ struct memory : public handle<dnnl_memory_t> {
     desc get_desc() const {
         const_dnnl_memory_desc_t cdesc;
         error::wrap_c_api(dnnl_memory_get_memory_desc(get(), &cdesc),
-                err_message_list::desc_query(
-                        "memory descriptor", "memory object"));
+                "could not get a memory descriptor from a memory object");
         dnnl_memory_desc_t cloned_md = nullptr;
         error::wrap_c_api(dnnl_memory_desc_clone(&cloned_md, cdesc),
-                err_message_list::clone_error("memory descriptor"));
+                "could not clone a memory descriptor");
         return desc(cloned_md);
     }
 
@@ -3433,7 +3428,7 @@ struct memory : public handle<dnnl_memory_t> {
     engine get_engine() const {
         dnnl_engine_t c_engine;
         error::wrap_c_api(dnnl_memory_get_engine(get(), &c_engine),
-                err_message_list::desc_query("engine", "memory object"));
+                "could not get an engine from a memory object");
         return engine(c_engine, true);
     }
 
@@ -3445,7 +3440,7 @@ struct memory : public handle<dnnl_memory_t> {
     void *get_data_handle(int index = 0) const {
         void *handle;
         error::wrap_c_api(dnnl_memory_get_data_handle_v2(get(), &handle, index),
-                err_message_list::desc_query("native handle", "memory object"));
+                "could not get a native handle from a memory object");
         return handle;
     }
 
@@ -3458,8 +3453,7 @@ struct memory : public handle<dnnl_memory_t> {
     /// @param index Memory index to attach the buffer. Defaults to 0.
     void set_data_handle(void *handle, int index = 0) const {
         error::wrap_c_api(dnnl_memory_set_data_handle_v2(get(), handle, index),
-                err_message_list::set_failure(
-                        "native handle of a memory object"));
+                "could not set native handle of a memory object");
     }
 
     /// Maps a memory object and returns a host-side pointer to a memory
@@ -3517,7 +3511,7 @@ struct memory : public handle<dnnl_memory_t> {
     void *get_data_handle() const {
         void *handle;
         error::wrap_c_api(dnnl_memory_get_data_handle(get(), &handle),
-                err_message_list::desc_query("native handle", "memory object"));
+                "could not get a native handle from a memory object");
         return handle;
     }
 
@@ -3529,8 +3523,7 @@ struct memory : public handle<dnnl_memory_t> {
     ///     #dnnl::memory::desc::get_size() bytes allocated.
     void set_data_handle(void *handle) const {
         error::wrap_c_api(dnnl_memory_set_data_handle(get(), handle),
-                err_message_list::set_failure(
-                        "native handle of a memory object"));
+                "could not set native handle of a memory object");
     }
 
     /// Maps a memory object and returns a host-side pointer to a memory
@@ -3644,8 +3637,8 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// Constructs an empty sequence of post-ops.
     post_ops() {
         dnnl_post_ops_t result;
-        error::wrap_c_api(dnnl_post_ops_create(&result),
-                err_message_list::init_error("post-ops"));
+        error::wrap_c_api(
+                dnnl_post_ops_create(&result), "could not create post-ops");
         reset(result);
     }
 
@@ -3712,7 +3705,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     void get_params_sum(int index, float &scale) const {
         error::wrap_c_api(dnnl_post_ops_get_params_sum(
                                   get(), index, &scale, nullptr, nullptr),
-                err_message_list::get_failure("parameters of a sum post-op"));
+                "could not get parameters of a sum post-op");
     }
 
     /// Returns the parameters of an accumulation (sum) post-op.
@@ -3725,7 +3718,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
         dnnl_data_type_t c_data_type;
         error::wrap_c_api(dnnl_post_ops_get_params_sum(
                                   get(), index, &scale, nullptr, &c_data_type),
-                err_message_list::get_failure("parameters of a sum post-op"));
+                "could not get parameters of a sum post-op");
         data_type = static_cast<memory::data_type>(c_data_type);
     }
 
@@ -3740,7 +3733,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
         dnnl_data_type_t c_data_type;
         error::wrap_c_api(dnnl_post_ops_get_params_sum(get(), index, &scale,
                                   &zero_point, &c_data_type),
-                err_message_list::get_failure("parameters of a sum post-op"));
+                "could not get parameters of a sum post-op");
         data_type = static_cast<memory::data_type>(c_data_type);
     }
 
@@ -3773,8 +3766,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
         dnnl_alg_kind_t c_alg;
         error::wrap_c_api(dnnl_post_ops_get_params_eltwise(
                                   get(), index, &c_alg, &alpha, &beta),
-                err_message_list::get_failure(
-                        "parameters of an elementwise post-op"));
+                "could not get parameters of an elementwise post-op");
         aalgorithm = static_cast<dnnl::algorithm>(c_alg);
     }
 
@@ -3837,8 +3829,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
                 dnnl_post_ops_get_params_dw(get(), index, &c_weights_data_type,
                         &c_bias_data_type, &c_dst_data_type, &c_kernel_size,
                         &c_stride_size, &c_padding_l_size),
-                err_message_list::get_failure(
-                        "parameters of depthwise post-op"));
+                "could not get parameters of depthwise post-op");
 
         weights_data_type = static_cast<memory::data_type>(c_weights_data_type);
         bias_data_type = static_cast<memory::data_type>(c_bias_data_type);
@@ -3879,12 +3870,11 @@ struct post_ops : public handle<dnnl_post_ops_t> {
         const_dnnl_memory_desc_t cdesc;
         error::wrap_c_api(
                 dnnl_post_ops_get_params_binary(get(), index, &c_alg, &cdesc),
-                err_message_list::get_failure(
-                        "parameters of a binary post-op"));
+                "could not get parameters of a binary post-op");
         aalgorithm = static_cast<dnnl::algorithm>(c_alg);
         dnnl_memory_desc_t cloned_md = nullptr;
         error::wrap_c_api(dnnl_memory_desc_clone(&cloned_md, cdesc),
-                err_message_list::clone_error("memory descriptor"));
+                "could not clone a memory descriptor");
         src1_desc = memory::desc(cloned_md);
     }
 
@@ -3951,8 +3941,7 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// @param mask Weights mask of prelu post-op.
     void get_params_prelu(int index, int &mask) const {
         error::wrap_c_api(dnnl_post_ops_get_params_prelu(get(), index, &mask),
-                err_message_list::get_failure(
-                        "parameters of a binary post-op"));
+                "could not get parameters of a binary post-op");
     }
 };
 
@@ -3975,7 +3964,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     primitive_attr() {
         dnnl_primitive_attr_t result;
         error::wrap_c_api(dnnl_primitive_attr_create(&result),
-                err_message_list::init_error("primitive attribute"));
+                "could not create primitive attribute");
         reset(result);
     }
 
@@ -3993,11 +3982,10 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void get_dropout(memory::desc &mask_desc) const {
         const_dnnl_memory_desc_t cdesc;
         error::wrap_c_api(dnnl_primitive_attr_get_dropout(get(), &cdesc),
-                err_message_list::get_failure(
-                        "parameters of a dropout attribute"));
+                "could not get parameters of a dropout attribute");
         dnnl_memory_desc_t cloned_md = nullptr;
         error::wrap_c_api(dnnl_memory_desc_clone(&cloned_md, cdesc),
-                err_message_list::clone_error("memory descriptor"));
+                "could not clone a memory descriptor");
         mask_desc = memory::desc(cloned_md);
     }
 
@@ -4007,15 +3995,14 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_dropout(const memory::desc &mask_desc) {
         error::wrap_c_api(
                 dnnl_primitive_attr_set_dropout(get(), mask_desc.get()),
-                err_message_list::set_failure("dropout primitive attribute"));
+                "could not set dropout primitive attribute");
     }
 
     /// Returns the fpmath mode
     fpmath_mode get_fpmath_mode() const {
         dnnl_fpmath_mode_t result;
         error::wrap_c_api(dnnl_primitive_attr_get_fpmath_mode(get(), &result),
-                err_message_list::get_failure(
-                        "fpmath mode primitive attribute"));
+                "could not get fpmath mode primitive attribute");
         return fpmath_mode(result);
     }
 
@@ -4028,8 +4015,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         int c_apply_to_int;
         error::wrap_c_api(dnnl_primitive_attr_get_fpmath_mode_v2(
                                   get(), &c_mode, &c_apply_to_int),
-                err_message_list::get_failure(
-                        "fpmath mode primitive attribute"));
+                "could not get fpmath mode primitive attribute");
         mode = fpmath_mode(c_mode);
         apply_to_int = static_cast<bool>(c_apply_to_int);
     }
@@ -4041,8 +4027,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_fpmath_mode(fpmath_mode mode, bool apply_to_int = false) {
         error::wrap_c_api(dnnl_primitive_attr_set_fpmath_mode_v2(get(),
                                   dnnl::convert_to_c(mode), apply_to_int),
-                err_message_list::set_failure(
-                        "fpmath mode primitive attribute"));
+                "could not set fpmath mode primitive attribute");
     }
 
     /// Returns the accumulation mode
@@ -4050,8 +4035,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         dnnl_accumulation_mode_t result;
         error::wrap_c_api(
                 dnnl_primitive_attr_get_accumulation_mode(get(), &result),
-                err_message_list::get_failure(
-                        "accumulation mode primitive attribute"));
+                "could not get accumulation mode primitive attribute");
         return accumulation_mode(result);
     }
 
@@ -4061,16 +4045,14 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_accumulation_mode(accumulation_mode mode) {
         error::wrap_c_api(dnnl_primitive_attr_set_accumulation_mode(
                                   get(), dnnl::convert_to_c(mode)),
-                err_message_list::set_failure(
-                        "accumulation mode primitive attribute"));
+                "could not set accumulation mode primitive attribute");
     }
 
     /// Returns the deterministic attribute value
     bool get_deterministic() const {
         int result;
         error::wrap_c_api(dnnl_primitive_attr_get_deterministic(get(), &result),
-                err_message_list::get_failure(
-                        "deterministic primitive attribute"));
+                "could not get deterministic primitive attribute");
         return static_cast<bool>(result);
     }
 
@@ -4080,8 +4062,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_deterministic(bool value) {
         error::wrap_c_api(dnnl_primitive_attr_set_deterministic(
                                   get(), static_cast<int>(value)),
-                err_message_list::set_failure(
-                        "deterministic primitive attribute"));
+                "could not set deterministic primitive attribute");
     }
 
     /// Returns the rounding mode attribute value
@@ -4091,8 +4072,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     rounding_mode get_rounding_mode(int arg) const {
         dnnl_rounding_mode_t result;
         error::wrap_c_api(dnnl_primitive_attr_get_rounding(get(), arg, &result),
-                err_message_list::get_failure(
-                        "rounding mode primitive attribute"));
+                "could not get rounding mode primitive attribute");
         return rounding_mode(result);
     }
 
@@ -4103,8 +4083,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_rounding_mode(int arg, rounding_mode mode) {
         error::wrap_c_api(dnnl_primitive_attr_set_rounding(
                                   get(), arg, convert_to_c(mode)),
-                err_message_list::set_failure(
-                        "rounding mode primitive attribute"));
+                "could not set rounding mode primitive attribute");
     }
 
     /// Returns the scratchpad mode.
@@ -4112,8 +4091,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         dnnl_scratchpad_mode_t result;
         error::wrap_c_api(
                 dnnl_primitive_attr_get_scratchpad_mode(get(), &result),
-                err_message_list::get_failure(
-                        "scratchpad mode primitive attribute"));
+                "could not get scratchpad mode primitive attribute");
         return scratchpad_mode(result);
     }
 
@@ -4123,8 +4101,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_scratchpad_mode(scratchpad_mode mode) {
         error::wrap_c_api(dnnl_primitive_attr_set_scratchpad_mode(
                                   get(), dnnl::convert_to_c(mode)),
-                err_message_list::set_failure(
-                        "scratchpad mode primitive attribute"));
+                "could not set scratchpad mode primitive attribute");
     }
 
     /// Sets scaling factors for primitive operations for a given memory
@@ -4142,7 +4119,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     use a common scaling factor for the whole output tensor.
     void set_scales_mask(int arg, int mask) {
         error::wrap_c_api(dnnl_primitive_attr_set_scales_mask(get(), arg, mask),
-                err_message_list::set_failure("scales primitive attribute"));
+                "could not set scales primitive attribute");
     }
 
     /// Sets scaling factors for primitive operations for a given memory
@@ -4168,7 +4145,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         error::wrap_c_api(dnnl_primitive_attr_set_scales(get(), arg, mask,
                                   (int)groups.size(), groups.data(),
                                   memory::convert_to_c(data_type)),
-                err_message_list::set_failure("scales primitive attribute"));
+                "could not set scales primitive attribute");
     }
 
     /// Sets zero points for primitive operations for a given memory argument.
@@ -4187,8 +4164,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_zero_points_mask(int arg, int mask) {
         error::wrap_c_api(
                 dnnl_primitive_attr_set_zero_points_mask(get(), arg, mask),
-                err_message_list::set_failure(
-                        "zero points primitive attribute"));
+                "could not set zero points primitive attribute");
     }
 
     /// Sets zero points for primitive operations for a given memory argument.
@@ -4214,8 +4190,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg, mask,
                                   (int)groups.size(), groups.data(),
                                   memory::convert_to_c(data_type)),
-                err_message_list::set_failure(
-                        "zero points primitive attribute"));
+                "could not set zero points primitive attribute");
     }
 
     /// Returns post-ops previously set via set_post_ops().
@@ -4225,10 +4200,10 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         const_dnnl_post_ops_t const_c_post_ops;
         error::wrap_c_api(
                 dnnl_primitive_attr_get_post_ops(get(), &const_c_post_ops),
-                err_message_list::get_failure("post-ops primitive attribute"));
+                "could not get post-ops primitive attribute");
         dnnl_post_ops_t c_post_ops;
         error::wrap_c_api(dnnl_post_ops_clone(&c_post_ops, const_c_post_ops),
-                err_message_list::clone_error("post-ops primitive attribute"));
+                "could not clone post-ops primitive attribute");
         return post_ops(c_post_ops);
     }
 
@@ -4242,7 +4217,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     /// @param ops Post-ops object to copy post-ops from.
     void set_post_ops(const post_ops ops) {
         error::wrap_c_api(dnnl_primitive_attr_set_post_ops(get(), ops.get()),
-                err_message_list::set_failure("post-ops primitive attribute"));
+                "could not set post-ops primitive attribute");
     }
 
     /// Sets quantization scale and shift parameters for RNN data tensors.
@@ -4281,9 +4256,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_rnn_data_qparams(float scale, float shift) {
         error::wrap_c_api(
                 dnnl_primitive_attr_set_rnn_data_qparams(get(), scale, shift),
-                err_message_list::set_failure(
-                        "RNN data quantization parameters primitive "
-                        "attribute"));
+                "could not set RNN data quantization parameters primitive "
+                "attribute");
     }
 
     /// Returns the quantization scale and shift parameters for RNN data
@@ -4299,9 +4273,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         float c_scale, c_shift;
         error::wrap_c_api(dnnl_primitive_attr_get_rnn_data_qparams(
                                   get(), &c_scale, &c_shift),
-                err_message_list::set_failure(
-                        "RNN data quantization parameters primitive "
-                        "attribute"));
+                "could not set RNN data quantization parameters primitive "
+                "attribute");
         scale = c_scale;
         shift = c_shift;
     }
@@ -4335,9 +4308,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_rnn_weights_qparams(int mask, const std::vector<float> &scales) {
         error::wrap_c_api(dnnl_primitive_attr_set_rnn_weights_qparams(get(),
                                   (int)scales.size(), mask, scales.data()),
-                err_message_list::set_failure(
-                        "RNN weights quantization parameters primitive "
-                        "attribute"));
+                "could not set RNN weights quantization parameters primitive "
+                "attribute");
     }
 
     /// Returns the quantization scaling factors for RNN projection weights
@@ -4365,9 +4337,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         const float *c_scales;
         error::wrap_c_api(dnnl_primitive_attr_get_rnn_weights_qparams(
                                   get(), &count, &c_mask, &c_scales),
-                err_message_list::get_failure(
-                        "primitive RNN weights quantization "
-                        "parameters attributes"));
+                "could not get primitive RNN weights quantization "
+                "parameters attributes");
         scales.resize(count);
 
         mask = c_mask;
@@ -4406,9 +4377,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         error::wrap_c_api(
                 dnnl_primitive_attr_set_rnn_weights_projection_qparams(
                         get(), (int)scales.size(), mask, scales.data()),
-                err_message_list::set_failure(
-                        "primitive RNN weights projection quantization "
-                        "parameters attributes"));
+                "could not set primitive RNN weights projection quantization "
+                "parameters attributes");
     }
 
     /// Returns the quantization scaling factors for RNN projection weights
@@ -4438,9 +4408,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         error::wrap_c_api(
                 dnnl_primitive_attr_get_rnn_weights_projection_qparams(
                         get(), &count, &c_mask, &c_scales),
-                err_message_list::get_failure(
-                        "primitive RNN weights projection quantization "
-                        "parameters attributes"));
+                "could not get primitive RNN weights projection quantization "
+                "parameters attributes");
         scales.resize(count);
 
         mask = c_mask;
@@ -4589,7 +4558,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
         int ndims;
         error::wrap_c_api(
                 dnnl_memory_desc_query(md, dnnl_query_ndims_s32, &ndims),
-                err_message_list::desc_query("ndims", "memory descriptor"));
+                "could not query ndims from a memory descriptor");
 
         return status == dnnl_success
                 ? std::vector<float>(factors, factors + (ndims - 2))
@@ -4681,7 +4650,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
 
         dnnl_memory_desc_t cloned_md = nullptr;
         error::wrap_c_api(dnnl_memory_desc_clone(&cloned_md, cdesc),
-                err_message_list::clone_error("memory descriptor"));
+                "could not clone a memory descriptor");
 
         return memory::desc(cloned_md);
     }
@@ -4813,11 +4782,10 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
     primitive_attr get_primitive_attr() const {
         const_dnnl_primitive_attr_t const_c_attr;
         error::wrap_c_api(dnnl_primitive_desc_get_attr(get(), &const_c_attr),
-                err_message_list::desc_query(
-                        "attributes", "primitive descriptor"));
+                "could not get attributes from a primitive descriptor");
         dnnl_primitive_attr_t c_attr;
         error::wrap_c_api(dnnl_primitive_attr_clone(&c_attr, const_c_attr),
-                err_message_list::clone_error("primitive attributes"));
+                "could not clone primitive attributes");
         return primitive_attr(c_attr);
     }
 
@@ -4827,8 +4795,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
         dnnl_primitive_kind_t kind;
         error::wrap_c_api(dnnl_primitive_desc_query(get(),
                                   dnnl_query_primitive_kind, 0, (void *)&kind),
-                err_message_list::desc_query(
-                        "primitive kind", "primitive descriptor"));
+                "could not get primitive kind from a primitive descriptor");
         return static_cast<dnnl::primitive::kind>(kind);
     }
 
@@ -4841,15 +4808,12 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
                 dnnl_primitive_desc_query(get(),
                         dnnl::convert_to_c(query::cache_blob_id_size_s64), 0,
                         (void *)&count),
-                err_message_list::desc_query("size of cache blob ID",
-                        "primitive "
-                        "descriptor"));
+                "could not get size of cache blob ID from a primitive "
+                "descriptor");
         error::wrap_c_api(dnnl_primitive_desc_query(get(),
                                   dnnl::convert_to_c(query::cache_blob_id), 0,
                                   (void **)&c_id),
-                err_message_list::desc_query("cache blob ID",
-                        "primitive "
-                        "descriptor"));
+                "could not get cache blob ID from a primitive descriptor");
         std::vector<uint8_t> id(c_id, c_id + count);
         return id;
     }
@@ -4895,7 +4859,7 @@ protected:
             int ndims;
             error::wrap_c_api(
                     dnnl_memory_desc_query(md, dnnl_query_ndims_s32, &ndims),
-                    err_message_list::desc_query("ndims", "memory descriptor"));
+                    "could not query ndims from a memory descriptor");
             nspatial_dims = ndims - 2;
         }
 
@@ -4916,7 +4880,7 @@ protected:
         dnnl_engine_t c_engine;
         error::wrap_c_api(dnnl_primitive_desc_query(get(),
                                   dnnl::convert_to_c(what), 0, &c_engine),
-                err_message_list::desc_query("engine", "primitive_desc"));
+                "could not get an engine from a primitive_desc");
         return engine(c_engine, true);
     }
 
@@ -4926,7 +4890,7 @@ protected:
     void reset_with_clone(const_dnnl_primitive_desc_t pd) {
         dnnl_primitive_desc_t new_pd;
         error::wrap_c_api(dnnl_primitive_desc_clone(&new_pd, pd),
-                err_message_list::clone_error("primitive descriptor"));
+                "could not clone a primitive descriptor");
         reset(new_pd);
     }
 
@@ -4991,9 +4955,8 @@ protected:
         dnnl_primitive_kind_t pd_kind;
         rc = dnnl_primitive_desc_query(
                 pd, dnnl_query_primitive_kind, 0, (void *)&pd_kind);
-        error::wrap_c_api(rc,
-                err_message_list::desc_query(
-                        "primitive kind", "primitive descriptor"));
+        error::wrap_c_api(
+                rc, "could not get primitive kind from a primitive descriptor");
         if (pd_kind != c_prim_kind)
             DNNL_THROW_ERROR(dnnl_invalid_arguments,
                     "primitive descriptor operation kind mismatch");
@@ -5091,10 +5054,12 @@ struct reorder : public primitive {
             dnnl_status_t status = dnnl_reorder_primitive_desc_create(&result,
                     src_md.get(), src_engine.get(), dst_md.get(),
                     dst_engine.get(), attr.get());
-            if (!allow_empty) {
-                error::wrap_c_api(
-                        status, err_message_list::pd_creation("reorder"));
-            }
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for "
+                        "the reorder primitive. Run workload with "
+                        "environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5119,10 +5084,12 @@ struct reorder : public primitive {
             dnnl_status_t status = dnnl_reorder_primitive_desc_create(&result,
                     src_md.get(), src.get_engine().get(), dst_md.get(),
                     dst.get_engine().get(), attr.get());
-            if (!allow_empty) {
-                error::wrap_c_api(
-                        status, err_message_list::pd_creation("reorder"));
-            }
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for "
+                        "the reorder primitive. Run workload with "
+                        "environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5244,10 +5211,12 @@ struct concat : public primitive {
             dnnl_status_t status = dnnl_concat_primitive_desc_create(&result,
                     aengine.get(), dst.get(), (int)c_srcs.size(),
                     concat_dimension, c_srcs.data(), attr.get());
-            if (!allow_empty) {
-                error::wrap_c_api(
-                        status, err_message_list::pd_creation("concat"));
-            }
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for "
+                        "the concat primitive. Run workload with "
+                        "environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5278,10 +5247,12 @@ struct concat : public primitive {
             dnnl_status_t status = dnnl_concat_primitive_desc_create(&result,
                     aengine.get(), nullptr, (int)c_api_srcs.size(),
                     concat_dimension, c_api_srcs.data(), attr.get());
-            if (!allow_empty) {
-                error::wrap_c_api(
-                        status, err_message_list::pd_creation("concat"));
-            }
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for "
+                        "the concat primitive. Run workload with "
+                        "environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5360,9 +5331,12 @@ struct sum : public primitive {
             dnnl_status_t status = dnnl_sum_primitive_desc_create(&result,
                     aengine.get(), dst.get(), (int)c_api_srcs.size(),
                     scales.data(), c_api_srcs.data(), attr.get());
-            if (!allow_empty) {
-                error::wrap_c_api(status, err_message_list::pd_creation("sum"));
-            }
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for "
+                        "the sum primitive. Run workload with "
+                        "environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5394,9 +5368,12 @@ struct sum : public primitive {
             dnnl_status_t status = dnnl_sum_primitive_desc_create(&result,
                     aengine.get(), nullptr, (int)c_api_srcs.size(),
                     scales.data(), c_api_srcs.data(), attr.get());
-            if (!allow_empty) {
-                error::wrap_c_api(status, err_message_list::pd_creation("sum"));
-            }
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for "
+                        "the sum primitive. Run workload with "
+                        "environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
@@ -5734,11 +5711,12 @@ struct convolution_forward : public primitive {
                             weights_desc.get(), optional_arg(bias_desc),
                             dst_desc.get(), &strides[0], optional_arg(dilates),
                             &padding_l[0], &padding_r[0], attr.get());
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "convolution forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the convolution forward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -5927,11 +5905,12 @@ struct convolution_backward_data : public primitive {
                             diff_dst_desc.get(), &strides[0],
                             optional_arg(dilates), &padding_l[0], &padding_r[0],
                             hint_fwd_pd.get(), attr.get());
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "convolution backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the convolution backward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -6234,11 +6213,12 @@ struct convolution_backward_weights : public primitive {
                             optional_arg(diff_bias_desc), diff_dst_desc.get(),
                             &strides[0], optional_arg(dilates), &padding_l[0],
                             &padding_r[0], hint_fwd_pd.get(), attr.get());
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "convolution weights update"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the convolution weights update primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -6531,11 +6511,12 @@ struct deconvolution_forward : public primitive {
                             weights_desc.get(), optional_arg(bias_desc),
                             dst_desc.get(), &strides[0], optional_arg(dilates),
                             &padding_l[0], &padding_r[0], attr.get());
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "deconvolution forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the deconvolution forward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -6722,11 +6703,12 @@ struct deconvolution_backward_data : public primitive {
                             diff_dst_desc.get(), &strides[0],
                             optional_arg(dilates), &padding_l[0], &padding_r[0],
                             hint_fwd_pd.get(), attr.get());
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "deconvolution backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the deconvolution backward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -7022,11 +7004,12 @@ struct deconvolution_backward_weights : public primitive {
                             optional_arg(diff_bias_desc), diff_dst_desc.get(),
                             &strides[0], optional_arg(dilates), &padding_l[0],
                             &padding_r[0], hint_fwd_pd.get(), attr.get());
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "deconvolution weights update"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the deconvolution weights update primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -7102,11 +7085,12 @@ struct lrn_forward : public primitive {
                     convert_to_c(aalgorithm), src_desc.get(), dst_desc.get(),
                     local_size, alpha, beta, k, attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "lrn forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the lrn forward propagation primitive. Run workload "
+                        "with environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(pd);
         }
 
@@ -7210,11 +7194,12 @@ struct lrn_backward : public primitive {
                     diff_src_desc.get(), diff_dst_desc.get(), src_desc.get(),
                     local_size, alpha, beta, k, hint_fwd_pd.get(), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "lrn backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the lrn backward propagation primitive. Run workload "
+                        "with environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(pd);
         }
 
@@ -7424,11 +7409,12 @@ struct eltwise_forward : public primitive {
                     dst_desc.get(), alpha ? *alpha : 0.0f, beta ? *beta : 0.0f,
                     attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "eltwise forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the eltwise forward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -7602,11 +7588,12 @@ struct eltwise_backward : public primitive {
                     alpha ? *alpha : 0.0f, beta ? *beta : 0.0f,
                     hint_fwd_pd.get(), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "eltwise backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the eltwise backward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -7676,11 +7663,12 @@ struct softmax_forward : public primitive {
                     dnnl::convert_to_c(aalgorithm), src_desc.get(),
                     dst_desc.get(), axis, attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "softmax forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the softmax forward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
 
@@ -7768,11 +7756,12 @@ struct softmax_backward : public primitive {
                     diff_src_desc.get(), diff_dst_desc.get(), dst_desc.get(),
                     axis, hint_fwd_pd.get(), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "softmax backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the softmax backward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
 
@@ -7887,11 +7876,13 @@ struct batch_normalization_forward : public primitive {
                             src_desc.get(), dst_desc.get(), epsilon,
                             convert_to_c(flags), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "batch normalization forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the batch normalization forward propagation "
+                        "primitive. Run workload with environment variable "
+                        "ONEDNN_VERBOSE=all to get additional diagnostic "
+                        "information.");
             reset(pd);
         }
 
@@ -8016,11 +8007,13 @@ struct batch_normalization_backward : public primitive {
                             src_desc.get(), epsilon, convert_to_c(flags),
                             hint_fwd_pd.get(), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "batch normalization backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the batch normalization backward propagation "
+                        "primitive. Run workload with environment variable "
+                        "ONEDNN_VERBOSE=all to get additional diagnostic "
+                        "information.");
             reset(pd);
         }
 
@@ -8162,11 +8155,13 @@ struct group_normalization_forward : public primitive {
                             src_desc.get(), dst_desc.get(), groups, epsilon,
                             convert_to_c(flags), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "group normalization forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the group normalization forward propagation "
+                        "primitive. Run workload with environment variable "
+                        "ONEDNN_VERBOSE=all to get additional diagnostic "
+                        "information.");
             reset(pd);
         }
 
@@ -8295,11 +8290,13 @@ struct group_normalization_backward : public primitive {
                             src_desc.get(), groups, epsilon,
                             convert_to_c(flags), hint_fwd_pd.get(), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "group normalization backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the group normalization backward propagation "
+                        "primitive. Run workload with environment variable "
+                        "ONEDNN_VERBOSE=all to get additional diagnostic "
+                        "information.");
             reset(pd);
         }
 
@@ -8602,11 +8599,13 @@ struct layer_normalization_forward : public primitive {
                             memory::convert_to_c(scale_shift_data_type),
                             epsilon, convert_to_c(flags), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "layer normalization forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the layer normalization forward propagation "
+                        "primitive. Run workload with environment variable "
+                        "ONEDNN_VERBOSE=all to get additional diagnostic "
+                        "information.");
             reset(pd);
         }
     };
@@ -8872,11 +8871,13 @@ struct layer_normalization_backward : public primitive {
                             epsilon, convert_to_c(flags), hint_fwd_pd.get(),
                             attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "layer normalization backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the layer normalization backward propagation "
+                        "primitive. Run workload with environment variable "
+                        "ONEDNN_VERBOSE=all to get additional diagnostic "
+                        "information.");
             reset(pd);
         }
     };
@@ -9013,11 +9014,12 @@ struct inner_product_forward : public primitive {
                             optional_arg(bias_desc), dst_desc.get(),
                             attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "inner product forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the inner product forward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -9081,11 +9083,12 @@ struct inner_product_backward_data : public primitive {
                             weights_desc.get(), diff_dst_desc.get(),
                             hint_fwd_pd.get(), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "inner product backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the inner product backward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
 
@@ -9243,11 +9246,12 @@ struct inner_product_backward_weights : public primitive {
                             optional_arg(diff_bias_desc), diff_dst_desc.get(),
                             hint_fwd_pd.get(), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "inner product weights gradient"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the inner product weights gradient primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -9533,7 +9537,7 @@ protected:
             float beta, const primitive_attr &attr, bool allow_empty) {
 
         dnnl_status_t status = dnnl_success;
-        std::string msg
+        const char *msg
                 = "could not create a primitive descriptor for a requested "
                   "cell kind";
 
@@ -9548,8 +9552,10 @@ protected:
                         weights_iter_desc.get(), bias_desc.get(),
                         dst_layer_desc.get(), dst_iter_desc.get(),
                         convert_to_c(flags), alpha, beta, attr.get());
-                msg = err_message_list::pd_creation(
-                        "vanilla RNN forward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the vanilla RNN forward propagation primitive. Run "
+                      "workload with environment variable ONEDNN_VERBOSE=all "
+                      "to get additional diagnostic information.";
                 break;
             case algorithm::vanilla_lstm:
                 status = dnnl_lstm_forward_primitive_desc_create(&pd,
@@ -9562,7 +9568,10 @@ protected:
                         dst_layer_desc.get(), dst_iter_desc.get(),
                         optional_arg(dst_iter_c_desc), convert_to_c(flags),
                         attr.get());
-                msg = err_message_list::pd_creation("LSTM forward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the LSTM forward propagation primitive. Run workload "
+                      "with environment variable ONEDNN_VERBOSE=all to get "
+                      "additional diagnostic information.";
                 break;
             case algorithm::vanilla_gru:
                 status = dnnl_gru_forward_primitive_desc_create(&pd,
@@ -9572,7 +9581,10 @@ protected:
                         weights_iter_desc.get(), bias_desc.get(),
                         dst_layer_desc.get(), dst_iter_desc.get(),
                         convert_to_c(flags), attr.get());
-                msg = err_message_list::pd_creation("GRU forward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the GRU forward propagation primitive. Run workload "
+                      "with environment variable ONEDNN_VERBOSE=all to get "
+                      "additional diagnostic information.";
                 break;
             case algorithm::lbr_gru:
                 status = dnnl_lbr_gru_forward_primitive_desc_create(&pd,
@@ -9582,8 +9594,10 @@ protected:
                         weights_iter_desc.get(), bias_desc.get(),
                         dst_layer_desc.get(), dst_iter_desc.get(),
                         convert_to_c(flags), attr.get());
-                msg = err_message_list::pd_creation(
-                        "LBR GRU forward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the LBR GRU forward propagation primitive. Run workload "
+                      "with environment variable ONEDNN_VERBOSE=all to get "
+                      "additional diagnostic information.";
                 break;
             case algorithm::vanilla_augru:
                 status = dnnl_augru_forward_primitive_desc_create(&pd,
@@ -9593,8 +9607,10 @@ protected:
                         weights_layer_desc.get(), weights_iter_desc.get(),
                         bias_desc.get(), dst_layer_desc.get(),
                         dst_iter_desc.get(), convert_to_c(flags), attr.get());
-                msg = err_message_list::pd_creation(
-                        "AUGRU forward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the AUGRU forward propagation primitive. Run workload "
+                      "with environment variable ONEDNN_VERBOSE=all to get "
+                      "additional diagnostic information.";
                 break;
             case algorithm::lbr_augru:
                 status = dnnl_lbr_augru_forward_primitive_desc_create(&pd,
@@ -9604,13 +9620,15 @@ protected:
                         weights_layer_desc.get(), weights_iter_desc.get(),
                         bias_desc.get(), dst_layer_desc.get(),
                         dst_iter_desc.get(), convert_to_c(flags), attr.get());
-                msg = err_message_list::pd_creation(
-                        "LBR AUGRU forward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the LBR AUGRU forward propagation primitive. Run "
+                      "workload with environment variable ONEDNN_VERBOSE=all "
+                      "to get additional diagnostic information.";
                 break;
             default: status = dnnl_unimplemented;
         }
 
-        if (!allow_empty) { error::wrap_c_api(status, msg); }
+        if (!allow_empty) error::wrap_c_api(status, msg);
         reset(pd);
     }
 
@@ -9645,7 +9663,7 @@ protected:
             const primitive_attr &attr, bool allow_empty) {
 
         dnnl_status_t status = dnnl_success;
-        std::string msg = "";
+        const char *msg = "";
 
         dnnl_primitive_desc_t pd = nullptr;
         switch (cell_kind) {
@@ -9663,8 +9681,10 @@ protected:
                         diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), alpha, beta, hint_fwd_pd.get(),
                         attr.get());
-                msg = err_message_list::pd_creation(
-                        "vanilla RNN backward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the vanilla RNN backward propagation primitive. Run "
+                      "workload with environment variable ONEDNN_VERBOSE=all "
+                      "to get additional diagnostic information.";
                 break;
             case algorithm::vanilla_lstm:
                 status = dnnl_lstm_backward_primitive_desc_create(&pd,
@@ -9686,8 +9706,10 @@ protected:
                         diff_dst_iter_desc.get(),
                         optional_arg(diff_dst_iter_c_desc), convert_to_c(flags),
                         hint_fwd_pd.get(), attr.get());
-                msg = err_message_list::pd_creation(
-                        "LSTM backward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the LSTM backward propagation primitive. Run workload "
+                      "with environment variable ONEDNN_VERBOSE=all to get "
+                      "additional diagnostic information.";
                 break;
             case algorithm::vanilla_gru:
                 status = dnnl_gru_backward_primitive_desc_create(&pd,
@@ -9701,7 +9723,10 @@ protected:
                         diff_weights_iter_desc.get(), diff_bias_desc.get(),
                         diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
-                msg = err_message_list::pd_creation("GRU backward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the GRU backward propagation primitive. Run workload "
+                      "with environment variable ONEDNN_VERBOSE=all to get "
+                      "additional diagnostic information.";
                 break;
             case algorithm::lbr_gru:
                 status = dnnl_lbr_gru_backward_primitive_desc_create(&pd,
@@ -9715,8 +9740,10 @@ protected:
                         diff_weights_iter_desc.get(), diff_bias_desc.get(),
                         diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
-                msg = err_message_list::pd_creation(
-                        "LBR GRU backward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the LBR GRU backward propagation primitive. Run "
+                      "workload with environment variable ONEDNN_VERBOSE=all "
+                      "to get additional diagnostic information.";
                 break;
             case algorithm::vanilla_augru:
                 status = dnnl_augru_backward_primitive_desc_create(&pd,
@@ -9732,8 +9759,10 @@ protected:
                         diff_weights_iter_desc.get(), diff_bias_desc.get(),
                         diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
-                msg = err_message_list::pd_creation(
-                        "AUGRU backward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the AUGRU backward propagation primitive. Run workload "
+                      "with environment variable ONEDNN_VERBOSE=all to get "
+                      "additional diagnostic information.";
                 break;
             case algorithm::lbr_augru:
                 status = dnnl_lbr_augru_backward_primitive_desc_create(&pd,
@@ -9749,12 +9778,14 @@ protected:
                         diff_weights_iter_desc.get(), diff_bias_desc.get(),
                         diff_dst_layer_desc.get(), diff_dst_iter_desc.get(),
                         convert_to_c(flags), hint_fwd_pd.get(), attr.get());
-                msg = err_message_list::pd_creation(
-                        "LBR AUGRU backward propagation");
+                msg = "could not create a primitive descriptor for "
+                      "the LBR AUGRU backward propagation primitive. Run "
+                      "workload with environment variable ONEDNN_VERBOSE=all "
+                      "to get additional diagnostic information.";
                 break;
             default: status = dnnl_unimplemented;
         }
-        if (!allow_empty) { error::wrap_c_api(status, msg); }
+        if (!allow_empty) error::wrap_c_api(status, msg);
         reset(pd);
     }
 };
@@ -12486,11 +12517,12 @@ struct shuffle_forward : public primitive {
                     src_desc.get(), dst_desc.get(), axis, group_size,
                     attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "shuffle forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the shuffle forward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
 
@@ -12574,11 +12606,12 @@ struct shuffle_backward : public primitive {
                     diff_dst_desc.get(), axis, group_size, hint_fwd_pd.get(),
                     attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "shuffle backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the shuffle backward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
 
@@ -12667,10 +12700,12 @@ struct binary : public primitive {
                     aengine.get(), dnnl::convert_to_c(aalgorithm), src0.get(),
                     src1.get(), dst.get(), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation("binary operation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the binary operation primitive. Run workload with "
+                        "environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(pd);
         }
 
@@ -12703,7 +12738,10 @@ struct binary : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation("binary v2 operation"));
+                        "could not create a primitive descriptor for "
+                        "the binary v2 operation primitive. Run workload with "
+                        "environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(pd);
         }
 
@@ -12843,10 +12881,12 @@ struct matmul : public primitive {
                     aengine.get(), src_desc.get(), weights_desc.get(),
                     optional_arg(bias_desc), dst_desc.get(), attr.get());
 
-            if (!allow_empty) {
-                error::wrap_c_api(
-                        status, err_message_list::pd_creation("matmul"));
-            }
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for "
+                        "the matmul primitive. Run workload with "
+                        "environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(pd);
         }
     };
@@ -13006,11 +13046,12 @@ struct resampling_forward : public primitive {
                             convert_to_c(aalgorithm), optional_arg(factors),
                             src_desc.get(), optional_arg(dst_desc), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "resampling forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the resampling forward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -13131,11 +13172,12 @@ struct resampling_backward : public primitive {
                             optional_arg(factors), diff_src_desc.get(),
                             diff_dst_desc.get(), hint_fwd_pd.get(), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "resampling backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the resampling backward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
     };
@@ -13230,8 +13272,8 @@ struct pooling_forward : public primitive {
 
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation("pooling forward "
-                                                      "propagation primitive"));
+                        "could not create a descriptor for a pooling forward "
+                        "propagation primitive");
             reset(pd);
         }
 
@@ -13358,8 +13400,8 @@ struct pooling_backward : public primitive {
                     hint_fwd_pd.get(), attr.get());
             if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation("pooling backward "
-                                                      "propagation primitive"));
+                        "could not create a descriptor for a pooling backward "
+                        "propagation primitive");
             reset(pd);
         }
 
@@ -13469,11 +13511,12 @@ struct prelu_forward : public primitive {
                     src_desc.get(), weight_desc.get(), dst_desc.get(),
                     attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "prelu forward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the prelu forward propagation primitive. Run workload "
+                        "with environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(pd);
         }
 
@@ -13555,11 +13598,12 @@ struct prelu_backward : public primitive {
                     diff_src_desc.get(), diff_weights_desc.get(),
                     diff_dst_desc.get(), hint_fwd_pd.get(), attr.get());
 
-            if (!allow_empty) {
+            if (!allow_empty)
                 error::wrap_c_api(status,
-                        err_message_list::pd_creation(
-                                "prelu backward propagation"));
-            }
+                        "could not create a primitive descriptor for "
+                        "the prelu backward propagation primitive. Run "
+                        "workload with environment variable ONEDNN_VERBOSE=all "
+                        "to get additional diagnostic information.");
             reset(pd);
         }
 
@@ -13656,10 +13700,12 @@ struct reduction : public primitive {
                     aengine.get(), convert_to_c(aalgorithm), src_desc.get(),
                     dst_desc.get(), p, eps, attr.get());
 
-            if (!allow_empty) {
-                error::wrap_c_api(
-                        status, err_message_list::pd_creation("reduction"));
-            }
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for "
+                        "the reduction primitive. Run workload with "
+                        "environment variable ONEDNN_VERBOSE=all to get "
+                        "additional diagnostic information.");
             reset(pd);
         }
 
@@ -13748,7 +13794,7 @@ inline const version_t *version() {
 inline fpmath_mode get_default_fpmath_mode() {
     dnnl_fpmath_mode_t mode;
     error::wrap_c_api(dnnl_get_default_fpmath_mode(&mode),
-            err_message_list::get_failure("default fpmath mode"));
+            "could not get a default fpmath mode");
     return static_cast<fpmath_mode>(mode);
 }
 
@@ -13881,8 +13927,7 @@ inline std::vector<uint64_t> get_profiling_data(
             dnnl_query_profiling_data(stream.get(),
                     static_cast<dnnl_profiling_data_kind_t>(data_kind),
                     &num_entries, nullptr),
-            err_message_list::get_failure(
-                    "number of entries for profiling data"));
+            "could not get number of entries for profiling data");
 
     if (num_entries == 0) return {};
 
@@ -13891,7 +13936,7 @@ inline std::vector<uint64_t> get_profiling_data(
             dnnl_query_profiling_data(stream.get(),
                     static_cast<dnnl_profiling_data_kind_t>(data_kind),
                     &num_entries, data.data()),
-            err_message_list::get_failure("profiling data"));
+            "could not get profiling data");
     return data;
 }
 
@@ -13909,14 +13954,14 @@ inline std::vector<uint64_t> get_profiling_data(
 inline int get_primitive_cache_capacity() {
     int result = 0;
     error::wrap_c_api(dnnl_get_primitive_cache_capacity(&result),
-            err_message_list::get_failure("primitive cache capacity"));
+            "could not get primitive cache capacity");
     return result;
 }
 
 /// @copydoc dnnl_set_primitive_cache_capacity(int capacity)
 inline void set_primitive_cache_capacity(int capacity) {
     error::wrap_c_api(dnnl_set_primitive_cache_capacity(capacity),
-            err_message_list::set_failure("primitive cache capacity"));
+            "could not set primitive cache capacity");
 }
 
 /// @} dnnl_api_primitive_cache
@@ -13962,7 +14007,7 @@ inline status gemm_s8s8s32(char transa, char transb, char offsetc, dnnl_dim_t M,
 inline primitive::primitive(const_dnnl_primitive_desc_t c_pd) {
     dnnl_primitive_t result;
     error::wrap_c_api(dnnl_primitive_create(&result, c_pd),
-            err_message_list::init_error("primitive"));
+            "could not create a primitive");
     reset(result);
 }
 
@@ -13973,7 +14018,7 @@ inline primitive::primitive(const_dnnl_primitive_desc_t c_pd,
     const uint8_t *cache_blob_data = cache_blob.data();
     error::wrap_c_api(dnnl_primitive_create_from_cache_blob(
                               &result, c_pd, size, cache_blob_data),
-            err_message_list::init_error("primitive from a cache blob"));
+            "could not create a primitive from a cache blob");
     reset(result);
 }
 
@@ -13991,7 +14036,7 @@ inline void primitive::execute(const stream &astream,
 
     error::wrap_c_api(dnnl_primitive_execute(get(), astream.get(),
                               (int)c_args.size(), c_args.data()),
-            err_message_list::execute_error("primitive"));
+            "could not execute a primitive");
 }
 
 /// @endcond
