@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,10 +93,6 @@ struct brgemm_convolution_fwd_t : public primitive_t {
         Arrmap<4> batchsizes;
         int brg_indices_c {0};
         Arrmap<8> brg_indices;
-
-        void get_kw_range(int ow, int &kw_s, int &kw_full_s, int &kw_full_e,
-                int &kw_e) const;
-        void get_ow_range(int ow, int kw, int &ow_s, int &ow_e) const;
 
         int get_brg_idx(int m, bool do_initialization, bool is_N_tail,
                 bool is_K_tail, int kd_b, int kd_e, int kh_b, int kh_e) const;

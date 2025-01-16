@@ -3370,6 +3370,65 @@ status_t init_scratchpad_bwd_w(memory_tracking::registrar_t &scratchpad,
     return status::success;
 }
 
+// Sets `ow_s` and `ow_f` values based on given `jcp`.
+void get_ow_range(const jit_brgemm_conv_conf_t &jcp, int ow, int kw, int &ow_s,
+        int &ow_f) {
+    // This function is used for exec_base only
+
+    const bool is_ow_tail = (jcp.ow - ow < jcp.ow_block);
+    const auto M = is_ow_tail ? jcp.ow_tail : jcp.ow_block;
+
+    const auto IW = jcp.iw;
+    const auto SW = jcp.stride_w;
+    const auto LP = jcp.l_pad;
+    const auto DW = jcp.dilate_w + 1;
+
+    const auto iiw = ow * SW - LP;
+    auto iw_lp = iiw + kw * DW;
+    const auto iw_rp = iw_lp + (M - 1) * SW - IW + 1;
+    ow_s = ow;
+
+    int ker_idx = 0;
+    if (iw_lp < 0) {
+        iw_lp = nstl::abs(iw_lp);
+        ker_idx += div_up(iw_lp, SW);
+        ow_s += ker_idx;
+    }
+    if (iw_rp > 0) ker_idx += div_up(iw_rp, SW);
+    ow_f = nstl::max(ow_s, ow_s + (M - ker_idx));
+
+    ow_s = nstl::min(ow_s, ow + M);
+    ow_f = nstl::min(ow_f, ow + M);
+}
+
+// Sets pairs of `kw_s`-`kw_f` and `kw_full_s`-`kw_full_f` based on given `jcp`.
+void get_kw_range(const jit_brgemm_conv_conf_t &jcp, int ow, int &kw_s,
+        int &kw_full_s, int &kw_full_f, int &kw_f) {
+    // This function is used for exec_base only
+    // TODO: calculate these values instead direct loop by kw
+
+    const bool is_ow_tail = (jcp.ow - ow < jcp.ow_block);
+    const auto M = is_ow_tail ? jcp.ow_tail : jcp.ow_block;
+    kw_s = kw_full_s = kw_full_f = kw_f = -1;
+    for (int kw = 0; kw < jcp.kw; kw++) {
+        int ow_s {0}, ow_f {0};
+        brgemm_convolution_utils::get_ow_range(jcp, ow, kw, ow_s, ow_f);
+        if (ow_s < ow_f) {
+            if (kw_s == -1) kw_s = kw;
+            kw_f = kw + 1;
+            if (ow_f - ow_s == M) {
+                if (kw_full_s == -1) kw_full_s = kw;
+                kw_full_f = kw + 1;
+            }
+        }
+    }
+    if (kw_f == -1) {
+        kw_s = 0;
+        kw_f = 0;
+    }
+    if (kw_full_f == -1) kw_full_s = kw_full_f = kw_f;
+}
+
 } // namespace brgemm_convolution_utils
 
 } // namespace x64
