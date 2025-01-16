@@ -68,10 +68,8 @@ jobs:
           pwd
           ls
           ls ${{ github.workspace }}/
-          ls ${{ github.workspace }}/oneDNN/
-          ls ${{ github.workspace }}/oneDNN/.github/automation/ 
-          ${{ github.workspace }}/oneDNN/.github/automation/cmake_configure.sh
-        working-directory: ${{ github.workspace }}/oneDNN
+          ls .github/automation/ 
+          .github/automation/cmake_configure.sh
         env:
           BUILD_TOOLSET: ${{ matrix.config.toolset }}
           GCC_VERSION: 13
