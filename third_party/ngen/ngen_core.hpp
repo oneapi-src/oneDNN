@@ -214,6 +214,10 @@ class invalid_address_modifier_exception : public std::runtime_error {
 public:
     invalid_address_modifier_exception() : std::runtime_error("Invalid address offset") {}
 };
+class invalid_address_mode_exception : public std::runtime_error {
+public:
+    invalid_address_mode_exception() : std::runtime_error("Invalid address mode") {}
+};
 #endif
 
 // Graphics core generations.

@@ -1947,6 +1947,9 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
 
     typename EncodingTag12Dispatch<hw>::tag tag;
     Instruction12 i{};
+#ifdef NGEN_SAFE
+    if (!src0.isIndirect())  throw invalid_address_mode_exception();
+#endif
 
     InstructionModifier emod = mod | defaultModifier;
     if (forceWE)
