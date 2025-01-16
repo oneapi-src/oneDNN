@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -173,7 +173,7 @@ struct CommonStrategy {
     EmulationStrategy emulate;
                                     ZPAD(C, 2)
 
-    CommonStrategy() {}
+    CommonStrategy() = default;
     CommonStrategy(ngen::HW hw, int stepping = 0);
     void preflight(ngen::HW hw, const CommonProblem &problem);
 };
@@ -315,7 +315,7 @@ struct GEMMStrategyPOD : public CommonStrategy {
     bool insideSK = false;                       // Inside a superkernel?
                                     ZPAD(P, 3)
 
-    GEMMStrategyPOD() {}
+    GEMMStrategyPOD() = default;
     GEMMStrategyPOD(ngen::HW hw, int stepping = 0) : CommonStrategy(hw, stepping) {}
 };
 
@@ -325,7 +325,7 @@ struct GEMMStrategy : public GEMMStrategyPOD
 {
     std::vector<MatrixAddressingStrategy> binary; // Strategies for accessing binary postop data.
 
-    GEMMStrategy() {}
+    GEMMStrategy() = default;
     GEMMStrategy(ngen::HW hw, int stepping = 0) : GEMMStrategyPOD(hw, stepping) {}
 
     void preflight(ngen::HW hw, const GEMMProblem &problem);

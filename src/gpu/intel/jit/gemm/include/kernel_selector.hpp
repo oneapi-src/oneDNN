@@ -52,7 +52,7 @@ struct MatchParamsBase
     int nExtraReqs = 0;
     const StrategyRequirement *extraReqs = nullptr;
 
-    MatchParamsBase() {}
+    MatchParamsBase() = default;
     MatchParamsBase(ngen::HW hw, bool systolicAvailable, bool isIntegrated, const GEMMProblem &problem);
 
 protected:
@@ -61,7 +61,7 @@ protected:
 
 struct MatchParams : public MatchParamsBase
 {
-    MatchParams() : MatchParamsBase() {}
+    MatchParams() = default;
     MatchParams(ngen::HW hw, bool systolicAvailable, bool isIntegrated, const GEMMProblem &problem)
             : MatchParamsBase(hw, systolicAvailable, isIntegrated, problem) {}
 
