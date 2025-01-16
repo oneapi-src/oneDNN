@@ -832,6 +832,10 @@ int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res) {
 int check_ref_impl_hit(res_t *res) {
     if (!check_ref_impl) return OK;
 
+    // Nvidia, AMD and Generic backends use reference implementations to fill
+    // gaps in feature support.
+    if (is_nvidia_gpu() || is_amd_gpu() || is_generic_gpu()) return OK;
+
     const auto &impl_name = res->impl_name;
     if (impl_name.find("ref") != std::string::npos) {
         res->state = FAILED;
@@ -883,6 +887,14 @@ bool is_amd_gpu(const dnnl_engine_t &engine) {
             = device.get_info<::sycl::info::device::vendor_id>();
     return eng_vendor_id == amd_vendor_id;
 #endif
+    return false;
+}
+
+bool is_generic_gpu(const dnnl_engine_t &engine) {
+#if defined(DNNL_WITH_SYCL) && DNNL_GPU_VENDOR == DNNL_VENDOR_GENERIC
+    return is_gpu(engine);
+#endif
+
     return false;
 }
 
