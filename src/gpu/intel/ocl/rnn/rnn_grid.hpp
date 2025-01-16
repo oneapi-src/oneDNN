@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,12 +60,12 @@ struct _simple_rnn_common_t : public gpu_primitive_t {
 
     using class_name = _simple_rnn_common_t<aprop>;
 
-    typedef elemwise_sig((class_name::*elemwise_f));
-    typedef elemwise_sig_gru((class_name::*elemwise_gru_f));
-    typedef elemwise_sig_gru_lbr((class_name::*elemwise_gru_lbr_f));
-    typedef cell_execution_sig((class_name::*cell_execution_f));
-    typedef grid_execution_sig((class_name::*grid_execution_f));
-    typedef gemm_sig((class_name::*gemm_t));
+    using elemwise_f = elemwise_sig((class_name::*));
+    using elemwise_gru_f = elemwise_sig_gru((class_name::*));
+    using elemwise_gru_lbr_f = elemwise_sig_gru_lbr((class_name::*));
+    using cell_execution_f = cell_execution_sig((class_name::*));
+    using grid_execution_f = grid_execution_sig((class_name::*));
+    using gemm_t = gemm_sig((class_name::*));
 
     using base_pd_t =
             typename utils::conditional<false || aprop == prop_kind::forward,
