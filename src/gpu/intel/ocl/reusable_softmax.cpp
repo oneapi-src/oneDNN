@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -179,6 +179,20 @@ status_t reusable_softmax_fwd_t::pd_t::init_dispatch_workgroup_per_reduction(
     CHECK(dispatch_config.generate(dispatch, lws_strat));
     conf.gws_params = dispatch.get_compile_params();
     rt_conf.gws_params = dispatch.get_runtime_params();
+
+    auto dispatch_lws = dispatch.get_runtime_params().nd_range.local_range();
+    auto dispatch_gws = dispatch.get_runtime_params().nd_range.global_range();
+
+    auto *device_info = compute_engine->device_info();
+    const size_t multiple_of_sg_lws
+            = utils::rnd_up(dispatch_lws[0], device_info->max_subgroup_size());
+
+    compute::range_t softmax_gws
+            = {multiple_of_sg_lws, dispatch_gws[1], dispatch_gws[2]};
+    compute::range_t softmax_lws
+            = {multiple_of_sg_lws, dispatch_lws[1], dispatch_lws[2]};
+    compute::nd_range_t softmax_ndrange(softmax_gws, softmax_lws);
+    rt_conf.gws_params.nd_range = softmax_ndrange;
 
     return status::success;
 }
