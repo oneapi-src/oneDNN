@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,12 +87,12 @@ inline std::vector<uint8_t> get_engine_cache_blob_id(cl_device_id device) {
     size_t size = 0;
     error::wrap_c_api(
             dnnl_ocl_interop_engine_get_cache_blob_id(device, &size, nullptr),
-            err_message_list::get_failure("engine cache blob id size"));
+            "could not get an engine cache blob id size");
 
     std::vector<uint8_t> cache_blob_id(size);
     error::wrap_c_api(dnnl_ocl_interop_engine_get_cache_blob_id(
                               device, &size, cache_blob_id.data()),
-            err_message_list::get_failure("engine cache blob id"));
+            "could not get an engine cache blob id");
     return cache_blob_id;
 }
 
@@ -109,12 +109,12 @@ inline std::vector<uint8_t> get_engine_cache_blob(const engine &aengine) {
     size_t size = 0;
     error::wrap_c_api(dnnl_ocl_interop_engine_get_cache_blob(
                               aengine.get(), &size, nullptr),
-            err_message_list::get_failure("engine cache blob size"));
+            "could not get an engine cache blob size");
 
     std::vector<uint8_t> cache_blob(size);
     error::wrap_c_api(dnnl_ocl_interop_engine_get_cache_blob(
                               aengine.get(), &size, cache_blob.data()),
-            err_message_list::get_failure("engine cache blob"));
+            "could not get an engine cache blob");
     return cache_blob;
 }
 
@@ -131,7 +131,7 @@ inline engine make_engine(cl_device_id device, cl_context context,
     error::wrap_c_api(
             dnnl_ocl_interop_engine_create_from_cache_blob(&c_engine, device,
                     context, cache_blob.size(), cache_blob.data()),
-            err_message_list::init_error("engine from cache blob"));
+            "could not create an engine from cache blob");
     return engine(c_engine);
 }
 
@@ -145,7 +145,7 @@ inline engine make_engine(cl_device_id device, cl_context context) {
     dnnl_engine_t c_engine;
     error::wrap_c_api(
             dnnl_ocl_interop_engine_create(&c_engine, device, context),
-            err_message_list::init_error("engine"));
+            "could not create an engine");
     return engine(c_engine);
 }
 
@@ -157,7 +157,7 @@ inline cl_context get_context(const engine &aengine) {
     cl_context context = nullptr;
     error::wrap_c_api(
             dnnl_ocl_interop_engine_get_context(aengine.get(), &context),
-            err_message_list::desc_query("OpenCL context", "engine"));
+            "could not get an OpenCL context from an engine");
     return context;
 }
 
@@ -168,7 +168,7 @@ inline cl_context get_context(const engine &aengine) {
 inline cl_device_id get_device(const engine &aengine) {
     cl_device_id device = nullptr;
     error::wrap_c_api(dnnl_ocl_interop_get_device(aengine.get(), &device),
-            err_message_list::desc_query("OpenCL device", "engine"));
+            "could not get an OpenCL device from an engine");
     return device;
 }
 
@@ -181,7 +181,7 @@ inline stream make_stream(const engine &aengine, cl_command_queue queue) {
     dnnl_stream_t c_stream;
     error::wrap_c_api(
             dnnl_ocl_interop_stream_create(&c_stream, aengine.get(), queue),
-            err_message_list::init_error("stream"));
+            "could not create a stream");
     return stream(c_stream);
 }
 
@@ -193,7 +193,7 @@ inline cl_command_queue get_command_queue(const stream &astream) {
     cl_command_queue queue = nullptr;
     error::wrap_c_api(
             dnnl_ocl_interop_stream_get_command_queue(astream.get(), &queue),
-            err_message_list::desc_query("OpenCL command queue", "stream"));
+            "could not get an OpenCL command queue from a stream");
     return queue;
 }
 
@@ -205,8 +205,7 @@ inline cl_mem get_mem_object(const memory &amemory) {
     cl_mem mem_object;
     error::wrap_c_api(
             dnnl_ocl_interop_memory_get_mem_object(amemory.get(), &mem_object),
-            err_message_list::desc_query(
-                    "OpenCL buffer object", "memory object"));
+            "could not get OpenCL buffer object from a memory object");
     return mem_object;
 }
 
@@ -221,8 +220,7 @@ inline cl_mem get_mem_object(const memory &amemory) {
 inline void set_mem_object(memory &amemory, cl_mem mem_object) {
     error::wrap_c_api(
             dnnl_ocl_interop_memory_set_mem_object(amemory.get(), mem_object),
-            err_message_list::set_failure(
-                    "OpenCL buffer object from a memory object"));
+            "could not set OpenCL buffer object from a memory object");
 }
 
 /// Returns the memory allocation kind associated with a memory object.
@@ -234,7 +232,7 @@ inline memory_kind get_memory_kind(const memory &amemory) {
     dnnl_ocl_interop_memory_kind_t ckind;
     error::wrap_c_api(
             dnnl_ocl_interop_memory_get_memory_kind(amemory.get(), &ckind),
-            err_message_list::get_failure("memory kind"));
+            "could not get memory kind");
     return static_cast<memory_kind>(ckind);
 }
 
@@ -276,7 +274,7 @@ inline memory make_memory(const memory::desc &memory_desc,
             dnnl_ocl_interop_memory_create_v2(&c_memory, memory_desc.get(),
                     aengine.get(), convert_to_c(kind), (int)handles.size(),
                     handles.data()),
-            err_message_list::init_error("memory"));
+            "could not create a memory");
     return memory(c_memory);
 }
 
@@ -379,7 +377,7 @@ inline memory make_memory(const memory::desc &memory_desc,
     error::wrap_c_api(
             dnnl_ocl_interop_memory_create(&c_memory, memory_desc.get(),
                     aengine.get(), convert_to_c(kind), handle),
-            err_message_list::init_error("memory"));
+            "could not create a memory");
     return memory(c_memory);
 }
 
@@ -430,7 +428,7 @@ inline cl_event execute(const dnnl::primitive &aprimitive,
     error::wrap_c_api(dnnl_ocl_interop_primitive_execute(aprimitive.get(),
                               astream.get(), (int)c_args.size(), c_args.data(),
                               c_deps, (int)deps.size(), &return_event),
-            err_message_list::execute_error("primitive"));
+            "could not execute a primitive");
     return return_event;
 }
 
