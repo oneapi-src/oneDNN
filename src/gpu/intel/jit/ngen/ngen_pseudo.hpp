@@ -602,7 +602,7 @@ void loadlid(int argBytes, int dims = 3, int simd = 8, const GRF &temp = GRF(127
 void loadargs(const GRF &base, int argGRFs, const GRF &temp = GRF(127), bool inPrologue = true, SourceLocation loc = {}) {
     if (hardware >= HW::XeHP) {
         if (argGRFs > 0) {
-            bool lsc = (hardware >= HW::XeHPG);
+            const bool lsc = (hardware >= HW::XeHPG);
             auto tempAddr = temp[lsc ? 0 : 2];
             auto dst = base;
             auto dmSave = defaultModifier;
