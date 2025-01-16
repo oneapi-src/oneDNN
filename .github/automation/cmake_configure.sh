@@ -30,6 +30,6 @@ set -x
 cmake \
     -Bbuild -S. \
     -DONEDNN_BUILD_GRAPH=OFF \
-    -DNNL_EXPERIMENTAL_SPARSE=ON
+    -DDNNL_EXPERIMENTAL_SPARSE=ON
 set +x
 
