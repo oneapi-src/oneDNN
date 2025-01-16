@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,6 +64,12 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
 status_t init_scratchpad_bwd_w(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
         memory_desc_t &diff_weights_md, memory_desc_t &diff_dst_md);
+
+// TODO: make a part of `jit_brgemm_conv_conf_t` instead?
+void get_ow_range(const jit_brgemm_conv_conf_t &jcp, int ow, int kw, int &ow_s,
+        int &ow_f);
+void get_kw_range(const jit_brgemm_conv_conf_t &jcp, int ow, int &kw_s,
+        int &kw_full_s, int &kw_full_f, int &kw_f);
 
 } // namespace brgemm_convolution_utils
 
