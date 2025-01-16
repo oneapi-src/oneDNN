@@ -841,7 +841,7 @@ void gen_gemm_kernel_t::init_interface() {
     if (problem.cOffset != COffset::None || problem.sumA || problem.sumB) {
         interface_.newArgument(
                 "CO", ExternalArgumentType::GlobalPtr, co_access);
-        interface_.newArgument("offset_CO", DataType::d);
+        interface_.newArgument("offset_CO", DataType::q);
         if (problem.cOffset == COffset::Pre)
             interface_.newArgument("ldco", DataType::d);
     }
@@ -861,7 +861,7 @@ void gen_gemm_kernel_t::init_interface() {
         auto bname = "binary" + std::to_string(i);
         interface_.newArgument(bname, ExternalArgumentType::GlobalPtr,
                 strategy.binary[i].getGlobalAccessType());
-        interface_.newArgument("offset_" + bname, DataType::d);
+        interface_.newArgument("offset_" + bname, DataType::q);
         if (problem.binaryRow[i] && problem.binaryCol[i])
             interface_.newArgument("ld" + bname, DataType::d);
     }
@@ -917,9 +917,9 @@ void gen_gemm_kernel_t::init_interface() {
     if (strategy.variableSLM())
         interface_.newArgument("local_mem", ExternalArgumentType::LocalPtr);
     if (problem.aoPtrDims >= 1 || problem.aScale2D)
-        interface_.newArgument("offset_Aq", DataType::d);
+        interface_.newArgument("offset_Aq", DataType::q);
     if (problem.boPtrDims >= 1 || problem.bScale2D)
-        interface_.newArgument("offset_Bq", DataType::d);
+        interface_.newArgument("offset_Bq", DataType::q);
 
     if (desc()->hw_ >= HW::XeHPG) interface_.allowArgumentRearrangement(false);
     interface_.externalName(kernel_name());

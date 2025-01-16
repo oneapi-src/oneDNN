@@ -196,8 +196,8 @@ private:
             int32_t ldb, const memory_storage_t &c, int64_t offset_c,
             int32_t ldc, float alpha, float beta, const memory_storage_t *ao,
             const memory_storage_t *bo, const memory_storage_t &co,
-            int32_t offset_co, int po_count, const memory_storage_t **po_src,
-            int32_t *offset_po_src, bool first_k_block, bool last_k_block,
+            int64_t offset_co, int po_count, const memory_storage_t **po_src,
+            int64_t *offset_po_src, bool first_k_block, bool last_k_block,
             int32_t batch, int32_t stride_a, int32_t stride_b,
             int32_t stride_c) const;
 
