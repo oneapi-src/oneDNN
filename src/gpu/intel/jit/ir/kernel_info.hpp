@@ -63,7 +63,7 @@ public:
 
     const memory_storage_t *get() const {
         if (!ptr_) return nullptr;
-        return ptr_.get()->get();
+        return ptr_->get();
     }
 
 private:
