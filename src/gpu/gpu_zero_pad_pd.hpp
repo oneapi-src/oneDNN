@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ namespace gpu {
 
 struct gpu_zero_pad_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::zero_pad;
-    typedef gpu_zero_pad_pd_t hint_class;
+    using hint_class = gpu_zero_pad_pd_t;
 
     gpu_zero_pad_pd_t(const op_desc_t *adesc, const primitive_attr_t *attr,
             const hint_class *hint_fwd_pd)
