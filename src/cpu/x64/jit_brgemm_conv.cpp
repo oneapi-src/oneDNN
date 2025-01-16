@@ -604,10 +604,9 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             for (int kw = kw_s; kw < kw_f; kw++) {
                 brgemm_convolution_utils::get_ow_range(
                         jcp_, ow, kw, ow_s, ow_f);
-                if (ow_f - ow_s <= 0) continue;
-
-                auto M = ow_f - ow_s;
+                const auto M = ow_f - ow_s;
                 if (M <= 0) continue;
+
                 for (const auto &key_value_pair : batchsizes) {
                     const int kd_b = key_value_pair.first[0];
                     const int kd_e = key_value_pair.first[1];
