@@ -440,14 +440,19 @@ void BLASKernelGenerator<hw>::gemmOffsetABC(bool initial, Subregister i0, Subreg
             auto offsetC = initial ? state.offsetC[q] : state.effC[q];
 
             Subregister x, y;
-            int xstride = Tc_ext.size();
+            int xstride = Tc_ext.is4Bit() ? 0 : Tc_ext.size(); //Tc_ext.paddedSize();
             switch (problem.C.layout) {
-                case MatrixLayout::Pr:  xstride *= strategy.unroll[LoopN];   /* fall through */
+                case MatrixLayout::Pr:  xstride = strategy.unroll[LoopN] * Tc_ext;   /* fall through */
                 case MatrixLayout::N:   x = i0; y = j0;             break;
-                case MatrixLayout::Pc:  xstride *= strategy.unroll[LoopM];   /* fall through */
+                case MatrixLayout::Pc:  xstride = strategy.unroll[LoopM] * Tc_ext;   /* fall through */
                 case MatrixLayout::T:   x = j0; y = i0;             break;
             }
-            emad(1, offsetC, offsetC, x, xstride, strategy, state);
+            if(Tc_ext.is4Bit()){
+                eshr(1,tempQ0, x, 1, strategy, state);
+                eadd(1, offsetC, offsetC, tempQ0, strategy, state);
+            }else{
+                emad(1, offsetC, offsetC, x, xstride, strategy, state);
+            }
             emul(1, tempQ0, y, state.inputs.ldc[q], strategy, state);
             eadd(1, offsetC, offsetC, tempQ0.reinterpret(0, offsetC.getType()), strategy, state);       // Gen12: Use add3.
         }
@@ -1461,7 +1466,7 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
         if (!state.copyC)
             useUnmasked &= matchLayouts(Tc, layoutExt, state.C_layoutExtUnmasked);
         if (state.C_layoutExtUnmasked.size() == layoutExt.size())
-            useUnmasked &= (Tc_ext.size() < 4) || (needsPseudoblock(hw, Tc_ext, unrollM, unrollN, problem.C, state.Cext_strategy, true, false)
+            useUnmasked &= (Tc_ext.paddedSize() < 4) || (needsPseudoblock(hw, Tc_ext, unrollM, unrollN, problem.C, state.Cext_strategy, true, false)
                                                 != needsPseudoblock(hw, Tc_ext, unrollM, unrollN, problem.C, state.Cext_strategy, true, true));
         if (!useUnmasked)
             state.C_layoutExtUnmasked.clear();

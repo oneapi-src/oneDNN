@@ -25,18 +25,20 @@
 #include "internal/namespace_start.hxx"
 
 // DataType queries and helpers.
-static inline bool is4(ngen::DataType dt) { return one_of(dt, ngen::DataType::u4, ngen::DataType::s4, ngen::DataType::e2m1); }
+static inline bool is4(ngen::DataType dt) { return (dt == Type::ngen_f4_e2m1()) || one_of(dt, ngen::DataType::u4, ngen::DataType::s4); }
 static inline bool isB(ngen::DataType dt) { return one_of(dt, ngen::DataType::ub, ngen::DataType::b); }
 static inline bool isW(ngen::DataType dt) { return one_of(dt, ngen::DataType::uw, ngen::DataType::w); }
 static inline bool isD(ngen::DataType dt) { return one_of(dt, ngen::DataType::ud, ngen::DataType::d); }
 static inline bool isQ(ngen::DataType dt) { return one_of(dt, ngen::DataType::uq, ngen::DataType::q); }
-static inline bool isFP8(ngen::DataType dt) { return one_of(dt, ngen::DataType::bf8, ngen::DataType::hf8 , ngen::DataType::e8m0); }
-static inline bool isFP4(ngen::DataType dt) { return one_of(dt, ngen::DataType::e2m1); }
+static inline bool isFP8(ngen::DataType dt) { return (dt == Type::ngen_f8_e8m0()) || one_of(dt, ngen::DataType::bf8, ngen::DataType::hf8); }
+static inline bool isFP4(ngen::DataType dt) { return dt == Type::ngen_f4_e2m1(); }
 static inline bool isInt4(ngen::DataType dt) { return one_of(dt, ngen::DataType::u4, ngen::DataType::s4);}
+static inline bool is4Bit(ngen::DataType dt) { return isFP4(dt) || isInt4(dt);}
 
 static inline bool isFP(ngen::DataType dt) {
+    if (dt == Type::ngen_f4_e2m1() || dt == Type::ngen_f8_e8m0()) return true;
     using namespace ngen;
-    return one_of(dt, DataType::bf8, DataType::hf8, DataType::bf, DataType::hf, DataType::tf32, DataType::f, DataType::df,DataType::e2m1, DataType::e8m0);
+    return one_of(dt, DataType::bf8, DataType::hf8, DataType::bf, DataType::hf, DataType::tf32, DataType::f, DataType::df);
 }
 static inline bool isInt(ngen::DataType dt) { return !isFP(dt); }
 

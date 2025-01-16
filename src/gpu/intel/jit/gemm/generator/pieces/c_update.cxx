@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -429,7 +429,7 @@ bool BLASKernelGenerator<hw>::gemmAccessC(COperation op, const GEMMProblem &prob
 
         for (int q = 0; q < state.C_count; q++) {
             bool checkAlign = (problem.C.alignment % align) != 0;
-            bool checkWidth = (q == 0 && Tc_ext.size() < 4 && op != COperation::Load);
+            bool checkWidth = (q == 0 && Tc_ext.paddedSize() < 4 && op != COperation::Load);
             auto &labelNonBlock2DRem = altCRemainder ? labelAltCRemainder : labelStdCRemainder;
 
             if (checkAlign) {

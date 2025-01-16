@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -177,7 +177,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
 
     block2DCRemainder &= !isPacked(problem.C.layout);
     block2DCRemainder &= !isBlock2D(C.accessType);
-    block2DCFull |= (Tc_ext.size() < 4);
+    block2DCFull |= (Tc_ext.paddedSize() < 4);
     block2DCFull &= block2DCRemainder;
 
     extendedAtomicFMA &= !problem.needsASums() && !problem.needsBSums();
@@ -219,6 +219,8 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
         ka_load = kb_load = 32 / Ta_real;
         dpasw = true;
     }
+
+    altCRemainder &= (problem.Tc_ext.bits() >= 8);
 
     dpasw &= systolic && fused;
 
