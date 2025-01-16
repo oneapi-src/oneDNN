@@ -18,6 +18,7 @@
 
 #include "oneapi/dnnl/dnnl_config.h"
 
+#include "common/primitive_cache.hpp"
 #include "gpu/intel/jit/v2/conv/model.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
 #include "gpu/intel/jit/v2/conv/plan_registry.hpp"
@@ -119,6 +120,11 @@ void init_params(
 }
 
 void DNNL_API planner_main(int argc, const char **argv) {
+    auto status = set_primitive_cache_capacity(0, 1024);
+    if (status != status::success) {
+        std::cout << "Error: cannot set primitive cache capacity\n";
+        exit(1);
+    }
     bench_manager_t bench_mger;
     init_params(argc, argv, bench_mger);
     switch (params.mode) {

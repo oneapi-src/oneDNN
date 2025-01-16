@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -133,6 +133,18 @@ primitive_cache_iface_t::result_t primitive_cache_iface_t::get_or_create(
     return {std::move(r.value), r.status};
 }
 
+status_t set_primitive_cache_capacity(
+        int primitive_capacity, int kernel_capacity) {
+    if (primitive_capacity < 0 || kernel_capacity < 0)
+        return status::invalid_arguments;
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
+    auto status = global_primitive_cache().set_capacity(primitive_capacity);
+    CHECK(status);
+    return kernel_cache::get().set_capacity(kernel_capacity);
+#endif
+    return status::success;
+}
+
 } // namespace impl
 } // namespace dnnl
 
@@ -148,11 +160,5 @@ dnnl::impl::status_t dnnl_get_primitive_cache_capacity(int *capacity) {
 }
 
 dnnl::impl::status_t dnnl_set_primitive_cache_capacity(int capacity) {
-    if (capacity < 0) return dnnl::impl::status::invalid_arguments;
-#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
-    auto status = dnnl::impl::global_primitive_cache().set_capacity(capacity);
-    if (status != dnnl::impl::status::success) return status;
-    return dnnl::impl::kernel_cache::get().set_capacity(capacity);
-#endif
-    return dnnl::impl::status::success;
+    return dnnl::impl::set_primitive_cache_capacity(capacity, capacity);
 }

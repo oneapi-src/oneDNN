@@ -542,12 +542,6 @@ std::vector<problem_t> load_problems(const std::string &path) {
     return prbs;
 }
 
-void clear_primitive_cache() {
-    int old_capacity = dnnl::get_primitive_cache_capacity();
-    dnnl::set_primitive_cache_capacity(0);
-    dnnl::set_primitive_cache_capacity(old_capacity);
-}
-
 bench_data_t bench(const bench_manager_t &bench_mger,
         const kernel_desc_t &kernel_desc, std::vector<bench_task_t> &tasks,
         memory_pool_t *mem_pool_ptr = nullptr) {
@@ -558,8 +552,6 @@ bench_data_t bench(const bench_manager_t &bench_mger,
     auto strm = bench_mger.get_stream();
     std::cout << "Running benchmark for descriptor: " << kernel_desc.cmd_str()
               << std::endl;
-    clear_primitive_cache();
-
     ir_assert(kernel_desc.spec_strategy == spec_strategy_t::none);
     auto kernel_desc_min_dims = kernel_desc;
     kernel_desc_min_dims.spec_strategy = spec_strategy_t::min_dims;
@@ -639,7 +631,6 @@ bench_data_t bench(const bench_manager_t &bench_mger,
 
 bool try_create(
         const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc) {
-    clear_primitive_cache();
     bench_input_params_t params(kernel_desc, bench_mger.hw(), /*nprbs=*/1);
     bench_task_t task(generate_problems(params)[0]);
     auto engine = bench_mger.get_engine();
