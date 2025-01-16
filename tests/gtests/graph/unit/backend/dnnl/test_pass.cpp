@@ -12929,7 +12929,9 @@ TEST(test_pass, F32MhaFusion) {
     agraph.finalize();
     ASSERT_EQ(agraph.get_ops().size(), 7U);
 
-    dnnl::impl::graph::pass::pass_base_ptr apass = get_pass("float_sdp_fusion");
+    graph::pass::pass_base_ptr apass = get_pass(
+            engine_kind == graph::engine_kind::cpu ? "float_sdp_fusion_cpu"
+                                                   : "float_sdp_fusion_gpu");
     apass->run(agraph);
     ASSERT_EQ(agraph.get_num_partitions(), 1U);
 }
