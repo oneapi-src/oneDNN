@@ -64,7 +64,13 @@ jobs:
           source venv/bin/activate
           python -m pip install --no-cache-dir --disable-pip-version-check castxml
       - name: Configure oneDNN
-        run: ${{ github.workspace }}/oneDNN/.github/automation/cmake_configure.sh
+        run: |
+          pwd
+          ls
+          ls ${{ github.workspace }}/
+          ls ${{ github.workspace }}/oneDNN/
+          ls ${{ github.workspace }}/oneDNN/.github/automation/ 
+          ${{ github.workspace }}/oneDNN/.github/automation/cmake_configure.sh
         working-directory: ${{ github.workspace }}/oneDNN
         env:
           BUILD_TOOLSET: ${{ matrix.config.toolset }}
