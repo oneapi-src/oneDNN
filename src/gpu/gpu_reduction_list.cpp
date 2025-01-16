@@ -37,6 +37,7 @@
 #endif
 
 #ifdef GENERIC_SYCL_KERNELS_ENABLED
+#include "gpu/generic/sycl/ref_reduction.hpp"
 #include "gpu/generic/sycl/simple_reduction.hpp"
 #endif
 
@@ -55,6 +56,7 @@ constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
         GPU_INSTANCE_INTEL(intel::ocl::reusable_ref_reduction_t)
         GPU_INSTANCE_NVIDIA(nvidia::cudnn_reduction_t)
         GPU_INSTANCE_AMD(amd::miopen_reduction_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_reduction_t)
         GPU_INSTANCE_GENERIC_SYCL(generic::sycl::simple_reduction_t)
         nullptr,
 });

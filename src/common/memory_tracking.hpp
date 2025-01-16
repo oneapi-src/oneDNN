@@ -280,6 +280,7 @@ enum {
     key_reducer_space_bctx,
     key_reduction,
     key_reduction_1,
+    key_reduction_out,
     key_reorder_cross_space,
     key_reorder_space,
     key_reorder_src_scales,

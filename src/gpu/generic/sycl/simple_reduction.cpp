@@ -37,7 +37,7 @@ status_t simple_reduction_t::pd_t::init_conf() {
 }
 
 status_t simple_reduction_t::init(impl::engine_t *engine) {
-    const auto kid = ::sycl::get_kernel_id<reduction_kernel_fwd_t>();
+    const auto kid = ::sycl::get_kernel_id<simple_reduction_kernel_fwd_t>();
     CHECK(create_kernel(engine, kid, &kernel_));
 
     return status::success;
@@ -45,7 +45,7 @@ status_t simple_reduction_t::init(impl::engine_t *engine) {
 
 status_t simple_reduction_t::execute(const exec_ctx_t &ctx) const {
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
-        reduction_kernel_fwd_t reduction_kernel(pd()->conf_, cgh, ctx);
+        simple_reduction_kernel_fwd_t reduction_kernel(pd()->conf_, cgh, ctx);
         cgh.parallel_for(::sycl::range<1>(pd()->dst_nelems_), reduction_kernel);
     });
 }

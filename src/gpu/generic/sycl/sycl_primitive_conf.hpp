@@ -416,7 +416,7 @@ struct sycl_pooling_bwd_conf_t : public sycl_pooling_base_conf_t {
 };
 
 struct sycl_simple_reduction_conf_t {
-    dnnl_alg_kind_t alg = dnnl_alg_kind_undef;
+    alg_kind_t alg = alg_kind::undef;
     xpu::sycl::md_t src_md;
     xpu::sycl::md_t dst_md;
     float p;
@@ -424,6 +424,40 @@ struct sycl_simple_reduction_conf_t {
     sycl_post_ops_t post_ops;
     dim_t reduce_dims[xpu::sycl::md_t::max_dims];
     int reduce_size = 1;
+};
+
+struct sycl_reduction_conf_t {
+    xpu::sycl::md_t src_md;
+    xpu::sycl::md_t dst_md;
+    alg_kind_t alg = alg_kind::undef;
+    float p = 0;
+    float eps = 0;
+    data_type_t src_dt;
+    data_type_t dst_dt;
+    data_type_t local_mem_dt = data_type::f32;
+
+    int num_dims = 0;
+    xpu::sycl::md_t::dim32_t src_dims[xpu::sycl::md_t::max_dims] = {};
+    int num_axes = 0;
+    xpu::sycl::md_t::dim32_t axes[xpu::sycl::md_t::max_dims] = {};
+    int batch_size = 1;
+    int reduce_size = 1;
+    int stride_size = 1;
+    int tile_row;
+    int tile_col;
+    int batch_groups = -1;
+
+    bool transpose;
+    bool bank_offset;
+    bool is_first_iter;
+    bool is_last_iter;
+
+    sycl_post_ops_t post_ops;
+
+    // XXX: Tune this values
+    const int num_sg_reductions = 4;
+    static constexpr int local_row_wg = 256;
+    static constexpr int local_col_wg = 8;
 };
 
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
@@ -443,6 +477,7 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_convolution_fwd_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_convolution_bwd_data_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_convolution_bwd_weights_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_simple_reduction_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_reduction_conf_t);
 
 } // namespace sycl
 } // namespace generic
