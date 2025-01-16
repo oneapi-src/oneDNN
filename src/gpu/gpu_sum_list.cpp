@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_SUM_P({
-        GPU_SUM_INSTANCE_INTEL(intel::ocl::multi_po_reorder_sum)
+        GPU_SUM_INSTANCE_INTEL(intel::ocl::multi_po_reorder_sum_t)
         GPU_SUM_INSTANCE_INTEL(intel::ocl::gen9_sum_t)
         GPU_SUM_INSTANCE_INTEL(intel::ocl::many_inputs_sum_t)
         GPU_SUM_INSTANCE_INTEL(intel::ocl::simple_sum_t<data_type::f32>)

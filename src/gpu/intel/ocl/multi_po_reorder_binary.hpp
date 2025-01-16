@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,12 +33,13 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-struct multi_po_reorder_binary : public gpu_primitive_t {
+struct multi_po_reorder_binary_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_binary_pd_t {
         using gpu_binary_pd_t::gpu_binary_pd_t;
 
-        DECLARE_COMMON_PD_T("multi_po_reorder_binary", multi_po_reorder_binary);
+        DECLARE_COMMON_PD_T(
+                "multi_po_reorder_binary", multi_po_reorder_binary_t);
 
         status_t init(impl::engine_t *engine) {
             if (attr()->scales_.get(DNNL_ARG_SRC_0).is_set_
