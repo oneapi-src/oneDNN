@@ -71,24 +71,24 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
     }
 
 #define FMA_BLOCK( \
-        block_size, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b) \
+        block_size, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b, c) \
     unroll_for(; nof_elems >= block_size; acc_ptr += block_size, \
                a_ptr += block_size, nof_elems -= block_size) { \
         CONCAT2(acc_elem_dt, block_size) \
         a_conv = CONCAT3(convert_, acc_elem_dt, block_size)( \
                 *((CONCAT2(a_elem_dt, block_size) *)a_ptr)); \
-        *((CONCAT2(acc_elem_dt, block_size) *)acc_ptr) = fma( \
-                a_conv, b, *((CONCAT2(acc_elem_dt, block_size) *)acc_ptr)); \
+        *((CONCAT2(acc_elem_dt, block_size) *)acc_ptr) = fma(a_conv - c, b, \
+                *((CONCAT2(acc_elem_dt, block_size) *)acc_ptr)); \
     }
 
-#define FMA_MIXED(acc_nof_elems, a, a_elem_dt, b, acc_ptr, acc_elem_dt) \
+#define FMA_MIXED(acc_nof_elems, a, a_elem_dt, b, acc_ptr, acc_elem_dt, c) \
     { \
         auto nof_elems = acc_nof_elems; \
         a_elem_dt *a_ptr = (a_elem_dt *)(&a); \
-        FMA_BLOCK(8, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b); \
-        FMA_BLOCK(4, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b); \
-        FMA_BLOCK(2, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b); \
-        if (nof_elems == 1) { *acc_ptr += (*a_ptr) * b; } \
+        FMA_BLOCK(8, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b, c); \
+        FMA_BLOCK(4, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b, c); \
+        FMA_BLOCK(2, nof_elems, acc_ptr, acc_elem_dt, a_ptr, a_elem_dt, b, c); \
+        if (nof_elems == 1) { *acc_ptr += (*a_ptr - c) * b; } \
     }
 
 #define po_dt(idx) CONCAT3(PO_, idx, _BIN_ARG_ACTUAL_DATA_T)
@@ -227,7 +227,7 @@ float fwd_Xnary(unsigned kind, unsigned algorithm, float x, float y,
 #define APPLY_PO_SUM( \
         idx, accumulator, acc_size, acc_elem_dt, sum_src, sum_elem_dt) \
     FMA_MIXED(acc_size, sum_src, sum_elem_dt, CONCAT3(PO_, idx, _SUM_SCALE), \
-            accumulator, acc_elem_dt);
+            accumulator, acc_elem_dt, CONCAT3(PO_, idx, _SUM_ZP));
 
 #define APPLY_PO_ELTWISE(idx, accumulator, nelems) \
     FWD_XNARY_GENERIC_DT(PO_ELTWISE, CONCAT3(PO_, idx, _ALG), accumulator, \
