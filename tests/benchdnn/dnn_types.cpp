@@ -630,11 +630,11 @@ bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
     return kind > ELTWISE_START && kind < ELTWISE_END;
 }
 bool attr_t::post_ops_t::entry_t::is_binary_kind() const {
-    // binary select is a ternary operation and not currently
-    // supported in post-ops for the binary primitive
-    // TODO: add post-ops support for binary select operation
     return kind > pk_t::BINARY_START && kind < pk_t::BINARY_END
             && kind != pk_t::SELECT;
+}
+bool attr_t::post_ops_t::entry_t::is_binary_kind_with_ternary_op() const {
+    return kind == pk_t::SELECT;
 }
 bool attr_t::post_ops_t::entry_t::is_prelu_kind() const {
     return kind == PRELU;
@@ -1162,9 +1162,17 @@ dnnl_primitive_attr_t create_dnnl_attr(
             } else if (e.is_binary_kind()) {
                 const auto &src1_md = attr_args.get_md(
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+                const auto &src2_md = attr_args.get_md(
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_2));
                 assert(query_md_ndims(src1_md) != 0);
+
+                if (e.is_binary_kind_with_ternary_op())
+                    assert(query_md_ndims(src2_md) != 0);
+
+                // temporarily updating function to test without breaking
                 DNN_SAFE_V(dnnl_post_ops_append_binary(
-                        ops, e.binary.alg, src1_md));
+                        ops, e.binary.alg, src1_md, src2_md));
+
             } else if (e.is_prelu_kind()) {
                 const auto &policy = e.prelu.policy;
                 const auto mask = attr_t::get_default_mask(policy);

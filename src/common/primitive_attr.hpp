@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -303,14 +303,16 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         };
 
         struct binary_t {
+            bool is_ternary_op;
             dnnl::impl::alg_kind_t alg;
             // This is an unmodifiable user copy of attributes which is used in
             // caching mechanism. Not to be used internally.
-            dnnl::impl::memory_desc_t user_src1_desc;
+            dnnl::impl::memory_desc_t user_src1_desc, user_src2_desc;
+
             // This is a modifiable copy of memory desc. It changes format kind
             // and tag of md in case user passed format_kind::any. To be used
             // everywhere internally.
-            dnnl::impl::memory_desc_t src1_desc;
+            dnnl::impl::memory_desc_t src1_desc, src2_desc;
         };
 
         struct prelu_t {
@@ -427,11 +429,13 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             dnnl::impl::dim_t kernel_size, dnnl::impl::dim_t stride_size,
             dnnl::impl::dim_t padding_l_size);
     dnnl::impl::status_t append_binary(dnnl::impl::alg_kind_t alg,
-            const dnnl::impl::memory_desc_t *user_src1_desc);
+            const dnnl::impl::memory_desc_t *user_src1_desc,
+            const dnnl::impl::memory_desc_t *user_src2_desc = nullptr);
     dnnl::impl::status_t append_prelu(int mask);
 
     dnnl::impl::status_t prepend_binary(dnnl::impl::alg_kind_t alg,
-            const dnnl::impl::memory_desc_t *user_src1_desc);
+            const dnnl::impl::memory_desc_t *user_src1_desc,
+            const dnnl::impl::memory_desc_t *user_src2_desc = nullptr);
 
     int find(dnnl::impl::primitive_kind_t kind, int start = 0,
             int stop = -1) const {
@@ -505,7 +509,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
 private:
     dnnl::impl::status_t validate_binary(dnnl::impl::alg_kind_t alg,
-            const dnnl::impl::memory_desc_t *user_src1_desc) const;
+            const dnnl::impl::memory_desc_t *user_src1_desc,
+            const dnnl::impl::memory_desc_t *user_src2_desc = nullptr) const;
 
     bool check_sum_consistent_dt(const dnnl::impl::data_type_t dst_dt,
             const bool diverse_sum_dt_allowed = false) const;

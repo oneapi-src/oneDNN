@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -731,10 +731,12 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_dw(
 /// @param post_ops Post-ops.
 /// @param alg_kind Binary algorithm for the post-op.
 /// @param src1_desc Memory descriptor of a second operand.
+/// @param src2_desc Memory descriptor of a third operand (for ternary operators).
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_post_ops_append_binary(dnnl_post_ops_t post_ops,
-        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t src1_desc);
+        dnnl_alg_kind_t alg_kind, const_dnnl_memory_desc_t src1_desc,
+        const_dnnl_memory_desc_t src2_desc);
 
 /// Returns the parameters of a binary post-op.
 ///
@@ -742,13 +744,15 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_binary(dnnl_post_ops_t post_ops,
 /// @param index Index of the binary post-op.
 /// @param alg_kind Output binary algorithm kind.
 /// @param src1_desc Output memory descriptor of a second operand.
+/// @param src2_desc Output emory descriptor of a third operand.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 /// @returns #dnnl_invalid_arguments if @p index does not refer to a binary
 ///     post-op.
 dnnl_status_t DNNL_API dnnl_post_ops_get_params_binary(
         const_dnnl_post_ops_t post_ops, int index, dnnl_alg_kind_t *alg_kind,
-        const_dnnl_memory_desc_t *src1_desc);
+        const_dnnl_memory_desc_t *src1_desc,
+        const_dnnl_memory_desc_t *src2_desc);
 
 /// Appends a prelu forward post-op.
 ///
