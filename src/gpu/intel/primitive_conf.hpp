@@ -104,23 +104,23 @@ struct attr_info_t {
 template <size_t ndims>
 using strides_t = std::array<dim_t, ndims>;
 template <>
-struct compute::scalar_type_traits<strides_t<2>> {
+struct compute::scalar_type_traits_t<strides_t<2>> {
     static const auto type = scalar_type_t::_int64x3_t;
 };
 template <>
-struct compute::scalar_type_traits<strides_t<3>> {
+struct compute::scalar_type_traits_t<strides_t<3>> {
     static const auto type = scalar_type_t::_int64x3_t;
 };
 template <>
-struct compute::scalar_type_traits<strides_t<4>> {
+struct compute::scalar_type_traits_t<strides_t<4>> {
     static const auto type = scalar_type_t::_int64x4_t;
 };
 template <>
-struct compute::scalar_type_traits<strides_t<5>> {
+struct compute::scalar_type_traits_t<strides_t<5>> {
     static const auto type = scalar_type_t::_int64x5_t;
 };
 template <>
-struct compute::scalar_type_traits<strides_t<6>> {
+struct compute::scalar_type_traits_t<strides_t<6>> {
     static const auto type = scalar_type_t::_int64x5_t;
 };
 

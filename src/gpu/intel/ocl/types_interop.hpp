@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2024 Intel Corporation
+ * Copyright 2024-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,37 +27,37 @@ namespace intel {
 namespace compute {
 
 template <>
-struct scalar_type_traits<int64x2_t> {
+struct scalar_type_traits_t<int64x2_t> {
     static const auto type = scalar_type_t::_int64x3_t;
 };
 
 template <>
-struct scalar_type_traits<int64x3_t> {
+struct scalar_type_traits_t<int64x3_t> {
     static const auto type = scalar_type_t::_int64x3_t;
 };
 
 template <>
-struct scalar_type_traits<int64x4_t> {
+struct scalar_type_traits_t<int64x4_t> {
     static const auto type = scalar_type_t::_int64x4_t;
 };
 
 template <>
-struct scalar_type_traits<int64x5_t> {
+struct scalar_type_traits_t<int64x5_t> {
     static const auto type = scalar_type_t::_int64x5_t;
 };
 
 template <>
-struct scalar_type_traits<int64x6_t> {
+struct scalar_type_traits_t<int64x6_t> {
     static const auto type = scalar_type_t::_int64x6_t;
 };
 
 template <>
-struct scalar_type_traits<dispatch_gws_rt_params_t> {
+struct scalar_type_traits_t<dispatch_gws_rt_params_t> {
     static const auto type = scalar_type_t::_dispatch_gws_rt_params_t;
 };
 
 template <>
-struct scalar_type_traits<zero_pad_mask_t> {
+struct scalar_type_traits_t<zero_pad_mask_t> {
     static const auto type = scalar_type_t::_zero_pad_mask_t;
 };
 

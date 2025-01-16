@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ private:
 
 namespace compute {
 template <>
-struct scalar_type_traits<stride_t> {
+struct scalar_type_traits_t<stride_t> {
     static const auto type = scalar_type_t::_long;
 };
 } // namespace compute

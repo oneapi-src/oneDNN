@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -103,56 +103,56 @@ inline std::string to_string(scalar_type_t type) {
 }
 
 template <typename T>
-struct scalar_type_traits {};
+struct scalar_type_traits_t {};
 
 template <>
-struct scalar_type_traits<float16_t> {
+struct scalar_type_traits_t<float16_t> {
     static const auto type = scalar_type_t::_half;
 };
 template <>
-struct scalar_type_traits<bfloat16_t> {
+struct scalar_type_traits_t<bfloat16_t> {
     static const auto type = scalar_type_t::_bfloat16;
 };
 template <>
-struct scalar_type_traits<float> {
+struct scalar_type_traits_t<float> {
     static const auto type = scalar_type_t::_float;
 };
 template <>
-struct scalar_type_traits<double> {
+struct scalar_type_traits_t<double> {
     static const auto type = scalar_type_t::_double;
 };
 
 template <>
-struct scalar_type_traits<uint8_t> {
+struct scalar_type_traits_t<uint8_t> {
     static const auto type = scalar_type_t::_uchar;
 };
 template <>
-struct scalar_type_traits<uint16_t> {
+struct scalar_type_traits_t<uint16_t> {
     static const auto type = scalar_type_t::_ushort;
 };
 template <>
-struct scalar_type_traits<uint32_t> {
+struct scalar_type_traits_t<uint32_t> {
     static const auto type = scalar_type_t::_uint;
 };
 template <>
-struct scalar_type_traits<uint64_t> {
+struct scalar_type_traits_t<uint64_t> {
     static const auto type = scalar_type_t::_ulong;
 };
 
 template <>
-struct scalar_type_traits<int8_t> {
+struct scalar_type_traits_t<int8_t> {
     static const auto type = scalar_type_t::_char;
 };
 template <>
-struct scalar_type_traits<int16_t> {
+struct scalar_type_traits_t<int16_t> {
     static const auto type = scalar_type_t::_short;
 };
 template <>
-struct scalar_type_traits<int32_t> {
+struct scalar_type_traits_t<int32_t> {
     static const auto type = scalar_type_t::_int;
 };
 template <>
-struct scalar_type_traits<int64_t> {
+struct scalar_type_traits_t<int64_t> {
     static const auto type = scalar_type_t::_long;
 };
 
@@ -184,7 +184,7 @@ public:
             data_pool = static_cast<char *>(data_pool) + size_;
         }
         kind_ = kernel_arg_kind_t::scalar;
-        scalar_type_ = scalar_type_traits<T>::type;
+        scalar_type_ = scalar_type_traits_t<T>::type;
         new (const_cast<void *>(value_)) T(value);
         return *this;
     }
@@ -211,7 +211,7 @@ public:
     template <typename T>
     T as() const {
         assert(kind() == kernel_arg_kind_t::scalar);
-        assert(scalar_type() == scalar_type_traits<T>::type);
+        assert(scalar_type() == scalar_type_traits_t<T>::type);
         return *(const T *)value();
     }
 
@@ -308,7 +308,7 @@ private:
 template <typename T>
 void set_scalar_arg_cvt(kernel_arg_list_t &arg_list, int index, T scalar,
         scalar_type_t requested_type) {
-    if (scalar_type_traits<T>::type == requested_type) {
+    if (scalar_type_traits_t<T>::type == requested_type) {
         arg_list.set(index, scalar);
         return;
     }

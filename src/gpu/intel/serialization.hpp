@@ -59,7 +59,7 @@ struct serialized_data_t {
     void set_data(std::vector<uint8_t> d) { this->data = std::move(d); }
 
     template <typename T>
-    struct has_serialize {
+    struct has_serialize_t {
         using yes_t = uint8_t;
         using no_t = uint16_t;
 
@@ -77,7 +77,7 @@ struct serialized_data_t {
     // Append helper function for structures with the member function
     // void serialize(serialized_data_t &) const
     template <typename T,
-            gpu_utils::enable_if_t<has_serialize<T>::value, bool> = true>
+            gpu_utils::enable_if_t<has_serialize_t<T>::value, bool> = true>
     void append(const T &t) {
         t.serialize(*this);
     }
@@ -85,7 +85,7 @@ struct serialized_data_t {
     // Append helper function for trivially serialized objects
     template <typename T,
             gpu_utils::enable_if_t<is_trivially_serialized<T>::value
-                            && !has_serialize<T>::value,
+                            && !has_serialize_t<T>::value,
                     bool> = true>
     void append(const T &t) {
         std::array<uint8_t, sizeof(T)> type_data;
@@ -176,7 +176,7 @@ struct deserializer_t {
     deserializer_t(const serialized_data_t &s) : idx(0), s(s) {}
 
     template <typename T>
-    struct has_deserialize {
+    struct has_deserialize_t {
         using yes_t = uint8_t;
         using no_t = uint16_t;
 
@@ -194,12 +194,12 @@ struct deserializer_t {
     // Helper function for structures with the static member function
     // void deserialize(deserializer_t&)
     template <typename T,
-            gpu_utils::enable_if_t<has_deserialize<T>::value, bool> = true>
+            gpu_utils::enable_if_t<has_deserialize_t<T>::value, bool> = true>
     void pop(T &t) {
         t = T::deserialize(*this);
     }
     template <typename T,
-            gpu_utils::enable_if_t<has_deserialize<T>::value, bool> = true>
+            gpu_utils::enable_if_t<has_deserialize_t<T>::value, bool> = true>
     T pop() {
         return T::deserialize(*this);
     }
@@ -207,7 +207,7 @@ struct deserializer_t {
     template <typename T,
             gpu_utils::enable_if_t<
                     serialized_data_t::is_trivially_serialized<T>::value
-                            && !has_deserialize<T>::value,
+                            && !has_deserialize_t<T>::value,
                     bool> = true>
     void pop(T &t) {
         t = s.get<T>(idx);
@@ -216,7 +216,7 @@ struct deserializer_t {
     template <typename T,
             gpu_utils::enable_if_t<
                     serialized_data_t::is_trivially_serialized<T>::value
-                            && !has_deserialize<T>::value,
+                            && !has_deserialize_t<T>::value,
                     bool> = true>
     T pop() {
         auto idx_start = idx;

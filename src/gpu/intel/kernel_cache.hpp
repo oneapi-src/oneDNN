@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ template <typename T>
 struct trivial_key_validator_t {
 
     template <typename V>
-    struct is_trivially_validatable {
+    struct is_trivially_validatable_t {
         using yes_t = uint8_t;
         using no_t = uint16_t;
 
@@ -49,7 +49,7 @@ struct trivial_key_validator_t {
     };
 
     template <typename U,
-            gpu_utils::enable_if_t<is_trivially_validatable<U>::value,
+            gpu_utils::enable_if_t<is_trivially_validatable_t<U>::value,
                     bool> = true>
     static bool is_valid(const U &t) {
         static_assert(std::is_same<T, U>::value,
@@ -58,7 +58,7 @@ struct trivial_key_validator_t {
     }
 
     template <typename U,
-            gpu_utils::enable_if_t<!is_trivially_validatable<U>::value,
+            gpu_utils::enable_if_t<!is_trivially_validatable_t<U>::value,
                     bool> = true>
     static bool is_valid(const U &t) {
         // Runtime validation only occurs in C++20 as default comparisons
@@ -84,10 +84,10 @@ template <typename T>
 struct trivial_key_t : public T {
     // helper for extracting the value type associated with the key
     template <typename S>
-    struct create_signature {};
+    struct create_signature_t {};
 
     template <typename R, typename C, typename A1, typename A2>
-    struct create_signature<R (C::*)(A1, A2) const> {
+    struct create_signature_t<R (C::*)(A1, A2) const> {
         using result_type = R;
         using class_type = C;
         using arg1_type = A1;
@@ -95,7 +95,7 @@ struct trivial_key_t : public T {
     };
 
     using value_type =
-            typename std::remove_reference<typename create_signature<decltype(
+            typename std::remove_reference<typename create_signature_t<decltype(
                     &T::create_generator)>::arg2_type>::type;
 
     trivial_key_t() = delete;
