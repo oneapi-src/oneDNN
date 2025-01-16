@@ -793,8 +793,8 @@ status_t xe_hp_systolic_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
         int64_t offset_b, int32_t ldb, const memory_storage_t &c,
         int64_t offset_c, int32_t ldc, float alpha, float beta,
         const memory_storage_t *ao, const memory_storage_t *bo,
-        const memory_storage_t &co, int32_t offset_co, int po_count,
-        const memory_storage_t **po_srcs, int32_t *offset_po_src,
+        const memory_storage_t &co, int64_t offset_co, int po_count,
+        const memory_storage_t **po_srcs, int64_t *offset_po_src,
         bool first_k_block, bool last_k_block, int32_t batch, int32_t stride_a,
         int32_t stride_b, int32_t stride_c) const {
     if (batch == 0) return status::success;
@@ -1010,13 +1010,12 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             = b.offset() / types::data_type_size(b_type) + pd()->dyn_offset_b;
     size_t off_c0
             = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
-    size_t off_co0 = 0;
+    int64_t off_co0 = 0;
 
-    int32_t po_offsets0[GEMM_MAX_PO] = {0}, po_offsets[GEMM_MAX_PO] = {0};
+    int64_t po_offsets0[GEMM_MAX_PO] = {0}, po_offsets[GEMM_MAX_PO] = {0};
     for (int i = 0; i < po_count; i++)
         if (po_srcs[i])
-            po_offsets0[i]
-                    = into<int32_t>(po_srcs[i]->offset() / problem_.Tbinary[i]);
+            po_offsets0[i] = po_srcs[i]->offset() / problem_.Tbinary[i];
 
     if (pd()->with_ab_zero_points()) {
         ao = &GEMM_CTX_ARG_STORAGE(a_zero_point);
@@ -1071,7 +1070,7 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 if (packed_b) off_b_packed += off_b0;
 
                 auto off_c = off_c0 + Bm + Bn * ldc;
-                auto off_co = int32_t(off_co0);
+                auto off_co = off_co0;
                 switch (co_kind_) {
                     case 'R': off_co += Bm; break;
                     case 'C': off_co += Bn; break;

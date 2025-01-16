@@ -38,8 +38,8 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         const memory_storage_t *b_scales, const memory_storage_t &co,
         const memory_storage_t *c_temp, const memory_storage_t *sround_seed,
         int po_count, const memory_storage_t **po_srcs, int64_t offset_a,
-        int64_t offset_b, int64_t offset_c, int32_t offset_aq,
-        int32_t offset_bq, int32_t offset_co, int32_t *offset_po_src,
+        int64_t offset_b, int64_t offset_c, int64_t offset_aq,
+        int64_t offset_bq, int64_t offset_co, int64_t *offset_po_src,
         int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
         int32_t k0, float alpha, float beta, int32_t cmask, bool last_k_block,
         bool swapab, bool disable_hilbert) const {
@@ -337,13 +337,12 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             = types::bytes_to_elements(b_type, b.offset()) + pd()->dyn_offset_b;
     size_t off_c0
             = types::bytes_to_elements(c_type, c.offset()) + pd()->dyn_offset_c;
-    size_t off_aq0 = 0, off_bq0 = 0, off_co0 = 0;
+    int64_t off_aq0 = 0, off_bq0 = 0, off_co0 = 0;
 
-    int32_t po_offsets0[GEMM_MAX_PO] = {0}, po_offsets[GEMM_MAX_PO] = {0};
+    int64_t po_offsets0[GEMM_MAX_PO] = {0}, po_offsets[GEMM_MAX_PO] = {0};
     for (int i = 0; i < po_count; i++)
         if (po_srcs[i])
-            po_offsets0[i]
-                    = into<int32_t>(po_srcs[i]->offset() / problem.Tbinary[i]);
+            po_offsets0[i] = po_srcs[i]->offset() / problem.Tbinary[i];
 
     int cmask = 0;
     if (pd()->with_c_zero_points()) {
@@ -408,9 +407,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                 && (k > dim_t(k0) * pd()->kernel_desc()->aux_params()->wgK)) {
             status = launch_nocopy(ctx, compute_stream, zero_pool, a, b, c, ao,
                     bo, a_scales, b_scales, *co, nullptr, sround_seed, po_count,
-                    po_srcs, off_a0, off_b0, off_c0, int32_t(off_aq0),
-                    int32_t(off_bq0), int32_t(off_co0), po_offsets0, lda, ldb,
-                    ldc, m, n, 0, 1, 1.0f, beta, 0, false, swapab, true);
+                    po_srcs, off_a0, off_b0, off_c0, off_aq0, off_bq0, off_co0,
+                    po_offsets0, lda, ldb, ldc, m, n, 0, 1, 1.0f, beta, 0,
+                    false, swapab, true);
             if (status) return status;
             beta = 1.0f;
         }
@@ -437,12 +436,12 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
                 auto off_c = off_c0 + Bm + Bn * ldc;
 
-                auto off_aq = int32_t(off_aq0);
-                auto off_bq = int32_t(off_bq0);
+                auto off_aq = off_aq0;
+                auto off_bq = off_bq0;
                 if (pd()->ao_dims_ >= 1 || a_scales) off_aq += Bm;
                 if (pd()->bo_dims_ >= 1 || b_scales) off_bq += Bn;
 
-                auto off_co = int32_t(off_co0);
+                auto off_co = off_co0;
                 switch (cmask & 3) {
                     case 1: off_co += Bn; break;
                     case 2: off_co += Bm; break;

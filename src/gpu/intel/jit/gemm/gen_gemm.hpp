@@ -801,8 +801,8 @@ private:
             const memory_storage_t *b_scales, const memory_storage_t &co,
             const memory_storage_t *c_temp, const memory_storage_t *sround_seed,
             int po_count, const memory_storage_t **po_src, int64_t offset_a,
-            int64_t offset_b, int64_t offset_c, int32_t offset_aq,
-            int32_t offset_bq, int32_t offset_co, int32_t *offset_po_src,
+            int64_t offset_b, int64_t offset_c, int64_t offset_aq,
+            int64_t offset_bq, int64_t offset_co, int64_t *offset_po_src,
             int32_t lda, int32_t ldb, int32_t ldc, int32_t m, int32_t n,
             int32_t k, int32_t k0, float alpha, float beta, int32_t cmask,
             bool last_k_block, bool swapab, bool disable_hilbert) const;
