@@ -130,11 +130,7 @@ public:
     }
 
     std::vector<std::string> accepted_keys() const override {
-        std::vector<std::string> ret;
-        ret.push_back("regs");
-        ret.push_back("simd");
-        ret.push_back("vec");
-        return ret;
+        return {"regs", "simd", "vec"};
     }
 
     void set_from_str(

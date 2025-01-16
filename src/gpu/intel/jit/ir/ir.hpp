@@ -326,6 +326,7 @@ struct expr_cast_helper_t {
 
     static std::vector<T> call(const std::vector<expr_t> &exprs) {
         std::vector<T> ret;
+        ret.reserve(exprs.size());
         for (auto &e : exprs)
             ret.push_back(to_cpp<T>(e));
         return ret;
@@ -345,6 +346,7 @@ struct expr_cast_helper_t<expr_t> {
             = typename std::enable_if<std::is_arithmetic<U>::value>::type>
     static std::vector<expr_t> call(const std::vector<U> &vec) {
         std::vector<expr_t> ret;
+        ret.reserve(vec.size());
         for (auto &v : vec)
             ret.push_back(to_expr(v));
         return ret;

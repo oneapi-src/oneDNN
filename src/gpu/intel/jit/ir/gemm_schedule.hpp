@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -364,9 +364,9 @@ public:
         oss << " kind: " << kind_;
         if (unroll_factor_ != 1) oss << " unroll: " << unroll_factor_;
         std::vector<std::string> props;
-        if (is_root()) props.push_back("root");
-        if (is_fused_child()) props.push_back("fused");
-        if (is_split_parent()) props.push_back("split");
+        if (is_root()) props.emplace_back("root");
+        if (is_fused_child()) props.emplace_back("fused");
+        if (is_split_parent()) props.emplace_back("split");
         oss << "(" << make_seq_print_helper(props, ", ") << ")";
         return oss.str();
     }
@@ -623,8 +623,9 @@ public:
         }
         auto &fused_loop = create_loop(fused_var, fused_bound);
         std::vector<std::reference_wrapper<loop_t>> loop_refs;
+        loop_refs.reserve(vars.size());
         for (auto &v : vars) {
-            loop_refs.push_back(find_loop(v));
+            loop_refs.emplace_back(find_loop(v));
         }
         fused_loop.set_fuse(loop_refs);
         set_bmnk_kind(fused_var, bmnk_kind(vars));

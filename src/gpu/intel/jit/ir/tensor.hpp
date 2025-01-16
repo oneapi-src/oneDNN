@@ -553,7 +553,8 @@ public:
                     b_str.append(1, '*');
                 }
             }
-            ret = b_str + ret;
+            b_str += ret;
+            std::swap(ret, b_str);
             dense_stride = b.stride * b.block;
             seen[b.dim_idx] = true;
         }
