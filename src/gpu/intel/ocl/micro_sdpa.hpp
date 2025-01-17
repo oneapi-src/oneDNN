@@ -80,13 +80,6 @@ struct micro_sdpa_t : public gpu_primitive_t {
             VDISPATCH_SDPA(utils::one_of(val_md()->data_type, bf16, f16, u8, s8,
                                    u4, s4),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_SDPA(
-                    IMPLICATION(qry_md()->data_type == data_type::bf16,
-                            utils::everyone_is(data_type::bf16,
-                                    val_md()->data_type, key_md()->data_type,
-                                    desc()->scales_dt)),
-                    "Key and Value (with scales) tensors should be bf16 if "
-                    "Query is bf16");
             VDISPATCH_SDPA(set_default_formats() == status::success,
                     VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_SDPA(desc()->values() == desc()->head_size(),
