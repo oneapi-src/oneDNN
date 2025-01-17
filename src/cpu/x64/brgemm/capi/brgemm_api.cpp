@@ -685,6 +685,8 @@ status_t dnnl_transform_create(transform_t **transform, dim_t K, dim_t N,
         pack_type_t in_pack_type, dim_t in_ld, dim_t out_ld, data_type_t in_dt,
         data_type_t out_dt) {
     if (transform == nullptr) return status::invalid_arguments;
+    VCHECK_BRGEMM(utils::one_of(out_ld, 16, 32, 48, 64),
+            "Transform routine supports only \'out_ld\' of 16, 32, 48, or 64.");
 
     *transform
             = new transform_t(K, N, in_pack_type, in_ld, out_ld, in_dt, out_dt);
