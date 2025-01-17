@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ using namespace dnnl::impl::utils;
 using namespace rnn_utils;
 
 template <prop_kind_t aprop>
-cell_execution_sig((_simple_rnn_common_t<aprop>::cell_execution_gru)) {
+cell_execution_sig((simple_rnn_common_t<aprop>::cell_execution_gru)) {
     const conf_t &rnn = this->pd()->rnn_conf;
     const ocl_conf_t &ocl_conf = this->pd()->ocl_conf;
     const rnn_offsets_t &offsets = this->pd()->off;
