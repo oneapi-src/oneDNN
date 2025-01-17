@@ -45,6 +45,24 @@ typedef ugemm_vs_c_type a_tile_type;
 #error "Data type not supported for VEC_TYPE2"
 #endif
 
+#ifdef SCALE_DT_BF16
+#define SCALES_TO_FLOAT cvt_bf16_to_f32
+#else
+#define SCALES_TO_FLOAT convert_float
+#endif
+
+#ifdef VAL_ATTR_SCALES_DT_BF16
+#define VAL_SCALES_TO_FLOAT cvt_bf16_to_f32
+#else
+#define VAL_SCALES_TO_FLOAT convert_float
+#endif
+
+#if KEY_ATTR_SCALES_DT_BF16
+#define KEY_SCALES_TO_FLOAT cvt_bf16_to_f32
+#else
+#define KEY_SCALES_TO_FLOAT convert_float
+#endif
+
 DECLARE_2D_TILE(q_tile_type, uint, SUBGROUP_SIZE, D_MAX / 2, 1, 1, q_tile_sg_n)
 
 #ifdef BLOCK_Q
@@ -248,7 +266,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     uint num_key_groups = d / KEY_GROUP_SIZE;
 #endif
 #if KEY_SCALES == QUANTIZE_COMMON
-    float k_scale = convert_float(*K_scales);
+    float k_scale = KEY_SCALES_TO_FLOAT(*K_scales);
 #endif
 #if KEY_ZERO_POINTS
     K_zp += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE
@@ -259,7 +277,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     uint num_val_groups = d / VAL_GROUP_SIZE;
 #endif
 #if VAL_SCALES == QUANTIZE_COMMON
-    float v_scale = convert_float(*V_scales);
+    float v_scale = VAL_SCALES_TO_FLOAT(*V_scales);
 #endif
 #if VAL_ZERO_POINTS
     V_zp += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE
@@ -282,10 +300,10 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     /* Load scale */
 #if WITH_ATTN_SCALE
 #if INVERT_SCALE
-    float iscale = CONVERT_FLOAT_T(*scale_ptr);
+    float iscale = SCALES_TO_FLOAT(*scale_ptr);
     float scale = native_recip(iscale);
 #else
-    float scale = CONVERT_FLOAT_T(*scale_ptr);
+    float scale = SCALES_TO_FLOAT(*scale_ptr);
     float iscale = native_recip(scale);
 #endif
 #else
