@@ -58,15 +58,20 @@ struct gemm_matmul_t : public gpu_primitive_t {
 
             auto map_gemm_zp = [&](int arg, int gemm_arg, bool reshape = false,
                                        int diff_dims = 0) {
-                auto &zp = attr()->zero_points_;
-                if (!zp.has_default_values(arg)) {
-                    int mask = 0;
-                    CHECK(zp.get(arg, &mask));
-                    if (reshape) mask = mask >> diff_dims;
-                    CHECK(gemm_attr.zero_points_.set(arg, mask,
-                            zp.get_groups_ndims(arg), zp.get_groups(arg),
-                            zp.get_data_type(arg)));
+                const auto &zp = attr()->zero_points_;
+                if (zp.has_default_values(arg)) return status::success;
+
+                int mask = zp.get_mask(arg);
+                if (reshape) mask = mask >> diff_dims;
+                data_type_t dt = zp.get_data_type(arg);
+                int nd = 0;
+                dims_t dims {};
+                if (!zp.get(arg).has_default_groups()) {
+                    nd = 2; // Note: hardcoded so far.
+                    dims[0] = zp.get_group(arg, 0);
+                    dims[1] = zp.get_group(arg, 1);
                 }
+                CHECK(gemm_attr.zero_points_.set(arg, mask, dt, nd, dims));
                 return status::success;
             };
 

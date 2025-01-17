@@ -259,115 +259,133 @@ private:
 };
 
 struct zero_points_t : public c_compatible {
-    bool operator==(const zero_points_t &rhs) const {
-        return mask_src == rhs.mask_src && mask_wei == rhs.mask_wei
-                && mask_dst == rhs.mask_dst && is_set_src == rhs.is_set_src
-                && is_set_wei == rhs.is_set_wei && is_set_dst == rhs.is_set_dst
-                && data_type_wei == rhs.data_type_wei
-                && group_ndims_wei == rhs.group_ndims_wei
-                && IMPLICATION(group_ndims_wei > 0,
-                        utils::array_cmp(group_dims_wei, rhs.group_dims_wei,
-                                group_ndims_wei))
-                && data_type_src == rhs.data_type_src
-                && group_ndims_src == rhs.group_ndims_src
-                && IMPLICATION(group_ndims_src > 0,
-                        utils::array_cmp(group_dims_src, rhs.group_dims_src,
-                                group_ndims_src));
+    zero_points_t() = default;
+
+    const quant_entry_t &get(int arg) const {
+        const auto it = zero_points_.find(arg);
+        if (it == zero_points_.end()) return default_quant_entry();
+        return it->second;
     }
 
-    // arg-specific checks
-    bool common(int arg) const { return get_mask(arg) == 0; }
-    bool per_dim_1(int arg) const { return get_mask(arg) == 2; }
-    bool has_default_values(int arg) const {
-        return is_set(arg) == false && has_default_data_type(arg);
-    }
-    bool has_default_groups(int arg) const {
-        return IMPLICATION(arg == DNNL_ARG_WEIGHTS, group_ndims_wei == 0)
-                && IMPLICATION(arg == DNNL_ARG_SRC, group_ndims_src == 0);
-    }
-    bool has_default_data_type(int arg) const {
-        return get_data_type(arg) == data_type::s32;
-    }
-    // same checks but for all supported arguments at once
-    bool common() const { return check_all(&zero_points_t::common); }
-    bool has_default_values() const {
-        return check_all(&zero_points_t::has_default_values);
-    }
-    bool has_default_groups() const {
-        return check_all(&zero_points_t::has_default_groups);
-    }
-    bool has_default_data_type() const {
-        return check_all(&zero_points_t::has_default_data_type);
-    }
-
-    status_t get(int arg, int *mask, data_type_t *dt = nullptr) const;
-
-    int get(int arg) const; // Returns 0 if dimension is unset
-
-    data_type_t get_data_type(int arg) const {
-        if (arg == DNNL_ARG_WEIGHTS) return data_type_wei;
-        if (arg == DNNL_ARG_SRC) return data_type_src;
-        return data_type::s32;
-    }
-
-    const dim_t *get_groups(int arg) const {
-        if (arg == DNNL_ARG_WEIGHTS) return group_dims_wei;
-        if (arg == DNNL_ARG_SRC) return group_dims_src;
-        return nullptr;
-    }
-
-    int get_groups_ndims(int arg) const {
-        if (arg == DNNL_ARG_WEIGHTS) return group_ndims_wei;
-        if (arg == DNNL_ARG_SRC) return group_ndims_src;
-        return 0;
-    }
-
-    status_t set(int arg, int mask, int ndims, const dims_t group_dims,
-            data_type_t data_type);
-
+    // See `set(...)` comment for `quant_entry_t` for a design choice
+    // explanation.
     status_t set(int arg, int mask) {
-        return set(arg, mask, 0, nullptr, data_type::s32);
+        return set(arg, mask, default_data_type, 0, {});
+    }
+    status_t set(int arg, int mask, data_type_t data_type, int group_ndims,
+            const dims_t group_dims) {
+        if (!check_arg(arg)) return status::invalid_arguments;
+        CHECK(zero_points_[arg].set(mask, data_type, group_ndims, group_dims));
+        return status::success;
+    }
+    // Use this interface with `default_quant_entry` when need to remove a
+    // specific zero_point.
+    status_t set(int arg, const quant_entry_t &other) {
+        return zero_points_[arg].set(other);
     }
 
-    status_t set(int arg) { return set(arg, 0); }
+    // This interface is different from the one below and is just a shortcut.
+    bool has_default_values(int arg) const {
+        return get(arg).has_default_values();
+    }
+
+    // This interface is used to make sure that other than `supported_args` have
+    // default values. It's to make sure that non-allowed arguments were not
+    // passed to the library.
+    bool has_default_values(const std::vector<int> &supported_args = {}) const {
+        auto predicate
+                = [](const quant_entry_t &s) { return s.has_default_values(); };
+        return has_default_property(supported_args, predicate);
+    }
+
+    // This interface checks the content of all zero_points, and allows to
+    // ignore certain arguments.
+    bool has_default_data_type(
+            const std::vector<int> &supported_args = {}) const {
+        auto predicate = [](const quant_entry_t &s) {
+            // Note: `data_type::undef` represents `default_quant_entry`.
+            return utils::one_of(
+                    s.get_data_type(), default_data_type, data_type::undef);
+        };
+        return has_default_property(supported_args, predicate);
+    }
+    // This interface checks specific argument. It exists because quant_entry_t
+    // doesn't have a notion of default data_type, only zero_points do.
+    // Note: can be removed once the library unconditionally supports data type
+    // for zero_points for every implementation, then this call can be removed
+    // as to make a proper load, the data type must be queried.
+    bool has_default_data_type(int arg) const {
+        // Note: `data_type::undef` represents `default_quant_entry`.
+        return utils::one_of(
+                get(arg).get_data_type(), default_data_type, data_type::undef);
+    }
+
+    // This interface is different from the one below and is just a shortcut.
+    bool has_default_groups(int arg) const {
+        return get(arg).has_default_groups();
+    }
+
+    // This interface is used to make sure that other than `supported_args` have
+    // default values. It's to make sure that non-allowed arguments were not
+    // passed to the library.
+    bool has_default_groups(const std::vector<int> &supported_args = {}) const {
+        auto predicate
+                = [](const quant_entry_t &s) { return s.has_default_groups(); };
+        return has_default_property(supported_args, predicate);
+    }
+
+    int get_mask(int arg) const { return get(arg).get_mask(); }
+    data_type_t get_data_type(int arg) const {
+        return get(arg).get_data_type();
+    }
+    dim_t get_group(int arg, int d) const { return get(arg).get_group(d); }
+
+    bool operator==(const zero_points_t &rhs) const {
+        return zero_points_ == rhs.zero_points_;
+    }
+
+    size_t get_hash() const;
+
+    void serialize(serialization_stream_t &sstream) const;
+
+    std::string get_verbose() const;
 
 private:
-    bool is_set_src = false, is_set_wei = false, is_set_dst = false;
-    int mask_src = 0, mask_wei = 0, mask_dst = 0;
-    data_type_t data_type_wei = data_type::s32;
-    int group_ndims_wei = 0;
-    dims_t group_dims_wei {};
-    // TODO: A temporary solution until a single quant abstraction is
-    // introduced.
-    data_type_t data_type_src = data_type::s32;
-    int group_ndims_src = 0;
-    dims_t group_dims_src {};
+    // Sorted property of `std::map` is used for hashing.
+    std::map<int, quant_entry_t> zero_points_;
+    static constexpr data_type_t default_data_type = data_type::s32;
 
-    int get_mask(int arg) const {
-        int mask = 0;
-        switch (arg) {
-            case DNNL_ARG_SRC: mask = mask_src; break;
-            case DNNL_ARG_WEIGHTS: mask = mask_wei; break;
-            case DNNL_ARG_DST: mask = mask_dst; break;
-            default: mask = 0;
+    bool check_arg(int arg) const {
+        // regular
+        // gemm internal primitive would use DNNL_ARG_A, DNNL_ARG_B, DNNL_ARG_C,
+        // which match to DNNL_ARG_WEIGHTS, DNNL_ARG_SRC, DNNL_ARG_DST. They
+        // are defined in gpu internals, thus, not spelled here.
+        for (const auto &sa : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+            if (arg == sa) return true;
         }
-        return mask;
+        // sdpa
+        if (arg == DNNL_ARG_SRC_2) return true;
+        return false;
     }
 
-    bool is_set(int arg) const {
-        bool arg_is_set = false;
-        switch (arg) {
-            case DNNL_ARG_SRC: arg_is_set = is_set_src; break;
-            case DNNL_ARG_WEIGHTS: arg_is_set = is_set_wei; break;
-            case DNNL_ARG_DST: arg_is_set = is_set_dst; break;
-            default: arg_is_set = 0;
-        }
-        return arg_is_set;
-    }
+    // The function makes sure that if any argument was specified by user, that
+    // only `supported_args` have their value customized, rest unsupported
+    // values were not updated.
+    bool has_default_property(const std::vector<int> &supported_args,
+            bool (*predicate)(const quant_entry_t &)) const {
+        for (const auto &s : zero_points_) {
+            // Arg passed the condition, check the next one.
+            if (predicate(s.second)) continue;
 
-    bool check_all(bool (zero_points_t::*f)(int) const) const {
-        for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
-            if (!(this->*f)(arg)) return false;
+            bool allow_non_default = false;
+            for (const auto &supported_arg : supported_args)
+                if (s.first == supported_arg) {
+                    allow_non_default = true;
+                    break;
+                }
+            if (allow_non_default) continue;
+            return false;
+        }
         return true;
     }
 };

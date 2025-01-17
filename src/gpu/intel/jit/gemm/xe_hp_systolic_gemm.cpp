@@ -135,13 +135,21 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(impl::engine_t *engine) {
                         && IMPLICATION(b_zp_, !packed_a()),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
 
-        int cmask_a = 0, cmask_b = 0, cmask_c = 0;
-        CHECK(attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &cmask_b));
-        CHECK(attr()->zero_points_.get(DNNL_ARG_SRC, &cmask_a));
-        CHECK(attr()->zero_points_.get(DNNL_ARG_DST, &cmask_c));
-        VDISPATCH_GEMM((cmask_a == 0) && (cmask_b == 0)
-                        && utils::one_of(cmask_c, 0, 1 << 0, 1 << 1),
-                VERBOSE_UNSUPPORTED_ZP_CFG);
+        const auto &zp = attr()->zero_points_;
+
+        if (!zp.has_default_values(DNNL_ARG_SRC)) {
+            VDISPATCH_GEMM(
+                    zp.get_mask(DNNL_ARG_SRC) == 0, VERBOSE_UNSUPPORTED_ZP_CFG);
+        }
+        if (!zp.has_default_values(DNNL_ARG_WEIGHTS)) {
+            VDISPATCH_GEMM(zp.get_mask(DNNL_ARG_WEIGHTS) == 0,
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+        }
+        if (!zp.has_default_values(DNNL_ARG_DST)) {
+            VDISPATCH_GEMM(utils::one_of(zp.get_mask(DNNL_ARG_DST), 0, (1 << 0),
+                                   (1 << 1)),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+        }
     }
 
     init_scratchpad();
@@ -484,7 +492,7 @@ status_t xe_hp_systolic_gemm_t::init(impl::engine_t *engine) {
     int cmask = -1;
 
     if (pd()->with_c_zero_points())
-        CHECK(pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask));
+        cmask = pd()->attr()->zero_points_.get_mask(DNNL_ARG_DST);
     else if (pd()->with_bias())
         cmask = pd()->bias_cmask();
 
