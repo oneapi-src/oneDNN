@@ -79,10 +79,13 @@ enum {
 class GeneralizedPipe {
     uint16_t v;
 
+public:
     static constexpr uint16_t vInOrder  = 0x000;
     static constexpr uint16_t vSend     = 0x100;        // OR'ed with SFID
     static constexpr uint16_t vSystolic = 0x200;
     static constexpr uint16_t vMath     = 0x300;
+
+private:
     static constexpr uint16_t vTypeMask = 0x300;
 
     GeneralizedPipe(uint16_t v_, int dummy) : v{v_} {}
@@ -99,9 +102,12 @@ public:
     bool operator!=(GeneralizedPipe other) const { return v != other.v; }
 
     bool inOrder() const { return ((v & vTypeMask) == vInOrder) && (v != PipeMaskNone); }
+    uint16_t type() const { return v & vTypeMask; }
     PipeMask inOrderPipe() const { return inOrder() ? (v & ~vTypeMask) : PipeMaskNone; }
     Pipe toPipe() const { return fromMask(inOrderPipe()); }
     inline PipeMask syncPipes(HW hw) const;
+
+    inline unsigned sendClassXeHPC() const;
 
 #ifdef NGEN_DEBUG
     inline void dump() const;
@@ -149,6 +155,7 @@ struct Dependency {
     GeneralizedPipe pipe;                               // Execution pipe for instruction
     uint16_t tokenTime;                                 // Estimated upper bound for token lifetime, in cycles.
     std::array<int32_t, NPipes> counters;               // Pipe counters, relative to start of BB.
+    uint32_t inum;                                      // Instruction number.
 
     // (Mostly) dependency information.
     uint8_t token;                                      // Out of order token
@@ -170,9 +177,6 @@ struct Dependency {
         return !std::memcmp(this, &other, sizeof(Dependency));
     }
     bool operator!=(const Dependency *other) { return !(operator==(other)); }
-
-    int32_t &inum()                 { return counters[1]; }     // For OOO dependencies in phase 0
-    const int32_t &inum() const     { return counters[1]; }
 
     constexpr bool read() const     { return !rw; }
     constexpr bool write() const    { return rw; }
@@ -259,20 +263,30 @@ struct SyncInsertion {
     uint32_t mask;                                  // (allrd/allwr) 0 indicates no mask to be applied.
 };
 
+struct DummyMovInsertion {
+    uint32_t inum;
+    SWSBInfo swsb;
+    uint16_t grf;
+    bool constant;
+    DataType dt;
+};
+
 struct BasicBlock;
 
 struct BasicBlock {
-    uint32_t id;                                            // index
-    int32_t label;                                          // multipurpose flag for use in algorithms
-    uint32_t istart, iend;                                  // instruction range: [istart, iend)
+    uint32_t id;                                            // Index
+    int32_t label;                                          // Multipurpose flag for use in algorithms
+    uint32_t istart, iend;                                  // Instruction range: [istart, iend)
     uint32_t directives;                                    // # of directives (pseudo-instructions) in this BB
     std::array<uint32_t, NPipes> lengths;                   // # of instructions in each pipe in this BB
-    std::vector<BasicBlock *> pred, succ;                   // list of predecessor/successor BBs
-    DependencyTable<false> producers;                       // table of dependencies produced and consumed by this BB.
-    DependencyTable<true> consumers;                        //   production table re-used for live incoming dependencies.
-    DependencyTable<false> incoming;                        // table of dependencies produced by prior BBs (temporary).
-    std::vector<SyncInsertion> syncs;                       // list of sync instructions to generate.
-    std::vector<std::array<DependencyRegion, 4>> opRegions; // cache of instruction operand regions.
+    std::vector<BasicBlock *> pred, succ;                   // List of predecessor/successor BBs
+    DependencyTable<false> producers;                       // Table of dependencies produced and consumed by this BB.
+    DependencyTable<true> consumers;                        //   Production table re-used for live incoming dependencies.
+    DependencyTable<false> incoming;                        // Table of dependencies produced by prior BBs (temporary).
+    std::vector<SyncInsertion> syncs;                       // List of sync instructions to generate.
+    std::vector<DummyMovInsertion> movs;                    // List of mov instructions to generate.
+    std::vector<std::array<DependencyRegion, 4>> opRegions; // Cache of instruction operand regions.
+    bool enablePVCWARWA = false;                            // Enable workaround for PVC WAR bug.
 
     const DependencyRegion &getOperandRegion(int inum, int opNum) const {
         return opRegions[inum - istart][opNum + 1];
@@ -380,6 +394,29 @@ PipeMask GeneralizedPipe::syncPipes(HW hw) const
     if ((hw >= HW::XeHP) && (v & PipeMaskA))
         return allPipes(hw) & ~PipeMaskA & ~PipeMaskO;
     return (v == PipeMaskNone) ? allPipes(hw) : inOrderPipe();
+}
+
+unsigned GeneralizedPipe::sendClassXeHPC() const
+{
+    if (type() == vSend) switch (static_cast<SharedFunction>(v & 0xF)) {
+        case SharedFunction::dcro:
+        case SharedFunction::dc0:
+        case SharedFunction::dc1:
+        case SharedFunction::slm:
+        case SharedFunction::ugm: return 1;
+        default: return 2;
+    }
+    return 0;
+}
+
+static inline DataType dtForPipe(Pipe p)
+{
+    switch (p) {
+        default:
+        case Pipe::I: return DataType::ud;
+        case Pipe::F: return DataType::f;
+        case Pipe::L: return DataType::df;
+    }
 }
 
 /**********************/
@@ -538,6 +575,13 @@ inline bool contains(const DependencyRegion &dep1, const DependencyRegion &dep2)
     return true;
 }
 
+inline bool bboxContains(const DependencyRegion &dep1, const DependencyRegion &dep2)
+{
+    if (dep1.arf != dep2.arf) return false;
+    if (dep1.unspecified || dep2.unspecified) return false;
+    return (dep1.base <= dep2.base && dep1.base + dep1.size >= dep2.base + dep2.size);
+}
+
 // Check if an ARF type needs SWSB tracking.
 inline bool trackableARF(ARFType type)
 {
@@ -653,7 +697,7 @@ inline bool impliesWithoutRegion(const Dependency<false> &dep1, const Dependency
             return false;
         if (dep1.token != dep2.token)
             return false;
-        if ((dep1.token == dep1.tokenTBD) && (dep1.inum() != dep2.inum()))
+        if ((dep1.token == dep1.tokenTBD) && (dep1.inum != dep2.inum))
             return false;
     }
     if (dep2.pipe.inOrder()) {
@@ -1037,7 +1081,7 @@ void Dependency<consumer>::dump() const
 {
     if (tokenTime > 0) {
         std::cerr << '[' << counters[PipeBitA] << " + " << tokenTime;
-        std::cerr << ',' << inum();
+        std::cerr << ',' << inum;
     } else {
         std::cerr << '[';
         for (auto &counter : counters)
@@ -1170,6 +1214,7 @@ inline bool canDefaultPipe(HW hw, const Instruction &insn)
 template <typename Program>
 inline BasicBlockList getBasicBlocks(HW hw, const Program &program)
 {
+    bool enablePVCWARWA = true;
     auto icount = int(program.size());
 
     // Create map from BB head instructions to instruction #s.
@@ -1289,6 +1334,9 @@ inline BasicBlockList getBasicBlocks(HW hw, const Program &program)
                         insn.getOperandRegion(regions[1], 0);
                         break;
                     case Directive::fencedep: break;
+                    case Directive::pvcwarwa:
+                        enablePVCWARWA = false;
+                        break;
                 }
                 continue;
             }
@@ -1307,6 +1355,28 @@ inline BasicBlockList getBasicBlocks(HW hw, const Program &program)
             ignoreDeps.fill(false);
         }
     }
+
+#ifndef NGEN_DISABLE_GETENV
+    // Check ONEAPI_PVCSendWARWA environment variable.
+    static bool checkedEnv = false;
+    static bool haveEnv = false;
+    static bool envEnablePWW = true;
+
+    if (!checkedEnv) {
+        if (auto e = ::getenv("ONEAPI_PVCSendWARWA")) {
+            haveEnv = true;
+            if (e[0] == '0' && e[1] == '\0')
+                envEnablePWW = false;
+        }
+        checkedEnv = true;
+    }
+
+    if (haveEnv)
+        enablePVCWARWA = envEnablePWW;
+#endif
+
+    for (auto &bb: list)
+        bb.enablePVCWARWA = enablePVCWARWA;
 
     return list;
 }
@@ -1422,7 +1492,7 @@ inline uint8_t chooseSBID(HW hw, int tokens, Program &program, const BasicBlock 
     auto accumulateTokens = [&](const Dependency<false> &dep) {
         if (!dep.hasToken()) return;
 
-        auto depSWSB = program[dep.inum()].swsb();
+        auto depSWSB = program[dep.inum].swsb();
         if (!depSWSB.hasTokenSet()) return;
 
         auto token = depSWSB.parts.token;
@@ -1487,6 +1557,157 @@ inline void addToSWSB(Dependency<true> &swsb, const Dependency<false> &dep, uint
     }
 }
 
+struct PVCWARWA {
+    enum {
+        None, Undecided, MoveDep, DummyMov, DstDep
+    } strategy = None;
+    uint32_t inumSrc = 0;
+    uint16_t payload[2] = {0xFFFF, 0xFFFF};
+    Dependency<false> dep;
+    bool rs = false;
+
+    bool operator!() const { return strategy == None; }
+    operator bool()  const { return !!*this; }
+};
+
+// Detect cases that may trigger the PVC WAR-after-send bug,
+//   and choose a workaround.
+template <typename Program>
+PVCWARWA analyzePVCWARWA(HW hw, Program &program, BasicBlock &bb, int phase,
+                         Dependency<true> &consumeOp, std::vector<Dependency<false>> &pvcWARWADeps)
+{
+    PVCWARWA pww;
+    auto inum = consumeOp.inum;
+    auto &regions = bb.opRegions[inum - bb.istart];
+
+    // Check if the workaround is needed.
+    if (phase == 0 || regions[0].empty()) return pww;
+
+    bool pvcWARWA = (hw == HW::XeHPC) && bb.enablePVCWARWA;
+    if (!pvcWARWA) return pww;
+
+    // Look for the latest send instruction we have a WAR dependency on, if any.
+    consumeOp.rw = true;
+    consumeOp.region = regions[0];
+    pvcWARWADeps.clear();
+    bb.producers.findIntersections(consumeOp, pvcWARWADeps);
+    for (auto &dep: pvcWARWADeps) {
+        if (dep.write()) continue;
+        if (dep.pipe.type() != GeneralizedPipe::vSend) continue;
+        if ((pww.strategy == PVCWARWA::None) || dep.inum > pww.dep.inum) {
+            pww.dep = dep;
+            pww.strategy = PVCWARWA::Undecided;
+        }
+    }
+
+    if (pww.strategy == PVCWARWA::None)
+        return pww;
+
+    // Check if send instruction is in the same BB.
+    auto &dep = pww.dep;
+    bool sameBB = (dep.inum >= bb.istart && dep.inum < bb.iend);
+    int adjust = 0;
+
+    if (sameBB && consumeOp.pipe.type() != GeneralizedPipe::vSystolic) {
+        // Check if we have a src at least as large as our dst.
+        int srcN;
+        for (srcN = 0; srcN <= 2; srcN++) {
+            if (regions[srcN + 1].unspecified) continue;
+            if (bboxContains(regions[srcN + 1], regions[0]))
+                break;
+        }
+        if (srcN >= 2) srcN = -1;
+
+        // Check for potential read suppression.
+        if (srcN >= 0 && consumeOp.pipe.inOrder()) {
+            pww.rs = true;
+            for (uint32_t iother = inum - 1; iother > dep.inum; iother--) {
+                if (getPipe(hw, program[iother], false) != consumeOp.pipe)
+                    continue;
+                const auto &sr = bb.opRegions[iother - bb.istart][srcN + 1];
+                pww.rs = bboxContains(sr, regions[srcN + 1]);
+                break;
+            }
+        }
+
+        // Check if we can move the dependency further down the pipe.
+        if (srcN >= 0) {
+            int after = std::max(0, dep.region.base + dep.region.size - regions[0].base - 1);
+            bool higherPri = false;
+            switch (consumeOp.pipe.type()) {
+                case GeneralizedPipe::vInOrder:
+                    higherPri = (program[inum].dstTypecode() == 0b1011); break;
+                case GeneralizedPipe::vSend:
+                case GeneralizedPipe::vSystolic:
+                    higherPri = true; break;
+                default: break;
+            }
+            adjust = (higherPri ? 2 : 1) - after;
+
+            if (adjust <= 0) {
+                pww.strategy = PVCWARWA::None;   /* no WA needed */
+                return pww;
+            }
+        }
+    }
+
+    if (phase < 2) return pww;
+
+    // Need to apply a WA. Decide on one, in order of priority:
+    //  1) If send dst is null or in a different BB, change .src to .dst
+    //  2) Move .src dependency later, if this instruction also
+    //          has its dst as a non-suppressed src operand
+    //  3) Add dummy mov instructions to ensure FIFO cleaned out
+    //  4) Change .src to .dst
+    auto sendClass = dep.pipe.sendClassXeHPC();
+
+    // Case 1
+    if (!sameBB || bb.opRegions[dep.inum - bb.istart][0].empty()) {
+        pww.strategy = PVCWARWA::DstDep;
+        return pww;
+    }
+
+    // Case 2: walk forward, looking for a new target send instruction.
+    if (adjust > 0) {
+        for (pww.inumSrc = dep.inum + 1; pww.inumSrc < inum; pww.inumSrc++) {
+            if (sendClass != getPipe(hw, program[pww.inumSrc]).sendClassXeHPC())
+                continue;
+            for (int srcN = 0; srcN <= 1; srcN++) {
+                auto &sr = bb.opRegions[dep.inum - bb.istart][srcN + 1];
+                if (!sr.unspecified)
+                    adjust -= sr.size;
+            }
+            if (adjust <= 0) break;
+        }
+
+        if (adjust <= 0) {
+            pww.strategy = PVCWARWA::MoveDep;
+            return pww;
+        }
+    }
+
+    // Case 3: collect 2 GRFs worth of payload from this send class, walking backward.
+    int ngrf = 0;
+    for (int32_t iother = dep.inum; iother >= int32_t(bb.istart) && ngrf < 2; iother--) {
+        if (sendClass != getPipe(hw, program[iother]).sendClassXeHPC())
+            continue;
+        for (int srcN = 0; srcN <= 1; srcN++) {
+            auto &sr = bb.opRegions[iother - bb.istart][srcN + 1];
+            if (sr.unspecified) continue;
+            for (int i = 0; i < sr.size && ngrf < 2; i++)
+                pww.payload[ngrf++] = sr.base + i;
+        }
+    }
+    if (ngrf == 2) {
+        pww.strategy = PVCWARWA::DummyMov;
+        return pww;
+    }
+
+    // Case 4
+    pww.strategy = PVCWARWA::DstDep;
+    return pww;
+}
+
 // Main dependency analysis.
 // This is run three times on every BB.
 // Phase 0
@@ -1516,7 +1737,7 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
     uint32_t chainTokenMaskSrc = 0, chainTokenMaskDst = 0, chainTokenMaskDstX = 0;
     Dependency<true> chainGenerated;
     std::array<int32_t, NPipes> counters;
-    std::vector<Dependency<false>> depList, depListIncoming, chainProducers;
+    std::vector<Dependency<false>> depList, depListIncoming, chainProducers, pvcWARWADeps;
     std::vector<std::pair<bool, const DependencyRegion*>> depOperands;
 
     // Incrementing counters.
@@ -1615,6 +1836,7 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
         Dependency<true> consumeOp;
         consumeOp.counters = counters;
         consumeOp.pipe = getPipe(hw, insn);
+        consumeOp.inum = inum;
 
         // Read SWSB information for this instruction, if already present.
         Dependency<false> tokenInfo;
@@ -1718,6 +1940,9 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
                 depOperands.push_back(std::make_pair(rw, &regions[srcN + 1]));
             }
 
+            // Handle PVC HW bug with WAR dependencies on send instructions.
+            auto pww = analyzePVCWARWA(hw, program, bb, phase, consumeOp, pvcWARWADeps);
+
             // Analyze operands.
             for (auto &depOp: depOperands) {
                 // Create associated dependency consumer.
@@ -1760,7 +1985,7 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
                         tokenMaskDstX |= (1 << dep.token);
                     else {
                         // Check SWSB again in case it was recently assigned.
-                        auto curSWSB = program[dep.inum()].swsb();
+                        auto curSWSB = program[dep.inum].swsb();
                         if (curSWSB.hasTokenSet())
                             tokenMaskDstX |= (1 << curSWSB.parts.token);
                     }
@@ -1782,7 +2007,7 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
             // Always wait until phase 2 to assign SWSB to {Atomic} chains --
             //   it's not known if all dependencies for the chain have been found until the end.
             // Also delay predicated token instructions, to ensure we know all SBIDs.
-            if (inumChain >= 0 || insn.atomic() || (tokenInsn && insn.predicated()) || forcePhase2Next)
+            if (inumChain >= 0 || insn.atomic() || (tokenInsn && insn.predicated()) || forcePhase2Next || pww)
                 foundAllDeps = false;
 
             // If token missing on OOO instruction, assign one during phase 1.
@@ -1840,66 +2065,115 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
                 if (tokenAssigned && (insn.predicated() || inumChain >= 0) && tokenMayBeActive)
                     tokenMaskDst |= (1 << tokenInfo.token);
 
-                // Handle OOO dependencies.
-                //    - dst implies src
-                //    - use SWSB to mark src/dst w/o dist (in-order or no token) or dst + dist (in-order only, same pipe)
-                //    - add sync for any remaining dependencies.
                 tokenMaskSrc &= ~tokenMaskDst;
 
-                bool defaultPipe = generated.pipe.inOrder() && (generated.depPipe == generated.pipe.inOrderPipe())
-                                                            && canDefaultPipe(hw, insn);
+                // Clean producer list of known SWSB and sync dependencies.
+                if (tokenMaskSrc) bb.producers.removeByTokenMask(tokenMaskSrc, false);
+                if (tokenMaskDst) bb.producers.removeByTokenMask(tokenMaskDst, true);
+                bb.producers.removeIntersections(generated);
 
-                bool acceptsSrc = false, acceptsDst = false;
-                if (generated.pipe.inOrder() || !tokenAssigned) {
-                    if (hw >= HW::XeHPC) {
-                        acceptsSrc = (generated.depPipe == PipeMaskNone || defaultPipe);
-                        acceptsDst = acceptsSrc || (generated.depPipe == PipeMaskA);
-                    } else {
-                        acceptsSrc = (generated.depPipe == PipeMaskNone);
-                        acceptsDst = acceptsSrc || defaultPipe;
-                    }
-                }
-
-                if (tokenMaskDst && acceptsDst) {
-                    generated.token = utils::bsr(tokenMaskDst);
-                    generated.tokenDst = true;
-                    tokenMaskDst &= ~(1 << generated.token);
-                } else if (tokenMaskSrc && acceptsSrc) {
-                    generated.token = utils::bsr(tokenMaskSrc);
-                    generated.tokenSrc = true;
-                    tokenMaskSrc &= ~(1 << generated.token);
-                }
-
-                bool oneSrc = tokenMaskSrc && utils::is_zero_or_pow2(tokenMaskSrc);
-                bool oneDst = tokenMaskDst && utils::is_zero_or_pow2(tokenMaskDst);
-                bool oneSrcSWSB = false, oneDstSWSB = false;
-                auto inumSync = (inumChain >= 0) ? inumChain : inum;
-
-                if (syncSWSB.empty()) {
-                    if (oneSrc) {
-                        syncSWSB = SBID(utils::bsr(tokenMaskSrc)).src;
-                        oneSrcSWSB = true;
-                    } else if (oneDst) {
-                        syncSWSB = SBID(utils::bsr(tokenMaskDst)).dst;
-                        oneDstSWSB = true;
-                    }
-                }
-                if (tokenMaskSrc && !oneSrcSWSB) {
-                    if (recordSWSB)
-                        bb.syncs.push_back({uint32_t(inumSync), syncSWSB, SyncFunction::allrd, tokenMaskSrc});
-                    syncSWSB = SWSBInfo();
-                }
-                if (tokenMaskDst && !oneDstSWSB) {
-                    if (recordSWSB)
-                        bb.syncs.push_back({uint32_t(inumSync), syncSWSB, SyncFunction::allwr, tokenMaskDst});
-                    syncSWSB = SWSBInfo();
-                }
-                if (!syncSWSB.empty() && recordSWSB)
-                    bb.syncs.push_back({uint32_t(inumSync), syncSWSB, SyncFunction::nop, 0});
-
-                // If final or nothing added to consumer table, assign SWSB.
-                // For {Atomic} chains, put SWSB for consumed dependencies at head of chain.
                 if (recordSWSB) {
+                    // Alter SWSB with any workarounds for PVC WAR dependencies.
+                    // Note these alterations do not affect the dependency tables.
+                    auto inumSync = (inumChain >= 0) ? inumChain : inum;
+                    if (tokenMaskDst & (1 << pww.dep.token))
+                        pww.strategy = PVCWARWA::None;
+                    switch (pww.strategy) {
+                        default:
+                        case PVCWARWA::None: break;
+                        case PVCWARWA::MoveDep: {
+                            Dependency<false> produce;
+                            Dependency<true> consume;
+                            (void) getSWSBDependencies(hw, program[pww.inumSrc], produce, consume);
+                            // tokenMaskSrc &= ~(1 << pww.dep.token);  /* not working in certain cases */
+                            tokenMaskSrc |=  (1 << produce.token);
+                            if (pww.rs)
+                                bb.movs.push_back({uint32_t(inumSync), SWSBInfo{}, 0, true, dtForPipe(generated.pipe.toPipe())});
+                            break;
+                        }
+                        case PVCWARWA::DummyMov: {
+                            tokenMaskSrc &= ~(1 << pww.dep.token);
+                            auto pipe = (generated.pipe.inOrderPipe() == PipeMaskF) ? PipeMaskF : PipeMaskI;
+                            auto dt = dtForPipe(fromMask(pipe));
+                            bb.movs.push_back({uint32_t(inumSync), SBID(pww.dep.token).src, 0, true, dt});
+                            bb.movs.push_back({uint32_t(inumSync), SWSBInfo{}, pww.payload[1], false, dt});
+                            bb.movs.push_back({uint32_t(inumSync), SWSBInfo{}, pww.payload[0], false, dt});
+                            if (generated.pipe.inOrderPipe() != pipe) {
+                                if ((generated.hasToken() || tokenAssigned) && !isSend(insn.opcode())) {
+                                    Dependency<true> distGen;
+                                    distGen.depPipe = pipe;
+                                    distGen.dist = 1;
+                                    auto swsb = encodeSWSB(hw, (decltype(&insn)) nullptr, Dependency<false>(), distGen);
+                                    bb.syncs.push_back({uint32_t(inumSync), swsb, SyncFunction::nop, 0});
+                                } else {
+                                    auto pidx = utils::log2(pipe);
+                                    Dependency<false> dep;
+                                    dep.pipe = pipe;
+                                    dep.counters[pidx] = generated.counters[pidx] - 1;
+                                    addToSWSB(generated, dep, tokenMaskSrc, tokenMaskDst);
+                                }
+                            }
+                            break;
+                        }
+                        case PVCWARWA::DstDep:
+                            tokenMaskSrc &= ~(1 << pww.dep.token);
+                            tokenMaskDst |=  (1 << pww.dep.token);
+                            break;
+                    }
+
+                    // Merge OOO dependencies into SWSB.
+                    //    - use SWSB to mark src/dst w/o dist (in-order or no token) or dst + dist (in-order only, same pipe)
+                    //    - add sync for any remaining dependencies.
+                    bool defaultPipe = generated.pipe.inOrder() && (generated.depPipe == generated.pipe.inOrderPipe())
+                                                                && canDefaultPipe(hw, insn);
+
+                    bool acceptsSrc = false, acceptsDst = false;
+                    if (generated.pipe.inOrder() || !tokenAssigned) {
+                        if (hw >= HW::XeHPC) {
+                            acceptsSrc = (generated.depPipe == PipeMaskNone || defaultPipe);
+                            acceptsDst = acceptsSrc || (generated.depPipe == PipeMaskA);
+                        } else {
+                            acceptsSrc = (generated.depPipe == PipeMaskNone);
+                            acceptsDst = acceptsSrc || defaultPipe;
+                        }
+                    }
+
+                    if (tokenMaskDst && acceptsDst) {
+                        generated.token = utils::bsr(tokenMaskDst);
+                        generated.tokenDst = true;
+                        tokenMaskDst &= ~(1 << generated.token);
+                    } else if (tokenMaskSrc && acceptsSrc) {
+                        generated.token = utils::bsr(tokenMaskSrc);
+                        generated.tokenSrc = true;
+                        tokenMaskSrc &= ~(1 << generated.token);
+                    }
+
+                    bool oneSrc = tokenMaskSrc && utils::is_zero_or_pow2(tokenMaskSrc);
+                    bool oneDst = tokenMaskDst && utils::is_zero_or_pow2(tokenMaskDst);
+                    bool oneSrcSWSB = false, oneDstSWSB = false;
+
+                    if (syncSWSB.empty()) {
+                        if (oneSrc) {
+                            syncSWSB = SBID(utils::bsr(tokenMaskSrc)).src;
+                            oneSrcSWSB = true;
+                        } else if (oneDst) {
+                            syncSWSB = SBID(utils::bsr(tokenMaskDst)).dst;
+                            oneDstSWSB = true;
+                        }
+                    }
+                    if (tokenMaskSrc && !oneSrcSWSB) {
+                        bb.syncs.push_back({uint32_t(inumSync), syncSWSB, SyncFunction::allrd, tokenMaskSrc});
+                        syncSWSB = SWSBInfo();
+                    }
+                    if (tokenMaskDst && !oneDstSWSB) {
+                        bb.syncs.push_back({uint32_t(inumSync), syncSWSB, SyncFunction::allwr, tokenMaskDst});
+                        syncSWSB = SWSBInfo();
+                    }
+                    if (!syncSWSB.empty())
+                        bb.syncs.push_back({uint32_t(inumSync), syncSWSB, SyncFunction::nop, 0});
+
+                    // If final or nothing added to consumer table, assign SWSB.
+                    // For {Atomic} chains, put SWSB for consumed dependencies at head of chain.
                     if (inumChain >= 0) {
                         if (!insn.atomic()) {
                             program[inumChain].setSWSB(encodeSWSB(hw, &insn, Dependency<false>(), generated));
@@ -1909,11 +2183,6 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
                         insn.setSWSB(encodeSWSB(hw, &insn, tokenInfo, generated));
                     insn.clearAutoSWSB();
                 }
-
-                // After assigning SWSB to in-order instructions, clean producer list of known SWSB and sync dependencies.
-                if (tokenMaskSrc) bb.producers.removeByTokenMask(tokenMaskSrc, false);
-                if (tokenMaskDst) bb.producers.removeByTokenMask(tokenMaskDst, true);
-                bb.producers.removeIntersections(generated);
             }
         } else {
             // SWSB specified. Consume any dependencies associated with this SWSB.
@@ -1976,14 +2245,13 @@ inline void analyze(HW hw, int tokens, Program &program, BasicBlock &bb, int pha
         recordIOPreconsumes(generated);
 
         // Add producer dependencies for all operands.
-        // Also record instruction number and token timeout.
+        // Also record token timeout.
         // During phase 0, only do this for OOO instructions, and if dst not null, only dst.
         if ((phase > 0) || tokenInfo.hasToken()) {
             auto produceOp = consumeOp.cast();
             if (tokenInfo.hasToken()) {
                 produceOp.token = tokenInfo.token;
                 produceOp.tokenTime = estimateLatency(hw, insn);
-                produceOp.inum() = inum;
             }
 
             for (int srcN = -1; srcN < 3; srcN++) {
@@ -2202,13 +2470,13 @@ inline void adjustTargets(Program &program, BasicBlockList &list)
     int32_t shift = 0;
     for (auto &bb : list) {
         shifts.insert({bb.istart, shift});
-        shift += int32_t(bb.syncs.size()) - bb.directives;
+        shift += int32_t(bb.syncs.size() + bb.movs.size()) - bb.directives;
     }
     shifts.insert({list.back().iend, shift});
 
     shift = 0;
     for (auto &bb : list) {
-        shift += int32_t(bb.syncs.size()) - bb.directives;
+        shift += int32_t(bb.syncs.size() + bb.movs.size()) - bb.directives;
         auto ntail = bb.iend - 1;
         auto &insn = program[ntail];
         int jip = -1, uip = -1;
