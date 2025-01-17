@@ -109,7 +109,7 @@ static bool isSubsetOf(DataType dt1, DataType dt2)
 CopyOperand::CopyOperand(RegData rd)
         : grf(rd.getBase()), offset(rd.getLogicalOffset()),
           stride(rd.getHS()), type(rd.getType()), kind(GRF),
-          overwrite(false), overwriteStride(false), neg(rd.getNeg())
+          overwrite(false), overwriteStride(false), neg(rd.getNeg()), abs(rd.getAbs()), inv(false)
 {
     if (rd.getAbs()) stub("Unsupported modifier");
     if (rd.getVS() != 0 || rd.getWidth() != 0)
@@ -124,6 +124,13 @@ CopyOperand CopyOperand::operator-() const
     return clone;
 }
 
+CopyOperand CopyOperand::operator~() const
+{
+    auto clone = *this;
+    clone.inv = !clone.inv;
+    return clone;
+}
+
 // Convert a GRF CopyOperand to an nGEN object.
 RegData CopyOperand::ngen() const
 {
@@ -132,7 +139,9 @@ RegData CopyOperand::ngen() const
     if (kind != GRF || temp) stub("Invalid operation");
 
     RegData rd = ngen::GRF(grf).sub(offset, type)(stride);
+    if (abs) rd = ngen::abs(rd);
     if (neg) rd = -rd;
+    if (inv) rd = ~rd;
 
     return rd;
 }
@@ -588,7 +597,7 @@ void CopyPlan::split2DRegions()
     for (auto &i: insns) {
         if ((is2D(i.dst) && !is4Bit(i.dst.type)) || is2D(i.src1) || is2D(i.src2))
             stub("Unsupported 2D region");
-        if (is2D(i.src0)) {
+        if (is2D(i.src0)){
             if (i.flag) stub("Unsupported predication");
             int w = i.src0.inW, vs = i.src0.inVS, hs = i.src0.stride;
             bool splitH = (w * w >= i.simd);
@@ -648,6 +657,18 @@ void CopyPlan::planTypeConversions()
 
         if (isInt4(st) && isInt(dt)) {
             planInt4Upconversion(i);
+            rerun = true;
+        } else if (st == Type::ngen_f4_e2m1() && dt == DataType::hf) {
+            planEmulatedF4E2M1ToHF(i);
+            rerun = true;
+        } else if (dt == Type::ngen_f4_e2m1() && st == DataType::hf) {
+            planEmulatedHFToF4E2M1(i);
+            rerun = true;
+        } else if (dt == Type::ngen_f4_e2m1()) {
+            copyThrough(i, DataType::hf);
+            rerun = true;
+        } else if (st == Type::ngen_f4_e2m1()) {
+            copyThrough(i, DataType::hf);
             rerun = true;
         } else if (st == DataType::u4 && dt == DataType::hf) {
             copyThrough(i, DataType::uw);
@@ -741,14 +762,11 @@ void CopyPlan::planTypeConversions()
         } else if (st == DataType::hf && dt == DataType::hf8) {
             if (hw < HW::Xe3)
                 planEmulatedHFToHF8(i);
-        } else if (st == Type::ngen_e8m0() && dt == DataType::hf) {
+        } else if (st == Type::ngen_f8_e8m0() && dt == DataType::hf) {
                 planEmulatedFP8E8M0ToHF(i);
         } else if (st != dt && (isFP8(st) || isFP8(dt))) {
             copyThrough(i, DataType::hf, 1);
             rerun = true;
-        }  else if (st == Type::ngen_e2m1() && dt == DataType::hf) {
-                planEmulatedHF4E2M1ToHF(i);
-                rerun = true;
         } else if (st == dt)
             i.moveToIntegerPipe();
     }
@@ -852,6 +870,179 @@ void CopyPlan::planS4ToHF(CopyInstruction &i)
     ie[3]->src1 = ie[3]->dst;
     ie[3]->src2 = Immediate::hf(0x6C00);
     ie[3]->dst.range = ie[0]->src0.type;
+}
+
+// hf->f4 sequence.
+void CopyPlan::planEmulatedHFToF4E2M1(CopyInstruction &i)
+{
+    // Emulation sequence for mov y:f4 x:hf:
+    //   and (nz)fN.N   x:uw                0x7C00        /* NaN/inf check */
+    //   sel fN.N       t1:uw    x:uw       0x0
+    //   sel (lt)fN.N   t2:hf    t1:uw      0x4600:hf     /* Clamp/round */
+    //   mul t2:hf      t2:hf               0x400:hf
+    //   and (nz)fN.N   null     t2:uw      0x200
+    //   add            t2:uw    t2:uw      0x100
+    //   shr            t1:uw    x:uw       0x8
+    //   shr            t2:uw    t2:uw      0x5
+    //   bfn.0xCA       t2:uw    t2:uw      t1:uw  0x8000 /* copy sign */
+    //   and            t2:uw    t2:uw      0x00f0:uw     /* byte pack */
+    //   shr            t2:uw<2> t2:uw<2>   0x4:uw
+    //   or             t2:uw    t2.1:uw<2> t2:uw<2>
+    //   mov            t2:ub    t2:ub<2>
+    //   mov            y:uw     t2:ub
+    //
+
+    if (i.src0.neg || i.sat || i.hasCMod()) stub("Unsupported modifier");
+    int simd = i.simd;
+
+    auto ie = splitMultiple<14>(i);
+    auto tmp = newTemp(DataType::ud, simd, 1);
+    auto tmp2 = newTemp(DataType::ud, simd, 1);
+
+    auto convFlag = newFlag(simd);
+    auto ddst = CopyOperand(i.dst);
+    auto invSrc = CopyOperand(i.src0);
+    auto ssrc = CopyOperand(i.src0);
+    invSrc.inv = true;
+
+    // Check for NaN/infs.
+    ie[0]->op = Opcode::and_;
+    ie[0]->simd = simd;
+    ie[0]->flag = convFlag;
+    ie[0]->cmod = ConditionModifier::nz;
+    ie[0]->dst = CopyOperand();
+    ie[0]->dst.type = DataType::uw;
+    ie[0]->src0 = invSrc;
+    ie[0]->src0.type = DataType::uw;
+    ie[0]->src1 = Immediate::uw(0x7c00);
+
+    ie[1]->op = Opcode::sel;
+    ie[1]->flag = convFlag;
+    ie[1]->simd = simd;
+    ie[1]->dst = tmp;
+    ie[1]->dst.type = DataType::uw;
+    ie[1]->src0 = ssrc;
+    ie[1]->src0.type = DataType::uw;
+    ie[1]->src1 = Immediate::uw(0x0);
+
+    // Clamp and round.
+    ie[2]->op = Opcode::sel;
+    ie[2]->flag = convFlag;
+    ie[2]->cmod = ConditionModifier::lt;
+    ie[2]->simd = simd;
+    ie[2]->dst = tmp2;
+    ie[2]->dst.type = DataType::hf;
+    ie[2]->src0 = tmp;
+    ie[2]->src0.type = DataType::hf;
+    ie[2]->src0.abs = true;
+    ie[2]->src1 = Immediate::hf(0x4600);
+
+    ie[3]->op = Opcode::mul;
+    ie[3]->simd = simd;
+    ie[3]->dst = tmp2;
+    ie[3]->dst.type = DataType::hf;
+    ie[3]->src0 = tmp2;
+    ie[3]->src0.type = DataType::hf;
+    ie[3]->src1 = Immediate::hf(0x0400);
+
+    ie[4]->op = Opcode::and_;
+    ie[4]->simd = simd;
+    ie[4]->flag = convFlag;
+    ie[4]->cmod = ConditionModifier::nz;
+    ie[4]->dst = CopyOperand();
+    ie[4]->dst.type = DataType::uw;
+    ie[4]->src0 = tmp2;
+    ie[4]->src0.type = DataType::uw;
+    ie[4]->src1 = Immediate::uw(0x0200);
+
+    ie[5]->op = Opcode::add;
+    ie[5]->simd = simd;
+    ie[5]->flag = convFlag;
+    ie[5]->dst = tmp2;
+    ie[5]->dst.type = DataType::uw;
+    ie[5]->src0 = tmp2;
+    ie[5]->src0.type = DataType::uw;
+    ie[5]->src1 = Immediate::uw(0x0100);
+
+    ie[6]->op = Opcode::shr;
+    ie[6]->simd = simd;
+    ie[6]->dst = tmp;
+    ie[6]->dst.type = DataType::uw;
+    ie[6]->src0 = ssrc;
+    ie[6]->src0.type = DataType::uw;
+    ie[6]->src1 = Immediate::uw(8);
+
+    ie[7]->op = Opcode::shr;
+    ie[7]->simd = simd;
+    ie[7]->dst = tmp2;
+    ie[7]->dst.type = DataType::uw;
+    ie[7]->src0 = tmp2;
+    ie[7]->src0.type = DataType::uw;
+    ie[7]->src1 = Immediate::uw(5);
+
+    // Restore sign.
+    ie[8]->op = Opcode::bfn;
+    ie[8]->dst = tmp2;
+    ie[8]->dst.stride = 1;
+    ie[8]->dst.type = DataType::uw;
+    ie[8]->src0 = tmp2;
+    ie[8]->src0.type = DataType::uw;
+    ie[8]->src1 = tmp;
+    ie[8]->src1.type = DataType::uw;
+    ie[8]->src2 = 0x80;
+    ie[8]->ctrl = 0xCA;
+
+    // Pack into byte.
+    ie[9]->op = Opcode::and_;
+    ie[9]->simd = simd;
+    ie[9]->dst = tmp2;
+    ie[9]->dst.type = DataType::uw;
+    ie[9]->src0 = tmp2;
+    ie[9]->src0.type = DataType::uw;
+    ie[9]->src1 = Immediate(0x00f0);
+
+    ie[10]->op = Opcode::shr;
+    ie[10]->simd = simd/2;
+    ie[10]->dst = tmp2;
+    ie[10]->dst.type = DataType::uw;
+    ie[10]->dst.stride = 2;
+    ie[10]->src0 = tmp2;
+    ie[10]->src0.type = DataType::uw;
+    ie[10]->src0.stride = 2;
+    ie[10]->src1 = Immediate::uw(4);
+
+    ie[11]->op = Opcode::or_;
+    ie[11]->simd = simd/2;
+    ie[11]->dst = tmp2;
+    ie[11]->dst.type = DataType::uw;
+    ie[11]->src0 = tmp2;
+    ie[11]->src0.offset = 1;
+    ie[11]->src0.type = DataType::uw;
+    ie[11]->src0.stride = 2;
+    ie[11]->src1 = tmp2;
+    ie[11]->src1.type = DataType::uw;
+    ie[11]->src1.stride = 2;
+
+    ie[12]->op = Opcode::mov;
+    ie[12]->simd = simd/2;
+    ie[12]->dst = tmp2;
+    ie[12]->dst.stride = 1;
+    ie[12]->dst.type = DataType::ub;
+    ie[12]->src0 = tmp2;
+    ie[12]->src0.stride = 2;
+    ie[12]->src0.type = DataType::ub;
+
+    ie[13]->op = Opcode::mov;
+    ie[13]->simd = simd/2;
+    ie[13]->dst = ddst;
+    if (ddst.inVS != 0)
+    ie[13]->dst.stride = ddst.inVS / ddst.inW;
+    ie[13]->dst.type = DataType::ub;
+    if (ie[13]->dst.offset != 0)
+            ie[13]->dst.offset /= 2;
+    ie[13]->src0 = tmp2;
+    ie[13]->src0.type = DataType::ub;
+
 }
 
 // Emulated f->bf or hf->bf8 sequence.
@@ -1209,8 +1400,8 @@ void CopyPlan::planEmulatedHF8ToHF(CopyInstruction &i)
         ie[7]->invalidate();
 }
 
-// Emulation sequence for hf8->hf conversion.
-void CopyPlan::planEmulatedHF4E2M1ToHF(CopyInstruction &i) {
+// Emulation sequence for f4_e2m1->hf conversion.
+void CopyPlan::planEmulatedF4E2M1ToHF(CopyInstruction &i) {
 
     // Emulation sequence for mov y:hf x:hf4_E2M1
     // mov                 t0:uw   x:u4                    /* emulated separately */
@@ -1223,7 +1414,7 @@ void CopyPlan::planEmulatedHF4E2M1ToHF(CopyInstruction &i) {
 
     if (i.src0.neg || i.sat || i.hasCMod()) stub("Unsupported modifier");
 
-    auto ie = splitMultiple<7>(i);
+    auto ie = splitMultiple<8>(i);
 
     auto yOrig = i.dst, y = yOrig;
 
@@ -1238,6 +1429,8 @@ void CopyPlan::planEmulatedHF4E2M1ToHF(CopyInstruction &i) {
 
     auto t0UW = t0;
     t0UW.type = DataType::uw;
+    t0UW.stride = 1;
+    t0UW.offset = 0;
 
     // Copy to u16.
     ie[0]->src0.type = DataType::u4;
@@ -1262,24 +1455,22 @@ void CopyPlan::planEmulatedHF4E2M1ToHF(CopyInstruction &i) {
     ie[4]->dst = ie[4]->src0 = y;
     ie[4]->src1 = Immediate::hf(0x7400);
 
-    ie[5]->op = Opcode::bfn;
-    ie[5]->dst = ie[5]->src0 = yUW;
-    ie[5]->src1 = t0UW;
-    ie[5]->src2 = 0x8000;
-    ie[5]->ctrl = 0xCA;
+    ie[5]->op = Opcode::and_;
+    ie[5]->dst = ie[5]->src0 = t0UW;
+    ie[5]->src1 = 0x8000;
+
+    ie[6]->op = Opcode::or_;
+    ie[6]->dst = ie[6]->src0 = yUW;
+    ie[6]->src1 = t0UW;
 
     if (tempY) {
-        ie[6]->op = Opcode::mov;
-        ie[6]->dst = yOrig;
-        ie[6]->dst.type = DataType::uw;
-        ie[6]->src0 = yUW;
+        ie[7]->op = Opcode::mov;
+        ie[7]->dst = yOrig;
+        ie[7]->dst.type = DataType::uw;
+        ie[7]->src0 = yUW;
     } else
-        ie[6]->invalidate();
+        ie[7]->invalidate();
 }
-
-
-
-
 
 // Emulation sequence for hf->hf8 conversion.
 void CopyPlan::planEmulatedHFToHF8(CopyInstruction &i)
@@ -1501,28 +1692,28 @@ inline bool legalPackedBF(HW hw, const CopyOperand &op)
 }
 
 void   CopyPlan::planFP8SIMD1Mov(CopyInstruction &i){
-               /* Simd 1 not allowed, use following sequence instead:
-                  hf8->hf (analagous sequence will be generated for hf->hf8)
-                  mov(2, t_dst.hf, src<2,2,1>.hf8)
-                  mov(1, dst.uw, t_dst<1,1,1>.uw) */
+    /* Simd 1 not allowed, use following sequence instead:
+       hf8->hf (analagous sequence will be generated for hf->hf8)
+       mov(2, t_dst.hf, src<2,2,1>.hf8)
+       mov(1, dst.uw, t_dst<1,1,1>.uw) */
 
-                auto dt = i.dst.type;
-                auto ie = splitMultiple<2>(i);
-                auto src = i.src0;
-                auto dst = i.dst;
-                auto t_dst = newTemp(dt, 2, 1);
-                t_dst.stride = 1;
+     auto dt = i.dst.type;
+     auto ie = splitMultiple<2>(i);
+     auto src = i.src0;
+     auto dst = i.dst;
+     auto t_dst = newTemp(dt, 2, 1);
+     t_dst.stride = 1;
 
-                ie[0]->op = Opcode::mov;
-                ie[0]->dst = t_dst;
-                ie[0]->src0 = src;
-                ie[0]->src0.stride = 1;
-                ie[0]->simd = 2;
+     ie[0]->op = Opcode::mov;
+     ie[0]->dst = t_dst;
+     ie[0]->src0 = src;
+     ie[0]->src0.stride = 1;
+     ie[0]->simd = 2;
 
-                ie[1]->op = Opcode::mov;
-                ie[1]->dst = dst;
-                ie[1]->src0 = t_dst;
-                ie[1]->moveToIntegerPipe();
+     ie[1]->op = Opcode::mov;
+     ie[1]->dst = dst;
+     ie[1]->src0 = t_dst;
+     ie[1]->moveToIntegerPipe();
 }
 
 // Pass to legalize regions.
@@ -1541,16 +1732,16 @@ void CopyPlan::legalizeRegions()
         if (!i.dst) continue;
 
         /* Check for special packed conversion cases */
-        if (i.op == Opcode::mov && (s0t == DataType::hf && isFP8(dt)
+        if (i.op == Opcode::mov && ((s0t == DataType::hf && isFP8(dt))
                                  || (dt == DataType::hf && isFP8(s0t)))) {
             // hf <-> bf8/hf8: src0/dst must be packed unit stride, zero offset
             if (i.simd == 1 && i.src0.offset == 0 && i.src0.stride == 1){
                 planFP8SIMD1Mov(i);
                 rerun = true;
-           } else if (i.src0.offset != 0 || i.src0.stride != 1) {
+            } else if (i.src0.offset != 0 || i.src0.stride != 1) {
                 repositionSrc(i, 0, 1, 0);
                 rerun = true;
-           } else if (i.dst.offset != 0 || i.dst.stride != 1)
+            } else if (i.dst.offset != 0 || i.dst.stride != 1)
                 repositionDst(i, 1, 0);
             continue;
         }
@@ -1794,6 +1985,8 @@ void CopyPlan::optimizeZip()
                 if (o1.temp && o1.value != o2.value) return false;
                 if (o1.stride & 1) return false;
                 if (o1.neg != o2.neg) return false;
+                if (o1.abs != o2.abs) return false;
+                if (o1.inv != o2.inv) return false;
                 return (o1.offset + (o1.stride >> 1) == o2.offset);
             };
 
@@ -1882,6 +2075,8 @@ void CopyPlan::optimizeZipAdjacent()
             if (o1.temp && o1.value != o2.value) return false;
             if (!widenable(o1, true)) return false;
             if (o1.neg != o2.neg) return false;
+            if (o1.abs != o2.abs) return false;
+            if (o1.inv != o2.inv) return false;
             return (o1.offset + 1 == o2.offset);
         };
 
@@ -1924,7 +2119,7 @@ void CopyPlan::optimizeWidenIntegers()
         while (true) {
             bool doWiden = widenable(i.dst) && widenable(i.src0)
                         && asSigned(i.dst.type) == asSigned(i.src0.type)
-                        && !i.src0.neg && i.simd % 2 == 0;
+                        && !i.src0.neg && !i.src0.inv && !i.src0.abs && i.simd % 2 == 0;
 
             for (auto op: {&i.src1, &i.src2}) if (*op) {
                 doWiden = doWiden && widenable(*op)
@@ -1969,6 +2164,8 @@ void CopyPlan::optimizeConcatenate(bool initial)
                 if (o1.temp != o2.temp) return false;
                 if (o1.temp && (o1.value != o2.value)) return false;
                 if (o1.neg != o2.neg) return false;
+                if (o1.abs != o2.abs) return false;
+                if (o1.inv != o2.inv) return false;
                 auto gap = (o2.absByteOffset(hw) - o1.absByteOffset(hw))
                          - elementsToBytes(o1.stride * i1.simd, o1.type);
                 if (outTooFar)

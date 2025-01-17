@@ -42,7 +42,9 @@ struct CopyOperand
     bool temp = false;                                  // Operand is a temporary?
     bool overwrite = false;                             // Operand can be trashed?
     bool overwriteStride = false;                       // Padding area between strides can be trashed?
-    bool neg = false;
+    bool neg = false;                                   // Negate (-) rd operator
+    bool abs = false;                                   // Absolute Value abs() rd operator
+    bool inv = false;                                   // Invert (~) rd operator
     uint64_t value = 0;                                 // Immediate value, or temporary index
 
     bool isNull() const { return kind == Null; }
@@ -64,6 +66,7 @@ struct CopyOperand
     CopyOperand(int imm) : CopyOperand(ngen::Immediate(imm)) {}
 
     CopyOperand operator-() const;
+    CopyOperand operator~() const;
 
 };
 
@@ -179,11 +182,12 @@ protected:
     void planSmallUWToHF(CopyInstruction &i);
     void planBToHF(CopyInstruction &i);
     void planS4ToHF(CopyInstruction &i);
+    void planEmulatedF4E2M1ToHF(CopyInstruction &i);
+    void planEmulatedHFToF4E2M1(CopyInstruction &i);
     void planInt4Upconversion(CopyInstruction &i);
     void planEmulatedHF8ToHF(CopyInstruction &i);
     void planEmulatedHFToHF8(CopyInstruction &i);
     void planFP8SIMD1Mov(CopyInstruction &i);
-    void planEmulatedHF4E2M1ToHF(CopyInstruction &i);
     void planEmulatedFP8E8M0ToHF(CopyInstruction &i);
     void legalizeSIMD(bool initial = false);
     void legalizeRegions();
@@ -238,7 +242,7 @@ void CopyInstruction::execute(Generator &g)
                 g.o(ngenModifiers(), dst.ngen(), src0.ngen(), src1.ngen(), src2.ngen()); \
         }                                                                           \
         break;
-#define BFN_OP_CASE(o)                                                          \
+#define BFN_OP_CASE(o)                                                              \
     case ngen::Opcode::o:                                                           \
         if (src0.kind == CopyOperand::Immediate) {                                  \
             if (src2.kind == CopyOperand::Immediate)                                \
@@ -264,6 +268,7 @@ void CopyInstruction::execute(Generator &g)
         BINARY_OP_CASE(shl)
         BINARY_OP_CASE(shr)
         BINARY_OP_CASE(asr)
+        BINARY_OP_CASE(sel)
         TERNARY_OP_CASE(mad)
         TERNARY_OP_CASE(csel)
         BFN_OP_CASE(bfn)
@@ -273,6 +278,7 @@ void CopyInstruction::execute(Generator &g)
 #undef UNARY_OP_CASE
 #undef BINARY_OP_CASE
 #undef TERNARY_OP_CASE
+#undef BFN_OP_CASE
 }
 
 #include "internal/namespace_end.hxx"
