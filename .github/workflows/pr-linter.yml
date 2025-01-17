@@ -33,7 +33,7 @@ concurrency:
 jobs:
   pr-formatting:
     name: Formatting
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -55,22 +55,6 @@ jobs:
         with:
           path: source
 
-      - name: Install gcc
-        run: |
-          sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-          sudo apt update -y
-          sudo apt install -y g++-13
-
-      - name: Install clang
-        uses: KyleMayes/install-llvm-action@e0a8dc9cb8a22e8a7696e8a91a4e9581bec13181
-        with:
-          version: "17"
-
-      - name: Get latest CMake
-        uses: lukka/get-cmake@acb35cf920333f4dc3fc4f424f1b30d5e7d561b4 # 3.31.4
-        with:
-          cmakeVersion: 3.31.0
-
       - name: Install castxml package
         run: |
           python -m venv venv
@@ -84,7 +68,7 @@ jobs:
           cmake -B../build -S. -DONEDNN_BUILD_GRAPH=OFF -DDNNL_EXPERIMENTAL_SPARSE=ON
         working-directory: ${{ github.workspace }}/source
 
-      - name: format-tags check
+      - name: Check format-tags
         run: |
           mkdir ${{ github.workspace }}/logs
           venv/bin/castxml --castxml-cc-gnu-c clang --castxml-output=1 -I${{ github.workspace }}/source/include -I${{ github.workspace }}/build/include ${{ github.workspace }}/source/include/oneapi/dnnl/dnnl_types.h -o ${{ github.workspace }}/logs/types.xml
