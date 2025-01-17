@@ -561,6 +561,13 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
 
     if (strategy.persistent && !strategy.linearOrder()) strategy.cWalkOrder = WalkOrder::SimpleLinear;
 
+    // Use new LSC messages on Xe2+
+    if (hw >= ngen::HW::Xe2) {
+       strategy.A.newDP = strategy.A_prefetch.newDP = true;
+       strategy.B.newDP = strategy.B_prefetch.newDP = true;
+       strategy.C.newDP = strategy.C_prefetch.newDP = true;
+    }
+
     size_t poCount = problem.postOps.len();
     strategy.binary.resize(poCount);
     for (auto &astrategy: strategy.binary) {
@@ -576,13 +583,6 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
 
     if (problem.aoPtrDims <= 2) strategy.AO.base = A64;
     if (problem.boPtrDims <= 2) strategy.BO.base = A64;
-
-    // Use new LSC messages on Xe2+
-    if (hw >= ngen::HW::Xe2) {
-       strategy.A.newDP = strategy.A_prefetch.newDP = true;
-       strategy.B.newDP = strategy.B_prefetch.newDP = true;
-       strategy.C.newDP = strategy.C_prefetch.newDP = true;
-    }
 
     strategy.AO.newDP = strategy.A_scale.newDP = strategy.A.newDP;
     strategy.BO.newDP = strategy.B_scale.newDP = strategy.B.newDP;
