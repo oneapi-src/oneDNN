@@ -87,9 +87,13 @@ TEST_F(attr_quantization_test_t, TestBNorm) {
                 gen_attr_with_scales(
                         /* with_wei = false, qunatization is not supported */)));
 
-        for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS,
-                     DNNL_ARG_MEAN, DNNL_ARG_VARIANCE, DNNL_ARG_DST}) {
+        for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
             CHECK_UNIMPL(batch_normalization_forward::primitive_desc(eng,
+                    prop_kind::forward_inference, md, md, 0.1f, flags,
+                    gen_attr_with_zp(arg)));
+        }
+        for (auto arg : {DNNL_ARG_BIAS, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE}) {
+            CHECK_INVALID(batch_normalization_forward::primitive_desc(eng,
                     prop_kind::forward_inference, md, md, 0.1f, flags,
                     gen_attr_with_zp(arg)));
         }
@@ -107,8 +111,15 @@ TEST_F(attr_quantization_test_t, TestBinary) {
         else
             CHECK_OK(binary::primitive_desc(eng, algorithm::binary_add, md, md,
                     md, gen_attr_with_scales(arg)));
-        CHECK_UNIMPL(binary::primitive_desc(
-                eng, algorithm::binary_add, md, md, md, gen_attr_with_zp(arg)));
+    }
+
+    for (auto arg : {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1, DNNL_ARG_DST}) {
+        if (arg == DNNL_ARG_SRC_1)
+            CHECK_INVALID(binary::primitive_desc(eng, algorithm::binary_add, md,
+                    md, md, gen_attr_with_zp(arg)));
+        else
+            CHECK_UNIMPL(binary::primitive_desc(eng, algorithm::binary_add, md,
+                    md, md, gen_attr_with_zp(arg)));
     }
 }
 
@@ -121,7 +132,7 @@ TEST_F(attr_quantization_test_t, TestConcat) {
     for (auto arg : {DNNL_ARG_MULTIPLE_SRC, DNNL_ARG_MULTIPLE_SRC + 1}) {
         CHECK_OK(concat::primitive_desc(
                 eng, 1, {md, md}, gen_attr_with_scales(arg)));
-        CHECK_UNIMPL(concat::primitive_desc(
+        CHECK_INVALID(concat::primitive_desc(
                 eng, 1, {md, md}, gen_attr_with_zp(arg)));
     }
 }
@@ -385,8 +396,7 @@ TEST_F(attr_quantization_test_t, TestInnerProduct) {
     CHECK_OK(inner_product_forward::primitive_desc(eng, prop_kind::forward,
             src_md, wei_md, dst_md, gen_attr_with_scales()));
 
-    for (auto arg :
-            {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
+    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
         CHECK_UNIMPL(
                 inner_product_forward::primitive_desc(eng, prop_kind::forward,
                         src_md, wei_md, dst_md, gen_attr_with_zp(arg)));
@@ -410,9 +420,13 @@ TEST_F(attr_quantization_test_t, TestLNorm) {
             prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
             gen_attr_with_scales(/* with_wei = */ false)));
 
-    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE,
-                 DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
+    for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
         CHECK_UNIMPL(layer_normalization_forward::primitive_desc(eng,
+                prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
+                gen_attr_with_zp(arg)));
+    }
+    for (auto arg : {DNNL_ARG_MEAN, DNNL_ARG_VARIANCE, DNNL_ARG_BIAS}) {
+        CHECK_INVALID(layer_normalization_forward::primitive_desc(eng,
                 prop_kind::forward_inference, md, md, stat_md, 0.1f, flags,
                 gen_attr_with_zp(arg)));
     }
@@ -691,9 +705,8 @@ TEST_F(attr_quantization_test_t, TestRNN) {
                         attr));
     }
 
-    for (auto arg : {DNNL_ARG_SRC_LAYER, DNNL_ARG_SRC_ITER, DNNL_ARG_SRC_ITER_C,
-                 DNNL_ARG_WEIGHTS_LAYER, DNNL_ARG_WEIGHTS_ITER, DNNL_ARG_BIAS,
-                 DNNL_ARG_DST_LAYER, DNNL_ARG_DST_ITER, DNNL_ARG_DST_ITER_C}) {
+    for (auto arg :
+            {DNNL_ARG_SRC_LAYER, DNNL_ARG_WEIGHTS_LAYER, DNNL_ARG_DST_LAYER}) {
         CHECK_UNIMPL(
                 lstm_forward::primitive_desc(eng, prop_kind::forward_inference,
                         rnn_direction::unidirectional_left2right, src_layer_md,

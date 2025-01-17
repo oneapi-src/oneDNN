@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,13 +87,18 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
         }
 
         bool zero_points_ok() const {
-            int mask_src = 0, mask_dst = 0;
-            attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src);
-            attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
+            if (!attr()->zero_points_.has_default_values(DNNL_ARG_SRC)) {
+                int mask_src = attr()->zero_points_.get_mask(DNNL_ARG_SRC);
+                const bool ok = mask_src == 0 || mask_src == (1 << 1);
+                if (!ok) return false;
+            }
+            if (!attr()->zero_points_.has_default_values(DNNL_ARG_DST)) {
+                int mask_dst = attr()->zero_points_.get_mask(DNNL_ARG_DST);
+                const bool ok = mask_dst == 0 || mask_dst == (1 << 1);
+                if (!ok) return false;
+            }
 
-            return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-                    && (mask_src == 0 || mask_src == 1 << 1)
-                    && (mask_dst == 0 || mask_dst == 1 << 1);
+            return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS);
         }
 
         bool post_ops_ok() const {

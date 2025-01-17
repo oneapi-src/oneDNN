@@ -1851,20 +1851,23 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const int prelu_ind = p.find(primitive_kind::prelu);
     jcp.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
 
+    const auto &zp = attr.zero_points_;
     jcp.src_zero_point
             = get_zp_type(attr, DNNL_ARG_SRC) != brgemm_broadcast_t::none;
     jcp.dst_zero_point
             = get_zp_type(attr, DNNL_ARG_DST) != brgemm_broadcast_t::none;
 
-    // Only common zero points for the whole output tensor is supported now
-    const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
-    const bool params_ok
-            = IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
-            && IMPLICATION(
-                    jcp.src_zero_point, attr.zero_points_.common(DNNL_ARG_SRC))
-            && IMPLICATION(
-                    jcp.dst_zero_point, attr.zero_points_.common(DNNL_ARG_DST));
-    VDISPATCH_CONV_IC(params_ok, VERBOSE_UNSUPPORTED_ZP_CFG);
+    VDISPATCH_CONV_IC(IMPLICATION(jcp.src_zero_point || jcp.dst_zero_point,
+                              utils::one_of(jcp.src_dt, s8, u8)),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
+
+    VDISPATCH_CONV_IC(
+            IMPLICATION(jcp.src_zero_point, zp.get_mask(DNNL_ARG_SRC) == 0),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
+
+    VDISPATCH_CONV_IC(
+            IMPLICATION(jcp.dst_zero_point, zp.get_mask(DNNL_ARG_DST) == 0),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
 
     jcp.nthr = nthreads;
     jcp.copy_block_only = false;

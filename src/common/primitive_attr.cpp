@@ -69,45 +69,6 @@ status_t rnn_create_time_scales_t::set(
     return status::success;
 }
 
-status_t zero_points_t::get(int arg, int *mask, data_type_t *dt) const {
-    if (mask) *mask = get_mask(arg);
-    if (dt) *dt = get_data_type(arg);
-    return status::success;
-}
-
-int zero_points_t::get(int arg) const {
-    return get_mask(arg);
-}
-
-status_t zero_points_t::set(int arg, int mask, int ndims, const dims_t groups,
-        data_type_t data_type) {
-    const bool supported_arg
-            = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST);
-    if (!supported_arg) return status::unimplemented;
-
-    switch (arg) {
-        case DNNL_ARG_SRC:
-            is_set_src = true;
-            mask_src = mask;
-            data_type_src = data_type;
-            group_ndims_src = ndims;
-            utils::array_copy(group_dims_src, groups, group_ndims_src);
-            break;
-        case DNNL_ARG_WEIGHTS:
-            is_set_wei = true;
-            mask_wei = mask;
-            data_type_wei = data_type;
-            group_ndims_wei = ndims;
-            utils::array_copy(group_dims_wei, groups, group_ndims_wei);
-            break;
-        case DNNL_ARG_DST:
-            is_set_dst = true;
-            mask_dst = mask;
-            break;
-    }
-    return status::success;
-}
-
 status_t dropout_t::set_default_formats(const memory_desc_t *dst_md) {
     auto is_any_or_undef = [](format_kind_t kind) {
         return one_of(kind, dnnl_format_kind_any, dnnl_format_kind_undef);
@@ -561,9 +522,8 @@ status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
 
 status_t dnnl_primitive_attr_set_zero_points_mask(
         primitive_attr_t *attr, int arg, int mask) {
-    bool ok = attr && mask >= 0;
-    if (!ok) return invalid_arguments;
-
+    VCHECK_ATTR(attr, VERBOSE_NULL_ARG);
+    VCHECK_ATTR(mask >= 0, VERBOSE_BAD_PARAM, "mask");
     return attr->zero_points_.set(arg, mask);
 }
 
@@ -585,7 +545,7 @@ status_t dnnl_primitive_attr_set_zero_points(dnnl_primitive_attr_t attr,
     VCHECK_ATTR(IMPLICATION(ndims, validate_dims(ndims, group_dims)),
             VERBOSE_BAD_PARAM, "group_dims");
 
-    return attr->zero_points_.set(arg, mask, ndims, group_dims, data_type);
+    return attr->zero_points_.set(arg, mask, data_type, ndims, group_dims);
 }
 
 status_t dnnl_primitive_attr_get_rounding(

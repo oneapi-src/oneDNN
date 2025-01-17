@@ -136,8 +136,18 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
         return ok;
     };
 
-    auto check_attr_zero_points
-            = [&]() -> bool { return attr()->zero_points_.common(); };
+    auto check_attr_zero_points = [&]() -> bool {
+        const auto &zp = attr()->zero_points_;
+        static const std::vector<int> supported_args {
+                DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+        for (int arg : supported_args) {
+            if (!zp.has_default_values(arg)) {
+                const int mask = zp.get_mask(arg);
+                if (mask > 0) return false;
+            }
+        }
+        return true;
+    };
     const bool problem_dt_correct
             = one_of(true, is_int8, is_f8, is_bf16, is_f32, is_f16, is_f32_f16,
                     is_f32_bf16, is_bf16_with_int_wei, is_f16_with_int_wei);

@@ -106,9 +106,9 @@ status_t ref_convolution_int8_fwd_t::execute_forward(
 
     // zp_idx_mult = 1 for per_dim1 zero points and 0, otherwise
     const int src_zp_idx_mult
-            = !pd()->attr()->zero_points_.common(DNNL_ARG_SRC);
+            = pd()->attr()->zero_points_.get_mask(DNNL_ARG_SRC) > 0;
     const int dst_zp_idx_mult
-            = !pd()->attr()->zero_points_.common(DNNL_ARG_DST);
+            = pd()->attr()->zero_points_.get_mask(DNNL_ARG_DST) > 0;
 
     auto ker = [=](dim_t g, dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
         int d = 0;

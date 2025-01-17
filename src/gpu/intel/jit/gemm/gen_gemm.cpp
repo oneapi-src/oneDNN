@@ -348,7 +348,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     if (pd()->with_c_zero_points()) {
         off_co0 = types::bytes_to_elements(c_type, co->offset())
                 + pd()->dyn_offset_co;
-        CHECK(pd()->attr()->zero_points_.get(DNNL_ARG_DST, &cmask));
+        cmask = pd()->attr()->zero_points_.get_mask(DNNL_ARG_DST);
     } else if (pd()->with_bias()) {
         off_co0 = types::bytes_to_elements(c_type, bias.offset());
         co = &bias;

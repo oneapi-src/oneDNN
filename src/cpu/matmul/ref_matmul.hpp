@@ -132,27 +132,27 @@ struct ref_matmul_t : public primitive_t {
 
     private:
         bool zero_points_ok() const {
+            const auto &zp = attr()->zero_points_;
+            if (!zp.has_default_values(DNNL_ARG_SRC)) { return false; }
             /* weights decompression requires zero points support */
-            int mask_wei = 0;
-            attr()->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei);
-            const auto wei_group_ndims
-                    = attr()->zero_points_.get_groups_ndims(DNNL_ARG_WEIGHTS);
-            const auto wei_group_dims
-                    = attr()->zero_points_.get_groups(DNNL_ARG_WEIGHTS);
-            const bool wei_k_group_ok
-                    = IMPLICATION(wei_group_ndims == 2 && wei_group_dims[0] > 1,
-                            K() % wei_group_dims[0] == 0);
-            const bool wei_n_group_ok
-                    = IMPLICATION(wei_group_ndims == 2 && wei_group_dims[1] > 1,
-                            N() % wei_group_dims[1] == 0);
+            if (!zp.has_default_values(DNNL_ARG_WEIGHTS)) {
+                if (!zp.get(DNNL_ARG_WEIGHTS).has_default_groups()) {
+                    const auto gK = zp.get_group(DNNL_ARG_WEIGHTS, 0);
+                    bool ok = IMPLICATION(gK > 1, K() % gK == 0);
+                    if (!ok) return false;
 
-            return attr()->zero_points_.has_default_values(DNNL_ARG_SRC)
-                    && attr()->zero_points_.has_default_values(DNNL_ARG_DST)
-                    && utils::one_of(wei_group_ndims, 0, 2)
-                    && IMPLICATION(wei_group_ndims == 2,
-                            utils::one_of(
-                                    1, wei_group_dims[0], wei_group_dims[1])
-                                    && wei_k_group_ok && wei_n_group_ok);
+                    const auto gN = zp.get_group(DNNL_ARG_WEIGHTS, 1);
+                    ok = IMPLICATION(gN > 1, N() % gN == 0);
+                    if (!ok) return false;
+
+                    // Only one non-unit group is supported.
+                    ok = utils::one_of(1, gK, gN);
+                    if (!ok) return false;
+                }
+            }
+            if (!zp.has_default_values(DNNL_ARG_DST)) { return false; }
+
+            return true;
         }
     };
 
