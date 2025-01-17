@@ -240,7 +240,7 @@ void ref_partition_t::exec_ops(res_t *res) {
                     || (parent0 == "Multiply" && parent1 == "MatMul");
         }
 
-        if (is_sdpa_pattern || is_gated_mlp_pattern) {
+        if (/*is_sdpa_pattern || is_gated_mlp_pattern*/false) {
             for (size_t i = 0; i < op.in_lts_.size(); i++) {
                 const auto dt = ref_prim->get_lt_dt(op.in_lts_[i].id_);
                 // There's no need to reorder data for f32 tensors.
