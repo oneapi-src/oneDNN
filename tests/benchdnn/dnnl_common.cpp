@@ -366,8 +366,40 @@ int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
 
     execute_unmap_args(args, dnnl_args);
 
-    auto status = exec_func(stream, dnnl_args);
-    DNN_SAFE(dnnl_stream_wait(stream), CRIT);
+    dnnl_status_t status = dnnl_runtime_error;
+    bool run_regular_exec = true;
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+    while (execution_mode == execution_mode_t::graph && is_gpu(engine)) {
+        void *queue_ptr;
+        DNN_SAFE(dnnl_sycl_interop_stream_get_queue(stream, &queue_ptr), CRIT);
+        sycl::queue queue = *static_cast<sycl::queue *>(queue_ptr);
+        const bool can_run_sycl_graph = queue.get_device().get_backend()
+                == sycl::backend::ext_oneapi_level_zero;
+        if (!can_run_sycl_graph) break;
+
+        BENCHDNN_PRINT(
+                2, "%s\n", "[INFO] Using experimental SYCL graph execution.");
+        sycl::ext::oneapi::experimental::command_graph graph {
+                queue.get_context(), queue.get_device()};
+
+        graph.begin_recording(queue);
+        status = exec_func(stream, dnnl_args);
+        graph.end_recording(queue);
+        DNN_SAFE(dnnl_stream_wait(stream), CRIT);
+
+        auto exec = graph.finalize();
+        queue.ext_oneapi_graph(exec).wait();
+
+        // SYCL graph feature completed submission and execution, no need to
+        // have a regular run.
+        run_regular_exec = false;
+        break;
+    }
+#endif
+    if (run_regular_exec) {
+        status = exec_func(stream, dnnl_args);
+        DNN_SAFE(dnnl_stream_wait(stream), CRIT);
+    }
     if (res) res->state = EXECUTED;
 
     execute_map_args(args);
@@ -1369,6 +1401,32 @@ memory_kind_ext_t str2memory_kind(const char *str) {
 
     assert(!"not expected");
     return memory_kind_ext_t::usm;
+}
+
+const char *execution_mode2str(execution_mode_t mode) {
+#define EXECUTION_MODE_TO_STR(name, ...) \
+    if (execution_mode_t::name == mode) return #name;
+
+    EXECUTION_MODE_TO_STR(direct);
+    EXECUTION_MODE_TO_STR(graph);
+#undef EXECUTION_MODE_STR
+
+    BENCHDNN_PRINT(0, "%s", "Error: execution mode value is not recognized.\n");
+    SAFE_V(FAIL);
+    return "";
+}
+
+execution_mode_t str2execution_mode(const char *str) {
+#define STR_TO_EXECUTION_MODE(name, ...) \
+    if (!strcasecmp(#name, str)) return execution_mode_t::name;
+
+    STR_TO_EXECUTION_MODE(direct);
+    STR_TO_EXECUTION_MODE(graph);
+#undef STR_TO_EXECUTION_MODE
+
+    BENCHDNN_PRINT(0, "%s", "Error: execution mode value is not recognized.\n");
+    SAFE_V(FAIL);
+    return execution_mode_t::direct;
 }
 
 static void maybe_print_cpu_engine_error_message() {

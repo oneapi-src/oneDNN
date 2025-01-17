@@ -1353,6 +1353,33 @@ static bool parse_verbose(
     return false;
 }
 
+static bool parse_execution_mode(
+        const char *str, const std::string &option_name = "execution-mode") {
+    static const std::string help
+            = "MODE    (Default: direct)\n"
+              "    Specifies a `MODE` of execution.\n"
+              "    `MODE` values are:\n"
+              "    * `direct` instruction the driver to execute the primitive "
+              "directly.\n"
+              "    * `graph` to execute the primitive using a graph backend.\n"
+              "          Currently limited to the experimental SYCL Graph on "
+              "DPC++ builds.\n";
+    bool parsed = parse_single_value_option(execution_mode,
+            execution_mode_t::direct, str2execution_mode, str, option_name,
+            help);
+
+#if !defined(DNNL_WITH_SYCL)
+    if (parsed) {
+        BENCHDNN_PRINT(0,
+                "Error: option `--%s` is supported with DPC++ "
+                "builds only, exiting...\n",
+                option_name.c_str());
+        SAFE_V(FAIL);
+    }
+#endif
+    return parsed;
+}
+
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
@@ -1377,7 +1404,8 @@ bool parse_bench_settings(const char *str) {
             || parse_repeats_per_prb(str) || parse_mem_check(str)
             || parse_memory_kind(str) || parse_mode(str)
             || parse_mode_modifier(str) || parse_start(str)
-            || parse_stream_kind(str) || parse_verbose(str);
+            || parse_stream_kind(str) || parse_verbose(str)
+            || parse_execution_mode(str);
 
     // Last condition makes this help message to be triggered once driver_name
     // is already known.

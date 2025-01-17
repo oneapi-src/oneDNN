@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2017-2024 Intel Corporation
+# Copyright 2017-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -84,6 +84,10 @@ function(register_benchdnn_test engine driver test_file)
         string(REPLACE "test_" "test_benchdnn_mode${tm}_" target_name ${test_file})
         set(cmd "--mode=${tm} ${mode_modifier} -v1 --engine=${engine} --${driver} --batch=${test_file}")
         set(benchdnn_target ${target_name}_${engine})
+
+        if(DNNL_TEST_SET_HAS_GRAPH_EXE EQUAL 1)
+            string(PREPEND cmd "--execution-mode=graph")
+        endif()
 
         if(NOT WIN32 OR DNNL_BUILD_FOR_CI)
             string(REPLACE " " ";" cmd "benchdnn ${cmd}")
