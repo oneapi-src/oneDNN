@@ -19,7 +19,8 @@ import argparse
 import os
 from tempfile import NamedTemporaryFile
 
-from matmul import matmul
+from matmul import sampler as matmul_sampler
+from matmul import primitive as matmul
 
 
 def log(output):
@@ -58,9 +59,11 @@ def matmul_main(args):
 
     if batchFile:
         log(f"generating batch file: {batchFile.name}")
-        region = matmul.Region(args.region)
-        samples= matmul.Sampler(int(args.samples), args.iter_mode, matmul.Types(args.types),
-                                matmul.Layouts(args.layouts, region.ndims), region)
+        region = matmul_sampler.Region(args.region)
+        types = matmul.Types(args.types)
+        layouts = matmul.Layouts(args.layouts, region.ndims)
+        samples= matmul_sampler.Sampler(int(args.samples), args.iter_mode,
+                                        types, layouts, region)
         for s in samples:
             batchFile.write("--reset " + str(s) + "\n")
         batchFile.flush()
