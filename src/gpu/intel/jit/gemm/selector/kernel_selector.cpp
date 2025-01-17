@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -207,17 +207,18 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns, c
         }
     }
 
-    /* Temporarily reuse XeHPC strategies for Xe2 until more Xe2 strategies are
+    /* Temporarily reuse XeHPC/Xe2 strategies for Xe2/Xe3 until more strategies are
        in the catalog*/
     if (!bestEntry
             && (patterns[0].selector.hw == kcatalog::HWTagXe2
                     || patterns[0].selector.hw == kcatalog::HWTagXe3
                     )) {
         std::vector<MatchParams> override_patterns;
+        const bool isXe3 = patterns[0].selector.hw == kcatalog::HWTagXe3;
         override_patterns.reserve(npatterns);
         for (int i = 0; i < npatterns; i++) {
             override_patterns.emplace_back(patterns[i]);
-            override_patterns.back().selector.hw = kcatalog::HWTagXeHPC;
+            override_patterns.back().selector.hw = isXe3 ? kcatalog::HWTagXe2 : kcatalog::HWTagXeHPC;
         }
         return select(catalog, npatterns, override_patterns.data(), eparams, aux);
     }
