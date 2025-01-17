@@ -57,6 +57,8 @@ jobs:
 
       - name: Install clang
         uses: KyleMayes/install-llvm-action@e0a8dc9cb8a22e8a7696e8a91a4e9581bec13181
+        with:
+          version: "17"
 
       - name: Install castxml package
         run: |
