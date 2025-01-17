@@ -54,15 +54,12 @@ inline std::ostream &operator<<(std::ostream &out, const T &obj) {
 
 namespace ir_utils {
 
-const int LOG_DYNAMIC = -1;
 const int LOG_OFF = 0;
-const int LOG_FATAL = 50;
 const int LOG_WARNING = 100;
 const int LOG_SUGGESTION = 120;
 const int LOG_INFO = 150;
 const int LOG_PERF = 170;
 const int LOG_TRACE = 200;
-const int LOG_CHECK_DEFAULT = LOG_TRACE;
 
 template <typename T>
 size_t get_hash(const T &t);
@@ -241,59 +238,35 @@ bool contains(const std::vector<T> &vec, const U &u) {
 #define ir_error_not_expected() ir_assert(false) << "Not expected. "
 #define ir_except_not_implemented(msg) throw std::runtime_error(msg)
 
-template <int level, bool value = true, bool add_new_line = false>
-class base_logger_t {
+template <int level, bool value = true>
+class logger_t {
 public:
-    template <int L = level>
-    base_logger_t(
-            typename std::enable_if<L == LOG_DYNAMIC, int>::type dynamic_level,
-            std::ostream &out = std::cout)
-        : dynamic_level_(dynamic_level), out_(out) {}
-    template <int L = level>
-    base_logger_t(
-            typename std::enable_if<L != LOG_DYNAMIC, std::ostream &>::type out
-            = std::cout)
-        : out_(out) {}
-    ~base_logger_t() {
-        if (add_new_line && !is_first_print_) out_ << std::endl;
-#if defined(DNNL_DEV_MODE)
-        if (get_level() <= LOG_FATAL) {
-            out_ << "Aborting after fatal error..." << std::endl;
-            abort();
-        }
-#endif
+    logger_t(std::ostream &out = std::cout) : out_(out) {}
+    ~logger_t() {
+        if (!is_first_print_) out_ << std::endl;
     }
 
-    template <int L = level>
-    static typename std::enable_if<L != LOG_DYNAMIC, bool>::type is_enabled() {
+    static bool is_enabled() {
 #if defined(DNNL_DEV_MODE)
-        return level <= LOG_FATAL || get_verbose(verbose_t::debuginfo) >= level;
+        return get_verbose(verbose_t::debuginfo) >= level;
 #else
         return false;
 #endif
     }
 
-    template <int L = level>
-    typename std::enable_if<L != LOG_DYNAMIC, int>::type get_level() const {
-        return level;
-    }
-
-    template <int L = level>
-    typename std::enable_if<L == LOG_DYNAMIC, int>::type get_level() const {
-        return dynamic_level_;
-    }
+    int get_level() const { return level; }
 
     operator bool() const { return value; }
 
     template <typename T>
-    base_logger_t &operator<<(const T &obj) {
+    logger_t &operator<<(const T &obj) {
         using dnnl::impl::gpu::intel::jit::operator<<;
         maybe_print_header();
         out_ << obj;
         return *this;
     }
 
-    base_logger_t &operator<<(std::ostream &(*os)(std::ostream &)) {
+    logger_t &operator<<(std::ostream &(*os)(std::ostream &)) {
         maybe_print_header();
         out_ << os;
         return *this;
@@ -304,7 +277,6 @@ private:
         if (!is_first_print_) return;
 
         switch (get_level()) {
-            case LOG_FATAL: out_ << "[FATAL] "; break;
             case LOG_WARNING: out_ << "[WARNING] "; break;
             case LOG_SUGGESTION: out_ << "[SUGGESTION] "; break;
             default: break;
@@ -312,46 +284,9 @@ private:
         is_first_print_ = false;
     }
 
-    int dynamic_level_ = level;
     std::ostream &out_;
     bool is_first_print_ = true;
 };
-
-template <int level>
-class logger_t : public base_logger_t<level> {
-public:
-    logger_t() : base_logger_t<level>() {}
-};
-
-class ir_check_log_level_t {
-public:
-    static int level() { return level_; }
-    static bool is_enabled() {
-#if defined(DNNL_DEV_MODE)
-        switch (level_) {
-            case LOG_FATAL: return logger_t<LOG_FATAL>::is_enabled();
-            case LOG_TRACE: return logger_t<LOG_TRACE>::is_enabled();
-            default: abort();
-        }
-#else
-        return false;
-#endif
-    }
-    ir_check_log_level_t(int new_level) : old_level_(level_) {
-        level_ = new_level;
-    }
-    ~ir_check_log_level_t() { level_ = old_level_; }
-    ir_check_log_level_t(const ir_check_log_level_t &) = delete;
-
-private:
-    static thread_local int level_;
-    int old_level_ = LOG_CHECK_DEFAULT;
-};
-
-template <bool value = true, bool add_new_line = false>
-base_logger_t<LOG_DYNAMIC, value, add_new_line> make_logger(int level) {
-    return base_logger_t<LOG_DYNAMIC, value, add_new_line>(level);
-}
 
 #define ir_perf() \
     ir_utils::logger_t<ir_utils::LOG_PERF>::is_enabled() \
@@ -381,26 +316,8 @@ base_logger_t<LOG_DYNAMIC, value, add_new_line> make_logger(int level) {
 
 #define ir_check(cond) \
     if (!(cond)) \
-    return ir_utils::ir_check_log_level_t::is_enabled() \
-            && ir_utils::make_logger<false, true>( \
-                    ir_utils::ir_check_log_level_t::level())
-
-// This macro enables logging in all nested ir_check() calls. This is useful
-// when a check function can be used in scenarios when a failed check is
-// expected (regular check) or unexpected (e.g. debug assertion).
-// Example 1 (regular check):
-//     for (auto &cfg: generate_configs()) {
-//         // No logging here.
-//         if (!cfg.is_ok()) continue;
-//         ...
-//     }
-//
-// Example 2 (debug assertion):
-//     auto config = read_from_environment(...);
-//     // Detailed logging will show the cause of the failed assertion.
-//     ir_assert(ir_check_fatal(config.is_ok()));
-#define ir_check_fatal(call) \
-    (ir_utils::ir_check_log_level_t(ir_utils::LOG_FATAL), (call))
+    return ir_utils::logger_t<ir_utils::LOG_TRACE>::is_enabled() \
+            && ir_utils::logger_t<ir_utils::LOG_TRACE, false>()
 
 // Pretty printers for STL objects.
 template <typename KeyT, typename HashT, typename EqualT>

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,11 +21,6 @@ namespace impl {
 namespace gpu {
 namespace intel {
 namespace jit {
-namespace ir_utils {
-
-thread_local int ir_check_log_level_t::level_ = LOG_CHECK_DEFAULT;
-
-} // namespace ir_utils
 
 void stringify_to_cpp_file(const std::string &file_name,
         const std::string &var_name, const std::vector<std::string> &namespaces,
