@@ -1315,6 +1315,9 @@ public:
         addFixup(LabelFixup(fenceLocation.getID(labelManager), LabelFixup::JIPOffset));
         opX(Opcode::directive, DataType::ud, InstructionModifier::createAutoSWSB(), GRF(static_cast<int>(Directive::fencedep)), Immediate::ud(0), loc);
     }
+    void disablePVCWARWA(SourceLocation loc) {
+        opX(Opcode::directive, DataType::ud, InstructionModifier::createAutoSWSB(), GRF(static_cast<int>(Directive::pvcwarwa)), NullRegister(), loc);
+    }
 
     using _self = BinaryCodeGenerator<hw>;
 #include "ngen_pseudo.hpp"
@@ -1441,6 +1444,8 @@ NGEN_FORWARD_OP(while_) \
 NGEN_FORWARD_OP(ignoredep) \
 NGEN_FORWARD_OP(subdep) \
 NGEN_FORWARD_OP(wrdep) \
+NGEN_FORWARD_OP(fencedep) \
+NGEN_NILARY_OP(disablePVCWARWA) \
 NGEN_FORWARD_DT_OP(min_) \
 NGEN_FORWARD_DT_OP(max_) \
 NGEN_FORWARD_DT_OP(bfi) \
@@ -1684,7 +1689,7 @@ static inline Instruction12 encodeSyncInsertion(autoswsb::SyncInsertion &si)
 
     i.common.opcode = static_cast<int>(Opcode::sync);
     i.common.swsb = (hw >= HW::XeHPC) ? SWSBInfoXeHPC(si.swsb, Opcode::sync).raw()
-                                      :   SWSBInfo12(si.swsb, Opcode::sync).raw();
+                                      :    SWSBInfo12(si.swsb, Opcode::sync).raw();
     i.common.maskCtrl = true;
     i.binary.cmod = static_cast<int>(si.fc);
 
@@ -1694,6 +1699,28 @@ static inline Instruction12 encodeSyncInsertion(autoswsb::SyncInsertion &si)
         i.imm32.value = si.mask;
     }
     i.binary.dst = 1;
+
+    return i;
+}
+
+template <HW hw>
+static inline Instruction12 encodeDummyMovInsertion(autoswsb::DummyMovInsertion &mi)
+{
+    typename EncodingTag12Dispatch<hw>::tag tag;
+    Instruction12 i{};
+
+    i.common.opcode = static_cast<int>(Opcode::mov_gen12);
+    i.common.swsb = (hw >= HW::XeHPC) ? SWSBInfoXeHPC(mi.swsb, Opcode::sync).raw()
+                                      :    SWSBInfo12(mi.swsb, Opcode::sync).raw();
+    i.common.maskCtrl = true;
+    i.binary.dst = 1;
+    i.binary.dstType = i.binary.src0Type = getTypecode12(DataType::ud);
+
+    if (mi.constant) {
+        i.binary.src0Imm = true;
+        i.imm32.value = 0;
+    } else
+        i.binary.src0 = encodeBinaryOperand12<0>(GRF(mi.grf).ud(0), tag).bits;
 
     return i;
 }
@@ -1715,12 +1742,16 @@ std::vector<uint8_t> BinaryCodeGenerator<hw>::getCode()
         std::memmove(result.data(), rootStream.code.data(), rootStream.length());
     } else {
         std::multimap<int32_t, autoswsb::SyncInsertion*> syncs;
+        std::multimap<int32_t, autoswsb::DummyMovInsertion*> movs;
 
-        for (auto &bb : analysis)
+        for (auto &bb : analysis) {
             for (auto &sync : bb.syncs)
                 syncs.insert(std::make_pair(sync.inum, &sync));
+            for (auto &mov : bb.movs)
+                movs.insert(std::make_pair(mov.inum, &mov));
+        }
 
-        result.resize(rootStream.length() + syncs.size() * sizeof(Instruction12));
+        result.resize(rootStream.length() + (syncs.size() + movs.size()) * sizeof(Instruction12));
 
         auto *psrc_start = reinterpret_cast<const Instruction12 *>(rootStream.code.data());
         auto *psrc = psrc_start;
@@ -1729,12 +1760,15 @@ std::vector<uint8_t> BinaryCodeGenerator<hw>::getCode()
         auto &srcLines = debugLine.srcLines;
 
         auto nextSync = syncs.begin();
+        auto nextMov = movs.begin();
 
         for (uint32_t isrc = 0; isrc < program.size(); isrc++, psrc++) {
             if (psrc->opcode() == Opcode::directive)
                 continue;
             while ((nextSync != syncs.end()) && (nextSync->second->inum == isrc))
                 *pdst++ = encodeSyncInsertion<hw>(*(nextSync++)->second);
+            while ((nextMov != movs.end()) && (nextMov->second->inum == isrc))
+                *pdst++ = encodeDummyMovInsertion<hw>(*(nextMov++)->second);
 
             if(!srcLines.empty())
                 srcLines[psrc - psrc_start].address = sizeof(*pdst) * (pdst - pdst_start);
