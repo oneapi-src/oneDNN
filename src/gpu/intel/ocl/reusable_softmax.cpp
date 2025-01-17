@@ -91,14 +91,18 @@ bool reusable_softmax_fwd_t::pd_t::mayiuse_sg(
 
 status_t reusable_softmax_fwd_t::pd_t::init_dispatch_vectorized(
         engine_t *engine) {
-
-    compute::range_t gws = compute::range_t::empty(1);
-    compute::range_t lws = compute::range_t::empty(1);
-    lws[0] = 16;
-    const dim_t num_reductions
-            = utils::array_product(&src_md()->dims[0], ndims() - 1);
-    const dim_t num_threads = num_reductions * 16; // 16 threads in a subgroup
-    gws[0] = num_threads;
+    compute::range_t gws = compute::range_t::empty(3);
+    compute::range_t lws {16, 1, 1};
+    gws[0] = 16;
+    gws[1] = 1;
+    gws[2] = 1;
+    int launch_dim_no = 1;
+    for (int i = 0; i < ndims(); i++) {
+        if (i == desc()->softmax_axis) { continue; }
+        const size_t dim = src_md()->dims[i];
+        gws[launch_dim_no] *= dim;
+        if (gws[launch_dim_no] > 1024) { launch_dim_no++; }
+    }
 
     rt_conf.gws_params.nd_range = compute::nd_range_t(gws, lws);
 

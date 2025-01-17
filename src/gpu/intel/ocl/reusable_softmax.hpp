@@ -175,8 +175,8 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
             }
 
             const auto nelems = src_mdw.nelems();
-            const bool use_vectorized = rt_conf.softmax_axis_size > 128
-                    && nelems > (1 << 19)
+            const bool use_vectorized = rt_conf.softmax_axis_stride == 1
+                    && rt_conf.softmax_axis_size > 128 && nelems > (1 << 19)
                     && dnnl::impl::utils::div_up(rt_conf.softmax_axis_size, 16)
                             <= 1024;
 
