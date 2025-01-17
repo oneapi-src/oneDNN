@@ -28,7 +28,7 @@ source ${SCRIPT_DIR}/common_aarch64.sh
 
 set -x
 cmake \
-    -Bbuild -S. \
+    -B../build -S. \
     -DONEDNN_BUILD_GRAPH=OFF \
     -DDNNL_EXPERIMENTAL_SPARSE=ON
 set +x
