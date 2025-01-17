@@ -118,7 +118,7 @@ DEF_BLOCK_LOAD_STORE16(uint, uint, )
                 pp, w - 1, h - 1, ld - 1, coord)); \
     } \
     __attribute__((overloadable)) void block2d_store(type##vl v, \
-            global type *p, int w, int h, int ld, int x, int y, int br, \
+            const global type *p, int w, int h, int ld, int x, int y, int br, \
             int bc, \
             int sg) __attribute__((enable_if(br == BR, "wrong #rows"))) \
             __attribute__((enable_if(bc == BC, "wrong #columns"))) \
@@ -542,8 +542,8 @@ DEF_BLOCK2D_LOAD_STORE(half, ushort, 16, 16, u16_m8k32v1, 32, 8)
         tile_load_block2d(t, ptr, m, n, m, offset_r, offset_c); \
     } \
     __attribute__((overloadable)) void tile_store_block2d(tile_type t, \
-            global element_type *ptr, int m, int n, int ld, int offset_r, \
-            int offset_c) { \
+            const global element_type *ptr, int m, int n, int ld, \
+            int offset_r, int offset_c) { \
         const int e = sizeof(element_type); \
         _Pragma("unroll") for (int jj = 0; jj < nbc; jj++) { \
             _Pragma("unroll") for (int ii = 0; ii < nbr; ii++) block2d_store( \
