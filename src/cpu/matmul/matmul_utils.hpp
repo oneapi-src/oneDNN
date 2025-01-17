@@ -156,7 +156,7 @@ struct matmul_helper_t {
     static status_t get_quant_md(memory_desc_t &md, const int ndims,
             const dims_t in_dims, const int quant_mask, const dim_t g0,
             const dim_t g1, const data_type_t dt) {
-        if (dt == data_type::undef) {
+        if (dt == data_type::undef || quant_mask < 0) {
             md = glob_zero_md;
             return status::success;
         }

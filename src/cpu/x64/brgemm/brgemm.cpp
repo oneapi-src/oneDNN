@@ -447,25 +447,23 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
 
     auto init_zp_type
             = [&](brgemm_broadcast_t &zp_type, int mem_arg) -> status_t {
-        auto zero_points = attr->zero_points_;
-
-        // common zero point type is supported for now
-        const bool is_per_dim_1_bcast = zero_points.per_dim_1(mem_arg);
-        const bool is_common_bcast = zero_points.common(mem_arg);
-        if (!is_common_bcast && !is_per_dim_1_bcast)
-            return status::unimplemented;
+        const auto &zp = attr->zero_points_;
+        // Always init a default value;
+        zp_type = brgemm_broadcast_t::none;
 
         const bool skip_zero_point
                 = mem_arg == DNNL_ARG_WEIGHTS && brg->skip_zp_b_compensation;
+        if (skip_zero_point) return status::success;
 
-        zp_type = brgemm_broadcast_t::none;
-        const bool is_any_bcast
-                = !(zero_points.has_default_values(mem_arg) || skip_zero_point);
-        if (is_any_bcast) {
-            if (is_common_bcast)
+        if (!zp.has_default_values(mem_arg)) {
+            int mask = zp.get_mask(mem_arg);
+            if (mask == 0) {
                 zp_type = brgemm_broadcast_t::per_tensor;
-            else if (is_per_dim_1_bcast)
+            } else if (mask == (1 << 1)) {
                 zp_type = brgemm_broadcast_t::per_n;
+            } else {
+                return status::unimplemented;
+            }
         }
 
         return status::success;

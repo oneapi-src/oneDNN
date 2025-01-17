@@ -93,7 +93,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
                     qry_md()->dims[1], key_md()->dims[1], val_md()->dims[1]);
 
             int kq_scales_mask = desc()->kq_scales.get_mask();
-            int kq_zp_mask = desc()->kq_zero_points.get(DNNL_ARG_WEIGHTS);
+            int kq_zp_mask = desc()->kq_zero_points.get_mask(DNNL_ARG_WEIGHTS);
             if (!desc()->kq_scales.has_default_values()
                     && !desc()->kq_zero_points.has_default_values())
                 VDISPATCH_SDPA(kq_scales_mask == kq_zp_mask,
@@ -122,7 +122,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
             }
 
             int vs_scales_mask = desc()->vs_scales.get_mask();
-            int vs_zp_mask = desc()->vs_zero_points.get(DNNL_ARG_WEIGHTS);
+            int vs_zp_mask = desc()->vs_zero_points.get_mask(DNNL_ARG_WEIGHTS);
             if (!desc()->vs_scales.has_default_values()
                     && !desc()->vs_zero_points.has_default_values())
                 VDISPATCH_SDPA(vs_scales_mask == vs_zp_mask,
