@@ -79,6 +79,7 @@ jobs:
 
       - name: Configure oneDNN
         run: ${{ github.workspace }}/source/.github/automation/cmake_configure.sh
+        working-directory: ${{ github.workspace }}/source
         env:
           BUILD_TOOLSET: "gcc"
           GCC_VERSION: 13
