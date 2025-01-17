@@ -920,6 +920,8 @@ std::ostream &dump_global_params(std::ostream &s) {
 #endif
     if (canonical || cold_cache_mode != default_cold_cache_mode)
         s << "--cold-cache=" << cold_cache_mode << " ";
+    if (canonical || execution_mode != execution_mode_t::direct)
+        s << "--execution-mode=" << execution_mode2str(execution_mode) << " ";
 
     return s;
 }

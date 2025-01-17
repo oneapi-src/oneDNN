@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -654,6 +654,12 @@ bool check_md_consistency_with_tag(
         const_dnnl_memory_desc_t md, const std::string &tag);
 
 memory_kind_ext_t str2memory_kind(const char *str);
+
+enum class execution_mode_t { direct, graph };
+extern execution_mode_t execution_mode;
+
+const char *execution_mode2str(execution_mode_t mode);
+execution_mode_t str2execution_mode(const char *str);
 
 float reorder_rescale_factor();
 

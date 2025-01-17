@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2024 Intel Corporation
+# Copyright 2020-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ set(DNNL_TEST_SET_COVERAGE "0")
 set(DNNL_TEST_SET_COVERAGE_STR "")
 set(DNNL_TEST_SET_HAS_NO_CORR "0")
 set(DNNL_TEST_SET_HAS_ADD_BITWISE "0")
+set(DNNL_TEST_SET_HAS_GRAPH_EXE "0")
 
 function(check_consistency entry)
     if(NOT DNNL_TEST_SET_COVERAGE EQUAL 0)
@@ -57,6 +58,8 @@ foreach(entry ${DNNL_TEST_SET})
         set(DNNL_TEST_SET_HAS_NO_CORR "1")
     elseif(entry STREQUAL "ADD_BITWISE")
         set(DNNL_TEST_SET_HAS_ADD_BITWISE "1")
+    elseif(entry STREQUAL "GRAPH_EXE")
+        set(DNNL_TEST_SET_HAS_GRAPH_EXE "1")
     elseif(entry STREQUAL "CI_NO_CORR") # Left here for compatibility till v4.0
         set(DNNL_TEST_SET_COVERAGE ${DNNL_TEST_SET_CI})
         set(DNNL_TEST_SET_COVERAGE_STR "CI")
@@ -68,7 +71,7 @@ foreach(entry ${DNNL_TEST_SET})
         message(FATAL_ERROR
                 "The DNNL_TEST_SET entry ${entry} is not recognized. "
                 "Supported values are:"
-                "NIGHTLY, CI, SMOKE, NO_CORR, ADD_BITWISE.")
+                "NIGHTLY, CI, SMOKE, NO_CORR, ADD_BITWISE, GRAPH_EXE.")
     endif()
 endforeach()
 
@@ -78,4 +81,7 @@ if(DNNL_TEST_SET_HAS_NO_CORR EQUAL 1)
 endif()
 if(DNNL_TEST_SET_HAS_ADD_BITWISE EQUAL 1)
     message(STATUS "Enabled testing modifier: Add bitwise validation")
+endif()
+if(DNNL_TEST_SET_HAS_GRAPH_EXE EQUAL 1)
+    message(STATUS "Enabled testing modifier: Use graph execution")
 endif()
