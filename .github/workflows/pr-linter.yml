@@ -78,11 +78,11 @@ jobs:
           python -m pip install --no-cache-dir --disable-pip-version-check castxml
 
       - name: Configure oneDNN
-        run: ${{ github.workspace }}/source/.github/automation/cmake_configure.sh
+        run: |
+          export CC=clang
+          export CXX=clang++
+          cmake -B../build -S. -DONEDNN_BUILD_GRAPH=OFF -DDNNL_EXPERIMENTAL_SPARSE=ON
         working-directory: ${{ github.workspace }}/source
-        env:
-          BUILD_TOOLSET: "gcc"
-          GCC_VERSION: 13
 
       - name: format-tags check
         run: |
