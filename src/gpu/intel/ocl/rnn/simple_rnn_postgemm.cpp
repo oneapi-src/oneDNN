@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ using namespace dnnl::impl::gpu::intel::gpu_utils;
 using namespace rnn_utils;
 
 template <prop_kind_t aprop>
-elemwise_sig((_simple_rnn_common_t<aprop>::rnn_elemwise)) {
+elemwise_sig((simple_rnn_common_t<aprop>::rnn_elemwise)) {
     auto nd_range = get_nd_range({dhc,
             utils::div_up(
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
@@ -101,7 +101,7 @@ template elemwise_sig(simple_rnn_fwd_t::rnn_elemwise);
 template elemwise_sig(simple_rnn_bwd_t::rnn_elemwise);
 
 template <prop_kind_t aprop>
-elemwise_sig((_simple_rnn_common_t<aprop>::lstm_elemwise)) {
+elemwise_sig((simple_rnn_common_t<aprop>::lstm_elemwise)) {
     auto nd_range = get_nd_range({dhc,
             utils::div_up(
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
@@ -176,7 +176,7 @@ template elemwise_sig(simple_rnn_fwd_t::lstm_elemwise);
 template elemwise_sig(simple_rnn_bwd_t::lstm_elemwise);
 
 template <prop_kind_t aprop>
-elemwise_sig((_simple_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
+elemwise_sig((simple_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     auto nd_range = get_nd_range({dhc,
             utils::div_up(
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
@@ -235,7 +235,7 @@ template elemwise_sig(simple_rnn_fwd_t::lstm_elemwise_u8s8);
 template elemwise_sig(simple_rnn_bwd_t::lstm_elemwise_u8s8);
 
 template <prop_kind_t aprop>
-elemwise_sig_gru_lbr((_simple_rnn_common_t<aprop>::gru_lbr_elemwise)) {
+elemwise_sig_gru_lbr((simple_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     auto nd_range = get_nd_range({dhc,
             utils::div_up(
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});
@@ -311,7 +311,7 @@ template elemwise_sig_gru_lbr(simple_rnn_fwd_t::gru_lbr_elemwise);
 template elemwise_sig_gru_lbr(simple_rnn_bwd_t::gru_lbr_elemwise);
 
 template <prop_kind_t aprop>
-elemwise_sig_gru((_simple_rnn_common_t<aprop>::gru_elemwise)) {
+elemwise_sig_gru((simple_rnn_common_t<aprop>::gru_elemwise)) {
     auto nd_range = get_nd_range({dhc,
             utils::div_up(
                     batch, aprop == prop_kind::forward ? 1 : bwd_batch_block)});

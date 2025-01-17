@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -461,7 +461,7 @@ status_t ocl_conf_t::init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const {
 }
 
 template <>
-status_t _simple_rnn_common_t<prop_kind::forward>::pd_t::set_default_params() {
+status_t simple_rnn_common_t<prop_kind::forward>::pd_t::set_default_params() {
     using namespace format_tag;
     if (src_layer_md_.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(src_layer_md_, tnc));
@@ -489,7 +489,7 @@ status_t _simple_rnn_common_t<prop_kind::forward>::pd_t::set_default_params() {
 }
 
 template <>
-status_t _simple_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
+status_t simple_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
     using namespace format_tag;
     int arch_ld = is_xe_hpc ? 128 : 64;
     if (src_layer_md_.format_kind == format_kind::any)
@@ -564,7 +564,7 @@ status_t _simple_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
 }
 
 template <prop_kind_t aprop>
-status_t _simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
+status_t simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
     using namespace prop_kind;
     using namespace utils;
     using namespace rnn_utils;
@@ -948,7 +948,7 @@ status_t _simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
 }
 
 template <prop_kind_t aprop>
-status_t _simple_rnn_common_t<aprop>::init(impl::engine_t *engine) {
+status_t simple_rnn_common_t<aprop>::init(impl::engine_t *engine) {
     using namespace rnn_utils;
 
     switch (pd()->cell_kind()) {
@@ -1043,7 +1043,7 @@ status_t _simple_rnn_common_t<aprop>::init(impl::engine_t *engine) {
 }
 
 template <prop_kind_t aprop>
-status_t _simple_rnn_common_t<aprop>::init_res_storage(
+status_t simple_rnn_common_t<aprop>::init_res_storage(
         impl::engine_t *engine, gpu_resource_t *r) const {
     if (pd()->rnn_conf.is_int8 && pd()->rnn_conf.copy_bias) {
         dim_t size = pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc
@@ -1086,7 +1086,7 @@ status_t _simple_rnn_common_t<aprop>::init_res_storage(
 }
 
 template <prop_kind_t aprop>
-gemm_sig((_simple_rnn_common_t<aprop>::gemm_primitive)) {
+gemm_sig((simple_rnn_common_t<aprop>::gemm_primitive)) {
     // We flip A and B here since the GEMM API is row major but the
     // RNN code describes GEMM in column major fashion
     gemm_exec_args_t gemm_args;
@@ -1171,7 +1171,7 @@ gemm_sig((_simple_rnn_common_t<aprop>::gemm_primitive)) {
 
 //*************** Grid computations strategy: linear ***************//
 template <prop_kind_t aprop>
-grid_execution_sig((_simple_rnn_common_t<aprop>::linear_execution)) {
+grid_execution_sig((simple_rnn_common_t<aprop>::linear_execution)) {
     const conf_t &rnn = pd()->rnn_conf;
     dim_t n_layer = rnn.n_layer;
     dim_t n_dir = rnn.n_dir;
@@ -1257,7 +1257,7 @@ grid_execution_sig((_simple_rnn_common_t<aprop>::linear_execution)) {
 //********* GRID computations strategy: utility functions **********//
 
 template <prop_kind_t aprop>
-status_t _simple_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
+status_t simple_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, dim_t n_layer, dim_t n_dir,
         dim_t n_bias, dim_t n_gates, dim_t dhc, const memory_storage_t &ws_bias,
         const memory_storage_t &scales, const memory_storage_t &wei_layer,
@@ -1289,7 +1289,7 @@ status_t _simple_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
 }
 
 template <prop_kind_t aprop>
-status_t _simple_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
+status_t simple_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, bool lr, bool rl,
         dim_t batch, dim_t dhc, dim_t slc, dim_t n_iter, dim_t n_layer,
         dim_t n_dir, dim_t n_states, dim_t states_ws_ld,
@@ -1348,7 +1348,7 @@ status_t _simple_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
 }
 
 template <prop_kind_t aprop>
-status_t _simple_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
+status_t simple_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, dim_t batch, dim_t dhc,
         dim_t sic, dim_t n_iter, dim_t n_layer, dim_t n_dir, dim_t n_states,
         dim_t states_ws_ld, dim_t scratch_diff_states_ld,
@@ -1420,7 +1420,7 @@ status_t _simple_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
 }
 
 template <prop_kind_t aprop>
-status_t _simple_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
+status_t simple_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, bool lr, bool rl,
         dim_t batch, dim_t dhc, dim_t slc, dim_t n_iter, dim_t n_layer,
         dim_t n_dir, dim_t n_states, dim_t states_ws_ld,
@@ -1482,7 +1482,7 @@ status_t _simple_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
 }
 
 template <prop_kind_t aprop>
-status_t _simple_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
+status_t simple_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, dim_t batch, dim_t dhc,
         dim_t sic, dim_t n_iter, dim_t n_layer, dim_t n_dir, dim_t n_states,
         dim_t states_ws_ld, dim_t scratch_diff_states_ld,
@@ -1557,7 +1557,7 @@ status_t _simple_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
 //********************* Execution function *********************//
 
 template <prop_kind_t aprop>
-status_t _simple_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
+status_t simple_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     impl::engine_t *engine = ctx.stream()->engine();
     auto *compute_stream
@@ -1722,8 +1722,8 @@ elemwise_sig_gru(simple_rnn_fwd_t::gru_elemwise);
 template <>
 elemwise_sig_gru(simple_rnn_bwd_t::gru_elemwise);
 
-template struct _simple_rnn_common_t<prop_kind::forward>;
-template struct _simple_rnn_common_t<prop_kind::backward>;
+template struct simple_rnn_common_t<prop_kind::forward>;
+template struct simple_rnn_common_t<prop_kind::backward>;
 
 } // namespace ocl
 } // namespace intel
