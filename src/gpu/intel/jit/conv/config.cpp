@@ -854,6 +854,14 @@ status_t init_tensor_layouts(
             wei_md.extra.dst_size *= get_channels(dst_layout);
         }
         wei_md.extra.flags |= compensation_gpu_conv_asymmetric_src;
+        // since tmasks are used on precalc ZPs only if absolutely necessary
+        // (due to significant computational costs in most cases) some block
+        // reads can exceed the total buffer size, resulting in page faults;
+        // padding at the end is the easiest way to avoid that, as 1-2 KB of
+        // additional VRAM per precalc buffer is virtually free
+        // TODO: vectorize send params (in jit:ir:v2 maybe?) and add tmasks!
+        const dim_t max_read_blk_bytes = 512;
+        wei_md.extra.dst_size += max_read_blk_bytes * 2;
     }
     return status::success;
 }
