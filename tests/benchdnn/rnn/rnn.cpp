@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -780,7 +780,8 @@ void skip_unimplemented_prb(const prb_t *prb_, res_t *res) {
         }
 #endif
         // cpu backward only supports `any` or `abx` layouts for weights
-        if (IMPLICATION(prb.prop == dnnl_backward, prb.tag[1] != tag::abx)) {
+        if (prb.prop == dnnl_backward && prb.tag[1] != tag::abx
+                && prb.tag[1] != tag::any) {
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;
