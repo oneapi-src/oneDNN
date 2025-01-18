@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,8 +84,10 @@ struct ref_matmul_t : public gpu_primitive_t {
                     = (utils::one_of(src_dt_, f8_e5m2, f8_e4m3)
                               || utils::one_of(wei_dt_, f8_e5m2, f8_e4m3))
                     && utils::one_of(dst_dt_, f32, bf16, f16, src_dt_);
-            const bool is_f4 = (utils::everyone_is(f4_e2m1, src_dt_, wei_dt_)
-                    && utils::one_of(dst_dt_, f32, bf16, f16, src_dt_));
+            const bool is_f4
+                    = ((utils::one_of(src_dt_, f4_e2m1, f4_e3m0)
+                               || utils::everyone_is(wei_dt_, f4_e2m1, f4_e3m0))
+                            && utils::one_of(dst_dt_, f32, bf16, f16, src_dt_));
             const bool is_bf16 = src_dt_ == bf16
                     && utils::one_of(wei_dt_, bf16, s8, u8, s4, u4)
                     && utils::one_of(dst_dt_, bf16, f32);
@@ -116,7 +118,8 @@ struct ref_matmul_t : public gpu_primitive_t {
                     IMPLICATION(utils::one_of(f64, src_dt_, wei_dt_, dst_dt_),
                             dev_info_->has_native(f64)),
                     VERBOSE_UNSUPPORTED_DT);
-            subbyte_pack_ = (dst_dt_ == data_type::f4_e2m1);
+            subbyte_pack_ = utils::one_of(
+                    dst_dt_, data_type::f4_e2m1, data_type::f4_e3m0);
             if (subbyte_pack_) {
                 using namespace dnnl::impl::memory_tracking::names;
                 const memory_desc_wrapper dst_mdw(dst_md(0));
