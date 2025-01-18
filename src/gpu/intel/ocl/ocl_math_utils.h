@@ -63,6 +63,12 @@ int rnd_down(int a, unsigned int b) {
 #define MATH_UTILS_DECLARE_F4_E2M1 1
 #endif
 
+#if DT_F4_E3M0 || SRC_DT_F4_E3M0 || WEI_DT_F4_E3M0 || DST_DT_F4_E3M0 \
+        || BIA_DT_F4_E3M0 || A_DT_F4_E3M0 || A_DT_F4_E3M0 || B_DT_F4_E3M0 \
+        || C_DT_F4_E3M0 || DATA_DT_F4_E3M0 || POST_OP_USING_F4_E3M0
+#define MATH_UTILS_DECLARE_F4_E3M0 1
+#endif
+
 #if DT_S4 || SRC_DT_S4 || WEI_DT_S4 || DST_DT_S4 || BIA_DT_S4 || A_DT_S4 \
         || B_DT_S4 || C_DT_S4 || DATA_DT_S4 || WEI_ZP_DT_S4 || SRC_ZP_DT_S4
 #define MATH_UTILS_DECLARE_S4 1
@@ -697,8 +703,50 @@ float __attribute__((overloadable)) cvt_f4_e2m1_to_f32(uchar a) {
 }
 
 #endif
+#if MATH_UTILS_DECLARE_F4_E3M0
 
-#if MATH_UTILS_DECLARE_S4 || MATH_UTILS_DECLARE_U4 || MATH_UTILS_DECLARE_F4_E2M1
+// OCL translation of common fp4 methods.
+uchar __attribute__((overloadable)) cvt_f32_to_f4_e3m0(float f) {
+    uint f_raw = as_uint(f);
+    uint sign = f_raw & 0x80000000;
+
+    // There is no NaN or infinity in e3m0, we just return maxval
+    uint naninf_mask = 0x7f800000;
+    if ((f_raw & naninf_mask) == naninf_mask) return 0x7;
+
+    // we convert with naive closest value computation out of 8
+    float e3m0_val_table[8] = {0.0f, .25f, .5f, 1.0f, 2.0f, 4.0f, 8.0f, 16.0f};
+
+    float abs_f = as_float(f_raw ^ sign);
+
+    int idx = 0;
+    float min_diff = fabs(e3m0_val_table[idx] - abs_f);
+    uchar raw_bits = idx;
+    for (++idx; idx < 8; ++idx) {
+        float diff = fabs(e3m0_val_table[idx] - abs_f);
+        if (diff < min_diff) {
+            min_diff = diff;
+            raw_bits = idx;
+        }
+        // Special case for midpoint, we round to even (so even index)
+        if ((diff == min_diff) && !(idx & 1)) raw_bits = idx;
+    }
+    // reapply sign
+    if (sign) raw_bits = raw_bits | 0x08;
+    return raw_bits;
+}
+
+float __attribute__((overloadable)) cvt_f4_e3m0_to_f32(uchar a) {
+    // List of e3m0 values. The index of each value maps to its encoding.
+    const float e3m0_table[16] = {0.0f, .25f, .5f, 1.0f, 2.0f, 4.0f, 8.0f,
+            16.0f, -0.0f, -.25f, -.5f, -1.0f, -2.0f, -4.0f, -8.0f, -16.0f};
+    return e3m0_table[a];
+}
+
+#endif
+
+#if MATH_UTILS_DECLARE_S4 || MATH_UTILS_DECLARE_U4 \
+        || MATH_UTILS_DECLARE_F4_E2M1 || MATH_UTILS_DECLARE_F4_E3M0
 #define GET_HALF_BYTE(x, y) get_half_byte(x, y)
 
 uchar __attribute__((overloadable)) get_half_byte(__global uchar *x, off_t y) {
