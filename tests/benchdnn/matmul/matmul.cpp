@@ -639,24 +639,6 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             res->reason = skip_reason::case_not_supported;
             return;
         }
-
-        if (prb->src_dt() == dnnl_f4_e2m1 || prb->dst_dt() == dnnl_f4_e2m1
-                || prb->wei_dt() == dnnl_f4_e2m1) {
-            BENCHDNN_PRINT(2, "[SKIP][%s:%d]: GPU has no fp4 support.\n",
-                    __FILE__, __LINE__);
-            res->state = SKIPPED;
-            res->reason = skip_reason::case_not_supported;
-            return;
-        }
-
-        if (prb->src_dt() == dnnl_f4_e3m0 || prb->dst_dt() == dnnl_f4_e3m0
-                || prb->wei_dt() == dnnl_f4_e3m0) {
-            BENCHDNN_PRINT(2, "[SKIP][%s:%d]: GPU has no fp4_e3m0 support.\n",
-                    __FILE__, __LINE__);
-            res->state = SKIPPED;
-            res->reason = skip_reason::case_not_supported;
-            return;
-        }
     }
 }
 
