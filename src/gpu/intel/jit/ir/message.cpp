@@ -498,8 +498,7 @@ void access_builder_t::build() {
     }
     if (!ok && send_op_ == send_op_t::prefetch) {
         // Do not treat as an error, skip prefetch messages during generation.
-        ir_warning() << "Can't generate send decomposition for prefetch."
-                     << std::endl;
+        ir_warning() << "Can't generate send decomposition for prefetch.";
         return;
     }
     ir_assert(ok) << "Can't generate send decomposition.";

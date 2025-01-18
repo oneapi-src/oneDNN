@@ -779,12 +779,12 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
         found = search(ctx);
 #ifdef DNNL_DEV_MODE
         search_time = get_msec() - search_time;
-        ir_trace() << "Bank conflict allocation:" << std::endl;
-        ir_trace() << "    Search time: " << search_time << " ms" << std::endl;
-        ir_trace() << "    Status: " << (found ? "OK" : "FAIL") << std::endl;
-        ir_trace() << "    Steps: " << ctx.steps << std::endl;
+        ir_trace() << "Bank conflict allocation:";
+        ir_trace() << "    Search time: " << search_time << " ms";
+        ir_trace() << "    Status: " << (found ? "OK" : "FAIL");
+        ir_trace() << "    Steps: " << ctx.steps;
         ir_trace() << "    Bundle check: "
-                   << ir_utils::to_string(ctx.check_bundles) << std::endl;
+                   << ir_utils::to_string(ctx.check_bundles);
 #endif
         if (found) break;
     }

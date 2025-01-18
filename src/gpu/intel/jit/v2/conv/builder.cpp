@@ -969,14 +969,14 @@ stmt_t build_ir(const exec_config_t &exec_cfg, const kernel_desc_t &desc,
     auto plan = create_conv_plan(desc, exec_cfg.hw());
     if (!plan) ir_except_not_implemented("Cannot create plan.");
 
-    ir_info() << desc << std::endl;
-    ir_trace() << plan << std::endl;
+    ir_info() << desc;
+    ir_trace() << plan;
 
     constraint_set_t cset;
     ir_context_t ir_ctx(exec_cfg, cset);
     conv_builder_t builder(ir_ctx, desc, var_mgr, plan);
     auto stmt = builder.get_stmt();
-    ir_trace() << "Convolution kernel body:\n" << stmt << std::endl;
+    ir_trace() << "Convolution kernel body:\n" << stmt;
     return stmt;
 }
 

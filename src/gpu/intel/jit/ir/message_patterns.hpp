@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -502,8 +502,7 @@ struct uniform_send_idiom_t final {
                 });
         if (ret.size() && filtered_ret.size()
                 && ret[0].size() > filtered_ret[0].size())
-            ir_warning() << "Optimal send hint disabled: " << ret[0]
-                         << std::endl;
+            ir_warning() << "Optimal send hint disabled: " << ret[0];
 
         return filtered_ret;
     }

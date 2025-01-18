@@ -596,7 +596,7 @@ public:
         table_t table("List of configs", headers);
         for (int i = 0; i < configs(); i++) {
             auto &params = params_vec_[i];
-            ir_trace() << "params #" << i << ": " << params << std::endl;
+            ir_trace() << "params #" << i << ": " << params;
         }
     }
 

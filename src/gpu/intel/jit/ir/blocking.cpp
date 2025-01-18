@@ -138,7 +138,7 @@ void get_level_tiles(
 
 void params_generator_t::set_params(prim_config_t &cfg) {
     auto &params = params_vec_[cur_idx_];
-    ir_trace() << "set params #" << cur_idx_ << ": " << params << std::endl;
+    ir_trace() << "set params #" << cur_idx_ << ": " << params;
     cfg.set_params(params);
 }
 

@@ -606,20 +606,15 @@ void reorder_ir_builder_t::build() {
             = max_tile_size(cfg_.exec_cfg().hw(), dst_layout_, src_layout_);
     for (int i = 0; i < max_iters; i++) {
         if (try_build(iter_blocks, loop_blocks, tg_blocks)) {
-            ir_info() << "Reorder configuration:" << std::endl;
-            ir_info() << "  Source layout:              " << src_layout_
-                      << std::endl;
-            ir_info() << "  Destination layout:         " << dst_layout_
-                      << std::endl;
+            ir_info() << "Reorder configuration:";
+            ir_info() << "  Source layout:              " << src_layout_;
+            ir_info() << "  Destination layout:         " << dst_layout_;
             ir_info() << "  Iteration blocks:           "
-                      << ir_utils::make_seq_print_helper(iter_blocks, " x ")
-                      << std::endl;
+                      << ir_utils::make_seq_print_helper(iter_blocks, " x ");
             ir_info() << "  Loop blocks:                "
-                      << ir_utils::make_seq_print_helper(loop_blocks, " x ")
-                      << std::endl;
+                      << ir_utils::make_seq_print_helper(loop_blocks, " x ");
             ir_info() << "  Thread group blocks:        "
-                      << ir_utils::make_seq_print_helper(tg_blocks, " x ")
-                      << std::endl;
+                      << ir_utils::make_seq_print_helper(tg_blocks, " x ");
             return;
         }
 
@@ -820,13 +815,12 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     if (regs > cfg_.exec_cfg().regs()) {
         ir_warning() << "Estimated GRF usage is " << regs
                      << " registers which exceeds available space, retry with "
-                        "a smaller tile."
-                     << std::endl;
+                        "a smaller tile.";
 
         return false;
     }
 
-    ir_trace() << "Reorder kernel body:\n" << stmt_ << std::endl;
+    ir_trace() << "Reorder kernel body:\n" << stmt_;
     return true;
 }
 

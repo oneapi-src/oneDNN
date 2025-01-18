@@ -105,16 +105,14 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     profile.stop("Epilogue");
 
 #ifdef DNNL_DEV_MODE
-    ir_perf_no_trace() << profile << "\n";
+    ir_perf_no_trace() << profile;
 
-    ir_trace() << "Actual register usage:           " << ra_.get_peak_regs()
-               << std::endl;
+    ir_trace() << "Actual register usage:           " << ra_.get_peak_regs();
     int estimated_peak_regs = estimate_register_count(cfg_);
     if (ra_.get_peak_regs() > estimated_peak_regs) {
         ir_warning()
                 << "conv_kernel_t register usage underestimated: estimate = "
-                << estimated_peak_regs << ", actual = " << ra_.get_peak_regs()
-                << "\n";
+                << estimated_peak_regs << ", actual = " << ra_.get_peak_regs();
     }
 #endif
 }

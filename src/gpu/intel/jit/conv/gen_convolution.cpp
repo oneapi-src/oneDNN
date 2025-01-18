@@ -154,7 +154,7 @@ public:
 
                 if (!tiler->is_grf_limit_ok(cfg)) continue;
 
-                ir_info() << "Configuration:" << std::endl;
+                ir_info() << "Configuration:";
                 ir_info() << cfg;
 
                 init_nd_ranges(primitive, cfg);

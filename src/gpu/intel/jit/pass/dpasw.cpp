@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -298,8 +298,7 @@ private:
                 // loaded by the corresponding send message.
                 if (send_info.reg_buf_size() != dpas_info.src2_size()) {
                     ir_warning() << "Can't inject dpasw: different register "
-                                    "sizes in send and dpas."
-                                 << std::endl;
+                                    "sizes in send and dpas.";
                     return false;
                 }
                 dpas_info.send_producer = send_info.call;

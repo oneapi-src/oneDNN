@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1515,8 +1515,7 @@ dim_t find_min_stride_without_conflicts(
         }
     }
 
-    ir_warning() << "Couldn't find stride without conflicts for SLM padding."
-                 << std::endl;
+    ir_warning() << "Couldn't find stride without conflicts for SLM padding.";
 
     return dense_stride_bytes;
 }
@@ -1539,7 +1538,7 @@ layout_t pad_slm_layout(
     auto l = layout.split_into_multi_blocks(multi_blocks);
 
     if (l.is_empty()) {
-        ir_warning() << "Couldn't split layout for SLM padding." << std::endl;
+        ir_warning() << "Couldn't split layout for SLM padding.";
         return layout;
     }
     auto padded_blocks = l.blocks();
@@ -1896,8 +1895,7 @@ public:
         if (status == plan_status_t::success) return status::success;
 
         if (a_direct_view_ || b_direct_view_) {
-            ir_trace() << "Retry plan initialization without direct view"
-                       << std::endl;
+            ir_trace() << "Retry plan initialization without direct view";
             enable_direct_view(false);
             status = try_init_plan();
             if (status == plan_status_t::success) return status::success;
@@ -1905,7 +1903,7 @@ public:
 
         if ((use_slm(abc_kind_t::a) || use_slm(abc_kind_t::b))
                 && !cfg_.slm().is_overridden()) {
-            ir_trace() << "Retry plan initialization without SLM" << std::endl;
+            ir_trace() << "Retry plan initialization without SLM";
             enable_slm(false);
             status = try_init_plan();
             if (status == plan_status_t::success) return status::success;
@@ -1932,7 +1930,7 @@ private:
                     = gmem_buf_size == 0 ? 0 : 1 + free / gmem_buf_size;
         }
 
-        ir_trace() << plan_ << std::endl;
+        ir_trace() << plan_;
         cfg_.set_plan(plan_ptr_);
     }
 

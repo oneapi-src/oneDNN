@@ -1207,7 +1207,7 @@ void sort_by_model_scores(params_generator_t &params_gen,
         table << p.str() << (int)(score * 1000) / 1000.0 << eff << regs
               << slm_size << std::endl;
     }
-    ir_trace() << table.str() << std::endl;
+    ir_trace() << table.str();
 #endif
     MAYBE_UNUSED(&slm_usage_bytes_for_params);
 }
@@ -1383,9 +1383,8 @@ private:
         const int nbest = 5;
         auto best_ids = tune_data_.best_ids(nbest);
         std::unordered_map<int, float> dists;
-        ir_trace() << "[Tuning] Rescoring: " << (end - beg) << " configs left"
-                   << std::endl;
-        ir_trace() << "  Best config: " << best_params_dbg_ << std::endl;
+        ir_trace() << "[Tuning] Rescoring: " << (end - beg) << " configs left";
+        ir_trace() << "  Best config: " << best_params_dbg_;
         for (int i = beg; i < end; i++) {
             auto &p = params_gen_.at(i);
             dists[p.id()] = std::numeric_limits<float>::max();
@@ -1399,8 +1398,7 @@ private:
 
         for (int i = beg; i < end; i++) {
             auto &p = params_gen_.at(i);
-            ir_trace() << "  " << p << " [dist:" << dists[p.id()] << "]"
-                       << std::endl;
+            ir_trace() << "  " << p << " [dist:" << dists[p.id()] << "]";
         }
     }
 
@@ -1566,7 +1564,7 @@ private:
                 const auto params = const_conv_lookup_table().find(cfg.key());
                 if (!params.is_empty() && chk.is_ok(params.blocking())) {
                     ir_info() << "[INFO] Using lookup table config: "
-                              << params.str() << std::endl;
+                              << params.str();
                     params_gen_ = params_generator_t(tune_level, simd_size, chk,
                             level_tile_sets, params);
                 } else {
@@ -1616,10 +1614,10 @@ private:
     }
 
     void print_info(double init_time_ms) {
-        ir_info() << "Convolution tiler:" << std::endl;
-        ir_info() << "  Mode:              " << to_string(mode_) << std::endl;
-        ir_info() << "  Filtered configs:  " << configs() << std::endl;
-        ir_info() << "  Init time (ms):    " << init_time_ms << std::endl;
+        ir_info() << "Convolution tiler:";
+        ir_info() << "  Mode:              " << to_string(mode_);
+        ir_info() << "  Filtered configs:  " << configs();
+        ir_info() << "  Init time (ms):    " << init_time_ms;
     }
 
     tiler_mode_t mode_ = tiler_mode_t::undef;

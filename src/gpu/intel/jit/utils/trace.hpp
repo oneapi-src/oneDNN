@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ inline void trace_stop(const char *pass_name) {
         get_trace_profiler().stop(pass_name);
 }
 inline void trace_perf() {
-    ir_perf() << get_trace_profiler() << std::endl;
+    ir_perf() << get_trace_profiler();
 }
 #else
 inline void trace_start() {};
