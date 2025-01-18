@@ -397,6 +397,17 @@ std::vector<std::pair<KeyT, expr_t>> sort_var_map_by_value(
             });
 }
 
+template <typename ValueT, typename HashT, typename EqualT>
+std::vector<std::pair<expr_t, ValueT>> sort_var_map_by_key(
+        const std::unordered_map<expr_t, ValueT, HashT, EqualT> &map) {
+    return sort_var_map(map,
+            [](const std::pair<expr_t, ValueT> &a,
+                    const std::pair<expr_t, ValueT> &b) {
+                return a.first.template as<var_t>().name
+                        < b.first.template as<var_t>().name;
+            });
+}
+
 class alloc_manager_t {
 public:
     alloc_manager_t(const stmt_t &root) {
@@ -875,7 +886,7 @@ public:
     std::string str() const {
         std::ostringstream oss;
         oss << "relations:" << (relations_.empty() ? " (empty)\n" : "\n");
-        for (auto &r : relations_) {
+        for (auto &r : sort_var_map_by_key(relations_)) {
             oss << "\t" << r.first << ":";
             bool first = true;
             for (auto &s : r.second) {
@@ -887,7 +898,7 @@ public:
 
         oss << "modulus_info:"
             << (modulus_infos_.empty() ? " (empty)\n" : "\n");
-        for (auto &m : modulus_infos_) {
+        for (auto &m : sort_var_map_by_key(modulus_infos_)) {
             oss << "\t" << m.first << ":";
             bool first = true;
             for (auto &s : m.second) {
