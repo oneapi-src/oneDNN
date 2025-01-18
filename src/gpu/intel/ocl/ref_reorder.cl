@@ -100,7 +100,7 @@ __kernel void ref_reorder(__global SRC_DATA_T *restrict src,
 #if WITH_DST_SCALE
         dst_scale = dst_scales[SCALE_OFF(DST, d0, d1, d2, d3, d4, d5)];
 #endif
-#if FROM_I4 || SRC_DT_F4_E2M1
+#if FROM_I4 || SRC_DT_F4_E2M1 || SRC_DT_F4_E3M0
         SRC_DATA_T src_value = GET_HALF_BYTE(src, src_off);
 #else
         SRC_DATA_T src_value = src[src_off];

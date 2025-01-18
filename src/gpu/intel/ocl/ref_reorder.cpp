@@ -52,7 +52,8 @@ status_t ref_reorder_t::pd_t::init_conf(impl::engine_t *engine) {
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
-    conf.subbyte_pack = utils::one_of(dst_mdw.data_type(), u4, s4, f4_e2m1);
+    conf.subbyte_pack
+            = utils::one_of(dst_mdw.data_type(), u4, s4, f4_e2m1, f4_e3m0);
 
     dim_t blocks[MAX_NDIMS] = {1, 1, 0, 0, 0, 0};
     for (int i = 0; i < MAX_NDIMS; ++i) {
