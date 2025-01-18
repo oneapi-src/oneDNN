@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1045,6 +1045,7 @@ typedef enum {
     dnnl_BAcd8a8b,
     dnnl_BAcde8a8b,
     dnnl_aCBdef8b8c,
+    dnnl_abdEC16e4c,
 
     /// Just a sentinel, not real memory format tag. Must be changed after new
     /// format tag is added.
@@ -1184,6 +1185,7 @@ typedef enum {
     dnnl_ldIo32i = dnnl_abCd32c,
     /// 6D RNN weights tensor
     dnnl_ldgOi16o = dnnl_abdEc16e,
+    dnnl_ldgOI16o4i = dnnl_abdEC16e4c,
     dnnl_ldgOi32o = dnnl_abdEc32e,
     dnnl_ldgOI32o2i = dnnl_abdEC32e2c,
     dnnl_ldgOI32o4i = dnnl_abdEC32e4c,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,8 @@ x64::cpu_isa_t brgemm_calc_isa(
 
     if (rnn.is_cell_dt_int8()) {
         return utils::map(true, x64::isa_undef, mayiuse(avx512_core_vnni),
-                avx512_core_vnni, mayiuse(avx512_core), avx512_core);
+                avx512_core_vnni, mayiuse(avx512_core), avx512_core,
+                mayiuse(avx2), avx2);
     } else if (rnn.is_cell_dt_bf16()) {
         return x64::avx512_core_bf16;
     } else if (rnn.is_cell_dt_f16()) {
