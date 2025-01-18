@@ -797,7 +797,8 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
             format_tag_t otag, itag;
 
             itag = id.matches_one_of_tag(ldigo, ldio);
-            otag = od.matches_one_of_tag(ldgOI64o4i, ldgOI32o4i, ldOI32o4i);
+            otag = od.matches_one_of_tag(
+                    ldgOI64o4i, ldgOI32o4i, ldgOI16o4i, ldOI32o4i);
             if (itag != format_tag::undef && otag != format_tag::undef) {
                 _pd->itag_ = itag;
                 _pd->otag_ = otag;
@@ -855,15 +856,13 @@ private:
             return status::success;
         }
 
-        const auto &blocked_d = dst_d;
-        const auto &pdims = blocked_d.padded_dims();
-
-        const int o_block = pd()->otag_ == ldgOI64o4i ? 64 : 32;
+        const int o_block = dst_d.blocking_desc().inner_blks[0];
         static constexpr int i_block = 4;
 
         dim_t L, D, I, G, O;
         init_dims(L, D, I, G, O, src_d);
 
+        const auto &pdims = dst_d.padded_dims();
         const dim_t pI = pdims[2];
         const dim_t pO = (src_d.ndims() == 5) ? pdims[4] : pdims[3];
         const dim_t IB = pI / i_block;
