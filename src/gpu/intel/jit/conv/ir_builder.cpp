@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -758,7 +758,7 @@ void conv_ir_builder_t::build() {
     verify_buffer_access(stmt_, ir_ctx);
 #endif
 
-    ir_trace() << "Convolution kernel body:\n" << stmt_ << std::endl;
+    ir_trace() << "Convolution kernel body:\n" << stmt_;
     trace_perf();
 }
 

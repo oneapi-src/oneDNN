@@ -356,8 +356,8 @@ private:
             const send_params_t &params, const view_t &view) {
         auto plan = create_send_plan(params, view, /*allow_fail=*/true);
         bool ok = [&]() {
-            ir_check(plan) << tag << ": cannot create send plan" << std::endl
-                           << params << std::endl
+            ir_check(plan) << tag << ": cannot create send plan\n"
+                           << params << "\n"
                            << ir_utils::add_tag("view", view.str());
             return true;
         }();

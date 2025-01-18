@@ -38,9 +38,8 @@ plan_registry_t::plan_registry_t(const char **entries) {
             std::ostringstream oss;
             e.stringify(oss);
             if (oss.str() != *entries) {
-                ir_warning()
-                        << "parsed from:\n  " << *entries
-                        << "\nstringified to\n  " << oss.str() << std::endl;
+                ir_warning() << "parsed from:\n  " << *entries
+                             << "\nstringified to\n  " << oss.str();
             }
         }
 #endif
@@ -117,8 +116,7 @@ struct plan_registry_instance_t {
             if (in.good()) {
                 registry.parse(in);
                 ir_info() << "Loaded kernel registry from " << registry_path
-                          << " with " << registry.size() << " entries"
-                          << std::endl;
+                          << " with " << registry.size() << " entries";
                 return;
             }
         }

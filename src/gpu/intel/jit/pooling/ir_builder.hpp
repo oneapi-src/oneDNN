@@ -32,7 +32,7 @@ public:
     pooling_ir_builder_t(pooling_config_t &cfg, const kernel_info_t &ki,
             const primitive_desc_t &pd) {
         while ((stmt_ = try_build(*this, ki, cfg, pd)).is_empty()) {
-            ir_warning() << "loop too large: cut and retry!" << std::endl;
+            ir_warning() << "loop too large: cut and retry!";
             const bool cut_ok = cfg.cut();
             if (!cut_ok) ir_error_not_expected() << "minimal loop too large!";
         }

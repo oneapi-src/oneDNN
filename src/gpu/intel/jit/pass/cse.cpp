@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,14 +46,14 @@ public:
         , path(path)
         , refs(refs)
         , cse_var(cse_var) {
-        ir_trace() << "cse_pass: add expression: " << expr << std::endl;
+        ir_trace() << "cse_pass: add expression: " << expr;
     }
 
     void add_usage(const ir_path_t &other_path, bool do_increment = true) {
         if (do_increment) refs++;
         path.merge(other_path);
         ir_trace() << "cse_pass: add usage: " << expr
-                   << ", total refs: " << refs << std::endl;
+                   << ", total refs: " << refs;
     }
 
     // Expression to eliminate via let.
@@ -214,8 +214,7 @@ public:
 
             ir_trace() << "cse_pass: skipping " << e.cse_expr()->expr
                        << " with cost " << e.cost() << ", size " << e.size()
-                       << ", and cost per byte " << (double)e.cost() / e.size()
-                       << "\n";
+                       << ", and cost per byte " << (double)e.cost() / e.size();
 
             e.set_unallocated();
             grf_usage_ -= e.size();
@@ -281,7 +280,7 @@ public:
                             ? bool_imm_t::get_packed_type(e.type().elems())
                             : e.type());
             ir_trace() << "cse_pass: assigning var: " << e << " -> "
-                       << cse_expr.cse_var << std::endl;
+                       << cse_expr.cse_var;
         }
         return cse_expr.cse_var;
     }
@@ -686,7 +685,7 @@ stmt_t eliminate_common_subexprs_impl(const stmt_t &_stmt, cse_context_t &ctx,
     int memory_usage = get_peak_regs(stmt, grf_size) * grf_size;
     ir_trace() << "CSE exceeded GRF usage limit. Usage: " << memory_usage
                << ", limit: " << memory_usage_limit
-               << ". Retry CSE and skip some expressions..." << std::endl;
+               << ". Retry CSE and skip some expressions...";
     ctx.reset_cse_exprs();
     return stmt_t();
 }

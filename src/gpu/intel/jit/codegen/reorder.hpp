@@ -1737,7 +1737,7 @@ private:
         // Sanity check, ensure the reorder sequence is not too long.
         int max_cost = 256;
         if (cost[dst_idx] > max_cost)
-            ir_warning() << "High cost reorder generated\n";
+            ir_warning() << "High cost reorder generated";
 
         // Restore the shortest reorder path.
         std::vector<reorder_step_t> ret;

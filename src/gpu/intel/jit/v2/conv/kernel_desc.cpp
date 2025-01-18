@@ -230,7 +230,7 @@ void kernel_desc_t::set(const std::string &s) {
     iface.parse(s, *this, &result);
     if (!result.is_set("--iter") || !result.is_set("--tg")) {
         ir_info() << "Error: missing --iter and/or --tg parameters in kernel "
-                     "descriptor.\n";
+                     "descriptor.";
         ir_error_not_expected();
     }
     set_defaults();

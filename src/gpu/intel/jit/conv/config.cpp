@@ -1263,7 +1263,7 @@ send_pattern_t<pvar_t> validate_blocking(const conv_config_t &cfg,
         return all_hints;
     }();
     if (hints.empty()) {
-        ir_suggestion() << "No hints generated! ";
+        ir_suggestion() << "No hints generated!";
         return send_pattern();
     }
 
@@ -1273,9 +1273,9 @@ send_pattern_t<pvar_t> validate_blocking(const conv_config_t &cfg,
 
     ir_suggestion() << "blocking disables " << send_pattern(hints[0])
                     << " load of the " << tensor
-                    << " tensor. Try a multiple of:\n";
+                    << " tensor. Try a multiple of:";
     for (auto &hint : hints) {
-        ir_suggestion() << "\t" << hint.str() << "\n";
+        ir_suggestion() << "\t" << hint.str();
     }
 
     return send_pattern();
@@ -1847,12 +1847,12 @@ void validate_config_and_plan(conv_config_t &cfg) {
     if (!a_load_pattern.matches(
                 plan.x2r.a_load.create_stmt(dummy_mem, dummy_reg))) {
         ir_warning() << "Generated load for tensor A does not match "
-                     << a_load_pattern << " load idiom\n";
+                     << a_load_pattern << " load idiom";
     }
     if (!b_load_pattern.matches(
                 plan.x2r.b_load.create_stmt(dummy_mem, dummy_reg))) {
         ir_warning() << "Generated load for tensor B does not match "
-                     << a_load_pattern << " load idiom\n";
+                     << a_load_pattern << " load idiom";
     }
 #endif
 }

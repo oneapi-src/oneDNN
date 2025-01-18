@@ -152,7 +152,7 @@ status_t gen_pooling_fwd_t::init(impl::engine_t *engine) {
             break;
         } catch (const ngen::out_of_registers_exception &exc) {
             UNUSED(exc);
-            ir_warning() << "loop too large: cut and retry!" << std::endl;
+            ir_warning() << "loop too large: cut and retry!";
             kernel_ = {};
             if (!cfg_.cut()) {
                 ir_error_not_expected() << "minimal loop too large!";

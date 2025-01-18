@@ -419,8 +419,7 @@ private:
                           << std::endl;
             }
         }
-        ir_info() << "gen_desc_groups(): descs.size() = " << descs.size()
-                  << std::endl;
+        ir_info() << "gen_desc_groups(): descs.size() = " << descs.size();
         std::unordered_map<std::string, search_kernel_desc_group_t> desc_groups;
         std::vector<int> prefetch_dists;
         if (params_.is_prefetch_set) {

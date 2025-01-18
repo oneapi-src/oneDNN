@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,11 +36,11 @@ ir_utils::debug_profiler_t &get_trace_profiler() {
 void trace_pass(
         const char *pass_name, const stmt_t &stmt, const ir_context_t &ir_ctx) {
     trace_stop(pass_name);
-    ir_trace() << "=== After " << pass_name << std::endl;
-    ir_trace() << stmt << std::endl;
+    ir_trace() << "=== After " << pass_name;
+    ir_trace() << stmt;
     auto grf_usage = get_grf_usage(stmt, ir_ctx.hw().grf_size());
-    if (!grf_usage.is_empty()) ir_trace() << grf_usage << std::endl;
-    ir_trace() << ir_ctx.cset() << std::endl;
+    if (!grf_usage.is_empty()) ir_trace() << grf_usage;
+    ir_trace() << ir_ctx.cset();
 }
 #endif
 

@@ -727,7 +727,7 @@ public:
         ir_trace() << "Creating epilogue with parameters"
                    << ": tile_size = " << tile_size_
                    << ", preload_max_size = " << preload_max_size
-                   << ", post_op_blk = " << post_op_blk << std::endl;
+                   << ", post_op_blk = " << post_op_blk;
 
         for (auto &po_tensor_info : post_op_ctx_.post_op_tensor_infos()) {
             post_op_tensor_t po_tensor(ir_ctx_, po_tensor_info);

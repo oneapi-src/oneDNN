@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -351,8 +351,8 @@ void compare(const grf_usage_t &est_usage, const grf_usage_t &ir_usage,
     table << "Total" << est_total << ir_total;
     table << (ir_total > est_total ? "FAIL" : "");
     table << std::endl;
-    ir_trace() << table << std::endl;
-    ir_trace() << ir_usage.buf_usage() << std::endl;
+    ir_trace() << table;
+    ir_trace() << ir_usage.buf_usage();
 }
 
 void verify_grf_usage(

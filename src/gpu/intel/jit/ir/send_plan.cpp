@@ -584,19 +584,19 @@ const char *fail_2d_header() {
 
 template <typename T0>
 bool fail_2d(const T0 &t0) {
-    ir_trace() << fail_2d_header() << t0 << std::endl;
+    ir_trace() << fail_2d_header() << t0;
     return false;
 }
 
 template <typename T0, typename T1>
 bool fail_2d(const T0 &t0, const T1 &t1) {
-    ir_trace() << fail_2d_header() << t0 << t1 << std::endl;
+    ir_trace() << fail_2d_header() << t0 << t1;
     return false;
 }
 
 template <typename T0, typename T1, typename T2>
 bool fail_2d(const T0 &t0, const T1 &t1, const T2 &t2) {
-    ir_trace() << fail_2d_header() << t0 << t1 << t2 << std::endl;
+    ir_trace() << fail_2d_header() << t0 << t1 << t2;
     return false;
 }
 
