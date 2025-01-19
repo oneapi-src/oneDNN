@@ -134,7 +134,7 @@ bool parse_dt(std::vector<dnnl_data_type_t> &dt,
         }
 
         const std::vector<dnnl_data_type_t> def_dt = {dnnl_data_type_undef};
-        parser::parse_dt(dt, def_dt, str, option_name);
+        return parser::parse_dt(dt, def_dt, str, option_name);
     } else {
         // `dt_map` object: format like --dt=0:f32+1:f32,0:f16+1:f16
         const bool has_dt = dt.size() != 1 || dt[0] != dnnl_data_type_undef;
