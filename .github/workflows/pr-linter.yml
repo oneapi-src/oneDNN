@@ -55,12 +55,11 @@ jobs:
         with:
           path: source
 
-      - name: Install clang
+      - name: Install omp
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-17 libomp-17-dev
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100
+          clang_version=$(clang --version | head -n 1 | awk '{print $3}' | cut -d'.' -f1)
+          sudo apt-get install -y libomp-${clang_version}-dev
 
       - name: Install castxml package
         run: |
