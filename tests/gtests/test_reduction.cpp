@@ -49,6 +49,10 @@ protected:
 
         SKIP_IF(unsupported_data_type(src_dt),
                 "Engine does not support this data type.");
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+        SKIP_IF(get_test_engine().get_kind() != engine::kind::cpu,
+                "Engine does not support this primitive.");
+#endif
         SKIP_IF_CUDA(p.aalgorithm != algorithm::reduction_max
                         && p.aalgorithm != algorithm::reduction_min
                         && p.aalgorithm != algorithm::reduction_sum
