@@ -59,6 +59,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-17 libomp-17-dev
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100
 
       - name: Install castxml package
         run: |
