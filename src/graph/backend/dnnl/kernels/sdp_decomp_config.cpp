@@ -457,6 +457,8 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
                     graph::op_kind::SoftMax};
     for (const auto &cur_op : sg->get_ops()) {
         const auto &op_kind = cur_op->get_kind();
+        VCHECK_SDP_DECOMP(op_kind != graph::op_kind::GenIndex,
+                status::unimplemented, "Not support implicit causal mask");
         VCHECK_SDP_DECOMP(op_kind != graph::op_kind::DynamicDequantize,
                 status::unimplemented,
                 "Decomposed kernel does not support dynamic quantization");
