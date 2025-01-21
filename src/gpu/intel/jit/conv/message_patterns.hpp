@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -46,23 +46,23 @@ struct conv_stride_layout_t : public stride_layout_t<pvar_t> {
                 else if (type == input_tensor_t::wei)
                     return prb.b_md();
                 else
-                    ir_error_not_expected();
+                    gpu_error_not_expected();
             } else if (prb.is_bwd_d) {
                 if (type == input_tensor_t::dst)
                     return prb.a_md();
                 else if (type == input_tensor_t::wei)
                     return prb.b_md();
                 else
-                    ir_error_not_expected();
+                    gpu_error_not_expected();
             } else if (prb.is_bwd_w) {
                 if (type == input_tensor_t::src)
                     return prb.a_md();
                 else if (type == input_tensor_t::dst)
                     return prb.b_md();
                 else
-                    ir_error_not_expected();
+                    gpu_error_not_expected();
             } else {
-                ir_error_not_expected();
+                gpu_error_not_expected();
             }
             return prb.a_md();
         }();
@@ -105,14 +105,14 @@ struct conv_stride_layout_t : public stride_layout_t<pvar_t> {
                                       is_complex = true;
                                   }
                               }
-                              ir_assert(s != strides.end());
+                              gpu_assert(s != strides.end());
                               *s++ = stride_dim_t(conv_dim, blk_size, next,
                                       can_overflow, is_complex);
                               ndims++;
                           }
                           stride *= blk_size;
                       }
-                      ir_assert(s != strides.end());
+                      gpu_assert(s != strides.end());
                       *s++ = stride_dim_t(conv_dim, outer,
                               access_stride * blk.strides[desc_dim],
                               can_overflow, is_complex);

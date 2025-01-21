@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,24 +31,24 @@ struct loop_info_t {
     loop_info_t() = default;
 
     loop_info_t(const stmt_t &s) {
-        ir_assert(s.is<for_t>()) << s;
+        gpu_assert(s.is<for_t>()) << s;
         auto &loop = s.as<for_t>();
         stmt = s;
         var = loop.var;
         init_ = loop.init;
         bound_ = loop.bound;
         expr_t e_size = simplify(bound_ - init_);
-        ir_assert(is_const(e_size));
+        gpu_assert(is_const(e_size));
         size_ = to_cpp<int>(e_size);
     }
 
     int init() const {
-        ir_assert(is_const(init_));
+        gpu_assert(is_const(init_));
         return to_cpp<int>(init_);
     }
 
     int bound() const {
-        ir_assert(is_const(bound_));
+        gpu_assert(is_const(bound_));
         return to_cpp<int>(bound_);
     }
 
@@ -80,7 +80,7 @@ public:
         for (size_t i = 0; i < loops_.size(); i++) {
             if (loops_[i].var.is_same(var)) return var_values_[i];
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return 0;
     }
 
@@ -92,7 +92,7 @@ public:
                 if (++var_values_[i] < l.bound()) break;
                 var_values_[i] = l.init();
             }
-            ir_assert(var_values_.back() < loops_.back().bound());
+            gpu_assert(var_values_.back() < loops_.back().bound());
         }
     }
 
@@ -130,7 +130,7 @@ public:
     stmt_t find_stmt_group(const stmt_label_t &label) const {
         auto groups = find_stmt_groups(label);
         if (groups.empty()) return stmt_t();
-        ir_assert(groups.size() == 1);
+        gpu_assert(groups.size() == 1);
         return groups[0];
     }
 
@@ -176,7 +176,7 @@ public:
             }
 
             if (!ok) {
-                ir_error_not_expected()
+                gpu_error_not_expected()
                         << "Found unexpected statement inside loop.\n"
                         << stmt_t(obj);
             }
@@ -204,7 +204,7 @@ public:
         ir_visitor_t::_visit(obj);
         if (in_compute_loop_ && is_let) {
             if (found_loop_)
-                ir_error_not_expected()
+                gpu_error_not_expected()
                         << "Let is allowed in the innermost loop only.";
 
             inner_let_stmts_.push_back(replace_stmt_body(obj, stmt_t()));
@@ -243,8 +243,8 @@ public:
         c_zero_out_ = v.find_stmt_group(stmt_label_t::c_zero_out());
         inner_let_stmts_ = v.inner_let_stmts();
 
-        ir_assert(g2r_load_.size() == mul_.size());
-        ir_assert(s2r_load_.size() == mul_.size());
+        gpu_assert(g2r_load_.size() == mul_.size());
+        gpu_assert(s2r_load_.size() == mul_.size());
 
         // Assign preload/mul tags to let statements.
         for (auto &_let : inner_let_stmts_) {
@@ -335,7 +335,7 @@ private:
 
     void duplicate_lets(const std::vector<let_info_t> &let_infos) {
         int nlets = int(inner_let_stmts_.size());
-        ir_assert(int(let_infos.size()) == nlets);
+        gpu_assert(int(let_infos.size()) == nlets);
 
         std::vector<stmt_t> new_lets;
         for (int i = nlets - 1; i >= 0; i--) {
@@ -409,10 +409,10 @@ private:
             if (!info.needs_update()) continue;
             if (!contains_object(ret, info.var)) continue;
             if (is_preload) {
-                ir_assert(info.is_preload());
+                gpu_assert(info.is_preload());
                 ret = substitute(ret, info.var, info.preload_var);
             } else if (is_mul) {
-                ir_assert(info.is_mul());
+                gpu_assert(info.is_mul());
                 ret = substitute(ret, info.var, info.mul_var);
             }
         }
@@ -625,22 +625,22 @@ struct compute_params_t {
         , prefetch_bufs(prefetch_bufs) {
         use_slm = (slm_buf_size > 0);
         use_prefetch = (prefetch_bufs > 0);
-        ir_assert(!use_slm || !use_prefetch)
+        gpu_assert(!use_slm || !use_prefetch)
                 << "Can't have both SLM buffering and prefetch enabled.";
         if (use_slm) {
-            ir_assert(utils::one_of(slm_bufs, 1, 2, 3));
-            ir_assert(utils::one_of(gmem_bufs, 1, 2));
+            gpu_assert(utils::one_of(slm_bufs, 1, 2, 3));
+            gpu_assert(utils::one_of(gmem_bufs, 1, 2));
             preload_bufs = slm_bufs;
             unroll = math::lcm(slm_bufs * gmem_bufs, inner_loops_iters);
         } else if (use_prefetch) {
             preload_bufs = prefetch_bufs;
-            ir_assert(slm_bufs == 0);
-            ir_assert(gmem_bufs == 0);
+            gpu_assert(slm_bufs == 0);
+            gpu_assert(gmem_bufs == 0);
             unroll = math::lcm(prefetch_bufs, inner_loops_iters);
         } else {
             preload_bufs = 0;
-            ir_assert(slm_bufs == 0);
-            ir_assert(gmem_bufs == 0);
+            gpu_assert(slm_bufs == 0);
+            gpu_assert(gmem_bufs == 0);
             unroll = inner_loops_iters;
         }
     }
@@ -667,7 +667,7 @@ public:
 
         int compute_iters = loop_nest.size();
         iters = compute_iters;
-        ir_assert(iters >= 1) << "Empty loop is not expected.";
+        gpu_assert(iters >= 1) << "Empty loop is not expected.";
 
         iters += std::max(0, preload_bufs() - 1) + std::max(0, gmem_bufs() - 1);
         ramp_up_iters
@@ -679,7 +679,7 @@ public:
         body_iters = utils::rnd_dn(body_iters, params.unroll);
         ramp_down_iters = iters - ramp_up_iters - body_iters;
 
-        ir_assert(ramp_up_iters + body_iters + ramp_down_iters == iters);
+        gpu_assert(ramp_up_iters + body_iters + ramp_down_iters == iters);
 
         iter = 0;
         linear_id = 0;
@@ -706,11 +706,11 @@ public:
     void advance(int n) {
         if (n == 0) return;
 
-        ir_assert(n % params.unroll == 0);
-        ir_assert(iter + n <= iters);
+        gpu_assert(n % params.unroll == 0);
+        gpu_assert(iter + n <= iters);
 
-        if (preload_bufs() > 0) ir_assert(do_preload());
-        ir_assert(do_mul());
+        if (preload_bufs() > 0) gpu_assert(do_preload());
+        gpu_assert(do_mul());
 
         iter += n;
         riter -= n;
@@ -768,23 +768,23 @@ public:
 
     bool do_g2s_store() const {
         if (!params.use_slm) return false;
-        ir_assert(gmem_bufs() >= 1);
+        gpu_assert(gmem_bufs() >= 1);
         return iter >= (gmem_bufs() - 1) && riter >= (slm_bufs() - 1);
     }
 
     int gmem_write_buf_index() const {
-        ir_assert(do_g2s_load());
+        gpu_assert(do_g2s_load());
         return iter % gmem_bufs();
     }
 
     int gmem_read_buf_index() const {
-        ir_assert(do_g2s_store());
+        gpu_assert(do_g2s_store());
         return (iter - (gmem_bufs() - 1)) % gmem_bufs();
     }
 
     int slm_read_offset_update() const {
-        ir_assert(params.use_slm);
-        ir_assert(do_mul());
+        gpu_assert(params.use_slm);
+        gpu_assert(do_mul());
 
         int slm_iter = iter - (gmem_bufs() - 1) - (slm_bufs() - 1);
         int cur_slm_idx = slm_iter % slm_bufs();
@@ -795,8 +795,8 @@ public:
     }
 
     int slm_write_offset_update() const {
-        ir_assert(params.use_slm);
-        ir_assert(do_g2s_store());
+        gpu_assert(params.use_slm);
+        gpu_assert(do_g2s_store());
 
         int slm_iter = iter - (gmem_bufs() - 1);
         int cur_slm_idx = slm_iter % slm_bufs();
@@ -830,7 +830,7 @@ public:
     sbid_manager_t(const hw_t &hw = hw_t(), const int regs = 128)
         : sbid_count_(ngen::tokenCount(hw.to_ngen(), regs))
         , tuple_func_(builtin_t::make("tuple")) {
-        ir_assert(sbid_count_ <= max_sbid_count);
+        gpu_assert(sbid_count_ <= max_sbid_count);
     }
 
     ngen_proxy::SBID get_sbid(const expr_t &buf, int index = 0) {
@@ -921,7 +921,7 @@ public:
                     s = update_call_with_sbid(s, sbid);
                 }
             } else {
-                ir_error_not_expected() << s;
+                gpu_error_not_expected() << s;
             }
             ret = substitute(ret, _s, s);
         }
@@ -1124,12 +1124,12 @@ public:
             ver_ = (version_t)cfg.slm().sync_version();
         }
         switch (slm_bufs_) {
-            case 2: ir_assert(ver_ == version_t::x2); break;
+            case 2: gpu_assert(ver_ == version_t::x2); break;
             case 3:
-                ir_assert(utils::one_of(ver_, version_t::x3_v1,
+                gpu_assert(utils::one_of(ver_, version_t::x3_v1,
                         version_t::x3_v2, version_t::x3_v3));
                 break;
-            default: ir_assert(ver_ == version_t::undef);
+            default: gpu_assert(ver_ == version_t::undef);
         }
     }
 
@@ -1322,11 +1322,11 @@ public:
         , slm_sync_mgr_(cfg, /*with_unroll=*/false) {}
 
     stmt_t inject() {
-        ir_assert(cfg_.slm().gmem_bufs() == 1)
+        gpu_assert(cfg_.slm().gmem_bufs() == 1)
                 << "GRF buffering is not supported.";
         if (utils::one_of(cfg_.slm().bufs(), 0, 1)) return root_;
 
-        ir_assert(cfg_.slm().a() == cfg_.slm().b())
+        gpu_assert(cfg_.slm().a() == cfg_.slm().b())
                 << "Mixed SLM/GMEM loads are not supported.";
 
         auto loop = step_.compute_loop();
@@ -1381,7 +1381,7 @@ public:
         auto g2s_load = g2s_load_orig;
         auto g2s_store = g2s_store_orig;
 
-        ir_assert(s2r_load.size() == mul.size());
+        gpu_assert(s2r_load.size() == mul.size());
 
         stmt_t s2r_mul;
         for (int i = 0; i < int(mul.size()); i++) {
@@ -1458,7 +1458,7 @@ public:
 
         alloc_updater_t alloc_updater;
         auto slm_buffers = alloc_mgr_.find_buffers(alloc_kind_t::slm);
-        ir_assert(slm_buffers.size() == 1);
+        gpu_assert(slm_buffers.size() == 1);
         auto &slm_buf = slm_buffers[0];
         int non_ab_slm_size = alloc_mgr_.alloc_size(slm_buf) - ab_slm_size_;
         alloc_updater.resize(
@@ -1606,7 +1606,7 @@ public:
                 }
                 loop_body = loop_body.append(create_iteration(
                         it, sbid_mgr, /*in_loop_body=*/has_loop));
-                ir_assert(it.do_mul());
+                gpu_assert(it.do_mul());
                 loop_body = append_outer_post_inc(loop_body);
                 ++it;
             }
@@ -1615,7 +1615,7 @@ public:
             if (!has_loop) {
                 body = body.append(loop_body);
             } else {
-                ir_assert(extent > 0);
+                gpu_assert(extent > 0);
                 auto for_var = ir_ctx_.create_tmp_var(type_t::s32(), "i");
                 body = body.append(for_t::make(for_var, 0, extent, loop_body));
             }
@@ -1624,7 +1624,7 @@ public:
 
         // Ramp-down.
         for (int i = 0; i < it.ramp_down_iters; i++) {
-            ir_assert(it.do_mul());
+            gpu_assert(it.do_mul());
             body = body.append(create_iteration(it, sbid_mgr));
             body = append_outer_post_inc(body);
             ++it;
@@ -1655,7 +1655,7 @@ public:
 
             auto slm_buffers = alloc_mgr_.find_buffers(alloc_kind_t::slm);
             if (!slm_buffers.empty()) {
-                ir_assert(slm_buffers.size() == 1);
+                gpu_assert(slm_buffers.size() == 1);
 
                 auto &slm_buf = slm_buffers[0];
                 int non_ab_slm_size
@@ -1714,7 +1714,7 @@ private:
                 s = const_fold(substitute(s, v, mul_var_value));
             }
             for (auto &s : s2r_load) {
-                if (count_object(s, v) > 0) ir_error_not_expected();
+                if (count_object(s, v) > 0) gpu_error_not_expected();
                 s = const_fold(substitute(s, v, preload_var_value));
             }
             for (int i = 0; i < int(lets.size()); i++) {
@@ -1728,7 +1728,7 @@ private:
                 } else if (is_mul_let && !is_preload_let) {
                     var_value = mul_var_value;
                 } else {
-                    ir_assert(count_object(let.as<let_t>().value, v) == 0)
+                    gpu_assert(count_object(let.as<let_t>().value, v) == 0)
                             << "Unexpected reference to variable " << v
                             << " from " << let;
                     continue;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ type_t to_type(data_type_t dt) {
         case data_type::f32:
         case data_type::s32: return type_t::d32;
         case data_type::f64: return type_t::d64;
-        default: ir_error_not_expected() << "Unknown type: " << dt;
+        default: gpu_error_not_expected() << "Unknown type: " << dt;
     }
     return type_t::undef;
 }
@@ -55,7 +55,7 @@ hw_t to_hw(ngen::HW hw) {
         case ngen::HW::XeHPC: return hw_t::xehpc;
         case ngen::HW::Xe2: return hw_t::xehpc;
         case ngen::HW::Xe3: return hw_t::xehpc;
-        default: ir_error_not_expected() << "Unknown HW: " << to_string(hw);
+        default: gpu_error_not_expected() << "Unknown HW: " << to_string(hw);
     }
     return hw_t::undef;
 }
@@ -67,7 +67,7 @@ fma_t to_fma(fma_kind_t fma) {
         case fma_kind_t::dpas:
         case fma_kind_t::dpasw: return fma_t::dpas;
         default:
-            ir_error_not_expected() << "Unknown FMA kind: " << to_string(fma);
+            gpu_error_not_expected() << "Unknown FMA kind: " << to_string(fma);
     }
     return fma_t::undef;
 }

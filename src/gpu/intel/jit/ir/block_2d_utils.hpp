@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ inline int block_2d_base_alignment(const hw_t &hw) {
             return (hw.stepping_id() <= 6) ? 128 : 64;
         case ngen::HW::Xe2:
         case ngen::HW::Xe3: return 64;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return 0;
 }
@@ -61,7 +61,7 @@ inline int block_2d_pitch_alignment(const hw_t &hw) {
         case ngen::HW::XeHPC: return 8;
         case ngen::HW::Xe2: return 16;
         case ngen::HW::Xe3: return 16;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return 0;
 }

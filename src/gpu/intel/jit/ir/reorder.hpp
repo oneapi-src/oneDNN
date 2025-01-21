@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,8 +57,8 @@ private:
 
 inline stmt_t create_reorder_stmt(const layout_t &src, const layout_t &dst,
         const expr_t &src_buf, const expr_t &dst_buf) {
-    ir_assert(src.ndims() == dst.ndims()) << "Layouts are incompatible.";
-    ir_assert(src.elems() == dst.elems()) << "Layouts are incompatible.";
+    gpu_assert(src.ndims() == dst.ndims()) << "Layouts are incompatible.";
+    gpu_assert(src.elems() == dst.elems()) << "Layouts are incompatible.";
     auto func = reorder_t::make(src, dst);
     return func.call({dst_buf, src_buf});
 }

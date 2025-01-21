@@ -192,7 +192,7 @@ struct layout_raw_tag_entry_t {
         : letter(letter), block(block), is_blocked(is_blocked) {}
 
     dim_idx_t index() const {
-        ir_assert(letter >= 'a' && letter < 'x');
+        gpu_assert(letter >= 'a' && letter < 'x');
         return letter - 'a';
     }
     bool is_outer() const { return !is_blocked || (is_blocked && block == 0); }
@@ -330,7 +330,7 @@ public:
         desc_ = layout_desc_t();
         auto s = stream_parse<std::string>(in);
         auto parts = gpu_utils::split(s, ":");
-        ir_assert(parts.size() == 2);
+        gpu_assert(parts.size() == 2);
         jit::parse(parts[0], raw_tag_);
         jit::parse(parts[1], type_);
     }
@@ -477,7 +477,7 @@ public:
     }
 
     const block_t &operator*() const {
-        ir_assert(!is_end());
+        gpu_assert(!is_end());
         return block_;
     }
 

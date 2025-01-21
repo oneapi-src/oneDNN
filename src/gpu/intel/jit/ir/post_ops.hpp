@@ -185,12 +185,12 @@ private:
         auto *ptr = buf.as_ptr<ptr_t>();
         if (ptr) {
             auto prefix = make_op_var_name(ptr->base);
-            ir_assert(is_const(ptr->off));
+            gpu_assert(is_const(ptr->off));
             dim_t off = to_cpp<dim_t>(ptr->off);
             return prefix + "_" + std::to_string(off);
         }
 
-        ir_error_not_expected() << "Can't generate op var name: " << buf;
+        gpu_error_not_expected() << "Can't generate op var name: " << buf;
         return "unknown";
     }
     bool is_input_;
@@ -307,7 +307,7 @@ inline op_kind_t alg_kind_to_op_kind(alg_kind_t alg) {
         case alg_kind::binary_lt: return op_kind_t::_lt;
         case alg_kind::binary_eq: return op_kind_t::_eq;
         case alg_kind::binary_ne: return op_kind_t::_ne;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return op_kind_t::undef;
 }
@@ -364,7 +364,7 @@ private:
             const expr_t &buf, const expr_t &op_var,
             const expr_t &compute_expr = expr_t(),
             const bool do_convert = true) {
-        ir_assert(cp_ndims() == view.nvdims());
+        gpu_assert(cp_ndims() == view.nvdims());
         uint32_t mask = (buf.is_empty() && compute_expr.is_empty()
                         ? ~(1u << cp_ndims())
                         : compute_mask(view));
@@ -374,7 +374,7 @@ private:
     }
 
     uint32_t compute_mask(const view_t &view) const {
-        ir_assert(cp_ndims() == view.nvdims());
+        gpu_assert(cp_ndims() == view.nvdims());
         uint32_t mask = 0;
         for (dim_idx_t i = 0; i < cp_ndims(); i++) {
             if (view.vdims()[i] != 1) mask |= (1 << i);

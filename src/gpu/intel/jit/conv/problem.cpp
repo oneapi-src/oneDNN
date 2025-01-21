@@ -74,7 +74,7 @@ const std::vector<pvar_t> &conv_index_dims(prop_kind_t prop) {
         case prop_kind::forward: return fwd_dims;
         case prop_kind::backward_data: return bwd_d_dims;
         case prop_kind::backward_weights: return bwd_w_dims;
-        default: ir_error_not_expected(); return fwd_dims;
+        default: gpu_error_not_expected(); return fwd_dims;
     }
 }
 
@@ -113,7 +113,7 @@ const std::vector<pvar_t> &conv_layout_dims(
             return src_dst_with_group ? dst_g_dims : dst_dims;
         case tensor_kind_t::bias:
             return src_dst_with_group ? bia_g_dims : bia_dims;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return src_dims;
 }
@@ -129,7 +129,7 @@ tensor_kind_t to_abc(prop_kind_t prop, tensor_kind_t tensor) {
         case tensor_kind_t::src: return kinds[0];
         case tensor_kind_t::wei: return kinds[1];
         case tensor_kind_t::dst: return kinds[2];
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return kinds[0];
 }
@@ -338,7 +338,7 @@ void normalize_conv_shape(dim_t &id, dim_t &od, dim_t &kd, dim_t &sd, dim_t &dd,
     if (is_1x1 && sd == 1 && sh == 1 && sw == 1 && is_eq_oi
             && can_flatten_spatial) {
         // Convert 3D to 1D convolution.
-        ir_assert(pd == 0 && ph == 0 && pw == 0);
+        gpu_assert(pd == 0 && ph == 0 && pw == 0);
         ow = od * oh * ow;
         iw = id * ih * iw;
         od = id = kd = 1;
@@ -390,7 +390,7 @@ pvar_t to_gemm(const pvar_t &d, prop_kind_t prop, bool is_transpose) {
         if (d == pvars::m) return pvars::n;
         if (d == pvars::n) return pvars::m;
         if (d == pvars::k) return pvars::k;
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return pvar_t();
     };
     auto pick
@@ -403,7 +403,7 @@ pvar_t to_gemm(const pvar_t &d, prop_kind_t prop, bool is_transpose) {
                   if (is_fwd) return fwd;
                   if (is_bwd_d) return bwd_d;
                   if (is_bwd_w) return bwd_w;
-                  ir_error_not_expected();
+                  gpu_error_not_expected();
                   return pvar_t();
               };
     if (d == pvars::g) return pvars::b;

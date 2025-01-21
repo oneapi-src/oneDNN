@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ public:
         expr_t e = shuffle_t::make_broadcast(make_add(bcasts), elems);
         if (!non_bcasts.empty()) e = add(e, make_add(non_bcasts));
 
-        ir_assert(!e.is_empty());
+        gpu_assert(!e.is_empty());
         return std::move(e);
     }
 

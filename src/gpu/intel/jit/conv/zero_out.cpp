@@ -50,7 +50,7 @@ void zero_out_kernel_desc_t::init_kernel_info(kernel_info_t &kernel_info,
         auto &name = kernel_info.arg_name(i);
         auto &var = kernel_info.arg_var(i);
         if (var.type().is_ptr()) continue;
-        ir_assert(name == "size") << "Unknown scalar argument: " << name;
+        gpu_assert(name == "size") << "Unknown scalar argument: " << name;
         kernel_info.set_internal_arg(name, into<uint32_t>(params.size));
     }
     kernel_info.set_nd_range(nd_range(simd_, params.size));

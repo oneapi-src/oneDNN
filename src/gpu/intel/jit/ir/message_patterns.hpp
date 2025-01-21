@@ -111,11 +111,11 @@ struct stride_layout_t {
     }
 
     const stride_dim_t &operator[](int i) const {
-        ir_assert(i < max_ndims);
+        gpu_assert(i < max_ndims);
         return strides[i];
     }
     stride_dim_t &operator[](int i) {
-        ir_assert(i < max_ndims);
+        gpu_assert(i < max_ndims);
         return strides[i];
     }
 
@@ -202,7 +202,7 @@ struct send_hint_t {
     bool is_uniform_2d() const { return type_id_ == uniform_2d; }
     send_type_id_t get_type() const { return type_id_; }
     void set_type(send_type_id_t type) {
-        ir_assert(utils::one_of(type_id_, type, send_type_id_t::empty));
+        gpu_assert(utils::one_of(type_id_, type, send_type_id_t::empty));
         type_id_ = type;
     }
     dim_t ref_2d_width() const { return block_width / type_size_; }
@@ -502,7 +502,7 @@ struct uniform_send_idiom_t final {
                 });
         if (ret.size() && filtered_ret.size()
                 && ret[0].size() > filtered_ret[0].size())
-            ir_warning() << "Optimal send hint disabled: " << ret[0];
+            gpu_warning() << "Optimal send hint disabled: " << ret[0];
 
         return filtered_ret;
     }

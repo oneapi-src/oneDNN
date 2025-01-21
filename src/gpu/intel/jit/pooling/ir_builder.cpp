@@ -50,7 +50,7 @@ public:
 
     view_t create_view(const memory_desc_t &md) const override {
         dim_idx_t cp_ndims = cp_view().nvdims();
-        ir_assert(cp_ndims >= 3);
+        gpu_assert(cp_ndims >= 3);
         layout_t layout(md, /*do_normalize=*/false);
         std::vector<dim_t> dims(md.dims, md.dims + md.ndims);
         std::vector<dim_t> pad_dims(md.padded_dims, md.padded_dims + md.ndims);
@@ -58,7 +58,7 @@ public:
         layout = spatials_to_3d(layout, false, {0, 1, 2});
         dims = dims_to_3d(dims);
         pad_dims = dims_to_3d(pad_dims);
-        ir_assert(layout.ndims() == cp_ndims) << "Incompatible dimensions.";
+        gpu_assert(layout.ndims() == cp_ndims) << "Incompatible dimensions.";
         uint32_t bound_check_mask = 0;
         for (dim_idx_t i = 0; i < cp_ndims; i++) {
             if (dims[i] == 1) continue; // Broadcast, no bound check needed.
@@ -76,7 +76,7 @@ public:
 private:
     static void maybe_reshape_dims(dim_idx_t ndims, layout_t &layout,
             std::vector<dim_t> &dims, std::vector<dim_t> &padded_dims) {
-        ir_assert(layout.ndims() == dims.size());
+        gpu_assert(layout.ndims() == dims.size());
         if (layout.ndims() < ndims) {
             layout = layout_t(layout.type(), ndims, layout.offset(),
                     layout.blocks(), /*do_normalize=*/false);
@@ -92,7 +92,7 @@ private:
 
     uint32_t normalize_mask(uint32_t orig_mask) const {
         dim_idx_t cp_ndims = cp_view().nvdims();
-        ir_assert(cp_ndims >= 3);
+        gpu_assert(cp_ndims >= 3);
         // Number of dimensions before normalization.
         dim_idx_t orig_ndims = 2 + ndims_;
         std::vector<dim_t> dummy_dims(orig_ndims, 1);
@@ -101,7 +101,7 @@ private:
             if ((orig_mask & (1 << i)) != 0) dummy_dims[i] = mask_set_value;
         }
         auto cvt_dims = dims_to_3d(dummy_dims);
-        ir_assert(cvt_dims.size() == cp_ndims);
+        gpu_assert(cvt_dims.size() == cp_ndims);
 
         uint32_t mask = 0;
         for (dim_idx_t i = 0; i < cp_ndims; i++) {
@@ -117,7 +117,7 @@ class loop_bound_counter_t : public ir_mutator_t {
 public:
     int count(const expr_t &e) {
         const auto retn = simplify(mutate(e));
-        ir_assert(retn.is<int_imm_t>());
+        gpu_assert(retn.is<int_imm_t>());
         return to_cpp<int>(retn);
     }
     loop_bound_counter_t(const gemm_schedule_t &s) : schedule_(s) {}
@@ -142,7 +142,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
             && (exec.hw().to_ngen() == ngen::HW::Xe2
                     || exec.hw().to_ngen() == ngen::HW::Xe3);
 
-    ir_assert(src_layout.ndims() == dst_layout.ndims());
+    gpu_assert(src_layout.ndims() == dst_layout.ndims());
 
     // Create loop variables.
     auto mb = var_t::make(type_t::s32(), "mb");
@@ -180,7 +180,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     std::vector<dim_t> padded_dims(dims_grid.ndims());
     for (dim_idx_t i = 0; i < padded_dims.size(); i++)
         padded_dims[i] = dims_grid[i];
-    ir_assert(padded_dims.size() == 5);
+    gpu_assert(padded_dims.size() == 5);
     std::vector<dim_t> dims {padded_dims[0], src_layout.dim(1), padded_dims[2],
             padded_dims[3], padded_dims[4]};
 
@@ -240,14 +240,14 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                 = (s0.is_empty()) ? dim_idx::invalid : src_view.vvar_index(s0);
         dim_idx_t s1_idx = src_view.vvar_index(s1);
         dim_idx_t ns_idx = src_view.vvar_index(ns);
-        ir_assert((s0_idx <= 4 || s0_idx == dim_idx::invalid) && (s1_idx <= 4)
+        gpu_assert((s0_idx <= 4 || s0_idx == dim_idx::invalid) && (s1_idx <= 4)
                 && (ns_idx <= 4));
 
         // s1 and ns may swap sides, which affects their fusing order: it has
         // to strictly replicate that of the arguments passed to this lambda!
         const bool need_swap = (s1_idx <= 1);
         // 2 spatials and 2 non-spatials disallowed; only 1 of each or bust
-        ir_assert(need_swap != (ns_idx <= 1));
+        gpu_assert(need_swap != (ns_idx <= 1));
         if (need_swap) {
             std::swap(s1_idx, ns_idx);
             std::swap(s1, ns);
@@ -269,7 +269,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         s1_fuse.emplace_back(s1_kg);
 
         if (s0_idx != dim_idx::invalid) {
-            ir_assert(s0_idx == s1_idx + 1);
+            gpu_assert(s0_idx == s1_idx + 1);
             const dim_t s0_tlg_unroll = lg[s0_idx];
             const dim_t s0_unroll = s0_tlg_unroll * tg[s0_idx - 2];
             const dim_t s0_full = s0_unroll * kg[s0_idx - 2];
@@ -323,7 +323,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     auto kdhw_to_schedule = [&](const expr_t &k) {
         const int k_idx = src_view.vvar_index(k);
-        ir_assert((k_idx >= 5) && (k_idx <= 7));
+        gpu_assert((k_idx >= 5) && (k_idx <= 7));
         const dim_t k_dim = lg[k_idx];
         if (k_dim == schedule.var_bound(k)) {
             schedule.tensorize(k);
@@ -335,7 +335,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                 schedule.tensorize(k_tnz);
             }
         } else {
-            ir_error_not_expected() << "k_dim > var_bound; this is wrong";
+            gpu_error_not_expected() << "k_dim > var_bound; this is wrong";
         }
     };
     kdhw_to_schedule(kd);
@@ -396,8 +396,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     tensor_t src_tile(read_layout.split_into_max_tile(simd, true));
     tensor_t dst_tile(write_layout.split_into_max_tile(simd, true));
-    ir_assert(src_tile.elems() == simd);
-    ir_assert(dst_tile.elems() == simd);
+    gpu_assert(src_tile.elems() == simd);
+    gpu_assert(dst_tile.elems() == simd);
 
     const bool is_identity(prb.kd * prb.kh * prb.kw <= 1);
 
@@ -407,7 +407,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
     stmt_t stmt;
 
     auto gen_fill_values = [](int simd, bool isneg, type_t type) {
-        ir_assert(type.scalar().size() <= 4);
+        gpu_assert(type.scalar().size() <= 4);
         const int mult = 4 / type.scalar().size();
         expr_t v = 0;
         if (isneg) {
@@ -450,7 +450,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
                 : stmt_t();
         stmt = stmt.append(read.stmt());
     } else {
-        ir_assert(acc_size % simd == 0);
+        gpu_assert(acc_size % simd == 0);
         allocs.push_back(alloc_t::make(
                 acc_buf, into<uint32_t>(acc_size), alloc_kind_t::grf));
 
@@ -549,8 +549,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     const int regs = get_peak_regs(stmt, exec.grf_size());
 
-    ir_trace() << "Pooling kernel body:\n" << stmt;
-    ir_trace() << "Pooling cfg (~" << regs << " regs):\n" << cfg;
+    gpu_trace() << "Pooling kernel body:\n" << stmt;
+    gpu_trace() << "Pooling cfg (~" << regs << " regs):\n" << cfg;
 
     return (regs > exec.regs()) ? stmt_t() : std::move(stmt);
 }

@@ -25,7 +25,7 @@ namespace v2 {
 namespace conv {
 
 problem_t::problem_t(const std::string &line) {
-    ir_error_not_expected();
+    gpu_error_not_expected();
     auto s_desc = gpu_utils::split(line, " ").back();
     set_shape(s_desc);
 }
@@ -41,13 +41,13 @@ const type_t &problem_t::out_type() const {
         case prop_kind::forward: return dst_tag_.type();
         case prop_kind::backward_data: return src_tag_.type();
         case prop_kind::backward_weights: return wei_tag_.type();
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return src_tag_.type();
 }
 
 void problem_t::set_shape(const std::string &s) {
-    ir_assert(prop_ != prop_kind::undef);
+    gpu_assert(prop_ != prop_kind::undef);
     pvar_tile_t s_tile(s);
     bool has_d = has_spatial(s_tile, 'd');
     bool has_h = has_spatial(s_tile, 'h');
@@ -69,7 +69,7 @@ void problem_t::set_shape(const std::string &s) {
         s_tile[pvars::dw] = s_tile[pvars::dh];
         s_tile[pvars::pw] = s_tile[pvars::ph];
     } else {
-        ir_error_not_expected();
+        gpu_error_not_expected();
     }
     for (auto &d : default_shape()) {
         if (s_tile.has(d)) continue;

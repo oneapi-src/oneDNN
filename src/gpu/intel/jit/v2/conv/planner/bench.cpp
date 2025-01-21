@@ -68,14 +68,14 @@ class memory_pool_t {
 public:
     std::unordered_map<int, memory> get_args(
             const std::unordered_map<int, memory::desc> &mds) const {
-        ir_assert(is_finalized_);
+        gpu_assert(is_finalized_);
         std::unordered_map<int, memory> ret;
         for (auto &kv : mds) {
             int id = kv.first;
             auto &base_mem = base_mems_.at(id);
             auto &md = kv.second;
             auto eng = base_mem.get_engine();
-            ir_assert(md.get_size() <= base_mem.get_desc().get_size());
+            gpu_assert(md.get_size() <= base_mem.get_desc().get_size());
             auto mem = ocl_interop::make_memory(md, eng,
                     ocl_interop::memory_kind::usm, base_mem.get_data_handle());
             ret.emplace(id, mem);
@@ -140,7 +140,7 @@ public:
                 strm.get(), profiling_data_kind::time, &nentries, nullptr));
         CHECK(dnnl_query_profiling_data(strm.get(),
                 profiling_data_kind::time_per_kernel, &nkernels, nullptr));
-        ir_assert(nentries == ntasks * iters);
+        gpu_assert(nentries == ntasks * iters);
 
         std::vector<uint64_t> entries(nentries);
         std::vector<uint64_t> kernel_entries;
@@ -373,7 +373,7 @@ private:
                 return memory::desc(dims, type, strides);
             }
         }
-        ir_error_not_expected() << "Unknown tag: " << tag.str();
+        gpu_error_not_expected() << "Unknown tag: " << tag.str();
         return memory::desc();
     }
 
@@ -406,7 +406,7 @@ struct random_dim_t {
     explicit operator bool() const { return lo <= hi; }
     bool with_tile() const { return tile > 1; }
     dim_t operator()() const {
-        ir_assert(*this);
+        gpu_assert(*this);
         return random(lo, hi) * tile;
     }
 };
@@ -545,14 +545,14 @@ std::vector<problem_t> load_problems(const std::string &path) {
 bench_data_t bench(const bench_manager_t &bench_mger,
         const kernel_desc_t &kernel_desc, std::vector<bench_task_t> &tasks,
         memory_pool_t *mem_pool_ptr = nullptr) {
-    ir_assert(kernel_desc.is_finalized);
+    gpu_assert(kernel_desc.is_finalized);
     int ntasks = (int)tasks.size();
 
     auto eng = bench_mger.get_engine();
     auto strm = bench_mger.get_stream();
     std::cout << "Running benchmark for descriptor: " << kernel_desc.cmd_str()
               << std::endl;
-    ir_assert(kernel_desc.spec_strategy == spec_strategy_t::none);
+    gpu_assert(kernel_desc.spec_strategy == spec_strategy_t::none);
     auto kernel_desc_min_dims = kernel_desc;
     kernel_desc_min_dims.spec_strategy = spec_strategy_t::min_dims;
     {
@@ -643,7 +643,7 @@ layout_tag_t &get_out_tag(kernel_desc_t &kernel_desc) {
         case prop_kind::forward: return kernel_desc.dst_tag;
         case prop_kind::backward_data: return kernel_desc.src_tag;
         case prop_kind::backward_weights: return kernel_desc.wei_tag;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return kernel_desc.dst_tag;
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
         uint32_t reduction_mask, bool drop_dims) {
     auto subtile = _subtile;
     if (subtile.is_empty()) subtile = tensor_t(src.dims());
-    ir_assert(src.ndims() == subtile.ndims());
+    gpu_assert(src.ndims() == subtile.ndims());
     dim_idx_t ndims = src.ndims();
 
     // Align dst layout with src layout according to the mask if needed.
@@ -45,7 +45,8 @@ stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
                 dst_dim_idx++;
             }
         }
-        ir_assert(dst_dim_idx == dst.ndims()) << "Incompatible reduction mask.";
+        gpu_assert(dst_dim_idx == dst.ndims())
+                << "Incompatible reduction mask.";
 
         auto dst_blocks = dst.blocks();
         for (auto &b : dst_blocks)
@@ -74,7 +75,7 @@ stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
 
 stmt_t create_reduce_stmt(const layout_t &src, const layout_t &dst,
         const expr_t &src_buf, const expr_t &dst_buf) {
-    ir_assert(src.ndims() == dst.ndims());
+    gpu_assert(src.ndims() == dst.ndims());
     uint32_t reduction_mask = 0;
     for (dim_idx_t i = 0; i < src.ndims(); i++) {
         if (dst.dims()[i] != 1 || src.dims()[i] == 1) {

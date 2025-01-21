@@ -36,11 +36,11 @@ ir_utils::debug_profiler_t &get_trace_profiler() {
 void trace_pass(
         const char *pass_name, const stmt_t &stmt, const ir_context_t &ir_ctx) {
     trace_stop(pass_name);
-    ir_trace() << "=== After " << pass_name;
-    ir_trace() << stmt;
+    gpu_trace() << "=== After " << pass_name;
+    gpu_trace() << stmt;
     auto grf_usage = get_grf_usage(stmt, ir_ctx.hw().grf_size());
-    if (!grf_usage.is_empty()) ir_trace() << grf_usage;
-    ir_trace() << ir_ctx.cset();
+    if (!grf_usage.is_empty()) gpu_trace() << grf_usage;
+    gpu_trace() << ir_ctx.cset();
 }
 #endif
 

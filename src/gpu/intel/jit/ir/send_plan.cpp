@@ -60,7 +60,7 @@ send_op_t to_2d(send_op_t op) {
         case send_op_t::prefetch_2d:
         case send_op_t::load_2d:
         case send_op_t::store_2d: return op;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return send_op_t::undef;
 }
@@ -105,7 +105,7 @@ public:
 
     vec_off_t &operator+=(const vec_off_t &shift) {
         if (shift.vec_.size() == 1) return operator+=(shift.vec_[0]);
-        ir_assert(vec_.size() == shift.vec_.size());
+        gpu_assert(vec_.size() == shift.vec_.size());
         for (int i = 0; i < size(); i++)
             vec_[i] += shift[i];
         return *this;
@@ -151,8 +151,8 @@ public:
     }
 
     vec_off_t slice(int idx) const {
-        ir_assert(!is_empty());
-        ir_assert(idx >= 0 && idx < vec_[0].size());
+        gpu_assert(!is_empty());
+        gpu_assert(idx >= 0 && idx < vec_[0].size());
         vec_off_t ret;
         for (auto &o : vec_) {
             ret.push_back(o[idx]);
@@ -190,12 +190,12 @@ private:
 
 expr_t to_vec(const expr_t &e, int elems) {
     if (e.type().elems() == elems) return e;
-    ir_assert(e.type().is_scalar());
+    gpu_assert(e.type().is_scalar());
     return shuffle_t::make_broadcast(e, elems);
 }
 
 expr_t to_vec(const vec_off_t &off, int elems) {
-    ir_assert(off.size() == elems);
+    gpu_assert(off.size() == elems);
     if (off.size() == 1) return off[0];
     std::vector<expr_t> e_off;
     e_off.reserve(off.size());
@@ -222,7 +222,7 @@ expr_t slice(const expr_t &e, int off, int elems) {
     if (e.is_empty()) return expr_t();
 
     if (is_const(e) || is_var(e)) {
-        ir_assert(off == 0 && elems == 1);
+        gpu_assert(off == 0 && elems == 1);
         return e;
     }
 
@@ -246,7 +246,7 @@ expr_t slice(const expr_t &e, int off, int elems) {
         return shuffle_t::make(vec);
     }
 
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return expr_t();
 }
 
@@ -310,7 +310,7 @@ public:
 
 private:
     static int to_lg2(int64_t v) {
-        ir_assert(v >= 0);
+        gpu_assert(v >= 0);
         if (v == 0) return lg2_zero_;
         return std::min((int)max_lg2_, ngen::utils::bsf(v));
     }
@@ -383,7 +383,7 @@ public:
         for (int i = 0; i < 2; i++) {
             if (vidxs_[i] == vidx) return vstrides_[i];
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return 0;
     }
 
@@ -495,13 +495,13 @@ public:
     bool is_const_base() const { return is_const(base_); }
 
     bool const_fold(int64_t inc) const {
-        ir_assert(is_const_base());
+        gpu_assert(is_const_base());
         int64_t base_const = to_cpp<int64_t>(base_);
         int64_t v = base_const + inc;
         switch (kind_) {
             case mask_kind_t::ab: return (a_ <= v) && (v < b_);
             case mask_kind_t::b: return (v < b_);
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return false;
     }
@@ -514,7 +514,7 @@ public:
             case mask_kind_t::ab:
                 return (x >= to_vec(a_, slots)) & (x < to_vec(b_, slots));
             case mask_kind_t::b: return (x < to_vec(b_, slots));
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return expr_t();
     }
@@ -534,7 +534,7 @@ public:
                 oss << indent << "  "
                     << "x < " << b_;
                 break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return oss.str();
     }
@@ -561,7 +561,7 @@ bool has_vidx_mask(const std::vector<mask_desc_t> &mask_descs, int idx,
         if (!tdim.has_vidx(idx)) continue;
         if (tdim.vidx(1) != -1) return true;
         if (dim >= tdim.block()) {
-            ir_assert(dim % tdim.block() == 0);
+            gpu_assert(dim % tdim.block() == 0);
             return true;
         }
         if (dim * block >= tdim.block()) {
@@ -584,19 +584,19 @@ const char *fail_2d_header() {
 
 template <typename T0>
 bool fail_2d(const T0 &t0) {
-    ir_trace() << fail_2d_header() << t0;
+    gpu_trace() << fail_2d_header() << t0;
     return false;
 }
 
 template <typename T0, typename T1>
 bool fail_2d(const T0 &t0, const T1 &t1) {
-    ir_trace() << fail_2d_header() << t0 << t1;
+    gpu_trace() << fail_2d_header() << t0 << t1;
     return false;
 }
 
 template <typename T0, typename T1, typename T2>
 bool fail_2d(const T0 &t0, const T1 &t1, const T2 &t2) {
-    ir_trace() << fail_2d_header() << t0 << t1 << t2;
+    gpu_trace() << fail_2d_header() << t0 << t1 << t2;
     return false;
 }
 
@@ -692,7 +692,7 @@ struct send_2d_params_t {
             const tdim_info_t &h_tdim) const {
         auto &blocks = vlayout.blocks();
         int nblocks = (int)blocks.size();
-        ir_assert((int)vblock_off.size() == nblocks);
+        gpu_assert((int)vblock_off.size() == nblocks);
         int64_t ret = 0;
         for (int i = 0; i < nblocks; i++) {
             auto &b = blocks[i];
@@ -747,7 +747,7 @@ struct send_2d_params_t {
                     stride = utils::rnd_up(stride, grf_size / type.size());
                     break;
                 case pad_kind_t::none: break;
-                default: ir_error_not_expected();
+                default: gpu_error_not_expected();
             }
             cur_stride = stride;
         };
@@ -826,7 +826,7 @@ struct send_block_t {
 
 int rounded_slots(int slots, int max_slots) {
     if (max_slots == 1) {
-        ir_assert(slots == 1);
+        gpu_assert(slots == 1);
         return 1;
     }
 
@@ -856,7 +856,7 @@ int get_max_block_size(const hw_t &hw, const send_params_t &params) {
 class split_bounds_t {
 public:
     split_bounds_t(const layout_t &layout, int factor) {
-        ir_assert(layout.has_zero_offset()) << layout;
+        gpu_assert(layout.has_zero_offset()) << layout;
         auto tile = layout.split_exact(factor);
         if (tile.is_empty()) return;
 
@@ -914,7 +914,7 @@ struct send_group_t {
             size *= p2d.h_rcount;
             return size;
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return 0;
     }
 
@@ -930,8 +930,8 @@ struct send_group_t {
     }
 
     send_group_t slice(int start, int stop, bool fuse, bool is_last) const {
-        ir_assert(slots == 1);
-        ir_assert(start < stop);
+        gpu_assert(slots == 1);
+        gpu_assert(start < stop);
         int len = (fuse ? stop - start : 1);
         auto ret = *this;
         if (!is_last) ret.pad_bytes = 1;
@@ -942,10 +942,10 @@ struct send_group_t {
     }
 
     void add(const send_group_t &g, int start, int stop, bool fuse) {
-        ir_assert(g.addr_inc == addr_inc);
-        ir_assert(g.mask_inc == mask_inc);
+        gpu_assert(g.addr_inc == addr_inc);
+        gpu_assert(g.mask_inc == mask_inc);
         int len = (fuse ? stop - start : 1);
-        ir_assert(len * g.type_size == type_size);
+        gpu_assert(len * g.type_size == type_size);
         if (fuse) {
             blocks.push_back(g.blocks[start]);
         } else {
@@ -993,7 +993,7 @@ struct send_group_t {
             for (int i = 0; i < type_size; i += cur_size) {
                 cur_size = std::min(cur_size, type_size - i);
                 cur_size = utils::rnd_down_pow2(cur_size);
-                ir_assert(cur_size >= 16);
+                gpu_assert(cur_size >= 16);
                 auto type = type_t::oword(cur_size / 16);
                 type = fixup_type(type, send_params);
                 auto f = send_t::make(hw, send_params.send_op,
@@ -1030,7 +1030,7 @@ struct send_group_t {
                 ret.push_back(f);
             }
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
         return ret;
     }
@@ -1045,7 +1045,7 @@ struct send_group_t {
         } else if (is_scattered()) {
             oss << indent << "send.b" << type_size << "x" << slots;
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
         if (!fill_buf) oss << ".nofill";
         oss << "(" << addr_inc << ")";
@@ -1139,7 +1139,7 @@ public:
     static modulus_t get_modulus(
             const layout_t &layout, const std::vector<T> &off, const T &base) {
         int ndims = layout.ndims();
-        ir_assert((int)off.size() == ndims);
+        gpu_assert((int)off.size() == ndims);
         std::vector<modulus_t> mods(layout.ndims());
         for (int i = 0; i < ndims; i++)
             mods[i] = off[i];
@@ -1196,11 +1196,11 @@ struct layout_2d_wrapper_t {
         return ret;
     }
     const block_t &w_block() const {
-        ir_assert(nblocks() >= 2);
+        gpu_assert(nblocks() >= 2);
         return l.blocks()[0];
     }
     const block_t &h_block() const {
-        ir_assert(nblocks() >= 2);
+        gpu_assert(nblocks() >= 2);
         return l.blocks()[1];
     }
     int64_t w_stride() const { return w_block().stride; }
@@ -1262,7 +1262,7 @@ public:
             auto &tdim = tdims_[i];
             if (utils::one_of(vidx, tdim.vidx(0), tdim.vidx(1))) return tdim;
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return tdims_[0];
     }
 
@@ -1456,7 +1456,7 @@ private:
             reg_bytes_per_elem = layout.type().size();
             return layout;
         }
-        ir_assert(send_kind_ == send_kind_t::scattered);
+        gpu_assert(send_kind_ == send_kind_t::scattered);
 
         int type_size = layout.type().size();
         int inner_bytes = type_size;
@@ -1519,7 +1519,7 @@ private:
         } else if (is_x_ge_a_and_x_lt_b(e, x, a, b, block)) {
             kind = mask_kind_t::ab;
         } else {
-            ir_error_not_expected() << e;
+            gpu_error_not_expected() << e;
         }
     }
 
@@ -1667,7 +1667,7 @@ public:
             h_nvblocks += lw.nblocks(h_tdim.vidx(1));
             if (h_nvblocks > 1)
                 return fail_2d("Can't handle multi h dimension with stride.");
-            ir_assert(use_xy) << "Unexpected combination.";
+            gpu_assert(use_xy) << "Unexpected combination.";
             if (H % h_vstride != 0)
                 return fail_2d(
                         "Can't apply non-unit h (v -> t) stride: ", h_tdim);
@@ -1843,7 +1843,7 @@ public:
 
     void next(vec_vec_off_t &mask, vec_off_t &addr, int elems, int slots,
             int slot_size, int mask_bits) {
-        ir_assert(has_next(elems));
+        gpu_assert(has_next(elems));
         advance(block_off_, info_.vlayout(), elems);
         linear_off_ += elems;
         reg_off_ += elems * info_.reg_bytes_per_elem();
@@ -1995,7 +1995,7 @@ public:
                     ? _g
                     : _g.split(split_bounds_t(reg_layout(), split_factor_),
                             subtile_idx, is_g1b1);
-            ir_assert(!g.is_empty());
+            gpu_assert(!g.is_empty());
             bool try_legacy = send_params().try_legacy
                     && (g.hw < ngen::HW::XeHPC) && g.is_block();
             std::vector<stmt_t> calls;
@@ -2071,7 +2071,7 @@ public:
     }
 
     void set_split(int factor) override {
-        ir_assert(can_split(factor));
+        gpu_assert(can_split(factor));
         split_factor_ = factor;
     }
 
@@ -2109,7 +2109,7 @@ public:
         if (g.is_2d()) return g_mem_off;
         if (g.is_block()) return g_mem_off + byte_off;
         if (g.is_scattered()) return slice(g_mem_off, slot_off, slots);
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return expr_t();
     }
 
@@ -2119,7 +2119,7 @@ public:
         if (g.is_2d() || g.is_block())
             return shuffle_t::make_broadcast(g_mask, send.nmasks());
         if (g.is_scattered()) return slice(g_mask, slot_off, send.slots);
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return expr_t();
     }
 
@@ -2144,7 +2144,7 @@ private:
     static std::vector<stmt_t> try_legacy_send(const std::vector<stmt_t> &calls,
             const std::vector<send_info_t> &infos) {
         if (calls.empty()) return calls;
-        ir_assert(calls.size() == infos.size());
+        gpu_assert(calls.size() == infos.size());
         int nmsgs = (int)calls.size();
         std::vector<bool> can_fuse(nmsgs + 1, true);
         can_fuse.front() = false;
@@ -2195,7 +2195,7 @@ private:
     }
 
     static stmt_t merge(const std::vector<stmt_t> &calls, int start, int stop) {
-        ir_assert(start < stop);
+        gpu_assert(start < stop);
         int len = stop - start;
         if (len == 1) return calls[start];
 
@@ -2217,15 +2217,15 @@ private:
             std::vector<expr_t> vec_mask;
             for (int i = start; i < stop; i++) {
                 auto i_mask = remove_bcast(send_t::arg_mask(calls[i]));
-                ir_assert(!i_mask.is_empty());
-                ir_assert(i_mask.type().is_scalar());
+                gpu_assert(!i_mask.is_empty());
+                gpu_assert(i_mask.type().is_scalar());
                 for (int i = 0; i < size / 4; i++) {
                     vec_mask.push_back(i_mask);
                 }
             }
             mask = shuffle_t::make(vec_mask);
             mask = simplify_propagate_shuffle(mask);
-            ir_assert(mask.type().elems() <= 16);
+            gpu_assert(mask.type().elems() <= 16);
             ret = ret.append(func.call(new_args));
         } else {
             for (int i = start; i < stop; i++) {
@@ -2262,7 +2262,7 @@ public:
                 case send_kind_t::_2d: is_2d_ = true; break;
                 case send_kind_t::block: break;
                 case send_kind_t::scattered: is_scattered_ = true; break;
-                default: ir_error_not_expected();
+                default: gpu_error_not_expected();
             }
         }
     }
@@ -2307,7 +2307,7 @@ public:
     }
 
     void set_split(int factor) override {
-        ir_assert(can_split(factor));
+        gpu_assert(can_split(factor));
         split_factor_ = factor;
     }
 
@@ -2343,14 +2343,14 @@ private:
     static expr_t get_base(const expr_t &e) {
         auto *ptr = e.as_ptr<ptr_t>();
         if (ptr) return ptr->base;
-        ir_assert(e.is<var_t>()) << e;
+        gpu_assert(e.is<var_t>()) << e;
         return e;
     }
 
     static int64_t get_offset(const expr_t &e) {
         auto *ptr = e.as_ptr<ptr_t>();
         if (ptr) return to_cpp<int64_t>(ptr->off);
-        ir_assert(e.is<var_t>()) << e;
+        gpu_assert(e.is<var_t>()) << e;
         return 0;
     }
 
@@ -2492,7 +2492,7 @@ send_group_t init_scattered(const view_info_t &info,
     int slot_stride = std::max(4, slot_size);
     int inner_slots = ir_utils::safe_divide(it.inner_bytes(), slot_size);
 
-    ir_assert((slot_size % type_size == 0) || (slot_stride == slot_size));
+    gpu_assert((slot_size % type_size == 0) || (slot_stride == slot_size));
 
     send_group_t ret;
     ret.hw = info.hw();
@@ -2518,7 +2518,7 @@ send_group_t init_scattered(const view_info_t &info,
         if (slot_size == type_size) {
             reg_layout = reg_layout.make_strided(slot_stride / slot_size);
         } else {
-            ir_assert(reg_layout.nblocks() > 0);
+            gpu_assert(reg_layout.nblocks() > 0);
             auto &b0 = reg_layout.blocks()[0];
             int inner = slot_size / type_size;
             reg_layout
@@ -2615,7 +2615,7 @@ std::vector<send_group_t> fuse_blocks(
     int bytes = 0;
     for (auto &sg : ret)
         bytes += sg.type_size * (int)sg.blocks.size();
-    ir_assert(bytes == nblocks * send_group.type_size);
+    gpu_assert(bytes == nblocks * send_group.type_size);
 
     return ret;
 }
@@ -2658,7 +2658,7 @@ send_plan_t create_send_plan(const exec_config_t &exec_cfg, const view_t &view,
             base_group = init_scattered(
                     info, send_params, it, reg_layout, fill_buf);
             break;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
 
     // Add outer blocks to GRF layout.

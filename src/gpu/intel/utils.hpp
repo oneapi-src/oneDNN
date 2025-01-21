@@ -120,7 +120,7 @@ private:
 #define gpu_error_not_expected() gpu_assert(false) << "Not expected. "
 #define gpu_except_not_implemented(msg) \
     throw std::runtime_error(std::string(msg) + std::string(" at ") \
-            + std::string(__FILE_NAME__) + std::string(":") \
+            + std::string(__FILENAME__) + std::string(":") \
             + std::to_string(__LINE__))
 
 template <typename out_type, typename in_type,

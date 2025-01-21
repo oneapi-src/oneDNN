@@ -58,14 +58,14 @@ int type_t::size() const {
         case type_kind_t::qword: return 8;
         case type_kind_t::oword: return 16;
         case type_kind_t::hword: return 32;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return 0;
 }
 
 data_type_t to_dnnl(const type_t &type) {
-    ir_assert(type.elems() == 1) << type;
-    ir_assert(!type.is_ptr() == 1) << type;
+    gpu_assert(type.elems() == 1) << type;
+    gpu_assert(!type.is_ptr() == 1) << type;
     switch (type.kind()) {
         case type_kind_t::bf8: return data_type::f8_e5m2;
         case type_kind_t::hf8: return data_type::f8_e4m3;
@@ -77,7 +77,7 @@ data_type_t to_dnnl(const type_t &type) {
         case type_kind_t::s32: return data_type::s32;
         case type_kind_t::s8: return data_type::s8;
         case type_kind_t::u8: return data_type::u8;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return data_type::undef;
 }
@@ -113,7 +113,7 @@ std::string to_string(op_kind_t kind) {
         case op_kind_t::_idiv: return "idiv";
         case op_kind_t::_imod: return "imod";
 
-        default: ir_error_not_expected() << "Unknown op_kind_t value.";
+        default: gpu_error_not_expected() << "Unknown op_kind_t value.";
     }
     return "";
 }
@@ -153,7 +153,7 @@ op_kind_t negate_cmp_op(op_kind_t op_kind) {
         case op_kind_t::_lt: return op_kind_t::_gt;
         case op_kind_t::_eq: return op_kind_t::_eq;
         case op_kind_t::_ne: return op_kind_t::_ne;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return op_kind_t::undef;
 }
@@ -167,13 +167,13 @@ type_t unary_op_type(op_kind_t op_kind, const expr_t &a) {
             return t;
         }
         default:
-            ir_error_not_expected() << "Unknown op_kind_t value: " << op_kind;
+            gpu_error_not_expected() << "Unknown op_kind_t value: " << op_kind;
     }
     return type_t::undef();
 }
 
 type_t common_int_type(const type_t &_a, const type_t &_b) {
-    ir_assert(_a.is_int() && _b.is_int()) << "Unexpected types.";
+    gpu_assert(_a.is_int() && _b.is_int()) << "Unexpected types.";
 
     int elems = _a.elems();
 
@@ -203,7 +203,7 @@ type_t common_int_type(const type_t &_a, const type_t &_b) {
 }
 
 type_t common_type(const type_t &a, const type_t &b) {
-    ir_assert(a.elems() == b.elems())
+    gpu_assert(a.elems() == b.elems())
             << "Types must have the same number of components.";
     if (a.is_undef() || b.is_undef()) return type_t::undef();
     if (a.is_fp() && !b.is_fp()) return a;
@@ -220,11 +220,11 @@ type_t common_type(const expr_t &a, const expr_t &b) {
 type_t binary_op_type(op_kind_t op_kind, const type_t &a, const type_t &b,
         const expr_t &a_expr = expr_t(), const expr_t &b_expr = expr_t()) {
     if (a.is_undef() || b.is_undef()) return type_t::undef();
-    ir_assert(a.elems() == b.elems())
+    gpu_assert(a.elems() == b.elems())
             << "Types must have the same number of components.";
     if (is_cmp_op(op_kind)) return type_t::_bool(a.elems());
     if (utils::one_of(op_kind, op_kind_t::_shl, op_kind_t::_shr)) {
-        ir_assert(a.is_unsigned())
+        gpu_assert(a.is_unsigned())
                 << "a must be unsigned for shift left/right.";
         return type_t::u32(a.elems());
     }
@@ -257,13 +257,13 @@ type_t ternary_op_type(
         case op_kind_t::_idiv:
         case op_kind_t::_imod:
             return a.type().is_signed() ? type_t::s32() : type_t::u32();
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return type_t::undef();
 }
 
 type_t nary_op_type(op_kind_t op_kind, const std::vector<expr_t> &args) {
-    ir_assert(!args.empty());
+    gpu_assert(!args.empty());
     if (args.size() == 1) return args[0].type();
 
     auto type = args[0].type();
@@ -274,9 +274,9 @@ type_t nary_op_type(op_kind_t op_kind, const std::vector<expr_t> &args) {
 }
 
 void ptr_t::normalize(expr_t &base, expr_t &off, op_kind_t op_kind) {
-    ir_assert(base.type().is_ptr()) << "base is not a pointer: " << base;
-    ir_assert(off.type().is_int()) << "off is not an integer: " << off;
-    ir_assert(utils::one_of(op_kind, op_kind_t::_add, op_kind_t::_sub))
+    gpu_assert(base.type().is_ptr()) << "base is not a pointer: " << base;
+    gpu_assert(off.type().is_int()) << "off is not an integer: " << off;
+    gpu_assert(utils::one_of(op_kind, op_kind_t::_add, op_kind_t::_sub))
             << "Can't apply this operation to pointer: " << to_string(op_kind);
 
     if (!base.is<ptr_t>()) {
@@ -301,7 +301,7 @@ void normalize_ptr(const type_t &type, expr_t &base_expr, expr_t &off) {
         off = const_fold_non_recursive(base_expr.as<ptr_t>().off + off);
         base_expr = base_expr.as<ptr_t>().base;
     }
-    ir_assert(to_cpp<int64_t>(off) % type.scalar().size() == 0)
+    gpu_assert(to_cpp<int64_t>(off) % type.scalar().size() == 0)
             << "Incompatible offset: " << off;
 }
 
@@ -339,7 +339,7 @@ stmt_t stmt_t::append(const stmt_t &s) const {
 
 expr_t expr_t::operator[](const expr_t &off) const {
     if (is<shuffle_t>()) {
-        ir_assert(is_const(off)) << "Offset is not constant.";
+        gpu_assert(is_const(off)) << "Offset is not constant.";
         auto &shuffle = as<shuffle_t>();
         int idx = shuffle.idx[to_cpp<int>(off)];
         return shuffle.vec[idx];
@@ -552,12 +552,12 @@ void ir_visitor_t::_visit(const let_t &obj) {
 }
 
 object_t ir_mutator_t::_mutate(const linear_t &obj) {
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return obj;
 }
 
 void ir_visitor_t::_visit(const linear_t &obj) {
-    ir_error_not_expected();
+    gpu_error_not_expected();
 }
 
 object_t ir_mutator_t::_mutate(const load_t &obj) {
@@ -685,18 +685,18 @@ void ir_visitor_t::_visit(const while_t &obj) {
 // Catch missing mutates that are not expected to dispatch to the base
 // mutator
 object_t ir_mutator_t::_mutate(const nary_op_t &obj) {
-    ir_error_not_expected() << "Can't handle type: nary_op_t";
+    gpu_error_not_expected() << "Can't handle type: nary_op_t";
     return {};
 }
 void ir_visitor_t::_visit(const nary_op_t &obj) {
-    ir_error_not_expected() << "Can't handle type: nary_op_t";
+    gpu_error_not_expected() << "Can't handle type: nary_op_t";
 }
 object_t ir_mutator_t::_mutate(const pexpr_t &obj) {
-    ir_error_not_expected() << "Can't handle type: pexpr_t";
+    gpu_error_not_expected() << "Can't handle type: pexpr_t";
     return {};
 }
 void ir_visitor_t::_visit(const pexpr_t &obj) {
-    ir_error_not_expected() << "Can't handle type: pexpr_t";
+    gpu_error_not_expected() << "Can't handle type: pexpr_t";
 }
 
 } // namespace jit

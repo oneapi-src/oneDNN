@@ -54,7 +54,7 @@ public:
     int base(int reg_idx, bool apply_permute = true) const {
         if (apply_permute && !grf_perm_.is_empty())
             reg_idx = grf_perm_.map(reg_idx);
-        ir_assert(reg_idx >= 0 && reg_idx < regs())
+        gpu_assert(reg_idx >= 0 && reg_idx < regs())
                 << "Invalid index: " << reg_idx;
         int block_idx = reg_idx / block_regs_;
         return block_bases_[block_idx] + (reg_idx % block_regs_);
@@ -72,10 +72,10 @@ public:
         std::unordered_set<int> seen;
         for (int i = 0; i < regs(); i++) {
             int i_mapped = grf_perm.map(i);
-            ir_assert(i_mapped >= 0 && i_mapped < regs());
+            gpu_assert(i_mapped >= 0 && i_mapped < regs());
             seen.insert(i_mapped);
         }
-        ir_assert(int(seen.size()) == regs()) << "Invalid permutation.";
+        gpu_assert(int(seen.size()) == regs()) << "Invalid permutation.";
 #endif
         grf_perm_ = grf_perm;
     }
@@ -173,8 +173,8 @@ public:
 
     bool check_bounds(
             int off_bytes, int len_bytes, bool is_dense = false) const {
-        ir_assert(off_bytes >= 0);
-        ir_assert(len_bytes >= 0);
+        gpu_assert(off_bytes >= 0);
+        gpu_assert(len_bytes >= 0);
         if (len_bytes == 0) return true;
 
         int grf_size = ngen::GRF::bytes(hw());
@@ -195,7 +195,7 @@ public:
     }
 
     bool is_dense(int bytes) const {
-        ir_assert(check_bounds(0, bytes)) << "Invalid access.";
+        gpu_assert(check_bounds(0, bytes)) << "Invalid access.";
         return check_bounds(0, bytes, /*is_dense=*/true);
     }
 
@@ -216,18 +216,19 @@ public:
             ret.rd_.setType(new_type);
             return ret;
         } else if (new_size < old_size) {
-            ir_assert(rd_.getHS() <= 1) << "Can't reinterpret strided data to "
-                                           "differently sized data type.";
+            gpu_assert(rd_.getHS() <= 1) << "Can't reinterpret strided data to "
+                                            "differently sized data type.";
             return format(0, new_type, rd_.getWidth() * old_size / new_size, 1);
         } else {
-            ir_error_not_expected() << "Can't reinterpret to larger data type.";
+            gpu_error_not_expected()
+                    << "Can't reinterpret to larger data type.";
         }
         return reg_buf_data_t();
     }
 
     ngen::Subregister subregister(int off_bytes,
             ngen::DataType type = ngen::DataType::invalid) const {
-        ir_assert(check_bounds(off_bytes, 1)) << "Invalid access.";
+        gpu_assert(check_bounds(off_bytes, 1)) << "Invalid access.";
         if (type == ngen::DataType::invalid) type = rd_.getType();
         auto rd = format(off_bytes, type, 1, 0).reg_data();
         return ngen::Subregister(rd, rd.getOffset(), rd.getType());
@@ -238,7 +239,7 @@ public:
         if (type == ngen::DataType::invalid) type = rd_.getType();
         int off_bytes = off * stride_bytes;
 
-        ir_assert(check_bounds(off_bytes, stride_bytes * (width - 1)))
+        gpu_assert(check_bounds(off_bytes, stride_bytes * (width - 1)))
                 << "Invalid access.";
 
         auto rd = format(off_bytes, type, 1, 0).reg_data();
@@ -256,12 +257,12 @@ public:
         auto type_size = ngen::getBytes(type);
         auto grf = get_grf(new_off / grf_size).retype(type);
 
-        ir_assert(new_grf_off % type_size == 0);
+        gpu_assert(new_grf_off % type_size == 0);
 
         if (width == 1) {
             hstride = 0;
         } else if (hstride == 0) {
-            ir_assert(width == 1);
+            gpu_assert(width == 1);
         } else {
             int max_width = 32 / type_size;
             width = std::min(width, max_width / hstride);
@@ -270,7 +271,7 @@ public:
         int vstride = width * hstride;
 
         int region_bytes = ((width - 1) * hstride + 1) * type_size;
-        ir_assert(check_bounds(off_bytes, region_bytes)) << "Invalid access.";
+        gpu_assert(check_bounds(off_bytes, region_bytes)) << "Invalid access.";
 
         auto ret = *this;
         ret.rd_ = grf[new_grf_off / type_size](vstride, width, hstride);
@@ -303,7 +304,7 @@ private:
         for (int i = 0; i < reg_buf_->regs(); i++) {
             if (reg_buf_->base(i) == rd_.getBase()) return i;
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return -1;
     }
 

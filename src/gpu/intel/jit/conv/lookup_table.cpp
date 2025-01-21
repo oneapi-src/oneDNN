@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ conv_lookup_table_t::conv_lookup_table_t(const char **entries) {
         {
             std::ostringstream oss;
             e.stringify(oss);
-            ir_assert(oss.str() == *entries)
+            gpu_assert(oss.str() == *entries)
                     << "parsed from:\n  " << *entries << "\nstringified to\n  "
                     << oss.str();
         }

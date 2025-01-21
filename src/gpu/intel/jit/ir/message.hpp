@@ -270,7 +270,7 @@ public:
     }
 
     int payload_type_stride() const {
-        ir_assert(!is_2d());
+        gpu_assert(!is_2d());
         return std::max(4, type.size());
     }
 
@@ -309,7 +309,7 @@ public:
 
         if (is_scattered()) return type.size();
 
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return 0;
     }
 
@@ -318,7 +318,7 @@ public:
         int masks = ir_utils::safe_divide(type.size() * slots, mask_size());
         if (hw < ngen::HW::XeHPC && is_block() && masks > 16) {
             // Round-robin masking, 16 bits are reused with dword granularity.
-            ir_assert(masks % 16 == 0);
+            gpu_assert(masks % 16 == 0);
             masks = 16;
         }
         return masks;
@@ -401,11 +401,11 @@ private:
         , fill_buf(zero_out)
         , block_2d_info(block_2d_info)
         , cache_hint(cache_hint) {
-        ir_assert(utils::one_of(op, send_op_t::load_2d, send_op_t::store_2d,
+        gpu_assert(utils::one_of(op, send_op_t::load_2d, send_op_t::store_2d,
                 send_op_t::prefetch_2d));
         if (is_store_2d()) {
-            ir_assert(!block_2d_info.vnni);
-            ir_assert(!block_2d_info.transpose);
+            gpu_assert(!block_2d_info.vnni);
+            gpu_assert(!block_2d_info.transpose);
         }
     }
 };

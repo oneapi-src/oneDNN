@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ public:
 
     ~loop_strength_reducer_t() override {
         // Sanity check, all stores must be applied.
-        ir_assert(post_inc_stores.empty());
+        gpu_assert(post_inc_stores.empty());
     }
 
     object_t _mutate(const for_t &obj) override {
@@ -47,7 +47,7 @@ public:
         int loop_level = int(loops_.size()) - 1;
         auto ret = lets_.insert(
                 {obj.var, let_info_t(obj.var, obj.value, loop_level)});
-        ir_assert(ret.second);
+        gpu_assert(ret.second);
         MAYBE_UNUSED(ret);
         auto new_obj = ir_mutator_t::_mutate(obj);
         lets_.erase(obj.var);
@@ -118,7 +118,7 @@ public:
         loops_[init_store_level].init_stores.push_back(init_store_stmt);
         if (!post_inc_store.is_empty()) {
             auto ret = post_inc_stores.insert({obj.buf, post_inc_store});
-            ir_assert(ret.second);
+            gpu_assert(ret.second);
             MAYBE_UNUSED(ret);
         }
         return stmt_t();
@@ -226,7 +226,7 @@ private:
         }
         loops_.pop_back();
         // The top-level dummy loop shouldn't be removed.
-        ir_assert(loops_.size() >= 1);
+        gpu_assert(loops_.size() >= 1);
         return std::move(s);
     }
 

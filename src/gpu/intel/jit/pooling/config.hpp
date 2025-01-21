@@ -259,7 +259,7 @@ public:
 
             const dim_t max_tg
                     = exec.hw().max_tg_size(exec.regs(), exec.simd());
-            ir_assert(max_tg == utils::rnd_up_pow2(max_tg));
+            gpu_assert(max_tg == utils::rnd_up_pow2(max_tg));
 
             const bool ow_pow2
                     = (ow > 1) && (utils::rnd_up_pow2(oh) * ow > max_tg);
@@ -396,7 +396,7 @@ public:
                             * utils::rnd_up(oh, max_tg / tgw);
                 };
                 int ok_tgw = sqrt(max_tg);
-                ir_assert(ok_tgw == utils::rnd_up_pow2(ok_tgw));
+                gpu_assert(ok_tgw == utils::rnd_up_pow2(ok_tgw));
                 for (int tgw = sqrt(max_tg); tgw > 0; tgw >>= 1) {
                     if (loss(tgw) < loss(ok_tgw)) ok_tgw = tgw;
                     if (loss(max_tg / tgw) <= loss(ok_tgw))
@@ -574,13 +574,13 @@ public:
 
 #define DECL_PARAM(name) \
     const name##_param_t &name##_param() const { \
-        ir_assert(!name##_.is_undef()); \
+        gpu_assert(!name##_.is_undef()); \
         (void)name##_init_; \
         return name##_; \
     } \
     name##_param_t &name##_param() { return name##_; } \
     const name##_param_t::value_t &name() const { \
-        ir_assert(!name##_.is_undef()); \
+        gpu_assert(!name##_.is_undef()); \
         return name##_.get(); \
     } \
     void set_##name(const name##_param_t::value_t &value) { \
@@ -616,7 +616,7 @@ private:
             197, 199, 211, 223, 227, 229, 233, 239, 241, 251,
         };
         // clang-format on
-        ir_assert(dn % scale == 0);
+        gpu_assert(dn % scale == 0);
         for (int p : primes_up_to_256)
             if (dn % (p * scale) == 0) {
                 up *= p;

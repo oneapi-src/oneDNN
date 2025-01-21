@@ -38,8 +38,8 @@ slm_reduce_builder_t::slm_reduce_builder_t(ir_context_t &ir_ctx,
     , reg_layout_(reg_layout)
     , thr_tile_(thr_tile)
     , dim_(dim) {
-    ir_assert((dim_ != dim_idx::invalid) && (dim_ <= 2));
-    ir_assert(tg_grid_.dim(dim_) > 1);
+    gpu_assert((dim_ != dim_idx::invalid) && (dim_ <= 2));
+    gpu_assert(tg_grid_.dim(dim_) > 1);
 
     tmp_reg_buf_ = ir_ctx.create_tmp_var(type_t::byte_ptr());
     slm_buf_ = ir_ctx.create_tmp_var(type_t::byte_ptr(), "reduce_slm");
@@ -75,7 +75,7 @@ void slm_reduce_builder_t::build() {
     store_stmt_ = write.stmt();
 
     auto &write_layout = write.reg_layout();
-    ir_assert(write_layout == reg_layout_) << "Incompatible layouts.";
+    gpu_assert(write_layout == reg_layout_) << "Incompatible layouts.";
 
     // Redistribute the layout to read/reduce all k-axis tiles from every
     // thread.

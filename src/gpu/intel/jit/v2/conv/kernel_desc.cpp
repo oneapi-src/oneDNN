@@ -70,7 +70,7 @@ void align_desc_t::parse(std::istream &in) {
         parts.push_back(parts[0]);
         parts.push_back(parts[0]);
     }
-    ir_assert(parts.size() == 3);
+    gpu_assert(parts.size() == 3);
     src.parse(parts[0]);
     wei.parse(parts[1]);
     dst.parse(parts[2]);
@@ -81,14 +81,14 @@ void prefetch_desc_t::parse(std::istream &in) {
     std::string s;
     in >> s;
     auto parts = gpu_utils::split(s, ".");
-    ir_assert(utils::one_of((int)parts.size(), 1, 2));
-    ir_assert(parts[0].size() >= 2);
+    gpu_assert(utils::one_of((int)parts.size(), 1, 2));
+    gpu_assert(parts[0].size() >= 2);
     dist = std::stoi(parts[0].substr(1));
-    ir_assert(dist >= 0);
+    gpu_assert(dist >= 0);
     a = (dist > 0);
     b = (dist > 0);
     if (parts.size() == 2 && dist > 0) {
-        ir_assert(utils::one_of(parts[1], "a", "b", "ab"));
+        gpu_assert(utils::one_of(parts[1], "a", "b", "ab"));
         a = (parts[1].find("a") != std::string::npos);
         b = (parts[1].find("b") != std::string::npos);
     }
@@ -132,7 +132,7 @@ extension_kind_t extensions_t::out_size(int size) {
         case 1: return extension_kind_t::out_b1;
         case 2: return extension_kind_t::out_b2;
         case 4: return extension_kind_t::out_b4;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return extension_kind_t::undef;
 }
@@ -204,21 +204,21 @@ bool is_grf_usage_ok(const kernel_desc_t &desc) {
 }
 
 bool kernel_desc_t::is_supported(const hw_t &hw) const {
-    ir_check(prop != prop_kind::undef)
+    gpu_check(prop != prop_kind::undef)
             << "Invalid prop: " << ir_utils::to_string(prop);
-    ir_check(hw_desc.hw != ngen::HW::Unknown)
+    gpu_check(hw_desc.hw != ngen::HW::Unknown)
             << "Invalid hw: " << jit::to_string(hw_desc.hw);
-    ir_check(fma != fma_kind_t::undef)
+    gpu_check(fma != fma_kind_t::undef)
             << "Invalid fma: " << jit::to_string(fma);
-    ir_check(simd != 0) << "Invalid simd: " << simd;
-    ir_check(regs != 0) << "Invalid regs: " << regs;
-    ir_check(is_tg_size_ok(*this, hw))
+    gpu_check(simd != 0) << "Invalid simd: " << simd;
+    gpu_check(regs != 0) << "Invalid regs: " << regs;
+    gpu_check(is_tg_size_ok(*this, hw))
             << "Invalid thread_group_tile: " << thread_group_tile;
     if (use_stream_k) {
-        ir_check(c_type() == accumulator_type(a_type(), b_type()))
+        gpu_check(c_type() == accumulator_type(a_type(), b_type()))
                 << "Output/accumulator types must match for Stream-K";
     }
-    ir_check(is_grf_usage_ok(*this)) << "GRF usage exceeded";
+    gpu_check(is_grf_usage_ok(*this)) << "GRF usage exceeded";
     return true;
 }
 
@@ -229,9 +229,9 @@ void kernel_desc_t::set(const std::string &s) {
     parse_result_t result;
     iface.parse(s, *this, &result);
     if (!result.is_set("--iter") || !result.is_set("--tg")) {
-        ir_info() << "Error: missing --iter and/or --tg parameters in kernel "
-                     "descriptor.";
-        ir_error_not_expected();
+        gpu_info() << "Error: missing --iter and/or --tg parameters in kernel "
+                      "descriptor.";
+        gpu_error_not_expected();
     }
     set_defaults();
 }
@@ -261,7 +261,7 @@ void kernel_desc_t::set_defaults() {
                 loop_desc.add(pvars::od);
                 loop_desc.add(pvars::mb);
                 break;
-            default: ir_error_not_expected(); break;
+            default: gpu_error_not_expected(); break;
         }
     }
     if (is_dw) {
@@ -294,7 +294,7 @@ bool fit_tag(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
             && kernel_desc.ext.has(extensions_t::out_size(prb_type.size())))
         type_ok = true;
     if (!type_ok && is_out && kernel_desc.use_stream_k) type_ok = true;
-    ir_check(type_ok
+    gpu_check(type_ok
             && prb_tag.matches(desc_tag, prb.shape(), /*check_type=*/false))
             << to_string(abc) << " tag " << prb_tag
             << " does not match kernel descriptor tag " << desc_tag;
@@ -302,29 +302,29 @@ bool fit_tag(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
 }
 
 bool fit_impl(const kernel_desc_t &desc, const problem_t &prb, bool exact) {
-    ir_check(prb.prop() == desc.prop) << "Propagation kind does not match";
-    ir_check(fit_tag(tensor_kind_t::a, desc, prb, exact));
-    ir_check(fit_tag(tensor_kind_t::b, desc, prb, exact));
-    ir_check(fit_tag(tensor_kind_t::c, desc, prb, exact));
-    ir_check(prb.is_depthwise() == desc.is_dw)
+    gpu_check(prb.prop() == desc.prop) << "Propagation kind does not match";
+    gpu_check(fit_tag(tensor_kind_t::a, desc, prb, exact));
+    gpu_check(fit_tag(tensor_kind_t::b, desc, prb, exact));
+    gpu_check(fit_tag(tensor_kind_t::c, desc, prb, exact));
+    gpu_check(prb.is_depthwise() == desc.is_dw)
             << "Mixing depthwise/non-depthwise descriptor and problem";
     if (desc.use_stream_k) {
-        ir_check(!prb.with_bias_fwd() && !prb.with_post_ops())
+        gpu_check(!prb.with_bias_fwd() && !prb.with_post_ops())
                 << "Stream-K is incompatible with post-ops/bias";
     }
     if (exact) {
-        ir_check(prb.with_bias_bwd_w() == desc.with_bias_bwd_w())
+        gpu_check(prb.with_bias_bwd_w() == desc.with_bias_bwd_w())
                 << "Problem and descriptor bias reduction mismatch";
-        ir_check(prb.with_bias_fwd() == desc.with_bias_fwd())
+        gpu_check(prb.with_bias_fwd() == desc.with_bias_fwd())
                 << "Problem and descriptor bias mismatch";
     }
     if (prb.with_bias_bwd_w() != desc.with_bias_bwd_w()) {
         if (prb.with_bias_bwd_w()) {
-            ir_check(desc.ext.has(extension_kind_t::bias))
+            gpu_check(desc.ext.has(extension_kind_t::bias))
                     << "Bias is not supported";
         }
     }
-    ir_check(desc.reqs.fits(prb.shape() | prb.vars()));
+    gpu_check(desc.reqs.fits(prb.shape() | prb.vars()));
     return true;
 }
 
@@ -370,7 +370,7 @@ status_t kernel_desc_t::set_post_ops(const post_ops_t &attr_post_ops,
         auto &e = attr_post_ops.entry_[i];
         if (e.is_binary()) {
             auto &md = e.binary.src1_desc;
-            ir_assert(out_md->ndims == md.ndims);
+            gpu_assert(out_md->ndims == md.ndims);
             memory_desc_t axb_md;
             CHECK(memory_desc_init_by_tag(axb_md, md.ndims, md.dims,
                     md.data_type,
@@ -536,7 +536,7 @@ bool arg_helper_t::is_input(const std::string &name) const {
     if (name == "wei") return is_fwd() || is_bwd_d();
     if (name == "dst") return is_bwd_d() || is_bwd_w();
     if (name == "bias") return desc_.with_bias_fwd();
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return false;
 }
 
@@ -545,22 +545,22 @@ bool arg_helper_t::is_output(const std::string &name) const {
     if (name == "wei") return is_bwd_w();
     if (name == "dst") return is_fwd();
     if (name == "bias") return desc_.with_bias_bwd_w();
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return false;
 }
 
 std::string arg_helper_t::post_op_name(size_t idx) const {
-    ir_assert(idx < desc_.post_ops.len());
+    gpu_assert(idx < desc_.post_ops.len());
     auto &po = desc_.post_ops[idx];
     if (po.is_eltwise() || po.is_sum()) return "";
     if (po.is_binary()) return "binary_" + std::to_string(idx);
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return "";
 }
 
 int arg_helper_t::post_op_key(size_t idx) const {
     int _idx = static_cast<int>(idx);
-    ir_assert(idx < desc_.post_ops.len());
+    gpu_assert(idx < desc_.post_ops.len());
     auto &po = desc_.post_ops[idx];
     if (po.is_eltwise() || po.is_sum()) return DNNL_ARG_UNDEF;
     if (po.is_binary() && po.as_binary().alg == alg_kind::binary_prelu) {
@@ -569,7 +569,7 @@ int arg_helper_t::post_op_key(size_t idx) const {
     if (po.is_binary()) {
         return DNNL_ARG_ATTR_MULTIPLE_POST_OP(_idx) | DNNL_ARG_SRC_1;
     }
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return -1;
 }
 
@@ -685,14 +685,14 @@ bool try_register_internal_arg(kernel_info_t &kernel_info, const expr_t &var,
     pvar_t dim;
     dim_t denom = 1;
     if (try_parse_internal_arg(name, dim, denom, "_magic")) {
-        ir_assert(var.type().is_u64());
+        gpu_assert(var.type().is_u64());
         uint64_t value = ir_utils::idiv_magicgu_packed(
                 into<uint32_t>(utils::div_up(pvar_map.at(dim), denom)));
         kernel_info.set_internal_arg(name, value);
         return true;
     }
     if (try_parse_internal_arg(name, dim, denom)) {
-        ir_assert(!dim.is_undef());
+        gpu_assert(!dim.is_undef());
         if (type == type_t::s32()) {
             int32_t value
                     = into<int32_t>(utils::div_up(pvar_map.at(dim), denom));
@@ -715,7 +715,7 @@ dim_t stream_k_thread_groups(
 }
 
 type_t accumulator_type(const type_t &a_type, const type_t &b_type) {
-    ir_assert(a_type.size() == b_type.size());
+    gpu_assert(a_type.size() == b_type.size());
     return a_type.is_fp() ? type_t::f32() : type_t::s32();
 }
 
@@ -740,7 +740,7 @@ kernel_desc_t to_stream_k(const kernel_desc_t &desc, bool check_ext) {
         case tensor_kind_t::dst:
             sk_desc.dst_tag = sk_desc.dst_tag.with_type(acc_type);
             break;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return sk_desc;
 }
@@ -772,7 +772,7 @@ void init_kernel_info(kernel_info_t &kernel_info, const problem_t &prb,
         auto &var = kernel_info.arg_var(i);
         if (var.type().is_scalar()) {
             bool ok = try_register_internal_arg(kernel_info, var, pvar_map);
-            ir_assert(ok) << "Cannot handle argument: " << var;
+            gpu_assert(ok) << "Cannot handle argument: " << var;
         }
     }
 }
@@ -845,7 +845,7 @@ jit::layout_t get_kernel_layout(const std::string &name,
         tag = make_conv_layout_tag(
                 out_kind, "axb:" + type_t(md.data_type).str());
     }
-    ir_assert(!tag.is_empty()) << "Unknown tensor: " << name;
+    gpu_assert(!tag.is_empty()) << "Unknown tensor: " << name;
     auto layout = to_conv_layout(tag, md, name == "wei" && !pd->with_groups());
     if (layout.type() != tag.type()) layout = layout.retype(tag.type());
     return layout;
@@ -875,7 +875,7 @@ status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
         plan.add_user_buffer(user_name, user_layout, t.is_input, t.is_output,
                 t.arg_key, zero_out);
         if (user_name == t.name) {
-            ir_assert(user_layout == compute_layout)
+            gpu_assert(user_layout == compute_layout)
                     << "Incompatible user/kernel layouts. User: "
                     << user_layout.str()
                     << ", kernel: " << compute_layout.str();
@@ -893,7 +893,7 @@ status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
 }
 
 serialized_t kernel_desc_t::serialize() const {
-    ir_assert(is_finalized) << "Cannot serialize non-finalized descriptor";
+    gpu_assert(is_finalized) << "Cannot serialize non-finalized descriptor";
     std::ostringstream oss;
     jit::stringify(oss, *this);
     auto str = oss.str();
@@ -948,7 +948,7 @@ grid_t create_thread_group_grid(const kernel_desc_t &desc) {
             set(pvars::kd, 1);
             set(pvars::g, 2);
             break;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return grid;
 }
@@ -972,7 +972,7 @@ grid_t create_thread_grid(const kernel_desc_t &desc) {
             grid.add_mapping(pvars::oc, 0);
             grid.add_mapping(pvars::ic, 1);
             break;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     for (auto &d : grid.all_dims()) {
         if (!desc.thread_group_tile.has(d)) grid.unset(d);

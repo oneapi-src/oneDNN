@@ -105,12 +105,12 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
     profile.stop("Epilogue");
 
 #ifdef DNNL_DEV_MODE
-    ir_perf_no_trace() << profile;
+    gpu_perf_no_trace() << profile;
 
-    ir_trace() << "Actual register usage:           " << ra_.get_peak_regs();
+    gpu_trace() << "Actual register usage:           " << ra_.get_peak_regs();
     int estimated_peak_regs = estimate_register_count(cfg_);
     if (ra_.get_peak_regs() > estimated_peak_regs) {
-        ir_warning()
+        gpu_warning()
                 << "conv_kernel_t register usage underestimated: estimate = "
                 << estimated_peak_regs << ", actual = " << ra_.get_peak_regs();
     }

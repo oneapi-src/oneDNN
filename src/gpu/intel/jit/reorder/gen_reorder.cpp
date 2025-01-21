@@ -193,13 +193,13 @@ status_t gen_reorder_t::pd_t::init_kernel_info() {
 
     // Initialize kernel arguments.
     for (auto &t : tensor_cfg.tensors()) {
-        ir_assert(!t.needs_reorder);
-        ir_assert(!t.needs_zero_out);
+        gpu_assert(!t.needs_reorder);
+        gpu_assert(!t.needs_zero_out);
 
         if (t.arg_key == DNNL_ARG_UNDEF) {
-            ir_assert(!t.needs_reorder);
-            ir_assert(!t.needs_zero_out);
-            ir_error_not_expected();
+            gpu_assert(!t.needs_reorder);
+            gpu_assert(!t.needs_zero_out);
+            gpu_error_not_expected();
             continue;
         }
         kernel_info->register_user_arg(make_buffer(t.name), t.arg_key,

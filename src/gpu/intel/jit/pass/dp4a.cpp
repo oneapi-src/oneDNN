@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ private:
         if (type.is_x32()) return type;
         if (type.is_s8()) return type_t::s32();
         if (type.is_u8()) return type_t::u32();
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return type_t();
     };
 };

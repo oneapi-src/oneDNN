@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ enum class hw_t {
 hw_t to_hw(const std::string &s) {
     if (s == "xehpg") return hw_t::xehpg;
     if (s == "xehpc") return hw_t::xehpc;
-    ir_assert(false);
+    gpu_assert(false);
     return hw_t::undef;
 }
 
@@ -58,7 +58,7 @@ enum class fma_t {
 fma_t to_fma(const std::string &s) {
     if (s == "mad") return fma_t::mad;
     if (s == "dpas") return fma_t::dpas;
-    ir_assert(false);
+    gpu_assert(false);
     return fma_t::undef;
 }
 
@@ -73,7 +73,7 @@ prop_t to_prop(const std::string &s) {
     if (s == "fwd") return prop_t::fwd;
     if (s == "bwd_d") return prop_t::bwd_d;
     if (s == "bwd_w") return prop_t::bwd_w;
-    ir_assert(false);
+    gpu_assert(false);
     return prop_t::undef;
 }
 
@@ -113,13 +113,13 @@ void get_types(const std::string &type_cfg, prop_t prop, type_t &src_type,
     }
     if (pos != type_cfg.length() || idx != ntypes) {
         std::cout << type_cfg << std::endl;
-        ir_assert(false);
+        gpu_assert(false);
     }
     switch (prop) {
         case prop_t::fwd: break;
         case prop_t::bwd_d: std::swap(types[0], types[2]); break;
         case prop_t::bwd_w: std::swap(types[1], types[2]); break;
-        default: ir_assert(false);
+        default: gpu_assert(false);
     }
     src_type = types[0];
     dst_type = types[2];
@@ -170,7 +170,7 @@ struct hw_config_t {
                 s8_dpas_ops_per_clock = 1024;
                 f32_mad_ops_per_clock = 32;
                 break;
-            default: ir_assert(false); break;
+            default: gpu_assert(false); break;
         }
         bool is_dpas = (fma == fma_t::dpas);
         switch (src_type) {
@@ -184,7 +184,7 @@ struct hw_config_t {
                 ops_per_clock = (is_dpas ? s8_dpas_ops_per_clock / 8
                                          : f32_mad_ops_per_clock / 2);
                 break;
-            default: ir_assert(false); break;
+            default: gpu_assert(false); break;
         }
         threads_per_eu = (is_dpas ? 4 : 8);
     }
@@ -212,7 +212,7 @@ enum class metric_t {
 metric_t to_metric(const std::string &s) {
     if (s == "mse") return metric_t::mse;
     if (s == "msre") return metric_t::msre;
-    ir_assert(false);
+    gpu_assert(false);
     return metric_t::undef;
 }
 
@@ -228,7 +228,7 @@ score_t to_score(const std::string &s) {
     if (s == "r2") return score_t::r2;
     if (s == "mae") return score_t::mae;
     if (s == "mape") return score_t::mape;
-    ir_assert(false);
+    gpu_assert(false);
     return score_t::undef;
 }
 
@@ -507,7 +507,7 @@ struct conv_sample_t {
                 n = t.oc;
                 k = t.mb * t.od * t.oh * t.ow;
                 break;
-            default: ir_assert(false);
+            default: gpu_assert(false);
         }
         if (transpose) std::swap(m, n);
     }
@@ -529,7 +529,7 @@ struct conv_sample_t {
                 dims.push_back(&ret.ih);
                 dims.push_back(&ret.iw);
                 break;
-            default: ir_assert(false);
+            default: gpu_assert(false);
         }
         for (auto *d : dims)
             if (*d == -1) *d = 1;
@@ -567,7 +567,7 @@ public:
                     buckets_[i].push_back(kv.first);
                 }
             }
-            ir_assert((int)buckets_[i].size() <= bucket_count);
+            gpu_assert((int)buckets_[i].size() <= bucket_count);
         }
     }
 
@@ -582,7 +582,7 @@ public:
 
     template <typename T>
     vec1d<T> to(const vec1d<float> &x) const {
-        ir_assert(x.size() == buckets_.size());
+        gpu_assert(x.size() == buckets_.size());
         vec1d<T> ret(x.size());
         for (int i = 0; i < (int)x.size(); i++)
             ret[i] = to_bucket<T>(x[i], i);
@@ -650,7 +650,7 @@ float score(const std::vector<float> &y, const std::vector<float> &y_pred,
         case score_t::r2: return r2_score(y, y_pred);
         case score_t::mae: return mae_score(y, y_pred);
         case score_t::mape: return mape_score(y, y_pred);
-        default: ir_assert(false);
+        default: gpu_assert(false);
     }
     return 0;
 }
@@ -688,7 +688,7 @@ public:
     int feature_count() const { return nfeatures_; }
 
     float predict(const vec1d<x_type> &x) const {
-        ir_assert((int)x.size() == (int)nfeatures_);
+        gpu_assert((int)x.size() == (int)nfeatures_);
         return predict_impl(x, 0);
     }
 
@@ -715,7 +715,7 @@ public:
             walk(node.right);
         };
         walk(0);
-        ir_assert(non_leaf_nodes * 2 + 1 == node_count());
+        gpu_assert(non_leaf_nodes * 2 + 1 == node_count());
         for (auto &c : count)
             c /= non_leaf_nodes;
         return count;
@@ -761,7 +761,7 @@ private:
     }
 
     const tree_node_t &get_node(int idx) const {
-        ir_assert(idx < reserved_nodes_);
+        gpu_assert(idx < reserved_nodes_);
         return nodes_[idx];
     }
 
@@ -895,7 +895,7 @@ private:
                     err += weight * val * val;
                 }
                 break;
-            default: ir_assert(false);
+            default: gpu_assert(false);
         }
         return err / total;
     }
@@ -919,15 +919,15 @@ private:
             data.resize(off + sizeof(node.value));
             std::memcpy(&data[off], &node.value, sizeof(node.value));
         } else {
-            ir_assert(node.feature_idx >= 0 && node.feature_idx <= u8_max);
-            ir_assert(node.value >= 0 && node.value <= u8_max);
+            gpu_assert(node.feature_idx >= 0 && node.feature_idx <= u8_max);
+            gpu_assert(node.value >= 0 && node.value <= u8_max);
             data.push_back((uint8_t)node.feature_idx);
             data.push_back((uint8_t)node.value);
             size_t right_off_idx = data.size();
             data.push_back(0);
             data.push_back(0);
             size_t right_off = serialize_node(data, node.left);
-            ir_assert(right_off <= u16_max);
+            gpu_assert(right_off <= u16_max);
             std::memcpy(&data[right_off_idx], &right_off, sizeof(uint16_t));
             serialize_node(data, node.right);
         }
@@ -943,10 +943,10 @@ private:
         int left = -1;
         int right = -1;
         if (is_leaf) {
-            ir_assert(off + 1 + sizeof(value) <= data.size());
+            gpu_assert(off + 1 + sizeof(value) <= data.size());
             std::memcpy(&value, &data[off + 1], sizeof(value));
         } else {
-            ir_assert(off + 3 < data.size());
+            gpu_assert(off + 3 < data.size());
             value = (float)data[off + 1];
             uint8_t right_off_u8[2] = {data[off + 2], data[off + 3]};
             uint16_t right_off;
@@ -1001,7 +1001,7 @@ public:
     int tree_count() const { return (int)trees_.size(); }
 
     int feature_count() const {
-        ir_assert(!trees_.empty());
+        gpu_assert(!trees_.empty());
         return trees_[0].feature_count();
     }
 
@@ -1032,7 +1032,7 @@ public:
 
     std::vector<std::pair<std::string, float>> feature_importances(
             const std::vector<const char *> &feature_names) const {
-        ir_assert((int)feature_names.size() == feature_count());
+        gpu_assert((int)feature_names.size() == feature_count());
         vec1d<float> fi(feature_count());
         for (auto &tree : trees_) {
             auto tree_fi = tree.feature_importances();

@@ -118,7 +118,7 @@ int get_default_mad_block(const type_t &type) {
         case 2:
         case 4: return 16;
         case 8: return 8;
-        default: ir_error_not_expected() << type;
+        default: gpu_error_not_expected() << type;
     }
     return 1;
 }
@@ -288,9 +288,9 @@ std::string build_tag(const std::vector<int> &inner_blocks,
         const std::vector<int> &outer_blocks, const std::vector<char> &letters,
         const std::vector<int> &idxs) {
     dim_idx_t n = into<dim_idx_t>(letters.size());
-    ir_assert(inner_blocks.size() == n);
-    ir_assert(outer_blocks.size() == n);
-    ir_assert(idxs.size() == n);
+    gpu_assert(inner_blocks.size() == n);
+    gpu_assert(outer_blocks.size() == n);
+    gpu_assert(idxs.size() == n);
 
     std::string tag;
     std::vector<bool> seen(n);
@@ -528,7 +528,7 @@ std::string get_plain_user_tag(
                 = {"abcx", "abxc", "axcb"};
         auto &plain_wei_tags = (prb.with_groups ? plain_group_wei_tags
                                                 : plain_non_group_wei_tags);
-        ir_assert(
+        gpu_assert(
                 plain_non_group_wei_tags.size() == plain_group_wei_tags.size());
         for (size_t i = 0; i < plain_wei_tags.size(); i++) {
             if (matches_tag(md, plain_wei_tags[i])) {
@@ -561,7 +561,7 @@ std::string maybe_fixup_1st_conv_wei_tag(
         auto ret = tag;
         return ret.replace(pos, std::strlen(*p), *(p + 1));
     }
-    ir_error_not_expected() << tag;
+    gpu_error_not_expected() << tag;
     return tag;
 }
 
@@ -702,7 +702,7 @@ void prepare_zp_precompute_conv(const conv_problem_t &prb, dim_t *idhw,
 
     for (int i = off; i < int(K.size()); i++) {
         const auto KD = (K[i] - 1) * (D[i] + 1) + 1;
-        ir_assert(w->dims[2 + i + prb.with_groups - off] == K[i]);
+        gpu_assert(w->dims[2 + i + prb.with_groups - off] == K[i]);
         O[i] = ir_utils::max_unique_pad_states(
                 O[i], I[i], KD, P[i], S[i], true);
         I[i] = std::min(KD, I[i]);
@@ -1263,7 +1263,7 @@ send_pattern_t<pvar_t> validate_blocking(const conv_config_t &cfg,
         return all_hints;
     }();
     if (hints.empty()) {
-        ir_suggestion() << "No hints generated!";
+        gpu_suggestion() << "No hints generated!";
         return send_pattern();
     }
 
@@ -1271,11 +1271,11 @@ send_pattern_t<pvar_t> validate_blocking(const conv_config_t &cfg,
         if (is_match(h)) { return send_pattern(h); }
     }
 
-    ir_suggestion() << "blocking disables " << send_pattern(hints[0])
-                    << " load of the " << tensor
-                    << " tensor. Try a multiple of:";
+    gpu_suggestion() << "blocking disables " << send_pattern(hints[0])
+                     << " load of the " << tensor
+                     << " tensor. Try a multiple of:";
     for (auto &hint : hints) {
-        ir_suggestion() << "\t" << hint.str();
+        gpu_suggestion() << "\t" << hint.str();
     }
 
     return send_pattern();
@@ -1323,7 +1323,7 @@ pvar_tile_3 get_thread_group_grid_conv_dims(const conv_config_t &cfg) {
     if (prb.is_fwd) return (prb.ab_swap_transpose) ? t_fwd : fwd;
     if (prb.is_bwd_d) return (prb.ab_swap_transpose) ? t_bwd_d : bwd_d;
     if (prb.is_bwd_w) return (prb.ab_swap_transpose) ? t_bwd_w : bwd_w;
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return fwd;
 }
 
@@ -1359,9 +1359,9 @@ void get_layout_and_dims(tensor_kind_t ab_kind, const conv_config_t &cfg,
             dims = prb.pick_b<const std::vector<pvar_t> &>(
                     src_dims, wei_dims, dst_dims);
             break;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
-    ir_assert(layout.ndims() == dims.size());
+    gpu_assert(layout.ndims() == dims.size());
 }
 
 // Calculates the size of the range for spatial dimensions within a tile.
@@ -1381,7 +1381,7 @@ dim_t map_spatial(
     dim_t stride[] = {prb.sd, prb.sh, prb.sw};
     dim_t dilation[] = {prb.dd, prb.dh, prb.dw};
     int idx = dim.spatial_index();
-    ir_assert(idx != -1);
+    gpu_assert(idx != -1);
     dim_t O = tile.get(osp_dims[idx], 1);
     dim_t I = tile.get(isp_dims[idx], 1);
     dim_t K = tile.get(ksp_dims[idx], 1);
@@ -1390,13 +1390,13 @@ dim_t map_spatial(
     dim_t D = dilation[idx];
     if (is_isp) {
         // Source tensor, map ox, kx to ix.
-        ir_assert(prb.is_fwd || prb.is_bwd_w);
+        gpu_assert(prb.is_fwd || prb.is_bwd_w);
         dim_t i_min = -P;
         dim_t i_max = (O - 1) * S - P + (K - 1) * (1 + D);
         return std::min(isp[idx], i_max - i_min + 1);
     }
     // Destination tensor, map ix, kx to ox.
-    ir_assert(is_osp && prb.is_bwd_d);
+    gpu_assert(is_osp && prb.is_bwd_d);
     dim_t os_min = P - (K - 1) * (1 + D);
     dim_t os_max = (I - 1) + P;
     return std::min(osp[idx], utils::div_up(os_max - os_min + 1, S));
@@ -1425,7 +1425,7 @@ size_t get_memory_footprint(const tensor_kind_t &ab_kind,
         tile[d] = d_size;
         elems *= std::min(d_size, layout.dim(i));
     }
-    ir_assert(elems >= 1);
+    gpu_assert(elems >= 1);
     return (size_t)layout.type().size() * elems;
 }
 
@@ -1585,7 +1585,7 @@ public:
                 }
             }
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return entry_t();
     }
 
@@ -1751,7 +1751,7 @@ void init_slm(conv_config_t &cfg) {
         }
         bufs = fixup_slm_bufs(prb, bufs, cfg.zp_cfg().do_src_compensation,
                 enable_a, enable_b, cfg.pipeline().do_unroll());
-        ir_assert(bufs > 0);
+        gpu_assert(bufs > 0);
         gmem_bufs = (cfg.is_dp_fma() && cfg.pipeline().do_unroll()) ? 2 : 1;
     }
     gmem_bufs = std::min(cfg.plan().max_gmem_bufs, gmem_bufs);
@@ -1805,7 +1805,7 @@ void validate_config_and_plan(conv_config_t &cfg) {
                   for (auto &tile : grid)
                       for (auto &d : tile)
                           if (d == dim) return;
-                  ir_error_not_expected() << dim.name();
+                  gpu_error_not_expected() << dim.name();
               };
     const auto &tg_dims = get_thread_group_grid_conv_dims(cfg);
     const auto &grid_dims = get_kernel_grid_conv_dims(cfg);
@@ -1815,9 +1815,9 @@ void validate_config_and_plan(conv_config_t &cfg) {
     }
 
     auto &plan = cfg.plan();
-    ir_assert(cfg.slm().a() == plan.slm.has_a());
-    ir_assert(cfg.slm().b() == plan.slm.has_b());
-    ir_assert(cfg.pipeline().reuse_headers() == plan.reuse_headers);
+    gpu_assert(cfg.slm().a() == plan.slm.has_a());
+    gpu_assert(cfg.slm().b() == plan.slm.has_b());
+    gpu_assert(cfg.pipeline().reuse_headers() == plan.reuse_headers);
 
 #ifdef DNNL_DEV_MODE
     using send_pattern = send_pattern_t<pvar_t>;
@@ -1846,13 +1846,13 @@ void validate_config_and_plan(conv_config_t &cfg) {
     auto dummy_reg(var_t::make(type_t::byte_ptr(), "reg"));
     if (!a_load_pattern.matches(
                 plan.x2r.a_load.create_stmt(dummy_mem, dummy_reg))) {
-        ir_warning() << "Generated load for tensor A does not match "
-                     << a_load_pattern << " load idiom";
+        gpu_warning() << "Generated load for tensor A does not match "
+                      << a_load_pattern << " load idiom";
     }
     if (!b_load_pattern.matches(
                 plan.x2r.b_load.create_stmt(dummy_mem, dummy_reg))) {
-        ir_warning() << "Generated load for tensor B does not match "
-                     << a_load_pattern << " load idiom";
+        gpu_warning() << "Generated load for tensor B does not match "
+                      << a_load_pattern << " load idiom";
     }
 #endif
 }

@@ -384,8 +384,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     // - int -> hf must be DW-aligned & strided: use f temporary
     // - Use b -> w -> f -> hf
     if (src_b && dst_hf) {
-        ir_assert(utils::one_of(dst_stride_bytes, 2, 4));
-        ir_assert(utils::one_of(src_stride_bytes, 1, 4));
+        gpu_assert(utils::one_of(dst_stride_bytes, 2, 4));
+        gpu_assert(utils::one_of(src_stride_bytes, 1, 4));
         int step = get_step();
         const int align_boundary = grf_size / 2;
         const int step_size = step * (int)sizeof(uint32_t);
@@ -795,8 +795,8 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
 
     // hf -> b
     if (src_hf && dst_b) {
-        ir_assert(utils::one_of(src_stride_bytes, 2, 4));
-        ir_assert(utils::one_of(dst_stride_bytes, 1, 4));
+        gpu_assert(utils::one_of(src_stride_bytes, 2, 4));
+        gpu_assert(utils::one_of(dst_stride_bytes, 1, 4));
         int step = get_step();
         const int tmp_stride = 4;
         const int tmp_stride_bytes = tmp_stride * dst_type_size;
@@ -835,7 +835,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
                 if (hw != ngen::HW::Gen9) {
                     plan(mov, esize | host->sat, d(dst_stride), s(src_stride));
                 } else {
-                    ir_assert(dst_stride_bytes % tmp_stride_bytes == 0);
+                    gpu_assert(dst_stride_bytes % tmp_stride_bytes == 0);
                     auto d_f = dst.format(i * ngen::getBytes(ngen::DataType::f),
                             ngen::DataType::f, esize,
                             dst_stride_bytes / tmp_stride_bytes);
@@ -993,9 +993,9 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     bool d_or_f_to_b = (src_d || src_f) && dst_b;
     bool b_to_d_or_f = (dst_d || dst_f) && src_b;
     if (d_or_f_to_b || b_to_d_or_f) {
-        if (dst_d || dst_f) ir_assert(dst_stride_bytes == 4);
-        if (src_d || src_f) ir_assert(src_stride_bytes == 4);
-        if (dst_b) ir_assert(utils::one_of(dst_stride_bytes, 1, 4, 8));
+        if (dst_d || dst_f) gpu_assert(dst_stride_bytes == 4);
+        if (src_d || src_f) gpu_assert(src_stride_bytes == 4);
+        if (dst_b) gpu_assert(utils::one_of(dst_stride_bytes, 1, 4, 8));
         int step = get_step();
         const int step_size = step * (int)sizeof(uint32_t);
         const int nregs = 1 + utils::div_up(step_size, grf_size);
@@ -1100,7 +1100,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
             int esize = step;
-            ir_assert(math::is_pow2(esize));
+            gpu_assert(math::is_pow2(esize));
             auto s = src.format(i * src_stride_bytes, ngen::DataType::invalid,
                     esize, src_stride);
             auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
@@ -1259,7 +1259,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             step = std::min(step, width - i);
             step = utils::rnd_down_pow2(step);
             int esize = step;
-            ir_assert(math::is_pow2(esize));
+            gpu_assert(math::is_pow2(esize));
             auto s = src.format(i * src_stride_bytes, dst_type, esize,
                     src_stride * src_type_size / dst_type_size);
             auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
@@ -1275,7 +1275,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
         step = std::min(step, width - i);
         step = utils::rnd_down_pow2(step);
         int esize = step;
-        ir_assert(math::is_pow2(esize));
+        gpu_assert(math::is_pow2(esize));
         auto s = src.format(i * src_stride_bytes, ngen::DataType::invalid,
                 esize, src_stride);
         auto d = dst.format(i * dst_stride_bytes, ngen::DataType::invalid,
@@ -1367,7 +1367,7 @@ public:
     reorder_2d_impl_t(ngen::HW hw, tensor_t tile, const layout_t &src_layout,
             const layout_t &dst_layout)
         : hw_(hw), src_(src_layout), dst_(dst_layout), tile_(std::move(tile)) {
-        ir_assert(src_.type() == dst_.type());
+        gpu_assert(src_.type() == dst_.type());
     }
 
     const tensor_t &tile() const { return tile_; }
@@ -1416,8 +1416,8 @@ public:
             auto next_rd = (use_dst ? dst_rd : tmp);
             auto &x_blocks = x.blocks();
             auto &y_blocks = y.blocks();
-            ir_assert(x_blocks.size() <= 1);
-            ir_assert(y_blocks.size() <= 1);
+            gpu_assert(x_blocks.size() <= 1);
+            gpu_assert(y_blocks.size() <= 1);
             int x_stride = (x_blocks.empty() ? 1 : int(x_blocks[0].stride));
             int y_stride = (y_blocks.empty() ? 1 : int(y_blocks[0].stride));
             int width = int(tile.elems()) * orig_type.size() / type.size();
@@ -1546,8 +1546,8 @@ private:
             for (int i = min_log_bytes; i <= max_log_bytes; i++) {
                 if ((mask & (1 << i)) == 0) continue;
                 if (i > min_log_bytes) {
-                    ir_assert(!layout.blocks().empty());
-                    ir_assert(!v.layout.blocks().empty());
+                    gpu_assert(!layout.blocks().empty());
+                    gpu_assert(!v.layout.blocks().empty());
                     int dim_idx0 = layout.blocks()[0].dim_idx;
                     int dim_idx1 = v.layout.blocks()[0].dim_idx;
                     if (dim_idx0 != dim_idx1) continue;
@@ -1597,7 +1597,7 @@ private:
                 b_idx = i;
                 continue;
             }
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
 
         for (dim_idx_t i = 0; i < tile.ndims(); i++) {
@@ -1688,8 +1688,8 @@ private:
                 dst_idx = i;
         }
 
-        ir_assert(src_idx != -1);
-        ir_assert(dst_idx != -1);
+        gpu_assert(src_idx != -1);
+        gpu_assert(dst_idx != -1);
 
         // Layouts are the same, just copy.
         if (src_idx == dst_idx) {
@@ -1737,7 +1737,7 @@ private:
         // Sanity check, ensure the reorder sequence is not too long.
         int max_cost = 256;
         if (cost[dst_idx] > max_cost)
-            ir_warning() << "High cost reorder generated";
+            gpu_warning() << "High cost reorder generated";
 
         // Restore the shortest reorder path.
         std::vector<reorder_step_t> ret;

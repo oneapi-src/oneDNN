@@ -103,7 +103,7 @@ public:
         } else if (func.is<builtin_t>()) {
             // No buffers to check.
         } else {
-            ir_error_not_expected() << "Unhandled function: " << obj;
+            gpu_error_not_expected() << "Unhandled function: " << obj;
         }
 
         ir_visitor_t::_visit(obj);
@@ -134,10 +134,10 @@ private:
         auto &base = (is_var(buf) ? buf : buf.as<ptr_t>().base);
         dim_t off = (is_var(buf) ? 0 : to_cpp<dim_t>(buf.as<ptr_t>().off));
         auto it = buf_sizes_.find(base);
-        ir_assert(it != buf_sizes_.end())
+        gpu_assert(it != buf_sizes_.end())
                 << "Can't find allocation for buffer: " << buf;
         int buf_size = it->second;
-        ir_assert(off + size <= buf_size)
+        gpu_assert(off + size <= buf_size)
                 << "Invalid access:\n    " << obj << "\n    Buffer " << base
                 << " has size: " << buf_size;
     }
@@ -350,8 +350,8 @@ private:
     void build_x2r_mul() {
         auto &x2r = plan_.x2r;
         auto &fma = plan_.fma;
-        ir_assert(x2r.split_abc == fma.split_abc);
-        ir_assert(x2r.split_factor == fma.split_factor);
+        gpu_assert(x2r.split_abc == fma.split_abc);
+        gpu_assert(x2r.split_factor == fma.split_factor);
         for (int i = 0; i < x2r.split_factor; i++) {
             build_x2r(i);
             stmt_t mul_stmt;
@@ -443,7 +443,7 @@ private:
     void build_zp_apply(int subtile_idx, stmt_t &mul_stmt) {
         auto make_zp_fma = [&](const std::string &zp_buf, abc_kind_t kind,
                                    int size) {
-            ir_assert((kind == abc_kind_t::a) || (kind == abc_kind_t::b));
+            gpu_assert((kind == abc_kind_t::a) || (kind == abc_kind_t::b));
             buf_mgr_.get(zp_buf, size);
             return plan_.fma.create_stmt(ir_ctx_, buf_mgr_,
                     (kind == abc_kind_t::a) ? zp_buf : "a",
@@ -758,7 +758,7 @@ void conv_ir_builder_t::build() {
     verify_buffer_access(stmt_, ir_ctx);
 #endif
 
-    ir_trace() << "Convolution kernel body:\n" << stmt_;
+    gpu_trace() << "Convolution kernel body:\n" << stmt_;
     trace_perf();
 }
 

@@ -62,12 +62,12 @@ public:
     }
 
     const ngen::Immediate &immediate() const {
-        ir_assert(is_immediate());
+        gpu_assert(is_immediate());
         return *(const ngen::Immediate *)ptr_.get();
     }
 
     const reg_buf_data_t &reg_buf_data() const {
-        ir_assert(is_reg_buf_data());
+        gpu_assert(is_reg_buf_data());
         return *(const reg_buf_data_t *)ptr_.get();
     }
 
@@ -77,7 +77,7 @@ public:
     }
 
     const ngen::FlagRegister &flag_register() const {
-        ir_assert(is_flag_register());
+        gpu_assert(is_flag_register());
         return *(const ngen::FlagRegister *)ptr_.get();
     }
 
@@ -110,7 +110,7 @@ public:
     ngen::DataType type() const {
         if (is_immediate()) return immediate().getType();
         if (is_reg_buf_data()) return reg_buf_data().type();
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return ngen::DataType::invalid;
     }
 
@@ -121,12 +121,12 @@ public:
             ret.is_negated_ = !ret.is_negated_;
             return ret;
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return ngen_operand_t();
     }
 
     ngen_operand_t reinterpret(const type_t &new_type) const {
-        ir_assert(new_type.is_scalar());
+        gpu_assert(new_type.is_scalar());
         return ngen_operand_t(
                 reg_buf_data().reinterpret(to_ngen(new_type)), mod_);
     }
@@ -155,7 +155,7 @@ public:
                 return flag_register() == other.flag_register();
             case ngen_operand_kind_t::reg_buf_data:
                 return reg_buf_data() == other.reg_buf_data();
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return false;
     }
@@ -179,7 +179,7 @@ private:
             case ngen_operand_kind_t::flag_register:
                 delete (ngen::FlagRegister *)ptr;
                 break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
     }
 
@@ -195,7 +195,7 @@ private:
 
 template <typename T>
 T to_cpp(ngen::HW hw, const ngen_operand_t &op) {
-    ir_assert(op.is_immediate());
+    gpu_assert(op.is_immediate());
     return to_cpp<T>(op.immediate());
 }
 

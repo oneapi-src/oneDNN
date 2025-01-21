@@ -140,9 +140,9 @@ public:
     }
 
     void set(const expr_t &ptrn, const expr_t &e) {
-        ir_assert(ptrn.is<pexpr_t>());
+        gpu_assert(ptrn.is<pexpr_t>());
         auto ret = expr_matched_.insert({ptrn, e});
-        ir_assert(ret.second);
+        gpu_assert(ret.second);
         MAYBE_UNUSED(ret);
     }
 
@@ -314,7 +314,7 @@ expr_t simplify_rewrite_add(const expr_t &_e) {
     auto _0 = pint_imm_t::_0();
 
     auto &obj = _e.as<binary_op_t>();
-    ir_assert(obj.op_kind == op_kind_t::_add);
+    gpu_assert(obj.op_kind == op_kind_t::_add);
 
     auto e = _e;
 
@@ -330,7 +330,7 @@ expr_t simplify_rewrite_sub(const expr_t &_e) {
     auto _0 = pint_imm_t::_0();
 
     auto &obj = _e.as<binary_op_t>();
-    ir_assert(obj.op_kind == op_kind_t::_sub);
+    gpu_assert(obj.op_kind == op_kind_t::_sub);
 
     auto e = _e;
 
@@ -347,7 +347,7 @@ expr_t simplify_rewrite_mul(const expr_t &_e) {
     auto _1 = pint_imm_t::_1();
 
     auto &obj = _e.as<binary_op_t>();
-    ir_assert(obj.op_kind == op_kind_t::_mul);
+    gpu_assert(obj.op_kind == op_kind_t::_mul);
 
     auto e = _e;
 
@@ -366,7 +366,7 @@ expr_t simplify_rewrite_div(const expr_t &_e) {
     auto _1 = pint_imm_t::_1();
 
     auto &obj = _e.as<binary_op_t>();
-    ir_assert(obj.op_kind == op_kind_t::_div);
+    gpu_assert(obj.op_kind == op_kind_t::_div);
 
     auto e = _e;
 
@@ -383,7 +383,7 @@ expr_t simplify_rewrite_mod(const expr_t &_e) {
     auto _1 = pint_imm_t::_1();
 
     auto &obj = _e.as<binary_op_t>();
-    ir_assert(obj.op_kind == op_kind_t::_mod);
+    gpu_assert(obj.op_kind == op_kind_t::_mod);
 
     auto e = _e;
 
@@ -397,7 +397,7 @@ expr_t simplify_rewrite_and(const expr_t &_e) {
     auto x = pexpr_t::x();
 
     auto &obj = _e.as<binary_op_t>();
-    ir_assert(obj.op_kind == op_kind_t::_and);
+    gpu_assert(obj.op_kind == op_kind_t::_and);
 
     auto e = _e;
 
@@ -424,7 +424,7 @@ expr_t simplify_rewrite_or(const expr_t &_e) {
     auto x = pexpr_t::x();
 
     auto &obj = _e.as<binary_op_t>();
-    ir_assert(obj.op_kind == op_kind_t::_or);
+    gpu_assert(obj.op_kind == op_kind_t::_or);
 
     auto e = _e;
 
@@ -612,7 +612,7 @@ public:
                     new_op_kind = op_kind_t::_le;
                     div = (sign ? div + 1 : div);
                     break;
-                default: ir_error_not_expected();
+                default: gpu_error_not_expected();
             }
         }
 
@@ -633,7 +633,7 @@ public:
         if (!is_const(a_op.b)) return e;
 
         auto &c0 = a_op.b;
-        ir_assert(to_cpp<int64_t>(c0) > 0) << e;
+        gpu_assert(to_cpp<int64_t>(c0) > 0) << e;
 
         // Comparison against a constant is a continuous function, just check
         // boundary points.
@@ -709,8 +709,8 @@ expr_t cvt_mul_to_nary_op(const expr_t &a, const expr_t &b) {
     auto *a_nary = a.as_ptr<nary_op_t>();
     auto *b_nary = b.as_ptr<nary_op_t>();
 
-    if (a_nary) ir_assert(a_nary->op_kind == op_kind_t::_mul);
-    if (b_nary) ir_assert(b_nary->op_kind == op_kind_t::_mul);
+    if (a_nary) gpu_assert(a_nary->op_kind == op_kind_t::_mul);
+    if (b_nary) gpu_assert(b_nary->op_kind == op_kind_t::_mul);
 
     auto a_args = cvt_expr_to_nary_op_args(a);
     auto b_args = cvt_expr_to_nary_op_args(b);
@@ -799,7 +799,7 @@ public:
             if (arg.is<cast_t>()) arg = args[i].as<cast_t>().expr;
             auto *nary = arg.as_ptr<nary_op_t>();
             if (nary && nary->op_kind != op_kind_t::_add) {
-                ir_error_not_expected();
+                gpu_error_not_expected();
             }
             auto i_args = cvt_expr_to_nary_op_args(arg);
             if (arg.type() != args[i].type()) {
@@ -901,7 +901,7 @@ public:
     object_t _mutate(const nary_op_t &obj) override {
         auto new_obj = nary_op_mutator_t::_mutate(obj);
         auto &nary = new_obj.as<nary_op_t>();
-        ir_assert(!nary.args.empty()) << new_obj;
+        gpu_assert(!nary.args.empty()) << new_obj;
 
         if (nary.args.size() == 1) return nary.args[0];
 
@@ -916,7 +916,7 @@ public:
                 ret *= nary.args[i];
             return std::move(ret);
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return expr_t();
     }
 };
@@ -1048,7 +1048,7 @@ public:
         auto f_common = intersect(other);
         auto diff_other = f_other.diff(f_common);
         // Other must be reducible.
-        ir_assert(diff_other.as<factored_expr_t>().is_one()) << diff_other;
+        gpu_assert(diff_other.as<factored_expr_t>().is_one()) << diff_other;
         return diff(f_common);
     }
 
@@ -1148,7 +1148,7 @@ private:
             factors = f_common.merge(rest).as<factored_expr_t>().factors;
             return;
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
     }
 
     expr_t intersect_impl(const expr_t &other, bool ignore_constants) const {
@@ -1320,7 +1320,7 @@ public:
             return mutate(lhs_div) + mutate(rhs_div);
         }
 
-        ir_error_not_expected() << expr;
+        gpu_error_not_expected() << expr;
 
         return expr_t();
     }
@@ -1376,7 +1376,7 @@ public:
 
         // max_gcd is the GCD for some summand so at least one summand must be
         // reducible.
-        ir_assert(!lhs_args.empty());
+        gpu_assert(!lhs_args.empty());
 
         if (rhs_args.empty()) return expr_t();
 
@@ -1399,7 +1399,7 @@ public:
             return lhs_div;
         }
 
-        ir_error_not_expected() << expr;
+        gpu_error_not_expected() << expr;
 
         return expr_t();
     }
@@ -1458,7 +1458,7 @@ public:
         auto args = mutate(obj.args);
         for (auto &a : args) {
             auto *nary = a.as_ptr<nary_op_t>();
-            if (nary) ir_assert(nary->op_kind == op_kind_t::_mul) << a;
+            if (nary) gpu_assert(nary->op_kind == op_kind_t::_mul) << a;
         }
 
         // Fold same factors (find exact match, ignore constants).
@@ -1694,13 +1694,13 @@ private:
             case op_kind_t::_le: return op_kind_t::_gt;
             case op_kind_t::_lt: return op_kind_t::_ge;
             case op_kind_t::_ne: return op_kind_t::_eq;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return op_kind_t::undef;
     }
 
     static expr_t flip_condition(const expr_t &cond) {
-        ir_assert(cond.type().is_bool());
+        gpu_assert(cond.type().is_bool());
 
         auto *binary_op = cond.as_ptr<binary_op_t>();
         if (binary_op) {
@@ -1716,7 +1716,7 @@ private:
                     flip_condition(shuffle->vec[0]), shuffle->elems());
         }
 
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return expr_t();
     }
 
@@ -1747,7 +1747,7 @@ stmt_t simplify_stmt(const stmt_t &s, const constraint_set_t &cset) {
 }
 
 int64_t get_max_const_factor(const expr_t &_e, const constraint_set_t &cset) {
-    ir_assert(_e.type().is_int());
+    gpu_assert(_e.type().is_int());
     auto e = _e;
     // Some complex expressions need more than one simplify() call.
     int max_tries = 3;
@@ -1816,7 +1816,7 @@ struct op_traits_t<op_kind_t::_div> {
     template <typename T,
             typename = typename std::enable_if<is_int_t<T>::value>::type>
     static auto compute(T a, T b) -> decltype(a / b) {
-        ir_assert(b > 0);
+        gpu_assert(b > 0);
         T r = a % b;
         T d = a / b;
         if (r < 0) d--;
@@ -1829,7 +1829,7 @@ struct op_traits_t<op_kind_t::_mod> {
     template <typename T,
             typename = typename std::enable_if<is_int_t<T>::value>::type>
     static auto compute(T a, T b) -> decltype(a % b) {
-        ir_assert(b > 0);
+        gpu_assert(b > 0);
         T r = a % b;
         if (r < 0) r += b;
         return r;
@@ -1892,7 +1892,7 @@ public:
             CASE(op_kind_t::_min)
             CASE(op_kind_t::_max)
 
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
 
 #undef CASE
         }
@@ -1924,7 +1924,7 @@ bool is_const_or_shuffle_const(const expr_t &e) {
 }
 
 expr_t const_fold_unary(op_kind_t op_kind, const expr_t &a) {
-    ir_assert(op_kind == op_kind_t::_minus);
+    gpu_assert(op_kind == op_kind_t::_minus);
     if (!a.type().is_scalar()) {
         int elems = a.type().elems();
         std::vector<expr_t> ret;
@@ -1947,7 +1947,7 @@ expr_t const_fold_unary(op_kind_t op_kind, const expr_t &a) {
 
 #undef CASE
 
-    ir_error_not_expected() << "Cannot handle type: " << a;
+    gpu_error_not_expected() << "Cannot handle type: " << a;
     return expr_t();
 }
 
@@ -1967,7 +1967,7 @@ expr_t const_fold_binary(const type_t &compute_type, op_kind_t op_kind,
     if (compute_type.is_unsigned()) {
         auto a_s64 = to_cpp<int64_t>(a);
         auto b_s64 = to_cpp<int64_t>(b);
-        ir_assert(a_s64 >= 0 && b_s64 >= 0)
+        gpu_assert(a_s64 >= 0 && b_s64 >= 0)
                 << "Overflow detected: fix data types.";
         MAYBE_UNUSED(a_s64);
         MAYBE_UNUSED(b_s64);
@@ -1991,14 +1991,14 @@ expr_t const_fold_binary(const type_t &compute_type, op_kind_t op_kind,
 
 #undef CASE
 
-    ir_error_not_expected() << "Unknown type.";
+    gpu_error_not_expected() << "Unknown type.";
     return expr_t();
 }
 
 object_t simplify(const object_t &obj, const constraint_set_t &cset) {
     if (obj.is_expr()) return simplify_expr(obj, cset);
     if (obj.is_stmt()) return simplify_stmt(obj, cset);
-    ir_assert(obj.is_empty());
+    gpu_assert(obj.is_empty());
     return object_t();
 }
 
@@ -2109,7 +2109,7 @@ expr_t simplify_cmp_reduce_lhs_rhs(const expr_t &e) {
                 new_op_kind = op_kind_t::_le;
                 div = (sign ? div + 1 : div);
                 break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
     }
 
@@ -2303,7 +2303,7 @@ expr_t nary_op_canonicalize(const expr_t &_e) {
     e = nary_op_transformer_t().mutate(e);
     e = mul_nary_op_expander_t().mutate(e);
 
-    ir_assert(is_nary_op_canonical(e)) << e;
+    gpu_assert(is_nary_op_canonical(e)) << e;
     MAYBE_UNUSED(is_nary_op_canonical(e));
 
     return e;
@@ -2313,7 +2313,7 @@ expr_t make_nary_op(op_kind_t op_kind, const std::vector<expr_t> &args) {
     if (args.empty()) {
         if (op_kind == op_kind_t::_add) return 0;
         if (op_kind == op_kind_t::_mul) return 1;
-        ir_error_not_expected() << to_string(op_kind);
+        gpu_error_not_expected() << to_string(op_kind);
     }
     if (args.size() == 1) return args[0];
 

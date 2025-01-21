@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ public:
             // Note: `eltwise_stochastic_round` is not a part of `enum` which
             // forces `switch` to iterate over `int`, not `alg_kind_t`.
             case alg_kind::eltwise_stochastic_round: return "stochastic_round";
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return "unknown";
     }

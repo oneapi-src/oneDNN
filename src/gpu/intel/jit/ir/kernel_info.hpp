@@ -74,7 +74,7 @@ class kernel_iface_t {
 public:
     int nargs() const { return int(args_.size()); }
     const expr_t &arg_var(int idx) const {
-        ir_assert(idx >= 0 && idx < nargs());
+        gpu_assert(idx >= 0 && idx < nargs());
         return args_[idx].var;
     }
     const std::string &arg_name(int idx) const {
@@ -87,7 +87,7 @@ public:
         auto *arg = find_arg_impl(name);
         if (arg) return arg->var;
         if (!allow_empty)
-            ir_error_not_expected() << "Argument not found: " << name;
+            gpu_error_not_expected() << "Argument not found: " << name;
         return expr_t();
     }
 
@@ -149,7 +149,7 @@ public:
             case kernel_id_t::pre_reorder: return 2;
             case kernel_id_t::convolution: return 3;
             case kernel_id_t::post_reorder: return 4;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return -1;
     }
@@ -169,7 +169,7 @@ public:
 
     void set_internal_arg(const std::string &name, const expr_t &value) {
         auto *arg = find_arg_impl(name);
-        ir_assert(arg) << "Cannot find argument: " << name;
+        gpu_assert(arg) << "Cannot find argument: " << name;
         arg->value = value;
     }
 
@@ -183,12 +183,12 @@ public:
     }
 
     const std::string &arg_name(int idx) const {
-        ir_assert(idx >= 0 && idx < nargs());
+        gpu_assert(idx >= 0 && idx < nargs());
         return args_[idx].name();
     }
 
     const expr_t &arg_var(int idx) const {
-        ir_assert(idx >= 0 && idx < nargs());
+        gpu_assert(idx >= 0 && idx < nargs());
         return args_[idx].var;
     }
 
@@ -198,12 +198,12 @@ public:
         auto *arg = find_arg_impl(name);
         if (arg) return arg->var;
         if (!allow_empty)
-            ir_error_not_expected() << "Argument not found: " << name;
+            gpu_error_not_expected() << "Argument not found: " << name;
         return expr_t();
     }
 
     int key(int idx) const {
-        ir_assert(idx >= 0 && idx < nargs());
+        gpu_assert(idx >= 0 && idx < nargs());
         return args_[idx].key;
     }
 
@@ -211,24 +211,24 @@ public:
         for (int i = 0; i < nargs(); i++) {
             if (arg_name(i) == name) return key(i);
         }
-        ir_error_not_expected() << "Argument not found: " << name;
+        gpu_error_not_expected() << "Argument not found: " << name;
         return -1;
     }
 
     int nargs() const { return int(args_.size()); }
 
     bool is_scratchpad(int idx) const {
-        ir_assert(idx >= 0 && idx < nargs());
+        gpu_assert(idx >= 0 && idx < nargs());
         return args_[idx].kind == arg_kind_t::scratchpad;
     }
 
     bool is_user(int idx) const {
-        ir_assert(idx >= 0 && idx < nargs());
+        gpu_assert(idx >= 0 && idx < nargs());
         return args_[idx].kind == arg_kind_t::user;
     }
 
     bool is_input(int idx) const {
-        ir_assert(idx >= 0 && idx < nargs());
+        gpu_assert(idx >= 0 && idx < nargs());
         return args_[idx].is_input;
     }
 
@@ -244,7 +244,7 @@ public:
 
     memory_storage_wrapper_t arg_storage(int idx, const exec_ctx_t &ctx,
             const gpu_primitive_t *primitive) const {
-        ir_assert(idx >= 0 && idx < nargs());
+        gpu_assert(idx >= 0 && idx < nargs());
         bool is_input = args_[idx].is_input;
         int key = args_[idx].key;
         switch (args_[idx].kind) {
@@ -256,7 +256,7 @@ public:
             }
             // No storage for internal arguments.
             case arg_kind_t::internal: return memory_storage_wrapper_t();
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return memory_storage_wrapper_t();
     }
@@ -268,7 +268,7 @@ public:
                 return memory_desc_wrapper(md).size();
             }
             case arg_kind_t::scratchpad: return args_[idx].scratchpad_size;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return std::numeric_limits<size_t>::max();
     }
@@ -305,7 +305,7 @@ public:
                         CASE(u64, uint64_t)
 #undef CASE
 
-                        ir_error_not_expected() << type;
+                        gpu_error_not_expected() << type;
                     } while (false);
                     break;
                 }
@@ -314,7 +314,7 @@ public:
                     arg_list.set(i, *storage_list[i].get());
                     break;
                 }
-                default: ir_error_not_expected();
+                default: gpu_error_not_expected();
             }
         }
     }
@@ -343,7 +343,7 @@ private:
 
     void register_arg(const expr_t &var, arg_kind_t kind, int key,
             bool is_input, size_t scratchpad_size = 0) {
-        ir_assert(is_var(var)) << "Expected var, got: " << var;
+        gpu_assert(is_var(var)) << "Expected var, got: " << var;
         args_.emplace_back(var, kind, key, is_input, scratchpad_size);
     }
 

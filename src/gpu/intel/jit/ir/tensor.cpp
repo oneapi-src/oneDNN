@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,14 +31,14 @@ layout_t::layout_t(const type_t &type, const expr_t &offset, dim_idx_t ndims,
         const std::vector<dim_t> &dims, bool do_normalize)
     : type_(type), ndims_(ndims), offset_(offset) {
     if (!dims.empty() && ndims_ != dims.size()) {
-        ir_error_not_expected() << "Format and dimensions do not match.";
+        gpu_error_not_expected() << "Format and dimensions do not match.";
     }
     for (auto &p : parts) {
         dim_idx_t dim_idx = p.first;
         dim_t block = p.second;
-        ir_assert(dim_idx < ndims_);
+        gpu_assert(dim_idx < ndims_);
         if (block == 0 && dims.empty())
-            ir_error_not_expected()
+            gpu_error_not_expected()
                     << "Dimensions are missing. Can't deduce them from "
                        "the format.";
     }
@@ -66,7 +66,8 @@ layout_t::layout_t(const type_t &type, const expr_t &offset, dim_idx_t ndims,
 
 layout_t::layout_t(const memory_desc_wrapper &mdw, bool do_normalize)
     : type_(mdw.data_type()), offset_(mdw.offset0()) {
-    ir_assert(mdw.is_blocking_desc()) << "Expected blocking memory descriptor.";
+    gpu_assert(mdw.is_blocking_desc())
+            << "Expected blocking memory descriptor.";
 
     ndims_ = mdw.ndims();
     block_layout_t layout(
@@ -99,7 +100,7 @@ memory_desc_t layout_t::to_dnnl(const dim_t *dims_hint) const {
         auto &b = *it;
         if (!seen[b.dim_idx]) {
             // Outer block.
-            ir_assert(!in_inner_block);
+            gpu_assert(!in_inner_block);
             MAYBE_UNUSED(in_inner_block);
             blk.strides[b.dim_idx] = b.stride;
             md.padded_dims[b.dim_idx] = b.block;
@@ -111,7 +112,7 @@ memory_desc_t layout_t::to_dnnl(const dim_t *dims_hint) const {
             blk.inner_nblks++;
             if (prev_stride > 0) {
                 // Inner block must be dense.
-                ir_assert(prev_stride == b.block * dim_t(b.stride));
+                gpu_assert(prev_stride == b.block * dim_t(b.stride));
             }
             prev_stride = b.stride;
             in_inner_block = true;
@@ -121,7 +122,7 @@ memory_desc_t layout_t::to_dnnl(const dim_t *dims_hint) const {
 
     for (dim_idx_t i = 0; i < ndims(); i++) {
         if (seen[i]) continue;
-        ir_assert(md.dims[i] == 1);
+        gpu_assert(md.dims[i] == 1);
         md.padded_dims[i] = md.dims[i];
         blk.strides[i] = elems();
     }
@@ -131,7 +132,7 @@ memory_desc_t layout_t::to_dnnl(const dim_t *dims_hint) const {
 
 layout_t layout_t::map(const tensor_t &tensor) const {
     if (ndims() != tensor.ndims())
-        ir_error_not_expected() << "Dimensions do not match.";
+        gpu_error_not_expected() << "Dimensions do not match.";
 
     std::vector<dim_t> remaining_dims = tensor.dims();
     std::vector<block_t> mapped_blocks;
@@ -159,7 +160,7 @@ layout_t layout_t::map(const tensor_t &tensor) const {
                 return split_block(eb, rem_dim, block / rem_dim).map(tensor);
 
             // TODO: Remove exception usage.
-            ir_except_not_implemented("Can't map tensor layout.");
+            gpu_except_not_implemented("Can't map tensor layout.");
         }
         rem_dim /= block;
         mapped_blocks.emplace_back(b.dim_idx, block, b.stride);
@@ -167,7 +168,7 @@ layout_t layout_t::map(const tensor_t &tensor) const {
 
     for (auto &d : remaining_dims) {
         // TODO: Remove exception usage.
-        if (d != 1) ir_except_not_implemented("Can't map tensor layout.");
+        if (d != 1) gpu_except_not_implemented("Can't map tensor layout.");
         MAYBE_UNUSED(d);
     }
 
@@ -182,26 +183,26 @@ layout_t layout_t::reinterpret(
 
     expr_t new_offset = 0;
     if (!has_zero_offset()) {
-        ir_assert(is_const(offset_)) << "Expected constant offset.";
+        gpu_assert(is_const(offset_)) << "Expected constant offset.";
         int64_t off = to_cpp<int64_t>(offset_) * old_size;
-        ir_assert(off % new_size == 0);
+        gpu_assert(off % new_size == 0);
         new_offset = off / new_size;
     }
 
     if (old_size % new_size != 0 && new_size % old_size != 0) {
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return layout_t();
     }
 
     auto new_blocks = blocks_;
     if (new_blocks.empty()) {
-        ir_error_not_expected() << "Can't reinterpret.";
+        gpu_error_not_expected() << "Can't reinterpret.";
         return layout_t();
     }
 
     auto &b0 = new_blocks.front();
     if (dim_t(b0.stride) != 1) {
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return layout_t();
     }
 
@@ -216,7 +217,7 @@ layout_t layout_t::reinterpret(
     } else {
         int factor = (new_size / old_size);
         if (b0.block % factor != 0) {
-            ir_error_not_expected();
+            gpu_error_not_expected();
             return layout_t();
         }
         b0.block /= factor;
@@ -224,7 +225,7 @@ layout_t layout_t::reinterpret(
         for (auto &b : new_blocks) {
             if (&b == &b0) continue;
             if (b.stride % factor != 0) {
-                ir_error_not_expected();
+                gpu_error_not_expected();
                 return layout_t();
             }
             b.stride /= factor;
@@ -238,7 +239,7 @@ layout_t layout_t::split_block(
         const std::pair<int, block_t> &eb, dim_t block0, dim_t block1) const {
     int block_idx = eb.first;
     auto &b = eb.second;
-    ir_assert(b.block == block0 * block1) << "Incompatible block sizes.";
+    gpu_assert(b.block == block0 * block1) << "Incompatible block sizes.";
     MAYBE_UNUSED(b);
 
     auto new_blocks = blocks_;
@@ -368,7 +369,7 @@ std::vector<std::pair<char, dim_t>> layout_t::parse_letter_blocks(
             next = ss.peek();
         }
         char letter = char(ss.peek());
-        ir_assert(!ss.eof()) << "EOF is unexpected.";
+        gpu_assert(!ss.eof()) << "EOF is unexpected.";
         ss.ignore(1);
         ret.emplace_back(letter, block);
     }
@@ -388,7 +389,7 @@ std::vector<std::pair<int, dim_t>> layout_t::parse_format(
     }
 
     for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
-        ir_assert(seen_letters[i] == (i < letter_ndims));
+        gpu_assert(seen_letters[i] == (i < letter_ndims));
     }
 
     auto letter_blocks = parse_letter_blocks(format);
@@ -401,7 +402,7 @@ std::vector<std::pair<int, dim_t>> layout_t::parse_format(
             int dim_idx = std::tolower(letter) - 'a';
             parts.emplace_back(dim_idx, block);
         } else {
-            ir_assert(ndims_hint >= letter_ndims);
+            gpu_assert(ndims_hint >= letter_ndims);
             for (int i = letter_ndims; i < ndims_hint; i++) {
                 parts.emplace_back(i, 0);
             }
@@ -418,15 +419,15 @@ void layout_t::sanity_check() const {
     if (is_empty()) return;
 
     for (auto &b : blocks_) {
-        ir_assert(b.block > 0) << "Incorrect block size.";
+        gpu_assert(b.block > 0) << "Incorrect block size.";
         MAYBE_UNUSED(b);
     }
-    ir_assert(ndims_ <= max_ndims);
+    gpu_assert(ndims_ <= max_ndims);
 }
 
 expr_t grid_splitter_t::pop_block(dim_t size) {
-    ir_assert(size > 1);
-    ir_assert(can_pop_block(size));
+    gpu_assert(size > 1);
+    gpu_assert(can_pop_block(size));
 
     dim_t new_stride = cur_stride_ * size;
 
@@ -460,7 +461,7 @@ stride_t tdim_t::compute_stride(
 }
 
 view_t view_t::create_sub_view(const tensor_t &sub_tensor) const {
-    ir_assert(sub_tensor.ndims() == nvdims()) << "Dimensions don't match.";
+    gpu_assert(sub_tensor.ndims() == nvdims()) << "Dimensions don't match.";
 
     auto ret = *this;
     ret.vdims_ = sub_tensor.dims();
@@ -493,13 +494,13 @@ std::vector<expr_t> view_t::create_vvars(dim_idx_t nvdims) {
         return ret;
     }());
 
-    ir_assert(nvdims <= max_nvdims) << "Too many dimensions: " << nvdims;
+    gpu_assert(nvdims <= max_nvdims) << "Too many dimensions: " << nvdims;
     return std::vector<expr_t>(_vvars.begin(), _vvars.begin() + nvdims);
 }
 
 layout_t view_t::create_pseudo_vlayout(
         const layout_t &tlayout, bool init_offset) const {
-    ir_assert(!tlayout.is_empty());
+    gpu_assert(!tlayout.is_empty());
 
     std::vector<dim_t> rem_vdims = vdims_;
     std::vector<block_t> blocks;
@@ -543,7 +544,7 @@ layout_t view_t::create_pseudo_vlayout(
             continue;
         }
 
-        ir_assert(tinfo.is_identity()) << "Can't create pseudo-layout.";
+        gpu_assert(tinfo.is_identity()) << "Can't create pseudo-layout.";
 
         int vidx = tinfo.vidx(0);
         dim_t &rem_vdim = rem_vdims[vidx];
@@ -560,13 +561,13 @@ layout_t view_t::create_pseudo_vlayout(
             }
 
             // TODO: Remove exception usage.
-            ir_except_not_implemented("Can't create pseudo-layout.");
+            gpu_except_not_implemented("Can't create pseudo-layout.");
         }
         blocks.emplace_back(tb.dim_idx, tblock, tb.stride);
     }
 
     for (auto &d : rem_vdims) {
-        ir_assert(d == 1) << "Can't create pseudo-layout.";
+        gpu_assert(d == 1) << "Can't create pseudo-layout.";
         MAYBE_UNUSED(d);
     }
 
@@ -591,7 +592,7 @@ layout_t dim_assignment_t::map(const layout_t &layout) const {
             /*remove_size_1_blocks=*/false);
     auto ret = layout_t(layout.type(), new_ndims(), layout.offset(), new_blocks,
             /*do_normalize=*/false);
-    ir_assert(layout.elems() == ret.elems())
+    gpu_assert(layout.elems() == ret.elems())
             << "Assignment doesn't preserve number of elements.";
     return ret;
 }

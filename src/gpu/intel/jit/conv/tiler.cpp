@@ -66,7 +66,7 @@ int tensor_conv_dim_index(const pvar_t &d, tensor_kind_t t) {
         case tensor_kind_t::src: pvars = &src_dims; break;
         case tensor_kind_t::wei: pvars = &wei_dims; break;
         case tensor_kind_t::dst: pvars = &dst_dims; break;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     auto it = std::find(pvars->begin(), pvars->end(), d);
     if (it == pvars->end()) return -1;
@@ -78,7 +78,7 @@ struct x2_tile_info_t {
     x2_tile_info_t() = default;
     x2_tile_info_t(const pvar_t &dim0, const pvar_t &dim1)
         : dim0(dim0), dim1(dim1) {
-        ir_assert(dim0 != dim1);
+        gpu_assert(dim0 != dim1);
     }
     void add(tile_flags_t f) { flags = flags | f; }
     void set_iter_unit(int unit) { d.set_iter_unit(unit); }
@@ -107,19 +107,19 @@ struct x2_tile_info_t {
             }
             if (!ret.empty()) return ret;
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return ret;
     }
 
     std::vector<std::pair<int, int>> thread_group_blocks() const {
-        if (any(flags & tile_flags_t::thread_group)) ir_error_not_expected();
+        if (any(flags & tile_flags_t::thread_group)) gpu_error_not_expected();
         return {std::make_pair(1, 1)};
     }
 
     std::vector<std::pair<dim_t, dim_t>> loop_blocks(
             dim_t size0, dim_t size1) const {
         if (!any(flags & tile_flags_t::loop)) return {std::make_pair(1, 1)};
-        if (!any(flags & tile_flags_t::loop_span)) ir_error_not_expected();
+        if (!any(flags & tile_flags_t::loop_span)) gpu_error_not_expected();
         return {std::make_pair(size0, size1)};
     }
 
@@ -136,7 +136,7 @@ const layout_t &compute_layout(const conv_config_t &cfg, tensor_kind_t kind) {
         case tensor_kind_t::src: return cfg.src_layout().compute();
         case tensor_kind_t::wei: return cfg.wei_layout().compute();
         case tensor_kind_t::dst: return cfg.dst_layout().compute();
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return cfg.src_layout().compute();
 }
@@ -239,7 +239,7 @@ public:
         auto to_idx = [&](const pvar_t &d) {
             for (int i = 0; i < ndims; i++)
                 if (all_dims[i] == d) return i;
-            ir_error_not_expected();
+            gpu_error_not_expected();
             return -1;
         };
 
@@ -249,7 +249,7 @@ public:
             int idx1 = to_idx(info.dim1);
             get_level_tiles(padded_shape[info.dim0], padded_shape[info.dim1],
                     info, tiles[idx0], tiles[idx1]);
-            ir_assert(!seen[idx0] && !seen[idx1]);
+            gpu_assert(!seen[idx0] && !seen[idx1]);
             seen[idx0] = seen[idx1] = true;
             deps[std::max(idx0, idx1)] = std::min(idx0, idx1);
         }
@@ -328,15 +328,15 @@ private:
             (d0.is_undef() ? d0 : d1) = d;
         }
         if (rdims == 1) return;
-        ir_assert(rdims == 2) << "Can't fuse more than two dimensions.";
+        gpu_assert(rdims == 2) << "Can't fuse more than two dimensions.";
         auto &info0 = tile_info(d0);
         auto &info1 = tile_info(d1);
         tile_flags_t flags = tile_flags_t::iter | tile_flags_t::loop
                 | tile_flags_t::loop_span;
-        ir_assert(info0.flags == flags);
-        ir_assert(info1.flags == flags);
-        ir_assert(info0.min_iter_blk == tile_info_t::default_min_iter_blk);
-        ir_assert(info1.min_iter_blk == tile_info_t::default_min_iter_blk);
+        gpu_assert(info0.flags == flags);
+        gpu_assert(info1.flags == flags);
+        gpu_assert(info0.min_iter_blk == tile_info_t::default_min_iter_blk);
+        gpu_assert(info1.min_iter_blk == tile_info_t::default_min_iter_blk);
 
         int unit = 32 / prb.a_data_type_size;
         x2_tile_info_t x2_info(d0, d1);
@@ -406,7 +406,7 @@ protected:
 int inner_block(const conv_config_t &cfg, tensor_kind_t tensor_kind,
         const pvar_t &dim) {
     int dim_idx = tensor_conv_dim_index(dim, tensor_kind);
-    ir_assert(dim_idx != -1);
+    gpu_assert(dim_idx != -1);
     auto &layout = compute_layout(cfg, tensor_kind);
     return into<int>(layout.inner_block(
             dim_idx, /*skip_outer=*/true, /*inner_only=*/false));
@@ -425,7 +425,7 @@ int inner_block(const conv_config_t &cfg, const pvar_t &dim) {
 dim_t inner_stride(const conv_config_t &cfg, tensor_kind_t tensor_kind,
         const pvar_t &dim) {
     dim_idx_t dim_idx = tensor_conv_dim_index(dim, tensor_kind);
-    ir_assert(dim_idx != dim_idx::invalid);
+    gpu_assert(dim_idx != dim_idx::invalid);
     auto &layout = compute_layout(cfg, tensor_kind);
     for (auto &b : layout.blocks()) {
         if (b.dim_idx == dim_idx) return (dim_t)b.stride;
@@ -520,7 +520,7 @@ public:
     }
 
     void reset_checks() override {
-        ir_assert((int)check_kind_t::_max < 64);
+        gpu_assert((int)check_kind_t::_max < 64);
 
         check_mask_ = 0;
         optional_check_mask_ = 0;
@@ -753,7 +753,7 @@ private:
                 if ((prb.iw / prb.sw) % iw_tg != 0) return false;
                 return true;
             }
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return false;
     }
@@ -989,7 +989,7 @@ double get_iter_dim_score(
     } else if (dim == pvars::mb) {
         return dim_size;
     } else {
-        ir_error_not_expected() << "Unknown dimension: " << dim;
+        gpu_error_not_expected() << "Unknown dimension: " << dim;
     }
     return 0;
 }
@@ -1015,7 +1015,7 @@ pvar_t select_iter_dim(
         if (is_bwd_d_w_opt && d == pvars::iw) continue;
         dims.push_back(d);
     }
-    ir_assert(!dims.empty());
+    gpu_assert(!dims.empty());
     if (dims.size() == 1) return dims[0];
 
     std::vector<int> dim_blocks;
@@ -1028,7 +1028,7 @@ pvar_t select_iter_dim(
     for (int i = 0; i < (int)dims.size(); i++) {
         if (dim_blocks[i] == max_block) return dims[i];
     }
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return *dims.begin();
 }
 
@@ -1140,7 +1140,7 @@ conv_blocking_scheme_list_t get_blocking_schemes_dw_impl(
     if (prb.is_fwd) return get_blocking_schemes_fwd_dw(cfg);
     if (prb.is_bwd_d) return get_blocking_schemes_bwd_d_dw(cfg);
     if (prb.is_bwd_w) return get_blocking_schemes_bwd_w_dw(cfg);
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return conv_blocking_scheme_list_t();
 }
 
@@ -1151,7 +1151,7 @@ conv_blocking_scheme_list_t get_blocking_schemes_impl(
     if (prb.is_fwd) return get_blocking_schemes_fwd(cfg);
     if (prb.is_bwd_d) return get_blocking_schemes_bwd_d(cfg);
     if (prb.is_bwd_w) return get_blocking_schemes_bwd_w(cfg);
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return conv_blocking_scheme_list_t();
 }
 
@@ -1207,7 +1207,7 @@ void sort_by_model_scores(params_generator_t &params_gen,
         table << p.str() << (int)(score * 1000) / 1000.0 << eff << regs
               << slm_size << std::endl;
     }
-    ir_trace() << table.str();
+    gpu_trace() << table.str();
 #endif
     MAYBE_UNUSED(&slm_usage_bytes_for_params);
 }
@@ -1383,8 +1383,8 @@ private:
         const int nbest = 5;
         auto best_ids = tune_data_.best_ids(nbest);
         std::unordered_map<int, float> dists;
-        ir_trace() << "[Tuning] Rescoring: " << (end - beg) << " configs left";
-        ir_trace() << "  Best config: " << best_params_dbg_;
+        gpu_trace() << "[Tuning] Rescoring: " << (end - beg) << " configs left";
+        gpu_trace() << "  Best config: " << best_params_dbg_;
         for (int i = beg; i < end; i++) {
             auto &p = params_gen_.at(i);
             dists[p.id()] = std::numeric_limits<float>::max();
@@ -1398,7 +1398,7 @@ private:
 
         for (int i = beg; i < end; i++) {
             auto &p = params_gen_.at(i);
-            ir_trace() << "  " << p << " [dist:" << dists[p.id()] << "]";
+            gpu_trace() << "  " << p << " [dist:" << dists[p.id()] << "]";
         }
     }
 
@@ -1484,7 +1484,7 @@ public:
     }
 
     void set_cur_version(int32_t version) {
-        ir_assert(!is_tuning_mode());
+        gpu_assert(!is_tuning_mode());
         int idx;
         unpack_version(version, idx, grf_mode_policy_);
         params_gen_.set_cur_index(idx);
@@ -1563,8 +1563,8 @@ private:
             case tiler_mode_t::lookup: {
                 const auto params = const_conv_lookup_table().find(cfg.key());
                 if (!params.is_empty() && chk.is_ok(params.blocking())) {
-                    ir_info() << "[INFO] Using lookup table config: "
-                              << params.str();
+                    gpu_info() << "[INFO] Using lookup table config: "
+                               << params.str();
                     params_gen_ = params_generator_t(tune_level, simd_size, chk,
                             level_tile_sets, params);
                 } else {
@@ -1589,7 +1589,7 @@ private:
                 break;
         }
         if (!is_tuning_mode()) {
-            ir_assert(!params_gen_.is_empty()) << "No configurations found.";
+            gpu_assert(!params_gen_.is_empty()) << "No configurations found.";
             sort_by_model_scores(params_gen_, cfg, mode_);
         }
         if (tiler_params().do_list) print_all();
@@ -1614,10 +1614,10 @@ private:
     }
 
     void print_info(double init_time_ms) {
-        ir_info() << "Convolution tiler:";
-        ir_info() << "  Mode:              " << to_string(mode_);
-        ir_info() << "  Filtered configs:  " << configs();
-        ir_info() << "  Init time (ms):    " << init_time_ms;
+        gpu_info() << "Convolution tiler:";
+        gpu_info() << "  Mode:              " << to_string(mode_);
+        gpu_info() << "  Filtered configs:  " << configs();
+        gpu_info() << "  Init time (ms):    " << init_time_ms;
     }
 
     tiler_mode_t mode_ = tiler_mode_t::undef;

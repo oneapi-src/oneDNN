@@ -41,7 +41,7 @@ public:
     bool is_empty() const { return mem_view_.is_empty(); }
 
     expr_t create_mask(const layout_t &reg_layout, const tensor_t &tile) const {
-        ir_assert(!is_empty());
+        gpu_assert(!is_empty());
         auto layout = reg_layout.map(tile);
         auto view = mem_view_.create_sub_view(tile);
         mask_tensor_t mask_tensor(layout);
@@ -52,7 +52,7 @@ public:
     }
 
     stmt_t build_stmt(const layout_t &reg_layout, const expr_t &reg_buf) const {
-        ir_assert(mem_view_.nvdims() == reg_layout.ndims())
+        gpu_assert(mem_view_.nvdims() == reg_layout.ndims())
                 << "Incompatible view/layout.";
         int max_step = std::min(
                 16, 2 * ir_ctx_->grf_size() / reg_layout.type().size());
@@ -129,7 +129,7 @@ public:
         if (!mem_buf().is_empty()) {
             auto &type = mem_buf().type();
             if (!type.is_ptr()) {
-                ir_assert(type.is_f32()) << "Expected f32: " << mem_buf();
+                gpu_assert(type.is_f32()) << "Expected f32: " << mem_buf();
                 reg_buf_ = mem_buf();
                 reg_layout_ = layout_t(
                         type, 0, std::vector<dim_t>(mem_view().nvdims(), 1));
@@ -204,7 +204,8 @@ public:
     const expr_t &compute_expr() const { return info_.compute_expr(); }
 
     bool is_broadcast_dim(dim_idx_t dim_idx) const {
-        ir_assert(dim_idx != dim_idx::invalid && dim_idx < mem_view().nvdims());
+        gpu_assert(
+                dim_idx != dim_idx::invalid && dim_idx < mem_view().nvdims());
         return (mask() & (1 << dim_idx)) == 0;
     }
 
@@ -226,7 +227,7 @@ public:
     bool do_preload() const { return do_preload_; }
 
     tensor_t apply_mask(const tensor_t &tile) const {
-        ir_assert(mem_view().nvdims() == tile.ndims());
+        gpu_assert(mem_view().nvdims() == tile.ndims());
 
         auto start = tile.start();
         auto dims = tile.dims();
@@ -240,10 +241,10 @@ public:
     }
 
     void init_output_buffer(const tensor_t &tile) {
-        ir_assert(needs_store());
+        gpu_assert(needs_store());
 
-        ir_assert(reg_layout_.is_empty());
-        ir_assert(reg_buf_.is_empty());
+        gpu_assert(reg_layout_.is_empty());
+        gpu_assert(reg_buf_.is_empty());
 
         reg_buf_ = make_tmp_reg_buffer();
 
@@ -256,15 +257,16 @@ public:
         auto masked_tile = apply_mask(tile);
         for (dim_idx_t i = 0; i < masked_tile.ndims(); i++) {
             if (masked_tile(i) >= tile(i)) continue;
-            ir_assert(masked_tile(i) == 1) << "Unexpected output tensor shape.";
+            gpu_assert(masked_tile(i) == 1)
+                    << "Unexpected output tensor shape.";
             reg_layout_ = reg_layout_.add_outer_block(i, tile(i));
         }
         register_buffer(reg_buf_, into<int>(reg_layout_.size()));
     }
 
     stmt_t build_load_stmt(const view_t &c_view) {
-        ir_assert(needs_load());
-        ir_assert(reg_buf_.is_empty());
+        gpu_assert(needs_load());
+        gpu_assert(reg_buf_.is_empty());
 
         reg_buf_ = make_tmp_reg_buffer();
         auto read = make_access_builder(*ir_ctx_, mem_view(), mem_buf(),
@@ -276,7 +278,7 @@ public:
     }
 
     stmt_t build_prefetch_stmt(const view_t &c_view) const {
-        ir_assert(needs_load());
+        gpu_assert(needs_load());
 
         // Disable prefetching for precomputed ZPs stored at the end of 'wei'
         if ((mem_buf().str() == "wei") || (mem_buf().str() == "wei_user"))
@@ -308,18 +310,18 @@ public:
     }
 
     stmt_t build_compute_stmt(const std::vector<post_op_tensor_t> &tensors) {
-        ir_assert(needs_compute());
-        ir_assert(is_f32_scalar()) << "Only f32 scalars are supported.";
+        gpu_assert(needs_compute());
+        gpu_assert(is_f32_scalar()) << "Only f32 scalars are supported.";
         reg_layout_ = mem_view().create_pseudo_vlayout();
         auto e = compute_expr();
         tensor_t tile(std::vector<dim_t>(reg_layout_.ndims(), 1));
         for (auto &t : tensors) {
             if (contains_object(e, t.op_var())) {
-                ir_assert(t.is_f32_scalar())
+                gpu_assert(t.is_f32_scalar())
                         << "All tensors in the compute expression must be f32 "
                            "scalars.";
-                ir_assert(t.do_preload()) << "All tensors in the compute "
-                                             "expression must be preloaded.";
+                gpu_assert(t.do_preload()) << "All tensors in the compute "
+                                              "expression must be preloaded.";
                 e = substitute(e, t.op_var(), t.load_expr(tile, 0));
             }
         }
@@ -329,18 +331,18 @@ public:
     }
 
     stmt_t build_zero_out_stmt() const {
-        ir_assert(needs_store());
+        gpu_assert(needs_store());
         return funcs::zero_out(reg_buf_, reg_layout_.size());
     }
 
     stmt_t build_reduce_stmt() {
-        ir_assert(needs_store());
+        gpu_assert(needs_store());
 
         stmt_t stmt;
 
         if (needs_reduction()) {
             auto reduced_layout = mem_view().create_dense_vlayout();
-            ir_assert(reduced_layout.size() <= reg_layout_.size());
+            gpu_assert(reduced_layout.size() <= reg_layout_.size());
 
             stmt = stmt.append(
                     create_reduce_stmt(reg_layout_, reduced_layout, reg_buf_,
@@ -352,7 +354,7 @@ public:
     }
 
     stmt_t build_slm_store_stmt(const grid_info_t &tg_grid) {
-        ir_assert(needs_store());
+        gpu_assert(needs_store());
         tensor_t tile(mem_view().vdims());
         slm_reduce_builder_ = slm_reduce_builder_t(
                 *ir_ctx_, tg_grid, reg_buf_, reg_layout_, tile, 1);
@@ -360,8 +362,8 @@ public:
     }
 
     stmt_t build_slm_load_stmt() {
-        ir_assert(needs_store());
-        ir_assert(!slm_reduce_builder_.is_empty());
+        gpu_assert(needs_store());
+        gpu_assert(!slm_reduce_builder_.is_empty());
 
         reg_layout_ = slm_reduce_builder_.reg_layout();
 
@@ -375,11 +377,11 @@ public:
     }
 
     stmt_t build_store_stmt() const {
-        ir_assert(needs_store());
+        gpu_assert(needs_store());
 
         auto write = make_access_builder(*ir_ctx_, mem_view(), mem_buf(),
                 reg_buf(), send_op_t::atomic_fadd, send_address_t::a64);
-        ir_assert(write.reg_layout() == reg_layout());
+        gpu_assert(write.reg_layout() == reg_layout());
 
         return write.stmt();
     }
@@ -399,8 +401,8 @@ public:
     stmt_t store_stmt(const tensor_t &tile, int dim_idx, const expr_t &_value,
             const expr_t &mask = expr_t()) const {
         auto value = _value;
-        ir_assert(!is_broadcast_dim(dim_idx));
-        ir_assert(value.type().elems() == tile.elems());
+        gpu_assert(!is_broadcast_dim(dim_idx));
+        gpu_assert(value.type().elems() == tile.elems());
         // Add cast for booleans for comparison ops.
         if (value.type().is_bool()) {
             value = cast(value,
@@ -422,7 +424,7 @@ private:
             if (ptr) var = ptr->base.as_ptr<var_t>();
         }
         if (!var && needs_compute()) var = op_var().as_ptr<var_t>();
-        ir_assert(var) << "Can't extract variable from buffer: " << mem_buf();
+        gpu_assert(var) << "Can't extract variable from buffer: " << mem_buf();
         auto &name = var->name;
         return ir_ctx_->create_tmp_var(type_t::byte_ptr(), "tmp_" + name);
     }
@@ -442,7 +444,7 @@ private:
     }
 
     send_cache_hint_t get_cache_hint(const view_t &c_view) const {
-        ir_assert(mem_view().nvdims() == c_view.nvdims());
+        gpu_assert(mem_view().nvdims() == c_view.nvdims());
         bool per_tensor = true;
         for (dim_idx_t i = 0; i < mem_view().nvdims(); i++) {
             if ((mask() & (1 << i)) != 0) continue;
@@ -488,14 +490,14 @@ public:
         auto it = from2to_.find(obj);
         if (it != from2to_.end()) return make_bcast(it->second);
 
-        ir_error_not_expected() << "Unknown variable.";
+        gpu_error_not_expected() << "Unknown variable.";
         return obj;
     }
 
 private:
     object_t make_bcast(const expr_t &e) const {
         if (e.type().elems() == elems_) return e;
-        ir_assert(e.type().elems() == 1);
+        gpu_assert(e.type().elems() == 1);
         return shuffle_t::make_broadcast(e, elems_);
     }
 
@@ -518,7 +520,7 @@ public:
         auto &lhs_tensor = *args.at(post_op_.lhs());
         if (!post_op_.eltwise().is_empty()) {
             // Apply eltwise post-op.
-            ir_assert(post_op_.lhs().is_equal(post_op_.rhs()))
+            gpu_assert(post_op_.lhs().is_equal(post_op_.rhs()))
                     << "Only supported form is lhs = eltwise(lhs).";
             dim_t lhs_size = lhs_tensor.reg_layout().size();
             dim_t lhs_elems = lhs_size / int(sizeof(float));
@@ -538,12 +540,12 @@ public:
         auto base_inner_tile = find_1d_tile(
                 lhs_tensor.reg_layout().type(), args, inner_dim_idx);
         auto inner_layout = lhs_tensor.reg_layout().map(base_inner_tile);
-        ir_assert(inner_dim_idx != -1);
+        gpu_assert(inner_dim_idx != -1);
 
         // All post-ops arguments are f32 type except f64 bias and u64
         // stochastic rounding seed.
         for (auto &kv : args) {
-            ir_assert(kv.second->reg_layout().type().is_f32()
+            gpu_assert(kv.second->reg_layout().type().is_f32()
                     || kv.second->reg_layout().type().is_f64()
                     || kv.second->reg_layout().type().is_u64());
         }
@@ -578,16 +580,16 @@ private:
             int &inner_dim_idx) const {
         auto &lhs_tensor = *args.at(post_op_.lhs());
 
-        ir_assert(!lhs_tensor.reg_layout().is_empty());
+        gpu_assert(!lhs_tensor.reg_layout().is_empty());
         std::vector<dim_t> dims(lhs_tensor.mem_view().nvdims(), 1);
 
         if (lhs_tensor.reg_layout().blocks().empty()) {
             for (dim_t d : lhs_tensor.mem_view().vdims())
-                ir_assert(d == 1);
+                gpu_assert(d == 1);
             inner_dim_idx = 0;
         } else {
             auto &b0 = lhs_tensor.reg_layout().blocks()[0];
-            ir_assert(dim_t(b0.stride) == 1);
+            gpu_assert(dim_t(b0.stride) == 1);
             inner_dim_idx = b0.dim_idx;
 
             dim_t inner_block = b0.block;
@@ -599,11 +601,11 @@ private:
                 if (t.is_broadcast_dim(b0.dim_idx)) continue;
 
                 auto &l = t.reg_layout();
-                ir_assert(!l.is_empty());
-                ir_assert(!l.blocks().empty());
+                gpu_assert(!l.is_empty());
+                gpu_assert(!l.blocks().empty());
                 auto &lb0 = l.blocks()[0];
-                ir_assert(lb0.dim_idx == b0.dim_idx);
-                ir_assert(dim_t(lb0.stride) == 1);
+                gpu_assert(lb0.dim_idx == b0.dim_idx);
+                gpu_assert(dim_t(lb0.stride) == 1);
                 inner_block = math::gcd(lb0.block, inner_block);
             }
             dims[b0.dim_idx] = inner_block;
@@ -673,7 +675,7 @@ int find_tile_size(const exec_config_t &exec_cfg,
                 - (int)c_reg_layout.size();
         if (total_size <= available_size * 0.8) return tile_size;
     }
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return -1;
 }
 
@@ -724,10 +726,10 @@ public:
         tile_size_ = find_tile_size(exec_cfg, post_op_ctx_, c_mem_view_,
                 c_reg_layout, preload_max_size_, post_op_blk_);
 
-        ir_trace() << "Creating epilogue with parameters"
-                   << ": tile_size = " << tile_size_
-                   << ", preload_max_size = " << preload_max_size
-                   << ", post_op_blk = " << post_op_blk;
+        gpu_trace() << "Creating epilogue with parameters"
+                    << ": tile_size = " << tile_size_
+                    << ", preload_max_size = " << preload_max_size
+                    << ", post_op_blk = " << post_op_blk;
 
         for (auto &po_tensor_info : post_op_ctx_.post_op_tensor_infos()) {
             post_op_tensor_t po_tensor(ir_ctx_, po_tensor_info);
@@ -735,7 +737,7 @@ public:
             if (po_tensor_info.buf().is_empty()
                     && !po_tensor_info.needs_compute()) {
                 // C tensor.
-                ir_assert(c_po_idx_ == -1);
+                gpu_assert(c_po_idx_ == -1);
                 c_po_idx_ = tensor_idx;
             }
             post_op_tensors_.push_back(po_tensor);
@@ -782,7 +784,7 @@ private:
                     = !layout.is_equal(next->layout, /*compare_offset=*/false);
             if (force_reorder) do_reorder = true;
             if (do_reorder) {
-                ir_assert(stmt.is_empty());
+                gpu_assert(stmt.is_empty());
                 // Generate reorder between stages.
                 stmt = create_reorder_stmt(
                         layout, next->layout, buf, next->buf);
@@ -790,7 +792,7 @@ private:
                 // Reuse the same GRF buffer for the next stage.
                 dim_t this_off = to_cpp<dim_t>(layout.offset_in_bytes());
                 dim_t next_off = to_cpp<dim_t>(next->layout.offset_in_bytes());
-                ir_assert(next_off == 0);
+                gpu_assert(next_off == 0);
                 next->set_buf(buf[this_off]);
             }
         }
@@ -808,7 +810,7 @@ private:
 
         dim_t get_buf_size(bool check_base = true) const {
             if (check_base)
-                ir_assert(buf.is_same(buf_base()))
+                gpu_assert(buf.is_same(buf_base()))
                         << "Size must be queried from another stage.";
             return (buf_size == 0) ? layout.size() : buf_size;
         }

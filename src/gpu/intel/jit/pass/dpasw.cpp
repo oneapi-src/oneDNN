@@ -101,10 +101,10 @@ public:
             load_mul_stmt_ = substitute(load_mul_stmt_, si.call, new_call, 1);
             for (auto &d : si.dpas_consumers) {
                 auto &di = find_dpas_info(d);
-                ir_assert(si.promote_to_dpasw == di.promote_to_dpasw)
+                gpu_assert(si.promote_to_dpasw == di.promote_to_dpasw)
                         << "Both send and dpas must be updated.";
                 if (di.update_applied) {
-                    ir_error_not_expected() << "Can it happen?";
+                    gpu_error_not_expected() << "Can it happen?";
                     continue;
                 }
                 auto new_call = di.new_call;
@@ -136,7 +136,7 @@ private:
         }
 
         const send_t &new_send() const {
-            ir_assert(!new_call.is_same(call));
+            gpu_assert(!new_call.is_same(call));
             return new_call.as<func_call_t>().func.as<send_t>();
         }
 
@@ -164,8 +164,8 @@ private:
                 base_call = base;
                 return;
             }
-            ir_assert(new_call.is_equal(s));
-            ir_assert(base_call.is_equal(base));
+            gpu_assert(new_call.is_equal(s));
+            gpu_assert(base_call.is_equal(base));
         }
 
         void set_prev_send(const stmt_t &s) {
@@ -210,8 +210,8 @@ private:
                 new_call = s;
                 return;
             }
-            ir_assert(this->src2_relative_off == src2_relative_off);
-            ir_assert(new_call.is_equal(s));
+            gpu_assert(this->src2_relative_off == src2_relative_off);
+            gpu_assert(new_call.is_equal(s));
         }
 
         stmt_t call;
@@ -226,14 +226,14 @@ private:
     send_info_t &find_send_info(const stmt_t &s) {
         for (auto &si : send_infos_)
             if (si.call.is_same(s)) return si;
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return send_infos_.front();
     }
 
     dpas_info_t &find_dpas_info(const stmt_t &s) {
         for (auto &si : dpas_infos_)
             if (si.call.is_same(s)) return si;
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return dpas_infos_.front();
     }
     static bool is_send(const stmt_t &s, send_info_t &info) {
@@ -250,7 +250,7 @@ private:
     }
 
     static bool has_constant_mask(const stmt_t &s) {
-        ir_assert(is_func_call<send_t>(s));
+        gpu_assert(is_func_call<send_t>(s));
         auto &mask = send_t::arg_mask(s);
         if (mask.is_empty()) return true;
         if (is_const(mask)) return true;
@@ -267,7 +267,7 @@ private:
                 src2_base = ptr_base;
                 return;
             }
-            ir_assert(src2_base.is_same(ptr_base));
+            gpu_assert(src2_base.is_same(ptr_base));
         };
 
         // Iterate through dpas and send calls.
@@ -297,8 +297,8 @@ private:
                 // instructions. That is dpas src2 buffer should be fully
                 // loaded by the corresponding send message.
                 if (send_info.reg_buf_size() != dpas_info.src2_size()) {
-                    ir_warning() << "Can't inject dpasw: different register "
-                                    "sizes in send and dpas.";
+                    gpu_warning() << "Can't inject dpasw: different register "
+                                     "sizes in send and dpas.";
                     return false;
                 }
                 dpas_info.send_producer = send_info.call;
@@ -347,7 +347,7 @@ private:
         // Where:
         //   p_a_dst[:] = a_dst[0:rcount / 2] + b_dst[0:rcount / 2]
         //   p_b_dst[:] = a_dst[rcount / 2:rcount] + b_dst[rcount / 2:rcount]
-        ir_assert(a.dpas().is_equal(b.dpas()));
+        gpu_assert(a.dpas().is_equal(b.dpas()));
         auto _dpasw = dpas_t::make_dpasw(a.dpas());
         auto &dpasw = _dpasw.as<dpas_t>();
 
@@ -382,7 +382,7 @@ private:
         auto &a_mem_off = send_t::arg_mem_off(a_send.call);
         auto &b_mem_off = send_t::arg_mem_off(b_send.call);
         auto ab_addr_diff = simplify(b_mem_off - a_mem_off);
-        ir_assert(is_const(ab_addr_diff));
+        gpu_assert(is_const(ab_addr_diff));
 
         auto new_send_args = a_send.args();
         send_t::arg_mem_off(new_send_args)
@@ -401,9 +401,9 @@ private:
 
         const int grf_size = hw_.grf_size();
 
-        ir_assert(old_off % grf_size == 0)
+        gpu_assert(old_off % grf_size == 0)
                 << "Must be aligned to GRF boundary.";
-        ir_assert(new_off % grf_size == 0)
+        gpu_assert(new_off % grf_size == 0)
                 << "Must be aligned to GRF boundary.";
 
         old_off /= grf_size;
@@ -420,12 +420,12 @@ private:
     }
 
     static func_t create_half_send(const send_t &send) {
-        ir_assert(send.type.elems() % 2 == 0) << "Can't create half-send.";
+        gpu_assert(send.type.elems() % 2 == 0) << "Can't create half-send.";
         auto _s = send_t::make(send.hw, send.op, send.address,
                 send.type.with_elems(send.type.elems() / 2), send.slots,
                 send.is_lsc, send.fill_buf, send.cache_hint);
         auto &s = _s.as<send_t>();
-        ir_assert(s.is_supported())
+        gpu_assert(s.is_supported())
                 << "Can't find send reading half of the original send.";
         MAYBE_UNUSED(s);
         return _s;

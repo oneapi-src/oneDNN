@@ -39,7 +39,7 @@ void init_extra_tensors(const zero_points_config_t &zp_cfg,
     };
     if (zp_cfg.do_src_compensation && zp_cfg.is_runtime_src_zero_points) {
         if (zp_cfg.needs_src_conv_precalc) {
-            ir_assert(zp_src);
+            gpu_assert(zp_src);
             int arg_key = DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC;
             tensor_cfg.add_tensor("src_zero_points", arg_key, /*is_input=*/true,
                     /*is_output=*/false, layout_t(zp_src, false), layout_t());
@@ -49,7 +49,7 @@ void init_extra_tensors(const zero_points_config_t &zp_cfg,
         }
     }
     if (zp_cfg.do_wei_compensation && zp_cfg.is_runtime_wei_zero_points) {
-        ir_assert(zp_cfg.is_common_wei_zero_point);
+        gpu_assert(zp_cfg.is_common_wei_zero_point);
         add_zp_buffer(
                 "wei_zero_points", zp_cfg.wei_zp_type, DNNL_ARG_WEIGHTS, 1);
     }
@@ -85,7 +85,7 @@ void init_extra_tensors(const zero_points_config_t &zp_cfg,
             tensor_cfg.add_tensor("prelu_rhs_" + std::to_string(i), arg_key,
                     /*is_input=*/true, /*is_output=*/false, layout);
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
     }
 }

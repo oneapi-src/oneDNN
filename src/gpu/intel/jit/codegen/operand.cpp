@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,8 +60,8 @@ std::string ngen_operand_t::str() const {
     auto &rb = rbd.reg_buf();
     std::ostringstream oss;
     if (rbd.type() != ngen::DataType::invalid) {
-        ir_assert(rb.blocks() == 1);
-        ir_assert(!rb.with_permute());
+        gpu_assert(rb.blocks() == 1);
+        gpu_assert(!rb.with_permute());
         oss << "r" << rbd.base() << ".";
         oss << rbd.offset() << ":";
         oss << to_string(rbd.type());

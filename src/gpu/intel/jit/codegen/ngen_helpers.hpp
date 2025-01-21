@@ -44,14 +44,14 @@ T to_cpp(const ngen::Immediate &imm) {
         case ngen::DataType::uq: return (T)utils::bit_cast<uint64_t>(u64);
         case ngen::DataType::f:
             return (T)utils::bit_cast<std::array<float, 2>>(u64)[0];
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return 0;
 }
 
 // type_t to ngen::DataType convertor.
 inline ngen::DataType to_ngen(const type_t &type) {
-    ir_assert(type.is_scalar()) << "Expected scalar type.";
+    gpu_assert(type.is_scalar()) << "Expected scalar type.";
 
 #define CASE(_kind, ngen_enum) \
     if (type.kind() == type_kind_t::_kind) return ngen::DataType::ngen_enum
@@ -75,7 +75,7 @@ inline ngen::DataType to_ngen(const type_t &type) {
     if (type == type_t::byte_ptr()) return ngen::DataType::uq;
 
 #undef CASE
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return ngen::DataType::invalid;
 }
 
@@ -100,13 +100,13 @@ inline type_t to_ir(ngen::DataType type) {
     CASE(u8, ub);
 
 #undef CASE
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return type_t::undef();
 }
 
 inline ngen::Immediate to_ngen(
         const expr_t &expr, const type_t &type = type_t::undef()) {
-    ir_assert(expr.type().is_scalar()) << "Vector types are not supported.";
+    gpu_assert(expr.type().is_scalar()) << "Vector types are not supported.";
     if (expr.is<int_imm_t>()) {
         auto &imm = expr.as<int_imm_t>();
         // No conversion.
@@ -124,15 +124,15 @@ inline ngen::Immediate to_ngen(
         CASE(uint64_t);
 
 #undef CASE
-        ir_error_not_expected() << "Can't convert expression: " << expr;
+        gpu_error_not_expected() << "Can't convert expression: " << expr;
     } else if (expr.is<float_imm_t>()) {
-        ir_assert(utils::one_of(type, type_t::undef(), type_t::f32()))
+        gpu_assert(utils::one_of(type, type_t::undef(), type_t::f32()))
                 << "Conversion is not supported.";
         auto &imm = expr.as<float_imm_t>();
         if (imm.type.is_f32()) { return ngen::Immediate((float)imm.value); }
         return ngen::Immediate(imm.value);
     }
-    ir_error_not_expected() << "Can't convert expression: " << expr;
+    gpu_error_not_expected() << "Can't convert expression: " << expr;
     return ngen::Immediate();
 }
 
@@ -151,7 +151,7 @@ inline ngen::InstructionModifier to_ngen(
 inline ngen::AtomicOp to_ngen(ngen_proxy::AtomicOp atomic_op) {
     switch (atomic_op) {
         case ngen_proxy::AtomicOp::fadd: return ngen::AtomicOp::fadd;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return ngen::AtomicOp(std::numeric_limits<uint16_t>::max());
 }
@@ -161,7 +161,7 @@ inline ngen::Immediate ngen_negate(const ngen::Immediate &imm) {
         case ngen::DataType::w: return ngen::Immediate(-to_cpp<int16_t>(imm));
         case ngen::DataType::d: return ngen::Immediate(-to_cpp<int32_t>(imm));
         case ngen::DataType::f: return ngen::Immediate(-to_cpp<float>(imm));
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return ngen::Immediate();
 }

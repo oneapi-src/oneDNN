@@ -57,7 +57,7 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
             view_t view;
             switch (key) {
                 case DNNL_ARG_SRC:
-                    ir_assert(mask == 0);
+                    gpu_assert(mask == 0);
                     src_scales_type = sc_type;
                     view = po_vm_.create_view(sc_type, mask);
                     src_scales = add_input_tensor(view, buf);
@@ -67,14 +67,14 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
                     // Convert o/i weights mask to src/dst.
                     // XXX: per_oc for BWD_D is treated as per_ic assuming
                     // it's called from deconvolution.
-                    ir_assert(utils::one_of(mask, 0, 1, 3));
+                    gpu_assert(utils::one_of(mask, 0, 1, 3));
                     wei_scales_type = sc_type;
                     view = po_vm_.create_view(sc_type, (mask) ? 1 << 1 : 0);
                     wei_scales = add_input_tensor(view, buf);
                     wei_scales_mask = mask;
                     break;
                 case DNNL_ARG_DST: // Invert dst scales right after load.
-                    ir_assert(mask == 0);
+                    gpu_assert(mask == 0);
                     dst_scales_type = sc_type;
                     view = po_vm_.create_view(sc_type, mask);
                     dst_scales = add_input_tensor(view, buf);
@@ -185,7 +185,7 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
             auto op_kind = alg_kind_to_op_kind(po.binary.alg);
             post_ops_.emplace_back(c, binary_op_t::make(op_kind, c, rhs));
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
     }
 
@@ -286,7 +286,7 @@ bool post_op_context_t::init_need_to_restore_zero_padding(
         } else if (po.is_prelu()) {
             return false;
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
     }
     if (zp_cfg.do_src_compensation && dst_md.dims[0] != dst_md.padded_dims[0])

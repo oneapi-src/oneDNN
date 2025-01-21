@@ -163,7 +163,7 @@ private:
             auto dim = pvar_t(value);
             tile_infos_[dim].add(tile_flags_t::thread_group);
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
     }
 
@@ -304,7 +304,7 @@ std::vector<tile_scheme_t> get_tile_schemes(const search_params_t &params) {
         schemes.emplace_back("tg=[oc,ic], iter=[mb,g,oc,ic]");
         schemes.emplace_back("tg=[oc,ic], iter=[ow,g,oc,ic]");
     } else {
-        ir_error_not_expected();
+        gpu_error_not_expected();
     }
     for (auto &s : schemes) {
         if (params.base_desc.is_dw) {
@@ -327,7 +327,7 @@ public:
     const std::vector<kernel_desc_t> &descs() const { return descs_; }
 
     void add_desc(const kernel_desc_t &desc) {
-        ir_assert(desc.reqs.str() == reqs_.str())
+        gpu_assert(desc.reqs.str() == reqs_.str())
                 << "Reqs mismatch:\n"
                 << desc.cmd_str() << "\ndesc.reqs:" << desc.reqs.str()
                 << "\nreqs:\n"
@@ -335,7 +335,7 @@ public:
         if (descs_.empty()) {
             is_dw_ = desc.is_dw;
         } else {
-            ir_assert(desc.is_dw == is_dw_);
+            gpu_assert(desc.is_dw == is_dw_);
         }
         descs_.push_back(desc);
     }
@@ -419,7 +419,7 @@ private:
                           << std::endl;
             }
         }
-        ir_info() << "gen_desc_groups(): descs.size() = " << descs.size();
+        gpu_info() << "gen_desc_groups(): descs.size() = " << descs.size();
         std::unordered_map<std::string, search_kernel_desc_group_t> desc_groups;
         std::vector<int> prefetch_dists;
         if (params_.is_prefetch_set) {
@@ -522,7 +522,7 @@ public:
     }
 
     std::pair<int, kernel_desc_t> next() {
-        ir_assert((bool)*this);
+        gpu_assert((bool)*this);
         auto &e = *entry_it_;
         ++entry_it_;
         return std::make_pair(e.id, e.desc);
@@ -674,7 +674,7 @@ void search(const bench_manager_t &bench_mger, const planner_params_t &params) {
         case planner_mode_t::auto_search:
             auto_search(bench_mger, params);
             break;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
 }
 

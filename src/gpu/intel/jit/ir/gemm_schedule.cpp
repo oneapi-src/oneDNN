@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ layout_t bmnk_mapper_t::map_to_bmnk(abc_kind_t abc_kind,
                 break;
             }
         }
-        if (!found) ir_error_not_expected() << "MNK dimension not found.";
+        if (!found) gpu_error_not_expected() << "MNK dimension not found.";
     }
     return layout_t(layout.type(), int(bmnk_kinds.size()), 0, blocks);
 }
@@ -64,15 +64,15 @@ void bmnk_block_mapper_t::push_block(abc_kind_t abc_kind, const block_t &b) {
         case bmnk_kind_t::m: m_blocks_.emplace_back(abc_kind, b); break;
         case bmnk_kind_t::n: n_blocks_.emplace_back(abc_kind, b); break;
         case bmnk_kind_t::k: k_blocks_.emplace_back(abc_kind, b); break;
-        default: ir_error_not_expected() << "Unknown MNK kind.";
+        default: gpu_error_not_expected() << "Unknown MNK kind.";
     }
 }
 
 layout_t bmnk_block_mapper_t::map_from_bmnk(abc_kind_t abc_kind,
         const std::vector<bmnk_kind_t> &bmnk_kinds,
         const layout_t &bmnk_layout) const {
-    ir_assert(bmnk_layout.ndims() <= 3);
-    ir_assert(bmnk_layout.has_zero_offset());
+    gpu_assert(bmnk_layout.ndims() <= 3);
+    gpu_assert(bmnk_layout.has_zero_offset());
     std::vector<block_t> blocks;
     std::vector<std::vector<block_t>> tmp_blocks(
             static_cast<int>(bmnk_kind_t::k) + 1);
@@ -87,13 +87,13 @@ layout_t bmnk_block_mapper_t::map_from_bmnk(abc_kind_t abc_kind,
     for (auto &b : bmnk_layout.blocks()) {
         auto &bmnk_blocks = tmp_blocks[static_cast<int>(bmnk_kinds[b.dim_idx])];
         bool ok = pop_block(bmnk_blocks, blocks, b);
-        ir_assert(ok) << "Can't map from bmnk layout to problem layout.";
+        gpu_assert(ok) << "Can't map from bmnk layout to problem layout.";
         MAYBE_UNUSED(ok);
     }
     for (auto bmnk_kind : bmnk_kinds) {
         auto &bmnk_blocks = tmp_blocks[static_cast<int>(bmnk_kind)];
         pop_size_1_blocks(bmnk_blocks);
-        ir_assert(bmnk_blocks.empty());
+        gpu_assert(bmnk_blocks.empty());
     }
 
     // Fix strides to make them dense.

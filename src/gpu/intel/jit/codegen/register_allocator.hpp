@@ -42,7 +42,7 @@ public:
     }
     ~reg_allocator_t() {
 #ifdef DNNL_DEV_MODE
-        ir_assert(!is_speculate) << "Speculative allocation never finished\n";
+        gpu_assert(!is_speculate) << "Speculative allocation never finished\n";
 #endif
     }
 

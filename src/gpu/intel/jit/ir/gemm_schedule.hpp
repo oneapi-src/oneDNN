@@ -53,7 +53,7 @@ inline std::ostream &operator<<(std::ostream &out, abc_kind_t abc) {
         case abc_kind_t::a: out << "a"; break;
         case abc_kind_t::b: out << "b"; break;
         case abc_kind_t::c: out << "c"; break;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return out;
 }
@@ -85,7 +85,7 @@ public:
 
     void set_bmnk_kind(const expr_t &var, bmnk_kind_t bmnk_kind) {
         auto ret = bmnk_kinds_.insert({var, bmnk_kind});
-        ir_assert(ret.second) << "Can't set variable twice: " << var;
+        gpu_assert(ret.second) << "Can't set variable twice: " << var;
     }
 
     const expr_t &var(abc_kind_t abc_kind, int dim_idx) const {
@@ -118,7 +118,7 @@ private:
             case abc_kind_t::a: return a_vars_;
             case abc_kind_t::b: return b_vars_;
             case abc_kind_t::c: return c_vars_;
-            default: ir_error_not_expected() << "Unknown ABC kind.";
+            default: gpu_error_not_expected() << "Unknown ABC kind.";
         }
         return a_vars_;
     }
@@ -203,7 +203,7 @@ static std::string to_string(loop_kind_t kind) {
         case loop_kind_t::serial: return "serial";
         case loop_kind_t::tg_grid: return "tg_grid";
         case loop_kind_t::tensorized: return "tensorized";
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return "unknown";
 }
@@ -319,7 +319,7 @@ public:
             return 0;
         }
         if (is_split_parent()) {
-            ir_assert(child_vars_.size() == 2);
+            gpu_assert(child_vars_.size() == 2);
             auto &outer_loop = all_loops.at(child_vars_[0]);
             auto &inner_loop = all_loops.at(child_vars_[1]);
             auto outer_var
@@ -333,7 +333,7 @@ public:
             // Example of "unpacking":
             //     fused_var = (a * b * c * d)
             //     b = (fused_var / (D * C)) % B
-            ir_assert(child_vars_.size() == 1);
+            gpu_assert(child_vars_.size() == 1);
             auto &fused_loop = all_loops.at(child_vars_[0]);
             int nvars = int(fused_loop.parent_vars_.size());
             expr_t denom = 1;
@@ -351,7 +351,7 @@ public:
             }
         }
 
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return expr_t();
     }
 
@@ -478,7 +478,7 @@ public:
             dim_t bound = view.vdims()[i];
             if (has_loop(v)) {
                 auto &loop = find_loop(v);
-                ir_assert(bound == to_cpp<dim_t>(loop.bound()))
+                gpu_assert(bound == to_cpp<dim_t>(loop.bound()))
                         << "Inconsistent sizes.";
                 continue;
             }
@@ -497,17 +497,17 @@ public:
     }
 
     view_t a_tg_view() const {
-        ir_assert(is_finalized_);
+        gpu_assert(is_finalized_);
         return a_view_.create_sub_view(a_tg_tile_);
     }
 
     view_t b_tg_view() const {
-        ir_assert(is_finalized_);
+        gpu_assert(is_finalized_);
         return b_view_.create_sub_view(b_tg_tile_);
     }
 
     view_t c_tg_view() const {
-        ir_assert(is_finalized_);
+        gpu_assert(is_finalized_);
         return c_view_.create_sub_view(c_tg_tile_);
     }
 
@@ -553,7 +553,7 @@ public:
             expr_t &inner_var, const std::string &outer_name = {},
             const std::string &inner_name = {}) {
         auto &loop = find_loop(var);
-        ir_assert(loop.is_leaf()) << "Can't split, non-leaf loop.";
+        gpu_assert(loop.is_leaf()) << "Can't split, non-leaf loop.";
 
         auto bound = to_cpp<int64_t>(loop.bound());
         if (loop.is_root() && (bound % factor != 0)) {
@@ -562,7 +562,7 @@ public:
             loop.set_bound(bound);
         }
 
-        ir_assert(bound % factor == 0) << "Can't split.";
+        gpu_assert(bound % factor == 0) << "Can't split.";
 
         if (outer_name.empty()) {
             outer_var = create_var({var}, "outer");
@@ -575,7 +575,7 @@ public:
             inner_var = var_t::make(type_t::s32(), inner_name);
         }
 
-        ir_assert(outer_var.as<var_t>().name != inner_var.as<var_t>().name)
+        gpu_assert(outer_var.as<var_t>().name != inner_var.as<var_t>().name)
                 << "Cannot split loops to the same name "
                 << outer_var.as<var_t>().name;
 
@@ -647,12 +647,12 @@ public:
     // Binds the loop defined by `v` to an external variable.
     void bind(const expr_t &v, const expr_t &bound_var) {
         auto &loop = find_loop(v);
-        ir_assert(loop.is_leaf()) << "Can't bind non-leaf loop: " << v;
+        gpu_assert(loop.is_leaf()) << "Can't bind non-leaf loop: " << v;
         loop.set_bound_var(bound_var);
         loop.set_kind(bound_var_to_loop_kind(bound_var));
 
         dim_t var_dim = bound_var_to_dim(bound_var);
-        ir_assert(to_cpp<dim_t>(loop.bound()) == var_dim)
+        gpu_assert(to_cpp<dim_t>(loop.bound()) == var_dim)
                 << "Dimension size doesn't match, "
                 << to_cpp<dim_t>(loop.bound()) << " != " << var_dim << ".";
     }
@@ -661,7 +661,7 @@ public:
     void reorder(const std::vector<expr_t> &ordered_vars) {
         for (auto &v : ordered_vars) {
             auto &loop = find_loop(v);
-            ir_assert(loop.is_leaf()) << "Can't reorder non-leaf loop: " << v;
+            gpu_assert(loop.is_leaf()) << "Can't reorder non-leaf loop: " << v;
         }
         std::vector<bool> found(vars_.size());
         for (size_t i = 0; i < vars_.size(); i++) {
@@ -686,13 +686,13 @@ public:
     //   }
     void set_dynamic_bounds(
             const expr_t &var, const expr_t &init, const expr_t &step) {
-        ir_assert(find_loop(var).is_leaf()) << "Variable is non-leaf: " << var;
+        gpu_assert(find_loop(var).is_leaf()) << "Variable is non-leaf: " << var;
         dynamic_inits_[var] = expand(init);
         dynamic_steps_[var] = expand(step);
     }
 
     bool with_thread_group_k_slicing() const {
-        ir_assert(is_finalized_);
+        gpu_assert(is_finalized_);
         dim_t k_thr = 1;
         dim_t k_tg = 1;
         for (int i = 0; i < bmnk_mapper_.ndims(abc_kind_t::a); i++) {
@@ -701,12 +701,12 @@ public:
             k_thr *= a_thr_tile_(i);
             k_tg *= a_tg_tile_(i);
         }
-        ir_assert(k_tg % k_thr == 0);
+        gpu_assert(k_tg % k_thr == 0);
         return k_thr < k_tg;
     }
 
     bool with_kernel_grid_k_slicing() const {
-        ir_assert(is_finalized_);
+        gpu_assert(is_finalized_);
         dim_t k_loop = 1;
         dim_t k = 1;
         for (int i = 0; i < bmnk_mapper_.ndims(abc_kind_t::a); i++) {
@@ -728,7 +728,7 @@ public:
                 ret.push_back(loop.var());
                 return;
             }
-            ir_assert(loop.is_fused_child() || loop.is_split_child());
+            gpu_assert(loop.is_fused_child() || loop.is_split_child());
             for (auto &pv : loop.parent_vars()) {
                 walk(pv);
             }
@@ -789,7 +789,7 @@ public:
             bool with_dyn = init_it != dynamic_inits.end();
             auto init = with_dyn ? init_it->second : expr_t(0);
             auto step = with_dyn ? step_it->second : expr_t(1);
-            ir_assert(!with_dyn || step_it != dynamic_steps.end());
+            gpu_assert(!with_dyn || step_it != dynamic_steps.end());
             if (found_vars.count(var) == 0 && to_cpp<dim_t>(loop.bound()) == 1
                     && !with_dyn)
                 continue;
@@ -800,7 +800,7 @@ public:
 
         for (auto &kv : dynamic_inits) {
             auto &c = kv.second;
-            ir_assert(c.is_empty()) << "Skip condition is not injected: " << c;
+            gpu_assert(c.is_empty()) << "Skip condition is not injected: " << c;
         }
 
         return body;
@@ -827,7 +827,7 @@ private:
             case tile_level_t::loop: return 1;
             case tile_level_t::thread_group: return 2;
             case tile_level_t::iter: return 3;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return -1;
     }
@@ -838,7 +838,7 @@ private:
             case loop_kind_t::serial: return 1;
             case loop_kind_t::tg_grid: return 2;
             case loop_kind_t::tensorized: return 3;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return -1;
     }
@@ -871,7 +871,7 @@ private:
                     case loop_kind_t::serial: return 0;
                     case loop_kind_t::tensorized:
                         return std::numeric_limits<int>::max();
-                    default: ir_error_not_expected();
+                    default: gpu_error_not_expected();
                 }
                 return -1;
             };
@@ -948,7 +948,7 @@ private:
         }
         if (kernel_grid_walk_order_.is_grid_var(v))
             return loop_kind_t::kernel_grid;
-        ir_error_not_expected() << "Unknown external variable: " << v;
+        gpu_error_not_expected() << "Unknown external variable: " << v;
         return loop_kind_t::undef;
     }
 
@@ -961,7 +961,7 @@ private:
         }
         if (kernel_grid_walk_order_.is_grid_var(v))
             return kernel_grid_walk_order_.dim_size(v);
-        ir_error_not_expected() << "Unknown external variable: " << v;
+        gpu_error_not_expected() << "Unknown external variable: " << v;
         return -1;
     }
 
@@ -971,12 +971,12 @@ private:
     }
 
     const loop_t &find_loop(const expr_t &var) const {
-        ir_assert(has_loop(var)) << "Var not found: " << var;
+        gpu_assert(has_loop(var)) << "Var not found: " << var;
         return loops_.at(var);
     }
 
     loop_t &find_loop(const expr_t &var) {
-        ir_assert(has_loop(var)) << "Var not found: " << var;
+        gpu_assert(has_loop(var)) << "Var not found: " << var;
         return loops_[var];
     }
 
@@ -991,7 +991,7 @@ private:
             const expr_t &var, const expr_t &bound, bool is_root = false) {
         loop_t loop(var, bound, is_root);
         auto ret = loops_.insert({var, loop});
-        ir_assert(ret.second) << "Variable already exists: " << var;
+        gpu_assert(ret.second) << "Variable already exists: " << var;
         vars_.push_back(var);
         return ret.first->second;
     }
@@ -1081,7 +1081,7 @@ private:
                 int level;
                 if (loop.is_fused_parent()) {
                     auto &child_var = loop.child_vars()[0];
-                    ir_assert(find_loop(child_var).is_leaf());
+                    gpu_assert(find_loop(child_var).is_leaf());
                     kind = find_loop(child_var).kind();
                     level = loop_level(child_var);
                 } else {
@@ -1092,11 +1092,11 @@ private:
                 walk_down(loop.child_vars()[0]);
                 walk_down(loop.child_vars()[1]);
             } else {
-                ir_error_not_expected();
+                gpu_error_not_expected();
             }
         };
         walk_down(root_var);
-        ir_assert(ret.is_valid()) << "Invalid loop nest.";
+        gpu_assert(ret.is_valid()) << "Invalid loop nest.";
         return ret;
     }
 

@@ -87,7 +87,7 @@ fma_kind_t to_key(fma_kind_t fma) {
         case fma_kind_t::dp4a:
         case fma_kind_t::dpas: return fma;
         case fma_kind_t::dpasw: return fma_kind_t::dpas;
-        default: ir_error_not_expected(); return fma_kind_t::undef;
+        default: gpu_error_not_expected(); return fma_kind_t::undef;
     }
 }
 
@@ -105,7 +105,7 @@ key_type_kind_t to_type_kind(data_type_t dt) {
         CASE(s32);
         CASE(tf32);
         CASE(f64);
-        default: ir_error_not_expected(); return key_type_kind_t::undef;
+        default: gpu_error_not_expected(); return key_type_kind_t::undef;
     }
 #undef CASE
 }
@@ -127,7 +127,7 @@ key_type_kind_t to_filter(key_type_kind_t kind) {
         case key_type_kind_t::bf8:
         case key_type_kind_t::hf8:
         case key_type_kind_t::xf8: return key_type_kind_t::xf8;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return key_type_kind_t::undef;
 }
@@ -135,7 +135,7 @@ key_type_kind_t to_filter(key_type_kind_t kind) {
 template <>
 struct key_kind_traits_t<key_type_kind_t> {
     static bool matches(key_type_kind_t filter, key_type_kind_t other) {
-        ir_assert(filter == to_filter(filter));
+        gpu_assert(filter == to_filter(filter));
         if (filter == key_type_kind_t::any) return true;
         return filter == to_filter(other);
     }
@@ -205,7 +205,7 @@ struct key_hw_t {
     void parse(std::istream &in) {
         auto s = stream_parse<std::string>(in);
         auto parts = gpu_utils::split(s, ":");
-        ir_assert(parts.size() <= 2);
+        gpu_assert(parts.size() <= 2);
         hw = to_enum<ngen::HW>(parts[0]);
         family = (parts.size() > 1 ? to_enum<ngen::ProductFamily>(parts[1])
                                    : ngen::ProductFamily::Unknown);
@@ -249,7 +249,7 @@ struct key_type_info_t {
             case prop_kind::forward: ret.dst = any_type; break;
             case prop_kind::backward_data: ret.src = any_type; break;
             case prop_kind::backward_weights: ret.wei = any_type; break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return ret;
     }
@@ -276,7 +276,7 @@ struct key_type_info_t {
     void parse(std::istream &in) {
         auto s = stream_parse<std::string>(in);
         auto parts = gpu_utils::split(s, ":");
-        ir_assert(parts.size() == 3);
+        gpu_assert(parts.size() == 3);
         src = key_type_t(to_enum<key_type_kind_t>(parts[0]));
         wei = key_type_t(to_enum<key_type_kind_t>(parts[1]));
         dst = key_type_t(to_enum<key_type_kind_t>(parts[2]));
@@ -317,7 +317,7 @@ struct key_mb_t {
             case prop_kind::backward_weights:
                 is_blocked = src_blocked && dst_blocked;
                 break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
     }
 
@@ -510,12 +510,12 @@ conv_key_t conv_key_t::to_filter() const {
 }
 
 const std::string &conv_key_t::desc() const {
-    ir_assert(impl_);
+    gpu_assert(impl_);
     return impl_->desc_str();
 }
 
 dim_t conv_key_t::distance(const conv_key_t &other) const {
-    ir_assert(impl_ && other.impl_);
+    gpu_assert(impl_ && other.impl_);
     return impl_->distance(*other.impl_);
 }
 
@@ -534,7 +534,7 @@ size_t conv_key_t::get_hash() const {
 }
 
 void conv_key_t::stringify(std::ostream &out) const {
-    ir_assert(impl_);
+    gpu_assert(impl_);
     impl_->stringify(out);
 }
 

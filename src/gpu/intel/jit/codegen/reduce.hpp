@@ -45,7 +45,7 @@ public:
         bool is_inplace = (src_rd.base() == dst_rd.base()
                 && src_rd.byte_offset() == dst_rd.byte_offset());
         if (is_inplace) {
-            ir_assert(src_type == dst_type)
+            gpu_assert(src_type == dst_type)
                     << "Inplace operation is supported for the same type only.";
         }
 
@@ -55,7 +55,7 @@ public:
         int tile_elems = (int)tile.elems();
         auto src_tile_layout = src_layout_.map(tile);
         auto src_tile_blocks = src_tile_layout.blocks();
-        ir_assert(src_tile_blocks.size() <= 1);
+        gpu_assert(src_tile_blocks.size() <= 1);
         ngen_register_scope_t block_scope(scope.register_allocator());
         int src_stride
                 = src_tile_blocks.empty() ? 1 : (int)src_tile_blocks[0].stride;
@@ -74,7 +74,7 @@ public:
                     if (is_inplace) {
                         bool same_src_dst = (dst_off == src_off);
                         if (!seen[dst_off] && !same_src_dst) {
-                            ir_error_not_expected()
+                            gpu_error_not_expected()
                                     << "Invalid inplace reduction.";
                         }
                         seen[dst_off] = true;
@@ -119,7 +119,7 @@ private:
     tensor_t find_1d_tile(layout_t a, layout_t b) const {
         layout_t::align_layouts(a, b);
 
-        ir_assert(!a.blocks().empty());
+        gpu_assert(!a.blocks().empty());
         // Allow trivial tile for scalar dst.
         if (b.blocks().empty()) { return tensor_t(dst_layout_.dims()); }
 
@@ -138,7 +138,7 @@ private:
             return tensor_t(std::vector<dim_t>(b.ndims(), 1));
         }
 
-        ir_assert(dim_t(b0.stride) == 1)
+        gpu_assert(dim_t(b0.stride) == 1)
                 << "Reduction is not supported for non-unit dst stride.";
 
         int grf_size = ngen::GRF::bytes(hw_);
@@ -154,7 +154,7 @@ private:
 
         if (a0.block % min_step != 0) {
             // TODO: Extend implementation to support this case.
-            ir_except_not_implemented("Reduction is not supported.");
+            gpu_except_not_implemented("Reduction is not supported.");
         }
 
         std::vector<dim_t> tile_dims(src_layout_.ndims(), 1);
