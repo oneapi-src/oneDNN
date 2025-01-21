@@ -1563,8 +1563,7 @@ private:
             case tiler_mode_t::lookup: {
                 const auto params = const_conv_lookup_table().find(cfg.key());
                 if (!params.is_empty() && chk.is_ok(params.blocking())) {
-                    gpu_info() << "[INFO] Using lookup table config: "
-                               << params.str();
+                    gpu_info() << "Using lookup table config: " << params.str();
                     params_gen_ = params_generator_t(tune_level, simd_size, chk,
                             level_tile_sets, params);
                 } else {
