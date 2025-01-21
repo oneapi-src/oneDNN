@@ -197,8 +197,6 @@ status_t gen_reorder_t::pd_t::init_kernel_info() {
         gpu_assert(!t.needs_zero_out);
 
         if (t.arg_key == DNNL_ARG_UNDEF) {
-            gpu_assert(!t.needs_reorder);
-            gpu_assert(!t.needs_zero_out);
             gpu_error_not_expected();
             continue;
         }

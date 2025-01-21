@@ -136,8 +136,6 @@ status_t gen_pooling_fwd_t::init(impl::engine_t *engine) {
         gpu_assert(!t.needs_zero_out);
 
         if (t.arg_key == DNNL_ARG_UNDEF) {
-            gpu_assert(!t.needs_reorder);
-            gpu_assert(!t.needs_zero_out);
             gpu_error_not_expected();
             continue;
         }

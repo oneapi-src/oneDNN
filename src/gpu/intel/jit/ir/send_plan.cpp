@@ -579,7 +579,7 @@ std::vector<T> slice(const std::vector<T> &v, int start, int stop) {
 }
 
 const char *fail_2d_header() {
-    return "INFO: can't use 2D send. ";
+    return "Cannot use 2D send. ";
 }
 
 template <typename T0>
