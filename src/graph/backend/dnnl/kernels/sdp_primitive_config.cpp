@@ -207,9 +207,11 @@ status_t sdp_primitive_config_t::initial_check(
                 post_op = get_post_op(post_op);
             }
             // mask
-            if (post_op && post_op->get_kind() == graph::op_kind::Add) {
-                // Mask exists, update post_op and traverse to next op
-                post_op = get_post_op(post_op);
+            if (post_op) {
+                if (post_op->get_kind() == graph::op_kind::Add) {
+                    // Mask exists, update post_op and traverse to next op
+                    post_op = get_post_op(post_op);
+                }
                 // Not support select after scale(optional) and mask(optional)
                 // Distill-Bert:[mm1] --> [scale]* --> [mask]* --> [select] --> ...
                 VCHECK_SDP_PRIMITIVE(post_op
