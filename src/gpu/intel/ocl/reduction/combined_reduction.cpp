@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -80,8 +80,14 @@ reduction_phase_conf_t::reduction_phase_conf_t(
     : reduction_subproblem_t(subprb)
     , src_type(src_type)
     , dst_type(dst_type)
-    , subgroup_size(compute_engine->device_info()->max_subgroup_size())
-    , with_block_reads(can_use_block_reads()) {
+    , subgroup_size(compute_engine->device_info()->max_subgroup_size()) {
+    // Short-circuit if zero-dim is present
+    gpu_assert(reduction_block.block != 0) << "Reducing over 0 elements";
+    if (outer_block.block == 0 || inner_block.block == 0) {
+        nd_range = compute::nd_range_t({0}, {into<size_t>(subgroup_size)});
+        return;
+    }
+    with_block_reads = can_use_block_reads();
 
     const int num_EU = compute_engine->device_info()->eu_count();
     const int max_wg_size = static_cast<int>(
@@ -182,12 +188,17 @@ status_t split_into_phases(const reduction_subproblem_t &subprb,
         const compute::compute_engine_t *compute_engine,
         std::vector<reduction_phase_conf_t> &phases, bool large_grf_mode) {
     const dim_t reduction_elems = subprb.reduction_block.block;
+    reduction_phase_conf_t try_phase(subprb, accum_data_type, accum_data_type,
+            compute_engine, large_grf_mode);
+    // Zero-dim short circuit
+    if (try_phase.outer_block.block == 0 || try_phase.inner_block.block == 0) {
+        phases.emplace_back(try_phase);
+        return status::success;
+    }
 
     //Heuristic:
     // subsplitting has a high cost due to launching multiple sequential threads,
     // so only split when parallelism is low and reductions per thread is large
-    reduction_phase_conf_t try_phase(subprb, accum_data_type, accum_data_type,
-            compute_engine, large_grf_mode);
     const bool low_parallelism = [&compute_engine, &large_grf_mode,
                                          &try_phase]() {
         compute::gpu_arch_t arch = compute_engine->device_info()->gpu_arch();
@@ -453,6 +464,8 @@ status_t combined_reduction_t::pd_t::init_kernel_ctx(
 }
 
 status_t combined_reduction_t::execute_combined(const exec_ctx_t &ctx) const {
+    if (pd()->has_zero_dim_memory()) return status::success;
+
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
     std::unique_ptr<memory_storage_t> sp_reduce[2]
