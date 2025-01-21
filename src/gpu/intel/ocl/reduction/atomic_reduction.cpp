@@ -101,6 +101,10 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
     conf.src_type = src_type;
     conf.dst_type = dst_type;
     conf.subgroup_size = device_info.max_subgroup_size();
+    // Short-circuit if zero-dim is present
+    gpu_assert(reduction_block.block != 0) << "Reducing over 0 elements";
+    if (outer_block.block == 0 || inner_block.block == 0) return;
+
     auto arch = device_info.gpu_arch();
     const int base_threads_per_eu
             = compute::device_info_t::threads_per_eu(arch);

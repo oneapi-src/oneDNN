@@ -174,7 +174,11 @@ void write_padded_zeros(__global DST_DATA_T *dst) {
 }
 
 #if INNER_DIM_SIZE < SUBGROUP_SIZE
+#if INNER_DIM_SIZE == 0
+#define SLM_PER_SG 1
+#else
 #define SLM_PER_SG INNER_DIM_SIZE
+#endif // INNER_DIM_SIZE == 0
 #else
 #define SLM_PER_SG SUBGROUP_SIZE
 #endif
