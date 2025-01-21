@@ -24,3 +24,7 @@
 # test correct LDA initialization, when batches are merged into M dimension
 --reset
 --stag=abcd --dtag=abcd 2x1x8x2:1x1x2x8_n"merge_batches_into_M"
+
+# test special tag that can be matched with adbc
+--reset
+--stag=dabc --wtag=abx --dtag=abx 1x2x2x32:2x2x32x7

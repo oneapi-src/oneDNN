@@ -1870,9 +1870,13 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
             const dim_t src_stride = src_d.matches_tag(acbd)
                     ? bgmmc.A_strides[1]
                     : bgmmc.A_strides[0];
+            const dim_t copy_A_src_stride = src_d.matches_tag(dabc)
+                            && bgmmc.K * bgmmc.batch
+                                    == src_d.blocking_desc().strides[0]
+                    ? src_d.blocking_desc().strides[0]
+                    : src_d.blocking_desc().strides[0] * bgmmc.K;
             bgmmc.copy_A_src_stride
-                    = nstl::min(src_d.blocking_desc().strides[0],
-                              src_stride / factor)
+                    = nstl::min(copy_A_src_stride, src_stride / factor)
                     * factor;
         }
 
