@@ -20,3 +20,9 @@
 --dt=s8:s8:s8
 --stag=ab,ba --wtag=ba --dtag=AB16b16a
 11x13:13x16
+
+# verify transpose dst tag can be treated as plain
+--reset
+--dt=s8:s8:f32
+--stag=ab --wtag=ab --dtag=ba,ab
+1x1:1x200
