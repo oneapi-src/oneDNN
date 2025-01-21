@@ -439,7 +439,7 @@ struct send_1d_plan_t : public base_plan_t {
         if (!desc.base_alignment_ok(addr_inc, prover)) return false;
         std::vector<expr_t> mask_incs(nmasks());
         auto coord = it.coord();
-        ir_assert(reg_layout.offset_in_bytes(coord) == reg_off);
+        gpu_assert(reg_layout.offset_in_bytes(coord) == reg_off);
         for (int i = 0; i < nmasks(); i++) {
             mask_incs[i] = mask_desc[i].to_expr(coord, /*with_const=*/false);
         }
@@ -555,7 +555,7 @@ struct send_2d_desc_t {
                     stride = utils::rnd_up(stride, grf_size / type.size());
                     break;
                 case pad_kind_t::none: break;
-                default: ir_error_not_expected();
+                default: gpu_error_not_expected();
             }
             cur_stride = stride;
         };
@@ -762,8 +762,8 @@ private:
             slot_size = std::min(max_slot_size, slot_size);
         if (type_size < slot_size && slot_size < 4) slot_size = type_size;
 
-        ir_assert(inner_bytes % slot_size == 0);
-        ir_assert(slot_size % type_size == 0);
+        gpu_assert(inner_bytes % slot_size == 0);
+        gpu_assert(slot_size % type_size == 0);
         bool is_scattered = (slot_size <= max_slot_size);
         if (is_scattered && params.kind == send_kind_t::block)
             return send_plan_t();
@@ -803,8 +803,8 @@ private:
 
         int elem_stride = 1;
         if (slot_stride > slot_size) {
-            ir_assert(slot_size < 4);
-            ir_assert(type_size == slot_size);
+            gpu_assert(slot_size < 4);
+            gpu_assert(type_size == slot_size);
             elem_stride = ir_utils::safe_div(slot_stride, slot_size);
         }
         auto reg_layout = middle_last.sub_layout(elem_stride);
@@ -849,7 +849,7 @@ private:
         int grf_size = params.hw.grf_size();
         auto reg_layout = desc.reg_layout(grf_size, view.layout().desc());
         int entry_reg_size = utils::rnd_up(reg_layout.size(), grf_size);
-        ir_assert(entry_reg_size <= params.max_entry_reg_size);
+        gpu_assert(entry_reg_size <= params.max_entry_reg_size);
         reg_layout.pad_bytes(grf_size);
 
         auto entry_tile = reg_layout.int_dim_sizes();
@@ -919,7 +919,7 @@ private:
         const int max_type_size = 512;
         if (desc.type_size <= max_type_size) return;
 
-        ir_assert(desc.type_size % max_type_size == 0);
+        gpu_assert(desc.type_size % max_type_size == 0);
         send_1d_plan_t new_plan;
         new_plan.desc = desc;
         new_plan.desc.type_size = max_type_size;
@@ -943,11 +943,11 @@ private:
 
 inline send_plan_t create_send_plan(const send_params_t &params,
         const view_t &view, bool allow_fail = false) {
-    ir_assert(params.max_entry_reg_size > 0);
+    gpu_assert(params.max_entry_reg_size > 0);
     send_plan_builder_t spb(params, view);
     auto plan = spb.build();
     if (!plan) {
-        if (!allow_fail) ir_error_not_expected() << "Cannot create send plan.";
+        if (!allow_fail) gpu_error_not_expected() << "Cannot create send plan.";
     }
     return plan;
 }

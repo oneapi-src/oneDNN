@@ -135,7 +135,7 @@ offset_t offset_scope_t::get_offset(int version, const expr_t &base0,
             && ret.type.is_scalar()) {
         for (auto &o : offsets_) {
             if (o.is_equal(ret, /*compare_shift=*/false)) {
-                ir_assert(o.type.is_scalar());
+                gpu_assert(o.type.is_scalar());
                 ret.inline_init = ret.store(o.load() + ret.shift);
                 ret.loop_incs.clear();
                 break;
@@ -155,7 +155,7 @@ stmt_t create_stmt(const send_1d_plan_t &plan, const expr_t &mem_buf,
         const expr_t &reg_buf, offset_ctx_t &off_ctx,
         const pvar_coord_t<dim_t> &coord, const pvar_tile_t &tile) {
     for (auto &d : plan.entry_tile) {
-        ir_assert(tile.at(d) % plan.entry_tile.at(d) == 0);
+        gpu_assert(tile.at(d) % plan.entry_tile.at(d) == 0);
     }
     auto op = to_ir(plan.desc.op);
     auto address = to_ir(plan.desc.address);
@@ -169,7 +169,7 @@ stmt_t create_stmt(const send_1d_plan_t &plan, const expr_t &mem_buf,
         int entry_idx = plan.reg_layout.to_linear_index(
                 plan.entry_tile, coord + sub_coord);
         auto &e = plan.entries[entry_idx];
-        ir_assert(e.coord == coord + sub_coord);
+        gpu_assert(e.coord == coord + sub_coord);
         auto header
                 = off_ctx.add_header(plan.desc, mem_buf, plan.addr, e.addr_inc);
         auto mask = off_ctx.add_mask(plan.mask, e.mask_incs);
@@ -198,7 +198,7 @@ stmt_t create_stmt(const send_2d_plan_t &plan, const expr_t &mem_buf,
         int entry_idx = plan.reg_layout.to_linear_index(
                 plan.entry_tile, coord + sub_coord);
         auto &e = plan.entries[entry_idx];
-        ir_assert(e.coord == coord + sub_coord);
+        gpu_assert(e.coord == coord + sub_coord);
         auto header = off_ctx.add_header(plan.desc, mem_buf, plan.base,
                 plan.x_base, plan.y_base, e.x_inc, e.y_inc);
         auto mask = off_ctx.add_mask(plan.mask);
@@ -220,7 +220,7 @@ stmt_t create_stmt(const send_plan_t &plan, const expr_t &mem_buf,
         return create_stmt(plan._1d, mem_buf, reg_buf, off_ctx, coord, tile);
     if (plan.is_2d())
         return create_stmt(plan._2d, mem_buf, reg_buf, off_ctx, coord, tile);
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return stmt_t();
 }
 

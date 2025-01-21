@@ -85,7 +85,7 @@ inline std::string to_string(bwd_d_optimize_kind_t kind) {
         CASE(skip_strided_dh);
         CASE(skip_strided_dhw);
 #undef CASE
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return "unknown";
 }
@@ -98,7 +98,7 @@ inline bwd_d_optimize_kind_t to_bwd_d_optimize_kind(const std::string &s) {
     CASE(skip_strided_dh);
     CASE(skip_strided_dhw);
 #undef CASE
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return bwd_d_optimize_kind_t::undef;
 }
 
@@ -183,7 +183,7 @@ public:
             switch (c) {
                 case 'u': do_unroll_ = true; break;
                 case 'r': reuse_headers_ = true; break;
-                default: ir_error_not_expected() << s;
+                default: gpu_error_not_expected() << s;
             }
         }
     }
@@ -246,12 +246,12 @@ public:
                 b_ = p.find("b") != std::string::npos;
                 continue;
             }
-            ir_assert(p.size() >= 2) << p;
+            gpu_assert(p.size() >= 2) << p;
             char name = p[0];
             int value = std::stoi(p.substr(1));
             switch (name) {
                 case 'x': bufs_ = value; break;
-                default: ir_error_not_expected() << p;
+                default: gpu_error_not_expected() << p;
             }
         }
         if (!ab_set && bufs_ > 0) {
@@ -310,14 +310,14 @@ public:
                 b_ = p.find("b") != std::string::npos;
                 continue;
             }
-            ir_assert(p.size() >= 2) << p;
+            gpu_assert(p.size() >= 2) << p;
             char name = p[0];
             int value = std::stoi(p.substr(1));
             switch (name) {
                 case 'x': bufs_ = value; break;
                 case 'g': gmem_bufs_ = value; break;
                 case 'v': sync_version_ = value; break;
-                default: ir_error_not_expected() << p;
+                default: gpu_error_not_expected() << p;
             }
         }
         if (!ab_set && bufs_ > 0) {
@@ -400,7 +400,7 @@ public:
             } else if (kv.first == "b") {
                 b_ = kv.second;
             } else {
-                ir_error_not_expected() << kv.first;
+                gpu_error_not_expected() << kv.first;
             }
         }
     }
@@ -480,13 +480,13 @@ class conv_config_t : public prim_config_t {
 public:
 #define DECL_PARAM(name) \
     const name##_param_t &name##_param() const { \
-        ir_assert(!name##_.is_undef()); \
+        gpu_assert(!name##_.is_undef()); \
         (void)name##_init_; \
         return name##_; \
     } \
     name##_param_t &name##_param() { return name##_; } \
     const name##_param_t::value_t &name() const { \
-        ir_assert(!name##_.is_undef()); \
+        gpu_assert(!name##_.is_undef()); \
         return name##_.get(); \
     } \
     void set_##name(const name##_param_t::value_t &value) { \
@@ -496,7 +496,7 @@ public:
 #define DECL_PARAM2(name) \
     const name##_param_t &name() const { \
         (void)name##_init_; \
-        ir_assert(!name##_.is_undef()); \
+        gpu_assert(!name##_.is_undef()); \
         return name##_; \
     } \
     name##_param_t &name() { return name##_; }

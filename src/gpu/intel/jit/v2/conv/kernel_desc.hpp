@@ -320,7 +320,7 @@ public:
                 return pick_b(prop, src_tag, wei_tag, dst_tag);
             case tensor_kind_t::c:
                 return pick_c(prop, src_tag, wei_tag, dst_tag);
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return src_tag;
     }
@@ -363,7 +363,7 @@ public:
                 reqs.simplify();
                 break;
             case spec_strategy_t::none: break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         spec_strategy = spec_strategy_t::none;
     }
@@ -417,8 +417,8 @@ public:
     }
 
     void add_mapping(const pvar_t &dim, int idx) {
-        ir_assert(idx >= 0 && idx < N);
-        ir_assert(index_var(dim).is_empty());
+        gpu_assert(idx >= 0 && idx < N);
+        gpu_assert(index_var(dim).is_empty());
         entries_[idx].dims.push_back(dim);
     }
 
@@ -451,7 +451,7 @@ public:
     expr_t index_var(const pvar_t &dim) const { return index_var(index(dim)); }
 
     const std::vector<pvar_t> &dims(int idx) const {
-        ir_assert(idx >= 0 && idx < N);
+        gpu_assert(idx >= 0 && idx < N);
         return entries_[idx].dims;
     }
 
@@ -465,7 +465,7 @@ public:
     }
 
     size_t size(size_t idx, const pvar_tile_t &tile) const {
-        ir_assert(idx < N);
+        gpu_assert(idx < N);
         size_t ret = 1;
         for (auto &d : entries_[idx].dims) {
             ret *= into<size_t>(tile.get(d, 1));

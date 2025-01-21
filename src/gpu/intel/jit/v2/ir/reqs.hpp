@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ public:
     // TODO: Change to non-const.
     bool require(const expr_t &e) const;
     const prb_reqs_t &reqs() const {
-        ir_assert(reqs_);
+        gpu_assert(reqs_);
         return *reqs_;
     }
     explicit operator bool() const { return reqs_; }

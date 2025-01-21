@@ -19,6 +19,7 @@
 
 #include "gpu/intel/jit/ir/core.hpp"
 #include "gpu/intel/jit/ir/problem.hpp"
+#include "gpu/intel/utils.hpp"
 
 #include <set>
 
@@ -248,7 +249,7 @@ public:
             case level_t::loop: return loop != 0;
             case level_t::thread_group: return thread_group != 0;
             case level_t::iter: return iter != 0;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return false;
     }
@@ -304,13 +305,13 @@ public:
     virtual ~blocking_scheme_t() = default;
     blocking_scheme_t() = default;
     blocking_scheme_t(const std::string &s) {
-        ir_assert(s[s.length() - 1] == ']');
+        gpu_assert(s[s.length() - 1] == ']');
         auto parts = gpu_utils::split(s.substr(0, s.length() - 1), "],");
         for (auto &p : parts) {
             auto p_parts = gpu_utils::split(p, ":");
             auto &key = p_parts[0];
             auto &vec = p_parts[1];
-            ir_assert(vec[0] == '[');
+            gpu_assert(vec[0] == '[');
             auto s_dims
                     = gpu_utils::split(vec.substr(1, vec.length() - 1), ",");
             for (auto &s : s_dims)
@@ -366,11 +367,11 @@ public:
 
 private:
     void set(const std::string &s_tile, const std::string &_s_dim) {
-        ir_assert(!_s_dim.empty());
+        gpu_assert(!_s_dim.empty());
         bool no_min_check = (_s_dim[0] == '#');
         auto s_dim = no_min_check ? _s_dim.substr(1) : _s_dim;
         auto d = pvar_t(s_dim);
-        if (no_min_check) ir_assert(s_tile == "i");
+        if (no_min_check) gpu_assert(s_tile == "i");
         if (s_tile == "i") {
             add_iter_dim(d);
             if (no_min_check) tile_info(d).set_min_iter_block(1);
@@ -383,7 +384,7 @@ private:
         } else if (s_tile == "li") {
             add_loop_dim_with_iter_unroll(d);
         } else {
-            ir_error_not_expected() << s_tile;
+            gpu_error_not_expected() << s_tile;
         }
     }
 
@@ -555,14 +556,14 @@ public:
     int cur_index() const { return cur_idx_; }
 
     void set_cur_index(int idx) {
-        ir_assert(idx < configs());
+        gpu_assert(idx < configs());
         cur_idx_ = idx;
     }
 
     const blocking_params_t &cur_params() const { return at(cur_idx_); }
 
     const blocking_params_t &at(int idx) const {
-        ir_assert(idx >= 0 && idx < configs());
+        gpu_assert(idx >= 0 && idx < configs());
         return params_vec_[idx];
     }
 
@@ -572,8 +573,8 @@ public:
 
     template <typename KeyFuncT>
     void sort(int beg, int end, const KeyFuncT &key_func) {
-        ir_assert(beg >= 0 && beg < configs());
-        ir_assert(end >= beg && end <= configs());
+        gpu_assert(beg >= 0 && beg < configs());
+        gpu_assert(end >= beg && end <= configs());
         std::sort(params_vec_.begin() + beg, params_vec_.begin() + end,
                 [&](const blocking_params_t &a, const blocking_params_t &b) {
                     return key_func(a) < key_func(b);
@@ -582,7 +583,7 @@ public:
 
     template <typename PredicateFuncT>
     void remove_if(const PredicateFuncT &func) {
-        ir_assert(cur_idx_ == -1);
+        gpu_assert(cur_idx_ == -1);
         params_vec_.erase(
                 std::remove_if(params_vec_.begin(), params_vec_.end(), func),
                 params_vec_.end());
@@ -596,7 +597,7 @@ public:
         table_t table("List of configs", headers);
         for (int i = 0; i < configs(); i++) {
             auto &params = params_vec_[i];
-            ir_trace() << "params #" << i << ": " << params;
+            gpu_trace() << "params #" << i << ": " << params;
         }
     }
 
@@ -692,7 +693,7 @@ private:
 
             dim_idx_t to_index(dim_t value) const {
                 auto it = values_.find(value);
-                ir_assert(it != values_.end());
+                gpu_assert(it != values_.end());
                 return it->second;
             }
 

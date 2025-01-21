@@ -31,6 +31,7 @@
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/compute/device_info.hpp"
+#include "gpu/intel/logging.hpp"
 #include "gpu/intel/serialization.hpp"
 #include "gpu/intel/utils.hpp"
 #include "ngen/ngen.hpp"
@@ -53,13 +54,6 @@ inline std::ostream &operator<<(std::ostream &out, const T &obj) {
 }
 
 namespace ir_utils {
-
-const int LOG_OFF = 0;
-const int LOG_WARNING = 100;
-const int LOG_SUGGESTION = 120;
-const int LOG_INFO = 150;
-const int LOG_PERF = 170;
-const int LOG_TRACE = 200;
 
 template <typename T>
 size_t get_hash(const T &t);
@@ -219,106 +213,6 @@ bool contains(const std::vector<T> &vec, const U &u) {
     return false;
 }
 
-// Checks assertion and, in case of error, evaluates output operators to print
-// related messages. Usage:
-//     ir_assert(condition) << "Error message" << ...;
-
-#if !defined(NDEBUG) || defined(DNNL_DEV_MODE)
-#define ir_assert(cond) \
-    !(cond) \
-            && dnnl::impl::gpu::intel::gpu_utils::error_stream_t( \
-                    __FILE__, __LINE__, #cond)
-#else
-#define ir_assert(cond) \
-    (false) && !(cond) \
-            && dnnl::impl::gpu::intel::gpu_utils::error_stream_t( \
-                    __FILE__, __LINE__, #cond)
-#endif
-
-#define ir_error_not_expected() ir_assert(false) << "Not expected. "
-#define ir_except_not_implemented(msg) throw std::runtime_error(msg)
-
-template <int level, bool value = true>
-class logger_t {
-public:
-    logger_t(std::ostream &out = std::cout) : out_(out) {}
-    ~logger_t() {
-        if (!is_first_print_) out_ << std::endl;
-    }
-
-    static bool is_enabled() {
-#if defined(DNNL_DEV_MODE)
-        return get_verbose(verbose_t::debuginfo) >= level;
-#else
-        return false;
-#endif
-    }
-
-    int get_level() const { return level; }
-
-    operator bool() const { return value; }
-
-    template <typename T>
-    logger_t &operator<<(const T &obj) {
-        using dnnl::impl::gpu::intel::jit::operator<<;
-        maybe_print_header();
-        out_ << obj;
-        return *this;
-    }
-
-    logger_t &operator<<(std::ostream &(*os)(std::ostream &)) {
-        maybe_print_header();
-        out_ << os;
-        return *this;
-    }
-
-private:
-    void maybe_print_header() {
-        if (!is_first_print_) return;
-
-        switch (get_level()) {
-            case LOG_WARNING: out_ << "[WARNING] "; break;
-            case LOG_SUGGESTION: out_ << "[SUGGESTION] "; break;
-            default: break;
-        }
-        is_first_print_ = false;
-    }
-
-    std::ostream &out_;
-    bool is_first_print_ = true;
-};
-
-#define ir_perf() \
-    ir_utils::logger_t<ir_utils::LOG_PERF>::is_enabled() \
-            && ir_utils::logger_t<ir_utils::LOG_PERF>()
-
-// Trace can result in overhead making measurement meaningless
-#define ir_perf_no_trace() \
-    ir_utils::logger_t<ir_utils::LOG_PERF>::is_enabled() \
-            && !ir_utils::logger_t<ir_utils::LOG_TRACE>::is_enabled() \
-            && ir_utils::logger_t<ir_utils::LOG_PERF>()
-
-#define ir_info() \
-    ir_utils::logger_t<ir_utils::LOG_INFO>::is_enabled() \
-            && ir_utils::logger_t<ir_utils::LOG_INFO>()
-
-#define ir_warning() \
-    ir_utils::logger_t<ir_utils::LOG_WARNING>::is_enabled() \
-            && ir_utils::logger_t<ir_utils::LOG_WARNING>()
-
-#define ir_suggestion() \
-    ir_utils::logger_t<ir_utils::LOG_SUGGESTION>::is_enabled() \
-            && ir_utils::logger_t<ir_utils::LOG_SUGGESTION>()
-
-#define ir_trace() \
-    ir_utils::logger_t<ir_utils::LOG_TRACE>::is_enabled() \
-            && ir_utils::logger_t<ir_utils::LOG_TRACE>()
-
-#define ir_check(cond) \
-    if (!(cond)) \
-    return ir_utils::logger_t<ir_utils::LOG_TRACE>::is_enabled() \
-            && ir_utils::logger_t<ir_utils::LOG_TRACE, false>()
-
 // Pretty printers for STL objects.
 template <typename KeyT, typename HashT, typename EqualT>
 inline std::ostream &operator<<(
@@ -379,7 +273,7 @@ inline std::ostream &operator<<(std::ostream &out, const std::vector<T> &v) {
 template <typename T, typename = void>
 struct str_ostream_helper_t {
     static std::string call(const T &t) {
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return {};
     }
 };
@@ -490,7 +384,7 @@ public:
 
 private:
     void new_row() {
-        ir_assert(cur_row_.size() == header_.size());
+        gpu_assert(cur_row_.size() == header_.size());
         rows_.emplace_back();
         rows_.back().swap(cur_row_);
     }
@@ -548,7 +442,7 @@ inline T max_divisor(T n, std::initializer_list<T> divisors) {
     for (auto d : divisors) {
         if (n % d == 0) ret = std::max(ret, d);
     }
-    ir_assert(ret != -1);
+    gpu_assert(ret != -1);
     return ret;
 }
 
@@ -560,7 +454,7 @@ inline T max_pow2_divisor(T n) {
 
 template <typename T, typename U>
 inline T safe_divide(T a, U b) {
-    ir_assert(b != 0 && a % b == 0) << "Can't divide: " << a << " / " << b;
+    gpu_assert(b != 0 && a % b == 0) << "Can't divide: " << a << " / " << b;
     return a / b;
 }
 
@@ -708,7 +602,7 @@ inline std::vector<std::pair<std::string, int>> to_string_int_pairs(
 // Adapted version of magicgu function from Hacker's Delight 10-15.
 inline void idiv_magicgu(uint32_t d, uint32_t &m, uint32_t &p) {
     uint32_t s32_max = std::numeric_limits<int32_t>::max();
-    ir_assert(d != 0 && d <= s32_max);
+    gpu_assert(d != 0 && d <= s32_max);
     uint64_t nc = (s32_max / d) * d - 1;
     for (p = 32; p < 64; p++) {
         uint64_t _2p = 1LL << p;
@@ -717,7 +611,7 @@ inline void idiv_magicgu(uint32_t d, uint32_t &m, uint32_t &p) {
             return;
         }
     }
-    ir_error_not_expected();
+    gpu_error_not_expected();
 }
 
 inline uint64_t idiv_magicgu_packed(uint32_t d) {
@@ -750,7 +644,7 @@ template <typename T>
 T stream_parse(std::istream &in) {
     T t;
     in >> t;
-    ir_assert(!in.fail());
+    gpu_assert(!in.fail());
     return t;
 }
 
@@ -767,7 +661,7 @@ inline void stream_match(std::istream &in, const std::string &s) {
     for (auto &c : s) {
         auto next = in.get();
         if (next != c || in.fail())
-            ir_error_not_expected() << "Cannot match " << s;
+            gpu_error_not_expected() << "Cannot match " << s;
     }
 }
 
@@ -1014,7 +908,7 @@ public:
     }
     bool is_set(const std::string &name) const { return args_.count(name) > 0; }
     const std::string &arg_value(const std::string &name) const {
-        ir_assert(is_set(name)) << "Argument is not set: " << name;
+        gpu_assert(is_set(name)) << "Argument is not set: " << name;
         return args_.at(name);
     }
 
@@ -1066,9 +960,9 @@ public:
 
     void add(const entry_t &e) {
         if (relaxed_) {
-            ir_assert(!e.name.empty())
+            gpu_assert(!e.name.empty())
                     << "Relaxed support requires non-empty name.";
-            ir_assert(!e.help.empty())
+            gpu_assert(!e.help.empty())
                     << "Relaxed support requires non-empty help.";
         }
         entries_.push_back(e);
@@ -1112,7 +1006,7 @@ public:
         if (relaxed_) {
             parse_relaxed(in, parent, result);
         } else {
-            ir_assert(!result);
+            gpu_assert(!result);
             for (auto &e : entries_) {
                 if (!e.name.empty()) {
                     stream_match(in, e.name);
@@ -1164,10 +1058,10 @@ private:
             std::string value;
             if (!try_parse_key_value(in, name, value)) break;
             auto idx = find_entry_index(name);
-            ir_assert(idx != -1);
+            gpu_assert(idx != -1);
             if (seen[idx]) {
                 std::cout << "Error: argument set twice: " << name << std::endl;
-                ir_error_not_expected();
+                gpu_error_not_expected();
                 exit(1);
             }
             std::istringstream iss(value);
@@ -1179,7 +1073,7 @@ private:
             if (entries_[i].required && !seen[i]) {
                 std::cout << "Error: missing required argument: "
                           << entries_[i].name << std::endl;
-                ir_error_not_expected();
+                gpu_error_not_expected();
                 exit(1);
             }
         }
@@ -1234,7 +1128,7 @@ std::string to_string_impl(
         E e, const std::array<enum_name_t<E>, N> &enum_names) {
     for (auto &p : enum_names)
         if (p.first == e) return p.second;
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return {};
 }
 
@@ -1247,7 +1141,7 @@ void to_enum_templ_impl(const std::string &s, E &e,
             return;
         }
     }
-    ir_error_not_expected();
+    gpu_error_not_expected();
 }
 
 template <typename E>

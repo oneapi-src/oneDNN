@@ -62,7 +62,7 @@ public:
                 compute_unnormalized_tag_ = parts[0];
                 user_unnormalized_tag_ = parts[1];
                 break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
     }
 
@@ -125,7 +125,7 @@ public:
         if (key == "regs") return false;
         if (key == "simd") return false;
         if (key == "vec") return value_.vec_size() == value_.simd();
-        ir_error_not_expected() << key;
+        gpu_error_not_expected() << key;
         return false;
     }
 
@@ -142,7 +142,7 @@ public:
         } else if (key == "vec") {
             value_.set_vec_size(std::stoi(value));
         } else {
-            ir_error_not_expected() << key;
+            gpu_error_not_expected() << key;
         }
     }
 
@@ -306,7 +306,7 @@ public:
     }
 
     void set_params(const blocking_params_t &params) {
-        ir_assert(!params.is_empty());
+        gpu_assert(!params.is_empty());
         const auto &blocking = params.blocking();
         if (!loop_dims().is_overridden()) loop_dims().set(blocking.loop());
         if (!thread_group_dims().is_overridden())
@@ -351,7 +351,7 @@ public:
         int subslice_count = exec_cfg.hw().eu_count() / eus_per_subslice;
 
         int tgs_per_subslice = eus_per_subslice * threads_per_eu / tg_elems;
-        ir_assert(tgs_per_subslice > 0);
+        gpu_assert(tgs_per_subslice > 0);
         return subslice_count * tgs_per_subslice;
     }
 
@@ -382,12 +382,12 @@ public:
 #define DECL_PARAM(name) \
     const name##_param_t &name##_param() const { \
         (void)name##_init_; \
-        ir_assert(!name##_.is_undef()); \
+        gpu_assert(!name##_.is_undef()); \
         return name##_; \
     } \
     name##_param_t &name##_param() { return name##_; } \
     const name##_param_t::value_t &name() const { \
-        ir_assert(!name##_.is_undef()); \
+        gpu_assert(!name##_.is_undef()); \
         return name##_.get(); \
     } \
     void set_##name(const name##_param_t::value_t &value) { \
@@ -396,7 +396,7 @@ public:
 #define DECL_PARAM2(name) \
     const name##_param_t &name() const { \
         (void)name##_init_; \
-        ir_assert(!name##_.is_undef()); \
+        gpu_assert(!name##_.is_undef()); \
         return name##_; \
     } \
     name##_param_t &name() { return name##_; }

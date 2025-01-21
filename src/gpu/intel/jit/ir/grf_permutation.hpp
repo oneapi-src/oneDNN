@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ public:
     grf_permutation_t() { permutation_.fill(-1); }
 
     int map(int off) const {
-        ir_assert(off >= 0 && off < max_regs);
+        gpu_assert(off >= 0 && off < max_regs);
         if (permutation_[off] == -1) return off;
         return permutation_[off];
     }
@@ -42,10 +42,10 @@ public:
     bool is_empty() const { return is_empty_; }
 
     void set_permute(int old_off, int new_off) {
-        ir_assert(old_off >= 0 && old_off < max_regs);
+        gpu_assert(old_off >= 0 && old_off < max_regs);
         if (old_off == new_off || new_off == -1) return;
         is_empty_ = false;
-        ir_assert(utils::one_of(permutation_[old_off], -1, new_off))
+        gpu_assert(utils::one_of(permutation_[old_off], -1, new_off))
                 << "Already assigned to a different offset.";
         permutation_[old_off] = new_off;
     }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,15 +96,15 @@ public:
         // No unrolling.
         if (_for.unroll == 1) return new_obj;
 
-        ir_assert(is_const(_for.init))
+        gpu_assert(is_const(_for.init))
                 << "Can't unroll loop with non-const bound: " << _for.init;
-        ir_assert(is_const(_for.bound))
+        gpu_assert(is_const(_for.bound))
                 << "Can't unroll loop with non-const bound: " << _for.bound;
 
         auto init = to_cpp<int>(_for.init);
         auto bound = to_cpp<int>(_for.bound);
 
-        ir_assert(_for.unroll == (bound - init))
+        gpu_assert(_for.unroll == (bound - init))
                 << "Only full loop unroll is supported.";
 
         stmt_t ret;

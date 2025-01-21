@@ -28,7 +28,7 @@ namespace jit {
 class overflow_bound_finder_t : public bound_finder_base_t {
 public:
     bool has_var(const expr_t &e) const {
-        ir_assert(is_var(e)) << "Expected variable, found: " << e;
+        gpu_assert(is_var(e)) << "Expected variable, found: " << e;
         auto it = var_bounds_.find(e);
         return it != var_bounds_.end();
     }
@@ -40,16 +40,16 @@ public:
     }
 
     int64_t get_var_bound(const expr_t &e, bool is_low) const override {
-        ir_assert(has_var(e)) << "Variable not found: " << e;
+        gpu_assert(has_var(e)) << "Variable not found: " << e;
         auto &lo_hi = var_bounds_.at(e);
         return is_low ? lo_hi.first : lo_hi.second;
     }
 
     void set_var_bounds(
             const expr_t &e, const std::pair<int64_t, int64_t> &lo_hi) {
-        ir_assert(is_good_bound(lo_hi.first))
+        gpu_assert(is_good_bound(lo_hi.first))
                 << "Can't compute low bound for " << e;
-        ir_assert(is_good_bound(lo_hi.second))
+        gpu_assert(is_good_bound(lo_hi.second))
                 << "Can't compute high bound for " << e;
         var_bounds_.emplace(e, lo_hi);
     }
@@ -124,7 +124,7 @@ private:
                 bool is_overflow = (lo < type_lo || hi > type_hi);
                 if (is_overflow) {
                     found_overflow = true;
-                    ir_warning()
+                    gpu_warning()
                             << "Found overflow: " << value
                             << " low bound: " << lo << " high bound: " << hi;
                     break;
@@ -142,7 +142,7 @@ private:
                     cast(binary->a, type_t::u64(e.type().elems())), binary->b);
         }
 
-        ir_error_not_expected() << "Can't fix overflow: " << e;
+        gpu_error_not_expected() << "Can't fix overflow: " << e;
         return e;
     }
 
@@ -174,13 +174,13 @@ public:
             for (auto &rel : kv.second) {
                 bool is_ge = (rel.op_kind() == op_kind_t::_ge);
                 bool is_le = (rel.op_kind() == op_kind_t::_le);
-                ir_assert(is_ge || is_le);
+                gpu_assert(is_ge || is_le);
                 if (rel.op_kind() == op_kind_t::_ge) {
                     lo = std::max(to_cpp<int64_t>(rel.rhs()), lo);
                 } else if (rel.op_kind() == op_kind_t::_le) {
                     hi = std::min(to_cpp<int64_t>(rel.rhs()), hi);
                 } else {
-                    ir_error_not_expected()
+                    gpu_error_not_expected()
                             << "Only >= or <= is expected, found: "
                             << to_string(rel.op_kind());
                 }

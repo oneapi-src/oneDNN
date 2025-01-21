@@ -138,7 +138,7 @@ void get_level_tiles(
 
 void params_generator_t::set_params(prim_config_t &cfg) {
     auto &params = params_vec_[cur_idx_];
-    ir_trace() << "set params #" << cur_idx_ << ": " << params;
+    gpu_trace() << "set params #" << cur_idx_ << ": " << params;
     cfg.set_params(params);
 }
 
@@ -159,7 +159,7 @@ std::string to_string(tiler_mode_t mode) {
         CASE(tune);
 #undef CASE
     }
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return "(unknown)";
 }
 
@@ -263,7 +263,7 @@ void blocking_generator_t::generate_all(int vec_size, blocking_checker_t &chk,
 
 void blocking_generator_t::generate_sample(int vec_size,
         const blocking_checker_t &chk, const level_tile_set_t &level_tile_set) {
-    ir_assert(false);
+    gpu_assert(false);
     int target_size = 1;
     auto is_ok = [&](const blocking_t &blk) { return chk.is_ok(blk); };
     auto ts_blockings = level_tile_set.sample(target_size, is_ok, vec_size);
@@ -289,7 +289,7 @@ params_generator_t::params_generator_t(int tune_level, int simd_size,
         const std::vector<level_tile_set_t> &level_tile_sets, int idx) {
     append_params(params_vec_, level_tile_sets, chk, tune_level, simd_size);
     if (idx != -1) {
-        ir_assert(idx >= 0 && idx < configs());
+        gpu_assert(idx >= 0 && idx < configs());
         std::vector<blocking_params_t> temp_vec;
         temp_vec.swap(params_vec_);
         append_params(params_vec_, temp_vec[idx]);
@@ -342,7 +342,7 @@ const tiler_params_t &tiler_params() {
                 continue;
             }
             auto sub_opts = gpu_utils::split(opt, ":");
-            ir_assert((int)sub_opts.size() == 2);
+            gpu_assert((int)sub_opts.size() == 2);
             auto &key = sub_opts[0];
             auto &value = sub_opts[1];
             if (key == "tune_iters") {
@@ -351,11 +351,11 @@ const tiler_params_t &tiler_params() {
                 ret.mode = tiler_mode_t::env_tiler;
                 ret.env_params_idx = std::stoi(value);
             } else {
-                ir_error_not_expected();
+                gpu_error_not_expected();
             }
         }
         bool do_tune = (ret.mode == tiler_mode_t::tune);
-        ir_assert(do_tune == (ret.tune_iters != 0));
+        gpu_assert(do_tune == (ret.tune_iters != 0));
         return ret;
     }();
     return params;
@@ -372,7 +372,7 @@ tile_to_vec_t::tile_to_vec_t(const std::vector<std::vector<pvar_tile_t>> &tiles,
         ids.resize(ntiles);
         std::iota(ids.begin(), ids.end(), 0);
     }
-    ir_assert(ids.size() == tiles.size());
+    gpu_assert(ids.size() == tiles.size());
     int max_id = 0;
     for (int i = 0; i < ntiles; i++) {
         for (int j = 0; j < nsubtiles; j++) {

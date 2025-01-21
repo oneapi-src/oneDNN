@@ -71,7 +71,7 @@ struct bench_input_params_t {
     bench_input_params_t(const kernel_desc_t &kernel_desc, const hw_t &hw,
             int nprbs = default_nprbs)
         : hw(hw), nprbs(nprbs) {
-        ir_assert(kernel_desc.is_finalized);
+        gpu_assert(kernel_desc.is_finalized);
         prop = kernel_desc.prop;
         src_tag = kernel_desc.src_tag;
         wei_tag = kernel_desc.wei_tag;

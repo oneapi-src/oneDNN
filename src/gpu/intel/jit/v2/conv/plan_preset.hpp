@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ public:
     const kernel_desc_t &get() const {
         if (!env_desc_.is_empty()) return env_desc_;
         if (!tls_desc_.is_empty()) return tls_desc_;
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return env_desc_;
     }
 

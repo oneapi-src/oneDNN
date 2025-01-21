@@ -64,7 +64,7 @@ dim_t reorder_ir_builder_t::count_block_messages(
             messages++;
         }
     }
-    ir_assert(inner_owords == 0);
+    gpu_assert(inner_owords == 0);
     return messages * iterations;
 }
 
@@ -140,7 +140,7 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
     if (max_thr_tile_bytes <= 0)
         max_thr_tile_bytes = max_tile_size(exec_cfg.hw(), dst, src);
 
-    ir_assert(src.ndims() == dst.ndims());
+    gpu_assert(src.ndims() == dst.ndims());
     dim_idx_t ndims = src.ndims();
     std::vector<dim_t> dims(ndims);
     for (dim_idx_t i = 0; i < ndims; i++) {
@@ -163,7 +163,7 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
     };
     layout_t padded_src = pad_layout(src);
     layout_t padded_dst = pad_layout(dst);
-    ir_assert(ir_utils::is_equal(padded_src.dims(), padded_dst.dims()));
+    gpu_assert(ir_utils::is_equal(padded_src.dims(), padded_dst.dims()));
 
     dim_t elems = padded_src.elems();
     int max_type_size = std::max(src.type().size(), dst.type().size());
@@ -187,7 +187,7 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
             rem_dim = 1;
         }
         for (auto d : rem_dims)
-            ir_assert(d == 1);
+            gpu_assert(d == 1);
         return true;
     };
 
@@ -231,7 +231,7 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
         if (tile.elems() > max_thr_tile_elems) break;
         candidate_tiles.push_back(tile);
     }
-    ir_assert(!candidate_tiles.empty());
+    gpu_assert(!candidate_tiles.empty());
 
     const auto eu_count = exec_cfg.hw().eu_count();
     std::sort(candidate_tiles.begin(), candidate_tiles.end(),
@@ -266,12 +266,12 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
             iter_tile = tile;
     }
 
-    ir_assert(!iter_tile.is_empty());
+    gpu_assert(!iter_tile.is_empty());
     std::vector<int> thr_blocks(thr_tile.dims().begin(), thr_tile.dims().end());
     iter_blocks.assign(iter_tile.dims().begin(), iter_tile.dims().end());
 
-    ir_assert(utils::array_product(iter_blocks) <= max_iter_tile_elems);
-    ir_assert(utils::array_product(thr_blocks) <= max_thr_tile_elems);
+    gpu_assert(utils::array_product(iter_blocks) <= max_iter_tile_elems);
+    gpu_assert(utils::array_product(thr_blocks) <= max_thr_tile_elems);
 
     // Initialize loop blocks.
     loop_blocks.resize(ndims, 1);
@@ -606,15 +606,15 @@ void reorder_ir_builder_t::build() {
             = max_tile_size(cfg_.exec_cfg().hw(), dst_layout_, src_layout_);
     for (int i = 0; i < max_iters; i++) {
         if (try_build(iter_blocks, loop_blocks, tg_blocks)) {
-            ir_info() << "Reorder configuration:";
-            ir_info() << "  Source layout:              " << src_layout_;
-            ir_info() << "  Destination layout:         " << dst_layout_;
-            ir_info() << "  Iteration blocks:           "
-                      << ir_utils::make_seq_print_helper(iter_blocks, " x ");
-            ir_info() << "  Loop blocks:                "
-                      << ir_utils::make_seq_print_helper(loop_blocks, " x ");
-            ir_info() << "  Thread group blocks:        "
-                      << ir_utils::make_seq_print_helper(tg_blocks, " x ");
+            gpu_info() << "Reorder configuration:";
+            gpu_info() << "  Source layout:              " << src_layout_;
+            gpu_info() << "  Destination layout:         " << dst_layout_;
+            gpu_info() << "  Iteration blocks:           "
+                       << ir_utils::make_seq_print_helper(iter_blocks, " x ");
+            gpu_info() << "  Loop blocks:                "
+                       << ir_utils::make_seq_print_helper(loop_blocks, " x ");
+            gpu_info() << "  Thread group blocks:        "
+                       << ir_utils::make_seq_print_helper(tg_blocks, " x ");
             return;
         }
 
@@ -630,7 +630,7 @@ void reorder_ir_builder_t::build() {
             cur_iter_bytes /= 2;
         }
     }
-    ir_error_not_expected();
+    gpu_error_not_expected();
 }
 
 bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
@@ -813,14 +813,14 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
     int reserved_regs = 16;
     int regs = ir_regs + reserved_regs;
     if (regs > cfg_.exec_cfg().regs()) {
-        ir_warning() << "Estimated GRF usage is " << regs
-                     << " registers which exceeds available space, retry with "
-                        "a smaller tile.";
+        gpu_warning() << "Estimated GRF usage is " << regs
+                      << " registers which exceeds available space, retry with "
+                         "a smaller tile.";
 
         return false;
     }
 
-    ir_trace() << "Reorder kernel body:\n" << stmt_;
+    gpu_trace() << "Reorder kernel body:\n" << stmt_;
     return true;
 }
 

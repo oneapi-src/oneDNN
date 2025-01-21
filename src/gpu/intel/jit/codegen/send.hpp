@@ -35,7 +35,7 @@ struct atomic_helper_t {
     static void call(GeneratorT *, ngen::AtomicOp,
             const ngen::InstructionModifier &, const DataSpecT &,
             ngen::AddressBase, const ngen::RegData &, const ngen::RegData &) {
-        ir_error_not_expected()
+        gpu_error_not_expected()
                 << "Unknown DataSpec: atomics are not supported.";
     }
 };
@@ -106,7 +106,7 @@ public:
                 emit_load_or_store(host, mod, ngen::block_hword(elems),
                         address_base, header, data);
                 break;
-            default: ir_error_not_expected() << send_.type;
+            default: gpu_error_not_expected() << send_.type;
         }
     }
 
@@ -125,7 +125,7 @@ public:
                         ngen::scattered_qword(send_.type.elems()),
                         to_address_base(send_.address), header, data);
                 break;
-            default: ir_error_not_expected() << send_.type;
+            default: gpu_error_not_expected() << send_.type;
         }
         return;
     }
@@ -144,7 +144,7 @@ private:
         } else if (send_.is_store()) {
             host->store(mod, spec, base, addr, data);
         } else {
-            ir_error_not_expected() << "Can't emit send: " << send_;
+            gpu_error_not_expected() << "Can't emit send: " << send_;
         }
     }
     template <typename GeneratorT, typename DataSpecT>
@@ -166,12 +166,12 @@ private:
             for (auto &t : {type_t::qword(), type_t::dword()}) {
                 if (type.size() % t.size() == 0) {
                     int elems = type.size() / t.size();
-                    ir_assert(math::is_pow2(elems));
-                    ir_assert(elems >= 1 && elems <= 64);
+                    gpu_assert(math::is_pow2(elems));
+                    gpu_assert(elems >= 1 && elems <= 64);
                     return t.with_elems(elems);
                 }
             }
-            ir_error_not_expected();
+            gpu_error_not_expected();
             return type;
         };
 
@@ -184,7 +184,7 @@ private:
             lsc_spec = utils::make_unique<ngen::DataSpecLSC>(
                     ngen::block(lsc_type.first, lsc_type.second));
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
 
         if (send_.is_slm()) {
@@ -193,7 +193,7 @@ private:
             } else if (send_.is_store()) {
                 host->store.slm(mod, *lsc_spec, host->SLM, header, data);
             } else {
-                ir_error_not_expected();
+                gpu_error_not_expected();
             }
         } else if (send_.is_a64()) {
             *lsc_spec |= get_cache_settings(send_, host->exec_cfg_.hw());
@@ -206,7 +206,7 @@ private:
                         to_address_base(send_.address), header, data);
             }
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
     }
 
@@ -219,7 +219,7 @@ private:
             case 1: data_size = ngen::DataSizeLSC::D8; break;
             case 2: data_size = ngen::DataSizeLSC::D16; break;
             case 4: data_size = ngen::DataSizeLSC::D32; break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         ngen::DataSpecLSC data_spec(data_size);
         if (info.vnni) data_spec |= host->vnni;
@@ -231,7 +231,7 @@ private:
         } else if (send_.is_store_2d()) {
             host->store(mod, spec, host->A64, header, data);
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
     }
 
@@ -261,7 +261,7 @@ private:
             case 8: return std::make_pair(ngen::DataSizeLSC::D64, type.elems());
             default: break;
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return std::make_pair(ngen::DataSizeLSC::D8, 1);
     }
 
@@ -269,7 +269,7 @@ private:
         switch (address) {
             case send_address_t::a64: return ngen::AddressBase::createA64(true);
             case send_address_t::slm: return ngen::AddressBase::createSLM();
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return ngen::AddressBase();
     }
@@ -279,7 +279,7 @@ private:
             case send_op_t::atomic_add: return ngen::AtomicOp::add;
             case send_op_t::atomic_fadd: return ngen::AtomicOp::fadd;
             case send_op_t::atomic_cmpwr: return ngen::AtomicOp::cmpwr;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return ngen::AtomicOp();
     }

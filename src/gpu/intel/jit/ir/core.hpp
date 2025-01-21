@@ -161,11 +161,11 @@ struct type_info_t {
 // Defines getter for a function argument.
 #define IR_DEFINE_ARG_GET(name, index) \
     static const expr_t &arg_##name(const func_call_t &c) { \
-        ir_assert(c.func.is<self_type>()) << c; \
+        gpu_assert(c.func.is<self_type>()) << c; \
         return c.args[index]; \
     } \
     static const expr_t &arg_##name(const stmt_t &s) { \
-        ir_assert(s.is<func_call_t>()) << s; \
+        gpu_assert(s.is<func_call_t>()) << s; \
         auto &c = s.as<func_call_t>(); \
         return arg_##name(c); \
     } \
@@ -280,7 +280,7 @@ public:
             case 16: return u16(elems);
             case 32: return u32(elems);
             case 64: return u64(elems);
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return type_t::undef();
     }
@@ -292,7 +292,7 @@ public:
             case 16: return s16(elems);
             case 32: return s32(elems);
             case 64: return s64(elems);
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return type_t::undef();
     }
@@ -344,7 +344,7 @@ public:
 
 #undef CASE
 
-        ir_error_not_expected();
+        gpu_error_not_expected();
 
         return undef();
     }
@@ -365,7 +365,7 @@ public:
                 T ret = T(1) << (bits - 1);
                 return ret + (ret - 1);
             }
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return 0;
     }
@@ -384,7 +384,7 @@ public:
                 if (is_unsigned()) return 0;
                 return -max<T>() - 1;
             }
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return 0;
     }
@@ -417,7 +417,7 @@ public:
         CASE(u32);
         CASE(u64);
 #undef CASE
-        ir_error_not_expected();
+        gpu_error_not_expected();
     }
 
     // Constructor from dnnl_data_type_t.
@@ -438,7 +438,7 @@ public:
             CASE(s8);
             CASE(u8);
 #undef CASE
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
     }
 
@@ -464,7 +464,7 @@ public:
     static void init_parse_iface(parse_iface_t<type_t> *iface) {
         iface->add<type_kind_t, &type_t::kind_>();
         iface->set_pre_stringify_func([](const type_t &type) {
-            ir_assert(!type.is_ptr() && (type.is_scalar() || type.is_undef()))
+            gpu_assert(!type.is_ptr() && (type.is_scalar() || type.is_undef()))
                     << "Cannot stringify pointer/non-scalar type.";
         });
     }
@@ -659,7 +659,7 @@ public:
     //       necessary, and please don't add a non-const variant of the method!
     template <typename T>
     const T &as() const {
-        ir_assert(is<T>());
+        gpu_assert(is<T>());
         return *as_ptr<T>(); // fails on incorrect casts even in Release
     }
 
@@ -750,7 +750,7 @@ public:
 
     template <typename T>
     const T &as() const {
-        ir_assert(impl_);
+        gpu_assert(impl_);
         return impl_->as<T>();
     }
 
@@ -877,7 +877,7 @@ public:
 
     // To catch missing _mutate() handlers in ir_mutator_t.
     object_t _mutate(const object_impl_t &obj) {
-        ir_error_not_expected() << "Can't handle type: " << object_t(&obj);
+        gpu_error_not_expected() << "Can't handle type: " << object_t(&obj);
         return {};
     }
 
@@ -911,7 +911,7 @@ public:
 
     // To catch missing _visit() handlers in ir_visitor_t.
     void _visit(const object_impl_t &obj) {
-        ir_error_not_expected() << "Can't handle type: " << object_t(obj);
+        gpu_error_not_expected() << "Can't handle type: " << object_t(obj);
     }
 
 #define HANDLE_IR_OBJECT(type) virtual void _visit(const type &obj);
@@ -958,7 +958,7 @@ public:
     expr_t(uint64_t v);
 
     const type_t &type() const {
-        ir_assert(!is_empty());
+        gpu_assert(!is_empty());
         return ((const expr_impl_t *)impl())->type;
     }
 
@@ -981,7 +981,7 @@ public:
 private:
 #ifdef SANITY_CHECK
     void sanity_check() const override {
-        ir_assert(dynamic_cast<const expr_impl_t *>(impl()) == impl())
+        gpu_assert(dynamic_cast<const expr_impl_t *>(impl()) == impl())
                 << object_t(impl());
     }
 #endif
@@ -1186,7 +1186,7 @@ private:
     cast_t(const type_t &type, const expr_t &expr, bool saturate)
         : expr_impl_t(_type_info(), type), expr(expr), saturate(saturate) {
         if (!is_bool_vec_u16()) {
-            ir_assert(type.elems() == expr.type().elems())
+            gpu_assert(type.elems() == expr.type().elems())
                     << "Number of elements must match.";
         }
     }
@@ -1449,8 +1449,8 @@ private:
         , off(_off)
         , stride(_stride) {
         normalize_ptr(type, buf, off);
-        ir_assert(is_var(buf)) << buf;
-        ir_assert(buf.type().is_ptr()) << buf;
+        gpu_assert(is_var(buf)) << buf;
+        gpu_assert(buf.type().is_ptr()) << buf;
         if (stride == type.scalar().size()) stride = default_stride;
     }
 };
@@ -1543,7 +1543,7 @@ inline const expr_t &get_base(const expr_t &e) {
     if (e.is_empty()) return e;
     if (e.is<var_t>()) return e;
     if (e.is<ptr_t>()) return e.as<ptr_t>().base;
-    ir_error_not_expected() << e;
+    gpu_error_not_expected() << e;
     return e;
 }
 
@@ -1583,7 +1583,7 @@ public:
 
     static expr_t make_broadcast(const expr_t &expr, dim_t elems) {
         if (elems == 1) return expr;
-        ir_assert(expr.type().is_scalar()) << expr;
+        gpu_assert(expr.type().is_scalar()) << expr;
         return make({expr}, std::vector<int>(elems, 0));
     }
 
@@ -1591,9 +1591,9 @@ public:
     // (S[beg], S[beg + 1], ..., S[end - 1]) vector.
     static expr_t make(const expr_t &_shuffle, int beg, int end) {
         auto &shuffle = _shuffle.as<shuffle_t>();
-        ir_assert(beg >= 0 && beg <= shuffle.elems());
-        ir_assert(end >= 0 && end <= shuffle.elems());
-        ir_assert(beg < end);
+        gpu_assert(beg >= 0 && beg <= shuffle.elems());
+        gpu_assert(end >= 0 && end <= shuffle.elems());
+        gpu_assert(beg < end);
         std::vector<expr_t> vec;
         std::vector<int> idx(end - beg, -1);
         for (int i = beg; i < end; i++) {
@@ -1638,19 +1638,19 @@ private:
         : expr_impl_t(_type_info(), shuffle_type(vec, idx))
         , vec(vec)
         , idx(idx) {
-        ir_assert(idx.size() > 1) << "Unexpected empty or scalar shuffle.";
+        gpu_assert(idx.size() > 1) << "Unexpected empty or scalar shuffle.";
     }
 
     static type_t shuffle_type(
             const std::vector<expr_t> &vec, const std::vector<int> &idx) {
-        ir_assert(!vec.empty() && !idx.empty());
+        gpu_assert(!vec.empty() && !idx.empty());
 
         auto elem_type = vec[0].type();
         for (auto &v : vec)
             elem_type = common_type(elem_type, v.type());
 
         for (size_t i = 0; i < idx.size(); i++) {
-            ir_assert(idx[i] >= 0 && idx[i] < int(vec.size()))
+            gpu_assert(idx[i] >= 0 && idx[i] < int(vec.size()))
                     << "Incorrect index.";
             MAYBE_UNUSED(i);
         }
@@ -1781,7 +1781,7 @@ expr_t to_expr(T value, const type_t &type) {
 
 #undef CASE
 
-    ir_error_not_expected() << type;
+    gpu_error_not_expected() << type;
 
     return expr_t();
 }
@@ -1833,13 +1833,13 @@ inline bool is_var(const expr_t &e) {
 // Convertor from IR expression to C++ constant.
 template <typename T>
 T to_cpp(const expr_t &e) {
-    ir_assert(is_const(e)) << "Expression must be constant.";
+    gpu_assert(is_const(e)) << "Expression must be constant.";
 
     if (e.is<int_imm_t>()) return (T)e.as<int_imm_t>().value;
     if (e.is<float_imm_t>()) return (T)e.as<float_imm_t>().value;
     if (e.is<bool_imm_t>()) return (T)e.as<bool_imm_t>().value;
 
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return 0;
 }
 
@@ -1906,7 +1906,7 @@ public:
 private:
 #ifdef SANITY_CHECK
     void sanity_check() const override {
-        ir_assert(dynamic_cast<const stmt_impl_t *>(impl()) == impl())
+        gpu_assert(dynamic_cast<const stmt_impl_t *>(impl()) == impl())
                 << object_t(impl());
     }
 #endif
@@ -1943,7 +1943,7 @@ public:
 private:
 #ifdef SANITY_CHECK
     void sanity_check() const override {
-        ir_assert(dynamic_cast<const alloc_attr_impl_t *>(impl()) == impl())
+        gpu_assert(dynamic_cast<const alloc_attr_impl_t *>(impl()) == impl())
                 << object_t(impl());
     }
 #endif
@@ -2068,7 +2068,7 @@ public:
     const T &get_attr() const {
         for (auto &a : attrs)
             if (a.is<T>()) return a.as<T>();
-        ir_error_not_expected() << "Can't find attribute.";
+        gpu_error_not_expected() << "Can't find attribute.";
         return attrs[0].as<T>();
     }
 
@@ -2095,7 +2095,7 @@ private:
         , kind(kind)
         , attrs(attrs)
         , body(body) {
-        ir_assert(buf.type().is_ptr()) << buf;
+        gpu_assert(buf.type().is_ptr()) << buf;
     }
 };
 
@@ -2173,11 +2173,11 @@ private:
         , mask(_mask)
         , fill_mask0(_fill_mask0) {
         normalize_ptr(value.type(), buf, off);
-        ir_assert(is_var(buf)) << buf;
-        ir_assert(buf.type().is_ptr()) << buf;
+        gpu_assert(is_var(buf)) << buf;
+        gpu_assert(buf.type().is_ptr()) << buf;
         if (stride == value.type().scalar().size()) stride = default_stride;
         if (!mask.is_empty())
-            ir_assert(mask.type() == type_t::_bool(value.type().elems()));
+            gpu_assert(mask.type() == type_t::_bool(value.type().elems()));
     }
 };
 
@@ -2317,7 +2317,7 @@ private:
     let_t(const expr_t &var, const expr_t &value, const stmt_t &body)
         : stmt_impl_t(_type_info()), var(var), value(value), body(body) {
         if (!value.is_empty() && !is_const(value))
-            ir_assert(var.type() == value.type())
+            gpu_assert(var.type() == value.type())
                     << "Variable " << var << " and  value " << value
                     << "have different types. " << var.type()
                     << " != " << value.type() << "\n";
@@ -2388,7 +2388,7 @@ public:
             CASE(prefetch);
             CASE(mul);
 #undef CASE
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return {};
     }
@@ -2540,7 +2540,8 @@ public:
 private:
 #ifdef SANITY_CHECK
     void sanity_check() const override {
-        ir_assert(dynamic_cast<const func_call_attr_impl_t *>(impl()) == impl())
+        gpu_assert(
+                dynamic_cast<const func_call_attr_impl_t *>(impl()) == impl())
                 << object_t(impl());
     }
 #endif
@@ -2596,12 +2597,12 @@ public:
     func_impl_t(type_info_t type_info) : object_impl_t(type_info) {}
 
     size_t get_hash() const override {
-        ir_error_not_expected() << "get_hash() is not implemented.";
+        gpu_error_not_expected() << "get_hash() is not implemented.";
         return 0;
     }
 
     bool is_equal(const object_impl_t &obj) const override {
-        ir_error_not_expected() << "is_equal() is not implemented.";
+        gpu_error_not_expected() << "is_equal() is not implemented.";
         return false;
     }
 
@@ -2636,7 +2637,7 @@ public:
 private:
 #ifdef SANITY_CHECK
     void sanity_check() const override {
-        ir_assert(dynamic_cast<const func_impl_t *>(impl()) == impl())
+        gpu_assert(dynamic_cast<const func_impl_t *>(impl()) == impl())
                 << object_t(impl());
     }
 #endif
@@ -2672,7 +2673,7 @@ private:
     func_call_t(const func_t &func, const std::vector<expr_t> &args,
             const func_call_attr_t &attr)
         : stmt_impl_t(_type_info()), func(func), args(args), attr(attr) {
-        ir_assert(!func.is_empty());
+        gpu_assert(!func.is_empty());
     }
 };
 
@@ -2683,7 +2684,7 @@ inline stmt_t func_impl_t::call(
 
 inline stmt_t func_call_attr_t::apply_to(const stmt_t &s) const {
     auto &c = s.as<func_call_t>();
-    ir_assert(c.attr.is_empty())
+    gpu_assert(c.attr.is_empty())
             << "Merging of attributes is not supported: " << s;
     return func_call_t::make(c.func, c.args, *this);
 }

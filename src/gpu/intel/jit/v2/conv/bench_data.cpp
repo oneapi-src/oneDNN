@@ -84,7 +84,7 @@ std::vector<int> bench_data_set_t::find_best_idxs(int _nbest) const {
                 best_idx = i;
             }
         }
-        ir_assert(best_idx != -1);
+        gpu_assert(best_idx != -1);
         for (int j = 0; j < nprbs; j++) {
             cur_times[j]
                     = std::min(cur_times[j], vec_[best_idx].times[j].total);

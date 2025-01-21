@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ public:
         auto type = obj.type;
         auto expr = mutate(obj.expr);
         if (!type.is_scalar()) {
-            ir_assert(type.elems() == elems_) << expr;
+            gpu_assert(type.elems() == elems_) << expr;
             type = type.scalar();
         }
         return cast_t::make(type, expr, obj.saturate);
@@ -46,15 +46,15 @@ public:
         if (obj.type.is_scalar()) return obj;
 
         auto it = vec_vars_.find(obj);
-        ir_assert(it != vec_vars_.end()) << "Can't find variable: " << obj;
-        ir_assert(int(it->second.size()) == elems_);
+        gpu_assert(it != vec_vars_.end()) << "Can't find variable: " << obj;
+        gpu_assert(int(it->second.size()) == elems_);
         return it->second[idx_];
     }
 
     object_t _mutate(const shuffle_t &obj) override {
         expr_t new_obj = ir_mutator_t::_mutate(obj);
         auto &shuffle = new_obj.as<shuffle_t>();
-        ir_assert(shuffle.type.elems() == elems_) << new_obj;
+        gpu_assert(shuffle.type.elems() == elems_) << new_obj;
         return new_obj[idx_];
     }
 

@@ -388,7 +388,7 @@ public:
         : allocs_(allocs) {
         for (auto &_a : allocs) {
             auto &a = _a.as<alloc_t>();
-            if (a.kind != alloc_kind_t::global) ir_assert(a.size > 0) << _a;
+            if (a.kind != alloc_kind_t::global) gpu_assert(a.size > 0) << _a;
             alloc_map_.insert({a.buf, _a});
             buf_cur_refs_[a.buf] = 0;
         }
@@ -429,7 +429,7 @@ private:
     // 2. Inject alloc statements according to the usage
     object_t mutate_stmt_seq(const object_t &obj) {
         auto stmt_vec = obj.as<stmt_seq_t>().vec;
-        ir_assert(!stmt_vec.empty());
+        gpu_assert(!stmt_vec.empty());
         int nstmts = (int)stmt_vec.size();
         // Mutate statments and record buffer usage in the form: buf: [first, last].
         object_map_t<expr_t, int> last_undef;
@@ -559,7 +559,7 @@ object_t substitute(const object_t &root, const object_t &from,
     if (to.is_same(from)) return root;
     substitute_mutator_t sm(from, to);
     auto ret = sm.mutate(root);
-    ir_assert(sm.substitutions() <= max_substitutions)
+    gpu_assert(sm.substitutions() <= max_substitutions)
             << "Unexpected number of substitutions.";
     return ret;
 }
@@ -569,7 +569,7 @@ object_t substitute_with_different_type(const object_t &root,
     if (to.is_same(from)) return root;
     substitute_and_type_mutator_t sm(from, to);
     auto ret = sm.mutate(root);
-    ir_assert(sm.substitutions() <= max_substitutions)
+    gpu_assert(sm.substitutions() <= max_substitutions)
             << "Unexpected number of substitutions.";
     return ret;
 }
@@ -699,7 +699,7 @@ public:
 
         stmt_t ret;
         for (auto &e : entries) {
-            ir_assert(e.let_stmt.is_empty()) << e.let_stmt;
+            gpu_assert(e.let_stmt.is_empty()) << e.let_stmt;
             ret = ret.append(e.body);
         }
 
@@ -737,7 +737,7 @@ std::vector<expr_t> split_by_and(const expr_t &e) {
 }
 
 expr_t abs(const expr_t &e) {
-    ir_assert(is_const(e)) << e;
+    gpu_assert(is_const(e)) << e;
     if (to_cpp<bool>(e >= 0)) return e;
     return -e;
 }
@@ -790,7 +790,7 @@ expr_t make_buffer(const std::string &name) {
 
 // Returns number of occurrences of `obj` in `root` (based on identity equality).
 int count_object(const object_t &root, const object_t &obj) {
-    ir_assert(!obj.is_empty());
+    gpu_assert(!obj.is_empty());
 
     std::vector<object_t> found;
     do {
@@ -804,7 +804,7 @@ int count_object(const object_t &root, const object_t &obj) {
 
 #undef HANDLE_IR_OBJECT
 
-        ir_error_not_expected() << obj;
+        gpu_error_not_expected() << obj;
     } while (false);
 
     int ret = 0;
@@ -814,7 +814,7 @@ int count_object(const object_t &root, const object_t &obj) {
 }
 
 bool contains_object(const object_t &root, const object_t &obj) {
-    ir_assert(is_var(obj)) << obj;
+    gpu_assert(is_var(obj)) << obj;
     return count_object(root, obj) > 0;
 }
 
@@ -951,7 +951,7 @@ bool has_send_atomics(const stmt_t &s) {
 }
 
 bool relation_t::implies(const relation_t &other) const {
-    ir_assert(var().is_same(other.var()));
+    gpu_assert(var().is_same(other.var()));
 
     if (op_kind() != other.op_kind()) return false;
 
@@ -967,19 +967,19 @@ bool relation_t::implies(const relation_t &other) const {
         // (x <= A) && (A <= B) => (x <= B)
         case op_kind_t::_lt:
         case op_kind_t::_le: return A <= B;
-        default: ir_error_not_expected() << "Not implemented: " << expr_;
+        default: gpu_error_not_expected() << "Not implemented: " << expr_;
     }
     return false;
 }
 
 relation_t relation_t::transform(
         const linear_transform_t &t, const expr_t &new_var) const {
-    ir_assert(t.a == 1) << "Not implemented.";
+    gpu_assert(t.a == 1) << "Not implemented.";
     return relation_t(binary_op_t::make(op_kind(), new_var, rhs() + t.b));
 }
 
 expr_t relation_t::normalize(const expr_t &e) {
-    ir_assert(is_relation_constraint(e)) << e;
+    gpu_assert(is_relation_constraint(e)) << e;
     auto &op = e.as<binary_op_t>();
 
     auto op_kind = op.op_kind;
@@ -1023,7 +1023,7 @@ int64_t bound_finder_base_t::find_bound_impl(
 
     auto *unary = e.as_ptr<unary_op_t>();
     if (unary) {
-        ir_assert(unary->op_kind == op_kind_t::_minus) << e;
+        gpu_assert(unary->op_kind == op_kind_t::_minus) << e;
         auto a = find_bound_impl(unary->a, !is_low);
         if (!is_good_bound(a)) return def_bound;
         return -a;
@@ -1067,7 +1067,7 @@ int64_t bound_finder_base_t::find_bound_impl(
                 if (!is_const(binary->b)) return def_bound;
 
                 auto b = to_cpp<int64_t>(binary->b);
-                ir_assert(b != 0);
+                gpu_assert(b != 0);
 
                 auto a = find_bound_impl(binary->a, b > 0 ? is_low : !is_low);
                 if (!is_good_bound(a)) return def_bound;
@@ -1231,14 +1231,14 @@ void constraint_set_t::add_constraint(const expr_t &e) {
 }
 
 bool constraint_set_t::is_single_value(const expr_t &e, expr_t &value) const {
-    ir_assert(is_var(e)) << e;
+    gpu_assert(is_var(e)) << e;
     auto it = relations_.find(e);
     if (it == relations_.end()) return false;
 
     expr_t lo;
     expr_t hi;
     for (auto &rel : it->second) {
-        ir_assert(is_const(rel.rhs())) << rel;
+        gpu_assert(is_const(rel.rhs())) << rel;
         bool do_break = false;
         switch (rel.op_kind()) {
             case op_kind_t::_eq:
@@ -1263,7 +1263,7 @@ bool constraint_set_t::is_single_value(const expr_t &e, expr_t &value) const {
                 }
                 break;
             }
-            default: ir_error_not_expected() << rel;
+            default: gpu_error_not_expected() << rel;
         }
         if (do_break) break;
     }
@@ -1276,7 +1276,7 @@ bool constraint_set_t::can_prove_impl(
         const expr_t &_e, bool do_simplify) const {
     auto e = _e;
     if (is_const(e)) {
-        ir_assert(e.type() == type_t::_bool()) << e;
+        gpu_assert(e.type() == type_t::_bool()) << e;
         return to_cpp<bool>(e);
     }
 
@@ -1286,7 +1286,7 @@ bool constraint_set_t::can_prove_impl(
         e = simplify_cmp_reduce_lhs_rhs(e);
         e = simplify(e);
         if (is_const(e)) {
-            ir_assert(e.type() == type_t::_bool()) << e;
+            gpu_assert(e.type() == type_t::_bool()) << e;
             return to_cpp<bool>(e);
         }
     }

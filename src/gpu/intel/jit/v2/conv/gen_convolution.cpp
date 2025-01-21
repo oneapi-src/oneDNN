@@ -114,7 +114,7 @@ public:
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);
             if (_desc.is_empty()) {
-                ir_info() << "Cannot find kernels that can fit the problem.";
+                gpu_info() << "Cannot find kernels that can fit the problem.";
                 return status::unimplemented;
             }
         }
@@ -124,7 +124,7 @@ public:
         CHECK(pd->attr_.set_default_formats(out_md(pd)));
         CHECK(_desc.set_post_ops(pd->attr()->post_ops_, out_md(pd), pd));
         if (!finalize_conv_desc(_desc, prb)) {
-            ir_info() << "Cannot create kernel descriptor.";
+            gpu_info() << "Cannot create kernel descriptor.";
             return status::runtime_error;
         }
         pd->init_plan = std::make_shared<primitive_init_plan_t>();
@@ -151,7 +151,7 @@ private:
         if (pd->is_fwd()) return pd->dst_md();
         if (pd->is_bwd_d()) return pd->diff_src_md();
         if (pd->is_bwd_w()) return pd->diff_weights_md();
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return nullptr;
     }
 

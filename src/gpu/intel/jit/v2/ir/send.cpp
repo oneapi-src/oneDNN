@@ -50,8 +50,8 @@ bool process_coef_y_stride(
             return true;
         }
     }
-    ir_error_not_expected() << "Cannot make " << u << " x " << v
-                            << " divisible by " << plane.y_stride;
+    gpu_error_not_expected() << "Cannot make " << u << " x " << v
+                             << " divisible by " << plane.y_stride;
     return false;
 }
 

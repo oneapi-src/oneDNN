@@ -114,7 +114,7 @@ public:
     }
 
     dim_t to_1d_offset(const std::vector<dim_t> &args) const {
-        ir_assert(has_zero_start());
+        gpu_assert(has_zero_start());
 
         dim_t off = 0;
         for (dim_idx_t i = 0; i < ndims(); i++) {
@@ -125,7 +125,7 @@ public:
     }
 
     tensor_t create_sub_tensor(const tensor_t &tile) const {
-        ir_assert(ndims() == tile.ndims()) << "Incompatible sizes.";
+        gpu_assert(ndims() == tile.ndims()) << "Incompatible sizes.";
         std::vector<expr_t> new_start = start_;
         for (dim_idx_t i = 0; i < ndims(); i++)
             new_start[i] += tile.start(i);
@@ -158,8 +158,8 @@ public:
             const std::vector<expr_t> &idxs)
         : dims_(dims), offs_(offs), idxs_(idxs) {
         if (offs_.empty()) offs_.resize(dims.size());
-        ir_assert(dims_.size() == offs_.size());
-        ir_assert(dims_.size() == idxs_.size());
+        gpu_assert(dims_.size() == offs_.size());
+        gpu_assert(dims_.size() == idxs_.size());
     }
 
     bool operator==(const grid_info_t &other) const {
@@ -181,7 +181,7 @@ public:
         for (dim_idx_t i = 0; i < ndims(); i++) {
             if (idx(i).is_same(idx_var)) return i;
         }
-        ir_error_not_expected() << "Index not found: " << idx_var;
+        gpu_error_not_expected() << "Index not found: " << idx_var;
         return -1;
     }
 
@@ -220,9 +220,9 @@ public:
 
     grid_info_t slice(dim_idx_t dim_idx, dim_t new_off, dim_t new_dim,
             const expr_t &new_idx, expr_t &new_idx_value) const {
-        ir_assert(dim_idx >= 0 && dim_idx < ndims());
-        ir_assert(new_dim > 0 && new_off >= 0);
-        ir_assert(new_off + new_dim <= dims_[dim_idx]);
+        gpu_assert(dim_idx >= 0 && dim_idx < ndims());
+        gpu_assert(new_dim > 0 && new_off >= 0);
+        gpu_assert(new_off + new_dim <= dims_[dim_idx]);
 
         grid_info_t ret = *this;
         ret.offs_[dim_idx] += new_off;
@@ -290,7 +290,7 @@ public:
     grid_splitter_t(const grid_info_t &grid)
         : grid_(grid), cur_idx_(grid.ndims() - 1), cur_stride_(1) {
         skip_size_1_dims();
-        ir_assert(cur_idx_ != dim_idx::invalid);
+        gpu_assert(cur_idx_ != dim_idx::invalid);
     }
 
     dim_t cur_block() const {
@@ -416,7 +416,7 @@ public:
             const std::vector<T> &args = {}, bool ignore_offset = false) const {
         if (args.empty()) return expr_cast<T>(offset_);
 
-        ir_assert(args.size() == ndims()) << "Dimensions do not match.";
+        gpu_assert(args.size() == ndims()) << "Dimensions do not match.";
 
         T off = 0;
         auto _args = args;
@@ -623,7 +623,7 @@ public:
     }
 
     layout_t transpose() const {
-        if (ndims() != 2) ir_error_not_expected();
+        if (ndims() != 2) gpu_error_not_expected();
 
         // Flip: 0 -> 1, 1 -> 0.
         auto blocks = blocks_;
@@ -679,7 +679,7 @@ public:
             if (b.stride != stride) break; // Not dense anymore.
             if (block_count[b.dim_idx] == 1) break; // Outer block.
             stride *= b.block;
-            ir_assert(block_count[b.dim_idx] > 0);
+            gpu_assert(block_count[b.dim_idx] > 0);
             block_count[b.dim_idx]--;
             inner_blocks.push_back(b);
         }
@@ -709,7 +709,7 @@ public:
                 } else if (i_stride % _stride == 0) {
                     factor = -(i_stride / _stride);
                 } else {
-                    ir_error_not_expected();
+                    gpu_error_not_expected();
                 }
             }
             if (factor > 0) {
@@ -722,8 +722,8 @@ public:
     }
 
     layout_t make_with_block(const layout_t &inner) const {
-        ir_assert(type() == inner.type());
-        ir_assert(ndims() == inner.ndims());
+        gpu_assert(type() == inner.type());
+        gpu_assert(ndims() == inner.ndims());
         auto cur_dims = dims();
         std::vector<dim_t> rem_dims(ndims());
         for (dim_idx_t i = 0; i < ndims(); i++)
@@ -739,7 +739,7 @@ public:
             r = ir_utils::safe_divide(r, blk);
         }
         for (dim_idx_t i = 0; i < ndims(); i++)
-            ir_assert(rem_dims[i] == 1);
+            gpu_assert(rem_dims[i] == 1);
         return ret;
     }
 
@@ -769,8 +769,8 @@ public:
                 stride = last.block * last.stride;
             }
         }
-        ir_assert(stride >= elems());
-        ir_assert(dim_idx < ndims());
+        gpu_assert(stride >= elems());
+        gpu_assert(dim_idx < ndims());
         auto new_blocks = blocks();
         new_blocks.emplace_back(dim_idx, block, stride);
         return layout_t(type(), ndims(), offset(), new_blocks);
@@ -779,7 +779,7 @@ public:
     layout_t add_outer_block_and_pad(
             int dim_idx, dim_t block, int pad_bytes) const {
         int type_size = type().size();
-        ir_assert(pad_bytes % type_size == 0);
+        gpu_assert(pad_bytes % type_size == 0);
         if (blocks_.empty())
             return add_outer_block(dim_idx, block, pad_bytes / type_size);
         auto &last = blocks_.back();
@@ -860,9 +860,9 @@ public:
 
     tensor_t split(const tensor_t &tile, const grid_info_t &grid,
             std::vector<block_t> *outer_blocks = nullptr) const {
-        ir_assert(ndims() == tile.ndims())
+        gpu_assert(ndims() == tile.ndims())
                 << "Number of dimensions doesn't match.";
-        ir_assert(tile.has_zero_start());
+        gpu_assert(tile.has_zero_start());
 
         if (outer_blocks) outer_blocks->resize(0);
 
@@ -872,7 +872,7 @@ public:
         dim_t tile_elems = tile.elems();
 
         grid_splitter_t grid_splitter(grid);
-        ir_assert(tile_elems * grid.elems() == total_elems)
+        gpu_assert(tile_elems * grid.elems() == total_elems)
                 << "Tile/grid dimensions do not match.";
         MAYBE_UNUSED(total_elems);
         MAYBE_UNUSED(tile_elems);
@@ -919,10 +919,10 @@ public:
     // absolute 1D offsets are increasing between callback calls.
     template <typename F>
     void for_each_tile(const tensor_t &tile, const F &f) const {
-        ir_assert(tile.ndims() == ndims());
-        ir_assert(tile.has_zero_start());
+        gpu_assert(tile.ndims() == ndims());
+        gpu_assert(tile.has_zero_start());
         for (dim_idx_t i = 0; i < ndims(); i++) {
-            ir_assert(dim(i) % tile.dims()[i] == 0);
+            gpu_assert(dim(i) % tile.dims()[i] == 0);
         }
 
         int nblocks = int(blocks().size());
@@ -937,12 +937,12 @@ public:
                 if (b.dim_idx != i) continue;
                 int block_idx = eb.first;
                 if (b.block >= dim) {
-                    ir_assert(b.block % dim == 0);
+                    gpu_assert(b.block % dim == 0);
                     sub_blocks[block_idx] = b.block / dim;
                     break;
                 }
                 sub_blocks[block_idx] = 1;
-                ir_assert(dim % b.block == 0);
+                gpu_assert(dim % b.block == 0);
                 dim /= b.block;
             }
         }
@@ -1102,7 +1102,7 @@ public:
     }
 
     layout_iterator_t &operator++() {
-        ir_assert(has_next());
+        gpu_assert(has_next());
         while (block_ == 1) {
             block_idx_++;
             block_ = int(l_.blocks()[block_idx_].block);
@@ -1115,7 +1115,7 @@ public:
             }
         }
 
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return *this;
     }
 
@@ -1159,7 +1159,7 @@ public:
 
     mask_tensor_t(const layout_t &layout)
         : layout_(layout), masks_(layout.elems(), -1) {
-        ir_assert(layout.is_dense());
+        gpu_assert(layout.is_dense());
     }
 
     mask_tensor_t(const layout_t &layout, const std::vector<int> &masks,
@@ -1169,7 +1169,7 @@ public:
         , masks_(masks)
         , mask2ids_(mask2ids)
         , id2masks_(id2masks) {
-        ir_assert(int(masks.size()) == elems()) << "Incompatible size.";
+        gpu_assert(int(masks.size()) == elems()) << "Incompatible size.";
     }
 
     const type_t &type() const { return layout_.type(); }
@@ -1179,7 +1179,7 @@ public:
     dim_t elems() const { return layout_.elems(); }
 
     void set_mask(dim_t off, const expr_t &mask) {
-        ir_assert(0 <= off && off < elems()) << "Incorrect offset.";
+        gpu_assert(0 <= off && off < elems()) << "Incorrect offset.";
         if (mask.is_empty()) return;
 
         auto ret = mask2ids_.insert({mask, int(mask2ids_.size())});
@@ -1190,7 +1190,7 @@ public:
     }
 
     const expr_t &mask(dim_t off) const {
-        ir_assert(0 <= off && off < elems());
+        gpu_assert(0 <= off && off < elems());
         return id2masks_[masks_[off]];
     }
 
@@ -1229,7 +1229,7 @@ public:
     }
 
     mask_tensor_t reinterpret(const type_t &new_type) const {
-        ir_assert(!is_empty()) << "Can't reinterpret.";
+        gpu_assert(!is_empty()) << "Can't reinterpret.";
         dim_t bytes = elems() * type().size();
         if (bytes % new_type.size() != 0 && bytes > new_type.size())
             return mask_tensor_t();
@@ -1246,7 +1246,7 @@ public:
                     return mask_tensor_t();
                 }
             }
-            ir_assert(0 <= mask_id && mask_id < int(masks_.size()));
+            gpu_assert(0 <= mask_id && mask_id < int(masks_.size()));
             new_masks[i / new_type.size()] = mask_id;
         }
         dim_t new_elems = utils::div_up(bytes, new_type.size());
@@ -1325,12 +1325,12 @@ public:
     }
 
     dim_idx_t vidx(dim_idx_t arg_idx) const {
-        ir_assert(arg_idx < nvargs());
+        gpu_assert(arg_idx < nvargs());
         return vidxs_[arg_idx];
     }
 
     stride_t vstride(dim_idx_t arg_idx) const {
-        ir_assert(arg_idx < nvargs());
+        gpu_assert(arg_idx < nvargs());
         return vstrides_[arg_idx];
     }
 
@@ -1339,12 +1339,12 @@ public:
     bool is_identity() const { return is_var(expr_); }
 
     bool is_fixed_stride(dim_idx_t arg_idx) const {
-        ir_assert(arg_idx < nvargs());
+        gpu_assert(arg_idx < nvargs());
         return vstrides_[arg_idx].is_fixed();
     }
 
     void add_vvar(dim_idx_t vidx, const expr_t &varg) {
-        ir_assert(nvargs_ + 1 <= max_nvargs);
+        gpu_assert(nvargs_ + 1 <= max_nvargs);
         vidxs_[nvargs_] = vidx;
         vstrides_[nvargs_] = compute_stride(expr_, nvargs_, varg);
         nvargs_++;
@@ -1432,25 +1432,25 @@ public:
     }
 
     const expr_t &vvar(dim_idx_t idx) const {
-        ir_assert(idx < nvdims());
+        gpu_assert(idx < nvdims());
         return vvars_[idx];
     }
 
     const expr_t &vvar(const std::string &name) const {
         for (auto &v : vvars_)
             if (v.as<var_t>().name == name) return v;
-        ir_error_not_expected() << name;
+        gpu_error_not_expected() << name;
         return vvars_[0];
     }
 
     const tdim_t &tdim(dim_idx_t idx) const {
-        ir_assert(idx < ntdims());
+        gpu_assert(idx < ntdims());
         return tdims_[idx];
     }
 
     void set_tdim(
             dim_idx_t tidx, const expr_t &_texpr, const expr_t &mask = {}) {
-        ir_assert(tdims_[tidx].is_empty());
+        gpu_assert(tdims_[tidx].is_empty());
 
         auto texpr = simplify(_texpr);
 
@@ -1459,7 +1459,7 @@ public:
             if (contains_object(texpr, vvars_[i])) tdim.add_vvar(i, vvars_[i]);
         }
         if (!is_const(texpr)) {
-            ir_assert(tdim.nvargs() > 0)
+            gpu_assert(tdim.nvargs() > 0)
                     << "Tensor dimension must have at least one view dimension "
                        "that maps to it.";
         }
@@ -1469,7 +1469,7 @@ public:
     void set_vdim(
             const expr_t &varg, dim_t vdim, const expr_t &vstart = expr_t(0)) {
         dim_idx_t vidx = vvar_index(varg);
-        ir_assert(vstart_[vidx].is_empty());
+        gpu_assert(vstart_[vidx].is_empty());
         vstart_[vidx] = vstart;
         vdims_[vidx] = vdim;
     }
@@ -1498,7 +1498,7 @@ public:
     }
 
     void set_tmasks(const std::vector<dim_t> &padded_dims) {
-        ir_assert(padded_dims.size() == ntdims());
+        gpu_assert(padded_dims.size() == ntdims());
         std::unordered_map<std::string, dim_t> pd_map;
         for (dim_idx_t i = 0; i < ntdims(); i++) {
             auto &dim_name = vvars_[tdims_[i].vidx(0)].as<var_t>().name;
@@ -1529,7 +1529,7 @@ public:
     }
 
     bool has_tmask(dim_idx_t tidx) const {
-        ir_assert(tidx != dim_idx::invalid && tidx < ntdims());
+        gpu_assert(tidx != dim_idx::invalid && tidx < ntdims());
         return !tdims_[tidx].mask().is_empty();
     }
 
@@ -1557,7 +1557,7 @@ public:
     dim_idx_t vvar_index(const expr_t &vvar) const {
         for (dim_idx_t i = 0; i < vvars_.size(); i++)
             if (vvar.is_same(vvars_[i])) return i;
-        ir_error_not_expected() << "Can't find view dimension.";
+        gpu_error_not_expected() << "Can't find view dimension.";
         return dim_idx::invalid;
     }
 
@@ -1582,8 +1582,8 @@ public:
     }
 
     bool is_masked_vdim(dim_idx_t vidx) const {
-        ir_assert(vidx != dim_idx::invalid && vidx < nvdims());
-        ir_assert(has_zero_vstart())
+        gpu_assert(vidx != dim_idx::invalid && vidx < nvdims());
+        gpu_assert(has_zero_vstart())
                 << "Can't be reliably determined if the view is a sub-view.";
         for (dim_idx_t i = 0; i < ntdims(); i++) {
             auto &tdim = tdims_[i];
@@ -1609,8 +1609,8 @@ public:
     //      assuming the zero padding invariant. However in some cases we need
     //      to generate the exact bound condition based on the logical indices.
     expr_t vmask(const std::vector<expr_t> &vargs) const {
-        ir_assert(vargs.size() == nvdims()) << "Incompatible dimensions.";
-        ir_assert(has_zero_vstart())
+        gpu_assert(vargs.size() == nvdims()) << "Incompatible dimensions.";
+        gpu_assert(has_zero_vstart())
                 << "Can't be reliably determined if the view is a sub-view.";
         auto targs = cvt_vargs_to_targs(vargs);
         auto mask = bool_imm_t::make(true);
@@ -1665,7 +1665,7 @@ public:
     }
 
     layout_t create_vlayout(bool force_zero_offset = false) const {
-        ir_assert(can_convert_to_vlayout()) << "Can't convert view to layout.";
+        gpu_assert(can_convert_to_vlayout()) << "Can't convert view to layout.";
         if (force_zero_offset) return tlayout_.map(tensor_t(vdims_));
         return tlayout_.map(tensor_t(vdims_, vstart_));
     }
@@ -1901,8 +1901,8 @@ public:
         , assignments_(old_ndims, -1) {}
 
     void assign(dim_idx_t old_idx, dim_idx_t new_idx) {
-        ir_assert(old_idx != dim_idx::invalid && old_idx < old_ndims_);
-        ir_assert(new_idx != dim_idx::invalid && new_idx < new_ndims_);
+        gpu_assert(old_idx != dim_idx::invalid && old_idx < old_ndims_);
+        gpu_assert(new_idx != dim_idx::invalid && new_idx < new_ndims_);
         assignments_[old_idx] = new_idx;
     }
 
@@ -1913,7 +1913,7 @@ public:
     }
 
     dim_idx_t operator[](dim_idx_t old_idx) const {
-        ir_assert(old_idx >= 0 && old_idx < old_ndims());
+        gpu_assert(old_idx >= 0 && old_idx < old_ndims());
         return assignments_[old_idx];
     }
 

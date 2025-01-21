@@ -62,7 +62,7 @@ inline std::string to_string(zp_comp_kind_t kind) {
         CASE(wei_Xn4k_x8_zp_per_k);
         CASE(wei_Xb_s16);
         CASE(wei_Xn_s16);
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
 #undef CASE
     }
     return "unknown";
@@ -115,7 +115,7 @@ public:
     split_dispatcher_t() = default;
     split_dispatcher_t(const layout_t &comp_layout, const layout_t &c_layout,
             const hw_t &hw, bool is_fwd, const bmnk_mapper_t &mapper) {
-        ir_assert(comp_layout.ndims() == 6);
+        gpu_assert(comp_layout.ndims() == 6);
         comp_g_idx_ = 0;
         comp_c_idx_ = (is_fwd) ? 1 : 2;
         c_g_idx_ = 1;
@@ -146,7 +146,7 @@ public:
                 return;
             }
         }
-        ir_error_not_expected()
+        gpu_error_not_expected()
                 << "Can't initialize SIMD size, comp_layout = " << comp_layout
                 << ", c_layout = " << c_layout;
     }
@@ -177,7 +177,7 @@ public:
     }
 
     void set_split(abc_kind_t abc, int factor) {
-        ir_assert(can_split(abc, factor));
+        gpu_assert(can_split(abc, factor));
         if (factor == 1) {
             split_ = split_t::no_split();
             return;
@@ -201,7 +201,7 @@ private:
         split_t() = default;
         split_t(const layout_t &c, const bmnk_mapper_t &mapper, abc_kind_t abc,
                 int factor, dim_idx_t simd_dim_idx, int simd) {
-            ir_assert(factor > 1);
+            gpu_assert(factor > 1);
             bmnk_kind_t split_mn
                     = (abc == abc_kind_t::a ? bmnk_kind_t::m : bmnk_kind_t::n);
             dim_t dim = 1;
@@ -296,11 +296,11 @@ public:
         , b_layout_(b_layout)
         , data_type_(data_type)
         , simd_(simd) {
-        ir_assert(zp_layout_.blocks().empty());
+        gpu_assert(zp_layout_.blocks().empty());
     }
 
     int wei_reg_buf_size() const {
-        ir_assert(b_layout_.size()
+        gpu_assert(b_layout_.size()
                         % (sdepth_ * simd_ * dpas_type(data_type_).size())
                 == 0);
         return utils::rnd_up(into<int>(b_layout_.size()), grf_size());
@@ -314,11 +314,11 @@ public:
             const gemm_schedule_t &gemm_schedule, int subtile_idx) {
         if (subtile_idx > 0) return stmt_t();
 
-        ir_assert(zp_layout_.blocks().empty());
+        gpu_assert(zp_layout_.blocks().empty());
         auto data_size = data_type_.size();
         auto dpas_size = dpas_type(data_type_).size();
         auto sdepth_size = simd_ * dpas_size;
-        ir_assert(zp_layout_.type().is_s8());
+        gpu_assert(zp_layout_.type().is_s8());
         auto wei_load = -load_t::make(zp_layout_.type(), wei_buf, 0);
         stmt_t stmt = store_t::make(wei_buf, 0, wei_load);
         int size = dpas_size / data_size;
@@ -342,7 +342,7 @@ public:
             tile_dim[b.dim_idx] *= b.block;
         }
         tensor_t tile(tile_dim);
-        ir_assert(tile.elems() % sdepth_size == 0);
+        gpu_assert(tile.elems() % sdepth_size == 0);
         wei_load = simd_bcast(load_t::make(
                 dpas_type(data_type_), (size > 1) ? dpas_buf : wei_buf, 0));
         b_layout_.for_each_tile(tile, [&](const std::vector<dim_t> &start) {
@@ -431,7 +431,7 @@ public:
     }
 
     void set_split(abc_kind_t abc, int factor) {
-        ir_assert(can_split(abc, factor));
+        gpu_assert(can_split(abc, factor));
         if (abc == abc_kind_t::b) split_factor_ = factor;
     }
 
@@ -583,7 +583,7 @@ private:
         } else if (is_wei_Xn_s16(simd_dim_idx_, simd_)) {
             kind_ = zp_comp_kind_t::wei_Xn_s16;
         } else {
-            ir_error_not_expected() << wei_layout_;
+            gpu_error_not_expected() << wei_layout_;
         }
     }
 
@@ -689,7 +689,7 @@ private:
             case zp_comp_kind_t::wei_Xb_s16:
             case zp_comp_kind_t::wei_Xn_s16:
                 return create_tile_wei_Xy_s16(zp, wei, comp, buf_mgr);
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return stmt_t();
     }
@@ -758,9 +758,9 @@ private:
         auto comp_type = comp_layout_.type();
         auto real_zp = zp;
 
-        ir_assert((int)comp_layout_.inner_stride() == 1);
-        ir_assert(wei_type.is_s16());
-        ir_assert((int)wei_layout_.inner_stride() == wei_stride);
+        gpu_assert((int)comp_layout_.inner_stride() == 1);
+        gpu_assert(wei_type.is_s16());
+        gpu_assert((int)wei_layout_.inner_stride() == wei_stride);
 
         auto ret = maybe_typecast_zp_src(
                 buf_mgr, zp_type, real_zp, (zp_stride) ? simd_ : 1);
@@ -817,22 +817,22 @@ struct texpr_t {
             const std::vector<dim_t> vstart_inc,
             const std::vector<expr_t> &vvars, int simd_vidx) const {
         int ndims = (int)vstart.size();
-        ir_assert((int)vstart_inc.size() == ndims);
-        ir_assert((int)vvars.size() == ndims);
+        gpu_assert((int)vstart_inc.size() == ndims);
+        gpu_assert((int)vvars.size() == ndims);
         bool non_linear[max_nvdims] = {false};
         if (has_non_linear) {
             auto vars = find_objects<var_t>(base);
             for (auto &v : vars) {
                 for (int i = 0; i < (int)vvars.size(); i++) {
                     if (vvars[i].is_same(v)) {
-                        ir_assert(i < max_nvdims);
+                        gpu_assert(i < max_nvdims);
                         non_linear[i] = true;
                         break;
                     }
                 }
             }
         }
-        ir_assert(!non_linear[simd_vidx]);
+        gpu_assert(!non_linear[simd_vidx]);
 
         auto ret = base;
         for (int i = 0; i < nvargs(); i++) {
@@ -855,7 +855,7 @@ struct texpr_t {
     bool is_var() const { return nvargs() == 1 && is_zero(base); }
 
     int64_t to_const() const {
-        ir_assert(is_const());
+        gpu_assert(is_const());
         return to_cpp<int64_t>(base);
     }
 
@@ -874,7 +874,7 @@ struct texpr_t {
     dim_t vstride(int vidx) const {
         for (int i = 0; i < nvargs(); i++)
             if (vidxs[i] == vidx) { return vstrides[i]; }
-        ir_error_not_expected() << "Dimension not found: " << vidx;
+        gpu_error_not_expected() << "Dimension not found: " << vidx;
         return -1;
     }
 
@@ -899,7 +899,7 @@ struct texpr_t {
                 }
             }
             if (!found) {
-                ir_assert(cur_idx < max_nvargs);
+                gpu_assert(cur_idx < max_nvargs);
                 ret.vidxs[cur_idx] = b.vidxs[i];
                 ret.vstrides[cur_idx] += mult * b.vstrides[i];
                 cur_idx++;
@@ -911,7 +911,7 @@ struct texpr_t {
 
     texpr_t operator*(const texpr_t &b) const {
         if (!is_const() && b.is_const()) return b * *this;
-        if (!is_const()) ir_error_not_expected();
+        if (!is_const()) gpu_error_not_expected();
 
         auto c = to_const();
         auto ret = b;
@@ -949,14 +949,14 @@ struct texpr_t {
     IR_DEFINE_DUMP()
 
     static texpr_t create_from_const(const expr_t &e) {
-        ir_assert(jit::is_const(e));
+        gpu_assert(jit::is_const(e));
         texpr_t ret;
         ret.base = e;
         return ret;
     }
 
     static texpr_t create_from_vidx(int vidx) {
-        ir_assert(vidx != -1);
+        gpu_assert(vidx != -1);
         texpr_t ret;
         ret.base = expr_t(0);
         ret.vidxs[0] = vidx;
@@ -979,7 +979,7 @@ public:
             const std::vector<expr_t> &vstart) {
         vinfo_t vinfo(vvars, vstart);
         if (is_x_op_y(mask, vinfo, op_, lhs_, rhs_)) return;
-        ir_error_not_expected() << mask;
+        gpu_error_not_expected() << mask;
     }
 
     const texpr_t &lhs() const { return lhs_; }
@@ -1021,7 +1021,7 @@ private:
         int vidx(const expr_t &var) const {
             for (int i = 0; i < (int)vvars.size(); i++)
                 if (vvars[i].is_same(var)) return i;
-            ir_error_not_expected();
+            gpu_error_not_expected();
             return -1;
         }
 
@@ -1037,7 +1037,7 @@ private:
                 op = binary->op_kind;
                 lhs = to_texpr(binary->a, vinfo);
                 rhs = to_texpr(binary->b, vinfo);
-                ir_assert(rhs.nvargs() == 0);
+                gpu_assert(rhs.nvargs() == 0);
                 return true;
             }
         }
@@ -1057,7 +1057,7 @@ private:
                 case op_kind_t::_mul: return a * b;
                 case op_kind_t::_div:
                 case op_kind_t::_mod: {
-                    ir_assert(b.is_const());
+                    gpu_assert(b.is_const());
                     auto e_a = a.to_expr(vinfo.vvars);
                     auto e_b = b.base;
                     texpr_t ret;
@@ -1065,10 +1065,10 @@ private:
                     ret.has_non_linear = true;
                     return ret;
                 }
-                default: ir_error_not_expected() << e;
+                default: gpu_error_not_expected() << e;
             }
         }
-        ir_error_not_expected() << e;
+        gpu_error_not_expected() << e;
         return texpr_t();
     }
 
@@ -1171,7 +1171,7 @@ private:
             const layout_t &src_layout, const std::vector<expr_t> &vvars) {
         if (mask_descs_.empty()) return;
         int ndims = src_layout.ndims();
-        ir_assert((int)vvars.size() == ndims);
+        gpu_assert((int)vvars.size() == ndims);
         std::vector<dim_t> dims(ndims, 1);
         for (int i = 0; i < ndims; i++) {
             for (auto &m : mask_descs_)
@@ -1231,7 +1231,7 @@ private:
         auto masks = split_by_and(mask);
         for (auto &m : masks) {
             if (is_const(m)) {
-                ir_assert(to_cpp<bool>(m));
+                gpu_assert(to_cpp<bool>(m));
                 continue;
             }
             mask_descs.emplace_back(m, vvars_, vstart_);
@@ -1260,7 +1260,7 @@ public:
         , c_layout_(c_layout)
         , simd_str_(simd_str) {
         if (!mask_layout_.is_empty()) {
-            ir_assert(utils::one_of(mask_layout_.ndims(), 7u, 9u));
+            gpu_assert(utils::one_of(mask_layout_.ndims(), 7u, 9u));
         }
     }
 
@@ -1384,7 +1384,7 @@ private:
             const expr_t &c, const split_dispatcher_t &sd) const {
         auto comp_type = comp_layout_.type();
         auto c_type = c_layout_.type();
-        ir_assert((int)comp_layout_.inner_stride() == 1);
+        gpu_assert((int)comp_layout_.inner_stride() == 1);
         auto comp_load = load_t::make(comp_type.with_elems(sd.simd()), comp, 0);
         auto c_load = load_t::make(c_type.with_elems(sd.simd()), c, 0);
         stmt_t c_update;
@@ -1482,7 +1482,7 @@ struct zp_plan_impl_t : public base_plan_t {
     }
 
     void set_split(abc_kind_t abc, int factor) {
-        ir_assert(can_split(abc, factor));
+        gpu_assert(can_split(abc, factor));
         if (has_zp_src()) comp_init.set_split(abc, factor);
         if (bool(*this)) sd.set_split(abc, factor);
     }

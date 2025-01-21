@@ -456,7 +456,7 @@ class var_ref_t {
 public:
     var_ref_t(ir_builder_t *parent, const type_t &type, const expr_t &buf)
         : parent_(parent), type_(type), buf_(buf) {
-        ir_assert(buf_.type().is_ptr());
+        gpu_assert(buf_.type().is_ptr());
     }
 
     operator expr_t() const { return load_t::make(type_, buf_, 0); }
@@ -561,7 +561,7 @@ public:
         params.op = send_op_t::store;
         params.init_max_entry_reg_size();
         auto plan = create_send_plan(params, mem_view);
-        ir_assert(plan.reg_layout() == reg_layout);
+        gpu_assert(plan.reg_layout() == reg_layout);
         store(plan, mem_buf, reg_buf);
     }
 
@@ -634,7 +634,7 @@ public:
     void emit(const stmt_t &stmt) { top_stmt() = top_stmt().append(stmt); }
     stmt_t get_stmt() const { return top_stmt(); }
     void set_stmt(const stmt_t &stmt) {
-        ir_assert(stmt_stack_.size() == 1);
+        gpu_assert(stmt_stack_.size() == 1);
         top_stmt() = stmt;
     }
     stmt_t get_init_stmt() const { return off_ctx().init_stmt(); }
@@ -642,16 +642,16 @@ public:
 private:
     static const std::string &get_buf_name(const expr_t &e) {
         auto *var = e.as_ptr<var_t>();
-        ir_assert(var) << e;
+        gpu_assert(var) << e;
         return var->name;
     }
 
     stmt_t &top_stmt() {
-        ir_assert(!stmt_stack_.empty());
+        gpu_assert(!stmt_stack_.empty());
         return stmt_stack_.back();
     }
     const stmt_t &top_stmt() const {
-        ir_assert(!stmt_stack_.empty());
+        gpu_assert(!stmt_stack_.empty());
         return stmt_stack_.back();
     }
     void enter_scope() { stmt_stack_.emplace_back(); }
@@ -668,7 +668,7 @@ private:
 };
 
 inline var_ref_t &var_ref_t::operator=(const expr_t &value) {
-    ir_assert(value.type() == type_);
+    gpu_assert(value.type() == type_);
     parent_->emit(store_t::make(buf_, 0, value));
     return *this;
 }
@@ -699,16 +699,16 @@ public:
         std::string name;
         if (auto *op = value.as_ptr<binary_op_t>()) {
             if (op->op_kind == op_kind_t::_div_up) {
-                ir_assert(is_const(op->b))
+                gpu_assert(is_const(op->b))
                         << "Expected constant denominator: " << value;
                 if (is_one(op->b)) return get_idiv_magic(op->a);
-                ir_assert(op->a.is<var_t>() || op->a.is<const_var_t>())
+                gpu_assert(op->a.is<var_t>() || op->a.is<const_var_t>())
                         << "Expected var/const var: " << op->a;
                 name = op->a.str();
                 name += "_divup_" + op->b.str();
             }
         } else {
-            ir_assert(value.is<var_t>() || value.is<const_var_t>())
+            gpu_assert(value.is<var_t>() || value.is<const_var_t>())
                     << "Expected var/const var: " << value;
             name = value.str();
         }
@@ -716,10 +716,10 @@ public:
     }
 
     expr_t get_arg(const type_t &type, const std::string &name) const {
-        ir_assert(kernel_iface_.has(name)) << "Cannot find argument " << name;
+        gpu_assert(kernel_iface_.has(name)) << "Cannot find argument " << name;
         auto var = kernel_iface_.find_arg(name);
-        ir_assert(var.type() == type) << "Type mismatch, found: " << var.type()
-                                      << " expected: " << type;
+        gpu_assert(var.type() == type) << "Type mismatch, found: " << var.type()
+                                       << " expected: " << type;
         return var;
     }
 

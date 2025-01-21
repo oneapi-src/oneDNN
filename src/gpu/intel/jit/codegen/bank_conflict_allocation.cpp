@@ -43,7 +43,7 @@ struct hw_context_t {
                 reg_bank_stride = i;
                 break;
             }
-        ir_assert(reg_bank_stride != -1);
+        gpu_assert(reg_bank_stride != -1);
 
         bank_masks.resize(ngen::Bundle::bank_count(hw));
         bundle_masks.resize(ngen::Bundle::bundle_count(hw));
@@ -57,10 +57,10 @@ struct hw_context_t {
             } else {
                 // Ensure bank/bundle pattern is repeated.
                 int j = (i % 64);
-                ir_assert((bank_masks[bank] & (1ull << j)) != 0);
+                gpu_assert((bank_masks[bank] & (1ull << j)) != 0);
                 //XeLP and Gen9 only have two bundles
                 if (hw > ngen::HW::XeLP)
-                    ir_assert((bundle_masks[bundle] & (1ull << j)) != 0);
+                    gpu_assert((bundle_masks[bundle] & (1ull << j)) != 0);
             }
         }
     }
@@ -86,7 +86,7 @@ struct hw_context_t {
             case ngen::HW::XeHPC:
             case ngen::HW::Xe2:
             case ngen::HW::Xe3: return 16;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return -1;
     }
@@ -397,7 +397,7 @@ struct reg_buf_mask_t {
     reg_buf_mask_t(const hw_context_t *hw_ctx, int regs, int block_regs = 0)
         : hw_ctx(hw_ctx), regs(regs), block_regs(block_regs) {
         if (block_regs == 0) this->block_regs = regs;
-        ir_assert(regs % this->block_regs == 0);
+        gpu_assert(regs % this->block_regs == 0);
         for (int i = 0; i < nblocks(); i++) {
             blocks.emplace_back(hw_ctx, this->block_regs);
         }
@@ -409,7 +409,7 @@ struct reg_buf_mask_t {
     int nblocks() const { return regs / block_regs; }
 
     reg_t get_reg(int off_bytes) {
-        ir_assert(off_bytes < size());
+        gpu_assert(off_bytes < size());
         off_bytes /= hw_ctx->reg_size;
         int block_idx = off_bytes / block_regs;
         int reg_idx = off_bytes % block_regs;
@@ -458,7 +458,7 @@ struct search_context_t {
 
     // Saves block masks for the current recursion level.
     void save_blocks() {
-        ir_assert(saved_block_idx + nblocks() <= int(saved_blocks.size()));
+        gpu_assert(saved_block_idx + nblocks() <= int(saved_blocks.size()));
         for (int i = 0; i < nblocks(); i++) {
             saved_blocks[saved_block_idx + i] = *blocks[i];
         }
@@ -469,7 +469,7 @@ struct search_context_t {
     // Restores saved block masks.
     void restore_blocks() {
         saved_block_idx -= nblocks();
-        ir_assert(saved_block_idx >= 0);
+        gpu_assert(saved_block_idx >= 0);
         for (int i = 0; i < nblocks(); i++) {
             *blocks[i] = saved_blocks[saved_block_idx + i];
         }
@@ -636,7 +636,7 @@ reg_mask_t create_available_reg_mask(
 bank_conflict_allocation_t bank_conflict_allocation_t::create(
         reg_allocator_t &ra, int regs, const bank_conflict_attr_t &attr) {
     hw_context_t hw_ctx(ra.hardware(), regs);
-    ir_assert(regs <= reg_mask_t::max_regs);
+    gpu_assert(regs <= reg_mask_t::max_regs);
 
     bool is_dpas = false;
     bool is_dp4a = false;
@@ -654,7 +654,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
             auto &mad = func.as<mad_t>();
             is_f64 = mad.dst_type.is_f64();
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
     }
 
@@ -692,7 +692,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
                 return buf_masks[i].get_reg(off);
             }
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return reg_t();
     };
 
@@ -714,7 +714,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
             src0 = dpas_t::arg_src0(call);
             src1 = dpas_t::arg_src1(call);
             src2 = dpas_t::arg_src2(call);
-            if (!dpas.is_dp4a()) ir_assert(simd == hw_simd);
+            if (!dpas.is_dp4a()) gpu_assert(simd == hw_simd);
         } else if (call.func.is<mad_t>()) {
             auto &mad = call.func.as<mad_t>();
             simd = mad.exec_size;
@@ -725,7 +725,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
             src1 = mad_t::arg_src1(call);
             src2 = mad_t::arg_src2(call);
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
         for (int off = 0; off < simd; off += hw_simd) {
             auto _src0 = create_reg(src0, 0, off * src0_stride_bytes);
@@ -738,7 +738,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
     std::vector<reg_block_mask_t *> blocks;
 
     for (size_t i = 0; i < bufs.size(); i++)
-        ir_assert(buf_src_idx[i] != -1)
+        gpu_assert(buf_src_idx[i] != -1)
                 << "Buffer is not referenced: " << bufs[i];
 
     // Heuristic: search for register blocks in this order: src1, src2, src0.
@@ -770,8 +770,8 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
         ctx.reset_steps();
         ctx.set_check_bundles(check_bundles);
 
-        ir_assert(ctx.saved_block_idx == 0);
-        ir_assert(ctx.reg_mask == reg_mask);
+        gpu_assert(ctx.saved_block_idx == 0);
+        gpu_assert(ctx.reg_mask == reg_mask);
 
 #ifdef DNNL_DEV_MODE
         double search_time = get_msec();
@@ -779,12 +779,12 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
         found = search(ctx);
 #ifdef DNNL_DEV_MODE
         search_time = get_msec() - search_time;
-        ir_trace() << "Bank conflict allocation:";
-        ir_trace() << "    Search time: " << search_time << " ms";
-        ir_trace() << "    Status: " << (found ? "OK" : "FAIL");
-        ir_trace() << "    Steps: " << ctx.steps;
-        ir_trace() << "    Bundle check: "
-                   << ir_utils::to_string(ctx.check_bundles);
+        gpu_trace() << "Bank conflict allocation:";
+        gpu_trace() << "    Search time: " << search_time << " ms";
+        gpu_trace() << "    Status: " << (found ? "OK" : "FAIL");
+        gpu_trace() << "    Steps: " << ctx.steps;
+        gpu_trace() << "    Bundle check: "
+                    << ir_utils::to_string(ctx.check_bundles);
 #endif
         if (found) break;
     }

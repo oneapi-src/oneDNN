@@ -46,14 +46,14 @@ public:
         , path(path)
         , refs(refs)
         , cse_var(cse_var) {
-        ir_trace() << "cse_pass: add expression: " << expr;
+        gpu_trace() << "cse_pass: add expression: " << expr;
     }
 
     void add_usage(const ir_path_t &other_path, bool do_increment = true) {
         if (do_increment) refs++;
         path.merge(other_path);
-        ir_trace() << "cse_pass: add usage: " << expr
-                   << ", total refs: " << refs;
+        gpu_trace() << "cse_pass: add usage: " << expr
+                    << ", total refs: " << refs;
     }
 
     // Expression to eliminate via let.
@@ -122,7 +122,7 @@ public:
             if (s->is_broadcast()) return 0;
             return s->elems();
         }
-        ir_error_not_expected() << "Unhandled expression: " << e;
+        gpu_error_not_expected() << "Unhandled expression: " << e;
         return 0;
     }
 
@@ -212,9 +212,10 @@ public:
                     });
             auto &e = **it;
 
-            ir_trace() << "cse_pass: skipping " << e.cse_expr()->expr
-                       << " with cost " << e.cost() << ", size " << e.size()
-                       << ", and cost per byte " << (double)e.cost() / e.size();
+            gpu_trace() << "cse_pass: skipping " << e.cse_expr()->expr
+                        << " with cost " << e.cost() << ", size " << e.size()
+                        << ", and cost per byte "
+                        << (double)e.cost() / e.size();
 
             e.set_unallocated();
             grf_usage_ -= e.size();
@@ -243,12 +244,12 @@ public:
     bool has(const expr_t &e) const { return cse_exprs_.count(e) != 0; }
 
     cse_expr_t &find_cse_expr(const expr_t &e) {
-        ir_assert(has(e)) << e;
+        gpu_assert(has(e)) << e;
         return cse_exprs_.at(e);
     }
 
     const cse_expr_t &find_cse_expr(const expr_t &e) const {
-        ir_assert(has(e)) << e;
+        gpu_assert(has(e)) << e;
         return cse_exprs_.at(e);
     }
 
@@ -263,13 +264,13 @@ public:
 
     void register_expr(const expr_t &e, const ir_path_t &path) {
         auto ret = cse_exprs_.insert({e, cse_expr_t(e, e, path)});
-        ir_assert(ret.second) << e;
+        gpu_assert(ret.second) << e;
         MAYBE_UNUSED(ret);
     }
 
     void register_expr(const cse_expr_t &cse_expr) {
         auto ret = cse_exprs_.insert({cse_expr.expr, cse_expr});
-        ir_assert(ret.second);
+        gpu_assert(ret.second);
         MAYBE_UNUSED(ret);
     }
 
@@ -279,8 +280,8 @@ public:
             cse_expr.cse_var = ir_ctx_.create_tmp_var(e.type().is_bool()
                             ? bool_imm_t::get_packed_type(e.type().elems())
                             : e.type());
-            ir_trace() << "cse_pass: assigning var: " << e << " -> "
-                       << cse_expr.cse_var;
+            gpu_trace() << "cse_pass: assigning var: " << e << " -> "
+                        << cse_expr.cse_var;
         }
         return cse_expr.cse_var;
     }
@@ -300,13 +301,13 @@ public:
 
     void update_expr(const expr_t &old_expr, const expr_t &new_expr) {
         auto it = cse_exprs_.find(old_expr);
-        ir_assert(it != cse_exprs_.end()) << old_expr;
+        gpu_assert(it != cse_exprs_.end()) << old_expr;
         auto &old_cse_expr = it->second;
         auto new_cse_expr = cse_expr_t(new_expr, old_cse_expr.orig_expr,
                 old_cse_expr.path, old_cse_expr.refs, old_cse_expr.cse_var);
         cse_exprs_.erase(it);
         auto ret = cse_exprs_.insert({new_expr, new_cse_expr});
-        ir_assert(ret.second);
+        gpu_assert(ret.second);
         MAYBE_UNUSED(ret);
     }
 
@@ -461,7 +462,7 @@ class cse_verifier_t : public scope_visitor_t {
 public:
     cse_verifier_t(cse_context_t &ctx) : ctx_(ctx) {}
 
-    ~cse_verifier_t() override { ir_assert(to_check_.empty()); }
+    ~cse_verifier_t() override { gpu_assert(to_check_.empty()); }
 
     void _visit(const binary_op_t &obj) override { visit_expr(obj); }
     void _visit(const shuffle_t &obj) override { visit_expr(obj); }
@@ -508,7 +509,7 @@ private:
         auto it = to_check_.find(obj);
         if (it != to_check_.end()) {
             for (auto &e : it->second) {
-                ir_assert(is_expr_defined(e))
+                gpu_assert(is_expr_defined(e))
                         << "Expression contains undefined variables: " << e;
                 MAYBE_UNUSED(e);
             }
@@ -541,7 +542,7 @@ public:
         ctx_.for_each([&](const expr_t &e) {
             auto &cse_var = ctx_.get_var(e);
             auto ret = all_vars_.insert({cse_var, e});
-            ir_assert(ret.second);
+            gpu_assert(ret.second);
             MAYBE_UNUSED(ret);
         });
         ctx_.for_each([&](const expr_t &e) { generate_for_expr(e); });
@@ -683,9 +684,9 @@ stmt_t eliminate_common_subexprs_impl(const stmt_t &_stmt, cse_context_t &ctx,
     if (!has_skip) return stmt;
 
     int memory_usage = get_peak_regs(stmt, grf_size) * grf_size;
-    ir_trace() << "CSE exceeded GRF usage limit. Usage: " << memory_usage
-               << ", limit: " << memory_usage_limit
-               << ". Retry CSE and skip some expressions...";
+    gpu_trace() << "CSE exceeded GRF usage limit. Usage: " << memory_usage
+                << ", limit: " << memory_usage_limit
+                << ". Retry CSE and skip some expressions...";
     ctx.reset_cse_exprs();
     return stmt_t();
 }
@@ -714,7 +715,7 @@ public:
     int g2s_buf_size() const {
         int ret = 0;
         for (auto &kv : g2s_bufs_) {
-            ir_assert(kv.second != 0);
+            gpu_assert(kv.second != 0);
             ret += kv.second;
         }
         return ret;
@@ -732,7 +733,7 @@ public:
             return;
         }
         if (auto *func = obj.func.as_ptr<send_t>()) {
-            ir_assert(func->is_load()) << func;
+            gpu_assert(func->is_load()) << func;
             auto &buf = send_t::arg_reg_buf(obj);
             g2s_bufs_.emplace(get_base(buf), 0);
         }

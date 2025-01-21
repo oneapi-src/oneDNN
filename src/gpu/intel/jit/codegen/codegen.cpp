@@ -37,7 +37,7 @@ namespace intel {
 namespace jit {
 
 inline ngen::ConditionModifier cmp_op_to_ngen(op_kind_t op_kind) {
-    ir_assert(is_cmp_op(op_kind));
+    gpu_assert(is_cmp_op(op_kind));
     switch (op_kind) {
         case op_kind_t::_eq: return ngen::ConditionModifier::eq;
         case op_kind_t::_ne: return ngen::ConditionModifier::ne;
@@ -45,7 +45,7 @@ inline ngen::ConditionModifier cmp_op_to_ngen(op_kind_t op_kind) {
         case op_kind_t::_gt: return ngen::ConditionModifier::gt;
         case op_kind_t::_le: return ngen::ConditionModifier::le;
         case op_kind_t::_lt: return ngen::ConditionModifier::lt;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return ngen::ConditionModifier::none;
 }
@@ -64,9 +64,9 @@ public:
     ~ir_to_ngen_t() {
 #ifdef DNNL_DEV_MODE
         if (bank_conflicts_ > 0)
-            ir_warning() << "Found bank conflicts: " << bank_conflicts_;
+            gpu_warning() << "Found bank conflicts: " << bank_conflicts_;
         if (bundle_conflicts_ > 0)
-            ir_warning() << "Found bundle conflicts: " << bundle_conflicts_;
+            gpu_warning() << "Found bundle conflicts: " << bundle_conflicts_;
 #endif
     }
 
@@ -92,8 +92,8 @@ public:
             }
             expr_binding_.bind(obj.buf, rbd);
         }
-        ir_trace() << "codegen:bind " << obj.buf << " -> "
-                   << expr_binding_.get(obj.buf);
+        gpu_trace() << "codegen:bind " << obj.buf << " -> "
+                    << expr_binding_.get(obj.buf);
         visit(obj.body);
         if (do_alloc) expr_binding_.unbind(obj.buf);
         if (use_bc_alloc) release_bank_conflict_allocation(obj);
@@ -109,8 +109,8 @@ public:
 
         host_->emov(1, var_op, init_op);
         expr_binding_.bind(obj.var, var_op);
-        ir_trace() << "codegen:bind " << obj.var << " -> "
-                   << expr_binding_.get(obj.var);
+        gpu_trace() << "codegen:bind " << obj.var << " -> "
+                    << expr_binding_.get(obj.var);
         // For dynamic loops use standard format otherwise
         // use do-while format.
         if (dynamic_loop) {
@@ -168,12 +168,12 @@ public:
             send(scope, func.as<send_t>(), arg_ops, obj.attr);
         } else if (func.is<reorder_t>()) {
             auto arg_ops = eval(obj.args, scope);
-            ir_assert(obj.attr.is_empty()) << "Unexpected attribute.";
+            gpu_assert(obj.attr.is_empty()) << "Unexpected attribute.";
             reorder(scope, func.as<reorder_t>(), reorder_t::arg_src_buf(obj),
                     arg_ops);
         } else if (func.is<reduce_t>()) {
             auto arg_ops = eval(obj.args, scope);
-            ir_assert(obj.attr.is_empty()) << "Unexpected attribute.";
+            gpu_assert(obj.attr.is_empty()) << "Unexpected attribute.";
             reduce(scope, func.as<reduce_t>(), arg_ops);
         } else if (func.is<eltwise_t>()) {
             auto &eltwise_func = func.as<eltwise_t>();
@@ -191,12 +191,12 @@ public:
             auto buf_op = eval(obj.args[0], scope);
             fill_buf(buf_op.reg_buf_data(), to_cpp<int>(obj.args[1]));
         } else {
-            ir_error_not_expected() << object_t(obj);
+            gpu_error_not_expected() << object_t(obj);
         }
     }
 
     void _visit(const if_t &obj) override {
-        ir_assert(obj.cond.type().elems() == simd_size_);
+        gpu_assert(obj.cond.type().elems() == simd_size_);
 
         bool has_else = !obj.else_body.is_empty();
         auto scope = register_scope();
@@ -219,9 +219,9 @@ public:
     void _visit(const let_t &obj) override {
         if (obj.value.is_empty()) {
             auto var_op = expr_binding_.get(obj.var);
-            ir_trace() << "codegen:bind " << obj.var << " -> " << var_op;
+            gpu_trace() << "codegen:bind " << obj.var << " -> " << var_op;
             // External variable, must be already bound.
-            ir_assert(expr_binding_.is_bound(obj.var))
+            gpu_assert(expr_binding_.is_bound(obj.var))
                     << "Variable is not defined: " << obj.var;
             visit(obj.body);
             return;
@@ -242,7 +242,7 @@ public:
         }
 
         auto var_op = expr_binding_.get(obj.var);
-        ir_trace() << "codegen:bind " << obj.var << " -> " << var_op;
+        gpu_trace() << "codegen:bind " << obj.var << " -> " << var_op;
 
         // At this point the scope contains allocations for temporary
         // expressions. We need to 1) query and later re-claim the allocation
@@ -285,7 +285,7 @@ public:
         if (obj.has_default_stride()) {
             stride = 1;
         } else {
-            ir_assert(obj.stride % type.scalar().size() == 0);
+            gpu_assert(obj.stride % type.scalar().size() == 0);
             stride = obj.stride / type.scalar().size();
         }
 
@@ -378,7 +378,7 @@ private:
     void release_bank_conflict_allocation(const alloc_t &alloc) {
         auto &bc_attr = alloc.get_attr<bank_conflict_attr_t>();
         auto it = bc_allocations_.find(bc_attr);
-        ir_assert(it != bc_allocations_.end());
+        gpu_assert(it != bc_allocations_.end());
         it->second.release(alloc.buf);
         if (it->second.refs() == 0) bc_allocations_.erase(bc_attr);
     }
@@ -434,8 +434,8 @@ private:
             if (dpas_func.is_dpasw) src0_rbd = src0_rbd.unpermute();
             src0 = src0_rbd;
         } else {
-            ir_assert(src0_op.is_immediate());
-            ir_assert(to_cpp<int32_t>(src0_op.immediate()) == 0);
+            gpu_assert(src0_op.is_immediate());
+            gpu_assert(to_cpp<int32_t>(src0_op.immediate()) == 0);
             src0 = host_->null.retype(to_ngen(dpas_func.dst_type));
         }
 
@@ -480,8 +480,8 @@ private:
                                    mad_func.exec_size)
                            .reg_data();
         } else {
-            ir_assert(src0_op.is_immediate());
-            ir_assert(to_cpp<int32_t>(src0_op.immediate()) == 0);
+            gpu_assert(src0_op.is_immediate());
+            gpu_assert(to_cpp<int32_t>(src0_op.immediate()) == 0);
             src0 = host_->null;
             src0.setType(to_ngen(mad_func.dst_type));
         }
@@ -503,7 +503,7 @@ private:
         if (src0.isNull()) {
             host_->mul(mod, dst, src1, src2);
         } else {
-            ir_assert(dst.byte_offset() == src0.getByteOffset())
+            gpu_assert(dst.byte_offset() == src0.getByteOffset())
                     << "dst/src0 must be aligned to the same GRF offset.";
             align_src_dst_offset(host_, scope, mod, dst, src1, src2);
             if (hw < ngen::HW::XeLP
@@ -547,7 +547,7 @@ private:
             } else if (pattern.is_reg_data()) {
                 host_->emov(exec_size, sub_rd_mov, pattern.reg_data());
             } else {
-                ir_error_not_expected();
+                gpu_error_not_expected();
             }
         }
     }
@@ -563,12 +563,12 @@ private:
         if (is_dense) return ngen::GRF(buf.base());
 
         if (send_func.is_load() || send_func.is_load_2d()) {
-            ir_error_not_expected()
+            gpu_error_not_expected()
                     << "Expected dense GRF region for load message.";
             return ngen::RegData();
         }
 
-        ir_assert(send_func.is_store() || send_func.is_store_2d()
+        gpu_assert(send_func.is_store() || send_func.is_store_2d()
                 || send_func.is_atomic());
 
         // Reorder buffer to a dense buffer for store.
@@ -597,8 +597,8 @@ private:
             ngen::InstructionModifier &mod, const ngen::RegData &mem_off_op,
             ngen::RegData &rd) const {
         int size = send_func.payload_size();
-        ir_assert(utils::one_of(send_func.type.kind(), type_kind_t::dword,
-                          type_kind_t::qword)
+        gpu_assert(utils::one_of(send_func.type.kind(), type_kind_t::dword,
+                           type_kind_t::qword)
                 && (size == 32 || size == 64))
                 << "expected atomic message dwordx8 or qwordx8";
         auto load_func = send_t::make(send_func.hw, send_op_t::load,
@@ -662,7 +662,7 @@ private:
         auto &fill_pattern = send_t::arg_fill_pattern(args);
 
         ngen::InstructionModifier mod = send_func.nmasks();
-        ir_assert(math::is_pow2(mod.getExecSize()));
+        gpu_assert(math::is_pow2(mod.getExecSize()));
         if (!attr.is_empty())
             mod |= to_ngen(attr.as<instruction_modifier_attr_t>().mod);
         if (!mask_op.is_invalid()) mod |= mask_op.flag_register_mod();
@@ -738,7 +738,7 @@ private:
 
         auto do_eltwise = [&](const reg_buf_data_t &r, const int count) {
             if (func.alg_kind == alg_kind::eltwise_stochastic_round) {
-                ir_assert(args.size() == 3);
+                gpu_assert(args.size() == 3);
                 auto seed = args[2].reg_buf_data();
                 inj.compute(ngen::GRFRange(r.base(), count),
                         seed.reg_data().getBase(), seed.reg_data().getOffset(),
@@ -821,13 +821,13 @@ public:
             const ngen_operand_t &dst_operand = ngen_operand_t(),
             bool fill_mask0 = false) {
         if (!dst_operand.is_invalid()) {
-            ir_assert(dst_operand.mod().getExecSize() != 0);
+            gpu_assert(dst_operand.mod().getExecSize() != 0);
         }
         if (expr_binding_.is_bound(e)) {
             if (!dst_operand.is_invalid()) {
                 auto bind = expr_binding_.get(e);
                 if (fill_mask0) {
-                    ir_assert(!bind.is_immediate());
+                    gpu_assert(!bind.is_immediate());
                     host_->sel(dst_operand.mod(), dst_operand.reg_data(),
                             bind.reg_data(), 0);
                 } else {
@@ -843,7 +843,7 @@ public:
                 visit(e);
             } else {
                 auto op = eval(e);
-                ir_assert(!op.is_immediate());
+                gpu_assert(!op.is_immediate());
                 host_->sel(dst_operand.mod(), dst_operand.reg_data(),
                         op.reg_data(), 0);
             }
@@ -949,7 +949,7 @@ public:
                             host_->sync(ngen::SyncFunction::nop,
                                     ngen::SWSB<uint64_t>(1));
                     } else {
-                        ir_error_not_expected();
+                        gpu_error_not_expected();
                     }
                 }
                 ebinary(obj, mod, dst_op, src0_op, src1_op);
@@ -967,14 +967,14 @@ public:
         // - All boolean values in IR must be expressed by shuffle_t objects
         // - _visit(shuffle_t *) must properly handle vector of booleans -> flag
         //   register lowering
-        ir_error_not_expected();
+        gpu_error_not_expected();
     }
 
     void _visit(const cast_t &obj) override {
         auto &from_type = obj.expr.type();
         auto &to_type = obj.type;
 
-        ir_assert(from_type != to_type) << "Equal types are not expected.";
+        gpu_assert(from_type != to_type) << "Equal types are not expected.";
 
         if (is_const(obj.expr) && !to_type.is_bool()) {
             if (obj.expr.type().is_bool()) {
@@ -1032,7 +1032,7 @@ public:
         if (obj.has_default_stride()) {
             stride = 1;
         } else {
-            ir_assert(obj.stride % type.scalar().size() == 0);
+            gpu_assert(obj.stride % type.scalar().size() == 0);
             stride = obj.stride / type.scalar().size();
         }
         auto load_rbd
@@ -1049,7 +1049,7 @@ public:
             return;
         }
 
-        ir_assert(base_op.is_reg_buf_data());
+        gpu_assert(base_op.is_reg_buf_data());
 
         int off = to_cpp<int>(obj.off);
         bind(obj, base_op.reg_buf_data().format(off, ngen::DataType::ub));
@@ -1060,11 +1060,11 @@ public:
         if (obj.type.is_bool() && is_shuffle_const(obj)) {
             auto dst_op = alloc_dst_op(obj);
             auto e_shuffle = expr_t(obj);
-            ir_assert(dst_op.is_flag_register()
+            gpu_assert(dst_op.is_flag_register()
                     || dst_op.type() == ngen::DataType::uw
                     || dst_op.type() == ngen::DataType::ud)
                     << e_shuffle;
-            ir_assert(!dst_op.is_negated()) << e_shuffle;
+            gpu_assert(!dst_op.is_negated()) << e_shuffle;
             uint32_t flag_mask = 0;
             for (int i = elems - 1; i >= 0; i--) {
                 flag_mask <<= 1;
@@ -1073,7 +1073,7 @@ public:
             if (dst_op.mod().getPredCtrl() == ngen::PredCtrl::None) {
                 host_->emov(1, dst_op, ngen::Immediate(flag_mask));
             } else {
-                ir_assert(dst_op.mod().getFlagReg().getARFBase()
+                gpu_assert(dst_op.mod().getFlagReg().getARFBase()
                         == dst_op.flag_register().getARFBase());
                 host_->and_(1, dst_op.flag_register(), dst_op.flag_register(),
                         ngen::Immediate(flag_mask));
@@ -1118,7 +1118,7 @@ public:
             while (length > 0) {
                 int exec_size = (1 << math::ilog2q(length));
                 if (obj.type.is_bool()) {
-                    ir_assert(off % 8 == 0)
+                    gpu_assert(off % 8 == 0)
                             << "expected mask offset to be multiple of 8";
                     auto chunk_op = op.reg_buf_data().subregister(
                             off / 8, ngen::DataType::b)(1);
@@ -1160,20 +1160,20 @@ public:
                         src0_op.reg_data(), src1_op.reg_data(),
                         src2_op.reg_data());
                 break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         bind(obj, dst_op);
     }
 
     void _visit(const unary_op_t &obj) override {
-        ir_assert(obj.op_kind == op_kind_t::_minus);
+        gpu_assert(obj.op_kind == op_kind_t::_minus);
         ngen_operand_t a_op;
         a_op = eval(obj.a);
         bind(obj, -a_op);
     }
 
     void _visit(const var_t &obj) override {
-        ir_assert(expr_binding_.is_bound(obj))
+        gpu_assert(expr_binding_.is_bound(obj))
                 << "Variable is not defined: " << expr_t(obj);
     }
 
@@ -1189,7 +1189,7 @@ private:
     };
 
     ngen_operand_t alloc_dst_op(const expr_t &e) {
-        ir_assert(!expr_binding_.is_bound(e)) << "Already evaluated: " << e;
+        gpu_assert(!expr_binding_.is_bound(e)) << "Already evaluated: " << e;
         if (expr_binding_.is_dst_bound(e)) return expr_binding_.get_dst(e);
 
         // Expression is not bound yet, allocate new storage and bind.
@@ -1265,7 +1265,8 @@ private:
             case op_kind_t::_lt:
             case op_kind_t::_eq:
             case op_kind_t::_ne: {
-                ir_assert(!dst.is_negated()) << "Destination can't be negated.";
+                gpu_assert(!dst.is_negated())
+                        << "Destination can't be negated.";
                 ngen::InstructionModifier cmp_mod = mod;
                 if (!src0.is_reg_data()) {
                     cmp_mod |= cmp_op_to_ngen(negate_cmp_op(obj.op_kind));
@@ -1302,7 +1303,7 @@ private:
                 break;
             }
             default:
-                ir_error_not_expected()
+                gpu_error_not_expected()
                         << "Unknown kind: " << to_string(obj.op_kind);
         }
     }
@@ -1345,7 +1346,7 @@ private:
             split_by_and(cast->expr, cv, cast->type);
             for (size_t i = 0; i < cv.size(); i++) {
                 if (cv[i].op_ == op_kind_t::undef) {
-                    ir_assert(i == cv.size() - 1);
+                    gpu_assert(i == cv.size() - 1);
                 }
             }
 
@@ -1367,7 +1368,7 @@ private:
         for (size_t i = 0; i < vec.size(); i++) {
             if (!obj.vec[i].is<load_t>()) return false;
             vec[i] = eval(obj.vec[i]);
-            ir_assert(vec[i].is_reg_buf_data()) << obj.vec[i];
+            gpu_assert(vec[i].is_reg_buf_data()) << obj.vec[i];
             auto &rbd = vec[i].reg_buf_data();
             if (data_type == ngen::DataType::invalid) {
                 data_type = rbd.type();

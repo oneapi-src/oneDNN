@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,13 +72,13 @@ public:
 
     grf_usage_label_t get_label(const expr_t &buf) const {
         auto it = buf_labels_.find(buf);
-        ir_assert(it != buf_labels_.end()) << "Buffer not found: " << buf;
+        gpu_assert(it != buf_labels_.end()) << "Buffer not found: " << buf;
         return it->second;
     }
 
     int get_size(const expr_t &buf) const {
         auto it = buf_sizes_.find(buf);
-        ir_assert(it != buf_sizes_.end()) << "Buffer not found: " << buf;
+        gpu_assert(it != buf_sizes_.end()) << "Buffer not found: " << buf;
         return it->second;
     }
 

@@ -40,15 +40,15 @@ public:
     int refs() const { return refs_; }
 
     void retain() {
-        ir_assert(refs_ > 0);
+        gpu_assert(refs_ > 0);
         refs_++;
     }
 
     void release(const expr_t &buf) {
-        ir_assert(refs_ > 0);
+        gpu_assert(refs_ > 0);
         refs_--;
         auto it = buf_map_.find(buf);
-        ir_assert(it != buf_map_.end()) << "Buffer not found: " << buf;
+        gpu_assert(it != buf_map_.end()) << "Buffer not found: " << buf;
         it->second.release(*ra_);
         buf_map_.erase(it);
     }
@@ -60,7 +60,7 @@ public:
     void set_reg_buf(const expr_t &buf, const reg_buf_t &reg_buf) {
         auto ret = buf_map_.emplace(buf, reg_buf);
         reg_buf.claim(*ra_);
-        ir_assert(ret.second) << "Buffer already exists: " << buf;
+        gpu_assert(ret.second) << "Buffer already exists: " << buf;
     }
 
     static bank_conflict_allocation_t create(

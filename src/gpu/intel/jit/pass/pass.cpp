@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -100,7 +100,7 @@ public:
         stmt_t new_stmt;
         for (int i = 0; i < elems; i += step) {
             int cur_elems = std::min(step, elems - i);
-            ir_assert(math::is_pow2(cur_elems));
+            gpu_assert(math::is_pow2(cur_elems));
             int off = i * stride * elem_size;
             auto store = store_t::make(obj.buf, obj.off + off,
                     split_expr(obj.value, i, i + cur_elems), obj.stride);
@@ -127,7 +127,7 @@ private:
             return load_t::make(load->type.with_elems(end - beg), load->buf,
                     load->off + beg * stride, load->stride);
         }
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return expr_t();
     }
 

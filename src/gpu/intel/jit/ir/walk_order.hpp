@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ public:
     walk_order_t() = default;
     walk_order_t(const std::string &s) {
         auto parts = gpu_utils::split(s, ",");
-        ir_assert(parts.size() <= 3);
+        gpu_assert(parts.size() <= 3);
         for (int i = 0; i < (int)parts.size(); i++) {
             for (auto &kv : ir_utils::to_string_int_pairs(parts[i])) {
                 add(pvar_t(kv.first), kv.second, i);
@@ -108,9 +108,9 @@ public:
         for (auto &b : blocks_) {
             if (b.dim != dim) continue;
             if (id == -1) id = b.grid_id;
-            ir_assert(b.grid_id == id);
+            gpu_assert(b.grid_id == id);
         }
-        ir_assert(id != -1);
+        gpu_assert(id != -1);
         return id;
     }
 
@@ -118,7 +118,7 @@ public:
         for (auto &info : dim_infos_) {
             if (info.dim == dim) return info.grid_var;
         }
-        ir_error_not_expected() << "Grid variable not found: " << dim;
+        gpu_error_not_expected() << "Grid variable not found: " << dim;
         return expr_t();
     }
 
@@ -126,7 +126,7 @@ public:
         for (auto &info : dim_infos_) {
             if (info.grid_var.is_same(grid_var)) return info.size;
         }
-        ir_error_not_expected() << "Grid variable not found: " << grid_var;
+        gpu_error_not_expected() << "Grid variable not found: " << grid_var;
         return -1;
     }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ public:
         : hw_(hw), tg_grid_(tg_grid) {
         alloc_manager_t alloc_mgr(root);
         auto slm_buffers = alloc_mgr.find_buffers(alloc_kind_t::slm);
-        ir_assert(slm_buffers.size() == 1);
+        gpu_assert(slm_buffers.size() == 1);
         slm_base_ = slm_buffers[0];
         slm_size_ = alloc_mgr.total_size(alloc_kind_t::slm);
     }
@@ -163,7 +163,7 @@ private:
         int hword_size = type_t::hword().size();
         int hwords = tile_size / hword_size;
 
-        ir_assert(tile_size % hword_size == 0);
+        gpu_assert(tile_size % hword_size == 0);
 
         slm_size_ = std::max(
                 slm_size_, slm_thr_size * into<int>(tg_grid_.elems()));
@@ -207,8 +207,8 @@ private:
         auto &d1 = dst_blocks[1];
 
         if (s0.dim_idx != d1.dim_idx || s1.dim_idx != d0.dim_idx) return false;
-        ir_assert(s0.block == d1.block);
-        ir_assert(s1.block == d0.block);
+        gpu_assert(s0.block == d1.block);
+        gpu_assert(s1.block == d0.block);
 
         int simd = into<int>(s0.block);
         int vec_size = into<int>(s1.block);

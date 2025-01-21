@@ -88,12 +88,12 @@ char layout_desc_t::layout_letter(const pvar_t &dim) const {
 }
 
 pvar_t layout_desc_t::prb_dim(int idx) const {
-    ir_assert(idx >= 0 && idx < ndims());
+    gpu_assert(idx >= 0 && idx < ndims());
     char c = canonical_[idx];
     for (auto &d : letter_map_) {
         if (layout_letter(d) == c) return d;
     }
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return pvar_t();
 }
 
@@ -101,7 +101,7 @@ int layout_desc_t::dim_index(const pvar_t &dim) const {
     for (int i = 0; i < ndims(); i++) {
         if (canonical_[i] == layout_letter(dim)) return i;
     }
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return -1;
 }
 
@@ -125,7 +125,7 @@ std::string layout_desc_t::to_abx_tag(const std::string &tag) const {
                 break;
             }
         }
-        ir_assert(found);
+        gpu_assert(found);
     }
     return ret;
 }
@@ -170,12 +170,12 @@ int layout_raw_tag_t::entry_index(char letter) {
     for (int i = 0; i < (int)entries_.size(); i++) {
         if (entries_[i].letter == letter) return i;
     }
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return -1;
 }
 
 void layout_raw_tag_t::add_dim(char letter, int pos) {
-    ir_assert(!has_x());
+    gpu_assert(!has_x());
     std::vector<layout_raw_tag_entry_t> new_entries;
     for (int i = 0; i < (int)entries_.size(); i++) {
         auto &e = entries_[i];
@@ -188,7 +188,7 @@ void layout_raw_tag_t::add_dim(char letter, int pos) {
 }
 
 void layout_raw_tag_t::remove_dim(char letter) {
-    ir_assert(!has_x());
+    gpu_assert(!has_x());
     std::vector<layout_raw_tag_entry_t> new_entries;
     for (auto &e : entries_) {
         if (e.letter == letter) continue;
@@ -207,7 +207,7 @@ bool layout_raw_tag_t::is_blocked(char letter) const {
 }
 
 dim_idx_t layout_raw_tag_t::ndims() const {
-    ir_assert(!is_any() && !has_x());
+    gpu_assert(!is_any() && !has_x());
     dim_idx_t max_index = 0;
     for (auto &e : entries_) {
         max_index = std::max(max_index, e.index());
@@ -216,7 +216,7 @@ dim_idx_t layout_raw_tag_t::ndims() const {
 }
 
 dim_idx_t layout_raw_tag_t::non_x_ndims() const {
-    ir_assert(!is_any());
+    gpu_assert(!is_any());
     std::array<bool, 'z' - 'a' + 1> seen;
     seen.fill(false);
     for (auto &e : entries_) {
@@ -308,7 +308,7 @@ layout_raw_tag_t layout_raw_tag_t::collapse_x() const {
 std::vector<layout_raw_tag_entry_t> layout_raw_tag_t::to_entries(
         const std::string &tag) {
     if (tag == "any") return {};
-    ir_assert(is_abx_tag(tag)) << tag;
+    gpu_assert(is_abx_tag(tag)) << tag;
     std::array<bool, 'z' - 'a' + 1> is_blocked;
     is_blocked.fill(false);
     auto letter_blocks = parse_letter_blocks(tag);
@@ -345,9 +345,9 @@ std::vector<bool> layout_raw_tag_t::skip_mask(
         auto &e = entries_[i];
         int idx = e.letter - 'a';
         auto dim = desc.prb_dim(idx);
-        ir_assert(sizes.has(dim));
+        gpu_assert(sizes.has(dim));
         if (e.block != 0) {
-            ir_assert(e.block != 1);
+            gpu_assert(e.block != 1);
             rem_sizes[dim] = utils::rnd_up(rem_sizes[dim], e.block);
         }
         if (rem_sizes[dim] == 1) ret[i] = true;
@@ -370,7 +370,7 @@ std::vector<std::pair<char, int>> layout_raw_tag_t::parse_letter_blocks(
             next = ss.peek();
         }
         char letter = char(ss.peek());
-        ir_assert(!ss.eof());
+        gpu_assert(!ss.eof());
         ss.ignore(1);
         ret.emplace_back(letter, block);
     }
@@ -390,8 +390,8 @@ static void advance(pvar_coord_t<dim_t> &idx, const pvar_tile_t &bound,
 
 static void advance(std::vector<int> &idxs, const std::vector<block_t> &blocks,
         const std::vector<dim_t> &block_incs) {
-    ir_assert(idxs.size() == blocks.size());
-    ir_assert(idxs.size() == block_incs.size());
+    gpu_assert(idxs.size() == blocks.size());
+    gpu_assert(idxs.size() == block_incs.size());
     for (size_t i = 0; i < idxs.size(); i++) {
         int size = blocks[i].int_size();
         if (idxs[i] + block_incs[i] < size) {
@@ -427,7 +427,7 @@ std::string layout_tag_t::str() const {
 }
 
 int layout_t::elems() const {
-    ir_assert(has_const_sizes());
+    gpu_assert(has_const_sizes());
     int ret = 1;
     for (auto &b : blocks_)
         ret *= b.int_size();
@@ -435,8 +435,8 @@ int layout_t::elems() const {
 }
 
 int layout_t::size() const {
-    ir_assert(has_const_sizes());
-    ir_assert(has_const_strides());
+    gpu_assert(has_const_sizes());
+    gpu_assert(has_const_strides());
     if (is_empty()) return 0;
     int max_off = 0;
     int max_block_size = 0;
@@ -522,7 +522,7 @@ expr_t layout_t::shift_in_bytes(const std::vector<int> &block_off) const {
 }
 
 dim_t layout_t::offset_in_bytes(pvar_coord_t<dim_t> coord) const {
-    ir_assert(has_const_sizes() && has_const_strides());
+    gpu_assert(has_const_sizes() && has_const_strides());
     dim_t ret = to_cpp<dim_t>(base_);
     for (int i = 0; i < nblocks(); i++) {
         auto &b = blocks_[i];
@@ -545,7 +545,7 @@ bool layout_t::is_blocked_by(const pvar_t &dim, int block) const {
 bool layout_t::is_blocked_by(const layout_t &other) const {
     if (other.is_empty()) return true;
 
-    ir_assert(other.type() == type());
+    gpu_assert(other.type() == type());
     if (nblocks() < other.nblocks()) return false;
 
     for (int i = 0; i < other.nblocks(); i++) {
@@ -593,11 +593,12 @@ void layout_t::remove(const pvar_t &dim) {
 }
 
 void layout_t::block_by(const std::vector<block_t> &inner_blocks) {
-    ir_assert(has_zero_base());
-    ir_assert(has_const_sizes());
+    gpu_assert(has_zero_base());
+    gpu_assert(has_const_sizes());
     auto rem_sizes = int_dim_sizes();
     for (auto &b : inner_blocks) {
-        if (!rem_sizes.try_factor(b.dim, b.int_size())) ir_error_not_expected();
+        if (!rem_sizes.try_factor(b.dim, b.int_size()))
+            gpu_error_not_expected();
     }
 
     auto old_blocks = std::move(blocks_);
@@ -614,12 +615,12 @@ void layout_t::block_by(const std::vector<block_t> &inner_blocks) {
             b_size = math::gcd(b_size, rem_sizes.at(b.dim));
             ok = rem_sizes.try_factor(b.dim, b_size);
         }
-        ir_assert(ok);
+        gpu_assert(ok);
         if (b_size == 1) continue;
         add_block(b.dim, b_size);
     }
     for (auto &d : rem_sizes)
-        ir_assert(rem_sizes.at(d) == 1);
+        gpu_assert(rem_sizes.at(d) == 1);
     normalize();
 }
 
@@ -656,8 +657,8 @@ layout_t layout_t::split_block(
             split_blocks.push_back(b);
             continue;
         }
-        ir_assert(b.has_const_size());
-        ir_assert(b.int_size() == inner * outer);
+        gpu_assert(b.has_const_size());
+        gpu_assert(b.int_size() == inner * outer);
         split_blocks.emplace_back(b.dim, inner, b.stride);
         split_blocks.emplace_back(b.dim, outer, inner * b.stride);
     }
@@ -730,7 +731,7 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
             dim_t &cur_size = rem_sizes[dim];
             dim_t mapped_size = cur_size;
             if (b.has_const_size() && cur_size != 1) {
-                ir_assert(linear.nargs() == 1);
+                gpu_assert(linear.nargs() == 1);
                 int b_size = b.int_size();
                 if (cur_size % b_size != 0) {
                     if (b_size % cur_size == 0) {
@@ -750,8 +751,8 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
             }
             bool is_outer = true;
             if (b.has_const_size()) {
-                ir_assert(is_zero(off));
-                ir_assert(!seen_outer.has(dim));
+                gpu_assert(is_zero(off));
+                gpu_assert(!seen_outer.has(dim));
                 T div = T();
                 T mod = T();
                 if (try_div_mod<T>::call(idxs[dim], b.int_size(),
@@ -762,7 +763,7 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
                 }
             }
             if (is_outer) {
-                ir_assert(!seen_outer.has(dim));
+                gpu_assert(!seen_outer.has(dim));
                 seen_outer.set(dim, true);
                 off += idxs[dim] * linear.u_vec[i];
             }
@@ -773,7 +774,7 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
 }
 
 layout_t layout_t::make_dense() const {
-    ir_assert(has_const_sizes() && has_const_strides());
+    gpu_assert(has_const_sizes() && has_const_strides());
     dim_t stride = 1;
     auto new_blocks = blocks_;
     for (auto &b : new_blocks) {
@@ -799,7 +800,7 @@ template layout_t layout_t::map<expr_t>(const dim_mapper_t &dim_mapper,
 
 pvar_coord_t<dim_t> layout_t::to_coord(
         const std::vector<int> &block_idx) const {
-    ir_assert((int)block_idx.size() == nblocks());
+    gpu_assert((int)block_idx.size() == nblocks());
     pvar_coord_t<dim_t> ret;
     pvar_tile_t block_sizes;
     for (int i = 0; i < nblocks(); i++) {
@@ -814,7 +815,7 @@ pvar_coord_t<dim_t> layout_t::to_coord(
 
 int layout_t::to_linear_index(
         const pvar_tile_t &tile, const pvar_coord_t<dim_t> &coord) const {
-    ir_assert(has_const_sizes());
+    gpu_assert(has_const_sizes());
     std::vector<dim_t> tile_blocks;
     auto rem_tile = tile;
     for (auto &b : blocks_) {
@@ -823,13 +824,13 @@ int layout_t::to_linear_index(
         dim_t factor = 1;
         if (rem != 1 && b.int_size() != 1) {
             factor = math::gcd(to_cpp<dim_t>(b.size), rem);
-            ir_assert(factor == std::min(to_cpp<dim_t>(b.size), rem));
+            gpu_assert(factor == std::min(to_cpp<dim_t>(b.size), rem));
             rem /= factor;
         }
         tile_blocks.push_back(factor);
     }
     for (auto &d : rem_tile)
-        ir_assert(rem_tile[d] == 1);
+        gpu_assert(rem_tile[d] == 1);
     int ntiles = ir_utils::safe_div(elems(), tile.elems());
     std::vector<int> idx(nblocks());
     for (int i = 0; i < ntiles; i++) {
@@ -837,7 +838,7 @@ int layout_t::to_linear_index(
         if (i_coord == coord) return i;
         advance(idx, blocks_, tile_blocks);
     }
-    ir_error_not_expected();
+    gpu_error_not_expected();
     return -1;
 }
 
@@ -892,8 +893,8 @@ std::string layout_t::str_with_size(const hw_t &hw) const {
 void for_each(const pvar_tile_t &base_tile, pvar_tile_t tile,
         const std::function<void(const pvar_coord_t<dim_t> &)> &func) {
     for (auto &d : tile) {
-        ir_assert(base_tile.has(d));
-        ir_assert(base_tile[d] % tile[d] == 0);
+        gpu_assert(base_tile.has(d));
+        gpu_assert(base_tile[d] % tile[d] == 0);
     }
 
     pvar_coord_t<dim_t> idx;
@@ -912,7 +913,7 @@ void for_each(const pvar_tile_t &base_tile, pvar_tile_t tile,
 }
 block_iterator_t::block_iterator_t(const layout_t &layout, bool set_to_end)
     : parent_(&layout), block_idx_(set_to_end ? parent_->nblocks() : 0) {
-    ir_assert(layout.has_const_sizes());
+    gpu_assert(layout.has_const_sizes());
     if (is_end()) return;
     block_ = parent_->blocks().front();
     block_.size = 1;
@@ -939,7 +940,7 @@ block_iterator_t &block_iterator_t::operator++() {
 }
 
 block_t block_iterator_t::remaining_block() const {
-    ir_assert(!is_end());
+    gpu_assert(!is_end());
     auto &b = parent_->blocks()[block_idx_];
     int size = b.int_size() / block_.int_size();
     auto stride = block_.stride * block_.size;
@@ -1068,7 +1069,7 @@ dim_mask_desc_t::dim_mask_desc_t(const pvar_t &dim, const expr_t &expr,
     , block(block)
     , has_underflow(has_underflow)
     , base(0) {
-    ir_assert(math::is_pow2(block));
+    gpu_assert(math::is_pow2(block));
     init_abc_xy(expr);
 }
 
@@ -1148,12 +1149,12 @@ mask_desc_t::mask_desc_t(
 }
 
 const dim_mask_desc_t &mask_desc_t::operator[](int idx) const {
-    ir_assert(idx >= 0 && idx < nmasks());
+    gpu_assert(idx >= 0 && idx < nmasks());
     return dim_masks_[idx];
 }
 
 dim_mask_desc_t &mask_desc_t::operator[](int idx) {
-    ir_assert(idx >= 0 && idx < nmasks());
+    gpu_assert(idx >= 0 && idx < nmasks());
     return dim_masks_[idx];
 }
 
@@ -1170,7 +1171,7 @@ bool mask_desc_t::is_uniform(
         if (!dm.has((*it).dim)) continue;
         if (!dm.is_identity()) return false;
         int dim_size = it.elems((*it).dim);
-        ir_assert(math::is_pow2(dim_size));
+        gpu_assert(math::is_pow2(dim_size));
         if (dim_size > dm.block) return false;
         if (!prover.require(dm.bound % dim_size == 0)) return false;
     }
@@ -1248,7 +1249,7 @@ plane_t::plane_t(const layout_t &layout, const mask_desc_t &mask_desc) {
 }
 
 void grid_splitter_t::add(const expr_t &idx, dim_t size) {
-    ir_assert(size > 1);
+    gpu_assert(size > 1);
     idxs_.emplace_back(idx, size);
 }
 
@@ -1267,21 +1268,21 @@ expr_t grid_splitter_t::pop(int _size) {
         cur = size * cur;
         cur += idx.pop(size);
     }
-    ir_assert(size == 1);
+    gpu_assert(size == 1);
     return register_index(simplify_rewrite(cur), _size);
 }
 
 expr_t grid_splitter_t::index_t::pop(int &n) {
     if (n == 1) return 0;
     if (size >= n) {
-        ir_assert(size % n == 0);
+        gpu_assert(size % n == 0);
         auto ret = (size == n ? expr : expr % n);
         expr = (size == n ? 0 : expr / n);
         size /= n;
         n = 1;
         return ret;
     }
-    ir_assert(n % size == 0);
+    gpu_assert(n % size == 0);
     n /= size;
     size = 1;
     auto ret = expr;
@@ -1344,9 +1345,9 @@ view_t view_t::scatterize(int stride_bytes, const prover_t &prover) const {
     }
     if (compress_mask_idx != -1) {
         auto &dmd = mask_desc_[compress_mask_idx];
-        ir_assert(dmd.dim == compress_dim);
-        ir_assert(dmd.x_dim == compress_dim);
-        ir_assert(dmd.bound.is_equal(block0.size));
+        gpu_assert(dmd.dim == compress_dim);
+        gpu_assert(dmd.x_dim == compress_dim);
+        gpu_assert(dmd.bound.is_equal(block0.size));
         if (!prover.require(dmd.base % stride == 0)) return view_t();
         if (!prover.require(dmd.bound % stride == 0)) return view_t();
     }
@@ -1382,7 +1383,7 @@ layout_t split_layout(const layout_t &layout, dim_t inner_elems,
     for (int i = 0; i < layout.nblocks(); i++) {
         auto &b = layout.blocks()[i];
         int b_size = b.int_size();
-        ir_assert(b_size != 1);
+        gpu_assert(b_size != 1);
         if (in_inner()) {
             inner_block_idxs.push_back(i);
             if (cur_elems * b_size > inner_elems) {
@@ -1439,7 +1440,7 @@ view_t view_t::split(const dim_mapper_t &dim_mapper,
         }
         inner_dims[b.dim] *= b.int_size();
     }
-    ir_assert(grid_splitter.is_empty());
+    gpu_assert(grid_splitter.is_empty());
     return view_t(dim_mapper, base_layout, split_coord, split_tile,
             grid_splitter.var_range_info());
 }

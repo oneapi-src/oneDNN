@@ -27,9 +27,9 @@ namespace jit {
 void check_kernel_size(const std::string &kernel_name, size_t kernel_size,
         size_t icache_size) {
     if (kernel_size > icache_size) {
-        ir_warning() << kernel_name
-                     << " larger than icache, kernel: " << kernel_size
-                     << " bytes, icache: " << icache_size << " bytes";
+        gpu_warning() << kernel_name
+                      << " larger than icache, kernel: " << kernel_size
+                      << " bytes, icache: " << icache_size << " bytes";
     }
 }
 

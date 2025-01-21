@@ -69,7 +69,7 @@ public:
     multiply_desc_t(const layout_t &a_layout, const layout_t &b_layout,
             bool force_c_upconvert)
         : a_layout_(a_layout), b_layout_(b_layout) {
-        ir_assert(a_layout.ndims() == dim_idx_t(2)
+        gpu_assert(a_layout.ndims() == dim_idx_t(2)
                 && b_layout.ndims() == dim_idx_t(2))
                 << "Expected 2D layouts, A layout: " << a_layout
                 << " B layout: " << b_layout;
@@ -281,12 +281,12 @@ private:
         , src1_stride(src1_stride)
         , src2_stride(src2_stride) {
         int max_exec_size_bytes = get_max_exec_size_bytes(hw);
-        ir_assert(math::is_pow2(exec_size));
+        gpu_assert(math::is_pow2(exec_size));
 
-        ir_assert(exec_size <= max_exec_size);
-        ir_assert(dst_size() <= max_exec_size_bytes);
-        ir_assert(src1_size() <= max_exec_size_bytes);
-        ir_assert(src2_size() <= max_exec_size_bytes);
+        gpu_assert(exec_size <= max_exec_size);
+        gpu_assert(dst_size() <= max_exec_size_bytes);
+        gpu_assert(src1_size() <= max_exec_size_bytes);
+        gpu_assert(src2_size() <= max_exec_size_bytes);
     }
 };
 

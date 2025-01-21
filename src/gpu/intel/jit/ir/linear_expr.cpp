@@ -39,7 +39,7 @@ std::vector<expr_t> op_split(op_kind_t kind, const expr_t &e) {
 expr_t op_combine(op_kind_t kind, const std::vector<expr_t> &args) {
     bool is_add = (kind == op_kind_t::_add);
     bool is_mul = (kind == op_kind_t::_mul);
-    ir_assert(is_add || is_mul);
+    gpu_assert(is_add || is_mul);
     expr_t ret = (is_add ? 0 : 1);
     for (auto &a : args) {
         if (a.is_empty()) continue;
@@ -56,7 +56,7 @@ bool is_const_expr(const expr_t &e) {
     if (auto *op = e.as_ptr<binary_op_t>()) {
         return is_const_expr(op->a) && is_const_expr(op->b);
     }
-    ir_error_not_expected() << e;
+    gpu_error_not_expected() << e;
     return false;
 }
 
@@ -85,7 +85,7 @@ public:
         auto a = op.a;
         auto b = op.b;
         if (!is_const_expr(b)) std::swap(a, b);
-        ir_assert(is_const_expr(b));
+        gpu_assert(is_const_expr(b));
         auto a_args = op_split(op_kind_t::_add, a);
         auto b_args = op_split(op_kind_t::_add, b);
         expr_t ret = 0;
@@ -119,9 +119,9 @@ expr_t linear_normalize_reduce(const expr_t &e,
         factors[ma]--;
         ma = expr_t();
     }
-    ir_assert(const_factor == 1);
+    gpu_assert(const_factor == 1);
     for (auto &kv : factors) {
-        ir_assert(kv.second == 0);
+        gpu_assert(kv.second == 0);
     }
     return op_combine(op_kind_t::_mul, mul_args);
 }
@@ -165,7 +165,7 @@ object_eq_map_t<expr_t, int64_t> find_common_factors(
 // Example: (c * a + 2 * c * b) -> c * (a + 2 * b)
 expr_t linear_normalize_const_factor_out(const expr_t &_e) {
     auto e = simplify_rewrite(_e);
-    ir_assert(is_const_expr(e));
+    gpu_assert(is_const_expr(e));
     auto add_args = op_split(op_kind_t::_add, e);
     if (add_args.size() <= 1) return e;
 
@@ -196,12 +196,12 @@ std::pair<expr_t, expr_t> split_to_coef_and_index(const expr_t &e) {
     expr_t idx;
     for (auto &a : args) {
         if (a.is<var_t>()) {
-            ir_assert(idx.is_empty());
+            gpu_assert(idx.is_empty());
             idx = a;
         } else if (is_const_expr(a)) {
             coef *= a;
         } else {
-            ir_error_not_expected() << a;
+            gpu_error_not_expected() << a;
         }
     }
     return std::make_pair(coef, idx);
@@ -241,7 +241,7 @@ public:
     void set_imm(int64_t imm) { imm_ = imm; }
 
     linear_coef_t &operator/=(int64_t factor) {
-        ir_assert(imm_ % factor == 0);
+        gpu_assert(imm_ % factor == 0);
         imm_ /= factor;
         return *this;
     }
@@ -258,7 +258,7 @@ public:
         int64_t const_factor = 1;
         auto common = find_common_factors(
                 {std::move(lhs), std::move(rhs)}, const_factor);
-        ir_assert(const_factor == 1);
+        gpu_assert(const_factor == 1);
         factors_.clear();
         for (auto &kv : common) {
             for (int i = 0; i < kv.second; i++)
@@ -305,7 +305,7 @@ public:
 
 private:
     void mul_impl(const expr_t &e) {
-        ir_assert(is_const_expr(e)) << e;
+        gpu_assert(is_const_expr(e)) << e;
         if (is_const(e)) {
             imm_ *= to_cpp<int64_t>(e);
             if (imm_ == 0) factors_.clear();
@@ -344,10 +344,10 @@ int64_t linear_max_pow2_divisor_impl(const expr_t &e) {
             case op_kind_t::_div:
             case op_kind_t::_div_up:
             case op_kind_t::_mod: return 1;
-            default: ir_error_not_expected() << e;
+            default: gpu_error_not_expected() << e;
         }
     }
-    ir_error_not_expected() << e;
+    gpu_error_not_expected() << e;
     return 1;
 }
 
@@ -392,7 +392,7 @@ expr_t simplify_linear_mod_reduce(const expr_t &e, int64_t factor) {
 }
 
 expr_t simplify_linear_mod(const expr_t &e, int64_t factor) {
-    ir_assert(factor > 0);
+    gpu_assert(factor > 0);
     if (factor == 1) return 0;
     auto _linear = to_linear(e);
     auto &linear = _linear.as<linear_t>();
@@ -440,7 +440,7 @@ expr_t split_to_linear_impl(
         return expr;
     }
 
-    ir_error_not_expected() << expr;
+    gpu_error_not_expected() << expr;
     return expr;
 }
 

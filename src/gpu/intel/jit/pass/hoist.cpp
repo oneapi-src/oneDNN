@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ public:
             const std::vector<expr_t> &args, const type_t &type) {
         auto maybe_bcast = [&](const expr_t &e) {
             if (e.type().elems() == type.elems()) return e;
-            ir_assert(e.type().is_scalar());
+            gpu_assert(e.type().is_scalar());
             return shuffle_t::make_broadcast(e, type.elems());
         };
         if (args.empty()) return cast(0, type);
@@ -77,7 +77,7 @@ public:
             int max_hoist_size = std::numeric_limits<int>::max())
         : ir_ctx_(ir_ctx), max_hoist_size_(max_hoist_size) {}
 
-    ~hoist_exprs_mutator_t() override { ir_assert(let_vars_.empty()); }
+    ~hoist_exprs_mutator_t() override { gpu_assert(let_vars_.empty()); }
 
     object_t _mutate(const func_call_t &obj) override {
         if (!obj.func.is<send_t>()) return ir_mutator_t::_mutate(obj);
@@ -338,7 +338,7 @@ public:
         auto hoisted_mask = hoist_mask(mask);
         if (hoisted_mask.is_same(mask)) return ir_mutator_t::_mutate(obj);
 
-        ir_assert(hoisted_mask.type().is_u16() || hoisted_mask.type().is_u32())
+        gpu_assert(hoisted_mask.type().is_u16() || hoisted_mask.type().is_u32())
                 << hoisted_mask;
 
         send_t::arg_mask(new_args) = cast(hoisted_mask, mask.type());
@@ -355,7 +355,7 @@ public:
         }
 
         if (in_stmt_group) {
-            ir_assert(!obj.value.is_empty());
+            gpu_assert(!obj.value.is_empty());
             let_values_.emplace(obj.var, expand(obj.value, value_vars));
         }
 
@@ -375,7 +375,7 @@ public:
 
 private:
     bool is_loop_dependency(const expr_t &v) const {
-        ir_assert(is_var(v)) << v;
+        gpu_assert(is_var(v)) << v;
         return loop_deps_.count(v) != 0;
     }
 
@@ -384,7 +384,7 @@ private:
     }
 
     expr_t hoist_mask(const expr_t &e) {
-        ir_assert(e.type().is_bool()) << e;
+        gpu_assert(e.type().is_bool()) << e;
 
         if (is_const(e) || is_shuffle_const(e)) return e;
 

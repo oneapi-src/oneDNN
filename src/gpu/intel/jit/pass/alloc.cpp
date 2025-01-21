@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ public:
         for (auto &c : calls) {
             if (!is_func_call<send_t>(c)) continue;
             auto header_buf = send_t::arg_mem_off(c);
-            ir_assert(is_var(header_buf)) << header_buf;
+            gpu_assert(is_var(header_buf)) << header_buf;
             header_bufs_.insert(header_buf);
         }
     }
@@ -116,7 +116,7 @@ public:
     }
 
     object_t _mutate(const var_t &obj) override {
-        ir_assert(refs_.count(obj) == 1)
+        gpu_assert(refs_.count(obj) == 1)
                 << "Variable is not defined: " << expr_t(&obj);
         if (!skip_var_.is_same(obj)) refs_[&obj].update(increment_, level_);
         return ir_mutator_t::_mutate(obj);
@@ -142,7 +142,7 @@ private:
     template <typename T>
     object_t mutate_scope(const T &obj, const expr_t &var) {
         auto ret = refs_.insert({var, ref_info_t(level_)});
-        ir_assert(ret.second) << var;
+        gpu_assert(ret.second) << var;
         MAYBE_UNUSED(ret);
 
         auto new_obj = ir_mutator_t::_mutate(obj);
@@ -159,7 +159,7 @@ private:
     }
 
     object_t mutate_let(const let_t &obj, const ref_info_t &ref_info) {
-        ir_assert(ref_info.refs >= 1);
+        gpu_assert(ref_info.refs >= 1);
         if (ref_info.refs == 1) {
             // Variable is not used.
             remove_refs(obj);
@@ -177,7 +177,7 @@ private:
     }
 
     object_t mutate_alloc(const alloc_t &obj, const ref_info_t &ref_info) {
-        ir_assert(ref_info.refs >= 1);
+        gpu_assert(ref_info.refs >= 1);
         // Buffer is not used, single reference from alloc_t itself. Remove
         // stores to the buffer if any.
         if (ref_info.refs == 1) return remove_stores(obj.body, obj.buf);

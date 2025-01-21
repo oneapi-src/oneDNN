@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ int get_simd_size(const hw_t &hw, const fma_kind_t kind, const type_t &a,
         case fma_kind_t::mad: ret = mad_t::get_simd_size(hw, a, b, c); break;
         default: break;
     }
-    ir_assert(ret != 0);
+    gpu_assert(ret != 0);
     return ret;
 }
 
@@ -75,7 +75,7 @@ type_t multiply_desc_t::get_c_type(
         return type_t::f16();
     }
 
-    ir_error_not_expected()
+    gpu_error_not_expected()
             << "Can't deduce C type. A type: " << a << " B type: " << b;
     return type_t::undef();
 }
@@ -86,7 +86,7 @@ bool dpas_t::is_src_type(type_t type) {
 }
 
 layout_t dpas_t::a_layout() const {
-    if (!is_src_type(src1_type)) ir_error_not_expected();
+    if (!is_src_type(src1_type)) gpu_error_not_expected();
 
     int m_blk = exec_size;
     int inner_blk = 4 / src1_type.size();
@@ -97,7 +97,7 @@ layout_t dpas_t::a_layout() const {
 }
 
 layout_t dpas_t::b_layout() const {
-    if (!is_src_type(src2_type)) ir_error_not_expected();
+    if (!is_src_type(src2_type)) gpu_error_not_expected();
 
     int n_blk = rcount;
     int k_blk = sdepth * 4 / src2_type.size();

@@ -53,7 +53,7 @@ struct hw_config_t {
     int f32_mad_ops_per_clock() const {
         switch (hw.to_ngen()) {
             case ngen::HW::XeHPC: return 32;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return 0;
     }
@@ -61,7 +61,7 @@ struct hw_config_t {
     int int8_dpas_ops_per_clock() const {
         switch (hw.to_ngen()) {
             case ngen::HW::XeHPC: return 1024;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return 0;
     }
@@ -85,10 +85,10 @@ struct hw_config_t {
                                : f32_mad_ops_per_clock() * 1;
             }
             case 8: {
-                ir_assert(is_mad);
+                gpu_assert(is_mad);
                 return f32_mad_ops_per_clock() / 2;
             }
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return 0;
     }
@@ -96,7 +96,7 @@ struct hw_config_t {
     float freq() const {
         switch (hw.to_ngen()) {
             case ngen::HW::XeHPC: return 1.6e9;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return 0;
     }
@@ -132,7 +132,7 @@ std::vector<std::string> feature_names(model_kind_t kind) {
         case model_kind_t::stream_k: return std::vector<std::string>({"iters"});
         case model_kind_t::data_copy:
             return std::vector<std::string>({"bytes"});
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return std::vector<std::string>();
 }
@@ -178,12 +178,12 @@ struct bmnk_helper_t {
         tiles *= ir_utils::safe_div(m, ml * mt * mi);
         tiles *= ir_utils::safe_div(n, nl * nt * ni);
         iters = tiles * kl;
-        ir_assert(tmp_iters == iters);
+        gpu_assert(tmp_iters == iters);
     }
 };
 
 dim_t layout_size(const layout_tag_t &tag, const problem_t &prb) {
-    ir_assert(!tag.is_any() && !tag.is_empty());
+    gpu_assert(!tag.is_any() && !tag.is_empty());
     pvar_tile_t tile;
     for (auto &d : tag.desc().letter_map())
         tile[d] = prb.shape().at(d);
@@ -194,14 +194,14 @@ dim_t layout_size(const layout_tag_t &tag, const problem_t &prb) {
         elems *= e_block;
         tile[d] = utils::div_up(tile[d], e_block);
     }
-    ir_assert(tile.elems() == 1);
+    gpu_assert(tile.elems() == 1);
     return elems * tag.type().size();
 }
 
 float conv_time_nsec(const bench_time_t &time) {
     if (time.nkernels() == 0) return 0;
     if (time.nkernels() == 1) return time.total;
-    ir_assert(utils::one_of(time.nkernels(), 2, 3))
+    gpu_assert(utils::one_of(time.nkernels(), 2, 3))
             << "Expecting zero-out -> conv [-> reorder] kernel sequence.";
     return time.kernel_times[1];
 }
@@ -290,7 +290,7 @@ public:
             case model_kind_t::data_copy:
                 impl_ = std::make_shared<data_copy_sample_t>(prb, desc, time);
                 break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
     }
     vec1d to_x() const { return impl_->to_x(); }
@@ -404,7 +404,8 @@ void model_t::coef_ranges(model_kind_t kind, const vec2d &X, const vec1d &y,
             add("T1", t1, t1 / 10, t1 * 10);
             break;
         }
-        default: ir_error_not_expected() << "Unknown kind: " << to_string(kind);
+        default:
+            gpu_error_not_expected() << "Unknown kind: " << to_string(kind);
     }
 }
 
@@ -413,7 +414,8 @@ float model_t::predict(model_kind_t kind, const vec1d &x, const vec1d &coef) {
         case model_kind_t::data_parallel: return predict_data_parallel(x, coef);
         case model_kind_t::stream_k: return predict_stream_k(x, coef);
         case model_kind_t::data_copy: return predict_data_copy(x, coef);
-        default: ir_error_not_expected() << "Unknown kind: " << to_string(kind);
+        default:
+            gpu_error_not_expected() << "Unknown kind: " << to_string(kind);
     }
     return 0;
 }
@@ -444,7 +446,8 @@ size_t model_t::coef_count(model_kind_t kind) {
         case model_kind_t::data_parallel: return 5;
         case model_kind_t::stream_k: return 2;
         case model_kind_t::data_copy: return 2;
-        default: ir_error_not_expected() << "Unknown kind: " << to_string(kind);
+        default:
+            gpu_error_not_expected() << "Unknown kind: " << to_string(kind);
     }
     return 0;
 }
@@ -492,7 +495,7 @@ float model_set_t::time(model_kind_t kind, const problem_t &prb,
     for (auto &m : models_) {
         if (m.kind() == kind) return m.predict(prb, desc);
     }
-    ir_error_not_expected() << "Unknown kind: " << to_string(kind);
+    gpu_error_not_expected() << "Unknown kind: " << to_string(kind);
     return 0;
 }
 

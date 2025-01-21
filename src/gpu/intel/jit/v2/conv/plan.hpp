@@ -147,7 +147,7 @@ class virt_grid_t {
 public:
     void add(const expr_t &var, const expr_t &expr) {
         auto ret = idxs_.emplace(var, expr);
-        ir_assert(ret.second);
+        gpu_assert(ret.second);
     }
 
     const object_map_t<expr_t, expr_t> &idxs() const { return idxs_; }

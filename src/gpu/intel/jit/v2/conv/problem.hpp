@@ -47,7 +47,7 @@ public:
                 return pick_b(prop_, src_tag_, wei_tag_, dst_tag_);
             case tensor_kind_t::c:
                 return pick_c(prop_, src_tag_, wei_tag_, dst_tag_);
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return src_tag_;
     }

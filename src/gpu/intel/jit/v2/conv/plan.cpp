@@ -105,13 +105,13 @@ public:
             case tensor_kind_t::a: return is_b(dim) || is_m(dim) || is_k(dim);
             case tensor_kind_t::b: return is_b(dim) || is_k(dim) || is_n(dim);
             case tensor_kind_t::c: return is_b(dim) || is_m(dim) || is_n(dim);
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return false;
     }
 
     bool is(const pvar_t &dim, char bmnk) const {
-        ir_assert(utils::one_of(bmnk, 'b', 'm', 'n', 'k'));
+        gpu_assert(utils::one_of(bmnk, 'b', 'm', 'n', 'k'));
         if (!bmnk_map_.has(dim)) return false;
         return bmnk_map_[dim] == bmnk;
     }
@@ -131,12 +131,12 @@ public:
                 auto b_tile = b_inner_.int_dim_sizes();
                 ret = std::move(a_tile);
                 for (auto &d : b_tile) {
-                    if (ret.has(d)) ir_assert(ret[d] == b_tile[d]);
+                    if (ret.has(d)) gpu_assert(ret[d] == b_tile[d]);
                     ret[d] = b_tile[d];
                 }
                 return ret;
             }
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         for (auto &d : iter_tile_) {
             if (!ret.has(d)) ret[d] = 1;
@@ -149,7 +149,7 @@ public:
         switch (abc) {
             case tensor_kind_t::a: return layout.is_blocked_by(a_inner_);
             case tensor_kind_t::b: return layout.is_blocked_by(b_inner_);
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return false;
     }
@@ -160,7 +160,7 @@ public:
         switch (abc) {
             case tensor_kind_t::a: ret.block_by(a_inner_.blocks()); break;
             case tensor_kind_t::b: ret.block_by(b_inner_.blocks()); break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         ret = get_fma_type_layout(ret);
         return ret;
@@ -168,8 +168,8 @@ public:
 
     layout_t acc_layout(const layout_t &a_layout, const layout_t &b_layout,
             const layout_t &c_layout) const {
-        ir_assert(a_layout.has_const_sizes());
-        ir_assert(b_layout.has_const_sizes());
+        gpu_assert(a_layout.has_const_sizes());
+        gpu_assert(b_layout.has_const_sizes());
         layout_t acc(c_layout.desc(), acc_type());
         for (auto &b : a_layout.blocks()) {
             if (is_k(b.dim)) continue;
@@ -185,7 +185,7 @@ public:
 
     layout_t bias_layout(
             const layout_t &b_layout, const layout_t &bias_layout) const {
-        ir_assert(b_layout.has_const_sizes());
+        gpu_assert(b_layout.has_const_sizes());
         layout_t acc(bias_layout.desc(), acc_type());
 
         for (auto &b : b_layout.blocks()) {
@@ -205,7 +205,7 @@ private:
                 return utils::one_of(type, type_t::u8(), type_t::s8(),
                         type_t::f16(), type_t::bf16());
                 break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return false;
     }
@@ -234,7 +234,7 @@ private:
         switch (fma_) {
             case fma_kind_t::mad: return init_mad(a_desc, b_desc, c_desc);
             case fma_kind_t::dpas: return init_dpas(a_desc, b_desc, c_desc);
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return false;
     }
@@ -254,7 +254,7 @@ private:
                 break;
             }
         }
-        ir_check(found) << "init_mad: cannot find dimension to vectorize.";
+        gpu_check(found) << "init_mad: cannot find dimension to vectorize.";
         c_inner_ = layout_t(c_desc, acc_type_, 0, b_inner_.blocks());
         return true;
     }
@@ -267,21 +267,21 @@ private:
         for (auto &d : iter_tile_) {
             switch (to_bmnk(d)) {
                 case 'm':
-                    ir_assert(m_dim.is_undef());
+                    gpu_assert(m_dim.is_undef());
                     m_dim = d;
                     break;
                 case 'n':
-                    ir_assert(n_dim.is_undef());
+                    gpu_assert(n_dim.is_undef());
                     n_dim = d;
                     break;
                 case 'k':
-                    ir_assert(k_dim.is_undef());
+                    gpu_assert(k_dim.is_undef());
                     k_dim = d;
                     break;
-                default: ir_error_not_expected();
+                default: gpu_error_not_expected();
             }
         }
-        ir_check(!m_dim.is_undef() && !n_dim.is_undef() && !k_dim.is_undef())
+        gpu_check(!m_dim.is_undef() && !n_dim.is_undef() && !k_dim.is_undef())
                 << "init_dpas: cannot initialize MNK dimensions.";
         dim_t m_size = iter_tile_.at(m_dim);
         dim_t n_size = iter_tile_.at(n_dim);
@@ -289,11 +289,11 @@ private:
         uint8_t sdepth = 8;
         uint8_t rcount = 8;
         int type_size = a_type_.size();
-        ir_check(m_size % rcount == 0)
+        gpu_check(m_size % rcount == 0)
                 << "init_dpas: M dimension size is invalid: " << m_size;
-        ir_check(n_size % simd_ == 0)
+        gpu_check(n_size % simd_ == 0)
                 << "init_dpas: N dimension size is invalid: " << n_size;
-        ir_check((k_size * type_size) % (sdepth * 4) == 0)
+        gpu_check((k_size * type_size) % (sdepth * 4) == 0)
                 << "init_dpas: K dimension size is invalid: " << k_size;
 
         auto _dpas = dpas_t::make(
@@ -356,9 +356,9 @@ private:
             const send_params_t &params, const view_t &view) {
         auto plan = create_send_plan(params, view, /*allow_fail=*/true);
         bool ok = [&]() {
-            ir_check(plan) << tag << ": cannot create send plan\n"
-                           << params << "\n"
-                           << ir_utils::add_tag("view", view.str());
+            gpu_check(plan) << tag << ": cannot create send plan\n"
+                            << params << "\n"
+                            << ir_utils::add_tag("view", view.str());
             return true;
         }();
         if (!ok) return send_plan_t();
@@ -417,7 +417,7 @@ private:
         pvar_map_t<char> ret;
         for (auto &d : conv_index_dims(desc_.prop)) {
             auto gemm_d = to_gemm(d, desc_.prop);
-            ir_assert(!gemm_d.is_undef());
+            gpu_assert(!gemm_d.is_undef());
             ret[d] = gemm_d.name()[0];
         }
         return ret;
@@ -445,7 +445,7 @@ private:
         // between sub-plans.
         plan = plan_t(hw_);
         if (!try_init_plan(plan, reqs_) || !check_plan(plan)) {
-            ir_error_not_expected();
+            gpu_error_not_expected();
             return plan_t();
         }
         reqs_.simplify();
@@ -458,13 +458,13 @@ private:
         plan.thr_grid = thr_grid_;
         plan.virt_grid = virt_grid_;
         plan.coord_info = coord_info_;
-        ir_check(init_x2r_fma_plan(plan.x2r_fma, reqs));
-        ir_check(init_prefetch_plan(
+        gpu_check(init_x2r_fma_plan(plan.x2r_fma, reqs));
+        gpu_check(init_prefetch_plan(
                 plan.x2r_fma, plan.virt_grid, plan.prefetch));
-        ir_check(init_epilogue_plan(
+        gpu_check(init_epilogue_plan(
                 plan.x2r_fma.c_layout, plan.virt_grid, plan.epilogue, reqs));
         if (desc_.with_bias_bwd_w())
-            ir_check(init_epilogue_bias(
+            gpu_check(init_epilogue_bias(
                     plan.x2r_fma.bias_layout, plan.epilogue, reqs));
         return true;
     }
@@ -502,12 +502,12 @@ private:
     bool init_prefetch_plan(const x2r_fma_plan_t &x2r_fma,
             virt_grid_t &virt_grid, prefetch_plan_t &plan) const {
         if (desc_.prefetch.a) {
-            ir_check(init_x_prefetch_plan(tensor_kind_t::a,
+            gpu_check(init_x_prefetch_plan(tensor_kind_t::a,
                     coord_info_.tg_iter_coord(), coord_info_.tg_iter_tile(),
                     x2r_fma, virt_grid, plan.a_prefetch));
         }
         if (desc_.prefetch.b) {
-            ir_check(init_x_prefetch_plan(tensor_kind_t::b,
+            gpu_check(init_x_prefetch_plan(tensor_kind_t::b,
                     coord_info_.tg_iter_coord(), coord_info_.tg_iter_tile(),
                     x2r_fma, virt_grid, plan.b_prefetch));
         }
@@ -545,7 +545,7 @@ private:
             const layout_t &a, const layout_t &b, fma_plan_t &plan) const {
         auto inst_tile = mul_info_.inst_tile();
         auto acc_layout = mul_info_.acc_layout(a, b, c_layout_);
-        ir_check(!acc_layout.is_empty()) << "init_fma_plan: cannot vectorize.";
+        gpu_check(!acc_layout.is_empty()) << "init_fma_plan: cannot vectorize.";
         plan = fma_plan_t(hw_);
         plan.simd = desc_.simd;
         plan.fma = desc_.fma;
@@ -559,7 +559,7 @@ private:
     bool init_x2r_fma_plan(x2r_fma_plan_t &plan, prb_reqs_t &reqs) const {
         auto &outer = desc_.iter_outer_tile;
         auto &tile = desc_.iter_tile;
-        ir_assert(outer.is_empty() || outer.size() == 1);
+        gpu_assert(outer.is_empty() || outer.size() == 1);
         auto outer_dim = (outer.is_empty() ? pvar_t() : *outer.begin());
         dim_t outer_size = outer.get(outer_dim, 1);
         auto sub_tile = tile;
@@ -582,7 +582,7 @@ private:
                 auto a_sub_view
                         = view_t(a_mapper, a_layout_, sub_coord, sub_tile);
                 x2r_plan_t a;
-                ir_check(init_x2r_plan(tensor_kind_t::a, a_sub_view, a));
+                gpu_check(init_x2r_plan(tensor_kind_t::a, a_sub_view, a));
                 plan.add_stage(a);
                 a_prev_layout = a.layout;
             }
@@ -590,7 +590,7 @@ private:
                 auto b_sub_view
                         = view_t(b_mapper, b_layout_, sub_coord, sub_tile);
                 x2r_plan_t b;
-                ir_check(init_x2r_plan(tensor_kind_t::b, b_sub_view, b));
+                gpu_check(init_x2r_plan(tensor_kind_t::b, b_sub_view, b));
                 b_prev_layout = b.layout;
                 if (desc_.with_bias_bwd_w()) {
                     bias_prev_layout = b.bias_layout;
@@ -602,8 +602,8 @@ private:
             }
 
             fma_plan_t fma;
-            ir_check(init_fma_plan(a_prev_layout, b_prev_layout, fma));
-            ir_check(c_prev_layout.is_empty() || fma.c_layout == c_prev_layout)
+            gpu_check(init_fma_plan(a_prev_layout, b_prev_layout, fma));
+            gpu_check(c_prev_layout.is_empty() || fma.c_layout == c_prev_layout)
                     << "init_x2r_fma_plan: inconsistent C layout from "
                        "subtiles.";
             c_prev_layout = fma.c_layout;
@@ -643,7 +643,7 @@ private:
                 bias_mem_view);
         auto store = try_create_send_plan(__func__, params, bias_mem_view);
         if (!store) return false;
-        ir_check(reqs.implies(store.reqs()))
+        gpu_check(reqs.implies(store.reqs()))
                 << "Bias store add needs additional requirements.";
         plan.bias_store = store;
         if (bias_reg_layout != store.reg_layout()) {
@@ -672,7 +672,7 @@ private:
         }
         plan.bias_reduce_cond = std::move(reduce_cond);
         plan.bias_layout = bias_reg_layout;
-        ir_check(init_epilogue_store_bias(/*is_atomic=*/desc_.use_stream_k,
+        gpu_check(init_epilogue_store_bias(/*is_atomic=*/desc_.use_stream_k,
                 bias_reg_layout, bias_mem_view, plan.store, reqs));
         return true;
     }
@@ -689,10 +689,10 @@ private:
         if (k_dim.is_undef()) return true;
 
         dim_t k_tg = desc_.thread_group_tile.at(k_dim);
-        ir_assert(k_tg > 1);
-        ir_assert(desc_.thread_group_tile.elems() == k_tg)
+        gpu_assert(k_tg > 1);
+        gpu_assert(desc_.thread_group_tile.elems() == k_tg)
                 << "Local k-slicing assumes no split by M/N.";
-        ir_check(c_layout.size() % hw_.grf_size() == 0)
+        gpu_check(c_layout.size() % hw_.grf_size() == 0)
                 << "init_slm_reduce_plan: c_layout is not aligned to a "
                    "reigster boundary.";
 
@@ -782,7 +782,7 @@ private:
     bool init_epilogue_plan(const layout_t &c_fma_layout,
             virt_grid_t &virt_grid, epilogue_plan_t &plan,
             prb_reqs_t &reqs) const {
-        ir_check(
+        gpu_check(
                 init_slm_reduce_plan(c_fma_layout, virt_grid, plan.slm_reduce));
         auto &c_mapper = dim_mapper_manager_.mapper(tensor_kind_t::c);
         auto c_reg_layout
@@ -793,7 +793,7 @@ private:
         auto c_mem_view = view_t(c_mapper, c_layout_, c_coord, c_tile);
         plan.c_reg_layout = c_reg_layout;
         plan.c_coord = c_mem_view.coord();
-        ir_check(init_epilogue_store_plan(/*is_atomic=*/desc_.use_stream_k,
+        gpu_check(init_epilogue_store_plan(/*is_atomic=*/desc_.use_stream_k,
                 c_reg_layout, c_mem_view, plan.store, reqs));
         return true;
     }
@@ -801,12 +801,12 @@ private:
     bool check_plan(const plan_t &plan) const {
         int grf_bound = hw_.grf_size() * desc_.regs;
         int grf_bytes = plan.grf_usage_bytes();
-        ir_check(grf_bytes <= grf_bound) << "check_plan: out of registers";
+        gpu_check(grf_bytes <= grf_bound) << "check_plan: out of registers";
         int slm_bound = compute::device_info_t::max_slm_size_per_tg(
                 convert_ngen_arch_to_dnnl(hw_.to_ngen()),
                 into<int>(desc_.thread_group_tile.elems()), desc_.regs > 128);
         int slm_bytes = plan.slm_usage_bytes();
-        ir_check(slm_bytes <= slm_bound) << "check_plan: out of SLM";
+        gpu_check(slm_bytes <= slm_bound) << "check_plan: out of SLM";
         return true;
     }
 
@@ -815,7 +815,7 @@ private:
             send_address_t send_address = send_address_t::a64) const {
         if (op == send_op_t::atomic_add) {
             auto &type = view.type();
-            ir_assert(type.is_f32() || type.is_s32());
+            gpu_assert(type.is_f32() || type.is_s32());
             if (type.is_f32()) op = send_op_t::atomic_fadd;
         }
         send_params_t params;
@@ -856,11 +856,11 @@ private:
 template <typename KernelDescT>
 plan_t create_conv_plan_impl(KernelDescT &desc, const hw_t &hw, bool finalize) {
     if (!desc.is_supported(hw)) return plan_t();
-    ir_assert(!desc.has_spec_strategy())
+    gpu_assert(!desc.has_spec_strategy())
             << "Kernel descriptor strategies are required to be specialized "
                "before plan creation";
     if (!finalize) {
-        ir_assert(desc.is_finalized)
+        gpu_assert(desc.is_finalized)
                 << "Kernel descriptor must be finalized before plan creation";
     }
     plan_builder_t builder(desc, hw);
@@ -869,7 +869,7 @@ plan_t create_conv_plan_impl(KernelDescT &desc, const hw_t &hw, bool finalize) {
         if (finalize) {
             const_cast<kernel_desc_t &>(desc).finalize(builder.reqs());
         } else {
-            ir_assert(desc.reqs.implies(builder.reqs()));
+            gpu_assert(desc.reqs.implies(builder.reqs()));
         }
     }
     return plan;

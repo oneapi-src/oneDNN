@@ -154,8 +154,8 @@ public:
 
                 if (!tiler->is_grf_limit_ok(cfg)) continue;
 
-                ir_info() << "Configuration:";
-                ir_info() << cfg;
+                gpu_info() << "Configuration:";
+                gpu_info() << cfg;
 
                 init_nd_ranges(primitive, cfg);
                 auto &kernel_infos = data.kernel_infos;
@@ -164,7 +164,7 @@ public:
                 // since it adds its own version mark to the cache blob
                 for (int i = 0; i < int(kernel_infos.size()); i++)
                     if (kernel_infos[i].id() == kernel_id_t::zp_precalc) {
-                        ir_assert(data.zp_pd);
+                        gpu_assert(data.zp_pd);
                         CHECK(primitive->create_nested_primitive(
                                 zp_prim_, data.zp_pd, engine));
                     }
@@ -220,7 +220,7 @@ public:
                             tmp_kernels.emplace_back();
                             continue;
 
-                        default: ir_error_not_expected();
+                        default: gpu_error_not_expected();
                     }
                     if (!tmp_kernels[i]) return status::runtime_error;
                 }
@@ -242,7 +242,7 @@ public:
             }
         }
         if (!ok) return status::runtime_error;
-        ir_assert(kernels_.size() == data.kernel_infos.size());
+        gpu_assert(kernels_.size() == data.kernel_infos.size());
         CHECK(primitive->register_kernels(kernels_));
 
         conv_tiler_t::after_create_hook(cfg, primitive);
@@ -284,7 +284,7 @@ public:
                                 new memory_t(ctx.stream()->engine(), md,
                                         std::move(s)));
                     };
-                    ir_assert(zp_prim_);
+                    gpu_assert(zp_prim_);
                     std::unique_ptr<memory_t, memory_deleter_t> zp_src, zp_dst;
                     CHECK(scratchpad_arg(
                             zp_src, "src_zero_points", zp_conv_md_in(data)));
@@ -328,7 +328,7 @@ private:
     template <typename T>
     static kernel_info_t &create_kernel_info(T *pd, kernel_id_t kernel_id) {
         auto &infos = pd->data->kernel_infos;
-        ir_assert((int)infos.size() + 1 <= max_kernels);
+        gpu_assert((int)infos.size() + 1 <= max_kernels);
         infos.emplace_back();
         auto &ret = infos.back();
         ret.set_id(kernel_id);
@@ -360,9 +360,9 @@ private:
             int compute_arg_key = t.arg_key;
 
             if (compute_arg_key == DNNL_ARG_UNDEF) {
-                ir_assert(!t.needs_reorder);
-                ir_assert(!t.needs_zero_out);
-                ir_error_not_expected();
+                gpu_assert(!t.needs_reorder);
+                gpu_assert(!t.needs_zero_out);
+                gpu_error_not_expected();
                 continue;
             }
 
@@ -471,14 +471,14 @@ private:
                     nd_ranges_[i] = info.nd_range();
                     break;
                 case kernel_id_t::zp_precalc: break;
-                default: ir_error_not_expected();
+                default: gpu_error_not_expected();
             }
         }
     }
 
     static bool can_skip_zero_out(
             const kernel_info_t &info, const conv_config_t &cfg) {
-        ir_assert(info.id() == kernel_id_t::zero_out);
+        gpu_assert(info.id() == kernel_id_t::zero_out);
         auto &buf_name = info.arg_var(1).as<var_t>().name;
         if (buf_name == "wei") return cfg.can_skip_wei_zero_out();
         if (buf_name == "bia") return cfg.can_skip_bia_zero_out();

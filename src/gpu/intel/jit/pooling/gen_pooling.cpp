@@ -132,13 +132,13 @@ status_t gen_pooling_fwd_t::init(impl::engine_t *engine) {
 
     // Initialize kernel arguments.
     for (auto &t : tensor_cfg.tensors()) {
-        ir_assert(!t.needs_reorder);
-        ir_assert(!t.needs_zero_out);
+        gpu_assert(!t.needs_reorder);
+        gpu_assert(!t.needs_zero_out);
 
         if (t.arg_key == DNNL_ARG_UNDEF) {
-            ir_assert(!t.needs_reorder);
-            ir_assert(!t.needs_zero_out);
-            ir_error_not_expected();
+            gpu_assert(!t.needs_reorder);
+            gpu_assert(!t.needs_zero_out);
+            gpu_error_not_expected();
             continue;
         }
         kernel_info_.register_user_arg(make_buffer(t.name), t.arg_key,
@@ -152,14 +152,14 @@ status_t gen_pooling_fwd_t::init(impl::engine_t *engine) {
             break;
         } catch (const ngen::out_of_registers_exception &exc) {
             UNUSED(exc);
-            ir_warning() << "loop too large: cut and retry!";
+            gpu_warning() << "loop too large: cut and retry!";
             kernel_ = {};
             if (!cfg_.cut()) {
-                ir_error_not_expected() << "minimal loop too large!";
+                gpu_error_not_expected() << "minimal loop too large!";
                 break;
             }
         } catch (const std::exception &exc) {
-            ir_error_not_expected() << exc.what();
+            gpu_error_not_expected() << exc.what();
             kernel_ = {};
             break;
         }

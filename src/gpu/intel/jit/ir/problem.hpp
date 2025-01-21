@@ -153,7 +153,7 @@ public:
     }
 
     const ValueT &operator[](const pvar_t &key) const {
-        ir_assert(has(key)) << "Key not found: " << key;
+        gpu_assert(has(key)) << "Key not found: " << key;
         return map_.at(key);
     }
 
@@ -184,7 +184,7 @@ public:
         for (auto &kv : other.map_) {
             auto it = map_.find(kv.first);
             if (it != map_.end()) {
-                ir_assert(it->second == kv.second);
+                gpu_assert(it->second == kv.second);
                 continue;
             }
             ret[kv.first] = kv.second;

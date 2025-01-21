@@ -55,7 +55,7 @@ public:
 
 private:
     static const expr_t &not_empty(const expr_t &v) {
-        ir_assert(!v.is_empty()) << "Queried empty index.";
+        gpu_assert(!v.is_empty()) << "Queried empty index.";
         return v;
     }
 
@@ -123,12 +123,12 @@ void bind_thread_group_grid_idx(const conv_config_t &cfg,
         auto v_dim = pvar_t(v.as<var_t>().name);
         for (int i = 0; i < 3; i++) {
             if (grid_dims[i].has(v_dim)) {
-                ir_assert(grid_id == -1 || grid_id == i);
+                gpu_assert(grid_id == -1 || grid_id == i);
                 grid_id = i;
             }
         }
     }
-    ir_assert(grid_id != -1);
+    gpu_assert(grid_id != -1);
     gemm_schedule.bind(var, cfg.thread_group_grid().idx(grid_id));
 }
 
@@ -137,7 +137,7 @@ void bind_kernel_grid(
     for (auto &v : vars) {
         if (gemm_schedule.var_bound(v) == 1) continue;
         auto root_vars = gemm_schedule.get_root_vars(v);
-        ir_assert((int)root_vars.size() == 1);
+        gpu_assert((int)root_vars.size() == 1);
         auto v_dim = pvar_t(root_vars[0].as<var_t>().name);
         auto dummy_grid_var
                 = gemm_schedule.kernel_grid_walk_order().grid_var(v_dim);
@@ -388,7 +388,7 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
         case bwd_d_optimize_kind_t::skip_strided_dh:
             if (prb_.sw != 1) ow_mask &= (ow % prb_.sw == 0);
             break;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     dst_view.set_tdim(3, od / prb_.sd, od_mask);
     dst_view.set_tdim(4, oh / prb_.sh, oh_mask);
@@ -506,7 +506,7 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
                             0),
                     expr_t(1));
             break;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
 }
 
@@ -708,7 +708,7 @@ bool reorder_plan_t::can_split(int factor) const {
 
 void reorder_plan_t::set_split(int factor) {
     if (!*this) return;
-    ir_assert(can_split(factor));
+    gpu_assert(can_split(factor));
     split_factor = factor;
 }
 
@@ -765,7 +765,7 @@ bool reduce_plan_t::can_split(int factor) const {
 
 void reduce_plan_t::set_split(int factor) {
     if (!*this) return;
-    ir_assert(can_split(factor));
+    gpu_assert(can_split(factor));
     split_factor = factor;
 }
 
@@ -825,7 +825,7 @@ bool x2r_plan_t::can_split(abc_kind_t abc, int factor) const {
 }
 
 void x2r_plan_t::set_split(abc_kind_t abc, int factor) {
-    ir_assert(can_split(abc, factor));
+    gpu_assert(can_split(abc, factor));
     // Reset split factors.
     a_load.set_split(1);
     a_reorder.set_split(1);
@@ -912,7 +912,7 @@ bool fma_plan_t::can_split(abc_kind_t abc, int factor) const {
 }
 
 void fma_plan_t::set_split(abc_kind_t abc, int factor) {
-    ir_assert(can_split(abc, factor));
+    gpu_assert(can_split(abc, factor));
     split_abc = abc;
     split_factor = factor;
     if (abc == abc_kind_t::a
@@ -959,7 +959,7 @@ int fma_plan_t::bmnk_split_idx(
     }
     int i0 = start[(int)bmnk];
     int i1 = into<int>(stop[(int)bmnk]);
-    ir_assert((i1 - i0) % factor == 0);
+    gpu_assert((i1 - i0) % factor == 0);
     int step = (i1 - i0) / factor;
     int idx = i0 + off * step;
     return is_start ? idx : idx + step;
@@ -1026,7 +1026,7 @@ stmt_t fma_plan_t::create_fma_block(const std::vector<func_t> &fmas,
     auto src2 = b;
     auto dst = c;
     if (is_dpas) std::swap(src1, src2);
-    if (!is_dpas) ir_assert(fmas.size() == 1);
+    if (!is_dpas) gpu_assert(fmas.size() == 1);
     stmt_t ret;
     for (auto &f : fmas) {
         ret = ret.append(f.call({dst, dst, src1, src2}));
@@ -1071,7 +1071,7 @@ std::vector<func_t> fma_plan_t::create_fma_funcs(const hw_t &hw) const {
             }
             break;
         }
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return ret;
 }
@@ -1103,7 +1103,7 @@ bool conv_plan_t::can_split(abc_kind_t abc, int factor) const {
 }
 
 void conv_plan_t::set_split(abc_kind_t abc, int factor) {
-    ir_assert(can_split(abc, factor));
+    gpu_assert(can_split(abc, factor));
     split_abc = abc;
     split_factor = factor;
     x2r.set_split(abc, factor);
@@ -1117,7 +1117,7 @@ bool conv_plan_t::uses_2d_load(abc_kind_t abc) const {
 }
 
 grf_usage_t conv_plan_t::grf_usage() const {
-    ir_assert(reserved_regs != -1);
+    gpu_assert(reserved_regs != -1);
     bool with_headers = !reuse_headers;
 
     int out_buf_regs = 0;
@@ -1144,7 +1144,7 @@ grf_usage_t conv_plan_t::grf_usage() const {
                     /*with_headers=*/false,
                     /*reuse_headers=*/false);
     if (x2r.a_reorder && x2r.b_reorder) {
-        ir_assert(!use_a_slm && !use_b_slm);
+        gpu_assert(!use_a_slm && !use_b_slm);
         // Reuse load buffer when both reorders are enabled.
         gmem_load_buf_regs += std::max(a_g2r_buf_regs, b_g2r_buf_regs);
     } else {
@@ -1382,7 +1382,7 @@ struct fma_context_t {
             return abc_layout;
         }
 
-        ir_error_not_expected();
+        gpu_error_not_expected();
         return layout;
     }
 
@@ -1393,13 +1393,13 @@ struct fma_context_t {
     }
 
     static int get_vec_idx(abc_kind_t abc, bmnk_kind_t bmnk) {
-        ir_assert(utils::one_of(abc, abc_kind_t::a, abc_kind_t::b));
+        gpu_assert(utils::one_of(abc, abc_kind_t::a, abc_kind_t::b));
         bool is_a = (abc == abc_kind_t::a);
         switch (bmnk) {
             case bmnk_kind_t::b: return 0;
             case bmnk_kind_t::m: return is_a ? 1 : -1;
             case bmnk_kind_t::n: return is_a ? -1 : 2;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return -1;
     }
@@ -1417,7 +1417,7 @@ struct fma_context_t {
                 ret.push_back(bmnk_kind_t::k);
                 ret.push_back(bmnk_kind_t::n);
                 break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
         return ret;
     }
@@ -1469,7 +1469,7 @@ int slm_memory_bank_count(ngen::HW hw) {
     switch (hw) {
         case ngen::HW::XeHP: return 65;
         case ngen::HW::XeHPG: return 32;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return 0;
 }
@@ -1478,7 +1478,7 @@ int slm_memory_bank_granularity(ngen::HW hw) {
     switch (hw) {
         case ngen::HW::XeHP: return 4;
         case ngen::HW::XeHPG: return 8;
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return 0;
 }
@@ -1515,7 +1515,7 @@ dim_t find_min_stride_without_conflicts(
         }
     }
 
-    ir_warning() << "Couldn't find stride without conflicts for SLM padding.";
+    gpu_warning() << "Couldn't find stride without conflicts for SLM padding.";
 
     return dense_stride_bytes;
 }
@@ -1538,7 +1538,7 @@ layout_t pad_slm_layout(
     auto l = layout.split_into_multi_blocks(multi_blocks);
 
     if (l.is_empty()) {
-        ir_warning() << "Couldn't split layout for SLM padding.";
+        gpu_warning() << "Couldn't split layout for SLM padding.";
         return layout;
     }
     auto padded_blocks = l.blocks();
@@ -1550,14 +1550,14 @@ layout_t pad_slm_layout(
             if (stride == -1) {
                 dim_t stride_bytes = find_min_stride_without_conflicts(
                         hw, per_thr_bytes, dim_t(b.stride) * type_size);
-                ir_assert(stride_bytes % type_size == 0);
+                gpu_assert(stride_bytes % type_size == 0);
                 stride = stride_bytes / type_size;
             }
             b.stride = stride;
             stride = b.stride * b.block;
             continue;
         }
-        ir_assert(remaining_elems % b.block == 0);
+        gpu_assert(remaining_elems % b.block == 0);
         remaining_elems /= b.block;
         if (remaining_elems == 1) past_inner_block = true;
     }
@@ -1660,8 +1660,8 @@ public:
     const view_t &get() const { return direct_view_; }
 
     layout_t transform(const layout_t &layout) const {
-        ir_assert((bool)*this);
-        ir_assert(fused_tidx_ != dim_idx::invalid);
+        gpu_assert((bool)*this);
+        gpu_assert(fused_tidx_ != dim_idx::invalid);
         std::vector<block_t> blocks;
         bool seen = false;
         for (auto &b : layout.blocks()) {
@@ -1731,7 +1731,7 @@ private:
             return ret;
         }());
 
-        ir_assert(nvdims <= max_nvdims) << "Too many dimensions: " << nvdims;
+        gpu_assert(nvdims <= max_nvdims) << "Too many dimensions: " << nvdims;
         return std::vector<expr_t>(_vvars.begin(), _vvars.begin() + nvdims);
     }
 
@@ -1895,7 +1895,7 @@ public:
         if (status == plan_status_t::success) return status::success;
 
         if (a_direct_view_ || b_direct_view_) {
-            ir_trace() << "Retry plan initialization without direct view";
+            gpu_trace() << "Retry plan initialization without direct view";
             enable_direct_view(false);
             status = try_init_plan();
             if (status == plan_status_t::success) return status::success;
@@ -1903,7 +1903,7 @@ public:
 
         if ((use_slm(abc_kind_t::a) || use_slm(abc_kind_t::b))
                 && !cfg_.slm().is_overridden()) {
-            ir_trace() << "Retry plan initialization without SLM";
+            gpu_trace() << "Retry plan initialization without SLM";
             enable_slm(false);
             status = try_init_plan();
             if (status == plan_status_t::success) return status::success;
@@ -1930,7 +1930,7 @@ private:
                     = gmem_buf_size == 0 ? 0 : 1 + free / gmem_buf_size;
         }
 
-        ir_trace() << plan_;
+        gpu_trace() << plan_;
         cfg_.set_plan(plan_ptr_);
     }
 
@@ -2212,7 +2212,7 @@ private:
         }
 
         if (reduce_mask) {
-            ir_assert(!direct_view);
+            gpu_assert(!direct_view);
             *reduce_tile = to_reduce_tensor(abs_thr_tile, reduce_mask.mask);
             auto reduce_layout = to_reduce_layout(reg_layout, reduce_mask.mask);
             *reduce = create_reduce_plan(
@@ -2389,11 +2389,11 @@ private:
             case fma_kind_t::dpasw: {
                 const int sdepth = 8;
                 const int dword_size = 4;
-                ir_assert(is_dpas_src1_compatible(
+                gpu_assert(is_dpas_src1_compatible(
                         simd, /*transpose=*/true, b_layout));
-                ir_assert(is_dpas_src2_compatible(
+                gpu_assert(is_dpas_src2_compatible(
                         simd, /*transpose=*/true, a_layout));
-                ir_assert(a_layout.type().size() == b_layout.type().size());
+                gpu_assert(a_layout.type().size() == b_layout.type().size());
                 int ab_type_size = a_layout.type().size();
                 m_blk = get_dpas_block_rcount(a_layout, 1);
                 n_blk = simd;
@@ -2420,7 +2420,7 @@ private:
                     return plan_status_t::invalid_fma_layout;
                 }
                 break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
 
         auto c_layout = get_c_layout(a_layout, b_layout, c_blk_layout);
@@ -2507,7 +2507,7 @@ private:
             init_bwd_w(
                     cfg_, gemm_schedule, a_view, b_view, c_view, plan.bia_view);
         } else {
-            ir_error_not_expected();
+            gpu_error_not_expected();
         }
         gemm_schedule.finalize();
 

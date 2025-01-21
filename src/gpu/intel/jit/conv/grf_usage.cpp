@@ -44,7 +44,7 @@ std::string to_string(grf_usage_label_t label) {
         CASE(tmp_vars)
         CASE(zero_points)
 #undef CASE
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return "";
 }
@@ -205,14 +205,15 @@ private:
     bool verify(bool allow_errors) const {
         if (is_invalid_) {
             if (!allow_errors)
-                ir_error_not_expected() << "Can't collect GRF usage.";
+                gpu_error_not_expected() << "Can't collect GRF usage.";
             return false;
         }
         for (auto &buf : buf_usage_.bufs()) {
             if (buf_usage_.get_label(buf) != grf_usage_label_t::unknown)
                 continue;
             if (!allow_errors)
-                ir_error_not_expected() << "Buffer doesn't have label: " << buf;
+                gpu_error_not_expected()
+                        << "Buffer doesn't have label: " << buf;
             return false;
         }
         return true;
@@ -243,7 +244,7 @@ private:
             buf_usage_.set_label(buf, label);
         } else {
             if (skip_if_set) return;
-            ir_error_not_expected()
+            gpu_error_not_expected()
                     << "Label already set. Buffer: " << buf
                     << ", old label: " << buf_label << ", new label: " << label;
         }
@@ -251,7 +252,7 @@ private:
 
     void mark_known_bufs(const expr_t &buf) {
         if (is_invalid_) return;
-        ir_assert(is_buffer(buf));
+        gpu_assert(is_buffer(buf));
         auto &name = buf.as<var_t>().name;
         if (name.find("x_reduce") == 0) {
             set_label(buf, grf_usage_label_t::out_buf);
@@ -261,7 +262,7 @@ private:
     }
 
     bool is_known_buf(const expr_t &buf) const {
-        ir_assert(is_buffer(buf));
+        gpu_assert(is_buffer(buf));
         auto &name = buf.as<var_t>().name;
         if (name.find("zp_") == 0) return true;
         if (name.find("x_reduce") == 0) return true;
@@ -271,17 +272,17 @@ private:
     void mark_bufs(
             const reorder_t &reorder, const expr_t &src, const expr_t &dst) {
         if (is_invalid_) return;
-        ir_assert(is_buffer(src));
-        ir_assert(is_buffer(dst));
+        gpu_assert(is_buffer(src));
+        gpu_assert(is_buffer(dst));
         set_label(dst, grf_usage_label_t::reorder);
     }
 
     void mark_bufs(
             const send_t &send, const expr_t &buf, const expr_t &header) {
         if (is_invalid_) return;
-        if (!buf.is_empty()) ir_assert(is_buffer(buf));
-        ir_assert(is_buffer(header));
-        ir_assert(is_header(header));
+        if (!buf.is_empty()) gpu_assert(is_buffer(buf));
+        gpu_assert(is_buffer(header));
+        gpu_assert(is_header(header));
         grf_usage_label_t label = grf_usage_label_t::unknown;
         if (buf.is_empty()) {
             label = grf_usage_label_t::gmem_load;
@@ -305,9 +306,9 @@ private:
     void mark_fma_bufs(
             const expr_t &dst, const expr_t &src1, const expr_t &src2) {
         if (is_invalid_) return;
-        ir_assert(is_buffer(dst));
-        ir_assert(is_buffer(src1));
-        ir_assert(is_buffer(src2));
+        gpu_assert(is_buffer(dst));
+        gpu_assert(is_buffer(src1));
+        gpu_assert(is_buffer(src2));
         set_label(dst, grf_usage_label_t::out_buf);
     }
 
@@ -351,8 +352,8 @@ void compare(const grf_usage_t &est_usage, const grf_usage_t &ir_usage,
     table << "Total" << est_total << ir_total;
     table << (ir_total > est_total ? "FAIL" : "");
     table << std::endl;
-    ir_trace() << table;
-    ir_trace() << ir_usage.buf_usage();
+    gpu_trace() << table;
+    gpu_trace() << ir_usage.buf_usage();
 }
 
 void verify_grf_usage(
@@ -360,9 +361,9 @@ void verify_grf_usage(
     ir_usage_analyzer_t analyzer(cfg.grf_size());
     analyzer.analyze(body);
 
-    auto ir_info = analyzer.get_grf_usage(external_usage);
+    auto gpu_info = analyzer.get_grf_usage(external_usage);
     auto est_info = cfg.plan().grf_usage();
-    compare(est_info, ir_info, analyzer);
+    compare(est_info, gpu_info, analyzer);
 }
 
 } // namespace jit

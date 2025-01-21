@@ -71,7 +71,7 @@ public:
         expr_t pattern;
         if (obj.args.size() > 6) pattern = send_t::arg_fill_pattern(obj);
 
-        ir_assert(is_var(mem_buf)) << mem_buf;
+        gpu_assert(is_var(mem_buf)) << mem_buf;
 
         auto header_buf = ir_ctx_.create_tmp_var(type_t::byte_ptr(), "h");
         auto off_store = simplify_store(
@@ -146,7 +146,7 @@ public:
             if (!is_func_call<send_t>(c)) continue;
             if (!c.as<func_call_t>().func.as<send_t>().is_2d()) continue;
             auto header_buf = send_t::arg_mem_off(c);
-            ir_assert(is_var(header_buf)) << header_buf;
+            gpu_assert(is_var(header_buf)) << header_buf;
             header_bufs_.insert(header_buf);
         }
     }

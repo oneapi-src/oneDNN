@@ -151,7 +151,7 @@ void DNNL_API planner_main(int argc, const char **argv) {
             search(bench_mger, params);
             break;
         }
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
 }
 

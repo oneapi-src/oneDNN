@@ -37,7 +37,7 @@ inline jit::send_address_t to_ir(send_address_t address) {
         CASE(a64);
         CASE(slm);
 #undef CASE
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     return ret;
 }
@@ -53,7 +53,7 @@ inline jit::send_op_t to_ir(send_op_t op, bool is_2d = false) {
         CASE(prefetch);
         CASE(store);
 #undef CASE
-        default: ir_error_not_expected();
+        default: gpu_error_not_expected();
     }
     if (is_2d) {
         switch (ret) {
@@ -62,15 +62,15 @@ inline jit::send_op_t to_ir(send_op_t op, bool is_2d = false) {
                 ret = jit::send_op_t::prefetch_2d;
                 break;
             case jit::send_op_t::store: ret = jit::send_op_t::store_2d; break;
-            default: ir_error_not_expected();
+            default: gpu_error_not_expected();
         }
     }
     return ret;
 }
 
 inline jit::layout_t to_ir(const layout_t &layout) {
-    ir_assert(layout.has_const_sizes());
-    ir_assert(layout.has_const_strides());
+    gpu_assert(layout.has_const_sizes());
+    gpu_assert(layout.has_const_strides());
     std::vector<gpu::intel::block_t> blocks;
     for (auto &b : layout.blocks()) {
         int dim_idx = layout.desc().dim_index(b.dim);
