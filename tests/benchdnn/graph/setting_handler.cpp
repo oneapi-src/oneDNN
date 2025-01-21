@@ -127,8 +127,13 @@ bool get_driver_axis(const deserialized_op &base_op_ref, int &axis) {
 
 bool get_driver_bia_dt(const deserialized_op &base_op_ref,
         dnnl_data_type_t &bia_dt, const dnnl_data_type_t dt) {
-    // bia_dt is the same as src_dt
-    bia_dt = base_op_ref.in_lts_.size() <= 2 ? dnnl_data_type_undef : dt;
+    if (base_op_ref.in_lts_.size() <= 2)
+        bia_dt = dnnl_data_type_undef;
+    else if (is_integral_dt(dt)) {
+        bia_dt = convert_dt(base_op_ref.in_lts_[2].get_data_type());
+    } else {
+        bia_dt = dt;
+    }
     return true;
 }
 
