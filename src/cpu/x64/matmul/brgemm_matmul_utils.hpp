@@ -176,6 +176,12 @@ struct brgemm_matmul_conf_t {
     bool blocked_B;
     bool treat_transposed_A_as_plain;
 
+    // A_strides could be changed during
+    // Matmul conf initialization in case when batches merged into M.
+    // This flag helps to properly initialize LDA when A_strides
+    // were changed.
+    bool adjust_a_strides = false;
+
     dim_t zp_a_comp_shift_n;
     dim_t zp_a_comp_elems_per_thr;
 
