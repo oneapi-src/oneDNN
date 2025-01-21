@@ -457,12 +457,9 @@ impl::status_t sdp_decomp_config_t::record_input_offset(
                     graph::op_kind::SoftMax};
     for (const auto &cur_op : sg->get_ops()) {
         const auto &op_kind = cur_op->get_kind();
-        VCHECK_SDP_DECOMP(
-                !(op_kind == graph::op_kind::DynamicDequantize
-                        && cur_op->get_attr<std::string>(op_attr::qtype)
-                                == "per_group"),
+        VCHECK_SDP_DECOMP(op_kind != graph::op_kind::DynamicDequantize,
                 status::unimplemented,
-                "Not support per_group DynamicDequantize");
+                "Decomposed kernel does not support dynamic quantization");
         // both mm1 and mm2 are found.
         if (mm1 && mm2) break;
         if (op_kind != graph::op_kind::MatMul) continue;
