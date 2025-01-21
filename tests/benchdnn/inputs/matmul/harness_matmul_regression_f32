@@ -20,3 +20,7 @@
 # test for K parallel_reduction with batched case
 --reset
 --stag=acb --wtag=abc --dtag=abc 2x16x2048:2x2048x16_n"large_K_with_batch"
+
+# test correct LDA initialization, when batches are merged into M dimension
+--reset
+--stag=abcd --dtag=abcd 2x1x8x2:1x1x2x8_n"merge_batches_into_M"

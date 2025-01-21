@@ -688,7 +688,8 @@ struct matmul_avx512_blocking_params_t {
 
         bgmmc.use_buffer_c = is_buffer_c_required(
                 bgmmc.acc_dt, bgmmc.dst_dt, bgmmc.with_sum);
-        bgmmc.LDA = bgmmc.use_buffer_a || bgmmc.treat_transposed_A_as_plain
+        bgmmc.LDA = bgmmc.adjust_a_strides || bgmmc.use_buffer_a
+                        || bgmmc.treat_transposed_A_as_plain
                 ? get_actual_lda(bgmmc.use_buffer_a, bgmmc.tr_a_dt_sz)
                 : bgmmc.A_strides[1] / bgmmc.a_dt_sz;
     }
@@ -1522,10 +1523,9 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
 
     // We need to correct A_strides if batched dimensions are merged in M and
     // A layout is formally transposed but could be treated as plain
-    if (merge_batch_dims_into_M
-            && (src_d.matches_tag(acbd) || bgmmc.treat_transposed_A_as_plain)) {
-        bgmmc.A_strides[1] = bgmmc.A_strides[2];
-    }
+    bgmmc.adjust_a_strides = merge_batch_dims_into_M
+            && (src_d.matches_tag(acbd) || bgmmc.treat_transposed_A_as_plain);
+    if (bgmmc.adjust_a_strides) bgmmc.A_strides[1] = bgmmc.A_strides[2];
 
     // We need to correct C_strides if batched dimensions are merged in M and
     // C layout is formally transposed but could be treated as plain
