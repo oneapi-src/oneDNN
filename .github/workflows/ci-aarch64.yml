@@ -55,6 +55,8 @@ concurrency:
 permissions: read-all
 
 jobs:
+  build-onednn-cache:
+    uses: ./.github/workflows/aarch64-onednn-main.yml
   build-and-test:
     strategy:
       matrix:
