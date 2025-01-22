@@ -1141,13 +1141,15 @@ static int check_total_size(
         //
         // 0.75 value supposed to be experimental and might be adjusted.
         static constexpr float scratch_trh = 0.75f;
-        if (check_mem_size_args.scratchpad_size
-                > scratch_trh * total_size_cpu) {
+        if (is_cpu()
+                && check_mem_size_args.scratchpad_size
+                        > scratch_trh * check_mem_size_args.total_size_device) {
             BENCHDNN_PRINT(2,
                     "[CHECK_MEM][%s]: CPU scratchpad size `%zu` exceeded a "
                     "given threshold `%zu`.\n",
                     dir_c_str(), check_mem_size_args.scratchpad_size,
-                    (size_t)(scratch_trh * total_size_cpu));
+                    (size_t)(scratch_trh
+                            * check_mem_size_args.total_size_device));
             res->state = FAILED;
         } else {
             res->state = SKIPPED;
