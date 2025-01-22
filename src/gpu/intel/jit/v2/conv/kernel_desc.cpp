@@ -339,7 +339,7 @@ void kernel_desc_t::set_defaults() {
     }
 }
 
-bool fit_tag(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
+bool is_compatible(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
         const problem_t &prb, bool exact) {
     auto &desc_tag = kernel_desc.layout_tag(abc);
     auto &prb_tag = prb.layout_tag(abc);
@@ -359,11 +359,26 @@ bool fit_tag(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
     return true;
 }
 
-bool fit_impl(const kernel_desc_t &desc, const problem_t &prb, bool exact) {
+bool is_compatible(const hw_desc_t &hw_desc, const hw_t &hw, bool exact) {
+    if (!exact && hw != hw_desc.hw) {
+        switch (hw_desc.hw) {
+            case ngen::HW::XeHPC:
+                return utils::one_of(
+                        hw.to_ngen(), ngen::HW::Xe2, ngen::HW::Xe3);
+            default: break;
+        }
+    }
+    return hw_desc.hw == hw.to_ngen();
+}
+
+bool is_compatible(
+        const kernel_desc_t &desc, const problem_t &prb, bool exact) {
+    gpu_check(is_compatible(desc.hw_desc, prb.hw(), exact))
+            << "HW does not match";
     gpu_check(prb.prop() == desc.prop) << "Propagation kind does not match";
-    gpu_check(fit_tag(tensor_kind_t::a, desc, prb, exact));
-    gpu_check(fit_tag(tensor_kind_t::b, desc, prb, exact));
-    gpu_check(fit_tag(tensor_kind_t::c, desc, prb, exact));
+    gpu_check(is_compatible(tensor_kind_t::a, desc, prb, exact));
+    gpu_check(is_compatible(tensor_kind_t::b, desc, prb, exact));
+    gpu_check(is_compatible(tensor_kind_t::c, desc, prb, exact));
     gpu_check(prb.is_depthwise() == desc.is_dw)
             << "Mixing depthwise/non-depthwise descriptor and problem";
     if (desc.use_stream_k) {
@@ -401,6 +416,7 @@ void fit_tag_to(
 }
 
 void fit_to_impl(kernel_desc_t &desc, const problem_t &prb) {
+    desc.hw_desc = hw_desc_t(prb.hw().to_ngen());
     fit_tag_to(tensor_kind_t::a, desc, prb);
     fit_tag_to(tensor_kind_t::b, desc, prb);
     fit_tag_to(tensor_kind_t::c, desc, prb);
@@ -415,7 +431,7 @@ void fit_to_impl(kernel_desc_t &desc, const problem_t &prb) {
 }
 
 bool kernel_desc_t::can_fit(const problem_t &prb) const {
-    return fit_impl(*this, prb, /*exact=*/false);
+    return is_compatible(*this, prb, /*exact=*/false);
 }
 
 void kernel_desc_t::fit_to(const problem_t &prb) {
@@ -450,7 +466,7 @@ status_t kernel_desc_t::set_post_ops(const post_ops_t &attr_post_ops,
 }
 
 bool kernel_desc_t::matches(const problem_t &prb) const {
-    return fit_impl(*this, prb, /*exact=*/true);
+    return is_compatible(*this, prb, /*exact=*/true);
 }
 
 std::string kernel_desc_t::cmd_str() const {
@@ -501,7 +517,8 @@ std::string kernel_desc_t::str() const {
 void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     iface->set_relaxed(true);
 #define PACK(member) decltype(kernel_desc_t::member), &kernel_desc_t::member
-    iface->add<PACK(hw_desc)>("hw", "Hardware (xehpc).", /*required=*/true);
+    iface->add<PACK(hw_desc)>(
+            "hw", "Hardware (xehpc, xe2 or xe3).", /*required=*/true);
     iface->add<PACK(prop)>("prop", "Propagation kind (fwd, bwd_d or bwd_w).",
             /*required=*/true);
     iface->add<PACK(is_dw)>(
