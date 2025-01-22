@@ -27,83 +27,18 @@ namespace conv {
 struct hw_config_t {
     hw_t hw;
     fma_kind_t fma = fma_kind_t::undef;
-    type_t type;
     int regs = 0;
 
     hw_config_t() = default;
-    hw_config_t(const hw_t &hw, fma_kind_t fma, const type_t &type)
-        : hw(hw), fma(fma), type(type) {
+    hw_config_t(const hw_t &hw, fma_kind_t fma) : hw(hw), fma(fma) {
         regs = (utils::one_of(fma, fma_kind_t::dpas, fma_kind_t::dpasw) ? 256
                                                                         : 128);
-    }
-
-    int max_tgs_per_gpu() const {
-        int ss_per_gpu = hw.eu_count() / hw.eus_per_ss_or_dss();
-        return ss_per_gpu * hw.threads_per_eu(regs);
     }
 
     int max_tgs_per_gpu(dim_t tg_size) const {
         int tgs_per_ss
                 = hw.eus_per_ss_or_dss() * hw.threads_per_eu(regs) / tg_size;
         return hw.eu_count() / hw.eus_per_ss_or_dss() * tgs_per_ss;
-    }
-
-    int max_threads() const { return hw.eu_count() * hw.threads_per_eu(regs); }
-
-    int f32_mad_ops_per_clock() const {
-        switch (hw.to_ngen()) {
-            case ngen::HW::XeHPC: return 32;
-            default: gpu_error_not_expected();
-        }
-        return 0;
-    }
-
-    int int8_dpas_ops_per_clock() const {
-        switch (hw.to_ngen()) {
-            case ngen::HW::XeHPC: return 1024;
-            default: gpu_error_not_expected();
-        }
-        return 0;
-    }
-
-    int ops_per_clock(fma_kind_t fma, const type_t &type) const;
-
-    int ops_per_clock() const {
-        bool is_mad = (fma == fma_kind_t::mad);
-        bool is_dpas = utils::one_of(fma, fma_kind_t::dpas, fma_kind_t::dpasw);
-        switch (type.size()) {
-            case 1: {
-                return is_dpas ? int8_dpas_ops_per_clock()
-                               : f32_mad_ops_per_clock() * 4;
-            }
-            case 2: {
-                return is_dpas ? int8_dpas_ops_per_clock() / 2
-                               : f32_mad_ops_per_clock() * 2;
-            }
-            case 4: {
-                return is_dpas ? int8_dpas_ops_per_clock() / 4
-                               : f32_mad_ops_per_clock() * 1;
-            }
-            case 8: {
-                gpu_assert(is_mad);
-                return f32_mad_ops_per_clock() / 2;
-            }
-            default: gpu_error_not_expected();
-        }
-        return 0;
-    }
-
-    float freq() const {
-        switch (hw.to_ngen()) {
-            case ngen::HW::XeHPC: return 1.6e9;
-            default: gpu_error_not_expected();
-        }
-        return 0;
-    }
-
-    float max_gops_per_sec() const {
-        float max_ops_per_sec = freq() * hw.eu_count() * ops_per_clock();
-        return max_ops_per_sec / 1e9;
     }
 };
 
@@ -112,7 +47,7 @@ public:
     sample_impl_t(model_kind_t model_kind, const problem_t &prb,
             const kernel_desc_t &desc)
         : model_kind_(model_kind), prb_(prb), desc_(desc) {
-        hw_cfg_ = hw_config_t(prb_.hw(), desc_.fma, desc_.a_type());
+        hw_cfg_ = hw_config_t(prb_.hw(), desc_.fma);
     }
     virtual ~sample_impl_t() = default;
     virtual vec1d to_x() const = 0;

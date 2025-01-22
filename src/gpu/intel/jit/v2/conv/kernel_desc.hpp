@@ -49,6 +49,8 @@ namespace conv {
 struct hw_desc_t {
     ngen::HW hw = ngen::HW::Unknown;
 
+    hw_desc_t() = default;
+    hw_desc_t(ngen::HW hw) : hw(hw) {}
     operator ngen::HW() const { return hw; }
     int grf_size() const { return ngen::GRF::bytes(hw); }
     void stringify(std::ostream &out) const { jit::stringify(out, hw); }
