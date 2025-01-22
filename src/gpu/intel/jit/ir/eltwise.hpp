@@ -64,6 +64,7 @@ public:
             case alg_kind::eltwise_gelu_tanh: return "gelu_tanh";
             case alg_kind::eltwise_gelu_erf: return "gelu_erf";
             case alg_kind::eltwise_hardswish: return "hardswish";
+            case alg_kind::eltwise_hardsigmoid: return "hardsigmoid";
             case alg_kind::eltwise_relu_use_dst_for_bwd:
                 return "relu_use_dst_for_bwd";
             case alg_kind::eltwise_tanh_use_dst_for_bwd:
