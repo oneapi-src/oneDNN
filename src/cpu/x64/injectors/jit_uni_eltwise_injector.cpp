@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -282,7 +282,8 @@ void jit_uni_eltwise_injector<isa, Wmm>::injector_postamble() {
     }
 
     if (!save_state_) return;
-    for (int i = aux_gprs_count(alg_, is_fwd_, alpha_) - 1; i >= 0; --i)
+    for (int i = static_cast<int>(aux_gprs_count(alg_, is_fwd_, alpha_)) - 1;
+            i >= 0; --i)
         h->pop(Reg64(preserved_gpr_indices_[i]));
 
     if (preserve_p_table_) h->pop(p_table_);
