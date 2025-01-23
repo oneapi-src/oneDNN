@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1467,6 +1467,7 @@ struct memory : public handle<dnnl_memory_t> {
         abCd32c = dnnl_abCd32c,
         abdEc16e = dnnl_abdEc16e,
         abdEc32e = dnnl_abdEc32e,
+        abdEC16e4c = dnnl_abdEC16e4c,
         abdEC32e2c = dnnl_abdEC32e2c,
         abdEC32e4c = dnnl_abdEC32e4c,
         abdCe16c = dnnl_abdCe16c,
@@ -1960,6 +1961,7 @@ struct memory : public handle<dnnl_memory_t> {
         ldOi32o = abDc32d,
         ldOI32o4i = abDC32d4c,
         ldgOi16o = abdEc16e,
+        ldgOI16o4i = abdEC16e4c,
         ldgOi32o = abdEc32e,
         ldgOI32o2i = abdEC32e2c,
         ldgOI32o4i = abdEC32e4c,

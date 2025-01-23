@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -413,7 +413,7 @@ _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::pd_t::init_brgemm(
     VDISPATCH_RNN(
             !(rnn_.is_signed_int8_conf() && !is_superset(isa, avx512_core_amx)),
             VERBOSE_ISA_DT_MISMATCH);
-    VDISPATCH_RNN(!(rnn_.is_int8_conf() && !is_superset(isa, avx512_core_vnni)),
+    VDISPATCH_RNN(!(rnn_.is_int8_conf() && !is_superset(isa, avx2)),
             VERBOSE_ISA_DT_MISMATCH);
     VDISPATCH_RNN(!(rnn_.is_f32_conf() && !is_superset(isa, avx2)),
             VERBOSE_ISA_DT_MISMATCH);
