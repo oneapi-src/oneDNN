@@ -103,9 +103,13 @@ DECLARE_2D_TILE(
 #define mask_nbc ugemm_kq_c_type_nblock1
 #endif
 
+DECLARE_2D_TILE(kmask_tile_type_float, float, SUBGROUP_SIZE, ugemm_kq_sg_tile_m,
+        1, 1, 1)
+
 #if WITH_ATTN_MASK
 DECLARE_2D_TILE(mask_tile_type, MSK_DATA_T, SUBGROUP_SIZE, mask_br, mask_bc,
         mask_nbr, mask_nbc)
+
 #if BROADCAST_MASK_Q
 DECLARE_2D_TILE_BLOCK_OPS(mask_tile_type, MSK_DATA_T, SUBGROUP_SIZE, mask_br,
         mask_bc, mask_nbr, mask_nbc)
@@ -143,8 +147,14 @@ DECLARE_2D_TILE_VREDUCE(s_tile_type, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
 
 DECLARE_2D_TILE_HREDUCE(s_tile_type, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
         ugemm_kq_c_type_block1, ugemm_kq_c_type_nblock0,
-        ugemm_kq_c_type_nblock1, mask_tile_type_float, SUBGROUP_SIZE,
+        ugemm_kq_c_type_nblock1, kmask_tile_type_float, SUBGROUP_SIZE,
         ugemm_kq_sg_tile_m, 1, 1, 1)
+#if WITH_ATTN_MASK
+DECLARE_2D_TILE_HREDUCE(s_tile_type, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
+        ugemm_kq_c_type_block1, ugemm_kq_c_type_nblock0,
+        ugemm_kq_c_type_nblock1, mask_tile_type_float, SUBGROUP_SIZE, mask_br,
+        mask_bc, mask_nbr, mask_nbc)
+#endif
 
 DECLARE_2D_TILE_HREDUCE(a_tile_type, SUBGROUP_SIZE, ugemm_vs_c_type_block0,
         ugemm_vs_c_type_block1, ugemm_vs_c_type_nblock0,
@@ -410,7 +420,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 
 #if REMAINDER_K
         /* Prepare k mask: NaN in bounds, -inf out of bounds */
-        mask_tile_type_float k_mask;
+        kmask_tile_type_float k_mask;
 #pragma unroll
         for (int ii = 0; ii < ugemm_kq_sg_tile_m / SUBGROUP_SIZE; ii++)
             k_mask.x[0][ii] = (k0 + sg_i0_kq + ii * SUBGROUP_SIZE
