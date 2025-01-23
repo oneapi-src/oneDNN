@@ -115,7 +115,6 @@ status_t jit_gemm_pd_t::init_post_ops() {
         bool convert = (mask == 0);
         if (src_scales->ndims_ > 1) {
             convert |= (src_scales->group_dims_[1] >= d->k());
-            convert |= (src_scales->group_dims_[0] >= d->n());
         }
         if (convert) {
             if (mask == 0) {
