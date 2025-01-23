@@ -31,3 +31,6 @@ compile_commands.json
 **/.DS_Store
 __pycache__
 .cache
+GPATH
+GRTAGS
+GTAGS
