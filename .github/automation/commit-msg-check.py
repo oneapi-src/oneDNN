@@ -30,7 +30,7 @@ import re
 def __scopeCheck(msg: str):
     status = "Message scope: "
 
-    if not re.match('^[a-z0-9]+(, [a-z0-9]+)*: ', msg):
+    if not re.match('^[a-z0-9_]+(, [a-z0-9_]+)*: ', msg):
         print(f"{status} FAILED: Commit message must follow the format "
                "<scope>:[ <scope>:] <short description>")
         return False
