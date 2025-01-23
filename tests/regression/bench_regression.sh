@@ -17,8 +17,14 @@
 # limitations under the License.
 # *******************************************************************************
 
-# Usage: bash bench_regression.sh {benchdnn_executable}
+# Usage: bash bench_regression.sh {baseline_benchdnn_executable} {benchdnn_executable} {baseline_results_file} {new_results_file}
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-$1 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul
-$1 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv
+
+for i in {1..5}
+do
+    $1 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul >> $3
+    $2 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul >> $4
+    $1 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv >> $3
+    $2 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv >> $4
+done
