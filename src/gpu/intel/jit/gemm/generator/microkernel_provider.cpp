@@ -339,6 +339,8 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
         return false;
 
     s.systolic = systolic;
+    if (systolic && hw >= HW::XeHPC)
+        s.extendedAtomicFMA = s.atomicFMA = true;
     s.registerScheme = GEMMStrategy::VAvoid;
     if (s.wgTile(LoopM) * s.wgTile(LoopN) > 512)
         s.GRFs = 256;
