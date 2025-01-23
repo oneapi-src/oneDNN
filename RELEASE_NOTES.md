@@ -34,6 +34,7 @@
   * Updated minimal supported CMake version to 3.13 (was 2.8.12).
   * Updated minimal supported GCC version to 8.0 (was 4.8).
   * Updated minimal supported Clang version to 11.0 (was 3.0).
+  * Removed support for SYCL older than 2020
 # Thanks to these Contributors
 
 This release contains contributions from the [project core team] as well as Michał Górny @mgorny, Fadi Arafeh @fadara01, John Osorio @kala855, Ravi Pushkar @rpushkarr, Marek Michalowski @michalowski-arm, Renato Barros Arantes @renato-arantes, Ryo Suzuki @Ryo-not-rio, Varad Ahirwadkar @varad-ahirwadkar, Tadej Ciglarič @t4c1, Nikhil Sharma @nikhilfujitsu, @taoye9, @Shreyas-fuj, @raistefintel. We would also like to thank everyone who asked questions and reported issues.
