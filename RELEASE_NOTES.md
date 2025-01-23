@@ -14,7 +14,7 @@
 # Functionality
   * Introduced support for `select` algorithm in binary primitive. The functionality is optimized for Intel CPUs.
   * Enabled support for matmul primitive with grouped quantization on weight along N dimension
-  * Graph API: new [`select`](https://oneapi-src.github.io/oneDNN/dev_guide_op_select.html), [`GenIndex`](https://oneapi-src.github.io/oneDNN/dev_guide_op_genindex.html) and [`GreaterEqual`](https://oneapi-src.github.io/oneDNN/dev_guide_op_greaterequal.html) operations.
+  * Graph API: new [`Select`](https://oneapi-src.github.io/oneDNN/dev_guide_op_select.html), [`GenIndex`](https://oneapi-src.github.io/oneDNN/dev_guide_op_genindex.html) and [`GreaterEqual`](https://oneapi-src.github.io/oneDNN/dev_guide_op_greaterequal.html) operations.
   * Introduced support for fp16/bf16 compressed weights in fp32 matmul on Intel CPUs.
   * Introduced support for grouped scales and zero points in reorder primitive.
   * Enabled support for 4d weight scale in matmul primitive.
