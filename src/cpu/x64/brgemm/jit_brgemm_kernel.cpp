@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2780,7 +2780,14 @@ void jit_brgemm_kernel_t<Wmm>::generate() {
 
     if (brg.is_int8 && !brg.has_int8_vnni) {
         mov(reg_tmp_gpr.cvt16(), 0x1);
-        vpbroadcastw(int8_ones_words(), reg_tmp_gpr.cvt16());
+
+        if (is_superset(brg.isa_impl, avx512_core))
+            vpbroadcastw(int8_ones_words(), reg_tmp_gpr.cvt16());
+        else if (is_superset(brg.isa_impl, avx2)) {
+            movq(Xmm(int8_ones_words().getIdx()), reg_tmp_gpr);
+            vpbroadcastw(int8_ones_words(), Xmm(int8_ones_words().getIdx()));
+        } else
+            assert(!"unsupported isa");
     }
 
     if (brg.is_f16_b_non_amx_vnni()) {

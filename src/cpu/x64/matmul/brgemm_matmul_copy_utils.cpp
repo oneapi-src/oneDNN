@@ -4734,7 +4734,15 @@ status_t create_brgemm_matmul_copy_b(
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_avx512_core_brgemm_matmul_copy_b_int8_t(conf)));
             else {
-                assert(one_of(conf->isa, avx2_vnni, avx2_vnni_2));
+                // TODO: jit_avx2_vnni_brgemm_matmul_copy_b_int8_t can handle
+                // avx2 if no compensation is required. Consider enabling it
+                // for avx2 and renaming the kernel (drop "vnni" part).
+                const bool is_comp_required = conf->s8s8_compensation_required
+                        || conf->has_zero_point_a;
+                MAYBE_UNUSED(is_comp_required);
+                assert(one_of(conf->isa, avx2_vnni, avx2_vnni_2, avx2)
+                        && IMPLICATION(conf->isa == avx2, !is_comp_required));
+
                 CHECK(safe_ptr_assign(copy_ker,
                         new jit_avx2_vnni_brgemm_matmul_copy_b_int8_t(conf)));
             }
