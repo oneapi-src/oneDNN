@@ -236,8 +236,8 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     /* Retrieve pre-tuned kernel configuration */
     sdpa_config_t *config = nullptr;
     bool thin_q = (d->queries() <= 16);
-    bool quantized = types::is_integral_dt(key_md()->data_type)
-            || types::is_integral_dt(val_md()->data_type);
+    bool quantized = with_key_scales() || with_key_zp() || with_value_scales()
+            || with_value_zp();
 
     switch (arch_) {
         case arch_t::xe_hpg:
@@ -379,7 +379,6 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     if (with_value_zp()) {
         auto zp_dt = value_zp_dt();
         problem_vs.Tao = jit::convert_dnnl_to_kernel_type(zp_dt);
-        problem_vs.AO.alignment = uint8_t(types::data_type_size(zp_dt));
         problem_vs.AO.setAlignment(uint8_t(d->head_size() / value_group_size()
                 * types::data_type_size(zp_dt)));
         problem_vs.AO.layout = MatrixLayout::N;
