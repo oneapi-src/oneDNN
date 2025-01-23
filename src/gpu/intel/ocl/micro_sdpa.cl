@@ -224,9 +224,11 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 
 #if KEY_SCALES || KEY_ZERO_POINTS
     uint ldkq = KEY_D3;
+    uint num_key_groups = d / KEY_GROUP_SIZE;
 #endif
 #if VAL_SCALES || VAL_ZERO_POINTS
     uint ldvq = div_up(d, VAL_GROUP_SIZE);
+    uint num_val_groups = d / VAL_GROUP_SIZE;
 #endif
 
     /* Subgroup IDs for each GEMM */
@@ -273,7 +275,6 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 
 #if KEY_SCALES
     K_scales += KEY_OFF(b1, b0_kv, 0, 0) / KEY_GROUP_SIZE;
-    uint num_key_groups = d / KEY_GROUP_SIZE;
 #endif
 #if KEY_SCALES == QUANTIZE_COMMON
     float k_scale = KEY_SCALES_TO_FLOAT(*K_scales);
@@ -284,7 +285,6 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 #endif
 #if VAL_SCALES
     V_scales += VAL_OFF(b1, b0_kv, 0, 0) / VAL_GROUP_SIZE;
-    uint num_val_groups = d / VAL_GROUP_SIZE;
 #endif
 #if VAL_SCALES == QUANTIZE_COMMON
     float v_scale = VAL_SCALES_TO_FLOAT(*V_scales);
