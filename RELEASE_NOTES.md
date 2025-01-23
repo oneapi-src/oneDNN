@@ -40,6 +40,6 @@
   * Removed support for SYCL older than 2020
 # Thanks to these Contributors
 
-This release contains contributions from the [project core team] as well as Michał Górny @mgorny, Fadi Arafeh @fadara01, John Osorio @kala855, Ravi Pushkar @rpushkarr, Marek Michalowski @michalowski-arm, Renato Barros Arantes @renato-arantes, Ryo Suzuki @Ryo-not-rio, Varad Ahirwadkar @varad-ahirwadkar, Tadej Ciglarič @t4c1, Nikhil Sharma @nikhilfujitsu, @taoye9, @Shreyas-fuj, @raistefintel. We would also like to thank everyone who asked questions and reported issues.
+This release contains contributions from the [project core team] as well as Aditya Tewari @aditew01, Alexandra Sidorova @a-sidorova, Atharva Dubey @AD2605, Deb Taylor @deb-intel, Dmitriy Ovchinnikov @inteldimitrius, Fadi Arafeh @fadara01, Hengyu Meng @airMeng, @hmaciak, John Osorio @kala855, Marek Michalowski @michalowski-arm, Michael Froelich @MichaelFroelich, Michał Górny @mgorny, Nikhil Sharma @nikhilfujitsu, Permanence AI Coder @Permanence-AI-Coder, @raistefintel, Ravi Pushkar @rpushkarr, Renato Barros Arantes @renato-arantes, Romain Biessy @Rbiessy, Ryo Suzuki @Ryo-not-rio, @Shreyas-fuj, Varad Ahirwadkar @varad-ahirwadkar, @vishwascm, and Ye Tao @taoye9. We would also like to thank everyone who asked questions and reported issues.
 
 [project core team]: https://github.com/oneapi-src/oneDNN/blob/rls-v3.7/MAINTAINERS.md
