@@ -25,6 +25,7 @@
   * Improve verbose diagnostic to better identify issues during dispatching, primitive and kernel creation for CPU primitive and GPU (in case of OpenCL implementation) primitive implementations.
   * Improve verbose diagnostic to simplify debugging of nGEN fallbacks.
   * Enabled frame pointers support on Intel64 platforms to improve integration with profilers.
+  * Added [examples](https://github.com/oneapi-src/oneDNN/tree/main/examples/graph) for Gated MLP and int4 Gated MLP
 # Validation
   * Extended benchdnn with support and validation for fp8 matmul patterns for tensor tags in RNN primitive validation.
 # Deprecated Functionality
