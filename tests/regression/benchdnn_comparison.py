@@ -19,6 +19,8 @@
 
 import sys
 import os
+from collections import defaultdict
+from scipy.stats import ttest_ind
 
 
 def compare_two_benchdnn(file1, file2, tolerance=0.05):
@@ -35,30 +37,30 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
     r1 = [x.split(",") for x in r1 if x[0:8] == "--mode=P"]
     r2 = [x.split(",") for x in r2 if x[0:8] == "--mode=P"]
 
-    # Convert to dict and trim \n
-    r1 = [(x[0], float(x[1][:-1])) for x in r1]
-    r2 = [(x[0], float(x[1][:-1])) for x in r2]
-
     if len(r1) != len(r2):
         raise Exception("The number of benchdnn runs do not match")
 
-    print("%prb%,%-time(old)%,%-time(new)%,%passed%")
+    # Convert to dict and trim \n
+    r1_samples = defaultdict(list)
+    r2_samples = defaultdict(list)
+
+    for k, v in r1:
+        r1_samples[k].append(float(v[:-1]))
+    for k, v in r2:
+        r2_samples[k].append(float(v[:-1]))
 
     passed = True
     failed_tests = []
-    for idx, item in enumerate(r1):
-        prb, time1 = item
-        if prb != r2[idx][0]:
+    for prb, r1_times in r1_samples.items():
+        if prb not in r2_samples:
             raise Exception(f"{prb} exists in {file1} but not {file2}")
+        r2_times = r2_samples[prb]
 
-        res_str = f"{prb}, {time1}, {r2[idx][1]}"
-        print(res_str)
+        res = ttest_ind(r2_times, r1_times, alternative='greater')
 
-        if time1 != 0: # Incompatible tests would return 0 so avoid division by 0
-            test_pass = (r2[idx][1] - time1) / time1 < tolerance
-            if not test_pass:
-                failed_tests.append(res_str)
-                passed = False
+        if res.pvalue < 0.05:
+            failed_tests.append(prb)
+            passed = False
 
     if "GITHUB_OUTPUT" in os.environ:
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
@@ -67,9 +69,13 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
     if passed:
         print("Regression tests passed")
     else:
-        print("\n----The following tests did not pass:----")
-        print("\n".join(failed_tests) + "\n")
-        raise Exception("Some regression tests did not pass")
+        message = "\n----The following regression tests failed:----\n" + \
+                    "\n".join(failed_tests) + "\n"
+        if "GITHUB_OUTPUT" in os.environ:
+            with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                f.write(f"message={message}")
+        print(message)
+        raise Exception("Some regression tests failed")
 
 if __name__ == "__main__":
     compare_two_benchdnn(sys.argv[1], sys.argv[2])
