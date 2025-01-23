@@ -17,3 +17,11 @@
 --reset
 --dt=bf16:bf16:bf16
 2x1280:1280x65_n"parallel_reduction"
+
+# Shape to better test k tail.
+--reset
+--dt=bf16:bf16:bf16
+--stag=ab
+--wtag=ab
+--dtag=ab
+8x2664:2664x256_n"k tails"
