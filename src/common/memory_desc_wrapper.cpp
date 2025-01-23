@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -621,6 +621,7 @@ status_t memory_desc_wrapper::compute_blocking(
         C(abCdef32c, {0, 1, 2, 3, 4, 5}, {32}, {2});
         C(abdEc16e, {0, 1, 3, 4, 2}, {16}, {4});
         C(abdEc32e, {0, 1, 3, 4, 2}, {32}, {4});
+        C(abdEC16e4c, {0, 1, 3, 4, 2}, {16, 4}, {4, 2});
         C(abdEC32e2c, {0, 1, 3, 4, 2}, {32, 2}, {4, 2});
         C(abdEC32e4c, {0, 1, 3, 4, 2}, {32, 4}, {4, 2});
         C(abdEC64e2c, {0, 1, 3, 4, 2}, {64, 2}, {4, 2});

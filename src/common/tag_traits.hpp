@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,6 +112,7 @@ enum class inner_blk_t {
     _16b4c,
     _16c2b,
     _16c4b,
+    _16e4c,
     _24a2b,
     _24a4b,
     _24b2a,
@@ -824,6 +825,7 @@ DECL_TRAITS(abCde4c, _C, _4c, 5);
 DECL_TRAITS(abCdef4c, _C, _4c, 6);
 DECL_TRAITS(abdEc16e, _E, _16e, 5);
 DECL_TRAITS(abdEc32e, _E, _32e, 5);
+DECL_TRAITS(abdEC16e4c, _CE, _16e4c, 5);
 DECL_TRAITS(abdEC32e2c, _CE, _32e2c, 5);
 DECL_TRAITS(abdEC32e4c, _CE, _32e4c, 5);
 DECL_TRAITS(abdEC64e2c, _CE, _64e2c, 5);
