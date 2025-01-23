@@ -19,6 +19,12 @@
 
 #include <CL/cl.h>
 
+#if defined(__linux__)
+#include <dlfcn.h>
+#elif defined(_WIN32)
+#include "windows.h"
+#endif
+
 #include "oneapi/dnnl/dnnl_config.h"
 
 #include "common/c_types_map.hpp"
@@ -30,6 +36,106 @@
 
 namespace dnnl {
 namespace impl {
+
+// Dynamically loaded opencl functions
+namespace {
+
+void *find_cl_symbol(const char *symbol) {
+#if defined(__linux__)
+    void *handle = dlopen("libOpencl.so.1", RTLD_NOW | RTLD_LOCAL);
+#elif defined(_WIN32)
+    // Use LOAD_LIBRARY_SEARCH_SYSTEM32 flag to avoid DLL hijacking issue.
+    HMODULE handle = LoadLibraryExA(
+            "OpenCL.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+#endif
+    if (!handle) {
+        VERROR(common, opencl, "cannot find opencl library");
+        assert(!"not expected");
+        return nullptr;
+    }
+
+#if defined(__linux__)
+    void *f = reinterpret_cast<void *>(dlsym(handle, symbol));
+#elif defined(_WIN32)
+    void *f = reinterpret_cast<void *>(GetProcAddress(handle, symbol));
+#endif
+
+    if (!f) {
+        VERROR(common, opencl, "cannot find symbol: %s", symbol);
+        assert(!"not expected");
+    }
+    return f;
+}
+
+template <typename F>
+F find_cl_symbol(const char *symbol) {
+    return (F)find_cl_symbol(symbol);
+}
+
+#define CL_INDIRECT_API(f) \
+    template <typename... Args> \
+    auto call_##f(Args &&...args) { \
+        static auto f_ = find_cl_symbol<decltype(&f)>(#f); \
+        return f_(std::forward<Args>(args)...); \
+    }
+
+CL_INDIRECT_API(clBuildProgram)
+CL_INDIRECT_API(clCreateBuffer)
+CL_INDIRECT_API(clCreateContext)
+CL_INDIRECT_API(clCreateKernel)
+CL_INDIRECT_API(clCloneKernel)
+CL_INDIRECT_API(clCreateProgramWithBinary)
+CL_INDIRECT_API(clCreateProgramWithSource)
+CL_INDIRECT_API(clCreateSubBuffer)
+CL_INDIRECT_API(clCreateSubDevices)
+CL_INDIRECT_API(clEnqueueMapBuffer)
+CL_INDIRECT_API(clEnqueueWriteBuffer)
+CL_INDIRECT_API(clEnqueueReadBuffer)
+CL_INDIRECT_API(clEnqueueCopyBuffer)
+CL_INDIRECT_API(clGetEventProfilingInfo)
+CL_INDIRECT_API(clEnqueueFillBuffer)
+CL_INDIRECT_API(clGetCommandQueueInfo)
+CL_INDIRECT_API(clEnqueueMarkerWithWaitList)
+CL_INDIRECT_API(clEnqueueUnmapMemObject)
+CL_INDIRECT_API(clFinish)
+CL_INDIRECT_API(clGetContextInfo)
+CL_INDIRECT_API(clGetDeviceIDs)
+CL_INDIRECT_API(clGetDeviceInfo)
+CL_INDIRECT_API(clGetExtensionFunctionAddressForPlatform)
+CL_INDIRECT_API(clGetKernelArgInfo)
+CL_INDIRECT_API(clGetKernelInfo)
+CL_INDIRECT_API(clGetMemObjectInfo)
+CL_INDIRECT_API(clGetPlatformIDs)
+CL_INDIRECT_API(clGetPlatformInfo)
+CL_INDIRECT_API(clGetProgramBuildInfo)
+CL_INDIRECT_API(clGetProgramInfo)
+CL_INDIRECT_API(clReleaseCommandQueue)
+CL_INDIRECT_API(clReleaseContext)
+CL_INDIRECT_API(clReleaseDevice)
+CL_INDIRECT_API(clReleaseEvent)
+CL_INDIRECT_API(clReleaseKernel)
+CL_INDIRECT_API(clReleaseMemObject)
+CL_INDIRECT_API(clReleaseProgram)
+CL_INDIRECT_API(clReleaseSampler)
+CL_INDIRECT_API(clRetainCommandQueue)
+CL_INDIRECT_API(clRetainContext)
+CL_INDIRECT_API(clRetainDevice)
+CL_INDIRECT_API(clRetainEvent)
+CL_INDIRECT_API(clRetainKernel)
+CL_INDIRECT_API(clRetainMemObject)
+CL_INDIRECT_API(clRetainProgram)
+CL_INDIRECT_API(clRetainSampler)
+CL_INDIRECT_API(clSetKernelArg)
+CL_INDIRECT_API(clWaitForEvents)
+CL_INDIRECT_API(clCreateCommandQueue)
+CL_INDIRECT_API(clEnqueueNDRangeKernel)
+#ifdef CL_VERSION_2_0
+CL_INDIRECT_API(clSetKernelArgSVMPointer)
+CL_INDIRECT_API(clCreateCommandQueueWithProperties)
+#endif
+#undef CL_INDIRECT_API
+} // namespace
+
 namespace xpu {
 namespace ocl {
 
@@ -84,61 +190,61 @@ struct ref_traits;
 
 template <>
 struct ref_traits<cl_context> {
-    static void retain(cl_context t) { UNUSED_OCL_RESULT(clRetainContext(t)); }
+    static void retain(cl_context t) { UNUSED_OCL_RESULT(call_clRetainContext(t)); }
     static void release(cl_context t) {
-        UNUSED_OCL_RESULT(clReleaseContext(t));
+        UNUSED_OCL_RESULT(call_clReleaseContext(t));
     }
 };
 
 template <>
 struct ref_traits<cl_command_queue> {
     static void retain(cl_command_queue t) {
-        UNUSED_OCL_RESULT(clRetainCommandQueue(t));
+        UNUSED_OCL_RESULT(call_clRetainCommandQueue(t));
     }
     static void release(cl_command_queue t) {
-        UNUSED_OCL_RESULT(clReleaseCommandQueue(t));
+        UNUSED_OCL_RESULT(call_clReleaseCommandQueue(t));
     }
 };
 
 template <>
 struct ref_traits<cl_program> {
-    static void retain(cl_program t) { UNUSED_OCL_RESULT(clRetainProgram(t)); }
+    static void retain(cl_program t) { UNUSED_OCL_RESULT(call_clRetainProgram(t)); }
     static void release(cl_program t) {
-        UNUSED_OCL_RESULT(clReleaseProgram(t));
+        UNUSED_OCL_RESULT(call_clReleaseProgram(t));
     }
 };
 
 template <>
 struct ref_traits<cl_kernel> {
-    static void retain(cl_kernel t) { UNUSED_OCL_RESULT(clRetainKernel(t)); }
-    static void release(cl_kernel t) { UNUSED_OCL_RESULT(clReleaseKernel(t)); }
+    static void retain(cl_kernel t) { UNUSED_OCL_RESULT(call_clRetainKernel(t)); }
+    static void release(cl_kernel t) { UNUSED_OCL_RESULT(call_clReleaseKernel(t)); }
 };
 
 template <>
 struct ref_traits<cl_mem> {
-    static void retain(cl_mem t) { UNUSED_OCL_RESULT(clRetainMemObject(t)); }
-    static void release(cl_mem t) { UNUSED_OCL_RESULT(clReleaseMemObject(t)); }
+    static void retain(cl_mem t) { UNUSED_OCL_RESULT(call_clRetainMemObject(t)); }
+    static void release(cl_mem t) { UNUSED_OCL_RESULT(call_clReleaseMemObject(t)); }
 };
 
 template <>
 struct ref_traits<cl_sampler> {
-    static void retain(cl_sampler t) { UNUSED_OCL_RESULT(clRetainSampler(t)); }
+    static void retain(cl_sampler t) { UNUSED_OCL_RESULT(call_clRetainSampler(t)); }
     static void release(cl_sampler t) {
-        UNUSED_OCL_RESULT(clReleaseSampler(t));
+        UNUSED_OCL_RESULT(call_clReleaseSampler(t));
     }
 };
 
 template <>
 struct ref_traits<cl_event> {
-    static void retain(cl_event t) { UNUSED_OCL_RESULT(clRetainEvent(t)); }
-    static void release(cl_event t) { UNUSED_OCL_RESULT(clReleaseEvent(t)); }
+    static void retain(cl_event t) { UNUSED_OCL_RESULT(call_clRetainEvent(t)); }
+    static void release(cl_event t) { UNUSED_OCL_RESULT(call_clReleaseEvent(t)); }
 };
 
 template <>
 struct ref_traits<cl_device_id> {
-    static void retain(cl_device_id t) { UNUSED_OCL_RESULT(clRetainDevice(t)); }
+    static void retain(cl_device_id t) { UNUSED_OCL_RESULT(call_clRetainDevice(t)); }
     static void release(cl_device_id t) {
-        UNUSED_OCL_RESULT(clReleaseDevice(t));
+        UNUSED_OCL_RESULT(call_clReleaseDevice(t));
     }
 };
 
@@ -229,7 +335,7 @@ private:
     std::unordered_map<cl_platform_id, F> ext_func_ptrs_;
 
     static F load_ext_func(cl_platform_id platform, const char *ext_func_name) {
-        return reinterpret_cast<F>(clGetExtensionFunctionAddressForPlatform(
+        return reinterpret_cast<F>(call_clGetExtensionFunctionAddressForPlatform(
                 platform, ext_func_name));
     }
 
@@ -242,17 +348,17 @@ private:
     static std::vector<cl_platform_id> get_vendor_platforms(
             const char *vendor_name) {
         cl_uint num_platforms = 0;
-        cl_int err = clGetPlatformIDs(0, nullptr, &num_platforms);
+        cl_int err = call_clGetPlatformIDs(0, nullptr, &num_platforms);
         if (err != CL_SUCCESS) return {};
 
         std::vector<cl_platform_id> platforms(num_platforms);
-        err = clGetPlatformIDs(num_platforms, platforms.data(), nullptr);
+        err = call_clGetPlatformIDs(num_platforms, platforms.data(), nullptr);
         if (err != CL_SUCCESS) return {};
 
         std::vector<cl_platform_id> vendor_platforms;
         char platform_vendor_name[128] = {};
         for (cl_platform_id p : platforms) {
-            err = clGetPlatformInfo(p, CL_PLATFORM_VENDOR,
+            err = call_clGetPlatformInfo(p, CL_PLATFORM_VENDOR,
                     sizeof(platform_vendor_name), platform_vendor_name,
                     nullptr);
             if (err != CL_SUCCESS) continue;

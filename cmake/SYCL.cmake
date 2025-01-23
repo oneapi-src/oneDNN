@@ -116,7 +116,7 @@ else()
     find_library(OPENCL_LIBRARY OpenCL PATHS ENV LIBRARY_PATH ENV LIB NO_DEFAULT_PATH)
     if(OPENCL_LIBRARY)
         message(STATUS "OpenCL runtime is found in the environment: ${OPENCL_LIBRARY}")
-        list(APPEND EXTRA_SHARED_LIBS ${OPENCL_LIBRARY})
+#        list(APPEND EXTRA_SHARED_LIBS ${OPENCL_LIBRARY})
     else()
         message(STATUS "OpenCL runtime is not found in the environment. Trying to find it using find_package(...)")
         # As a plan B we try to locate OpenCL runtime using our OpenCL CMake module.
@@ -124,7 +124,7 @@ else()
         # Unset INTERFACE_INCLUDE_DIRECTORIES property because DPCPP
         # compiler contains OpenCL headers
         set_target_properties(OpenCL::OpenCL PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
-        list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
+#        list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
     endif()
 
     # In order to support large shapes.

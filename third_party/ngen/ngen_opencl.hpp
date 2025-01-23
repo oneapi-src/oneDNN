@@ -24,6 +24,12 @@
 #include <atomic>
 #include <sstream>
 
+#if defined(__linux__)
+#include <dlfcn.h>
+#elif defined(_WIN32)
+#include "windows.h"
+#endif
+
 #include "ngen_elf.hpp"
 #include "ngen_interface.hpp"
 
@@ -47,6 +53,81 @@ public:
 protected:
     cl_int status;
 };
+
+// Dynamically loaded level_zero functions
+namespace {
+
+void *find_cl_symbol(const char *symbol) {
+#if defined(__linux__)
+    void *handle = dlopen("libOpencl.so.1", RTLD_NOW | RTLD_LOCAL);
+#elif defined(_WIN32)
+    // Use LOAD_LIBRARY_SEARCH_SYSTEM32 flag to avoid DLL hijacking issue.
+    HMODULE handle = LoadLibraryExA(
+            "OpenCL.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+#endif
+    if (!handle) throw opencl_error();
+
+#if defined(__linux__)
+    void *f = reinterpret_cast<void *>(dlsym(handle, symbol));
+#elif defined(_WIN32)
+    void *f = reinterpret_cast<void *>(GetProcAddress(handle, symbol));
+#endif
+
+    if (!f) throw opencl_error();
+    return f;
+}
+
+template <typename F>
+F find_cl_symbol(const char *symbol) {
+    return (F)find_cl_symbol(symbol);
+}
+
+#define CL_INDIRECT_API(f) \
+    template <typename... Args> auto call_##f(Args&&... args) { \
+        static auto f_ = find_cl_symbol<decltype(&f)>(#f);              \
+        return f_(std::forward<Args>(args)...);                         \
+    }
+
+CL_INDIRECT_API(clBuildProgram)
+CL_INDIRECT_API(clCreateBuffer)
+CL_INDIRECT_API(clCreateContext)
+CL_INDIRECT_API(clCreateKernel)
+CL_INDIRECT_API(clCreateProgramWithBinary)
+CL_INDIRECT_API(clCreateProgramWithSource)
+CL_INDIRECT_API(clCreateSubBuffer)
+CL_INDIRECT_API(clCreateSubDevices)
+CL_INDIRECT_API(clEnqueueMapBuffer)
+CL_INDIRECT_API(clEnqueueUnmapMemObject)
+CL_INDIRECT_API(clFinish)
+CL_INDIRECT_API(clGetContextInfo)
+CL_INDIRECT_API(clGetDeviceIDs)
+CL_INDIRECT_API(clGetDeviceInfo)
+CL_INDIRECT_API(clGetExtensionFunctionAddressForPlatform)
+CL_INDIRECT_API(clGetKernelArgInfo)
+CL_INDIRECT_API(clGetKernelInfo)
+CL_INDIRECT_API(clGetMemObjectInfo)
+CL_INDIRECT_API(clGetPlatformIDs)
+CL_INDIRECT_API(clGetPlatformInfo)
+CL_INDIRECT_API(clGetProgramBuildInfo)
+CL_INDIRECT_API(clGetProgramInfo)
+CL_INDIRECT_API(clReleaseCommandQueue)
+CL_INDIRECT_API(clReleaseContext)
+CL_INDIRECT_API(clReleaseDevice)
+CL_INDIRECT_API(clReleaseEvent)
+CL_INDIRECT_API(clReleaseKernel)
+CL_INDIRECT_API(clReleaseMemObject)
+CL_INDIRECT_API(clReleaseProgram)
+CL_INDIRECT_API(clReleaseSampler)
+CL_INDIRECT_API(clRetainCommandQueue)
+CL_INDIRECT_API(clRetainContext)
+CL_INDIRECT_API(clRetainDevice)
+CL_INDIRECT_API(clRetainEvent)
+CL_INDIRECT_API(clRetainKernel)
+CL_INDIRECT_API(clRetainMemObject)
+CL_INDIRECT_API(clRetainProgram)
+CL_INDIRECT_API(clRetainSampler)
+#undef CL_INDIRECT_API
+} // namespace
 
 // OpenCL program generator class.
 template <HW hw>
@@ -86,17 +167,17 @@ static inline std::vector<uint8_t> getOpenCLCProgramBinary(cl_context context, c
 {
     cl_int status;
 
-    auto program = clCreateProgramWithSource(context, 1, &src, nullptr, &status);
+    auto program = call_clCreateProgramWithSource(context, 1, &src, nullptr, &status);
 
     detail::handleCL(status);
     if (program == nullptr)
         throw opencl_error();
 
-    detail::handleCL(clBuildProgram(program, 1, &device, options, nullptr, nullptr));
+    detail::handleCL(call_clBuildProgram(program, 1, &device, options, nullptr, nullptr));
     cl_uint nDevices = 0;
-    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES, sizeof(cl_uint), &nDevices, nullptr));
+    detail::handleCL(call_clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES, sizeof(cl_uint), &nDevices, nullptr));
     std::vector<cl_device_id> devices(nDevices);
-    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_DEVICES, sizeof(cl_device_id) * nDevices, devices.data(), nullptr));
+    detail::handleCL(call_clGetProgramInfo(program, CL_PROGRAM_DEVICES, sizeof(cl_device_id) * nDevices, devices.data(), nullptr));
     size_t deviceIdx = std::distance(devices.begin(), std::find(devices.begin(), devices.end(), device));
 
     if (deviceIdx >= nDevices)
@@ -106,14 +187,14 @@ static inline std::vector<uint8_t> getOpenCLCProgramBinary(cl_context context, c
     std::vector<uint8_t *> binaryPointers(nDevices);
     std::vector<std::vector<uint8_t>> binaries(nDevices);
 
-    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES, sizeof(size_t) * nDevices, binarySize.data(), nullptr));
+    detail::handleCL(call_clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES, sizeof(size_t) * nDevices, binarySize.data(), nullptr));
     for (size_t i = 0; i < nDevices; i++) {
         binaries[i].resize(binarySize[i]);
         binaryPointers[i] = binaries[i].data();
     }
 
-    detail::handleCL(clGetProgramInfo(program, CL_PROGRAM_BINARIES, sizeof(uint8_t *) * nDevices, binaryPointers.data(), nullptr));
-    detail::handleCL(clReleaseProgram(program));
+    detail::handleCL(call_clGetProgramInfo(program, CL_PROGRAM_BINARIES, sizeof(uint8_t *) * nDevices, binaryPointers.data(), nullptr));
+    detail::handleCL(call_clReleaseProgram(program));
 
     return binaries[deviceIdx];
 }
@@ -180,10 +261,10 @@ std::vector<uint8_t> OpenCLCodeGenerator<hw>::getBinary(cl_context context, cl_d
             auto binary = super::getBinary(code);
             const auto *binaryPtr = binary.data();
             size_t binarySize = binary.size();
-            auto program = clCreateProgramWithBinary(context, 1, &device, &binarySize, &binaryPtr, nullptr, &status);
+            auto program = call_clCreateProgramWithBinary(context, 1, &device, &binarySize, &binaryPtr, nullptr, &status);
             if (status == CL_SUCCESS) {
-                status = clBuildProgram(program, 1, &device, options.c_str(), nullptr, nullptr);
-                detail::handleCL(clReleaseProgram(program));
+                status = call_clBuildProgram(program, 1, &device, options.c_str(), nullptr, nullptr);
+                detail::handleCL(call_clReleaseProgram(program));
             }
 
             if (status == CL_SUCCESS)
@@ -228,30 +309,30 @@ cl_kernel OpenCLCodeGenerator<hw>::getKernel(cl_context context, cl_device_id de
         const auto *binaryPtr = binary.data();
         size_t binarySize = binary.size();
         status = CL_SUCCESS;
-        program = clCreateProgramWithBinary(context, 1, &device, &binarySize, &binaryPtr, nullptr, &status);
+        program = call_clCreateProgramWithBinary(context, 1, &device, &binarySize, &binaryPtr, nullptr, &status);
 
         if ((program == nullptr) || (status != CL_SUCCESS))
             continue;
 
-        status = clBuildProgram(program, 1, &device, options.c_str(), nullptr, nullptr);
+        status = call_clBuildProgram(program, 1, &device, options.c_str(), nullptr, nullptr);
 
         good = (status == CL_SUCCESS);
         if (good) {
             (void) detail::tryZebinFirst(device, true, !legacy);
             break;
         } else
-            detail::handleCL(clReleaseProgram(program));
+            detail::handleCL(call_clReleaseProgram(program));
     }
 
     if (!good)
         throw opencl_error(status);
 
-    auto kernel = clCreateKernel(program, super::interface_.getExternalName().c_str(), &status);
+    auto kernel = call_clCreateKernel(program, super::interface_.getExternalName().c_str(), &status);
     detail::handleCL(status);
     if (kernel == nullptr)
         throw opencl_error();
 
-    detail::handleCL(clReleaseProgram(program));
+    detail::handleCL(call_clReleaseProgram(program));
 
     return kernel;
 }
@@ -283,7 +364,7 @@ void OpenCLCodeGenerator<hw>::detectHWInfo(cl_context context, cl_device_id devi
 
     // Try CL_DEVICE_IP_VERSION_INTEL query first.
     cl_uint ipVersion = 0;      /* should be cl_version, but older CL/cl.h may not define cl_version */
-    if (clGetDeviceInfo(device, CL_DEVICE_IP_VERSION_INTEL, sizeof(ipVersion), &ipVersion, nullptr) == CL_SUCCESS) {
+    if (call_clGetDeviceInfo(device, CL_DEVICE_IP_VERSION_INTEL, sizeof(ipVersion), &ipVersion, nullptr) == CL_SUCCESS) {
         outProduct = npack::decodeHWIPVersion(ipVersion);
         outHW = getCore(outProduct.family);
         if (outProduct.family != ProductFamily::Unknown)
