@@ -150,7 +150,7 @@ struct CommonState {
     ngen::FlagRegister flagSwizzle;
     EmulationState emulate;
     ngen::GRFRange eatomicAddRegs[2];
-    ngen::GRFRange remaskRegs[2];
+    ngen::GRFRange remaskRegs[3];
     VirtualFlag vflagEAtomicAdd;
     VirtualFlag blockEMask;
     ngen::Label blockDone;

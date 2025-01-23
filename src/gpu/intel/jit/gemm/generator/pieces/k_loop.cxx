@@ -50,6 +50,8 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
     auto Ta = problem.Ta, Tb = problem.Tb, Tc = problem.Tc;
     auto Ta_ext = problem.Ta_ext, Tb_ext = problem.Tb_ext;
     auto Ta_load = state.Ta_load, Tb_load = state.Tb_load;
+    auto Tao = problem.Tao, Tbo = problem.Tbo;
+    auto Ta_scale = problem.Ta_scale, Tb_scale = problem.Tb_scale;
 
     bool cLoadAhead = strategy.cLoadAhead;
     auto opCountMain = outerProductCount(hw, problem, strategy);
@@ -667,24 +669,24 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
     // Quantization parameter address increment helpers.
     auto doIncAq = [&](Iteration h) {
         auto kaInc = kInc(h, state.kaqStride, problem.aqGroupK);
-        if (ao2D) incAddrK(problem.Tao,      state.A_offsetAddrs, true,  kaInc, state.ldao,     state.ldaoIncrements, state.A_offsetLayout, problem.AO,      strategy.AO,      strategy, state);
-        if (as2D) incAddrK(problem.Ta_scale, state.A_scaleAddrs,  true,  kaInc, state.ldaScale, state.ldasIncrements, state.A_scaleLayout,  problem.A_scale, strategy.A_scale, strategy, state);
+        if (ao2D) incAddrK(Tao,      state.A_offsetAddrs, true,  kaInc, state.ldao,     state.ldaoIncrements, state.A_offsetLayout, problem.AO,      strategy.AO,      strategy, state);
+        if (as2D) incAddrK(Ta_scale, state.A_scaleAddrs,  true,  kaInc, state.ldaScale, state.ldasIncrements, state.A_scaleLayout,  problem.A_scale, strategy.A_scale, strategy, state);
     };
 
     auto doIncBq = [&](Iteration h) {
         auto kbInc = kInc(h, state.kbqStride, problem.bqGroupK);
-        if (bo2D) incAddrK(problem.Tbo,      state.B_offsetAddrs, false, kbInc, state.ldbo,     state.ldboIncrements, state.B_offsetLayout, problem.BO,      strategy.BO,      strategy, state);
-        if (bs2D) incAddrK(problem.Tb_scale, state.B_scaleAddrs,  false, kbInc, state.ldbScale, state.ldbsIncrements, state.B_scaleLayout,  problem.B_scale, strategy.B_scale, strategy, state);
+        if (bo2D) incAddrK(Tbo,      state.B_offsetAddrs, false, kbInc, state.ldbo,     state.ldboIncrements, state.B_offsetLayout, problem.BO,      strategy.BO,      strategy, state);
+        if (bs2D) incAddrK(Tb_scale, state.B_scaleAddrs,  false, kbInc, state.ldbScale, state.ldbsIncrements, state.B_scaleLayout,  problem.B_scale, strategy.B_scale, strategy, state);
     };
 
     auto doIncAqLate = [&](Iteration h) {
         auto kaInc = kInc(h, state.kaqLate, problem.aqGroupK);
-        incAddrK(problem.Ta_scale, state.A_scaleAddrs, true, kaInc, state.ldaScale, state.ldasIncrements, state.A_scaleLayout, problem.A_scale, strategy.A_scale, strategy, state);
+        incAddrK(Ta_scale, state.A_scaleAddrs, true, kaInc, state.ldaScale, state.ldasIncrements, state.A_scaleLayout, problem.A_scale, strategy.A_scale, strategy, state);
     };
 
     auto doIncBqLate = [&](Iteration h) {
         auto kbInc = kInc(h, state.kbqLate, problem.bqGroupK);
-        incAddrK(problem.Tb_scale, state.B_scaleAddrs, false, kbInc, state.ldbScale, state.ldbsIncrements, state.B_scaleLayout, problem.B_scale, strategy.B_scale, strategy, state);
+        incAddrK(Tb_scale, state.B_scaleAddrs, false, kbInc, state.ldbScale, state.ldbsIncrements, state.B_scaleLayout, problem.B_scale, strategy.B_scale, strategy, state);
     };
 
     // SLM quantization parameter address increment.
@@ -875,23 +877,41 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
     auto reqRepackAqLate = every(kaq_loadLate);
     auto reqRepackBqLate = every(kbq_loadLate);
 
+    bool remaskAs = as2D && (minOPCount > 1) && (problem.aqGroupK == 1);
+    bool remaskBs = bs2D && (minOPCount > 1) && (problem.bqGroupK == 1);
+    int iremaskScale = 2;
     if (dequantize2DA) ls.schedule(reqRepackAq, [&](Iteration h) {
-        if (ao2D) gemmRepack2DOffsetData(Ta_ext, problem.Tao,    state.Tao_int,    state.A_offsetLayout, state.Ar_offsetLayout, state.A_offsetRegs, state.Ar_offsetRegs, problem, strategy, state);
-        if (as2D) gemmRepack2DQuantizationData(problem.Ta_scale, state.Ta_scaleOp, state.A_scaleLayout,  state.Ar_scaleLayout,  state.A_scaleRegs,  state.Ar_scaleRegs,  problem, strategy, state);
+        if (remaskAs) {
+            int ms, ks;
+            getLayoutDims(state.A_scaleLayout, ms, ks);
+            setupTeardownRemask(Ta_scale, iremaskScale, true,  ks, state.K, strategy, state, -h.counterOffset());
+            remaskLayout(Ta_scale, iremaskScale, true, state.A_scaleLayout, state.A_scaleRegs, strategy, state, h % ks);
+            setupTeardownRemask(Ta_scale, iremaskScale, false, ks, state.K, strategy, state);
+        }
+        if (ao2D) gemmRepack2DOffsetData(Ta_ext, Tao,    state.Tao_int,    state.A_offsetLayout, state.Ar_offsetLayout, state.A_offsetRegs, state.Ar_offsetRegs, problem, strategy, state);
+        if (as2D) gemmRepack2DQuantizationData(Ta_scale, state.Ta_scaleOp, state.A_scaleLayout,  state.Ar_scaleLayout,  state.A_scaleRegs,  state.Ar_scaleRegs,  problem, strategy, state);
     });
 
     if (dequantize2DB) ls.schedule(reqRepackBq, [&](Iteration h) {
-        if (bo2D) gemmRepack2DOffsetData(Tb_ext, problem.Tbo,    state.Tbo_int,    state.B_offsetLayout, state.Br_offsetLayout, state.B_offsetRegs, state.Br_offsetRegs, problem, strategy, state);
-        if (bs2D) gemmRepack2DQuantizationData(problem.Tb_scale, state.Tb_scaleOp, state.B_scaleLayout,  state.Br_scaleLayout,  state.B_scaleRegs,  state.Br_scaleRegs,  problem, strategy, state);
+        if (remaskBs) {
+            int ks, ns;
+            getLayoutDims(state.B_scaleLayout, ks, ns);
+            setupTeardownRemask(Tb_scale, iremaskScale, true,  ks, state.K, strategy, state, -h.counterOffset());
+            remaskLayout(Tb_scale, iremaskScale, false, state.B_scaleLayout, state.B_scaleRegs, strategy, state, h % ks);
+            setupTeardownRemask(Tb_scale, iremaskScale, false, ks, state.K, strategy, state);
+        }
+        if (bo2D) gemmRepack2DOffsetData(Tb_ext, Tbo,    state.Tbo_int,    state.B_offsetLayout, state.Br_offsetLayout, state.B_offsetRegs, state.Br_offsetRegs, problem, strategy, state);
+        if (bs2D) gemmRepack2DQuantizationData(Tb_scale, state.Tb_scaleOp, state.B_scaleLayout,  state.Br_scaleLayout,  state.B_scaleRegs,  state.Br_scaleRegs,  problem, strategy, state);
     });
 
     if (as2DLate) ls.schedule(reqRepackAqLate, [&](Iteration h) {
-        gemmRepack2DQuantizationData(problem.Ta_scale, state.Ta_scaleOp, state.A_scaleLayout, state.Ar_scaleLayout, state.A_scaleRegs, state.Ar_scaleRegs, problem, strategy, state);
+        gemmRepack2DQuantizationData(Ta_scale, state.Ta_scaleOp, state.A_scaleLayout, state.Ar_scaleLayout, state.A_scaleRegs, state.Ar_scaleRegs, problem, strategy, state);
     });
 
     if (bs2DLate) ls.schedule(reqRepackBqLate, [&](Iteration h) {
-        gemmRepack2DQuantizationData(problem.Tb_scale, state.Tb_scaleOp, state.B_scaleLayout, state.Br_scaleLayout, state.B_scaleRegs, state.Br_scaleRegs, problem, strategy, state);
+        gemmRepack2DQuantizationData(Tb_scale, state.Tb_scaleOp, state.B_scaleLayout, state.Br_scaleLayout, state.B_scaleRegs, state.Br_scaleRegs, problem, strategy, state);
     });
+
 
     // A/B repacking.
     auto reqRepackA = every(ka_repackMain)
