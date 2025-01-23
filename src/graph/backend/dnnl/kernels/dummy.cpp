@@ -105,7 +105,7 @@ status_t dummy_kernel_t::ocl_execute_impl(const stream_t *g_stream,
         } else {
             // Otherwise, gather all dependencies.
             auto q = dnnl::ocl_interop::get_command_queue(p_stream);
-            auto err = clEnqueueMarkerWithWaitList(q,
+            auto err = call_clEnqueueMarkerWithWaitList(q,
                     static_cast<cl_uint>(cl_deps.size()), cl_deps.data(),
                     ret_event);
             assert(err == CL_SUCCESS);
