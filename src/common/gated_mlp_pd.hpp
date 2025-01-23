@@ -53,8 +53,15 @@ struct gated_mlp_pd_t : public primitive_desc_t {
     }
 
     arg_usage_t arg_usage(int arg) const override {
-        if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WTS_GATE, DNNL_ARG_WTS_UP,
-                    DNNL_ARG_WTS_DOWN)) //TODO: scale? zp?
+        if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WTS_GATE,
+                    DNNL_ARG_WTS_UP, DNNL_ARG_WTS_DOWN,
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WTS_GATE,
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WTS_UP,
+                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WTS_DOWN,
+                    DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WTS_GATE,
+                    DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WTS_UP,
+                    DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WTS_DOWN
+                    ))
             return arg_usage_t::input;
 
         if (arg == DNNL_ARG_DST) return arg_usage_t::output;
@@ -100,12 +107,93 @@ struct gated_mlp_pd_t : public primitive_desc_t {
     }
     int n_outputs() const override { return 1; }
 
-    /*TODO: w scale + zp?
-    bool with_attn_scale() const {
-        //return (desc_.scale_dt != data_type::undef);
-        return false;
+    /// check scales enabled for each tensor
+    /// If true, dequantize the wts_gate tensor using scaling
+    bool with_wts_gate_scales() const {
+        return (!desc()->wts_gate_scales.has_default_values());
     }
-    */
+
+    /// If true, dequantize the wts_up tensor using scaling
+    bool with_wts_up_scales() const {
+        return (!desc()->wts_up_scales.has_default_values());
+    }
+
+    /// If true, dequantize the wts_down tensor using scaling
+    bool with_wts_down_scales() const {
+        return (!desc()->wts_down_scales.has_default_values());
+    }
+
+    /// check zero points enabled for each tensor
+    /// If true, dequantize the wts_gate tensor with zero points
+    bool with_wts_gate_zp() const {
+        return (!desc()->wts_gate_zero_points.has_default_values(DNNL_ARG_WEIGHTS));
+    }
+
+    /// If true, dequantize the wts_up tensor with zero points
+    bool with_wts_up_zp() const {
+        return (!desc()->wts_up_zero_points.has_default_values(DNNL_ARG_WEIGHTS));
+    }
+
+    /// If true, dequantize the wts_down tensor with zero points
+    bool with_wts_down_zp() const {
+        return (!desc()->wts_down_zero_points.has_default_values(DNNL_ARG_WEIGHTS));
+    }
+
+
+    /// Scales data types for each tensor
+    /// Returns the data type of the scales tensor for the wts_gate matmul
+    data_type_t wts_gate_scales_dt() const { return desc()->wts_gate_scales.data_type_; }
+
+    /// Returns the data type of the scales tensor for the wts_up matmul
+    data_type_t wts_up_scales_dt() const { return desc()->wts_up_scales.data_type_; }
+
+    /// Returns the data type of the scales tensor for the wts_down matmul
+    data_type_t wts_down_scales_dt() const { return desc()->wts_down_scales.data_type_; }
+
+
+    /// Zero points data types for each tensor
+    /// Returns the data type of the zero points tensor for the wts_gate matmul
+    data_type_t wts_gate_zp_dt() const { return desc()->wts_gate_zero_points.get_data_type(DNNL_ARG_WEIGHTS); }
+
+    /// Returns the data type of the zero points tensor for the wts_up matmul
+    data_type_t wts_up_zp_dt() const { return desc()->wts_up_zero_points.get_data_type(DNNL_ARG_WEIGHTS); }
+
+    /// Returns the data type of the zero points tensor for the wts_down matmul
+    data_type_t wts_down_zp_dt() const { return desc()->wts_down_zero_points.get_data_type(DNNL_ARG_WEIGHTS); }
+
+
+    // Returns the group size for the quantization parameters for the WTS_{up,gate} matmul
+    int wts_gate_group_size() const {
+        int out = 0;
+        if (with_wts_gate_scales()) {
+            out = scale_group_size(desc()->wts_gate_scales, *W_gate_md());
+        } else if (with_wts_gate_zp()) {
+            out = zp_group_size(desc()->wts_gate_zero_points, *W_gate_md());
+        }
+        return out;
+    }
+
+    // Returns the group size for the quantization parameters for the WTS_{up,gate} matmul
+    int wts_up_group_size() const {
+        int out = 0;
+        if (with_wts_up_scales()) {
+            out = scale_group_size(desc()->wts_up_scales, *W_up_md());
+        } else if (with_wts_up_zp()) {
+            out = zp_group_size(desc()->wts_up_zero_points, *W_up_md());
+        }
+        return out;
+    }
+
+    // Returns the group size for the quantization parameters for the WTS_{down} matmul
+    int wts_down_group_size() const {
+        int out = 0;
+        if (with_wts_down_scales()) {
+            out = scale_group_size(desc()->wts_down_scales, *W_down_md());
+        } else if (with_wts_down_zp()) {
+            out = zp_group_size(desc()->wts_down_zero_points, *W_down_md());
+        }
+        return out;
+    }
 
 protected:
     gated_mlp_desc_t desc_;
@@ -133,6 +221,38 @@ protected:
         ok = ok && (status == status::success);
 
         return ok;
+    }
+
+private:
+    static int scale_group_size(
+            const runtime_scales_t &scales, const memory_desc_t &desc) {
+        dim_t out = utils::array_product(desc.dims, desc.ndims);
+        if (scales.has_default_groups()) {
+            for (int idx : mask_iterator(scales.mask_)) {
+                out /= desc.dims[idx];
+            }
+        } else {
+            for (int idx : mask_iterator(scales.mask_)) {
+                out /= (desc.dims[idx] / scales.group_dims_[idx]);
+            }
+        }
+        return static_cast<int>(out);
+    }
+
+    static int zp_group_size(
+            const zero_points_t &zp, const memory_desc_t &desc) {
+        dim_t out = utils::array_product(desc.dims, desc.ndims);
+        if (zp.has_default_groups(DNNL_ARG_WEIGHTS)) {
+            for (int idx : mask_iterator(zp.get(DNNL_ARG_WEIGHTS))) {
+                out /= desc.dims[idx];
+            }
+        } else {
+            auto groups = zp.get_groups(DNNL_ARG_WEIGHTS);
+            for (int idx : mask_iterator(zp.get(DNNL_ARG_WEIGHTS))) {
+                out /= (desc.dims[idx] / groups[idx]);
+            }
+        }
+        return static_cast<int>(out);
     }
 };
 

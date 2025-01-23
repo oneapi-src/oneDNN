@@ -32,7 +32,11 @@ namespace impl {
 static inline gated_mlp_desc_t create_gated_mlp_desc(
         const memory_desc_t *src_md, const memory_desc_t *W_gate_md,
         const memory_desc_t *W_up_md, const memory_desc_t *W_down_md,
-        const memory_desc_t *dst_md) {
+        const memory_desc_t *dst_md,
+        const primitive_attr_t *gate_attr,
+        const primitive_attr_t *up_attr,
+        const primitive_attr_t *down_attr) {
+
     auto gated_mlp_desc = gated_mlp_desc_t();
     gated_mlp_desc.primitive_kind = primitive_kind::gated_mlp;
     gated_mlp_desc.src_desc = *src_md;
@@ -40,6 +44,19 @@ static inline gated_mlp_desc_t create_gated_mlp_desc(
     gated_mlp_desc.W_up_desc = *W_up_md;
     gated_mlp_desc.W_down_desc = *W_down_md;
     gated_mlp_desc.dst_desc = *dst_md;
+
+    if (gate_attr) {
+        gated_mlp_desc.wts_gate_scales      = gate_attr->scales_.get(DNNL_ARG_SRC_0);
+        gated_mlp_desc.wts_gate_zero_points = gate_attr->zero_points_;
+    }
+    if (up_attr) {
+        gated_mlp_desc.wts_up_scales      = up_attr->scales_.get(DNNL_ARG_SRC_1);
+        gated_mlp_desc.wts_up_zero_points = up_attr->zero_points_;
+    }
+    if (down_attr) {
+        gated_mlp_desc.wts_down_scales      = down_attr->scales_.get(DNNL_ARG_SRC_2);
+        gated_mlp_desc.wts_down_zero_points = down_attr->zero_points_;
+    }
     return gated_mlp_desc;
 }
 
@@ -48,11 +65,17 @@ static inline status_t create_gated_mlp_pd(
         std::shared_ptr<primitive_desc_t> &gated_mlp_pd_, engine_t *engine,
         const memory_desc_t *src_md, const memory_desc_t *W_gate_md,
         const memory_desc_t *W_up_md, const memory_desc_t *W_down_md,
-        const memory_desc_t *dst_md, const primitive_attr_t *attr) {
+        const memory_desc_t *dst_md, const primitive_attr_t *attr,
+        const primitive_attr_t *gate_attr = nullptr,
+        const primitive_attr_t *up_attr = nullptr,
+        const primitive_attr_t *down_attr = nullptr) {
+
     auto gated_mlp_desc = create_gated_mlp_desc(
-            src_md, W_gate_md, W_up_md, W_down_md, dst_md);
+            src_md, W_gate_md, W_up_md, W_down_md, dst_md,
+            gate_attr, up_attr, down_attr);
 
     int ndims = dst_md->ndims;
+
     if (ndims != 2) { return status::invalid_arguments; }
     if (!utils::everyone_is(ndims, src_md->ndims, W_gate_md->ndims,
                 W_up_md->ndims, W_down_md->ndims))
@@ -71,7 +94,7 @@ static inline status_t create_gated_mlp_pd(
     if (dst_md->dims[0] != mb || dst_md->dims[1] != ic)
         return status::invalid_arguments;
 
-    primitive_attr_t gated_mlp_attr = *attr;
+    primitive_attr_t gated_mlp_attr = attr ? *attr : default_attr();
 
     primitive_desc_iterator_t it(
             engine, (op_desc_t *)&gated_mlp_desc, &gated_mlp_attr, nullptr);
