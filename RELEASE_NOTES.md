@@ -22,7 +22,7 @@
   * Introduced support for fp16/bf16 compressed weights in fp32 matmul on Intel CPUs.
   * Introduced support for grouped scales and zero points in reorder primitive.
   * Enabled support for 4d weight scale in matmul primitive.
-  * Graph API: added support for Quantized and non-quantized Gated MLP pattern
+  * Graph API: Added support for quantized and non-quantized Gated MLP patterns
   * Introduced preliminary support for 4-bit floating-point data types `f4_e2m1` and `f4_e3m0` in matmul and reorder, as well as `e8m0` scales data type in matmul and reorder.
   * [experimental] Extended microkernel API:
 		Introduced int4 quantization support.
