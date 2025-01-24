@@ -12,7 +12,7 @@
   * Improved performance for Intel Arc Graphics for Intel Core Ultra processors (Series 2) (formerly Lunar Lake) and Intel Arc B-series discrete graphics (formerly Battlemage).
   * Improved performance of the following subgraphs with Graph API
     * Scaled dot-product Attention (SDPA) [with implicit causal mask](https://oneapi-src.github.io/oneDNN/dev_guide_graph_sdpa.html#doxid-dev-guide-graph-sdpa)
-    * Scaled dot-product Attention (SDPA) [with int8/int4 compressed key and value](https://oneapi-src.github.io/oneDNN/dev_guide_graph_sdpa_compressed_kv.html#doxid-dev-guide-graph-sdpa-compressed-kv)
+    * Scaled Dot-Product Attention (SDPA) [with int8/int4 compressed key and value](https://oneapi-src.github.io/oneDNN/dev_guide_graph_sdpa_compressed_kv.html#doxid-dev-guide-graph-sdpa-compressed-kv)
 ## AArch64-based Processors
 
 # Functionality
