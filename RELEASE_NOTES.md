@@ -1,7 +1,11 @@
 # Performance Optimizations
 ## Intel Architecture Processors
   * Improved fp16/bf16 softmax performance with relaxed [accumulation mode](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_accumulation_mode.html#doxid-dev-guide-attributes-accumulation-mode).
-  * Added support and improved perfomance for fp8 matmul with bf16/fp16.
+  * Improved performance for int8 RNN primitive on processors with Intel AVX2 and Intel AVX512 instruction set support.
+  * Improved performance of convolution and matmul primitives on processors with Intel AMX support.
+  * Improved performance of fp8 matmul primitives with bf16 and fp16 bias datatype on processors with Intel AMX instruction set support.
+  * Improved performance of int8 matmul primitive with fp16 output datatype.
+  * Improved performance of int8 depthwise separable convolution primitive with pre-channel zero points on processors with Intel AVX2 and Intel AVX512 instruction set support.
 
 ## Intel Graphics Products
   * Introduced initial optimizations for GPUs based on Xe3 architecture.
