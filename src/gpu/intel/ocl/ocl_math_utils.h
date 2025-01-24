@@ -81,6 +81,10 @@ int rnd_down(int a, unsigned int b) {
 #define MATH_UTILS_DECLARE_BF16 1
 #endif
 
+#if DST_SCALES_DT_E8M0
+#define MATH_UTILS_DECLARE_E8M0 1
+#endif
+
 ulong8 __builtin_IB_simd_block_read_8_global_l(const __global ulong *);
 ushort16 __builtin_IB_simd_block_read_16_global_h(const __global ushort *);
 

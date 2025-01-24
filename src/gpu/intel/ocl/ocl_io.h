@@ -33,10 +33,12 @@
 #define BLOCK_DT_4 uint
 #define BLOCK_DT_8 ulong
 
+#define SIZE_undef_data 1
 #define SIZE_char 1
 #define SIZE_uchar 1
 #define SIZE_f8_e5m2 1
 #define SIZE_f8_e4m3 1
+#define SIZE_e8m0 1
 #define SIZE_bf16 2
 #define SIZE_half 2
 #define SIZE_int 4
@@ -79,6 +81,10 @@ DEF_load(int, char);
 DEF_load(int, uchar);
 DEF_load(int, int);
 DEF_load(float, bf16);
+
+// Included for compile time compatibility
+DEF_load(int, undef_data);
+DEF_load(float, undef_data);
 
 // Writes
 DEF_write(char, float);
@@ -131,6 +137,13 @@ DEF_write(f8_e4m3, float);
 DEF_write(f8_e4m3, int);
 
 #endif // MATH_UTILS_DECLARE_HF8
+
+#ifdef MATH_UTILS_DECLARE_E8M0
+// Loads
+DEF_load(float, e8m0);
+
+#endif
+
 #endif // cl_khr_fp16
 
 #ifdef cl_khr_fp64

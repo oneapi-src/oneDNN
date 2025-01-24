@@ -396,8 +396,8 @@ void def_data_type(compute::kernel_ctx_t &kernel_ctx, data_type_t dt,
 
     switch (dt) {
         case data_type::undef:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=void -D%s_DT_UNDEF", str, str));
+            kernel_ctx.add_option(utils::format(
+                    "-D%s_DATA_T=undef_data -D%s_DT_UNDEF", str, str));
             break;
         case data_type::bf16:
             kernel_ctx.add_option(utils::format(
