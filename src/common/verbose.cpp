@@ -1647,11 +1647,16 @@ std::string init_info_sdpa(const engine_t *e, const pd_t *pd) {
 
     ss << ",query:" << pd->qry_md()->data_type << ":"
        << md2dim_str(pd->qry_md());
-    ss << ",key:" << pd->key_md()->data_type << ":" << md2dim_str(pd->key_md());
+    ss << ",key:" << pd->key_md()->data_type << ":" << md2dim_str(pd->key_md())
+       << ":" << md2fmt_tag_str(pd->key_md());
     ss << ",val:" << pd->val_md()->data_type << ":" << md2dim_str(pd->val_md());
-    if (pd->with_attn_mask())
+    if (pd->with_attn_mask()) {
         ss << ",msk:" << pd->attn_mask_md()->data_type << ":"
            << md2dim_str(pd->attn_mask_md());
+    } else if (pd->with_causal_mask()) {
+        ss << ",msk:causal";
+    }
+
     return ss.str();
 }
 
