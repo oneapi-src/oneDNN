@@ -35,7 +35,7 @@
   * Added [examples](https://github.com/oneapi-src/oneDNN/tree/main/examples/graph) for Gated MLP and int4 Gated MLP
 # Validation
   * Extended benchdnn with support and validation for fp8 matmul patterns for tensor tags in RNN primitive validation.
-  * Extended benchdnn with support for rewriting data types in the test JSON files in graph driver.
+  * Extended benchdnn with support for rewriting data types in the test JSON files in the graph driver.
   * Extended benchdnn with support and validation for the number of partitions returned from the test JSON files.
 # Deprecated Functionality
 
