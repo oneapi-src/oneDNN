@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,6 +60,29 @@ f8_e4m3 as_f8_e4m3(char data) {
     f8_e4m3 res;
     res.data = data;
     return res;
+}
+
+/*****************************/
+
+typedef struct {
+    unsigned char data;
+} e8m0;
+
+e8m0 as_e8m0(unsigned char data) {
+    e8m0 res;
+    res.data = data;
+    return res;
+}
+
+/*****************************/
+
+typedef struct {
+    char invalid_data;
+} undef_data;
+
+undef_data as_undef_data(char data) {
+    undef_data ret = {0xba};
+    return ret;
 }
 
 #endif

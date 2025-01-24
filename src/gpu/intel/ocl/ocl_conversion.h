@@ -93,6 +93,16 @@ IF_DOUBLE_SUPPORTED(def_std_into(double, float));
 IF_DOUBLE_SUPPORTED(def_std_into(double, int));
 IF_DOUBLE_SUPPORTED(IF_HALF_SUPPORTED(def_std_into(double, half)));
 
+#define def_undef_into(out_type) \
+    out_type __attribute__((overloadable)) \
+            CONCAT2(into_, out_type)(undef_data val) { \
+        DEBUG_PRINT("Error: unexpected conversion from undefined data"); \
+        return 0xbadbad; \
+    }
+
+def_undef_into(float);
+def_undef_into(int);
+
 #undef def_std_into
 #undef def_std_into_sat
 
@@ -274,6 +284,15 @@ def_two_step_conversion(float, f8_e4m3, half);
 IF_DOUBLE_SUPPORTED(def_two_step_conversion(f8_e4m3, double, float));
 IF_DOUBLE_SUPPORTED(def_two_step_conversion(double, f8_e4m3, float));
 #endif // MATH_UTILS_DECLARE_HF8
+
+#ifdef MATH_UTILS_DECLARE_E8M0
+// Copy-paste from `cvt_e8m0_to_f32`.
+float __attribute__((overloadable)) into_float(e8m0 b) {
+    if (b.data == (char)0xff) return as_float(0xffc00000);
+    uint bits = b.data << 23;
+    return as_float(bits);
+}
+#endif
 
 IF_DOUBLE_SUPPORTED(def_two_step_conversion(bf16, double, float));
 IF_DOUBLE_SUPPORTED(def_two_step_conversion(double, bf16, float));
