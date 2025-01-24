@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,7 +111,10 @@ int compare_vectors(const std::vector<float> &v1, const std::vector<float> &v2,
 int number_of_runs = 1;
 float fixed_beta = 0.f;
 
-engine eng(engine::kind::cpu, 0); // We create a global engine for simplicity
+const engine &eng() {
+    static const engine eng(engine::kind::cpu, 0);
+    return eng;
+}
 
 // Create a _dynamic_ MatMul primitive that can work with arbitrary shapes
 // and alpha parameters.
@@ -143,7 +146,7 @@ matmul dynamic_matmul_create() {
     }
 
     // Create a MatMul primitive
-    matmul::primitive_desc matmul_pd(eng, a_md, b_md, c_md, attr);
+    matmul::primitive_desc matmul_pd(eng(), a_md, b_md, c_md, attr);
     return matmul(matmul_pd);
 }
 
@@ -164,15 +167,15 @@ void dynamic_matmul_execute(matmul &matmul_p, char transA, char transB,
     dims b_strides = tolower(transB) == 'n' ? dims {ldb, 1} : dims {1, ldb};
 
     // Wrap raw pointers into oneDNN memories (with proper shapes)
-    memory A_m({{M, K}, memory::data_type::f32, a_strides}, eng, (void *)A);
-    memory B_m({{K, N}, memory::data_type::f32, b_strides}, eng, (void *)B);
-    memory C_m({{M, N}, memory::data_type::f32, {ldc, 1}}, eng, (void *)C);
+    memory A_m({{M, K}, memory::data_type::f32, a_strides}, eng(), (void *)A);
+    memory B_m({{K, N}, memory::data_type::f32, b_strides}, eng(), (void *)B);
+    memory C_m({{M, N}, memory::data_type::f32, {ldc, 1}}, eng(), (void *)C);
 
     // Prepare oneDNN memory for alpha
-    memory alpha_m({{1}, memory::data_type::f32, {1}}, eng, &alpha);
+    memory alpha_m({{1}, memory::data_type::f32, {1}}, eng(), &alpha);
 
     // Execute the MatMul primitive
-    stream s(eng);
+    stream s(eng());
     matmul_p.execute(s,
             {{DNNL_ARG_SRC, A_m}, {DNNL_ARG_WEIGHTS, B_m}, {DNNL_ARG_DST, C_m},
                     {DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, alpha_m}});
