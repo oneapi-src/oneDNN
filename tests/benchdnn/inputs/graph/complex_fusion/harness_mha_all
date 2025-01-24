@@ -64,8 +64,44 @@
 # phi3-mini-4k-instruct
 --reset
 --dt=0:s8+2:s8+6:s8+8:s8
---in-shapes=0:1x32x96x384*abdc+1:1x32x1x384+2:1x32x1x384+3:1x32x384x96+5:1x1x384x384+6:1x32x384x96+7:1x32x384x1+8:1x32x384x1
---op-attrs=0:group_shape:1x1x96x1+99:group_shape:1x1x1x96 --case=complex_fusion/mha/sdpa-compressed-kv-int4-gs32.json
+--in-shapes=0:1x32x96x384*abdc+1:1x32x1x384+2:1x32x1x384+3:1x32x384x96+5:1x1x384x384+6:1x32x384x96+7:1x32x384x1+8:1x32x384x1,\
+            0:1x32x96x385*abdc+1:1x32x1x385+2:1x32x1x385+3:1x32x1x96+5:1x1x385x385+6:1x32x385x96+7:1x32x385x1+8:1x32x385x1,\
+            0:1x32x96x512*abdc+1:1x32x1x512+2:1x32x1x512+3:1x32x512x96+5:1x1x512x512+6:1x32x512x96+7:1x32x512x1+8:1x32x512x1,\
+            0:1x32x96x513*abdc+1:1x32x1x513+2:1x32x1x513+3:1x32x1x96+5:1x1x513x513+6:1x32x513x96+7:1x32x513x1+8:1x32x513x1,\
+            0:1x32x96x1024*abdc+1:1x32x1x1024+2:1x32x1x1024+3:1x32x1024x96+5:1x1x1024x1024+6:1x32x1024x96+7:1x32x1024x1+8:1x32x1024x1,\
+            0:1x32x96x1025*abdc+1:1x32x1x1025+2:1x32x1x1025+3:1x32x1x96+5:1x1x1025x1025+6:1x32x1025x96+7:1x32x1025x1+8:1x32x1025x1
+--op-attrs=0:group_shape:1x1x96x1+99:group_shape:1x1x1x96
+--case=complex_fusion/mha/sdpa-compressed-kv-int4-gs32.json
+
+--reset
+--dt=0:s8+2:s8+6:s8+8:s8
+--in-shapes=0:1x32x96x384*abdc+1:1x32x1x384+2:1x32x1x384+3:1x32x384x96+6:1x32x384x96+7:1x32x384x1+8:1x32x384x1,\
+            0:1x32x96x385*abdc+1:1x32x1x385+2:1x32x1x385+3:1x32x1x96+6:1x32x385x96+7:1x32x385x1+8:1x32x385x1,\
+            0:1x32x96x512*abdc+1:1x32x1x512+2:1x32x1x512+3:1x32x512x96+6:1x32x512x96+7:1x32x512x1+8:1x32x512x1,\
+            0:1x32x96x513*abdc+1:1x32x1x513+2:1x32x1x513+3:1x32x1x96+6:1x32x513x96+7:1x32x513x1+8:1x32x513x1,\
+            0:1x32x96x1024*abdc+1:1x32x1x1024+2:1x32x1x1024+3:1x32x1024x96+6:1x32x1024x96+7:1x32x1024x1+8:1x32x1024x1,\
+            0:1x32x96x1025*abdc+1:1x32x1x1025+2:1x32x1x1025+3:1x32x1x96+6:1x32x1025x96+7:1x32x1025x1+8:1x32x1025x1
+--op-attrs=0:group_shape:1x1x96x1+8:group_shape:1x1x1x96
+--case=complex_fusion/mha/sdpa-compressed-kv-implicit-causal-mask-int8-gs128.json
+
+# llama-2-7b-chat
+--in-shapes=0:1x32x128x384*abdc+1:1x32x1x384+2:1x32x1x384+3:1x32x384x128+5:1x1x384x384+6:1x32x384x128+7:1x32x384x1+8:1x32x384x1,\
+            0:1x32x128x385*abdc+1:1x32x1x385+2:1x32x1x385+3:1x32x1x128+5:1x1x385x385+6:1x32x385x128+7:1x32x385x1+8:1x32x385x1,\
+            0:1x32x128x512*abdc+1:1x32x1x512+2:1x32x1x512+3:1x32x512x128+5:1x1x512x512+6:1x32x512x128+7:1x32x512x1+8:1x32x512x1,\
+            0:1x32x128x513*abdc+1:1x32x1x513+2:1x32x1x513+3:1x32x1x128+5:1x1x513x513+6:1x32x513x128+7:1x32x513x1+8:1x32x513x1,\
+            0:1x32x128x1024*abdc+1:1x32x1x1024+2:1x32x1x1024+3:1x32x1024x128+5:1x1x1024x1024+6:1x32x1024x128+7:1x32x1024x1+8:1x32x1024x1,\
+            0:1x32x128x1025*abdc+1:1x32x1x1025+2:1x32x1x1025+3:1x32x1x128+5:1x1x1025x1025+6:1x32x1025x128+7:1x32x1025x1+8:1x32x1025x1
+--op-attrs=0:group_shape:1x1x128x1+99:group_shape:1x1x1x128
+--case=complex_fusion/mha/sdpa-compressed-kv-int4-gs32.json
+
+--in-shapes=0:1x32x128x384*abdc+1:1x32x1x384+2:1x32x1x384+3:1x32x384x128+6:1x32x384x128+7:1x32x384x1+8:1x32x384x1,\
+            0:1x32x128x385*abdc+1:1x32x1x385+2:1x32x1x385+3:1x32x1x128+6:1x32x385x128+7:1x32x385x1+8:1x32x385x1,\
+            0:1x32x128x512*abdc+1:1x32x1x512+2:1x32x1x512+3:1x32x512x128+6:1x32x512x128+7:1x32x512x1+8:1x32x512x1,\
+            0:1x32x128x513*abdc+1:1x32x1x513+2:1x32x1x513+3:1x32x1x128+6:1x32x513x128+7:1x32x513x1+8:1x32x513x1,\
+            0:1x32x128x1024*abdc+1:1x32x1x1024+2:1x32x1x1024+3:1x32x1024x128+6:1x32x1024x128+7:1x32x1024x1+8:1x32x1024x1,\
+            0:1x32x128x1025*abdc+1:1x32x1x1025+2:1x32x1x1025+3:1x32x1x128+6:1x32x1025x128+7:1x32x1025x1+8:1x32x1025x1
+--op-attrs=0:group_shape:1x1x128x1+8:group_shape:1x1x1x128
+--case=complex_fusion/mha/sdpa-compressed-kv-implicit-causal-mask-int8-gs128.json
 
 # 0: key, 2: key zps, 6: value, 8: value zps. Change them to use s8 data type.
 --reset --dt=0:s8+2:s8+6:s8+8:s8 --case=complex_fusion/mha/sdpa-compressed-kv-int4-gs32.json
