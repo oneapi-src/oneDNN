@@ -714,11 +714,11 @@ bool post_ops_preserves_zeroes(
 
 status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
         const attr_info_t &attr_info, const post_ops_t &post_ops,
-        const memory_desc_t &dst_md);
+        const memory_desc_t &dst_md, bool with_punning = true);
 
 status_t def_attr_info(compute::kernel_ctx_t &kernel_ctx,
         const attr_info_t &attr_info, const post_ops_t &post_ops,
-        const memory_desc_t &dst_md);
+        const memory_desc_t &dst_md, bool with_punning = true);
 
 void def_dispatch(
         compute::kernel_ctx_t &kernel_ctx, const compute::dispatch_t &dispatch);

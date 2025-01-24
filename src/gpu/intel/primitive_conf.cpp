@@ -807,7 +807,7 @@ bool post_ops_preserves_zeroes(
 
 status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
         const attr_info_t &attr_info, const post_ops_t &post_ops,
-        const memory_desc_t &dst_md) {
+        const memory_desc_t &dst_md, bool with_punning) {
     gpu_assert(attr_info.initialized);
 
     kernel_ctx.define_int("WITH_POST_OP", post_ops.len() > 0);
@@ -830,9 +830,12 @@ status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("SRC_SCALES_MASK", attr_info.src_scales_mask);
     kernel_ctx.define_int("WEI_SCALES_MASK", attr_info.wei_scales_mask);
     kernel_ctx.define_int("DST_SCALES_MASK", attr_info.dst_scales_mask);
-    def_data_type(kernel_ctx, attr_info.src_scales_data_type, "SRC_SCALES");
-    def_data_type(kernel_ctx, attr_info.wei_scales_data_type, "WEI_SCALES");
-    def_data_type(kernel_ctx, attr_info.dst_scales_data_type, "DST_SCALES");
+    def_data_type(kernel_ctx, attr_info.src_scales_data_type, "SRC_SCALES",
+            with_punning);
+    def_data_type(kernel_ctx, attr_info.wei_scales_data_type, "WEI_SCALES",
+            with_punning);
+    def_data_type(kernel_ctx, attr_info.dst_scales_data_type, "DST_SCALES",
+            with_punning);
 
     kernel_ctx.define_int("WITH_SRC_ZPOINTS", attr_info.with_src_zpoints);
     kernel_ctx.define_int("WITH_WEI_ZPOINTS", attr_info.with_wei_zpoints);
@@ -854,8 +857,9 @@ status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
 
 status_t def_attr_info(compute::kernel_ctx_t &kernel_ctx,
         const attr_info_t &attr_info, const post_ops_t &post_ops,
-        const memory_desc_t &dst_md) {
-    return def_attr_info_impl(kernel_ctx, attr_info, post_ops, dst_md);
+        const memory_desc_t &dst_md, bool with_punning) {
+    return def_attr_info_impl(
+            kernel_ctx, attr_info, post_ops, dst_md, with_punning);
 }
 
 void def_dispatch(compute::kernel_ctx_t &kernel_ctx,
