@@ -62,7 +62,11 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src,
         APPLY_POST_OPS_SERIAL(accumulator, POST_OP_DATA_T, sum_src,
                 POST_OP_DATA_T, d0, 1, d1, 1, d2, 1, d3, 1, 0, 1, 0, 1);
 
-        if (C_SCALES) accumulator /= DST_SCALES_TO_REF(c_scales[0]);
+        if (C_SCALES) {
+            POST_OP_DATA_T c_scale = 1;
+            load(&c_scale, c_scales);
+            accumulator /= c_scale;
+        }
         if (DST_ZERO_POINT) accumulator += dst_zp[0];
     }
 

@@ -178,8 +178,8 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     def_data_type(kernel_ctx, acc_type, "ACC");
 
     kernel_ctx.define_int("NDIMS", ndims);
-    CHECK(def_attr_info(
-            kernel_ctx, attr_info_, attr()->post_ops_, *gemm_pd_->dst_md()));
+    CHECK(def_attr_info(kernel_ctx, attr_info_, attr()->post_ops_,
+            *gemm_pd_->dst_md(), false));
     kernel_ctx.define_int("A_SCALES", with_src_scales);
     kernel_ctx.define_int("B_SCALES", with_wei_scales);
     kernel_ctx.define_int("C_SCALES", with_dst_scales);
