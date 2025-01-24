@@ -142,13 +142,6 @@ void sdp_primitive_kernel_t<quantized>::prepare_args_set(
         mem_idx.first.set_data_handle(
                 outputs[mem_idx.second].get_data_handle());
     }
-
-    grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
-            scratchpad.get_buffer());
-
-    for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
-        mem_offkey.first.set_data_handle(var_grantor.get(mem_offkey.second));
-    }
 }
 
 template <bool quantized>
