@@ -443,7 +443,8 @@ inline void fill_data(memory::data_type dt, const memory &mem, float mean,
         return;
     }
 
-    size_t nelems = mem.get_desc().get_size() / dt_size;
+    memory::dim nelems
+            = static_cast<memory::dim>(mem.get_desc().get_size() / dt_size);
     switch (dt) {
         case memory::data_type::f32:
             fill_data<float>(nelems, mem, mean, deviation, sparsity);
