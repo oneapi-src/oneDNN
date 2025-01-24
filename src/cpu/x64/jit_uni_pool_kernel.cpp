@@ -136,9 +136,8 @@ static status_t set_binary_postops_formats(
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
-        memory_tracking::registrar_t &scratchpad, primitive_attr_t &attr,
-        const pooling_pd_t *ppd) {
+status_t jit_uni_pool_kernel<isa>::init_conf(
+        jit_pool_conf_t &jpp, primitive_attr_t &attr, const pooling_pd_t *ppd) {
 
     const auto &pd = *ppd->desc();
     const memory_desc_wrapper src_d(
@@ -410,6 +409,31 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
         jpp.ur_bc_tail = 0;
     }
 
+    jpp.f32_accum_block_size = jpp.ur_bc * jpp.c_block;
+    if (jpp.needs_f32_accum_for_bf16) {
+        assert(memory_desc_wrapper(jpp.tmp_md).is_zero()
+                && (fmt_tag == nspc_fmt_tag || fmt_tag == blocked_fmt_tag));
+
+        dims_t dims {};
+        utils::array_copy(dims, src_d.dims(), ndims);
+
+        const auto nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
+        dims[0] = nstl::min(dnnl_get_max_threads(), jpp.mb * nb2_c);
+        dims[1] = jpp.f32_accum_block_size;
+
+        memory_desc_init_by_tag(
+                jpp.tmp_md, ndims, dims, data_type::f32, fmt_tag);
+    }
+
+    jpp.post_ops = attr.post_ops_;
+
+    return status::success;
+}
+
+template <cpu_isa_t isa>
+void jit_uni_pool_kernel<isa>::init_scratchpad(
+        const jit_pool_conf_t &jpp, memory_tracking::registrar_t &scratchpad) {
+
     // scratchpad for c_block slice of input and/or output
     using namespace memory_tracking::names;
     const int nscr = nstl::min(dnnl_get_max_threads(), jpp.mb * jpp.nb_c);
@@ -427,28 +451,10 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                         * nscr);
     }
 
-    jpp.f32_accum_block_size = jpp.ur_bc * jpp.c_block;
     if (jpp.needs_f32_accum_for_bf16) {
         auto tmp_d = memory_desc_wrapper(jpp.tmp_md);
-        assert(tmp_d.is_zero()
-                && (fmt_tag == nspc_fmt_tag || fmt_tag == blocked_fmt_tag));
-
-        dims_t dims {};
-        utils::array_copy(dims, src_d.dims(), ndims);
-
-        const auto nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
-        dims[0] = nstl::min(dnnl_get_max_threads(), jpp.mb * nb2_c);
-        dims[1] = jpp.f32_accum_block_size;
-
-        memory_desc_init_by_tag(
-                jpp.tmp_md, ndims, dims, data_type::f32, fmt_tag);
-
         scratchpad.book<char>(key_pool_src_f32_accum, tmp_d.size());
     }
-
-    jpp.post_ops = attr.post_ops_;
-
-    return status::success;
 }
 
 static int reg_ind(int shift, int bc, int j, int ur_bc, int ur_w) noexcept {

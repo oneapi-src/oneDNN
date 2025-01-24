@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,10 +70,10 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
             if (desc()->alg_kind == alg_kind::pooling_max && is_training)
                 init_default_ws();
 
-            auto scratchpad = scratchpad_registry().registrar();
+            CHECK(jit_uni_pool_kernel<isa>::init_conf(jpp_, attr_, this));
 
-            CHECK(jit_uni_pool_kernel<isa>::init_conf(
-                    jpp_, scratchpad, attr_, this));
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_uni_pool_kernel<isa>::init_scratchpad(jpp_, scratchpad);
 
             return status::success;
         }
@@ -146,10 +146,10 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
                         compare_ws(hint_fwd_pd_), VERBOSE_WS_MISMATCH);
             }
 
-            auto scratchpad = scratchpad_registry().registrar();
+            CHECK(jit_uni_pool_kernel<isa>::init_conf(jpp_, attr_, this));
 
-            CHECK(jit_uni_pool_kernel<isa>::init_conf(
-                    jpp_, scratchpad, attr_, this));
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_uni_pool_kernel<isa>::init_scratchpad(jpp_, scratchpad);
 
             return status::success;
         }
