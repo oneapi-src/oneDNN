@@ -161,7 +161,8 @@ changes the implementation dispatching which is an undesired behavior. When
 string against the `ref` string pattern. When `BOOL` is set to `true`, the check
 returns an error if the name matches the reference pattern. By default, the
 check is disabled. It's useful to catch unexpected fallbacks to slow reference
-implementations from a big batch of problems.
+implementations from a big batch of problems. This option is always disabled on
+NVIDIA, AMD, and Generic vendors.
 
 ### --fast-ref
 `--fast-ref=BOOL` instructs the driver to use an optimized implementation
