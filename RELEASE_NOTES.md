@@ -29,7 +29,7 @@
 		Fpmath mode API
 # Usability
   * With SYCL runtime, memory objects on CPU engine are now reference-counted and no more need to be explicitly kept alive by user for the duration of the primitive execution. This align memory object lifetime behavior on CPU and GPU engines.
-  * Improve verbose diagnostic to better identify issues during dispatching, primitive and kernel creation for CPU primitive and GPU (in case of OpenCL implementation) primitive implementations.
+  * Improved verbose diagnostics to better identify issues during dispatching, primitive and kernel creation for CPU primitive and GPU (in case of OpenCL implementation) primitive implementations.
   * Improved verbose diagnostics for Intel GPU driver compatibility issues.
   * Enabled frame pointers support on Intel64 platforms to improve integration with profilers.
   * Added [examples](https://github.com/oneapi-src/oneDNN/tree/main/examples/graph) for Gated MLP and int4 Gated MLP
