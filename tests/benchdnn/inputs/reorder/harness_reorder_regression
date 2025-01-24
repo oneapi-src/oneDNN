@@ -11,3 +11,10 @@
 --stag=abdc --dtag=abcd
 --attr-zero-points=src0:common:1
 1x32x128x33
+
+# Test bf16 with aBcde4b format
+--reset
+--skip-impl=simple #skip non-jit version
+--sdt=bf16 --ddt=bf16
+--stag=aBcde4b --dtag=aBcde4b
+2x24x19x19x19
