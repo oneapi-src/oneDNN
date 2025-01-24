@@ -4,7 +4,7 @@
   * Improved performance for int8 RNN primitive on processors with Intel AVX2 and Intel AVX512 instruction set support.
   * Improved performance of convolution and matmul primitives on processors with Intel AMX support.
   * Improved performance of fp8 matmul primitives with bf16 and fp16 bias datatype on processors with Intel AMX instruction set support.
-  * Improved performance of int8 matmul primitive with fp16 output datatype.
+  * Improved performance of int8 matmul primitive with fp16 output data type.
   * Improved performance of int8 depthwise separable convolution primitive with pre-channel zero points on processors with Intel AVX2 and Intel AVX512 instruction set support.
 
 ## Intel Graphics Products
