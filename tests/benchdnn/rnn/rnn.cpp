@@ -565,8 +565,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     dnnl_dims_t dst_layer_dims = {prb.n_iter, prb.mb, prb.dlc(PRIMITIVE)};
 
     dnnl_dims_t src_layer_dims = {prb.n_iter, prb.mb, prb.slc};
-    auto src_layer_d = dnn_mem_t::init_md(
-            3, src_layer_dims, prb.cfg[SRC_LAYER].dt, prb.tag[0]);
+    auto src_layer_d = dnn_mem_t::init_md(prb.ndims(SRC_LAYER), src_layer_dims,
+            prb.cfg[SRC_LAYER].dt, prb.tag[0]);
     if (prb.tag[0] != tag::any) {
         dims_t src_layer_strides(query_md_ndims(src_layer_d));
         std::memcpy(src_layer_strides.data(), query_md_strides(src_layer_d),
@@ -588,8 +588,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     }
 
     dnnl_dims_t src_iter_dims = {prb.n_layer, prb.n_dir(), prb.mb, prb.sic};
-    auto src_iter_d = dnn_mem_t::init_md(
-            4, src_iter_dims, prb.cfg[SRC_ITER].dt, tag::abx /* dnnl_ldnc */);
+    auto src_iter_d = dnn_mem_t::init_md(prb.ndims(SRC_ITER), src_iter_dims,
+            prb.cfg[SRC_ITER].dt, tag::abx /* dnnl_ldnc */);
     // Adjust strides for src_iter_d.
     dims_t src_iter_strides(query_md_ndims(src_iter_d));
     std::memcpy(src_iter_strides.data(), query_md_strides(src_iter_d),
@@ -603,8 +603,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             src_iter_strides);
 
     dnnl_dims_t src_iter_c_dims = {prb.n_layer, prb.n_dir(), prb.mb, prb.dhc};
-    auto src_iter_c_d = dnn_mem_t::init_md(4, src_iter_c_dims,
-            prb.cfg[SRC_ITER_C].dt, tag::abx /* dnnl_ldnc */);
+    auto src_iter_c_d = dnn_mem_t::init_md(prb.ndims(SRC_ITER_C),
+            src_iter_c_dims, prb.cfg[SRC_ITER_C].dt, tag::abx /* dnnl_ldnc */);
     // Adjust strides for src_iter_c_d.
     dims_t src_iter_c_strides(query_md_ndims(src_iter_c_d));
     std::memcpy(src_iter_c_strides.data(), query_md_strides(src_iter_c_d),
@@ -620,30 +620,36 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     // Forward and backward support different layouts for weights. When
     // testing backward, we cannot reliably use the supplied weights tag.
     bool has_service_prim = prb.prop == dnnl_backward;
-    auto weights_layer_d = dnn_mem_t::init_md(5, weights_layer_dims,
-            prb.cfg[WEIGHTS_LAYER].dt, has_service_prim ? "any" : prb.tag[1]);
-    auto weights_iter_d = dnn_mem_t::init_md(5, weights_iter_dims,
-            prb.cfg[WEIGHTS_ITER].dt, has_service_prim ? "any" : prb.tag[1]);
+    auto weights_layer_d = dnn_mem_t::init_md(prb.ndims(WEIGHTS_LAYER),
+            weights_layer_dims, prb.cfg[WEIGHTS_LAYER].dt,
+            has_service_prim ? "any" : prb.tag[1]);
+    auto weights_iter_d = dnn_mem_t::init_md(prb.ndims(WEIGHTS_ITER),
+            weights_iter_dims, prb.cfg[WEIGHTS_ITER].dt,
+            has_service_prim ? "any" : prb.tag[1]);
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> attention_d {};
     if (prb.is_augru())
-        attention_d = dnn_mem_t::init_md(3, attention_dims,
-                prb.cfg[AUGRU_ATTENTION].dt, tag::abx /* dnnl_tnc */);
+        attention_d
+                = dnn_mem_t::init_md(prb.ndims(AUGRU_ATTENTION), attention_dims,
+                        prb.cfg[AUGRU_ATTENTION].dt, tag::abx /* dnnl_tnc */);
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> weights_peephole_d {};
     if (prb.is_lstm_peephole())
-        weights_peephole_d = dnn_mem_t::init_md(4, weights_peephole_dims,
-                prb.cfg[WEIGHTS_PEEPHOLE].dt, tag::abx /* dnnl_ldgo */);
+        weights_peephole_d = dnn_mem_t::init_md(prb.ndims(WEIGHTS_PEEPHOLE),
+                weights_peephole_dims, prb.cfg[WEIGHTS_PEEPHOLE].dt,
+                tag::abx /* dnnl_ldgo */);
 
     benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> weights_projection_d {};
     if (prb.is_lstm_projection())
-        weights_projection_d = dnn_mem_t::init_md(4, weights_projection_dims,
-                prb.cfg[WEIGHTS_PROJECTION].dt, tag::any);
+        weights_projection_d = dnn_mem_t::init_md(prb.ndims(WEIGHTS_PROJECTION),
+                weights_projection_dims, prb.cfg[WEIGHTS_PROJECTION].dt,
+                tag::any);
 
-    auto bias_d = dnn_mem_t::init_md(4, bias_dims, prb.cfg[BIAS].dt, tag::any);
+    auto bias_d = dnn_mem_t::init_md(
+            prb.ndims(BIAS), bias_dims, prb.cfg[BIAS].dt, tag::any);
 
-    auto dst_layer_d = dnn_mem_t::init_md(
-            3, dst_layer_dims, prb.cfg[DST_LAYER].dt, prb.tag[2]);
+    auto dst_layer_d = dnn_mem_t::init_md(prb.ndims(DST_LAYER), dst_layer_dims,
+            prb.cfg[DST_LAYER].dt, prb.tag[2]);
     if (prb.tag[2] != tag::any) {
         dims_t dst_layer_strides(query_md_ndims(dst_layer_d));
         std::memcpy(dst_layer_strides.data(), query_md_strides(dst_layer_d),
@@ -665,8 +671,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     }
 
     dnnl_dims_t dst_iter_dims = {prb.n_layer, prb.n_dir(), prb.mb, prb.dic};
-    auto dst_iter_d = dnn_mem_t::init_md(
-            4, dst_iter_dims, prb.cfg[DST_ITER].dt, tag::abx /* dnnl_ldnc */);
+    auto dst_iter_d = dnn_mem_t::init_md(prb.ndims(DST_ITER), dst_iter_dims,
+            prb.cfg[DST_ITER].dt, tag::abx /* dnnl_ldnc */);
     // Adjust strides for dst_iter_d.
     dims_t dst_iter_strides(query_md_ndims(dst_iter_d));
     std::memcpy(dst_iter_strides.data(), query_md_strides(dst_iter_d),
@@ -680,8 +686,8 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
             dst_iter_strides);
 
     dnnl_dims_t dst_iter_c_dims = {prb.n_layer, prb.n_dir(), prb.mb, prb.dhc};
-    auto dst_iter_c_d = dnn_mem_t::init_md(4, dst_iter_c_dims,
-            prb.cfg[DST_ITER_C].dt, tag::abx /* dnnl_ldnc */);
+    auto dst_iter_c_d = dnn_mem_t::init_md(prb.ndims(DST_ITER_C),
+            dst_iter_c_dims, prb.cfg[DST_ITER_C].dt, tag::abx /* dnnl_ldnc */);
     // Adjust strides for dst_iter_c_d.
     dims_t dst_iter_c_strides(query_md_ndims(dst_iter_c_d));
     std::memcpy(dst_iter_c_strides.data(), query_md_strides(dst_iter_c_d),
@@ -707,43 +713,47 @@ dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
                 dst_iter_d, dst_iter_c_d, dnnl_attr, res));
     } else {
         // TODO: add stride support for diff_* tensors
-        auto diff_src_layer_d = dnn_mem_t::init_md(
-                3, src_layer_dims, prb.cfg[DIFF_SRC_LAYER].dt, prb.tag[0]);
-        auto diff_src_iter_d = dnn_mem_t::init_md(
-                4, src_iter_dims, prb.cfg[DIFF_SRC_ITER].dt, tag::any);
-        auto diff_src_iter_c_d = dnn_mem_t::init_md(
-                4, src_iter_c_dims, prb.cfg[DIFF_SRC_ITER_C].dt, tag::any);
-        auto diff_weights_layer_d = dnn_mem_t::init_md(5, weights_layer_dims,
+        auto diff_src_layer_d = dnn_mem_t::init_md(prb.ndims(DIFF_SRC_LAYER),
+                src_layer_dims, prb.cfg[DIFF_SRC_LAYER].dt, prb.tag[0]);
+        auto diff_src_iter_d = dnn_mem_t::init_md(prb.ndims(DIFF_SRC_ITER),
+                src_iter_dims, prb.cfg[DIFF_SRC_ITER].dt, tag::any);
+        auto diff_src_iter_c_d = dnn_mem_t::init_md(prb.ndims(DIFF_SRC_ITER_C),
+                src_iter_c_dims, prb.cfg[DIFF_SRC_ITER_C].dt, tag::any);
+        auto diff_weights_layer_d = dnn_mem_t::init_md(
+                prb.ndims(DIFF_WEIGHTS_LAYER), weights_layer_dims,
                 prb.cfg[DIFF_WEIGHTS_LAYER].dt, prb.tag[1]);
-        auto diff_weights_iter_d = dnn_mem_t::init_md(5, weights_iter_dims,
+        auto diff_weights_iter_d = dnn_mem_t::init_md(
+                prb.ndims(DIFF_WEIGHTS_ITER), weights_iter_dims,
                 prb.cfg[DIFF_WEIGHTS_ITER].dt, prb.tag[1]);
 
         benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> diff_attention_d {};
         if (prb.is_augru())
-            diff_attention_d = dnn_mem_t::init_md(3, attention_dims,
+            diff_attention_d = dnn_mem_t::init_md(
+                    prb.ndims(DIFF_AUGRU_ATTENTION), attention_dims,
                     prb.cfg[DIFF_AUGRU_ATTENTION].dt, tag::abx /* dnnl_tnc */);
 
         benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> diff_weights_peephole_d {};
         if (prb.is_lstm_peephole())
-            diff_weights_peephole_d = dnn_mem_t::init_md(4,
-                    weights_peephole_dims, prb.cfg[DIFF_WEIGHTS_PEEPHOLE].dt,
+            diff_weights_peephole_d = dnn_mem_t::init_md(
+                    prb.ndims(DIFF_WEIGHTS_PEEPHOLE), weights_peephole_dims,
+                    prb.cfg[DIFF_WEIGHTS_PEEPHOLE].dt,
                     tag::abx /* dnnl_ldgo */);
 
         benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t>
                 diff_weights_projection_d {};
         if (prb.is_lstm_projection())
-            diff_weights_projection_d
-                    = dnn_mem_t::init_md(4, weights_projection_dims,
-                            prb.cfg[DIFF_WEIGHTS_PROJECTION].dt, tag::any);
+            diff_weights_projection_d = dnn_mem_t::init_md(
+                    prb.ndims(DIFF_WEIGHTS_PROJECTION), weights_projection_dims,
+                    prb.cfg[DIFF_WEIGHTS_PROJECTION].dt, tag::any);
 
-        auto diff_bias_d = dnn_mem_t::init_md(
-                4, bias_dims, prb.cfg[DIFF_BIAS].dt, tag::any);
-        auto diff_dst_layer_d = dnn_mem_t::init_md(
-                3, dst_layer_dims, prb.cfg[DIFF_DST_LAYER].dt, prb.tag[2]);
-        auto diff_dst_iter_d = dnn_mem_t::init_md(
-                4, dst_iter_dims, prb.cfg[DIFF_DST_ITER].dt, tag::any);
-        auto diff_dst_iter_c_d = dnn_mem_t::init_md(
-                4, dst_iter_c_dims, prb.cfg[DIFF_DST_ITER_C].dt, tag::any);
+        auto diff_bias_d = dnn_mem_t::init_md(prb.ndims(DIFF_BIAS), bias_dims,
+                prb.cfg[DIFF_BIAS].dt, tag::any);
+        auto diff_dst_layer_d = dnn_mem_t::init_md(prb.ndims(DIFF_DST_LAYER),
+                dst_layer_dims, prb.cfg[DIFF_DST_LAYER].dt, prb.tag[2]);
+        auto diff_dst_iter_d = dnn_mem_t::init_md(prb.ndims(DIFF_DST_ITER),
+                dst_iter_dims, prb.cfg[DIFF_DST_ITER].dt, tag::any);
+        auto diff_dst_iter_c_d = dnn_mem_t::init_md(prb.ndims(DIFF_DST_ITER_C),
+                dst_iter_c_dims, prb.cfg[DIFF_DST_ITER_C].dt, tag::any);
 
         DNN_SAFE_STATUS(init_rnn_bwd_pd(&init_pd_args.pd, init_pd_args.engine,
                 prb, prb.prop, src_layer_d, src_iter_d, src_iter_c_d,
