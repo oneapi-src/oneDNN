@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -219,6 +219,9 @@ status_t init_conf(matmul::brgemm_matmul_conf_t &conf,
         CHECK(calculate_plain_transpose_blocks(batch, M, K, src_md, dst_md));
         N = 0;
         in_ld = M;
+        // The heuristic value is empirical
+        const bool is_small_shape = batch * M * K < 49152;
+        VDISPATCH_REORDER_IC(!is_small_shape, VERBOSE_SMALL_SHAPES);
     } else {
         batch = ndims > 2 ? dims[ndims - 3] : 1;
         M = 0;
