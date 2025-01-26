@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2024 Intel Corporation
+# Copyright 2019-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ if(DNNL_SYCL_CUDA)
     adjust_headers_priority("cuBLAS::cuBLAS;cuDNN::cuDNN;cublasLt::cublasLt")
     add_definitions_with_host_compiler("-DCUDA_NO_HALF")
 
-    list(APPEND EXTRA_SHARED_LIBS cuBLAS::cuBLAS cuDNN::cuDNN)
+    list(APPEND EXTRA_SHARED_LIBS cuBLAS::cuBLAS cuDNN::cuDNN cublasLt::cublasLt)
     message(STATUS "DPC++ support is enabled (CUDA)")
 elseif(DNNL_SYCL_HIP)
     find_package(HIP REQUIRED)
