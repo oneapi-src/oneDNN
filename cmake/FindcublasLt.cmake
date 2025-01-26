@@ -1,5 +1,5 @@
 # ===============================================================================
-# Copyright 2020-2024 Intel Corporation 
+# Copyright 2020-2025 Intel Corporation 
 # Copyright 2020-2024 Codeplay Software Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not
@@ -26,20 +26,20 @@ find_path(
 find_library(CUDA_DRIVER_LIBRARY cuda)
 
 find_library(
-  CUBLAS_LIBRARY cublasLt
+  CUBLASLT_LIBRARY cublasLt
   HINTS ${CUDA_TOOLKIT_ROOT_DIR}
   PATH_SUFFIXES lib lib64 bin)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
-  cublasLt REQUIRED_VARS CUBLASLT_INCLUDE_DIR CUDA_INCLUDE_DIRS CUBLAS_LIBRARY
+  cublasLt REQUIRED_VARS CUBLASLT_INCLUDE_DIR CUDA_INCLUDE_DIRS CUBLASLT_LIBRARY
                          CUDA_LIBRARIES CUDA_DRIVER_LIBRARY)
 
 if(NOT TARGET cublasLt::cublasLt)
   add_library(cublasLt::cublasLt SHARED IMPORTED)
   set_target_properties(
     cublasLt::cublasLt
-    PROPERTIES IMPORTED_LOCATION ${CUBLAS_LIBRARY}
+    PROPERTIES IMPORTED_LOCATION ${CUBLASLT_LIBRARY}
                INTERFACE_INCLUDE_DIRECTORIES
                "${CUBLASLT_INCLUDE_DIR};${CUDA_INCLUDE_DIRS}"
                INTERFACE_LINK_LIBRARIES
