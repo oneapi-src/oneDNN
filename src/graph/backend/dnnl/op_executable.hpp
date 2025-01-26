@@ -276,7 +276,7 @@ struct memory_reparser_t : public dummy_impl_t {
             const memory &dst_mem = to->second;
             assert(deps.size() <= 1);
             // Passing the empty event to memcpy below causes failure.
-            const bool empty = deps.size() == 0 || deps[0] == 0;
+            const bool empty = deps.empty() || deps[0] == 0;
             const cl_uint num = empty ? 0 : static_cast<cl_uint>(deps.size());
             cl_event e;
             UNUSED_STATUS(xpu::ocl::usm::memcpy(stream.get(),
@@ -360,7 +360,7 @@ struct const_memory_filler_t : public op_executable_t {
         const memory &dst_mem = args.find(DNNL_ARG_TO)->second;
         assert(deps.size() <= 1);
         // Passing the empty event to memcpy below causes failure.
-        const bool empty = deps.size() == 0 || deps[0] == 0;
+        const bool empty = deps.empty() || deps[0] == 0;
         const cl_uint num = empty ? 0 : static_cast<cl_uint>(deps.size());
         cl_event e;
         UNUSED_STATUS(
