@@ -171,7 +171,7 @@ status_t layout_propagator_for_conv(op_ptr &op, const dnnl::engine &p_engine,
         const auto &post_ops = fusion_info.get_post_ops();
         for (size_t i = 0; i < post_ops.size(); ++i) {
             if (!post_ops[i]->is_post_binary()) continue;
-            auto binary = post_ops[i];
+            const auto &binary = post_ops[i];
             std::vector<size_t> binary_idx
                     = binary->get_unfused_input_indices();
             if (binary_idx.empty()) continue;
