@@ -307,6 +307,7 @@ struct const_memory_filler_t : public op_executable_t {
         UNUSED(p_engine);
         UNUSED(mgr);
         UNUSED(pd_cache);
+        // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
         attr_data_
                 = get_attr_data(op->get_attr<std::vector<attr_dt>>(attr_name),
                         std::is_same<attr_dt, target_dt>());
@@ -1816,8 +1817,8 @@ struct batchnorm_executable_t : public op_executable_t {
 
     batchnorm_executable_t(std::shared_ptr<op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-            pd_cache_t &pd_cache) {
-        is_training_ = op->get_attr<bool>(op_attr::is_training);
+            pd_cache_t &pd_cache)
+        : is_training_(op->get_attr<bool>(op_attr::is_training)) {
         float momentum = 0.5;
         if (op->has_attr(op_attr::momentum))
             momentum = op->get_attr<float>(op_attr::momentum);

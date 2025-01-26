@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2023 Intel Corporation
+ * Copyright 2020-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,10 +59,11 @@ public:
     any_t() = default;
     any_t(any_t &&v) {
         clear();
+        // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
         avtable_ = v.avtable_;
         v.avtable_ = nullptr;
     }
-    any_t(const any_t &v) { avtable_ = v.avtable_; }
+    any_t(const any_t &v) = default;
 
     template <typename T,
             typename = enable_if_t<!std::is_same<T, any_t &>::value>>
@@ -70,6 +71,7 @@ public:
         clear();
         using value_type = typename std::decay<
                 typename std::remove_reference<T>::type>::type;
+        // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
         avtable_ = std::make_shared<vtable_t<value_type>>(std::forward<T>(v));
     }
 
