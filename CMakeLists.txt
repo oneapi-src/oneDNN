@@ -31,6 +31,11 @@ if(POLICY CMP0148)
     cmake_policy(SET CMP0148 NEW)
 endif()
 
+# CMake 3.27: The FindCUDA module is removed.
+if(POLICY CMP0146)
+    cmake_policy(SET CMP0146 OLD)
+endif()
+
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
     message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Release")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING
