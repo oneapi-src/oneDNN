@@ -86,7 +86,7 @@ private:
 
     struct deletor_wrapper_t {
         deletor_wrapper_t(const dnnl::impl::graph::engine_t *eng) : eng_(eng) {}
-        void operator()(void *p) {
+        void operator()(void *p) const {
             if (p) {
                 const auto k = eng_->kind();
                 auto alc = static_cast<dnnl::impl::graph::allocator_t *>(
