@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,8 @@
 /// @param partitions a list of partitions
 /// @param id_to_set_any_layout a set of ids of logical tensors with any layout
 ///     type
-void set_any_layout(const std::vector<dnnl::graph::partition> &partitions,
+inline void set_any_layout(
+        const std::vector<dnnl::graph::partition> &partitions,
         std::unordered_set<size_t> &id_to_set_any_layout) {
     // mapping from output tensor id to the all supported flags of
     // supported partitions, we may only need outputs' supported flags
@@ -121,13 +122,13 @@ struct sycl_deletor {
     }
 };
 
-void *sycl_malloc_wrapper(
+inline void *sycl_malloc_wrapper(
         size_t size, size_t alignment, const void *dev, const void *ctx) {
     return malloc_shared(size, *static_cast<const ::sycl::device *>(dev),
             *static_cast<const ::sycl::context *>(ctx));
 }
 
-void sycl_free_wrapper(
+inline void sycl_free_wrapper(
         void *ptr, const void *device, const void *context, void *event) {
     // Device is not used in this example, but it may be useful for some users
     // application.
@@ -142,7 +143,7 @@ void sycl_free_wrapper(
 }
 #endif
 
-void allocate_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
+inline void allocate_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
         const std::vector<dnnl::graph::logical_tensor> &lts,
         std::vector<std::shared_ptr<void>> &data_buffer,
         const dnnl::engine &eng) {
@@ -159,7 +160,7 @@ void allocate_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
     }
 }
 
-void allocate_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
+inline void allocate_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
         const std::vector<dnnl::graph::logical_tensor> &lts,
         std::vector<std::shared_ptr<void>> &data_buffer,
         std::unordered_map<size_t, dnnl::graph::tensor> &global_outputs_ts_map,
@@ -191,7 +192,7 @@ void allocate_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
 }
 
 #ifdef DNNL_WITH_SYCL
-void allocate_sycl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
+inline void allocate_sycl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
         const std::vector<dnnl::graph::logical_tensor> &lts,
         std::vector<std::shared_ptr<void>> &data_buffer, sycl::queue &q,
         const dnnl::engine &eng) {
@@ -210,7 +211,7 @@ void allocate_sycl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
     }
 }
 
-void allocate_sycl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
+inline void allocate_sycl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
         const std::vector<dnnl::graph::logical_tensor> &lts,
         std::vector<std::shared_ptr<void>> &data_buffer,
         std::unordered_map<size_t, dnnl::graph::tensor> &global_outputs_ts_map,
@@ -305,7 +306,7 @@ static void ocl_free(
     OCL_CHECK(f(ctx, ptr));
 }
 
-void allocate_ocl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
+inline void allocate_ocl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
         const std::vector<dnnl::graph::logical_tensor> &lts,
         std::vector<std::shared_ptr<void>> &data_buffer,
         std::unordered_map<size_t, dnnl::graph::tensor> &global_outputs_ts_map,
@@ -341,7 +342,8 @@ void allocate_ocl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
     }
 }
 
-void ocl_memcpy(dnnl::engine &eng, void *dst, const void *src, size_t size) {
+inline void ocl_memcpy(
+        dnnl::engine &eng, void *dst, const void *src, size_t size) {
     using F = cl_int (*)(cl_command_queue, cl_bool, void *, const void *,
             size_t, cl_uint, const cl_event *, cl_event *);
     if (!src || !dst) return;
@@ -610,12 +612,12 @@ private:
     std::unordered_map<void *, bool> is_free_ptr_;
 };
 
-simple_memory_pool_t &get_mem_pool() {
+inline simple_memory_pool_t &get_mem_pool() {
     static simple_memory_pool_t mem_pool;
     return mem_pool;
 }
 
-dnnl::graph::allocator create_allocator(dnnl::engine::kind ekind) {
+inline dnnl::graph::allocator create_allocator(dnnl::engine::kind ekind) {
     if (ekind == dnnl::engine::kind::cpu) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
         auto alloc_func = [](size_t size, size_t alignment, const void *dev,
