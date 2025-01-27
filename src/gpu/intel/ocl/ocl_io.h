@@ -147,6 +147,9 @@ DEF_load(float, e8m0);
 #endif // cl_khr_fp16
 
 #ifdef cl_khr_fp64
+// Included for compile time compatibility
+DEF_load(double, undef_data);
+
 DEF_load(float, double); // Needed for src=f64, dst=f32
 DEF_load(double, bf16);
 DEF_load(double, float);
