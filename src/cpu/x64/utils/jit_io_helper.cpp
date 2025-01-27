@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -277,12 +277,13 @@ void jit_io_helper_t<Vmm>::prepare_i8_data_to_store(const Vmm &i8_vmm) {
 
 template <typename Vmm>
 void jit_io_helper_t<Vmm>::prepare_xf16_data_to_store(const Vmm &vmm) {
-    assert(!is_superset(isa_, avx512_core));
     const auto &cvt_lower_vmm =
             typename vreg_traits<Vmm>::Vmm_lower_t(vmm.getIdx());
 
     if (data_type_ == data_type::bf16)
-        host_->vcvtneps2bf16(cvt_lower_vmm, vmm, Xbyak::VexEncoding);
+        host_->vcvtneps2bf16(cvt_lower_vmm, vmm,
+                mayiuse(avx512_core) ? Xbyak::EvexEncoding
+                                     : Xbyak::VexEncoding);
     else
         host_->uni_vcvtps2phx(cvt_lower_vmm, vmm);
 }
@@ -766,15 +767,22 @@ void jit_io_helper_t<Vmm>::store(const Vmm &src_raw_vmm,
     const bool is_xf16
             = utils::one_of(data_type_, data_type::bf16, data_type::f16);
 
-    const bool can_store_byte_by_byte = tail
-            && (isa_ == sse41
-                    || (!is_store_tail_supported && (is_i8 || is_xf16)));
+    const bool can_store_byte_by_byte
+            = (tail
+                      && (isa_ == sse41
+                              || (!is_store_tail_supported
+                                      && (is_i8 || is_xf16))))
+            || (std::is_same<Vmm, Xbyak::Xmm>::value && is_xf16);
 
     if (data_type_ == data_type::s32 || is_i8) saturate(src_raw_vmm);
 
     if (can_store_byte_by_byte) {
-        const size_t store_size
-                = tail_conf_->tail_size_ * types::data_type_size(data_type_);
+        // TODO: Consider adding opmask to store xf16 data from Xmm.
+        // This could allow to use store_bf16/store_f16 functions for isa >= avx512_core.
+        const size_t xmm_length
+                = vreg_traits<Xbyak::Xmm>::vlen / sizeof(int32_t);
+        const size_t store_size = (tail ? tail_conf_->tail_size_ : xmm_length)
+                * types::data_type_size(data_type_);
         store_byte_by_byte(src_vmm, dst_addr, store_size);
     } else {
         switch (data_type_) {
