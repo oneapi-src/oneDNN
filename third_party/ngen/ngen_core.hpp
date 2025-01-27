@@ -300,6 +300,153 @@ static inline constexpr14 PlatformType getPlatformType(ProductFamily family) {
     return PlatformType::Unknown;
 }
 
+static inline constexpr14 PlatformType getPlatformType(uint32_t deviceID) {
+    // A list of device ids can be found in:
+    // https://github.com/intel/compute-runtime/blob/master/shared/source/dll/devices/devices_base.inl
+    // only NAMEDDEVICE ids are included.
+    switch(deviceID) {
+        // BMG
+        case 0xE20B:
+        case 0xE20C:
+            return PlatformType::Discrete;
+
+        // LNL
+        case 0x6420:
+        case 0x64A0:
+        case 0x64B0:
+            return PlatformType::Integrated;
+
+        // PVC
+        case 0x0BD5:
+        case 0x0BD6:
+        case 0x0BD7:
+        case 0x0BD8:
+        case 0x0BD9:
+        case 0x0BDA:
+        case 0x0BDB:
+        case 0x0B69:
+        case 0x0B6E:
+        case 0x0BD4:
+            return PlatformType::Discrete;
+
+        // DG2
+        case 0x5690:
+        case 0x5691:
+        case 0x5692:
+        case 0x5693:
+        case 0x5694:
+        case 0x5696:
+        case 0x5697:
+        case 0x56B0:
+        case 0x56B1:
+        case 0x56B2:
+        case 0x56B3:
+        case 0x56BA:
+        case 0x56BB:
+        case 0x56BC:
+        case 0x56BD:
+        case 0x56BE:
+        case 0x56BF:
+        case 0x56A0:
+        case 0x56A1:
+        case 0x56A2:
+        case 0x56A5:
+        case 0x56A6:
+        case 0x56AF:
+        case 0x56C0:
+        case 0x56C1:
+        case 0x56C2:
+            return PlatformType::Discrete;
+
+        // MTL
+        case 0x7D40:
+        case 0x7D55:
+        case 0x7DD5:
+        case 0x7D45:
+            return PlatformType::Integrated;
+
+        // ARL
+        case 0x7D67:
+        case 0x7D51:
+        case 0x7DD1:
+            return PlatformType::Integrated;
+
+
+        // TGL
+        case 0x9A49:
+        case 0x9A40:
+        case 0x9A60:
+        case 0x9A68:
+        case 0x9A70:
+        case 0x9A78:
+            return PlatformType::Integrated;
+
+        // DG1
+        case 0x4905:
+        case 0x4907:
+        case 0x4908:
+        case 0x4909:
+            return PlatformType::Discrete;
+
+        // RKL
+        case 0x4C8A:
+        case 0x4C8B:
+        case 0x4C90:
+            return PlatformType::Integrated;
+
+        // ADLS
+        case 0x4680:
+        case 0x4682:
+        case 0x4688:
+        case 0x468A:
+        case 0x468B:
+        case 0x4690:
+        case 0x4692:
+        case 0x4693:
+        case 0xA780:
+        case 0xA782:
+        case 0xA788:
+        case 0xA78A:
+        case 0xA78B:
+            return PlatformType::Integrated;
+
+        // ADLN
+        case 0x46D0:
+        case 0x46D1:
+        case 0x46D2:
+        case 0x46D3:
+        case 0x46D4:
+            return PlatformType::Integrated;
+
+        // ADLP
+        case 0x46A3:
+        case 0x46A6:
+        case 0x46A8:
+        case 0x46AA:
+        case 0x462A:
+        case 0x4626:
+        case 0x4628:
+        case 0x46B3:
+        case 0x46C3:
+            return PlatformType::Integrated;
+
+        // RPL-P
+        case 0xA7A0:
+        case 0xA720:
+        case 0xA7A8:
+        case 0xA7A1:
+        case 0xA721:
+        case 0xA7A9:
+        case 0xA7AA:
+        case 0xA7AB:
+        case 0xA7AC:
+        case 0xA7AD:
+            return PlatformType::Integrated;
+
+        default: return PlatformType::Unknown;
+    }
+}
+
 static inline constexpr14 ProductFamily genericProductFamily(HW hw)
 {
     switch (hw) {

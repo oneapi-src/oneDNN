@@ -104,6 +104,8 @@ public:
 
     /* Deprecated. Use the Product-based API instead. */
     static void detectHWInfo(ze_context_handle_t context, ze_device_handle_t device, HW &outHW, int &outStepping);
+
+    static inline uint32_t getDeviceID(ze_device_handle_t device);
 };
 
 #define NGEN_FORWARD_LEVEL_ZERO(hw) NGEN_FORWARD_ELF(hw)
@@ -207,6 +209,20 @@ void LevelZeroCodeGenerator<hw>::detectHWInfo(ze_context_handle_t context, ze_de
     detail::handleL0(call_zeModuleDestroy(module));
 
     ELFCodeGenerator<hw>::getBinaryHWInfo(binary, outHW, outProduct);
+}
+
+template <HW hw>
+uint32_t LevelZeroCodeGenerator<hw>::getDeviceID(ze_device_handle_t device)
+{
+    // Try ZE_extension_device_ip_version first if available.
+    auto dprop = ze_device_properties_t();
+    dprop.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+
+    if (call_zeDeviceGetProperties(device, &dprop) == ZE_RESULT_SUCCESS) {
+        return dprop.deviceId;
+    }
+
+    return static_cast<uint32_t>(-1);
 }
 
 } /* namespace NGEN_NAMESPACE */

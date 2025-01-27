@@ -33,6 +33,10 @@
 #define CL_DEVICE_IP_VERSION_INTEL 0x4250
 #endif
 
+#ifndef CL_DEVICE_ID_INTEL
+#define CL_DEVICE_ID_INTEL 0x4251
+#endif
+
 namespace NGEN_NAMESPACE {
 
 
@@ -66,6 +70,8 @@ public:
 
     /* Deprecated. Use the Product-based API instead. */
     static inline void detectHWInfo(cl_context context, cl_device_id device, HW &outHW, int &outStepping);
+
+    static inline uint32_t getDeviceID(cl_device_id device);
 
 private:
     bool isZebin = false;
@@ -294,6 +300,16 @@ void OpenCLCodeGenerator<hw>::detectHWInfo(cl_context context, cl_device_id devi
     auto binary = detail::getOpenCLCProgramBinary(context, device, dummyCL, dummyOptions);
 
     ELFCodeGenerator<hw>::getBinaryHWInfo(binary, outHW, outProduct);
+}
+
+template <HW hw>
+uint32_t OpenCLCodeGenerator<hw>::getDeviceID(cl_device_id device)
+{
+    cl_uint intelId = 0;
+    if (clGetDeviceInfo(device, CL_DEVICE_ID_INTEL, sizeof(intelId), &intelId, nullptr) == CL_SUCCESS) {
+        return intelId;
+    }
+    return static_cast<uint32_t>(-1);
 }
 
 } /* namespace NGEN_NAMESPACE */
