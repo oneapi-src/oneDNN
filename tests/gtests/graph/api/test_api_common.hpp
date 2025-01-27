@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -150,7 +150,6 @@ struct sycl_deletor {
 
 struct engine_handle_t {
     dnnl_engine_t engine = nullptr;
-    ~engine_handle_t() {};
     explicit operator bool() const noexcept {
         return static_cast<bool>(engine);
     }
