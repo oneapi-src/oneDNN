@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,8 +78,8 @@ static inline void test_eltwise_common(std::vector<float> &src,
 
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor dst_ts(lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t dst_ts(lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
 
@@ -102,8 +102,8 @@ static inline void test_eltwise_common(std::vector<float> &src,
     //if the memory cache runs correctly
     std::vector<float> dst2(dst.size(), 0.0);
 
-    test_tensor src_ts2(src_lt, eng, src);
-    test_tensor dst_ts2(lt, eng, dst2);
+    test_tensor_t src_ts2(src_lt, eng, src);
+    test_tensor_t dst_ts2(lt, eng, dst2);
 
     cp.execute(strm, {src_ts2.get()}, {dst_ts2.get()});
     strm->wait();
@@ -225,15 +225,15 @@ static inline void test_eltwise_bwd_common(
     std::vector<const graph::logical_tensor_t *> outputs {&diff_src_lt};
     p.compile(&cp, inputs, outputs, eng);
 
-    test_tensor fwd_data_ts(fwd_data_lt, eng, fwd_data);
-    test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst_data);
-    test_tensor diff_src_ts(diff_src_lt, eng, diff_src_data);
+    test_tensor_t fwd_data_ts(fwd_data_lt, eng, fwd_data);
+    test_tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst_data);
+    test_tensor_t diff_src_ts(diff_src_lt, eng, diff_src_data);
 
-    std::vector<test_tensor> input_ts {fwd_data_ts, diff_dst_ts};
-    std::vector<test_tensor> output_ts {diff_src_ts};
+    std::vector<test_tensor_t> input_ts {fwd_data_ts, diff_dst_ts};
+    std::vector<test_tensor_t> output_ts {diff_src_ts};
     graph::stream_t *strm = get_stream();
-    cp.execute(strm, test_tensor::to_graph_tensor(input_ts),
-            test_tensor::to_graph_tensor(output_ts));
+    cp.execute(strm, test_tensor_t::to_graph_tensor(input_ts),
+            test_tensor_t::to_graph_tensor(output_ts));
     strm->wait();
     diff_src_data = diff_src_ts.as_vec_type<float>();
     for (size_t i = 0; i < diff_src_data.size(); ++i) {
@@ -723,8 +723,8 @@ TEST(test_eltwise_execute_subgraph_fp32, Shuffle) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<float> dst_data(product(reshape1_dst_shape));
-        test_tensor reshape0_src_ts(reshape0_src, engine, src_data);
-        test_tensor reshape1_dst_ts(reshape1_dst, engine, dst_data);
+        test_tensor_t reshape0_src_ts(reshape0_src, engine, src_data);
+        test_tensor_t reshape1_dst_ts(reshape1_dst, engine, dst_data);
 
         cp.execute(strm, {reshape0_src_ts.get()}, {reshape1_dst_ts.get()});
         strm->wait();
@@ -786,9 +786,9 @@ TEST(test_eltwise_execute_subgraph_fp32, ReciprocalMul) {
     cp.query_logical_tensor(mul_dst.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src0_ts(src0, eng, src0_data);
-    test_tensor src1_ts(src1, eng, src1_data);
-    test_tensor dst_ts(lt, eng, dst_data);
+    test_tensor_t src0_ts(src0, eng, src0_data);
+    test_tensor_t src1_ts(src1, eng, src1_data);
+    test_tensor_t dst_ts(lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src0_ts.get(), src1_ts.get()}, {dst_ts.get()}),
@@ -893,12 +893,12 @@ TEST(test_eltwise_execute, Sum) {
     std::vector<float> input4_data(product(input_dims), 1);
     std::vector<float> output_data(product(input_dims), 0);
 
-    test_tensor input0_ts(input0, engine, input0_data);
-    test_tensor input1_ts(input1, engine, input1_data);
-    test_tensor input2_ts(input2, engine, input2_data);
-    test_tensor input3_ts(input3, engine, input3_data);
-    test_tensor input4_ts(input4, engine, input4_data);
-    test_tensor output_ts(output3, engine, output_data);
+    test_tensor_t input0_ts(input0, engine, input0_data);
+    test_tensor_t input1_ts(input1, engine, input1_data);
+    test_tensor_t input2_ts(input2, engine, input2_data);
+    test_tensor_t input3_ts(input3, engine, input3_data);
+    test_tensor_t input4_ts(input4, engine, input4_data);
+    test_tensor_t output_ts(output3, engine, output_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm,
@@ -1038,9 +1038,9 @@ public:
         cp.query_logical_tensor(eltwise_src_lt.id, &esrc_lt);
         cp.query_logical_tensor(binary_src_lt.id, &bsrc_lt);
         cp.query_logical_tensor(binary_dst_lt.id, &bdst_lt);
-        test_tensor src_ts(esrc_lt, eng, src);
-        test_tensor binary_src_ts(bsrc_lt, eng, binary_src);
-        test_tensor binary_dst_ts(bdst_lt, eng);
+        test_tensor_t src_ts(esrc_lt, eng, src);
+        test_tensor_t binary_src_ts(bsrc_lt, eng, binary_src);
+        test_tensor_t binary_dst_ts(bdst_lt, eng);
 
         graph::stream_t *strm = get_stream();
 

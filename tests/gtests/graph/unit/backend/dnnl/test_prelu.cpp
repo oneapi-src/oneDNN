@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,9 +87,9 @@ public:
 
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        test_tensor src_ts(src_lt, eng, src);
-        test_tensor wei_ts(wei_lt, eng, wei);
-        test_tensor dst_ts(dst_lt, eng, dst);
+        test_tensor_t src_ts(src_lt, eng, src);
+        test_tensor_t wei_ts(wei_lt, eng, wei);
+        test_tensor_t dst_ts(dst_lt, eng, dst);
         graph::stream_t *strm = get_stream();
 
         cp.execute(strm, {src_ts.get(), wei_ts.get()}, {dst_ts.get()});
@@ -175,11 +175,11 @@ public:
 
         ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-        test_tensor src_ts(src_lt, eng, src);
-        test_tensor wei_ts(wei_lt, eng, wei);
-        test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst);
-        test_tensor diff_src_ts(diff_src_lt, eng, diff_src);
-        test_tensor diff_wei_ts(diff_wei_lt, eng, diff_wei);
+        test_tensor_t src_ts(src_lt, eng, src);
+        test_tensor_t wei_ts(wei_lt, eng, wei);
+        test_tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst);
+        test_tensor_t diff_src_ts(diff_src_lt, eng, diff_src);
+        test_tensor_t diff_wei_ts(diff_wei_lt, eng, diff_wei);
 
         ASSERT_EQ(cp.execute(strm,
                           {src_ts.get(), wei_ts.get(), diff_dst_ts.get()},

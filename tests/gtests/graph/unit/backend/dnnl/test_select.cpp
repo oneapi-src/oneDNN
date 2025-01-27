@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,10 +74,10 @@ TEST(test_select_execute, TestSelect) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
     graph::stream_t *stream = get_stream();
-    test_tensor cond_ts(cond_lt, engine, cond);
-    test_tensor src0_ts(src0_lt, engine, src0);
-    test_tensor src1_ts(src1_lt, engine, src1);
-    test_tensor dst_ts(dst_lt, engine, dst);
+    test_tensor_t cond_ts(cond_lt, engine, cond);
+    test_tensor_t src0_ts(src0_lt, engine, src0);
+    test_tensor_t src1_ts(src1_lt, engine, src1);
+    test_tensor_t dst_ts(dst_lt, engine, dst);
 
     ASSERT_EQ(cp.execute(stream, {cond_ts.get(), src0_ts.get(), src1_ts.get()},
                       {dst_ts.get()}),
@@ -170,12 +170,12 @@ TEST(test_select_execute, MatmulSelect) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor div_src1_ts(div_src1, engine, div_src1_data);
-    test_tensor cond_ts(cond, engine, cond_data);
-    test_tensor select_src0_ts(select_src0, engine, select_src1_data);
-    test_tensor dst_ts(dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t div_src1_ts(div_src1, engine, div_src1_data);
+    test_tensor_t cond_ts(cond, engine, cond_data);
+    test_tensor_t select_src0_ts(select_src0, engine, select_src1_data);
+    test_tensor_t dst_ts(dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm,

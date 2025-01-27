@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1898,16 +1898,16 @@ inline void construct_chained_relu(dnnl::impl::graph::graph_t *agraph) {
     agraph->add_op(&relu2);
 }
 
-class id_generator {
+class id_generator_t {
 public:
-    id_generator() : id_(0) {};
+    id_generator_t() : id_(0) {};
     size_t get_id() { return id_++; }
 
 private:
     size_t id_;
 };
 
-inline impl::graph::logical_tensor_t create_convolution(id_generator &id_gen,
+inline impl::graph::logical_tensor_t create_convolution(id_generator_t &id_gen,
         impl::graph::graph_t &agraph, const impl::graph::logical_tensor_t &src,
         int64_t ic, int64_t ks, int64_t oc, int64_t groups,
         const impl::graph::dims &strides, const impl::graph::dims &dilations,
@@ -2017,7 +2017,7 @@ inline impl::graph::logical_tensor_t create_convolution(id_generator &id_gen,
     return dst;
 }
 
-inline impl::graph::logical_tensor_t create_add(id_generator &id_gen,
+inline impl::graph::logical_tensor_t create_add(id_generator_t &id_gen,
         impl::graph::graph_t &agraph, const impl::graph::logical_tensor_t &src0,
         const impl::graph::logical_tensor_t &src1) {
     impl::graph::op_t add(id_gen.get_id(), impl::graph::op_kind::Add, "add");
@@ -2029,7 +2029,7 @@ inline impl::graph::logical_tensor_t create_add(id_generator &id_gen,
     return dst;
 }
 
-inline impl::graph::logical_tensor_t create_relu(id_generator &id_gen,
+inline impl::graph::logical_tensor_t create_relu(id_generator_t &id_gen,
         impl::graph::graph_t &agraph,
         const impl::graph::logical_tensor_t &src) {
     impl::graph::op_t relu_op(
@@ -2041,7 +2041,7 @@ inline impl::graph::logical_tensor_t create_relu(id_generator &id_gen,
     return dst;
 }
 
-inline impl::graph::logical_tensor_t create_dequantize(id_generator &id_gen,
+inline impl::graph::logical_tensor_t create_dequantize(id_generator_t &id_gen,
         impl::graph::graph_t &agraph, const impl::graph::logical_tensor_t &src,
         const std::string &qtype, const std::vector<int64_t> &zps,
         const std::vector<float> &scales, int64_t axis) {
@@ -2060,7 +2060,7 @@ inline impl::graph::logical_tensor_t create_dequantize(id_generator &id_gen,
     return dst;
 }
 
-inline impl::graph::logical_tensor_t create_quantize(id_generator &id_gen,
+inline impl::graph::logical_tensor_t create_quantize(id_generator_t &id_gen,
         impl::graph::graph_t &agraph, const impl::graph::logical_tensor_t &src,
         impl::graph::data_type_t dst_dtype, const std::string &qtype,
         const std::vector<int64_t> &zps, const std::vector<float> &scales,
@@ -2080,7 +2080,7 @@ inline impl::graph::logical_tensor_t create_quantize(id_generator &id_gen,
 }
 
 inline impl::graph::logical_tensor_t create_int8_convolution(
-        id_generator &id_gen, impl::graph::graph_t &agraph,
+        id_generator_t &id_gen, impl::graph::graph_t &agraph,
         const impl::graph::logical_tensor_t &src, int64_t ic, int64_t ks,
         int64_t oc, int64_t groups, const impl::graph::dims &strides,
         const impl::graph::dims &dilations, const impl::graph::dims &pads_begin,
@@ -2186,7 +2186,7 @@ inline impl::graph::logical_tensor_t create_int8_convolution(
 }
 
 inline void construct_convolutional_bottleneck_resblock(
-        dnnl::impl::graph::graph_t *agraph, id_generator &id_gen) {
+        dnnl::impl::graph::graph_t *agraph, id_generator_t &id_gen) {
     auto input = utils::logical_tensor_init(
             id_gen.get_id(), {8, 64, 56, 56}, impl::graph::data_type::f32);
     auto conv0 = create_convolution(id_gen, *agraph, input, 64, 1, 64, 1,
@@ -2207,7 +2207,7 @@ inline void construct_convolutional_bottleneck_resblock(
 }
 
 inline void construct_int8_conv_bias_relu_conv_bias_relu_block(
-        dnnl::impl::graph::graph_t *agraph, id_generator &id_gen) {
+        dnnl::impl::graph::graph_t *agraph, id_generator_t &id_gen) {
     int64_t ic = 8, oc = 8, ks = 1;
     std::vector<int64_t> src_shape {1, ic, 12, 12};
 
@@ -2231,7 +2231,7 @@ inline void construct_int8_conv_bias_relu_conv_bias_relu_block(
 }
 
 inline void construct_int8_identical_bottleneck_resblock(
-        dnnl::impl::graph::graph_t *agraph, id_generator &id_gen) {
+        dnnl::impl::graph::graph_t *agraph, id_generator_t &id_gen) {
     int64_t ic = 8, oc = 8, ks = 1;
     std::vector<int64_t> src_shape {1, ic, 12, 12};
 
@@ -2267,7 +2267,7 @@ inline void construct_int8_identical_bottleneck_resblock(
 }
 
 inline void construct_int8_convolutional_bottleneck_resblock(
-        dnnl::impl::graph::graph_t *agraph, id_generator &id_gen) {
+        dnnl::impl::graph::graph_t *agraph, id_generator_t &id_gen) {
     int64_t ic = 8, oc = 8, ks = 1;
     std::vector<int64_t> src_shape {1, ic, 12, 12};
 
@@ -2318,7 +2318,7 @@ While CPU supports.
 we can set Post-sum/binary zero points by zp_postbinary.
 */
 inline void construct_int8_resnet50_stage2_block(
-        dnnl::impl::graph::graph_t *agraph, id_generator &id_gen,
+        dnnl::impl::graph::graph_t *agraph, id_generator_t &id_gen,
         size_t three_conv_block_num = 2, bool use_biasadd = false,
         bool is_quantize_wei = false, float scales = 1 / 255.f,
         int64_t zps = 78, int64_t zp_postbinary = 0) {
@@ -2386,7 +2386,7 @@ inline void construct_int8_resnet50_stage2_block(
 }
 
 inline void construct_f32_resnet50_stage2_block(
-        dnnl::impl::graph::graph_t *agraph, id_generator &id_gen,
+        dnnl::impl::graph::graph_t *agraph, id_generator_t &id_gen,
         size_t three_conv_block_num = 2, bool use_biasadd = false) {
     int64_t ic = 8, oc = 8, ks = 1;
     std::vector<int64_t> src_shape {1, ic, 12, 12};
@@ -2432,7 +2432,7 @@ inline void construct_f32_resnet50_stage2_block(
 }
 
 inline void construct_itex_int8_resnet50_stage2_block(
-        dnnl::impl::graph::graph_t *agraph, id_generator &id_gen,
+        dnnl::impl::graph::graph_t *agraph, id_generator_t &id_gen,
         size_t three_conv_block_num = 2) {
     int64_t ic = 8, oc = 8, ks = 1;
     std::vector<int64_t> src_shape {1, ic, 12, 12};
@@ -2502,7 +2502,7 @@ inline void construct_itex_int8_resnet50_stage2_block(
 }
 
 inline void construct_int8_resnext101_stage3_block(
-        dnnl::impl::graph::graph_t *agraph, id_generator &id_gen,
+        dnnl::impl::graph::graph_t *agraph, id_generator_t &id_gen,
         size_t three_conv_block_num = 22) {
     int64_t ic = 8, oc = 8, ks = 1;
     std::vector<int64_t> src_shape {1, ic, 12, 12};

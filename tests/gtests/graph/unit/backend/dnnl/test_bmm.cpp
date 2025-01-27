@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -91,12 +91,12 @@ TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32) {
     g.add_op(&matmul_op);
     g.finalize();
 
-    test_tensor src_u8_ts(src_u8, engine);
+    test_tensor_t src_u8_ts(src_u8, engine);
     src_u8_ts.fill<uint8_t>(20, 10);
-    test_tensor weight_u8_ts(weight_u8, engine);
+    test_tensor_t weight_u8_ts(weight_u8, engine);
     weight_u8_ts.fill<uint8_t>(20, 10);
     // -------------------------case 1----------------------------------
-    test_tensor dst_f32_ts(dst_f32, engine);
+    test_tensor_t dst_f32_ts(dst_f32, engine);
     ASSERT_EQ(run_graph(g, {src_u8_ts, weight_u8_ts}, {dst_f32_ts}, *engine,
                       *strm),
             graph::status::success);
@@ -117,7 +117,7 @@ TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor dst_f32_case2_ts(dst_f32, engine);
+    test_tensor_t dst_f32_case2_ts(dst_f32, engine);
     cp.execute(strm, {src_u8_ts.get(), weight_u8_ts.get()},
             {dst_f32_case2_ts.get()});
     strm->wait();
@@ -220,11 +220,11 @@ TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32NonContiguous) {
     g.add_op(&matmul_op);
     g.finalize();
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
     // -------------------------case 1----------------------------------
     std::vector<float> case1_out_data(product(dst_shape));
-    test_tensor dst_f32_ts(dst_f32, engine, case1_out_data);
+    test_tensor_t dst_f32_ts(dst_f32, engine, case1_out_data);
     ASSERT_EQ(run_graph(g, {src_u8_ts, weight_f32_ts}, {dst_f32_ts}, *engine,
                       *strm),
             graph::status::success);
@@ -246,7 +246,7 @@ TEST(test_bmm_execute_subgraph_int8, BmmU8u8f32NonContiguous) {
     p.compile(&cp, lt_ins, lt_outs, engine);
 
     std::vector<float> case2_out_data(product(dst_shape));
-    test_tensor dst_f32_case2_ts(dst_f32, engine, case2_out_data);
+    test_tensor_t dst_f32_case2_ts(dst_f32, engine, case2_out_data);
     cp.execute(strm, {weight_f32_ts.get(), src_u8_ts.get()},
             {dst_f32_case2_ts.get()});
     strm->wait();
@@ -362,11 +362,11 @@ TEST(test_bmm_execute_subgraph_int8, BmmDivU8u8f32) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_u8_ts(weight_u8, engine, weight_data);
-    test_tensor div_src1_ts(div_src1, engine, div_src1_data);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_u8_ts(weight_u8, engine, weight_data);
+    test_tensor_t div_src1_ts(div_src1, engine, div_src1_data);
     std::vector<float> case2_out_data(product(dst_shape));
-    test_tensor dst_f32_case2_ts(div_f32, engine, case2_out_data);
+    test_tensor_t dst_f32_case2_ts(div_f32, engine, case2_out_data);
     cp.execute(strm, {src_u8_ts.get(), weight_u8_ts.get(), div_src1_ts.get()},
             {dst_f32_case2_ts.get()});
     strm->wait();
@@ -491,11 +491,11 @@ TEST(test_bmm_execute_subgraph_int8, BmmDivAddU8u8f32) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_u8_ts(weight_u8, engine, weight_data);
-    test_tensor div_src1_ts(div_src1, engine, div_src1_data);
-    test_tensor add_src1_ts(add_src1, engine, add_src1_data);
-    test_tensor dst_f32_case2_ts(add_f32, engine);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_u8_ts(weight_u8, engine, weight_data);
+    test_tensor_t div_src1_ts(div_src1, engine, div_src1_data);
+    test_tensor_t add_src1_ts(add_src1, engine, add_src1_data);
+    test_tensor_t dst_f32_case2_ts(add_f32, engine);
     cp.execute(strm,
             {src_u8_ts.get(), weight_u8_ts.get(), div_src1_ts.get(),
                     add_src1_ts.get()},
@@ -631,9 +631,9 @@ TEST(test_bmm_execute_subgraph_int8, BmmX8x8bf16_CPU) {
 
             p.compile(&cp, lt_ins, lt_outs, engine);
 
-            test_tensor src_ts(src, engine, src_data);
-            test_tensor weight_ts(weight, engine, weight_data);
-            test_tensor dst_ts(dst_bf16, engine);
+            test_tensor_t src_ts(src, engine, src_data);
+            test_tensor_t weight_ts(weight, engine, weight_data);
+            test_tensor_t dst_ts(dst_bf16, engine);
             cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
             strm->wait();
         }
@@ -782,10 +782,10 @@ TEST(test_bmm_execute_subgraph_int8, BmmDivX8x8bf16_CPU) {
             p.compile(&cp, lt_ins, lt_outs, engine);
 
             std::vector<bfloat16_t> div_src1_data(1);
-            test_tensor src_ts(src, engine, src_data);
-            test_tensor weight_ts(weight, engine, weight_data);
-            test_tensor div_src1_ts(div_src1, engine, div_src1_data);
-            test_tensor dst_ts(div_bf16, engine);
+            test_tensor_t src_ts(src, engine, src_data);
+            test_tensor_t weight_ts(weight, engine, weight_data);
+            test_tensor_t div_src1_ts(div_src1, engine, div_src1_data);
+            test_tensor_t dst_ts(div_bf16, engine);
             cp.execute(strm, {src_ts.get(), weight_ts.get(), div_src1_ts.get()},
                     {dst_ts.get()});
             strm->wait();
@@ -934,10 +934,10 @@ TEST(test_bmm_execute_subgraph_int8, BmmDivBlockedX8x8bf16_CPU) {
             p.compile(&cp, lt_ins, lt_outs, engine);
 
             std::vector<bfloat16_t> div_src1_data(1);
-            test_tensor src_ts(src, engine, src_data);
-            test_tensor weight_ts(weight, engine, weight_data);
-            test_tensor div_src1_ts(div_src1, engine, div_src1_data);
-            test_tensor dst_ts(div_bf16, engine);
+            test_tensor_t src_ts(src, engine, src_data);
+            test_tensor_t weight_ts(weight, engine, weight_data);
+            test_tensor_t div_src1_ts(div_src1, engine, div_src1_data);
+            test_tensor_t dst_ts(div_bf16, engine);
             cp.execute(strm, {src_ts.get(), weight_ts.get(), div_src1_ts.get()},
                     {dst_ts.get()});
             strm->wait();
@@ -1106,11 +1106,11 @@ TEST(test_bmm_execute_subgraph_int8, BmmDivAddX8x8bf16_CPU) {
 
             p.compile(&cp, lt_ins, lt_outs, engine);
 
-            test_tensor src_ts(src, engine, src_data);
-            test_tensor weight_ts(weight, engine, weight_data);
-            test_tensor div_src1_ts(div_src1, engine);
-            test_tensor add_src1_ts(add_src1, engine);
-            test_tensor dst_ts(add_bf16, engine);
+            test_tensor_t src_ts(src, engine, src_data);
+            test_tensor_t weight_ts(weight, engine, weight_data);
+            test_tensor_t div_src1_ts(div_src1, engine);
+            test_tensor_t add_src1_ts(add_src1, engine);
+            test_tensor_t dst_ts(add_bf16, engine);
             cp.execute(strm,
                     {src_ts.get(), weight_ts.get(), div_src1_ts.get(),
                             add_src1_ts.get()},
@@ -1240,12 +1240,12 @@ TEST(test_bmm_execute_subgraph_int8, BmmMulAddTransposeBU8s8f32) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-    test_tensor mul_src1_ts(mul_src1, engine, mul_src1_data);
-    test_tensor add_src1_ts(add_src1, engine, add_src1_data);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+    test_tensor_t mul_src1_ts(mul_src1, engine, mul_src1_data);
+    test_tensor_t add_src1_ts(add_src1, engine, add_src1_data);
     std::vector<float> case2_out_data(product(dst_shape));
-    test_tensor dst_f32_case2_ts(add_f32, engine, case2_out_data);
+    test_tensor_t dst_f32_case2_ts(add_f32, engine, case2_out_data);
     cp.execute(strm,
             {src_u8_ts.get(), weight_s8_ts.get(), mul_src1_ts.get(),
                     add_src1_ts.get()},

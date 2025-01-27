@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ namespace compiler_utils = dnnl::impl::graph::tests::unit::compiler::utils;
 
 TEST(GCSingleOpTest, BinaryOpCompileExecution_CPU) {
     REQUIRE_SINGLE_OP_PATTERN();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     graph::engine_t *eng = get_engine();
 
@@ -74,9 +74,9 @@ TEST(GCSingleOpTest, BinaryOpCompileExecution_CPU) {
 
         std::vector<float> src0(16 * 16), src1(16), dst(16 * 16);
 
-        test_tensor src0_ts(src0_lt, eng, src0);
-        test_tensor src1_ts(src1_lt, eng, src1);
-        test_tensor dst_ts(dst_lt, eng, dst);
+        test_tensor_t src0_ts(src0_lt, eng, src0);
+        test_tensor_t src1_ts(src1_lt, eng, src1);
+        test_tensor_t dst_ts(dst_lt, eng, dst);
 
         graph::stream_t *strm = get_stream();
         cp.execute(strm, {src0_ts.get(), src1_ts.get()}, {dst_ts.get()});
@@ -86,7 +86,7 @@ TEST(GCSingleOpTest, BinaryOpCompileExecution_CPU) {
 
 TEST(GCSingleOpTest, UnaryActivationOpCompileExecution_CPU) {
     REQUIRE_SINGLE_OP_PATTERN();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     graph::engine_t *eng = get_engine();
 
@@ -126,8 +126,8 @@ TEST(GCSingleOpTest, UnaryActivationOpCompileExecution_CPU) {
 
         std::vector<float> src(16 * 16), dst(16 * 16);
 
-        test_tensor src_ts(src_lt, eng, src);
-        test_tensor dst_ts(dst_lt, eng, dst);
+        test_tensor_t src_ts(src_lt, eng, src);
+        test_tensor_t dst_ts(dst_lt, eng, dst);
 
         graph::stream_t *strm = get_stream();
         cp.execute(strm, {src_ts.get()}, {dst_ts.get()});
@@ -137,7 +137,7 @@ TEST(GCSingleOpTest, UnaryActivationOpCompileExecution_CPU) {
 
 TEST(GCSingleOpTest, StaticReshapeOpCompileExecution_CPU) {
     REQUIRE_SINGLE_OP_PATTERN();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     graph::engine_t *eng = get_engine();
 
@@ -175,8 +175,8 @@ TEST(GCSingleOpTest, StaticReshapeOpCompileExecution_CPU) {
 
     std::vector<float> src(16 * 16), dst(16 * 16);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get()}, {dst_ts.get()});
@@ -185,7 +185,7 @@ TEST(GCSingleOpTest, StaticReshapeOpCompileExecution_CPU) {
 
 TEST(GCSingleOpTest, StaticTransposeOpCompileExecution_CPU) {
     REQUIRE_SINGLE_OP_PATTERN();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     graph::engine_t *eng = get_engine();
 
@@ -222,8 +222,8 @@ TEST(GCSingleOpTest, StaticTransposeOpCompileExecution_CPU) {
 
     std::vector<float> src(16 * 16), dst(16 * 16);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get()}, {dst_ts.get()});
@@ -232,7 +232,7 @@ TEST(GCSingleOpTest, StaticTransposeOpCompileExecution_CPU) {
 
 TEST(GCSingleOpTest, SelectOpCompileExecution_CPU) {
     REQUIRE_SINGLE_OP_PATTERN();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     graph::engine_t *eng = get_engine();
 
@@ -274,10 +274,10 @@ TEST(GCSingleOpTest, SelectOpCompileExecution_CPU) {
     std::vector<float> then(2 * 3 * 4 * 5), els(1), dst(2 * 3 * 4 * 5);
     std::vector<char> cond(2 * 5);
 
-    test_tensor cond_ts(cond_lt, eng, cond);
-    test_tensor then_ts(then_lt, eng, then);
-    test_tensor else_ts(else_lt, eng, els);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t cond_ts(cond_lt, eng, cond);
+    test_tensor_t then_ts(then_lt, eng, then);
+    test_tensor_t else_ts(else_lt, eng, els);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {cond_ts.get(), then_ts.get(), else_ts.get()},
@@ -287,7 +287,7 @@ TEST(GCSingleOpTest, SelectOpCompileExecution_CPU) {
 
 TEST(GCSingleOpTest, ConcatOpCompileExecution_CPU) {
     REQUIRE_SINGLE_OP_PATTERN();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     graph::engine_t *eng = get_engine();
 
@@ -330,10 +330,10 @@ TEST(GCSingleOpTest, ConcatOpCompileExecution_CPU) {
     std::vector<float> src0(16 * 8 * 1 * 8), src1(16 * 8 * 2 * 8),
             src2(16 * 8 * 3 * 8), dst(16 * 8 * 6 * 8);
 
-    test_tensor src0_ts(src0_lt, eng, src0);
-    test_tensor src1_ts(src1_lt, eng, src1);
-    test_tensor src2_ts(src2_lt, eng, src2);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src0_ts(src0_lt, eng, src0);
+    test_tensor_t src1_ts(src1_lt, eng, src1);
+    test_tensor_t src2_ts(src2_lt, eng, src2);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src0_ts.get(), src1_ts.get(), src2_ts.get()},

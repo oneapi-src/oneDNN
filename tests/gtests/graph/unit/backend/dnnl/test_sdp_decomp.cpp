@@ -121,7 +121,7 @@ TEST(test_sdp_decomp_execute, F32SdpDecomp_CPU) {
             ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
                     graph::status::success);
 
-            std::vector<test_tensor> inputs_ts, outputs_ts;
+            std::vector<test_tensor_t> inputs_ts, outputs_ts;
             for (auto &lt : inputs) {
                 inputs_ts.emplace_back(*lt, eng);
                 inputs_ts.back().fill<float>();
@@ -132,8 +132,9 @@ TEST(test_sdp_decomp_execute, F32SdpDecomp_CPU) {
                 cp.query_logical_tensor(lt->id, &compiled_output);
                 outputs_ts.emplace_back(compiled_output, eng);
             }
-            ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs_ts)),
+            ASSERT_EQ(
+                    cp.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs_ts)),
                     graph::status::success);
             strm->wait();
         }
@@ -224,7 +225,7 @@ TEST(test_sdp_decomp_execute, Bf16SdpDecomp_CPU) {
             ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
                     graph::status::success);
 
-            std::vector<test_tensor> inputs_ts, outputs_ts;
+            std::vector<test_tensor_t> inputs_ts, outputs_ts;
             for (auto &lt : inputs) {
                 inputs_ts.emplace_back(*lt, eng);
                 inputs_ts.back().fill<bfloat16_t>();
@@ -235,8 +236,9 @@ TEST(test_sdp_decomp_execute, Bf16SdpDecomp_CPU) {
                 cp.query_logical_tensor(lt->id, &compiled_output);
                 outputs_ts.emplace_back(compiled_output, eng);
             }
-            ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs_ts)),
+            ASSERT_EQ(
+                    cp.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs_ts)),
                     graph::status::success);
             strm->wait();
         }
@@ -321,7 +323,7 @@ TEST(test_sdp_decomp_execute, Int8SdpDecomp_CPU) {
             ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
                     graph::status::success);
 
-            std::vector<test_tensor> inputs_ts, outputs_ts;
+            std::vector<test_tensor_t> inputs_ts, outputs_ts;
             for (auto &lt : inputs) {
                 inputs_ts.emplace_back(*lt, eng);
                 inputs_ts.back().fill<uint8_t>();
@@ -332,8 +334,9 @@ TEST(test_sdp_decomp_execute, Int8SdpDecomp_CPU) {
                 cp.query_logical_tensor(lt->id, &compiled_output);
                 outputs_ts.emplace_back(compiled_output, eng);
             }
-            ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs_ts)),
+            ASSERT_EQ(
+                    cp.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs_ts)),
                     graph::status::success);
             strm->wait();
         }
@@ -419,7 +422,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpDecomp_CPU) {
             ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
                     graph::status::success);
 
-            std::vector<test_tensor> inputs_ts, outputs_ts;
+            std::vector<test_tensor_t> inputs_ts, outputs_ts;
             for (auto &lt : inputs) {
                 inputs_ts.emplace_back(*lt, eng);
                 inputs_ts.back().fill<bfloat16_t>();
@@ -429,8 +432,9 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpDecomp_CPU) {
                 outputs_ts.emplace_back(lt, eng);
             }
 
-            ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs_ts)),
+            ASSERT_EQ(
+                    cp.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs_ts)),
                     graph::status::success);
 
             strm->wait();
@@ -506,7 +510,7 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecomp_CPU) {
 
         graph::compiled_partition_t cp(p);
         ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> inputs_ts;
+        std::vector<test_tensor_t> inputs_ts;
         for (auto &lt : inputs) {
             inputs_ts.emplace_back(*lt, eng);
             inputs_ts.back().fill<uint8_t>();
@@ -515,15 +519,15 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecomp_CPU) {
         auto func = [&]() {
             graph::stream_t *strm;
             dnnl_stream_create(&strm, eng, dnnl_stream_in_order);
-            std::vector<test_tensor> outputs_ts;
+            std::vector<test_tensor_t> outputs_ts;
             outputs_ts.reserve(partition_outputs.size());
             for (auto &lt : partition_outputs) {
                 outputs_ts.emplace_back(lt, eng);
             }
             for (int i = 0; i < 10; i++)
                 ASSERT_EQ(cp.execute(strm,
-                                  test_tensor::to_graph_tensor(inputs_ts),
-                                  test_tensor::to_graph_tensor(outputs_ts)),
+                                  test_tensor_t::to_graph_tensor(inputs_ts),
+                                  test_tensor_t::to_graph_tensor(outputs_ts)),
                         graph::status::success);
             strm->wait();
             dnnl_stream_destroy(strm);
@@ -610,7 +614,7 @@ TEST(test_sdp_decomp_execute, F32SdpCorr_CPU) {
             ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
                     graph::status::success);
 
-            std::vector<test_tensor> inputs_ts, outputs_ts;
+            std::vector<test_tensor_t> inputs_ts, outputs_ts;
             for (auto &lt : inputs) {
                 inputs_ts.emplace_back(*lt, eng);
                 inputs_ts.back().fill<float>();
@@ -627,14 +631,15 @@ TEST(test_sdp_decomp_execute, F32SdpCorr_CPU) {
             graph::compiled_partition_t cp1(p);
             ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
                     graph::status::success);
-            std::vector<test_tensor> outputs1_ts;
+            std::vector<test_tensor_t> outputs1_ts;
             for (auto &lt : outputs) {
                 graph::logical_tensor_t compiled_output;
                 cp1.query_logical_tensor(lt->id, &compiled_output);
                 outputs1_ts.emplace_back(compiled_output, eng);
             }
-            ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs1_ts)),
+            ASSERT_EQ(
+                    cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs1_ts)),
                     graph::status::success);
             strm->wait();
 
@@ -643,14 +648,15 @@ TEST(test_sdp_decomp_execute, F32SdpCorr_CPU) {
             graph::compiled_partition_t cp2(p);
             ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
                     graph::status::success);
-            std::vector<test_tensor> outputs2_ts;
+            std::vector<test_tensor_t> outputs2_ts;
             for (auto &lt : outputs) {
                 graph::logical_tensor_t compiled_output;
                 cp2.query_logical_tensor(lt->id, &compiled_output);
                 outputs2_ts.emplace_back(compiled_output, eng);
             }
-            ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs2_ts)),
+            ASSERT_EQ(
+                    cp2.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs2_ts)),
                     graph::status::success);
             strm->wait();
 
@@ -726,7 +732,7 @@ TEST(test_sdp_decomp_execute, F32DistilBertSdpCorr_CPU) {
         graph::compiled_partition_t cp(p);
         ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-        std::vector<test_tensor> inputs_ts, outputs_ts;
+        std::vector<test_tensor_t> inputs_ts, outputs_ts;
         for (auto &lt : inputs) {
             inputs_ts.emplace_back(*lt, eng);
             inputs_ts.back().fill<float>();
@@ -743,14 +749,14 @@ TEST(test_sdp_decomp_execute, F32DistilBertSdpCorr_CPU) {
         graph::compiled_partition_t cp1(p);
         ASSERT_EQ(
                 p.compile(&cp1, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs1_ts;
+        std::vector<test_tensor_t> outputs1_ts;
         for (auto &lt : outputs) {
             graph::logical_tensor_t compiled_output;
             cp1.query_logical_tensor(lt->id, &compiled_output);
             outputs1_ts.emplace_back(compiled_output, eng);
         }
-        ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs1_ts)),
+        ASSERT_EQ(cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                          test_tensor_t::to_graph_tensor(outputs1_ts)),
                 graph::status::success);
         strm->wait();
 
@@ -759,14 +765,14 @@ TEST(test_sdp_decomp_execute, F32DistilBertSdpCorr_CPU) {
         graph::compiled_partition_t cp2(p);
         ASSERT_EQ(
                 p.compile(&cp2, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs2_ts;
+        std::vector<test_tensor_t> outputs2_ts;
         for (auto &lt : outputs) {
             graph::logical_tensor_t compiled_output;
             cp2.query_logical_tensor(lt->id, &compiled_output);
             outputs2_ts.emplace_back(compiled_output, eng);
         }
-        ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs2_ts)),
+        ASSERT_EQ(cp2.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                          test_tensor_t::to_graph_tensor(outputs2_ts)),
                 graph::status::success);
         strm->wait();
 
@@ -851,7 +857,7 @@ TEST(test_sdp_decomp_execute, Bf16SdpCorr_CPU) {
             ASSERT_EQ(p.compile(&cp, inputs, outputs, eng),
                     graph::status::success);
 
-            std::vector<test_tensor> inputs_ts, outputs_ts;
+            std::vector<test_tensor_t> inputs_ts, outputs_ts;
             for (auto &lt : inputs) {
                 inputs_ts.emplace_back(*lt, eng);
                 inputs_ts.back().fill<bfloat16_t>();
@@ -868,14 +874,15 @@ TEST(test_sdp_decomp_execute, Bf16SdpCorr_CPU) {
             graph::compiled_partition_t cp1(p);
             ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
                     graph::status::success);
-            std::vector<test_tensor> outputs1_ts;
+            std::vector<test_tensor_t> outputs1_ts;
             for (auto &lt : outputs) {
                 graph::logical_tensor_t compiled_output;
                 cp1.query_logical_tensor(lt->id, &compiled_output);
                 outputs1_ts.emplace_back(compiled_output, eng);
             }
-            ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs1_ts)),
+            ASSERT_EQ(
+                    cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs1_ts)),
                     graph::status::success);
             strm->wait();
 
@@ -884,14 +891,15 @@ TEST(test_sdp_decomp_execute, Bf16SdpCorr_CPU) {
             graph::compiled_partition_t cp2(p);
             ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
                     graph::status::success);
-            std::vector<test_tensor> outputs2_ts;
+            std::vector<test_tensor_t> outputs2_ts;
             for (auto &lt : outputs) {
                 graph::logical_tensor_t compiled_output;
                 cp2.query_logical_tensor(lt->id, &compiled_output);
                 outputs2_ts.emplace_back(compiled_output, eng);
             }
-            ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs2_ts)),
+            ASSERT_EQ(
+                    cp2.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs2_ts)),
                     graph::status::success);
             strm->wait();
 
@@ -972,7 +980,7 @@ TEST(test_sdp_decomp_execute, Bf16DistilBertSdpCorr_CPU) {
         graph::compiled_partition_t cp(p);
         ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-        std::vector<test_tensor> inputs_ts, outputs_ts;
+        std::vector<test_tensor_t> inputs_ts, outputs_ts;
         for (auto &lt : inputs) {
             inputs_ts.emplace_back(*lt, eng);
             inputs_ts.back().fill<bfloat16_t>();
@@ -989,14 +997,14 @@ TEST(test_sdp_decomp_execute, Bf16DistilBertSdpCorr_CPU) {
         graph::compiled_partition_t cp1(p);
         ASSERT_EQ(
                 p.compile(&cp1, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs1_ts;
+        std::vector<test_tensor_t> outputs1_ts;
         for (auto &lt : outputs) {
             graph::logical_tensor_t compiled_output;
             cp1.query_logical_tensor(lt->id, &compiled_output);
             outputs1_ts.emplace_back(compiled_output, eng);
         }
-        ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs1_ts)),
+        ASSERT_EQ(cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                          test_tensor_t::to_graph_tensor(outputs1_ts)),
                 graph::status::success);
         strm->wait();
 
@@ -1005,14 +1013,14 @@ TEST(test_sdp_decomp_execute, Bf16DistilBertSdpCorr_CPU) {
         graph::compiled_partition_t cp2(p);
         ASSERT_EQ(
                 p.compile(&cp2, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs2_ts;
+        std::vector<test_tensor_t> outputs2_ts;
         for (auto &lt : outputs) {
             graph::logical_tensor_t compiled_output;
             cp2.query_logical_tensor(lt->id, &compiled_output);
             outputs2_ts.emplace_back(compiled_output, eng);
         }
-        ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs2_ts)),
+        ASSERT_EQ(cp2.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                          test_tensor_t::to_graph_tensor(outputs2_ts)),
                 graph::status::success);
         strm->wait();
 
@@ -1088,7 +1096,7 @@ TEST(test_sdp_decomp_execute, Int8SdpCorr_CPU) {
                         lt.id, lt.data_type, graph::layout_type::strided);
                 outputs.emplace_back(&lt);
             }
-            std::vector<test_tensor> inputs_ts;
+            std::vector<test_tensor_t> inputs_ts;
             for (auto &lt : inputs) {
                 inputs_ts.emplace_back(*lt, eng);
                 inputs_ts.back().fill<uint8_t>();
@@ -1098,14 +1106,15 @@ TEST(test_sdp_decomp_execute, Int8SdpCorr_CPU) {
             graph::compiled_partition_t cp1(p);
             ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
                     graph::status::success);
-            std::vector<test_tensor> outputs1_ts;
+            std::vector<test_tensor_t> outputs1_ts;
             for (auto &lt : outputs) {
                 graph::logical_tensor_t compiled_output;
                 cp1.query_logical_tensor(lt->id, &compiled_output);
                 outputs1_ts.emplace_back(compiled_output, eng);
             }
-            ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs1_ts)),
+            ASSERT_EQ(
+                    cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs1_ts)),
                     graph::status::success);
             strm->wait();
 
@@ -1114,14 +1123,15 @@ TEST(test_sdp_decomp_execute, Int8SdpCorr_CPU) {
             graph::compiled_partition_t cp2(p);
             ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
                     graph::status::success);
-            std::vector<test_tensor> outputs2_ts;
+            std::vector<test_tensor_t> outputs2_ts;
             for (auto &lt : outputs) {
                 graph::logical_tensor_t compiled_output;
                 cp2.query_logical_tensor(lt->id, &compiled_output);
                 outputs2_ts.emplace_back(compiled_output, eng);
             }
-            ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs2_ts)),
+            ASSERT_EQ(
+                    cp2.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs2_ts)),
                     graph::status::success);
             strm->wait();
 
@@ -1203,7 +1213,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpCorr_CPU) {
                         lt.id, lt.data_type, graph::layout_type::strided);
                 outputs.emplace_back(&lt);
             }
-            std::vector<test_tensor> inputs_ts;
+            std::vector<test_tensor_t> inputs_ts;
             for (auto &lt : inputs) {
                 inputs_ts.emplace_back(*lt, eng);
                 inputs_ts.back().fill<uint8_t>();
@@ -1213,14 +1223,15 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpCorr_CPU) {
             graph::compiled_partition_t cp1(p);
             ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng),
                     graph::status::success);
-            std::vector<test_tensor> outputs1_ts;
+            std::vector<test_tensor_t> outputs1_ts;
             for (auto &lt : outputs) {
                 graph::logical_tensor_t compiled_output;
                 cp1.query_logical_tensor(lt->id, &compiled_output);
                 outputs1_ts.emplace_back(compiled_output, eng);
             }
-            ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs1_ts)),
+            ASSERT_EQ(
+                    cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs1_ts)),
                     graph::status::success);
             strm->wait();
 
@@ -1229,14 +1240,15 @@ TEST(test_sdp_decomp_execute, Int8Bf16SdpCorr_CPU) {
             graph::compiled_partition_t cp2(p);
             ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng),
                     graph::status::success);
-            std::vector<test_tensor> outputs2_ts;
+            std::vector<test_tensor_t> outputs2_ts;
             for (auto &lt : outputs) {
                 graph::logical_tensor_t compiled_output;
                 cp2.query_logical_tensor(lt->id, &compiled_output);
                 outputs2_ts.emplace_back(compiled_output, eng);
             }
-            ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs2_ts)),
+            ASSERT_EQ(
+                    cp2.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs2_ts)),
                     graph::status::success);
             strm->wait();
 
@@ -1310,7 +1322,7 @@ TEST(test_sdp_decomp_execute, Int8DistilBertSdpCorr_CPU) {
                     lt.id, lt.data_type, graph::layout_type::strided);
             outputs.emplace_back(&lt);
         }
-        std::vector<test_tensor> inputs_ts;
+        std::vector<test_tensor_t> inputs_ts;
         for (auto &lt : inputs) {
             inputs_ts.emplace_back(*lt, eng);
             inputs_ts.back().fill<uint8_t>();
@@ -1320,14 +1332,14 @@ TEST(test_sdp_decomp_execute, Int8DistilBertSdpCorr_CPU) {
         graph::compiled_partition_t cp1(p);
         ASSERT_EQ(
                 p.compile(&cp1, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs1_ts;
+        std::vector<test_tensor_t> outputs1_ts;
         for (auto &lt : outputs) {
             graph::logical_tensor_t compiled_output;
             cp1.query_logical_tensor(lt->id, &compiled_output);
             outputs1_ts.emplace_back(compiled_output, eng);
         }
-        ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs1_ts)),
+        ASSERT_EQ(cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                          test_tensor_t::to_graph_tensor(outputs1_ts)),
                 graph::status::success);
         strm->wait();
 
@@ -1336,14 +1348,14 @@ TEST(test_sdp_decomp_execute, Int8DistilBertSdpCorr_CPU) {
         graph::compiled_partition_t cp2(p);
         ASSERT_EQ(
                 p.compile(&cp2, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs2_ts;
+        std::vector<test_tensor_t> outputs2_ts;
         for (auto &lt : outputs) {
             graph::logical_tensor_t compiled_output;
             cp2.query_logical_tensor(lt->id, &compiled_output);
             outputs2_ts.emplace_back(compiled_output, eng);
         }
-        ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs2_ts)),
+        ASSERT_EQ(cp2.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                          test_tensor_t::to_graph_tensor(outputs2_ts)),
                 graph::status::success);
         strm->wait();
 
@@ -1422,7 +1434,7 @@ TEST(test_sdp_decomp_execute, Int8Bf16DistilBertSdpCorr_CPU) {
                     lt.id, lt.data_type, graph::layout_type::strided);
             outputs.emplace_back(&lt);
         }
-        std::vector<test_tensor> inputs_ts;
+        std::vector<test_tensor_t> inputs_ts;
         for (auto &lt : inputs) {
             inputs_ts.emplace_back(*lt, eng);
             inputs_ts.back().fill<uint8_t>();
@@ -1432,14 +1444,14 @@ TEST(test_sdp_decomp_execute, Int8Bf16DistilBertSdpCorr_CPU) {
         graph::compiled_partition_t cp1(p);
         ASSERT_EQ(
                 p.compile(&cp1, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs1_ts;
+        std::vector<test_tensor_t> outputs1_ts;
         for (auto &lt : outputs) {
             graph::logical_tensor_t compiled_output;
             cp1.query_logical_tensor(lt->id, &compiled_output);
             outputs1_ts.emplace_back(compiled_output, eng);
         }
-        ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs1_ts)),
+        ASSERT_EQ(cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                          test_tensor_t::to_graph_tensor(outputs1_ts)),
                 graph::status::success);
         strm->wait();
 
@@ -1448,14 +1460,14 @@ TEST(test_sdp_decomp_execute, Int8Bf16DistilBertSdpCorr_CPU) {
         graph::compiled_partition_t cp2(p);
         ASSERT_EQ(
                 p.compile(&cp2, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs2_ts;
+        std::vector<test_tensor_t> outputs2_ts;
         for (auto &lt : outputs) {
             graph::logical_tensor_t compiled_output;
             cp2.query_logical_tensor(lt->id, &compiled_output);
             outputs2_ts.emplace_back(compiled_output, eng);
         }
-        ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs2_ts)),
+        ASSERT_EQ(cp2.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                          test_tensor_t::to_graph_tensor(outputs2_ts)),
                 graph::status::success);
         strm->wait();
 
@@ -1534,7 +1546,7 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecompCorr_CPU) {
 
         graph::compiled_partition_t cp(p);
         ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> inputs_ts;
+        std::vector<test_tensor_t> inputs_ts;
         for (auto &lt : inputs) {
             inputs_ts.emplace_back(*lt, eng);
             inputs_ts.back().fill<uint8_t>();
@@ -1545,29 +1557,29 @@ TEST(test_sdp_decomp_execute, MultithreaSdpDecompCorr_CPU) {
         graph::compiled_partition_t cp1(p);
         ASSERT_EQ(
                 p.compile(&cp1, inputs, outputs, eng), graph::status::success);
-        std::vector<test_tensor> outputs1_ts;
+        std::vector<test_tensor_t> outputs1_ts;
         for (auto &lt : outputs) {
             graph::logical_tensor_t compiled_output;
             cp1.query_logical_tensor(lt->id, &compiled_output);
             outputs1_ts.emplace_back(compiled_output, eng);
         }
-        ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                          test_tensor::to_graph_tensor(outputs1_ts)),
+        ASSERT_EQ(cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                          test_tensor_t::to_graph_tensor(outputs1_ts)),
                 graph::status::success);
         strm->wait();
 
         auto func = [&]() {
             graph::stream_t *strm_eng;
             dnnl_stream_create(&strm_eng, eng, dnnl_stream_in_order);
-            std::vector<test_tensor> outputs_ts;
+            std::vector<test_tensor_t> outputs_ts;
             outputs_ts.reserve(partition_outputs.size());
             for (auto &lt : partition_outputs) {
                 outputs_ts.emplace_back(lt, eng);
             }
             for (int i = 0; i < 10; i++) {
                 ASSERT_EQ(cp.execute(strm_eng,
-                                  test_tensor::to_graph_tensor(inputs_ts),
-                                  test_tensor::to_graph_tensor(outputs_ts)),
+                                  test_tensor_t::to_graph_tensor(inputs_ts),
+                                  test_tensor_t::to_graph_tensor(outputs_ts)),
                         graph::status::success);
                 strm_eng->wait();
             }
