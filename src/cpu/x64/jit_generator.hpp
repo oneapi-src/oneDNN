@@ -2574,9 +2574,7 @@ private:
                 store_bytes(vmm, reg, offset, store_size);
                 break;
             case data_type::bf16:
-                vcvtneps2bf16(xmm, vmm,
-                        is_valid_isa(avx512_core_bf16) ? Xbyak::EvexEncoding
-                                                       : Xbyak::VexEncoding);
+                vcvtneps2bf16(xmm, vmm);
                 store_bytes(vmm, reg, offset, sizeof(bfloat16_t) * store_size);
                 break;
             case data_type::f16:

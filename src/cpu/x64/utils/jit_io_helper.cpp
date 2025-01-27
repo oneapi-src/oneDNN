@@ -281,9 +281,7 @@ void jit_io_helper_t<Vmm>::prepare_xf16_data_to_store(const Vmm &vmm) {
             typename vreg_traits<Vmm>::Vmm_lower_t(vmm.getIdx());
 
     if (data_type_ == data_type::bf16)
-        host_->vcvtneps2bf16(cvt_lower_vmm, vmm,
-                mayiuse(avx512_core) ? Xbyak::EvexEncoding
-                                     : Xbyak::VexEncoding);
+        host_->vcvtneps2bf16(cvt_lower_vmm, vmm);
     else
         host_->uni_vcvtps2phx(cvt_lower_vmm, vmm);
 }
@@ -852,9 +850,7 @@ void jit_io_helper_t<Vmm>::store_bf16(
     if (bf16_emu_)
         bf16_emu_->vcvtneps2bf16(cvt_lower_vmm, src_vmm);
     else
-        host_->vcvtneps2bf16(cvt_lower_vmm, src_vmm,
-                mayiuse(avx512_core) ? Xbyak::EvexEncoding
-                                     : Xbyak::VexEncoding);
+        host_->vcvtneps2bf16(cvt_lower_vmm, src_vmm);
 
     if (io_conf_.nt_stores_enabled_)
         host_->uni_vmovntps(dst_addr, cvt_lower_vmm);
