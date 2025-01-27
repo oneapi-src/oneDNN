@@ -72,23 +72,24 @@ static inline void run_all_single_passes(dnnl::impl::graph::graph_t &agraph) {
 // given graph will be deep copied first so that all the changes inside the
 // function are not visible outside.
 static inline dnnl::impl::graph::status_t run_graph(
-        dnnl::impl::graph::graph_t &agraph,
+        const dnnl::impl::graph::graph_t &agraph,
         const std::vector<test_tensor_t> &g_in_ts,
         const std::vector<test_tensor_t> &g_out_ts,
         dnnl::impl::graph::engine_t &eng, dnnl::impl::graph::stream_t &strm) {
     namespace graph = dnnl::impl::graph;
     namespace dnnl_impl = graph::dnnl_impl;
     graph::status_t ret;
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     graph::graph_t copied(agraph);
     auto ops = copied.get_ops();
 
     // force each tensor to be strided
     for (auto &op : ops) {
-        for (auto val : op->get_input_values()) {
+        for (const auto &val : op->get_input_values()) {
             val->set_layout_type(graph::layout_type::strided);
         }
 
-        for (auto val : op->get_output_values()) {
+        for (const auto &val : op->get_output_values()) {
             val->set_layout_type(graph::layout_type::strided);
         }
     }

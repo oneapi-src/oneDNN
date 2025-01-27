@@ -421,9 +421,9 @@ static inline void infer_conv_shape(dnnl::impl::graph::op_kind_t kind) {
 }
 
 static inline void verify_shape_infer_for_conv(
-        const dnnl::impl::graph::op_kind_t op_kind_, std::string data_format,
-        std::string filter_format, int64_t groups,
-        const std::vector<int64_t> &in_data,
+        const dnnl::impl::graph::op_kind_t op_kind_,
+        const std::string &data_format, const std::string &filter_format,
+        int64_t groups, const std::vector<int64_t> &in_data,
         const std::vector<int64_t> &in_weight,
         const std::vector<int64_t> &expected_out_shape) {
     using namespace dnnl::impl::graph;
@@ -505,9 +505,9 @@ static inline void verify_shape_infer_for_convtranspose_bprop_data(
 }
 
 static inline void verify_shape_infer_for_convtranspose(
-        const dnnl::impl::graph::op_kind_t op_kind_, std::string data_format,
-        std::string filter_format, int64_t groups,
-        const std::vector<int64_t> &in_data,
+        const dnnl::impl::graph::op_kind_t op_kind_,
+        const std::string &data_format, const std::string &filter_format,
+        int64_t groups, const std::vector<int64_t> &in_data,
         const std::vector<int64_t> &in_weight,
         const std::vector<int64_t> &expected_out_shape) {
     using namespace dnnl::impl::graph;
@@ -553,9 +553,9 @@ static inline void verify_shape_infer_for_convtranspose(
 }
 
 static inline void verify_shape_infer_for_conv(
-        const dnnl::impl::graph::op_kind_t op_kind_, std::string data_format,
-        std::string filter_format, int64_t groups,
-        const std::vector<int64_t> &in_data,
+        const dnnl::impl::graph::op_kind_t op_kind_,
+        const std::string &data_format, const std::string &filter_format,
+        int64_t groups, const std::vector<int64_t> &in_data,
         const std::vector<int64_t> &in_weight,
         const std::vector<int64_t> &in_bias,
         const std::vector<int64_t> &expected_out_shape) {
@@ -603,9 +603,9 @@ static inline void verify_shape_infer_for_conv(
 }
 
 static inline void verify_shape_infer_for_conv_bprop_data(
-        const dnnl::impl::graph::op_kind_t op_kind_, std::string data_format,
-        std::string filter_format, int64_t groups,
-        const std::vector<int64_t> &in_data,
+        const dnnl::impl::graph::op_kind_t op_kind_,
+        const std::string &data_format, const std::string &filter_format,
+        int64_t groups, const std::vector<int64_t> &in_data,
         const std::vector<int64_t> &in_weight,
         const std::vector<int64_t> &in_output_shape,
         const std::vector<int64_t> &expected_out_shape) {
