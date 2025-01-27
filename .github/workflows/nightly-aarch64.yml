@@ -56,6 +56,7 @@ jobs:
         with:
           path: oneDNN
 
+      # Note: This will create a github actions cache
       - name: Get latest CMake and Ninja
         uses: lukka/get-cmake@5f6e04f5267c8133f1273bf2103583fc72c46b17 # v3.31.5
         with:

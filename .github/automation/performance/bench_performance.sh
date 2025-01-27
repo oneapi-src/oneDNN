@@ -17,7 +17,7 @@
 # limitations under the License.
 # *******************************************************************************
 
-# Usage: bash bench_regression.sh {baseline_benchdnn_executable} {benchdnn_executable} {baseline_results_file} {new_results_file}
+# Usage: bash bench_performance.sh {baseline_benchdnn_executable} {benchdnn_executable} {baseline_results_file} {new_results_file}
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 

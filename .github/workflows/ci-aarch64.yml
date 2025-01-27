@@ -20,18 +20,6 @@ name: "CI AArch64"
 #* To avoid duplicate jobs running when both push and PR is satisfied, we use this:
 #* https://github.com/orgs/community/discussions/26940#discussioncomment-5686753
 on:
-  push:
-    branches: [main, "rls-*"]
-    paths:
-      - ".github/**"
-      - "cmake/**"
-      - "examples/**"
-      - "include/**"
-      - "src/common/**"
-      - "src/cpu/*"
-      - "src/cpu/aarch64/**"
-      - "tests/**"
-      - "CMakeLists.txt"
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -48,10 +36,8 @@ on:
   workflow_dispatch:
 
 #* Stop stale workflows when pull requests are updated: https://stackoverflow.com/a/70972844
-#* Does not apply to the main branch.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Declare default permissions as read only.
 permissions: read-all
@@ -87,6 +73,7 @@ jobs:
           content="${content//[$'\t\r\n$ ']}"
           echo "output=$content" >> $GITHUB_OUTPUT
 
+      # Note: This will create a github actions cache
       - name: Get latest CMake and Ninja
         uses: lukka/get-cmake@5f6e04f5267c8133f1273bf2103583fc72c46b17 # v3.31.5
         with:
@@ -171,19 +158,19 @@ jobs:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
           ONEDNN_THREADING: ${{ matrix.config.threading }}
 
-      ## Regression test steps ##
-      - name: Checkout oneDNN main
+      ## Performance test steps ##
+      - name: Checkout oneDNN base
         if: ${{ matrix.config.build == 'Release' }}
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: main
-          path: oneDNN_main
+          ref: ${{ github.base_ref }}
+          path: oneDNN_base
 
-      # TODO :: Create separate pipeline to cache oneDNN main
-      - name: Configure oneDNN main
+      # TODO :: Create separate pipeline to cache oneDNN base
+      - name: Configure oneDNN base
         if: ${{ matrix.config.build == 'Release' }}
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
-        working-directory: ${{ github.workspace }}/oneDNN_main
+        working-directory: ${{ github.workspace }}/oneDNN_base
         env:
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
           BUILD_TOOLSET: ${{ matrix.config.toolset }}
@@ -194,30 +181,30 @@ jobs:
           ONEDNN_TEST_SET: ${{ matrix.config.testset }}
           ONEDNN_THREADING: ${{ matrix.config.threading }}
 
-      - name: Build oneDNN main
+      - name: Build oneDNN base
         if: ${{ matrix.config.build == 'Release' }}
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
-        working-directory: ${{ github.workspace }}/oneDNN_main
+        working-directory: ${{ github.workspace }}/oneDNN_base
         env:
           ONEDNN_ACTION: build
 
       - shell: bash
         if: ${{ matrix.config.build == 'Release' }}
         run: |
-          OMP_NUM_THREADS=4 bash ${{ github.workspace }}/oneDNN/tests/regression/bench_regression.sh ${{ github.workspace }}/oneDNN_main/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn main.txt new.txt
-          OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/tests/regression/bench_regression.sh ${{ github.workspace }}/oneDNN_main/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn main.txt new.txt
+          OMP_NUM_THREADS=4 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base.txt new.txt
+          OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base.txt new.txt
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
 
-      - name: Compare regression test results
+      - name: Compare performance test results
         if: ${{ matrix.config.build == 'Release' }}
-        id: regression-test
+        id: performance-test
         continue-on-error: true
-        run: python ${{ github.workspace }}/oneDNN/tests/regression/benchdnn_comparison.py main.txt new.txt
+        run: python ${{ github.workspace }}/oneDNN/.github/automation/performance/benchdnn_comparison.py base.txt new.txt
 
-      - name: Check regression test failure
-        if: ${{ matrix.config.build == 'Release' && steps.regression-test.outputs.pass == 'True' }}
-        run: echo "::warning file=ci-aarch64.yml,line=1,col=1::${{ steps.regression-test.outputs.message }}"
+      - name: Check performance test failure
+        if: ${{ matrix.config.build == 'Release' && steps.performance-test.outputs.pass != 'True' }}
+        run: echo "::warning file=ci-aarch64.yml,line=1,col=1::${{ steps.performance-test.outputs.message }}"
 
   # This job adds a check named "CI AArch64" that represents overall
   # workflow status and can be used in branch rulesets
