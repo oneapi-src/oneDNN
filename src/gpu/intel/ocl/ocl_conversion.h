@@ -102,6 +102,7 @@ IF_DOUBLE_SUPPORTED(IF_HALF_SUPPORTED(def_std_into(double, half)));
 
 def_undef_into(float);
 def_undef_into(int);
+IF_DOUBLE_SUPPORTED(def_undef_into(double));
 
 #undef def_std_into
 #undef def_std_into_sat
