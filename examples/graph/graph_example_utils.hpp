@@ -105,18 +105,18 @@ inline void set_any_layout(
     }
 }
 
-struct cpu_deletor {
-    cpu_deletor() = default;
+struct cpu_deletor_t {
+    cpu_deletor_t() = default;
     void operator()(void *ptr) {
         if (ptr) free(ptr);
     }
 };
 
 #ifdef DNNL_WITH_SYCL
-struct sycl_deletor {
-    sycl_deletor() = delete;
+struct sycl_deletor_t {
+    sycl_deletor_t() = delete;
     ::sycl::context ctx_;
-    sycl_deletor(const ::sycl::context &ctx) : ctx_(ctx) {}
+    sycl_deletor_t(const ::sycl::context &ctx) : ctx_(ctx) {}
     void operator()(void *ptr) {
         if (ptr) ::sycl::free(ptr, ctx_);
     }
@@ -153,7 +153,7 @@ inline void allocate_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
 
         // memory allocation
         data_buffer.push_back({});
-        data_buffer.back().reset(malloc(mem_size), cpu_deletor {});
+        data_buffer.back().reset(malloc(mem_size), cpu_deletor_t {});
 
         dnnl::graph::tensor new_ts {lt, eng, data_buffer.back().get()};
         tensors.push_back(new_ts);
@@ -181,7 +181,7 @@ inline void allocate_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
 
         // memory allocation
         data_buffer.push_back({});
-        data_buffer.back().reset(malloc(mem_size), cpu_deletor {});
+        data_buffer.back().reset(malloc(mem_size), cpu_deletor_t {});
 
         dnnl::graph::tensor new_ts {lt, eng, data_buffer.back().get()};
         tensors.push_back(new_ts);
@@ -204,7 +204,7 @@ inline void allocate_sycl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
         data_buffer.push_back({});
         data_buffer.back().reset(::sycl::malloc_shared(mem_size, q.get_device(),
                                          q.get_context()),
-                sycl_deletor {q.get_context()});
+                sycl_deletor_t {q.get_context()});
 
         dnnl::graph::tensor new_ts {lt, eng, data_buffer.back().get()};
         tensors.push_back(new_ts);
@@ -234,7 +234,7 @@ inline void allocate_sycl_graph_mem(std::vector<dnnl::graph::tensor> &tensors,
         data_buffer.push_back({});
         data_buffer.back().reset(::sycl::malloc_shared(mem_size, q.get_device(),
                                          q.get_context()),
-                sycl_deletor {q.get_context()});
+                sycl_deletor_t {q.get_context()});
 
         dnnl::graph::tensor new_ts {lt, eng, data_buffer.back().get()};
         tensors.push_back(new_ts);
@@ -527,7 +527,7 @@ public:
 #ifdef DNNL_WITH_SYCL
             auto sh_ptr = std::shared_ptr<void> {
                     sycl_malloc_wrapper(size, alignment, dev, ctx),
-                    sycl_deletor {*static_cast<const sycl::context *>(ctx)}};
+                    sycl_deletor_t {*static_cast<const sycl::context *>(ctx)}};
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
@@ -564,7 +564,8 @@ public:
             }
         }
         if (need_alloc_new_mm) {
-            auto sh_ptr = std::shared_ptr<void> {malloc(size), cpu_deletor {}};
+            auto sh_ptr
+                    = std::shared_ptr<void> {malloc(size), cpu_deletor_t {}};
             ptr = sh_ptr.get();
             // record the map of mm size and its ptr for reuse
             map_size_ptr_.emplace(std::make_pair(size, sh_ptr));
