@@ -170,13 +170,18 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 || (p.itype == bf16 && p.otype == f32 && mayiuse_bf16()
                         && p.beta == 0.f);
 
+        bool f16_ok = (p.itype != f16 && p.otype != f16)
+                || (p.itype == f16 && p.otype == f32 && p.beta == 0.f);
+
         bool ok = true && p.ndims > 0
-                && utils::one_of(p.itype, f32, bf16, s32, data_type::s8, u8)
-                && utils::one_of(p.otype, f32, bf16, s32, data_type::s8, u8)
+                && utils::one_of(
+                        p.itype, f32, f16, bf16, s32, data_type::s8, u8)
+                && utils::one_of(
+                        p.otype, f32, f16, bf16, s32, data_type::s8, u8)
                 && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
                 && simple_impl_desc_init(p, nullptr) && prb_has_small_strides(p)
-                && bf16_ok;
+                && bf16_ok && f16_ok;
 
         return ok;
     }
@@ -280,6 +285,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                           case f32:
                               /* do nothing */
                               break;
+                          case f16: cvt_v_f16_f32(startIdx, regNum); break;
                           case s32: cvt_z_s32_f32(startIdx, regNum); break;
                           case bf16: cvt_v_bf16_fp32(startIdx, regNum); break;
                           case data_type::s8:
@@ -313,6 +319,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     break;
                 case data_type::bf16:
                     if (idt == f32) cvt_v_f32_bf16(startIdx, regNum);
+                    break;
+                case data_type::f16:
+                    if (idt == f32) cvt_v_f32_f16(startIdx, regNum);
                     break;
                 case u8:
                     if (idt == f32) cvt_z_f32_s32(startIdx, regNum);
@@ -627,6 +636,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                               break;
                           case s32: cvt_v_s32_f32(startIdx, regNum); break;
                           case bf16: cvt_v_bf16_fp32(startIdx, regNum); break;
+                          case f16: cvt_v_f16_f32(startIdx, regNum); break;
                           case data_type::s8:
                               cvt_v_s8_s32(startIdx, regNum);
                               cvt_v_s32_f32(startIdx, regNum);
@@ -644,6 +654,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             switch (odt) {
                 case f32:
                     if (idt == bf16) cvt_v_bf16_fp32(startIdx, regNum);
+                    if (idt == f16) cvt_v_f16_f32(startIdx, regNum);
                     break;
                 case s32:
                     if (idt == f32)
@@ -667,6 +678,9 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     break;
                 case bf16:
                     if (idt == f32) cvt_v_f32_bf16(startIdx, regNum);
+                    break;
+                case f16:
+                    if (idt == f32) cvt_v_f32_f16(startIdx, regNum);
                     break;
                 default: assert(!"unreachable");
             }
@@ -1703,6 +1717,14 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
 
     void cvt_v_bf16_fp32(const size_t startIdx, const size_t regNum) {
         UNROLL_INST2(shll, VReg4S(i), VReg4H(i), 16);
+    }
+
+    void cvt_v_f16_f32(const size_t startIdx, const size_t regNum) {
+        UNROLL_INST2(fcvtl, VReg4S(i), VReg4H(i));
+    }
+
+    void cvt_v_f32_f16(const size_t startIdx, const size_t regNum) {
+        UNROLL_INST2(fcvtn, VReg4H(i), VReg4S(i));
     }
 
     void cvt_z_s8_s32(const size_t startIdx, const size_t regNum) {
