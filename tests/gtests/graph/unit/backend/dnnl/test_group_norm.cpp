@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,12 +96,12 @@ TEST(test_group_norm_execute, GroupnormTraining) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor scale_ts(scale_lt, eng, scale);
-    test_tensor shift_ts(shift_lt, eng, shift);
-    test_tensor dst_ts(dst_lt, eng, dst);
-    test_tensor mean_ts(mean_lt, eng, mean);
-    test_tensor var_ts(variance_lt, eng, var);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t scale_ts(scale_lt, eng, scale);
+    test_tensor_t shift_ts(shift_lt, eng, shift);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
+    test_tensor_t mean_ts(mean_lt, eng, mean);
+    test_tensor_t var_ts(variance_lt, eng, var);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), scale_ts.get(), shift_ts.get()},
@@ -182,10 +182,10 @@ TEST(test_group_norm_execute, GroupnormInference) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor scale_ts(scale_lt, eng, scale);
-    test_tensor shift_ts(shift_lt, eng, shift);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t scale_ts(scale_lt, eng, scale);
+    test_tensor_t shift_ts(shift_lt, eng, shift);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), scale_ts.get(), shift_ts.get()},
@@ -289,11 +289,11 @@ TEST(test_group_norm_execute, GroupnormSwishTypecastQuant) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor scale_ts(scale_lt, eng, scale);
-    test_tensor shift_ts(shift_lt, eng, shift);
-    test_tensor dst_ts(quant_dst_lt, eng);
-    test_tensor ref_dst_ts(quant_dst_lt, eng);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t scale_ts(scale_lt, eng, scale);
+    test_tensor_t shift_ts(shift_lt, eng, shift);
+    test_tensor_t dst_ts(quant_dst_lt, eng);
+    test_tensor_t ref_dst_ts(quant_dst_lt, eng);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), scale_ts.get(), shift_ts.get()},

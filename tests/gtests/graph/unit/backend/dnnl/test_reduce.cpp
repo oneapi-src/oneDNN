@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,9 +106,9 @@ TEST(test_reduce_compile, TestReduce) {
 
         std::vector<float> case1_out_data(product(new_reduce_dst_shape));
         std::vector<float> case2_out_data(product(new_reduce_dst_shape));
-        test_tensor reduce_src_ts(reduce_src, engine, src_data);
-        test_tensor reduce_dst_ts1(reduce_dst, engine, case1_out_data);
-        test_tensor reduce_dst_ts2(reduce_dst, engine, case2_out_data);
+        test_tensor_t reduce_src_ts(reduce_src, engine, src_data);
+        test_tensor_t reduce_dst_ts1(reduce_dst, engine, case1_out_data);
+        test_tensor_t reduce_dst_ts2(reduce_dst, engine, case2_out_data);
 
         ASSERT_EQ(
                 run_graph(g, {reduce_src_ts}, {reduce_dst_ts1}, *engine, *strm),
@@ -193,12 +193,12 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceAdd) {
         g.add_op(&add);
         g.finalize();
 
-        test_tensor reduce_src_ts(reduce_src, engine, src_data);
-        test_tensor add_src1_ts(add_src1, engine, src1_data);
+        test_tensor_t reduce_src_ts(reduce_src, engine, src_data);
+        test_tensor_t add_src1_ts(add_src1, engine, src1_data);
 
         // -------------------------case 1----------------------------------
         std::vector<float> case1_out_data(product(reduce_dst_shape));
-        test_tensor add_dst_ts(add_dst, engine, case1_out_data);
+        test_tensor_t add_dst_ts(add_dst, engine, case1_out_data);
 
         ASSERT_EQ(run_graph(g, {reduce_src_ts, add_src1_ts}, {add_dst_ts},
                           *engine, *strm),
@@ -223,7 +223,7 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceAdd) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<float> case2_out_data(product(reduce_dst_shape));
-        test_tensor add_dst_ts2(add_dst, engine, case2_out_data);
+        test_tensor_t add_dst_ts2(add_dst, engine, case2_out_data);
 
         cp.execute(strm, {reduce_src_ts.get(), add_src1_ts.get()},
                 {add_dst_ts2.get()});
@@ -290,11 +290,11 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceRelu) {
         g.add_op(&relu);
         g.finalize();
 
-        test_tensor reduce_src_ts(reduce_src, engine, src_data);
+        test_tensor_t reduce_src_ts(reduce_src, engine, src_data);
 
         // -------------------------case 1----------------------------------
         std::vector<float> case1_out_data(product(reduce_dst_shape));
-        test_tensor relu_dst_ts(relu_dst, engine, case1_out_data);
+        test_tensor_t relu_dst_ts(relu_dst, engine, case1_out_data);
 
         ASSERT_EQ(run_graph(g, {reduce_src_ts}, {relu_dst_ts}, *engine, *strm),
                 graph::status::success);
@@ -317,7 +317,7 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceRelu) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<float> case2_out_data(product(reduce_dst_shape));
-        test_tensor relu_dst_ts2(relu_dst, engine, case2_out_data);
+        test_tensor_t relu_dst_ts2(relu_dst, engine, case2_out_data);
 
         cp.execute(strm, {reduce_src_ts.get()}, {relu_dst_ts2.get()});
         strm->wait();
@@ -388,11 +388,11 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceSwish) {
         g.add_op(&multiply);
         g.finalize();
 
-        test_tensor reduce_src_ts(reduce_src, engine, src_data);
+        test_tensor_t reduce_src_ts(reduce_src, engine, src_data);
 
         // -------------------------case 1----------------------------------
         std::vector<float> case1_out_data(product(reduce_dst_shape));
-        test_tensor mul_dst_ts(mul_dst, engine, case1_out_data);
+        test_tensor_t mul_dst_ts(mul_dst, engine, case1_out_data);
 
         ASSERT_EQ(run_graph(g, {reduce_src_ts}, {mul_dst_ts}, *engine, *strm),
                 graph::status::success);
@@ -415,7 +415,7 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceSwish) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<float> case2_out_data(product(reduce_dst_shape));
-        test_tensor mul_dst_ts2(mul_dst, engine, case2_out_data);
+        test_tensor_t mul_dst_ts2(mul_dst, engine, case2_out_data);
 
         cp.execute(strm, {reduce_src_ts.get()}, {mul_dst_ts2.get()});
         strm->wait();
@@ -501,13 +501,13 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceWith3PostOps_CPU) {
         g.add_op(&multiply);
         g.finalize();
 
-        test_tensor reduce_src_ts(reduce_src, engine, src_data);
-        test_tensor max_src_ts(max_src, engine, max_src_data);
-        test_tensor mul_src_ts(mul_src, engine, mul_src_data);
+        test_tensor_t reduce_src_ts(reduce_src, engine, src_data);
+        test_tensor_t max_src_ts(max_src, engine, max_src_data);
+        test_tensor_t mul_src_ts(mul_src, engine, mul_src_data);
 
         // -------------------------case 1----------------------------------
         std::vector<float> case1_out_data(product(reduce_dst_shape));
-        test_tensor mul_dst_ts(mul_dst, engine, case1_out_data);
+        test_tensor_t mul_dst_ts(mul_dst, engine, case1_out_data);
 
         ASSERT_EQ(run_graph(g, {reduce_src_ts, max_src_ts, mul_src_ts},
                           {mul_dst_ts}, *engine, *strm),
@@ -532,7 +532,7 @@ TEST(test_reduce_execute_subgraph_fp32, ReduceWith3PostOps_CPU) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<float> case2_out_data(product(reduce_dst_shape));
-        test_tensor mul_dst_ts2(mul_dst, engine, case2_out_data);
+        test_tensor_t mul_dst_ts2(mul_dst, engine, case2_out_data);
 
         cp.execute(strm,
                 {reduce_src_ts.get(), max_src_ts.get(), mul_src_ts.get()},
@@ -599,8 +599,8 @@ TEST(test_reduce_execute, ReduceMeanOutputDims) {
         cp.query_logical_tensor(dst.id, &dst_lt);
         ASSERT_EQ(dst_lt.layout_type, graph::layout_type::strided);
         ASSERT_EQ(dst_lt.ndims, static_cast<int>(new_dst_shape.size()));
-        test_tensor src0_ts(src0, engine, src0_data);
-        test_tensor dst_ts(dst_lt, engine, dst_data);
+        test_tensor_t src0_ts(src0, engine, src0_data);
+        test_tensor_t dst_ts(dst_lt, engine, dst_data);
 
         ASSERT_EQ(cp.execute(strm, {src0_ts.get()}, {dst_ts.get()}),
                 graph::status::success);

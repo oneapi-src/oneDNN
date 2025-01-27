@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,7 +85,7 @@ TEST(test_mqa_decomp_execute, F32MqaDecomp_CPU) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    std::vector<test_tensor> inputs_ts, outputs_ts;
+    std::vector<test_tensor_t> inputs_ts, outputs_ts;
     for (auto &lt : inputs) {
         inputs_ts.emplace_back(*lt, eng);
         inputs_ts.back().fill<float>();
@@ -96,8 +96,8 @@ TEST(test_mqa_decomp_execute, F32MqaDecomp_CPU) {
         cp.query_logical_tensor(lt->id, &compiled_output);
         outputs_ts.emplace_back(compiled_output, eng);
     }
-    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                      test_tensor::to_graph_tensor(outputs_ts)),
+    ASSERT_EQ(cp.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                      test_tensor_t::to_graph_tensor(outputs_ts)),
             graph::status::success);
     strm->wait();
 }
@@ -150,7 +150,7 @@ TEST(test_mqa_decomp_execute, Bf16MqaDecomp_CPU) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    std::vector<test_tensor> inputs_ts, outputs_ts;
+    std::vector<test_tensor_t> inputs_ts, outputs_ts;
     for (auto &lt : inputs) {
         inputs_ts.emplace_back(*lt, eng);
         inputs_ts.back().fill<float>();
@@ -161,8 +161,8 @@ TEST(test_mqa_decomp_execute, Bf16MqaDecomp_CPU) {
         cp.query_logical_tensor(lt->id, &compiled_output);
         outputs_ts.emplace_back(compiled_output, eng);
     }
-    ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                      test_tensor::to_graph_tensor(outputs_ts)),
+    ASSERT_EQ(cp.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                      test_tensor_t::to_graph_tensor(outputs_ts)),
             graph::status::success);
     strm->wait();
 }
@@ -210,7 +210,7 @@ TEST(test_mqa_decomp_execute, MultithreaMqaDecomp_CPU) {
     graph::compiled_partition_t cp(p);
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    std::vector<test_tensor> inputs_ts;
+    std::vector<test_tensor_t> inputs_ts;
     for (auto &lt : inputs) {
         inputs_ts.emplace_back(*lt, eng);
         inputs_ts.back().fill<float>();
@@ -219,15 +219,16 @@ TEST(test_mqa_decomp_execute, MultithreaMqaDecomp_CPU) {
     auto func = [&]() {
         graph::stream_t *strm;
         dnnl_stream_create(&strm, eng, dnnl_stream_in_order);
-        std::vector<test_tensor> outputs_ts;
+        std::vector<test_tensor_t> outputs_ts;
         for (auto &lt : outputs) {
             graph::logical_tensor_t compiled_output;
             cp.query_logical_tensor(lt->id, &compiled_output);
             outputs_ts.emplace_back(compiled_output, eng);
         }
         for (int i = 0; i < 5; i++) {
-            ASSERT_EQ(cp.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                              test_tensor::to_graph_tensor(outputs_ts)),
+            ASSERT_EQ(
+                    cp.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                            test_tensor_t::to_graph_tensor(outputs_ts)),
                     graph::status::success);
         }
         strm->wait();
@@ -284,7 +285,7 @@ TEST(test_mqa_decomp_execute, F32MqaCorr_CPU) {
         outputs.emplace_back(&lt);
     }
 
-    std::vector<test_tensor> inputs_ts;
+    std::vector<test_tensor_t> inputs_ts;
     for (auto &lt : inputs) {
         inputs_ts.emplace_back(*lt, eng);
         inputs_ts.back().fill<float>();
@@ -295,14 +296,14 @@ TEST(test_mqa_decomp_execute, F32MqaCorr_CPU) {
     graph::compiled_partition_t cp1(p);
     ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng), graph::status::success);
 
-    std::vector<test_tensor> outputs1_ts;
+    std::vector<test_tensor_t> outputs1_ts;
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp1.query_logical_tensor(lt->id, &compiled_output);
         outputs1_ts.emplace_back(compiled_output, eng);
     }
-    ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                      test_tensor::to_graph_tensor(outputs1_ts)),
+    ASSERT_EQ(cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                      test_tensor_t::to_graph_tensor(outputs1_ts)),
             graph::status::success);
     strm->wait();
 
@@ -311,14 +312,14 @@ TEST(test_mqa_decomp_execute, F32MqaCorr_CPU) {
     graph::compiled_partition_t cp2(p);
     ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng), graph::status::success);
 
-    std::vector<test_tensor> outputs2_ts;
+    std::vector<test_tensor_t> outputs2_ts;
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp2.query_logical_tensor(lt->id, &compiled_output);
         outputs2_ts.emplace_back(compiled_output, eng);
     }
-    ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                      test_tensor::to_graph_tensor(outputs2_ts)),
+    ASSERT_EQ(cp2.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                      test_tensor_t::to_graph_tensor(outputs2_ts)),
             graph::status::success);
     strm->wait();
 
@@ -372,7 +373,7 @@ TEST(test_mqa_decomp_execute, Bf16MqaCorr_CPU) {
         outputs.emplace_back(&lt);
     }
 
-    std::vector<test_tensor> inputs_ts;
+    std::vector<test_tensor_t> inputs_ts;
     for (auto &lt : inputs) {
         inputs_ts.emplace_back(*lt, eng);
         inputs_ts.back().fill<float>();
@@ -383,14 +384,14 @@ TEST(test_mqa_decomp_execute, Bf16MqaCorr_CPU) {
     graph::compiled_partition_t cp1(p);
     ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng), graph::status::success);
 
-    std::vector<test_tensor> outputs1_ts;
+    std::vector<test_tensor_t> outputs1_ts;
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp1.query_logical_tensor(lt->id, &compiled_output);
         outputs1_ts.emplace_back(compiled_output, eng);
     }
-    ASSERT_EQ(cp1.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                      test_tensor::to_graph_tensor(outputs1_ts)),
+    ASSERT_EQ(cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                      test_tensor_t::to_graph_tensor(outputs1_ts)),
             graph::status::success);
     strm->wait();
 
@@ -399,14 +400,14 @@ TEST(test_mqa_decomp_execute, Bf16MqaCorr_CPU) {
     graph::compiled_partition_t cp2(p);
     ASSERT_EQ(p.compile(&cp2, inputs, outputs, eng), graph::status::success);
 
-    std::vector<test_tensor> outputs2_ts;
+    std::vector<test_tensor_t> outputs2_ts;
     for (auto &lt : outputs) {
         graph::logical_tensor_t compiled_output;
         cp2.query_logical_tensor(lt->id, &compiled_output);
         outputs2_ts.emplace_back(compiled_output, eng);
     }
-    ASSERT_EQ(cp2.execute(strm, test_tensor::to_graph_tensor(inputs_ts),
-                      test_tensor::to_graph_tensor(outputs2_ts)),
+    ASSERT_EQ(cp2.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+                      test_tensor_t::to_graph_tensor(outputs2_ts)),
             graph::status::success);
     strm->wait();
 

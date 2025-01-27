@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ TEST(test_common, MakeDnnlMemory) {
 
     graph::logical_tensor_t lt
             = utils::logical_tensor_init(0, {1, 2}, graph::data_type::f32);
-    test_tensor t1 {lt, &eng};
+    test_tensor_t t1 {lt, &eng};
     if (eng.kind() == graph::engine_kind::cpu) {
         ASSERT_NO_THROW(graph::dnnl_impl::make_dnnl_memory(
                 t1.get(), dnnl::engine(dnnl::engine::kind::cpu, 0)));

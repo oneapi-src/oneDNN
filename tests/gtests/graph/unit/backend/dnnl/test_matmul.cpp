@@ -77,10 +77,10 @@ TEST(test_matmul_execute, MatmulFp32) {
 
     p.compile(&cp, inputs, outputs, eng);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor weight_ts(weight, eng, weight_data);
-    test_tensor bias_ts(bias, eng, bias_data);
-    test_tensor dst_ts(dst, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t weight_ts(weight, eng, weight_data);
+    test_tensor_t bias_ts(bias, eng, bias_data);
+    test_tensor_t dst_ts(dst, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
@@ -99,10 +99,10 @@ TEST(test_matmul_execute, MatmulFp32) {
     std::vector<float> ref_dst_data2 {5};
     std::vector<float> dst_data2(ref_dst_data2.size(), 0.0);
 
-    test_tensor src_ts2(src, eng, src_data2);
-    test_tensor weight_ts2(weight, eng, weight_data2);
-    test_tensor bias_ts2(bias, eng, bias_data2);
-    test_tensor dst_ts2(dst, eng, dst_data2);
+    test_tensor_t src_ts2(src, eng, src_data2);
+    test_tensor_t weight_ts2(weight, eng, weight_data2);
+    test_tensor_t bias_ts2(bias, eng, bias_data2);
+    test_tensor_t dst_ts2(dst, eng, dst_data2);
 
     cp.execute(strm, {src_ts2.get(), weight_ts2.get(), bias_ts2.get()},
             {dst_ts2.get()});
@@ -162,9 +162,9 @@ TEST(test_matmul_execute, MatmulF16F16F16_GPU) {
 
     p.compile(&cp, inputs, outputs, eng);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor weight_ts(weight, eng, weight_data);
-    test_tensor dst_ts(dst, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t weight_ts(weight, eng, weight_data);
+    test_tensor_t dst_ts(dst, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -217,9 +217,9 @@ TEST(test_matmul_execute, MatmulBf16Bf16Bf16) {
 
     p.compile(&cp, inputs, outputs, eng);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor weight_ts(weight, eng, weight_data);
-    test_tensor dst_ts(dst, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t weight_ts(weight, eng, weight_data);
+    test_tensor_t dst_ts(dst, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -399,9 +399,9 @@ TEST(test_matmul_execute, MatmulNdx1d) {
             ASSERT_EQ(p.compile(&cp, inputs, outputs, engine),
                     graph::status::success);
 
-            test_tensor src_ts(src, engine, src_data);
-            test_tensor weight_ts(weight, engine, weight_data);
-            test_tensor dst_ts(dst, engine, dst_data);
+            test_tensor_t src_ts(src, engine, src_data);
+            test_tensor_t weight_ts(weight, engine, weight_data);
+            test_tensor_t dst_ts(dst, engine, dst_data);
 
             ASSERT_EQ(cp.execute(strm, {src_ts.get(), weight_ts.get()},
                               {dst_ts.get()}),
@@ -494,9 +494,9 @@ TEST(test_matmul_execute, Matmul1dxNd) {
 
             p.compile(&cp, inputs, outputs, engine);
 
-            test_tensor src_ts(src, engine, src_data);
-            test_tensor weight_ts(weight, engine, weight_data);
-            test_tensor dst_ts(dst, engine, dst_data);
+            test_tensor_t src_ts(src, engine, src_data);
+            test_tensor_t weight_ts(weight, engine, weight_data);
+            test_tensor_t dst_ts(dst, engine, dst_data);
 
             cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
             strm->wait();
@@ -564,9 +564,9 @@ TEST(test_matmul_execute, Matmul3dx3d) {
 
     p.compile(&cp, inputs, outputs, eng);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor weight_ts(weight, eng, weight_data);
-    test_tensor dst_ts(dst, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t weight_ts(weight, eng, weight_data);
+    test_tensor_t dst_ts(dst, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -631,10 +631,10 @@ TEST(test_matmul_execute, MatmulBiasAdd) {
     p.compile(&cp, inputs, outputs, engine);
     cp.query_logical_tensor(add_dst.id, &add_dst);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor post_src_ts(post_src, engine, post_src_data);
-    test_tensor dst_ts(add_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t post_src_ts(post_src, engine, post_src_data);
+    test_tensor_t dst_ts(add_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), post_src_ts.get()},
@@ -707,11 +707,11 @@ TEST(test_matmul_execute, MatmulBiasAddPerTensorBroadcast) {
 
         p.compile(&cp, inputs, outputs, engine);
 
-        test_tensor src_ts(src, engine, src_data);
-        test_tensor weight_ts(weight, engine, weight_data);
-        test_tensor bias_ts(bias, engine, bias_data);
-        test_tensor post_src_ts(post_src, engine, post_src_data);
-        test_tensor dst_ts(add_dst, engine, dst_data);
+        test_tensor_t src_ts(src, engine, src_data);
+        test_tensor_t weight_ts(weight, engine, weight_data);
+        test_tensor_t bias_ts(bias, engine, bias_data);
+        test_tensor_t post_src_ts(post_src, engine, post_src_data);
+        test_tensor_t dst_ts(add_dst, engine, dst_data);
 
         cp.execute(strm,
                 {src_ts.get(), weight_ts.get(), bias_ts.get(),
@@ -785,11 +785,11 @@ TEST(test_matmul_execute, MatmulBiasAddPerChannelBroadcast) {
 
         p.compile(&cp, inputs, outputs, engine);
 
-        test_tensor src_ts(src, engine, src_data);
-        test_tensor weight_ts(weight, engine, weight_data);
-        test_tensor bias_ts(bias, engine, bias_data);
-        test_tensor post_src_ts(post_src, engine, post_src_data);
-        test_tensor dst_ts(add_dst, engine, dst_data);
+        test_tensor_t src_ts(src, engine, src_data);
+        test_tensor_t weight_ts(weight, engine, weight_data);
+        test_tensor_t bias_ts(bias, engine, bias_data);
+        test_tensor_t post_src_ts(post_src, engine, post_src_data);
+        test_tensor_t dst_ts(add_dst, engine, dst_data);
 
         cp.execute(strm,
                 {src_ts.get(), weight_ts.get(), bias_ts.get(),
@@ -1066,13 +1066,13 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2d) {
         g.add_op(&qout_op);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
 
         // -------------------------case 1----------------------------------
         std::vector<int8_t> case1_out_data(product(dst_shape));
-        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_s8_ts}, *engine, *strm),
                 graph::status::success);
@@ -1097,7 +1097,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2d) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<int8_t> case2_out_data(product(dst_shape));
-        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get()},
                 {dst_s8_case2_ts.get()});
@@ -1210,13 +1210,13 @@ TEST(test_matmul_execute_subgraph_int8, MatmulU8U8) {
         g.add_op(&matmul_op);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_u8_ts(weight_u8, engine, weight_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_u8_ts(weight_u8, engine, weight_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
 
         // -------------------------case 1----------------------------------
         std::vector<float> case1_out_data(product(dst_shape));
-        test_tensor dst_f32_ts(dst_f32, engine, case1_out_data);
+        test_tensor_t dst_f32_ts(dst_f32, engine, case1_out_data);
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_u8_ts, bias_f32_ts},
                           {dst_f32_ts}, *engine, *strm),
                 graph::status::success);
@@ -1240,7 +1240,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulU8U8) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<float> case2_out_data(product(dst_shape));
-        test_tensor dst_f32_case2_ts(dst_f32, engine, case2_out_data);
+        test_tensor_t dst_f32_case2_ts(dst_f32, engine, case2_out_data);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_u8_ts.get(), bias_f32_ts.get()},
                 {dst_f32_case2_ts.get()});
@@ -1363,11 +1363,11 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx1d) {
             g.add_op(&qout_op);
             g.finalize();
 
-            test_tensor src_u8_ts(src_u8, engine, src_data);
-            test_tensor weight_s8_ts(weight_s8, engine, weight_data);
+            test_tensor_t src_u8_ts(src_u8, engine, src_data);
+            test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
             // -------------------------case 1----------------------------------
             std::vector<int8_t> case1_out_data(product(dst_shape));
-            test_tensor dst_s8_case1_ts(dst_s8, engine, case1_out_data);
+            test_tensor_t dst_s8_case1_ts(dst_s8, engine, case1_out_data);
             ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts}, {dst_s8_case1_ts},
                               *engine, *strm),
                     graph::status::success);
@@ -1392,7 +1392,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx1d) {
             p.compile(&cp, lt_ins, lt_outs, engine);
 
             std::vector<int8_t> case2_out_data(product(dst_shape));
-            test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+            test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
             cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()},
                     {dst_s8_case2_ts.get()});
             strm->wait();
@@ -1526,12 +1526,13 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2dWithTranspose) {
             g.add_op(&qout_op);
             g.finalize();
 
-            test_tensor src_u8_ts(src_u8, engine, src_data);
-            test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-            test_tensor bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
+            test_tensor_t src_u8_ts(src_u8, engine, src_data);
+            test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+            test_tensor_t bias_f32_ts
+                    = test_tensor_t(bias_f32, engine, bias_data);
             // -------------------------case 1----------------------------------
             std::vector<int8_t> case1_out_data(product(dst_shape));
-            test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+            test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
             ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                               {dst_s8_ts}, *engine, *strm),
                     graph::status::success);
@@ -1556,7 +1557,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2dWithTranspose) {
             p.compile(&cp, lt_ins, lt_outs, engine);
 
             std::vector<int8_t> case2_out_data(product(dst_shape));
-            test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+            test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
             cp.execute(strm,
                     {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get()},
                     {dst_s8_case2_ts.get()});
@@ -1729,13 +1730,13 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasSumNdx2d) {
         g.add_op(&qout_op);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-        test_tensor other_s8_ts(other_s8, engine, other_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t other_s8_ts(other_s8, engine, other_data);
         // -------------------------case 1----------------------------------
         std::vector<int8_t> case1_out_data(product(dst_shape));
-        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_s8_ts, bias_f32_ts, other_s8_ts},
                           {dst_s8_ts}, *engine, *strm),
@@ -1763,7 +1764,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasSumNdx2d) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<int8_t> case2_out_data(product(dst_shape));
-        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get(),
                         other_s8_ts.get()},
@@ -1915,13 +1916,13 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasBinary) {
         g.add_op(&qout_op);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-        test_tensor other_f32_ts(other_f32, engine, other_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t other_f32_ts(other_f32, engine, other_data);
         // -------------------------case 1----------------------------------
         std::vector<int8_t> case1_out_data(product(dst_shape));
-        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_s8_ts, bias_f32_ts, other_f32_ts},
                           {dst_s8_ts}, *engine, *strm),
@@ -1946,7 +1947,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasBinary) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<int8_t> case2_out_data(product(dst_shape));
-        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get(),
                         other_f32_ts.get()},
@@ -2137,14 +2138,14 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasAddMul) {
         g.add_op(&qout_op);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-        test_tensor add_other_s8_ts(other_s8, engine, add_other_data);
-        test_tensor mul_other_f32_ts(mul_src_f32, engine, mul_other_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t add_other_s8_ts(other_s8, engine, add_other_data);
+        test_tensor_t mul_other_f32_ts(mul_src_f32, engine, mul_other_data);
         // -------------------------case 1----------------------------------
         std::vector<int8_t> case1_out_data(product(dst_shape));
-        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_s8_ts, bias_f32_ts,
                                   add_other_s8_ts, mul_other_f32_ts},
@@ -2173,7 +2174,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasAddMul) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<int8_t> case2_out_data(product(dst_shape));
-        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get(),
                         add_other_s8_ts.get(), mul_other_f32_ts.get()},
@@ -2286,12 +2287,12 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasNdx2dX8s8f32) {
         g.add_op(&matmul_op);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
         // -------------------------case 1----------------------------------
         std::vector<float> case1_out_data(product(dst_shape));
-        test_tensor dst_f32_ts(dst_f32, engine, case1_out_data);
+        test_tensor_t dst_f32_ts(dst_f32, engine, case1_out_data);
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_f32_ts}, *engine, *strm),
                 graph::status::success);
@@ -2314,7 +2315,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasNdx2dX8s8f32) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<float> case2_out_data(product(dst_shape));
-        test_tensor dst_f32_case2_ts(dst_f32, engine, case2_out_data);
+        test_tensor_t dst_f32_case2_ts(dst_f32, engine, case2_out_data);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get()},
                 {dst_f32_case2_ts.get()});
@@ -2418,11 +2419,11 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2dX8s8f32) {
         g.add_op(&matmul_op);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
         // -------------------------case 1----------------------------------
         std::vector<float> case1_out_data(product(dst_shape));
-        test_tensor dst_f32_ts(dst_f32, engine, case1_out_data);
+        test_tensor_t dst_f32_ts(dst_f32, engine, case1_out_data);
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts}, {dst_f32_ts}, *engine,
                           *strm),
                 graph::status::success);
@@ -2445,7 +2446,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulNdx2dX8s8f32) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<float> case2_out_data(product(dst_shape));
-        test_tensor dst_f32_case2_ts(dst_f32, engine, case2_out_data);
+        test_tensor_t dst_f32_case2_ts(dst_f32, engine, case2_out_data);
         cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()},
                 {dst_f32_case2_ts.get()});
         strm->wait();
@@ -2564,12 +2565,12 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasGeluNdx2dX8s8f32) {
         g.add_op(&gelu_op);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
         // -------------------------case 1----------------------------------
         std::vector<float> case1_out_data(product(dst_shape));
-        test_tensor dst_f32_ts(gelu_f32, engine, case1_out_data);
+        test_tensor_t dst_f32_ts(gelu_f32, engine, case1_out_data);
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_f32_ts}, *engine, *strm),
                 graph::status::success);
@@ -2592,7 +2593,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasGeluNdx2dX8s8f32) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<float> case2_out_data(product(dst_shape));
-        test_tensor dst_f32_case2_ts(gelu_f32, engine, case2_out_data);
+        test_tensor_t dst_f32_case2_ts(gelu_f32, engine, case2_out_data);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get()},
                 {dst_f32_case2_ts.get()});
@@ -2819,11 +2820,11 @@ TEST(test_matmul_execute_subgraph_int8, Matmul2dx3dWithTranspose) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         // execute
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
         std::vector<int8_t> dst_data(product(dst_shape));
-        test_tensor dst_s8_ts(dst_s8, engine, dst_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, dst_data);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get()},
                 {dst_s8_ts.get()});
@@ -3163,10 +3164,10 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasU8s8bf16_CPU) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-    test_tensor bias_bf16_ts(bias_bf16, engine, bias_data);
-    test_tensor dst_ts(dst_bf16, engine);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+    test_tensor_t bias_bf16_ts(bias_bf16, engine, bias_data);
+    test_tensor_t dst_ts(dst_bf16, engine);
     cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get(), bias_bf16_ts.get()},
             {dst_ts.get()});
     strm->wait();
@@ -3275,9 +3276,9 @@ TEST(test_matmul_execute_subgraph_int8, MatmulU8U8bf16) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_s8_ts(weight_u8, engine, weight_data);
-    test_tensor dst_ts(dst_bf16, engine);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_s8_ts(weight_u8, engine, weight_data);
+    test_tensor_t dst_ts(dst_bf16, engine);
     cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()}, {dst_ts.get()});
     strm->wait();
 }
@@ -3411,11 +3412,11 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasAddBF16U8s8bf16_CPU) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-    test_tensor bias_bf16_ts(bias_bf16, engine, bias_data);
-    test_tensor other_bf16_ts(other_bf16, engine, other_data);
-    test_tensor dst_ts(dst_bf16, engine);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+    test_tensor_t bias_bf16_ts(bias_bf16, engine, bias_data);
+    test_tensor_t other_bf16_ts(other_bf16, engine, other_data);
+    test_tensor_t dst_ts(dst_bf16, engine);
     cp.execute(strm,
             {src_u8_ts.get(), weight_s8_ts.get(), bias_bf16_ts.get(),
                     other_bf16_ts.get()},
@@ -3582,11 +3583,11 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddAddBF16U8s8bf16_CPU) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-    test_tensor other_bf16_ts(other_bf16, engine, other_data);
-    test_tensor dst_ts(dst_bf16, engine);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor_t other_bf16_ts(other_bf16, engine, other_data);
+    test_tensor_t dst_ts(dst_bf16, engine);
     cp.execute(strm,
             {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get(),
                     other_bf16_ts.get()},
@@ -3727,10 +3728,10 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasU8s8u8MixBf16) {
     p.compile(&cp, lt_ins, lt_outs, engine);
 
     std::vector<uint8_t> dst_data(product(dst_shape));
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-    test_tensor bias_bf16_ts(bias_bf16, engine, bias_data);
-    test_tensor dst_ts(dst_u8, engine, dst_data);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+    test_tensor_t bias_bf16_ts(bias_bf16, engine, bias_data);
+    test_tensor_t dst_ts(dst_u8, engine, dst_data);
     cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get(), bias_bf16_ts.get()},
             {dst_ts.get()});
     strm->wait();
@@ -3899,10 +3900,10 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddU8s8u8MixBf16) {
     p.compile(&cp, lt_ins, lt_outs, engine);
 
     std::vector<uint8_t> dst_data(product(dst_shape));
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-    test_tensor dst_ts(dst_u8, engine, dst_data);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor_t dst_ts(dst_u8, engine, dst_data);
     cp.execute(strm, {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
             {dst_ts.get()});
     strm->wait();
@@ -4060,10 +4061,10 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasGeluU8s8u8MixBf16) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-    test_tensor bias_bf16_ts(bias_bf16, engine, bias_data);
-    test_tensor dst_ts(dst_u8, engine);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+    test_tensor_t bias_bf16_ts(bias_bf16, engine, bias_data);
+    test_tensor_t dst_ts(dst_u8, engine);
     cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get(), bias_bf16_ts.get()},
             {dst_ts.get()});
     strm->wait();
@@ -4238,10 +4239,10 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddGeluU8s8u8MixBf16) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor bias_bf32_ts(bias_f32, engine, bias_data);
-    test_tensor dst_ts(dst_u8, engine);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t bias_bf32_ts(bias_f32, engine, bias_data);
+    test_tensor_t dst_ts(dst_u8, engine);
     cp.execute(strm, {src_u8_ts.get(), weight_f32_ts.get(), bias_bf32_ts.get()},
             {dst_ts.get()});
     strm->wait();
@@ -4327,9 +4328,9 @@ TEST(test_matmul_execute, MatmulTransposeReorder) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_f32_ts(src_f32, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor dst_ts(reorder_f32, engine);
+    test_tensor_t src_f32_ts(src_f32, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t dst_ts(reorder_f32, engine);
     for (size_t iter = 0; iter < 5; iter++) {
         cp.execute(
                 strm, {src_f32_ts.get(), weight_f32_ts.get()}, {dst_ts.get()});
@@ -4483,11 +4484,11 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasTransposeReorder) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
     std::vector<int8_t> dst_out_data(product(dst_shape));
-    test_tensor dst_ts(dst_s8, engine, dst_out_data);
+    test_tensor_t dst_ts(dst_s8, engine, dst_out_data);
     for (size_t iter = 0; iter < 5; iter++) {
         cp.execute(strm,
                 {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
@@ -4657,10 +4658,10 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMixBf16MatmulTransposeReorder) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
     std::vector<int8_t> dst_out_data(product(dst_shape));
-    test_tensor dst_ts(dst_s8, engine, dst_out_data);
+    test_tensor_t dst_ts(dst_s8, engine, dst_out_data);
     for (size_t iter = 0; iter < 5; iter++) {
         cp.execute(
                 strm, {src_u8_ts.get(), weight_f32_ts.get()}, {dst_ts.get()});
@@ -4716,9 +4717,9 @@ TEST(test_matmul_execute, MatmulScalarOutput) {
     ASSERT_EQ(scalar_lt.layout_type, graph::layout_type::strided);
     ASSERT_EQ(scalar_lt.ndims, 0);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor weight_ts(weight, eng, weight_data);
-    test_tensor dst_ts(scalar_lt, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t weight_ts(weight, eng, weight_data);
+    test_tensor_t dst_ts(scalar_lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()}),
@@ -4909,13 +4910,13 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasSumNdx2d) {
         // set bias to be constant
         bias_f32.property = graph::property_type::constant;
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-        test_tensor other_s8_ts(other_s8, engine, other_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+        test_tensor_t other_s8_ts(other_s8, engine, other_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
         // -------------------------case 1----------------------------------
         std::vector<int8_t> case1_out_data(product(dst_shape));
-        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
         ASSERT_EQ(run_graph(g,
                           {src_u8_ts, weight_f32_ts, bias_f32_ts, other_s8_ts},
                           {dst_s8_ts}, *engine, *strm),
@@ -4943,7 +4944,7 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasSumNdx2d) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<int8_t> case2_out_data(product(dst_shape));
-        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
         for (size_t iter = 0; iter < 5; iter++) {
             cp.execute(strm,
                     {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get(),
@@ -5089,12 +5090,12 @@ TEST(test_matmul_execute_subgraph_int8, U8S8U8MatmulAddF32) {
         g.add_op(&qout_op);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-        test_tensor other_f32_ts(other_f32, engine, other_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+        test_tensor_t other_f32_ts(other_f32, engine, other_data);
         // -------------------------case 1----------------------------------
         std::vector<int8_t> case1_out_data(product(dst_shape));
-        test_tensor dst_u8_ts(dst_u8, engine, case1_out_data);
+        test_tensor_t dst_u8_ts(dst_u8, engine, case1_out_data);
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_f32_ts, other_f32_ts},
                           {dst_u8_ts}, *engine, *strm),
                 graph::status::success);
@@ -5118,7 +5119,7 @@ TEST(test_matmul_execute_subgraph_int8, U8S8U8MatmulAddF32) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<int8_t> case2_out_data(product(dst_shape));
-        test_tensor dst_u8_case2_ts(dst_u8, engine, case2_out_data);
+        test_tensor_t dst_u8_case2_ts(dst_u8, engine, case2_out_data);
         for (size_t iter = 0; iter < 5; iter++) {
             cp.execute(strm,
                     {src_u8_ts.get(), weight_f32_ts.get(), other_f32_ts.get()},
@@ -5272,12 +5273,12 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasNdx2dWithTranspose) {
         // set bias to be constant
         bias_f32.property = graph::property_type::constant;
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
         // -------------------------case 1----------------------------------
         std::vector<int8_t> case1_out_data(product(dst_shape));
-        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_f32_ts, bias_f32_ts},
                           {dst_s8_ts}, *engine, *strm),
                 graph::status::success);
@@ -5300,7 +5301,7 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasNdx2dWithTranspose) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<int8_t> case2_out_data(product(dst_shape));
-        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
         for (size_t iter = 0; iter < 1; iter++) {
             cp.execute(strm,
                     {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
@@ -5435,14 +5436,14 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasReluNdx2d) {
         g.add_op(&qout_op);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine);
+        test_tensor_t src_u8_ts(src_u8, engine);
         src_u8_ts.fill<uint8_t>(20, 5);
-        test_tensor weight_f32_ts(weight_f32, engine);
+        test_tensor_t weight_f32_ts(weight_f32, engine);
         weight_f32_ts.fill<float>();
-        test_tensor bias_f32_ts(bias_f32, engine);
+        test_tensor_t bias_f32_ts(bias_f32, engine);
         bias_f32_ts.fill<float>();
         // -------------------------case 1----------------------------------
-        test_tensor dst_s8_ts(dst_s8, engine);
+        test_tensor_t dst_s8_ts(dst_s8, engine);
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_f32_ts, bias_f32_ts},
                           {dst_s8_ts}, *engine, *strm),
                 graph::status::success);
@@ -5466,7 +5467,7 @@ TEST(test_matmul_execute_subgraph_int8, QuantWeiMatmulBiasReluNdx2d) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        test_tensor dst_s8_case2_ts(dst_s8, engine);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine);
         for (size_t iter = 0; iter < 5; iter++) {
             if (with_bias) {
                 cp.execute(strm,
@@ -5541,9 +5542,9 @@ TEST(test_matmul_execute, MatmulReluFusion) {
 
     p.compile(&cp, inputs, outputs, eng);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor weight_ts(weight, eng, weight_data);
-    test_tensor dst_ts(relu_dst, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t weight_ts(weight, eng, weight_data);
+    test_tensor_t dst_ts(relu_dst, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -5600,10 +5601,10 @@ TEST(test_matmul_execute, MatmulBiasFusion) {
 
     p.compile(&cp, inputs, outputs, eng);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor weight_ts(weight, eng, weight_data);
-    test_tensor bias_ts(bias, eng, bias_data);
-    test_tensor dst_ts(dst, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t weight_ts(weight, eng, weight_data);
+    test_tensor_t bias_ts(bias, eng, bias_data);
+    test_tensor_t dst_ts(dst, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
@@ -5668,10 +5669,10 @@ TEST(test_matmul_execute, MatmulSumBroadcast1d) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor add_src1_ts(add_src1, engine, add_src1_data);
-    test_tensor dst_ts(add_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t add_src1_ts(add_src1, engine, add_src1_data);
+    test_tensor_t dst_ts(add_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), add_src1_ts.get()},
@@ -5736,10 +5737,10 @@ TEST(test_matmul_execute, MatmulSumFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor add_src1_ts(add_src1, engine, add_src1_data);
-    test_tensor dst_ts(add_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t add_src1_ts(add_src1, engine, add_src1_data);
+    test_tensor_t dst_ts(add_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), add_src1_ts.get()},
@@ -5809,10 +5810,10 @@ TEST(test_matmul_execute, MatmulSumGeluFusion) {
 
     p.compile(&cp, inputs, outputs, eng);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor weight_ts(weight, eng, weight_data);
-    test_tensor other_ts(other, eng, other_data);
-    test_tensor dst_ts(gelu_dst, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t weight_ts(weight, eng, weight_data);
+    test_tensor_t other_ts(other, eng, other_data);
+    test_tensor_t dst_ts(gelu_dst, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), other_ts.get()},
@@ -5882,10 +5883,10 @@ TEST(test_matmul_execute, MatmulSumReluFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor other_ts(other, engine, other_data);
-    test_tensor dst_ts(relu_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t other_ts(other, engine, other_data);
+    test_tensor_t dst_ts(relu_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), other_ts.get()},
@@ -5948,10 +5949,10 @@ TEST(test_matmul_execute, MatmulBiasReluFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor bias_ts(bias, engine, bias_data);
-    test_tensor dst_ts(relu_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t bias_ts(bias, engine, bias_data);
+    test_tensor_t dst_ts(relu_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
@@ -6014,10 +6015,10 @@ TEST(test_matmul_execute, MatmulBiasGeluFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor bias_ts(bias, engine, bias_data);
-    test_tensor dst_ts(gelu_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t bias_ts(bias, engine, bias_data);
+    test_tensor_t dst_ts(gelu_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
@@ -6083,10 +6084,10 @@ TEST(test_matmul_execute, MatmulBiasRelu6Fusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor bias_ts(bias, engine, bias_data);
-    test_tensor dst_ts(clamp_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t bias_ts(bias, engine, bias_data);
+    test_tensor_t dst_ts(clamp_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
@@ -6152,10 +6153,10 @@ TEST(test_matmul_execute, MatmulBiasClampFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor bias_ts(bias, engine, bias_data);
-    test_tensor dst_ts(clamp_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t bias_ts(bias, engine, bias_data);
+    test_tensor_t dst_ts(clamp_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
@@ -6220,10 +6221,10 @@ TEST(test_matmul_execute, MatmulBiasEluFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor bias_ts(bias, engine, bias_data);
-    test_tensor dst_ts(elu_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t bias_ts(bias, engine, bias_data);
+    test_tensor_t dst_ts(elu_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
@@ -6286,10 +6287,10 @@ TEST(test_matmul_execute, MatmulBiasSigmoidFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor bias_ts(bias, engine, bias_data);
-    test_tensor dst_ts(sigmoid_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t bias_ts(bias, engine, bias_data);
+    test_tensor_t dst_ts(sigmoid_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
@@ -6357,11 +6358,11 @@ TEST(test_matmul_execute, MatmulBiasAddFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor bias_ts(bias, engine, bias_data);
-    test_tensor post_src_ts(post_src, engine, post_src_data);
-    test_tensor dst_ts(add_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t bias_ts(bias, engine, bias_data);
+    test_tensor_t post_src_ts(post_src, engine, post_src_data);
+    test_tensor_t dst_ts(add_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm,
@@ -6428,10 +6429,10 @@ TEST(test_matmul_execute, MatmulDivFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor div_src1_ts(div_src1, engine, div_src1_data);
-    test_tensor dst_ts(div_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t div_src1_ts(div_src1, engine, div_src1_data);
+    test_tensor_t dst_ts(div_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), div_src1_ts.get()},
@@ -6507,11 +6508,11 @@ TEST(test_matmul_execute, MatmulDivAddFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor div_src1_ts(div_src1, engine, div_src1_data);
-    test_tensor add_src1_ts(add_src1, engine, add_src1_data);
-    test_tensor dst_ts(add_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t div_src1_ts(div_src1, engine, div_src1_data);
+    test_tensor_t add_src1_ts(add_src1, engine, add_src1_data);
+    test_tensor_t dst_ts(add_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm,
@@ -6604,11 +6605,11 @@ TEST(test_matmul_execute, MatmulSwapBinaryMulAddFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor div_src1_ts(div_src1, engine, div_src1_data);
-    test_tensor add_src1_ts(add_src1, engine, add_src1_data);
-    test_tensor dst_ts(add_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t div_src1_ts(div_src1, engine, div_src1_data);
+    test_tensor_t add_src1_ts(add_src1, engine, add_src1_data);
+    test_tensor_t dst_ts(add_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm,
@@ -6715,11 +6716,11 @@ TEST(test_matmul_execute_subgraph_int8, MatmulReluFusion) {
     g.add_op(&qout_op);
     g.finalize();
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_s8_ts(weight_s8, engine, weight_data);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
     // -------------------------case 1----------------------------------
     std::vector<int8_t> case1_out_data(product(dst_shape));
-    test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
+    test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
     ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts}, {dst_s8_ts}, *engine,
                       *strm),
             graph::status::success);
@@ -6742,7 +6743,7 @@ TEST(test_matmul_execute_subgraph_int8, MatmulReluFusion) {
     p.compile(&cp, lt_ins, lt_outs, engine);
 
     std::vector<int8_t> case2_out_data(product(dst_shape));
-    test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+    test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
     cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()},
             {dst_s8_case2_ts.get()});
     strm->wait();
@@ -6904,10 +6905,10 @@ TEST(test_matmul_execute_subgraph_int8,
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-    test_tensor dst_s8_ts(dst_s8, engine);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor_t dst_s8_ts(dst_s8, engine);
     for (size_t iter = 0; iter < 5; iter++) {
         cp.execute(strm,
                 {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
@@ -7065,11 +7066,11 @@ TEST(test_matmul_execute_subgraph_int8,
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
     std::vector<int8_t> dst_out_data(product(dst_shape));
-    test_tensor dst_s8_ts(dst_s8, engine, dst_out_data);
+    test_tensor_t dst_s8_ts(dst_s8, engine, dst_out_data);
     for (size_t iter = 0; iter < 5; iter++) {
         cp.execute(strm,
                 {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
@@ -7267,10 +7268,10 @@ TEST(test_matmul_execute_subgraph_int8,
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-    test_tensor dst_s8_ts(dst_s8, engine);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor_t dst_s8_ts(dst_s8, engine);
     for (size_t iter = 0; iter < 5; iter++) {
         cp.execute(strm,
                 {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
@@ -7469,10 +7470,10 @@ TEST(test_matmul_execute_subgraph_int8,
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-    test_tensor dst_s8_ts(dst_s8, engine);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor_t dst_s8_ts(dst_s8, engine);
     for (size_t iter = 0; iter < 5; iter++) {
         cp.execute(strm,
                 {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
@@ -7572,12 +7573,12 @@ TEST(test_matmul_execute, MatmulBiasReshapeTranspose) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_f32_ts(src_f32, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor_t src_f32_ts(src_f32, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
     graph::logical_tensor_t lt;
     cp.query_logical_tensor(transpose_f32.id, &lt);
-    test_tensor dst_f32_ts(lt, engine);
+    test_tensor_t dst_f32_ts(lt, engine);
     for (size_t iter = 0; iter < 5; iter++) {
         cp.execute(strm,
                 {src_f32_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
@@ -7678,10 +7679,10 @@ TEST(test_matmul_execute, MatmulBiasTransposeReshape) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_f32_ts(src_f32, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-    test_tensor dst_f32_ts(reshape_f32, engine);
+    test_tensor_t src_f32_ts(src_f32, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor_t dst_f32_ts(reshape_f32, engine);
     for (size_t iter = 0; iter < 5; iter++) {
         cp.execute(strm,
                 {src_f32_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
@@ -7738,9 +7739,9 @@ TEST(test_matmul_execute, MatmulStridedScalarOutput) {
     ASSERT_EQ(scalar_lt.layout_type, graph::layout_type::strided);
     ASSERT_EQ(scalar_lt.ndims, 0);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor weight_ts(weight, eng, weight_data);
-    test_tensor dst_ts(scalar_lt, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t weight_ts(weight, eng, weight_data);
+    test_tensor_t dst_ts(scalar_lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()}),
@@ -7814,11 +7815,11 @@ TEST(test_matmul_execute, MatmulBiasAddReluFusion) {
 
     p.compile(&cp, inputs, outputs, engine);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor weight_ts(weight, engine, weight_data);
-    test_tensor bias_ts(bias, engine, bias_data);
-    test_tensor post_src_ts(post_src, engine, post_src_data);
-    test_tensor dst_ts(relu_dst, engine, dst_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t weight_ts(weight, engine, weight_data);
+    test_tensor_t bias_ts(bias, engine, bias_data);
+    test_tensor_t post_src_ts(post_src, engine, post_src_data);
+    test_tensor_t dst_ts(relu_dst, engine, dst_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm,
@@ -7877,9 +7878,9 @@ TEST(test_matmul_execute, MatmulEmptyInput) {
     cp.query_logical_tensor(weight.id, &weight);
     cp.query_logical_tensor(dst.id, &dst);
 
-    test_tensor src_ts(src, eng);
-    test_tensor weight_ts(weight, eng);
-    test_tensor dst_ts(dst, eng);
+    test_tensor_t src_ts(src, eng);
+    test_tensor_t weight_ts(weight, eng);
+    test_tensor_t dst_ts(dst, eng);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()}),
@@ -7977,7 +7978,7 @@ TEST(test_matmul_execute_subgraph_int8, ShareCachedWeight) {
     std::vector<int8_t> weight_data(product(weight_shape));
     std::generate(weight_data.begin(), weight_data.end(),
             [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
-    test_tensor weight_s8_ts(weight_s8, engine, weight_data);
+    test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
 
     // set constant tensor cache capacity as 1GB
     dnnl::graph::set_constant_tensor_cache_capacity(
@@ -8008,8 +8009,8 @@ TEST(test_matmul_execute_subgraph_int8, ShareCachedWeight) {
             return static_cast<uint8_t>(u8_distribution(generator));
         });
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor dst_s8_ts(compiled_output, engine);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t dst_s8_ts(compiled_output, engine);
         ASSERT_EQ(cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()},
                           {dst_s8_ts.get()}),
                 graph::status::success);
@@ -8121,13 +8122,13 @@ TEST(test_matmul_execute_subgraph_int8, NoShareCachedWeight) {
     std::uniform_real_distribution<float> s8_distribution(-127.0f, 128.0f);
     std::vector<int8_t> weight_data(product(weight_shape));
     // Construct different weight tensor obejct with different memory address.
-    std::vector<test_tensor> weight_s8_ts_vec;
+    std::vector<test_tensor_t> weight_s8_ts_vec;
     for (size_t i = 0; i < src_shapes.size(); i++) {
         std::generate(weight_data.begin(), weight_data.end(), [&]() {
             return static_cast<int8_t>(s8_distribution(generator));
         });
         weight_s8_ts_vec.emplace_back(
-                test_tensor(weight_s8, engine, weight_data));
+                test_tensor_t(weight_s8, engine, weight_data));
     }
 
     for (size_t i = 0; i < src_shapes.size(); ++i) {
@@ -8155,8 +8156,8 @@ TEST(test_matmul_execute_subgraph_int8, NoShareCachedWeight) {
             return static_cast<uint8_t>(u8_distribution(generator));
         });
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor dst_s8_ts(compiled_output, engine);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t dst_s8_ts(compiled_output, engine);
         ASSERT_EQ(cp.execute(strm, {src_u8_ts.get(), weight_s8_ts_vec[i].get()},
                           {dst_s8_ts.get()}),
                 graph::status::success);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -78,8 +78,8 @@ TEST(test_dequantize_execute, DequantizePerTensor) {
         cp.query_logical_tensor(dst_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        test_tensor src_ts(src_lt, engine, src);
-        test_tensor dst_ts(dst_lt, engine, dst);
+        test_tensor_t src_ts(src_lt, engine, src);
+        test_tensor_t dst_ts(dst_lt, engine, dst);
 
         graph::stream_t *strm = get_stream();
         ASSERT_EQ(cp.execute(strm, {src_ts.get()}, {dst_ts.get()}),
@@ -140,8 +140,8 @@ TEST(test_dequantize_execute, DequantizePerTensorAnyLayout) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, engine, src);
-    test_tensor dst_ts(lt, engine, dst);
+    test_tensor_t src_ts(src_lt, engine, src);
+    test_tensor_t dst_ts(lt, engine, dst);
 
     graph::stream_t *strm = get_stream();
 
@@ -200,8 +200,8 @@ TEST(test_dequantize_execute, DequantizePerChannelSymmetric) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, engine, src);
-    test_tensor dst_ts(dst_lt, engine, dst);
+    test_tensor_t src_ts(src_lt, engine, src);
+    test_tensor_t dst_ts(dst_lt, engine, dst);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get()}, {dst_ts.get()}),
@@ -270,10 +270,10 @@ TEST(test_dequantize_execute, DynamicDequantizeS32ZpsPerTensor_CPU) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor scales_ts(scales_lt, eng, scales);
-    test_tensor zps_ts(zps_lt, eng, zps);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t scales_ts(scales_lt, eng, scales);
+    test_tensor_t zps_ts(zps_lt, eng, zps);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get(), scales_ts.get(), zps_ts.get()},
@@ -343,10 +343,10 @@ TEST(test_dequantize_execute, DynamicDequantizeS8ZpsPerTensor_CPU) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor scales_ts(scales_lt, eng, scales);
-    test_tensor zps_ts(zps_lt, eng, zps);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t scales_ts(scales_lt, eng, scales);
+    test_tensor_t zps_ts(zps_lt, eng, zps);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get(), scales_ts.get(), zps_ts.get()},
@@ -411,9 +411,9 @@ TEST(test_dequantize_execute, DynamicDequantizeNoZpsPerTensor_CPU) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor scales_ts(scales_lt, eng, scales);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t scales_ts(scales_lt, eng, scales);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get(), scales_ts.get()}, {dst_ts.get()}),

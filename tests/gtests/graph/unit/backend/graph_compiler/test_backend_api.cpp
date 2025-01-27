@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@ static void build_conv_add_partition(graph::graph_t &agraph,
         const graph::dims &strides, const graph::dims &output_shape) {
     using dims = graph::dims;
     // construct conv-add graph
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     auto dtype = graph::data_type::f32;
     graph::logical_tensor_t input0
             = utils::logical_tensor_init(id_gen.get_id(), input_shape, dtype);

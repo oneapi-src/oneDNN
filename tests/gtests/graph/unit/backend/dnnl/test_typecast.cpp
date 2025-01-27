@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,8 +62,8 @@ TEST(test_typecast_execute, Typecast) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
     graph::stream_t *stream = get_stream();
-    test_tensor f32_ts(f32_lt, engine, f32_val);
-    test_tensor bf16_ts(bf16_lt, engine, bf16_val);
+    test_tensor_t f32_ts(f32_lt, engine, f32_val);
+    test_tensor_t bf16_ts(bf16_lt, engine, bf16_val);
 
     // f32 --> bf16
     ASSERT_EQ(cp.execute(stream, {f32_ts.get()}, {bf16_ts.get()}),
