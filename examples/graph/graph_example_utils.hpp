@@ -293,7 +293,7 @@ static void *ocl_malloc_device(
 }
 
 static void ocl_free(
-        void *ptr, cl_device_id dev, const cl_context ctx, cl_event event) {
+        void *ptr, cl_device_id dev, cl_context ctx, cl_event event) {
     if (nullptr == ptr) return;
     using F = cl_int (*)(cl_context, void *);
     if (event) { OCL_CHECK(clWaitForEvents(1, &event)); }
@@ -587,7 +587,7 @@ public:
 #endif
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     void deallocate(
-            void *ptr, cl_device_id dev, const cl_context ctx, cl_event event) {
+            void *ptr, cl_device_id dev, cl_context ctx, cl_event event) {
         std::lock_guard<std::mutex> pool_guard(pool_lock);
         // This example currently supports `In-order`. So the kernel are
         // executed in the order in which they are submitted. Don't need to wait
@@ -657,8 +657,8 @@ inline dnnl::graph::allocator create_allocator(dnnl::engine::kind ekind) {
                                   cl_context ctx) -> void * {
             return get_mem_pool().allocate(size, alignment, dev, ctx);
         };
-        auto dealloc_func = [](void *ptr, cl_device_id dev,
-                                    const cl_context ctx, cl_event event) {
+        auto dealloc_func = [](void *ptr, cl_device_id dev, cl_context ctx,
+                                    cl_event event) {
             return get_mem_pool().deallocate(ptr, dev, ctx, event);
         };
         return dnnl::graph::ocl_interop::make_allocator(
