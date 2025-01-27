@@ -372,8 +372,6 @@ inline void ocl_memcpy(
     err = f(queue, CL_FALSE, dst, src, size, 0, nullptr, nullptr);
     if (err != CL_SUCCESS)
         throw std::runtime_error("clEnqueueMemcpyINTEL failed");
-
-    return;
 }
 #endif
 
@@ -593,13 +591,11 @@ public:
         // executed in the order in which they are submitted. Don't need to wait
         // event.
         is_free_ptr_[ptr] = true;
-        return;
     }
 #endif
     void deallocate_host(void *ptr) {
         std::lock_guard<std::mutex> pool_guard(pool_lock);
         is_free_ptr_[ptr] = true;
-        return;
     }
     void clear() {
         dnnl::graph::set_compiled_partition_cache_capacity(0);
