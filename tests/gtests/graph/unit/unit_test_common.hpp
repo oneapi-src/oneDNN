@@ -238,9 +238,9 @@ public:
 
     static std::vector<dnnl::impl::graph::tensor_t> to_graph_tensor(
             const std::vector<test_tensor_t> &vecs) {
-        std::vector<dnnl::impl::graph::tensor_t> res;
-        for (const auto &e : vecs) {
-            res.emplace_back(e.get());
+        std::vector<dnnl::impl::graph::tensor_t> res(vecs.size());
+        for (size_t i = 0; i < vecs.size(); ++i) {
+            res[i] = vecs[i].get();
         }
         return res;
     }

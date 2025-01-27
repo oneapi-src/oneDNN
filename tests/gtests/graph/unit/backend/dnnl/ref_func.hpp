@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,34 +64,35 @@ static inline std::vector<float> hardsigmoidbackward_func(
 
 static inline std::vector<float> sigmoid_func(
         const std::vector<float> &ref_dst) {
-    std::vector<float> out;
-    for (auto &rdst : ref_dst) {
-        out.emplace_back(static_cast<float>(1 / (exp(-rdst) + 1)));
+    std::vector<float> out(ref_dst.size());
+    for (size_t i = 0; i < ref_dst.size(); ++i) {
+        out[i] = static_cast<float>(1 / (exp(-1 * ref_dst[i]) + 1));
     }
     return out;
 }
 
 static inline std::vector<float> tanh_func(const std::vector<float> &ref_dst) {
-    std::vector<float> out;
-    for (auto &rdst : ref_dst) {
-        out.emplace_back(static_cast<float>(
-                (exp(rdst) - exp(-rdst)) / (exp(rdst) + exp(-rdst))));
+    std::vector<float> out(ref_dst.size());
+    for (size_t i = 0; i < ref_dst.size(); ++i) {
+        const auto rdst = ref_dst[i];
+        out[i] = static_cast<float>(
+                (exp(rdst) - exp(-rdst)) / (exp(rdst) + exp(-rdst)));
     }
     return out;
 }
 
 static inline std::vector<float> sqrt_func(const std::vector<float> &ref_dst) {
-    std::vector<float> out;
-    for (auto &rdst : ref_dst) {
-        out.emplace_back(static_cast<float>(sqrt(rdst)));
+    std::vector<float> out(ref_dst.size());
+    for (size_t i = 0; i < ref_dst.size(); ++i) {
+        out[i] = static_cast<float>(sqrt(ref_dst[i]));
     }
     return out;
 }
 
 static inline std::vector<float> round_func(const std::vector<float> &ref_dst) {
-    std::vector<float> out;
-    for (auto &rdst : ref_dst) {
-        out.emplace_back(static_cast<float>(round(rdst)));
+    std::vector<float> out(ref_dst.size());
+    for (size_t i = 0; i < ref_dst.size(); ++i) {
+        out[i] = static_cast<float>(round(ref_dst[i]));
     }
     return out;
 }
