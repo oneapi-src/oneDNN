@@ -35,7 +35,7 @@ Privileges:
 ## Code Owner
 
 A Code Owner has responsibility for a specific project component or a functional
-area. Code Owners are collectively responsible, with other Code Owners, 
+area. Code Owners are collectively responsible, with other Code Owners,
 for developing and maintaining their component or functional areas, including
 reviewing all changes to their their areas of responsibility and indicating
 whether those changes are ready to merge. They have a track record of
@@ -72,7 +72,7 @@ including name, Github username, and affiliation.
 2. At least two specific component Maintainers approve the PR.
 
 ## Maintainer
-Maintainers are the most established contributors who are responsible for the 
+Maintainers are the most established contributors who are responsible for the
 project technical direction and participate in making decisions about the
 strategy and priorities of the project.
 
@@ -100,7 +100,7 @@ Privileges:
   * Can recommend Code Owners to become Maintainers.
 
 Process of becoming a maintainer:
-1. A Maintainer may nominate a current Reviewer to become a new Maintainer by 
+1. A Maintainer may nominate a current Reviewer to become a new Maintainer by
 opening a PR against MAINTAINERS.md file.
 2. A majority of the current Maintainers must then approve the PR.
 
@@ -163,6 +163,7 @@ Team: @oneapi-src/onednn-cpu-aarch64
 | Radu Salavat       | @Radu2k               | Arm Ltd           | Code Owner |
 | Siddhartha Menon   | @Sqvid                | Arm Ltd           | Code Owner |
 | Sunita Nadampalli  | @snadampal            | Amazon.com, Inc.  | Code Owner |
+| Ryo Suzuki         | @Ryo-not-rio          | Arm Ltd           | Code Owner |
 
 ### OpenPOWER (PPC64)
 
