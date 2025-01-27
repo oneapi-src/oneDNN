@@ -30,6 +30,14 @@
 #include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
 
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+#define NGEN_NO_OP_NAMES
+#include "ngen/ngen_opencl.hpp"
+#ifdef DNNL_WITH_SYCL
+#include "ngen/ngen_level_zero.hpp"
+#endif
+#endif
+
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include "oneapi/dnnl/dnnl_threadpool.h"
 #endif
@@ -1021,6 +1029,57 @@ int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size) {
     return OK;
 }
 
+bool is_unified_test_memory() {
+    if (is_cpu())
+        return true;
+    else if (is_nvidia_gpu())
+        return false;
+    else if (is_amd_gpu())
+        return false;
+    else if (is_gpu()) {
+#if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        using namespace ngen;
+        cl_device_id dev;
+        DNN_SAFE_V(dnnl_ocl_interop_get_device(get_test_engine(), &dev));
+        auto device_id_intel
+                = OpenCLCodeGenerator<HW::Unknown>::getDeviceID(dev);
+        return getPlatformType(device_id_intel) == PlatformType::Integrated;
+#elif defined(DNNL_WITH_SYCL)
+        using namespace ngen;
+        void *dnnl_dev = nullptr;
+        DNN_SAFE_V(dnnl_sycl_interop_engine_get_device(
+                get_test_engine(), &dnnl_dev));
+        sycl::device *sycl_dev = static_cast<sycl::device *>(dnnl_dev);
+        switch (sycl_dev->get_backend()) {
+            case sycl::backend::opencl: {
+                cl_device_id dev
+                        = sycl::get_native<sycl::backend::opencl, sycl::device>(
+                                *sycl_dev);
+                auto device_id_intel
+                        = OpenCLCodeGenerator<HW::Unknown>::getDeviceID(dev);
+                return getPlatformType(device_id_intel)
+                        == PlatformType::Integrated;
+            }
+            case sycl::backend::ext_oneapi_level_zero: {
+                ze_device_handle_t dev
+                        = sycl::get_native<sycl::backend::ext_oneapi_level_zero,
+                                sycl::device>(*sycl_dev);
+                auto device_id_intel
+                        = LevelZeroCodeGenerator<HW::Unknown>::getDeviceID(dev);
+                return getPlatformType(device_id_intel)
+                        == PlatformType::Integrated;
+            }
+            default: return false;
+        }
+#else
+#error "Error: Unsupported Intel GPU Runtime"
+#endif
+#endif
+    }
+    return false;
+}
+
 int get_cpu_cache_size(cpu_cache_args_t &cache_args) {
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
     using namespace dnnl::impl::cpu::platform;
@@ -1126,7 +1185,8 @@ static int check_total_size(
     }
 
     size_t total_size_cpu = check_mem_size_args.total_size_cpu;
-    if (is_cpu()) total_size_cpu += check_mem_size_args.total_size_device;
+    if (is_unified_test_memory())
+        total_size_cpu += check_mem_size_args.total_size_device;
     bool fits_cpu_ram = total_size_cpu <= benchdnn_cpu_limit;
 
     if (!fits_cpu_ram) {
