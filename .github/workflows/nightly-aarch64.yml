@@ -35,7 +35,11 @@ concurrency:
 permissions: read-all
 
 jobs:
+  build-acl-cache:
+    uses: ./.github/workflows/aarch64-acl.yml
+
   build-and-test:
+    needs: build-acl-cache
     strategy:
       matrix:
         config: [
@@ -83,21 +87,20 @@ jobs:
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
           ACL_VERSION: ${{ fromJson(steps.get-versions.outputs.output).dependencies.acl }}
 
-      - name: Configure ACL
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
-        env:
-          ACL_ACTION: configure
-          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
-          ACL_THREADING: ${{ matrix.config.threading }}
-          BUILD_TOOLSET: ${{ matrix.config.toolset }}
-          CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
-          CMAKE_GENERATOR: Ninja
-          GCC_VERSION: ${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
+      - name: Get ACL commit hash for cache key
+        id: get_acl_commit_hash
+        run: (cd ${{ github.workspace }}/ComputeLibrary && echo "ACLCommitHash=$(git rev-parse --short HEAD)") >> $GITHUB_OUTPUT
 
-      - name: Build ACL
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
-        env:
-          ACL_ACTION: build
+      - name: Get system name
+        id: get_system_name
+        run: (echo "SystemName=$(uname)") >> $GITHUB_OUTPUT
+
+      - name: Restore cached ACL
+        id: cache-acl-restore
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.config.toolset }}-${{ matrix.config.build }}-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
+          path: ${{ github.workspace }}/ComputeLibrary/build
 
       - name: Configure oneDNN
         run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
