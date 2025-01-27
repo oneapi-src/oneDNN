@@ -78,7 +78,7 @@ public:
     void use_int32_offset(bool value) { use_int32_offset_ = value; }
 
     void define_int(const char *variable, int64_t value) {
-        int_var_map_.insert({variable, value});
+        set_macro(variable, value, int_var_map_);
     }
 
     void define_int(const std::string &variable, int64_t value) {
@@ -119,13 +119,6 @@ public:
             case data_type::s32: define_int("DT_S32", 1); break;
             default: assert(!"unknown data type"); break;
         }
-    }
-
-    template <typename T>
-    T get_scalar(const std::string &s) const {
-        UNUSED(s);
-        static_assert(!std::is_same<T, T>::value, "not expected");
-        return {};
     }
 
     std::string data_type() const {
@@ -179,18 +172,27 @@ private:
         if (attr) { define_int("DETERMINISTIC", attr->deterministic_); }
     }
 
+    template <typename T>
+    void set_macro(const char *variable, const T &value,
+            std::map<std::string, T> &var_map) {
+        auto it = var_map.find(variable);
+        if (it != var_map.end() && it->second != value) {
+            std::cout << "Error: macro " << variable
+                      << " is already set to a different value.\n";
+            std::cout << "  Old value:" << it->second << "\n";
+            std::cout << "  New value:" << value << "\n";
+            std::cout << std::flush;
+            abort();
+        }
+        var_map.insert({variable, value});
+    }
+
     std::map<std::string, int64_t> int_var_map_;
     std::map<std::string, float> float_var_map_;
     std::set<std::string> option_set_;
     std::unordered_map<std::string, std::string> custom_headers_;
     bool use_int32_offset_ = true;
 };
-
-template <>
-inline int64_t kernel_ctx_t::get_scalar(const std::string &name) const {
-    assert(int_var_map_.count(name) != 0 && "not expected");
-    return int_var_map_.at(name);
-}
 
 } // namespace compute
 } // namespace intel
