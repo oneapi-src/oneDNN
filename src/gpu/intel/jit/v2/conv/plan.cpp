@@ -337,8 +337,7 @@ public:
     plan_builder_t() = default;
     plan_builder_t(const kernel_desc_t &desc, const hw_t &hw)
         : desc_(desc), hw_(hw) {
-        reqs_ = desc_.reqs;
-        desc_.reqs = prb_reqs_t();
+        reqs_ = desc_.auto_reqs();
     }
 
     const prb_reqs_t &reqs() const { return reqs_; }
@@ -853,53 +852,31 @@ private:
     prb_reqs_t reqs_;
 };
 
-template <typename KernelDescT>
-plan_t create_conv_plan_impl(KernelDescT &desc, const hw_t &hw, bool finalize) {
-    if (!desc.is_supported(hw)) return plan_t();
+plan_t create_conv_plan_impl(const kernel_desc_t &desc, const hw_t &hw,
+        const problem_t *prb = nullptr) {
+    if (!desc.is_supported(hw, prb)) return plan_t();
     ir_assert(!desc.has_spec_strategy())
             << "Kernel descriptor strategies are required to be specialized "
                "before plan creation";
-    if (!finalize) {
-        ir_assert(desc.is_finalized)
-                << "Kernel descriptor must be finalized before plan creation";
-    }
     plan_builder_t builder(desc, hw);
     auto plan = builder.build();
     if (plan) {
-        if (finalize) {
-            const_cast<kernel_desc_t &>(desc).finalize(builder.reqs());
-        } else {
-            ir_assert(desc.reqs.implies(builder.reqs()));
-        }
+        auto &plan_reqs = builder.reqs();
+        ir_assert(plan_reqs.str() == desc.auto_reqs().str())
+                << "Mismatch between plan and descriptor dimension "
+                   "requirements:\n== Plan:\n"
+                << plan_reqs.str() << "\n== Descriptor:\n"
+                << desc.auto_reqs().str();
     }
     return plan;
 }
 
 plan_t create_conv_plan(const kernel_desc_t &desc, const hw_t &hw) {
-    return create_conv_plan_impl(desc, hw, /*finalize=*/false);
+    return create_conv_plan_impl(desc, hw);
 }
 
-bool finalize_conv_desc_impl(kernel_desc_t &desc, const hw_t &hw,
-        const problem_t *prb, plan_t *out_plan) {
-    if (desc.is_empty()) return false;
-    if (desc.hw_desc.hw != hw.to_ngen()) return false;
-    if (!desc.is_supported(hw)) return false;
-    if (desc.is_finalized) return true;
-    auto plan = create_conv_plan_impl(desc, hw, /*finalize=*/true);
-    if (plan) {
-        if (out_plan) *out_plan = plan;
-        if (prb && !desc.matches(*prb)) return false;
-    }
-    return (bool)plan;
-}
-
-bool finalize_conv_desc(
-        kernel_desc_t &desc, const problem_t &prb, plan_t *plan) {
-    return finalize_conv_desc_impl(desc, prb.hw(), &prb, plan);
-}
-
-bool finalize_conv_desc(kernel_desc_t &desc, const hw_t &hw, plan_t *plan) {
-    return finalize_conv_desc_impl(desc, hw, nullptr, plan);
+plan_t create_conv_plan(const kernel_desc_t &desc, const problem_t &prb) {
+    return create_conv_plan_impl(desc, prb.hw(), &prb);
 }
 
 } // namespace conv

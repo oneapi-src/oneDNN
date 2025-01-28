@@ -46,7 +46,6 @@ public:
     plan_registry_t(const char **entries);
 
     void set(const kernel_desc_t &desc, const model_set_t &model_set) {
-        ir_assert(desc.is_finalized);
         entries_.emplace_back(desc, model_set);
     }
     int size() const { return (int)entries_.size(); }

@@ -53,7 +53,6 @@ public:
     }
     const pvar_tile_t &shape() const { return shape_; }
     bool with_post_ops() const { return with_post_ops_; }
-    pvar_map_t<dim_t> vars() const;
     bool is_depthwise() const {
         dim_t g = shape_.at(pvars::g);
         dim_t ic = shape_.at(pvars::ic);

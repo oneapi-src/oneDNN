@@ -129,14 +129,14 @@ void DNNL_API planner_main(int argc, const char **argv) {
     init_params(argc, argv, bench_mger);
     switch (params.mode) {
         case planner_mode_t::trace: {
-            plan_t plan;
-            if (!finalize_conv_desc(params.desc, bench_mger.hw(), &plan)) {
+            plan_t plan = create_conv_plan(params.desc, bench_mger.hw());
+            if (!plan) {
                 std::cout << "Error: cannot create plan\n";
                 exit(1);
             }
             std::cout << plan.str() << std::endl;
             std::cout << "Reqs:\n";
-            std::cout << params.desc.reqs.str() << std::endl;
+            std::cout << params.desc.auto_reqs().str() << std::endl;
             break;
         }
         case planner_mode_t::bench: {

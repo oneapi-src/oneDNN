@@ -327,9 +327,9 @@ public:
     const std::vector<kernel_desc_t> &descs() const { return descs_; }
 
     void add_desc(const kernel_desc_t &desc) {
-        ir_assert(desc.reqs.str() == reqs_.str())
+        ir_assert(desc.auto_reqs().str() == reqs_.str())
                 << "Reqs mismatch:\n"
-                << desc.cmd_str() << "\ndesc.reqs:" << desc.reqs.str()
+                << desc.cmd_str() << "\ndesc.reqs:" << desc.auto_reqs().str()
                 << "\nreqs:\n"
                 << reqs_.str();
         if (descs_.empty()) {
@@ -409,7 +409,7 @@ private:
                 auto d_key = jit::stringify(d);
                 if (seen.count(d_key) > 0) continue;
                 seen.insert(d_key);
-                if (!finalize_conv_desc(d, bench_mger_.hw())) {
+                if (!create_conv_plan(d, bench_mger_.hw())) {
                     std::cout << d.brief_str() << ": \033[1;31mFAIL\033[0m"
                               << std::endl;
                     continue;
@@ -430,15 +430,13 @@ private:
             prefetch_dists.push_back(3);
         }
         for (auto &d : descs) {
-            auto ret = desc_groups.emplace(
-                    d.reqs.str(), search_kernel_desc_group_t(d.reqs));
+            auto ret = desc_groups.emplace(d.auto_reqs().str(),
+                    search_kernel_desc_group_t(d.auto_reqs()));
             ret.first->second.add_desc(d);
             for (int dist : prefetch_dists) {
                 auto _d = d;
                 _d.prefetch = prefetch_desc_t(dist, true, true);
-                _d.reqs = params_.base_desc.reqs;
-                _d.is_finalized = false;
-                if (!finalize_conv_desc(_d, bench_mger_.hw())) {
+                if (!create_conv_plan(_d, bench_mger_.hw())) {
                     std::cout << d.brief_str() << ": \033[1;31mFAIL\033[0m"
                               << std::endl;
                     continue;

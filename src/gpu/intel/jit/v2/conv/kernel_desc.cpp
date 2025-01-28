@@ -203,7 +203,11 @@ bool is_grf_usage_ok(const kernel_desc_t &desc) {
     return true;
 }
 
-bool kernel_desc_t::is_supported(const hw_t &hw) const {
+prb_reqs_t kernel_desc_t::auto_reqs() const {
+    return generate_2d_reqs(*this);
+}
+
+bool kernel_desc_t::is_supported(const hw_t &hw, const problem_t *prb) const {
     ir_check(prop != prop_kind::undef)
             << "Invalid prop: " << ir_utils::to_string(prop);
     ir_check(hw_desc.hw != ngen::HW::Unknown)
@@ -219,6 +223,7 @@ bool kernel_desc_t::is_supported(const hw_t &hw) const {
                 << "Output/accumulator types must match for Stream-K";
     }
     ir_check(is_grf_usage_ok(*this)) << "GRF usage exceeded";
+    if (prb) ir_check(matches(*prb)) << "Descriptor does not match problem";
     return true;
 }
 
@@ -265,20 +270,15 @@ void kernel_desc_t::set_defaults() {
         }
     }
     if (is_dw) {
-        reqs.set(pvars::ic, 1);
-        reqs.set(pvars::oc, 1);
+        _reqs.set(pvars::ic, 1);
+        _reqs.set(pvars::oc, 1);
     }
     if (prop == prop_kind::backward_data) {
         // XXX: No stride support in backward by data yet.
-        reqs.set(pvars::sw, 1);
-        reqs.set(pvars::sh, 1);
-        reqs.set(pvars::sd, 1);
+        _reqs.set(pvars::sw, 1);
+        _reqs.set(pvars::sh, 1);
+        _reqs.set(pvars::sd, 1);
     }
-}
-
-void kernel_desc_t::finalize(const prb_reqs_t &final_reqs) {
-    is_finalized = true;
-    reqs.add(final_reqs);
 }
 
 bool fit_tag(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
@@ -324,7 +324,7 @@ bool fit_impl(const kernel_desc_t &desc, const problem_t &prb, bool exact) {
                     << "Bias is not supported";
         }
     }
-    ir_check(desc.reqs.fits(prb.shape() | prb.vars()));
+    ir_check(desc.auto_reqs().fits(prb.shape()));
     return true;
 }
 
@@ -341,7 +341,6 @@ void fit_tag_to(
 }
 
 void fit_to_impl(kernel_desc_t &desc, const problem_t &prb) {
-    desc.reqs.substitute(prb.vars());
     fit_tag_to(tensor_kind_t::a, desc, prb);
     fit_tag_to(tensor_kind_t::b, desc, prb);
     fit_tag_to(tensor_kind_t::c, desc, prb);
@@ -433,7 +432,7 @@ std::string kernel_desc_t::str() const {
         << std::endl;
     oss << "Align:                  " << align.str() << std::endl;
     oss << "Prefetch:               " << prefetch.str() << std::endl;
-    if (reqs) oss << ir_utils::add_tag("Reqs", reqs.str()) << std::endl;
+    if (_reqs) oss << ir_utils::add_tag("Reqs", _reqs.str()) << std::endl;
     oss << "Extensions:             " << ext.str() << std::endl;
     oss << "Command:                " << cmd_str();
     return ir_utils::add_tag("Desc", oss.str());
@@ -484,11 +483,11 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     iface->add<PACK(spec_strategy)>("spec_strategy",
             "Specialization strategy for problem dimensions (e.g. min_dims to "
             "eliminate unused spatial dimensions).");
-    iface->add<PACK(reqs)>("reqs",
+    iface->add<PACK(_reqs)>("reqs",
             "Dimension requirements, colon-separated (e.g. kd=1:mb>=16).");
     iface->add<PACK(ext)>("ext",
             "Kernel extensions, comma-separated (e.g. "
-            "bias,out1b,out2b,out4b).");
+            "bias,out_b1,out_b2,out_b4).");
 
     parse_iface_t<kernel_desc_t>::entry_t po_entry;
     po_entry.name = "post_ops";
@@ -631,7 +630,7 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
     }
     for (auto &d : conv_dims()) {
         dim_t dummy;
-        if (reqs.get_value(d, dummy)) continue;
+        if (auto_reqs().get_value(d, dummy)) continue;
         auto var = var_t::make(type_t::s32(), d.str());
         kernel_iface.register_arg(var);
         if (d == pvars::sw)
@@ -645,7 +644,7 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
         kernel_iface.register_arg("sk_iters_per_tg_magic", type_t::u64());
         for (auto &e : loop_desc) {
             dim_t dummy;
-            if (reqs.get_value(e.dim, dummy)) continue;
+            if (auto_reqs().get_value(e.dim, dummy)) continue;
             dim_t iter_size = iter_tile.get(e.dim, 1);
             dim_t tg_size = thread_group_tile.get(e.dim, 1);
             dim_t size = iter_size * tg_size;
@@ -742,6 +741,7 @@ kernel_desc_t to_stream_k(const kernel_desc_t &desc, bool check_ext) {
             break;
         default: ir_error_not_expected();
     }
+    sk_desc.set_defaults();
     return sk_desc;
 }
 
@@ -893,7 +893,6 @@ status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
 }
 
 serialized_t kernel_desc_t::serialize() const {
-    ir_assert(is_finalized) << "Cannot serialize non-finalized descriptor";
     std::ostringstream oss;
     jit::stringify(oss, *this);
     auto str = oss.str();
@@ -906,7 +905,6 @@ kernel_desc_t kernel_desc_t::deserialize(const serialized_t &s) {
     std::string str(data.begin(), data.end());
     std::istringstream iss(str);
     auto desc = jit::parse<kernel_desc_t>(iss);
-    desc.is_finalized = true;
     return desc;
 }
 

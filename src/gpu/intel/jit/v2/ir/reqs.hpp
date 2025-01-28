@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,6 +67,7 @@ public:
     void add(const expr_t &e);
     void add(const prb_reqs_t &other);
     void add(const pvar_map_t<dim_t> &sizes);
+    void add_no_simplify(const expr_t &e);
     void set(const pvar_t &dim, dim_t value);
     prover_t prover(const prb_reqs_t &parent, bool can_update = true);
 
@@ -95,10 +96,6 @@ public:
     std::string str() const;
 
     IR_DEFINE_DUMP()
-
-    static void merge(std::vector<prb_reqs_t> reqs_vec,
-            const std::vector<int> &factor_vec, const pvar_t &factor_dim,
-            prb_reqs_t &out_reqs);
 
 private:
     // Single requirement, represented as an expression.
