@@ -283,7 +283,13 @@ struct brgemm_matmul_conf_utils_t {
         }
         bool use_blocked_LDB = bgmmc.is_amx || bgmmc.use_buffer_b
                 || bgmmc.wei_tag != plain_tensor_layout_tag;
-        return use_blocked_LDB ? bgmmc.wei_n_blk : md_ldb;
+        if (use_blocked_LDB) return bgmmc.wei_n_blk;
+        // When K == 1 we always pick "ab" format for B (see set_or_check_B_tag)
+        // regardles of whether the actual tag was "ab" or  "ba".
+        // Since the implementation assumes the "ab" format is used we cannot
+        // use bgmmc.B_strides[1] directly as the strides could be specified for
+        // "ba" therefore we need to use bgmmc.N instead.
+        return bgmmc.K == 1 ? bgmmc.N : md_ldb;
     }
 
     inline bool maybe_low_brg_blocking() const {
