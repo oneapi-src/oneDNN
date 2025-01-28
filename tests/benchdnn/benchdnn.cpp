@@ -144,12 +144,16 @@ int main(int argc, char **argv) {
         zeropad::bench(--argc, ++argv);
     } else if (!strcmp("--brgemm", argv[0])) {
         brgemm::bench(--argc, ++argv);
-#ifdef BUILD_GRAPH
     } else if (!strcmp("--graph", argv[0])) {
+#ifdef BUILD_GRAPH
         graph::bench(--argc, ++argv);
+#else
+        printf("Error: the library was built without Graph API support.\n");
+        exit(1);
 #endif
     } else {
-        fprintf(stderr, "err: unknown driver\n");
+        printf("Error: can't parse the driver name \'%s\'.\n", argv[0]);
+        exit(1);
     }
 
     total_time.stamp();
