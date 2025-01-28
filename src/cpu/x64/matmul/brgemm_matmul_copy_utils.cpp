@@ -141,8 +141,7 @@ private:
     void copy_M_loop(bool is_K_tail, bool is_first_K_iter, bool is_last_K_iter);
     inline void dot_product(Vmm v1, Vmm v2, Vmm v3) {
         if (!avx512_core_dot_product_)
-            vpdpbusd(v1, v2, v3,
-                    mayiuse(avx512_core) ? EvexEncoding : VexEncoding);
+            vpdpbusd(v1, v2, v3, get_encoding());
         else {
             vpmaddubsw(vmm_dot_product_temp, v2, v3);
             vpmaddwd(
@@ -2168,8 +2167,7 @@ protected:
     virtual void copy_4x64(int nrows, int ncolumns, bool zeropad) {}
     inline void dot_product(Vmm v1, Vmm v2, Vmm v3) {
         if (!avx512_core_dot_product_)
-            vpdpbusd(v1, v2, v3,
-                    mayiuse(avx512_core) ? EvexEncoding : VexEncoding);
+            vpdpbusd(v1, v2, v3, get_encoding());
         else {
             vpmaddubsw(vmm_dot_product_temp, v2, v3);
             vpmaddwd(
@@ -3810,8 +3808,7 @@ private:
 
     inline void dot_product(Vmm v1, Vmm v2, Vmm v3) {
         if (!avx512_core_dot_product_)
-            vpdpbusd(v1, v2, v3,
-                    mayiuse(avx512_core) ? EvexEncoding : VexEncoding);
+            vpdpbusd(v1, v2, v3, get_encoding());
         else {
             vpmaddubsw(vmm_dot_product_temp, v2, v3);
             vpmaddwd(

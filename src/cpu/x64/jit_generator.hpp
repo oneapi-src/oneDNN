@@ -367,6 +367,16 @@ public:
         }
     }
 
+    // The function returns type of encoding (Evex or Vex) depending on the
+    // system ISA. It's designed to be used with instructions that require
+    // specific encoding when both encodings are supported on the system.
+    // Evex would be preferred over Vex when possible.
+    // The assumption is that both encoding mnemonics are supported by the
+    // hardware for `avx512_core+` systems.
+    Xbyak::PreferredEncoding get_encoding() {
+        return mayiuse(avx512_core) ? Xbyak::EvexEncoding : Xbyak::VexEncoding;
+    }
+
     // Disallow char-based labels completely
     void L(const char *label) = delete;
     void L(Xbyak::Label &label) { Xbyak::CodeGenerator::L(label); }
@@ -2574,9 +2584,7 @@ private:
                 store_bytes(vmm, reg, offset, store_size);
                 break;
             case data_type::bf16:
-                vcvtneps2bf16(xmm, vmm,
-                        is_valid_isa(avx512_core_bf16) ? Xbyak::EvexEncoding
-                                                       : Xbyak::VexEncoding);
+                vcvtneps2bf16(xmm, vmm, get_encoding());
                 store_bytes(vmm, reg, offset, sizeof(bfloat16_t) * store_size);
                 break;
             case data_type::f16:

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -144,9 +144,7 @@ void jit_uni_deconv_zp_pad_str_kernel_t<isa, Vmm>::compute_step(
     if (jcp_.is_depthwise)
         uni_vpaddd(result_acc_, result_acc_, wei_vmm);
     else if (jcp_.has_vnni)
-        vpdpbusd(result_acc_, vmm_one_bytes_, wei_vmm,
-                is_superset(isa, avx512_core) ? Xbyak::EvexEncoding
-                                              : Xbyak::VexEncoding);
+        vpdpbusd(result_acc_, vmm_one_bytes_, wei_vmm, get_encoding());
     else {
         uni_vpmaddubsw(vmm_tmp_, vmm_one_bytes_, wei_vmm);
         uni_vpmaddwd(vmm_tmp_, vmm_tmp_, vmm_one_words_);
