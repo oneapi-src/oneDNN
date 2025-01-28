@@ -30,12 +30,6 @@ problem_t::problem_t(const std::string &line) {
     set_shape(s_desc);
 }
 
-pvar_map_t<dim_t> problem_t::vars() const {
-    pvar_map_t<dim_t> map;
-    map[pvar_t("outsz")] = out_type().size();
-    return map;
-}
-
 const type_t &problem_t::out_type() const {
     switch (prop_) {
         case prop_kind::forward: return dst_tag_.type();

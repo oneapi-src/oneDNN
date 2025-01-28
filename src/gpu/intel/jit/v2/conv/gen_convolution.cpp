@@ -110,6 +110,7 @@ public:
         kernel_desc_t _desc;
         if (plan_preset_t::instance().is_set()) {
             _desc = plan_preset_t::instance().get();
+            _desc.set_defaults();
         } else {
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);
@@ -123,8 +124,8 @@ public:
         CHECK(init_layouts(_desc, pd));
         CHECK(pd->attr_.set_default_formats(out_md(pd)));
         CHECK(_desc.set_post_ops(pd->attr()->post_ops_, out_md(pd), pd));
-        if (!finalize_conv_desc(_desc, prb)) {
-            gpu_info() << "Cannot create kernel descriptor.";
+        if (!create_conv_plan(_desc, prb)) {
+            gpu_info() << "Cannot create kernel descriptor.\n";
             return status::runtime_error;
         }
         pd->init_plan = std::make_shared<primitive_init_plan_t>();

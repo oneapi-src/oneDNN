@@ -677,6 +677,10 @@ void prb_reqs_t::add(const pvar_map_t<dim_t> &values) {
     }
 }
 
+void prb_reqs_t::add_no_simplify(const expr_t &e) {
+    add_if_not_found(req_impl_t(e));
+}
+
 void prb_reqs_t::set(const pvar_t &pvar, dim_t value) {
     add(pvar.var() == value);
 }
@@ -750,89 +754,6 @@ std::string prb_reqs_t::str() const {
     std::ostringstream oss;
     stringify_impl(oss, "\n", " ");
     return oss.str();
-}
-
-void prb_reqs_t::merge(std::vector<prb_reqs_t> reqs_vec,
-        const std::vector<int> &factor_vec, const pvar_t &factor_dim,
-        prb_reqs_t &out_reqs) {
-    gpu_assert(reqs_vec.size() == factor_vec.size());
-    auto &reqs0 = reqs_vec[0];
-    int vec_size = (int)reqs_vec.size();
-    auto get_reqs_size
-            = [&](int vec_idx) { return (int)reqs_vec[vec_idx].reqs_.size(); };
-    auto get_req = [&](int vec_idx, int req_idx) -> req_impl_t & {
-        return reqs_vec[vec_idx].reqs_[req_idx].impl();
-    };
-    for (auto &r : reqs_vec) {
-        // TODO: Remove.
-        r.simplify();
-    }
-    if (reqs0.reqs_.empty()) {
-        out_reqs = prb_reqs_t();
-        return;
-    }
-    out_reqs = prb_reqs_t();
-
-    // Handle common requirements.
-    for (int i = 0; i < get_reqs_size(0); i++) {
-        auto &r0 = get_req(0, i);
-        std::vector<int> idxs(vec_size, -1);
-        for (int j = 0; j < vec_size; j++) {
-            for (int k = 0; k < get_reqs_size(j); k++) {
-                if (r0 == get_req(j, k)) {
-                    idxs[j] = (int)k;
-                    break;
-                }
-            }
-        }
-        if (std::all_of(idxs.begin(), idxs.end(),
-                    [](int idx) { return idx != -1; })) {
-            out_reqs.reqs_.push_back(r0);
-            for (int j = 0; j < vec_size; j++) {
-                get_req(j, idxs[j]) = req_impl_t();
-            }
-        }
-    }
-
-    // Try scaling LHS based on factor_vec for the remaining requirements.
-    for (int i = 0; i < get_reqs_size(0); i++) {
-        auto &r0 = get_req(0, i);
-        if (r0.rhs().size() != 1 || !r0.rhs().is_value()) continue;
-        dim_t base = r0.rhs().value() * factor_vec[0];
-        std::vector<int> idxs(vec_size, -1);
-        for (int j = 0; j < vec_size; j++) {
-            for (int k = 0; k < get_reqs_size(j); k++) {
-                auto &rj = get_req(j, k);
-                if (rj.lhs() != r0.lhs()) continue;
-                if (rj.rhs().size() != 1 || !rj.rhs().is_value()) continue;
-                dim_t base_j = rj.rhs().value() * factor_vec[j];
-                if (base_j == base) {
-                    idxs[j] = k;
-                    break;
-                }
-            }
-        }
-        if (std::all_of(idxs.begin(), idxs.end(),
-                    [](int idx) { return idx != -1; })) {
-            auto pvars = r0.lhs().pvars();
-            pvars.push_back(factor_dim);
-            out_reqs.reqs_.emplace_back(
-                    req_impl_t(r0.kind(), req_lhs_t(pvars), req_rhs_t(base)));
-            for (int j = 0; j < vec_size; j++) {
-                get_req(j, idxs[j]) = req_impl_t();
-            }
-        }
-    }
-
-    // Add the remaing requirements.
-    for (int i = 0; i < vec_size; i++) {
-        for (int j = 0; j < get_reqs_size(i); j++) {
-            auto &r = get_req(i, j);
-            if (r.is_undef()) continue;
-            out_reqs.reqs_.emplace_back(r);
-        }
-    }
-    out_reqs.simplify();
 }
 
 prb_reqs_t::req_t::req_t() : impl_(utils::make_unique<req_impl_t>()) {}
