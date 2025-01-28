@@ -19,7 +19,8 @@
 
 #include <algorithm>
 
-#include "gpu/intel/jit/ir/hw.hpp"
+#include "gpu/intel/jit/utils/utils.hpp"
+#include "ngen/ngen.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -35,8 +36,8 @@ inline int block_2d_max_dim() {
     return 1 << 24;
 }
 
-inline int block_2d_base_alignment(const hw_t &hw) {
-    switch (hw.to_ngen()) {
+inline int block_2d_base_alignment(ngen::HW hw) {
+    switch (hw) {
         case ngen::HW::XeHPC: return 64;
         case ngen::HW::Xe2:
         case ngen::HW::Xe3: return 64;
@@ -66,8 +67,8 @@ inline bool block_2d_height_ok(dim_t height) {
     return true;
 }
 
-inline int block_2d_pitch_alignment(const hw_t &hw) {
-    switch (hw.to_ngen()) {
+inline int block_2d_pitch_alignment(ngen::HW hw) {
+    switch (hw) {
         case ngen::HW::XeHPC: return 8;
         case ngen::HW::Xe2: return 16;
         case ngen::HW::Xe3: return 16;
@@ -77,7 +78,7 @@ inline int block_2d_pitch_alignment(const hw_t &hw) {
 }
 
 inline bool block_2d_pitch_ok(
-        const hw_t &hw, dim_t pitch, int type_size, bool use_xy = true) {
+        ngen::HW hw, dim_t pitch, int type_size, bool use_xy = true) {
     dim_t pitch_bytes = pitch * type_size;
     if (pitch_bytes < block_2d_min_dim()) return false;
     // 2^24 Pitch does not work on Xe2/Xe3

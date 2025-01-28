@@ -518,7 +518,7 @@ std::vector<problem_t> generate_problems(const bench_input_params_t &params) {
             continue;
         auto prb = params.problem();
         prb.set_shape(shape);
-        if (!params.reqs.fits(prb.shape() | prb.vars())) continue;
+        if (!params.reqs.fits(prb.shape())) continue;
         ret.push_back(prb);
         if ((int)ret.size() >= params.nprbs) break;
     }
@@ -545,7 +545,6 @@ std::vector<problem_t> load_problems(const std::string &path) {
 bench_data_t bench(const bench_manager_t &bench_mger,
         const kernel_desc_t &kernel_desc, std::vector<bench_task_t> &tasks,
         memory_pool_t *mem_pool_ptr = nullptr) {
-    gpu_assert(kernel_desc.is_finalized);
     int ntasks = (int)tasks.size();
 
     auto eng = bench_mger.get_engine();
@@ -602,7 +601,7 @@ public:
     bench_data_t bench(const kernel_desc_t &_kernel_desc) {
         if (tasks_.empty()) return bench_data_t();
         auto kernel_desc = _kernel_desc;
-        if (!finalize_conv_desc(kernel_desc, bench_mger_.hw())) return {};
+        if (!create_conv_plan(kernel_desc, bench_mger_.hw())) return {};
         return planner::bench(bench_mger_, kernel_desc, tasks_, &mem_pool_);
     }
 
@@ -623,7 +622,7 @@ bench_data_t bench_runner_t::bench(const kernel_desc_t &kernel_desc) {
 bench_data_t bench(const bench_manager_t &bench_mger,
         const kernel_desc_t &_kernel_desc, int nprbs) {
     auto kernel_desc = _kernel_desc;
-    if (!finalize_conv_desc(kernel_desc, bench_mger.hw())) return {};
+    if (!create_conv_plan(kernel_desc, bench_mger.hw())) return {};
     bench_runner_t runner(bench_mger,
             bench_input_params_t(kernel_desc, bench_mger.hw(), nprbs));
     return runner.bench(kernel_desc);
@@ -669,7 +668,7 @@ std::vector<type_t> get_out_types(const kernel_desc_t &kernel_desc) {
 kernel_desc_t try_extensions(
         const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc) {
     auto &desc_out_type = kernel_desc.c_type();
-    std::vector<prb_reqs_t> reqs_vec({kernel_desc.reqs});
+    std::vector<prb_reqs_t> reqs_vec({kernel_desc.auto_reqs()});
     std::vector<int> out_type_sizes({desc_out_type.size()});
     extensions_t ext;
     for (auto &out_type : get_out_types(kernel_desc)) {
@@ -677,11 +676,10 @@ kernel_desc_t try_extensions(
         auto d = kernel_desc;
         auto &tag = get_out_tag(d);
         tag = layout_tag_t(tag.desc(), out_type, tag.raw_tag());
-        d.is_finalized = false;
-        if (!finalize_conv_desc(d, bench_mger.hw())) continue;
+        if (!create_conv_plan(d, bench_mger.hw())) continue;
         if (!try_create(bench_mger, d)) continue;
         ext.add(extensions_t::out_size(out_type.size()));
-        reqs_vec.push_back(d.reqs);
+        reqs_vec.push_back(d.auto_reqs());
         out_type_sizes.push_back(out_type.size());
     }
 
@@ -689,12 +687,9 @@ kernel_desc_t try_extensions(
             && !kernel_desc.with_bias_bwd_w()) {
         auto d = kernel_desc;
         d.bias_type = type_t::f32();
-        d.is_finalized = false;
-        d.set_defaults();
-        if (finalize_conv_desc(d, bench_mger.hw())
-                && try_create(bench_mger, d)) {
+        if (create_conv_plan(d, bench_mger.hw()) && try_create(bench_mger, d)) {
             ext.add(extension_kind_t::bias);
-            reqs_vec.push_back(d.reqs);
+            reqs_vec.push_back(d.auto_reqs());
             out_type_sizes.push_back(desc_out_type.size());
         }
     }
@@ -705,19 +700,14 @@ kernel_desc_t try_extensions(
                     && kernel_desc.b_type() == type_t::f32())) {
         auto d = to_stream_k(kernel_desc, /*check_ext=*/false);
         if (!d.is_empty()) {
-            d.is_finalized = false;
-            d.set_defaults();
-            if (finalize_conv_desc(d, bench_mger.hw())
+            if (create_conv_plan(d, bench_mger.hw())
                     && try_create(bench_mger, d)) {
                 ext.add(extension_kind_t::stream_k);
             }
         }
     }
 
-    prb_reqs_t out_reqs;
-    prb_reqs_t::merge(reqs_vec, out_type_sizes, pvar_t("outsz"), out_reqs);
     auto _kernel_desc = kernel_desc;
-    _kernel_desc.reqs = out_reqs;
     _kernel_desc.ext = ext;
     return _kernel_desc;
 }

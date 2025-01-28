@@ -89,8 +89,6 @@ void plan_registry_t::parse(std::istream &in) {
 }
 
 void plan_registry_t::entry_t::stringify(std::ostream &out) const {
-    gpu_assert(desc.is_finalized)
-            << "Cannot stringify non-finalized descriptor";
     jit::stringify(out, desc);
     out << " model=";
     jit::stringify(out, model_set);
@@ -98,7 +96,6 @@ void plan_registry_t::entry_t::stringify(std::ostream &out) const {
 
 void plan_registry_t::entry_t::parse(std::istream &in) {
     jit::parse(in, desc);
-    desc.is_finalized = true;
     stream_match(in, "model=");
     jit::parse(in, model_set);
 }

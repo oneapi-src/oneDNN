@@ -67,6 +67,7 @@ public:
     bool is_undef() const { return hw_ == ngen::HW::Unknown; }
     bool has_fp64_atomic_support() const { return with_atomic_fp64_; }
     ngen::HW to_ngen() const { return hw_; }
+    operator ngen::HW() const { return hw_; }
     ngen::ProductFamily product_family() const { return product_family_; }
     int stepping_id() const { return stepping_id_; }
     int eu_count() const { return eu_count_; }

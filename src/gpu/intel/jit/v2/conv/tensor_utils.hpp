@@ -38,6 +38,8 @@ layout_tag_t make_conv_layout_tag(tensor_kind_t tensor_kind,
         dim_idx_t conv_ndims, const memory_desc_t &md);
 layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
         bool is_dw, const prb_reqs_t &reqs, uint32_t mask = 0xFFFFFFFF);
+layout_tag_t append_groups(
+        tensor_kind_t tensor_kind, const layout_tag_t &layout_tag, bool is_dw);
 
 class dim_mapper_manager_t {
 public:
