@@ -1258,6 +1258,10 @@ void brgemm_convolution_bwd_strided_t<isa>::ker_base(
     const auto call_brgemm = [&](int iw, int brg_idx, int oc_block_s,
                                      int n_oc_blocks, size_t comp_ker_offs,
                                      bool do_postops, bool do_only_comp) {
+        if (brg_idx < 0) {
+            assert(!"Requested brgemm kernel was not created.");
+            return;
+        }
         const auto kh_ee = kh_e;
         int k_sum = 0;
         int32_t *src_zp = jcp.src_zero_point
@@ -1513,6 +1517,10 @@ void brgemm_convolution_bwd_strided_t<isa>::ker_trans(
          is_first_call_postops_state_changed = false;
     const auto call_brgemm = [&](int brg_idx, int oc_block_s, int n_oc_blocks,
                                      size_t comp_ker_offs, bool do_postops) {
+        if (brg_idx < 0) {
+            assert(!"Requested brgemm kernel was not created.");
+            return;
+        }
         const auto kh_ee = kh_e;
         const auto kw_e = kw_f;
         const auto pbuf_base = inp_buffer;
