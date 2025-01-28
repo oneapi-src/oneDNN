@@ -25,6 +25,7 @@
 #include "cpu/x64/amx_tile_configure.hpp"
 
 #include "cpu/x64/brgemm/brgemm.hpp"
+#include "cpu/x64/brgemm/brgemm_utils.hpp"
 
 #include "cpu/x64/brgemm/capi/brgemm_api.hpp"
 
@@ -156,9 +157,23 @@ status_t brgemm_t::finalize() {
     return status::success;
 }
 
-pack_type_t brgemm_t::get_B_pack_type() const {
-    if (brgemm_desc_.is_b_data_layout_vnni()) return pack_type::pack32;
-    return pack_type::no_trans;
+status_t brgemm_t::get_B_pack_type(
+        pack_type_t *pack_type, data_type_t dt_a, data_type_t dt_b) {
+    // Use a descriptor to obtain the ISA to have compatible values when the
+    // user creates an object.
+    brgemm_desc_t brg {};
+    brg.dt_a = dt_a;
+    brg.dt_b = dt_b;
+    init_kernel_datatype(&brg, dt_a, dt_b);
+    brgemm_utils::set_isa_impl(&brg);
+    if (brg.isa_impl == cpu_isa_t::isa_undef) {
+        VCHECK_BRGEMM_STATUS(
+                status::invalid_arguments, false, "get_B_pack_type failed");
+    }
+    const bool has_vnni_layout = brgemm_desc_t::is_b_data_layout_vnni(
+            dt_a, dt_b, /* brgattr.b_is_vnni = */ false, brg.isa_impl);
+    *pack_type = has_vnni_layout ? pack_type::pack32 : pack_type::no_trans;
+    return status::success;
 }
 
 size_t brgemm_t::get_scratchpad_size() const {
@@ -611,10 +626,8 @@ status_t dnnl_brgemm_finalize(brgemm_t *brgemm) {
 }
 
 status_t dnnl_brgemm_get_B_pack_type(
-        const brgemm_t *brgemm, dnnl_pack_type_t *pack_type) {
-    if (brgemm == nullptr) return invalid_arguments;
-
-    if (pack_type) *pack_type = brgemm->get_B_pack_type();
+        dnnl_pack_type_t *pack_type, data_type_t dt_a, data_type_t dt_b) {
+    if (pack_type) { return brgemm_t::get_B_pack_type(pack_type, dt_a, dt_b); }
     return status::success;
 }
 

@@ -268,9 +268,14 @@ struct brgemm : public handle<dnnl_brgemm_t> {
 
     /// Returns the packing type expected by a tensor B of a BRGeMM ukernel
     /// object.
-    pack_type get_B_pack_type() const {
+    ///
+    /// @param a_dt Data type of tensor A.
+    /// @param b_dt Data type of tensor B.
+    static pack_type get_B_pack_type(
+            memory::data_type a_dt, memory::data_type b_dt) {
         dnnl_pack_type_t c_pack_type;
-        dnnl_status_t status = dnnl_brgemm_get_B_pack_type(get(), &c_pack_type);
+        dnnl_status_t status = dnnl_brgemm_get_B_pack_type(&c_pack_type,
+                memory::convert_to_c(a_dt), memory::convert_to_c(b_dt));
         if (status != dnnl_success)
             error::wrap_c_api(status, "could not query B pack type");
 

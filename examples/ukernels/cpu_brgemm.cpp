@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,16 +57,27 @@ void brgemm_example() {
     }
     const memory::dim n_calls = K / K_k;
 
-    const memory::dim lda = K;
-    const memory::dim ldb = N;
-    const memory::dim ldc = N; // Leading dimension for accumulator.
-    const memory::dim ldd = N; // Leading dimension for an actual output.
-    const memory::dim batch_size = n_calls - 1;
-
     memory::data_type a_dt = dt::u8;
     memory::data_type b_dt = dt::s8;
     memory::data_type c_dt = dt::s32; // Accumulator data type.
     memory::data_type d_dt = dt::f32; // Output data type.
+
+    // Query the packing requirement from the ukernel. It's enough to query
+    // packing requirements once for multiple objects.
+    // Based on this information, specific `ldb` value can be used, since
+    // transform has a limited set of values supported.
+    const bool need_pack
+            = brgemm::get_B_pack_type(a_dt, b_dt) == pack_type::pack32;
+
+    const memory::dim lda = K;
+    // `ldb` for `need_pack = true` must be one of 16, 32, 48, or 64. This
+    // example doesn't explore options for dividing N into blocks which would
+    // likely happen for N > 64.
+    // const memory::dim ldb = need_pack ? N_block : N;
+    const memory::dim ldb = N;
+    const memory::dim ldc = N; // Leading dimension for accumulator.
+    const memory::dim ldd = N; // Leading dimension for an actual output.
+    const memory::dim batch_size = n_calls - 1;
 
     // A, B, and C tensors dimensions.
     memory::dims A_dims = {M, K};
@@ -238,12 +249,6 @@ void brgemm_example() {
     uint8_t *B_blocked = nullptr;
     void *B_base_ptr = B_ptr;
     size_t blocked_B_size = 0;
-
-    // Query the packing requirement from the kernel. It's enough to query
-    // packing requirements from a single object as long as only dimension
-    // settings change between objects.
-    // Note: example uses the one that always present regardless of dimensions.
-    const bool need_pack = brg_po.get_B_pack_type() == pack_type::pack32;
 
     // If packing is needed, create a dedicated object for data transformation.
     if (need_pack) {
