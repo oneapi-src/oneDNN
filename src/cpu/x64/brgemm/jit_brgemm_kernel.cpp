@@ -2102,9 +2102,7 @@ void jit_brgemm_kernel_t<Wmm>::dot_product(Vmm v1, Vmm v2, Vmm v3) {
         if (brg.dt_a == data_type::s8 && isa_has_s8s8(brg.isa_impl))
             vpdpbssd(v1, v3, v2);
         else if (brg.has_int8_vnni)
-            vpdpbusd(v1, v3, v2,
-                    is_superset(brg.isa_impl, avx512_core) ? EvexEncoding
-                                                           : VexEncoding);
+            vpdpbusd(v1, v3, v2, get_encoding());
         else {
             vpmaddubsw(int8_dot_product_temp(), v3, v2);
             vpmaddwd(int8_dot_product_temp(), int8_dot_product_temp(),

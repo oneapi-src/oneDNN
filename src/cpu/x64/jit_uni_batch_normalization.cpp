@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -623,9 +623,7 @@ struct jit_bnorm_t : public jit_generator {
 
                 // convert f32 output to bf16
                 if (!use_bf16_emulation())
-                    vcvtneps2bf16(dst_reg, src_reg,
-                            mayiuse(avx512_core) ? Xbyak::EvexEncoding
-                                                 : Xbyak::VexEncoding);
+                    vcvtneps2bf16(dst_reg, src_reg, get_encoding());
                 else
                     bf16_emu_->vcvtneps2bf16(dst_reg, src_reg);
 
