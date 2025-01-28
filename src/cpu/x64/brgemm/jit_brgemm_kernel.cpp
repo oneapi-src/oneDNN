@@ -80,15 +80,15 @@ struct jit_brgemm_kernel_t : public jit_base_brgemm_kernel_t {
                 // 'fp8_to_f16_upconvert()' param and would collision with these
                 // emulation vmms
                 f8_e5m2_emulator_ = utils::make_unique<fp8_emulation_e5m2_t>(
-                        this, xmm_fp8_emu_aux1, xmm_fp8_emu_aux2,
-                        xmm_fp8_emu_aux3, kmask_fp8_aux, reg64_fp8_aux);
+                        this, vmm_fp8_emu_aux1(), vmm_fp8_emu_aux2(),
+                        vmm_fp8_emu_aux3(), kmask_fp8_aux, reg64_fp8_aux);
             if (one_of(data_type::f8_e4m3, brg.dt_a, brg.dt_b, brg.dt_c,
                         brg.dt_d)
                     || has_f8_e4m3_binary_postops)
                 f8_e4m3_emulator_ = utils::make_unique<fp8_emulation_e4m3_t>(
-                        this, xmm_fp8_emu_aux1, xmm_fp8_emu_aux2,
-                        xmm_fp8_emu_aux3, xmm_fp8_emu_aux4, xmm_fp8_emu_aux5,
-                        reg64_fp8_aux);
+                        this, vmm_fp8_emu_aux1(), vmm_fp8_emu_aux2(),
+                        vmm_fp8_emu_aux3(), vmm_fp8_emu_aux4(),
+                        vmm_fp8_emu_aux5(), reg64_fp8_aux);
         }
 
         if (brg.with_eltwise || brg.with_binary || brg.with_sum) {
@@ -324,6 +324,10 @@ private:
     }
 
     Vmm vmm_tail_mask() { return vmm_tmp(1); }
+    Vmm vmm_beta() { return vmm_tmp(1); }
+    Vmm vmm_lbound() { return vmm_tmp(1); }
+    Vmm vmm_ubound() { return vmm_tmp(0); }
+
     Vmm vmm_one_bytes() const noexcept { return Vmm(3); }
     Vmm vmm_zp_a_shift() const noexcept { return Vmm(2); }
     Vmm vmm_inp_shift() const noexcept { return Vmm(1); }
@@ -336,11 +340,11 @@ private:
     // note: zmm reserv_5 is not necessary since it's only used for 'vdpbf16ps'
 
     // fp8 emulation convert
-    Vmm xmm_fp8_emu_aux1 = Vmm(1);
-    Vmm xmm_fp8_emu_aux2 = Vmm(2);
-    Vmm xmm_fp8_emu_aux3 = Vmm(3);
-    Vmm xmm_fp8_emu_aux4 = Vmm(4);
-    Vmm xmm_fp8_emu_aux5 = Vmm(5);
+    Vmm vmm_fp8_emu_aux1() const noexcept { return Vmm(1); }
+    Vmm vmm_fp8_emu_aux2() const noexcept { return Vmm(2); }
+    Vmm vmm_fp8_emu_aux3() const noexcept { return Vmm(3); }
+    Vmm vmm_fp8_emu_aux4() const noexcept { return Vmm(4); }
+    Vmm vmm_fp8_emu_aux5() const noexcept { return Vmm(5); }
 
     Zmm zmm_tmp_1() const noexcept { return Zmm(1); }
 
@@ -352,8 +356,12 @@ private:
         return Vmm(isa_num_vregs(brg.isa_impl) - 2);
     }
 
-    Zmm f16_perm_even_vreg_ = Zmm(isa_num_vregs(brg.isa_impl) - 1);
-    Zmm f16_perm_odd_vreg_ = Zmm(isa_num_vregs(brg.isa_impl) - 2);
+    Vmm f16_perm_even_vreg() const noexcept {
+        return Vmm(isa_num_vregs(brg.isa_impl) - 1);
+    }
+    Vmm f16_perm_odd_vreg() const noexcept {
+        return Vmm(isa_num_vregs(brg.isa_impl) - 2);
+    }
 
     Vmm vmm_mask(const Vmm vmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask) const;
@@ -1094,11 +1102,10 @@ void jit_brgemm_kernel_t<Wmm>::apply_alpha_beta(
     const bool use_vadd_for_beta = brg.beta == 1.f && !dq2ps_required;
     const bool need_init_beta_vmm = brg.beta != 1.f;
     auto vmm_prev_dst = vmm_tmp(0);
-    auto vmm_beta = vmm_tail_mask();
     if (need_init_beta_vmm) {
         mov(reg_tmp_gpr, float2int(static_cast<float>(brg.beta)));
-        uni_vmovq(Xmm(vmm_beta.getIdx()), reg_tmp_gpr);
-        uni_vbroadcastss(vmm_beta, Xmm(vmm_beta.getIdx()));
+        uni_vmovq(Xmm(vmm_beta().getIdx()), reg_tmp_gpr);
+        uni_vbroadcastss(vmm_beta(), Xmm(vmm_beta().getIdx()));
     }
 
     if (brg.is_runtime_ldc && bd_block > 1)
@@ -1133,7 +1140,7 @@ void jit_brgemm_kernel_t<Wmm>::apply_alpha_beta(
             if (brg.beta == 1.f)
                 uni_vaddps(vmm, vmm, vmm_prev_dst);
             else
-                uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_beta);
+                uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_beta());
         }
         if (brg.is_runtime_ldc && bd_block > 1 && ld == ld_block2 - 1)
             add(reg_aux_C, ptr[rsp + reg_C_shift_bytes_offs_]);
@@ -1383,16 +1390,14 @@ void jit_brgemm_kernel_t<Wmm>::store_accumulators_apply_post_ops(
 
     const bool dt_requires_saturation
             = one_of(brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
-    auto vmm_lbound = vmm_tail_mask();
-    auto vmm_ubound = vmm_tmp(0);
-    assert(vmm_lbound.getIdx() != vmm_ubound.getIdx());
+    assert(vmm_lbound().getIdx() != vmm_ubound().getIdx());
     if (dt_requires_saturation) {
-        init_saturate_f32(
-                vmm_lbound, vmm_ubound, reg_tmp_gpr, data_type::f32, brg.dt_d);
+        init_saturate_f32(vmm_lbound(), vmm_ubound(), reg_tmp_gpr,
+                data_type::f32, brg.dt_d);
         for (int bd = 0; bd < bd_block; bd++) {
             for (int ld = 0; ld < ld_block2; ld++) {
                 auto vmm = accm(ld_block2, bd, ld);
-                saturate_cvt_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
+                saturate_cvt_f32(vmm, vmm_lbound(), vmm_ubound(), brg.dt_d);
             }
         }
         // below call is not required as s32 doesn't use vmm_lbound
@@ -1563,14 +1568,12 @@ void jit_brgemm_kernel_t<Wmm>::store_accumulators_without_post_ops(
             && !IMPLICATION(alpha_or_beta_applicable, beta_uses_vadd);
 
     if (dt_requires_saturation) {
-        auto vmm_ubound = vmm_tmp(0);
-        auto vmm_lbound = vmm_tmp(1);
-        init_saturate_f32(
-                vmm_lbound, vmm_ubound, reg_tmp_gpr, data_type::f32, brg.dt_d);
+        init_saturate_f32(vmm_lbound(), vmm_ubound(), reg_tmp_gpr,
+                data_type::f32, brg.dt_d);
         for (int bd = 0; bd < bd_block; bd++) {
             for (int ld = 0; ld < ld_block2; ld++) {
                 auto vmm = accm(ld_block2, bd, ld);
-                saturate_cvt_f32(vmm, vmm_lbound, vmm_ubound, brg.dt_d);
+                saturate_cvt_f32(vmm, vmm_lbound(), vmm_ubound(), brg.dt_d);
             }
         }
         // below call is not required as s32 doesn't use vmm_lbound
@@ -2155,7 +2158,7 @@ void jit_brgemm_kernel_t<Wmm>::compute_int8_compensation(int rd_loop, int bd_b,
         }
     };
 
-    if (brg.n_bcast_1_load && brg.zp_type_a != brgemm_broadcast_t::none) {
+    if (need_comp_pads && brg.zp_type_a != brgemm_broadcast_t::none) {
         mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
         const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
         mov(reg32_scratch, 0x1010101);
@@ -2213,6 +2216,13 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
             rd_loop = brg.rdb_tail;
     } else
         rd_loop = brg.rd_block;
+
+    if (brg.req_s8s8_compensation) {
+        mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
+        mov(reg_s8_input_shift, 128);
+        uni_vpbroadcastb(vmm_inp_shift(), reg_s8_input_shift.cvt8());
+        mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
+    }
 
     auto broadcast_A = [this, rd_tail_size, is_rd_tail, rd_loop,
                                rows_for_rd_tail,
@@ -2277,9 +2287,9 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
                 const auto vnni_addr = ptr[reg_aux_B + actual_B_offset];
                 vmovups(vmm_load, vnni_addr);
                 if (rd % 2 == 0)
-                    vpermw(vmm_load, f16_perm_even_vreg_, vmm_load);
+                    vpermw(vmm_load, f16_perm_even_vreg(), vmm_load);
                 else
-                    vpermw(vmm_load, f16_perm_odd_vreg_, vmm_load);
+                    vpermw(vmm_load, f16_perm_odd_vreg(), vmm_load);
                 vcvtph2psx(vmm_load, Vmm_lower_t(vmm_load.getIdx()));
             } else if (is_ld_tail && !is_superset(brg.isa_impl, avx512_core)) {
                 load_bytes(vmm_load, addr, ldb_B_offset(0, true));
@@ -2439,22 +2449,6 @@ void jit_brgemm_kernel_t<Wmm>::ldb_loop(int bd_block2, bool is_bdb_tail,
             if (brg.is_tmm) {
                 mov(reg_stride_lda, brg.typesize_A * brg.LDA);
                 mov(reg_stride_ldb, brg.rd_step * brg.typesize_B * brg.LDB);
-            }
-
-            if (brg.req_s8s8_compensation) {
-                mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
-                mov(reg_s8_input_shift, 128);
-                uni_vpbroadcastb(vmm_inp_shift(), reg_s8_input_shift.cvt8());
-                mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
-            }
-            if (need_comp_pads && brg.zp_type_a != brgemm_broadcast_t::none) {
-                mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
-                const auto reg32_scratch = reg_zp_a_input_shift.cvt32();
-                mov(reg32_scratch, 0x1010101);
-                uni_vpbroadcastd(vmm_one_bytes(), reg32_scratch);
-                mov(reg32_scratch, ptr[rsp + reg_zp_a_val_offs_]);
-                uni_vpbroadcastd(vmm_zp_a_shift(), reg32_scratch);
-                mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
             }
 
             if (brg.brgattr.max_bs > 1) mov(reg_BS_loop, reg_BS);
@@ -2842,9 +2836,9 @@ void jit_brgemm_kernel_t<Wmm>::generate() {
 
     if (brg.is_f16_b_non_amx_vnni()) {
         mov(reg_tmp_gpr, f16_perm_even_table_);
-        vmovups(f16_perm_even_vreg_, ptr[reg_tmp_gpr]);
+        vmovups(f16_perm_even_vreg(), ptr[reg_tmp_gpr]);
         mov(reg_tmp_gpr, f16_perm_odd_table_);
-        vmovups(f16_perm_odd_vreg_, ptr[reg_tmp_gpr]);
+        vmovups(f16_perm_odd_vreg(), ptr[reg_tmp_gpr]);
     }
 
     if (brg.is_tmm && brg.amx_wary_k_tail()) {
