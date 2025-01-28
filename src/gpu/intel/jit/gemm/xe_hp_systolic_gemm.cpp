@@ -62,9 +62,9 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(impl::engine_t *engine) {
             && utils::one_of(d->c_type(), s32, f32, s8, u8, f16));
 
     if (dt_int_ok) {
-        a_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC);
-        b_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS);
-        c_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
+        a_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_A);
+        b_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_B);
+        c_zp_ = !attr()->zero_points_.has_default_values(DNNL_ARG_C);
     }
 
     // LIMITATIONS:
