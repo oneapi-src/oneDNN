@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -93,72 +93,63 @@ dir_t str2dir(const char *str) {
 
 void parse_result(res_t &res, const char *pstr) {
     auto &bs = benchdnn_stat;
+
+    // Can be updated for `INITIALIZED`. TODO: remove this.
     const char *state = state2str(res.state);
+    bool is_failed = false;
+    bool print_me = true;
 
     switch (res.state) {
-        case UNTESTED:
-            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-            bs.failed++;
-            break;
+        case UNTESTED: is_failed = true; break;
         case EXECUTED:
-            if (bench_mode == bench_mode_t::exec)
-                BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             bs.passed++;
+            if (bench_mode != bench_mode_t::exec) print_me = false;
             break;
-        case FAILED: {
-            bs.failed++;
-            std::string error_stat;
-            if (res.errors > 0) {
-                error_stat = " (errors:" + std::to_string(res.errors)
-                        + " total:" + std::to_string(res.total) + ")";
-            }
-
-            std::string reason;
-            if (!res.reason.empty()) { reason = " (" + res.reason + ")"; }
-            BENCHDNN_PRINT(0, "%d:%s%s%s __REPRO: %s\n", bs.tests, state,
-                    reason.c_str(), error_stat.c_str(), pstr);
-        } break;
-        case SKIPPED:
-            BENCHDNN_PRINT(0, "%d:%s (%s) __REPRO: %s\n", bs.tests, state,
-                    res.reason.c_str(), pstr);
-            bs.skipped++;
-            break;
+        case FAILED: is_failed = true; break;
+        case SKIPPED: bs.skipped++; break;
         case UNIMPLEMENTED:
-            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            is_failed = true;
             bs.unimplemented++;
-            bs.failed++;
             break;
         case INVALID_ARGUMENTS:
-            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            is_failed = true;
             bs.invalid_arguments++;
-            bs.failed++;
             break;
-        case MISTRUSTED:
-            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-            bs.mistrusted++;
-            break;
-        case PASSED:
-            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-            bs.passed++;
-            break;
-        case LISTED:
-            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
-            bs.listed++;
-            break;
+        case MISTRUSTED: bs.mistrusted++; break;
+        case PASSED: bs.passed++; break;
+        case LISTED: bs.listed++; break;
         case INITIALIZED:
             // TODO: workaround for failed fill functions.
             if (bench_mode != bench_mode_t::init) {
+                is_failed = true;
                 state = "FAILED";
-                bs.failed++;
             } else {
                 bs.passed++;
             }
-
-            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             break;
-        default: assert(!"unknown state"); SAFE_V(FAIL);
+        default:
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: unknown state encountered in \'parse_results()\'.");
+            SAFE_V(FAIL);
     }
 
+    std::string reason;
+    if (!res.reason.empty()) { reason = " (" + res.reason + ")"; }
+
+    std::string error_stat;
+    if (res.errors > 0) {
+        error_stat = " (errors:" + std::to_string(res.errors)
+                + " total:" + std::to_string(res.total) + ")";
+    }
+
+    // This is the common format of the repro line ([] - for optional entries):
+    // case_num:status[ (reason)][ (error_stats)] __REPRO: prb_str
+    std::string full_repro = std::to_string(bs.tests) + ":" + std::string(state)
+            + reason + error_stat + " __REPRO: " + pstr;
+    if (is_failed) { bs.failed++; }
+    if (print_me) { BENCHDNN_PRINT(0, "%s\n", full_repro.c_str()); }
+
+    // Update this after collecting stats.
     bs.tests++;
     assert(bs.tests
             == bs.passed + bs.skipped + bs.mistrusted + bs.failed + bs.listed);
