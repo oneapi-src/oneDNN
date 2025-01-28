@@ -569,7 +569,7 @@ status_t xe_hp_systolic_gemm_t::init_compute(impl::engine_t *engine) {
 
     auto status = kd_full.select_kernel(arch_, stepping, eu_count_,
             is_integrated, pd()->with_batch(), pd()->packed_c(), trans_co,
-            pd()->with_b_zero_points(), pd()->with_a_zero_points(),
+            pd()->with_a_zero_points(), pd()->with_b_zero_points(),
             pd()->with_c_zero_points(), pd()->with_bias(), pd()->alpha(),
             pd()->beta(), a_type, b_type, c_type, dnnl_s32, dnnl_s32, co_type,
             acc_type, d->m(), d->n(), d->k(), d->batch(), pd()->unroll_m(),
@@ -607,8 +607,8 @@ status_t xe_hp_systolic_gemm_t::init_compute(impl::engine_t *engine) {
 
                 auto status = kd.select_kernel(arch_, stepping, eu_count_,
                         is_integrated, pd()->with_batch(), pd()->packed_c(),
-                        trans_co, pd()->with_b_zero_points(),
-                        pd()->with_a_zero_points(), this_c_offset,
+                        trans_co, pd()->with_a_zero_points(),
+                        pd()->with_b_zero_points(), this_c_offset,
                         pd()->with_bias(), pd()->alpha(), this_beta, a_type,
                         b_type, c_type, dnnl_s32, dnnl_s32, co_type, acc_type,
                         d->m(), d->n(), d->k(), d->batch(), pd()->unroll_m(),
@@ -1019,8 +1019,8 @@ status_t xe_hp_systolic_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                     = into<int32_t>(po_srcs[i]->offset() / problem_.Tbinary[i]);
 
     if (pd()->with_ab_zero_points()) {
-        ao = &GEMM_CTX_ARG_STORAGE(b_zero_point);
-        bo = &GEMM_CTX_ARG_STORAGE(a_zero_point);
+        ao = &GEMM_CTX_ARG_STORAGE(a_zero_point);
+        bo = &GEMM_CTX_ARG_STORAGE(b_zero_point);
     }
 
     if (pd()->with_bias()) {
