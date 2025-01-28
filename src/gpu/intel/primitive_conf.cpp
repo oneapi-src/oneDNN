@@ -370,7 +370,7 @@ void def_offsets(const dim_t offs[4][MAX_NDIMS],
         kernel_ctx.define_int(
                 utils::format("%s_SB%d", str, d), (d < ndims) ? offs[2][d] : 0);
         kernel_ctx.define_int(
-                utils::format("%s_D%d", str, d), (d < ndims) ? offs[3][d] : 0);
+                utils::format("%s_D%d", str, d), (d < ndims) ? offs[3][d] : 1);
     }
 }
 
@@ -817,9 +817,10 @@ status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("WITH_POST_OP", post_ops.len() > 0);
 
-    kernel_ctx.define_int("WITH_ELTWISE", attr_info.with_eltwise);
-    kernel_ctx.define_int("ELTWISE_IDX", attr_info.eltwise_idx);
-    kernel_ctx.define_int("ELTWISE_ALG", attr_info.eltwise_alg);
+    if (!kernel_ctx.has_macro("WITH_ELTWISE"))
+        kernel_ctx.define_int("WITH_ELTWISE", attr_info.with_eltwise);
+    if (!kernel_ctx.has_macro("ELTWISE_ALG"))
+        kernel_ctx.define_int("ELTWISE_ALG", attr_info.eltwise_alg);
 
     kernel_ctx.define_int("WITH_SUM", attr_info.with_sum);
     kernel_ctx.define_int("SUM_IDX", attr_info.sum_idx);
