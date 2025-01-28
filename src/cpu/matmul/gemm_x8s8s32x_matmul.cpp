@@ -245,7 +245,9 @@ status_t gemm_x8s8s32x_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const char transB = helper.transB();
     const dim_t lda = helper.lda();
     const dim_t ldb = helper.ldb();
-    const dim_t ldc = helper.ldc();
+    const dim_t ldc = dst_d.ndims() == 2 && dst_d.count_non_unit_dims(1)
+            ? N
+            : helper.ldc();
     const int ldx_dim_idx = pd()->ndims() - 2;
     const dim_t *src_strides = &src_d.blocking_desc().strides[ldx_dim_idx];
     const dim_t *weights_strides
