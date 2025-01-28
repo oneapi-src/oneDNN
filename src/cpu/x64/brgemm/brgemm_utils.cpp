@@ -209,47 +209,74 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
     // TODO: Calculating the number of available registers should be re-factored
     // to use one code here and in brgemm kernel generator on
     // "max_effective_vregs" calculation
+    int max_isa_regs = isa_num_vregs(brg->isa_impl);
     const int max_bcst_regs = brg->n_bcast_1_load ? 0 : 1;
-    const bool req_compensation = brg->req_s8s8_compensation
-            || brg->zp_type_a != brgemm_broadcast_t::none;
+    const int load_regs = brg->n_bcast_1_load ? 1 : adj_ld_block2;
     const bool req_zp_a_comp_pads
             = (brg->req_cal_comp_pads || brg->brgattr.max_top_vpad > 0
                       || brg->brgattr.max_bottom_vpad > 0)
             && brg->zp_type_a != brgemm_broadcast_t::none;
-    const int beta_regs = !one_of(brg->beta, 1.f, 0.f);
+
+    // --------------  whole kernel --------------
     // To support the f16 vnni B matrix on non-AMX we need to use two Vmm
-    // registers for permutation in brgemm kernel
+    // registers for permutation in brgemm kernel:
+    // see f16_perm_even_vreg_ and f16_perm_odd_vreg_ in brgemm kernel
     const int b_vnni_regs = brg->is_f16_b_non_amx_vnni() ? 2 : 0;
 
-    const int max_isa_regs = isa_num_vregs(brg->isa_impl);
+    // non-VNNI INT8 dot product required 2 temp vectors:
+    // see int8_ones_words() and int8_dot_product_temp() in brgemm kernel
+    const int non_int8_vnni_regs
+            = (brg->is_int8 && !brg->has_int8_vnni) ? 2 : 0;
+
+    max_isa_regs -= b_vnni_regs + non_int8_vnni_regs;
+
+    // --------------- microkernel ---------------
+
+    // see vmm_inp_shift() in brgemm kernel
+    const int compensation_regs = brg->req_s8s8_compensation
+                    || brg->zp_type_a != brgemm_broadcast_t::none
+            ? 1
+            : 0;
+
+    // see vmm_zp_a_shift(), vmm_one_bytes() in brgemm kernel
+    const int zp_a_comp_pads_regs = req_zp_a_comp_pads ? 2 : 0;
+
+    const int microkernel_regs = zp_a_comp_pads_regs + compensation_regs;
+
+    const auto microkernel_max_reg_count
+            = max_isa_regs - microkernel_regs - load_regs - max_bcst_regs;
+
+    auto microkernel_max_bcast_block
+            = microkernel_max_reg_count / (adj_ld_block2 + brg->n_bcast_1_load);
+
+    // ----- post-ops and store accumulators -----
+
+    const int beta_regs = !one_of(brg->beta, 1.f, 0.f);
+
     const int postops_regs = brg->attr()
             ? injector::aux_vec_count(
                     brg->attr()->post_ops_, brg->isa_impl, true)
             : 0;
 
-    // note: the 'adj_ld_block2' already removes the necessary registers
-    // for 'embd_bcst'
-    auto max_reg_count = max_isa_regs - max_bcst_regs - beta_regs
-            - req_compensation - req_zp_a_comp_pads - b_vnni_regs;
-    if (req_zp_a_comp_pads)
-        max_reg_count
-                = nstl::min(max_reg_count, max_isa_regs - max_bcst_regs - 5);
+    // Emulators: fp8 emulation are supported for amx only
+    // In theory, vmm bf16_emu register indices overlap with other vmm
+    // registers related to 'max_bcast_block'
+    assert(IMPLICATION(
+            brg->is_bf16_emu, is_superset(brg->isa_impl, avx512_core)));
+    const int bf16_emu_regs = brg->is_bf16_emu ? 4 : 0;
 
-    int max_bcast_block = max_reg_count
-            - nstl::max(brg->n_bcast_1_load ? 1 : adj_ld_block2, postops_regs);
+    const auto store_regs = nstl::max(beta_regs,
+            nstl::max(
+                    postops_regs, nstl::max(compensation_regs, bf16_emu_regs)));
 
-    if (brg->is_bf16_emu) {
-        // in theory, vmm bf16_emu register indices overlap with other vmm
-        // registers related to 'max_bcast_block'
-        assert(is_superset(brg->isa_impl, avx512_core));
-        constexpr int bf16_emu_reg_count = 28;
-        max_bcast_block = nstl::min(max_bcast_block, bf16_emu_reg_count);
-    }
+    const auto store_max_reg_count = max_isa_regs - store_regs;
 
-    // non-VNNI INT8 dot product required 2 temp vectors
-    if (brg->is_int8 && !brg->has_int8_vnni) max_bcast_block -= 2;
+    auto store_max_bcast_block = store_max_reg_count / adj_ld_block2;
 
-    max_bcast_block /= (adj_ld_block2 + brg->n_bcast_1_load);
+    // ------------ final calculation ------------
+
+    const auto max_bcast_block
+            = nstl::min(microkernel_max_bcast_block, store_max_bcast_block);
 
     return max_bcast_block;
 }
