@@ -28,11 +28,16 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+void init_kernel_datatype(
+        brgemm_desc_t *brg, data_type_t dt_a, data_type_t dt_b);
+
 namespace brgemm_utils {
 
 bool can_dispatch_uker(const brgemm_desc_t *brg);
 
 void maybe_try_bf32(brgemm_desc_t *brg);
+
+void set_isa_impl(brgemm_desc_t *brg);
 
 status_t brgemm_blocking(brgemm_desc_t *brg);
 
