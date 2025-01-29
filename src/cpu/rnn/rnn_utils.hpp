@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -630,7 +630,7 @@ struct rnn_conf_t {
     int dhc_block_peephole, dhc_tail_peephole, dhc_blocks_peephole;
     bool brgemm_fwd_iter_layer_fuse_possible = false;
 
-    dim_t nthr;
+    int nthr;
 #if DNNL_X64
     x64::cpu_isa_t brgemm_isa;
 #endif
