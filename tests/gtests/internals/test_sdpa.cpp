@@ -1555,7 +1555,13 @@ void check_memory(memory &gold, memory &test) {
 
     int mismatches = 0;
     int total = 0;
-    float fthreshold = 0.000978;
+    float fthreshold = 0.f;
+    if (std::is_same<T, float16_t>::value) {
+        fthreshold = 0.001466f;
+    } else {
+        fthreshold = 0.0079f;
+    }
+
     float max_diff = std::numeric_limits<float>::min();
     std::map<int, std::map<int, int>> hist;
     bool verbose = false;
@@ -1573,7 +1579,7 @@ void check_memory(memory &gold, memory &test) {
         bool is_nan = isnan(o_gold) || isnan(o_test);
 
         bool is_mismatch = is_nan
-                || (abs(o_gold) > 2.f ? abs_diff > abs(o_gold * fthreshold)
+                || (abs(o_gold) > 1.f ? abs_diff > abs(o_gold * fthreshold)
                                       : abs_diff > fthreshold);
         if (max_diff < abs_diff) {
             if (verbose) {
