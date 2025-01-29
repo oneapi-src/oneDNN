@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,52 +17,43 @@
 #ifndef UTILS_RES_HPP
 #define UTILS_RES_HPP
 
-#include <cstring>
-#include <vector>
-
-#include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl_types.h"
 
 #include "utils/timer.hpp"
+
+#include <string>
+#include <vector>
 
 struct check_mem_size_args_t {
 
     check_mem_size_args_t() = default;
     check_mem_size_args_t(const_dnnl_primitive_desc_t pd, bool want_input)
-        : pd(pd)
-        , want_input(want_input)
-        , is_scratchpad(false)
-        , total_size_device(0)
-        , total_size_cpu(0)
-        , scratchpad_size(0) {
-        // initialize the memory size for reference path
-        memset(total_ref_md_size, 0, sizeof(total_ref_md_size));
-    }
+        : pd(pd), want_input(want_input) {}
 
     // Input args.
-    const_dnnl_primitive_desc_t pd;
-    bool want_input;
-    bool is_scratchpad;
+    const_dnnl_primitive_desc_t pd = nullptr;
+    bool want_input = false;
+    bool is_scratchpad = false;
 
     // Output args:
     // `sizes` used to validate OpenCL memory requirements.
     std::vector<size_t> sizes;
     // `total_size_device` specifies memory allocated on device for a test obj.
-    size_t total_size_device;
+    size_t total_size_device = 0;
     // `total_size_cpu` specifies:
     // * Memory allocated for reference ocmputations (`C` mode only).
     // * Memory allocated for comparison results (`C` mode only).
     // * Memory allocated for mapping device memory (GPU backend only).
     // * Memory allocated on CPU for a test obj (CPU backend only).
-    size_t total_size_cpu;
+    size_t total_size_cpu = 0;
     // `total_ref_md_size` specifies the additional tag::abx f32 memory
     // required for correctness check.
     // * The first element refers to the total memory for input reference
     // * The second element refers to the total memory for output reference
     // The args are used in memory estimation for graph driver only.
-    size_t total_ref_md_size[2];
+    size_t total_ref_md_size[2] = {0, 0};
     // `scratchpad_size` specifies a scratchpad size for specific checks.
-    size_t scratchpad_size;
+    size_t scratchpad_size = 0;
 };
 
 /* result structure */

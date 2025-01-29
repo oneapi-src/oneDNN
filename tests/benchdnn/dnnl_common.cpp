@@ -1316,10 +1316,11 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir,
     // Skip the check if the test object won't be executed.
     if (!has_bench_mode_bit(mode_bit_t::exec)) return OK;
 
-    // Skip the check if it has already happened for provided `dir`. Saves from
-    // repreated run when the second test object is created to test the
-    // primitive cache, but allows to verify both objects when a double-run
-    // driver executes fwd-for-bwd first and bwd after.
+    // Skip the check if it has already happened for the passed `dir`.
+    // It saves from a repeated run when the second test object is created to
+    // validate the primitive cache. At the same time it allows to verify both
+    // test objects when a double-run driver executes the fwd-for-bwd object
+    // first and the bwd object after.
     if (need_skip && res->mem_check_dir == dir) return OK;
     res->mem_check_dir = dir;
 
