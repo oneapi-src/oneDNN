@@ -519,7 +519,8 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             "tg", "Threadgroup tile (e.g. ow4oc4).", /*required=*/false);
     iface->add<PACK(loop_desc)>("loop_desc",
             "Loop description, variables ordered from innermost to outermost "
-            "(e.g. kw,kh,kd,ic).");
+            "(e.g. kw,kh,kd,ic).",
+            /*required=*/false);
     iface->add<PACK(use_stream_k)>("stream-k", "Whether to use Stream-K.");
     iface->add<PACK(use_2d_access)>(
             "2d", "Whether to use block 2D messages for access.");
