@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,9 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
 #include "common/primitive_desc_iface.hpp"
-#include "common/sdpa_internal.hpp"
 #include "common/sdpa_pd.hpp"
 #include "common/sdpa_types.hpp"
 #include "common/sdpa_utils.hpp"
@@ -25,7 +24,7 @@
 using dnnl::impl::status_t;
 using namespace dnnl::impl;
 
-dnnl_status_t dnnl_sdpa_primitive_desc_create(
+dnnl_status_t DNNL_API sdpa_primitive_desc_create(
         dnnl_primitive_desc_t *primitive_desc_iface, dnnl_engine_t engine,
         const_dnnl_memory_desc_t query_desc, const_dnnl_memory_desc_t key_desc,
         const_dnnl_memory_desc_t value_desc, const_dnnl_memory_desc_t dst_desc,

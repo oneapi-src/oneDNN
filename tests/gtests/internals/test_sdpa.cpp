@@ -17,7 +17,7 @@
 #include <dnnl_test_common.hpp>
 #include <gtest/gtest.h>
 
-#include <common/sdpa_internal.hpp>
+#include "sdpa_internal.hpp"
 
 #include <oneapi/dnnl/dnnl.hpp>
 
