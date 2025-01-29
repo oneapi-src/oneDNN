@@ -688,9 +688,8 @@ void brgemm_gru_t<src_t, weights_t, scratch_t, gemm_acc_t>::kernel(
     gemm_acc_t *const amx_buffer = is_amx
             ? amx_scratchpad_ + rnn_.m_block * rnn_.n_block * ithr
             : nullptr;
-    const int max_K_Block = 2
-            * nstl::max(rnn_.KB1_blocks + 1,
-                    nstl::max(rnn_.KBproj_blocks + 1, rnn_.KB2_blocks + 1));
+    const int max_K_Block = nstl::max(rnn_.KB1_blocks + 1,
+            nstl::max(rnn_.KBproj_blocks + 1, rnn_.KB2_blocks + 1));
     brgemm_batch_element_t *const addr_batch
             = addr_batch_global_ + ithr * max_K_Block;
 
