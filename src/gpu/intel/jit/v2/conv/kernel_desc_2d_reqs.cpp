@@ -182,7 +182,7 @@ void generate_2d_reqs(const kernel_desc_t &desc, tensor_kind_t tensor_kind,
 }
 
 prb_reqs_t generate_2d_reqs(const kernel_desc_t &desc) {
-    prb_reqs_t reqs = desc._reqs;
+    prb_reqs_t reqs = desc.spec.reqs();
     if (!desc.use_2d_access) return reqs;
     generate_2d_reqs(desc, tensor_kind_t::src, reqs);
     generate_2d_reqs(desc, tensor_kind_t::wei, reqs);

@@ -551,9 +551,9 @@ bench_data_t bench(const bench_manager_t &bench_mger,
     auto strm = bench_mger.get_stream();
     std::cout << "Running benchmark for descriptor: " << kernel_desc.cmd_str()
               << std::endl;
-    gpu_assert(kernel_desc.spec_strategy == spec_strategy_t::none);
+    gpu_assert(!kernel_desc.spec.is_dynamic());
     auto kernel_desc_min_dims = kernel_desc;
-    kernel_desc_min_dims.spec_strategy = spec_strategy_t::min_dims;
+    kernel_desc_min_dims.spec.mode = specialization_mode_t::min_dims;
     {
         auto guard = plan_preset_t::instance().make_guard(kernel_desc_min_dims);
         if (!tasks[0].init_primitive(eng)) return {};
@@ -668,7 +668,7 @@ std::vector<type_t> get_out_types(const kernel_desc_t &kernel_desc) {
 kernel_desc_t try_extensions(
         const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc) {
     auto &desc_out_type = kernel_desc.c_type();
-    std::vector<prb_reqs_t> reqs_vec({kernel_desc.auto_reqs()});
+    std::vector<prb_reqs_t> reqs_vec({kernel_desc.reqs()});
     std::vector<int> out_type_sizes({desc_out_type.size()});
     extensions_t ext;
     for (auto &out_type : get_out_types(kernel_desc)) {
@@ -679,7 +679,7 @@ kernel_desc_t try_extensions(
         if (!create_conv_plan(d, bench_mger.hw())) continue;
         if (!try_create(bench_mger, d)) continue;
         ext.add(extensions_t::out_size(out_type.size()));
-        reqs_vec.push_back(d.auto_reqs());
+        reqs_vec.push_back(d.reqs());
         out_type_sizes.push_back(out_type.size());
     }
 
@@ -689,7 +689,7 @@ kernel_desc_t try_extensions(
         d.bias_type = type_t::f32();
         if (create_conv_plan(d, bench_mger.hw()) && try_create(bench_mger, d)) {
             ext.add(extension_kind_t::bias);
-            reqs_vec.push_back(d.auto_reqs());
+            reqs_vec.push_back(d.reqs());
             out_type_sizes.push_back(desc_out_type.size());
         }
     }

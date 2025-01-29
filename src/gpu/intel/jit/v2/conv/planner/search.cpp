@@ -327,9 +327,9 @@ public:
     const std::vector<kernel_desc_t> &descs() const { return descs_; }
 
     void add_desc(const kernel_desc_t &desc) {
-        gpu_assert(desc.auto_reqs().str() == reqs_.str())
+        gpu_assert(desc.reqs().str() == reqs_.str())
                 << "Reqs mismatch:\n"
-                << desc.cmd_str() << "\ndesc.reqs:" << desc.auto_reqs().str()
+                << desc.cmd_str() << "\ndesc.reqs:" << desc.reqs().str()
                 << "\nreqs:\n"
                 << reqs_.str();
         if (descs_.empty()) {
@@ -429,8 +429,8 @@ private:
             prefetch_dists.push_back(3);
         }
         for (auto &d : descs) {
-            auto ret = desc_groups.emplace(d.auto_reqs().str(),
-                    search_kernel_desc_group_t(d.auto_reqs()));
+            auto ret = desc_groups.emplace(
+                    d.reqs().str(), search_kernel_desc_group_t(d.reqs()));
             ret.first->second.add_desc(d);
             for (int dist : prefetch_dists) {
                 auto _d = d;

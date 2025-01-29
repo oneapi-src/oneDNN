@@ -60,14 +60,49 @@ struct hw_desc_t {
 
 // Represents specialization requirements for problem dimensions. A call to
 // desc.specialize(problem_t) is required to finish generation.
-enum class spec_strategy_t { none, max, min_dims };
+enum class specialization_mode_t {
+    none,
+    // Whether to specialize all problem values.
+    max,
+    // Whether to reduce dimensions based on the problem, e.g. 3D -> 2D.
+    min_dims
+};
 
-static auto spec_strategy_names = nstl::to_array({
-        make_enum_name(spec_strategy_t::none, "none"),
-        make_enum_name(spec_strategy_t::max, "max"),
-        make_enum_name(spec_strategy_t::min_dims, "min_dims"),
+static auto specialization_mode_names = nstl::to_array({
+        make_enum_name(specialization_mode_t::none, "none"),
+        make_enum_name(specialization_mode_t::max, "max"),
+        make_enum_name(specialization_mode_t::min_dims, "min_dims"),
 });
-GPU_DEFINE_PARSE_ENUM(spec_strategy_t, spec_strategy_names)
+GPU_DEFINE_PARSE_ENUM(specialization_mode_t, specialization_mode_names)
+
+struct specialization_t {
+    specialization_mode_t mode;
+    // Dimesion values to specialize.
+    pvar_tile_t spec_tile;
+
+    // Whether the specialization depends on the problem dimensions, meaning
+    // that specialize() must be called.
+    bool is_dynamic() const { return mode != specialization_mode_t::none; }
+
+    // Deduce problem dimensions based on max/min_dims mode.
+    void specialize(const problem_t &prb);
+
+    explicit operator bool() const {
+        return mode != specialization_mode_t::none || !spec_tile.is_empty();
+    }
+
+    prb_reqs_t reqs() const;
+
+    std::string str() const;
+    IR_DEFINE_DUMP()
+
+#if __cplusplus >= 202002L
+    bool operator==(const specialization_t &other) const = default;
+#endif
+
+    void stringify(std::ostream &out) const { out << str(); }
+    void parse(std::istream &in);
+};
 
 struct loop_desc_entry_t {
     pvar_t dim;
@@ -259,8 +294,6 @@ struct extensions_t {
     static extension_kind_t out_size(int size);
 };
 
-pvar_tile_t min_dims_tile(const problem_t &prb);
-
 struct plan_t;
 class grid_t;
 
@@ -272,7 +305,7 @@ public:
     layout_tag_t wei_tag;
     layout_tag_t dst_tag;
     type_t bias_type;
-    spec_strategy_t spec_strategy = spec_strategy_t::none;
+    specialization_t spec;
     hw_desc_t hw_desc;
     fma_kind_t fma = fma_kind_t::undef;
     int simd = 0;
@@ -287,13 +320,12 @@ public:
     align_desc_t align;
 
     prefetch_desc_t prefetch;
-    prb_reqs_t _reqs;
     extensions_t ext;
     gpu_post_ops_t post_ops;
 
     bool is_empty() const { return prop == prop_kind::undef; }
     bool is_supported(const hw_t &hw, const problem_t *prb = nullptr) const;
-    prb_reqs_t auto_reqs() const;
+    prb_reqs_t reqs() const;
     void set(const std::string &s);
     void set_defaults();
     bool can_fit(const problem_t &prb) const;
@@ -349,26 +381,7 @@ public:
         return utils::one_of(fma, fma_kind_t::dpas, fma_kind_t::dpasw);
     }
 
-    bool has_spec_strategy() const {
-        return spec_strategy != spec_strategy_t::none;
-    }
-
-    void specialize(const problem_t &prb) {
-        if (!has_spec_strategy()) return;
-        switch (spec_strategy) {
-            case spec_strategy_t::max:
-                _reqs.add(prb.shape());
-                _reqs.simplify();
-                break;
-            case spec_strategy_t::min_dims:
-                _reqs.add(min_dims_tile(prb));
-                _reqs.simplify();
-                break;
-            case spec_strategy_t::none: break;
-            default: gpu_error_not_expected();
-        }
-        spec_strategy = spec_strategy_t::none;
-    }
+    void specialize(const problem_t &prb) { spec.specialize(prb); }
 
     void init_kernel_iface(kernel_iface_t &kernel_iface) const override;
     void init_kernel_info(kernel_info_t &kernel_info,
@@ -509,8 +522,7 @@ struct trivial_key_validator_t<jit::v2::conv::kernel_desc_t> {
         auto tmp = jit::v2::conv::kernel_desc_t::deserialize(t.serialize());
         return (t.prop == tmp.prop) && (t.is_dw == tmp.is_dw)
                 && (t.src_tag == tmp.src_tag) && (t.wei_tag == tmp.wei_tag)
-                && (t.dst_tag == tmp.dst_tag)
-                && (t.spec_strategy == tmp.spec_strategy)
+                && (t.dst_tag == tmp.dst_tag) && (t.spec == tmp.spec)
                 && (t.hw_desc == tmp.hw_desc) && (t.fma == tmp.fma)
                 && (t.simd == tmp.simd) && (t.regs == tmp.regs)
                 && (t.iter_tile == tmp.iter_tile)
