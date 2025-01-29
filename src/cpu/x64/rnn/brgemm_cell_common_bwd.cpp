@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ brgemm_diff_src_layer_iter_t<weights_t, scratch_t,
               * rnn.diff_src_brgemm.N_layer_blocks)
     , LDA_(rnn.diff_src_brgemm.LDA)
     , LDC_(rnn.diff_src_brgemm.LDC)
-    , max_nthr_(rnn.nthr)
+    , max_nthr_(nstl::min(dnnl_get_current_num_threads(), rnn.nthr))
     , n_blocking_(rnn.diff_src_brgemm.N_blocks)
     , m_blocking_(rnn.diff_src_brgemm.M_blocks)
     , work_amount_(n_blocking_ * m_blocking_)
@@ -446,7 +446,7 @@ brgemm_diff_weights_layer_iter_t<src_layer_t, src_iter_t, scratch_t,
     , LDA_layer_(rnn.diff_wei_brgemm.LDA_layer)
     , LDC_iter_(rnn.diff_wei_brgemm.LDC_iter)
     , LDC_layer_(rnn.diff_wei_brgemm.LDC_layer)
-    , max_nthr_(rnn.nthr)
+    , max_nthr_(nstl::min(dnnl_get_current_num_threads(), rnn.nthr))
     , n_blocking_(rnn.diff_wei_brgemm.N_blocks)
     , m_blocking_(rnn.diff_wei_brgemm.M_blocks)
     , k_blocks_(rnn.diff_wei_brgemm.K_blocks)
