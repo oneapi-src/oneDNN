@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -211,6 +211,14 @@ void BLASKernelGenerator<hw>::gemmVectorBinaryOpC(BinaryOp op, bool column, cons
             if (scale.isValid()) {
                 if (op != BinaryOp::Add) stub();
                 mad(nc, C(1), C(1), offBase(stride()), scale);
+            } else if (strategy.dotVL > 0) {
+                // Dot-based kernels pack the C-tile into one register when possible, which results in
+                // register region restriction complications. Split binary operations into execSize=1 pieces.
+                for (int off = 0; off < nc; off++) {
+                    auto val = C.offset(off)(1);
+                    auto src1 = offBase.offset(off)(stride());
+                    binaryOp(op, 1, val, val, src1, state);
+                }
             } else
                 binaryOp(op, nc, C(1), C(1), offBase(stride()), state);
 
