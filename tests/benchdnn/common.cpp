@@ -146,7 +146,10 @@ void parse_result(res_t &res, const char *pstr) {
     // case_num:status[ (reason)][ (error_stats)] __REPRO: prb_str
     std::string full_repro = std::to_string(bs.tests) + ":" + std::string(state)
             + reason + error_stat + " __REPRO: " + pstr;
-    if (is_failed) { bs.failed++; }
+    if (is_failed) {
+        bs.failed++;
+        bs.failed_cases.emplace(bs.tests, full_repro);
+    }
     if (print_me) { BENCHDNN_PRINT(0, "%s\n", full_repro.c_str()); }
 
     // Update this after collecting stats.

@@ -411,6 +411,37 @@ bool parse_impl_filter(impl_filter_t &impl_filter,
             str2impl_filter, str, option_name, help);
 }
 
+summary_t parse_summary_str(const std::string &s) {
+    // Allowed input: (no-)option+...
+    summary_t v;
+    if (s.empty()) return v;
+
+    size_t start_pos = 0;
+    while (start_pos != std::string::npos) {
+        auto subs = parser::get_substr(s, start_pos, '+');
+        size_t subs_pos = 0;
+
+        bool negate_option = false;
+        if (subs.find("no-", 0, 3) != std::string::npos) {
+            negate_option = true;
+            subs_pos += 3;
+        }
+
+        auto option = parser::get_substr(subs, subs_pos, '\0');
+        if (option == "failures") {
+            v.failed_cases = !negate_option;
+        } else {
+            BENCHDNN_PRINT(0,
+                    "Error: unsupported option-value combination "
+                    "\'--summary=%s\'\n",
+                    option.c_str());
+            SAFE_V(FAIL);
+        }
+    }
+
+    return v;
+}
+
 } // namespace parser_utils
 
 // vector types
@@ -1334,6 +1365,16 @@ static bool parse_stream_kind(
     return parsed;
 }
 
+static bool parse_summary(
+        const char *str, const std::string &option_name = "summary") {
+    static const std::string help
+            = "STRING    (Default: `failures`)\n    Instructs benchdnn to "
+              "print additional statistics and information based on the STRING "
+              "values.\n";
+    return parse_single_value_option(summary, summary_t(),
+            parser_utils::parse_summary_str, str, option_name, help);
+}
+
 static bool parse_verbose(
         const char *str, const std::string &option_name = "verbose") {
     static const std::string help
@@ -1404,8 +1445,8 @@ bool parse_bench_settings(const char *str) {
             || parse_repeats_per_prb(str) || parse_mem_check(str)
             || parse_memory_kind(str) || parse_mode(str)
             || parse_mode_modifier(str) || parse_start(str)
-            || parse_stream_kind(str) || parse_verbose(str)
-            || parse_execution_mode(str);
+            || parse_stream_kind(str) || parse_summary(str)
+            || parse_verbose(str) || parse_execution_mode(str);
 
     // Last condition makes this help message to be triggered once driver_name
     // is already known.
