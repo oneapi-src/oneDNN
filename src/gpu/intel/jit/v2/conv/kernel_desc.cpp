@@ -295,34 +295,38 @@ void kernel_desc_t::set(const std::string &s) {
     set_defaults();
 }
 
+loop_desc_t default_loop_desc(prop_kind_t prop) {
+    loop_desc_t loop_desc;
+    switch (prop) {
+        case prop_kind::forward_training:
+        case prop_kind::forward_inference:
+            loop_desc.add(pvars::kw);
+            loop_desc.add(pvars::kh);
+            loop_desc.add(pvars::kd);
+            loop_desc.add(pvars::ic);
+            break;
+        case prop_kind::backward_data:
+            loop_desc.add(pvars::kw);
+            loop_desc.add(pvars::kh);
+            loop_desc.add(pvars::kd);
+            loop_desc.add(pvars::oc);
+            break;
+        case prop_kind::backward_weights:
+            loop_desc.add(pvars::ow);
+            loop_desc.add(pvars::oh);
+            loop_desc.add(pvars::od);
+            loop_desc.add(pvars::mb);
+            break;
+        default: gpu_error_not_expected(); break;
+    }
+    return loop_desc;
+}
+
 void kernel_desc_t::set_defaults() {
     src_tag = make_conv_layout_tag(tensor_kind_t::src, src_tag.str());
     wei_tag = make_conv_layout_tag(tensor_kind_t::wei, wei_tag.str());
     dst_tag = make_conv_layout_tag(tensor_kind_t::dst, dst_tag.str());
-    if (loop_desc.is_empty()) {
-        switch (prop) {
-            case prop_kind::forward_training:
-            case prop_kind::forward_inference:
-                loop_desc.add(pvars::kw);
-                loop_desc.add(pvars::kh);
-                loop_desc.add(pvars::kd);
-                loop_desc.add(pvars::ic);
-                break;
-            case prop_kind::backward_data:
-                loop_desc.add(pvars::kw);
-                loop_desc.add(pvars::kh);
-                loop_desc.add(pvars::kd);
-                loop_desc.add(pvars::oc);
-                break;
-            case prop_kind::backward_weights:
-                loop_desc.add(pvars::ow);
-                loop_desc.add(pvars::oh);
-                loop_desc.add(pvars::od);
-                loop_desc.add(pvars::mb);
-                break;
-            default: gpu_error_not_expected(); break;
-        }
-    }
+    if (loop_desc.is_empty()) loop_desc = default_loop_desc(prop);
     if (is_dw) {
         spec.spec_tile[pvars::ic] = 1;
         spec.spec_tile[pvars::oc] = 1;
@@ -523,7 +527,10 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             "tg", "Threadgroup tile (e.g. ow4oc4).", /*required=*/false);
     iface->add<PACK(loop_desc)>("loop_desc",
             "Loop description, variables ordered from innermost to outermost "
-            "(e.g. kw,kh,kd,ic).");
+            "(e.g. kw,kh,kd,ic).",
+            /*required=*/false, [](const kernel_desc_t &parent) {
+                return default_loop_desc(parent.prop).str();
+            });
     iface->add<PACK(use_stream_k)>("stream-k", "Whether to use Stream-K.");
     iface->add<PACK(use_2d_access)>(
             "2d", "Whether to use block 2D messages for access.");
@@ -547,7 +554,9 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     parse_iface_t<kernel_desc_t>::entry_t po_entry;
     po_entry.name = "post_ops";
     po_entry.help = "Kernel post-ops.";
-    po_entry._default = serialize_to_hex(gpu_post_ops_t());
+    po_entry._default = [](const kernel_desc_t &) {
+        return serialize_to_hex(gpu_post_ops_t());
+    };
     po_entry.stringify = [](std::ostream &out, const kernel_desc_t &parent) {
         out << serialize_to_hex(parent.post_ops);
     };
