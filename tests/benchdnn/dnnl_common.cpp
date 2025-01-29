@@ -1138,7 +1138,10 @@ static int check_total_size(
     }
 
     size_t total_size_cpu = check_mem_size_args.total_size_cpu;
-    if (is_cpu()) total_size_cpu += check_mem_size_args.total_size_device;
+
+    // Add device size as a simple method to account for integrated devices and
+    // mapping/unmapping memory
+    total_size_cpu += check_mem_size_args.total_size_device;
     bool fits_cpu_ram = total_size_cpu <= benchdnn_cpu_limit;
 
     if (!fits_cpu_ram) {
