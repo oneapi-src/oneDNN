@@ -773,7 +773,7 @@ struct EmulationImplementation {
             splitToDW(dst, dstLo, dstHi);
 
             if (s0Q) {
-                splitToDW(dst, s0Lo, s0Hi);
+                splitToDW(src0, s0Lo, s0Hi);
 
                 g.shr(mod, acc, s0Lo, uint16_t(32 - src1), loc);
                 g.shl(mod, dstHi, s0Hi, src1, loc);
@@ -820,7 +820,7 @@ struct EmulationImplementation {
             splitToDW(dst, dstLo, dstHi);
 
             if (s0Q) {
-                splitToDW(dst, s0Lo, s0Hi);
+                splitToDW(src0, s0Lo, s0Hi);
 
                 g.shl(mod, acc, s0Lo, uint16_t(32 - src1), loc);
                 g.shr(mod, dstLo, s0Lo, src1, loc);
