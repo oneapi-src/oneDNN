@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -265,6 +265,7 @@ status_t jit_uni_reorder_direct_copy_t::pd_t::init(
     const auto dst_dt = dst_md()->data_type;
     const memory_desc_wrapper src_d(src_md());
     const memory_desc_wrapper dst_d(dst_md());
+    const auto blocks_size = src_d.blk_size();
 
     VDISPATCH_REORDER(!src_d.has_runtime_dims_or_strides(),
             VERBOSE_RUNTIMEDIM_UNSUPPORTED);
@@ -286,6 +287,14 @@ status_t jit_uni_reorder_direct_copy_t::pd_t::init(
     VDISPATCH_REORDER(
             IMPLICATION(utils::one_of(f16, src_dt, dst_dt),
                     mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_REORDER(
+            IMPLICATION(utils::one_of(bf16, src_dt, dst_dt) && blocks_size < 8,
+                    mayiuse(avx512_core_bf16)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_REORDER(
+            IMPLICATION(utils::one_of(f16, src_dt, dst_dt) && blocks_size < 8,
+                    mayiuse(avx512_core_fp16)),
             VERBOSE_ISA_DT_MISMATCH);
 
     const bool is_f8 = utils::one_of(f8_e4m3, src_dt, dst_dt)
