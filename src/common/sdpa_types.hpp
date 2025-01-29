@@ -28,11 +28,6 @@
 namespace dnnl {
 namespace impl {
 
-#define DNNL_ARG_QUERIES DNNL_ARG_SRC_0
-#define DNNL_ARG_KEYS DNNL_ARG_SRC_1
-#define DNNL_ARG_VALUES DNNL_ARG_SRC_2
-#define DNNL_ARG_ATTN_MASK DNNL_ARG_SHIFT
-
 // A descriptor for a scaled dot product attention (SDPA) operation.
 struct sdpa_desc_t : public op_desc_t {
     sdpa_desc_t() : op_desc_t(primitive_kind::sdpa) {}
@@ -44,6 +39,11 @@ struct sdpa_desc_t : public op_desc_t {
     memory_desc_t q_desc {}; /* queries */
     memory_desc_t k_desc {}; /* keys */
     memory_desc_t v_desc {}; /* values */
+
+    memory_desc_t prompt_lens_desc {};
+    memory_desc_t subsequence_begins_desc {};
+    memory_desc_t block_indices_desc {};
+    memory_desc_t block_indices_begins_desc {};
 
     // primitive_attr_t can't be used because of deleted copy-ctor, but desc_t
     // must be copyable.
@@ -59,6 +59,7 @@ struct sdpa_desc_t : public op_desc_t {
     // invert_scale = true:  divide by scale
     bool invert_scale {};
     dim_t kv_head_number {};
+    int context_len {};
 
     // causal_mask = false: use mask descriptor
     // causal_mask = true: causal mask used. mask descriptor not used
@@ -72,6 +73,10 @@ struct sdpa_desc_t : public op_desc_t {
     dnnl_dim_t keys() const { return k_desc.dims[k_desc.ndims - 1]; }
     // Number of values.
     dnnl_dim_t values() const { return v_desc.dims[v_desc.ndims - 1]; }
+    // Number of subsequences.
+    dnnl_dim_t num_sequences() const {
+        return prompt_lens_desc.dims[prompt_lens_desc.ndims - 1];
+    }
     // Total batch size.
     dnnl_dim_t batch_size() const {
         dnnl_dim_t batch = 1;
@@ -79,6 +84,8 @@ struct sdpa_desc_t : public op_desc_t {
             batch *= dst_desc.dims[i];
         return batch;
     }
+    // Page size in values or keys.
+    dnnl_dim_t page_size() const { return k_desc.dims[k_desc.ndims - 1]; }
 };
 
 } // namespace impl

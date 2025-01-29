@@ -459,6 +459,21 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     def_offsets(dst_off, kernel_ctx, "DST", ndims);
     def_offsets(msk_off, kernel_ctx, "MSK", ndims);
     kernel_ctx.define_int("NDIMS", ndims);
+    kernel_ctx.define_int("PAGE_SIZE", pd()->desc()->page_size());
+
+    const memory_desc_wrapper prompt_lens_mdw(pd()->prompt_lens_md());
+    const memory_desc_wrapper subsequence_begins_mdw(
+            pd()->subsequence_begins_md());
+    const memory_desc_wrapper block_indices_mdw(pd()->block_indices_md());
+    const memory_desc_wrapper block_indices_begins_mdw(
+            pd()->block_indices_begins_md());
+    offset_t prompt_lens_off, subsequence_begins_off, block_indices_off,
+            block_indices_begins_off;
+    set_offsets(prompt_lens_mdw, prompt_lens_off);
+    set_offsets(subsequence_begins_mdw, subsequence_begins_off);
+    set_offsets(block_indices_mdw, block_indices_off);
+    set_offsets(block_indices_begins_mdw, block_indices_begins_off);
+    def_data_type(kernel_ctx, prompt_lens_mdw.data_type(), "INDEX");
 
     def_data_type(kernel_ctx, key_mdw.data_type(), "KEY");
     def_data_type(kernel_ctx, qry_mdw.data_type(), "QRY");
@@ -538,6 +553,7 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
             pd()->with_attn_mask() && !pd()->with_causal_mask());
     kernel_ctx.define_int(
             "BROADCAST_MASK_Q", msk_mdw.dims()[pd_t::mask_q_index] == 1);
+    kernel_ctx.define_int("WITH_PAGED_ATTN", true);
 
     kernel_ctx.define_int("WITH_CAUSAL_MASK", pd()->with_causal_mask());
 
@@ -625,6 +641,13 @@ status_t micro_sdpa_t::execute(const exec_ctx_t &ctx) const {
     auto sg_per_wg = gemm_kq.getSetting("sg_per_wg_m")
             * gemm_kq.getSetting("sg_per_wg_n");
 
+    const auto &prompt_lens = CTX_IN_STORAGE(DNNL_ARG_PROMPT_LENS);
+    const auto &subsequence_begins
+            = CTX_IN_STORAGE(DNNL_ARG_SUBSEQUENCE_BEGINS);
+    const auto &block_indices = CTX_IN_STORAGE(DNNL_ARG_BLOCK_INDICES);
+    const auto &block_indices_begins
+            = CTX_IN_STORAGE(DNNL_ARG_BLOCK_INDICES_BEGINS);
+
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, key);
     arg_list.set(1, qry);
@@ -638,14 +661,22 @@ status_t micro_sdpa_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(9, key_zp);
     arg_list.set(10, value_scales);
     arg_list.set(11, value_zp);
-    if (pd()->with_attn_mask()) arg_list.set(12, attn_mask);
+    arg_list.set(12, prompt_lens);
+    arg_list.set(13, subsequence_begins);
+    arg_list.set(14, block_indices);
+    arg_list.set(15, block_indices_begins);
+    arg_list.set(16, pd()->desc()->context_len);
+    // if (pd()->with_attn_mask()) arg_list.set(12, attn_mask);
 
     compute::range_t lws = {(size_t)pd()->sg_size(), (size_t)sg_per_wg, 1};
     compute::range_t gws = lws;
 
     gws[0] *= utils::div_up(Q, wg_tile_q);
-    gws[1] *= pd()->dst_md()->dims[1];
-    gws[2] *= pd()->dst_md()->dims[0];
+    // // old launch config with destination dictating batch dimension
+    // gws[1] *= pd()->dst_md()->dims[1];
+    // gws[2] *= pd()->dst_md()->dims[0];
+    gws[1] *= pd()->desc()->num_sequences();
+    // gws[2] *= pd()->dst_md()->dims[1];
 
     auto nd_range = compute::nd_range_t(gws, lws);
     return parallel_for(ctx, nd_range, kernel_, arg_list);

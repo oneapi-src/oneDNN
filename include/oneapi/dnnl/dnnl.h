@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1987,6 +1987,33 @@ dnnl_status_t DNNL_API dnnl_softmax_backward_primitive_desc_create(
         const_dnnl_primitive_attr_t attr);
 
 /// @} dnnl_api_softmax
+
+/// @addtogroup dnnl_api_sdpa
+/// @{
+
+/// Creates a primitive descriptor for a scaled dot product attention (SDPA) primitive.
+///
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
+/// @param qry_desc Query tensor memory descriptor.
+/// @param key_desc Key tensor memory descriptor.
+/// @param val_desc Value tensor memory descriptor.
+/// @param dst_desc Destination tensor memory descriptor.
+/// @param msk_desc Optional mask tensor memory descriptor (can be NULL).
+/// @param idx_desc Optional indices tensor memory descriptor for paged attention (can be NULL).
+/// @param page_size Number of tokens per page for paged attention.
+///
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_micro_sdpa_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc, dnnl_engine_t engine,
+        const int context_len, const_dnnl_memory_desc_t qry_desc,
+        const_dnnl_memory_desc_t key_desc, const_dnnl_memory_desc_t val_desc,
+        const_dnnl_memory_desc_t dst_desc, const_dnnl_memory_desc_t msk_desc,
+        const_dnnl_memory_desc_t prompt_lens_desc,
+        const_dnnl_memory_desc_t subsequence_begins_desc,
+        const_dnnl_memory_desc_t block_indices_desc,
+        const_dnnl_memory_desc_t block_indices_begins_desc);
 
 /// @addtogroup dnnl_api_pooling
 /// @{

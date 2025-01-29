@@ -28,6 +28,7 @@
 #define QUANTIZE_COMMON 3
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define DIV_UP(x, y) (((x) + (y)-1) / (y))
 
 #define sg_per_wg (ugemm_kq_sg_per_wg_m * ugemm_kq_sg_per_wg_n)
@@ -210,11 +211,32 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         ,
         const global MSK_DATA_T *msk
 #endif
+#if WITH_PAGED_ATTN
+        ,
+        const global INDEX_DATA_T *prompt_lens,
+        const global INDEX_DATA_T *subsequence_begins,
+        const global INDEX_DATA_T *block_indices,
+        const global INDEX_DATA_T *block_indices_begins, const int context_len
+#endif
 ) {
+
     uint sg_ij = sub_group_broadcast(get_local_id(1), 0);
     uint b0 = get_group_id(1);
     uint b1 = get_group_id(2);
     uint b0_kv = b0 / KV_GROUP_SIZE;
+
+    const global VAL_DATA_T *V_backup = V;
+
+    const uint subsequence_no = b0;
+    const uint start_query_no = subsequence_begins[subsequence_no];
+    const uint stop_query_no = subsequence_begins[subsequence_no + 1];
+    q = prompt_lens[subsequence_no];
+
+    const uint block_start_index = block_indices_begins[subsequence_no];
+    const uint block_stop_index = block_indices_begins[subsequence_no + 1];
+
+    const uint num_blocks = block_stop_index - block_start_index;
+    k = PAGE_SIZE * num_blocks;
 
     uint wg_j0 = get_group_id(0) * ugemm_kq_wg_tile_n;
 
@@ -263,10 +285,10 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     const bool need_sum_barrier = (ugemm_vs_barrier_count == 0);
 
     /* Locate K/Q/V/A matrices within batch */
-    K += KEY_OFF(b1, b0_kv, 0, 0) / KEY_ELEMENTS_PER_BYTE;
-    Q += QRY_OFF(b1, b0, 0, 0);
-    V += VAL_OFF(b1, b0_kv, 0, 0) / VAL_ELEMENTS_PER_BYTE;
-    A += DST_OFF(b1, b0, 0, 0, 0);
+    K += KEY_OFF(0, 0, 0, 0) / KEY_ELEMENTS_PER_BYTE;
+    Q += QRY_OFF(0, 0, start_query_no, 0);
+    V += VAL_OFF(0, 0, 0, 0) / VAL_ELEMENTS_PER_BYTE;
+    A += DST_OFF(0, 0, 0, start_query_no, 0);
 #if WITH_ATTN_MASK
     uint ldmsk = MSK_S2;
     msk += MSK_OFF(b1 % MSK_D0, b0 % MSK_D1, 0, 0);
@@ -394,10 +416,29 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     /* Wait for Q data to reach SLM */
     barrier(CLK_LOCAL_MEM_FENCE);
 
+    const int tiles_per_page = DIV_UP(PAGE_SIZE, ugemm_kq_wg_tile_m);
+    const int num_multiplies = num_blocks * tiles_per_page;
+    const int partial_num_rows
+            = PAGE_SIZE - (PAGE_SIZE / ugemm_kq_wg_tile_m) * ugemm_kq_wg_tile_m;
+    // if (get_global_id(0) == 0 && get_global_id(1) == 0) {
+    //   printf("!! context len %d\n", context_len);
+    // }
+    // if (get_global_id(0) == 0 && get_global_id(1) == 0) {
+    //   printf("!! PAGE_SIZE %d, ugemm_kq_wg_tile_m %d, tiles_per_page %d, num_multiplies %d, partial_num_rows %d\n", PAGE_SIZE, ugemm_kq_wg_tile_m, tiles_per_page, num_multiplies, partial_num_rows);
+    // }
+
     /* Main loop over k blocks */
-    for (int k0 = 0; k0 < k; k0 += ugemm_kq_wg_tile_m) {
-        bool first = (k0 == 0);
-        bool last = (k0 + ugemm_kq_wg_tile_m >= k);
+    int k0 = 0;
+    for (int multiply_no = 0; multiply_no < num_multiplies; multiply_no++) {
+
+        const int block_index_no = multiply_no / tiles_per_page;
+        const int block_no = block_indices[block_index_no];
+
+        const int key_offset = KEY_OFF(block_no, 0, 0, 0);
+        const int value_offset = VAL_OFF(block_no, 0, 0, 0);
+
+        const bool first = (multiply_no == 0);
+        const bool last = (multiply_no == num_multiplies - 1);
 
         uint sg_i0_kq = sg_i_kq * ugemm_kq_sg_tile_m;
         uint sg_j0_kq = sg_j_kq * ugemm_kq_sg_tile_n;
@@ -424,31 +465,32 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         /* Prepare k mask: NaN in bounds, -inf out of bounds */
         kmask_tile_type_float k_mask;
 #pragma unroll
-        for (int ii = 0; ii < ugemm_kq_sg_tile_m / SUBGROUP_SIZE; ii++)
-            k_mask.x[0][ii] = (k0 + sg_i0_kq + ii * SUBGROUP_SIZE
-                                              + get_sub_group_local_id()
-                                      < k)
+        for (int ii = 0; ii < ugemm_kq_sg_tile_m / SUBGROUP_SIZE; ii++) {
+            k_mask.x[0][ii]
+                    = (sg_i0_kq + ii * SUBGROUP_SIZE + get_sub_group_local_id()
+                              < PAGE_SIZE)
                     ? nan(0u)
                     : -INFINITY;
+        }
 #endif
 
         /* Calculate S = (K^T) * Q */
-        s_tile_type S_tile
-                = ugemm_kq(K, ldk, Q_slm, D_MAX, k, ugemm_kq_wg_tile_n, d, k0,
-                        0, 0, sg_i_kq, sg_j_kq, (local char *)ugemm_slm
+        s_tile_type S_tile = ugemm_kq(K + key_offset, ldk, Q_slm, D_MAX,
+                PAGE_SIZE, ugemm_kq_wg_tile_n, d, 0, 0, 0, sg_i_kq, sg_j_kq,
+                (local char *)ugemm_slm
 #if KEY_SCALES == QUANTIZE_2D
-                        ,
-                        K_scales
+                ,
+                K_scales
 #endif
 #if KEY_ZERO_POINTS
-                        ,
-                        K_zp
+                ,
+                K_zp
 #endif
 #if (KEY_SCALES == QUANTIZE_2D) || KEY_ZERO_POINTS
-                        ,
-                        ldkq
+                ,
+                ldkq
 #endif
-                );
+        );
 
 #if KEY_SCALES == QUANTIZE_COMMON
 #define k_scale_op(x) ((x)*k_scale)
@@ -496,7 +538,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 #ifdef PREFETCH_V
         /* Prefetch V tile. */
         cooperative_prefetch_2d_maybe_rem(
-                /* ptr */ V,
+                /* ptr */ V + value_offset,
                 /* r */ d,
                 /* c */ k - k0,
                 /* rmax */ PREFETCH_D_MAX,
@@ -697,9 +739,9 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
             intel_work_group_barrier_arrive(CLK_LOCAL_MEM_FENCE);
 
         /* Accumulate A += V * S */
-        a_tile_type A_tile1 = ugemm_vs(
-                V, ldv, S_slm, ugemm_kq_wg_tile_m, d, ugemm_kq_wg_tile_n,
-                k_chunk, 0, 0, 0, sg_i_vs, sg_j_vs, (local char *)ugemm_slm
+        a_tile_type A_tile1 = ugemm_vs(V + value_offset, ldv, S_slm,
+                ugemm_kq_wg_tile_m, d, ugemm_kq_wg_tile_n, k_chunk, 0, 0, 0,
+                sg_i_vs, sg_j_vs, (local char *)ugemm_slm
 #if VAL_SCALES == QUANTIZE_2D
                 ,
                 V_scales
@@ -714,7 +756,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 #endif
         );
 
-        V += ldv * ugemm_kq_wg_tile_m / VAL_ELEMENTS_PER_BYTE;
+        V = V_backup + value_offset;
 #if VAL_SCALES == QUANTIZE_2D
         V_scales += ldvq * ugemm_kq_wg_tile_m;
 #endif
@@ -722,6 +764,15 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         V_zp += ldvq * ugemm_kq_wg_tile_m / VAL_ZP_ELEMENTS_PER_BYTE;
 #endif
         tile_binary(A_tile, A_tile1, binary_add);
+
+        if ((multiply_no + 1) % tiles_per_page == 0 && partial_num_rows > 0) {
+            k0 += partial_num_rows;
+        } else {
+            k0 += ugemm_kq_wg_tile_m;
+        }
+        // if (get_global_id(0) == 0 && get_global_id(1) == 0) {
+        //     printf("!! k0 is %d\n", k0);
+        // }
     }
 
     /* Wait for column sums to be ready */

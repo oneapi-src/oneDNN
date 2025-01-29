@@ -53,7 +53,9 @@ struct sdpa_pd_t : public primitive_desc_t {
                     DNNL_ARG_ATTR_SCALES | DNNL_ARG_KEYS,
                     DNNL_ARG_ATTR_SCALES | DNNL_ARG_VALUES,
                     DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_KEYS,
-                    DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_VALUES))
+                    DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_VALUES,
+                    DNNL_ARG_PROMPT_LENS, DNNL_ARG_SUBSEQUENCE_BEGINS,
+                    DNNL_ARG_BLOCK_INDICES, DNNL_ARG_BLOCK_INDICES_BEGINS))
             return arg_usage_t::input;
 
         if (arg == DNNL_ARG_DST) return arg_usage_t::output;
@@ -68,6 +70,10 @@ struct sdpa_pd_t : public primitive_desc_t {
             case DNNL_ARG_KEYS: return src_md(1);
             case DNNL_ARG_VALUES: return src_md(2);
             case DNNL_ARG_ATTN_MASK: return src_md(3);
+            case DNNL_ARG_PROMPT_LENS: return src_md(4);
+            case DNNL_ARG_SUBSEQUENCE_BEGINS: return src_md(5);
+            case DNNL_ARG_BLOCK_INDICES: return src_md(6);
+            case DNNL_ARG_BLOCK_INDICES_BEGINS: return src_md(7);
             case DNNL_ARG_DST: return dst_md(0, user_input);
             default: return primitive_desc_t::arg_md(arg);
         }
@@ -80,6 +86,10 @@ struct sdpa_pd_t : public primitive_desc_t {
             case 1: return &desc_.k_desc;
             case 2: return &desc_.v_desc;
             case 3: return &desc_.attn_mask_desc;
+            case 4: return &desc_.prompt_lens_desc;
+            case 5: return &desc_.subsequence_begins_desc;
+            case 6: return &desc_.block_indices_desc;
+            case 7: return &desc_.block_indices_begins_desc;
             default: return &glob_zero_md;
         }
     }
@@ -93,8 +103,21 @@ struct sdpa_pd_t : public primitive_desc_t {
     const memory_desc_t *val_md() const { return &desc_.v_desc; }
     const memory_desc_t *attn_mask_md() const { return &desc_.attn_mask_desc; }
 
+    const memory_desc_t *prompt_lens_md() const {
+        return &desc_.prompt_lens_desc;
+    }
+    const memory_desc_t *subsequence_begins_md() const {
+        return &desc_.subsequence_begins_desc;
+    }
+    const memory_desc_t *block_indices_md() const {
+        return &desc_.block_indices_desc;
+    }
+    const memory_desc_t *block_indices_begins_md() const {
+        return &desc_.block_indices_begins_desc;
+    }
+
     int n_inputs() const override {
-        return 3 + int(with_attn_mask()) + int(with_attn_scale());
+        return 7 + int(with_attn_mask()) + int(with_attn_scale());
     }
     int n_outputs() const override { return 1; }
 
