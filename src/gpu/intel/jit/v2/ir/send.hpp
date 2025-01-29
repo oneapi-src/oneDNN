@@ -522,14 +522,16 @@ struct send_2d_desc_t {
         auto pitch_bytes = P * type.size();
         int base_align = block_2d_base_alignment(hw);
         int x_align = block_2d_x_alignment(type.size());
-        if (!prover.require(width_bytes >= 64)) return false;
-        if (!prover.require(width_bytes <= (1 << 24))) return false;
-        if (!prover.require(width_bytes % std::max(4, type.size()) == 0))
+        if (!prover.require(width_bytes >= block_2d_min_dim())) return false;
+        if (!prover.require(width_bytes <= block_2d_max_dim())) return false;
+        if (!prover.require(
+                    width_bytes % block_2d_w_alignment(type.size()) == 0))
             return false;
-        if (!prover.require(H <= (1 << 24))) return false;
-        if (!prover.require(pitch_bytes >= 64)) return false;
-        if (!prover.require(pitch_bytes <= (1 << 24))) return false;
-        if (!prover.require(pitch_bytes % 8 == 0)) return false;
+        if (!prover.require(H <= block_2d_max_dim())) return false;
+        if (!prover.require(pitch_bytes >= block_2d_min_dim())) return false;
+        if (!prover.require(pitch_bytes <= block_2d_max_dim())) return false;
+        if (!prover.require(pitch_bytes % block_2d_pitch_alignment(hw) == 0))
+            return false;
         if (!prover.require(base % base_align == 0)) return false;
         if (!prover.require(x_base % x_align == 0)) return false;
         return true;
