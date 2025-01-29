@@ -75,7 +75,7 @@ struct bench_input_params_t {
         src_tag = kernel_desc.src_tag;
         wei_tag = kernel_desc.wei_tag;
         dst_tag = kernel_desc.dst_tag;
-        reqs = kernel_desc.auto_reqs();
+        reqs = kernel_desc.reqs();
         is_dw = kernel_desc.is_dw;
         bias_type = kernel_desc.bias_type;
         tile = kernel_desc.iter_tile;

@@ -38,6 +38,58 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
+void specialization_t::specialize(const problem_t &prb) {
+    if (min_dims) {
+        auto t = min_dims_tile(prb);
+        for (auto &d : t) {
+            ir_assert(!spec_tile.has(d) || spec_tile[d] == t[d]);
+            spec_tile[d] = t[d];
+        }
+        min_dims = false;
+    }
+    if (max) {
+        auto t = prb.shape();
+        for (auto &d : t) {
+            ir_assert(!spec_tile.has(d) || spec_tile[d] == t[d]);
+            spec_tile[d] = t[d];
+        }
+        max = false;
+    }
+}
+
+prb_reqs_t specialization_t::reqs() const {
+    ir_assert(!is_dynamic()) << "Must be specialized before this call";
+    prb_reqs_t reqs;
+    reqs.add(spec_tile);
+    return reqs;
+}
+
+std::string specialization_t::str() const {
+    std::vector<std::string> parts;
+    if (!spec_tile.is_empty()) parts.emplace_back(spec_tile.str());
+    if (max) parts.emplace_back("max");
+    if (min_dims) parts.emplace_back("min_dims");
+    return gpu_utils::join(":", parts);
+}
+
+void specialization_t::parse(std::istream &in) {
+    auto s = jit::parse<std::string>(in);
+    auto parts = gpu_utils::split(s, ":");
+    for (auto &p : parts) {
+        if (p == "max") {
+            max = true;
+            continue;
+        }
+        if (p == "min_dims") {
+            min_dims = true;
+            continue;
+        }
+        auto tile = jit::parse<pvar_tile_t>(p);
+        for (auto &d : tile)
+            spec_tile[d] = tile[d];
+    }
+}
+
 std::string align_desc_t::align_t::str() const {
     std::string s = std::to_string(value);
     if (in_bytes) s += "b";
@@ -203,7 +255,7 @@ bool is_grf_usage_ok(const kernel_desc_t &desc) {
     return true;
 }
 
-prb_reqs_t kernel_desc_t::auto_reqs() const {
+prb_reqs_t kernel_desc_t::reqs() const {
     return generate_2d_reqs(*this);
 }
 
@@ -270,14 +322,14 @@ void kernel_desc_t::set_defaults() {
         }
     }
     if (is_dw) {
-        _reqs.set(pvars::ic, 1);
-        _reqs.set(pvars::oc, 1);
+        spec.spec_tile[pvars::ic] = 1;
+        spec.spec_tile[pvars::oc] = 1;
     }
     if (prop == prop_kind::backward_data) {
         // XXX: No stride support in backward by data yet.
-        _reqs.set(pvars::sw, 1);
-        _reqs.set(pvars::sh, 1);
-        _reqs.set(pvars::sd, 1);
+        spec.spec_tile[pvars::sw] = 1;
+        spec.spec_tile[pvars::sh] = 1;
+        spec.spec_tile[pvars::sd] = 1;
     }
 }
 
@@ -324,7 +376,7 @@ bool fit_impl(const kernel_desc_t &desc, const problem_t &prb, bool exact) {
                     << "Bias is not supported";
         }
     }
-    ir_check(desc.auto_reqs().fits(prb.shape()));
+    ir_check(desc.reqs().fits(prb.shape()));
     return true;
 }
 
@@ -360,7 +412,7 @@ bool kernel_desc_t::can_fit(const problem_t &prb) const {
 
 void kernel_desc_t::fit_to(const problem_t &prb) {
     fit_to_impl(*this, prb);
-    specialize(prb);
+    spec.specialize(prb);
 }
 
 status_t kernel_desc_t::set_post_ops(const post_ops_t &attr_post_ops,
@@ -432,7 +484,7 @@ std::string kernel_desc_t::str() const {
         << std::endl;
     oss << "Align:                  " << align.str() << std::endl;
     oss << "Prefetch:               " << prefetch.str() << std::endl;
-    if (_reqs) oss << ir_utils::add_tag("Reqs", _reqs.str()) << std::endl;
+    if (spec) oss << "Specialization:         " << spec.str() << std::endl;
     oss << "Extensions:             " << ext.str() << std::endl;
     oss << "Command:                " << cmd_str();
     return ir_utils::add_tag("Desc", oss.str());
@@ -480,11 +532,10 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             "prefetched. Examples: x3 (distance is 3, both A/B are "
             "prefetched), x2.a (distance is 2, only A is prefetched), x0 (no "
             "prefetch, default).");
-    iface->add<PACK(spec_strategy)>("spec_strategy",
-            "Specialization strategy for problem dimensions (e.g. min_dims to "
-            "eliminate unused spatial dimensions).");
-    iface->add<PACK(_reqs)>("reqs",
-            "Dimension requirements, colon-separated (e.g. kd=1:mb>=16).");
+    iface->add<PACK(spec)>("spec",
+            "Dimension specialization requirements (e.g. kd1kh1). Special "
+            "values max and min_dims can be used for "
+            "problem-specific specialization, e.g. mb1:min_dims.");
     iface->add<PACK(ext)>("ext",
             "Kernel extensions, comma-separated (e.g. "
             "bias,out_b1,out_b2,out_b4).");
@@ -617,6 +668,7 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
     for (auto &t : tensor_config.tensors()) {
         kernel_iface.register_arg(t.name, type_t::byte_ptr());
     }
+    auto _reqs = reqs();
     auto tg_grid = create_thread_group_grid(*this);
     for (int i = 0; i < grid_t::N; i++) {
         auto &dims = tg_grid.dims(i);
@@ -630,7 +682,7 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
     }
     for (auto &d : conv_dims()) {
         dim_t dummy;
-        if (auto_reqs().get_value(d, dummy)) continue;
+        if (_reqs.get_value(d, dummy)) continue;
         auto var = var_t::make(type_t::s32(), d.str());
         kernel_iface.register_arg(var);
         if (d == pvars::sw)
@@ -644,7 +696,7 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
         kernel_iface.register_arg("sk_iters_per_tg_magic", type_t::u64());
         for (auto &e : loop_desc) {
             dim_t dummy;
-            if (auto_reqs().get_value(e.dim, dummy)) continue;
+            if (_reqs.get_value(e.dim, dummy)) continue;
             dim_t iter_size = iter_tile.get(e.dim, 1);
             dim_t tg_size = thread_group_tile.get(e.dim, 1);
             dim_t size = iter_size * tg_size;

@@ -337,7 +337,7 @@ public:
     plan_builder_t() = default;
     plan_builder_t(const kernel_desc_t &desc, const hw_t &hw)
         : desc_(desc), hw_(hw) {
-        reqs_ = desc_.auto_reqs();
+        reqs_ = desc_.reqs();
     }
 
     const prb_reqs_t &reqs() const { return reqs_; }
@@ -855,18 +855,15 @@ private:
 plan_t create_conv_plan_impl(const kernel_desc_t &desc, const hw_t &hw,
         const problem_t *prb = nullptr) {
     if (!desc.is_supported(hw, prb)) return plan_t();
-    ir_assert(!desc.has_spec_strategy())
-            << "Kernel descriptor strategies are required to be specialized "
-               "before plan creation";
     plan_builder_t builder(desc, hw);
     auto plan = builder.build();
     if (plan) {
         auto &plan_reqs = builder.reqs();
-        ir_assert(plan_reqs.str() == desc.auto_reqs().str())
+        ir_assert(plan_reqs.str() == desc.reqs().str())
                 << "Mismatch between plan and descriptor dimension "
                    "requirements:\n== Plan:\n"
                 << plan_reqs.str() << "\n== Descriptor:\n"
-                << desc.auto_reqs().str();
+                << desc.reqs().str();
     }
     return plan;
 }

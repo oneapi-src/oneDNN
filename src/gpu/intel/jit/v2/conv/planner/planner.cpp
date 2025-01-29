@@ -136,7 +136,7 @@ void DNNL_API planner_main(int argc, const char **argv) {
             }
             std::cout << plan.str() << std::endl;
             std::cout << "Reqs:\n";
-            std::cout << params.desc.auto_reqs().str() << std::endl;
+            std::cout << params.desc.reqs().str() << std::endl;
             break;
         }
         case planner_mode_t::bench: {
