@@ -877,7 +877,7 @@ status_t init_tensor_layouts(
         // padding at the end is the easiest way to avoid that, as 1-2 KB of
         // additional VRAM per precalc buffer is virtually free
         // TODO: vectorize send params (in jit:ir:v2 maybe?) and add tmasks!
-        const dim_t max_read_blk_bytes = 512;
+        const dim_t max_read_blk_bytes = 2048;
         wei_md.extra.dst_size += max_read_blk_bytes * 2;
     }
     return status::success;
