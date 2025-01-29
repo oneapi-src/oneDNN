@@ -119,7 +119,7 @@ public:
                 return status::unimplemented;
             }
         }
-        _desc.spec_strategy = spec_strategy_t::min_dims;
+        _desc.spec.mode = specialization_mode_t::min_dims;
         _desc.fit_to(prb);
         CHECK(init_layouts(_desc, pd));
         CHECK(pd->attr_.set_default_formats(out_md(pd)));
