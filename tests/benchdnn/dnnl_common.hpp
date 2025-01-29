@@ -414,10 +414,10 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
     if (res->state == SKIPPED) return OK;
 
     // Check memory requirements if only execution happens.
-    // Note: As a graph may contains moare than one operations with identical
-    // `dir`. Since the mem size check for all the operations are necessary,
-    // the check should not be skipped.
-    SAFE(check_mem_size(pdw, res, dir, /*need_skip=*/!is_graph_ref), WARN);
+    // Note: Graph may contain more than one operation with identical `dir`.
+    //   Since the mem size check for all the operations are necessary,
+    //   the check wouldn't be skipped.
+    SAFE(check_mem_size(pdw, res, dir, /* need_skip = */ !is_graph_ref), WARN);
     if (res->state == SKIPPED) return OK;
 
     TIME_C_PRIM(DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN));
