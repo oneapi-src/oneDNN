@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,9 +27,16 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
+inline int block_2d_min_dim() {
+    return 64;
+}
+
+inline int block_2d_max_dim() {
+    return 1 << 24;
+}
+
 inline int block_2d_base_alignment(const hw_t &hw) {
-    switch (hw.to_ngen()) {
-        case ngen::HW::XeHPC:
+    switch (hw) {
         case ngen::HW::XeHPC: return 64;
         case ngen::HW::Xe2:
         case ngen::HW::Xe3: return 64;
@@ -42,16 +49,20 @@ inline int block_2d_x_alignment(int type_size) {
     return std::max(4, type_size) / type_size;
 }
 
+inline int block_2d_w_alignment(int type_size) {
+    return std::max(4, type_size);
+}
+
 inline bool block_2d_width_ok(dim_t width, int type_size) {
     dim_t width_bytes = width * type_size;
-    if (width_bytes < 64) return false;
-    if (width_bytes > (1 << 24)) return false;
-    if (width_bytes % std::max(4, type_size) != 0) return false;
+    if (width_bytes < block_2d_min_dim()) return false;
+    if (width_bytes > block_2d_max_dim()) return false;
+    if (width_bytes % block_2d_w_alignment(type_size) != 0) return false;
     return true;
 }
 
 inline bool block_2d_height_ok(dim_t height) {
-    if (height > (1 << 24)) return false;
+    if (height > block_2d_max_dim()) return false;
     return true;
 }
 
@@ -68,7 +79,7 @@ inline int block_2d_pitch_alignment(const hw_t &hw) {
 inline bool block_2d_pitch_ok(
         const hw_t &hw, dim_t pitch, int type_size, bool use_xy = true) {
     dim_t pitch_bytes = pitch * type_size;
-    if (pitch_bytes < 64) return false;
+    if (pitch_bytes < block_2d_min_dim()) return false;
     // 2^24 Pitch does not work on Xe2/Xe3
     if (pitch_bytes > ((1 << 24) - 1)) return false;
     if (pitch_bytes % block_2d_pitch_alignment(hw) != 0) return false;
