@@ -100,14 +100,18 @@ struct micro_sdpa_t : public gpu_primitive_t {
                         "kq scales mask(%d) must equal kq zero point(%d) "
                         "mask",
                         kq_scales_mask, kq_zp_mask);
-            VDISPATCH_SDPA(utils::one_of(kq_scales_mask, 0, 1, 3, 11, 15),
-                    "unsupported mask for kq matmul(%d). must be 0, 1, 3, 11, "
-                    "or 15",
-                    kq_scales_mask);
-            VDISPATCH_SDPA(utils::one_of(kq_zp_mask, 0, 1, 3, 11, 15),
-                    "unsupported mask for kq matmul(%d). must be 0, 1, 3, 11, "
-                    "or 15",
-                    kq_zp_mask);
+            if (!desc()->kq_scales.has_default_values())
+                VDISPATCH_SDPA(utils::one_of(kq_scales_mask, 0, 1, 3, 11, 15),
+                        "unsupported mask for kq matmul(%d). must be 0, 1, 3, "
+                        "11, "
+                        "or 15",
+                        kq_scales_mask);
+            if (!desc()->kq_zero_points.has_default_values())
+                VDISPATCH_SDPA(utils::one_of(kq_zp_mask, 0, 1, 3, 11, 15),
+                        "unsupported mask for kq matmul(%d). must be 0, 1, 3, "
+                        "11, "
+                        "or 15",
+                        kq_zp_mask);
 
             /// NOTE: Limitation of microkernels
             if (utils::one_of(
@@ -127,14 +131,18 @@ struct micro_sdpa_t : public gpu_primitive_t {
                         "vs scales mask(%d) must equal vs zero point(%d) "
                         "mask",
                         vs_scales_mask, vs_zp_mask);
-            VDISPATCH_SDPA(utils::one_of(vs_scales_mask, 0, 1, 3, 7, 15),
-                    "unsupported mask for vs matmul(%d). must be 0, 1, 3, 7, "
-                    "or 15",
-                    vs_scales_mask);
-            VDISPATCH_SDPA(utils::one_of(vs_zp_mask, 0, 1, 3, 7, 15),
-                    "unsupported mask for vs matmul(%d). must be 0, 1, 3, 7, "
-                    "or 15",
-                    vs_zp_mask);
+            if (!desc()->vs_scales.has_default_values())
+                VDISPATCH_SDPA(utils::one_of(vs_scales_mask, 0, 1, 3, 7, 15),
+                        "unsupported mask for vs matmul(%d). must be 0, 1, 3, "
+                        "7, "
+                        "or 15",
+                        vs_scales_mask);
+            if (!desc()->vs_zero_points.has_default_values())
+                VDISPATCH_SDPA(utils::one_of(vs_zp_mask, 0, 1, 3, 7, 15),
+                        "unsupported mask for vs matmul(%d). must be 0, 1, 3, "
+                        "7, "
+                        "or 15",
+                        vs_zp_mask);
 
             /// NOTE: Limitation of microkernels
             if (utils::one_of(

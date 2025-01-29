@@ -2568,6 +2568,16 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// A special mnemonic for shift argument of normalization primitives.
 #define DNNL_ARG_SHIFT 52
 
+/// Mnemonics defining SDPA parameters
+#define DNNL_ARG_QUERIES DNNL_ARG_SRC_0
+#define DNNL_ARG_KEYS DNNL_ARG_SRC_1
+#define DNNL_ARG_VALUES DNNL_ARG_SRC_2
+#define DNNL_ARG_ATTN_MASK DNNL_ARG_SRC_3
+#define DNNL_ARG_PROMPT_LENS 100
+#define DNNL_ARG_SUBSEQUENCE_BEGINS 101
+#define DNNL_ARG_BLOCK_INDICES 102
+#define DNNL_ARG_BLOCK_INDICES_BEGINS 103
+
 /// Workspace tensor argument. Workspace is used to pass information
 /// from forward propagation to backward propagation computations.
 #define DNNL_ARG_WORKSPACE 64
