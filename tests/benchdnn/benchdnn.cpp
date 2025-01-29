@@ -58,6 +58,7 @@ bool canonical {false};
 bool mem_check {true};
 std::string skip_impl;
 stat_t benchdnn_stat {0};
+summary_t summary {};
 std::string driver_name;
 
 double max_ms_per_prb {default_max_ms_per_prb};
@@ -157,6 +158,25 @@ int main(int argc, char **argv) {
     }
 
     total_time.stamp();
+
+    if (has_bench_mode_bit(mode_bit_t::corr) && summary.failed_cases
+            && !benchdnn_stat.failed_cases.empty()) {
+        printf("===========================================================\n");
+        printf("= Failed cases summary (--summary=no-failures to disable) =\n");
+        printf("===========================================================\n");
+        const size_t n_cases = benchdnn_stat.failed_cases.size();
+        size_t n_printed = 0;
+        for (const auto &e : benchdnn_stat.failed_cases) {
+            printf("%s\n", e.second.c_str());
+            n_printed++;
+            if (n_printed < 10) continue;
+            if (n_cases > n_printed) {
+                printf("(... %zu more cases ...)\n", n_cases - n_printed);
+            }
+            break;
+        }
+        printf("============================\n");
+    }
 
     printf("tests:%d passed:%d skipped:%d mistrusted:%d unimplemented:%d "
            "invalid_arguments:%d failed:%d listed:%d\n",

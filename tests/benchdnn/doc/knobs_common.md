@@ -140,6 +140,10 @@ Refer to [implementation filtering](knob_impl_filter.md) for details.
 `--start=N` specifies the test index `N` to start testing from. All tests
 before the index `N` will be skipped.
 
+### --summary
+`--summary=VALUE` provides additional specific statistics output. Refer to
+[summary documentation](knob_summary.md) for details.
+
 ### --verbose
 `--verbose=N`, or a short form `-vN`, specifies the driver verbosity level.
 Additional information is printed to the stdout depending on a level `N`. `N` is

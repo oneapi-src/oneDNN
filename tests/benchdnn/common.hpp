@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 
 #include <cinttypes>
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -136,6 +137,8 @@ struct stat_t {
     int invalid_arguments;
     int listed;
     std::unordered_map<std::string, double[timer::timer_t::mode_t::n_modes]> ms;
+    // Key is the number of the test, value is the repro string.
+    std::map<int, std::string> failed_cases;
 };
 extern stat_t benchdnn_stat;
 
@@ -202,5 +205,13 @@ void print_dhw(bool &print_d, bool &print_h, bool &print_w, int ndims,
 
 int benchdnn_getenv_int(const char *name, int default_value);
 std::string benchdnn_getenv_string(const char *name);
+
+// Responsible for printing service information.
+struct summary_t {
+    // Prints up to 10 failed cases reproducers at the end of the run.
+    bool failed_cases = true;
+};
+
+extern summary_t summary;
 
 #endif
