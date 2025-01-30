@@ -1257,36 +1257,32 @@ void add_md_size(const_dnnl_memory_desc_t md,
     // Mapped memory for GPU backend on CPU.
     check_mem_size_args.total_size_cpu += mapped_mem_factor * mem_size;
 
-    if (check_mem_size_args.is_scratchpad) {
-        check_mem_size_args.scratchpad_size += mem_size;
-    } else {
-        const bool is_corr = has_bench_mode_bit(mode_bit_t::corr);
-        const bool is_bitwise = has_bench_mode_bit(mode_bit_t::bitwise);
-        // Reference memories are always tag::abx fp32, hence need re-creating
-        // memory descriptor and take its size.
-        auto ref_md = dnn_mem_t::init_md(
-                query_md_ndims(md), query_md_dims(md), dnnl_f32, tag::abx);
-        const auto ref_md_size = dnnl_memory_desc_get_size(ref_md);
+    const bool is_corr = has_bench_mode_bit(mode_bit_t::corr);
+    const bool is_bitwise = has_bench_mode_bit(mode_bit_t::bitwise);
+    // Reference memories are always tag::abx fp32, hence need re-creating
+    // memory descriptor and take its size.
+    auto ref_md = dnn_mem_t::init_md(
+            query_md_ndims(md), query_md_dims(md), dnnl_f32, tag::abx);
+    const auto ref_md_size = dnnl_memory_desc_get_size(ref_md);
 
-        const size_t ref_mem_idx = check_mem_size_args.want_input ? 0 : 1;
-        check_mem_size_args.total_ref_md_size[ref_mem_idx] = ref_md_size;
+    const size_t ref_mem_idx = check_mem_size_args.want_input ? 0 : 1;
+    check_mem_size_args.total_ref_md_size[ref_mem_idx] = ref_md_size;
 
-        // A memory copy for ref_compute, happens only in correctness.
-        check_mem_size_args.total_size_cpu += is_corr * ref_md_size;
+    // A memory copy for ref_compute, happens only in correctness.
+    check_mem_size_args.total_size_cpu += is_corr * ref_md_size;
 
-        // Comparison function allocates an additional tag::abx f32 memory.
-        // This allocation holds for correctness and bitwise modes.
-        const bool compare_mem_factor
-                = !check_mem_size_args.want_input && (is_corr || is_bitwise);
-        check_mem_size_args.total_size_cpu += compare_mem_factor * ref_md_size;
+    // Comparison function allocates an additional tag::abx f32 memory.
+    // This allocation holds for correctness and bitwise modes.
+    const bool compare_mem_factor
+            = !check_mem_size_args.want_input && (is_corr || is_bitwise);
+    check_mem_size_args.total_size_cpu += compare_mem_factor * ref_md_size;
 
-        // Bitwise comparison allocates an additional tag::abx f32 memory from
-        // the first run to compare results against it.
-        const bool bitwise_compare_mem_factor
-                = !check_mem_size_args.want_input && is_bitwise;
-        check_mem_size_args.total_size_cpu
-                += bitwise_compare_mem_factor * ref_md_size;
-    }
+    // Bitwise comparison allocates an additional tag::abx f32 memory from
+    // the first run to compare results against it.
+    const bool bitwise_compare_mem_factor
+            = !check_mem_size_args.want_input && is_bitwise;
+    check_mem_size_args.total_size_cpu
+            += bitwise_compare_mem_factor * ref_md_size;
 }
 
 bool is_fwd_training(dnnl_prop_kind_t prop_kind) {
@@ -1375,20 +1371,20 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir,
     get_memory_bytes(check_mem_size_args);
 
     // Get scratchpad size.
-    // Since scratchpad modes are mutually excluded, it takes sizes of both
-    // modes as either of them will report 0 size depending on the mode.
-    const auto library_scratchpad_size = query_mem_consumption(const_pd);
-    if (library_scratchpad_size > 0) {
-        // Update same fields as `add_md_size` would. See details there.
-        check_mem_size_args.sizes.push_back(library_scratchpad_size);
-        check_mem_size_args.total_size_device += library_scratchpad_size;
-        check_mem_size_args.scratchpad_size += library_scratchpad_size;
-    } else {
-        check_mem_size_args.is_scratchpad = true;
-        const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
-        add_md_size(scratchpad_md, check_mem_size_args);
-        check_mem_size_args.is_scratchpad = false;
-    }
+    // Since scratchpad modes are mutually excluded, get sizes of both modes as
+    // either of them will report 0 size depending on the mode, and take the
+    // biggest from them.
+    const size_t library_scratchpad_size
+            = static_cast<size_t>(query_mem_consumption(const_pd));
+    const auto &scratchpad_md = query_md(const_pd, DNNL_ARG_SCRATCHPAD);
+    const size_t user_scratchpad_size
+            = dnnl_memory_desc_get_size(scratchpad_md);
+    const size_t scratchpad_size
+            = MAX2(library_scratchpad_size, user_scratchpad_size);
+    // Update same fields as `add_md_size` would. See details there.
+    check_mem_size_args.sizes.push_back(scratchpad_size);
+    check_mem_size_args.total_size_device += scratchpad_size;
+    check_mem_size_args.scratchpad_size = scratchpad_size;
 
     // Get output sizes.
     check_mem_size_args.want_input = false;
