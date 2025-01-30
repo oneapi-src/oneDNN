@@ -24,37 +24,6 @@
 #include <string>
 #include <vector>
 
-struct check_mem_size_args_t {
-
-    check_mem_size_args_t() = default;
-    check_mem_size_args_t(const_dnnl_primitive_desc_t pd, bool want_input)
-        : pd(pd), want_input(want_input) {}
-
-    // Input args.
-    const_dnnl_primitive_desc_t pd = nullptr;
-    bool want_input = false;
-
-    // Output args:
-    // `sizes` used to validate OpenCL memory requirements.
-    std::vector<size_t> sizes;
-    // `total_size_device` specifies memory allocated on device for a test obj.
-    size_t total_size_device = 0;
-    // `total_size_cpu` specifies:
-    // * Memory allocated for reference ocmputations (`C` mode only).
-    // * Memory allocated for comparison results (`C` mode only).
-    // * Memory allocated for mapping device memory (GPU backend only).
-    // * Memory allocated on CPU for a test obj (CPU backend only).
-    size_t total_size_cpu = 0;
-    // `total_ref_md_size` specifies the additional tag::abx f32 memory
-    // required for correctness check.
-    // * The first element refers to the total memory for input reference
-    // * The second element refers to the total memory for output reference
-    // The args are used in memory estimation for graph driver only.
-    size_t total_ref_md_size[2] = {0, 0};
-    // `scratchpad_size` specifies a scratchpad size for specific checks.
-    size_t scratchpad_size = 0;
-};
-
 /* result structure */
 enum res_state_t {
     UNTESTED = 0,
@@ -86,6 +55,38 @@ enum dir_t {
     BWD_WB = FLAG_BWD + FLAG_WEI + FLAG_BIA,
 };
 
+struct check_mem_size_args_t {
+    check_mem_size_args_t() = default;
+    check_mem_size_args_t(
+            const_dnnl_primitive_desc_t pd, bool want_input, dir_t dir)
+        : pd(pd), want_input(want_input), dir(dir) {}
+
+    // Input args.
+    const_dnnl_primitive_desc_t pd = nullptr;
+    bool want_input = false;
+    dir_t dir = DIR_UNDEF; // See ANCHOR: MEM_CHECK_ARGS_DIR;
+
+    // Output args:
+    // `sizes` used to validate OpenCL memory requirements.
+    std::vector<size_t> sizes;
+    // `total_size_device` specifies memory allocated on device for a test obj.
+    size_t total_size_device = 0;
+    // `total_size_cpu` specifies:
+    // * Memory allocated for reference ocmputations (`C` mode only).
+    // * Memory allocated for comparison results (`C` mode only).
+    // * Memory allocated for mapping device memory (GPU backend only).
+    // * Memory allocated on CPU for a test obj (CPU backend only).
+    size_t total_size_cpu = 0;
+    // `total_ref_md_size` specifies the additional tag::abx f32 memory
+    // required for correctness check.
+    // * The first element refers to the total memory for input reference
+    // * The second element refers to the total memory for output reference
+    // The args are used in memory estimation for graph driver only.
+    size_t total_ref_md_size[2] = {0, 0};
+    // `scratchpad_size` specifies a scratchpad size for specific checks.
+    size_t scratchpad_size = 0;
+};
+
 struct res_t {
     res_state_t state;
     size_t errors, total;
@@ -93,10 +94,8 @@ struct res_t {
     std::string impl_name;
     std::string prim_ref_repro;
     std::string reason;
+    // TODO: fuse `ibytes` and `obytes` into `mem_size_args`.
     size_t ibytes, obytes;
-
-    // TODO: merge mem_check_dir into check_mem_size_args_t
-    dir_t mem_check_dir = DIR_UNDEF;
     check_mem_size_args_t mem_size_args;
 };
 
