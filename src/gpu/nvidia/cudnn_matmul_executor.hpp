@@ -245,18 +245,11 @@ protected:
             xpu::sycl::interop_memory_arg_t<scratch_m> arg_block_a_scratch,
             xpu::sycl::interop_memory_arg_t<scratch_m> arg_block_b_scratch,
             xpu::sycl::interop_memory_arg_t<scratch_m> arg_block_c_scratch,
-            xpu::sycl::interop_memory_arg_t<scratch_m> scaled_arg_src,
-            xpu::sycl::interop_memory_arg_t<scratch_m> scaled_arg_wt,
-            xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read>
-                    arg_src_scale,
-            xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read>
-                    arg_wei_scale,
             xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read>
                     arg_dst_scale,
             uint8_t *algo_scratch_ptr, uint8_t *bias_scratch_ptr,
             uint8_t *block_a_scratch_ptr, uint8_t *block_b_scratch_ptr,
-            uint8_t *block_c_scratch_ptr, uint8_t *src_scale_scratch_ptr,
-            uint8_t *wei_scale_scratch_ptr) {
+            uint8_t *block_c_scratch_ptr) {
 
         compat::host_task(cgh,
                 [= WA_THIS_COPY_CAPTURE](const compat::interop_handle &ih) {
@@ -282,29 +275,22 @@ protected:
                     void *block_c_scratch
                             = arg_block_c_scratch.get_native_pointer(ih);
 
-                    void *scaled_src = scaled_arg_src.get_native_pointer(ih);
-                    void *scaled_wt = scaled_arg_wt.get_native_pointer(ih);
-
                     void *bias = arg_bias.get_native_pointer(ih);
                     void *weights = arg_weights.get_native_pointer(ih);
                     void *src = arg_src.get_native_pointer(ih);
                     void *dst = arg_dst.get_native_pointer(ih);
 
-                    void *src_scale = arg_src_scale.get_native_pointer(ih);
-                    void *wei_scale = arg_wei_scale.get_native_pointer(ih);
                     void *dst_scale = arg_dst_scale.get_native_pointer(ih);
 
                     matmul_impl_->execute(cublas_handle, params, weights, src,
                             dst, bias, algo_scratch, reorder_scratch,
                             block_a_scratch, block_b_scratch, block_c_scratch,
-                            scaled_src, scaled_wt, src_scale, wei_scale,
-                            dst_scale);
+                            nullptr, nullptr, dst_scale);
 
                     free_runtime_scratch(params->has_runtime_params_,
                             cublas_handle, cuda_stream, algo_scratch_ptr,
                             bias_scratch_ptr, block_a_scratch_ptr,
-                            block_b_scratch_ptr, block_c_scratch_ptr,
-                            src_scale_scratch_ptr, wei_scale_scratch_ptr);
+                            block_b_scratch_ptr, block_c_scratch_ptr);
                     if (params->has_runtime_params_) { params->rt_cleanup(); }
                 });
     }
@@ -314,8 +300,7 @@ protected:
             cublasHandle_t cublas_handle, nvidia::stream_t *cuda_stream,
             uint8_t *algo_scratch_ptr, uint8_t *bias_scratch_ptr,
             uint8_t *block_a_scratch_ptr, uint8_t *block_b_scratch_ptr,
-            uint8_t *block_c_scratch_ptr, uint8_t *src_scale_scratch_ptr,
-            uint8_t *wei_scale_scratch_ptr) {
+            uint8_t *block_c_scratch_ptr) {
         if (has_runtime_params || bias_scratch_ptr) {
             cudaStream_t streamId;
             cublasGetStream(cublas_handle, &streamId);
@@ -334,12 +319,6 @@ protected:
             }
             if (block_c_scratch_ptr) {
                 ::sycl::free(block_c_scratch_ptr, cuda_stream->queue());
-            }
-            if (src_scale_scratch_ptr) {
-                ::sycl::free(src_scale_scratch_ptr, cuda_stream->queue());
-            }
-            if (wei_scale_scratch_ptr) {
-                ::sycl::free(wei_scale_scratch_ptr, cuda_stream->queue());
             }
         }
     }
@@ -375,11 +354,6 @@ struct cudnn_matmul_lt_exec_t final : public cudnn_matmul_lt_base_exec_t {
             auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
-            auto arg_src_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-
-            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
             auto arg_dst_scale
                     = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
             auto arg_algo_scratch = params->algo_scratch_size_ != 0
@@ -407,23 +381,12 @@ struct cudnn_matmul_lt_exec_t final : public cudnn_matmul_lt_base_exec_t {
                             memory_tracking::names::key_matmul_lt_block_c)
                     : xpu::sycl::interop_memory_arg_t<
                             ::sycl::access::mode::read_write>();
-            auto scaled_arg_src = params->src_scale_size_ != 0
-                    ? CTX_SCRATCH_SYCL_MEMORY(
-                            memory_tracking::names::key_matmul_lt_src_scale)
-                    : xpu::sycl::interop_memory_arg_t<
-                            ::sycl::access::mode::read_write>();
-            auto scaled_arg_wt = params->wei_scale_size_ != 0
-                    ? CTX_SCRATCH_SYCL_MEMORY(
-                            memory_tracking::names::key_matmul_lt_wei_scale)
-                    : xpu::sycl::interop_memory_arg_t<
-                            ::sycl::access::mode::read_write>();
 
             interop_task(matmul_impl_, params, engine, cgh, cuda_stream, arg_wt,
                     arg_src, arg_dst, arg_bias, arg_algo_scratch,
                     arg_bias_scratch, arg_block_a_scratch, arg_block_b_scratch,
-                    arg_block_c_scratch, scaled_arg_src, scaled_arg_wt,
-                    arg_src_scale, arg_wei_scale, arg_dst_scale, nullptr,
-                    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+                    arg_block_c_scratch, arg_dst_scale, nullptr, nullptr,
+                    nullptr, nullptr, nullptr);
         });
     }
 
@@ -465,12 +428,6 @@ struct cudnn_matmul_lt_runtime_args_exec_t final
         uint8_t *block_c_scratch_ptr
                 = alloc_ptr(matmul_params->dest_size_, cuda_stream->queue());
 
-        uint8_t *src_scale_scratch_ptr = alloc_ptr(
-                matmul_params->src_scale_size_, cuda_stream->queue());
-
-        uint8_t *wei_scale_scratch_ptr = alloc_ptr(
-                matmul_params->wei_scale_size_, cuda_stream->queue());
-
         return cuda_stream->interop_task([= WA_THIS_COPY_CAPTURE](
                                                  ::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
@@ -488,26 +445,16 @@ struct cudnn_matmul_lt_runtime_args_exec_t final
                     matmul_params->weight_size_, block_b_scratch_ptr);
             auto arg_block_c_scratch = init_scratch_from_ptr(
                     matmul_params->dest_size_, block_c_scratch_ptr);
-            auto scaled_arg_src = init_scratch_from_ptr(
-                    matmul_params->src_scale_size_, src_scale_scratch_ptr);
-            auto scaled_arg_wt = init_scratch_from_ptr(
-                    matmul_params->wei_scale_size_, wei_scale_scratch_ptr);
 
-            auto arg_src_scale
-                    = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC);
-            auto arg_wei_scale = CTX_IN_SYCL_MEMORY(
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS);
             auto arg_dst_scale
                     = CTX_IN_SYCL_MEMORY(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST);
 
             interop_task(matmul_impl_, matmul_params, engine, cgh, cuda_stream,
                     arg_wt, arg_src, arg_dst, arg_bias, arg_algo_scratch,
                     arg_bias_scratch, arg_block_a_scratch, arg_block_b_scratch,
-                    arg_block_c_scratch, scaled_arg_src, scaled_arg_wt,
-                    arg_src_scale, arg_wei_scale, arg_dst_scale,
-                    algo_scratch_ptr, bias_scratch_ptr, block_a_scratch_ptr,
-                    block_b_scratch_ptr, block_c_scratch_ptr,
-                    src_scale_scratch_ptr, wei_scale_scratch_ptr);
+                    arg_block_c_scratch, arg_dst_scale, algo_scratch_ptr,
+                    bias_scratch_ptr, block_a_scratch_ptr, block_b_scratch_ptr,
+                    block_c_scratch_ptr);
         });
     }
 

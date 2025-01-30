@@ -55,19 +55,7 @@ struct cublas_lt_params : cublas_base_params {
                 || dst_d.has_runtime_dims_or_strides()
                 || weights_d.has_runtime_dims_or_strides();
 
-        if (attr->scales_.has_default_values(DNNL_ARG_SRC)) {
-            if (attr->scales_.get_mask(DNNL_ARG_SRC) > 0) {
-                multi_src_scale_ = true;
-            }
-        }
-
-        if (attr->scales_.has_default_values(DNNL_ARG_WEIGHTS)) {
-            if (attr->scales_.get_mask(DNNL_ARG_WEIGHTS) > 0) {
-                multi_wei_scale_ = true;
-            }
-        }
-
-        with_dst_scale_ = !attr->scales_.has_default_values(DNNL_ARG_DST);
+        with_dst_scale_ = !attr->scales_.get(DNNL_ARG_DST).has_default_values();
         if (with_dst_scale_) {
             if (attr->scales_.get_mask(DNNL_ARG_DST) > 0) {
                 multi_dst_scale_ = true;
@@ -187,8 +175,6 @@ struct cublas_lt_params : cublas_base_params {
         dst_type_ = other->dst_type_;
         isbatched_ = other->isbatched_;
         has_runtime_params_ = other->has_runtime_params_;
-        multi_src_scale_ = other->multi_src_scale_;
-        multi_wei_scale_ = other->multi_wei_scale_;
         with_dst_scale_ = other->with_dst_scale_;
         multi_dst_scale_ = other->multi_dst_scale_;
         with_bias_ = other->with_bias_;
@@ -415,13 +401,6 @@ struct cublas_lt_params : cublas_base_params {
         const auto dst_nelems = dst_d.nelems(true);
         reorder_scratch_size_ = dst_nelems * sizeof(float);
 
-        if (multi_src_scale_ || acc_type_ == CUDA_R_32I) {
-            src_scale_size_ = src_d.size();
-        }
-        if (multi_wei_scale_ || acc_type_ == CUDA_R_32I) {
-            wei_scale_size_ = weights_d.size();
-        }
-
         return status_t::dnnl_success;
     }
 
@@ -445,14 +424,6 @@ struct cublas_lt_params : cublas_base_params {
         if (dest_size_ > 0) {
             scratchpad.book(memory_tracking::names::key_matmul_lt_block_c,
                     dest_size_, 1, 256);
-        }
-        if (src_scale_size_ > 0) {
-            scratchpad.book(memory_tracking::names::key_matmul_lt_src_scale,
-                    src_scale_size_, 1, 256);
-        }
-        if (wei_scale_size_ > 0) {
-            scratchpad.book(memory_tracking::names::key_matmul_lt_wei_scale,
-                    wei_scale_size_, 1, 256);
         }
     }
 
@@ -628,12 +599,7 @@ struct cublas_lt_params : cublas_base_params {
     cublasLtMatrixLayout_t blocked_b_layout_;
     cublasLtMatrixLayout_t blocked_c_layout_;
 
-    bool multi_src_scale_ = false;
-    bool multi_wei_scale_ = false;
     bool multi_dst_scale_ = false;
-
-    size_t src_scale_size_ = 0;
-    size_t wei_scale_size_ = 0;
 
     bool with_bias_ = false;
     bool with_bias_epilogue_ = false;
@@ -682,8 +648,8 @@ struct cudnn_matmul_lt_impl_t {
             const std::shared_ptr<cublas_lt_params> matmul_params, void *a,
             void *b, void *c, void *bias, void *algo_scratch,
             void *reorder_scratch, void *block_a_scratch, void *block_b_scratch,
-            void *block_c_scratch, void *scaled_src, void *scaled_wt,
-            void *src_scale, void *wei_scale, void *dst_scale) {
+            void *block_c_scratch, void * /* src_scale */,
+            void * /* wei_scale */, void *dst_scale) {
 
         // use cached params unless using runtime dimensions
         std::shared_ptr<cublas_lt_params> params
@@ -691,14 +657,6 @@ struct cudnn_matmul_lt_impl_t {
                                                      : matmul_params_;
 
         auto acc_type = params->acc_type_;
-        auto multi_wei_scale = params->multi_wei_scale_;
-        // read from binary output instead of input if multi scale or s32 scaling
-        if ((src_scale && acc_type == CUDA_R_32I) || multi_wei_scale) {
-            b = scaled_src;
-        }
-        if ((wei_scale && acc_type == CUDA_R_32I) || multi_wei_scale) {
-            a = scaled_wt;
-        }
 
         cudaStream_t streamId;
         auto lt_handle = (cublasLtHandle_t)(cublas_handle);
@@ -748,18 +706,6 @@ struct cudnn_matmul_lt_impl_t {
 
         float scale = 1.0f;
         float host_dst_scale = 1.0f;
-        if (src_scale && !params->multi_src_scale_ && acc_type != CUDA_R_32I) {
-            float host_src_scale = 1.0f;
-            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_src_scale,
-                    (CUdeviceptr)src_scale, sizeof(float));
-            scale *= host_src_scale;
-        }
-        if (wei_scale && !params->multi_wei_scale_ && acc_type != CUDA_R_32I) {
-            float host_wei_scale = 1.0f;
-            CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_wei_scale,
-                    (CUdeviceptr)wei_scale, sizeof(float));
-            scale *= host_wei_scale;
-        }
         if (dst_scale && !params->multi_dst_scale_ && acc_type != CUDA_R_32I) {
             CUDA_EXECUTE_FUNC(cuMemcpy, (CUdeviceptr)&host_dst_scale,
                     (CUdeviceptr)dst_scale, sizeof(float));
