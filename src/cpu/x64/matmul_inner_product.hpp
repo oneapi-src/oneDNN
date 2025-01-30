@@ -132,6 +132,13 @@ struct matmul_inner_product_bwd_data_t : public primitive_t {
             const auto diff_dst_dt = invariant_dst_md()->data_type;
             const auto wei_dt = invariant_wei_md()->data_type;
 
+            const bool is_f32
+                    = utils::everyone_is(f32, diff_src_dt, wei_dt, diff_dst_dt);
+
+            VDISPATCH_INNER_PRODUCT(mayiuse(avx2), VERBOSE_UNSUPPORTED_ISA);
+            VDISPATCH_INNER_PRODUCT(IMPLICATION(!is_f32, mayiuse(avx512_core)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+
             VDISPATCH_INNER_PRODUCT(get_prop_kind() == prop_kind::backward_data,
                     VERBOSE_BAD_PROPKIND);
             VDISPATCH_INNER_PRODUCT_SC(set_formats(), VERBOSE_UNSUPPORTED_TAG);
@@ -198,6 +205,13 @@ struct matmul_inner_product_bwd_weights_t : public primitive_t {
             const auto src_dt = invariant_src_md()->data_type;
             const auto diff_wei_dt = invariant_wei_md()->data_type;
             const auto diff_dst_dt = invariant_dst_md()->data_type;
+
+            const bool is_f32
+                    = utils::everyone_is(f32, src_dt, diff_wei_dt, diff_dst_dt);
+
+            VDISPATCH_INNER_PRODUCT(mayiuse(avx2), VERBOSE_UNSUPPORTED_ISA);
+            VDISPATCH_INNER_PRODUCT(IMPLICATION(!is_f32, mayiuse(avx512_core)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
 
             VDISPATCH_INNER_PRODUCT(
                     get_prop_kind() == prop_kind::backward_weights,
