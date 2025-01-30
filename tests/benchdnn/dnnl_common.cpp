@@ -1082,8 +1082,7 @@ int get_gpu_cache_size(size_t &cache_size) {
     return OK;
 }
 
-static int check_total_size(
-        const check_mem_size_args_t &check_mem_size_args, res_t *res) {
+static int check_total_size(res_t *res) {
     static size_t cpu_device_capacity = get_cpu_ram_size();
     static size_t gpu_device_capacity = 0;
     static size_t gpu_max_alloc_capacity = 0;
@@ -1103,6 +1102,8 @@ static int check_total_size(
     auto dir_c_str = [&res]() {
         return (res->mem_check_dir & FLAG_FWD) ? "FWD" : "BWD";
     };
+
+    const check_mem_size_args_t &check_mem_size_args = res->mem_size_args;
 
     if (is_gpu()) {
         const bool fits_device_ram = check_mem_size_args.total_size_device
@@ -1300,12 +1301,10 @@ void get_memory_bytes(check_mem_size_args_t &check_mem_size_args) {
 int check_mem_size(const_dnnl_memory_desc_t md, res_t *res) {
     if (!mem_check) return OK;
 
-    check_mem_size_args_t check_mem_size_args(nullptr, false);
     const auto md_size = dnnl_memory_desc_get_size(md);
-    check_mem_size_args.total_size_device = md_size;
-    check_mem_size_args.sizes.push_back(md_size);
-
-    return check_total_size(check_mem_size_args, res);
+    res->mem_size_args.total_size_device = md_size;
+    res->mem_size_args.sizes.push_back(md_size);
+    return check_total_size(res);
 }
 
 int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir,
@@ -1348,10 +1347,11 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir,
     check_mem_size_args.want_input = false;
     get_memory_bytes(check_mem_size_args);
 
-    // Save the mem size args for graph driver check.
+    // Copy memory stats. It's required to accumulate them before performing
+    // the check.
     res->mem_size_args = check_mem_size_args;
 
-    return check_total_size(check_mem_size_args, res);
+    return check_total_size(res);
 }
 
 int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
