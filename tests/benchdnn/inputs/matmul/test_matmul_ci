@@ -1,3 +1,7 @@
+# Initial Coverage Test
+--reset
+--batch=harness_matmul_generated_ci
+
 # Plain cases
 --reset
 --dt=f64,f32,bf16,f16,f8_e5m2,f8_e4m3,f8_e5m2:f8_e4m3:f32,u8:s8:s8,s8:s8:f32,s8:s8:f16,s8:u8:f16
