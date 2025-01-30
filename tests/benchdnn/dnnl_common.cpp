@@ -1082,6 +1082,29 @@ int get_gpu_cache_size(size_t &cache_size) {
     return OK;
 }
 
+std::string smart_bytes(double bytes) {
+    std::string s;
+    static constexpr int oneK = 1024;
+
+    if (bytes < oneK) {
+        s = std::to_string(static_cast<size_t>(bytes)) + " B";
+        return s;
+    }
+    auto KB = bytes / oneK;
+    if (KB < oneK) {
+        s = std::to_string(KB) + " KB";
+        return s;
+    }
+    auto MB = KB / oneK;
+    if (MB < oneK) {
+        s = std::to_string(MB) + " MB";
+        return s;
+    }
+    auto GB = MB / oneK;
+    s = std::to_string(GB) + " GB";
+    return s;
+}
+
 static int check_total_size(res_t *res) {
     static size_t cpu_device_capacity = get_cpu_ram_size();
     static size_t gpu_device_capacity = 0;
@@ -1098,7 +1121,6 @@ static int check_total_size(res_t *res) {
     const double benchdnn_cpu_limit = capacity_factor * cpu_max_capacity;
     assert(benchdnn_device_limit > 0 && benchdnn_cpu_limit > 0);
 
-    auto GB = [](double bytes) { return bytes / powf(2, 30); };
     auto dir_c_str = [&res]() {
         return (res->mem_check_dir & FLAG_FWD) ? "FWD" : "BWD";
     };
@@ -1122,9 +1144,10 @@ static int check_total_size(res_t *res) {
                     const bool fit = s < gpu_max_alloc_capacity;
                     if (!fit) {
                         BENCHDNN_PRINT(2,
-                                "[CHECK_MEM][%s]: Allocation of size %g GB "
-                                "doesn't fit allocation limit of %g GB.\n",
-                                dir_c_str(), GB(s), GB(gpu_max_alloc_capacity));
+                                "[CHECK_MEM][%s]: Allocation of size %s "
+                                "doesn't fit allocation limit of %s.\n",
+                                dir_c_str(), smart_bytes(s).c_str(),
+                                smart_bytes(gpu_max_alloc_capacity).c_str());
                     }
                     return fit;
                 });
@@ -1134,11 +1157,13 @@ static int check_total_size(res_t *res) {
         }
 
         BENCHDNN_PRINT((!fits_device_ram ? 2 : 6),
-                "[CHECK_MEM][%s]: Requested: %g GB; benchdnn_device_limit: %g "
-                "GB; device_RAM_capacity: %g GB; gpu_max_alloc: %g GB;\n",
-                dir_c_str(), GB(check_mem_size_args.total_size_device),
-                GB(benchdnn_device_limit), GB(gpu_device_capacity),
-                GB(gpu_max_alloc_capacity));
+                "[CHECK_MEM][%s]: Requested: %s; benchdnn_device_limit: %s; "
+                "device_RAM_capacity: %s; gpu_max_alloc: %s;\n",
+                dir_c_str(),
+                smart_bytes(check_mem_size_args.total_size_device).c_str(),
+                smart_bytes(benchdnn_device_limit).c_str(),
+                smart_bytes(gpu_device_capacity).c_str(),
+                smart_bytes(gpu_max_alloc_capacity).c_str());
     }
 
     size_t total_size_cpu = check_mem_size_args.total_size_cpu;
@@ -1177,10 +1202,11 @@ static int check_total_size(res_t *res) {
     }
 
     BENCHDNN_PRINT((!fits_cpu_ram ? 2 : 6),
-            "[CHECK_MEM][%s]: Requested: %g GB; benchdnn_CPU_limit: %g GB; "
-            "CPU_RAM_capacity: %g GB;\n",
-            dir_c_str(), GB(total_size_cpu), GB(benchdnn_cpu_limit),
-            GB(cpu_device_capacity));
+            "[CHECK_MEM][%s]: Requested: %s; benchdnn_CPU_limit: %s; "
+            "CPU_RAM_capacity: %s;\n",
+            dir_c_str(), smart_bytes(total_size_cpu).c_str(),
+            smart_bytes(benchdnn_cpu_limit).c_str(),
+            smart_bytes(cpu_device_capacity).c_str());
 
     return res->state == FAILED ? FAIL : OK;
 }
