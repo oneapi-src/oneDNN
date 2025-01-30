@@ -33,7 +33,6 @@ struct check_mem_size_args_t {
     // Input args.
     const_dnnl_primitive_desc_t pd = nullptr;
     bool want_input = false;
-    bool is_scratchpad = false;
 
     // Output args:
     // `sizes` used to validate OpenCL memory requirements.
