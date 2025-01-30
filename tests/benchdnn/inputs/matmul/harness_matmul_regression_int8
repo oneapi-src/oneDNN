@@ -26,3 +26,7 @@
 --dt=s8:s8:f32
 --stag=ab --wtag=ab --dtag=ba,ab
 1x1:1x200
+
+# Test that cases when M == 1 are handled correctly.
+--reset
+--stag=ba,ab --wtag=ab --dtag=ab --dt=s8:s8:f32 1x2:2x256
