@@ -2,3 +2,7 @@
 # test shapes with b_buffer
 --reset
 --dt=f16:f16:f16 --stag=ab --wtag=ba --dtag=ab --bia_dt=f16 327x256:256x256
+
+# Test that cases when M == 1 are handled correctly.
+--reset
+--stag=ba,ab --wtag=ab --dtag=ab --dt=f16 1x2:2x256

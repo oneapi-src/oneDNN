@@ -17,3 +17,7 @@
 --reset
 --dt=bf16:bf16:bf16
 2x1280:1280x65_n"parallel_reduction"
+
+# Test that cases when M == 1 are handled correctly.
+--reset
+--stag=ba,ab --wtag=ab --dtag=ab --dt=bf16 1x2:2x256
