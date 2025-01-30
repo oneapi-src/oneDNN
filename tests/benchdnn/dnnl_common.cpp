@@ -1131,7 +1131,7 @@ static int check_total_size(res_t *res) {
         const bool fits_device_ram = check_mem_size_args.total_size_device
                 <= benchdnn_device_limit;
         if (!fits_device_ram) {
-            BENCHDNN_PRINT(2,
+            BENCHDNN_PRINT(1,
                     "[CHECK_MEM][%s]: Not enough device RAM for a problem.\n",
                     dir_c_str());
             res->state = SKIPPED;
@@ -1143,7 +1143,7 @@ static int check_total_size(res_t *res) {
                 check_mem_size_args.sizes.cend(), [&](size_t s) {
                     const bool fit = s < gpu_max_alloc_capacity;
                     if (!fit) {
-                        BENCHDNN_PRINT(2,
+                        BENCHDNN_PRINT(1,
                                 "[CHECK_MEM][%s]: Allocation of size %s "
                                 "doesn't fit allocation limit of %s.\n",
                                 dir_c_str(), smart_bytes(s).c_str(),
@@ -1156,7 +1156,7 @@ static int check_total_size(res_t *res) {
             res->reason = skip_reason::not_enough_ram;
         }
 
-        BENCHDNN_PRINT((!fits_device_ram ? 2 : 6),
+        BENCHDNN_PRINT((!fits_device_ram ? 1 : 6),
                 "[CHECK_MEM][%s]: Requested: %s; benchdnn_device_limit: %s; "
                 "device_RAM_capacity: %s; gpu_max_alloc: %s;\n",
                 dir_c_str(),
@@ -1174,7 +1174,7 @@ static int check_total_size(res_t *res) {
     bool fits_cpu_ram = total_size_cpu <= benchdnn_cpu_limit;
 
     if (!fits_cpu_ram) {
-        BENCHDNN_PRINT(2,
+        BENCHDNN_PRINT(1,
                 "[CHECK_MEM][%s]: Not enough CPU RAM for a problem.\n",
                 dir_c_str());
         // Try to catch a huge scratchpad size requested by the library.
@@ -1188,7 +1188,7 @@ static int check_total_size(res_t *res) {
         if (is_cpu()
                 && check_mem_size_args.scratchpad_size
                         > scratch_trh * check_mem_size_args.total_size_device) {
-            BENCHDNN_PRINT(2,
+            BENCHDNN_PRINT(1,
                     "[CHECK_MEM][%s]: CPU scratchpad size `%zu` exceeded a "
                     "given threshold `%zu`.\n",
                     dir_c_str(), check_mem_size_args.scratchpad_size,
@@ -1201,7 +1201,7 @@ static int check_total_size(res_t *res) {
         res->reason = skip_reason::not_enough_ram;
     }
 
-    BENCHDNN_PRINT((!fits_cpu_ram ? 2 : 6),
+    BENCHDNN_PRINT((!fits_cpu_ram ? 1 : 6),
             "[CHECK_MEM][%s]: Requested: %s; benchdnn_CPU_limit: %s; "
             "CPU_RAM_capacity: %s;\n",
             dir_c_str(), smart_bytes(total_size_cpu).c_str(),
