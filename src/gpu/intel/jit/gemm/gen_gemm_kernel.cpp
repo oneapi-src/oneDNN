@@ -589,7 +589,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
         }
     }
     add_mode_matches(true, [](Type dt) -> const char * {
-        if (dt.isFP4()) return "H";
+        if (dt.isFP4()) return "E";
         return nullptr;
     });
 
@@ -618,6 +618,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     auto update_type = [](Type &T, Type T_new, bool sz_change = false) {
         if ((T.bits() != T_new.bits()) && !sz_change) return;
         if (T.isF8() && T_new.isF8()) return;
+        if (T.isF4() && T_new.isF4()) return;
         T = T.isSigned() ? T_new.asSigned() : T_new.asUnsigned();
     };
     update_type(problem_.Ta, Ta_new, true);
