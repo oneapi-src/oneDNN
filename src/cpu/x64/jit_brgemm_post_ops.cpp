@@ -70,7 +70,7 @@ dnnl::impl::cpu::x64::jit_brgemm_kernel_diff_bias_t<Vmm>::
     // Only reduction for `src` is supported.
     assert(reduce_kind_ == matmul_reduce_kind::src);
     // `src` matrix is assumed to have a row major layout.
-    assert(bgmmc.treat_transposed_A_as_plain || bgmmc.use_buffer_a);
+    assert(bgmmc.treat_A_as_plain || bgmmc.use_buffer_a);
 }
 
 template <typename Vmm>
