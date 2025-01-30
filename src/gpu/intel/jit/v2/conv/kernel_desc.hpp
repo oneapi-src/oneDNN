@@ -79,18 +79,21 @@ GPU_DEFINE_PARSE_ENUM(specialization_mode_t, specialization_mode_names)
 
 struct specialization_t {
     specialization_mode_t mode;
-    // Dimesion values to specialize.
-    pvar_tile_t spec_tile;
+    // Dimension values to specialize (e.g. kw1).
+    pvar_tile_t dim_values;
+    // Dimension modulus to specialize (e.g. oc@64)
+    pvar_tile_t dim_mods;
 
     // Whether the specialization depends on the problem dimensions, meaning
     // that specialize() must be called.
     bool is_dynamic() const { return mode != specialization_mode_t::none; }
 
-    // Deduce problem dimensions based on max/min_dims mode.
+    // Deduce problem dimensions based on max/min_dims specialization mode.
     void specialize(const problem_t &prb);
 
     explicit operator bool() const {
-        return mode != specialization_mode_t::none || !spec_tile.is_empty();
+        return mode != specialization_mode_t::none || !dim_values.is_empty()
+                || !dim_mods.is_empty();
     }
 
     prb_reqs_t reqs() const;
@@ -104,6 +107,7 @@ struct specialization_t {
 
     void stringify(std::ostream &out) const { out << str(); }
     void parse(std::istream &in);
+    void canonicalize();
 };
 
 struct loop_desc_entry_t {
@@ -203,40 +207,6 @@ private:
     std::vector<loop_desc_entry_t> entries_;
 };
 
-struct align_desc_t {
-    struct align_t {
-        int value = 1;
-        // If true, then value in bytes, otherwise in elements.
-        bool in_bytes = false;
-
-#if __cplusplus >= 202002L
-        bool operator==(const align_t &other) const = default;
-#endif
-
-        bool is_default() const { return value == 1; }
-        std::string str() const;
-        void parse(const std::string &s);
-    };
-    align_t src;
-    align_t wei;
-    align_t dst;
-
-    bool is_default() const {
-        return src.is_default() && wei.is_default() && dst.is_default();
-    }
-
-    std::string str() const;
-
-    IR_DEFINE_DUMP()
-
-#if __cplusplus >= 202002L
-    bool operator==(const align_desc_t &other) const = default;
-#endif
-
-    void stringify(std::ostream &out) const { out << str(); }
-    void parse(std::istream &in);
-};
-
 struct prefetch_desc_t {
     int dist = 0;
     bool a = false;
@@ -319,7 +289,6 @@ public:
 
     bool use_stream_k = false;
     bool use_2d_access = false;
-    align_desc_t align;
 
     prefetch_desc_t prefetch;
     extensions_t ext;
@@ -530,7 +499,7 @@ struct trivial_key_validator_t<jit::v2::conv::kernel_desc_t> {
                 && (t.iter_tile == tmp.iter_tile)
                 && (t.thread_group_tile == tmp.thread_group_tile)
                 && (t.loop_desc == tmp.loop_desc)
-                && (t.prefetch == tmp.prefetch) && (t.align == tmp.align)
+                && (t.prefetch == tmp.prefetch)
                 && (t.use_stream_k == tmp.use_stream_k)
                 && (t.use_2d_access == tmp.use_2d_access);
     }

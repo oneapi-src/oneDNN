@@ -72,22 +72,31 @@ pvar_tile_t get_dims_tile(const problem_t &prb, specialization_mode_t mode) {
 void specialization_t::specialize(const problem_t &prb) {
     auto t = get_dims_tile(prb, mode);
     for (auto &d : t) {
-        gpu_assert(!spec_tile.has(d) || spec_tile[d] == t[d]);
-        spec_tile[d] = t[d];
+        gpu_assert(!dim_values.has(d) || dim_values[d] == t[d]);
+        dim_values[d] = t[d];
     }
     mode = specialization_mode_t::none;
+    canonicalize();
 }
 
 prb_reqs_t specialization_t::reqs() const {
     gpu_assert(!is_dynamic()) << "Must be specialized before this call";
     prb_reqs_t reqs;
-    reqs.add(spec_tile);
+    reqs.add(dim_values);
+    for (auto &d : dim_mods) {
+        reqs.add(d.var() % dim_mods[d] == 0);
+    }
     return reqs;
 }
 
 std::string specialization_t::str() const {
     std::vector<std::string> parts;
-    if (!spec_tile.is_empty()) parts.emplace_back(spec_tile.str());
+    std::string s_dims;
+    if (!dim_values.is_empty()) s_dims = dim_values.str();
+    for (auto &d : dim_mods) {
+        s_dims += d.str() + "@" + std::to_string(dim_mods[d]);
+    }
+    if (!s_dims.empty()) parts.emplace_back(s_dims);
     if (mode != specialization_mode_t::none)
         parts.emplace_back(to_string(mode));
     return gpu_utils::join(":", parts);
@@ -108,47 +117,27 @@ void specialization_t::parse(std::istream &in) {
         }
         if (found) continue;
         auto tile = jit::parse<pvar_tile_t>(p);
-        for (auto &d : tile)
-            spec_tile[d] = tile[d];
+        for (auto &d : tile) {
+            if (d.name().back() == '@') {
+                dim_mods[pvar_t(d.name().substr(0, d.name().size() - 1))]
+                        = tile[d];
+            } else {
+                dim_values[d] = tile[d];
+            }
+        }
     }
+    canonicalize();
 }
 
-std::string align_desc_t::align_t::str() const {
-    std::string s = std::to_string(value);
-    if (in_bytes) s += "b";
-    return s;
-}
-
-void align_desc_t::align_t::parse(const std::string &_s) {
-    auto s = _s;
-    in_bytes = (!s.empty() && s.back() == 'b');
-    if (in_bytes) s = s.substr(0, s.length() - 1);
-    value = std::stoi(s);
-}
-
-std::string align_desc_t::str() const {
-    if (is_default()) return "x";
-    std::vector<std::string> parts;
-    parts.emplace_back(src.str());
-    parts.emplace_back(wei.str());
-    parts.emplace_back(dst.str());
-    if (parts[0] == parts[1] && parts[1] == parts[2]) return parts[0];
-    return gpu_utils::join(":", parts);
-}
-
-void align_desc_t::parse(std::istream &in) {
-    operator=(align_desc_t());
-    auto s = jit::parse<std::string>(in);
-    if (s == "x") return;
-    auto parts = gpu_utils::split(s, ":");
-    if (parts.size() == 1) {
-        parts.push_back(parts[0]);
-        parts.push_back(parts[0]);
+void specialization_t::canonicalize() {
+    for (auto &d : dim_values) {
+        if (dim_mods.has(d)) {
+            gpu_assert(dim_values[d] % dim_mods[d] == 0)
+                    << "Incompatible dim_values/dim_mods: " << dim_values.str()
+                    << "/" << dim_mods.str();
+            dim_mods.unset(d);
+        }
     }
-    gpu_assert(parts.size() == 3);
-    src.parse(parts[0]);
-    wei.parse(parts[1]);
-    dst.parse(parts[2]);
 }
 
 void prefetch_desc_t::parse(std::istream &in) {
@@ -287,9 +276,8 @@ void kernel_desc_t::set(const std::string &s) {
     auto &iface = parse_iface();
     parse_result_t result;
     iface.parse(s, *this, &result);
-    if (!result.is_set("--iter") || !result.is_set("--tg")) {
-        gpu_info() << "Error: missing --iter and/or --tg parameters in kernel "
-                      "descriptor.";
+    if (!result.is_set("--iter")) {
+        gpu_info() << "Error: missing --iter parameter in kernel descriptor.";
         gpu_error_not_expected();
     }
     set_defaults();
@@ -328,14 +316,14 @@ void kernel_desc_t::set_defaults() {
     dst_tag = make_conv_layout_tag(tensor_kind_t::dst, dst_tag.str());
     if (loop_desc.is_empty()) loop_desc = default_loop_desc(prop);
     if (is_dw) {
-        spec.spec_tile[pvars::ic] = 1;
-        spec.spec_tile[pvars::oc] = 1;
+        spec.dim_values[pvars::ic] = 1;
+        spec.dim_values[pvars::oc] = 1;
     }
     if (prop == prop_kind::backward_data) {
         // XXX: No stride support in backward by data yet.
-        spec.spec_tile[pvars::sw] = 1;
-        spec.spec_tile[pvars::sh] = 1;
-        spec.spec_tile[pvars::sd] = 1;
+        spec.dim_values[pvars::sw] = 1;
+        spec.dim_values[pvars::sh] = 1;
+        spec.dim_values[pvars::sd] = 1;
     }
 }
 
@@ -506,7 +494,6 @@ std::string kernel_desc_t::str() const {
         << std::endl;
     oss << "Use block 2D access:    " << ir_utils::to_string(use_2d_access)
         << std::endl;
-    oss << "Align:                  " << align.str() << std::endl;
     oss << "Prefetch:               " << prefetch.str() << std::endl;
     if (spec) oss << "Specialization:         " << spec.str() << std::endl;
     oss << "Extensions:             " << ext.str() << std::endl;
@@ -551,17 +538,14 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
     iface->add<PACK(use_stream_k)>("stream-k", "Whether to use Stream-K.");
     iface->add<PACK(use_2d_access)>(
             "2d", "Whether to use block 2D messages for access.");
-    iface->add<PACK(align)>("align",
-            "Alignments in bytes/elements for the innermost dimension in "
-            "source, weights and destination. Examples: 8b:8b:8b (in bytes), "
-            "2:2:2 (in elements).");
     iface->add<PACK(prefetch)>("prefetch",
             "Prefetch description specifying distance and whether A/B are "
             "prefetched. Examples: x3 (distance is 3, both A/B are "
             "prefetched), x2.a (distance is 2, only A is prefetched), x0 (no "
             "prefetch, default).");
     iface->add<PACK(spec)>("spec",
-            "Dimension specialization requirements (e.g. kd1kh1). Special "
+            "Dimension specialization requirements (e.g. kd1kh1 for fixed "
+            "values or oc@64 for divisibility requirements). Special "
             "values max and min_dims can be used for "
             "problem-specific specialization, e.g. mb1:min_dims.");
     iface->add<PACK(ext)>("ext",

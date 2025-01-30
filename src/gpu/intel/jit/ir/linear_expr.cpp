@@ -239,6 +239,13 @@ public:
     bool is_zero() const { return factors_.empty() && imm_ == 0; }
     int64_t imm() const { return imm_; }
     void set_imm(int64_t imm) { imm_ = imm; }
+    void keep_const_vars_only() {
+        std::vector<expr_t> new_factors;
+        for (auto &f : factors_) {
+            if (f.is<const_var_t>()) new_factors.push_back(f);
+        }
+        factors_ = new_factors;
+    }
 
     linear_coef_t &operator/=(int64_t factor) {
         gpu_assert(imm_ % factor == 0);
@@ -414,6 +421,7 @@ expr_t simplify_linear_mod(const expr_t &e, int64_t factor) {
     int64_t div = math::gcd(common.imm(), factor);
     int64_t new_factor = factor / div;
     common.set_imm(1);
+    common.keep_const_vars_only();
     auto reduced = simplify_linear_mod_reduce(common.to_expr(), new_factor);
     return reduced % new_factor;
 }
