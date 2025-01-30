@@ -411,6 +411,16 @@ bool has_req_op(const std::string &s) {
     return false;
 }
 
+bool is_pvar_product(const expr_t &e) {
+    if (auto *var = e.as_ptr<const_var_t>())
+        return !pvar_t::from_var(*var).is_undef();
+    if (auto *op = e.as_ptr<binary_op_t>()) {
+        if (op->op_kind != op_kind_t::_mul) return false;
+        return is_pvar_product(op->a) && is_pvar_product(op->b);
+    }
+    return false;
+}
+
 class req_impl_t {
 public:
     req_impl_t() = default;
@@ -568,6 +578,7 @@ private:
     bool try_init_mod_eq_0(const expr_t &e) {
         expr_t a, b;
         if (!is_a_mod_b_eq_0(e, a, b)) return false;
+        if (!is_pvar_product(a)) return false;
         kind_ = req_kind_t::mod_eq_0;
         lhs_ = req_lhs_t(a);
         rhs_ = req_rhs_t(b);
@@ -597,11 +608,13 @@ private:
         gpu_assert(is_const(op->b)) << "Unexpected non-const RHS: " << op->b;
         auto *div_a_op = op->a.as_ptr<binary_op_t>();
         if (div_a_op && div_a_op->op_kind == op_kind_t::_div) {
+            if (!is_pvar_product(div_a_op->a)) return false;
             lhs_ = req_lhs_t(div_a_op->a);
             rhs_ = req_rhs_t(
                     req_rhs_entry_t(op->b), req_rhs_entry_t(div_a_op->b));
             return true;
         }
+        if (!is_pvar_product(op->a)) return false;
         lhs_ = req_lhs_t(op->a);
         rhs_ = req_rhs_t(op->b);
         return true;

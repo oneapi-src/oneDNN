@@ -401,14 +401,6 @@ private:
         return true;
     }
 
-    void add_align_req(const pvar_t &dim, const type_t &type,
-            const align_desc_t::align_t &align) {
-        int align_bytes
-                = (align.in_bytes ? align.value : align.value * type.size());
-        reqs_.add(
-                dim.var() % ir_utils::safe_div(align_bytes, type.size()) == 0);
-    }
-
     void init_dim_mapper_manager() {
         dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop, reqs_);
     }
@@ -446,10 +438,6 @@ private:
             bias_layout_ = make_conv_layout(
                     tensor_kind_t::bias, bias_tag, desc_.is_dw, reqs_);
         }
-        auto &align = desc_.align;
-        add_align_req(src_layout.blocks()[0].dim, src_layout.type(), align.src);
-        add_align_req(wei_layout.blocks()[0].dim, wei_layout.type(), align.wei);
-        add_align_req(dst_layout.blocks()[0].dim, dst_layout.type(), align.dst);
         return true;
     }
 
@@ -899,12 +887,16 @@ plan_t create_conv_plan_impl(const kernel_desc_t &desc, const hw_t &hw,
     plan_builder_t builder(desc, hw);
     auto plan = builder.build();
     if (plan) {
+#ifdef DNNL_DEV_MODE
         auto &plan_reqs = builder.reqs();
-        gpu_assert(plan_reqs.str() == desc.reqs().str())
+        auto desc_reqs = desc.reqs();
+        desc_reqs.simplify();
+        gpu_assert(plan_reqs.str() == desc_reqs.str())
                 << "Mismatch between plan and descriptor dimension "
                    "requirements:\n== Plan:\n"
                 << plan_reqs.str() << "\n== Descriptor:\n"
-                << desc.reqs().str();
+                << desc_reqs.str();
+#endif
     }
     return plan;
 }
