@@ -1121,7 +1121,8 @@ static int check_total_size(res_t *res) {
     assert(benchdnn_device_limit > 0 && benchdnn_cpu_limit > 0);
 
     auto dir_c_str = [&res]() {
-        return (res->mem_check_dir & FLAG_FWD) ? "FWD" : "BWD";
+        assert(res->mem_size_args.dir != DIR_UNDEF);
+        return (res->mem_size_args.dir & FLAG_FWD) ? "FWD" : "BWD";
     };
 
     const check_mem_size_args_t &check_mem_size_args = res->mem_size_args;
@@ -1363,11 +1364,12 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir,
     // validate the primitive cache. At the same time it allows to verify both
     // test objects when a double-run driver executes the fwd-for-bwd object
     // first and the bwd object after.
-    if (need_skip && res->mem_check_dir == dir) return OK;
-    res->mem_check_dir = dir;
+    // ANCHOR: MEM_CHECK_ARGS_DIR;
+    if (need_skip && res->mem_size_args.dir == dir) return OK;
 
     // Get input sizes.
-    check_mem_size_args_t check_mem_size_args(const_pd, /* input = */ true);
+    check_mem_size_args_t check_mem_size_args(
+            const_pd, /* input = */ true, dir);
     get_memory_bytes(check_mem_size_args);
 
     // Get scratchpad size.
@@ -1399,10 +1401,10 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir,
 
 int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {
     check_mem_size_args_t check_mem_in_size_args(
-            const_pd, /* want_input = */ true);
+            const_pd, /* want_input = */ true, DIR_UNDEF);
     get_memory_bytes(check_mem_in_size_args); // Get input bytes.
     check_mem_size_args_t check_mem_out_size_args(
-            const_pd, /* want_input = */ false);
+            const_pd, /* want_input = */ false, DIR_UNDEF);
     get_memory_bytes(check_mem_out_size_args); // Get output bytes.
 
     // Sum post-ops include dst bytes as an input. Not included in get_memory_bytes
