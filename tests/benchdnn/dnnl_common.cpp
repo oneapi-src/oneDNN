@@ -1113,12 +1113,11 @@ static int check_total_size(res_t *res) {
 
     const size_t device_max_capacity
             = is_cpu() ? cpu_device_capacity : gpu_device_capacity;
-    const size_t cpu_max_capacity = cpu_device_capacity;
 
     // 0.75f is taken randomly and is subject to change in future.
     const double capacity_factor = 0.75;
     const double benchdnn_device_limit = capacity_factor * device_max_capacity;
-    const double benchdnn_cpu_limit = capacity_factor * cpu_max_capacity;
+    const double benchdnn_cpu_limit = capacity_factor * cpu_device_capacity;
     assert(benchdnn_device_limit > 0 && benchdnn_cpu_limit > 0);
 
     auto dir_c_str = [&res]() {
@@ -1166,12 +1165,18 @@ static int check_total_size(res_t *res) {
                 smart_bytes(gpu_max_alloc_capacity).c_str());
     }
 
-    size_t total_size_cpu = check_mem_size_args.total_size_cpu;
+    // If the problem runs on CPU, the combined memory represents requirements
+    // for the library and for the reference paths.
+    // If the problem runs on a device, the combined memory represents potential
+    // requirement for integrated devices that use CPU pool for both memories.
+    // The second case has higher limit because TODO:<the_reason>.
+    size_t cpu_and_device_size = check_mem_size_args.total_size_cpu
+            + check_mem_size_args.total_size_device;
+    bool fits_cpu_ram = cpu_and_device_size
+            <= (is_cpu() ? benchdnn_cpu_limit : cpu_device_capacity);
 
-    // Add device size as a simple method to account for integrated devices and
-    // mapping/unmapping memory
-    total_size_cpu += check_mem_size_args.total_size_device;
-    bool fits_cpu_ram = total_size_cpu <= benchdnn_cpu_limit;
+    // Check combined size against CPU capacity as the simpler method to account
+    // for integrated devices and mapping/unmapping memory.
 
     if (!fits_cpu_ram) {
         BENCHDNN_PRINT(1,
@@ -1202,11 +1207,27 @@ static int check_total_size(res_t *res) {
     }
 
     BENCHDNN_PRINT((!fits_cpu_ram ? 1 : 6),
-            "[CHECK_MEM][%s]: Requested: %s; benchdnn_CPU_limit: %s; "
-            "CPU_RAM_capacity: %s;\n",
-            dir_c_str(), smart_bytes(total_size_cpu).c_str(),
-            smart_bytes(benchdnn_cpu_limit).c_str(),
+            "[CHECK_MEM][%s]: benchdnn_CPU_limit: %s; CPU_RAM_capacity: %s;\n",
+            dir_c_str(), smart_bytes(benchdnn_cpu_limit).c_str(),
             smart_bytes(cpu_device_capacity).c_str());
+
+    std::string sizes_str;
+    for (const auto sz : check_mem_size_args.sizes) {
+        const bool is_scratchpad = sz == check_mem_size_args.scratchpad_size;
+        sizes_str += smart_bytes(sz) + (is_scratchpad ? " (Scratchpad)" : "")
+                + ", ";
+    }
+    BENCHDNN_PRINT(6, "[CHECK_MEM][%s]: Sizes: {%s};\n", dir_c_str(),
+            sizes_str.c_str());
+
+    std::string total_size_device_str = is_cpu()
+            ? smart_bytes(check_mem_size_args.total_size_device) + " (Lib), "
+            : "";
+    BENCHDNN_PRINT((!fits_cpu_ram ? 1 : 6),
+            "[CHECK_MEM][%s]: Requested: %s%s (Service), %s (combined);\n",
+            dir_c_str(), total_size_device_str.c_str(),
+            smart_bytes(check_mem_size_args.total_size_cpu).c_str(),
+            smart_bytes(cpu_and_device_size).c_str());
 
     return res->state == FAILED ? FAIL : OK;
 }
