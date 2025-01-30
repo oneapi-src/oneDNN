@@ -391,7 +391,7 @@ bool BLASKernelGenerator<hw>::gemmApplyCOffsetDispatch(const GEMMProblem &proble
 
     mark(labelCODone);
 
-    if (!strategy.persistent) {
+    if (!strategy.persistentLoop()) {
         state.ra.safeRelease(ldco);
         state.ra.safeRelease(effCO);
     }
@@ -825,7 +825,7 @@ void BLASKernelGenerator<hw>::gemmApplyABOffset(const GEMMProblem &problem, cons
     state.ra.safeRelease(boData);
     safeReleaseRanges(state.As_regs, state);
     safeReleaseRanges(state.Bs_regs, state);
-    if (!strategy.persistent) {
+    if (!strategy.persistentLoop()) {
         state.ra.safeRelease(state.inputs.ao);
         state.ra.safeRelease(state.inputs.bo);
     }

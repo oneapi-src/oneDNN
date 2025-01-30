@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -240,6 +240,54 @@ void BLASKernelGenerator<hw>::divUp(const Subregister &dst, const Subregister &s
     eadd3(1, adj, src0, src1, -1);
     divDown(dst, adj, src1, src1Recip, flag, strategy, state);
     state.ra.safeRelease(adj);
+}
+
+// Unsigned integer division + modulo with no precomputation.
+//
+// Default algorithm (large = false):
+//    num, denom < 2^16   OR  denom < 0x40, quotient < 2^16
+// Expanded range (large = true):
+//    denom <= 2^22, quotient < 2^16
+template <HW hw>
+void BLASKernelGenerator<hw>::divMod(const Subregister &qot, const Subregister &rem,
+                                     const Subregister &num, const Subregister &denom,
+                                     const GEMMStrategy &strategy, CommonState &state, bool large)
+{
+    if (qot.getType() != DataType::ud ||   rem.getType() != DataType::ud) stub();
+
+    auto numFP = state.ra.alloc_sub<float>();
+    auto denomFP = state.ra.alloc_sub<float>();
+
+    if (hw < HW::Gen12LP) {
+        irem(1, rem, num, denom);
+        iqot(1, qot, num, denom);
+    } else if (large) {
+        or_(1, cr0[0], cr0[0], 0x20);               // round toward -inf
+        mov(1, denomFP, denom);
+        mov(1, numFP, -num);
+        einv(1, denomFP, denomFP, strategy, state);
+        add(1, denomFP.ud(), denomFP.ud(), 2);
+        mul(1, qot.f(), -numFP, denomFP);
+        mov(1, qot, qot.f());
+        mad(1 | lt | f1[1], rem.d(), num, denom, -qot.uw());
+        add(1 | f1[1], rem, rem, denom);
+        add(1 | f1[1], qot, qot, -1);
+        and_(1, cr0[0], cr0[0], ~0x30);
+    } else {
+        auto bias = state.ra.alloc_sub<float>();
+        mov(1, denomFP, denom);
+        mov(1, numFP, num);
+        mov(1, bias, -0.499996185302734375f);       // -1/2 + 2^(-18)
+        einv(1, denomFP, denomFP, strategy, state);
+        add(1, denomFP.ud(), denomFP.ud(), 2);
+        mad(1, qot.f(), bias, numFP, denomFP);
+        mov(1, qot, qot.f());
+        mad(1, rem, num, -qot.uw(), denom.uw());
+        state.ra.safeRelease(bias);
+    }
+
+    state.ra.safeRelease(numFP);
+    state.ra.safeRelease(denomFP);
 }
 
 #include "internal/namespace_end.hxx"

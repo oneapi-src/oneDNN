@@ -1537,7 +1537,7 @@ void BLASKernelGenerator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMM
 
         state.ra.safeRelease(myBarriers);
         state.ra.safeRelease(k0Barriers);
-        if (!strategy.persistent && !strategy.fuseBeta && !strategy.kParallelVariable) {
+        if (!strategy.persistentLoop() && !strategy.fuseBeta && !strategy.kParallelVariable) {
             state.ra.safeRelease(state.threadK0);
             state.ra.safeRelease(state.inputs.k0);
         }
