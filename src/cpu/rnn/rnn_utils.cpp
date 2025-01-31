@@ -88,8 +88,8 @@ bool rnn_utils::is_ldgoi_blocked(const memory_desc_wrapper &mdw) {
 }
 
 bool rnn_utils::is_ldio_blocked(const memory_desc_wrapper &mdw) {
-    format_tag_t md_format_tag = mdw.matches_one_of_tag(
-            format_tag::ldOi32o, format_tag::ldOI32o4i, format_tag::ldOi16o);
+    format_tag_t md_format_tag = mdw.matches_one_of_tag(format_tag::ldOi32o,
+            format_tag::ldOI32o4i, ldOI16o4i, format_tag::ldOi16o);
     return md_format_tag != format_tag::undef;
 }
 
@@ -286,7 +286,8 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
 
             if (weights_type == weights_type_t::projection) {
                 if (rnn.is_int8_conf())
-                    tag = format_tag::ldOI32o4i;
+                    tag = utils::map(n_block, format_tag::undef, 32,
+                            format_tag::ldOI32o4i, 16, format_tag::ldOI16o4i);
                 else
                     tag = utils::map(n_block, format_tag::undef, 32,
                             format_tag::ldOi32o, 16, format_tag::ldOi16o);
