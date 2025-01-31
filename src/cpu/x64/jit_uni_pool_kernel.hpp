@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -192,10 +192,12 @@ private:
 
     void step_high_half(int ur_w, int ur_bc, int pad_l, int pad_r,
             bool with_c_tail_processing) {
+        assert(types::data_type_size(jpp.ind_dt) > 0);
         add(reg_input, sizeof(float) * 4);
         add(reg_output, sizeof(float) * 4);
         if (jpp.alg == alg_kind::pooling_max
-                && (jpp.is_training || jpp.is_backward))
+                && (jpp.is_training || jpp.is_backward)
+                && types::data_type_size(jpp.ind_dt) > 0)
             add(reg_index, types::data_type_size(jpp.ind_dt) * 4);
 
         step(ur_w, ur_bc, pad_l, pad_r, with_c_tail_processing);

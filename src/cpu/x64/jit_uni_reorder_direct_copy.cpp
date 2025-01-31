@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ struct direct_copy_kernel_t
         if (isa_ == avx2_vnni_2
                 && (utils::one_of(src_dt_, data_type::bf16, data_type::f16))
                 && (unroll % 2 == 0)) {
-            for (int i = 0; i < unroll / 2; i++) {
+            for (size_t i = 0; i < static_cast<size_t>(unroll) / 2; i++) {
                 const Vmm &vmm_src_even = vmm_src(2 * i);
                 const Vmm &vmm_src_odd = vmm_src(2 * i + 1);
                 Vmm vmm_tmp(vmm_tmp_idx_);
@@ -349,7 +349,8 @@ status_t jit_uni_reorder_direct_copy_t::execute(const exec_ctx_t &ctx) const {
     const int simd_w = isa_max_vlen(pd()->isa_) / sizeof(float);
 
     // If nelem is small, we do sequential copy and don't spawn threads
-    const dim_t thr_granularity = kernel_->get_max_unroll() * simd_w;
+    const dim_t thr_granularity
+            = static_cast<dim_t>(kernel_->get_max_unroll()) * simd_w;
     int nthr = nelems < thr_granularity ? 1 : 0;
 
     parallel(nthr, [&](const int ithr, const int nthr) {
