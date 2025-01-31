@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -117,6 +117,13 @@ void jit_avx512_common_lrn_kernel_fwd_t<f16>::store_data(
 template <>
 void jit_avx512_common_lrn_kernel_fwd_t<bf16>::store_data(
         const Address addr, Zmm zr, Ymm yr) {
+    const bool is_bf16_supported = mayiuse(avx512_core_bf16)
+            || IMPLICATION(emulateBfloat_, this->bf16_emu_ != nullptr);
+    if (!is_bf16_supported) {
+        assert("Failure in storing bf16 data.");
+        return;
+    }
+
     if (emulateBfloat_)
         this->bf16_emu_->vcvtneps2bf16(yr, zr);
     else
