@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -260,7 +260,7 @@ private:
     struct dim_iteration_t {
         size_t idx = 0;
         std ::vector<iteration_block_t> blocks;
-        virtual bool operator==(const dim_iteration_t &rhs) const {
+        bool operator==(const dim_iteration_t &rhs) const {
             return blocks == rhs.blocks;
         }
 
@@ -307,7 +307,7 @@ private:
         bd_iteration_t *similar {nullptr};
         Label lstart;
 
-        virtual bool operator==(const bd_iteration_t &rhs) const {
+        bool operator==(const bd_iteration_t &rhs) const {
             bool res = dim_iteration_t::operator==(rhs)
                     && A_shift == rhs.A_shift && C_shift == rhs.C_shift
                     && D_shift == rhs.D_shift && bd_mask == rhs.bd_mask

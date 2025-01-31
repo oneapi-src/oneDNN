@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -661,6 +661,7 @@ struct jit_brdgmm_conv_conf_t {
 enum conv_brgemm_loop_order_t {
     loop_ndhwgc,
     loop_ngcdhw,
+    loop_gcndhw,
 };
 
 enum conv_brgemm_exec_type_t {
