@@ -19,7 +19,6 @@
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
 #include "gpu/intel/ocl/convolution_inner_product.hpp"
 #include "gpu/intel/ocl/gemm_inner_product.hpp"
-#include "gpu/intel/ocl/gemm_post_ops_inner_product.hpp"
 #include "gpu/intel/ocl/ref_inner_product.hpp"
 #endif
 
