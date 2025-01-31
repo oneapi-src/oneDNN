@@ -1356,25 +1356,6 @@ inline BasicBlockList getBasicBlocks(HW hw, const Program &program)
         }
     }
 
-#ifndef NGEN_DISABLE_GETENV
-    // Check ONEAPI_PVCSendWARWA environment variable.
-    static bool checkedEnv = false;
-    static bool haveEnv = false;
-    static bool envEnablePWW = true;
-
-    if (!checkedEnv) {
-        if (auto e = ::getenv("ONEAPI_PVCSendWARWA")) {
-            haveEnv = true;
-            if (e[0] == '0' && e[1] == '\0')
-                envEnablePWW = false;
-        }
-        checkedEnv = true;
-    }
-
-    if (haveEnv)
-        enablePVCWARWA = envEnablePWW;
-#endif
-
     for (auto &bb: list)
         bb.enablePVCWARWA = enablePVCWARWA;
 
