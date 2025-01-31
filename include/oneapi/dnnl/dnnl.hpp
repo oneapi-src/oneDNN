@@ -1463,6 +1463,7 @@ struct memory : public handle<dnnl_memory_t> {
         AB8a2b = dnnl_AB8a2b,
         abDc16d = dnnl_abDc16d,
         abDc32d = dnnl_abDc32d,
+        abDC16d4c = dnnl_abDC16d4c,
         abDC32d4c = dnnl_abDC32d4c,
         abCd32c = dnnl_abCd32c,
         abdEc16e = dnnl_abdEc16e,
@@ -1959,6 +1960,7 @@ struct memory : public handle<dnnl_memory_t> {
 
         ldOi16o = abDc16d,
         ldOi32o = abDc32d,
+        ldOI16o4i = abDC16d4c,
         ldOI32o4i = abDC32d4c,
         ldgOi16o = abdEc16e,
         ldgOI16o4i = abdEC16e4c,

@@ -803,7 +803,7 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
 
             itag = id.matches_one_of_tag(ldigo, ldio);
             otag = od.matches_one_of_tag(
-                    ldgOI64o4i, ldgOI32o4i, ldgOI16o4i, ldOI32o4i);
+                    ldgOI64o4i, ldgOI32o4i, ldgOI16o4i, ldOI32o4i, ldOI16o4i);
             if (itag != format_tag::undef && otag != format_tag::undef) {
                 _pd->itag_ = itag;
                 _pd->otag_ = otag;

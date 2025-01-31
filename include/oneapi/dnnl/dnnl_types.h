@@ -1039,6 +1039,7 @@ typedef enum {
     dnnl_dabc,
     dnnl_Ab32a,
     dnnl_abdEC16e4c,
+    dnnl_abDC16d4c,
 
     /// Just a sentinel, not real memory format tag. Must be changed after new
     /// format tag is added.
@@ -1174,6 +1175,7 @@ typedef enum {
     /// 5D LSTM projection tensor
     dnnl_ldOi16o = dnnl_abDc16d,
     dnnl_ldOi32o = dnnl_abDc32d,
+    dnnl_ldOI16o4i = dnnl_abDC16d4c,
     dnnl_ldOI32o4i = dnnl_abDC32d4c,
     dnnl_ldIo32i = dnnl_abCd32c,
     /// 6D RNN weights tensor
