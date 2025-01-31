@@ -230,10 +230,24 @@ dim_idx_t layout_raw_tag_t::non_x_ndims() const {
 
 std::string layout_raw_tag_t::str() const {
     if (is_any()) return "any";
-    std::ostringstream oss;
+    std::string s;
     for (auto &e : entries_)
-        oss << e.str();
-    return oss.str();
+        s += e.str();
+    if (has_x()) return s;
+    std::string x;
+    for (dim_idx_t i = ndims() - 1; i >= 2; i--) {
+        if (is_blocked(dim_idx::as_tag(i))) break;
+        x = dim_idx::as_tag(i) + x;
+    }
+    while (!x.empty()) {
+        auto pos = s.find(x);
+        if (pos != std::string::npos) {
+            s.replace(pos, x.length(), "x");
+            break;
+        }
+        x.erase(0, 1);
+    }
+    return s;
 }
 
 bool layout_raw_tag_t::matches(const layout_raw_tag_t &other,
@@ -281,30 +295,6 @@ void layout_raw_tag_t::expand_x(dim_idx_t ndims) {
     entries_ = std::move(new_entries);
 }
 
-layout_raw_tag_t layout_raw_tag_t::collapse_x() const {
-    if (has_x()) return *this;
-    auto tag = to_tag(entries_);
-    for (dim_idx_t i = 2; i < ndims() - 1; i++) {
-        std::string x_expanded;
-        bool ok = true;
-        for (dim_idx_t j = i; j < ndims(); j++) {
-            for (auto &e : entries_) {
-                if (e.index() == j && e.is_blocked) {
-                    ok = false;
-                    break;
-                }
-            }
-            x_expanded += dim_idx::as_tag(j);
-        }
-        if (!ok) continue;
-        auto pos = tag.find(x_expanded);
-        if (pos == std::string::npos) continue;
-        tag.replace(pos, x_expanded.length(), "x");
-        return layout_raw_tag_t(tag);
-    }
-    return *this;
-}
-
 std::vector<layout_raw_tag_entry_t> layout_raw_tag_t::to_entries(
         const std::string &tag) {
     if (tag == "any") return {};
@@ -325,16 +315,6 @@ std::vector<layout_raw_tag_entry_t> layout_raw_tag_t::to_entries(
         e.is_blocked = is_blocked[letter - 'a'];
     }
     return entries;
-}
-
-std::string layout_raw_tag_t::to_tag(
-        const std::vector<layout_raw_tag_entry_t> &entries) {
-    std::string tag;
-    for (auto &e : entries) {
-        if (e.is_blocked) { tag += std::to_string(e.block); }
-        tag += e.letter;
-    }
-    return tag;
 }
 
 std::vector<bool> layout_raw_tag_t::skip_mask(
