@@ -45,6 +45,41 @@ const std::vector<pvar_t> &conv_dims() {
     return _conv_dims;
 }
 
+pvar_t prb_stride(pvar_t dim, tensor_kind_t tensor_kind){
+auto ret = pvars::src_mb_stride;
+if (tensor_kind == tensor_kind_t::src ){
+
+   if  (dim == pvars::mb) ret = pvars::src_mb_stride;
+   else if (dim == pvars::ic) ret = pvars::src_ic_stride; 
+   else if (dim == pvars::id) ret = pvars::src_id_stride; 
+   else if (dim == pvars::ih) ret = pvars::src_ih_stride;
+   else if (dim == pvars::iw) ret = pvars::src_iw_stride;
+   else  ir_error_not_expected(); 
+ 
+}else if (tensor_kind == tensor_kind_t::wei){
+
+   if  (dim == pvars::g)  ret = pvars::wei_g_stride;
+   else if (dim == pvars::ic) ret = pvars::wei_ic_stride; 
+   else if (dim == pvars::oc) ret = pvars::wei_oc_stride; 
+   else if (dim == pvars::kd) ret = pvars::wei_kd_stride; 
+   else if (dim == pvars::kh) ret = pvars::wei_kh_stride; 
+   else if (dim == pvars::kw) ret = pvars::wei_kw_stride; 
+   else  ir_error_not_expected(); 
+ 
+}else if (tensor_kind == tensor_kind_t::dst){
+
+   if (dim == pvars::mb) ret = pvars::dst_mb_stride; 
+   else if  (dim == pvars::oc) ret = pvars::dst_oc_stride; 
+   else if (dim == pvars::od) ret = pvars::dst_od_stride; 
+   else if (dim == pvars::oh) ret = pvars::dst_oh_stride;
+   else if  (dim == pvars::ow) ret = pvars::dst_ow_stride;
+   else  ir_error_not_expected(); 
+ 
+
+}
+ return ret;
+}
+
 const std::vector<pvar_t> &conv_index_dims(prop_kind_t prop) {
     auto get_dims = [&](prop_kind_t prop) {
         std::vector<pvar_t> ret;

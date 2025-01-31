@@ -94,6 +94,24 @@ extern pvar_t b;
 extern pvar_t m;
 extern pvar_t n;
 extern pvar_t k;
+ 
+
+extern pvar_t src_mb_stride;
+extern pvar_t src_ic_stride;
+extern pvar_t src_id_stride;
+extern pvar_t src_ih_stride;
+extern pvar_t src_iw_stride;
+extern pvar_t wei_g_stride;
+extern pvar_t wei_kd_stride;
+extern pvar_t wei_kh_stride;
+extern pvar_t wei_kw_stride;
+extern pvar_t wei_ic_stride;
+extern pvar_t wei_oc_stride;
+extern pvar_t dst_mb_stride;
+extern pvar_t dst_oc_stride;
+extern pvar_t dst_od_stride;
+extern pvar_t dst_oh_stride;
+extern pvar_t dst_ow_stride;
 } // namespace pvars
 
 template <typename ValueT>
