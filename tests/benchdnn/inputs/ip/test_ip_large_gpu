@@ -1,0 +1,26 @@
+--reset --stag=ab --wtag=any --dtag=ab --dt=bf16:bf16:f32 mb21ic13oc133326203
+--reset --stag=ab --wtag=ab --dtag=ab --dt=u8:s8:u8 mb2270183416ic1oc2
+--reset --stag=ab --wtag=any --dtag=ab --dt=f32:f32:f32 --dir=BWD_W mb1423ic1oc2481123
+--reset --stag=any --wtag=any --dtag=any --dt=u8:s8:u8 mb1723182ic130oc2836
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f32:f32:f32 mb99ic7oc15106073
+--reset --stag=any --wtag=any --dtag=any --dt=f16:f16:f32 mb53ic1oc26062789
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f16:f16:f16 --dir=BWD_D mb106514950ic2oc50
+--reset --stag=any --wtag=any --dtag=any --dt=bf16:bf16:bf16 mb3391793ic328oc1
+--reset --stag=any --wtag=any --dtag=any --dt=bf16:bf16:bf16 --dir=BWD_W mb24ic670oc3662320
+--reset --stag=ab --wtag=any --dtag=ab --dt=bf16:bf16:bf16 mb39ic24oc32170728
+--reset --stag=ab --wtag=any --dtag=ab --dt=s8:s8:u8 mb10873493ic6oc1247
+--reset --stag=ab --wtag=any --dtag=ab --dt=s8:s8:s32 mb17905ic610oc200127
+--reset --stag=ab --wtag=any --dtag=ab --dt=bf16:bf16:bf16 --dir=BWD_D mb53378853ic54oc88
+--reset --stag=any --wtag=any --dtag=any --dt=bf16:bf16:f32 mb873846ic4oc928
+--reset --stag=ab --wtag=any --dtag=ab --dt=u8:s8:u8 mb64ic9oc176379826
+--reset --stag=any --wtag=any --dtag=any --dt=s8:s8:s8 mb16660ic2oc198414
+--reset --stag=ab --wtag=any --dtag=ab --dt=u8:s8:s32 mb66884057ic49oc1
+--reset --stag=any --wtag=any --dtag=any --dt=u8:s8:s32 mb186ic5oc3888311
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:bf16:bf16 mb31ic76oc55185860
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f16:f16:f16 mb15058ic4oc275579
+--reset --stag=ab --wtag=ab --dtag=ab --dt=f16:f16:f16 --dir=BWD_W mb1ic27oc44024665
+--reset --stag=ab --wtag=ab --dtag=ab --dt=u8:s8:s8 mb3276ic812oc1058399
+--reset --stag=ab --wtag=any --dtag=ab --dt=f32:f32:f32 mb20135ic369oc47033
+--reset --stag=ab --wtag=ab --dtag=ab --dt=bf16:bf16:bf16 --dir=BWD_W mb1ic15oc149971097
+--reset --stag=ab --wtag=any --dtag=ab --dt=u8:s8:s8 mb526ic2oc12112924
+--reset --stag=ab --wtag=any --dtag=ab --dt=f16:f16:f32 mb1481323ic1oc1577
