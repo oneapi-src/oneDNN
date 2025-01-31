@@ -123,6 +123,37 @@ pvar_t b("b");
 pvar_t m("m");
 pvar_t n("n");
 pvar_t k("k");
+
+pvar_t src_mb_stride("src_mb_stride");;
+pvar_t src_ic_stride("src_ic_stride");
+pvar_t src_id_stride("src_id_stride");
+pvar_t src_ih_stride("src_ih_stride");
+pvar_t src_iw_stride("src_iw_stride");
+pvar_t wei_g_stride("wei_g_stride");
+pvar_t wei_kd_stride("wei_kd_stride");
+pvar_t wei_kh_stride("wei_kh_stride");
+pvar_t wei_kw_stride("wei_kw_stride");
+pvar_t wei_ic_stride("wei_ic_stride");
+pvar_t wei_oc_stride("wei_oc_stride");
+pvar_t dst_mb_stride("dst_mb_stride");
+pvar_t dst_oc_stride("dst_oc_stride");
+pvar_t dst_od_stride("dst_od_stride");
+pvar_t dst_oh_stride("dst_oh_stride");
+pvar_t dst_ow_stride("dst_ow_stride");
+
+pvar_t g_stride("g_stride");
+pvar_t ic_stride("ic_stride");
+pvar_t id_stride("id_stride");
+pvar_t ih_stride("ih_stride");
+pvar_t iw_stride("iw_stride");
+pvar_t kd_stride("kd_stride");
+pvar_t kh_stride("kh_stride");
+pvar_t kw_stride("kw_stride");
+pvar_t mb_stride("mb_stride");
+pvar_t oc_stride("oc_stride");
+pvar_t od_stride("od_stride");
+pvar_t oh_stride("oh_stride");
+pvar_t ow_stride("ow_stride");
 } // namespace pvars
 
 bool is_spatial(const pvar_t &pvar, char prefix) {

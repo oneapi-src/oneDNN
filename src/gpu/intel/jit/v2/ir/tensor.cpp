@@ -97,6 +97,7 @@ pvar_t layout_desc_t::prb_dim(int idx) const {
     return pvar_t();
 }
 
+
 int layout_desc_t::dim_index(const pvar_t &dim) const {
     for (int i = 0; i < ndims(); i++) {
         if (canonical_[i] == layout_letter(dim)) return i;

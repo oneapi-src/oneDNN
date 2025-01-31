@@ -31,6 +31,7 @@ namespace jit {
 
 bool is_conv_index(const pvar_t &dim);
 bool is_conv_index(const pvar_t &dim, prop_kind_t prop);
+pvar_t prb_stride(pvar_t dim, tensor_kind_t tensor_kind);
 const std::vector<pvar_t> &conv_dims();
 const std::vector<pvar_t> &conv_index_dims(prop_kind_t prop);
 

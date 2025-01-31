@@ -267,6 +267,7 @@ class kernel_desc_t : public kernel_desc_base_t {
 public:
     prop_kind_t prop = prop_kind::undef;
     bool is_dw = false;
+    bool is_strided_md = false;
     layout_tag_t src_tag;
     layout_tag_t wei_tag;
     layout_tag_t dst_tag;
