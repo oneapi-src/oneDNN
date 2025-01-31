@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -169,6 +169,12 @@ status_t ref_inner_product_fwd_t::pd_t::init_conf(impl::engine_t *engine) {
 
 status_t ref_inner_product_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
+
+    kernel_ctx.register_buffer_size(*src_md());
+    kernel_ctx.register_buffer_size(*dst_md());
+    kernel_ctx.register_buffer_size(*weights_md(0));
+    kernel_ctx.register_buffer_size(*weights_md(1));
+
     return init_kernel_ctx_common(kernel_ctx, conf, off, *this);
 }
 
@@ -213,6 +219,10 @@ status_t ref_inner_product_bwd_data_t::pd_t::init_conf(impl::engine_t *engine) {
 
 status_t ref_inner_product_bwd_data_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
+    kernel_ctx.register_buffer_size(*diff_src_md());
+    kernel_ctx.register_buffer_size(*diff_dst_md());
+    kernel_ctx.register_buffer_size(*weights_md(0));
+    kernel_ctx.register_buffer_size(*weights_md(1));
     return init_kernel_ctx_common(kernel_ctx, conf, off, *this);
 }
 
@@ -246,6 +256,10 @@ status_t ref_inner_product_bwd_weights_t::pd_t::init_conf(
 
 status_t ref_inner_product_bwd_weights_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
+    kernel_ctx.register_buffer_size(*src_md());
+    kernel_ctx.register_buffer_size(*diff_dst_md());
+    kernel_ctx.register_buffer_size(*diff_weights_md(0));
+    kernel_ctx.register_buffer_size(*diff_weights_md(1));
     return init_kernel_ctx_common(kernel_ctx, conf, off, *this);
 }
 

@@ -72,6 +72,10 @@ public:
         if (size > INT_MAX) use_int32_offset(false);
     }
 
+    void register_buffer_size(const memory_desc_wrapper &mdw) {
+        register_buffer_size(mdw.size());
+    }
+
     // Enable various optimizations when all buffers are < 2GB in size. In this
     // case, int32_t types can be used for data offsets and avoid int64_t
     // operations when native 64-bit operations are unsupported.
