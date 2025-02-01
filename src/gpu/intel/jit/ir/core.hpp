@@ -1848,6 +1848,7 @@ inline int to_int(const expr_t &e) {
 }
 
 expr_t operator-(const expr_t &a);
+expr_t div_up(const expr_t &a, const expr_t &b);
 
 #define DECLARE_BINARY_OPERATOR(op, op_kind) \
     expr_t operator op(const expr_t &a, const expr_t &b);
