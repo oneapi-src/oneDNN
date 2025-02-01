@@ -93,16 +93,6 @@ void init_params(
     } else {
         params.mode = planner_mode_t::trace;
     }
-    // Check if conv v2 is enabled.
-    bool enable_conv_v2
-            = gpu_utils::dev_getenv("ONEDNN_EXPERIMENTAL_GPU_CONV_V2", false);
-    if (!enable_conv_v2) {
-        std::cout << "Error: conv_v2 is not enabled, set "
-                     "ONEDNN_EXPERIMENTAL_GPU_CONV_V2=1 in environment."
-                  << std::endl;
-        exit(1);
-    }
-
     switch (params.mode) {
         case planner_mode_t::auto_search: return;
         case planner_mode_t::search:

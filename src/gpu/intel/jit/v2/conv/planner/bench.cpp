@@ -233,6 +233,7 @@ public:
     const problem_t &prb() const { return prb_; }
 
     bool init_primitive(engine &eng) {
+        const std::string v2_impl_name = "jit:ir_v2";
         try {
             memory::dims src_dims = {mb, g * ic, 1, ih, iw};
             memory::dims wei_dims = {g, oc, ic, 1, kh, kw};
@@ -257,8 +258,10 @@ public:
                             algorithm::convolution_direct, src_md, wei_md,
                             memory::desc(), dst_md, strides, padding_l,
                             padding_r, attr);
-                    auto *impl_name = pd.impl_info_str();
-                    if (strcmp(impl_name, "jit:ir_v2") != 0) {
+                    while (pd.impl_info_str() != v2_impl_name) {
+                        if (!pd.next_impl()) break;
+                    }
+                    if (pd.impl_info_str() != v2_impl_name) {
                         std::cout << "Error: expected conv_v2." << std::endl;
                         exit(1);
                     }
@@ -282,9 +285,10 @@ public:
                             &strides[0], nullptr, &padding_l[0], &padding_r[0],
                             nullptr, attr.get()));
                     auto pd = convolution_backward_data::primitive_desc(c_pd);
-
-                    auto *impl_name = pd.impl_info_str();
-                    if (strcmp(impl_name, "jit:ir_v2") != 0) {
+                    while (pd.impl_info_str() != v2_impl_name) {
+                        if (!pd.next_impl()) break;
+                    }
+                    if (pd.impl_info_str() != v2_impl_name) {
                         std::cout << "Error: expected conv_v2." << std::endl;
                         exit(1);
                     }
@@ -315,9 +319,10 @@ public:
                             &padding_l[0], &padding_r[0], nullptr, attr.get()));
                     auto pd = convolution_backward_weights::primitive_desc(
                             c_pd);
-
-                    auto *impl_name = pd.impl_info_str();
-                    if (strcmp(impl_name, "jit:ir_v2") != 0) {
+                    while (pd.impl_info_str() != v2_impl_name) {
+                        if (!pd.next_impl()) break;
+                    }
+                    if (pd.impl_info_str() != v2_impl_name) {
                         std::cout << "Error: expected conv_v2." << std::endl;
                         exit(1);
                     }
