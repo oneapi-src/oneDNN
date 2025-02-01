@@ -371,7 +371,7 @@ public:
     plan_t build() {
         init_dim_mapper_manager();
         init_tiles();
-        init_layouts();
+        if (!init_layouts()) return plan_t();
         if (!init_info()) return plan_t();
         return init_plan();
     }
@@ -388,6 +388,17 @@ private:
         }();
         if (!ok) return send_plan_t();
         return plan;
+    }
+
+    static bool check_compatible_layout(
+            const layout_t &layout, const pvar_tile_t &tile) {
+        for (auto &d : tile) {
+            int inner = layout.inner_block(d, /*with_outer=*/false);
+            gpu_check(tile[d] % inner == 0)
+                    << "Incompatible layout and tiling. Layout: "
+                    << layout.str() << ", tile: " << tile.str();
+        }
+        return true;
     }
 
     void add_align_req(const pvar_t &dim, const type_t &type,
@@ -416,13 +427,16 @@ private:
         }
     }
 
-    void init_layouts() {
+    bool init_layouts() {
         auto src_layout = make_conv_layout(
                 tensor_kind_t::src, desc_.src_tag, desc_.is_dw, reqs_);
         auto wei_layout = make_conv_layout(
                 tensor_kind_t::wei, desc_.wei_tag, desc_.is_dw, reqs_);
         auto dst_layout = make_conv_layout(
                 tensor_kind_t::dst, desc_.dst_tag, desc_.is_dw, reqs_);
+        gpu_check(check_compatible_layout(src_layout, desc_.iter_tile));
+        gpu_check(check_compatible_layout(wei_layout, desc_.iter_tile));
+        gpu_check(check_compatible_layout(dst_layout, desc_.iter_tile));
         a_layout_ = pick_a(desc_.prop, src_layout, wei_layout, dst_layout);
         b_layout_ = pick_b(desc_.prop, src_layout, wei_layout, dst_layout);
         c_layout_ = pick_c(desc_.prop, src_layout, wei_layout, dst_layout);
@@ -436,6 +450,7 @@ private:
         add_align_req(src_layout.blocks()[0].dim, src_layout.type(), align.src);
         add_align_req(wei_layout.blocks()[0].dim, wei_layout.type(), align.wei);
         add_align_req(dst_layout.blocks()[0].dim, dst_layout.type(), align.dst);
+        return true;
     }
 
     pvar_map_t<char> to_bmnk_map() const {
