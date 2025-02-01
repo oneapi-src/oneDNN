@@ -1825,6 +1825,16 @@ struct op_traits_t<op_kind_t::_div> {
 };
 
 template <>
+struct op_traits_t<op_kind_t::_div_up> {
+    template <typename T,
+            typename = typename std::enable_if<is_int_t<T>::value>::type>
+    static auto compute(T a, T b) -> decltype(a / b) {
+        return op_traits_t<op_kind_t::_div>::compute(
+                static_cast<T>(a + b - 1), b);
+    }
+};
+
+template <>
 struct op_traits_t<op_kind_t::_mod> {
     template <typename T,
             typename = typename std::enable_if<is_int_t<T>::value>::type>
@@ -1878,6 +1888,7 @@ public:
             CASE(op_kind_t::_sub)
             CASE(op_kind_t::_mul)
             CASE(op_kind_t::_div)
+            CASE(op_kind_t::_div_up)
             CASE(op_kind_t::_mod)
 
             CASE(op_kind_t::_eq)
