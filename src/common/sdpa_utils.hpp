@@ -66,25 +66,32 @@ static inline status_t sdpa_attr_check(const memory_desc_t *q_desc,
     if (kq_attr && !kq_attr->has_default_values()) {
         const auto &sc = kq_attr->scales_;
         const auto &zp = kq_attr->zero_points_;
-        const auto &scale_dt = sc.get_data_type(DNNL_ARG_WEIGHTS);
-        const auto &zp_dt = zp.get_data_type(DNNL_ARG_WEIGHTS);
-
-        VCHECK_SDPA_ATTR_TYPE(utils::one_of(scale_dt, f16, f32), kq_attr,
-                "scales", "f16 or f32");
-        VCHECK_SDPA_ATTR_TYPE(utils::one_of(zp_dt, s4, u4, u8, s8, s32),
-                kq_attr, "zero_points", "u4, s4, u8, s8, or s32");
+        if (!sc.has_default_values()) {
+            const auto &scale_dt = sc.get_data_type(DNNL_ARG_WEIGHTS);
+            VCHECK_SDPA_ATTR_TYPE(utils::one_of(scale_dt, f16, f32), kq_attr,
+                    "scales", "f16 or f32");
+        }
+        if (!zp.has_default_values()) {
+            const auto &zp_dt = zp.get_data_type(DNNL_ARG_WEIGHTS);
+            VCHECK_SDPA_ATTR_TYPE(utils::one_of(zp_dt, s4, u4, u8, s8, s32),
+                    kq_attr, "zero_points", "u4, s4, u8, s8, or s32");
+        }
     }
 
     if (vs_attr && !vs_attr->has_default_values()) {
         const auto &sc = vs_attr->scales_;
         const auto &zp = vs_attr->zero_points_;
-        const auto &scale_dt = sc.get_data_type(DNNL_ARG_WEIGHTS);
-        const auto &zp_dt = zp.get_data_type(DNNL_ARG_WEIGHTS);
 
-        VCHECK_SDPA_ATTR_TYPE(utils::one_of(scale_dt, f16, f32), vs_attr,
-                "scales", "f16 or f32");
-        VCHECK_SDPA_ATTR_TYPE(utils::one_of(zp_dt, s4, u4, u8, s8, s32),
-                vs_attr, "zero_points", "u4, s4, u8, s8, or s32");
+        if (!sc.has_default_values()) {
+            const auto &scale_dt = sc.get_data_type(DNNL_ARG_WEIGHTS);
+            VCHECK_SDPA_ATTR_TYPE(utils::one_of(scale_dt, f16, f32), vs_attr,
+                    "scales", "f16 or f32");
+        }
+        if (!zp.has_default_values()) {
+            const auto &zp_dt = zp.get_data_type(DNNL_ARG_WEIGHTS);
+            VCHECK_SDPA_ATTR_TYPE(utils::one_of(zp_dt, s4, u4, u8, s8, s32),
+                    vs_attr, "zero_points", "u4, s4, u8, s8, or s32");
+        }
     }
 
     if (attr) {
