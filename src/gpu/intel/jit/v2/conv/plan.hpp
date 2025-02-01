@@ -47,15 +47,16 @@ public:
         e.loop_size = expr_t(1);
         bool is_dim_1 = reqs.is_equal(dim, 1);
         if (is_loop && !is_dim_1) {
-            e.loop_idx = var_t::make(type_t::s32(), e.dim.str() + "_loop_idx");
             if (is_global_loop) {
                 e.loop_size = const_var_t::make(
                         type_t::s32(), e.dim.str() + "_loop_size");
                 e.is_global_loop = true;
             } else {
-                e.loop_size = binary_op_t::make(
-                        op_kind_t::_div_up, e.dim.var(), tg_tile * iter_tile);
+                e.loop_size = div_up(reqs.to_expr(e.dim), tg_tile * iter_tile);
             }
+            e.loop_idx = is_one(e.loop_size)
+                    ? expr_t(0)
+                    : var_t::make(type_t::s32(), e.dim.str() + "_loop_idx");
         }
         e.tg_idx = expr_t(0);
         e.thr_idx = (tg_tile == 1 ? expr_t(0) : thr_idx);

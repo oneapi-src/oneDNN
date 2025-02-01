@@ -469,11 +469,20 @@ pvar_map_t<expr_t> layout_t::dim_sizes() const {
     return ret;
 }
 
-int layout_t::inner_block(const pvar_t &dim) const {
+int layout_t::inner_block(const pvar_t &dim, bool with_outer) const {
     int ret = 1;
+    int outer = 1;
     for (auto &b : blocks_) {
-        if (b.dim == dim && b.has_const_size()) ret *= b.int_size();
+        if (b.dim == dim) {
+            if (b.has_const_size()) {
+                ret *= b.int_size();
+                outer = b.int_size();
+            } else {
+                outer = 1;
+            }
+        }
     }
+    if (!with_outer) ret /= outer;
     return ret;
 }
 
@@ -698,8 +707,13 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
     auto rem_sizes = tile;
     expr_t base = base_;
     std::vector<block_t> mapped_blocks;
-    pvar_map_t<bool> seen_outer;
+    pvar_map_t<bool> idx_final;
+    pvar_map_t<int> rem_blocks;
+    for (auto &d : dims())
+        rem_blocks[d] = nblocks(d);
     for (auto &b : blocks()) {
+        rem_blocks[b.dim]--;
+        bool is_outer = rem_blocks[b.dim] == 0;
         auto &expr = dim_mapper.expr(b.dim);
         auto _linear = to_linear(expr);
         auto &linear = _linear.as<linear_t>();
@@ -720,31 +734,30 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
                         return split_block(&b, inner, outer)
                                 .map(dim_mapper, coord, tile, var_range_info);
                     }
-                    return layout_t();
                 }
-                mapped_size = b_size;
+                if (!is_outer) mapped_size = b_size;
             }
             if (mapped_size != 1) {
                 cur_size /= mapped_size;
                 auto mapped_stride = linear.u_vec[i] * b.stride;
                 mapped_blocks.emplace_back(dim, mapped_size, mapped_stride);
             }
-            bool is_outer = true;
-            if (b.has_const_size()) {
+            bool is_final = true;
+            if (b.has_const_size() && !is_outer) {
                 gpu_assert(is_zero(off));
-                gpu_assert(!seen_outer.has(dim));
+                gpu_assert(!idx_final.has(dim));
                 T div = T();
                 T mod = T();
                 if (try_div_mod<T>::call(idxs[dim], b.int_size(),
                             var_range_info, div, mod)) {
                     idxs[dim] = div;
                     off = mod;
-                    is_outer = false;
+                    is_final = false;
                 }
             }
-            if (is_outer) {
-                gpu_assert(!seen_outer.has(dim));
-                seen_outer.set(dim, true);
+            if (is_final) {
+                gpu_assert(!idx_final.has(dim));
+                idx_final.set(dim, true);
                 off += idxs[dim] * linear.u_vec[i];
             }
         }
@@ -1118,7 +1131,7 @@ mask_desc_t::mask_desc_t(
     auto dim_sizes = layout.dim_sizes();
     for (auto &d : dim_sizes) {
         auto &expr = dim_mapper.expr(d);
-        int block = layout.inner_block(d);
+        int block = ir_utils::max_pow2_divisor(layout.inner_block(d));
         if (block == 1) {
             const int large_pow2 = (1 << 10);
             block = large_pow2;

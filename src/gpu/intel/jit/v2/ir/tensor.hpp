@@ -379,7 +379,7 @@ public:
     bool has_const_strides() const;
     pvar_tile_t int_dim_sizes() const;
     pvar_map_t<expr_t> dim_sizes() const;
-    int inner_block(const pvar_t &dim) const;
+    int inner_block(const pvar_t &dim, bool with_outer = true) const;
     int inner_stride() const;
     expr_t stride(const pvar_t &dim, int dim_block_idx = 0) const;
     expr_t shift_in_bytes(const std::vector<int> &block_off) const;
