@@ -28,8 +28,8 @@
 #include "gpu/intel/jit/utils/utils.hpp"
 #include "gpu/intel/jit/v2/conv/bridge.hpp"
 #include "gpu/intel/jit/v2/conv/builder.hpp"
+#include "gpu/intel/jit/v2/conv/debug.hpp"
 #include "gpu/intel/jit/v2/conv/kernel.hpp"
-#include "gpu/intel/jit/v2/conv/plan_preset.hpp"
 #include "gpu/intel/jit/v2/conv/plan_registry.hpp"
 
 namespace dnnl {
@@ -120,8 +120,7 @@ public:
 
         auto prb = to_problem(pd, engine);
         kernel_desc_t _desc;
-        if (plan_preset_t::instance().is_set()) {
-            _desc = plan_preset_t::instance().get();
+        if (debug_t::init_kernel_desc(_desc)) {
             _desc.set_defaults();
         } else {
             auto &registry = const_plan_registry();
