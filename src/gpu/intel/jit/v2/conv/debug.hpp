@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_JIT_V2_CONV_PLAN_PRESET_HPP
-#define GPU_INTEL_JIT_V2_CONV_PLAN_PRESET_HPP
+#ifndef GPU_INTEL_JIT_V2_CONV_DEBUG_HPP
+#define GPU_INTEL_JIT_V2_CONV_DEBUG_HPP
 
 #include "gpu/intel/jit/v2/conv/kernel_desc.hpp"
 #include "gpu/intel/utils.hpp"
@@ -28,36 +28,35 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
-class plan_preset_t {
+class debug_t {
 public:
-    bool is_set() const {
-        if (!env_desc_.is_empty()) return true;
-        if (!tls_desc_.is_empty()) return true;
+    static bool init_kernel_desc(kernel_desc_t &desc) {
+        if (!env_desc().is_empty()) {
+            desc = env_desc();
+            return true;
+        }
+        if (!tls_desc_.is_empty()) {
+            desc = tls_desc_;
+            return true;
+        }
         return false;
     }
 
-    const kernel_desc_t &get() const {
-        if (!env_desc_.is_empty()) return env_desc_;
-        if (!tls_desc_.is_empty()) return tls_desc_;
-        gpu_error_not_expected();
-        return env_desc_;
-    }
-
-    struct guard_t {
-        guard_t(const kernel_desc_t &desc, kernel_desc_t *desc_ptr)
+    struct kernel_desc_setter_t {
+        kernel_desc_setter_t(const kernel_desc_t &desc, kernel_desc_t *desc_ptr)
             : desc_ptr_(desc_ptr) {
             *desc_ptr_ = desc;
         }
 
-        guard_t(guard_t &&other) {
+        kernel_desc_setter_t(kernel_desc_setter_t &&other) {
             desc_ptr_ = other.desc_ptr_;
             other.desc_ptr_ = nullptr;
         }
 
-        guard_t(const guard_t &) = delete;
-        guard_t &operator=(const guard_t &) = delete;
+        kernel_desc_setter_t(const kernel_desc_setter_t &) = delete;
+        kernel_desc_setter_t &operator=(const kernel_desc_setter_t &) = delete;
 
-        ~guard_t() {
+        ~kernel_desc_setter_t() {
             if (desc_ptr_) *desc_ptr_ = kernel_desc_t();
         }
 
@@ -65,22 +64,27 @@ public:
         kernel_desc_t *desc_ptr_ = nullptr;
     };
 
-    guard_t make_guard(const kernel_desc_t &desc) {
-        return guard_t(desc, &tls_desc_);
+    static kernel_desc_setter_t make_kernel_desc_setter(
+            const kernel_desc_t &desc) {
+        return kernel_desc_setter_t(desc, &tls_desc_);
     }
 
-    static plan_preset_t &instance() {
-        static plan_preset_t _instance;
+    static debug_t &instance() {
+        static debug_t _instance;
         return _instance;
     }
 
 private:
-    plan_preset_t() {
-        auto s_desc = gpu_utils::dev_getenv("desc", std::string());
-        if (!s_desc.empty()) env_desc_.set(s_desc);
+    static kernel_desc_t &env_desc() {
+        static kernel_desc_t _env_desc = []() {
+            kernel_desc_t d;
+            auto s_desc = gpu_utils::dev_getenv("desc", std::string());
+            if (!s_desc.empty()) d.set(s_desc);
+            return d;
+        }();
+        return _env_desc;
     }
 
-    static kernel_desc_t env_desc_;
     static thread_local kernel_desc_t tls_desc_;
 };
 

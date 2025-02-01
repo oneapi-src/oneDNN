@@ -17,8 +17,8 @@
 #include "gpu/intel/jit/v2/conv/planner/bench.hpp"
 
 #include "common/dnnl_thread.hpp"
+#include "gpu/intel/jit/v2/conv/debug.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
-#include "gpu/intel/jit/v2/conv/plan_preset.hpp"
 #include "gpu/intel/jit/v2/conv/plan_registry.hpp"
 #include "gpu/intel/jit/v2/conv/tensor_utils.hpp"
 #include "gpu/intel/ocl/usm_utils.hpp"
@@ -555,12 +555,12 @@ bench_data_t bench(const bench_manager_t &bench_mger,
     auto kernel_desc_min_dims = kernel_desc;
     kernel_desc_min_dims.spec.mode = specialization_mode_t::min_dims;
     {
-        auto guard = plan_preset_t::instance().make_guard(kernel_desc_min_dims);
+        auto guard = debug_t::make_kernel_desc_setter(kernel_desc_min_dims);
         if (!tasks[0].init_primitive(eng)) return {};
     }
 
     parallel_nd(ntasks, [&](dim_t i) {
-        auto guard = plan_preset_t::instance().make_guard(kernel_desc_min_dims);
+        auto guard = debug_t::make_kernel_desc_setter(kernel_desc_min_dims);
         bool ok = tasks[i].init_primitive(eng);
         if (!ok) throw std::runtime_error("Initialization failed");
     });
@@ -633,7 +633,7 @@ bool try_create(
     bench_input_params_t params(kernel_desc, bench_mger.hw(), /*nprbs=*/1);
     bench_task_t task(generate_problems(params)[0]);
     auto engine = bench_mger.get_engine();
-    auto guard = plan_preset_t::instance().make_guard(kernel_desc);
+    auto guard = debug_t::instance().make_kernel_desc_setter(kernel_desc);
     return task.init_primitive(engine);
 }
 
