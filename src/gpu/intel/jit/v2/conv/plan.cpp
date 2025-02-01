@@ -829,12 +829,16 @@ private:
     bool check_plan(const plan_t &plan) const {
         int grf_bound = hw_.grf_size() * desc_.regs;
         int grf_bytes = plan.grf_usage_bytes();
-        gpu_check(grf_bytes <= grf_bound) << "check_plan: out of registers";
+        gpu_check(grf_bytes <= grf_bound)
+                << "Plan:\n"
+                << plan.str() << "\ncheck_plan: out of registers";
         int slm_bound = compute::device_info_t::max_slm_size_per_tg(
                 convert_ngen_arch_to_dnnl(hw_.to_ngen()),
                 into<int>(desc_.thread_group_tile.elems()), desc_.regs > 128);
         int slm_bytes = plan.slm_usage_bytes();
-        gpu_check(slm_bytes <= slm_bound) << "check_plan: out of SLM";
+        gpu_check(slm_bytes <= slm_bound)
+                << "Plan:\n"
+                << plan.str() << "\ncheck_plan: out of SLM";
         return true;
     }
 

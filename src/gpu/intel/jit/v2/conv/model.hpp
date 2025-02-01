@@ -62,6 +62,9 @@ public:
     static float predict(model_kind_t kind, const vec1d &x, const vec1d &coef);
     static size_t coef_count(model_kind_t kind);
 
+    std::string str() const;
+    IR_DEFINE_DUMP()
+
 private:
     model_kind_t kind_;
     vec1d coef_;
@@ -71,10 +74,13 @@ class model_set_t {
 public:
     model_set_t() = default;
     model_set_t(const model_t &model) { models_.push_back(model); }
+    bool is_empty() const { return models_.empty(); }
     void add(const model_t &model) { models_.push_back(model); }
     float time(const problem_t &prb, const kernel_desc_t &desc) const;
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
+    std::string str() const;
+    IR_DEFINE_DUMP()
 
 private:
     float time(model_kind_t kind, const problem_t &prb,

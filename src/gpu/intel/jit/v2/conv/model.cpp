@@ -118,7 +118,8 @@ struct bmnk_helper_t {
 };
 
 dim_t layout_size(const layout_tag_t &tag, const problem_t &prb) {
-    gpu_assert(!tag.is_any() && !tag.is_empty());
+    gpu_assert(!tag.is_any() && !tag.is_empty())
+            << "Unexpected tag: " << tag.str();
     pvar_tile_t tile;
     for (auto &d : tag.desc().letter_map())
         tile[d] = prb.shape().at(d);
@@ -369,6 +370,13 @@ size_t model_t::coef_count(model_kind_t kind) {
     return 0;
 }
 
+std::string model_t::str() const {
+    using namespace ir_utils;
+    std::ostringstream oss;
+    oss << to_string(kind_) << ": " << coef_;
+    return oss.str();
+}
+
 bool with_data_copy(const problem_t &prb, const kernel_desc_t &desc) {
     if (desc.use_stream_k) return true;
     auto &prb_tag = prb.layout_tag(tensor_kind_t::c);
@@ -438,6 +446,17 @@ void model_set_t::parse(std::istream &in) {
         }
         models_.emplace_back(kind, coef);
     }
+}
+
+std::string model_set_t::str() const {
+    std::ostringstream oss;
+    bool is_first = true;
+    for (auto &m : models_) {
+        if (!is_first) oss << std::endl;
+        oss << m.str();
+        is_first = false;
+    }
+    return oss.str();
 }
 
 void to_model_data(
