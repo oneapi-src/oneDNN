@@ -441,7 +441,7 @@ random_dim_set_t operator|(const random_dim_t &a, const random_dim_set_t &b) {
 }
 
 pvar_tile_t random_shape(
-        prop_kind_t prop, bool is_dw, const pvar_tile_t &tile) {
+        const bench_input_params_t &params, const pvar_tile_t &tile) {
     auto make_random_dim = [&](const pvar_t &dim, dim_t lo = 0, dim_t hi = 0) {
         auto ret = random_dim_t(dim, tile.get(dim, 1));
         return ret.with_range(lo, hi);
@@ -461,7 +461,7 @@ pvar_tile_t random_shape(
     auto oc = make_random_dim_set(pvars::oc, 64, 512, 2048);
     auto ow = make_random_dim_set(pvars::ow, 64, 512, 2048);
     auto iw = make_random_dim_set(pvars::iw, 64, 512, 2048);
-    if (is_dw) {
+    if (params.is_dw) {
         s[pvars::g] = g();
         s[pvars::mb] = mb();
         s[pvars::ic] = 1;
@@ -473,6 +473,10 @@ pvar_tile_t random_shape(
         s[pvars::ic] = ic();
         s[pvars::oc] = oc();
         s[pvars::iw] = s[pvars::ow] = (ow.with_tile() ? ow() : iw());
+    }
+    for (auto &d : s) {
+        dim_t value;
+        if (params.reqs.get_value(d, value)) s[d] = value;
     }
     return s;
 }
@@ -516,7 +520,7 @@ std::vector<problem_t> generate_problems(const bench_input_params_t &params) {
     std::vector<problem_t> ret;
     const int max_iters = (1 << 24);
     for (int iter = 0; iter < max_iters; iter++) {
-        auto shape = random_shape(params.prop, params.is_dw, tile);
+        auto shape = random_shape(params, tile);
         if (problem_t::ops(params.prop, shape) > max_ops) continue;
         if (footprint(params.src_tag, params.wei_tag, params.dst_tag, shape)
                 > max_bytes)
