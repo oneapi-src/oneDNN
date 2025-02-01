@@ -847,6 +847,8 @@ dim_t prb_reqs_t::max_factor(const pvar_t &pvar) const {
     dim_t ret = 1;
     for (auto &r : reqs_) {
         auto &ri = r.impl();
+        if (ri.kind() == req_kind_t::eq && ri.lhs() == pvar)
+            return ri.rhs().value();
         if (ri.kind() == req_kind_t::mod_eq_0 && ri.lhs() == pvar
                 && ri.rhs().is_value()) {
             ret = std::max(ret, ri.rhs().value());
