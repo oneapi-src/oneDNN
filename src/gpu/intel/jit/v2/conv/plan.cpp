@@ -196,6 +196,35 @@ public:
     }
 
 private:
+    struct fused_dim_t {
+        char mnk = '\0';
+        std::vector<pvar_t> dims;
+        std::vector<dim_t> sizes;
+
+        fused_dim_t(char mnk) : mnk(mnk) {}
+        int ndims() const { return (int)dims.size(); }
+        dim_t size() const { return utils::array_product(sizes); }
+        void add(const pvar_t &dim, dim_t size) {
+            gpu_assert(size > 1);
+            dims.push_back(dim);
+            sizes.push_back(size);
+        }
+
+        std::pair<pvar_t, dim_t> pop(dim_t &block) {
+            gpu_assert(!dims.empty());
+            dim_t b = math::gcd(sizes.back(), block);
+            gpu_assert(b > 1);
+            auto ret = std::make_pair(dims.back(), b);
+            sizes.back() /= b;
+            block /= b;
+            if (sizes.back() == 1) {
+                dims.pop_back();
+                sizes.pop_back();
+            }
+            return ret;
+        }
+    };
+
     bool fma_type_supported(const type_t &type) const {
         switch (fma_) {
             case fma_kind_t::mad:
@@ -261,60 +290,57 @@ private:
 
     bool init_dpas(const layout_desc_t &a_desc, const layout_desc_t &b_desc,
             const layout_desc_t &c_desc) {
-        pvar_t m_dim;
-        pvar_t n_dim;
-        pvar_t k_dim;
+        fused_dim_t m_dim('m');
+        fused_dim_t n_dim('n');
+        fused_dim_t k_dim('k');
         for (auto &d : iter_tile_) {
             switch (to_bmnk(d)) {
-                case 'm':
-                    gpu_assert(m_dim.is_undef());
-                    m_dim = d;
-                    break;
-                case 'n':
-                    gpu_assert(n_dim.is_undef());
-                    n_dim = d;
-                    break;
-                case 'k':
-                    gpu_assert(k_dim.is_undef());
-                    k_dim = d;
-                    break;
+                case 'm': m_dim.add(d, iter_tile_[d]); break;
+                case 'n': n_dim.add(d, iter_tile_[d]); break;
+                case 'k': k_dim.add(d, iter_tile_[d]); break;
                 default: gpu_error_not_expected();
             }
         }
-        gpu_check(!m_dim.is_undef() && !n_dim.is_undef() && !k_dim.is_undef())
+        gpu_check(m_dim.ndims() == 1 && n_dim.ndims() == 1
+                && utils::one_of(k_dim.ndims(), 1, 2))
                 << "init_dpas: cannot initialize MNK dimensions.";
-        dim_t m_size = iter_tile_.at(m_dim);
-        dim_t n_size = iter_tile_.at(n_dim);
-        dim_t k_size = iter_tile_.at(k_dim);
-        uint8_t sdepth = 8;
-        uint8_t rcount = 8;
+        if (k_dim.ndims() == 2) {
+            std::swap(k_dim.dims[0], k_dim.dims[1]);
+            std::swap(k_dim.sizes[0], k_dim.sizes[1]);
+        }
+        const uint8_t sdepth = 8;
+        const uint8_t rcount = 8;
         int type_size = a_type_.size();
-        gpu_check(m_size % rcount == 0)
-                << "init_dpas: M dimension size is invalid: " << m_size;
-        gpu_check(n_size % simd_ == 0)
-                << "init_dpas: N dimension size is invalid: " << n_size;
-        gpu_check((k_size * type_size) % (sdepth * 4) == 0)
-                << "init_dpas: K dimension size is invalid: " << k_size;
+        int dword_size = 4;
+        gpu_check(m_dim.size() % rcount == 0)
+                << "init_dpas: M dimension size is invalid: " << m_dim.size();
+        gpu_check(n_dim.size() % simd_ == 0)
+                << "init_dpas: N dimension size is invalid: " << n_dim.size();
+        gpu_check((k_dim.size() * type_size) % (sdepth * dword_size) == 0)
+                << "init_dpas: K dimension size is invalid: " << k_dim.size();
 
         auto _dpas = dpas_t::make(
                 /*is_dpasw=*/false, simd_, sdepth, rcount, acc_type_, b_type_,
                 a_type_);
         auto &dpas = _dpas.as<dpas_t>();
-        a_inner_ = to_v2_layout(
-                dpas.b_layout(), a_desc, std::vector<pvar_t> {k_dim, m_dim});
-        b_inner_ = to_v2_layout(
-                dpas.a_layout(), b_desc, std::vector<pvar_t> {n_dim, k_dim});
-        c_inner_ = to_v2_layout(
-                dpas.c_layout(), c_desc, std::vector<pvar_t> {n_dim, m_dim});
+        a_inner_ = to_v2_layout(dpas.b_layout(), a_desc,
+                std::vector<fused_dim_t> {k_dim, m_dim});
+        b_inner_ = to_v2_layout(dpas.a_layout(), b_desc,
+                std::vector<fused_dim_t> {n_dim, k_dim});
+        c_inner_ = to_v2_layout(dpas.c_layout(), c_desc,
+                std::vector<fused_dim_t> {n_dim, m_dim});
         return true;
     }
 
     static layout_t to_v2_layout(const jit::layout_t &layout,
-            const layout_desc_t &desc, const std::vector<pvar_t> &dims) {
+            const layout_desc_t &desc, std::vector<fused_dim_t> dims) {
         layout_t ret(desc, layout.type());
         for (auto &b : layout.blocks()) {
-            auto dim = dims[b.dim_idx];
-            ret.add_block(dim, b.block);
+            dim_t block = b.block;
+            while (block > 1) {
+                auto dim_block = dims[b.dim_idx].pop(block);
+                ret.add_block(dim_block.first, dim_block.second);
+            }
         }
         return ret;
     }
