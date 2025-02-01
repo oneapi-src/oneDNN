@@ -100,6 +100,27 @@ void plan_registry_t::entry_t::parse(std::istream &in) {
     jit::parse(in, model_set);
 }
 
+std::string plan_registry_t::entry_t::str() const {
+    if (is_empty()) return "(empty)";
+    std::ostringstream oss;
+    oss << ir_utils::add_tag("Desc", desc.str());
+    if (!model_set.is_empty()) {
+        oss << std::endl;
+        oss << ir_utils::add_tag("Model", model_set.str());
+    }
+    return oss.str();
+}
+
+std::string plan_registry_t::entry_t::registry_str() const {
+    gpu_assert(!desc.is_empty() && !model_set.is_empty())
+            << "Need both descriptor/model for kernel registry";
+    std::ostringstream oss;
+    jit::stringify(oss, desc);
+    oss << " model=";
+    model_set.stringify(oss);
+    return oss.str();
+}
+
 struct plan_registry_instance_t {
     static plan_registry_instance_t &get() {
         static plan_registry_instance_t _instance;

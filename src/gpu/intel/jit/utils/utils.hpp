@@ -400,10 +400,21 @@ inline std::string to_string(bool b) {
     return b ? "True" : "False";
 }
 
+inline std::string to_yes_no(bool b) {
+    return b ? "Yes" : "No";
+}
+
 inline std::string to_lower(const std::string &s) {
     auto ret = s;
     std::transform(ret.begin(), ret.end(), ret.begin(),
             [](char c) { return std::tolower(c); });
+    return ret;
+}
+
+inline std::string to_upper(const std::string &s) {
+    auto ret = s;
+    std::transform(ret.begin(), ret.end(), ret.begin(),
+            [](char c) { return std::toupper(c); });
     return ret;
 }
 

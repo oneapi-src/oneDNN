@@ -179,7 +179,7 @@ struct prefetch_plan_t : public base_plan_t {
     }
 
     std::string str() const {
-        if (!*this) return "(empty)";
+        if (!*this || (!a_prefetch && !b_prefetch)) return "(empty)";
         std::ostringstream oss;
         oss << ir_utils::add_tag("a_prefetch", a_prefetch.str()) << std::endl;
         oss << ir_utils::add_tag("b_prefetch", b_prefetch.str());

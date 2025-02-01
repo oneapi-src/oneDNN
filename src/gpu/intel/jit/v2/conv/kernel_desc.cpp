@@ -276,9 +276,9 @@ void kernel_desc_t::set(const std::string &s) {
     auto &iface = parse_iface();
     parse_result_t result;
     iface.parse(s, *this, &result);
-    if (!result.is_set("--iter")) {
-        gpu_info() << "Error: missing --iter parameter in kernel descriptor.";
-        gpu_error_not_expected();
+    if (!result.is_set("--iter") && !result.is_set("iter")) {
+        gpu_error_not_expected()
+                << "Error: missing --iter parameter in kernel descriptor";
     }
     set_defaults();
 }
@@ -472,10 +472,14 @@ std::string kernel_desc_t::brief_str() const {
 std::string kernel_desc_t::str() const {
     if (is_empty()) return "(empty)";
     std::ostringstream oss;
-    oss << "Propagation:            " << jit::to_string(prop) << std::endl;
+    oss << "Propagation:            "
+        << ir_utils::to_upper(jit::to_string(prop)) << std::endl;
     oss << "Depthwise:              " << ir_utils::to_string(is_dw)
         << std::endl;
-    oss << "Bias type:              " << bias_type << std::endl;
+    oss << "Bias:                   "
+        << ir_utils::to_yes_no(!bias_type.is_undef());
+    if (!bias_type.is_undef()) oss << " (" << bias_type.str() << ")";
+    oss << std::endl;
     oss << "Source tag:             " << src_tag << std::endl;
     oss << "Weights tag:            " << wei_tag << std::endl;
     oss << "Destination tag:        " << dst_tag << std::endl;
@@ -488,15 +492,15 @@ std::string kernel_desc_t::str() const {
     oss << "Iteration outer tile:   " << iter_outer_tile << std::endl;
     oss << "Thread group tile:      " << thread_group_tile << std::endl;
     oss << "Loop desc:              " << loop_desc << std::endl;
-    oss << "Use Stream-K:           " << ir_utils::to_string(use_stream_k)
+    oss << "Use Stream-K:           " << ir_utils::to_yes_no(use_stream_k)
         << std::endl;
-    oss << "Use block 2D access:    " << ir_utils::to_string(use_2d_access)
+    oss << "Use block 2D access:    " << ir_utils::to_yes_no(use_2d_access)
         << std::endl;
     oss << "Prefetch:               " << prefetch.str() << std::endl;
     if (spec) oss << "Specialization:         " << spec.str() << std::endl;
     oss << "Extensions:             " << ext.str() << std::endl;
     oss << "Command:                " << cmd_str();
-    return ir_utils::add_tag("Desc", oss.str());
+    return oss.str();
 }
 
 void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
