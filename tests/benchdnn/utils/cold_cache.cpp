@@ -237,8 +237,10 @@ cold_cache_t::cold_cache_t(
         const dnnl_dim_t nelems = static_cast<dnnl_dim_t>(
                 div_up(cache_capacity, sizeof(float)));
         dnnl_dims_t dims {nelems};
-        dnn_mem_t src_m(1, dims, dnnl_f32, tag::abx, engine);
-        dnn_mem_t dst_m(1, dims, dnnl_f32, tag::abx, engine);
+        const dnn_mem_t::handle_info_t no_rng_m_handle = {false, DNNL_MEMORY_ALLOCATE, false};
+        auto r_md = dnn_mem_t::init_md(1, dims, dnnl_f32, tag::abx).release();
+        dnn_mem_t src_m(r_md, engine, no_rng_m_handle);
+        dnn_mem_t dst_m(r_md, engine, no_rng_m_handle);
 
         DNN_SAFE_V(dnnl_reorder_primitive_desc_create(
                 &r_pd, src_m.md_, engine, dst_m.md_, engine, attr));
