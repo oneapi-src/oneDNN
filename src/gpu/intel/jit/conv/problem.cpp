@@ -54,7 +54,7 @@ if (tensor_kind == tensor_kind_t::src ){
    else if (dim == pvars::id) ret = pvars::src_id_stride; 
    else if (dim == pvars::ih) ret = pvars::src_ih_stride;
    else if (dim == pvars::iw) ret = pvars::src_iw_stride;
-   else  ir_error_not_expected(); 
+   else  ret = pvar_t(); 
  
 }else if (tensor_kind == tensor_kind_t::wei){
 
@@ -64,7 +64,7 @@ if (tensor_kind == tensor_kind_t::src ){
    else if (dim == pvars::kd) ret = pvars::wei_kd_stride; 
    else if (dim == pvars::kh) ret = pvars::wei_kh_stride; 
    else if (dim == pvars::kw) ret = pvars::wei_kw_stride; 
-   else  ir_error_not_expected(); 
+   else  ret = pvar_t(); 
  
 }else if (tensor_kind == tensor_kind_t::dst){
 
@@ -73,7 +73,7 @@ if (tensor_kind == tensor_kind_t::src ){
    else if (dim == pvars::od) ret = pvars::dst_od_stride; 
    else if (dim == pvars::oh) ret = pvars::dst_oh_stride;
    else if  (dim == pvars::ow) ret = pvars::dst_ow_stride;
-   else  ir_error_not_expected(); 
+   else  ret = pvar_t();
  
 
 }

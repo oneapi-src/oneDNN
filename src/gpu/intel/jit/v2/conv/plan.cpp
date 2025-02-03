@@ -401,6 +401,15 @@ private:
         return true;
     }
 
+    void add_stride_reqs(const layout_t &layout, tensor_kind_t kind) {
+        int stride = 1;
+        for (auto &b : layout.blocks()) {
+            auto dim = b.dim;
+            if (desc_.iter_tile.has(dim)) stride *= desc_.iter_tile[dim];
+            reqs_.add(prb_stride(dim, kind).var() % stride == 0);
+        }
+    }
+
     void init_dim_mapper_manager() {
         dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop, reqs_);
     }
