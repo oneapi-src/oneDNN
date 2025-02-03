@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -125,10 +125,12 @@ status_t gen9_concat_t::pd_t::init_conf(impl::engine_t *engine) {
     conf.n = pd->n_inputs();
     conf.concat_axis = pd->concat_dim();
 
+    dim_t max_bytes = dst_mdw.size();
     int concat_axis_end = 0;
     conf.scales_mask = 0;
     for (int i = 0; i < conf.n; ++i) {
         const memory_desc_wrapper src_mdw(pd->src_md(i));
+        max_bytes = std::max(max_bytes, into<dim_t>(src_mdw.size()));
         concat_axis_end += src_mdw.dims()[conf.concat_axis];
         conf.offset[i] = concat_axis_end;
         conf.src_md_infos[i] = memory_desc_info_t::create(pd->src_md(i));
@@ -136,6 +138,8 @@ status_t gen9_concat_t::pd_t::init_conf(impl::engine_t *engine) {
                 pd->attr(), src_mdw, DNNL_ARG_MULTIPLE_SRC + i);
         conf.scales_mask |= ((!conf.scale_src[i].has_default_values()) << i);
     }
+
+    conf.use_large_index = (max_bytes > std::numeric_limits<int>::max());
 
     conf.sub_group_size = calculate_sub_group_size(compute_engine);
     std::tie(conf.iter_dim_idx, conf.iter_dim_chunk)
@@ -187,6 +191,8 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int("ITER_DIM_IDX", conf.iter_dim_idx);
     kernel_ctx.define_int("ITER_DIM_CHUNK", conf.iter_dim_chunk);
     kernel_ctx.define_int("SCALES_MASK", conf.scales_mask);
+
+    kernel_ctx.use_int32_offset(!conf.use_large_index);
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
