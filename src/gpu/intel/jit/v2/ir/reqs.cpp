@@ -958,10 +958,18 @@ const prover_t &prover_t::instance() {
 }
 
 bool prover_t::require(const expr_t &_e) const {
-    auto e = simplify_expr(_e);
-    if (auto *imm = e.as_ptr<bool_imm_t>()) return imm->value;
+   auto e = _e; 
+   auto vars = find_objects<var_t>(_e);
+   for (auto var : vars){
+        auto pvar = pvar_t::from_var(var.as<var_t>());
+	if (pvar.is_undef()) continue;
+        e = substitute(e, var, expr_t(parent_->max_factor(pvar)));
+   }
+   e = simplify_expr(e);
+   auto *imm = e.as_ptr<bool_imm_t>();
+   if (auto *imm = e.as_ptr<bool_imm_t>()) return imm->value;
 
-    req_impl_t ri(e);
+    req_impl_t ri(_e);
     bool is_true = (parent_ && parent_->can_prove(ri));
     if (!is_true && !can_update_) return false;
     reqs_->add_if_not_found(ri);

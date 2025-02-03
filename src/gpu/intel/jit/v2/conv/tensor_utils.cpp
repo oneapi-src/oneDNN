@@ -135,7 +135,7 @@ layout_tag_t append_groups(
         }
     }
     auto desc = make_conv_layout_desc(tensor_kind, /*src_dst_with_group=*/true);
-    return layout_tag_t(desc, layout_tag.type(), new_raw_tag);
+    return layout_tag_t(desc, layout_tag.type(), new_raw_tag, layout_tag.is_strided());
 }
 
 uint32_t append_groups(tensor_kind_t tensor_kind, uint32_t mask, bool is_dw) {
@@ -174,9 +174,11 @@ layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
         } else {
             block_size_expr = rem_size(dim, blocks);
         }
-        if (tag.is_strided() && it != entries.rend() - 1)
-            ret.add_block(
-                    dim, block_size_expr, prb_stride(dim, tensor_kind).var());
+        if (tag.is_strided() && it != entries.rbegin()){
+                auto stride =prb_stride(dim, tensor_kind);
+	       	ret.add_block(
+                    dim, block_size_expr, stride.is_undef() ? expr_t(1) : stride.var());
+	}
         else
             ret.add_block(dim, block_size_expr);
     }

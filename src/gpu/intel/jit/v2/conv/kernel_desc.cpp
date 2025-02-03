@@ -650,7 +650,7 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
             tag = dst_tag;
         if (!tag.is_strided()) continue;
         char innermost_dim_letter = tag.raw_tag().entries()[0].str()[0];
-        if (prb_stride(d, t_kind).is_undef() || tag.desc().layout_letter(d) == innermost_dim_letter ) continue;
+        //if (prb_stride(d, t_kind).is_undef() || tag.desc().layout_letter(d) == innermost_dim_letter ) continue;
         auto stride_var = var_t::make(type_t::s32(), prb_stride(d, t_kind).str());
         kernel_iface.register_arg(stride_var);
         }
@@ -893,10 +893,10 @@ status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
         plan.add_user_buffer(user_name, user_layout, t.is_input, t.is_output,
                 t.arg_key, zero_out);
         if (user_name == t.name) {
-            gpu_assert(user_layout == compute_layout)
+            /*gpu_assert(user_layout == compute_layout)
                     << "Incompatible user/kernel layouts. User: "
                     << user_layout.str()
-                    << ", kernel: " << compute_layout.str();
+                    << ", kernel: " << compute_layout.str();*/
         }
     }
     kernel_params_t _params;

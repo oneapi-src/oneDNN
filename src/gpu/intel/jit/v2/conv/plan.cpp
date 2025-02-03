@@ -372,6 +372,17 @@ private:
         reqs_.add(
                 dim.var() % ir_utils::safe_div(align_bytes, type.size()) == 0);
     }
+    
+    void add_stride_reqs(const layout_t &layout, tensor_kind_t kind) {
+        int stride  =1;
+	for (auto &b : layout.blocks()){
+	      auto dim = b.dim;
+              if (desc_.iter_tile.has(dim))
+		      stride *= desc_.iter_tile[dim];
+        reqs_.add(
+                 prb_stride(dim,kind).var() % stride == 0);
+	}
+    }
 
     void init_dim_mapper_manager() {
         dim_mapper_manager_ = dim_mapper_manager_t(desc_.prop, reqs_);
@@ -411,6 +422,10 @@ private:
         add_align_req(src_layout.blocks()[0].dim, src_layout.type(), align.src);
         add_align_req(wei_layout.blocks()[0].dim, wei_layout.type(), align.wei);
         add_align_req(dst_layout.blocks()[0].dim, dst_layout.type(), align.dst);
+	if (desc_.src_tag.is_strided()) add_stride_reqs(src_layout, tensor_kind_t::src);
+	if (desc_.wei_tag.is_strided()) add_stride_reqs(wei_layout, tensor_kind_t::wei);
+	if (desc_.dst_tag.is_strided()) add_stride_reqs(dst_layout, tensor_kind_t::dst);
+
     }
 
     pvar_map_t<char> to_bmnk_map() const {
