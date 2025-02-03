@@ -161,10 +161,10 @@ private:
     void uni_broadcast_reg_val(const int reg_idx, const int vmm_idx);
     void push_vmm_val(const int idx);
     void pop_vmm_val(const int idx);
-    void load(const int idx, const reg64_t &reg_ptr, const int offset,
-            const bool is_c_tail_proccessing);
-    void store(const int idx, const reg64_t &reg_ptr, const int offset,
-            const bool is_c_tail_proccessing);
+    void load(const data_type_t dt, const int idx, const reg64_t &reg_ptr,
+            const int offset, const bool is_c_tail_proccessing);
+    void store(const data_type_t dt, const int idx, const reg64_t &reg_ptr,
+            const int offset, const bool is_c_tail_proccessing);
 
     void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r,
             bool with_c_tail_proccessing);
