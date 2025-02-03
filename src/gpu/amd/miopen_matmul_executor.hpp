@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,8 @@
 
 #ifndef GPU_AMD_MIOPEN_MATMUL_EXECUTOR_HPP
 #define GPU_AMD_MIOPEN_MATMUL_EXECUTOR_HPP
+
+#include "common/compiler_workarounds.hpp"
 
 #include "gpu/amd/engine.hpp"
 #include "gpu/amd/miopen_matmul.hpp"
@@ -101,7 +103,8 @@ struct miopen_matmul_scratch_runtime_args_bias_exec_t
 
         init_scratch_buffer(scratchpad_size);
 
-        return hip_stream->interop_task([=](::sycl::handler &cgh) {
+        return hip_stream->interop_task([= WA_THIS_COPY_CAPTURE](
+                                                ::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -126,7 +129,8 @@ struct miopen_matmul_runtime_args_scratch_exec_t
 
         init_scratch_buffer(scratchpad_size);
 
-        return hip_stream->interop_task([=](::sycl::handler &cgh) {
+        return hip_stream->interop_task([= WA_THIS_COPY_CAPTURE](
+                                                ::sycl::handler &cgh) {
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -150,7 +154,8 @@ struct miopen_matmul_runtime_args_bias_exec_t
         amd::stream_t *hip_stream
                 = utils::downcast<amd::stream_t *>(ctx.stream());
 
-        return hip_stream->interop_task([=](::sycl::handler &cgh) {
+        return hip_stream->interop_task([= WA_THIS_COPY_CAPTURE](
+                                                ::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -173,20 +178,21 @@ struct miopen_matmul_runtime_args_exec_t : public miopen_matmul_exec_base_t {
         amd::stream_t *hip_stream
                 = utils::downcast<amd::stream_t *>(ctx.stream());
 
-        return hip_stream->interop_task([=](::sycl::handler &cgh) {
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+        return hip_stream->interop_task(
+                [= WA_THIS_COPY_CAPTURE](::sycl::handler &cgh) {
+                    auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+                    auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+                    auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
-            auto arg_bias = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read>();
-            auto arg_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
+                    auto arg_bias = xpu::sycl::interop_memory_arg_t<
+                            ::sycl::access::mode::read>();
+                    auto arg_scratch = xpu::sycl::interop_memory_arg_t<
+                            ::sycl::access::mode::read_write>();
 
-            interop_task(matmul_impl_, engine, cgh, hip_stream, arg_wt, arg_src,
-                    arg_dst, /*nullptr*/ arg_bias,
-                    /*nullptr*/ arg_scratch);
-        });
+                    interop_task(matmul_impl_, engine, cgh, hip_stream, arg_wt,
+                            arg_src, arg_dst, /*nullptr*/ arg_bias,
+                            /*nullptr*/ arg_scratch);
+                });
     }
 };
 
@@ -198,17 +204,18 @@ struct miopen_matmul_bias_scratch_exec_t : public miopen_matmul_exec_base_t {
         amd::stream_t *hip_stream
                 = utils::downcast<amd::stream_t *>(ctx.stream());
 
-        return hip_stream->interop_task([=](::sycl::handler &cgh) {
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
-            auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
-            auto arg_scratch = CTX_SCRATCH_SYCL_MEMORY(
-                    memory_tracking::names::key_matmul_dst_in_acc_dt);
+        return hip_stream->interop_task(
+                [= WA_THIS_COPY_CAPTURE](::sycl::handler &cgh) {
+                    auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+                    auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+                    auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+                    auto arg_bias = CTX_IN_SYCL_MEMORY(DNNL_ARG_BIAS);
+                    auto arg_scratch = CTX_SCRATCH_SYCL_MEMORY(
+                            memory_tracking::names::key_matmul_dst_in_acc_dt);
 
-            interop_task(matmul_impl_, engine, cgh, hip_stream, arg_wt, arg_src,
-                    arg_dst, arg_bias, arg_scratch);
-        });
+                    interop_task(matmul_impl_, engine, cgh, hip_stream, arg_wt,
+                            arg_src, arg_dst, arg_bias, arg_scratch);
+                });
     }
 };
 
@@ -220,7 +227,8 @@ struct miopen_matmul_scratch_exec_t : public miopen_matmul_exec_base_t {
         amd::stream_t *hip_stream
                 = utils::downcast<amd::stream_t *>(ctx.stream());
 
-        return hip_stream->interop_task([=](::sycl::handler &cgh) {
+        return hip_stream->interop_task([= WA_THIS_COPY_CAPTURE](
+                                                ::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -244,7 +252,8 @@ struct miopen_matmul_bias_exec_t : public miopen_matmul_exec_base_t {
         amd::stream_t *hip_stream
                 = utils::downcast<amd::stream_t *>(ctx.stream());
 
-        return hip_stream->interop_task([=](::sycl::handler &cgh) {
+        return hip_stream->interop_task([= WA_THIS_COPY_CAPTURE](
+                                                ::sycl::handler &cgh) {
             auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
             auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
             auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
@@ -267,20 +276,21 @@ struct miopen_matmul_exec_t : public miopen_matmul_exec_base_t {
         amd::stream_t *hip_stream
                 = utils::downcast<amd::stream_t *>(ctx.stream());
 
-        return hip_stream->interop_task([=](::sycl::handler &cgh) {
-            auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
-            auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
-            auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
+        return hip_stream->interop_task(
+                [= WA_THIS_COPY_CAPTURE](::sycl::handler &cgh) {
+                    auto arg_src = CTX_IN_SYCL_MEMORY(DNNL_ARG_SRC);
+                    auto arg_wt = CTX_IN_SYCL_MEMORY(DNNL_ARG_WEIGHTS);
+                    auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
 
-            auto arg_bias = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read>();
-            auto arg_scratch = xpu::sycl::interop_memory_arg_t<
-                    ::sycl::access::mode::read_write>();
+                    auto arg_bias = xpu::sycl::interop_memory_arg_t<
+                            ::sycl::access::mode::read>();
+                    auto arg_scratch = xpu::sycl::interop_memory_arg_t<
+                            ::sycl::access::mode::read_write>();
 
-            interop_task(matmul_impl_, engine, cgh, hip_stream, arg_wt, arg_src,
-                    arg_dst, /*nullptr*/ arg_bias,
-                    /*nullptr*/ arg_scratch);
-        });
+                    interop_task(matmul_impl_, engine, cgh, hip_stream, arg_wt,
+                            arg_src, arg_dst, /*nullptr*/ arg_bias,
+                            /*nullptr*/ arg_scratch);
+                });
     }
 };
 

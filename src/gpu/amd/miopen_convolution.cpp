@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +14,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include "common/compiler_workarounds.hpp"
 
 #include "gpu/amd/miopen_convolution.hpp"
 #include "gpu/amd/stream.hpp"
@@ -55,25 +57,26 @@ status_t miopen_convolution_fwd_t::execute_convolution(
                     ::sycl::access::mode::read_write>(temp_reorder_mem, cgh);
         }
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine
-                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
-            auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
-            auto handle = hip_stream->get_miopen_handle();
+        compat::host_task(cgh,
+                [= WA_THIS_COPY_CAPTURE](const compat::interop_handle &ih) {
+                    auto &sycl_engine = *utils::downcast<amd::engine_t *>(
+                            hip_stream->engine());
+                    auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
+                    auto handle = hip_stream->get_miopen_handle();
 
-            std::vector<void *> args;
-            args.push_back(arg_src.get_native_pointer(ih));
-            args.push_back(arg_weights.get_native_pointer(ih));
-            args.push_back(arg_dst.get_native_pointer(ih));
-            args.push_back(arg_bias.get_native_pointer(ih));
-            args.push_back(arg_scratch.get_native_pointer(ih));
-            args.push_back(arg_filter_scratch.get_native_pointer(ih));
-            args.push_back(temp_dst.get_native_pointer(ih));
-            args.push_back(temp_reorder.get_native_pointer(ih));
-            args.push_back(arg_oscale.get_native_pointer(ih));
+                    std::vector<void *> args;
+                    args.push_back(arg_src.get_native_pointer(ih));
+                    args.push_back(arg_weights.get_native_pointer(ih));
+                    args.push_back(arg_dst.get_native_pointer(ih));
+                    args.push_back(arg_bias.get_native_pointer(ih));
+                    args.push_back(arg_scratch.get_native_pointer(ih));
+                    args.push_back(arg_filter_scratch.get_native_pointer(ih));
+                    args.push_back(temp_dst.get_native_pointer(ih));
+                    args.push_back(temp_reorder.get_native_pointer(ih));
+                    args.push_back(arg_oscale.get_native_pointer(ih));
 
-            pd()->impl_->execute(handle, args);
-        });
+                    pd()->impl_->execute(handle, args);
+                });
     });
 }
 
@@ -91,22 +94,23 @@ status_t miopen_convolution_bwd_data_t::execute_convolution(
         auto arg_filter_scratch = CTX_SCRATCH_SYCL_MEMORY(
                 memory_tracking::names::key_conv_miopen_filter);
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine
-                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
-            auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
-            auto handle = hip_stream->get_miopen_handle();
+        compat::host_task(cgh,
+                [= WA_THIS_COPY_CAPTURE](const compat::interop_handle &ih) {
+                    auto &sycl_engine = *utils::downcast<amd::engine_t *>(
+                            hip_stream->engine());
+                    auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
+                    auto handle = hip_stream->get_miopen_handle();
 
-            std::vector<void *> args;
-            args.push_back(arg_diff_src.get_native_pointer(ih));
-            args.push_back(arg_weights.get_native_pointer(ih));
-            args.push_back(arg_diff_dst.get_native_pointer(ih));
-            args.push_back(arg_bias.get_native_pointer(ih));
-            args.push_back(arg_scratch.get_native_pointer(ih));
-            args.push_back(arg_filter_scratch.get_native_pointer(ih));
+                    std::vector<void *> args;
+                    args.push_back(arg_diff_src.get_native_pointer(ih));
+                    args.push_back(arg_weights.get_native_pointer(ih));
+                    args.push_back(arg_diff_dst.get_native_pointer(ih));
+                    args.push_back(arg_bias.get_native_pointer(ih));
+                    args.push_back(arg_scratch.get_native_pointer(ih));
+                    args.push_back(arg_filter_scratch.get_native_pointer(ih));
 
-            pd()->impl_->execute(handle, args);
-        });
+                    pd()->impl_->execute(handle, args);
+                });
     });
 }
 
@@ -118,17 +122,19 @@ status_t miopen_convolution_bwd_weights_t::execute_zero_dims(
         auto arg_diff_weights = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_WEIGHTS);
         auto arg_diff_bias = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine
-                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
-            auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
-            auto handle = hip_stream->get_miopen_handle();
+        compat::host_task(cgh,
+                [= WA_THIS_COPY_CAPTURE](const compat::interop_handle &ih) {
+                    auto &sycl_engine = *utils::downcast<amd::engine_t *>(
+                            hip_stream->engine());
+                    auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
+                    auto handle = hip_stream->get_miopen_handle();
 
-            void *weights = arg_diff_weights.get_native_pointer(ih);
-            void *bias = arg_diff_bias.get_native_pointer(ih);
+                    void *weights = arg_diff_weights.get_native_pointer(ih);
+                    void *bias = arg_diff_bias.get_native_pointer(ih);
 
-            pd()->impl_->execute_set_weights_bias(handle, weights, bias, 0.f);
-        });
+                    pd()->impl_->execute_set_weights_bias(
+                            handle, weights, bias, 0.f);
+                });
     });
 }
 
@@ -152,22 +158,23 @@ status_t miopen_convolution_bwd_weights_t::execute_convolution(
             arg_diff_bias = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
         }
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine
-                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
-            auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
-            auto handle = hip_stream->get_miopen_handle();
+        compat::host_task(cgh,
+                [= WA_THIS_COPY_CAPTURE](const compat::interop_handle &ih) {
+                    auto &sycl_engine = *utils::downcast<amd::engine_t *>(
+                            hip_stream->engine());
+                    auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
+                    auto handle = hip_stream->get_miopen_handle();
 
-            std::vector<void *> args;
-            args.push_back(arg_src.get_native_pointer(ih));
-            args.push_back(arg_diff_weights.get_native_pointer(ih));
-            args.push_back(arg_diff_dst.get_native_pointer(ih));
-            args.push_back(arg_diff_bias.get_native_pointer(ih));
-            args.push_back(arg_scratch.get_native_pointer(ih));
-            args.push_back(arg_filter_scratch.get_native_pointer(ih));
+                    std::vector<void *> args;
+                    args.push_back(arg_src.get_native_pointer(ih));
+                    args.push_back(arg_diff_weights.get_native_pointer(ih));
+                    args.push_back(arg_diff_dst.get_native_pointer(ih));
+                    args.push_back(arg_diff_bias.get_native_pointer(ih));
+                    args.push_back(arg_scratch.get_native_pointer(ih));
+                    args.push_back(arg_filter_scratch.get_native_pointer(ih));
 
-            pd()->impl_->execute(handle, args);
-        });
+                    pd()->impl_->execute(handle, args);
+                });
     });
 }
 

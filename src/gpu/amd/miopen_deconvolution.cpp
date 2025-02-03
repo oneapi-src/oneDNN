@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +14,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include "common/compiler_workarounds.hpp"
 
 #include "gpu/amd/miopen_deconvolution.hpp"
 #include "gpu/amd/stream.hpp"
@@ -37,17 +39,18 @@ status_t miopen_deconvolution_bwd_weights_t::execute_bias(
         auto arg_diff_bias = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DIFF_BIAS);
         auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine
-                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
-            auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
-            auto handle = hip_stream->get_miopen_handle();
+        compat::host_task(cgh,
+                [= WA_THIS_COPY_CAPTURE](const compat::interop_handle &ih) {
+                    auto &sycl_engine = *utils::downcast<amd::engine_t *>(
+                            hip_stream->engine());
+                    auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
+                    auto handle = hip_stream->get_miopen_handle();
 
-            void *bias = arg_diff_bias.get_native_pointer(ih);
-            void *y = arg_diff_dst.get_native_pointer(ih);
+                    void *bias = arg_diff_bias.get_native_pointer(ih);
+                    void *y = arg_diff_dst.get_native_pointer(ih);
 
-            impl_->execute_bias(handle, y, bias);
-        });
+                    impl_->execute_bias(handle, y, bias);
+                });
     });
 }
 
