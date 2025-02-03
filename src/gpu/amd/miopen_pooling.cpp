@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020-2022 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +15,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/amd/miopen_pooling.hpp"
+#include "common/compiler_workarounds.hpp"
+
 #include "common/nstl.hpp"
+#include "gpu/amd/miopen_pooling.hpp"
 #include "gpu/amd/stream.hpp"
 #include "gpu/amd/sycl_hip_scoped_context.hpp"
 #include "xpu/sycl/buffer_memory_storage.hpp"
@@ -76,16 +78,17 @@ status_t miopen_pooling_fwd_t::execute(const exec_ctx_t &ctx) const {
         auto arg_dst = CTX_OUT_SYCL_MEMORY(DNNL_ARG_DST);
         auto arg_wkspace = CTX_OUT_SYCL_MEMORY(DNNL_ARG_WORKSPACE);
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine
-                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
-            auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
-            auto handle = hip_stream->get_miopen_handle();
-            void *x = arg_src.get_native_pointer(ih);
-            void *y = arg_dst.get_native_pointer(ih);
-            void *ws = arg_wkspace.get_native_pointer(ih);
-            pd()->pooling_impl_->execute(handle, x, y, ws);
-        });
+        compat::host_task(cgh,
+                [= WA_THIS_COPY_CAPTURE](const compat::interop_handle &ih) {
+                    auto &sycl_engine = *utils::downcast<amd::engine_t *>(
+                            hip_stream->engine());
+                    auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
+                    auto handle = hip_stream->get_miopen_handle();
+                    void *x = arg_src.get_native_pointer(ih);
+                    void *y = arg_dst.get_native_pointer(ih);
+                    void *ws = arg_wkspace.get_native_pointer(ih);
+                    pd()->pooling_impl_->execute(handle, x, y, ws);
+                });
     });
 }
 
@@ -105,17 +108,18 @@ status_t miopen_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
         auto arg_diff_dst = CTX_IN_SYCL_MEMORY(DNNL_ARG_DIFF_DST);
         auto arg_wkspace = CTX_IN_SYCL_MEMORY(DNNL_ARG_WORKSPACE);
 
-        compat::host_task(cgh, [=](const compat::interop_handle &ih) {
-            auto &sycl_engine
-                    = *utils::downcast<amd::engine_t *>(hip_stream->engine());
-            auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
-            auto handle = hip_stream->get_miopen_handle();
-            void *dx = arg_diff_src.get_native_pointer(ih);
-            void *dy = arg_diff_dst.get_native_pointer(ih);
-            void *ws = arg_wkspace.get_native_pointer(ih);
+        compat::host_task(cgh,
+                [= WA_THIS_COPY_CAPTURE](const compat::interop_handle &ih) {
+                    auto &sycl_engine = *utils::downcast<amd::engine_t *>(
+                            hip_stream->engine());
+                    auto sc = hip_sycl_scoped_context_handler_t(sycl_engine);
+                    auto handle = hip_stream->get_miopen_handle();
+                    void *dx = arg_diff_src.get_native_pointer(ih);
+                    void *dy = arg_diff_dst.get_native_pointer(ih);
+                    void *ws = arg_wkspace.get_native_pointer(ih);
 
-            pd()->pooling_impl_->execute(handle, dx, dy, ws);
-        });
+                    pd()->pooling_impl_->execute(handle, dx, dy, ws);
+                });
     });
 }
 
