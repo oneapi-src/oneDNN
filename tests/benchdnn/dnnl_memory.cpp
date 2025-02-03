@@ -572,12 +572,15 @@ dnnl_status_t dnn_mem_t::memset_rng(size_t size) const {
         cl_device_id ocl_device;
         cl_program philox_program;
         cl_kernel ocl_kernel;
-        cl_int err; 
-        DNN_SAFE_V(dnnl_ocl_interop_stream_get_command_queue(stream, &ocl_queue));
+        cl_int err;
+        DNN_SAFE_V(
+                dnnl_ocl_interop_stream_get_command_queue(stream, &ocl_queue));
         DNN_SAFE_V(dnnl_ocl_interop_engine_get_context(engine_, &ocl_ctx));
         DNN_SAFE_V(dnnl_ocl_interop_get_device(engine_, &ocl_device));
-        philox_program = clCreateProgramWithSource(ocl_ctx, 1, &philox_rng_source, nullptr, &err);
-        OCL_TEST(clBuildProgram(philox_program, 1, &ocl_device, nullptr, nullptr, nullptr));
+        philox_program = clCreateProgramWithSource(
+                ocl_ctx, 1, &philox_rng_source, nullptr, &err);
+        OCL_TEST(clBuildProgram(
+                philox_program, 1, &ocl_device, nullptr, nullptr, nullptr));
         ocl_kernel = clCreateKernel(philox_program, "philox_fill_kernel", &err);
 
         //TODO: generate random seed to avoid repeating values
@@ -592,9 +595,8 @@ dnnl_status_t dnn_mem_t::memset_rng(size_t size) const {
                 clSetKernelArg(ocl_kernel, 1, sizeof(uint64_t), &buffSize);
                 clSetKernelArg(ocl_kernel, 2, sizeof(uint64_t), &blockSize);
                 clSetKernelArg(ocl_kernel, 3, sizeof(uint64_t), &seed);
-                clEnqueueNDRangeKernel(ocl_queue, ocl_kernel,
-                                    1, nullptr, &gws, nullptr,
-                                    0, nullptr, nullptr);
+                clEnqueueNDRangeKernel(ocl_queue, ocl_kernel, 1, nullptr, &gws,
+                        nullptr, 0, nullptr, nullptr);
 
                 DNN_SAFE_V(dnnl_stream_wait(stream));
                 return dnnl_status_t::dnnl_success;
@@ -602,12 +604,14 @@ dnnl_status_t dnn_mem_t::memset_rng(size_t size) const {
             case memory_kind_ext_t::usm:
             case memory_kind_ext_t::usm_device:
             case memory_kind_ext_t::usm_shared: {
-                DNN_SAFE_V(dnnl::impl::xpu::ocl::usm::set_kernel_arg(engine_, ocl_kernel, 0, mem_handle));
+                DNN_SAFE_V(dnnl::impl::xpu::ocl::usm::set_kernel_arg(
+                        engine_, ocl_kernel, 0, mem_handle));
                 clSetKernelArg(ocl_kernel, 1, sizeof(uint64_t), &buffSize);
                 clSetKernelArg(ocl_kernel, 2, sizeof(uint64_t), &blockSize);
                 clSetKernelArg(ocl_kernel, 3, sizeof(uint64_t), &seed);
 
-                clEnqueueNDRangeKernel(ocl_queue, ocl_kernel, 1, nullptr, &gws, nullptr, 0, nullptr, nullptr);
+                clEnqueueNDRangeKernel(ocl_queue, ocl_kernel, 1, nullptr, &gws,
+                        nullptr, 0, nullptr, nullptr);
                 DNN_SAFE_V(dnnl_stream_wait(stream));
                 return dnnl_status_t::dnnl_success;
             }
@@ -615,8 +619,7 @@ dnnl_status_t dnn_mem_t::memset_rng(size_t size) const {
 #endif
     } else if (is_sycl) {
 #ifdef DNNL_WITH_SYCL
-        // TODO: add sycl support
-         return dnnl_status_t::dnnl_unimplemented;
+        return dnnl_status_t::dnnl_unimplemented;
 #endif
     }
     if (is_cpu(engine_)) return dnnl_status_t::dnnl_unimplemented;
