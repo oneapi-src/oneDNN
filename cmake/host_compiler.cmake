@@ -100,6 +100,11 @@ if(DPCPP_HOST_COMPILER_KIND MATCHES "^(GNU|CLANG)$")
     # Affects both, GNU and CLANG kinds.
     append(CMAKE_CXX_FLAGS "-Wno-unused-command-line-argument")
 
+    # Option `-fsycl-unnamed-lambda` is enabled by default, but not compatible
+    # with `-fsycl-host-compiler`. While icpx driver adds
+    # `-fno-sycl-unnamed-lambda` to avoid build issues clang++ does not do that.
+    append(CMAKE_CXX_FLAGS "-fno-sycl-unnamed-lambda")
+
     append(CMAKE_CXX_FLAGS "-fsycl-host-compiler=${DPCPP_HOST_COMPILER}")
     append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_HOST_COMPILER_OPTS}")
 endif()
