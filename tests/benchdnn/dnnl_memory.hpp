@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -152,7 +152,7 @@ struct dnn_mem_t {
     void map() const;
     void unmap() const;
     void memset(int value, size_t size) const;
-    
+
     dnnl_status_t memset_rng(size_t size) const;
 
     static dnn_mem_t create_from_host_ptr(

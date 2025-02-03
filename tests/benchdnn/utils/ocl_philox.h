@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 static const char *philox_rng_source = R"CLC(
-// Clear bits 30 & 14: 0xBFFFFFFF & 0xFFFFBFFF => 0xBFFFBFFF:
+// Mask bits 30 & 14: 0xBFFFFFFF & 0xFFFFBFFF => 0xBFFFBFFF:
 #define INF_NAN_MASK 0xBFFFBFFF
 
 inline uint philox_4x32(long idx, uint seed) {
