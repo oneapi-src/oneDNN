@@ -246,6 +246,7 @@ static inline uint32_t get_verbose_dev_mode(
 }
 
 bool get_verbose_timestamp();
+const char *prim_kind2str(primitive_kind_t prim_kind);
 
 // logging functionality for saving verbose outputs to logfiles
 #ifdef DNNL_EXPERIMENTAL_LOGGING
