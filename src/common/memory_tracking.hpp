@@ -273,6 +273,7 @@ enum {
     key_pool_dst_plain2blocked_cvt,
     key_pool_ind_plain2blocked_cvt,
     key_pool_src_bf16cvt,
+    key_pool_src_f32_accum,
     key_pool_src_plain2blocked_cvt,
     key_pool_reduction,
     key_precomputed_scales,
