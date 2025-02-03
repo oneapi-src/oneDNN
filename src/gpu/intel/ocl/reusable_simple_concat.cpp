@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,6 +33,8 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
         reusable_simple_concat_runtime_params_t &rt_conf) {
     using namespace utils;
     const memory_desc_t &ref_dst_md = *pd->dst_md();
+    const memory_desc_wrapper ref_dst_mdw = *pd->dst_md();
+
     if (ref_dst_md.format_kind != format_kind::blocked) {
         return status::unimplemented;
     }
@@ -56,9 +58,8 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
     const int hw_threads = device_info->hw_threads();
     const int max_sg_size = device_info->max_subgroup_size();
     const auto data_type_size = normalize.data_type_size();
-    dim_t total_bytes = data_type_size;
-    for (int i = 0; i < pd->dst_md()->ndims; ++i)
-        total_bytes *= pd->dst_md()->padded_dims[i];
+    dim_t dst_bytes = ref_dst_mdw.size();
+    dim_t max_bytes = ref_dst_mdw.size();
 
     std::vector<prb_info_t> infos;
     for (int simd : {32, 16, 8, 1}) {
@@ -67,7 +68,7 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
         for (int bytes : {8, 4, 2, 1}) {
             if (has_scales && bytes < (int)data_type_size) break;
             if (max_write_size % bytes) continue;
-            const dim_t total_elems = total_bytes / bytes;
+            const dim_t total_elems = dst_bytes / bytes;
             const dim_t concurrent_elems
                     = utils::div_up(simd * total_elems, hw_threads);
             const dim_t elems_per_reg = register_bytes / bytes;
@@ -87,6 +88,8 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
     dim_t final_padding = 0;
     for (int i = 0; i < pd->n_inputs(); ++i) {
         if (pd->src_md(i)->padded_dims[concat_dim] == 0) continue;
+        max_bytes = std::max(max_bytes,
+                into<dim_t>(memory_desc_wrapper(pd->src_md(i)).size()));
         memcpy(&src_md, pd->src_md(i), sizeof(memory_desc_t));
         normalize(src_md);
         const auto &src_blkg = src_md.format_desc.blocking;
@@ -156,7 +159,7 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
     rt_conf.lws_d = compute::get_optimal_lws(
             rt_conf.gws_d, dim_idx::invalid, device_info->gpu_arch());
 
-    conf.use_large_index = (total_bytes > std::numeric_limits<int>::max());
+    conf.use_large_index = (max_bytes > std::numeric_limits<int>::max());
     return status::success;
 }
 
