@@ -38,16 +38,22 @@ def __scopeCheck(msg: str):
     print(f"{status} OK")
     return True
 
-# Ensure  a character limit for the first line.
+# Ensure a character limit for the first line.
 def __numCharacterCheck(msg: str):
     status = "Message length:"
     if len(msg) <= 72:
         print(f"{status} OK")
         return True
     else:
-        print(f"{status} FAILED: Commit message summary must not "
-               "exceed 72 characters.")
-        return False
+        # Fixup commits usually include the full name of the commit they are
+        # fixing, which adds 6 more symbols to the message. Let them in.
+        if re.match('^fixup: ', msg):
+            print(f"{status} Fixup message, OK")
+            return True
+        else:
+            print(f"{status} FAILED: Commit message summary must not "
+                   "exceed 72 characters.")
+            return False
 
 def main():
     parser = argparse.ArgumentParser()
