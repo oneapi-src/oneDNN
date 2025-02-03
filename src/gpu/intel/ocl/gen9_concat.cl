@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
         __global const SRC_DATA_T *src14,
         __global const SRC_DATA_T *src15 SCALE_PTRS) {
     dst += dst_offset0;
-    int dst_dims[6], src_dims[6];
+    off_t dst_dims[6], src_dims[6];
     src_dims[0] = dst_dims[0] = GWS_GET_D0();
     src_dims[1] = dst_dims[1] = GWS_GET_D1();
     src_dims[2] = dst_dims[2] = GWS_GET_D2();
@@ -76,14 +76,14 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
     src_dims[4] = dst_dims[4] = GWS_GET_D4();
     src_dims[5] = dst_dims[5] = GWS_GET_D5();
 
-    const int iter_dim_end = min(
+    const off_t iter_dim_end = min(
             dst_dims[ITER_DIM_IDX] + ITER_DIM_CHUNK, ITER_DIM_PADDED_SIZE);
 
     if (NEEDS_PADDING(dst_dims[0], dst_dims[1], dst_dims[2], dst_dims[3],
                 dst_dims[4], dst_dims[5])) {
         for (; dst_dims[ITER_DIM_IDX] < iter_dim_end;
                 dst_dims[ITER_DIM_IDX]++) {
-            const int dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1],
+            const off_t dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1],
                     dst_dims[2], dst_dims[3], dst_dims[4], dst_dims[5]);
 #if SUB_GROUP_SIZE > 1
             BLOCK_WRITE_DST(&dst[dst_off], TO_DST(0.0f));
@@ -96,7 +96,7 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
     for (; dst_dims[ITER_DIM_IDX] < min(DD(ITER_DIM_IDX), iter_dim_end);
             dst_dims[ITER_DIM_IDX]++, src_dims[ITER_DIM_IDX]++) {
         int part;
-        int src_off;
+        off_t src_off;
         const __global SRC_DATA_T *src;
         INIT_FLOAT_SCALE;
 
@@ -162,7 +162,7 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
             SET_DIMS(14, 15)
 #endif
 
-        const int dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1], dst_dims[2],
+        const off_t dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1], dst_dims[2],
                 dst_dims[3], dst_dims[4], dst_dims[5]);
 
 #if SUB_GROUP_SIZE > 1
@@ -188,7 +188,7 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
 #endif // SUB_GROUP_SIZE > 1
     }
     for (; dst_dims[ITER_DIM_IDX] < iter_dim_end; dst_dims[ITER_DIM_IDX]++) {
-        const int dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1], dst_dims[2],
+        const off_t dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1], dst_dims[2],
                 dst_dims[3], dst_dims[4], dst_dims[5]);
 #if SUB_GROUP_SIZE > 1
         BLOCK_WRITE_DST(&dst[dst_off], TO_DST(0.0f));
