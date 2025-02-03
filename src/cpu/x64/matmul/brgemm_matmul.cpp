@@ -1756,6 +1756,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     bool packed_sparse_weights() const { return bgmmc_.packed_sparse_weights; }
 
     int get_current_K_pad(int current_K_iters) const {
+        if (current_K_iters % bgmmc_.wei_k_blk == 0) return 0;
         return bgmmc_.extendable_k ? bgmmc_.wei_k_blk
                         - rnd_up(
                                 current_K_iters % bgmmc_.wei_k_blk, vnni_factor)
