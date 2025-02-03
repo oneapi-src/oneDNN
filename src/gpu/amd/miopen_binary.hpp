@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -66,12 +66,7 @@ struct miopen_binary_t : public gpu::primitive_t {
                     || has_zero_dims(dst_md()->dims, dst_md()->ndims);
         }
 
-        bool check_scales_mask() const {
-            for (const auto &s : attr()->scales_.scales_) {
-                if (s.second.mask_ != 0) return false;
-            }
-            return true;
-        }
+        bool check_scales_mask() const { return attr_scales_ok(); }
 
         bool check_no_blocking() const {
             // Blocking is not supported by MIOPENOpTensor, return false if any
