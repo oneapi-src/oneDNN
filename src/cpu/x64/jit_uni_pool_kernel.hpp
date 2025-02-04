@@ -192,13 +192,16 @@ private:
 
     void step_high_half(int ur_w, int ur_bc, int pad_l, int pad_r,
             bool with_c_tail_processing) {
-        assert(types::data_type_size(jpp.ind_dt) > 0);
         add(reg_input, sizeof(float) * 4);
         add(reg_output, sizeof(float) * 4);
         if (jpp.alg == alg_kind::pooling_max
-                && (jpp.is_training || jpp.is_backward)
-                && types::data_type_size(jpp.ind_dt) > 0)
+                && (jpp.is_training || jpp.is_backward)) {
+            if (jpp.ind_dt == data_type::undef) {
+                assert(!"Unknown data type for indices");
+                return;
+            }
             add(reg_index, types::data_type_size(jpp.ind_dt) * 4);
+        }
 
         step(ur_w, ur_bc, pad_l, pad_r, with_c_tail_processing);
     }
