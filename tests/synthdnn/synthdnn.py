@@ -30,6 +30,11 @@ def error(output):
     print("synthdnn: error: " + output)
     exit(1)
 
+import sys
+def DebugPrint(msg=""):
+  fname = sys._getframe().f_code.co_filename
+  head, tail = os.path.split(fname)
+  print(f"Debug: {tail}:{sys._getframe().f_back.f_lineno}: {msg}")
 
 def setup_matmul_subparser(subparsers):
     matmul_parser = subparsers.add_parser('matmul', help='call with -h for information')
@@ -91,6 +96,7 @@ def matmul_main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    DebugPrint("here")
     subparsers = parser.add_subparsers(help='primitive targeted for data collection')
     setup_matmul_subparser(subparsers)
     args = parser.parse_args()
