@@ -830,20 +830,26 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
 rnn_matmul_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::execute_matmul)) {
 
-    engine_t *engine = ctx.stream()->engine();
+    // Service engine is just a global classic CPU engine that is used
+    // when it's required to create memory_t objects for classic CPU
+    // engine regardless of the CPU runtime. For example, SYCL CPU engine
+    // cannot be used to create such objects.
+    engine_t *service_engine = get_service_engine();
     constexpr auto mem_flag = memory_flags_t::use_runtime_ptr;
 
+    // a_, b_ and c_ are regular, raw CPU pointers that can only be used with
+    // memory_t objects created for the classic CPU engine.
     std::unique_ptr<memory_t, memory_deleter_t> src_mem;
     CHECK(safe_ptr_assign(src_mem,
-            new memory_t(engine, matmul_prim->pd()->src_md(), mem_flag,
+            new memory_t(service_engine, matmul_prim->pd()->src_md(), mem_flag,
                     (void *)(a_))));
     std::unique_ptr<memory_t, memory_deleter_t> wei_mem;
     CHECK(safe_ptr_assign(wei_mem,
-            new memory_t(engine, matmul_prim->pd()->weights_md(), mem_flag,
-                    (void *)(b_))));
+            new memory_t(service_engine, matmul_prim->pd()->weights_md(),
+                    mem_flag, (void *)(b_))));
     std::unique_ptr<memory_t, memory_deleter_t> dst_mem;
     CHECK(safe_ptr_assign(dst_mem,
-            new memory_t(engine, matmul_prim->pd()->dst_md(), mem_flag,
+            new memory_t(service_engine, matmul_prim->pd()->dst_md(), mem_flag,
                     (void *)(c_))));
 
     exec_args_t matmul_args;
