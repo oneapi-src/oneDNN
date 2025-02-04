@@ -44,6 +44,9 @@ public:
 
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
             size_t size, void *handle) override {
+        assert(runtime_kind() == runtime_kind::sycl);
+        if (runtime_kind() != runtime_kind::sycl) return status::runtime_error;
+
         return impl()->create_memory_storage(
                 storage, this, flags, size, handle);
     }
