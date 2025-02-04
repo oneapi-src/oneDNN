@@ -114,10 +114,12 @@ DECLARE_2D_TILE(mask_tile_type, MSK_DATA_T, SUBGROUP_SIZE, mask_br, mask_bc,
 DECLARE_2D_TILE_BLOCK_OPS(mask_tile_type, MSK_DATA_T, SUBGROUP_SIZE, mask_br,
         mask_bc, mask_nbr, mask_nbc)
 #endif
-#endif
-
 DECLARE_2D_TILE(mask_tile_type_float, float, SUBGROUP_SIZE, mask_br, mask_bc,
         mask_nbr, mask_nbc)
+DECLARE_2D_TILE_COPY_REBLOCK(mask_tile_type, SUBGROUP_SIZE, mask_br, mask_bc,
+        mask_nbr, mask_nbc, mask_tile_type_float, SUBGROUP_SIZE, mask_br,
+        mask_bc, mask_nbr, mask_nbc, CONVERT_FLOAT_T)
+#endif
 
 #ifdef BLOCK_A
 DECLARE_2D_TILE_BLOCK_OPS(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE,
@@ -132,12 +134,12 @@ DECLARE_2D_TILE_BLOCK2D_OPS(a_tile_type_dst, DST_DATA_T, SUBGROUP_SIZE,
 DECLARE_2D_TILE_COPY_REBLOCK(a_tile_type, SUBGROUP_SIZE, ugemm_vs_c_type_block0,
         ugemm_vs_c_type_block1, ugemm_vs_c_type_nblock0,
         ugemm_vs_c_type_nblock1, a_tile_type_dst, SUBGROUP_SIZE,
-        ugemm_vs_sg_tile_m, 1, 1, ugemm_vs_sg_tile_n)
+        ugemm_vs_sg_tile_m, 1, 1, ugemm_vs_sg_tile_n, CONVERT_DATA_T)
 #else
 DECLARE_2D_TILE_COPY_REBLOCK(a_tile_type, SUBGROUP_SIZE, ugemm_vs_c_type_block0,
         ugemm_vs_c_type_block1, ugemm_vs_c_type_nblock0,
         ugemm_vs_c_type_nblock1, a_tile_type_dst, SUBGROUP_SIZE,
-        ugemm_vs_sg_tile_m, 8, 1, ugemm_vs_sg_tile_n / 8)
+        ugemm_vs_sg_tile_m, 8, 1, ugemm_vs_sg_tile_n / 8, CONVERT_DATA_T)
 #endif
 
 DECLARE_2D_TILE_VREDUCE(s_tile_type, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
@@ -457,7 +459,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 #if WITH_ATTN_MASK
 #define unscale(x) ((x)*iscale)
         mask_tile_type_float mask_tile_float;
-        tile_copy(mask_tile, mask_tile_float);
+        tile_copy_reblock(mask_tile, &mask_tile_float);
 #if WITH_ATTN_SCALE
         tile_elementwise(mask_tile_float, unscale);
 #endif

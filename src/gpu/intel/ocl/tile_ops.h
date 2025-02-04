@@ -491,13 +491,14 @@ DEF_BLOCK2D_LOAD_STORE(ushort, ushort, 16, 16, u16_m8k32v1, 32, 8)
     }
 
 #define DECLARE_2D_TILE_COPY_REBLOCK(tile_type0, sg0, br0, bc0, nbr0, nbc0, \
-        tile_type1, sg1, br1, bc1, nbr1, nbc1) \
+        tile_type1, sg1, br1, bc1, nbr1, nbc1, conversion_func) \
     __attribute__((overloadable)) void tile_copy_reblock( \
             tile_type0 t0, tile_type1 *t1) { \
         _Pragma("unroll") for (int j = 0; j < bc0 * nbc0; j++) { \
             _Pragma("unroll") for (int i0 = 0; i0 < br0 * nbr0; i0 += sg0) { \
-                tile_access(*t1, i0, j, sg1, br1, bc1, nbr1) = CONVERT_DATA_T( \
-                        tile_access(t0, i0, j, sg0, br0, bc0, nbr0)); \
+                tile_access(*t1, i0, j, sg1, br1, bc1, nbr1) \
+                        = conversion_func( \
+                                tile_access(t0, i0, j, sg0, br0, bc0, nbr0)); \
             } \
         } \
     }
