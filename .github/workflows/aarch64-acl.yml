@@ -34,6 +34,7 @@ jobs:
       matrix:
         config: [
           { name: MacOS, label: macos-14, threading: SEQ, toolset: clang, build: Release },
+          { name: cb100, label: ubuntu-24.04-arm, threading: OMP, toolset: gcc, build: Release },
           { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50, threading: OMP, toolset: clang, build: Debug },
           { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50, threading: OMP, toolset: gcc, build: Release }
         ]
@@ -85,19 +86,19 @@ jobs:
           sudo apt update -y
           sudo apt install -y scons
 
-      - if: ${{ startsWith(matrix.config.label,'ah-ubuntu') && (matrix.config.threading == 'OMP') && (steps.cache-acl-restore.outputs.cache-hit != 'true') }}
+      - if: ${{ contains(matrix.config.label,'ubuntu') && (matrix.config.threading == 'OMP') && (steps.cache-acl-restore.outputs.cache-hit != 'true') }}
         name: Install openmp
         run: |
           sudo apt install -y libomp-dev
 
-      - if: ${{ startsWith(matrix.config.label,'ah-ubuntu') && (matrix.config.toolset == 'gcc') && (steps.cache-acl-restore.outputs.cache-hit != 'true') }}
+      - if: ${{ contains(matrix.config.label,'ubuntu') && (matrix.config.toolset == 'gcc') && (steps.cache-acl-restore.outputs.cache-hit != 'true') }}
         name: Install gcc
         run: |
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
           sudo apt update -y
           sudo apt install -y g++-${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
 
-      - if: ${{ startsWith(matrix.config.label,'ah-ubuntu') && (matrix.config.toolset == 'clang') && (steps.cache-acl-restore.outputs.cache-hit != 'true') }}
+      - if: ${{ contains(matrix.config.label,'ubuntu') && (matrix.config.toolset == 'clang') && (steps.cache-acl-restore.outputs.cache-hit != 'true') }}
         name: Install clang
         uses: KyleMayes/install-llvm-action@e0a8dc9cb8a22e8a7696e8a91a4e9581bec13181
         with:
