@@ -91,11 +91,6 @@ bool generic_check_format_tags(memory::format_tag format) {
             memory::format_tag::any);
 }
 
-bool generic_has_input_zero_dim(pool_test_params_t &p) {
-    auto &pd = p.test_pd;
-    return pd.mb == 0 || pd.id == 0 || pd.ih == 0 || pd.iw == 0;
-}
-
 template <typename data_t>
 void check_pool_fwd(const pool_test_params_t &p, const memory &src,
         const memory &dst, const memory &ws) {
@@ -244,9 +239,6 @@ protected:
                 "Unsupported format tag");
         SKIP_IF_GENERIC(!generic_check_format_tags(p.dst_format),
                 "Unsupported format tag");
-        // XXX: Enable when 0-dim input is supported in generic implementation
-        SKIP_IF_GENERIC(generic_has_input_zero_dim(p),
-                "Input dims == 0 are not supported");
 
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status);
@@ -785,12 +777,7 @@ INSTANTIATE_TEST_SUITE_P(TestPoolingForwardZeroDim, pooling_test_float,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
-                                0, 4, 4, 4, 4, 4, 3, 3, 0, 0, 1, 1, 1, 1)},
-                pool_test_params_float {prop_kind::forward_training,
-                        algorithm::pooling_max, memory::format_tag::nchw,
-                        memory::format_tag::nchw,
-                        EXPAND_SIZES_2D(
-                                2, 4, 0, 4, 4, 4, 3, 3, 1, 1, 1, 1, 1, 1)}));
+                                0, 4, 4, 4, 4, 4, 3, 3, 0, 0, 1, 1, 1, 1)}));
 
 INSTANTIATE_TEST_SUITE_P(TestPoolingForwardEF, pooling_test_float,
         ::testing::Values(

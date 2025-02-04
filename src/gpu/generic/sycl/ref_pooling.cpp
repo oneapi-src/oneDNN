@@ -65,18 +65,55 @@ status_t ref_pooling_fwd_t::pd_t::init_conf() {
     conf_.DW = KDW(); //K:kernel D:Dilation W:Weight
 
     conf_.post_ops = sycl_post_ops_t(attr(), dst_md());
+
+    src_zero_dim_ = memory_desc_wrapper(src_md()).size() == 0;
+    dst_zero_dim_ = memory_desc_wrapper(dst_md()).size() == 0;
+
     return status::success;
 }
 
 status_t ref_pooling_fwd_t::init(impl::engine_t *engine) {
-    const auto kid = ::sycl::get_kernel_id<pooling_fwd_kernel_vec_t>();
-    return create_kernel(engine, kid, &kernel_);
+    if (pd()->src_zero_dim_ && !pd()->dst_zero_dim_) {
+        const auto fill_kid = ::sycl::get_kernel_id<pooling_fwd_kernel_vec_t>();
+        CHECK(create_kernel(engine, fill_kid, &fill_kernel_));
+    } else {
+        const auto kid = ::sycl::get_kernel_id<pooling_fwd_kernel_vec_t>();
+        CHECK(create_kernel(engine, kid, &kernel_));
+    }
+
+    return status::success;
 }
 
 status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
-    // XXX: Add support for 0-dim src
-    for (auto &md : {pd()->src_md(), pd()->dst_md()}) {
-        if (memory_desc_wrapper(md).size() == 0) return status::success;
+    if (pd()->dst_zero_dim_) return status::success;
+    if (pd()->src_zero_dim_ && !pd()->dst_zero_dim_) {
+        auto dst_mdw = memory_desc_wrapper(pd()->dst_md());
+        float fill_val = 0.f;
+
+#define CASE(DT) \
+    case dnnl_##DT: \
+        fill_val = std::numeric_limits< \
+                prec_traits<data_type::DT>::type>::lowest(); \
+        break;
+
+        switch (dst_mdw.data_type()) {
+            CASE(f16)
+            CASE(bf16)
+            CASE(f32)
+            CASE(s8)
+            CASE(u8)
+            default:
+                assert(!"unhandled datatype");
+                return status::runtime_error;
+        }
+#undef CASE
+
+        return parallel_for(ctx, fill_kernel_, [&](::sycl::handler &cgh) {
+            auto out = CTX_OUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DST);
+            pooling_fill_kernel_t fill_kernel(
+                    dst_mdw.data_type(), out, fill_val);
+            cgh.parallel_for(::sycl::range<1>(dst_mdw.nelems()), fill_kernel);
+        });
     }
 
     return parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
