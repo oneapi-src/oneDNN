@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,7 +124,7 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
                         * io::load_float_value(
                                 jcp_.sum_data_type, void_dst, dst_off);
             if (jcp_.with_eltwise || jcp_.with_binary) {
-                args.l_offset = (g * jcp_.oc + oc) * jcp_.os;
+                args.l_offset = (g * jcp_.oc + oc) * jcp_.os * jcp_.od + os;
                 ref_post_ops_->execute(data, args);
             }
 
