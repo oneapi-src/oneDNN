@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -858,8 +858,6 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.use_matmul = !rnn.is_brgemm && rnn.is_fwd // TODO: Enable BWD
     // TODO: Below checks are for legacy and a performance study is
     // required to avoid regressions.
-    // TODO: using matmul is disabled for SYCL runtime for now.
-    // Enable it after memory handles issue fix
 #if DNNL_X64
             && IMPLICATION(
                     rnn.is_cell_dt_bf16(), !x64::mayiuse(x64::avx512_core))
@@ -867,8 +865,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                     x64::mayiuse(x64::avx2)
                             && utils::one_of(rd.cell_kind,
                                     alg_kind::vanilla_gru,
-                                    alg_kind::vanilla_augru))
-            && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL);
+                                    alg_kind::vanilla_augru));
 #else
             && !rnn.is_cell_dt_f32() && !rnn.is_cell_dt_int8();
 #endif
