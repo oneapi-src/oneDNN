@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ struct simple_sparse_reorder_impl<SIMPLE_SPARSE_REORDER_TEMPL_CALL,
 
     static size_t get_scratchpad_size(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
-        const auto nelems = output_d.nelems(true);
+        const auto nelems = static_cast<size_t>(output_d.nelems(true));
         const auto tmp_output_sz = nelems * output_d.data_type_size();
         const auto nnz_per_blocks_sz
                 = nelems / output_d.blk_size() * sizeof(dim_t);
