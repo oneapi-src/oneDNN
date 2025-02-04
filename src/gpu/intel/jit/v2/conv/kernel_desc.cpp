@@ -276,10 +276,35 @@ void kernel_desc_t::set_defaults() {
     }
 }
 
+void kernel_desc_t::set_stride_reqs(tensor_kind_t kind,const layout_tag_t &desc_tag){
+    if (desc_tag.is_strided()){
+        int stride  =1;
+	auto entries = desc_tag.raw_tag().entries();
+         for (auto it = entries.rbegin(); it != entries.rend(); it++){
+               auto dim = desc_tag.desc().prb_dim(it->index());
+              if (iter_tile.has(dim))
+		      stride *= iter_tile[dim];
+               if (prb_stride(dim,kind).is_undef()) continue;
+               reqs.add(
+                 prb_stride(dim,kind).var() % stride == 0);
+         }
+       }
+}
+
+kernel_desc_t handle_strides(const kernel_desc_t &desc_){
+    auto desc = desc_;
+
+    return desc;
+}
+
+
+
 void kernel_desc_t::finalize(const prb_reqs_t &final_reqs) {
     is_finalized = true;
     reqs.add(final_reqs);
 }
+
+
 
 bool fit_tag(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
         const problem_t &prb, bool exact) {
@@ -298,6 +323,12 @@ bool fit_tag(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
             && prb_tag.matches(desc_tag, prb.shape(), /*check_type=*/false))
             << to_string(abc) << " tag " << prb_tag
             << " does not match kernel descriptor tag " << desc_tag;
+    
+
+    
+    
+    
+    
     return true;
 }
 
@@ -350,6 +381,9 @@ void fit_to_impl(kernel_desc_t &desc, const problem_t &prb) {
     fit_tag_to(tensor_kind_t::a, desc, prb);
     fit_tag_to(tensor_kind_t::b, desc, prb);
     fit_tag_to(tensor_kind_t::c, desc, prb);
+    desc.set_stride_reqs(tensor_kind_t::src, desc.src_tag);
+    desc.set_stride_reqs(tensor_kind_t::wei, desc.wei_tag);
+    desc.set_stride_reqs(tensor_kind_t::dst, desc.dst_tag);
     if (!prb.bias_type().is_undef()) {
         if (desc.use_stream_k) {
             auto acc_type = accumulator_type(desc.a_type(), desc.b_type());
@@ -650,7 +684,7 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
             tag = dst_tag;
         if (!tag.is_strided()) continue;
         char innermost_dim_letter = tag.raw_tag().entries()[0].str()[0];
-        //if (prb_stride(d, t_kind).is_undef() || tag.desc().layout_letter(d) == innermost_dim_letter ) continue;
+        if (prb_stride(d, t_kind).is_undef() || tag.desc().layout_letter(d) == innermost_dim_letter ) continue;
         auto stride_var = var_t::make(type_t::s32(), prb_stride(d, t_kind).str());
         kernel_iface.register_arg(stride_var);
         }
