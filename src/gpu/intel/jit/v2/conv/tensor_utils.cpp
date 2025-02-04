@@ -177,7 +177,7 @@ layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
         if (tag.is_strided() && it != entries.rbegin()){
                 auto stride =prb_stride(dim, tensor_kind);
 	       	ret.add_block(
-                    dim, block_size_expr, stride.is_undef() ? expr_t(1) : stride.var());
+                    dim, block_size_expr, stride.is_undef() ? expr_t(0) : stride.var());
 	}
         else
             ret.add_block(dim, block_size_expr);
