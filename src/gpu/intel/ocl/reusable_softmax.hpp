@@ -185,7 +185,7 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
 
             conf.algorithm_number = [&]() { // -> int
                 if (rt_conf.softmax_axis_stride == 1
-                        && rt_conf.softmax_axis_size > 128 && nelems > (1 << 19)
+                        && rt_conf.softmax_axis_size >= 128 && nelems > (1 << 17)
                         && dnnl::impl::utils::div_up(rt_conf.softmax_axis_size,
                                    conf.subgroup_size)
                                 <= 1024)
