@@ -36,7 +36,8 @@ endif()
 
 string(LENGTH "${cl_file_lines}" len)
 if(len GREATER 65535)
-    message(WARNING "Windows requires string literals to fit in 65535 bytes. Please split ${CL_FILE}.")
+    message(FATAL_ERROR
+        "Windows requires string literals to fit in 65535 bytes. Please split ${CL_FILE}.")
 endif()
 
 get_filename_component(cl_file_name ${CL_FILE} NAME_WE)
