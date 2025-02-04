@@ -24,6 +24,13 @@ set -o errexit -o pipefail -o noclobber
 
 export OS=$(uname)
 
+# Num threads on system.
+if [[ "$OS" == "Darwin" ]]; then
+    export MP="-j$(sysctl -n hw.ncpu)"
+elif [[ "$OS" == "Linux" ]]; then
+    export MP="-j$(nproc)"
+fi
+
 if [[ "$BUILD_TOOLSET" == "gcc" ]]; then
     export CC=gcc-${GCC_VERSION}
     export CXX=g++-${GCC_VERSION}
