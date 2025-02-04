@@ -145,7 +145,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             int b_ndims = desc()->b_desc.ndims;
 
             // Check parameters.
-            if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
+            if (utils::one_of(d->c_type(), s32, f16, bf16, f32, u8, s8)
                     && utils::one_of(d->a_type(), u8, s8, u4, s4)) {
                 VDISPATCH_GEMM(
                         (utils::one_of(d->b_type(), u8, s8) || wei_decomp_),
@@ -153,19 +153,19 @@ struct gen_gemm_t : public gpu_gemm_t {
                 attr_skip_mask |= smask_t::zero_points_runtime;
 
                 VDISPATCH_GEMM(IMPLICATION(utils::one_of(d->c_type(), f32, s8,
-                                                   u8, f16),
+                                                   u8, f16, bf16),
                                        arch_ >= arch_t::xe_hp),
                         VERBOSE_ISA_DT_MISMATCH);
-            } else if (d->a_type() == bf16) {
-                VDISPATCH_GEMM(
-                        d->b_type() == bf16, VERBOSE_INCONSISTENT_DT, "a", "b");
-                VDISPATCH_GEMM(
-                        utils::one_of(d->c_type(), bf16, f32, f8_e5m2, f8_e4m3),
+            } else if (utils::one_of(d->a_type(), f16, bf16)) {
+                VDISPATCH_GEMM(d->b_type() == d->a_type(),
+                        VERBOSE_INCONSISTENT_DT, "a", "b");
+                VDISPATCH_GEMM(utils::one_of(d->c_type(), d->a_type(), f32,
+                                       f8_e5m2, f8_e4m3),
                         VERBOSE_INCONSISTENT_DT, "a", "c");
-                VDISPATCH_GEMM(utils::one_of(d->acc_type, bf16, f32),
+                VDISPATCH_GEMM(utils::one_of(d->acc_type, d->a_type(), f32),
                         VERBOSE_INCONSISTENT_DT, "a", "acc");
             } else if (!wei_decomp_) {
-                VDISPATCH_GEMM(utils::one_of(d->a_type(), f64, f32, f16,
+                VDISPATCH_GEMM(utils::one_of(d->a_type(), f64, f32, f16, bf16,
                                        f8_e5m2, f8_e4m3, f4_e2m1),
                         VERBOSE_UNSUPPORTED_DT);
                 VDISPATCH_GEMM(d->b_type() == d->a_type()
@@ -522,6 +522,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto c_t = d->c_type();
 
             bool is_f16 = utils::everyone_is(f16, a_t, b_t, c_t);
+            bool is_bf16 = utils::everyone_is(bf16, a_t, b_t, c_t);
             bool is_xe_hp_plus = arch_ >= arch_t::xe_hp;
 
             // Rename memory descriptors following column major format.
@@ -572,7 +573,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto dotrans = batch ? acb : ba;
             auto notrans = batch ? abc : ab;
 
-            if (is_f16 && is_xe_hp_plus && use_tn) {
+            if ((is_f16 || is_bf16) && is_xe_hp_plus && use_tn) {
                 if (a_any && b_any) {
                     CHECK(memory_desc_init_by_tag(a_desc, dotrans));
                     CHECK(memory_desc_init_by_tag(b_desc, notrans));
