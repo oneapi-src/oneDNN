@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,6 +41,12 @@ public:
                 engine_kind::cpu, dev, ctx, index)) {}
 
     status_t init() { return init_impl(); }
+
+    status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
+            size_t size, void *handle) override {
+        return impl()->create_memory_storage(
+                storage, this, flags, size, handle);
+    }
 
     status_t create_stream(impl::stream_t **stream,
             impl::stream_impl_t *stream_impl) override {
