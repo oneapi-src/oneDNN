@@ -269,11 +269,14 @@ int default_num_streams = 1;
 int num_streams = default_num_streams;
 
 void init_isa_settings() {
-    if (hints.get() == isa_hints_t::no_hints)
+    if (hints.get() == isa_hints_t::no_hints) {
         DNN_SAFE_V(dnnl_set_cpu_isa_hints(dnnl_cpu_isa_no_hints));
-    else if (hints.get() == isa_hints_t::prefer_ymm)
-        DNN_SAFE_V(dnnl_set_cpu_isa_hints(dnnl_cpu_isa_prefer_ymm));
-    else {
+    } else if (hints.get() == isa_hints_t::prefer_ymm) {
+        auto status = dnnl_set_cpu_isa_hints(dnnl_cpu_isa_prefer_ymm);
+        // Unimplemented is a valid status for non-x64
+        if (status == dnnl_success || status == dnnl_unimplemented) return;
+        DNN_SAFE_V(status);
+    } else {
         // Do nothing when hints == none
         assert(hints.get() == isa_hints_t::none);
     }
