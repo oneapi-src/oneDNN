@@ -471,6 +471,9 @@ struct sycl_rnn_copy_conf_t {
     dim_t states_ws_ld;
     bool layer;
     bool to_state;
+    bool l2r;
+    bool r2l;
+    bool sum;
 };
 
 struct sycl_rnn_bias_conf_t {
