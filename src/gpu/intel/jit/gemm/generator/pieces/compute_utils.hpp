@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,11 +40,15 @@ struct SystolicParams {
 
 static inline SystolicParams systolicParams(ngen::HW hw, const GEMMProblem &problem, const GEMMStrategy &strategy)
 {
+    // Check opCount using correct compute types.
+    auto problem_ = problem;
+    problem_.autoTypeConversions(hw, strategy.systolicAvailable);
+
     SystolicParams params;
-    params.opsPerChan = std::max(1, std::min(4 / problem.Ta.real(), 4 / problem.Tb.real()));
+    params.opsPerChan = std::max(1, std::min(4 / problem_.Ta.real(), 4 / problem_.Tb.real()));
     params.sdepth = 8;
     params.ksys = params.sdepth * params.opsPerChan;
-    params.osys = ngen::GRF::bytes(hw) / std::max(problem.Tc_compute().real().size(), 4);
+    params.osys = ngen::GRF::bytes(hw) / std::max(problem_.Tc_compute().real().size(), 4);
     params.rcountMax = 8;
 
     return params;
