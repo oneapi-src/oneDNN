@@ -77,13 +77,25 @@ struct simple_sparse_reorder_impl<SIMPLE_SPARSE_REORDER_TEMPL_CALL,
                 && (is_format_tag(fmt_o)
                         && (fmt_o == format_tag::any))>::type> {
 
-    static bool is_applicable(const memory_desc_wrapper &input_d,
+    static status_t is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
-        // This reorder expects a non-plain format for destination.
-        return input_d.is_blocking_desc() && output_d.is_sparse_desc()
-                && output_d.sparse_desc().encoding == sparse_encoding::packed
-                && output_d.blocking_desc().inner_nblks > 0
-                && output_d.blk_size() % 64 == 0;
+
+        VDISPATCH_REORDER_IC(!input_d.has_runtime_dims_or_strides(),
+                VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+        VDISPATCH_REORDER_IC(
+                input_d.is_blocking_desc(), VERBOSE_UNSUPPORTED_FORMAT_KIND);
+        VDISPATCH_REORDER_IC(
+                output_d.is_sparse_desc(), VERBOSE_UNSUPPORTED_FORMAT_KIND);
+        VDISPATCH_REORDER_IC(
+                output_d.sparse_desc().encoding == sparse_encoding::packed,
+                VERBOSE_UNSUPPORTED_FEATURE,
+                "only sparse_encoding::packed is supported for dst");
+        VDISPATCH_REORDER_IC(output_d.blocking_desc().inner_nblks > 0,
+                VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "dst");
+        VDISPATCH_REORDER_IC(output_d.blk_size() % 64 == 0,
+                VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "dst");
+
+        return status::success;
     }
 
     static size_t get_scratchpad_size(const memory_desc_wrapper &input_d,
@@ -194,12 +206,13 @@ struct simple_sparse_reorder_t : public primitive_t {
                 const memory_desc_t *src_md, engine_t *dst_engine,
                 const memory_desc_t *dst_md) {
 
-            const bool args_ok = src_md->data_type == type_i
-                    && dst_md->data_type == type_o
-                    && simple_sparse_reorder_impl<
-                            SIMPLE_SPARSE_REORDER_TEMPL_CALL>::
-                            is_applicable(src_md, dst_md, attr);
-            if (!args_ok) return status::invalid_arguments;
+            const bool ok = src_md->data_type == type_i
+                    && dst_md->data_type == type_o;
+            if (!ok) return status::invalid_arguments;
+
+            CHECK(simple_sparse_reorder_impl<
+                    SIMPLE_SPARSE_REORDER_TEMPL_CALL>::is_applicable(src_md,
+                    dst_md, attr));
 
             auto _pd = make_unique_pd<pd_t>(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
@@ -214,12 +227,9 @@ struct simple_sparse_reorder_t : public primitive_t {
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
             // Convert sparse packed desc to blocking desc.
             auto converted_dst_md = cvt_sparse_packed2blocked(*this->dst_md());
-
             CHECK(reorder_primitive_desc_create(
                     reorder_pd_, engine, src_md(), &converted_dst_md, attr()));
 
-            const memory_desc_wrapper dst_d(dst_md());
-            if (dst_d.nelems(true) < 0) return status::unimplemented;
             const size_t scratchpad_sz_ = simple_sparse_reorder_impl<
                     SIMPLE_SPARSE_REORDER_TEMPL_CALL>::
                     get_scratchpad_size(src_md(), dst_md());
