@@ -205,6 +205,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.first_mb_matrix_addr_off = post_ops_data.first_mb_matrix_addr_off;
     brgemm_p.a_zp_compensations = post_ops_data.a_zp_compensations;
     brgemm_p.b_zp_compensations = post_ops_data.b_zp_compensations;
+    brgemm_p.a_zp_values = post_ops_data.a_zp_values;
     brgemm_p.c_zp_values = post_ops_data.c_zp_values;
     brgemm_p.ptr_dst_scales = post_ops_data.dst_scales;
     if (dynamic_values) {
@@ -457,19 +458,30 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
         auto zero_points = attr->zero_points_;
 
         // common zero point type is supported for now
-        if (!zero_points.common(mem_arg)) return status::unimplemented;
+        const bool is_per_dim_1_bcast = zero_points.per_dim_1(mem_arg);
+        const bool is_common_bcast = zero_points.common(mem_arg);
+        if (!is_common_bcast && !is_per_dim_1_bcast)
+            return status::unimplemented;
 
         const bool skip_zero_point
                 = mem_arg == DNNL_ARG_WEIGHTS && brg->skip_zp_b_compensation;
-        zp_type = zero_points.has_default_values(mem_arg) || skip_zero_point
-                ? brgemm_broadcast_t::none
-                : brgemm_broadcast_t::per_tensor;
+
+        zp_type = brgemm_broadcast_t::none;
+        const bool is_any_bcast
+                = !(zero_points.has_default_values(mem_arg) || skip_zero_point);
+        if (is_any_bcast) {
+            if (is_common_bcast)
+                zp_type = brgemm_broadcast_t::per_tensor;
+            else if (is_per_dim_1_bcast)
+                zp_type = brgemm_broadcast_t::per_n;
+        }
+
         return status::success;
     };
 
-    init_zp_type(brg->zp_type_a, DNNL_ARG_SRC);
-    init_zp_type(brg->zp_type_b, DNNL_ARG_WEIGHTS);
-    init_zp_type(brg->zp_type_c, DNNL_ARG_DST);
+    CHECK(init_zp_type(brg->zp_type_a, DNNL_ARG_SRC));
+    CHECK(init_zp_type(brg->zp_type_b, DNNL_ARG_WEIGHTS));
+    CHECK(init_zp_type(brg->zp_type_c, DNNL_ARG_DST));
 
     // Post-ops may use vector registers so brgemm/brdgmm blocking may need to
     // be updated
