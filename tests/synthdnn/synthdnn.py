@@ -32,9 +32,9 @@ def error(output):
 
 import sys
 def DebugPrint(msg=""):
-  fname = sys._getframe().f_code.co_filename
-  head, tail = os.path.split(fname)
-  print(f"Debug: {tail}:{sys._getframe().f_back.f_lineno}: {msg}")
+    fname = sys._getframe().f_code.co_filename
+    head, tail = os.path.split(fname)
+    print(f"Debug: {tail}:{sys._getframe().f_back.f_lineno}: {msg}")
 
 def setup_matmul_subparser(subparsers):
     matmul_parser = subparsers.add_parser('matmul', help='call with -h for information')
@@ -65,6 +65,7 @@ def matmul_main(args):
     if batchFile:
         log(f"generating batch file: {batchFile.name}")
         region = matmul_sampler.Region(args.region)
+        DebugPrint(f"region = {region}")
         types = matmul.Types(args.types)
         layouts = matmul.Layouts(args.layouts, region.ndims)
         samples= matmul_sampler.Sampler(int(args.samples), args.iter_mode,
