@@ -96,8 +96,10 @@ def matmul_main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    DebugPrint("here")
+    DebugPrint("parser")
     subparsers = parser.add_subparsers(help='primitive targeted for data collection')
+    DebugPrint("subparser")
     setup_matmul_subparser(subparsers)
     args = parser.parse_args()
+    DebugPrint(f"args: {args}")
     args.subprogram_main(args)
