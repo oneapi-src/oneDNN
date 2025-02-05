@@ -258,13 +258,6 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 #endif
     cmp.set_threshold(trh);
 
-    // LogSoftMax is unstable enough when there are compute attributes (such as
-    // post-ops or scales) on top of it.
-    const bool compare_with_norm = (prb->alg == alg_t::LOGSOFTMAX
-            && !prb->attr.is_def(
-                    /* skip_fpmath = */ true, /* skip_acc_mode = */ true));
-    cmp.set_norm_validation_mode(compare_with_norm);
-
     const int64_t axis_size = prb->dims[prb->axis];
     const int64_t n_zeros = (prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8)
             ? (axis_size - 1)
