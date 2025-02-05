@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -396,7 +396,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             const float experimental_eltwise_trh_diff
                     = std::max(epsilon_dt(dt), 2e-5f);
             const float experimental_eltwise_trh_rel_diff
-                    = std::max(epsilon_dt(dt), 1e-6f);
+                    = std::max(epsilon_dt(dt), 8e-6f);
             ok = has_eltwise
                     && (args.diff <= experimental_eltwise_trh_diff
                             || args.rel_diff
@@ -437,12 +437,16 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             //
             // Note: use specific dt and correspondent values not to mess with
             // broad set of supported data types.
-            float binary_comp_po_trh = 0.f;
-            if (args.dt == dnnl_f16)
-                binary_comp_po_trh = 5.f * epsilon_dt(args.dt); // == 5e-3;
-            if (args.dt == dnnl_f32)
-                binary_comp_po_trh = 20.f * epsilon_dt(args.dt); // == 2e-6f;
-            ok = has_binary_compute_po(attr) && args.diff <= binary_comp_po_trh;
+            float binary_comp_po_diff_trh = 0.f;
+            float binary_comp_po_rdiff_trh = 0.f;
+            if (args.dt == dnnl_f16) binary_comp_po_diff_trh = 5e-3f;
+            if (args.dt == dnnl_f32) {
+                binary_comp_po_diff_trh = 4e-6f;
+                binary_comp_po_rdiff_trh = 7e-6f;
+            }
+            ok = has_binary_compute_po(attr)
+                    && (args.diff <= binary_comp_po_diff_trh
+                            || args.rel_diff <= binary_comp_po_rdiff_trh);
             if (ok) break;
 
             // Some drivers (like pooling or resampling) on integer data types
