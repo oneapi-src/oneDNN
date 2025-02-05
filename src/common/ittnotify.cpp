@@ -56,6 +56,8 @@ void primitive_task_start(primitive_kind_t kind) {
 
 #define CASE(x) \
     __itt_string_handle_create(dnnl_prim_kind2str(primitive_kind::x))
+    // Internal primitives are not yet supported.
+    // TODO: add proper support (itt_strings[kind_idx] is broken).
     static __itt_string_handle *prim_kind_itt_strings[] = {
             CASE(undefined),
             CASE(reorder),
@@ -79,7 +81,6 @@ void primitive_task_start(primitive_kind_t kind) {
             CASE(softmax),
             CASE(layer_normalization),
             CASE(group_normalization),
-            CASE(sdpa),
     };
 #undef CASE
     int kind_idx = (int)kind;
