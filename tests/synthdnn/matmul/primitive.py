@@ -57,7 +57,7 @@ class Layouts:
 
     def __init__(self, layouts, ndims):
         if(layouts == "all"):
-            self.values = self.supported(ndims)
+            self.values = self.supported(ndims-1)
         else:
             self.values = [self.Layout(x) for x in layouts.split(",")]
 
