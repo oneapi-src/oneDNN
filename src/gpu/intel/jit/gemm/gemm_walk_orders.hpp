@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,8 @@ inline uint32_t uint32_reciprocal(uint32_t x) {
 
 inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
         int &argn, const compute::range_t &lws, compute::range_t &gws,
-        int32_t m, int32_t n, int32_t k, bool disable_hilbert,
+        int32_t m, int32_t n, int32_t k, size_t a_stride_m_bytes,
+        size_t b_stride_n_bytes, bool disable_hilbert,
         const CommonDriverInfo &info, const EvaluateAuxOutput *aux,
         const compute::device_info_t *dev_info) {
 
@@ -60,6 +61,9 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
 
     arg_list.set(argn++, groups_m);
     arg_list.set(argn++, groups_n);
+
+    if (info.scrambleM()) arg_list.set(argn++, uint32_reciprocal(groups_m));
+    if (info.scrambleN()) arg_list.set(argn++, uint32_reciprocal(groups_n));
 
     if (info.isSimpleLinear()) {
         uint32_t gcmn_recip
@@ -152,6 +156,30 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
 
         arg_list.set(argn++, slice);
         arg_list.set(argn++, thresh);
+    }
+
+    auto legalize_wg_stride = [](uint32_t &wg_stride, uint32_t groups) {
+        if (wg_stride <= 1)
+            wg_stride = 1;
+        else {
+            while (gcd<int32_t>(wg_stride, groups) > 1)
+                wg_stride++;
+            if (wg_stride > 0x8000) wg_stride = 1;
+        }
+    };
+
+    if (info.scrambleM()) {
+        auto wg_stride_m = uint32_t(
+                utils::div_up(0x18000, a_stride_m_bytes * info.wgTile(LoopM)));
+        legalize_wg_stride(wg_stride_m, groups_m);
+        arg_list.set(argn++, wg_stride_m);
+    }
+
+    if (info.scrambleN()) {
+        auto wg_stride_n = uint32_t(
+                utils::div_up(0x18000, b_stride_n_bytes * info.wgTile(LoopN)));
+        legalize_wg_stride(wg_stride_n, groups_n);
+        arg_list.set(argn++, wg_stride_n);
     }
 
     if (info.kParallelVariable()) {

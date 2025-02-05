@@ -896,6 +896,10 @@ void gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("group_count_m", DataType::ud);
         interface_.newArgument("group_count_n", DataType::ud);
     }
+    if (strategy.scramble[LoopM])
+        interface_.newArgument("group_count_m_recip", DataType::ud);
+    if (strategy.scramble[LoopN])
+        interface_.newArgument("group_count_n_recip", DataType::ud);
     if (strategy.cWalkOrder == WalkOrder::SimpleLinear)
         interface_.newArgument("group_count_recip", DataType::ud);
     else if (strategy.cWalkOrder == WalkOrder::Hilbertlike) {
@@ -906,6 +910,10 @@ void gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("bslice", DataType::d);
         interface_.newArgument("bthresh", DataType::d);
     }
+    if (strategy.scramble[LoopM])
+        interface_.newArgument("wg_stride_m", DataType::ud);
+    if (strategy.scramble[LoopN])
+        interface_.newArgument("wg_stride_n", DataType::ud);
     if (strategy.kParallelVariable) {
         interface_.newArgument("k0", DataType::ud);
         interface_.newArgument("k_parallel_start", DataType::ud);

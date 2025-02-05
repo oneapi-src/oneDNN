@@ -379,6 +379,10 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
             strategy.reverse[LoopM] = true;
         else if (mod == "rn")
             strategy.reverse[LoopN] = true;
+        else if (mod == "ym")
+            strategy.scramble[LoopM] = true;
+        else if (mod == "yn")
+            strategy.scramble[LoopN] = true;
         else if (mod == "kb" || mod == "kv") {
             if (mod == "kb") strategy.kParallel = true;
             if (mod == "kv") {
@@ -886,6 +890,8 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     if (strategy.panelCheck)                s << " up";
     if (strategy.reverse[LoopM])            s << " rm";
     if (strategy.reverse[LoopN])            s << " rn";
+    if (strategy.scramble[LoopM])           s << " ym";
+    if (strategy.scramble[LoopN])           s << " yn";
 
     if (strategy.checkAdd32 && !strategy.emulate.emulate64) s << " ch";
     if (!strategy.checkAdd32 && strategy.emulate.emulate64) s << " nch";

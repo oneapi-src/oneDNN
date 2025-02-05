@@ -193,8 +193,9 @@ struct GEMMStrategyPOD : public CommonStrategy {
     WalkOrder cWalkOrder = WalkOrder::HW2D;      // Order for traversing tiles of C
     bool persistent = false;                     // Use persistent thread model?
     bool reverse[2] = {false, false};            // Reverse m/n walk order?
+    bool scramble[2] = {false, false};           // Scramble m/n walk order?
     bool fmaBoustrophedon = false;               // Use boustrophedon ordering inside FMA/DPAS blocks?
-                                    ZPAD(A, 3)
+                                    ZPAD(A, 1)
     int fmaSIMD = 0;                             // Vector length for FMA (0 = default = 2 GRFs).
     int kChain = 1;                              // # of FMAs to chain in k dimension.
     int dotVL = 0;                               // If > 0, use dot products of the given length, instead of outer products.

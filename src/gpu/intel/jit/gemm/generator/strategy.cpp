@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -181,6 +181,9 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     block2DCFull &= block2DCRemainder;
 
     extendedAtomicFMA &= !problem.needsASums() && !problem.needsBSums();
+
+    if ((scramble[LoopM] || scramble[LoopN]) && !linearOrder())
+        cWalkOrder = WalkOrder::SimpleLinear;
 
     // Default SIMD setting.
     if (fmaSIMD == 0) {
