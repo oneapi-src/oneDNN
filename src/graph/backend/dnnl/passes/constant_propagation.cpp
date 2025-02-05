@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,8 @@ bool has_scratchpad(const op_t *op) {
             op_kind::dnnl_unsqueeze,
             op_kind::dnnl_transpose,
             op_kind::dnnl_reshape,
+            op_kind::dnnl_gen_index,
+            op_kind::dnnl_mask,
     };
 
     // the following ops may have scratchpad output if output size > 1
