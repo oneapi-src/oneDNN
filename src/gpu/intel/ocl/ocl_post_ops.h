@@ -19,11 +19,6 @@
 
 #if WITH_POST_OP
 
-#if !WITH_ELTWISE
-#undef WITH_ELTWISE
-#define WITH_ELTWISE 1
-#endif
-
 #include "gpu/intel/ocl/ocl_conversion.h"
 #include "gpu/intel/ocl/ocl_eltwise.h"
 #include "gpu/intel/ocl/ocl_io.h"

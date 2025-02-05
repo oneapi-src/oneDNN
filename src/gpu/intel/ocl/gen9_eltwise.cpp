@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,7 +69,6 @@ compute::kernel_ctx_t gen9_eltwise_jit_params_t::get_kernel_ctx() const {
     kernel_ctx.set_data_type(data_type);
     def_eltwise_alg_kinds(kernel_ctx);
 
-    kernel_ctx.define_int("WITH_ELTWISE", 1);
     kernel_ctx.define_int("ELTWISE_ALG", alg_kind);
 
     kernel_ctx.define_int("VECT_DT_N", vector_size);

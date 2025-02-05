@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 #ifndef GPU_INTEL_OCL_OCL_ELTWISE_H
 #define GPU_INTEL_OCL_OCL_ELTWISE_H
 
-#if WITH_ELTWISE
 #include "gpu/intel/ocl/ocl_types.h"
 
 #if DT_F16 == 1
@@ -345,7 +344,5 @@ float bwd_eltwise(
     return x;
 #endif
 }
-
-#endif // WITH_ELTWISE
 
 #endif // GPU_INTEL_OCL_OCL_ELTWISE_H
