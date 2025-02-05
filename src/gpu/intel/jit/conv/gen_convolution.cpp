@@ -55,7 +55,7 @@ public:
 
     template <typename T>
     static status_t init_pd(T *pd, impl::engine_t *engine) {
-        try {
+        //try {
             using compute::compute_engine_t;
             auto *compute_engine = utils::downcast<compute_engine_t *>(engine);
 
@@ -109,12 +109,12 @@ public:
             CHECK(init_kernel_infos(pd));
 
             return status::success;
-        } catch (std::runtime_error &err) {
+       /* } catch (std::runtime_error &err) {
             // If verbose is enabled, print the primitive case and rethrow the
             // exception.
             VERROR(primitive, gpu, "%s,%s", pd->info(engine), err.what());
             return status::runtime_error;
-        }
+        }*/
     }
 
     gen_convolution_t() = default;
