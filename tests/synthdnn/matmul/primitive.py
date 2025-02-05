@@ -16,6 +16,15 @@
 
 import itertools
 
+########################
+import sys
+import os
+def DebugPrint(msg=""):
+    fname = sys._getframe().f_code.co_filename
+    head, tail = os.path.split(fname)
+    print(f"Debug: {tail}:{sys._getframe().f_back.f_lineno}: {msg}")
+########################
+
 class Dims:
     def __init__(self, b, m, k, n):
         # b is a list due to variable size
@@ -61,6 +70,8 @@ class Layouts:
             raise RuntimeError(f"No support for ndims={ndims}")
         dims_base="abcdef"
         perms = [''.join(p) for p in itertools.permutations(dims_base[:ndims])]
+        DebugPrint(f"ndims = {ndims}")
+        DebugPrint(f"perms = {perms}")
         perms.insert(0, "any")
         return [Layouts.Layout(f"{a}:{b}:{c}") for a,b,c in itertools.product(perms, perms, perms)]
 
