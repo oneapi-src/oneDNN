@@ -77,7 +77,9 @@ struct ir_generator_t : public jit_generator_base {
                 default: gpu_assert(false) << "Unexpected GPU architecture";
             }
 #undef CASE
-        } catch (ngen::out_of_registers_exception &) { return xpu::binary_t(); }
+        } catch (ngen::out_of_registers_exception &) { 
+		return xpu::binary_t(); 
+	}
         return xpu::binary_t();
     }
 
