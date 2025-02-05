@@ -664,6 +664,9 @@ void CopyPlan::planTypeConversions()
         } else if (dt == Type::ngen_f4_e2m1() && st == DataType::hf) {
             planEmulatedHFToF4E2M1(i);
             rerun = true;
+        } else if (st == Type::ngen_e3m0() && dt == DataType::hf) {
+            planEmulatedE3M0ToHF(i);
+            rerun = true;
         } else if (dt == Type::ngen_f4_e2m1()) {
             copyThrough(i, DataType::hf);
             rerun = true;
@@ -1470,6 +1473,79 @@ void CopyPlan::planEmulatedF4E2M1ToHF(CopyInstruction &i) {
         ie[7]->src0 = yUW;
     } else
         ie[7]->invalidate();
+}
+
+// Emulation sequence for e3m0->hf conversion.
+void CopyPlan::planEmulatedE3M0ToHF(CopyInstruction &i)
+{
+    // Emulation sequence for mov y:hf x:e3m0: play only on the exponent bits
+    // mov                 y:uw   x:u4                    /* emulated separately */
+    // shl                 t0:uw   t0:uw   12
+    // and                 y:uw    y:uw    0x7
+    // (f1)add             y:uw    y:uw    12
+    // shl                 y:uw    y:uw    10
+    // bfn.0xCA            y:uw    y:uw    t0:uw  0x8000   /* copy sign */
+
+    if (i.src0.neg || i.sat || i.hasCMod()) stub("Unsupported modifier");
+
+    auto ie = splitMultiple<7>(i);
+
+    auto yOrig = i.dst, y = yOrig;
+
+    bool tempY = (y.stride > 1 && multiGRF(hw, i, y));
+    if (tempY)  /* Replace y by temporary if nonunit stride hurts performance */
+        y = newTemp(DataType::uw, i.simd, 1);
+
+    auto yUW = y;
+    yUW.type = DataType::uw;
+
+    auto t0 = newTemp(DataType::hf, i.simd, y.stride, 0, y.offset);
+
+    auto t0UW = t0;
+    t0UW.type = DataType::uw;
+
+    // Copy to u16.
+    ie[0]->src0.type = DataType::u4;
+    ie[0]->dst.type = DataType::uw;
+    ie[0]->dst = yUW;
+
+    ie[1]->op = Opcode::shl;
+    ie[1]->dst = t0UW;
+    ie[1]->src0 = ie[0]->dst;
+    ie[1]->src1 = 12;
+
+    ie[2]->op = Opcode::and_;
+    ie[2]->dst = ie[2]->src0 = yUW;
+    ie[2]->src1 = 0x7;
+    ie[2]->cmod = ConditionModifier::nz;
+    ie[2]->flag = newFlag(ie[2]->simd);
+
+    ie[3]->op = Opcode::add;
+    ie[3]->dst = ie[3]->src0 = yUW;
+    ie[3]->src1 = 0xc;
+    ie[3]->dst.type = DataType::uw;
+    ie[3]->src0.type = DataType::uw;
+    ie[3]->src1.type = DataType::uw;
+    ie[3]->flag = ie[2]->flag;
+
+    ie[4]->src0 = ie[3]->dst;
+    ie[4]->op = Opcode::shl;
+    ie[4]->dst = yUW;
+    ie[4]->src1 = 10;
+
+    ie[5]->op = Opcode::bfn;
+    ie[5]->dst = ie[5]->src0 = yUW;
+    ie[5]->src1 = t0UW;
+    ie[5]->src2 = 0x8000;
+    ie[5]->ctrl = 0xCA;
+
+    if (tempY) {
+        ie[6]->op = Opcode::mov;
+        ie[6]->dst = yOrig;
+        ie[6]->dst.type = DataType::uw;
+        ie[6]->src0 = yUW;
+    } else
+        ie[6]->invalidate();
 }
 
 // Emulation sequence for hf->hf8 conversion.
