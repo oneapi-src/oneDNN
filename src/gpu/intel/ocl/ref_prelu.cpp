@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -83,7 +83,6 @@ static status_t init_kernel_ctx_common(
 
     kernel_ctx.set_data_type(conf.dst_md_info.data_type);
     def_eltwise_alg_kinds(kernel_ctx);
-    kernel_ctx.define_int("WITH_ELTWISE", 1);
 
     kernel_ctx.define_int("IS_FWD", conf.is_forward);
 

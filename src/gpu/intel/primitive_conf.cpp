@@ -778,8 +778,6 @@ status_t def_attr_info_impl(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("WITH_POST_OP", post_ops.len() > 0);
 
-    if (!kernel_ctx.has_macro("WITH_ELTWISE"))
-        kernel_ctx.define_int("WITH_ELTWISE", attr_info.with_eltwise);
     if (!kernel_ctx.has_macro("ELTWISE_ALG"))
         kernel_ctx.define_int("ELTWISE_ALG", attr_info.eltwise_alg);
 
