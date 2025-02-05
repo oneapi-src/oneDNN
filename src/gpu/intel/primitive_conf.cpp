@@ -615,17 +615,7 @@ status_t get_prelu_md(int prelu_mask, const dim_t *dst_dims,
 
 status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
         const post_ops_t &post_ops, const memory_desc_t &dst_md) {
-    const int po_nop_id = 0;
-    const int po_binary_id = 1;
-    const int po_eltwise_id = 2;
-    const int po_sum_id = 3;
-
-    kernel_ctx.define_int("PO_BINARY", po_binary_id);
-    kernel_ctx.define_int("PO_ELTWISE", po_eltwise_id);
-    kernel_ctx.define_int("PO_SUM", po_sum_id);
-
     std::string po_kernel_args = "-DPOST_OP_ARGS=\"";
-    int nof_supported_post_ops = 0;
 
     bool post_op_uses_bf16 = false;
     bool post_op_uses_bf8 = false;
@@ -641,8 +631,8 @@ status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             post_op_uses_hf8 |= (type == data_type::f8_e4m3);
         };
         if (e.is_binary()) {
-            kernel_ctx.define_int(
-                    "PO_" + std::to_string(idx) + "_KIND", po_binary_id);
+            kernel_ctx.add_option(
+                    "-DAPPLY_PO_" + std::to_string(idx) + "=APPLY_PO_BINARY");
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_ALG", e.binary.alg);
 
@@ -650,10 +640,14 @@ status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             const auto mdi = memory_desc_info_t::create(src1_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
             define_binary_po_type(mdi.data_type);
+
+            po_kernel_args += ", const __global PO_" + std::to_string(idx)
+                    + "_BIN_ARG_DATA_T *po_" + std::to_string(idx)
+                    + "_binary_arg";
         } else if (e.is_prelu()) {
             // binary && eltwise relu = prelu post op
-            kernel_ctx.define_int(
-                    "PO_" + std::to_string(idx) + "_KIND", po_binary_id);
+            kernel_ctx.add_option(
+                    "-DAPPLY_PO_" + std::to_string(idx) + "=APPLY_PO_BINARY");
             kernel_ctx.define_int("PO_" + std::to_string(idx) + "_ALG",
                     alg_kind_t::dnnl_eltwise_relu);
 
@@ -667,21 +661,13 @@ status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
 
             // prelu weights are assumed to be f32
             define_binary_po_type(data_type::f32);
-        } else {
-            memory_desc_t empty_mem_desc;
-            dnnl_dims_t empty_dims = {1, 1, 1, 1};
-            CHECK(memory_desc_init_by_tag(empty_mem_desc, 4, empty_dims,
-                    data_type_t::dnnl_s8, format_tag_t::dnnl_nchw));
-            const memory_desc_wrapper src1_mdw(empty_mem_desc);
-            const auto mdi = memory_desc_info_t::create(src1_mdw);
-            def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
 
-            // unused - just need any type that's convertible to float
-            define_binary_po_type(data_type::f32);
-        }
-        if (e.is_eltwise(false)) {
-            kernel_ctx.define_int(
-                    "PO_" + std::to_string(idx) + "_KIND", po_eltwise_id);
+            po_kernel_args += ", const __global PO_" + std::to_string(idx)
+                    + "_BIN_ARG_DATA_T *po_" + std::to_string(idx)
+                    + "_binary_arg";
+        } else if (e.is_eltwise()) {
+            kernel_ctx.add_option(
+                    "-DAPPLY_PO_" + std::to_string(idx) + "=APPLY_PO_ELTWISE");
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_ALG", e.eltwise.alg);
             kernel_ctx.define_float(
@@ -693,51 +679,27 @@ status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             kernel_ctx.define_float(
                     ("PO_" + std::to_string(idx) + "_ELTWISE_SCALE").c_str(),
                     e.eltwise.scale);
-        } else {
-            kernel_ctx.define_float(
-                    ("PO_" + std::to_string(idx) + "_ELTWISE_ALPHA").c_str(),
-                    1.0f);
-            kernel_ctx.define_float(
-                    ("PO_" + std::to_string(idx) + "_ELTWISE_BETA").c_str(),
-                    0.0f);
-            kernel_ctx.define_float(
-                    ("PO_" + std::to_string(idx) + "_ELTWISE_SCALE").c_str(),
-                    1.0f);
-        }
-        if (e.is_sum(false)) {
-            kernel_ctx.define_int(
-                    "PO_" + std::to_string(idx) + "_KIND", po_sum_id);
+        } else if (e.is_sum(false)) {
+            kernel_ctx.add_option(
+                    "-DAPPLY_PO_" + std::to_string(idx) + "=APPLY_PO_SUM");
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_ALG", alg_kind::undef);
             kernel_ctx.define_float(
                     ("PO_" + std::to_string(idx) + "_SUM_SCALE").c_str(),
                     e.sum.scale);
         } else {
-            kernel_ctx.define_float(
-                    ("PO_" + std::to_string(idx) + "_SUM_SCALE").c_str(), 1.0f);
+            return status::runtime_error;
         }
-        if (!(e.is_binary() || e.is_eltwise(false) || e.is_sum(false)
-                    || e.is_prelu())) {
-            // empty post op
-            kernel_ctx.define_int(
-                    "PO_" + std::to_string(idx) + "_KIND", po_nop_id);
-            // *_ALG need to be set but it's unused when kind is NOP
-            kernel_ctx.define_int(
-                    "PO_" + std::to_string(idx) + "_ALG", alg_kind::undef);
-            --nof_supported_post_ops;
-        }
-        po_kernel_args += ", const __global PO_" + std::to_string(idx)
-                + "_BIN_ARG_DATA_T *po_" + std::to_string(idx) + "_binary_arg";
         return status::success;
     };
 
-    for (int idx = 0; idx < post_ops.len(); ++idx, ++nof_supported_post_ops) {
+    for (int idx = 0; idx < post_ops.len(); ++idx) {
         const std::string bin_arg_name
                 = "PO_" + std::to_string(idx) + "_BIN_ARG";
         CHECK(add_po_defines(bin_arg_name, post_ops.entry_[idx], idx));
     }
 
-    kernel_ctx.define_int("POST_OP_CHAIN_LENGTH", nof_supported_post_ops);
+    kernel_ctx.define_int("POST_OP_CHAIN_LENGTH", post_ops.len());
     if (post_op_uses_bf16) kernel_ctx.define_int("POST_OP_USING_BF16", 1);
     if (post_op_uses_bf8) kernel_ctx.define_int("POST_OP_USING_BF8", 1);
     if (post_op_uses_hf8) kernel_ctx.define_int("POST_OP_USING_HF8", 1);
@@ -768,8 +730,6 @@ int append_post_ops_to_arg_list_base(const exec_args_t &args,
                     ? *(arg.mem->memory_storage())
                     : dnnl::impl::memory_storage_t::empty_storage();
             arg_list.set(post_op_idx++, prelu_wei_arg);
-        } else {
-            arg_list.set(post_op_idx++, memory_storage_t::empty_storage());
         }
     };
 
