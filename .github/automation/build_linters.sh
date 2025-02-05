@@ -27,6 +27,9 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
       set -x
       cmake -B../build -S. -DONEDNN_BUILD_GRAPH=OFF -DDNNL_EXPERIMENTAL_SPARSE=ON
       set +x
+    else
+      echo "Unknown linter job: $GITHUB_JOB"
+      exit 1
     fi
 elif [[ "$ONEDNN_ACTION" == "build" ]]; then
     set -x
