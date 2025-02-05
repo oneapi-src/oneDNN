@@ -33,14 +33,15 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
     with open(file2) as f:
         r2 = f.readlines()
 
-    # Trim non-formatted lines and split the prolem from time
+    # Trim non-formatted lines and split the problem from time
     r1 = [x.split(",") for x in r1 if x[0:8] == "--mode=P"]
     r2 = [x.split(",") for x in r2 if x[0:8] == "--mode=P"]
 
+    if (len(r1) == 0) or (len(r2) == 0):
+        raise Exception("One or both of the test results have zero lines")
     if len(r1) != len(r2):
         raise Exception("The number of benchdnn runs do not match")
 
-    # Convert to dict and trim \n
     r1_samples = defaultdict(list)
     r2_samples = defaultdict(list)
 
@@ -62,9 +63,11 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
             failed_tests.append(prb)
             passed = False
 
+        print(prb + (" passed" if passed else " failed"))
+
     if "GITHUB_OUTPUT" in os.environ:
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-            f.write(f"pass={passed}")
+            print(f"pass={passed}", file=f)
 
     if passed:
         print("Regression tests passed")
@@ -72,8 +75,9 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
         message = "\n----The following regression tests failed:----\n" + \
                     "\n".join(failed_tests) + "\n"
         if "GITHUB_OUTPUT" in os.environ:
+            out_message = message.replace("\n", "%0A")
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                f.write(f"message={message}")
+                print(f'message={out_message}', file=f)
         print(message)
         raise Exception("Some regression tests failed")
 
