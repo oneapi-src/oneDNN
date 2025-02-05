@@ -198,8 +198,14 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 
     gws[2] *= pd()->desc()->batch();
 
-    gemm_linear_order_args(arg_list, argn, lws, gws, m, n, k, disable_hilbert,
-            *nocopy_info(), pd()->kernel_desc()->aux_params(), pd()->dev_info_);
+    size_t a_stride_m
+            = (problem->A.layout == MatrixLayout::T) ? (lda * problem->Ta) : 1;
+    size_t b_stride_n
+            = (problem->B.layout == MatrixLayout::N) ? (ldb * problem->Tb) : 1;
+
+    gemm_linear_order_args(arg_list, argn, lws, gws, m, n, k, a_stride_m,
+            b_stride_n, disable_hilbert, *nocopy_info(),
+            pd()->kernel_desc()->aux_params(), pd()->dev_info_);
 
     if (nocopy_info()->perKSLM > 0) {
         size_t slm = nocopy_info()->slm;

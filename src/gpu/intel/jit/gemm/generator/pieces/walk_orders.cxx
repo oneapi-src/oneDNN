@@ -546,10 +546,30 @@ void BLASKernelGenerator<hw>::gemmReorderGlobalIDs(const GEMMProblem &problem, c
 
     gemmLinearOrder(gidMN, gidM, gidN, Subregister(), Subregister(), problem, strategy, state);
 
+    if (strategy.scramble[LoopM]) {
+        Subregister tmp = state.ra.allocSub<uint32_t>();
+        emul(1, gidM, gidM, state.inputs.wgStride[LoopM], strategy, state);
+        divDown(tmp, gidM, state.inputs.groupCountM, state.inputs.gcMRecip, state.flagAP, strategy, state);
+        emad(1, gidM, gidM, -tmp, state.inputs.groupCountM, strategy, state);
+        state.ra.safeRelease(tmp);
+    }
+
+    if (strategy.scramble[LoopN]) {
+        Subregister tmp = state.ra.allocSub<uint32_t>();
+        emul(1, gidN, gidN, state.inputs.wgStride[LoopN], strategy, state);
+        divDown(tmp, gidN, state.inputs.groupCountN, state.inputs.gcNRecip, state.flagAP, strategy, state);
+        emad(1, gidN, gidN, -tmp, state.inputs.groupCountN, strategy, state);
+        state.ra.safeRelease(tmp);
+    }
+
     if (!strategy.persistent) {
         state.ra.safeRelease(state.inputs.groupCountM);
         state.ra.safeRelease(state.inputs.groupCountN);
         state.ra.safeRelease(state.inputs.gcMNRecip);
+        state.ra.safeRelease(state.inputs.gcMRecip);
+        state.ra.safeRelease(state.inputs.gcNRecip);
+        state.ra.safeRelease(state.inputs.wgStride[LoopM]);
+        state.ra.safeRelease(state.inputs.wgStride[LoopN]);
     }
 }
 

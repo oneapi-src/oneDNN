@@ -209,7 +209,8 @@ struct GEMMState : public CommonState {
         ngen::Subregister localSizeM, localSizeN, localSizeK;       // ud
         ngen::Subregister groupCountM, groupCountN, groupCountK;    // ud
         ngen::Subregister groupCountMN;                     // ud
-        ngen::Subregister gcMNRecip;                        // ud
+        ngen::Subregister gcMNRecip, gcMRecip, gcNRecip;    // ud
+        ngen::Subregister wgStride[2];                      // ud
         ngen::Subregister groupStride;                      // ud
         ngen::Subregister kParallelStart, kRecip, k0Recip;  // ud
         ngen::Subregister hilbertVD, hilbertUVDRecip;       // ud

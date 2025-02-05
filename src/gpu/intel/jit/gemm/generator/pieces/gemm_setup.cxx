@@ -2503,6 +2503,10 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
     if (strategy.linearOrder()) {
         state.inputs.groupCountM = interface.getArgument("group_count_m");
         state.inputs.groupCountN = interface.getArgument("group_count_n");
+        if (strategy.scramble[LoopM])
+            state.inputs.gcMRecip = interface.getArgumentIfExists("group_count_m_recip");
+        if (strategy.scramble[LoopN])
+            state.inputs.gcNRecip = interface.getArgumentIfExists("group_count_n_recip");
     }
     if (one_of(strategy.cWalkOrder, WalkOrder::SimpleLinear, WalkOrder::NestedLinear))
         state.inputs.gcMNRecip = interface.getArgument("group_count_recip");
@@ -2514,6 +2518,10 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
         state.inputs.bslice = interface.getArgument("bslice");
         state.inputs.bthresh = interface.getArgument("bthresh");
     }
+    if (strategy.scramble[LoopM])
+        state.inputs.wgStride[LoopM] = interface.getArgument("wg_stride_m").uw();
+    if (strategy.scramble[LoopN])
+        state.inputs.wgStride[LoopN] = interface.getArgument("wg_stride_n").uw();
     if (strategy.persistent) {
         state.inputs.groupCountMN = interface.getArgumentIfExists("group_count");
         state.inputs.groupStride = interface.getArgument("group_stride");
@@ -2747,6 +2755,10 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
     if (strategy.linearOrder()) {
         state.ra.claim(state.inputs.groupCountM);
         state.ra.claim(state.inputs.groupCountN);
+        if (strategy.scramble[LoopM])
+            state.ra.claim(state.inputs.gcMRecip);
+        if (strategy.scramble[LoopN])
+            state.ra.claim(state.inputs.gcNRecip);
     }
 
     if (one_of(strategy.cWalkOrder, WalkOrder::SimpleLinear, WalkOrder::NestedLinear))

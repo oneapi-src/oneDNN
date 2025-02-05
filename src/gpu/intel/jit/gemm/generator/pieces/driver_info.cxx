@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,6 +77,8 @@ CommonDriverInfo BLASKernelGenerator<hw>::driverInfo(GEMMProblem problem, const 
     if (problem.alpha.pointer())                                  info.flags |= FlagAlphaPtr;
     if (problem.beta.pointer())                                   info.flags |= FlagBetaPtr;
     if (strategy.nondeterministic(problem))                       info.flags |= FlagNondeterministic;
+    if (strategy.scramble[LoopM])                                 info.flags |= FlagScrambleM;
+    if (strategy.scramble[LoopN])                                 info.flags |= FlagScrambleN;
     info.flags |= (strategy.fillGoal << FlagShiftFillGoal) & FlagMaskFillGoal;
     info.slm = int(gemmSLMSize(hw, problem, strategy));
     info.perKSLM = int(gemmPerKSLMSize(hw, problem, strategy));
