@@ -1,43 +1,67 @@
 --reset
 
 --inplace=true,false
-
 --alg=SOFTMAX,LOGSOFTMAX
---dtag=any
-# f16
---dir=FWD_D,BWD_D
+
+# Forward training
+--dir=FWD_D
 --sdt=f16
 --ddt=f16
-
 --stag=abx
 --axis=0,1
 --batch=set_0d
 --axis=1,3
 --batch=shapes_2d
---axis=3,4
+--axis=1,4
 --batch=shapes_3d
 
 --stag=axb
---axis=0,1
+--axis=1
 --batch=shapes_2d
+--axis=1
 --batch=shapes_3d
 
+# Forward inference
 --dir=FWD_I
 --sdt=f16
 --ddt=s8,u8
 --stag=axb
 --attr-scales=,src:common:128,dst:common:0.125,src:common:64+dst:common:0.5
---axis=0,1
+--attr-post-ops=,add:f16:per_oc,mul:f16:per_tensor,linear:0.5:2,add:f16:common+linear:0.5:2
+--axis=1
 --batch=set_0d
 --batch=shapes_2d
 
---dir=FWD_I
 --sdt=s8,u8
 --ddt=f16
 --stag=axb
 --attr-scales=,src:common:128
---axis=0,1
+--attr-post-ops=,add:f16:per_oc,mul:f16:per_tensor,linear:0.5:2,add:f16:common+linear:0.5:2
+--axis=1
 --batch=set_0d
 --batch=shapes_2d
+
+# Backward training
+--reset
+--inplace=true,false
+--alg=SOFTMAX,LOGSOFTMAX
+--dir=BWD_D
+--sdt=f16
+--ddt=f16
+--stag=abx
+--axis=0
+--batch=shapes_0d
+--axis=1
+--batch=set_0d
+--axis=3
+--batch=shapes_2d
+--axis=4
+--batch=shapes_3d
+
+--stag=axb
+--axis=1
+--batch=shapes_2d
+--axis=1
+--batch=shapes_3d
 
 --reset --stag=acbd --dtag=acbd --sdt=f16 --ddt=f16 --axis=3 1x16x384x384_n"neighbor_dim_to_axis_has_larger_stride"
