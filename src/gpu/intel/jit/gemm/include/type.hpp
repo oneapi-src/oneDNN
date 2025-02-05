@@ -43,6 +43,7 @@ public:
         u64  = 0x011A0803,
         s64  = 0x011B0803,
         f4_e2m1 = 0x410B0100,
+        f4_e3m0 = 0x410A0100,
         f8_e8m0 = 0x1080100,
         bf8  = 0x010E0100,
         hf8  = 0x010F0100,
@@ -70,7 +71,7 @@ public:
     constexpr bool isInt8()           const { return (val == Type::u8)  || (val == Type::s8);  }
     constexpr bool isInt16()          const { return (val == Type::u16) || (val == Type::s16); }
     constexpr bool isF8()             const { return (val == Type::bf8) || (val == Type::hf8  || (val == Type::f8_e8m0)); }
-    constexpr bool isF4()             const { return (val == Type::f4_e2m1) ;}
+    constexpr bool isF4()             const { return (val == Type::f4_e2m1 || val == Type::f4_e3m0) ;}
     constexpr bool isSigned()         const { return (uint32_t(val) & 0x110000) != 0x100000; }
     constexpr int bits()              const { return is4Bit() ? 4 : (paddedSize() * 8); }
     constexpr int paddedSize()        const { return (uint32_t(val) >> 8) & 0xFF; }
@@ -101,6 +102,7 @@ public:
             case Type::u4: return data_type::u4;
             case Type::s4: return data_type::s4;
             case Type::f4_e2m1: return data_type::f4_e2m1;
+            case Type::f4_e3m0: return data_type::f4_e3m0;
             default: assert(!"Unsupported type"); return data_type::undef;
         }
     }
@@ -117,6 +119,7 @@ public:
 
     // Not a valid nGEN DataType; for gemmstone internal use only
     static  constexpr  ngen::DataType ngen_f4_e2m1() { return  static_cast<ngen::DataType>(0x5A);}
+    static  constexpr  ngen::DataType ngen_f4_e3m0() { return  static_cast<ngen::DataType>(0x5B);}
     static  constexpr  ngen::DataType ngen_f8_e8m0() { return  static_cast<ngen::DataType>(0x69);}
 
 
@@ -126,7 +129,7 @@ public:
         auto none = DT::invalid;
         static const DT table[32] = {DT::hf,   DT::f,    DT::df,    none,
                                      none,     none,     none,      none,
-                                     ngen_f8_e8m0(),     none,     none,      ngen_f4_e2m1(),
+                                     ngen_f8_e8m0(),     none,     ngen_f4_e3m0(),      ngen_f4_e2m1(),
                                      DT::bf,   DT::tf32, DT::bf8,   DT::hf8,
                                      none,     none,     DT::u4,    DT::s4,
                                      DT::ub,   DT::b,    DT::uw,    DT::w,
@@ -175,6 +178,7 @@ inline char typeToChar(Type T)
         case Type::bf16:  return 'B';
         case Type::tf32:  return 'T';
         case Type::f4_e2m1:   return 'E';
+        case Type::f4_e3m0:   return 'e';
         case Type::f8_e8m0:   return 'X';
         default:          return '?';
     }
@@ -199,6 +203,7 @@ inline Type charToType(char c)
         case 'B': return Type::bf16;
         case 'T': return Type::tf32;
         case 'E': return Type::f4_e2m1;
+        case 'e': return Type::f4_e3m0;
         case 'X': return Type::f8_e8m0;
         default:  return Type::invalid;
     }

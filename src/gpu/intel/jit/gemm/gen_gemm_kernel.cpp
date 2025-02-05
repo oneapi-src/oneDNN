@@ -49,6 +49,7 @@ compute::scalar_type_t gen_gemm_kernel_desc_t::scalar_type() const {
         case Type::s64: return compute::scalar_type_t::_long;
         case Type::u64: return compute::scalar_type_t::_ulong;
         case Type::f4_e2m1: return compute::scalar_type_t::_f4_e2m1;
+        case Type::f4_e3m0: return compute::scalar_type_t::_f4_e3m0;
         case Type::bf8: return compute::scalar_type_t::_bfloat8;
         case Type::hf8: return compute::scalar_type_t::_hfloat8;
         case Type::bf16: return compute::scalar_type_t::_bfloat16;
