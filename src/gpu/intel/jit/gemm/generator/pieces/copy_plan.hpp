@@ -182,6 +182,7 @@ protected:
     void planSmallUWToHF(CopyInstruction &i);
     void planBToHF(CopyInstruction &i);
     void planS4ToHF(CopyInstruction &i);
+    void planEmulatedE3M0ToHF(CopyInstruction &i);
     void planEmulatedF4E2M1ToHF(CopyInstruction &i);
     void planEmulatedHFToF4E2M1(CopyInstruction &i);
     void planInt4Upconversion(CopyInstruction &i);
