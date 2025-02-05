@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::execute_compute_loop(
         const int begin_end = C_tail ? 1 : 2;
         int middle_16_c_blocks = num_full_16c_blocks == 1
                 ? 0
-                : num_full_16c_blocks - begin_end;
+                : static_cast<int>(num_full_16c_blocks) - begin_end;
         int LTAIL = 0;
         if (C_tail && middle_16_c_blocks) {
             middle_16_c_blocks -= 1;
