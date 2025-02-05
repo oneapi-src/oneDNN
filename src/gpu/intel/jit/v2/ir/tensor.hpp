@@ -291,12 +291,15 @@ public:
 
     layout_tag_t(const layout_desc_t &desc, const type_t &type,
             const layout_raw_tag_t &raw_tag, const bool is_strided = false)
-        : desc_(desc), type_(type), raw_tag_(raw_tag), is_strided_(is_strided) {}
+        : desc_(desc)
+        , type_(type)
+        , raw_tag_(raw_tag)
+        , is_strided_(is_strided) {}
     layout_tag_t(const type_t &type, const std::string &str_tag,
-                const bool is_strided = false)
+            const bool is_strided = false)
         : layout_tag_t({}, type, layout_raw_tag_t(str_tag), is_strided) {}
     layout_tag_t(const layout_desc_t &desc, const type_t &type,
-            const std::string &str_tag, const bool is_strided = false )
+            const std::string &str_tag, const bool is_strided = false)
         : layout_tag_t(desc, type, layout_raw_tag_t(str_tag), is_strided) {}
 
     bool is_empty() const { return raw_tag_.is_empty(); }

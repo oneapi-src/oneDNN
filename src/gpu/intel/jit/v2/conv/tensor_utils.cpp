@@ -135,7 +135,8 @@ layout_tag_t append_groups(
         }
     }
     auto desc = make_conv_layout_desc(tensor_kind, /*src_dst_with_group=*/true);
-    return layout_tag_t(desc, layout_tag.type(), new_raw_tag, layout_tag.is_strided());
+    return layout_tag_t(
+            desc, layout_tag.type(), new_raw_tag, layout_tag.is_strided());
 }
 
 uint32_t append_groups(tensor_kind_t tensor_kind, uint32_t mask, bool is_dw) {
@@ -174,12 +175,11 @@ layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
         } else {
             block_size_expr = rem_size(dim, blocks);
         }
-        if (tag.is_strided() && it != entries.rbegin()){
-                auto stride =prb_stride(dim, tensor_kind);
-	       	ret.add_block(
-                    dim, block_size_expr, stride.is_undef() ? expr_t(0) : stride.var());
-	}
-        else
+        if (tag.is_strided() && it != entries.rbegin()) {
+            auto stride = prb_stride(dim, tensor_kind);
+            ret.add_block(dim, block_size_expr,
+                    stride.is_undef() ? expr_t(0) : stride.var());
+        } else
             ret.add_block(dim, block_size_expr);
     }
     return ret;
@@ -210,9 +210,12 @@ std::string blocked_to_str_tag(const memory_desc_t &md) {
         dim_t min_stride = std::numeric_limits<dim_t>::max();
         for (int j = 0; j < ndims; j++) {
             if (!seen[j]
-                    && (blk.strides[j] == stride
+                    && ((blk.strides[j] == stride)
                             || (blk.strides[j] % stride == 0))) {
-                min_dim = std::min(min_dim, rem_dims[j]);
+                if (blk.strides[j] < min_stride)
+                    min_dim = rem_dims[j];
+                else if (blk.strides[j] == min_stride)
+                    min_dim = std::min(min_dim, rem_dims[j]);
                 min_stride = std::min(min_stride, blk.strides[j]);
             }
         }

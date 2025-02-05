@@ -59,8 +59,8 @@ kernel_desc_t plan_registry_t::find_best(const problem_t &prb) const {
             best = e.desc;
         }
         auto desc = to_stream_k(e.desc);
-        desc = handle_strides(desc);
-	if (desc.is_empty() || !desc.can_fit(prb)) continue;
+        //desc = handle_strides(desc);
+        if (desc.is_empty() || !desc.can_fit(prb)) continue;
         time = e.model_set.time(prb, desc);
         if (time < min_time) {
             min_time = time;

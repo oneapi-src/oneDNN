@@ -276,35 +276,46 @@ void kernel_desc_t::set_defaults() {
     }
 }
 
-void kernel_desc_t::set_stride_reqs(tensor_kind_t kind,const layout_tag_t &desc_tag){
-    if (desc_tag.is_strided()){
-        int stride  =1;
-	auto entries = desc_tag.raw_tag().entries();
-         for (auto it = entries.rbegin(); it != entries.rend(); it++){
-               auto dim = desc_tag.desc().prb_dim(it->index());
-              if (iter_tile.has(dim))
-		      stride *= iter_tile[dim];
-               if (prb_stride(dim,kind).is_undef()) continue;
-               reqs.add(
-                 prb_stride(dim,kind).var() % stride == 0);
-         }
-       }
+void kernel_desc_t::set_stride_reqs(
+        tensor_kind_t kind, const layout_tag_t &desc_tag) {
+    if (desc_tag.is_strided()) {
+        int stride2 = 1;
+        expr_t stride = expr_t(1);
+        std::vector<pvar_t> dims;
+        auto tag = append_groups(kind, desc_tag, is_dw);
+        auto entries = tag.raw_tag().entries();
+        for (auto it = entries.rbegin(); it != entries.rend(); it++) {
+            auto dim = tag.desc().prb_dim(it->index());
+            //  if (iter_tile.has(dim))
+            //	      stride *= iter_tile[dim];
+            // stride = binary_op_t::make(_mul, stride, dim);
+
+            if (prb_stride(dim, kind).is_undef()) continue;
+            //for (auto req : reqs){
+            reqs.add_stride_reqs(prb_stride(dim, kind), dims);
+            dims.push_back(dim);
+
+            //}
+            //dims.push_back(prb_stride(dim,kind));
+
+            //reqs.add(
+            // prb_stride(dim,kind).var() % stride == 0);
+            // reqs.add(
+            // prb_stride(dim,kind).var() <= stride *2);
+        }
+    }
 }
 
-kernel_desc_t handle_strides(const kernel_desc_t &desc_){
+kernel_desc_t handle_strides(const kernel_desc_t &desc_) {
     auto desc = desc_;
 
     return desc;
 }
 
-
-
 void kernel_desc_t::finalize(const prb_reqs_t &final_reqs) {
     is_finalized = true;
     reqs.add(final_reqs);
 }
-
-
 
 bool fit_tag(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
         const problem_t &prb, bool exact) {
@@ -323,12 +334,7 @@ bool fit_tag(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
             && prb_tag.matches(desc_tag, prb.shape(), /*check_type=*/false))
             << to_string(abc) << " tag " << prb_tag
             << " does not match kernel descriptor tag " << desc_tag;
-    
 
-    
-    
-    
-    
     return true;
 }
 
@@ -367,13 +373,12 @@ void fit_tag_to(
             = (abc == tensor_kind_t::c) && kernel_desc.use_stream_k;
 
     if (desc_tag.type() != prb_tag.type() && !is_out_stream_k) {
-        desc_tag = layout_tag_t(
-                desc_tag.desc(), prb_tag.type(), desc_tag.raw_tag(), prb_tag.is_strided());
-    }else if (prb_tag.is_strided()) {
-        desc_tag = layout_tag_t(
-                desc_tag.desc(), prb_tag.type(), desc_tag.raw_tag(), prb_tag.is_strided());
+        desc_tag = layout_tag_t(desc_tag.desc(), prb_tag.type(),
+                desc_tag.raw_tag(), prb_tag.is_strided());
+    } else if (prb_tag.is_strided()) {
+        desc_tag = layout_tag_t(desc_tag.desc(), prb_tag.type(),
+                desc_tag.raw_tag(), prb_tag.is_strided());
     }
- 
 }
 
 void fit_to_impl(kernel_desc_t &desc, const problem_t &prb) {
@@ -676,17 +681,21 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
         if (d == pvars::sw)
             kernel_iface.register_arg("sw_magic", type_t::u64());
         if (!is_conv_index(d)) continue;
-        for (auto &t_kind : {tensor_kind_t::src, tensor_kind_t::wei, tensor_kind_t::dst}){
-        auto tag = src_tag;
-        if (t_kind == tensor_kind_t::wei)
-            tag =wei_tag;
-        else if (t_kind == tensor_kind_t::dst)
-            tag = dst_tag;
-        if (!tag.is_strided()) continue;
-        char innermost_dim_letter = tag.raw_tag().entries()[0].str()[0];
-        if (prb_stride(d, t_kind).is_undef() || tag.desc().layout_letter(d) == innermost_dim_letter ) continue;
-        auto stride_var = var_t::make(type_t::s32(), prb_stride(d, t_kind).str());
-        kernel_iface.register_arg(stride_var);
+        for (auto &t_kind :
+                {tensor_kind_t::src, tensor_kind_t::wei, tensor_kind_t::dst}) {
+            auto tag = src_tag;
+            if (t_kind == tensor_kind_t::wei)
+                tag = wei_tag;
+            else if (t_kind == tensor_kind_t::dst)
+                tag = dst_tag;
+            if (!tag.is_strided()) continue;
+            auto inner_dim = tag.raw_tag().entries().back();
+            if (prb_stride(d, t_kind).is_undef()
+                    || tag.desc().prb_dim(inner_dim.index()) == d)
+                continue;
+            auto stride_var
+                    = var_t::make(type_t::s32(), prb_stride(d, t_kind).str());
+            kernel_iface.register_arg(stride_var);
         }
     }
     if (use_stream_k) {

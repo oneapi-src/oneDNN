@@ -76,6 +76,7 @@ public:
     // Simplifies and eliminates redundant requirements.
     void simplify();
     void substitute(const pvar_map_t<dim_t> &values);
+    void add_stride_reqs(const pvar_t stride, std::vector<pvar_t> vars);
     // Checks if an expression/condition is an implication of the requirements.
     // For example: prb_reqs_t(oc % 64 == 0) implies (oc % 16) == 0 so the
     // latter can be proven from the original requirements.

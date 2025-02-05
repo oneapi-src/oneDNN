@@ -73,10 +73,20 @@ public:
     }
 };
 
-expr_t simplify_expr(const expr_t &_e) {
+expr_t simplify_expr(const expr_t &_e, const prb_reqs_t *reqs) {
     expr_t a, b;
     if (is_a_mod_b_eq_0(_e, a, b)) {
-        a = simplify_expr(a);
+        auto e = _e;
+        auto vars = find_objects<const_var_t>(_e);
+        for (auto var : vars) {
+            auto pvar = pvar_t::from_var(var.as<const_var_t>());
+            if (pvar.is_undef() || !reqs) continue;
+            auto factor = reqs->max_factor(pvar);
+            if (factor <= 1) continue;
+            e = substitute(e, var, expr_t(reqs->max_factor(pvar)));
+        }
+        is_a_mod_b_eq_0(e, a, b);
+        a = simplify_expr(a, reqs);
         if (is_const(b)) return simplify_linear_mod(a, to_cpp<int>(b)) == 0;
         return a % b == 0;
     }
@@ -657,8 +667,50 @@ private:
     req_rhs_t rhs_;
 };
 
+void prb_reqs_t::add_stride_reqs(
+        const pvar_t stride, std::vector<pvar_t> vars) {
+    std::vector<req_impl_t> new_reqs;
+    for (auto &r : reqs_) {
+        auto lhs = r.impl().lhs();
+        bool mod_eq_0 = r.impl().kind() == req_kind_t::mod_eq_0;
+        bool can_replace = mod_eq_0 ? false : true;
+        for (auto v : vars) {
+            if (lhs.has(v) && mod_eq_0)
+                can_replace = true;
+            else if (!lhs.has(v) && !mod_eq_0)
+                can_replace = false;
+        }
+        if (can_replace) {
+            std::vector<pvar_t> new_lhs;
+            std::vector<pvar_t> v_copy(vars);
+            for (auto &lhs_v : lhs.pvars()) {
+                bool found = false;
+                int i = 0;
+                for (auto &v : v_copy) {
+                    if (v == lhs_v) {
+                        found = true;
+                        v_copy.erase(v_copy.begin() + i);
+                        break;
+                    }
+                    i++;
+                }
+                if (!found) new_lhs.push_back(lhs_v);
+            }
+            new_lhs.push_back(stride);
+            new_reqs.push_back(req_impl_t(
+                    r.impl().kind(), req_lhs_t(new_lhs), r.impl().rhs()));
+        }
+    }
+
+    for (auto &r : new_reqs) {
+        //printf("addded: %s \n ", r.str().c_str());
+        reqs_.push_back(req_t(r));
+    }
+    //printf("full reqs: %s \n", str().c_str());
+}
+
 void prb_reqs_t::add(const expr_t &_e) {
-    auto e = simplify_expr(_e);
+    auto e = simplify_expr(_e, this);
     if (auto *imm = e.as_ptr<bool_imm_t>()) {
         if (imm->value) return;
         gpu_error_not_expected() << _e;
@@ -891,7 +943,10 @@ void prb_reqs_t::substitute(const pvar_map_t<dim_t> &values) {
 }
 
 bool prb_reqs_t::can_prove(const expr_t &to_prove) const {
-    auto e = simplify_expr(to_prove);
+    auto e = to_prove;
+
+    e = simplify_expr(e, this);
+    // auto e = simplify_expr(to_prove);
     if (auto *imm = e.as_ptr<bool_imm_t>()) { return imm->value; }
     return can_prove(req_impl_t(e));
 }
@@ -940,7 +995,9 @@ bool prb_reqs_t::is_equal(const pvar_t &pvar, dim_t value) const {
 }
 
 bool prb_reqs_t::implies(const prb_reqs_t &other) const {
+    printf("str : %s ", str().c_str());
     for (auto &req : other.reqs_) {
+        printf("can prove : %s \n", req.str().c_str());
         gpu_check(can_prove(req.impl())) << "Cannot prove: " << req.impl();
     }
     return true;
@@ -958,21 +1015,16 @@ const prover_t &prover_t::instance() {
 }
 
 bool prover_t::require(const expr_t &_e) const {
-   auto e = _e; 
-   auto vars = find_objects<const_var_t>(_e);
-   for (auto var : vars){
-        auto pvar = pvar_t::from_var(var.as<const_var_t>());
-	if (pvar.is_undef()) continue;
-        e = substitute(e, var, expr_t(parent_->max_factor(pvar)));
-   }
-   e = simplify_expr(e);
-   //auto *imm = e.as_ptr<bool_imm_t>();
-   if (auto *imm = e.as_ptr<bool_imm_t>()) return imm->value;
-//auto e = simplify_expr(_e);
-  // if (auto *imm = e.as_ptr<bool_imm_t>()) return imm->value;
+    auto e = _e;
+    e = simplify_expr(e, parent_);
+    //auto *imm = e.as_ptr<bool_imm_t>();
+    if (auto *imm = e.as_ptr<bool_imm_t>()) return imm->value;
+    //auto e = simplify_expr(_e);
+    // if (auto *imm = e.as_ptr<bool_imm_t>()) return imm->value;
     req_impl_t ri(e);
     bool is_true = (parent_ && parent_->can_prove(ri));
     if (!is_true && !can_update_) return false;
+    //printf(" add : %s \n", e.str().c_str());
     reqs_->add_if_not_found(ri);
     return true;
 }

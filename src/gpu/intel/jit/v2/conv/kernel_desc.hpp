@@ -297,7 +297,7 @@ public:
     bool is_supported(const hw_t &hw) const;
     void set(const std::string &s);
     void set_defaults();
-    void set_stride_reqs(tensor_kind_t kind,const layout_tag_t &tag);
+    void set_stride_reqs(tensor_kind_t kind, const layout_tag_t &tag);
     void finalize(const prb_reqs_t &final_reqs);
     bool can_fit(const problem_t &prb) const;
     void fit_to(const problem_t &prb);

@@ -87,7 +87,9 @@ void problem_t::normalize() {
     normalize_conv_shape(GET(od), GET(id), GET(kd), GET(sd), GET(dd), GET(pd),
             GET(oh), GET(ih), GET(kh), GET(sh), GET(dh), GET(ph), GET(ow),
             GET(iw), GET(kw), GET(sw), GET(dw), GET(pw),
-            /*can_flatten_spatial=*/true, dhw_map_);
+            !src_tag().is_strided() && !wei_tag().is_strided()
+                    && !dst_tag().is_strided(),
+            dhw_map_);
 #undef GET
 }
 
