@@ -783,6 +783,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_gen_index, 1,
                 .set_output(0, "output")
                 // Attributes inherited from front GenIndex ops
                 .set_attr(op_attr::axis, true, attribute_kind::i)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
                 .SET_LAYOUT_PROPAGATOR(layout_propagator_for_gen_index)
@@ -1126,6 +1127,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_mask, 1,
                 // Attributes inherited from front gen_index ops
                 .set_attr(op_attr::axis_row, true, attribute_kind::i)
                 .set_attr(op_attr::axis_col, true, attribute_kind::i)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(infer_identity_output_shape)
                 .SET_LAYOUT_PROPAGATOR(layout_propagator_for_mask)
