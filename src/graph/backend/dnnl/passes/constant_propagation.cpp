@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2023 Intel Corporation
+ * Copyright 2022-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,18 +34,12 @@ namespace {
 bool has_scratchpad(const op_t *op) {
     // the following ops do not have scratchpad output by definition
     const static std::set<op_kind_t> no_scratchpad_ops {
-            op_kind::dnnl_constant_scales,
-            op_kind::dnnl_constant_zps,
-            op_kind::dnnl_add_zps,
-            op_kind::dnnl_sub_zps,
-            op_kind::dnnl_to_group,
-            op_kind::dnnl_from_group,
-            op_kind::dnnl_permute,
-            op_kind::dnnl_squeeze,
-            op_kind::dnnl_unsqueeze,
-            op_kind::dnnl_transpose,
-            op_kind::dnnl_reshape,
-    };
+            op_kind::dnnl_constant_scales, op_kind::dnnl_constant_zps,
+            op_kind::dnnl_add_zps, op_kind::dnnl_sub_zps,
+            op_kind::dnnl_to_group, op_kind::dnnl_from_group,
+            op_kind::dnnl_permute, op_kind::dnnl_squeeze,
+            op_kind::dnnl_unsqueeze, op_kind::dnnl_transpose,
+            op_kind::dnnl_reshape, op_kind::dnnl_gen_index, op_kind::dnnl_mask};
 
     // the following ops may have scratchpad output if output size > 1
     const static std::set<op_kind_t> may_have_scratchpad_ops {
