@@ -1,7 +1,7 @@
 #! /bin/bash
 
 # *******************************************************************************
-# Copyright 2024 Arm Limited and affiliates.
+# Copyright 2024-2025 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,6 +47,8 @@ if [[ "$OS" == "Linux" ]]; then
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-mqa-cpp"
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-sdpa-cpp"
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-sdpa-stacked-qkv-cpp"
+    # TODO: Issue: https://github.com/oneapi-src/oneDNN/issues/2572
+    SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_convolution"
     SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_large_partition_cpu"
 fi
 
