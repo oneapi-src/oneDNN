@@ -492,7 +492,11 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             // if it was requested.
             if (with_bias()) {
                 const auto bia_type = invariant_wei_md(1)->data_type;
-                VDISPATCH_DECONVOLUTION(utils::one_of(bia_type, f32, bf16, f16),
+                VDISPATCH_DECONVOLUTION(utils::one_of(bia_type, f32, bf16, f16)
+                                && (bia_type == dst_type
+                                        || (bia_type == f32
+                                                && utils::one_of(
+                                                        dst_type, bf16, f16))),
                         VERBOSE_UNSUPPORTED_DT);
             }
             VDISPATCH_DECONVOLUTION(utils::one_of(desc()->alg_kind,
