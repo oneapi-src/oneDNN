@@ -94,8 +94,8 @@ extern pvar_t b;
 extern pvar_t m;
 extern pvar_t n;
 extern pvar_t k;
- 
 
+extern pvar_t src_g_stride;
 extern pvar_t src_mb_stride;
 extern pvar_t src_ic_stride;
 extern pvar_t src_id_stride;
@@ -107,6 +107,7 @@ extern pvar_t wei_kh_stride;
 extern pvar_t wei_kw_stride;
 extern pvar_t wei_ic_stride;
 extern pvar_t wei_oc_stride;
+extern pvar_t dst_g_stride;
 extern pvar_t dst_mb_stride;
 extern pvar_t dst_oc_stride;
 extern pvar_t dst_od_stride;

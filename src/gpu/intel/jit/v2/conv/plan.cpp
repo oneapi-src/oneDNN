@@ -407,7 +407,8 @@ private:
             auto dim = b.dim;
             if (desc_.iter_tile.has(dim)) stride *= desc_.iter_tile[dim];
             if (prb_stride(dim, kind).is_undef()) continue;
-            reqs_.add(prb_stride(dim, kind).var() % stride == 0);
+            //reqs_.add(
+            // prb_stride(dim,kind).var() % stride == 0);
         }
     }
 

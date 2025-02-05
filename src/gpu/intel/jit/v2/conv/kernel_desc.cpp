@@ -330,13 +330,29 @@ void kernel_desc_t::set_defaults() {
 void kernel_desc_t::set_stride_reqs(
         tensor_kind_t kind, const layout_tag_t &desc_tag) {
     if (desc_tag.is_strided()) {
-        int stride = 1;
-        auto entries = desc_tag.raw_tag().entries();
+        int stride2 = 1;
+        expr_t stride = expr_t(1);
+        std::vector<pvar_t> dims;
+        auto tag = append_groups(kind, desc_tag, is_dw);
+        auto entries = tag.raw_tag().entries();
         for (auto it = entries.rbegin(); it != entries.rend(); it++) {
-            auto dim = desc_tag.desc().prb_dim(it->index());
-            if (iter_tile.has(dim)) stride *= iter_tile[dim];
+            auto dim = tag.desc().prb_dim(it->index());
+            //  if (iter_tile.has(dim))
+            //	      stride *= iter_tile[dim];
+            // stride = binary_op_t::make(_mul, stride, dim);
+
             if (prb_stride(dim, kind).is_undef()) continue;
-            reqs.add(prb_stride(dim, kind).var() % stride == 0);
+            //for (auto req : reqs){
+            reqs.add_stride_reqs(prb_stride(dim, kind), dims);
+            dims.push_back(dim);
+
+            //}
+            //dims.push_back(prb_stride(dim,kind));
+
+            //reqs.add(
+            // prb_stride(dim,kind).var() % stride == 0);
+            // reqs.add(
+            // prb_stride(dim,kind).var() <= stride *2);
         }
     }
 }
@@ -741,9 +757,9 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
             else if (t_kind == tensor_kind_t::dst)
                 tag = dst_tag;
             if (!tag.is_strided()) continue;
-            char innermost_dim_letter = tag.raw_tag().entries()[0].str()[0];
+            auto inner_dim = tag.raw_tag().entries().back();
             if (prb_stride(d, t_kind).is_undef()
-                    || tag.desc().layout_letter(d) == innermost_dim_letter)
+                    || tag.desc().prb_dim(inner_dim.index()) == d)
                 continue;
             auto stride_var
                     = var_t::make(type_t::s32(), prb_stride(d, t_kind).str());
