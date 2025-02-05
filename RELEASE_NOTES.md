@@ -2,6 +2,7 @@
 
 ## Intel Architecture Processors
   * Improved performance of convolution and matmul primitives on Intel Xeon processors with Intel AMX support (formerly Sapphire Rapids and Granite Rapids).
+  * Improved performance of `int8` and `fp32` forward convolution primitive on processors with Intel AVX2 instruction set support.
   * Improved performance of `fp8` matmul primitives with `bf16` and `fp16` bias data type on Intel Xeon processors with Intel AMX instruction set support (formerly Sapphire Rapids and Granite Rapids).
   * Improved performance of `int8` RNN primitive on processors with Intel AVX2 and Intel AVX-512 instruction set support.
   * Improved performance of `int8` depthwise separable convolution primitive with per-channel zero points on processors with Intel AVX2 and Intel AVX-512 instruction set support.
