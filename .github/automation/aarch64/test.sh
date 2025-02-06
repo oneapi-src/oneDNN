@@ -24,7 +24,7 @@ set -o errexit -o pipefail -o noclobber
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
 # Defines MP, CC, CXX and OS.
-source ${SCRIPT_DIR}/common_aarch64.sh
+source ${SCRIPT_DIR}/common.sh
 
 # AArch64 does not officially support graph for now.
 SKIPPED_GRAPH_TEST_FAILURES="test_graph_unit_dnnl_sdp_decomp_cpu"
