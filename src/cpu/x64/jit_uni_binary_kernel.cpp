@@ -58,7 +58,7 @@ size_t binary_kernel_t::get_tail_size() const {
     const auto &dims = src0_d.dims();
     const auto &ndims = src0_d.ndims();
 
-    size_t nelems = 0;
+    dim_t nelems = 0;
 
     if (ndims == 1)
         nelems = dims[0];
