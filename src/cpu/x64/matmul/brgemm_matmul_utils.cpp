@@ -1683,6 +1683,27 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.use_buffer_reduce
             = (bgmmc.reduce_dt != data_type::f32) || (bgmmc.nthr_k > 1);
 
+    const dim_t max_a_stride = bgmmc.M_blk
+            * (bgmmc.use_buffer_a ? bgmmc.copy_A_src_stride
+                                  : bgmmc.LDA * bgmmc.a_dt_sz);
+    const dim_t max_b_stride = bgmmc.K_blk
+            * (bgmmc.use_buffer_b ? bgmmc.copy_B_wei_stride
+                                  : bgmmc.LDB * bgmmc.b_dt_sz);
+    const dim_t max_c_stride = bgmmc.M_blk * bgmmc.LDC * bgmmc.c_dt_sz;
+    const dim_t max_d_stride = bgmmc.M_blk * bgmmc.LDD * bgmmc.acc_dt_sz;
+
+    const dim_t max_supported_stride = std::numeric_limits<int32_t>::max();
+
+    VCONDCHECK_BG(max_a_stride <= max_supported_stride,
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "src stride > INT32_MAX is not supported");
+    VCONDCHECK_BG(max_b_stride <= max_supported_stride,
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "weights stride > INT32_MAX is not supported");
+    VCONDCHECK_BG(std::max(max_c_stride, max_d_stride) <= max_supported_stride,
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "dst stride > INT32_MAX is not supported");
+
     // When is_wei_batch_layout_trivial is true, we only support that
     // batch offset can be divided by 2
     if (bgmmc.is_int4_weights) {
