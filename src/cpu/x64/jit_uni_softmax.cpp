@@ -903,7 +903,7 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
         if (with_postops_) {
             static constexpr bool preserve_gpr = true;
             static constexpr bool preserve_vmm = true;
-            static constexpr bool use_exact_tail_scalar_bcast = true;
+            static constexpr bool use_exact_tail_scalar_bcast = false;
             static constexpr std::size_t tmp_vmm_injector = 0u;
 
             const binary_injector::rhs_arg_static_params_t rhs_sp {
@@ -1457,7 +1457,7 @@ struct jit_softmax_strided_kernel_t : jit_softmax_kernel_base_t,
         if (with_postops_) {
             static constexpr bool preserve_gpr = true;
             static constexpr bool preserve_vmm = true;
-            static constexpr bool use_exact_tail_scalar_bcast = true;
+            static constexpr bool use_exact_tail_scalar_bcast = false;
             static constexpr std::size_t tmp_vmm_injector = 0u;
 
             const binary_injector::rhs_arg_static_params_t rhs_sp {
