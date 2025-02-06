@@ -488,7 +488,6 @@ protected:
     void gemmDowngradeAccess(const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     void gemmInitInterface(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state, bool inSK = false);
     void gemmInitState(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state, bool inSK = false);
-    static void gemmAutoTypeConversions(GEMMProblem &problem, const GEMMStrategy &strategy);
 
     // gemm.cpp
     void gemmSubkernel(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState state);
