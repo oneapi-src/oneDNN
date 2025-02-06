@@ -217,6 +217,7 @@ Teams:
 | Atharva Dubey      | @AD2605               | Codeplay Software | Code Owner |
 | Mehdi Goli         | @mehdi-goli           | Codeplay Software | Code Owner |
 | Svetlozar Georgiev | @sgeor255             | Codeplay Software | Code Owner |
+| Romain Biessy      | @Rbiessy              | Codeplay Software | Code Owner |
 
 ## Support functions
 
