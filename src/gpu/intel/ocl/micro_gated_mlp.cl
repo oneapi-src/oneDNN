@@ -225,7 +225,7 @@ __kernel void micro_gated_mlp(const __global SRC_DATA_T *src,
 
         //TODO: mmres no good, revert example to have in order or eye data
         s_tile_type FC_G_tile
-          = ugemm_wgu(W_gate + k0*ldgu, ldgu,
+          = ugemm_wgu(W_gate + k0 * ldgu / WTS_GATE_ELEMENTS_PER_BYTE , ldgu,
         //    ugemm_wgu(W_gate + k0*ldgu, ldgu,
                       wg_slm, ugemm_wgu_wg_tile_m,
                       //&S_WG_tile,
@@ -236,7 +236,7 @@ __kernel void micro_gated_mlp(const __global SRC_DATA_T *src,
                       , wts_gate_scales + (k0 / WTS_GATE_GROUP_SIZE) * ldguq
 #endif
 #if WTS_GATE_ZERO_POINTS
-                      , wts_gate_zp + (k0 / WTS_GATE_GROUP_SIZE) * ldguq
+                      , wts_gate_zp + (k0 / WTS_GATE_GROUP_SIZE) * ldguq  / WTS_GATE_ZP_ELEMENTS_PER_BYTE
 #endif
 #if (WTS_GATE_SCALES == QUANTIZE_2D) || WTS_GATE_ZERO_POINTS
                       , ldguq //TODO: lda of groups
@@ -275,18 +275,18 @@ __kernel void micro_gated_mlp(const __global SRC_DATA_T *src,
 
 
         s_tile_type FC_U_tile
-            = ugemm_wgu(W_up + k0*ldgu, ldgu,
+            = ugemm_wgu(W_up + k0 * ldgu / WTS_UP_ELEMENTS_PER_BYTE, ldgu,
                         wg_slm, ugemm_wgu_wg_tile_m,
                         OC, ugemm_wgu_wg_tile_n, ugemm_wgu_wg_tile_m, //WTF? m,k,n? m,n,k? which one?, swap tile m,n?
                         wg_j0, 0, 0,  // dependent on layout.{N,T} // is assumption of non-slm true w/k?
                         sg_i_wgu, sg_j_wgu, (const local char*)ugemm_u_slm
-#if WTS_UP_SCALES
+#if WTS_UP_SCALES == QUANTIZE_2D
                         , wts_up_scales + (k0 / WTS_UP_GROUP_SIZE) * ldguq
 #endif
 #if WTS_UP_ZERO_POINTS
-                        , wts_up_zp + (k0 / WTS_UP_GROUP_SIZE) * ldguq
+                        , wts_up_zp + (k0 / WTS_UP_GROUP_SIZE) * ldguq / WTS_UP_ZP_ELEMENTS_PER_BYTE
 #endif
-#if WTS_UP_GATE_SCALES || WTS_UP_ZERO_POINTS
+#if (WTS_UP_GATE_SCALES == QUANTIZE_2D) || WTS_UP_ZERO_POINTS
                         , ldguq
 #endif
                         );
@@ -305,7 +305,7 @@ __kernel void micro_gated_mlp(const __global SRC_DATA_T *src,
     uint sg_i0_wgu = sg_i_wgu * ugemm_wgu_sg_tile_n;
     uint sg_j0_wgu = sg_j_wgu * ugemm_wgu_sg_tile_m;
 
-    if(get_global_id(0) == 0) {dst[0] = wg_slm[0]; }
+    //if(get_global_id(0) == 0) {dst[0] = wg_slm[0]; }
 
     //TODO: block2D?
 #ifdef BLOCK_DST
