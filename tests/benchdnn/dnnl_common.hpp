@@ -243,9 +243,12 @@ int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
 int test_persistent_cache_api(
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim, res_t *res);
+// This call is used in zeropad only and still does check inside, too.
 int check_mem_size(const_dnnl_memory_desc_t md, res_t *res);
-int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir,
-        bool need_skip = true);
+// Only collects memory sizes from an input `const_pd` and puts the result into
+// `mem_size_args`.
+int collect_mem_size(check_mem_size_args_t &mem_size_args,
+        const_dnnl_primitive_desc_t const_pd, dir_t dir, bool need_skip = true);
 
 inline bool should_stop(const timer::timer_t &t) {
     const bool stop = false
@@ -415,11 +418,11 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
             WARN);
     if (res->state == SKIPPED) return OK;
 
-    // Check memory requirements if only execution happens.
     // Note: Graph may contain more than one operation with identical `dir`.
-    //   Since the mem size check for all the operations are necessary,
-    //   the check wouldn't be skipped.
-    SAFE(check_mem_size(pdw, res, dir, /* need_skip = */ !is_graph_ref), WARN);
+    //   It's required to collect all memory sizes regardless of `dir`.
+    SAFE(collect_mem_size(res->mem_size_args, pdw, dir,
+                 /* need_skip = */ !is_graph_ref),
+            WARN);
 
     // The library scratchpad is allocated at create_primitive stage. The memory
     // check is moved after the creation stage. It's necessary to check the
