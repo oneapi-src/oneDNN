@@ -1673,6 +1673,27 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             = is_batch_layout_trivial(dst_d, bgmmc.batch);
     init_aux_values(bgmmc, src_d, weights_d, dst_d);
 
+    const dim_t max_a_stride = bgmmc.M_blk
+            * (bgmmc.use_buffer_a ? bgmmc.copy_A_src_stride
+                                  : bgmmc.LDA * bgmmc.a_dt_sz);
+    const dim_t max_b_stride = bgmmc.K_blk
+            * (bgmmc.use_buffer_b ? bgmmc.copy_B_wei_stride
+                                  : bgmmc.LDB * bgmmc.b_dt_sz);
+    const dim_t max_c_stride = bgmmc.M_blk * bgmmc.LDC * bgmmc.c_dt_sz;
+    const dim_t max_d_stride = bgmmc.M_blk * bgmmc.LDD * bgmmc.acc_dt_sz;
+
+    const dim_t max_supported_stride = std::numeric_limits<int32_t>::max();
+
+    VCONDCHECK_BG(max_a_stride <= max_supported_stride,
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "src stride > INT32_MAX is not supported");
+    VCONDCHECK_BG(max_b_stride <= max_supported_stride,
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "weights stride > INT32_MAX is not supported");
+    VCONDCHECK_BG(std::max(max_c_stride, max_d_stride) <= max_supported_stride,
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "dst stride > INT32_MAX is not supported");
+
     // Dispatch small shapes to VNNI for better performance
     const bool runtime_dims
             = bgmmc.is_runtime_M || bgmmc.is_runtime_N || bgmmc.is_runtime_K;
