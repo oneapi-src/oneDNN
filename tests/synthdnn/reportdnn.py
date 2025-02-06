@@ -19,7 +19,11 @@ from threading import Thread
 import queue
 import sys
 
-from generation import matmul
+####from generation import matmul
+import matmul.primitive
+
+####from matmul.primitive import *
+####from matmul.primitive import *
 
 import plotter
 from plotter import heatMap2D

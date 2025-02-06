@@ -24,7 +24,9 @@ import matplotlib.ticker as mticker
 import numpy
 
 import metrics
-from generation import matmul
+###from generation import matmul
+from matmul import primitive
+
 
 from metrics import perf_data
 

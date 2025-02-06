@@ -14,7 +14,9 @@
 # limitations under the License.
 ################################################################################
 
-from generation import matmul
+###from generation import matmul
+from matmul import sampler
+
 
 class Scaling:
     title = ""
@@ -102,7 +104,9 @@ class Metric:
     def title(self):
         return f"{self.scaling.title} {self.value.title}"
 
-    def add(self, sample: matmul.Sample):
+##    def add(self, sample: matmul.Sample):
+##    def add(self, sample: matmul.Sample):
+    def add(self, sample: sampler):
         val = self.value.get(sample)
         rescale = self.scaling.rescale(val)
         for x in self.data:
