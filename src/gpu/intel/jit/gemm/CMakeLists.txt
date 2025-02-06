@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2024 Intel Corporation
+# Copyright 2024-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -68,8 +68,12 @@ set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
 
 include_directories_with_host_compiler_before(${OBJ_LIB} ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/../ngen)
 
-# Workaround for LTO bug in GCC 10, 11, 12 (possibly other versions)
 if(CMAKE_COMPILER_IS_GNUCC)
+    # Workaround for LTO bug in GCC 10, 11, 12 (possibly other versions)
     set_source_files_properties(generator/pieces/loop_sequencer.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
     set_source_files_properties(generator/generator.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
+
+
+    # Workaround for excessively long compile time in GCC 11, 12 (possibly other versions)
+    set_source_files_properties(gen_gemm_kernel_db.cpp PROPERTIES COMPILE_FLAGS -fno-var-tracking)
 endif()
