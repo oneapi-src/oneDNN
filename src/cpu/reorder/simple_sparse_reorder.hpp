@@ -100,7 +100,7 @@ struct simple_sparse_reorder_impl<SIMPLE_SPARSE_REORDER_TEMPL_CALL,
 
     static size_t get_scratchpad_size(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
-        const auto nelems = static_cast<size_t>(output_d.nelems(true));
+        const auto nelems = output_d.nelems(true);
         const auto tmp_output_sz = nelems * output_d.data_type_size();
         const auto nnz_per_blocks_sz
                 = nelems / output_d.blk_size() * sizeof(dim_t);
