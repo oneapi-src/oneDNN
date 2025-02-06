@@ -98,6 +98,8 @@ jobs:
           ONEDNN_ACTION: configure
 
       - name: Build oneDNN
-        run: .github/automation/build_linters.sh
+        run: |
+            .github/automation/build_linters.sh | tee build.log
+            grep -q "warning" build.log && exit 1 || true
         env:
           ONEDNN_ACTION: build
