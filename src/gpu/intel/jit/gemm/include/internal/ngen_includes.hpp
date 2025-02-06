@@ -18,3 +18,4 @@
 
 #   include "ngen/ngen_opencl.hpp"
 #   include "ngen/ngen_register_allocator.hpp"
+#   include "ngen/ngen_asm.hpp"
