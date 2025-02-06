@@ -58,7 +58,7 @@ struct gated_mlp_config_t {
 //gated_mlp_config_t xehpg_h32 = {16, 16, 16, 1};
 
 //gated_mlp_config_t xehpg_h32 = {8, 8, 4, 4};
-gated_mlp_config_t xehpg_h32 = {16, 16, 2, 2};
+gated_mlp_config_t xehpg_h32 = { 16, 16, 2, 2 };
 //gated_mlp_config_t xehpg_h32 = {16, 16, 16, 1}; //big K
 //gated_mlp_config_t xehpg_h32 = {32, 32, 1, 1};
 //gated_mlp_config_t xehpg_h32 = {16, 16, 32, 2};
@@ -153,7 +153,10 @@ status_t micro_gated_mlp_t::pd_t::init_microkernels(impl::engine_t *engine) {
     problem_wgu.B.layout = MatrixLayout::Pr;
     problem_wgu.C.layout = MatrixLayout::T;
 
-    problem_wgu.A.setAlignment(alignmentForLD(d->oc_sz() * problem.Ta_ext));
+    const memory_desc_wrapper W_gate_mdw(W_gate_md());
+    auto ldgu = static_cast<int>(
+            gemm_desc_t::get_ld(*W_gate_md()) * W_gate_mdw.data_type_size()); //todo: /elems_per_byte??
+    problem_wgu.A.setAlignment(alignmentForLD(ldgu));
     problem_wgu.B.setAlignment(64);
     problem_wgu.B.crosspack = 2;
 
