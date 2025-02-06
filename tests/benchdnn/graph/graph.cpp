@@ -236,10 +236,11 @@ int map_unmap_partition_mem(graph::partition_mem_map_t &partition_mem_map,
 /// of the partition
 /// @param ops a list of op references of the partition
 /// @param ins a vector of logical tensors of partition inputs
+/// @param res result structure to update input tensors size
 int make_input_tensors(std::vector<dnnl::graph::tensor> &input_ts,
         const graph::partition_mem_map_t &partition_mem_map,
         const graph::op_ref_list_t &ops,
-        const std::vector<dnnl::graph::logical_tensor> &ins) {
+        const std::vector<dnnl::graph::logical_tensor> &ins, res_t *res) {
     for (size_t idx = 0; idx < ins.size(); ++idx) {
         // find the op id of the input logical tensor
         const auto &in = ins[idx];
@@ -258,6 +259,10 @@ int make_input_tensors(std::vector<dnnl::graph::tensor> &input_ts,
         if (iter != partition_mem_map.end()) {
             const auto &graph_mem = iter->second;
             input_ts[idx] = graph_mem.make_graph_tensor(lt);
+            if (has_bench_mode_bit(mode_bit_t::perf)) {
+                graph::add_memory_footprint(
+                        true, graph_mem.get_mem().size(), res);
+            }
         } else {
             BENCHDNN_PRINT(0,
                     "FAIL: Cannot find graph memory with lt id %zu! \n", lt_id);
@@ -274,11 +279,13 @@ int make_input_tensors(std::vector<dnnl::graph::tensor> &input_ts,
 /// of the partition
 /// @param ops a list of op references of the partition
 /// @param outs a vector of logical tensors of partition outputs
+/// @param res a result structure to update output tensors size
 int make_output_tensors(std::vector<dnnl::graph::tensor> &output_ts,
         const graph::partition_mem_map_t &partition_mem_map,
         const graph::op_ref_list_t &ops,
         const std::vector<dnnl::graph::logical_tensor> &outs,
-        const std::vector<std::pair<size_t, size_t>> &inplace_ports) {
+        const std::vector<std::pair<size_t, size_t>> &inplace_ports,
+        res_t *res) {
 
     for (size_t idx = 0; idx < outs.size(); ++idx) {
         // find the op id of the output logical tensor
@@ -318,6 +325,8 @@ int make_output_tensors(std::vector<dnnl::graph::tensor> &output_ts,
                 if (inplace_iter != partition_mem_map.end()) {
                     const auto &inplace_graph_mem = inplace_iter->second;
                     output_ts[idx] = inplace_graph_mem.make_graph_tensor(lt);
+                    graph::add_memory_footprint(
+                            false, inplace_graph_mem.get_mem().size(), res);
                 } else {
                     BENCHDNN_PRINT(0,
                             "FAIL: Cannot find logical tensor with id %zu! "
@@ -328,6 +337,8 @@ int make_output_tensors(std::vector<dnnl::graph::tensor> &output_ts,
 
             } else {
                 output_ts[idx] = graph_mem.make_graph_tensor(lt);
+                graph::add_memory_footprint(
+                        false, graph_mem.get_mem().size(), res);
             }
         }
     }
@@ -696,7 +707,7 @@ int doit(const prb_t *prb, res_t *res) {
         const auto &inplace_ports
                 = c_partitions[i - idx_offset].get_inplace_ports();
         if (make_input_tensors(
-                    input_ts, partition_mem_map_v[i], op_list, inputs)
+                    input_ts, partition_mem_map_v[i], op_list, inputs, res)
                 != OK) {
             BENCHDNN_PRINT(0,
                     "FAIL: Fail to construct input tesnors for partition "
@@ -705,7 +716,7 @@ int doit(const prb_t *prb, res_t *res) {
             return res->state = FAILED, FAIL;
         }
         if (make_output_tensors(output_ts, partition_mem_map_v[i], op_list,
-                    outputs, inplace_ports)
+                    outputs, inplace_ports, res)
                 != OK) {
             BENCHDNN_PRINT(0,
                     "FAIL: Fail to construct output tesnors for partition "

@@ -119,6 +119,15 @@ dnnl::graph::tensor dnn_graph_mem_t::make_graph_tensor(
     return ret;
 }
 
+int add_memory_footprint(bool is_input, size_t mem_sz, res_t *res) {
+    if (is_input) {
+        res->ibytes += mem_sz;
+    } else {
+        res->obytes += mem_sz;
+    }
+    return OK;
+}
+
 void flush_temp_memory() {
     using namespace dnnl::graph;
     // flush the constant tensor cache.
