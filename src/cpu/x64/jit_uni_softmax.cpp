@@ -687,24 +687,31 @@ struct jit_softmax_dense_kernel_t : jit_softmax_kernel_base_t,
                 Vmm vreg_tmp_src_even = Vmm(i + 1);
                 Vmm vreg_tmp_src_odd = Vmm(i + 2);
                 vtmp = Vmm(i + 3);
-                if (can_load_two_simdw && !need_scratchpad_) {
-                    io_[dst_d_.data_type()]->load_two_simdw_xf16(
-                            dst_ptr(dst_next_vreg_stride_ * i),
-                            vreg_tmp_src_even, vreg_tmp_src_odd);
-                    io_[dst_d_.data_type()]->merge_interleaved_to_plain(
-                            vreg_tmp_src_even, vreg_tmp_src_odd, vtmp);
-                } else {
-                    if (need_scratchpad_) {
+                if (can_load_two_simdw) {
+                    if (!need_scratchpad_) {
+                        io_[dst_d_.data_type()]->load_two_simdw_xf16(
+                                dst_ptr(dst_next_vreg_stride_ * i),
+                                vreg_tmp_src_even, vreg_tmp_src_odd);
+                        io_[dst_d_.data_type()]->merge_interleaved_to_plain(
+                                vreg_tmp_src_even, vreg_tmp_src_odd, vtmp);
+                    } else {
                         io_[f32]->load(
                                 interim_ptr(interim_next_vreg_stride_ * i),
                                 vreg_tmp_src_even, tail);
                         io_[f32]->load(interim_ptr(interim_next_vreg_stride_
                                                * (i + 1)),
                                 vreg_tmp_src_odd, tail);
-                    } else
+                    }
+                } else {
+                    if (!need_scratchpad_) {
                         io_[dst_d_.data_type()]->load(
                                 dst_ptr(dst_next_vreg_stride_ * i),
                                 vreg_tmp_src_even, tail);
+                    } else {
+                        io_[f32]->load(
+                                interim_ptr(interim_next_vreg_stride_ * i),
+                                vreg_tmp_src_even, tail);
+                    }
                 }
                 for (int i_odd = 0; i_odd < 2 && i_odd + i < unroll; i_odd++) {
                     const auto vreg_tmp_src
