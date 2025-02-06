@@ -311,7 +311,7 @@ int check_dnnl_status(dnnl_status_t status, const prb_t *prb, res_t *res) {
         case dnnl_unimplemented: {
             // Unconditionally set all Nvidia backend unimplemented cases as
             // not supported.
-            if (is_nvidia_gpu() || is_amd_gpu()) {
+            if (is_nvidia_gpu() || is_amd_gpu() || is_generic_gpu()) {
                 res->state = SKIPPED;
                 res->reason = skip_reason::case_not_supported;
                 return OK;
