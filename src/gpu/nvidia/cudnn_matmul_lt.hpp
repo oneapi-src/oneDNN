@@ -72,6 +72,11 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
 
             bool ok = is_dense_format_kind()
                     && attr()->has_default_values(smask_t::scales_runtime)
+                    // src & weights scaling is not supported as this implementation uses integer types
+                    // for the compute type, but the scales are floating point numbers
+                    && attr()->scales_.get(DNNL_ARG_SRC).has_default_values()
+                    && attr()->scales_.get(DNNL_ARG_WEIGHTS)
+                               .has_default_values()
                     && attr_post_ops_ok(attr())
                     && IMPLICATION(bf16_case,
                             has_bf16_support(sycl_engine_impl->device()))
@@ -160,12 +165,6 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
                         && (!single_scale(ARG) || is_scale_s32);
             };
 
-            if (is_scale_ok(DNNL_ARG_SRC)) {
-                CHECK(create_scale_binary_pd(engine, DNNL_ARG_SRC));
-            }
-            if (is_scale_ok(DNNL_ARG_WEIGHTS)) {
-                CHECK(create_scale_binary_pd(engine, DNNL_ARG_WEIGHTS));
-            }
             if (is_scale_ok(DNNL_ARG_DST)) {
                 CHECK(create_scale_binary_pd(engine, DNNL_ARG_DST));
             }
@@ -182,8 +181,6 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
             return status::success;
         }
 
-        std::shared_ptr<primitive_desc_t> src_scale_binary_pd_;
-        std::shared_ptr<primitive_desc_t> wei_scale_binary_pd_;
         std::shared_ptr<primitive_desc_t> dst_scale_binary_pd_;
         std::shared_ptr<primitive_desc_t> binary_pd_;
         std::shared_ptr<cublas_lt_params> params_;
@@ -215,71 +212,36 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
         }
 
         status_t create_scale_binary_pd(impl::engine_t *engine, int ARG) {
-            memory_desc_t scale_md;
-            scale_md.data_type = attr()->scales_.get_data_type(ARG);
-            scale_md.format_kind = format_kind::blocked;
-            auto format_desc = create_scaling_format_desc(ARG, scale_md);
+            if (ARG != DNNL_ARG_DST) return status::unimplemented;
 
-            scale_md.format_desc = {format_desc};
-
-            std::shared_ptr<impl::primitive_desc_t> scale_pd;
-            alg_kind_t binary_alg;
-            switch (ARG) {
-                case DNNL_ARG_SRC:
-                    scale_pd = src_scale_binary_pd_;
-                    binary_alg = alg_kind::binary_mul;
-                    break;
-                case DNNL_ARG_DST:
-                    scale_pd = dst_scale_binary_pd_;
-                    binary_alg = alg_kind::binary_mul;
-                    break;
-                case DNNL_ARG_WEIGHTS:
-                    scale_pd = wei_scale_binary_pd_;
-                    binary_alg = alg_kind::binary_div;
-                    break;
-                default: return status::invalid_arguments;
-            }
-
-            return init_scale_binary_pd(
-                    engine, ARG, scale_pd, arg_md(ARG), scale_md, binary_alg);
-        }
-
-        blocking_desc_t create_scaling_format_desc(
-                int ARG, memory_desc_t &scale_md) {
-            blocking_desc_t format_desc;
-            memory_desc_t md;
-            if (ARG == DNNL_ARG_SRC) {
-                md = *src_md();
-            } else if (ARG == DNNL_ARG_WEIGHTS) {
-                md = *weights_md(0);
-            } else if (ARG == DNNL_ARG_DST) {
-                md = *dst_md();
-            } else {
-                assert(!"unexpected arg");
-            }
-
-            scale_md.ndims = md.ndims;
-            for (int i = 0; i < md.ndims; i++) {
-                if (attr()->scales_.get_mask(ARG) & (1 << i)) {
-                    scale_md.dims[i] = md.dims[i];
+            auto md = arg_md(ARG);
+            dims_t dims;
+            dims_t strides;
+            for (int i = 0; i < md->ndims; i++) {
+                if (attr()->scales_.get(1).get_mask() & (1 << i)) {
+                    dims[i] = md->dims[i];
                 } else {
-                    scale_md.dims[i] = 1;
+                    dims[i] = 1;
                 }
             }
-            for (int i = 0; i < scale_md.ndims; i++) {
+            for (int i = 0; i < md->ndims; i++) {
                 auto stride = 1;
-                for (int j = i + 1; j < scale_md.ndims; j++) {
-                    stride *= scale_md.dims[j];
+                for (int j = i + 1; j < md->ndims; j++) {
+                    stride *= md->dims[j];
                 }
-                format_desc.strides[i] = stride;
+                strides[i] = stride;
             }
-            format_desc.inner_nblks = 0;
 
-            return format_desc;
+            memory_desc_t scale_md;
+            CHECK(memory_desc_init_by_strides(scale_md, md->ndims, dims,
+                    attr()->scales_.get(ARG).get_data_type(), strides));
+
+            return init_scale_binary_pd(engine, ARG, dst_scale_binary_pd_,
+                    arg_md(ARG), scale_md, alg_kind::binary_div);
         }
 
         status_t init_scale_binary_pd(impl::engine_t *engine, int ARG,
-                std::shared_ptr<primitive_desc_t> &scale_binary_pd_,
+                std::shared_ptr<primitive_desc_t> &scale_binary_pd,
                 const memory_desc_t *in_out, memory_desc_t &in2,
                 alg_kind_t mul_or_div) {
             primitive_attr_t scale_binary_attr;
@@ -295,10 +257,12 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
                     (op_desc_t *)&scale_binary_desc, &scale_binary_attr,
                     nullptr);
             while (++it != it.end()) {
-                scale_binary_pd_ = *it;
-                if (scale_binary_pd_) { break; }
+                if (*it) {
+                    scale_binary_pd = *it;
+                    break;
+                }
             }
-            if (!scale_binary_pd_) return status::unimplemented;
+            if (!scale_binary_pd) return status::unimplemented;
             return status::success;
         }
 
@@ -307,14 +271,9 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
             return scales.get_mask(ARG) == 0;
         }
 
-        bool scales_ok() const {
-            bool src_scales_ok = IMPLICATION(!default_scale(DNNL_ARG_SRC),
-                    utils::one_of(attr()->scales_.get_data_type(DNNL_ARG_SRC),
-                            data_type::s8, data_type::s32));
-            bool wei_scales_ok = IMPLICATION(!default_scale(DNNL_ARG_WEIGHTS),
-                    utils::one_of(
-                            attr()->scales_.get_data_type(DNNL_ARG_WEIGHTS),
-                            data_type::s8, data_type::s32));
+        bool scales_ok() {
+            bool src_scales_ok = default_scale(DNNL_ARG_SRC);
+            bool wei_scales_ok = default_scale(DNNL_ARG_WEIGHTS);
             return src_scales_ok && wei_scales_ok;
         }
 
@@ -488,21 +447,6 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
             CHECK(create_nested_primitive(binary_, pd()->binary_pd_, engine));
         }
 
-        if (!memory_desc_wrapper(pd()->src_md()).is_cublaslt_blocked_desc()
-                && !pd()->default_scale(DNNL_ARG_SRC)
-                && (pd()->params_->multi_src_scale_
-                        || pd()->params_->acc_type_ == CUDA_R_32I)) {
-            CHECK(create_nested_primitive(
-                    src_scale_binary_, pd()->src_scale_binary_pd_, engine));
-        }
-
-        if (!pd()->default_scale(DNNL_ARG_WEIGHTS)
-                && (pd()->params_->multi_wei_scale_
-                        || pd()->params_->acc_type_ == CUDA_R_32I)) {
-            CHECK(create_nested_primitive(
-                    wei_scale_binary_, pd()->wei_scale_binary_pd_, engine));
-        }
-
         if (!pd()->default_scale(DNNL_ARG_DST)
                 && (pd()->params_->multi_dst_scale_
                         || pd()->params_->acc_type_ == CUDA_R_32I)) {
@@ -516,8 +460,6 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
     status_t execute(const exec_ctx_t &ctx) const override;
 
     std::shared_ptr<impl::primitive_t> binary_;
-    std::shared_ptr<impl::primitive_t> src_scale_binary_;
-    std::shared_ptr<impl::primitive_t> wei_scale_binary_;
     std::shared_ptr<impl::primitive_t> dst_scale_binary_;
     std::shared_ptr<cudnn_matmul_lt_impl_t> matmul_impl_;
     std::shared_ptr<cudnn_matmul_lt_base_exec_t> executor_;
