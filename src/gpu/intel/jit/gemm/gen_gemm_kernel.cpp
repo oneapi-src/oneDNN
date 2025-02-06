@@ -17,6 +17,7 @@
 #include "gpu/intel/jit/gemm/gen_gemm_kernel.hpp"
 #include "common/impl_registration.hpp"
 #include "gpu/intel/compute/device_info.hpp"
+#include "gpu/intel/jit/gemm/gen_gemm_kernel_db.hpp"
 #include "gpu/intel/jit/gemm/include/generator.hpp"
 #include "gpu/intel/jit/gemm/include/strategy_parser.hpp"
 #include "gpu/intel/jit/utils/ngen_type_bridge.hpp"
@@ -27,11 +28,6 @@ namespace impl {
 namespace gpu {
 namespace intel {
 namespace jit {
-
-#define _CATALOG_ gemm_catalog
-#include "selector/db/kernel.db"
-;
-#undef _CATALOG_
 
 status_t gen_gemm_kernel_desc_t::create_generator(
         const compute::compute_engine_t &engine,
@@ -599,7 +595,7 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     eval_params.batch = (batch_dims > 0);
     eval_params.deterministic = (mode & mode_deterministic);
 
-    entry_ = select(gemm_catalog, static_cast<int>(match_params.size()),
+    entry_ = select(catalog(), static_cast<int>(match_params.size()),
             match_params.data(), eval_params, aux_params_);
 
     if (!entry_) return status::unimplemented;
@@ -743,7 +739,7 @@ status_t gen_gemm_xe_systolic_kernel_desc_t::select_kernel(
     eval_params.cConvert = (acc_type != c_type);
     eval_params.batch = (batch_dims > 0);
 
-    entry_ = select(gemm_catalog, match_params, eval_params, aux_params_);
+    entry_ = select(catalog(), match_params, eval_params, aux_params_);
 
     if (!entry_) return status::unimplemented;
 
