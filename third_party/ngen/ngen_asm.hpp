@@ -1,5 +1,6 @@
 #ifndef NGEN_ASM_HPP
 #define NGEN_ASM_HPP
+#if NGEN_ASM
 
 #include "ngen_config.hpp"
 
@@ -1787,4 +1788,5 @@ void AsmCodeGenerator::outMods(std::ostream &out,const InstructionModifier &mod,
 
 } /* namespace NGEN_NAMESPACE */
 
+#endif
 #endif
