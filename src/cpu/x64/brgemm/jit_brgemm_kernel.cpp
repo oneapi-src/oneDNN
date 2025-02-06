@@ -2843,7 +2843,8 @@ void jit_brgemm_kernel_t<Wmm>::generate() {
 
     if (brg.is_tmm && brg.amx_wary_k_tail()) {
         // save tiles description for later use
-        brgemm_init_tiles(brg, (char *)(&palette_));
+        auto status = brgemm_init_tiles(brg, (char *)(&palette_));
+        if (status != status::success) assert(!"tiles configuration failed");
     }
 
     read_params();

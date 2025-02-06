@@ -2672,7 +2672,8 @@ void jit_brgemm_amx_uker_base_t::generate() {
     Label permute_index_table;
     if (brg.is_input_convert() || brg.amx_wary_k_tail()) {
         // save tiles description for later use
-        brgemm_init_tiles(brg, (char *)(&palette_));
+        auto status = brgemm_init_tiles(brg, (char *)(&palette_));
+        if (status != status::success) assert(!"tiles configuration failed");
         // load permute indices
         if (brg.is_bf32)
             vmovups(zmm_bf32_permute, ptr[rip + permute_index_table]);
