@@ -250,6 +250,10 @@ void CopyPlan::transform()
     sort(SortType::PhaseOnly);
 
     legalizeImmediateTypes();
+#ifdef DNNL_DEV_MODE
+    if (get_verbose(verbose_t::debuginfo) > 100)
+        dump();
+#endif
 }
 
 
@@ -2499,5 +2503,108 @@ void CopyPlan::materializeTemps(const GRFAllocator &grfAllocator, const FlagAllo
     temps.clear();
 }
 
+#ifdef DNNL_DEV_MODE
+int CopyPlan::cycleCount() const
+{
+    int count = 0;
+    for (const auto &i: insns)
+        count += (multiGRF(hw, i, i.dst) || multiGRF(hw, i, i.src0) || multiGRF(hw, i, i.src1) || multiGRF(hw, i, i.src2)) ? 2 : 1;
+    return count;
+}
+
+void CopyPlan::dump() const
+{
+    for (const auto &i: insns)
+        i.dump(*this);
+}
+
+void CopyInstruction::dump(const CopyPlan &plan) const
+{
+    if (flag && cmod == ConditionModifier::none) {
+        std::cout << '(';
+        flag.dump();
+        std::cout << ")\t";
+    }
+
+    std::cout << getMnemonic(op, HW::Gen9);
+    if (op == Opcode::bfn)
+        std::cout << '.' << std::hex << int(ctrl) << std::dec;
+    std::cout << " (" << simd << ")\t";
+    if (sat) std::cout << "(sat) ";
+    if (cmod != ConditionModifier::none) {
+        std::cout << '(' << cmod << ')';
+        flag.dump();
+        std::cout << ' ';
+    }
+    dst.dump();
+    std::cout << '\t';
+    src0.dump();
+    if (src1) {
+        std::cout << '\t';
+        src1.dump();
+        if (src2) {
+            std::cout << '\t';
+            src2.dump();
+        }
+    }
+    if (atomic)
+        std::cout << "\t{Atomic}";
+    if (get_verbose(verbose_t::debuginfo))
+        std::cout << "\t\t(phase = " << phase << ", cnum = [" << cnumMin << ", " << cnumMax << "])";
+
+    std::cout << std::endl;
+}
+
+void CopyOperand::dump() const
+{
+    auto outType = [](DataType dt) {
+        if (dt == Type::ngen_f8_e8m0())
+            std::cout << "e8m0";
+        if (dt == Type::ngen_f4_e2m1())
+            std::cout << "e2m1";
+        if (dt == Type::ngen_f4_e3m0())
+            std::cout << "e3m0";
+        else
+            std::cout << dt;
+    };
+
+    if (neg) std::cout << '-';
+    switch (kind) {
+        case Null: std::cout << "null:" << type; break;
+        case GRF:
+            if (temp) {
+                std::cout << 't' << value;
+                if (grf) std::cout << '+' << grf;
+            } else
+                std::cout << 'r' << grf;
+            std::cout << '.' << int(offset) << ':';
+            outType(type);
+            if (range != DataType::invalid && range != type) {
+                std::cout << '[';
+                outType(range);
+                std::cout << ']';
+            }
+            std::cout << '<';
+            if (inVS || inW)
+                std::cout << int(inVS) << ';' << int(inW) << ',';
+            std::cout << int(stride) << '>';
+            break;
+        case Flag:
+            if (temp)
+                std::cout << 't' << value;
+            else
+                std::cout << 'f' << (grf >> 1) << '.' << (grf & 1);
+            if (offset)
+                std::cout << '+' << int(offset);
+            break;
+        case Immediate:
+            LabelManager man;
+            ngenImmediate().outputText(std::cout, PrintDetail::full, man);
+            break;
+    }
+    if (stride > 1 && overwriteStride) std::cout << "!!";
+    else if (overwrite)                std::cout << '!';
+}
+#endif
 
 #include "internal/namespace_end.hxx"
