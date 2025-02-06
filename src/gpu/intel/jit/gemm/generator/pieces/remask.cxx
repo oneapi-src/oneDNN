@@ -110,7 +110,9 @@ void BLASKernelGenerator<hw>::setupTeardownRemask(Type T, int index, bool setup,
 }
 
 template <HW hw>
-void BLASKernelGenerator<hw>::remaskLayout(Type T, int index, bool column, const std::vector<RegisterBlock> &layout, const GRFMultirange &regs, const CommonStrategy &strategy, CommonState &state, int offset)
+void BLASKernelGenerator<hw>::remaskLayout(Type T, int index, bool column,
+                                           const std::vector<RegisterBlock> &layout, const GRFMultirange &regs,
+                                           const CommonStrategy &strategy, CommonState &state, int offset)
 {
     for (auto &block: layout) {
         auto crosspack = block.crosspack;
@@ -162,6 +164,17 @@ void BLASKernelGenerator<hw>::remaskLayout(Type T, int index, bool column, const
             }
         }
     }
+}
+
+template <HW hw>
+void BLASKernelGenerator<hw>::remaskLayoutSingle(Type T, int index, bool column, int nq, Subregister remQ,
+                                                 const std::vector<RegisterBlock> &layout, const GRFMultirange &regs,
+                                                 const CommonStrategy &strategy, CommonState &state,
+                                                 int fixedOffQ, const Subregister &variableOffQ, int maskOff)
+{
+    setupTeardownRemask(T, index, true, nq, remQ, strategy, state, fixedOffQ, variableOffQ);
+    remaskLayout(T, index, column, layout, regs, strategy, state, maskOff);
+    setupTeardownRemask(T, index, false, nq, remQ, strategy, state);
 }
 
 #include "internal/namespace_end.hxx"

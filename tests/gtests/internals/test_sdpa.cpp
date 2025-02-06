@@ -1577,7 +1577,7 @@ void check_memory(memory &gold, memory &test) {
 
     float max_diff = std::numeric_limits<float>::min();
     std::map<int, std::map<int, int>> hist;
-    bool verbose = false;
+    bool verbose = true;
     for_(int l = 0; l < dims[0]; l++)
     for_(int k = 0; k < dims[1]; k++)
     for_(int j = 0; j < dims[2]; j++)
