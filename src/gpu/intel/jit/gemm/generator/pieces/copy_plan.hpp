@@ -64,6 +64,9 @@ struct CopyOperand
     CopyOperand(ngen::RegData rd);
     CopyOperand(ngen::Immediate imm) : type(imm.getType()), kind(Immediate), value(imm) {}
     CopyOperand(int imm) : CopyOperand(ngen::Immediate(imm)) {}
+#if defined(DNNL_DEV_MODE)
+    void dump() const;
+#endif
 
     CopyOperand operator-() const;
     CopyOperand operator~() const;
@@ -93,6 +96,9 @@ struct CopyInstruction
 
     template <typename Generator>
     inline void execute(Generator &g);
+#if defined(DNNL_DEV_MODE)
+    void dump(const CopyPlan &plan) const;
+#endif
 
 };
 
@@ -142,7 +148,10 @@ public:
 
     template <typename Generator>
     inline void execute(Generator &g);
-
+#if defined(DNNL_DEV_MODE)
+    void dump() const;
+    int cycleCount() const;
+#endif
     int tempFlagBytes() const;
 
 protected:
