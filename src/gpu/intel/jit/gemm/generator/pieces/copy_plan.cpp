@@ -664,7 +664,7 @@ void CopyPlan::planTypeConversions()
         } else if (dt == Type::ngen_f4_e2m1() && st == DataType::hf) {
             planEmulatedHFToF4E2M1(i);
             rerun = true;
-        } else if (st == Type::ngen_e3m0() && dt == DataType::hf) {
+        } else if (st == Type::ngen_f4_e3m0() && dt == DataType::hf) {
             planEmulatedE3M0ToHF(i);
             rerun = true;
         } else if (dt == Type::ngen_f4_e2m1()) {
@@ -1488,7 +1488,7 @@ void CopyPlan::planEmulatedE3M0ToHF(CopyInstruction &i)
 
     if (i.src0.neg || i.sat || i.hasCMod()) stub("Unsupported modifier");
 
-    auto ie = splitMultiple<7>(i);
+    auto ie = splitMultiple<8>(i);
 
     auto yOrig = i.dst, y = yOrig;
 
@@ -1533,19 +1533,21 @@ void CopyPlan::planEmulatedE3M0ToHF(CopyInstruction &i)
     ie[4]->dst = yUW;
     ie[4]->src1 = 10;
 
-    ie[5]->op = Opcode::bfn;
-    ie[5]->dst = ie[5]->src0 = yUW;
-    ie[5]->src1 = t0UW;
-    ie[5]->src2 = 0x8000;
-    ie[5]->ctrl = 0xCA;
+    ie[5]->op = Opcode::and_;
+    ie[5]->dst = ie[5]->src0 = t0UW;
+    ie[5]->src1 = 0x8000;
+
+    ie[6]->op = Opcode::or_;
+    ie[6]->dst = ie[6]->src0 = yUW;
+    ie[6]->src1 = t0UW;
 
     if (tempY) {
-        ie[6]->op = Opcode::mov;
-        ie[6]->dst = yOrig;
-        ie[6]->dst.type = DataType::uw;
-        ie[6]->src0 = yUW;
+        ie[7]->op = Opcode::mov;
+        ie[7]->dst = yOrig;
+        ie[7]->dst.type = DataType::uw;
+        ie[7]->src0 = yUW;
     } else
-        ie[6]->invalidate();
+        ie[7]->invalidate();
 }
 
 // Emulation sequence for hf->hf8 conversion.
