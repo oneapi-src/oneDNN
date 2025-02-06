@@ -24,7 +24,7 @@ set -o errexit -o pipefail -o noclobber
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
 # Defines MP, CC, CXX and OS.
-source ${SCRIPT_DIR}/common_aarch64.sh
+source ${SCRIPT_DIR}/common.sh
 
 export ACL_ROOT_DIR=${ACL_ROOT_DIR:-"${PWD}/ComputeLibrary"}
 

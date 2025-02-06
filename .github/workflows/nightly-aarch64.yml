@@ -70,7 +70,7 @@ jobs:
       - name: Read version file
         id: get-versions
         run: |
-          content=`cat ${{ github.workspace }}/oneDNN/.github/automation/ci-aarch64.json`
+          content=`cat ${{ github.workspace }}/oneDNN/.github/automation/aarch64/ci.json`
           content="${content//[$'\t\r\n$ ']}"
           echo "output=$content" >> $GITHUB_OUTPUT
 
@@ -81,7 +81,7 @@ jobs:
           sudo apt install -y g++-${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
 
       - name: Clone ACL
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build_acl.sh
         env:
           ACL_ACTION: clone
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
@@ -103,7 +103,7 @@ jobs:
           path: ${{ github.workspace }}/ComputeLibrary/build
 
       - name: Configure oneDNN
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build.sh
         working-directory: ${{ github.workspace }}/oneDNN
         env:
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
@@ -116,13 +116,13 @@ jobs:
           ONEDNN_THREADING: ${{ matrix.config.threading }}
 
       - name: Build oneDNN
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build.sh
         working-directory: ${{ github.workspace }}/oneDNN
         env:
           ONEDNN_ACTION: build
 
       - name: Run oneDNN tests
-        run: ${{ github.workspace }}/oneDNN/.github/automation/test_aarch64.sh
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/test.sh
         working-directory: ${{ github.workspace }}/oneDNN/build
         env:
           BUILD_TOOLSET: ${{ matrix.config.toolset }}
