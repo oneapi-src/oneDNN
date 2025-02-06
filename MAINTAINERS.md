@@ -214,6 +214,7 @@ Teams:
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Anton Mitkov       | @ShanoToni            | Codeplay Software | Code Owner |
+| Atharva Dubey      | @AD2605               | Codeplay Software | Code Owner |
 | Mehdi Goli         | @mehdi-goli           | Codeplay Software | Code Owner |
 | Svetlozar Georgiev | @sgeor255             | Codeplay Software | Code Owner |
 
