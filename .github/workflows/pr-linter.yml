@@ -45,3 +45,59 @@ jobs:
         run: sudo apt update && sudo apt install -y "clang-format-11"
       - name: Check code formatting
         run: .github/automation/clang-format.sh
+
+  pr-format-tags:
+    name: Format tags consistency
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout oneDNN
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: source
+
+      - name: Install clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libomp-dev
+
+      - name: Install castxml package
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          python -m pip install --no-cache-dir --disable-pip-version-check castxml
+
+      - name: Configure oneDNN
+        run: .github/automation/build_linters.sh
+        working-directory: ${{ github.workspace }}/source
+        env:
+          ONEDNN_ACTION: configure
+
+      - name: Check format-tags
+        run: |
+          venv/bin/castxml --castxml-cc-gnu-c clang --castxml-output=1 -I${{ github.workspace }}/source/include -I${{ github.workspace }}/build/include ${{ github.workspace }}/source/include/oneapi/dnnl/dnnl_types.h -o ${{ github.workspace }}/types.xml
+          python ${{ github.workspace }}/source/scripts/generate_dnnl_debug.py ${{ github.workspace }}/types.xml
+          python ${{ github.workspace }}/source/scripts/generate_format_tags.py
+          cd ${{ github.workspace }}/source/
+          git diff | grep . && exit 1
+
+  pr-clang-tidy:
+    name: Clang-Tidy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout oneDNN
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libomp-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
+
+      - name: Configure oneDNN
+        run: .github/automation/build_linters.sh
+        env:
+          ONEDNN_ACTION: configure
+
+      - name: Build oneDNN
+        run: .github/automation/build_linters.sh
+        env:
+          ONEDNN_ACTION: build
