@@ -276,6 +276,7 @@ protected:
 
     void setupTeardownRemask(Type T, int index, bool setup, int nq, ngen::Subregister remQ, const CommonStrategy &strategy, CommonState &state, int fixedOffQ = 0, const ngen::Subregister &variableOffQ = ngen::Subregister());
     void remaskLayout(Type T, int index, bool column, const std::vector<RegisterBlock> &layout, const GRFMultirange &regs, const CommonStrategy &strategy, CommonState &state, int offset = 0);
+    void remaskLayoutSingle(Type T, int index, bool column, int nq, ngen::Subregister remQ, const std::vector<RegisterBlock> &layout, const GRFMultirange &regs, const CommonStrategy &strategy, CommonState &state, int fixedOffQ = 0, const ngen::Subregister &variableOffQ = ngen::Subregister(), int maskOff = 0);
 
     void setAddrRemainder(Type T, const ngen::GRFRange &addr, const RegisterBlock &block, const ngen::Subregister &remR, const ngen::Subregister &remC, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, const CommonStrategy &strategy, CommonState &state);
     void setAddrRemainder(Type T, const std::vector<ngen::GRFRange> &addr, const std::vector<RegisterBlock> &layout, const ngen::Subregister &remR, const ngen::Subregister &remC, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, const CommonStrategy &strategy, CommonState &state);
