@@ -52,7 +52,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
             const dst_data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
     const auto post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
-    const auto post_ops_binary_rhs_arg_vec_dw = pd()->dw_conv_pd_
+    const auto& post_ops_binary_rhs_arg_vec_dw = pd()->dw_conv_pd_
             ? binary_injector::prepare_binary_args(
                     pd()->dw_conv_pd_->jcp_.post_ops, ctx,
                     pd()->jcp_.post_ops.entry_.size() + 1)
