@@ -97,7 +97,7 @@ struct batch_normalization_pd_t : public primitive_desc_t {
 
     float alpha() const {
         const auto &p = attr()->post_ops_;
-        const bool entry_size_ok = p.entry_.size() > 0;
+        const bool entry_size_ok = !p.entry_.empty();
         assert(entry_size_ok || fuse_norm_relu() || fuse_norm_add_relu());
         if (entry_size_ok) return p.entry_[0].eltwise.alpha;
         return 0.f;

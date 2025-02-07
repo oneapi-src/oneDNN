@@ -244,7 +244,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
             }
 
             // filter enabled and at least one component is hit
-            if (filter_status.components.length() != 0) {
+            if (!filter_status.components.empty()) {
                 // pop out the last comma
                 filter_status.components.pop_back();
                 filter_status.status = filter_status_t::flags::valid;
