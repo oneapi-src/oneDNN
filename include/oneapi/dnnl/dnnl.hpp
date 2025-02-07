@@ -835,10 +835,10 @@ struct memory : public handle<dnnl_memory_t> {
     using handle::handle;
 
     /// Integer type for representing dimension sizes and indices.
-    typedef dnnl_dim_t dim;
+    using dim = dnnl_dim_t;
     /// Vector of dimensions. Implementations are free to force a limit on the
     /// vector's length.
-    typedef std::vector<dim> dims;
+    using dims = std::vector<dim>;
 
     /// Helper function that validates that an `std::vector` of dimensions can
     /// be safely converted to the C API array ::dnnl_dims_t. Throws if
