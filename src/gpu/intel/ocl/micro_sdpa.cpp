@@ -68,8 +68,8 @@ sdpa_config_t xehpg_h128_s32 = {16, 16, 16, 8, 16, 2, 8, 4};
 sdpa_config_t xehpg_h128_2nd = {8, 16, 16, 8, 16, 1, 8, 2};
 sdpa_config_t xehpg_h128_s256_2nd = {8, 16, 32, 8, 8, 1, 4, 2};
 
-sdpa_config_t xehpg_q_h128 = {32, 16, 16, 16, 8, 4, 8, 4};
-sdpa_config_t xehpg_q_h128_2nd = {32, 16, 16, 8, 16, 1, 8, 2};
+sdpa_config_t xehpg_q_h128 = {32, 16, 16, 16, 8, 2, 8, 2};
+sdpa_config_t xehpg_q_h128_2nd = {16, 8, 16, 8, 8, 2, 8, 2};
 sdpa_config_t xehpg_q_h128_s64_2nd = {16, 16, 16, 8, 16, 1, 8, 2};
 
 sdpa_config_t xehpg_h256 = {16, 16, 32, 8, 16, 2, 8, 4};
