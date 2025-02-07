@@ -589,9 +589,8 @@ void BLASKernelGenerator<hw>::calcIncrement(LDIncrements &increments, Subregiste
     else
         scaled = SubregisterPair(state.ra.alloc_sub(increments.type, getHint(HintType::LongTerm, strategy)));
 
-    int nr = strategy.avoidIncConflicts ? 2 : 1;
-    for (int i = 0; i < nr; i++)
-        emulConstant(1, scaled.getReg(i), base, scale, strategy, state);
+    emulConstant(1, scaled.getReg(0), base, scale, strategy, state);
+    if(scaled.isDuplicated()) emov(1, scaled.getReg(1), scaled.getReg(0), strategy, state);
 
     increments.push_back(std::make_pair(scale, scaled));
 }
