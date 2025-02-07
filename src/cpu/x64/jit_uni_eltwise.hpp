@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ struct jit_uni_eltwise_fwd_t : public primitive_t {
     jit_uni_eltwise_fwd_t(const pd_t *apd);
     virtual ~jit_uni_eltwise_fwd_t();
 
-    typedef typename prec_traits<d_type>::type data_t;
+    typedef typename prec_traits_t<d_type>::type data_t;
 
     status_t init(engine_t *engine) override;
 
@@ -84,7 +84,7 @@ struct jit_uni_eltwise_bwd_t : public primitive_t {
     jit_uni_eltwise_bwd_t(const pd_t *apd);
     virtual ~jit_uni_eltwise_bwd_t();
 
-    typedef typename prec_traits<d_type>::type data_t;
+    typedef typename prec_traits_t<d_type>::type data_t;
 
     status_t init(engine_t *engine) override;
 

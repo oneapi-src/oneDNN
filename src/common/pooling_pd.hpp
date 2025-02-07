@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -161,7 +161,7 @@ protected:
     data_type_t indices_data_type() const {
         /* the simplest way to express 256... */
         const int u8_max = nstl::numeric_limits<
-                typename prec_traits<data_type::u8>::type>::max();
+                typename prec_traits_t<data_type::u8>::type>::max();
         return utils::array_product(desc()->kernel, spatial_ndims()) <= u8_max
                 ? data_type::u8
                 : data_type::s32;

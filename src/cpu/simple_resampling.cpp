@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,8 +40,8 @@ template <data_type_t src_type, data_type_t dst_type>
 struct simple_resampling_kernel_t : public simple_resampling_base_t {
     simple_resampling_kernel_t(const resampling_pd_t *pd);
 
-    using src_data_t = typename prec_traits<src_type>::type;
-    using dst_data_t = typename prec_traits<dst_type>::type;
+    using src_data_t = typename prec_traits_t<src_type>::type;
+    using dst_data_t = typename prec_traits_t<dst_type>::type;
 
     status_t init() override;
     status_t execute(const exec_ctx_t &ctx) const override;

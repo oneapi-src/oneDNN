@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2021 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ public:
         }
     }
 
-    using data_t = typename prec_traits<d_type>::type;
+    using data_t = typename prec_traits_t<d_type>::type;
 
     status_t create_kernel() override {
         CHECK(ker_->create_kernel());
@@ -205,7 +205,7 @@ public:
         }
     }
 
-    using data_t = typename prec_traits<d_type>::type;
+    using data_t = typename prec_traits_t<d_type>::type;
 
     status_t create_kernel() override {
         CHECK(ker_->create_kernel());

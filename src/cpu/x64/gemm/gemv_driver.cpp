@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -231,7 +231,7 @@ template <typename a_t>
 static inline int thread_checker(
         int nthr, const dim_t m, const dim_t n, int trans) {
     constexpr bool is_f32
-            = utils::one_of(data_traits<a_t>::data_type, data_type::f32);
+            = utils::one_of(data_traits_t<a_t>::data_type, data_type::f32);
 
     if (is_f32) {
         // Threshold based on performance measurement with warm and cold cache
@@ -317,7 +317,7 @@ template <typename T>
 static inline void part_1d(const dim_t m, const int ithr, const int nthr,
         T *addr, dim_t &off, dim_t &size) {
     constexpr bool is_f32
-            = utils::one_of(data_traits<T>::data_type, data_type::f32);
+            = utils::one_of(data_traits_t<T>::data_type, data_type::f32);
 
     if (ithr >= nthr) {
         size = 0;
@@ -397,9 +397,9 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
         const b_t *x, const dim_t incx, const float beta, c_t *y,
         const dim_t incy, const gemm_info_t<a_t, b_t, c_t> *arg) {
     constexpr bool is_f32
-            = utils::one_of(data_traits<a_t>::data_type, data_type::f32);
+            = utils::one_of(data_traits_t<a_t>::data_type, data_type::f32);
     constexpr bool is_bf16
-            = utils::one_of(data_traits<a_t>::data_type, data_type::bf16);
+            = utils::one_of(data_traits_t<a_t>::data_type, data_type::bf16);
 
     // Quick return if possible.
     if (m <= 0 || n <= 0) return;

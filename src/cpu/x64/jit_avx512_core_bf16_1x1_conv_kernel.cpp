@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1330,7 +1330,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         jcp.dst_dt = src_d.data_type();
     } else if (jcp.prop_kind == backward_weights) {
         jcp.typesize_in = types::data_type_size(src_d.data_type());
-        jcp.typesize_out = sizeof(prec_traits<data_type::f32>::type);
+        jcp.typesize_out = sizeof(prec_traits_t<data_type::f32>::type);
         jcp.dst_dt = weights_d.data_type();
     }
 

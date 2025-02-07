@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -139,7 +139,7 @@ gemm_info_t<a_t, b_t, c_t>::gemm_info_t(const char *transA, const char *transB,
     }
 
     constexpr bool is_int8 = utils::one_of(
-            data_traits<a_t>::data_type, data_type::s8, data_type::u8);
+            data_traits_t<a_t>::data_type, data_type::s8, data_type::u8);
     if (is_int8) this->ao = oa ? *oa : a_t(0);
     prepare_bo<b_t>(this->bo, ob);
 
@@ -155,7 +155,7 @@ gemm_info_t<a_t, b_t, c_t>::gemm_info_t(const char *transA, const char *transB,
         this->co = oc;
     }
 
-    bool is_sgemm = data_traits<a_t>::data_type == data_type::f32;
+    bool is_sgemm = data_traits_t<a_t>::data_type == data_type::f32;
     bool is_gemv = this->m == 1 || this->n == 1;
 
     // Copy-based sgemm doesn't support force-nocopy for ISAs older
@@ -213,7 +213,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     // TODO: Add dispatching for 1-fma SKUs with support to bf16
     // instructions for AMX kernel.
     {
-        constexpr bool is_bf16 = data_traits<a_t>::data_type == data_type::bf16;
+        constexpr bool is_bf16
+                = data_traits_t<a_t>::data_type == data_type::bf16;
         const bool max_isa_supports_bf16_ymm = mayiuse(avx512_core_bf16_ymm)
                 && __BUILD_GEMM_AVX512
                 && !(mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX);
@@ -221,7 +222,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         use_bf16_ymm = is_bf16 && max_isa_supports_bf16_ymm;
     }
 
-    switch (data_traits<a_t>::data_type) {
+    switch (data_traits_t<a_t>::data_type) {
         case data_type::s8:
             if (false) {
                 // dummy if
@@ -391,11 +392,12 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     static std::once_flag initialized;
     static std::atomic<dnnl_status_t> st(dnnl_success);
     std::call_once(initialized, [&, um] {
-        const bool b_is_s8 = data_traits<b_t>::data_type == data_type::s8;
+        const bool b_is_s8 = data_traits_t<b_t>::data_type == data_type::s8;
         UNUSED(b_is_s8);
         constexpr bool is_int8 = utils::one_of(
-                data_traits<a_t>::data_type, data_type::s8, data_type::u8);
-        constexpr bool is_bf16 = data_traits<a_t>::data_type == data_type::bf16;
+                data_traits_t<a_t>::data_type, data_type::s8, data_type::u8);
+        constexpr bool is_bf16
+                = data_traits_t<a_t>::data_type == data_type::bf16;
         bool is_int8_amx
                 = is_int8 && mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX;
         bool is_bf16_amx
@@ -405,7 +407,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         static maybe_unique_ptr<jit_generator> copy_a[2][2] = {{nullptr}};
         static maybe_unique_ptr<jit_generator> copy_b[2][2] = {{nullptr}};
 
-        switch (data_traits<a_t>::data_type) {
+        switch (data_traits_t<a_t>::data_type) {
             case data_type::s8:
                 if (false) {
                     // dummy if
@@ -633,16 +635,17 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
             default: break;
         }
 
-        constexpr bool is_a_s8 = data_traits<a_t>::data_type == data_type::s8;
-        constexpr bool is_b_s8 = data_traits<b_t>::data_type == data_type::s8;
-        constexpr bool is_c_s32 = data_traits<c_t>::data_type == data_type::s32;
+        constexpr bool is_a_s8 = data_traits_t<a_t>::data_type == data_type::s8;
+        constexpr bool is_b_s8 = data_traits_t<b_t>::data_type == data_type::s8;
+        constexpr bool is_c_s32
+                = data_traits_t<c_t>::data_type == data_type::s32;
         UNUSED(is_a_s8);
         UNUSED(is_b_s8);
         UNUSED(is_c_s32);
 
         static maybe_unique_ptr<jit_generator> kernel[2][2][2][2]
                 = {{{{nullptr}}}};
-        switch (data_traits<a_t>::data_type) {
+        switch (data_traits_t<a_t>::data_type) {
             case data_type::s8:
                 if (false) {
                     // dummy if
@@ -775,7 +778,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         static maybe_unique_ptr<jit_generator> gemv_s8s8s32_kernel = nullptr;
         static maybe_unique_ptr<jit_generator> gemv_s8u8s32_kernel = nullptr;
         static maybe_unique_ptr<jit_generator> gemv_u8s8s32_kernel = nullptr;
-        switch (data_traits<a_t>::data_type) {
+        switch (data_traits_t<a_t>::data_type) {
             case data_type::s8:
                 if (false) {
                     // dummy if
@@ -882,7 +885,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         }
 
         // Set gemv floating point kernels
-        if (utils::one_of(data_traits<a_t>::data_type, data_type::f32,
+        if (utils::one_of(data_traits_t<a_t>::data_type, data_type::f32,
                     data_type::bf16)) {
             for (int isTrans : {no_trans, do_trans}) {
                 auto *p_gemv_kernel = gemv_kernel[isTrans].get();
@@ -895,7 +898,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         }
 
         // Set gemv integer gemm kernels
-        if (data_traits<a_t>::data_type == data_type::s8) {
+        if (data_traits_t<a_t>::data_type == data_type::s8) {
             if (gemv_s8s8s32_kernel != nullptr) {
                 auto *kern = gemv_s8s8s32_kernel.get();
                 st = kern->create_kernel();
@@ -927,7 +930,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     int copy_trans_a = (this->transa == do_trans) ? do_trans : no_trans;
     int copy_trans_b = (this->transb == do_trans) ? do_trans : no_trans;
 
-    constexpr bool is_bf16 = data_traits<a_t>::data_type == data_type::bf16;
+    constexpr bool is_bf16 = data_traits_t<a_t>::data_type == data_type::bf16;
     bool doAlpha1 = this->alpha != 1.0f && is_bf16 ? no_alpha1 : do_alpha1;
 
     {
@@ -950,7 +953,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     this->gemv_s8s8s32_kernel = nullptr;
     this->gemv_s8u8s32_kernel = nullptr;
     this->gemv_u8s8s32_kernel = nullptr;
-    if (data_traits<a_t>::data_type == data_type::s8) {
+    if (data_traits_t<a_t>::data_type == data_type::s8) {
         this->gemv_s8s8s32_kernel = gemv_s8s8s32_kern;
         this->gemv_s8u8s32_kernel = gemv_s8u8s32_kern;
         this->gemv_u8s8s32_kernel = gemv_u8s8s32_kern;
@@ -965,7 +968,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 template <typename a_t, typename b_t, typename c_t>
 bool gemm_info_t<a_t, b_t, c_t>::hasKernels(void) {
 
-    switch (data_traits<a_t>::data_type) {
+    switch (data_traits_t<a_t>::data_type) {
         case data_type::s8:
             if (mayiuse(sse41)) {
                 for (int isBeta0 : {no_beta0, do_beta0})
