@@ -417,7 +417,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         }
     };
 
-    dnnl_post_ops() : entry_() {}
+    dnnl_post_ops() = default;
     ~dnnl_post_ops() = default;
 
     dnnl::impl::status_t append_sum(float scale, int32_t zero_point = 0,
