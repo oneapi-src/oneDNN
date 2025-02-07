@@ -3306,9 +3306,10 @@ status_t init_conf_bwd_w(jit_brgemm_conv_conf_t &jcp,
     jcp.tr_diff_dst_buf_count = jcp.global_transpose
             ? jcp.nthr_mb * jcp.nb_oc * jcp.ngroups
             : jcp.nthr;
-    jcp.tr_src_block_size = jcp.tr_iw * jcp.ic_block * jcp.ih_block * jcp.id;
-    jcp.tr_diff_dst_block_size
-            = jcp.tr_ow * jcp.oc_block * jcp.oh_block * jcp.od;
+    jcp.tr_src_block_size = static_cast<size_t>(jcp.tr_iw) * jcp.ic_block
+            * jcp.ih_block * jcp.id;
+    jcp.tr_diff_dst_block_size = static_cast<size_t>(jcp.tr_ow) * jcp.oc_block
+            * jcp.oh_block * jcp.od;
 
     jcp.tr_src_buf_size = jcp.tr_src_block_size
             * (jcp.global_transpose ? 1 : jcp.nb_ic_blocking);
@@ -3368,7 +3369,7 @@ status_t init_scratchpad_bwd_w(memory_tracking::registrar_t &scratchpad,
     // (jcp.tr_diff_dst_buf_size + jcp.tr_iw * jcp.oc_block)
     const auto tr_diff_dst_size
             = jcp.tr_diff_dst_buf_count * jcp.tr_diff_dst_buf_size
-            + jcp.tr_iw * jcp.oc_block;
+            + static_cast<size_t>(jcp.tr_iw) * jcp.oc_block;
 
     const size_t min_align = 64;
     scratchpad.book(
