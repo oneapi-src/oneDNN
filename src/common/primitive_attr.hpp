@@ -529,7 +529,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         return new dnnl_primitive_attr(*this);
     }
 
-    dnnl_primitive_attr(const dnnl_primitive_attr &other) {
+    dnnl_primitive_attr(const dnnl_primitive_attr &other)
+        : c_compatible(other) {
         if (copy_from(other) != dnnl::impl::status::success)
             is_initialized_ = false;
     }
