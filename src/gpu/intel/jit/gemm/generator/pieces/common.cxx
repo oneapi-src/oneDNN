@@ -575,7 +575,8 @@ void BLASKernelGenerator<hw>::calcIncrement(LDIncrements &increments, Subregiste
 
     // Copy base for scale = 1.
     if (scale == 1) {
-        duplicateScalar(base, state);
+        if(strategy.avoidIncConflicts)
+            duplicateScalar(base, state);
         increments.push_back(std::make_pair(1, base));
         return;
     }
