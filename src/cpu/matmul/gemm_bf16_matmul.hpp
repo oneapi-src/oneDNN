@@ -90,10 +90,10 @@ struct gemm_bf16_matmul_t : public primitive_t {
     static constexpr data_type_t weights_type = data_type::bf16;
     static constexpr data_type_t acc_type = data_type::f32;
 
-    typedef typename prec_traits_t<src_type>::type src_data_t;
-    typedef typename prec_traits_t<weights_type>::type weights_data_t;
-    typedef typename prec_traits_t<dst_type>::type dst_data_t;
-    typedef typename prec_traits_t<acc_type>::type acc_data_t;
+    using src_data_t = typename prec_traits_t<src_type>::type;
+    using weights_data_t = typename prec_traits_t<weights_type>::type;
+    using dst_data_t = typename prec_traits_t<dst_type>::type;
+    using acc_data_t = typename prec_traits_t<acc_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_ref(ctx);
