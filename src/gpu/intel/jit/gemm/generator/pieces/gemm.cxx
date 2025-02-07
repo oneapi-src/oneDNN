@@ -119,6 +119,23 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
     // Scale LDs/offsets.
     gemmScaleInputs(problem, strategy, state);
 
+    // Check if this is a TLB warmup thread, and perform warmup if so.
+    if (strategy.tlbWarmup) {
+        Label lNotTLBWarmup;
+        state.groupIDMN = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
+        add(1 | ge | f1[0], state.groupIDMN.d(), state.inputs.groupIDMN, -1);
+        jmpi(1 | f1[0], lNotTLBWarmup);
+        status << "TLB warmup" << status_stream::endl;
+        auto mstate = state;
+        moveR0(strategy, mstate);
+        gemmGetBatchIDs(problem, strategy, mstate);
+        gemmOffsetBatchABC(problem, strategy, mstate);
+        gemmSetupABC(problem, strategy, mstate);
+        gemmTLBWarmup(problem, strategy, mstate);
+        epilogue(strategy, mstate);
+        mark(lNotTLBWarmup);
+    }
+
     // Local ID handling and saving.
     gemmReorderLocalIDs(problem, strategy, state);
 
@@ -232,8 +249,10 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
         if (!strategy.linearOrder()) stub();
         if (problem.batch != BatchMode::None) stub();       // need to wrangle groupIDK also
 
-        state.groupIDMN = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
-        mov(1, state.groupIDMN, state.inputs.groupIDMN);
+        if (state.groupIDMN == state.inputs.groupIDMN) {
+            state.groupIDMN = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
+            mov(1, state.groupIDMN, state.inputs.groupIDMN);
+        }
 
         if (state.effTempC == state.inputs.tempC)
             state.effTempC = state.ra.alloc_sub<uint64_t>(getHint(HintType::LongTerm, strategy));
