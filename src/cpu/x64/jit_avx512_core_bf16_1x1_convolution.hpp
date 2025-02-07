@@ -322,12 +322,12 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
     jit_avx512_core_bf16_1x1_convolution_fwd_t(const pd_t *apd)
         : primitive_t(apd) {}
 
-    typedef typename prec_traits_t<data_type::bf16>::type src_data_t;
-    typedef typename prec_traits_t<data_type::bf16>::type wei_data_t;
-    typedef typename prec_traits_t<dst_type>::type dst_data_t;
+    using src_data_t = typename prec_traits_t<data_type::bf16>::type;
+    using wei_data_t = typename prec_traits_t<data_type::bf16>::type;
+    using dst_data_t = typename prec_traits_t<dst_type>::type;
     // Note: In case of fused depthwise convolution, the final output datatype
     // may not be dst_data_t.
-    typedef typename prec_traits_t<dst_type>::type dw_wei_data_t;
+    using dw_wei_data_t = typename prec_traits_t<dst_type>::type;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
@@ -448,9 +448,9 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public primitive_t {
     jit_avx512_core_bf16_1x1_convolution_bwd_data_t(const pd_t *apd)
         : primitive_t(apd) {}
 
-    typedef typename prec_traits_t<data_type::bf16>::type diff_dst_data_t;
-    typedef typename prec_traits_t<data_type::bf16>::type wei_data_t;
-    typedef typename prec_traits_t<diff_src_type>::type diff_src_data_t;
+    using diff_dst_data_t = typename prec_traits_t<data_type::bf16>::type;
+    using wei_data_t = typename prec_traits_t<data_type::bf16>::type;
+    using diff_src_data_t = typename prec_traits_t<diff_src_type>::type;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
@@ -576,10 +576,10 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
         return status::success;
     }
 
-    typedef typename prec_traits_t<data_type::bf16>::type src_data_t;
-    typedef typename prec_traits_t<data_type::bf16>::type diff_dst_data_t;
+    using src_data_t = typename prec_traits_t<data_type::bf16>::type;
+    using diff_dst_data_t = typename prec_traits_t<data_type::bf16>::type;
 
-    typedef typename prec_traits_t<diff_weights_type>::type diff_wei_data_t;
+    using diff_wei_data_t = typename prec_traits_t<diff_weights_type>::type;
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
