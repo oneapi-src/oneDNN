@@ -111,10 +111,8 @@ struct acl_matmul_t : public primitive_t {
             VDISPATCH_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
             VDISPATCH_MATMUL(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_MATMUL(
-                    attr()->has_default_values(smask_t::oscale
-                            | smask_t::post_ops | smask_t::fpmath_mode),
+                    attr()->has_default_values(smask_t::post_ops | smask_t::fpmath_mode),
                     VERBOSE_UNSUPPORTED_ATTR);
-            VDISPATCH_MATMUL(attr_oscale_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_MATMUL(!has_runtime_dims_or_strides(),
                     VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
@@ -186,8 +184,6 @@ struct acl_matmul_t : public primitive_t {
         // Configure the resource based on information from primitive descriptor
         CHECK(r->configure(pd()->amp_, pd()->weights_format_kind_));
         mapper.add(this, std::move(r));
-
-        CHECK(pd()->acl_post_ops.create_resource(engine, mapper));
 
         return status::success;
     }
