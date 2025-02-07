@@ -36,14 +36,12 @@ enum class model_kind_t : uint8_t {
     undef = 0,
     data_parallel = 1,
     stream_k = 2,
-    data_copy = 3,
 };
 
 static auto model_kind_names = nstl::to_array({
         make_enum_name(model_kind_t::undef, "undef"),
         make_enum_name(model_kind_t::data_parallel, "data_parallel"),
         make_enum_name(model_kind_t::stream_k, "stream_k"),
-        make_enum_name(model_kind_t::data_copy, "data_copy"),
 });
 GPU_DEFINE_PARSE_ENUM(model_kind_t, model_kind_names)
 
