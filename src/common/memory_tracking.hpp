@@ -451,8 +451,8 @@ struct registry_t {
                     (return_type)ptr_start, entry.size};
         }
     };
-    typedef common_iterator_t<void *> iterator;
-    typedef common_iterator_t<const void *> const_iterator;
+    using iterator = common_iterator_t<void *>;
+    using const_iterator = common_iterator_t<const void *>;
     iterator begin(void *base_ptr_) const {
         return iterator(base_ptr_, offset_map_);
     }
