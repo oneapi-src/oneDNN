@@ -21,13 +21,14 @@
   * Improved performance of the following subgraphs with Graph API:
     * Scaled Dot-Product Attention (SDPA) with [implicit causal mask].
     * SDPA with [`int8` or `int4` compressed key and value].
-    * Gated-MLP.
+    * Gated MLP.
 
 [implicit causal mask]: https://oneapi-src.github.io/oneDNN/dev_guide_graph_sdpa.html#doxid-dev-guide-graph-sdpa
 [`int8` or `int4` compressed key and value]: https://oneapi-src.github.io/oneDNN/dev_guide_graph_sdpa_compressed_kv.html#doxid-dev-guide-graph-sdpa-compressed-kv
 [Gated Multi-Layer Perceptron (Gated MLP)]: https://oneapi-src.github.io/oneDNN/dev_guide_graph_gated_mlp.html#doxid-dev-guide-graph-gated-mlp
 
-## AArch64-based Processors
+## NVIDIA GPUs
+  * Improved matmul performance using cuBLASLt-based implementation.
 
 # Functionality
 
@@ -47,6 +48,10 @@
 ## Intel Graphics Products
   * Introduced stochastic rounding support for convolution, matmul and reorder based on Philox counter-based random number generator.
   * Introduced support for strided memory formats in convolution.
+
+## Generic GPU vendor
+  * Introduced support for reduction primitive.
+  * Introduced support for inner product primitive forward propagation.
 
 # Usability
 
