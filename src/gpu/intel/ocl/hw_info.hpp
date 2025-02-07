@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2025 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,15 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_GPU_DEVICE_INFO_HPP
-#define GPU_INTEL_OCL_OCL_GPU_DEVICE_INFO_HPP
+#ifndef GPU_INTEL_OCL_HW_INFO_HPP
+#define GPU_INTEL_OCL_HW_INFO_HPP
 
-#include <string>
-#include <vector>
 #include <CL/cl.h>
 
+#include "common/c_types_map.hpp"
 #include "gpu/intel/compute/device_info.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,17 +28,12 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-class ocl_gpu_device_info_t : public compute::device_info_t {
-public:
-    std::string get_cl_ext_options() const;
+xpu::runtime_version_t get_driver_version(cl_device_id device);
 
-protected:
-    status_t init_device_name(impl::engine_t *engine) override;
-    status_t init_arch(impl::engine_t *engine) override;
-    status_t init_runtime_version(impl::engine_t *engine) override;
-    status_t init_extensions(impl::engine_t *engine) override;
-    status_t init_attributes(impl::engine_t *engine) override;
-};
+status_t init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
+        cl_context context, uint32_t &ip_version, compute::gpu_arch_t &gpu_arch,
+        int &gpu_product_family, int &stepping_id, uint64_t &native_extensions,
+        bool &mayiuse_systolic, bool &mayiuse_ngen_kernels);
 
 } // namespace ocl
 } // namespace intel
@@ -48,4 +41,4 @@ protected:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_OCL_OCL_GPU_DEVICE_INFO_HPP
+#endif // GPU_INTEL_OCL_HW_INFO_HPP

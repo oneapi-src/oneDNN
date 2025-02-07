@@ -21,7 +21,7 @@
 #include "common/memory_desc_wrapper.hpp"
 #include "gpu/intel/compute/compute_engine.hpp"
 #include "gpu/intel/compute/kernel.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 #include "gpu/intel/serialization.hpp"
 

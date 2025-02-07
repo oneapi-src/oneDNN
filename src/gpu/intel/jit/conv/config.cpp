@@ -27,9 +27,9 @@
 #include "gpu/intel/jit/conv/plan.hpp"
 #include "gpu/intel/jit/conv/problem.hpp"
 #include "gpu/intel/jit/conv/tiler.hpp"
+#include "gpu/intel/jit/eltwise_injector.hpp"
 #include "gpu/intel/jit/ir/gemm_schedule.hpp"
 #include "gpu/intel/jit/ir/tensor_config.hpp"
-#include "gpu/intel/jit/jit_eltwise_injector.hpp"
 
 #define VDISPATCH_CHECK(pd, engine, cond, msg, ...) \
     VCONDCHECK(primitive, create, dispatch, convolution, (cond), \
@@ -1008,7 +1008,7 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
     for (int i = 0; i < attr->post_ops_.len(); i++) {
         auto &po = attr->post_ops_.entry_[i];
         if (po.is_eltwise()) {
-            if (!jit_eltwise_injector_f32_is_supported(po.eltwise.alg))
+            if (!eltwise_injector_f32_is_supported(po.eltwise.alg))
                 return false;
             else if (po.eltwise.alg == alg_kind::eltwise_tanh
                     && hw == ngen::HW::XeHPG

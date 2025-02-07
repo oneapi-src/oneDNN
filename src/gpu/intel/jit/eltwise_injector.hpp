@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_JIT_JIT_ELTWISE_INJECTOR_HPP
-#define GPU_INTEL_JIT_JIT_ELTWISE_INJECTOR_HPP
+#ifndef GPU_INTEL_JIT_ELTWISE_INJECTOR_HPP
+#define GPU_INTEL_JIT_ELTWISE_INJECTOR_HPP
 
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/jit/codegen/kernel.hpp"
-#include "gpu/intel/jit/jit_generator.hpp"
+#include "gpu/intel/jit/generator.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,7 +30,7 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-inline bool jit_eltwise_injector_f32_is_supported(alg_kind_t alg) {
+inline bool eltwise_injector_f32_is_supported(alg_kind_t alg) {
     using namespace alg_kind;
     return utils::one_of(alg, eltwise_elu, eltwise_elu_use_dst_for_bwd,
             eltwise_exp, eltwise_exp_use_dst_for_bwd, eltwise_gelu_tanh,
@@ -45,9 +45,9 @@ inline bool jit_eltwise_injector_f32_is_supported(alg_kind_t alg) {
 }
 
 template <gpu_gen_t hw>
-struct jit_eltwise_injector_f32 {
-    jit_eltwise_injector_f32(jit_generator<hw> *host, alg_kind_t alg,
-            float alpha, float beta, float scale, int eu_count,
+struct eltwise_injector_f32_t {
+    eltwise_injector_f32_t(generator_t<hw> *host, alg_kind_t alg, float alpha,
+            float beta, float scale, int eu_count,
             const ngen::GRFRange &scratch = ngen::GRFRange(),
             bool is_fwd = true)
         : alg_(alg)
@@ -59,7 +59,7 @@ struct jit_eltwise_injector_f32 {
         , h(host)
         , scratch_(scratch) {
 
-        assert(jit_eltwise_injector_f32_is_supported(alg_));
+        assert(eltwise_injector_f32_is_supported(alg_));
         assert(scratch_.isEmpty() || (scratch_.getLen() >= min_scratch_regs()));
     }
 
@@ -83,7 +83,7 @@ private:
 
     const int eu_count_;
 
-    jit_generator<hw> *h;
+    generator_t<hw> *h;
 
     ngen::GRFRange scratch_;
 
@@ -151,13 +151,13 @@ private:
     void gelu_tanh_compute_bwd(
             int simd, const ngen::GRF &r, int phase, int off, int batch);
 
-    const ngen::InstructionModifier le = jit_generator<hw>::le;
-    const ngen::InstructionModifier lt = jit_generator<hw>::lt;
-    const ngen::InstructionModifier ge = jit_generator<hw>::ge;
-    const ngen::InstructionModifier gt = jit_generator<hw>::gt;
-    const ngen::InstructionModifier eq = jit_generator<hw>::eq;
-    const ngen::InstructionModifier sat = jit_generator<hw>::sat;
-    const ngen::FlagRegister f0 = jit_generator<hw>::f0;
+    const ngen::InstructionModifier le = generator_t<hw>::le;
+    const ngen::InstructionModifier lt = generator_t<hw>::lt;
+    const ngen::InstructionModifier ge = generator_t<hw>::ge;
+    const ngen::InstructionModifier gt = generator_t<hw>::gt;
+    const ngen::InstructionModifier eq = generator_t<hw>::eq;
+    const ngen::InstructionModifier sat = generator_t<hw>::sat;
+    const ngen::FlagRegister f0 = generator_t<hw>::f0;
 };
 
 } // namespace jit
@@ -166,4 +166,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_JIT_JIT_ELTWISE_INJECTOR_HPP
+#endif // GPU_INTEL_JIT_ELTWISE_INJECTOR_HPP

@@ -81,7 +81,7 @@ static std::vector<dim_idx_t> get_dims(size_t ndims) {
 }
 
 status_t reusable_softmax_fwd_t::pd_t::init_dispatch_default_reusable(
-        engine_t *engine) {
+        gpu::engine_t *engine) {
     using dims_vec_t = std::vector<dim_idx_t>;
 
     dims_vec_t src_dim_ids(memory_desc_wrapper(src_md()).ndims());
@@ -112,7 +112,7 @@ status_t reusable_softmax_fwd_t::pd_t::init_dispatch_default_reusable(
 }
 
 status_t reusable_softmax_fwd_t::pd_t::init_dispatch_workgroup_per_reduction(
-        engine_t *engine, const size_t num_workers_per_workgroup) {
+        gpu::engine_t *engine, const size_t num_workers_per_workgroup) {
 
     const memory_desc_wrapper src_mdw(src_md());
     std::vector<dim_idx_t> dims_ids = get_dims(src_mdw.ndims());

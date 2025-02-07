@@ -24,8 +24,8 @@ kernels (ready to be passed into `ndEnqueueNDRangeKernel`). Generation of OpenCL
 kernels requires the OpenCL runtime.
 
 nGEN uses generator classes to control the emission of instructions. oneDNN uses
-the templated `jit_generator<ngen::HW>` class for jit kernels, which is built
-off of the `ngen::OpenCLCodeGenerator` class.
+the templated `generator_t<ngen::HW>` class for jit kernels, which is built off
+of the `ngen::OpenCLCodeGenerator` class.
 
 # Injectors
 Injectors provide low-level interfaces for including common building block code

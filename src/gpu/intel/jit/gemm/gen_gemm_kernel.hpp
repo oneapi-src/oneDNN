@@ -27,7 +27,7 @@
 #include "gpu/intel/jit/gemm/include/problem.hpp"
 #include "gpu/intel/jit/gemm/include/strategy.hpp"
 #include "gpu/intel/jit/gemm/include/type.hpp"
-#include "gpu/intel/jit/jit_generator_base.hpp"
+#include "gpu/intel/jit/generator_base.hpp"
 #include "gpu/intel/kernel_cache.hpp"
 #include "xpu/utils.hpp"
 
@@ -148,13 +148,13 @@ struct gen_gemm_xe_systolic_kernel_desc_t : public gen_gemm_kernel_desc_t {
     static int min_block_k(data_type_t a_type) { return 2048; }
 };
 
-struct gen_gemm_kernel_t : public jit_generator_base {
+struct gen_gemm_kernel_t : public generator_base_t {
 
     explicit gen_gemm_kernel_t(const gen_gemm_kernel_desc_t &desc)
         : desc_(desc) {}
 
     const char *kernel_name() const override { return "gemm_kernel"; }
-    xpu::binary_t get_binary(const ocl::ocl_gpu_engine_t *engine) override;
+    xpu::binary_t get_binary(const ocl::engine_t *engine) override;
 
     const gen_gemm_kernel_desc_t *desc() const { return &desc_; }
 
