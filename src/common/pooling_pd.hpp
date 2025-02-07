@@ -150,8 +150,7 @@ protected:
             const pooling_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
         , desc_(*op_desc_t::to_desc<pooling_desc_t>(adesc))
-        , hint_fwd_pd_(hint_fwd_pd)
-        , ws_md_() {}
+        , hint_fwd_pd_(hint_fwd_pd) {}
 
     void init_default_ws(data_type_t dt = data_type::undef) {
         ws_md_ = is_fwd() ? *dst_md() : *diff_dst_md();
