@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,6 +69,7 @@ enum DriverInfoFlags : uint32_t {
     FlagNondeterministic = 0x4000,  // Kernel produces nondeterministic results.
     FlagMaskFillGoal = 0xF0000,     // Fraction of available thread slots to fill, in sixteenths
     FlagShiftFillGoal = 16,         //   (starting bit)
+    FlagExtraWG = 0x400000,         // Add an additional workgroup.
 };
 
 // Driver information, shared by all kernel types.
@@ -116,6 +117,7 @@ struct CommonDriverInfo {
     bool betaPtr()            const { return flags & FlagBetaPtr; }
     bool fixedWGK()           const { return flags & FlagFixedWGK; }
     bool nondeterministic()   const { return flags & FlagNondeterministic; }
+    int extraWGs()            const { return (flags & FlagExtraWG) ? 1 : 0; }
 
     int wgTile(LoopType l)    const { return unroll[l] * wg[l]; }
     int kPadding()            const { return (kParallel() || kParallelVariable()) ? blockingAlt[LoopK] : 0; }
