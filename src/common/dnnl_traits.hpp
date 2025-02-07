@@ -40,63 +40,63 @@ struct pkind_traits_t {}; /* ::desc_type, ::query_d */
 
 template <>
 struct prec_traits_t<data_type::f4_e3m0> {
-    typedef float4_e3m0_t type;
+    using type = float4_e3m0_t;
 };
 template <>
 struct prec_traits_t<data_type::f4_e2m1> {
-    typedef float4_e2m1_t type;
+    using type = float4_e2m1_t;
 };
 template <>
 struct prec_traits_t<data_type::e8m0> {
-    typedef float8_e8m0_t type;
+    using type = float8_e8m0_t;
 };
 template <>
 struct prec_traits_t<data_type::f8_e5m2> {
-    typedef float8_e5m2_t type;
+    using type = float8_e5m2_t;
 };
 template <>
 struct prec_traits_t<data_type::f8_e4m3> {
-    typedef float8_e4m3_t type;
+    using type = float8_e4m3_t;
 };
 template <>
 struct prec_traits_t<data_type::f16> {
-    typedef float16_t type;
+    using type = float16_t;
 };
 template <>
 struct prec_traits_t<data_type::bf16> {
-    typedef bfloat16_t type;
+    using type = bfloat16_t;
 };
 template <>
 struct prec_traits_t<data_type::f32> {
-    typedef float type;
+    using type = float;
 };
 template <>
 struct prec_traits_t<data_type::f64> {
-    typedef double type;
+    using type = double;
 };
 template <>
 struct prec_traits_t<data_type::s32> {
-    typedef int32_t type;
+    using type = int32_t;
 };
 template <>
 struct prec_traits_t<data_type::s8> {
-    typedef int8_t type;
+    using type = int8_t;
 };
 template <>
 struct prec_traits_t<data_type::u8> {
-    typedef uint8_t type;
+    using type = uint8_t;
 };
 template <>
 struct prec_traits_t<data_type::s4> {
-    typedef int4_t type;
+    using type = int4_t;
 };
 template <>
 struct prec_traits_t<data_type::u4> {
-    typedef uint4_t type;
+    using type = uint4_t;
 };
 template <>
 struct prec_traits_t<data_type::boolean> {
-    typedef bool type;
+    using type = bool;
 };
 
 template <>
@@ -158,15 +158,15 @@ struct data_traits_t<bool> {
 
 template <>
 struct typesize_traits_t<4> {
-    typedef float type;
+    using type = float;
 };
 template <>
 struct typesize_traits_t<2> {
-    typedef int16_t type;
+    using type = int16_t;
 };
 template <>
 struct typesize_traits_t<1> {
-    typedef uint8_t type;
+    using type = uint8_t;
 };
 
 } // namespace impl

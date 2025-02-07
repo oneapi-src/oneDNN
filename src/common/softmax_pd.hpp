@@ -120,8 +120,8 @@ private:
 };
 
 struct softmax_fwd_pd_t : public softmax_pd_t {
-    typedef softmax_fwd_pd_t base_class;
-    typedef softmax_fwd_pd_t hint_class;
+    using base_class = softmax_fwd_pd_t;
+    using hint_class = softmax_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -194,8 +194,8 @@ protected:
 };
 
 struct softmax_bwd_pd_t : public softmax_pd_t {
-    typedef softmax_bwd_pd_t base_class;
-    typedef softmax_fwd_pd_t hint_class;
+    using base_class = softmax_bwd_pd_t;
+    using hint_class = softmax_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_DST, DNNL_ARG_DIFF_DST))

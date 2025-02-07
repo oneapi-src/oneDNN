@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ template <bool expr, class T = void>
 struct enable_if {};
 template <class T>
 struct enable_if<true, T> {
-    typedef T type;
+    using type = T;
 };
 
 /* analogue std::conditional */
@@ -115,26 +115,26 @@ template <bool, typename, typename>
 struct conditional {};
 template <typename T, typename F>
 struct conditional<true, T, F> {
-    typedef T type;
+    using type = T;
 };
 template <typename T, typename F>
 struct conditional<false, T, F> {
-    typedef F type;
+    using type = F;
 };
 
 template <bool, typename, bool, typename, typename>
 struct conditional3 {};
 template <typename T, typename FT, typename FF>
 struct conditional3<true, T, false, FT, FF> {
-    typedef T type;
+    using type = T;
 };
 template <typename T, typename FT, typename FF>
 struct conditional3<false, T, true, FT, FF> {
-    typedef FT type;
+    using type = FT;
 };
 template <typename T, typename FT, typename FF>
 struct conditional3<false, T, false, FT, FF> {
-    typedef FF type;
+    using type = FF;
 };
 
 template <bool, typename U, U, U>
@@ -150,15 +150,15 @@ struct conditional_v<false, U, t, f> {
 
 template <typename T>
 struct remove_reference {
-    typedef T type;
+    using type = T;
 };
 template <typename T>
 struct remove_reference<T &> {
-    typedef T type;
+    using type = T;
 };
 template <typename T>
 struct remove_reference<T &&> {
-    typedef T type;
+    using type = T;
 };
 
 template <typename T>
