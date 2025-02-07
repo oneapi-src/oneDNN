@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -176,6 +176,7 @@ inline status_t get_quant_md(memory_desc_t &md, const int ndims,
     utils::copy_dims_with_mask(quant_dims, in_dims, ndims, quant_mask,
             /* fill_with_ones = */ true);
     if (ndims >= 2) {
+        if (utils::one_of(0, g0, g1)) return status::runtime_error;
         quant_dims[ndims - 1] /= g1;
         quant_dims[ndims - 2] /= g0;
     }
