@@ -340,10 +340,8 @@ bool is_compatible(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
             && kernel_desc.ext.has(extensions_t::out_size(prb_type.size())))
         type_ok = true;
     if (!type_ok && is_out && kernel_desc.use_stream_k) type_ok = true;
-    gpu_check(type_ok
-            && prb_tag.matches(desc_tag, prb.shape(), /*check_type=*/false))
-            << to_string(abc) << " tag " << prb_tag
-            << " does not match kernel descriptor tag " << desc_tag;
+    gpu_check(type_ok) << to_string(abc) << " tag " << prb_tag
+                       << " does not match kernel descriptor tag " << desc_tag;
     return true;
 }
 
@@ -925,10 +923,10 @@ status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
         auto user_name = t.name;
         auto &md = *pd->arg_md(t.arg_key);
         auto compute_layout = get_kernel_layout(t.name, *this, md, pd);
-        auto user_layout = jit::layout_t(md);
+        auto user_layout = jit::layout_t(md, /*do_normalize=*/false);
         bool is_out_stream_k = use_stream_k && t.is_output;
         bool zero_out = is_out_stream_k;
-        if (is_out_stream_k && compute_layout != user_layout) {
+        if (compute_layout != user_layout) {
             user_name += "_user";
             scratchpad_key++;
             pd->scratchpad_registry().registrar().book(
