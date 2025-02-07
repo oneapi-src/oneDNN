@@ -53,6 +53,16 @@ void maybe_init_layout(
     md = layout.to_dnnl(md.dims);
 }
 
+status_t init_default_layouts(convolution_pd_t *pd) {
+    auto &src_md = *const_cast<memory_desc_t *>(pd->invariant_src_md());
+    auto &dst_md = *const_cast<memory_desc_t *>(pd->invariant_dst_md());
+    if (src_md.format_kind == format_kind::any)
+        set_default_format(src_md, "axb");
+    if (dst_md.format_kind == format_kind::any)
+        set_default_format(dst_md, "axb");
+    return status::success;
+}
+
 status_t init_layouts(const kernel_desc_t &desc, convolution_pd_t *pd) {
     auto &src_md = *const_cast<memory_desc_t *>(pd->invariant_src_md());
     auto &wei_md = *const_cast<memory_desc_t *>(pd->invariant_wei_md());
@@ -117,6 +127,8 @@ public:
             return status::unimplemented;
         if (!pd->set_default_alg_kind(alg_kind::convolution_direct))
             return status::unimplemented;
+
+        CHECK(init_default_layouts(pd));
 
         auto prb = to_problem(pd, engine);
         kernel_desc_t _desc;
