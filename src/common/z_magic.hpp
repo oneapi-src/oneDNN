@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@
 #define PRAGMA_MACRO(x) PRAGMA_MACRo(x)
 #endif
 
-#define UNUSED(x) ((void)x)
+#define UNUSED(x) ((void)(x))
 #define MAYBE_UNUSED(x) UNUSED(x)
 
 #if defined(_WIN32) && !defined(__GNUC__)
