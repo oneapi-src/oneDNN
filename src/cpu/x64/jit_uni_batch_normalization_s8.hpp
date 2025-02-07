@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ struct jit_uni_batch_normalization_s8_fwd_t : public primitive_t {
         status_t init(engine_t *engine);
     };
 
-    typedef int8_t data_t;
+    using data_t = int8_t;
 
     jit_uni_batch_normalization_s8_fwd_t(const pd_t *apd);
     ~jit_uni_batch_normalization_s8_fwd_t();

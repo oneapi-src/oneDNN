@@ -97,16 +97,16 @@ struct _ref_rnn_common_t : public primitive_t {
             rnn_postgemm_bwd_t<src_type, scratch_type, acc_type>>::type;
 
     /* These types are defined for each element in the cell execution */
-    typedef typename prec_traits_t<src_type>::type src_layer_t;
-    typedef typename prec_traits_t<src_type>::type src_iter_t;
-    typedef typename prec_traits_t<src_type>::type dst_layer_t;
-    typedef typename prec_traits_t<src_type>::type dst_iter_t;
-    typedef typename prec_traits_t<weights_type>::type weights_t;
-    typedef typename prec_traits_t<src_type>::type gemm_data_t;
-    typedef typename prec_traits_t<acc_type>::type gemm_acc_t;
-    typedef typename prec_traits_t<scratch_type>::type scratch_t;
-    typedef typename prec_traits_t<src_type>::type ht_t;
-    typedef typename prec_traits_t<src_type>::type gates_t;
+    using src_layer_t = typename prec_traits_t<src_type>::type;
+    using src_iter_t = typename prec_traits_t<src_type>::type;
+    using dst_layer_t = typename prec_traits_t<src_type>::type;
+    using dst_iter_t = typename prec_traits_t<src_type>::type;
+    using weights_t = typename prec_traits_t<weights_type>::type;
+    using gemm_data_t = typename prec_traits_t<src_type>::type;
+    using gemm_acc_t = typename prec_traits_t<acc_type>::type;
+    using scratch_t = typename prec_traits_t<scratch_type>::type;
+    using ht_t = typename prec_traits_t<src_type>::type;
+    using gates_t = typename prec_traits_t<src_type>::type;
 
     using class_name
             = _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>;
