@@ -213,19 +213,19 @@ struct vreg_traits {};
 
 template <>
 struct vreg_traits<Xbyak::Zmm> {
-    typedef Xbyak::Ymm Vmm_lower_t;
+    using Vmm_lower_t = Xbyak::Ymm;
     static constexpr size_t vlen = 64;
 };
 
 template <>
 struct vreg_traits<Xbyak::Ymm> {
-    typedef Xbyak::Xmm Vmm_lower_t;
+    using Vmm_lower_t = Xbyak::Xmm;
     static constexpr size_t vlen = 32;
 };
 
 template <>
 struct vreg_traits<Xbyak::Xmm> {
-    typedef Xbyak::Xmm Vmm_lower_t;
+    using Vmm_lower_t = Xbyak::Xmm;
     static constexpr size_t vlen = 16;
 };
 
@@ -251,7 +251,7 @@ struct cpu_isa_traits<isa_all> {
 
 template <>
 struct cpu_isa_traits<sse41> {
-    typedef Xbyak::Xmm Vmm;
+    using Vmm = Xbyak::Xmm;
     static constexpr int vlen_shift = 4;
     static constexpr int vlen = vreg_traits<Vmm>::vlen;
     static constexpr int n_vregs = 16;
@@ -261,7 +261,7 @@ struct cpu_isa_traits<sse41> {
 
 template <>
 struct cpu_isa_traits<avx> {
-    typedef Xbyak::Ymm Vmm;
+    using Vmm = Xbyak::Ymm;
     static constexpr int vlen_shift = 5;
     static constexpr int vlen = vreg_traits<Vmm>::vlen;
     static constexpr int n_vregs = 16;
@@ -289,7 +289,7 @@ struct cpu_isa_traits<avx2_vnni_2> : public cpu_isa_traits<avx2> {
 
 template <>
 struct cpu_isa_traits<avx512_core> {
-    typedef Xbyak::Zmm Vmm;
+    using Vmm = Xbyak::Zmm;
     static constexpr int vlen_shift = 6;
     static constexpr int vlen = vreg_traits<Vmm>::vlen;
     static constexpr int n_vregs = 32;
@@ -313,7 +313,7 @@ struct cpu_isa_traits<avx512_core_bf16> : public cpu_isa_traits<avx512_core> {
 
 template <>
 struct cpu_isa_traits<avx10_1_512_amx> {
-    typedef Xbyak::Zmm Vmm;
+    using Vmm = Xbyak::Zmm;
     static constexpr int vlen = vreg_traits<Vmm>::vlen;
     static constexpr dnnl_cpu_isa_t user_option_val
             = dnnl_cpu_isa_avx10_1_512_amx;
@@ -328,7 +328,7 @@ struct cpu_isa_traits<avx10_1_512> : public cpu_isa_traits<avx512_core> {
 
 template <>
 struct cpu_isa_traits<avx10_1_512_amx_fp16> {
-    typedef Xbyak::Zmm Vmm;
+    using Vmm = Xbyak::Zmm;
     static constexpr dnnl_cpu_isa_t user_option_val
             = dnnl_cpu_isa_avx10_1_512_amx_fp16;
     static constexpr const char *user_option_env = "avx10_1_512_amx_fp16";

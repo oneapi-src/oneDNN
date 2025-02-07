@@ -95,10 +95,10 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
     gemm_bf16_convolution_fwd_t(const pd_t *apd)
         : primitive_t(apd), pp_ker_(nullptr) {}
 
-    typedef typename prec_traits_t<dst_data_type>::type dst_data_t;
-    typedef typename prec_traits_t<data_type::f32>::type acc_data_t;
-    typedef typename prec_traits_t<data_type::bf16>::type src_data_t;
-    typedef typename prec_traits_t<data_type::bf16>::type wei_data_t;
+    using dst_data_t = typename prec_traits_t<dst_data_type>::type;
+    using acc_data_t = typename prec_traits_t<data_type::f32>::type;
+    using src_data_t = typename prec_traits_t<data_type::bf16>::type;
+    using wei_data_t = typename prec_traits_t<data_type::bf16>::type;
 
     status_t init(engine_t *engine) override {
         const auto &post_ops = pd()->attr()->post_ops_;
@@ -274,10 +274,10 @@ struct gemm_bf16_convolution_bwd_data_t : public primitive_t {
 
     gemm_bf16_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits_t<data_type::bf16>::type diff_dst_data_t;
-    typedef typename prec_traits_t<data_type::f32>::type acc_data_t;
-    typedef typename prec_traits_t<diff_src_data_type>::type diff_src_data_t;
-    typedef typename prec_traits_t<data_type::bf16>::type wei_data_t;
+    using diff_dst_data_t = typename prec_traits_t<data_type::bf16>::type;
+    using acc_data_t = typename prec_traits_t<data_type::f32>::type;
+    using diff_src_data_t = typename prec_traits_t<diff_src_data_type>::type;
+    using wei_data_t = typename prec_traits_t<data_type::bf16>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         const bool is_nspc = pd()->jcp_.is_nspc;
@@ -340,10 +340,10 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
     gemm_bf16_convolution_bwd_weights_t(const pd_t *apd)
         : primitive_t(apd), acc_ker_(nullptr) {}
 
-    typedef typename prec_traits_t<data_type::bf16>::type diff_dst_data_t;
-    typedef typename prec_traits_t<data_type::f32>::type acc_data_t;
-    typedef typename prec_traits_t<data_type::bf16>::type src_data_t;
-    typedef typename prec_traits_t<diff_wei_data_type>::type diff_wei_data_t;
+    using diff_dst_data_t = typename prec_traits_t<data_type::bf16>::type;
+    using acc_data_t = typename prec_traits_t<data_type::f32>::type;
+    using src_data_t = typename prec_traits_t<data_type::bf16>::type;
+    using diff_wei_data_t = typename prec_traits_t<diff_wei_data_type>::type;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(

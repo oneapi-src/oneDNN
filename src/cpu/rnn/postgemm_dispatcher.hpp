@@ -52,14 +52,14 @@ template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t scratch_type, impl::data_type_t acc_type>
 struct rnn_postgemm_dispatcher {
 
-    typedef typename prec_traits_t<src_type>::type src_layer_t;
-    typedef typename prec_traits_t<src_type>::type src_iter_t;
-    typedef typename prec_traits_t<src_type>::type dst_layer_t;
-    typedef typename prec_traits_t<src_type>::type dst_iter_t;
-    typedef typename prec_traits_t<acc_type>::type gemm_acc_t;
-    typedef typename prec_traits_t<scratch_type>::type scratch_t;
-    typedef typename prec_traits_t<src_type>::type ht_t;
-    typedef typename prec_traits_t<src_type>::type gates_t;
+    using src_layer_t = typename prec_traits_t<src_type>::type;
+    using src_iter_t = typename prec_traits_t<src_type>::type;
+    using dst_layer_t = typename prec_traits_t<src_type>::type;
+    using dst_iter_t = typename prec_traits_t<src_type>::type;
+    using gemm_acc_t = typename prec_traits_t<acc_type>::type;
+    using scratch_t = typename prec_traits_t<scratch_type>::type;
+    using ht_t = typename prec_traits_t<src_type>::type;
+    using gates_t = typename prec_traits_t<src_type>::type;
 
     using class_name
             = rnn_postgemm_dispatcher<aprop, src_type, scratch_type, acc_type>;

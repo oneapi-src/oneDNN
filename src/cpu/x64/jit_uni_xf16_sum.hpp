@@ -322,9 +322,9 @@ struct jit_xf16_sum_t : public primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
-    typedef typename prec_traits_t<src_data_type>::type src_data_t;
-    typedef typename prec_traits_t<dst_data_type>::type dst_data_t;
-    typedef typename prec_traits_t<data_type::f32>::type acc_data_t;
+    using src_data_t = typename prec_traits_t<src_data_type>::type;
+    using dst_data_t = typename prec_traits_t<dst_data_type>::type;
+    using acc_data_t = typename prec_traits_t<data_type::f32>::type;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
