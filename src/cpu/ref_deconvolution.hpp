@@ -402,7 +402,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
         }
     };
 
-    typedef typename prec_traits_t<data_type::f32>::type data_t;
+    using data_t = typename prec_traits_t<data_type::f32>::type;
 
     ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 

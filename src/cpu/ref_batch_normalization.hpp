@@ -78,7 +78,7 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
 
     ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits_t<d_type>::type data_t;
+    using data_t = typename prec_traits_t<d_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -134,7 +134,7 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
     };
 
     ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
-    typedef typename prec_traits_t<d_type>::type data_t;
+    using data_t = typename prec_traits_t<d_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
