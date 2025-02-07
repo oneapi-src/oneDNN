@@ -21,8 +21,8 @@
 #include "gpu/intel/ocl/custom_reorder.hpp"
 
 #include "common/utils.hpp"
-#include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/stream.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 namespace dnnl {
 namespace impl {
 namespace gpu {

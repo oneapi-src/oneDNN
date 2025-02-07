@@ -49,8 +49,8 @@ Difficulty is in determining how to achieve the above goal for
 #include "gpu/intel/ocl/generic_reorder.hpp"
 
 #include "common/utils.hpp"
-#include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/stream.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 namespace dnnl {
 namespace impl {
 namespace gpu {

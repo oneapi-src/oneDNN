@@ -22,8 +22,8 @@
 #include "gpu/intel/sycl/l0/utils.hpp"
 #include "gpu/intel/sycl/utils.hpp"
 
-#include "gpu/intel/ocl/ocl_gpu_hw_info.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/hw_info.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {

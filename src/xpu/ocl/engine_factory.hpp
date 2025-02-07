@@ -27,7 +27,7 @@
 #include "xpu/ocl/utils.hpp"
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
-#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
+#include "gpu/intel/ocl/engine.hpp"
 #endif
 
 namespace dnnl {
