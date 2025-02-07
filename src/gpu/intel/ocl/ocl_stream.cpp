@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 #include "common/verbose.hpp"
 
+#include "xpu/ocl/engine_impl.hpp"
 #include "xpu/ocl/memory_storage.hpp"
 #include "xpu/ocl/stream_profiler.hpp"
 
