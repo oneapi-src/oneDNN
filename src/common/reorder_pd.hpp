@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -177,7 +177,6 @@ protected:
         return *this;
     }
 
-protected:
     void init_desc(engine_kind_t src_engine_kind, engine_kind_t dst_engine_kind,
             bool is_cross_engine) {
         desc_ = reorder_desc_t();

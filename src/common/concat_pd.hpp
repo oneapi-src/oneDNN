@@ -95,7 +95,6 @@ protected:
      * use this auxiliary array iff init() returned success */
     std::vector<memory_desc_t> src_image_mds_;
 
-protected:
     concat_desc_t desc_;
 
     concat_pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md,
