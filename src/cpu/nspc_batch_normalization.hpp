@@ -113,7 +113,7 @@ struct nspc_batch_normalization_fwd_t : public primitive_t {
     using acc_data_t = float;
 
     nspc_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-    ~nspc_batch_normalization_fwd_t() {}
+    ~nspc_batch_normalization_fwd_t() override = default;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -204,7 +204,7 @@ struct nspc_batch_normalization_bwd_t : public primitive_t {
     using acc_data_t = float;
 
     nspc_batch_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
-    ~nspc_batch_normalization_bwd_t() {}
+    ~nspc_batch_normalization_bwd_t() override = default;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
