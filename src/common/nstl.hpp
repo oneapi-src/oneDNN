@@ -286,7 +286,7 @@ struct numeric_limits<int4_t> {
 };
 
 template <typename T>
-struct is_integral {
+struct is_integral { // NOLINT(readability-identifier-naming)
     static constexpr bool value = false;
 };
 template <>
@@ -315,7 +315,7 @@ struct is_integral<uint4_t> {
 };
 
 template <typename T, typename U>
-struct is_same {
+struct is_same { // NOLINT(readability-identifier-naming)
     static constexpr bool value = false;
 };
 template <typename T>
@@ -343,7 +343,7 @@ struct is_same<T, T> {
 enum nstl_status_t { success = 0, out_of_memory };
 
 template <typename T>
-class vector : public c_compatible {
+class vector : public c_compatible { // NOLINT(readability-identifier-naming)
 private:
     std::vector<T> _impl;
 
@@ -377,7 +377,7 @@ public:
 };
 
 template <typename Key, typename T>
-class map : public c_compatible {
+class map : public c_compatible { // NOLINT(readability-identifier-naming)
 private:
     std::map<Key, T> _impl;
 
@@ -402,10 +402,10 @@ public:
 
 // Compile-time sequence of indices (part of C++14)
 template <size_t... Ints>
-struct index_sequence {};
+struct index_sequence {}; // NOLINT(readability-identifier-naming)
 
 template <size_t N, size_t... Next>
-struct make_index_sequence_helper
+struct make_index_sequence_helper // NOLINT(readability-identifier-naming)
     : public make_index_sequence_helper<N - 1, N - 1, Next...> {};
 
 template <size_t... Next>
