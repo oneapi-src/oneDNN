@@ -352,6 +352,9 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
         s.unrollKSLM = std::max(int(s.slmA) * s.ka_load, int(s.slmB) * s.kb_load);
     }
 
+    if (hw == HW::Xe2 || hw == HW::Xe3)
+        s.raHW = HW::XeHPC;
+
     adjustStrategy(hw, problem, strategy);
 
     return true;
