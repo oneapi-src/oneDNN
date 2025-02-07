@@ -4449,8 +4449,15 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
             && jcp.oc <= diff_weights_d.padded_dims()[with_groups + 0];
     if (!args_ok) return status::unimplemented;
 
-    int inp_row_size = jcp.ic_block * jcp.tr_iw * jcp.typesize_in;
-    int out_row_size = jcp.oc_block * jcp.tr_ow * jcp.typesize_in;
+    const auto inp_row_size
+            = static_cast<size_t>(jcp.ic_block) * jcp.tr_iw * jcp.typesize_in;
+    VDISPATCH_CONV_IC(inp_row_size <= INT_MAX, VERBOSE_UNSUPPORTED_FEATURE,
+            "inp_row_size > INT_MAX is not supported");
+    const auto out_row_size
+            = static_cast<size_t>(jcp.oc_block) * jcp.tr_ow * jcp.typesize_in;
+    VDISPATCH_CONV_IC(out_row_size <= INT_MAX, VERBOSE_UNSUPPORTED_FEATURE,
+            "out_row_size > INT_MAX is not supported");
+
     int full_spat_min_h_block_size
             = nstl::max(1, nstl::max(jcp.b_pad, jcp.t_pad));
     int full_spat_working_set_size

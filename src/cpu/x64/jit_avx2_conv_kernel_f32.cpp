@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1458,6 +1458,26 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.oc_block = simd_w;
     jcp.nb_oc = div_up(jcp.oc, jcp.oc_block);
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
+
+    jcp.typesize_in = types::data_type_size(src_d.data_type());
+    jcp.typesize_out = types::data_type_size(diff_dst_d.data_type());
+
+    const bool is_src_layout_blocked = jcp.src_tag == dat_tag_nCx8c;
+    const bool is_dst_layout_blocked = jcp.dst_tag == dat_tag_nCx8c;
+
+    dim_t src_size = static_cast<dim_t>(jcp.mb)
+            * (is_src_layout_blocked ? rnd_up(jcp.ic, jcp.ic_block) : jcp.ic)
+            * jcp.id * jcp.ih * jcp.iw * jcp.typesize_in;
+
+    VDISPATCH_CONV_IC(src_size <= INT_MAX, VERBOSE_UNSUPPORTED_FEATURE,
+            "src size > INT_MAX is not supported");
+
+    dim_t diff_dst_size = static_cast<dim_t>(jcp.mb)
+            * (is_dst_layout_blocked ? rnd_up(jcp.oc, jcp.oc_block) : jcp.oc)
+            * jcp.id * jcp.ih * jcp.iw * jcp.typesize_in;
+
+    VDISPATCH_CONV_IC(diff_dst_size <= INT_MAX, VERBOSE_UNSUPPORTED_FEATURE,
+            "diff_dst size > INT_MAX is not supported");
 
     return status::success;
 }
