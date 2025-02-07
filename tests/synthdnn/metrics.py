@@ -105,7 +105,6 @@ class Metric:
         return f"{self.scaling.title} {self.value.title}"
 
 ##    def add(self, sample: matmul.Sample):
-##    def add(self, sample: matmul.Sample):
     def add(self, sample: sampler):
         val = self.value.get(sample)
         rescale = self.scaling.rescale(val)
