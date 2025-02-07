@@ -351,12 +351,12 @@ public:
     using iterator = typename std::vector<T>::iterator;
     using const_iterator = typename std::vector<T>::const_iterator;
     using size_type = typename std::vector<T>::size_type;
-    vector() {}
+    vector() = default;
     vector(size_type n) : _impl(n) {}
     vector(size_type n, const T &value) : _impl(n, value) {}
     template <typename input_iterator>
     vector(input_iterator first, input_iterator last) : _impl(first, last) {}
-    ~vector() {}
+    ~vector() = default;
     size_type size() const { return _impl.size(); }
     T &operator[](size_type i) { return _impl[i]; }
     const T &operator[](size_type i) const { return _impl[i]; }
@@ -385,8 +385,8 @@ public:
     using iterator = typename std::map<Key, T>::iterator;
     using const_iterator = typename std::map<Key, T>::const_iterator;
     using size_type = typename std::map<Key, T>::size_type;
-    map() {}
-    ~map() {}
+    map() = default;
+    ~map() = default;
     size_type size() const { return _impl.size(); }
     T &operator[](const Key &k) { return _impl[k]; }
     const T &operator[](const Key &k) const { return _impl[k]; }
