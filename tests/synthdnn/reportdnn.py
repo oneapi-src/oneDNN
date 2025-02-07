@@ -19,11 +19,7 @@ from threading import Thread
 import queue
 import sys
 
-####from generation import matmul
-import matmul.primitive
-
-####from matmul.primitive import *
-####from matmul.primitive import *
+from matmul.primitive import *
 
 import plotter
 from plotter import heatMap2D
@@ -40,12 +36,17 @@ from metrics import SampleRelative
 from metrics import Flops
 from metrics import Bandwidth
 
-
 import time
+
+from utils import *
 
 class Sample:
     def __init__(self, sample_line):
         _, name, prb, flops, bandwidth = sample_line.strip().split(",")
+        DebugPrint(f"name = {name}")
+        DebugPrint(f"prb = {prb}")
+        DebugPrint(f"flops = {flops}")
+        DebugPrint(f"bandwidth = {bandwidth}")
         self.name = name
         self.primitive = Primitive.from_repro(prb)
         self.flops = float(flops)

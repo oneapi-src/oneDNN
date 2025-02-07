@@ -22,19 +22,15 @@ from tempfile import NamedTemporaryFile
 from matmul import sampler as matmul_sampler
 from matmul import primitive as matmul
 
+from utils import *
 
+##### ???? - to utils ????
 def log(output):
     print("synthdnn: " + output)
 
 def error(output):
     print("synthdnn: error: " + output)
     exit(1)
-
-import sys
-def DebugPrint(msg=""):
-    fname = sys._getframe().f_code.co_filename
-    head, tail = os.path.split(fname)
-    print(f"Debug: {tail}:{sys._getframe().f_back.f_lineno}: {msg}")
 
 def setup_matmul_subparser(subparsers):
     matmul_parser = subparsers.add_parser('matmul', help='call with -h for information')
@@ -65,7 +61,7 @@ def matmul_main(args):
     if batchFile:
         log(f"generating batch file: {batchFile.name}")
         region = matmul_sampler.Region(args.region)
-        DebugPrint(f"region = {region}")
+        #DebugPrint(f"region = {region}")
         types = matmul.Types(args.types)
         layouts = matmul.Layouts(args.layouts, region.ndims)
         samples= matmul_sampler.Sampler(int(args.samples), args.iter_mode,
@@ -99,10 +95,10 @@ def matmul_main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    DebugPrint("parser")
+    #DebugPrint("parser")
     subparsers = parser.add_subparsers(help='primitive targeted for data collection')
-    DebugPrint("subparser")
+    #DebugPrint("subparser")
     setup_matmul_subparser(subparsers)
     args = parser.parse_args()
-    DebugPrint(f"args: {args}")
+    #DebugPrint(f"args: {args}")
     args.subprogram_main(args)
