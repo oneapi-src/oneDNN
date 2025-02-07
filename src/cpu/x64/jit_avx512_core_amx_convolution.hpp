@@ -275,8 +275,8 @@ struct jit_avx512_core_amx_convolution_bwd_weights_t : public primitive_t {
     jit_avx512_core_amx_convolution_bwd_weights_t(const pd_t *apd)
         : primitive_t(apd) {}
 
-    typedef typename prec_traits_t<data_type::bf16>::type src_data_t;
-    typedef typename prec_traits_t<data_type::bf16>::type diff_dst_data_t;
+    using src_data_t = typename prec_traits_t<data_type::bf16>::type;
+    using diff_dst_data_t = typename prec_traits_t<data_type::bf16>::type;
 
     status_t init(engine_t *engine) override;
 
