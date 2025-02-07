@@ -435,7 +435,6 @@ protected:
 
     memory_tracking::registry_t scratchpad_registry_;
 
-protected:
     void init_pd_iterator_offset(int offset) { pd_iterator_offset_ = offset; }
     void init_skip_idx(int skip_idx) { skip_idx_ = skip_idx; }
 
