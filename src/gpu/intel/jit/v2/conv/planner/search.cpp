@@ -369,8 +369,6 @@ public:
     // Number of problems to generate to rank kernel descriptors in a kernel
     // descriptor group.
     static const int bench_nprbs = 50;
-    // Number of problems to generate to build performance model.
-    static const int model_nprbs = 250;
     // Number of top kernel descriptors in a kernel descriptor group to save to
     // registry.
     static const int registry_top_k = 8;
@@ -383,13 +381,16 @@ public:
 
     void search() {
         std::cout << "Starting kernel search" << std::endl;
+        auto &registry = plan_registry();
         auto desc_groups = gen_desc_groups();
         for (auto &dg : desc_groups) {
             auto bench_data_set = bench_kernel_desc_group(
                     bench_mger_, dg, bench_nprbs, max_descs);
             auto best = bench_data_set.find_best(registry_top_k);
             for (auto &bd : best) {
-                update_registry(bd.kernel_desc);
+                auto entry = prepare_plan_registry_entry(
+                        bench_mger_, bd.kernel_desc);
+                registry.set(entry);
             }
         }
         std::cout << "Kernel search completed" << std::endl;
@@ -468,22 +469,6 @@ private:
             }
         }
         return tiles;
-    }
-
-    void update_registry(const kernel_desc_t &desc) const {
-        auto &registry = plan_registry();
-        auto bd = bench(bench_mger_, desc, model_nprbs);
-        if (!bd) return;
-        model_set_t model_set;
-        model_fit(bd, model_set);
-        auto d_ext = try_extensions(bench_mger_, desc);
-        if (d_ext.ext.has(extension_kind_t::stream_k)) {
-            // Fit another model for Stream-K.
-            auto d_sk = to_stream_k(d_ext);
-            auto bd = bench(bench_mger_, d_sk, model_nprbs);
-            model_fit(bd, model_set);
-        }
-        registry.set(d_ext, model_set);
     }
 
     const bench_manager_t &bench_mger_;

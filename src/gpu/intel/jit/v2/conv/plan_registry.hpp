@@ -49,9 +49,7 @@ public:
     plan_registry_t() = default;
     plan_registry_t(const char **entries);
 
-    void set(const kernel_desc_t &desc, const model_set_t &model_set) {
-        entries_.emplace_back(desc, model_set);
-    }
+    void set(const entry_t &entry) { entries_.emplace_back(entry); }
     int size() const { return (int)entries_.size(); }
     kernel_desc_t find_best(const problem_t &prb) const;
     void stringify(std::ostream &out) const;
