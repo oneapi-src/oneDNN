@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -348,9 +348,9 @@ private:
     std::vector<T> _impl;
 
 public:
-    typedef typename std::vector<T>::iterator iterator;
-    typedef typename std::vector<T>::const_iterator const_iterator;
-    typedef typename std::vector<T>::size_type size_type;
+    using iterator = typename std::vector<T>::iterator;
+    using const_iterator = typename std::vector<T>::const_iterator;
+    using size_type = typename std::vector<T>::size_type;
     vector() {}
     vector(size_type n) : _impl(n) {}
     vector(size_type n, const T &value) : _impl(n, value) {}
@@ -382,9 +382,9 @@ private:
     std::map<Key, T> _impl;
 
 public:
-    typedef typename std::map<Key, T>::iterator iterator;
-    typedef typename std::map<Key, T>::const_iterator const_iterator;
-    typedef typename std::map<Key, T>::size_type size_type;
+    using iterator = typename std::map<Key, T>::iterator;
+    using const_iterator = typename std::map<Key, T>::const_iterator;
+    using size_type = typename std::map<Key, T>::size_type;
     map() {}
     ~map() {}
     size_type size() const { return _impl.size(); }

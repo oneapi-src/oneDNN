@@ -48,8 +48,8 @@ status_t matmul_desc_init(matmul_desc_t *matmul_desc,
 struct matmul_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::matmul;
 
-    typedef matmul_pd_t base_class;
-    typedef matmul_pd_t hint_class;
+    using base_class = matmul_pd_t;
+    using hint_class = matmul_pd_t;
 
     const matmul_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
