@@ -61,14 +61,17 @@ public:
         , eu_count_(host->exec_cfg_.hw().eu_count())
         , with_atomic_fp64_(host->exec_cfg_.hw().has_fp64_atomic_support()) {}
 
-    ~ir_to_ngen_t() {
+    ~ir_to_ngen_t() override
 #ifdef DNNL_DEV_MODE
+    {
         if (bank_conflicts_ > 0)
             gpu_warning() << "Found bank conflicts: " << bank_conflicts_;
         if (bundle_conflicts_ > 0)
             gpu_warning() << "Found bundle conflicts: " << bundle_conflicts_;
-#endif
     }
+#else
+            = default;
+#endif
 
     void _visit(const alloc_t &obj) override {
         auto scope = register_scope();
