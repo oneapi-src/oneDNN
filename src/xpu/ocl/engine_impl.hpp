@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -137,7 +137,6 @@ private:
     std::string name_;
     runtime_version_t runtime_version_;
 
-private:
     xpu::ocl::wrapper_t<cl_device_id> device_;
     xpu::ocl::wrapper_t<cl_context> context_;
     cl_platform_id platform_ = nullptr;
