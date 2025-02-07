@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 * Copyright 2018-2024 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -97,16 +97,16 @@ struct _ref_rnn_common_t : public primitive_t {
             rnn_postgemm_bwd_t<src_type, scratch_type, acc_type>>::type;
 
     /* These types are defined for each element in the cell execution */
-    typedef typename prec_traits<src_type>::type src_layer_t;
-    typedef typename prec_traits<src_type>::type src_iter_t;
-    typedef typename prec_traits<src_type>::type dst_layer_t;
-    typedef typename prec_traits<src_type>::type dst_iter_t;
-    typedef typename prec_traits<weights_type>::type weights_t;
-    typedef typename prec_traits<src_type>::type gemm_data_t;
-    typedef typename prec_traits<acc_type>::type gemm_acc_t;
-    typedef typename prec_traits<scratch_type>::type scratch_t;
-    typedef typename prec_traits<src_type>::type ht_t;
-    typedef typename prec_traits<src_type>::type gates_t;
+    typedef typename prec_traits_t<src_type>::type src_layer_t;
+    typedef typename prec_traits_t<src_type>::type src_iter_t;
+    typedef typename prec_traits_t<src_type>::type dst_layer_t;
+    typedef typename prec_traits_t<src_type>::type dst_iter_t;
+    typedef typename prec_traits_t<weights_type>::type weights_t;
+    typedef typename prec_traits_t<src_type>::type gemm_data_t;
+    typedef typename prec_traits_t<acc_type>::type gemm_acc_t;
+    typedef typename prec_traits_t<scratch_type>::type scratch_t;
+    typedef typename prec_traits_t<src_type>::type ht_t;
+    typedef typename prec_traits_t<src_type>::type gates_t;
 
     using class_name
             = _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>;

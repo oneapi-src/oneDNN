@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ struct gemm_inner_product_fwd_t : public primitive_t {
         return pp_kernel_->create_kernel();
     }
 
-    typedef typename prec_traits<data_type>::type data_t;
+    typedef typename prec_traits_t<data_type>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -163,7 +163,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
     };
 
     gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
-    typedef typename prec_traits<data_type>::type data_t;
+    typedef typename prec_traits_t<data_type>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -208,7 +208,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
     };
 
     gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
-    typedef typename prec_traits<data_type>::type data_t;
+    typedef typename prec_traits_t<data_type>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);

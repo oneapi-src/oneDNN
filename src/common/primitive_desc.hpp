@@ -457,11 +457,11 @@ protected:
         /** the only reason why this class is here is the inability of
          * utils::make_unique() to operate on protected parent classes
          * of the derivative pd_t's; compilers should optimize it out */
-        class pd_t_compat : public pd_t {
+        class pd_compat_t : public pd_t {
         public:
-            pd_t_compat(Args &&...args) : pd_t(std::forward<Args>(args)...) {}
+            pd_compat_t(Args &&...args) : pd_t(std::forward<Args>(args)...) {}
         };
-        return utils::make_unique<pd_t_compat>(std::forward<Args>(args)...);
+        return utils::make_unique<pd_compat_t>(std::forward<Args>(args)...);
     }
 
     template <typename pd_t>
