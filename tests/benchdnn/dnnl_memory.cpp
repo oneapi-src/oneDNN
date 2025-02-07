@@ -14,13 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <algorithm>
-#include <atomic>
-#include <cctype>
-#include <memory>
-#include <numeric>
-#include <string>
-
 #include "oneapi/dnnl/dnnl.h"
 
 #ifdef DNNL_WITH_SYCL
@@ -40,6 +33,13 @@
 #include "utils/cold_cache.hpp"
 #include "utils/dnnl_query.hpp"
 #include "utils/parallel.hpp"
+
+#include <algorithm>
+#include <cctype>
+#include <memory>
+#include <numeric>
+#include <string>
+#include <thread>
 
 extern "C" dnnl_status_t dnnl_memory_desc_create_with_string_tag(
         dnnl_memory_desc_t *, int, const dnnl_dims_t, dnnl_data_type_t,
@@ -1068,8 +1068,64 @@ static int check_zero_padding_impl(
                 beg, end, (dnnl_dim_t)1, std::multiplies<dnnl_dim_t>());
     };
 
-    int errors = 0;
-    std::atomic<int> ok(true);
+    const bool need_dump = verbose >= 99;
+
+    struct dump_point_ctx_t {
+        dump_point_ctx_t(const_dnnl_memory_desc_t md, int64_t l_offset,
+                float got, int arg)
+            : md(md), l_offset(l_offset), got(got), arg(arg) {}
+
+        const_dnnl_memory_desc_t md;
+        int64_t l_offset;
+        float got;
+        int arg;
+    };
+
+    const auto dump_point_values = [](const dump_point_ctx_t &ctx) {
+        std::stringstream ss;
+        const auto ndims = query_md_ndims(ctx.md);
+        const auto &pdims = query_md_padded_dims(ctx.md);
+        dims_t l_pdims(ndims);
+        for (dnnl_dim_t i = 0; i < ndims; i++) {
+            l_pdims[i] = pdims[i];
+        }
+        dims_t dims_idx = off2dims_idx(l_pdims, ctx.l_offset);
+        ss << dims_idx;
+        std::string ind_str = ss.str();
+
+        const auto kind = exec_arg2data_kind(ctx.arg);
+        std::string kind_str = std::string("[")
+                + std::string(data_kind2str(kind)) + std::string("]");
+
+        BENCHDNN_PRINT(0, "[%4" PRId64 "]%s[%s] exp: 0; got: % 9.6g\n",
+                ctx.l_offset, kind_str.c_str(), ind_str.c_str(), ctx.got);
+    };
+
+    // Make thread_data static so that acquiring the thread data can be
+    // performed in a static thread_local variable to minimize locking
+    static struct {
+        struct data_t {
+            int64_t n_errors;
+            std::vector<dump_point_ctx_t> dumps;
+        };
+
+        data_t &get() {
+            std::lock_guard<std::mutex> guard(m);
+            return data[std::this_thread::get_id()];
+        }
+        void reset() {
+            for (auto &d : data) {
+                d.second.n_errors = 0;
+                d.second.dumps.clear();
+            }
+        }
+
+        std::unordered_map<std::thread::id, data_t> data;
+        std::mutex m;
+    } thread_data;
+
+    // Clear data from previous runs for the static variable
+    thread_data.reset();
 
     for (int dim_m_idx = 0; dim_m_idx < ndims; ++dim_m_idx) {
         if (dims[dim_m_idx] == pdims[dim_m_idx]) continue;
@@ -1077,49 +1133,63 @@ static int check_zero_padding_impl(
         auto dim_l = product(pdims, pdims + dim_m_idx);
         auto dim_r = product(pdims + dim_m_idx + 1, pdims + ndims);
 
-        benchdnn_parallel_nd(dim_l, dim_r, [&](dnnl_dim_t l, dnnl_dim_t r) {
+        const auto verify_zeroes = [&](dnnl_dim_t l, dnnl_dim_t r) {
+            // This is valid because references to data are only invalidated by
+            // erasing that element, but it does require that thread_data is a
+            // static variable and the corresponding element isn't erased
+            // between calls to this function.
+            static thread_local auto &out_data = thread_data.get();
+            auto &n_errors = out_data.n_errors;
+            auto &dumps = out_data.dumps;
+
             for (dnnl_dim_t m = dims[dim_m_idx]; m < pdims[dim_m_idx]; ++m) {
+                bool ok = true;
                 auto l_idx = (l * pdims[dim_m_idx] + m) * dim_r + r;
                 auto idx = md_off_l(nullptr, mem, l_idx, true);
-                if (!(mem.get_elem(idx) == 0)) ok = false;
+                const auto get_val = mem.get_elem(idx);
+                if (get_val != 0) ok = false;
+                if (!ok) n_errors++;
+
+                const bool dump = need_dump
+                        || (!ok && (n_errors <= 10 || verbose >= 10));
+                if (dump) dumps.emplace_back(mem.md_, l_idx, get_val, arg);
             }
-        });
+        };
 
-        // Run the check one more time to report incorrect elements. This check
-        // is sequential.
-        if (!ok) {
-            for_(dnnl_dim_t l = 0; l < dim_l; ++l)
-            for_(dnnl_dim_t m = dims[dim_m_idx]; m < pdims[dim_m_idx]; ++m)
-            for (dnnl_dim_t r = 0; r < dim_r; ++r) {
-                auto l_idx = (l * pdims[dim_m_idx] + m) * dim_r + r;
-                dnnl_dims_t pos = {};
-                auto idx = md_off_l(pos, mem, l_idx, true);
-
-                bool idx_ok = (mem.get_elem(idx) == 0);
-                if (!idx_ok) errors++;
-
-                const bool dump = (!idx_ok && (errors < 10 || verbose >= 10))
-                        || (verbose >= 99);
-                if (dump) {
-                    BENCHDNN_PRINT(0,
-                            "[%4ld][arg:%d]"
-                            "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
-                            "," IFMT "] fp:  0.f dt:% 9.6g \n",
-                            (long)idx, arg, pos[0], pos[1], pos[2], pos[3],
-                            pos[4], pos[5], mem.get_elem(idx));
-                }
-            }
-        }
+        benchdnn_parallel_nd(dim_l, dim_r, verify_zeroes);
     }
 
-    if (!ok) {
-        BENCHDNN_PRINT(0, "@@@ [arg:%d] check_zero_padding failed\n", arg);
+    int64_t n_errors = 0;
+    for (auto &d : thread_data.data) {
+        n_errors += d.second.n_errors;
+    }
+
+    if (n_errors > 0) {
+        BENCHDNN_PRINT(0, "%s\n", "Error: Zeropad check failed");
         if (res) res->state = FAILED;
     }
 
-    if (error_count != nullptr) *error_count = errors;
+    // serial comparison with enabled dumping when needed for nicer output.
+    if (n_errors > 0 || need_dump) {
+        std::vector<dump_point_ctx_t> dumps;
+        for (auto &d : thread_data.data) {
+            dumps.insert(
+                    dumps.end(), d.second.dumps.begin(), d.second.dumps.end());
+        }
+        std::sort(dumps.begin(), dumps.end(),
+                [](const dump_point_ctx_t &a, const dump_point_ctx_t &b) {
+                    return a.l_offset < b.l_offset;
+                });
+        size_t max_dump_size
+                = (verbose >= 10 || dumps.size() < 10) ? dumps.size() : 10;
+        for (size_t i = 0; i < max_dump_size; i++) {
+            dump_point_values(dumps[i]);
+        }
+    }
 
-    return ok ? OK : FAIL;
+    if (error_count != nullptr) *error_count = n_errors;
+
+    return n_errors > 0 ? FAIL : OK;
 }
 
 int check_zero_padding(
