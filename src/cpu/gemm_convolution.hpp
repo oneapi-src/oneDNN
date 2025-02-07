@@ -115,7 +115,7 @@ struct gemm_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    typedef typename prec_traits_t<data_type::f32>::type data_t;
+    using data_t = typename prec_traits_t<data_type::f32>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         bool is_nspc = pd()->jcp_.is_nspc;
@@ -170,7 +170,7 @@ struct gemm_convolution_bwd_data_t : public primitive_t {
 
     gemm_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits_t<data_type::f32>::type data_t;
+    using data_t = typename prec_traits_t<data_type::f32>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         bool is_nspc = pd()->jcp_.is_nspc;
@@ -223,7 +223,7 @@ struct gemm_convolution_bwd_weights_t : public primitive_t {
 
     gemm_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits_t<data_type::f32>::type data_t;
+    using data_t = typename prec_traits_t<data_type::f32>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         const bool is_nspc = pd()->jcp_.is_nspc;

@@ -168,7 +168,7 @@ struct simple_concat_t : public primitive_t {
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
-    typedef typename prec_traits_t<data_type>::type data_t;
+    using data_t = typename prec_traits_t<data_type>::type;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
