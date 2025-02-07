@@ -134,8 +134,7 @@ protected:
         , hint_fwd_pd_(hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , stat_md_(desc_.stat_desc)
-        , scaleshift_md_(desc_.scaleshift_desc)
-        , ws_md_() {}
+        , scaleshift_md_(desc_.scaleshift_desc) {}
 
     virtual status_t init_default_ws(size_t bits_per_element) {
         const auto src_mdw = memory_desc_wrapper(src_md_);

@@ -94,8 +94,7 @@ protected:
         : primitive_desc_t(attr, base_pkind)
         , desc_(*op_desc_t::to_desc<lrn_desc_t>(adesc))
         , hint_fwd_pd_(hint_fwd_pd)
-        , src_md_(desc_.src_desc)
-        , ws_md_() {}
+        , src_md_(desc_.src_desc) {}
 };
 
 struct lrn_fwd_pd_t : public lrn_pd_t {

@@ -245,8 +245,7 @@ protected:
         , bias_md_(desc_.bias_desc)
         , dst_layer_md_(desc_.dst_layer_desc)
         , dst_iter_md_(desc_.dst_iter_desc)
-        , dst_iter_c_md_(desc_.dst_iter_c_desc)
-        , ws_md_() {}
+        , dst_iter_c_md_(desc_.dst_iter_c_desc) {}
 };
 
 struct rnn_fwd_pd_t : public rnn_pd_t {
