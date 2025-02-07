@@ -569,7 +569,7 @@ inline int best_divider(int value, int min_divider, int max_divider,
     return x_divider;
 }
 
-typedef jit_1x1_conv_conf_t jcp_t;
+using jcp_t = jit_1x1_conv_conf_t;
 
 inline bool is_bcast_layout_nxc(const jcp_t &jcp) {
     switch (jcp.prop_kind) {

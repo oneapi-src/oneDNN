@@ -135,11 +135,11 @@ struct cpu_isa_traits<isa_all> {
 
 template <>
 struct cpu_isa_traits<asimd> {
-    typedef Xbyak_aarch64::VReg TReg;
-    typedef Xbyak_aarch64::VReg16B TRegB;
-    typedef Xbyak_aarch64::VReg8H TRegH;
-    typedef Xbyak_aarch64::VReg4S TRegS;
-    typedef Xbyak_aarch64::VReg2D TRegD;
+    using TReg = Xbyak_aarch64::VReg;
+    using TRegB = Xbyak_aarch64::VReg16B;
+    using TRegH = Xbyak_aarch64::VReg8H;
+    using TRegS = Xbyak_aarch64::VReg4S;
+    using TRegD = Xbyak_aarch64::VReg2D;
     static constexpr int vlen_shift = 4;
     static constexpr int vlen = 16;
     static constexpr int n_vregs = 32;
@@ -151,11 +151,11 @@ struct cpu_isa_traits<asimd> {
 #define CPU_ISA_SVE(bits, shift) \
     template <> \
     struct cpu_isa_traits<sve_##bits> { \
-        typedef Xbyak_aarch64::ZReg TReg; \
-        typedef Xbyak_aarch64::ZRegB TRegB; \
-        typedef Xbyak_aarch64::ZRegH TRegH; \
-        typedef Xbyak_aarch64::ZRegS TRegS; \
-        typedef Xbyak_aarch64::ZRegD TRegD; \
+        using TReg = Xbyak_aarch64::ZReg; \
+        using TRegB = Xbyak_aarch64::ZRegB; \
+        using TRegH = Xbyak_aarch64::ZRegH; \
+        using TRegS = Xbyak_aarch64::ZRegS; \
+        using TRegD = Xbyak_aarch64::ZRegD; \
         static constexpr int vlen_shift = shift; \
         static constexpr int vlen = bits / 8; \
         static constexpr int n_vregs = 32; \

@@ -73,9 +73,9 @@ struct jit_sve_512_x8s8s32x_convolution_fwd_t : public primitive_t {
     jit_sve_512_x8s8s32x_convolution_fwd_t(const pd_t *apd)
         : primitive_t(apd) {}
 
-    typedef typename prec_traits_t<src_type>::type src_data_t;
-    typedef typename prec_traits_t<data_type::s8>::type wei_data_t;
-    typedef typename prec_traits_t<dst_type>::type dst_data_t;
+    using src_data_t = typename prec_traits_t<src_type>::type;
+    using wei_data_t = typename prec_traits_t<data_type::s8>::type;
+    using dst_data_t = typename prec_traits_t<dst_type>::type;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,

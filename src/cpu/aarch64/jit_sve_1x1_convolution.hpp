@@ -315,9 +315,9 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
 
     jit_sve_1x1_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits_t<src_type>::type src_data_t;
-    typedef typename prec_traits_t<wei_type>::type wei_data_t;
-    typedef typename prec_traits_t<dst_type>::type dst_data_t;
+    using src_data_t = typename prec_traits_t<src_type>::type;
+    using wei_data_t = typename prec_traits_t<wei_type>::type;
+    using dst_data_t = typename prec_traits_t<dst_type>::type;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
@@ -470,9 +470,9 @@ struct jit_sve_1x1_convolution_bwd_data_t : public primitive_t {
 
     jit_sve_1x1_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits_t<diff_dst_type>::type diff_dst_data_t;
-    typedef typename prec_traits_t<wei_type>::type wei_data_t;
-    typedef typename prec_traits_t<diff_src_type>::type diff_src_data_t;
+    using diff_dst_data_t = typename prec_traits_t<diff_dst_type>::type;
+    using wei_data_t = typename prec_traits_t<wei_type>::type;
+    using diff_src_data_t = typename prec_traits_t<diff_src_type>::type;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
@@ -628,7 +628,7 @@ struct jit_sve_1x1_convolution_bwd_weights_t : public primitive_t {
 
     jit_sve_1x1_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits_t<data_type::f32>::type data_t;
+    using data_t = typename prec_traits_t<data_type::f32>::type;
 
     status_t init(engine_t *engine) override;
 
