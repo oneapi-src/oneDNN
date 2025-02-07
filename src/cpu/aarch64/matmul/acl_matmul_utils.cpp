@@ -120,7 +120,6 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
                 acl_dst_data_t);
         amp.src_tensor_info = arm_compute::TensorInfo(
                 arm_compute::TensorShape(M, K, src_batch), 1, acl_src_data_t);
-        amp.src_tensor_info.set_are_values_constant(false);
         amp.wei_tensor_info = arm_compute::TensorInfo(
                 arm_compute::TensorShape(K, N, 1, wei_batch), 1,
                 acl_wei_data_t);
@@ -130,7 +129,6 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
                 acl_src_data_t);
         amp.wei_tensor_info = arm_compute::TensorInfo(
                 arm_compute::TensorShape(N, K, wei_batch), 1, acl_wei_data_t);
-        amp.wei_tensor_info.set_are_values_constant(false);
     }
 
     amp.dst_tensor_info = arm_compute::TensorInfo(
@@ -138,13 +136,13 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
 
     // Validate ACL transpose
     if (amp.is_transA && !amp.do_transC)
-        ACL_CHECK_VALID(arm_compute::experimental::op::CpuTranspose::validate(
+        ACL_CHECK_VALID(arm_compute::NETranspose::validate(
                 &amp.src_acc_info, &amp.src_tensor_info));
     if (amp.is_transB && !amp.do_transC)
-        ACL_CHECK_VALID(arm_compute::experimental::op::CpuTranspose::validate(
+        ACL_CHECK_VALID(arm_compute::NETranspose::validate(
                 &amp.wei_acc_info, &amp.wei_tensor_info));
     if (amp.do_transC)
-        ACL_CHECK_VALID(arm_compute::experimental::op::CpuTranspose::validate(
+        ACL_CHECK_VALID(arm_compute::NETranspose::validate(
                 &amp.dst_acc_info, &amp.dst_tensor_info));
 
     bool is_fastmath_enabled = utils::one_of(
@@ -162,10 +160,9 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
         // kernels, because they require one specific weights format
         arm_compute::WeightFormat expected_weight_format;
         ACL_CHECK_VALID(
-                arm_compute::experimental::op::ll::CpuGemmAssemblyDispatch::
-                        has_opt_impl(expected_weight_format,
-                                &amp.src_tensor_info, &amp.wei_tensor_info,
-                                nullptr, &amp.dst_tensor_info, amp.gemm_info));
+                arm_compute::NEGEMM::has_opt_impl(expected_weight_format,
+                        &amp.src_tensor_info, &amp.wei_tensor_info, nullptr,
+                        &amp.dst_tensor_info, 1.0f, 0.0f, amp.gemm_info));
 
         // Set gemm weights info to the one returned by has_opt_impl
         amp.gemm_info.set_weight_format(expected_weight_format);
@@ -194,21 +191,11 @@ status_t init_conf_matmul(acl_matmul_conf_t &amp, memory_desc_t &src_md,
 
 status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const acl_matmul_conf_t &amp, const memory_desc_t &src_md,
-        const memory_desc_t &weights_md, const memory_desc_t &dst_md,
-        const arm_compute::experimental::MemoryRequirements &aux_mem_req) {
+        const memory_desc_t &weights_md, const memory_desc_t &dst_md) {
     if (amp.use_dst_acc_for_sum) {
         const memory_desc_wrapper dst_d(&dst_md);
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
                 dst_d.nelems(), dst_d.data_type_size());
-    }
-    if (aux_mem_req.size() != 0) {
-        for (const auto &key : matmul_keys) {
-            const auto id = key.first;
-            if (aux_mem_req[id].size > 0) {
-                scratchpad.book(key.second, aux_mem_req[id].size, 1,
-                        aux_mem_req[id].alignment, aux_mem_req[id].alignment);
-            }
-        }
     }
     if (amp.is_transA) {
         const memory_desc_wrapper src_d(&src_md);
