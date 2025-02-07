@@ -55,7 +55,7 @@ status_t jit_gemm_pd_t::init_post_ops() {
                 beta_ = e.sum.scale;
                 break;
             case eltwise:
-                ok &= jit_eltwise_injector_f32_is_supported(e.eltwise.alg);
+                ok &= eltwise_injector_f32_is_supported(e.eltwise.alg);
                 binary_srcs_.push_back(binary_src_t {binary_src_t::none, 0});
                 break;
             case prelu:

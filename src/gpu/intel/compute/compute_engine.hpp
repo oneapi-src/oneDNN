@@ -38,7 +38,7 @@
 #include "gpu/intel/compute/dispatch.hpp"
 #include "gpu/intel/compute/kernel.hpp"
 #include "gpu/intel/compute/kernel_ctx.hpp"
-#include "gpu/intel/jit/jit_generator_base.hpp"
+#include "gpu/intel/jit/generator_base.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -55,8 +55,8 @@ public:
 
     const device_info_t *device_info() const { return device_info_.get(); }
 
-    virtual status_t create_kernel(compute::kernel_t *kernel,
-            jit::jit_generator_base *jitter) const = 0;
+    virtual status_t create_kernel(
+            compute::kernel_t *kernel, jit::generator_base_t *jitter) const = 0;
 
     virtual status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,

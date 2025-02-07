@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_JIT_JIT_REDUCTION_INJECTOR_HPP
-#define GPU_INTEL_JIT_JIT_REDUCTION_INJECTOR_HPP
+#ifndef GPU_INTEL_JIT_REDUCTION_INJECTOR_HPP
+#define GPU_INTEL_JIT_REDUCTION_INJECTOR_HPP
 
 #include <assert.h>
 
@@ -24,7 +24,7 @@
 
 #include "gpu/intel/jit/codegen/register_allocator.hpp"
 #include "gpu/intel/jit/emulation.hpp"
-#include "gpu/intel/jit/jit_generator.hpp"
+#include "gpu/intel/jit/generator.hpp"
 #include "ngen/ngen_core.hpp"
 
 namespace dnnl {
@@ -33,18 +33,18 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-inline bool jit_reduction_injector_f32_is_supported(alg_kind_t alg) {
+inline bool reduction_injector_f32_is_supported(alg_kind_t alg) {
     using namespace alg_kind;
     return utils::one_of(alg, reduction_sum, reduction_mean, reduction_max,
             reduction_min, reduction_mul);
 }
 
 template <gpu_gen_t hw>
-struct jit_reduction_injector_f32 {
-    jit_reduction_injector_f32(jit_generator<hw> &host, alg_kind_t alg,
+struct reduction_injector_f32_t {
+    reduction_injector_f32_t(generator_t<hw> &host, alg_kind_t alg,
             reg_allocator_t &ra_, int stepping_id)
         : emu_strategy(hw, stepping_id), alg_(alg), h(host), ra(ra_) {
-        assert(jit_reduction_injector_f32_is_supported(alg_));
+        assert(reduction_injector_f32_is_supported(alg_));
     }
 
     // src_ptr: GRF whose 1st qword subregister holds the first address to be loaded from
@@ -61,26 +61,26 @@ private:
     void eload(const ngen::GRFRange &dst, const ngen::GRF &base_src_addr);
 
     // Emulation functions
-    void emov(jit_generator<hw> &host, const ngen::InstructionModifier &mod,
+    void emov(generator_t<hw> &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::Immediate &src0);
-    void emov(jit_generator<hw> &host, const ngen::InstructionModifier &mod,
+    void emov(generator_t<hw> &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::RegData &src0);
-    void eadd(jit_generator<hw> &host, const ngen::InstructionModifier &mod,
+    void eadd(generator_t<hw> &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::RegData &src0,
             const ngen::Immediate &src1);
-    void eadd(jit_generator<hw> &host, const ngen::InstructionModifier &mod,
+    void eadd(generator_t<hw> &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::RegData &src0,
             const ngen::RegData &src1);
-    void emul(jit_generator<hw> &host, const ngen::InstructionModifier &mod,
+    void emul(generator_t<hw> &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::RegData &src0,
             const ngen::Immediate &src1);
-    void emul(jit_generator<hw> &host, const ngen::InstructionModifier &mod,
+    void emul(generator_t<hw> &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::RegData &src0,
             const ngen::RegData &src1);
     EmulationStrategy emu_strategy;
 
     const alg_kind_t alg_;
-    jit_generator<hw> &h;
+    generator_t<hw> &h;
     reg_allocator_t &ra;
 
     void sum_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
@@ -95,4 +95,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_JIT_JIT_REDUCTION_INJECTOR_HPP
+#endif // GPU_INTEL_JIT_REDUCTION_INJECTOR_HPP

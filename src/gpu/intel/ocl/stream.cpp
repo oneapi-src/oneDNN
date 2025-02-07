@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,8 +23,9 @@
 #include "xpu/ocl/memory_storage.hpp"
 #include "xpu/ocl/stream_profiler.hpp"
 
-#include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/engine.hpp"
+#include "gpu/intel/ocl/stream.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,7 +33,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-status_t ocl_stream_t::init() {
+status_t stream_t::init() {
     if (is_profiling_enabled()) {
         profiler_ = utils::make_unique<xpu::ocl::stream_profiler_t>(this);
         mdapi_helper_ = utils::make_unique<mdapi_helper_t>();
@@ -89,7 +90,7 @@ status_t ocl_stream_t::init() {
     return status::success;
 }
 
-cl_command_queue ocl_stream_t::create_queue(
+cl_command_queue stream_t::create_queue(
         cl_context ctx, cl_device_id dev, cl_int *err) const {
     if (is_profiling_enabled() && mdapi_helper_) {
         auto ret = mdapi_helper_->create_queue(ctx, dev, err);
@@ -109,28 +110,28 @@ cl_command_queue ocl_stream_t::create_queue(
 #endif
 }
 
-void ocl_stream_t::before_exec_hook() {
+void stream_t::before_exec_hook() {
     if (is_profiling_enabled()) profiler_->start_profiling();
 }
 
-void ocl_stream_t::after_exec_hook() {
+void stream_t::after_exec_hook() {
     ocl_ctx().set_deps(xpu::ocl::event_t());
     if (is_profiling_enabled()) profiler_->stop_profiling();
 }
 
-status_t ocl_stream_t::copy(const memory_storage_t &src,
+status_t stream_t::copy(const memory_storage_t &src,
         const memory_storage_t &dst, size_t size, const xpu::event_t &deps,
         xpu::event_t &out_dep) {
     return impl()->copy(this, src, dst, size, deps, out_dep, profiler_.get());
 }
 
-status_t ocl_stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
+status_t stream_t::fill(const memory_storage_t &dst, uint8_t pattern,
         size_t size, const xpu::event_t &deps, xpu::event_t &out_dep) {
     return impl()->fill(
             this, dst, pattern, size, deps, out_dep, profiler_.get());
 }
 
-status_t ocl_stream_t::barrier() {
+status_t stream_t::barrier() {
     return impl()->barrier();
 }
 
