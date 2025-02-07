@@ -104,7 +104,8 @@ namespace utils {
 
 /* SFINAE helper -- analogue to std::enable_if */
 template <bool expr, class T = void>
-struct enable_if {};
+struct enable_if {}; // NOLINT(readability-identifier-naming)
+
 template <class T>
 struct enable_if<true, T> {
     using type = T;
@@ -112,7 +113,7 @@ struct enable_if<true, T> {
 
 /* analogue std::conditional */
 template <bool, typename, typename>
-struct conditional {};
+struct conditional {}; // NOLINT(readability-identifier-naming)
 template <typename T, typename F>
 struct conditional<true, T, F> {
     using type = T;
@@ -149,7 +150,7 @@ struct conditional_v<false, U, t, f> {
 };
 
 template <typename T>
-struct remove_reference {
+struct remove_reference { // NOLINT(readability-identifier-naming)
     using type = T;
 };
 template <typename T>
