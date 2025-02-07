@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ enum AddressModel {
 
 enum AtomicOp { undef, fadd };
 
-class Bundle {
+class Bundle { // NOLINT(readability-identifier-naming)
 public:
     Bundle() : bundle_id(any), bank_id(any) {}
 
@@ -57,7 +57,7 @@ public:
     int8_t bank_id;
 };
 
-class SBID {
+class SBID { // NOLINT(readability-identifier-naming)
 public:
     SBID(int token = -1) : token(token) {}
 
@@ -66,7 +66,7 @@ public:
     int token;
 };
 
-class InstructionModifier {
+class InstructionModifier { // NOLINT(readability-identifier-naming)
 public:
     bool operator==(const InstructionModifier &other) const {
         return (is_atomic == other.is_atomic);

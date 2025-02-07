@@ -32,7 +32,7 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-struct EmulationStrategy {
+struct EmulationStrategy { // NOLINT(readability-identifier-naming)
     // Emulate 64-bit arithmetic (required for GenXLP)
     bool emulate64 = false;
     // Emulate DW x DW -> DW multiplication (required for Gen12)
@@ -63,7 +63,7 @@ struct EmulationStrategy {
     }
 };
 
-struct EmulationState {
+struct EmulationState { // NOLINT(readability-identifier-naming)
     ngen::GRF temp[2]; // Temporary GRFs for use in emulation sequences
     ngen::FlagRegister
             flag; // Flag register for use in emulating 64-bit adds (optional, avoids temporary registers/acc)
@@ -72,7 +72,7 @@ struct EmulationState {
 
 // Implementation wrapped as static methods in non-instantiated class.
 // Clients should declare EmulationImplementation as a friend.
-struct EmulationImplementation {
+struct EmulationImplementation { // NOLINT(readability-identifier-naming)
 #ifdef NGEN_ENABLE_SOURCE_LOCATION
     [[noreturn]] static void stub(
             std::source_location where = std::source_location::current()) {
