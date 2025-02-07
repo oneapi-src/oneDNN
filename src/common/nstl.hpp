@@ -84,14 +84,14 @@ protected:
 namespace nstl {
 
 template <typename T>
-constexpr const T abs(const T &a) {
+constexpr T abs(const T &a) {
     return a >= 0 ? a : -a;
 }
 
 // Computes the modulus and returns the result as the least positive residue
 // when the divisor > 0.
 template <typename T>
-inline const T modulo(const T &dividend, const T &divisor) {
+inline T modulo(const T &dividend, const T &divisor) {
     static_assert(std::is_integral<T>::value, "T must be an integer type.");
     assert(divisor > 0);
     T result = dividend % divisor;
@@ -101,7 +101,7 @@ inline const T modulo(const T &dividend, const T &divisor) {
 // Computes the additive inverse modulus and returns the result as the least
 // positive residue when the divisor > 0.
 template <typename T>
-inline const T additive_inverse_modulo(const T &dividend, const T &divisor) {
+inline T additive_inverse_modulo(const T &dividend, const T &divisor) {
     static_assert(std::is_integral<T>::value, "T must be an integer type.");
     assert(divisor > 0);
     T result = modulo(dividend, divisor);
