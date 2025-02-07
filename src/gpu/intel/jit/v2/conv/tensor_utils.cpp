@@ -106,6 +106,7 @@ layout_tag_t make_conv_layout_tag(
 
 layout_tag_t append_groups(
         tensor_kind_t tensor_kind, const layout_tag_t &layout_tag, bool is_dw) {
+    if (layout_tag.is_any()) return layout_tag;
     bool is_src = (tensor_kind == tensor_kind_t::src);
     bool is_dst = (tensor_kind == tensor_kind_t::dst);
     bool is_bias = (tensor_kind == tensor_kind_t::bias);

@@ -16,6 +16,8 @@
 
 #include "gpu/intel/jit/v2/conv/model.hpp"
 
+#include "gpu/intel/jit/v2/conv/tensor_utils.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -65,8 +67,6 @@ std::vector<std::string> feature_names(model_kind_t kind) {
         case model_kind_t::data_parallel:
             return std::vector<std::string>({"kl", "waves"});
         case model_kind_t::stream_k: return std::vector<std::string>({"iters"});
-        case model_kind_t::data_copy:
-            return std::vector<std::string>({"bytes"});
         default: gpu_error_not_expected();
     }
     return std::vector<std::string>();
@@ -186,30 +186,6 @@ private:
     dim_t iters_;
 };
 
-class data_copy_sample_t : public sample_impl_t {
-public:
-    data_copy_sample_t(const problem_t &prb, const kernel_desc_t &desc,
-            const bench_time_t &time)
-        : sample_impl_t(model_kind_t::data_copy, prb, desc)
-        , nsec_(time.total - conv_time_nsec(time)) {
-        auto &desc_tag = desc.layout_tag(tensor_kind_t::c);
-        auto prb_tag = prb.layout_tag(tensor_kind_t::c);
-        if (desc.use_stream_k) bytes_ += layout_size(desc_tag, prb);
-        if (prb_tag.is_any()) prb_tag = desc_tag.with_type(prb_tag.type());
-        if (prb_tag != desc_tag) {
-            bytes_ += layout_size(prb_tag, prb);
-            bytes_ += layout_size(desc_tag, prb);
-        }
-    }
-
-    vec1d to_x() const override { return vec1d({(float)bytes_}); }
-    float to_y() const override { return nsec_; }
-
-private:
-    uint64_t nsec_ = 0;
-    dim_t bytes_ = 0;
-};
-
 class sample_t {
 public:
     sample_t(model_kind_t kind, const problem_t &prb, const kernel_desc_t &desc,
@@ -221,9 +197,6 @@ public:
                 break;
             case model_kind_t::stream_k:
                 impl_ = std::make_shared<stream_k_sample_t>(prb, desc, time);
-                break;
-            case model_kind_t::data_copy:
-                impl_ = std::make_shared<data_copy_sample_t>(prb, desc, time);
                 break;
             default: gpu_error_not_expected();
         }
@@ -296,12 +269,24 @@ float predict_stream_k(const vec1d &x, const vec1d &coef) {
     return a + b * iters;
 }
 
-float predict_data_copy(const vec1d &x, const vec1d &coef) {
-    const int FIXED_DATA_COPY_COST = 25000;
-    float bytes = x[0];
-    float a = coef[0];
-    float b = coef[1];
-    return FIXED_DATA_COPY_COST + a + b * bytes;
+float predict_data_copy(const problem_t &prb, const kernel_desc_t &desc) {
+    auto tensor_kind = from_abc(desc.prop, tensor_kind_t::c);
+    auto desc_tag = append_groups(
+            tensor_kind, desc.layout_tag(tensor_kind_t::c), desc.is_dw);
+    auto prb_tag = append_groups(
+            tensor_kind, prb.layout_tag(tensor_kind_t::c), desc.is_dw);
+    dim_t bytes = 0;
+    if (desc.use_stream_k) bytes += layout_size(desc_tag, prb);
+    if (prb_tag.is_any()) prb_tag = desc_tag.with_type(prb_tag.type());
+    if (prb_tag != desc_tag) {
+        bytes += layout_size(prb_tag, prb);
+        bytes += layout_size(desc_tag, prb);
+    }
+    // XXX: Hardcoding for now, need a separate hardware-specific model.
+    // Time is in nanoseconds.
+    const int const_cost_time = 30000;
+    const float time_per_byte = 1e-2f;
+    return const_cost_time + time_per_byte * bytes;
 }
 
 void model_t::coef_ranges(model_kind_t kind, const vec2d &X, const vec1d &y,
@@ -322,8 +307,7 @@ void model_t::coef_ranges(model_kind_t kind, const vec2d &X, const vec1d &y,
             add("a_wp", 2, 1, 100);
             add("b_wp", 1, 0.0001f, 100);
             break;
-        case model_kind_t::stream_k:
-        case model_kind_t::data_copy: {
+        case model_kind_t::stream_k: {
             float t_min = *std::min_element(y.begin(), y.end());
             float t_max = *std::max_element(y.begin(), y.end());
             float t0 = *std::min_element(y.begin(), y.end());
@@ -348,7 +332,6 @@ float model_t::predict(model_kind_t kind, const vec1d &x, const vec1d &coef) {
     switch (kind) {
         case model_kind_t::data_parallel: return predict_data_parallel(x, coef);
         case model_kind_t::stream_k: return predict_stream_k(x, coef);
-        case model_kind_t::data_copy: return predict_data_copy(x, coef);
         default:
             gpu_error_not_expected() << "Unknown kind: " << to_string(kind);
     }
@@ -380,7 +363,6 @@ size_t model_t::coef_count(model_kind_t kind) {
     switch (kind) {
         case model_kind_t::data_parallel: return 5;
         case model_kind_t::stream_k: return 2;
-        case model_kind_t::data_copy: return 2;
         default:
             gpu_error_not_expected() << "Unknown kind: " << to_string(kind);
     }
@@ -419,9 +401,7 @@ float model_set_t::time(const problem_t &prb, const kernel_desc_t &desc) const {
     } else {
         ret += time(model_kind_t::data_parallel, prb, desc);
     }
-    if (with_data_copy(prb, desc)) {
-        ret += time(model_kind_t::data_copy, prb, desc);
-    }
+    if (with_data_copy(prb, desc)) ret += predict_data_copy(prb, desc);
     return ret;
 }
 

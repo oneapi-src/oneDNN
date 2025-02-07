@@ -191,10 +191,8 @@ void model_fit(const bench_data_t &bd, model_set_t &model_set) {
         return;
     }
     if (bd.kernel_desc.use_stream_k) {
-        auto model1 = model_fit(model_kind_t::stream_k, bd);
-        auto model2 = model_fit(model_kind_t::data_copy, bd);
-        model_set.add(model1);
-        model_set.add(model2);
+        auto model = model_fit(model_kind_t::stream_k, bd);
+        model_set.add(model);
     } else {
         auto model = model_fit(model_kind_t::data_parallel, bd);
         model_set.add(model);
