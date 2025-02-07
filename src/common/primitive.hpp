@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -153,22 +153,24 @@ private:
 #define ARG_TYPE(t) \
     typename std::remove_cv<typename std::remove_pointer<t>::type>::type
 
+#define ARG_PTR_TYPE(t) ARG_TYPE(t) *
+
 // Returns destination memory which has been zero pad initialized. This macro
 // may result in a failure returned via the `status` input since zero pad
 // may fail.
 #define CTX_OUT_CLEAN_MEM(type, arg, status) \
-    static_cast<ARG_TYPE(type) *>(ctx.host_ptr(arg, true, &status))
+    static_cast<ARG_PTR_TYPE(type)>(ctx.host_ptr(arg, true, &(status)))
 
 // Returns destination memory which may not have been zero pad initialized.
 #define CTX_OUT_MEM_COMMON(type, arg, index) \
-    static_cast<ARG_TYPE(type) *>(ctx.host_ptr(arg, false, nullptr, index))
+    static_cast<ARG_PTR_TYPE(type)>(ctx.host_ptr(arg, false, nullptr, index))
 #define CTX_OUT_MEm(type, arg) CTX_OUT_MEM_COMMON(type, arg, 0)
 #define CTX_OUT_MEm0(type, arg) CTX_OUT_MEM_COMMON(type, arg, 0)
 #define CTX_OUT_MEm1(type, arg) CTX_OUT_MEM_COMMON(type, arg, 1)
 #define CTX_OUT_MEm2(type, arg) CTX_OUT_MEM_COMMON(type, arg, 2)
 
 #define CTX_IN_MEM_COMMON(type, arg, index) \
-    static_cast<const ARG_TYPE(type) *>( \
+    static_cast<const ARG_PTR_TYPE(type)>( \
             ctx.host_ptr(arg, false, nullptr, index))
 #define CTX_IN_MEm(type, arg) CTX_IN_MEM_COMMON(type, arg, 0)
 #define CTX_IN_MEm0(type, arg) CTX_IN_MEM_COMMON(type, arg, 0)

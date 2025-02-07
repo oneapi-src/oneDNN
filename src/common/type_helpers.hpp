@@ -628,7 +628,7 @@ inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
 #define DEREF_AND_COMPARE_DESC_MEMBERS(m) *lhs.m == *rhs.m
 #define COMPARE_FLOAT_DESC_MEMBERS(m) utils::equal_with_nan(lhs.m, rhs.m)
 #define COMPARE_FLOAT_DESC_ARRAY_MEMBERS(m, s) \
-    !std::memcmp(lhs.m, rhs.m, sizeof(float) * s)
+    !std::memcmp(lhs.m, rhs.m, sizeof(float) * (s))
 
 // clang-format off
 inline bool operator==(const batch_normalization_desc_t &lhs,
