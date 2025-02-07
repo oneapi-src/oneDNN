@@ -1694,6 +1694,15 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             VERBOSE_UNSUPPORTED_FEATURE,
             "dst stride > INT32_MAX is not supported");
 
+    // When is_wei_batch_layout_trivial is true, we only support that
+    // batch offset can be divided by 2
+    if (bgmmc.is_int4_weights) {
+        VCONDCHECK_BG(IMPLICATION(bgmmc.is_wei_batch_layout_trivial
+                                      && bgmmc.batch > 1,
+                              bgmmc.B_strides[2] % 2 == 0),
+                VERBOSE_BAD_DIM);
+    }
+
     // Dispatch small shapes to VNNI for better performance
     const bool runtime_dims
             = bgmmc.is_runtime_M || bgmmc.is_runtime_N || bgmmc.is_runtime_K;
