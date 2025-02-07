@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/intel/ocl/gemm/gemm_with_post_ops.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {

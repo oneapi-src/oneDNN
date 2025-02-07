@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-// A small wrapper on the jit_reduction_generator_t, used to test its functionality.
+// A small wrapper on the reduction_generator_t, used to test its functionality.
 // Only valid in dev mode for now, until performance is improved.
 #include "gpu/intel/gpu_primitive_attr.hpp"
 #ifdef DNNL_DEV_MODE
@@ -25,7 +25,7 @@
 #include "gpu/intel/compute/compute_engine.hpp"
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/compute/utils.hpp"
-#include "gpu/intel/jit/jit_reduction.hpp"
+#include "gpu/intel/jit/reduction.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -35,7 +35,7 @@ namespace jit {
 
 using namespace gpu_utils;
 
-status_t jit_reduction_t::pd_t::init_conf(impl::engine_t *engine) {
+status_t reduction_t::pd_t::init_conf(impl::engine_t *engine) {
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());
     const int ndims = src_mdw.ndims();
@@ -108,7 +108,7 @@ status_t jit_reduction_t::pd_t::init_conf(impl::engine_t *engine) {
     return status::success;
 }
 
-status_t jit_reduction_t::execute(const exec_ctx_t &ctx) const {
+status_t reduction_t::execute(const exec_ctx_t &ctx) const {
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 

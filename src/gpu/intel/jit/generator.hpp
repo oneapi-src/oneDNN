@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_JIT_JIT_GENERATOR_HPP
-#define GPU_INTEL_JIT_JIT_GENERATOR_HPP
+#ifndef GPU_INTEL_JIT_GENERATOR_HPP
+#define GPU_INTEL_JIT_GENERATOR_HPP
 
 #include <memory>
 
@@ -27,9 +27,9 @@
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
 #include "gpu/intel/jit/emulation.hpp"
-#include "gpu/intel/jit/jit_generator_base.hpp"
+#include "gpu/intel/jit/generator_base.hpp"
 #include "gpu/intel/jit/utils/ngen_type_bridge.hpp"
-#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
+#include "gpu/intel/ocl/engine.hpp"
 #include "xpu/utils.hpp"
 
 #include "ngen/ngen_opencl.hpp"
@@ -40,7 +40,7 @@ namespace gpu {
 namespace intel {
 
 namespace ocl {
-class ocl_gpu_engine_t;
+class engine_t;
 }
 
 namespace jit {
@@ -68,8 +68,8 @@ constexpr gpu_gen_t gpu_xe3 = ngen::HW::Xe3;
 // the host in debugger.
 //
 // In order to use debug memory:
-// 1.  Allocate it using 'void jit_generator::dbg_alloc(cl_context context)'
-// 2.  Get memory pointer using 'void* jit_generator::dbg_memory()'
+// 1.  Allocate it using 'void generator_t::dbg_alloc(cl_context context)'
+// 2.  Get memory pointer using 'void* generator_t::dbg_memory()'
 // 3.  Pass it as extra OpenCL kernel argument and define it as new argument in
 //     kernel interface at corresponding order.
 // 4.  Set a breakpoint after 'dnnl_stream_wait()', memory will be available on
@@ -80,7 +80,7 @@ constexpr gpu_gen_t gpu_xe3 = ngen::HW::Xe3;
 //  ``` c++
 //  status_t primitive_impl_t::execute(const exec_ctx_t &ctx) {
 //      ...
-//      auto gpu_engine = utils::downcast<ocl_gpu_engine*>(engine);
+//      auto gpu_engine = utils::downcast<ocl::engine_t*>(engine);
 //      jit_generator->dbg_alloc(gpu_engine->context());
 //      void* dbg_mem = jit_generator->dbg_memory();
 //      ...
@@ -92,7 +92,7 @@ constexpr gpu_gen_t gpu_xe3 = ngen::HW::Xe3;
 //      parallel_for(ctx, nd_range, kernel_, arg_list);
 //  }
 //
-//  ngen_kernel_t() : jit_generator<...>() {
+//  ngen_kernel_t() : generator_t<...>() {
 //      externalName("ngen_kernel");
 //      newArgument("src", GlobalPtr);
 //      newArgument("dst", GlobalPtr);
@@ -109,13 +109,13 @@ constexpr gpu_gen_t gpu_xe3 = ngen::HW::Xe3;
 //
 
 template <gpu_gen_t hw>
-struct jit_eltwise_injector_f32;
+struct eltwise_injector_f32_t;
 
 template <gpu_gen_t hw>
-struct jit_reduction_injector_f32;
+struct reduction_injector_f32_t;
 
 template <gpu_gen_t hw>
-struct jit_post_op_injector;
+struct post_op_injector_t;
 
 #if (!defined(NDEBUG) || defined(DNNL_DEV_MODE))
 #define GENERATOR_NAME __FILE__
@@ -131,23 +131,23 @@ struct debug_config_t {
 };
 
 template <gpu_gen_t hw>
-class jit_generator : public ngen::OpenCLCodeGenerator<hw>,
-                      public jit_generator_base {
-    friend struct jit_eltwise_injector_f32<hw>;
-    friend struct jit_reduction_injector_f32<hw>;
-    friend struct jit_post_op_injector<hw>;
+class generator_t : public ngen::OpenCLCodeGenerator<hw>,
+                    public generator_base_t {
+    friend struct eltwise_injector_f32_t<hw>;
+    friend struct reduction_injector_f32_t<hw>;
+    friend struct post_op_injector_t<hw>;
     friend struct EmulationImplementation;
 
 private:
 #ifdef CL_VERSION_2_0
-    struct svm_deleter {
+    struct svm_deleter_t {
         cl_context context_;
 
         void operator()(void *ptr) noexcept {
             if (ptr) clSVMFree(context_, ptr);
         }
     };
-    std::unique_ptr<void, svm_deleter> dbg_memory_;
+    std::unique_ptr<void, svm_deleter_t> dbg_memory_;
 #endif
 #ifdef DNNL_DEV_MODE
     static constexpr bool enable_debug_lines = true;
@@ -155,7 +155,7 @@ private:
     static constexpr bool enable_debug_lines = false;
 #endif
 public:
-    jit_generator(const debug_config_t &debug_config)
+    generator_t(const debug_config_t &debug_config)
         : ngen::OpenCLCodeGenerator<hw>(0,
                 {debug_config.name, debug_config.line, enable_debug_lines}) {};
 
@@ -163,7 +163,7 @@ public:
         return ngen::OpenCLCodeGenerator<hw>::getExternalName().c_str();
     }
 
-    xpu::binary_t get_binary(const ocl::ocl_gpu_engine_t *engine) override {
+    xpu::binary_t get_binary(const ocl::engine_t *engine) override {
         return ngen::OpenCLCodeGenerator<hw>::getBinary(
                 engine->context(), engine->device());
     }
@@ -176,11 +176,11 @@ public:
 
 #ifdef CL_VERSION_2_0
 template <gpu_gen_t hw>
-void jit_generator<hw>::dbg_alloc(cl_context context) {
+void generator_t<hw>::dbg_alloc(cl_context context) {
     constexpr size_t size = 1048576;
     void *mem = clSVMAlloc(
             context, CL_MEM_READ_WRITE | CL_MEM_SVM_FINE_GRAIN_BUFFER, size, 0);
-    dbg_memory_ = decltype(dbg_memory_)(mem, svm_deleter {context});
+    dbg_memory_ = decltype(dbg_memory_)(mem, svm_deleter_t {context});
     memset(mem, 0xcd, size);
 }
 #endif
@@ -189,13 +189,13 @@ void check_kernel_size(
         const std::string &kernel_name, size_t kernel_size, size_t icache_size);
 
 template <template <ngen::HW> class KernelT, ngen::HW arch, typename... ArgsT>
-std::unique_ptr<jit::jit_generator_base> make_generator(
+std::unique_ptr<jit::generator_base_t> make_generator(
         const compute::device_info_t &device_info, ArgsT &&...args) {
 
     auto raw_kernel = new KernelT<arch>(std::forward<ArgsT>(args)...);
     check_kernel_size(raw_kernel->kernel_name(),
             raw_kernel->getRootStreamLength(), device_info.icache_size());
-    return std::unique_ptr<jit::jit_generator_base>(raw_kernel);
+    return std::unique_ptr<jit::generator_base_t>(raw_kernel);
 }
 
 template <template <ngen::HW> class KernelT, typename... ArgsT>
@@ -215,7 +215,7 @@ compute::kernel_t make_kernel(gpu_primitive_t *primitive, bool register_kernel,
     auto *device_info = compute_engine->device_info();
     auto arch = convert_dnnl_arch_to_ngen(device_info->gpu_arch());
 
-    std::unique_ptr<jit::jit_generator_base> jit_kernel;
+    std::unique_ptr<jit::generator_base_t> jit_kernel;
 #define CASE(gpu_arch) \
     case gpu_arch: \
         jit_kernel = make_generator<KernelT, gpu_arch>( \
@@ -255,4 +255,4 @@ compute::kernel_t make_kernel(
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_JIT_JIT_GENERATOR_HPP
+#endif // GPU_INTEL_JIT_GENERATOR_HPP

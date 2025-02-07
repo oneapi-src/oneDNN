@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_STREAM_HPP
-#define GPU_INTEL_OCL_OCL_STREAM_HPP
+#ifndef GPU_INTEL_OCL_STREAM_HPP
+#define GPU_INTEL_OCL_STREAM_HPP
 
 #include <memory>
 
@@ -29,7 +29,7 @@
 
 #include "gpu/intel/compute/compute_stream.hpp"
 #include "gpu/intel/ocl/mdapi_utils.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -37,11 +37,11 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-struct ocl_stream_t : public compute::compute_stream_t {
+struct stream_t : public compute::compute_stream_t {
     static status_t create_stream(impl::stream_t **stream,
             impl::engine_t *engine, impl::stream_impl_t *stream_impl) {
 
-        std::unique_ptr<ocl_stream_t> s(new ocl_stream_t(engine, stream_impl));
+        std::unique_ptr<stream_t> s(new stream_t(engine, stream_impl));
         if (!s) return status::out_of_memory;
 
         status_t status = s->init();
@@ -91,7 +91,7 @@ struct ocl_stream_t : public compute::compute_stream_t {
 
     status_t barrier() override;
 
-    ~ocl_stream_t() override = default;
+    ~stream_t() override = default;
 
     const xpu::ocl::context_t &ocl_ctx() const { return impl()->ocl_ctx(); }
     xpu::ocl::context_t &ocl_ctx() { return impl()->ocl_ctx(); }
@@ -107,7 +107,7 @@ private:
         return (xpu::ocl::stream_impl_t *)impl::stream_t::impl_.get();
     }
 
-    ocl_stream_t(impl::engine_t *engine, impl::stream_impl_t *stream_impl)
+    stream_t(impl::engine_t *engine, impl::stream_impl_t *stream_impl)
         : compute_stream_t(engine, stream_impl) {}
 
     status_t init();

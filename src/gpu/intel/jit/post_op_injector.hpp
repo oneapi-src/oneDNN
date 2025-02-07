@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2024 Intel Corporation
+ * Copyright 2021-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,13 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GPU_INTEL_JIT_JIT_POST_OP_INJECTOR_HPP
-#define GPU_INTEL_JIT_JIT_POST_OP_INJECTOR_HPP
+#ifndef GPU_INTEL_JIT_POST_OP_INJECTOR_HPP
+#define GPU_INTEL_JIT_POST_OP_INJECTOR_HPP
 
 #include "common/primitive_attr.hpp"
 #include "gpu/intel/gpu_post_ops.hpp"
-#include "gpu/intel/jit/jit_eltwise_injector.hpp"
-#include "gpu/intel/jit/jit_generator.hpp"
+#include "gpu/intel/jit/eltwise_injector.hpp"
+#include "gpu/intel/jit/generator.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -28,7 +28,7 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-inline bool jit_post_op_injector_is_supported(
+inline bool post_op_injector_is_supported(
         const post_ops_t &post_ops, bool skip_sum) {
     bool is_supported = true;
     for (int idx = 0; idx < post_ops.len(); ++idx) {
@@ -38,8 +38,7 @@ inline bool jit_post_op_injector_is_supported(
         else if (po.is_convolution())
             is_supported &= false;
         else if (po.is_eltwise())
-            is_supported
-                    &= jit_eltwise_injector_f32_is_supported(po.eltwise.alg);
+            is_supported &= eltwise_injector_f32_is_supported(po.eltwise.alg);
         else if (po.is_sum(false, false))
             is_supported &= skip_sum;
     }
@@ -47,8 +46,8 @@ inline bool jit_post_op_injector_is_supported(
 }
 
 template <gpu_gen_t hw>
-struct jit_post_op_injector {
-    jit_post_op_injector(jit_generator<hw> *host, data_type_t accumulator_type,
+struct post_op_injector_t {
+    post_op_injector_t(generator_t<hw> *host, data_type_t accumulator_type,
             const post_ops_t &post_ops, int eu_count,
             const ngen::GRFRange &scratch = ngen::GRFRange(),
             bool is_fwd = true)
@@ -64,7 +63,7 @@ struct jit_post_op_injector {
         }
     }
 
-    jit_post_op_injector(jit_generator<hw> *host, data_type_t accumulator_type,
+    post_op_injector_t(generator_t<hw> *host, data_type_t accumulator_type,
             const gpu_post_ops_t &post_ops, int eu_count,
             const ngen::GRFRange &scratch = ngen::GRFRange(),
             bool is_fwd = true)
@@ -88,7 +87,7 @@ struct jit_post_op_injector {
     void compute(const ngen::GRFRange &regs);
 
 private:
-    std::vector<jit_eltwise_injector_f32<hw>> workers_;
+    std::vector<eltwise_injector_f32_t<hw>> workers_;
     bool is_fwd_;
     ngen::GRFRange scratch_;
 };
@@ -99,4 +98,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_JIT_JIT_POST_OP_INJECTOR_HPP
+#endif // GPU_INTEL_JIT_POST_OP_INJECTOR_HPP

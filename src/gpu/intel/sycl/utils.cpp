@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -146,7 +146,7 @@ status_t sycl_dev2ocl_dev(cl_device_id *ocl_dev, const ::sycl::device &dev) {
 }
 
 static status_t create_ocl_engine(
-        std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
+        std::unique_ptr<gpu::intel::ocl::engine_t, engine_deleter_t>
                 *ocl_engine,
         const ::sycl::device &sycl_dev,
         const ::sycl::context *sycl_ctx = nullptr) {
@@ -183,13 +183,13 @@ static status_t create_ocl_engine(
     size_t index;
     CHECK(xpu::ocl::get_device_index(&index, ocl_dev));
     CHECK(f.engine_create(&ocl_engine_ptr, ocl_dev, ocl_ctx, index));
-    ocl_engine->reset(utils::downcast<gpu::intel::ocl::ocl_gpu_engine_t *>(
-            ocl_engine_ptr));
+    ocl_engine->reset(
+            utils::downcast<gpu::intel::ocl::engine_t *>(ocl_engine_ptr));
     return status::success;
 }
 
 status_t create_ocl_engine(
-        std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
+        std::unique_ptr<gpu::intel::ocl::engine_t, engine_deleter_t>
                 *ocl_engine,
         const gpu::intel::sycl::engine_t *engine) {
     const auto sycl_ctx = engine->context();
@@ -214,8 +214,7 @@ status_t get_kernel_binary(
             CHECK(gpu::intel::sycl::func_zeModuleGetNativeBinary(
                     module, &module_binary_size, module_binary.data()));
             {
-                std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t,
-                        engine_deleter_t>
+                std::unique_ptr<gpu::intel::ocl::engine_t, engine_deleter_t>
                         ocl_engine;
                 CHECK(create_ocl_engine(&ocl_engine, devs[0]));
                 xpu::ocl::wrapper_t<cl_program> ocl_program;

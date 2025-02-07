@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ static const size_t DNNL_SYCL_MEMALIGNMENT = 64;
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "xpu/ocl/engine_factory.hpp"
 static const size_t DNNL_OCL_MEMALIGNMENT = 0;
-using namespace dnnl::impl::gpu::intel::ocl;
+using namespace dnnl::impl::gpu::intel;
 #endif
 
 using namespace dnnl::impl::graph;
@@ -61,7 +61,7 @@ static void *tensor_malloc(
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
         return alc->allocate(size, *dev, *ctx, {type, DNNL_SYCL_MEMALIGNMENT});
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-        auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(eng);
+        auto *ocl_engine = utils::downcast<const ocl::engine_t *>(eng);
         const cl_device_id &ocl_dev = ocl_engine->device();
         const cl_context &ocl_ctx = ocl_engine->context();
         return alc->allocate(
@@ -97,7 +97,7 @@ static void tensor_free(void *p, const engine_t *eng) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
         alc->deallocate(p, *dev, *ctx, {});
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-        auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(eng);
+        auto *ocl_engine = utils::downcast<const ocl::engine_t *>(eng);
         const cl_device_id &ocl_dev = ocl_engine->device();
         const cl_context &ocl_ctx = ocl_engine->context();
         return alc->deallocate(p, ocl_dev, ocl_ctx, {});
@@ -110,8 +110,7 @@ static void tensor_free(void *p, const engine_t *eng) {
 }
 
 dnnl_graph_tensor::dnnl_graph_tensor(
-        const dnnl::impl::graph::logical_tensor_t &lt,
-        const dnnl::impl::graph::engine_t *eng, void *handle)
+        const logical_tensor_t &lt, const engine_t *eng, void *handle)
     : lt_(lt), eng_(eng) {
     if (handle == DNNL_MEMORY_ALLOCATE) {
         size_t num_bytes = logical_tensor_wrapper_t(lt).size();

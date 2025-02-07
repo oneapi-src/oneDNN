@@ -17,7 +17,7 @@
 #include "gpu/intel/ocl/gemm_inner_product.hpp"
 
 #include "gpu/intel/gemm/gpu_gemm.hpp"
-#include "gpu/intel/ocl/ocl_stream.hpp"
+#include "gpu/intel/ocl/stream.hpp"
 
 namespace dnnl {
 namespace impl {
