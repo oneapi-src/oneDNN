@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ namespace impl {
 namespace xpu {
 namespace ocl {
 
-void print_verbose_header() {
+inline void print_verbose_header() {
     xpu::ocl::engine_factory_t factory(engine_kind::gpu);
 
     verbose_printf("info,gpu,engine,opencl device count:%zu %s\n",
@@ -50,7 +50,7 @@ void print_verbose_header() {
         const auto *engine_impl
                 = utils::downcast<const xpu::ocl::engine_impl_t *>(
                         eng_ptr->impl());
-        auto s_name = engine_impl->name();
+        const auto &s_name = engine_impl->name();
         auto s_ver = engine_impl->runtime_version().str();
 
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
