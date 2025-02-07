@@ -40,7 +40,7 @@ status_t reduction_desc_init(reduction_desc_t *reduction_desc,
 struct reduction_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::reduction;
 
-    typedef reduction_pd_t hint_class;
+    using hint_class = reduction_pd_t;
 
     const reduction_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {

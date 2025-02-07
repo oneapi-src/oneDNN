@@ -39,8 +39,8 @@ namespace impl {
 struct sdpa_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::sdpa;
 
-    typedef sdpa_pd_t base_class;
-    typedef sdpa_pd_t hint_class;
+    using base_class = sdpa_pd_t;
+    using hint_class = sdpa_pd_t;
 
     const sdpa_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
