@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ public:
         VERROR_ENGINE(status == status::success, status,
                 VERBOSE_INVALID_ENGINE_KIND, "opencl", "gpu");
 
-        VERROR_ENGINE(ocl_devices.size() > 0, status::invalid_arguments,
+        VERROR_ENGINE(!ocl_devices.empty(), status::invalid_arguments,
                 "opencl gpu devices queried but not found");
 
         VERROR_ENGINE(index < ocl_devices.size(), status::invalid_arguments,
