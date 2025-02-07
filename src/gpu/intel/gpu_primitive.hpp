@@ -28,7 +28,7 @@
 #include "gpu/intel/compute/compute_stream.hpp"
 #include "gpu/intel/compute/kernel.hpp"
 #include "gpu/intel/gemm/gpu_gemm_exec_types.hpp"
-#include "gpu/intel/jit/jit_generator_base.hpp"
+#include "gpu/intel/jit/generator_base.hpp"
 #include "gpu/intel/kernel_cache.hpp"
 #include "gpu/intel/ocl/types_interop.hpp"
 #include "xpu/context.hpp"
@@ -89,7 +89,7 @@ struct gpu_primitive_t : public gpu::primitive_t {
     }
 
     status_t create_kernel(impl::engine_t *engine, compute::kernel_t *kernel,
-            jit::jit_generator_base *jitter, bool register_kernel = true) {
+            jit::generator_base_t *jitter, bool register_kernel = true) {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         if (cache_blob()) {

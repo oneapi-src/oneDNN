@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_JIT_JIT_REDUCTION_HPP
-#define GPU_INTEL_JIT_JIT_REDUCTION_HPP
+#ifndef GPU_INTEL_JIT_REDUCTION_HPP
+#define GPU_INTEL_JIT_REDUCTION_HPP
 
-// A small wrapper on the jit_reduction_generator_t, used to test its functionality.
+// A small wrapper on the reduction_generator_t, used to test its functionality.
 // Only valid in dev mode for now, until performance is improved.
 #ifdef DNNL_DEV_MODE
 
@@ -29,8 +29,8 @@
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/jit/jit_reduction_generator.hpp"
-#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
+#include "gpu/intel/jit/reduction_generator.hpp"
+#include "gpu/intel/ocl/engine.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 #include "gpu/intel/utils.hpp"
 
@@ -40,12 +40,12 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-struct jit_reduction_t : public gpu_primitive_t {
+struct reduction_t : public gpu_primitive_t {
     using gpu_primitive_t::gpu_primitive_t;
     struct pd_t : public gpu_reduction_pd_t {
         using gpu_reduction_pd_t::gpu_reduction_pd_t;
 
-        DECLARE_COMMON_PD_T("jit:ref", jit_reduction_t);
+        DECLARE_COMMON_PD_T("jit:ref", reduction_t);
 
         status_t init(impl::engine_t *engine) {
             // Require the corresponding environment variable - skip this impl
@@ -71,7 +71,7 @@ struct jit_reduction_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT);
             // Make sure we can use the injector for this problem
             VDISPATCH_REDUCTION(
-                    jit_reduction_injector_f32_is_supported(desc()->alg_kind),
+                    reduction_injector_f32_is_supported(desc()->alg_kind),
                     VERBOSE_BAD_ALGORITHM);
 
             VDISPATCH_REDUCTION_SC(init_conf(engine), "init_conf");
@@ -89,12 +89,12 @@ struct jit_reduction_t : public gpu_primitive_t {
     status_t init(impl::engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
-        auto *gpu_engine = utils::downcast<ocl::ocl_gpu_engine_t *>(engine);
+        auto *gpu_engine = utils::downcast<ocl::engine_t *>(engine);
         if (!gpu_engine) return status::runtime_error;
 
         const compute::device_info_t &device_info = *gpu_engine->device_info();
-        kernel_ = make_kernel<jit_reduction_generator_t>(this, engine,
-                device_info, pd()->desc()->alg_kind, pd()->reduction_stride,
+        kernel_ = make_kernel<reduction_generator_t>(this, engine, device_info,
+                pd()->desc()->alg_kind, pd()->reduction_stride,
                 pd()->reduction_size, pd()->nregs);
         if (!kernel_) return status::runtime_error;
 

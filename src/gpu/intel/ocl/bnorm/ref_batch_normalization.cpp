@@ -21,7 +21,7 @@
 #include "common/math_utils.hpp"
 #include "common/scratchpad.hpp"
 #include "common/type_helpers.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 using namespace dnnl::impl::memory_tracking::names;
 

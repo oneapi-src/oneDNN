@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_GPU_KERNEL_HPP
-#define GPU_INTEL_OCL_OCL_GPU_KERNEL_HPP
+#ifndef GPU_INTEL_OCL_KERNEL_HPP
+#define GPU_INTEL_OCL_KERNEL_HPP
 
 #include <string>
 #include <CL/cl.h>
@@ -30,14 +30,14 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-class ocl_gpu_kernel_cache_t;
+class kernel_cache_t;
 
-class ocl_gpu_kernel_t : public compute::kernel_impl_t {
+class kernel_t : public compute::kernel_impl_t {
 public:
-    ocl_gpu_kernel_t(xpu::ocl::wrapper_t<cl_kernel> &&ocl_kernel,
+    kernel_t(xpu::ocl::wrapper_t<cl_kernel> &&ocl_kernel,
             const std::vector<gpu::intel::compute::scalar_type_t> &arg_types,
             compute::program_src_t src);
-    ~ocl_gpu_kernel_t() override = default;
+    ~kernel_t() override = default;
 
     cl_kernel ocl_kernel() const { return ocl_kernel_; }
 
@@ -65,7 +65,7 @@ public:
 private:
     xpu::ocl::wrapper_t<cl_kernel> ocl_kernel_;
     std::vector<gpu::intel::compute::scalar_type_t> arg_types_;
-    std::shared_ptr<ocl_gpu_kernel_cache_t> cache_;
+    std::shared_ptr<kernel_cache_t> cache_;
     compute::program_src_t src_;
     bool save_events_;
 };
@@ -76,4 +76,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_OCL_OCL_GPU_KERNEL_HPP
+#endif // GPU_INTEL_OCL_KERNEL_HPP

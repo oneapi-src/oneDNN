@@ -14,16 +14,16 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef GPU_INTEL_JIT_JIT_REDUCTION_GENERATOR_HPP
-#define GPU_INTEL_JIT_JIT_REDUCTION_GENERATOR_HPP
+#ifndef GPU_INTEL_JIT_REDUCTION_GENERATOR_HPP
+#define GPU_INTEL_JIT_REDUCTION_GENERATOR_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/jit/emulated_generator.hpp"
-#include "gpu/intel/jit/jit_generator.hpp"
-#include "gpu/intel/jit/jit_reduction_injector.hpp"
+#include "gpu/intel/jit/generator.hpp"
+#include "gpu/intel/jit/reduction_injector.hpp"
 #include "gpu/intel/utils.hpp"
 #include "ngen/ngen_core.hpp"
 #include "ngen/ngen_interface.hpp"
@@ -35,13 +35,13 @@ namespace intel {
 namespace jit {
 
 template <gpu_gen_t hw>
-class jit_reduction_generator_t : public emulated_generator_t<hw> {
+class reduction_generator_t : public emulated_generator_t<hw> {
 protected:
     NGEN_FORWARD_OPENCL(hw);
     FORWARD_EMULATION(hw);
 
 public:
-    jit_reduction_generator_t(const compute::device_info_t &device_info,
+    reduction_generator_t(const compute::device_info_t &device_info,
             alg_kind_t alg, dim_t stride, dim_t iters, int nregs)
         : emulated_generator_t<hw>(device_info, "ngen_jit_reduction",
                 {GENERATOR_NAME, GENERATOR_LINE}) {
@@ -94,7 +94,7 @@ public:
         ra().release(outer_off);
 
         ngen::GRFRange acc = ra().alloc_range(nregs);
-        jit_reduction_injector_f32<hw> reduce(
+        reduction_injector_f32_t<hw> reduce(
                 *this, alg, ra(), device_info.stepping_id());
         reduce.compute(src_addr, acc, stride, iters);
         ra().release(src_addr);
@@ -191,4 +191,4 @@ protected:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_JIT_JIT_REDUCTION_GENERATOR_HPP
+#endif // GPU_INTEL_JIT_REDUCTION_GENERATOR_HPP
