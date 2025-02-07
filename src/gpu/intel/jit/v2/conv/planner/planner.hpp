@@ -19,6 +19,7 @@
 
 #include "gpu/intel/jit/utils/utils.hpp"
 #include "gpu/intel/jit/v2/conv/kernel_desc.hpp"
+#include "gpu/intel/jit/v2/conv/model.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -40,6 +41,7 @@ enum class planner_mode_t {
 struct planner_params_t {
     planner_mode_t mode = planner_mode_t::undef;
     kernel_desc_t desc;
+    model_set_t model_set;
     parse_result_t parse_result;
 };
 

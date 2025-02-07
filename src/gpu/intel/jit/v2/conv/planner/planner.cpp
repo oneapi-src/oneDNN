@@ -44,6 +44,23 @@ bool find_remove(const char *arg, std::string &s) {
     return true;
 }
 
+std::string find_remove_key_value_impl(const std::string &key, std::string &s) {
+    auto i = s.find(key);
+    if (i == std::string::npos) return {};
+    auto j = key.find(" ", i + key.length());
+    if (j == std::string::npos) j = s.length();
+    i += key.length();
+    auto value = s.substr(i, j - i);
+    s.replace(i, j - i, "");
+    return value;
+}
+
+std::string find_remove_key_value(const std::string &key, std::string &s) {
+    auto value = find_remove_key_value_impl("--" + key + " ", s);
+    if (!value.empty()) return value;
+    return find_remove_key_value_impl(key + "=", s);
+}
+
 void print_help() {
     std::cout
             << R"(Usage: gpu_conv_planner [--help] [--bench] [--search] [--auto-search] [kernel descriptor arguments]
@@ -69,6 +86,7 @@ void init_params(
     bool has_search = find_remove("--search", cmd_args);
     bool has_auto_search = find_remove("--auto-search", cmd_args);
     bool has_help = (argc == 1) || find_remove("--help", cmd_args);
+    auto s_model = find_remove_key_value("model", cmd_args);
 
     if (has_help) {
         print_help();
@@ -96,10 +114,8 @@ void init_params(
     switch (params.mode) {
         case planner_mode_t::auto_search: return;
         case planner_mode_t::search:
-            for (auto *arg : {"--iter", "--tg"}) {
-                if (cmd_args.find(arg) == std::string::npos) {
-                    cmd_args += " " + std::string(arg) + " x";
-                }
+            if (cmd_args.find("--iter") == std::string::npos) {
+                cmd_args += " --iter x";
             }
             break;
         default: break;
@@ -107,6 +123,7 @@ void init_params(
     auto &iface = params.desc.parse_iface();
     iface.parse(cmd_args, params.desc, &params.parse_result);
     params.desc.set_defaults();
+    if (!s_model.empty()) params.model_set = jit::parse<model_set_t>(s_model);
 }
 
 void DNNL_API planner_main(int argc, const char **argv) {
@@ -125,14 +142,19 @@ void DNNL_API planner_main(int argc, const char **argv) {
                 exit(1);
             }
             std::cout << plan.str() << std::endl;
-            std::cout << "Reqs:\n";
-            std::cout << params.desc.reqs().str() << std::endl;
+            std::cout << ir_utils::add_tag("Reqs", params.desc.reqs().str())
+                      << std::endl;
+            if (!params.model_set.is_empty()) {
+                std::cout << ir_utils::add_tag("Model", params.model_set.str())
+                          << std::endl;
+            }
             break;
         }
         case planner_mode_t::bench: {
-            auto bd = bench(bench_mger, params.desc);
-            model_set_t model_set;
-            model_fit(bd, model_set);
+            auto entry = prepare_plan_registry_entry(bench_mger, params.desc);
+            std::cout << entry.str() << std::endl;
+            std::cout << "Kernel registry entry:\n  " << entry.registry_str()
+                      << std::endl;
             break;
         }
         case planner_mode_t::auto_search:

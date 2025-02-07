@@ -20,6 +20,7 @@
 #include "gpu/intel/jit/v2/conv/debug.hpp"
 #include "gpu/intel/jit/v2/conv/plan.hpp"
 #include "gpu/intel/jit/v2/conv/plan_registry.hpp"
+#include "gpu/intel/jit/v2/conv/planner/model_fit.hpp"
 #include "gpu/intel/jit/v2/conv/tensor_utils.hpp"
 #include "gpu/intel/ocl/usm_utils.hpp"
 
@@ -248,8 +249,7 @@ public:
                 case prop_kind::forward_inference:
                 case prop_kind::forward_training: {
                     auto src_md = to_memory_desc(prb_.src_tag(), src_dims);
-                    auto wei_md = to_memory_desc(
-                            prb_.wei_tag(), wei_dims, /*is_wei=*/true);
+                    auto wei_md = to_memory_desc(prb_.wei_tag(), wei_dims);
                     auto dst_md = to_memory_desc(prb_.dst_tag(), dst_dims);
 
                     primitive_attr attr;
@@ -271,8 +271,7 @@ public:
                 }
                 case prop_kind::backward_data: {
                     auto diff_src_md = to_memory_desc(prb_.src_tag(), src_dims);
-                    auto wei_md = to_memory_desc(
-                            prb_.wei_tag(), wei_dims, /*is_wei=*/true);
+                    auto wei_md = to_memory_desc(prb_.wei_tag(), wei_dims);
                     auto diff_dst_md = to_memory_desc(prb_.dst_tag(), dst_dims);
 
                     // Uses the C API as fwd_hint is not currently optional
@@ -298,8 +297,7 @@ public:
                 }
                 case prop_kind::backward_weights: {
                     auto src_md = to_memory_desc(prb_.src_tag(), src_dims);
-                    auto diff_wei_md = to_memory_desc(
-                            prb_.wei_tag(), wei_dims, /*is_wei=*/true);
+                    auto diff_wei_md = to_memory_desc(prb_.wei_tag(), wei_dims);
                     auto diff_dst_md = to_memory_desc(prb_.dst_tag(), dst_dims);
                     memory::desc diff_bias_md;
                     if (!prb_.bias_type().is_undef()) {
@@ -356,30 +354,42 @@ public:
     }
 
 private:
-    memory::desc to_memory_desc(const layout_tag_t &tag,
-            const memory::dims &dims, bool is_wei = false) const {
-        auto type = static_cast<dnnl::memory::data_type>(to_dnnl(tag.type()));
-        layout_raw_tag_t raw_tags[] = {
-                layout_raw_tag_t("a", 1),
-                layout_raw_tag_t("axb", 5),
-                layout_raw_tag_t("abx", 5),
-                layout_raw_tag_t("axbc", 6),
-                layout_raw_tag_t("axcb", 6),
-        };
-        for (auto &raw_tag : raw_tags) {
-            if (tag.raw_tag() == raw_tag) {
-                memory::dims strides(dims.size());
-                memory::dim stride = 1;
-                for (int i = raw_tag.nentries() - 1; i >= 0; i--) {
-                    auto &e = raw_tag.entries()[i];
-                    strides[e.index()] = stride;
-                    stride *= dims[e.index()];
-                }
-                return memory::desc(dims, type, strides);
+    memory::desc to_memory_desc(
+            const layout_tag_t &tag, const memory::dims &dims) const {
+        gpu_assert(tag.raw_tag().ndims() == dims.size());
+        auto md = utils::make_unique<memory_desc_t>();
+        md->ndims = tag.raw_tag().ndims();
+        md->data_type = to_dnnl(tag.type());
+        md->format_kind = format_kind::blocked;
+        auto &blk = md->format_desc.blocking;
+        blk = blocking_desc_t();
+        dim_t stride = 1;
+        auto rem_dims = dims;
+        for (int i = tag.raw_tag().nentries() - 1; i >= 0; i--) {
+            auto &e = tag.raw_tag().entries()[i];
+            if (e.is_blocked && e.block != 0) {
+                blk.inner_idxs[blk.inner_nblks] = e.index();
+                blk.inner_blks[blk.inner_nblks] = e.block;
+                rem_dims[e.index()]
+                        = utils::div_up(rem_dims[e.index()], e.block);
+                blk.inner_nblks++;
+                stride *= e.block;
+            } else {
+                blk.strides[e.index()] = stride;
+                stride *= rem_dims[e.index()];
             }
         }
-        gpu_error_not_expected() << "Unknown tag: " << tag.str();
-        return memory::desc();
+        for (int i = 0; i < md->ndims; i++) {
+            dim_t inner = 1;
+            for (int j = 0; j < blk.inner_nblks; j++) {
+                if (blk.inner_idxs[j] == i) inner *= blk.inner_blks[j];
+            }
+            md->dims[i] = dims[i];
+            md->padded_dims[i] = utils::rnd_up(dims[i], inner);
+        }
+        std::reverse(blk.inner_idxs, blk.inner_idxs + blk.inner_nblks);
+        std::reverse(blk.inner_blks, blk.inner_blks + blk.inner_nblks);
+        return memory::desc(md.release());
     }
 
     problem_t prb_;
@@ -704,9 +714,13 @@ kernel_desc_t try_extensions(
     }
 
     // Try Stream-K.
-    if (kernel_desc.prop != prop_kind::backward_data
+    bool try_stream_k = !kernel_desc.use_stream_k;
+    try_stream_k &= (kernel_desc.prop != prop_kind::backward_data
             || (kernel_desc.a_type() == type_t::f32()
-                    && kernel_desc.b_type() == type_t::f32())) {
+                    && kernel_desc.b_type() == type_t::f32()));
+    try_stream_k &= (!kernel_desc.is_dw
+            || kernel_desc.prop == prop_kind::backward_weights);
+    if (try_stream_k) {
         auto d = to_stream_k(kernel_desc, /*check_ext=*/false);
         if (!d.is_empty()) {
             if (create_conv_plan(d, bench_mger.hw())
@@ -719,6 +733,22 @@ kernel_desc_t try_extensions(
     auto _kernel_desc = kernel_desc;
     _kernel_desc.ext = ext;
     return _kernel_desc;
+}
+
+plan_registry_t::entry_t prepare_plan_registry_entry(
+        const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc) {
+    plan_registry_t::entry_t entry;
+    auto bd = bench(bench_mger, kernel_desc);
+    if (!bd) return entry;
+    model_fit(bd, entry.model_set);
+    entry.desc = try_extensions(bench_mger, kernel_desc);
+    if (entry.desc.ext.has(extension_kind_t::stream_k)) {
+        // Fit another model for Stream-K.
+        auto d_sk = to_stream_k(entry.desc);
+        auto bd = bench(bench_mger, d_sk);
+        model_fit(bd, entry.model_set);
+    }
+    return entry;
 }
 
 } // namespace planner
