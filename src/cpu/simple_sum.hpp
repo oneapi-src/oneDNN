@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,9 +124,9 @@ struct simple_sum_t : public primitive_t {
     status_t execute(const exec_ctx_t &ctx) const override;
 
     enum { max_num_arrs = 16 };
-    typedef typename prec_traits<src_data_type>::type src_data_t;
-    typedef typename prec_traits<dst_data_type>::type dst_data_t;
-    typedef typename prec_traits<data_type::f32>::type acc_data_t;
+    typedef typename prec_traits_t<src_data_type>::type src_data_t;
+    typedef typename prec_traits_t<dst_data_type>::type dst_data_t;
+    typedef typename prec_traits_t<data_type::f32>::type acc_data_t;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

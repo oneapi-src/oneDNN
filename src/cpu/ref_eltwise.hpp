@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ struct ref_eltwise_fwd_t : public primitive_t {
         return status::success;
     }
 
-    using data_t = typename prec_traits<data_type>::type;
+    using data_t = typename prec_traits_t<data_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->use_dense_)
@@ -172,7 +172,7 @@ struct ref_eltwise_bwd_t : public primitive_t {
     };
 
     ref_eltwise_bwd_t(const pd_t *apd) : primitive_t(apd) {}
-    typedef typename prec_traits<data_type>::type data_t;
+    typedef typename prec_traits_t<data_type>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->use_dense_)

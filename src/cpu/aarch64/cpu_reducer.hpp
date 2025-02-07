@@ -169,7 +169,7 @@ struct reducer_2d_driver_t;
  */
 template <impl::data_type_t data_type, cpu_isa_t isa = sve_512>
 struct cpu_reducer_t {
-    typedef typename prec_traits<data_type>::type data_t;
+    typedef typename prec_traits_t<data_type>::type data_t;
 
     struct conf_t {
         conf_t() = default;
@@ -249,7 +249,7 @@ private:
 
 template <impl::data_type_t data_type, cpu_isa_t isa = sve_512>
 struct cpu_reducer_2d_t {
-    typedef typename prec_traits<data_type>::type data_t;
+    typedef typename prec_traits_t<data_type>::type data_t;
 
     struct conf_t {
         conf_t() = default;
@@ -334,7 +334,7 @@ private:
 /** simple 1d accumulator: y[:] += x[:] */
 template <impl::data_type_t data_type, cpu_isa_t isa = sve_512>
 struct cpu_accumulator_1d_t {
-    typedef typename prec_traits<data_type>::type data_t;
+    typedef typename prec_traits_t<data_type>::type data_t;
 
     cpu_accumulator_1d_t();
     ~cpu_accumulator_1d_t();

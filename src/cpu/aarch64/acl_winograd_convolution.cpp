@@ -20,7 +20,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace aarch64 {
-using data_t = prec_traits<data_type::f32>::type;
+using data_t = prec_traits_t<data_type::f32>::type;
 
 status_t acl_wino_convolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
