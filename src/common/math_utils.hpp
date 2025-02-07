@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,9 +89,9 @@ inline int ilog2q(size_t v) {
     int p = 0;
 #define CP(pw) \
     do { \
-        if (v >= (1ull << pw)) { \
-            v >>= pw; \
-            p += pw; \
+        if (v >= (1ull << (pw))) { \
+            v >>= (pw); \
+            p += (pw); \
         } \
     } while (0)
     CP(32);
