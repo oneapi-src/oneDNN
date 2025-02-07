@@ -360,7 +360,7 @@ private:
             case DNNL_ARG_SRC: arg_is_set = is_set_src; break;
             case DNNL_ARG_WEIGHTS: arg_is_set = is_set_wei; break;
             case DNNL_ARG_DST: arg_is_set = is_set_dst; break;
-            default: arg_is_set = 0;
+            default: arg_is_set = false;
         }
         return arg_is_set;
     }
