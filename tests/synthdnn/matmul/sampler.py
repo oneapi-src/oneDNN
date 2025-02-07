@@ -18,15 +18,7 @@ import itertools
 import random
 import math
 
-########################
-import sys
-import os
-def DebugPrint(msg=""):
-    fname = sys._getframe().f_code.co_filename
-    head, tail = os.path.split(fname)
-    print(f"Debug: {tail}:{sys._getframe().f_back.f_lineno}: {msg}")
-########################
-
+from utils import *
 from matmul.primitive import *
 
 class Region:
@@ -37,7 +29,7 @@ class Region:
                raise RuntimeError(f"Unable to parse restrictions: {x} in {line}")
             restrictions.append(x[1:-1])
 
-        DebugPrint(f"restrictions = {restrictions}")
+        #DebugPrint(f"restrictions = {restrictions}")
         if len(restrictions) != 3:
                raise RuntimeError(f"Invalid number of restrictions in {line}")
 
@@ -48,9 +40,9 @@ class Region:
         if len(self.min) != len(self.max) or len(self.min) != len(self.alignment):
                raise RuntimeError(f"Inconsistent number of dimensions between restrictions in {line}")
 
-        DebugPrint(f"self.min = {self.min}")
+        #DebugPrint(f"self.min = {self.min}")
         self.ndims = len(self.min)
-        DebugPrint(f"self.ndims = {self.ndims}")
+        #DebugPrint(f"self.ndims = {self.ndims}")
 
     def __str__(self):
         str_min = ",".join([str(x) for x in self.min])
