@@ -172,7 +172,7 @@ struct ref_eltwise_bwd_t : public primitive_t {
     };
 
     ref_eltwise_bwd_t(const pd_t *apd) : primitive_t(apd) {}
-    typedef typename prec_traits_t<data_type>::type data_t;
+    using data_t = typename prec_traits_t<data_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->use_dense_)
