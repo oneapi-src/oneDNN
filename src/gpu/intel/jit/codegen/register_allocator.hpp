@@ -40,11 +40,14 @@ public:
 #endif
         MAYBE_UNUSED(kernel_name_);
     }
-    ~reg_allocator_t() {
+    ~reg_allocator_t()
 #ifdef DNNL_DEV_MODE
+    {
         gpu_assert(!is_speculate) << "Speculative allocation never finished\n";
-#endif
     }
+#else
+            = default;
+#endif
 
     ngen::HW hardware() const { return ra.hardware(); }
 
