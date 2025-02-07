@@ -302,8 +302,8 @@ status_t gpu_supports_binary_format(bool *ok, impl::engine_t *engine) {
     arg_list.set(3, magic3);
     arg_list.set(4, magic4);
     arg_list.set(5, magic5);
-    arg_list.set(6, *magic_buf.get());
-    arg_list.set(7, *result_buf.get());
+    arg_list.set(6, *magic_buf);
+    arg_list.set(7, *result_buf);
 
     compute::range_t gws = {MAGICSIZEX, MAGICSIZEY, MAGICSIZEZ};
     compute::range_t lws = {MAGICSIZEX, MAGICSIZEY, MAGICSIZEZ};
