@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -361,7 +361,7 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
 
     // Note: In case of fused depthwise convolution, the final output data type
     // after fusion may not be same as for dst.
-    typedef typename prec_traits<data_type::s32>::type acc_data_t;
+    typedef typename prec_traits_t<data_type::s32>::type acc_data_t;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,

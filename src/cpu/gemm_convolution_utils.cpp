@@ -57,7 +57,7 @@ template <typename data_type_t>
 void im2col_3d(const conv_gemm_conf_t &jcp, const data_type_t *im,
         data_type_t *col, dim_t od, int spatial_step, int spatial_block) {
     using data_t =
-            typename conditional<data_traits<data_type_t>::data_type == bf16,
+            typename conditional<data_traits_t<data_type_t>::data_type == bf16,
                     uint16_t, data_type_t>::type;
     const data_t *__restrict _im
             = reinterpret_cast<const data_t *__restrict>(im);
@@ -279,11 +279,12 @@ template <typename orig_im_dt, typename orig_col_dt>
 void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict _imtr,
         orig_col_dt *__restrict _col, dim_t od) {
     // For performance reasons, use uint16_t as a proxy for bfloat16_t
-    using im_dt = typename utils::conditional<data_traits<orig_im_dt>::data_type
-                    == bf16,
-            uint16_t, orig_im_dt>::type;
+    using im_dt =
+            typename utils::conditional<data_traits_t<orig_im_dt>::data_type
+                            == bf16,
+                    uint16_t, orig_im_dt>::type;
     using col_dt =
-            typename utils::conditional<data_traits<orig_col_dt>::data_type
+            typename utils::conditional<data_traits_t<orig_col_dt>::data_type
                             == bf16,
                     uint16_t, orig_col_dt>::type;
     const im_dt *__restrict imtr
@@ -416,7 +417,7 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
         data_type_t *__restrict col, dim_t ss, dim_t sb, dim_t cs, dim_t cb) {
 
     using data_t =
-            typename utils::conditional<data_traits<data_type_t>::data_type
+            typename utils::conditional<data_traits_t<data_type_t>::data_type
                             == bf16,
                     uint16_t, data_type_t>::type;
     const data_t *__restrict _im
@@ -577,11 +578,12 @@ void im2col_dt(const conv_gemm_conf_t &jcp, const void *__restrict _im,
         void *__restrict _imtr, orig_col_dt *__restrict _col, dim_t hs,
         dim_t hb, dim_t ws, dim_t wb) {
     // For performance reasons, use uint16_t as a proxy for bfloat16_t
-    using im_dt = typename utils::conditional<data_traits<orig_im_dt>::data_type
-                    == bf16,
-            uint16_t, orig_im_dt>::type;
+    using im_dt =
+            typename utils::conditional<data_traits_t<orig_im_dt>::data_type
+                            == bf16,
+                    uint16_t, orig_im_dt>::type;
     using col_dt =
-            typename utils::conditional<data_traits<orig_col_dt>::data_type
+            typename utils::conditional<data_traits_t<orig_col_dt>::data_type
                             == bf16,
                     uint16_t, orig_col_dt>::type;
     const im_dt *__restrict im = reinterpret_cast<const im_dt *__restrict>(_im);
@@ -720,9 +722,8 @@ template <typename orig_T>
 void col2im_dt(const conv_gemm_conf_t &jcp, const orig_T *__restrict _col,
         orig_T *__restrict _im) {
     // For performance reasons, use uint16_t as a proxy for bfloat16_t
-    using T =
-            typename utils::conditional<data_traits<orig_T>::data_type == bf16,
-                    uint16_t, orig_T>::type;
+    using T = typename utils::conditional<
+            data_traits_t<orig_T>::data_type == bf16, uint16_t, orig_T>::type;
     const T *__restrict col = reinterpret_cast<const T *__restrict>(_col);
     T *__restrict im = reinterpret_cast<T *__restrict>(_im);
 

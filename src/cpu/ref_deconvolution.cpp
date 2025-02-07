@@ -299,7 +299,7 @@ dim_t get_weights_off(const memory_desc_wrapper &wei_d, bool with_groups,
 template <data_type_t wei_type>
 static void compute_src_zp_compensation(const exec_ctx_t &ctx,
         const int32_t *src_zero_point, const bool is_src_zp_common,
-        typename prec_traits<wei_type>::type *wei,
+        typename prec_traits_t<wei_type>::type *wei,
         const cpu_deconvolution_fwd_pd_t *pd) {
     using namespace memory_tracking::names;
 
@@ -346,7 +346,8 @@ template <data_type_t wei_type>
 static std::function<int32_t(
         const dim_t, const dim_t, const dim_t, const dim_t, const dim_t)>
 prepare_zp_pad_comp_ker(const dim_t ndims, const int32_t *src_zero_point,
-        const bool is_src_zp_common, typename prec_traits<wei_type>::type *wei,
+        const bool is_src_zp_common,
+        typename prec_traits_t<wei_type>::type *wei,
         const cpu_deconvolution_fwd_pd_t *deconv_pd) {
 
     const auto KH = deconv_pd->KH();
@@ -422,7 +423,7 @@ prepare_zp_pad_comp_ker(const dim_t ndims, const int32_t *src_zero_point,
 template <data_type_t wei_type>
 static status_t apply_src_zero_point(const exec_ctx_t &ctx,
         const cpu_deconvolution_fwd_pd_t *deconv_pd, float *conv_output) {
-    using wei_data_t = typename prec_traits<wei_type>::type;
+    using wei_data_t = typename prec_traits_t<wei_type>::type;
     using namespace memory_tracking::names;
     using namespace data_type;
 
@@ -599,8 +600,8 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias(
 
 template <data_type_t dbia_type, data_type_t ddst_type>
 void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw(
-        typename prec_traits<dbia_type>::type *diff_bias,
-        const typename prec_traits<ddst_type>::type *diff_dst) const {
+        typename prec_traits_t<dbia_type>::type *diff_bias,
+        const typename prec_traits_t<ddst_type>::type *diff_dst) const {
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
 
     const auto OC = pd()->OC();
@@ -622,8 +623,8 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw(
 
 template <data_type_t dbia_type, data_type_t ddst_type>
 void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ndhwc(
-        typename prec_traits<dbia_type>::type *diff_bias,
-        const typename prec_traits<ddst_type>::type *diff_dst) const {
+        typename prec_traits_t<dbia_type>::type *diff_bias,
+        const typename prec_traits_t<ddst_type>::type *diff_dst) const {
     const auto MB = pd()->MB();
     const auto SP = pd()->OW() * pd()->OH() * pd()->OD();
     const auto OC = pd()->OC();
@@ -637,14 +638,15 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ndhwc(
                 db += diff_dst[offset];
             }
         }
-        diff_bias[oc] = static_cast<typename prec_traits<dbia_type>::type>(db);
+        diff_bias[oc]
+                = static_cast<typename prec_traits_t<dbia_type>::type>(db);
     });
 }
 
 template <data_type_t dbia_type, data_type_t ddst_type, dim_t blksize>
 void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc(
-        typename prec_traits<dbia_type>::type *diff_bias,
-        const typename prec_traits<ddst_type>::type *diff_dst) const {
+        typename prec_traits_t<dbia_type>::type *diff_bias,
+        const typename prec_traits_t<ddst_type>::type *diff_dst) const {
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
 
     const auto OC = pd()->OC();
@@ -677,8 +679,8 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc(
 template <data_type_t dbia_type, data_type_t ddst_type>
 void ref_deconvolution_bwd_weights_t::compute_bias(
         const exec_ctx_t &ctx) const {
-    using dbia_data_t = typename prec_traits<dbia_type>::type;
-    using ddst_data_t = typename prec_traits<ddst_type>::type;
+    using dbia_data_t = typename prec_traits_t<dbia_type>::type;
+    using ddst_data_t = typename prec_traits_t<ddst_type>::type;
 
     auto diff_bias = CTX_OUT_MEM(dbia_data_t *, DNNL_ARG_DIFF_BIAS);
     auto diff_dst = CTX_IN_MEM(const ddst_data_t *, DNNL_ARG_DIFF_DST);

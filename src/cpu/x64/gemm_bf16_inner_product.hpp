@@ -108,10 +108,10 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
 
     gemm_bf16_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits<dst_data_type>::type dst_data_t;
-    typedef typename prec_traits<data_type::f32>::type acc_data_t;
-    typedef typename prec_traits<data_type::bf16>::type src_data_t;
-    typedef typename prec_traits<data_type::bf16>::type wei_data_t;
+    typedef typename prec_traits_t<dst_data_type>::type dst_data_t;
+    typedef typename prec_traits_t<data_type::f32>::type acc_data_t;
+    typedef typename prec_traits_t<data_type::bf16>::type src_data_t;
+    typedef typename prec_traits_t<data_type::bf16>::type wei_data_t;
 
     status_t init(engine_t *engine) override {
         const bool has_bias = pd()->with_bias();
@@ -204,10 +204,10 @@ struct gemm_bf16_inner_product_bwd_data_t : public primitive_t {
 
     gemm_bf16_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
-    typedef typename prec_traits<data_type::f32>::type acc_data_t;
-    typedef typename prec_traits<diff_src_data_type>::type diff_src_data_t;
-    typedef typename prec_traits<data_type::bf16>::type wei_data_t;
+    typedef typename prec_traits_t<data_type::bf16>::type diff_dst_data_t;
+    typedef typename prec_traits_t<data_type::f32>::type acc_data_t;
+    typedef typename prec_traits_t<diff_src_data_type>::type diff_src_data_t;
+    typedef typename prec_traits_t<data_type::bf16>::type wei_data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -316,10 +316,10 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
         return status::success;
     }
 
-    typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
-    typedef typename prec_traits<data_type::f32>::type acc_data_t;
-    typedef typename prec_traits<data_type::bf16>::type src_data_t;
-    typedef typename prec_traits<diff_wei_data_type>::type diff_wei_data_t;
+    typedef typename prec_traits_t<data_type::bf16>::type diff_dst_data_t;
+    typedef typename prec_traits_t<data_type::f32>::type acc_data_t;
+    typedef typename prec_traits_t<data_type::bf16>::type src_data_t;
+    typedef typename prec_traits_t<diff_wei_data_type>::type diff_wei_data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);

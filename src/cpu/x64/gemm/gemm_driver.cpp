@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -115,7 +115,7 @@ static inline void add_results(const dim_t m, const dim_t n, const float alpha,
         c_type *c_data, const dim_t ldc, const c_type *co,
         offset_type offsetc) {
 
-    constexpr bool is_int8 = data_traits<c_type>::data_type == data_type::s32;
+    constexpr bool is_int8 = data_traits_t<c_type>::data_type == data_type::s32;
 
     for (dim_t j = 0; j < n; ++j) {
         for (dim_t i = 0; i < m; ++i) {
@@ -254,7 +254,7 @@ static inline void *align(void *ptr, size_t alignment) {
 template <typename scale_t, typename mat_t>
 void scale_matrix(
         dim_t m, dim_t n, scale_t alpha, mat_t *__restrict p_mat, dim_t ld) {
-    if (data_traits<mat_t>::data_type == data_type::f32) {
+    if (data_traits_t<mat_t>::data_type == data_type::f32) {
         for (dim_t j = 0; j < n; j++) {
             for (dim_t i = 0; i < m; i++) {
                 p_mat[i + j * ld] = (mat_t)((scale_t)p_mat[i + j * ld] * alpha);
@@ -400,8 +400,8 @@ void gemm_kernel(dim_t m, dim_t n, const dim_t k, const float alpha,
     bool row_req = false;
 
     constexpr bool is_int8 = utils::one_of(
-            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
-    constexpr bool is_f32 = data_traits<a_type>::data_type == data_type::f32;
+            data_traits_t<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_f32 = data_traits_t<a_type>::data_type == data_type::f32;
     bool is_int8_amx = is_int8 && mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX;
 
     dim_t m_stk = col_offset_ws ? 1 : m;
@@ -547,8 +547,9 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
     float alpha = arg->alpha;
 
     constexpr bool is_int8 = utils::one_of(
-            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
-    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
+            data_traits_t<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16
+            = data_traits_t<a_type>::data_type == data_type::bf16;
 
     bool is_int8_amx = is_int8 && mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX;
     bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX;
@@ -826,8 +827,9 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
     size_t b_buf_nelems = k * n_padd;
     size_t b_col_sum_nelems = n_padd;
     constexpr bool is_int8 = utils::one_of(
-            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
-    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
+            data_traits_t<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16
+            = data_traits_t<a_type>::data_type == data_type::bf16;
 
     bool is_int8_amx = is_int8 && mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX;
     bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX;
@@ -1050,7 +1052,7 @@ template <typename a_type, typename b_type, typename c_type>
 static inline bool nocopy_checker(
         int nthr, const gemm_info_t<a_type, b_type, c_type> *arg) {
 
-    if (data_traits<a_type>::data_type != data_type::f32) return false;
+    if (data_traits_t<a_type>::data_type != data_type::f32) return false;
 
     if (!(mayiuse(avx) && __BUILD_GEMM_AVX2)) return false;
 
@@ -1089,8 +1091,8 @@ static inline void set_thread_opts_nopack(int nthrs, int nthrs_spawn,
     static constexpr dim_t M2D_MIN = 384;
 
     constexpr bool is_int8 = utils::one_of(
-            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
-    bool isSgemm = data_traits<a_type>::data_type == data_type::f32;
+            data_traits_t<a_type>::data_type, data_type::s8, data_type::u8);
+    bool isSgemm = data_traits_t<a_type>::data_type == data_type::f32;
 
     dim_t m = arg->m;
     dim_t n = arg->n;
@@ -1247,8 +1249,9 @@ static inline void set_thread_opts_pack(int nthrs,
         bool do_n_blocking = true) {
 
     constexpr bool is_int8 = utils::one_of(
-            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
-    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
+            data_traits_t<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16
+            = data_traits_t<a_type>::data_type == data_type::bf16;
 
     bool do_m_blocking_only = do_m_blocking && !do_n_blocking;
 
@@ -1362,8 +1365,9 @@ static inline int set_thread_opts(int nthrs, int nthrs_spawn,
     thread_info.thread_m = thread_info.thread_n = thread_info.thread_k = -1;
 
     constexpr bool is_int8 = utils::one_of(
-            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
-    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
+            data_traits_t<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16
+            = data_traits_t<a_type>::data_type == data_type::bf16;
 
     if (nocopy_checker(nthrs, arg)) {
         thread_info.copy = copy_type::no_copy;
@@ -1452,8 +1456,9 @@ static dnnl_status_t parallel_a_copy(const int ithr, const int nthrs,
     float alpha = arg->alpha;
 
     constexpr bool is_int8 = utils::one_of(
-            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
-    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
+            data_traits_t<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16
+            = data_traits_t<a_type>::data_type == data_type::bf16;
     bool is_int8_amx = is_int8 && mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX;
     bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_amx) && __BUILD_GEMM_AMX;
     bool is_amx = is_int8_amx || is_bf16_amx;
@@ -1608,7 +1613,7 @@ static inline void adjust_thread_count(dim_t m, dim_t n, dim_t k, int *nthrs) {
     auto veclen = get_vector_length<T>();
     const double fp_per_cycle = 2.0 * 2.0 * veclen;
 
-    const bool is_f32 = data_traits<T>::data_type == data_type::f32;
+    const bool is_f32 = data_traits_t<T>::data_type == data_type::f32;
 
     const bool is_avx512 = mayiuse(avx512_core) && __BUILD_GEMM_AVX512;
     const bool is_avx = mayiuse(avx) && __BUILD_GEMM_AVX2;
@@ -1729,8 +1734,9 @@ static dnnl_status_t gemm_threading_driver(
     auto is_a_packed = (arg->transa == packed);
     auto is_b_packed = (arg->transb == packed);
     constexpr bool is_int8 = utils::one_of(
-            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
-    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
+            data_traits_t<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16
+            = data_traits_t<a_type>::data_type == data_type::bf16;
 
     if ((arg->m <= 0) || (arg->n <= 0)) return dnnl_success;
 
@@ -1971,7 +1977,7 @@ static dnnl_status_t gemm_threading_driver(
                         // This route is taken only if we realize we need no-copy
                         //  after launching the parallel section, due to less
                         //  threads being spawned than expected.
-                        assert(data_traits<a_type>::data_type
+                        assert(data_traits_t<a_type>::data_type
                                 == data_type::f32);
                         assert(arg->packing == pack_type::none);
 
@@ -2048,13 +2054,13 @@ dnnl_status_t gemm_driver(const char *transA, const char *transB,
         pack_type packing, gemm_pack_storage_t *pack_dst, bool measure_only) {
 
     constexpr bool is_int8 = utils::one_of(
-            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
+            data_traits_t<a_type>::data_type, data_type::s8, data_type::u8);
     MAYBE_UNUSED(is_int8);
 
 #if __BUILD_GEMM_AVX512
     // gemm_driver supports bfloat16 gemm for Intel AVX512 and
     // Intel AVX512 BF16.
-    assert(IMPLICATION(data_traits<a_type>::data_type == data_type::bf16,
+    assert(IMPLICATION(data_traits_t<a_type>::data_type == data_type::bf16,
             mayiuse(avx512_core) && !force_nocopy));
 #endif
 
@@ -2067,8 +2073,8 @@ dnnl_status_t gemm_driver(const char *transA, const char *transB,
 #if __BUILD_GEMM_SSE41
     // gemm_driver supports sgemm for Intel AVX512, Intel AVX2, Intel AVX,
     // and Intel SSE4.1
-    assert(IMPLICATION(
-            data_traits<a_type>::data_type == data_type::f32, mayiuse(sse41)));
+    assert(IMPLICATION(data_traits_t<a_type>::data_type == data_type::f32,
+            mayiuse(sse41)));
 #endif
 
     // 8-bit integer gemm doesn't support nocopy kernels.

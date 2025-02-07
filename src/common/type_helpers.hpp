@@ -93,22 +93,22 @@ namespace types {
 inline size_t data_type_size(data_type_t data_type) {
     using namespace data_type;
     switch ((int)data_type) {
-        case f4_e3m0: return sizeof(prec_traits<f4_e3m0>::type);
-        case f4_e2m1: return sizeof(prec_traits<f4_e2m1>::type);
-        case e8m0: return sizeof(prec_traits<e8m0>::type);
-        case f8_e5m2: return sizeof(prec_traits<f8_e5m2>::type);
-        case f8_e4m3: return sizeof(prec_traits<f8_e4m3>::type);
-        case f16: return sizeof(prec_traits<f16>::type);
-        case bf16: return sizeof(prec_traits<bf16>::type);
+        case f4_e3m0: return sizeof(prec_traits_t<f4_e3m0>::type);
+        case f4_e2m1: return sizeof(prec_traits_t<f4_e2m1>::type);
+        case e8m0: return sizeof(prec_traits_t<e8m0>::type);
+        case f8_e5m2: return sizeof(prec_traits_t<f8_e5m2>::type);
+        case f8_e4m3: return sizeof(prec_traits_t<f8_e4m3>::type);
+        case f16: return sizeof(prec_traits_t<f16>::type);
+        case bf16: return sizeof(prec_traits_t<bf16>::type);
         case tf32: // the tf32 type is an f32
-        case f32: return sizeof(prec_traits<f32>::type);
-        case f64: return sizeof(prec_traits<f64>::type);
-        case s32: return sizeof(prec_traits<s32>::type);
-        case s8: return sizeof(prec_traits<s8>::type);
-        case u8: return sizeof(prec_traits<u8>::type);
-        case s4: return sizeof(prec_traits<s4>::type);
-        case u4: return sizeof(prec_traits<u4>::type);
-        case boolean: return sizeof(prec_traits<boolean>::type);
+        case f32: return sizeof(prec_traits_t<f32>::type);
+        case f64: return sizeof(prec_traits_t<f64>::type);
+        case s32: return sizeof(prec_traits_t<s32>::type);
+        case s8: return sizeof(prec_traits_t<s8>::type);
+        case u8: return sizeof(prec_traits_t<u8>::type);
+        case s4: return sizeof(prec_traits_t<s4>::type);
+        case u4: return sizeof(prec_traits_t<u4>::type);
+        case boolean: return sizeof(prec_traits_t<boolean>::type);
         case data_type::undef:
         default: assert(!"unknown data_type");
     }
@@ -140,7 +140,8 @@ inline T min_value(data_type_t data_type) {
     using namespace data_type;
 #define CASE(x) \
     case x: \
-        return static_cast<T>(nstl::numeric_limits<prec_traits<x>::type>::min())
+        return static_cast<T>( \
+                nstl::numeric_limits<prec_traits_t<x>::type>::min())
     switch (data_type) {
         CASE(f4_e3m0);
         CASE(f4_e2m1);
@@ -168,7 +169,8 @@ inline T max_value(data_type_t data_type) {
     using namespace data_type;
 #define CASE(x) \
     case x: \
-        return static_cast<T>(nstl::numeric_limits<prec_traits<x>::type>::max())
+        return static_cast<T>( \
+                nstl::numeric_limits<prec_traits_t<x>::type>::max())
     switch (data_type) {
         CASE(f4_e3m0);
         CASE(f4_e2m1);
@@ -198,7 +200,7 @@ inline float max_value(data_type_t data_type) {
 #define CASE(x) \
     case x: \
         return static_cast<float>( \
-                nstl::numeric_limits<prec_traits<x>::type>::max())
+                nstl::numeric_limits<prec_traits_t<x>::type>::max())
     switch (data_type) {
         CASE(f4_e3m0);
         CASE(f4_e2m1);
@@ -237,7 +239,7 @@ inline T lowest_value(data_type_t data_type) {
 #define CASE(x) \
     case x: \
         return static_cast<T>( \
-                nstl::numeric_limits<prec_traits<x>::type>::lowest())
+                nstl::numeric_limits<prec_traits_t<x>::type>::lowest())
     switch (data_type) {
         CASE(f4_e3m0);
         CASE(f4_e2m1);
@@ -266,7 +268,7 @@ inline T digits(data_type_t data_type) {
 #define CASE(x) \
     case x: \
         return static_cast<T>( \
-                nstl::numeric_limits<prec_traits<x>::type>::digits)
+                nstl::numeric_limits<prec_traits_t<x>::type>::digits)
     switch (data_type) {
         CASE(f4_e3m0);
         CASE(f4_e2m1);

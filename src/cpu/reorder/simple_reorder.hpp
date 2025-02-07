@@ -43,7 +43,7 @@ using bd = block_dim_t;
 using ib = inner_blk_t;
 
 template <impl::data_type_t type>
-using data_t = typename prec_traits<type>::type;
+using data_t = typename prec_traits_t<type>::type;
 
 template <impl::data_type_t type_i, impl::data_type_t type_o>
 using _qz_a1b0 = q10n::qz_a1b0<data_t<type_i>, data_t<type_o>>;
@@ -472,17 +472,18 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int is_3d = utils::one_of(tag_o, gOIdhw4i16o4i, OIdhw4i16o4i,
                 gOIdhw2i8o4i, OIdhw2i8o4i, gOIdhw4o4i, OIdhw4o4i, OIdhw4i32o4i,
                 OIdhw4i64o4i);
-        constexpr dim_t icblksize = utils::one_of(tag_traits<tag_o>::inner_blks,
-                                            ib::_4a4b, ib::_4b4c)
+        constexpr dim_t icblksize
+                = utils::one_of(
+                          tag_traits_t<tag_o>::inner_blks, ib::_4a4b, ib::_4b4c)
                 ? 4
-                : utils::one_of(tag_traits<tag_o>::inner_blks, ib::_2c8b4c,
+                : utils::one_of(tag_traits_t<tag_o>::inner_blks, ib::_2c8b4c,
                           ib::_2b8a4b)
                 ? 8
                 : 16;
         constexpr dim_t ocblksize
-                = tag_traits<tag_o>::inner_blks == ib::_4b32a4b ? 32
-                : tag_traits<tag_o>::inner_blks == ib::_4b64a4b ? 64
-                                                                : icblksize;
+                = tag_traits_t<tag_o>::inner_blks == ib::_4b32a4b ? 32
+                : tag_traits_t<tag_o>::inner_blks == ib::_4b64a4b ? 64
+                                                                  : icblksize;
 
         const auto &plain_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
@@ -536,7 +537,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                            int32_t *c, int32_t *zp, const float *s,
                            const float *d, const dim_t oc_block,
                            const dim_t ic_block) {
-#define index AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>
+#define index AB_or_BC_blk_off<tag_traits_t<tag_o>::inner_blks>
             for_(dim_t ic = 0; ic < ic_block; ++ic)
             for (dim_t oc = 0; oc < oc_block; ++oc) {
                 const auto plain_off
@@ -856,11 +857,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         constexpr dim_t oc_blksize = 16;
         constexpr dim_t ic_blksize
-                = utils::one_of(tag_traits<tag_o>::inner_blks, ib::_16b16a4b,
+                = utils::one_of(tag_traits_t<tag_o>::inner_blks, ib::_16b16a4b,
                           ib::_16c16b4c)
                 ? 64
-                : utils::one_of(
-                          tag_traits<tag_o>::inner_blks, ib::_16a4b, ib::_16b4c)
+                : utils::one_of(tag_traits_t<tag_o>::inner_blks, ib::_16a4b,
+                          ib::_16b4c)
                 ? 4
                 : 1;
         assert(ic_blksize != 1);
@@ -901,7 +902,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 const auto plain_off
                         = oc * plain_d.blocking_desc().strides[w_groups + 0]
                         + ic * plain_d.blocking_desc().strides[w_groups + 1];
-                auto index = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
+                auto index = AB_or_BC_blk_off<tag_traits_t<tag_o>::inner_blks>(
                         oc, ic);
                 out[index] = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                         inp[plain_off], s[oc] * adj_scale * d[oc]);
@@ -1026,16 +1027,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         // 3D: batch_dim <-> a, d0 <-> b, d1 <-> c
         constexpr dim_t D0_blksize = 64;
         constexpr dim_t D1_blksize
-                = (utils::one_of(tag_traits<tag_o>::inner_blks, ib::_16a64b4a,
+                = (utils::one_of(tag_traits_t<tag_o>::inner_blks, ib::_16a64b4a,
                           ib::_16b64c4b))
                 ? 64
-                : (utils::one_of(tag_traits<tag_o>::inner_blks, ib::_16a48b4a,
+                : (utils::one_of(tag_traits_t<tag_o>::inner_blks, ib::_16a48b4a,
                           ib::_16b48c4b))
                 ? 48
-                : (utils::one_of(tag_traits<tag_o>::inner_blks, ib::_16a32b4a,
+                : (utils::one_of(tag_traits_t<tag_o>::inner_blks, ib::_16a32b4a,
                           ib::_16b32c4b))
                 ? 32
-                : (utils::one_of(tag_traits<tag_o>::inner_blks, ib::_16a16b4a,
+                : (utils::one_of(tag_traits_t<tag_o>::inner_blks, ib::_16a16b4a,
                           ib::_16b16c4b))
                 ? 16
                 : 1;
@@ -1074,7 +1075,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             = d0 * plain_d.blocking_desc().strides[ndims - 2]
                             + d1 * plain_d.blocking_desc().strides[ndims - 1];
                     auto index
-                            = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
+                            = AB_or_BC_blk_off<tag_traits_t<tag_o>::inner_blks>(
                                     d0, d1);
                     out[index] = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                             inp[plain_off], s[0] * adj_scale * d[0]);
@@ -1085,7 +1086,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 }
                 for (int d1 = d1_block; d1 < D1_blksize; ++d1) {
                     auto index
-                            = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
+                            = AB_or_BC_blk_off<tag_traits_t<tag_o>::inner_blks>(
                                     d0, d1);
                     out[index] = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                             0, s[0] * adj_scale * d[0]);
@@ -1094,7 +1095,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
             for_(int d0 = d0_block; d0 < D0_blksize; ++d0)
             for (int d1 = 0; d1 < D1_blksize; ++d1) {
-                auto index = AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>(
+                auto index = AB_or_BC_blk_off<tag_traits_t<tag_o>::inner_blks>(
                         d0, d1);
                 out[index] = q10n::qz_b0<data_t<type_i>, data_t<type_o>>()(
                         0, s[0] * adj_scale * d[0]);
@@ -1591,7 +1592,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int is_3d = utils::one_of(tag_i, nCdhw4c, nCdhw8c);
 
         constexpr dim_t blksize_i
-                = tag_traits<tag_i>::inner_blks == ib::_4b ? 4 : 8;
+                = tag_traits_t<tag_i>::inner_blks == ib::_4b ? 4 : 8;
         constexpr dim_t blksize_16 = 16;
 
         constexpr dim_t ic_mult = order_keep ? blksize_16 / blksize_i : 1;
@@ -1705,10 +1706,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<tag_i == format_tag::any
-                && (tag_traits<tag_o>::block_dims == bd::_A
-                        || tag_traits<tag_o>::block_dims == bd::_B)
-                && tag_traits<tag_o>::ndims >= 3
-                && tag_traits<tag_o>::ndims <= 6>::type> {
+                && (tag_traits_t<tag_o>::block_dims == bd::_A
+                        || tag_traits_t<tag_o>::block_dims == bd::_B)
+                && tag_traits_t<tag_o>::ndims >= 3
+                && tag_traits_t<tag_o>::ndims <= 6>::type> {
     PLAIN_TO_BLOCKED_IS_APPLICABLE();
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -1721,8 +1722,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const dims_t &dims = input_d.dims();
         const dims_t &pdims = block_d.padded_dims();
 
-        const int ndims = tag_traits<tag_o>::ndims;
-        const int blk_idx = tag_traits<tag_o>::block_dims == bd::_A ? 0 : 1;
+        const int ndims = tag_traits_t<tag_o>::ndims;
+        const int blk_idx = tag_traits_t<tag_o>::block_dims == bd::_A ? 0 : 1;
 
         const dim_t H0 = dims[0];
         const dim_t H1 = dims[1];
@@ -1737,7 +1738,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         using namespace utils;
 
         dim_t blksize = -1;
-        switch (tag_traits<tag_o>::inner_blks) {
+        switch (tag_traits_t<tag_o>::inner_blks) {
             case ib::_4a:
             case ib::_4b: blksize = 4; break;
             case ib::_8a:
@@ -1856,14 +1857,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<tag_i == format_tag::any
-                && (tag_traits<tag_o>::block_dims == bd::_AB
-                        || tag_traits<tag_o>::block_dims == bd::_BC)
-                && IMPLICATION(tag_traits<tag_o>::block_dims == bd::_AB,
-                        tag_traits<tag_o>::ndims >= 3
-                                && tag_traits<tag_o>::ndims <= 5)
-                && IMPLICATION(tag_traits<tag_o>::block_dims == bd::_BC,
-                        tag_traits<tag_o>::ndims >= 4
-                                && tag_traits<tag_o>::ndims <= 6)>::type> {
+                && (tag_traits_t<tag_o>::block_dims == bd::_AB
+                        || tag_traits_t<tag_o>::block_dims == bd::_BC)
+                && IMPLICATION(tag_traits_t<tag_o>::block_dims == bd::_AB,
+                        tag_traits_t<tag_o>::ndims >= 3
+                                && tag_traits_t<tag_o>::ndims <= 5)
+                && IMPLICATION(tag_traits_t<tag_o>::block_dims == bd::_BC,
+                        tag_traits_t<tag_o>::ndims >= 4
+                                && tag_traits_t<tag_o>::ndims <= 6)>::type> {
     PLAIN_TO_BLOCKED_IS_APPLICABLE();
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -1876,9 +1877,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const auto &pdims
                 = order_keep ? output_d.padded_dims() : input_d.padded_dims();
 
-        constexpr int ndims = tag_traits<tag_o>::ndims;
+        constexpr int ndims = tag_traits_t<tag_o>::ndims;
 
-        static constexpr bool with_g = tag_traits<tag_o>::block_dims == bd::_BC;
+        static constexpr bool with_g
+                = tag_traits_t<tag_o>::block_dims == bd::_BC;
         const dim_t G = with_g ? dims[0] : 1;
 
         const dim_t H0 = dims[0 + with_g];
@@ -1895,7 +1897,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         dim_t blksize_0 = -1;
         dim_t blksize_1 = -1;
-        switch (tag_traits<tag_o>::inner_blks) {
+        switch (tag_traits_t<tag_o>::inner_blks) {
             case ib::_4b4a:
             case ib::_4b4c:
             case ib::_4c4b:
@@ -1949,7 +1951,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o,
                            const int block_h0, const int block_h1) {
-#define blk_off AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>
+#define blk_off AB_or_BC_blk_off<tag_traits_t<tag_o>::inner_blks>
             if (alpha == 1.0 && beta == 0.0) {
                 for (int h0 = 0; h0 < block_h0; ++h0) {
                     for (int h1 = 0; h1 < block_h1; ++h1) {

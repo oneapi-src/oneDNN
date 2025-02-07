@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
                     + (size_t)OW * oh + (size_t)ow;
             if (ws_dt == data_type::u8) {
                 assert(0 <= value
-                        && value <= numeric_limits<typename prec_traits<
+                        && value <= numeric_limits<typename prec_traits_t<
                                         data_type::u8>::type>::max());
                 ws[ws_offset] = value;
             } else
@@ -272,7 +272,7 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
                     + (size_t)OW * oh + (size_t)ow;
             if (ws_dt == data_type::u8) {
                 assert(0 <= value
-                        && value <= numeric_limits<typename prec_traits<
+                        && value <= numeric_limits<typename prec_traits_t<
                                         data_type::u8>::type>::max());
                 ws[ws_offset] = value;
             } else
