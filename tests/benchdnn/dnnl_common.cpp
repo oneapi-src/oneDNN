@@ -1166,13 +1166,16 @@ int check_total_size(res_t *res) {
                 smart_bytes(gpu_max_alloc_capacity).c_str());
     }
 
+    size_t total_size_cpu = check_mem_size_args.total_size_ref
+            + check_mem_size_args.total_size_compare
+            + check_mem_size_args.total_size_mapped;
     // If the problem runs on CPU, the combined memory represents requirements
     // for the library and for the reference paths.
     // If the problem runs on a device, the combined memory represents potential
     // requirement for integrated devices that use CPU pool for both memories.
     // The second case has higher limit because TODO:<the_reason>.
-    size_t cpu_and_device_size = check_mem_size_args.total_size_cpu
-            + check_mem_size_args.total_size_device;
+    size_t cpu_and_device_size
+            = total_size_cpu + check_mem_size_args.total_size_device;
     bool fits_cpu_ram = cpu_and_device_size
             <= (is_cpu() ? benchdnn_cpu_limit : cpu_device_capacity);
 
@@ -1227,7 +1230,7 @@ int check_total_size(res_t *res) {
     BENCHDNN_PRINT((!fits_cpu_ram ? 1 : 6),
             "[CHECK_MEM][%s]: Requested: %s%s (Service), %s (combined);\n",
             dir_c_str(), total_size_device_str.c_str(),
-            smart_bytes(check_mem_size_args.total_size_cpu).c_str(),
+            smart_bytes(total_size_cpu).c_str(),
             smart_bytes(cpu_and_device_size).c_str());
 
     return res->state == FAILED ? FAIL : OK;
@@ -1256,7 +1259,7 @@ void add_md_size(const_dnnl_memory_desc_t md,
             && !has_bench_mode_modifier(mode_modifier_t::no_ref_memory);
 
     // Mapped memory for GPU backend on CPU.
-    check_mem_size_args.total_size_cpu += mapped_mem_factor * mem_size;
+    check_mem_size_args.total_size_mapped += mapped_mem_factor * mem_size;
 
     const bool is_corr = has_bench_mode_bit(mode_bit_t::corr);
     const bool is_bitwise = has_bench_mode_bit(mode_bit_t::bitwise);
@@ -1270,19 +1273,19 @@ void add_md_size(const_dnnl_memory_desc_t md,
     check_mem_size_args.total_ref_md_size[ref_mem_idx] = ref_md_size;
 
     // A memory copy for ref_compute, happens only in correctness.
-    check_mem_size_args.total_size_cpu += is_corr * ref_md_size;
+    check_mem_size_args.total_size_ref += is_corr * ref_md_size;
 
     // Comparison function allocates an additional tag::abx f32 memory.
     // This allocation holds for correctness and bitwise modes.
     const bool compare_mem_factor
             = !check_mem_size_args.want_input && (is_corr || is_bitwise);
-    check_mem_size_args.total_size_cpu += compare_mem_factor * ref_md_size;
+    check_mem_size_args.total_size_compare += compare_mem_factor * ref_md_size;
 
     // Bitwise comparison allocates an additional tag::abx f32 memory from
     // the first run to compare results against it.
     const bool bitwise_compare_mem_factor
             = !check_mem_size_args.want_input && is_bitwise;
-    check_mem_size_args.total_size_cpu
+    check_mem_size_args.total_size_compare
             += bitwise_compare_mem_factor * ref_md_size;
 }
 

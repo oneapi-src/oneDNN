@@ -70,13 +70,20 @@ struct check_mem_size_args_t {
     // `sizes` used to validate OpenCL memory requirements.
     std::vector<size_t> sizes;
     // `total_size_device` specifies memory allocated on device for a test obj.
+    // It's an accumulated result of `sizes` values.
     size_t total_size_device = 0;
-    // `total_size_cpu` specifies:
-    // * Memory allocated for reference ocmputations (`C` mode only).
-    // * Memory allocated for comparison results (`C` mode only).
-    // * Memory allocated for mapping device memory (GPU backend only).
-    // * Memory allocated on CPU for a test obj (CPU backend only).
-    size_t total_size_cpu = 0;
+    // `total_size_ref` specifies Memory allocated for reference computations
+    // (`C` mode only). This value can represent either memory sizes needed for
+    // a naive reference implementation on plain formats, or memory sizes needed
+    // for a prim_ref (--fast-ref) test object which can utilize blocked
+    // formats.
+    size_t total_size_ref = 0;
+    // `total_size_compare` specifies memory allocated for comparison results
+    // tensor (`C` mode only).
+    size_t total_size_compare = 0;
+    // `total_size_mapped` specifies memory allocated for mapped buffers on the
+    // host (GPU backend only).
+    size_t total_size_mapped = 0;
     // `total_ref_md_size` specifies the additional tag::abx f32 memory
     // required for correctness check.
     // * The first element refers to the total memory for input reference
