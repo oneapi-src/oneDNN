@@ -191,7 +191,7 @@ protected:
     bool set_default_formats_common_template(memory_desc_t &src_md,
             format_tag_t src_tag, memory_desc_t &wei_md, format_tag_t wei_tag,
             memory_desc_t &dst_md, format_tag_t dst_tag,
-            memory_desc_t &bia_md) {
+            memory_desc_t &bia_md) const {
         using namespace format_tag;
 
 #define IS_OK(f) \

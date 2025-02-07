@@ -80,7 +80,7 @@ struct primitive_desc_t : public c_compatible {
     //     doesn't require any special handling since `get_verbose` is `false`.
     std::string info_with_runtime_dims(engine_t *engine,
             const memory_desc_t *src_md, const memory_desc_t *wei_md,
-            const memory_desc_t *bia_md, const memory_desc_t *dst_md) {
+            const memory_desc_t *bia_md, const memory_desc_t *dst_md) const {
         std::string info_str = info(engine);
 
         // Matmul and reorder are the only primitives supporting runtime dims.
