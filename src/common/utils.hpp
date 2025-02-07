@@ -52,17 +52,17 @@ namespace impl {
 
 #define DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other) \
     do { \
-        if (this == &other) return *this; \
+        if (this == &(other)) return *this; \
     } while (0)
 
 #define DNNL_SHORT_CIRCUIT_SELF_COMPARISON(other) \
     do { \
-        if (this == &other) return true; \
+        if (this == &(other)) return true; \
     } while (0)
 
 #define DNNL_DISALLOW_COPY_AND_ASSIGN(T) \
     T(const T &) = delete; \
-    T &operator=(const T &) = delete;
+    void operator=(const T &) = delete;
 
 // Sanity check for 64 bits
 static_assert(sizeof(void *) == 8, "oneDNN supports 64-bit architectures only");
