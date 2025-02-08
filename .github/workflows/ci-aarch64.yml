@@ -23,7 +23,10 @@ on:
   push:
     branches: [main, "rls-*"]
     paths:
-      - ".github/**"
+      - ".github/automation/*"
+      - ".github/automation/aarch64"
+      - ".github/workflows/aarch64-acl.yml"
+      - ".github/workflows/ci-aarch64.yml"
       - "cmake/**"
       - "examples/**"
       - "include/**"
@@ -35,7 +38,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - ".github/**"
+      - ".github/automation/*"
+      - ".github/automation/aarch64"
+      - ".github/workflows/aarch64-acl.yml"
+      - ".github/workflows/ci-aarch64.yml"
       - "cmake/**"
       - "examples/**"
       - "include/**"
