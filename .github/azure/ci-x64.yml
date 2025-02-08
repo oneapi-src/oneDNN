@@ -75,14 +75,14 @@ jobs:
     steps:
       - script: |
           if [ "$(CC)" == "clang" ]; then
-            .github/automation/env/clang.sh 9
+            .github/azure/env/clang.sh 9
           fi
         displayName: "Init_Env"
       - script: |
-          .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
+          .github/azure/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
         displayName: 'build'
       - script: |
-          .github/automation/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
+          .github/azure/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
         failOnStderr: true
   - job: 'Ubuntu22'
@@ -100,14 +100,14 @@ jobs:
     steps:
       - script: |
           if [ "$(CC)" == "clang" ]; then
-            .github/automation/env/clang.sh 15
+            .github/azure/env/clang.sh 15
           fi
         displayName: "Init_Env"
       - script: |
-          .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
+          .github/azure/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
         displayName: 'build'
       - script: |
-          .github/automation/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
+          .github/azure/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
         failOnStderr: true
   - job: 'macOS13'
@@ -116,10 +116,10 @@ jobs:
       vmImage: 'macOS-13'
     steps:
       - script: |
-          .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
+          .github/azure/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
         displayName: 'build'
       - script: |
-          .github/automation/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
+          .github/azure/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
         failOnStderr: true
   - job: 'macOS14'
@@ -128,10 +128,10 @@ jobs:
       vmImage: 'macOS-14'
     steps:
       - script: |
-          .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
+          .github/azure/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
         displayName: 'build'
       - script: |
-          .github/automation/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
+          .github/azure/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
         displayName: 'test'
         failOnStderr: true
   - job: 'Windows_Server_2022'
@@ -140,10 +140,10 @@ jobs:
       vmImage: 'windows-2022'
     steps:
       - script: |
-          .github\automation\build.bat /THREADING omp /MODE Release /VSVERSION vs2022 /SOURCEDIR %CD% /BUILDDIR %CD%\build
+          .github\azure\build.bat /THREADING omp /MODE Release /VSVERSION vs2022 /SOURCEDIR %CD% /BUILDDIR %CD%\build
         displayName: 'build'
       - script: |
-          .github\automation\test.bat /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
+          .github\azure\test.bat /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
         displayName: 'test'
         failOnStderr: true
   - job: 'Windows_Server_2019'
@@ -152,9 +152,9 @@ jobs:
       vmImage: 'windows-2019'
     steps:
       - script: |
-          .github\automation\build.bat /THREADING omp /MODE Release /VSVERSION vs2019 /SOURCEDIR %CD% /BUILDDIR %CD%\build
+          .github\azure\build.bat /THREADING omp /MODE Release /VSVERSION vs2019 /SOURCEDIR %CD% /BUILDDIR %CD%\build
         displayName: 'build'
       - script: |
-         .github\automation\test.bat /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
+         .github\azure\test.bat /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
         displayName: 'test'
         failOnStderr: true
