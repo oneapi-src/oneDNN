@@ -103,9 +103,9 @@ void create_gpt_sdp(
 
 graph::utils::pm::repetition_t *optional_scale_and_masks(
         const std::shared_ptr<pb_graph_t> &pgraph, pm::pb_op_t *matmul_qk,
-        bool check_f16 = false) {
+        bool check_xf16 = false) {
     auto opt_scale = optional_scale(pgraph, matmul_qk);
-    auto opt_causal_mask = optional_causal_mask(pgraph, opt_scale, check_f16);
+    auto opt_causal_mask = optional_causal_mask(pgraph, opt_scale, check_xf16);
     auto opt_explicit_mask = optional_explicit_mask(pgraph, opt_causal_mask);
     // Optional select for distilbert
     auto opt_select = optional_select(pgraph, opt_explicit_mask, 2);
@@ -134,7 +134,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion_cpu)
             return std::make_shared<sdp_base_t<>>();
         });
 
-// for implicit causal mask, gpu only supports f16 dtype
+// for implicit causal mask, gpu only supports f16/bf16 dtype
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion_gpu)
         .set_priority(21.0f)
         .set_kind(partition_kind_t::sdp)
@@ -143,7 +143,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion_gpu)
                 [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     auto optional_scale_and_mask = optional_scale_and_masks(
-                            pgraph, matmul_qk, /*check_f16*/ true);
+                            pgraph, matmul_qk, /*check_xf16*/ true);
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
                             {in_edge(0, optional_scale_and_mask, 0)});
                     auto matmul_v = pgraph->append_op(
