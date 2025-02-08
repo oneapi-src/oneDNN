@@ -23,7 +23,7 @@ trigger:
     include: [ main, 'rls-*' ]
   paths:
     include:
-      - .github
+      - .github/azure
       - cmake
       - examples
       - include
@@ -44,7 +44,7 @@ pr:
     include: [ main, 'rls-*' ]
   paths:
     include:
-      - .github
+      - .github/azure
       - cmake
       - examples
       - include
