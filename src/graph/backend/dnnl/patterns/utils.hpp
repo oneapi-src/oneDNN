@@ -425,20 +425,31 @@ inline graph::utils::pm::repetition_t *optional_explicit_mask(
     return optional_mask;
 }
 
+inline bool check_inputs_xf16(op_t *op) {
+    for (size_t i = 0; i < op->num_inputs(); ++i) {
+        const logical_tensor_t &iport
+                = op->get_input_value(i)->get_logical_tensor();
+        if (iport.data_type != graph::data_type::f16
+                && iport.data_type != graph::data_type::bf16)
+            return false;
+    }
+
+    return true;
+}
+
 // Implicit Causal Mask
 inline graph::utils::pm::repetition_t *optional_causal_mask(
         const std::shared_ptr<graph::utils::pm::pb_graph_t> &pgraph,
-        graph::utils::pm::pb_node_t *scaled_output, bool check_f16 = false) {
+        graph::utils::pm::pb_node_t *scaled_output, bool check_xf16 = false) {
     auto popt_graph = std::make_shared<graph::utils::pm::pb_graph_t>();
 
     graph::utils::pm::pb_op_t *gen_index_row
             = popt_graph->append_op(graph::op_kind::GenIndex);
-    if (check_f16) {
-        // sdpa_primitive only supports f16 on gpu
+    if (check_xf16) {
+        // sdpa_primitive only supports f16/bf16 on gpu
         // for other dtypes, we don't have a reference implementation on gpu
         // so filter them out
-        gen_index_row->append_decision_function(
-                check_input_dtype<graph::data_type::f16>);
+        gen_index_row->append_decision_function(check_inputs_xf16);
     }
     graph::utils::pm::pb_op_t *gen_index_col
             = popt_graph->append_op(graph::op_kind::GenIndex);
