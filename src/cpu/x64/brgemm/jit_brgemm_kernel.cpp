@@ -1984,8 +1984,7 @@ bool jit_brgemm_kernel_t<Wmm>::maybe_pre_process_k_tail(bool last_bdb,
 
     // TODO: check is it last bs to calculate need_k_tail_processing
     const auto need_k_tail_processing = mk == matrix_A && brg.amx_wary_k_tail()
-            && brg.rdb_tail != 0 && last_bdb && is_rd_tail;
-
+            && brg.rdb_tail != 0 && is_rd_tail;
     if (!need_k_tail_processing) return false;
 
     const auto zmm_width_in_bytes = cpu_isa_traits<avx512_core>::vlen;
