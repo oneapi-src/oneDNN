@@ -367,7 +367,9 @@ status_t jit_uni_pool_kernel<isa>::init_conf(
     }
     assert(jpp.ur > 0);
 
-    jpp.needs_f32_accum_for_bf16 = jpp.is_bf16
+    const bool is_relaxed_acc = utils::one_of(
+            attr.acc_mode_, accumulation_mode::relaxed, accumulation_mode::any);
+    jpp.needs_f32_accum_for_bf16 = !is_relaxed_acc && jpp.is_bf16
             && jpp.alg == alg_kind::pooling_max && jpp.is_backward
             && (jpp.stride_d < jpp.kd || jpp.stride_h < jpp.kh
                     || jpp.stride_w < jpp.kw);
