@@ -52,11 +52,8 @@ class summaryStats:
 
 
     def add(self, sample):
-#        DebugPrint(f"sample.primitive = {sample.primitive}")
         #dt = sample.primitive["dt"]
         kind = sample.kind()
-#        DebugPrint(f"kind = {kind}")
-#        DebugPrint(f"self.data = {self.data}")
         if not kind in self.data:
             self.data[kind] = perf_data(metrics.Metric(self.scaling, self.metric_value))
         self.data[kind].add([], sample)
