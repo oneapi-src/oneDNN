@@ -36,8 +36,8 @@ class summaryStats:
 
         super().__init__()
 
-    def update(self):
-        DebugPrint("summaryStats update")
+    def update(self,doprint):
+        #DebugPrint("summaryStats update")
         header = ["Primitive Kind", "Mean", "Std Dev", "Sample Size"]
         table = []
         for kind, data in self.data.items():
@@ -45,15 +45,17 @@ class summaryStats:
             mean = stat.mean(data.metrics.data)
             stdev = float('nan')
             if sample_size > 1:
+                #DebugPrint(f"{doprint} sample_size = {sample_size}")
+                #DebugPrint(f"{doprint} data = {data.metrics.data}")
                 stdev = stat.stdev(data.metrics.data)
             table.append([kind, "{:.1%}".format(mean), "{:.1%}".format(stdev), sample_size])
 
-        print(self.title)
-        print(tabulate(table, header, tablefmt="rst"))
-
+        if doprint:
+            print(self.title)
+            print(tabulate(table, header, tablefmt="rst"))
+    """
     def finalize(self):
         DebugPrint("summaryStats finalize")
-##        header = ["Primitive Kind", "Mean", "Std Dev", "Sample Size"]
         header = ["Primitive Kind", "Mean-final", "Std Dev", "Sample Size"]
         table = []
         for kind, data in self.data.items():
@@ -66,9 +68,9 @@ class summaryStats:
 
         print(self.title)
         print(tabulate(table, header, tablefmt="rst"))
-
+    """
     def add(self, sample):
-        DebugPrint("summaryStats add")
+        #DebugPrint("summaryStats add")
         #dt = sample.primitive["dt"]
         kind = sample.kind()
         if not kind in self.data:

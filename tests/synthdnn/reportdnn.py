@@ -106,7 +106,7 @@ def reporter(sample_queue):
                 ##### ???? to check - many reports
                 ##### ???? todo remove: just updated table
                 #DebugPrint("loop r in reports")
-                r.update()
+                r.update(False)
             last_update = time.monotonic()
 
         if(has_plot):
@@ -116,7 +116,7 @@ def reporter(sample_queue):
         ##### ???? to check - many reports
         ##### ???? todo remove: just updated table
         #DebugPrint("loop r in reports")
-        r.finalize()
+        r.update(True)
 
     if(has_plot):
         plotter.finalize()

@@ -129,7 +129,7 @@ class perf_data :
         self.bandwidths = []
 
     def add(self, dims, sample):
-        DebugPrint("perf_data update")
+        #DebugPrint("perf_data update")
         if len(dims) > 0:
             self.xs.append(dims[0])
         if len(dims) > 1:
