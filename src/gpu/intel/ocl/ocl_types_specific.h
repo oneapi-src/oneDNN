@@ -500,7 +500,7 @@
 #define REF_TO_DST8(x) cvt_f32_to_f4_e2m1(x)
 #define DST_DATA_MAX (uchar)0x07
 #define DST_DATA_MIN (uchar)0x01
-#elif DST_DT_F4_E2M1
+#elif DST_DT_F4_E3M0
 #define DST_TO_REF(x) cvt_f4_e3m0_to_f32(x)
 #define DST_TO_REF2(x) cvt_f4_e3m0_to_f32(x)
 #define DST_TO_REF8(x) cvt_f4_e3m0_to_f32(x)
@@ -676,7 +676,7 @@
 #define C_TO_REF8(x) cvt_f4_e2m1_to_f32(x)
 #define REF_TO_C(x) cvt_f32_to_f4_e2m1(x)
 #define REF_TO_C8(x) cvt_f32_to_f4_e2m1(x)
-#elif C_DT_F4_E2M1
+#elif C_DT_F4_E3M0
 #define C_TO_REF(x) cvt_f4_e3m0_to_f32(x)
 #define C_TO_REF8(x) cvt_f4_e3m0_to_f32(x)
 #define REF_TO_C(x) cvt_f32_to_f4_e3m0(x)
@@ -699,7 +699,7 @@
 #elif C_DT_F4_E2M1
 #define TO_C(x) cvt_f32_to_f4_e2m1(x)
 #define TO_C8(x) cvt_f32_to_f4_e2m1(x)
-#elif C_DT_F4_E2M1
+#elif C_DT_F4_E3M0
 #define TO_C(x) cvt_f32_to_f4_e3m0(x)
 #define TO_C8(x) cvt_f32_to_f4_e3m0(x)
 #elif C_DT_F16

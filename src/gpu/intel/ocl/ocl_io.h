@@ -23,11 +23,13 @@
 
 //******* Always-available load/writes *********//
 
+#define BLOCK_READ_FUNC_0 get_half_byte
 #define BLOCK_READ_FUNC_1 intel_sub_group_block_read_uc
 #define BLOCK_READ_FUNC_2 intel_sub_group_block_read_us
 #define BLOCK_READ_FUNC_4 intel_sub_group_block_read
 #define BLOCK_READ_FUNC_8 intel_sub_group_block_read_ul
 
+#define BLOCK_DT_0 uchar
 #define BLOCK_DT_1 uchar
 #define BLOCK_DT_2 ushort
 #define BLOCK_DT_4 uint
@@ -38,6 +40,8 @@
 #define SIZE_uchar 1
 #define SIZE_f8_e5m2 1
 #define SIZE_f8_e4m3 1
+#define SIZE_f4_e2m1 0
+#define SIZE_f4_e3m0 0
 #define SIZE_e8m0 1
 #define SIZE_bf16 2
 #define SIZE_half 2
@@ -60,6 +64,14 @@
         BLOCK_DT(src_dt) block_val = BLOCK_READ_FUNC(src_dt)(data); \
         src_dt src_val = CONCAT2(as_, src_dt)(block_val); \
         *dst = CONCAT2(into_, dst_dt)(src_val); \
+    }
+
+#define DEF_load_half_byte(dst_dt, src_dt) \
+    void __attribute__((overloadable)) \
+            load(__private dst_dt *dst, __global src_dt *val, off_t off) { \
+        __global BLOCK_DT(src_dt) *data = (__global BLOCK_DT(src_dt) *)(val); \
+        BLOCK_DT(src_dt) block_val = BLOCK_READ_FUNC(src_dt)(data, off); \
+        *dst = CONCAT2(into_, dst_dt)(block_val); \
     }
 
 #define DEF_write(dst_dt, src_dt) \
@@ -137,6 +149,30 @@ DEF_write(f8_e4m3, float);
 DEF_write(f8_e4m3, int);
 
 #endif // MATH_UTILS_DECLARE_HF8
+
+#ifdef MATH_UTILS_DECLARE_F4_E2M1
+// Loads
+DEF_load_half_byte(half, f4_e2m1);
+DEF_load_half_byte(float, f4_e2m1);
+
+// Writes
+DEF_write(f4_e2m1, half);
+DEF_write(f4_e2m1, float);
+DEF_write(f4_e2m1, int);
+
+#endif // MATH_UTILS_DECLARE_F4_E2M1
+
+#ifdef MATH_UTILS_DECLARE_F4_E3M0
+// Loads
+DEF_load_half_byte(half, f4_e3m0);
+DEF_load_half_byte(float, f4_e3m0);
+
+// Writes
+DEF_write(f4_e3m0, half);
+DEF_write(f4_e3m0, float);
+DEF_write(f4_e3m0, int);
+
+#endif // MATH_UTILS_DECLARE_F4_E3M0
 
 #ifdef MATH_UTILS_DECLARE_E8M0
 // Loads
