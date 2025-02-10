@@ -148,6 +148,7 @@
 --reset --dt=f16 --case=op/f32/static_transpose.json
 --reset --dt=f16 --case=op/f32/genindex.json
 --reset --dt=f16 --op-attrs=0:axis:2 --case=op/f32/genindex.json
+--reset --dt=f16 --op-attrs=0:axis:-1 --case=op/f32/genindex.json
 --reset --dt=f16 --op-attrs=0:axis:2 --in-shapes=0:1x16x32x32*acbd+1:1x16x32x32*acbd --case=op/f32/genindex.json
 --reset --dt=f16 --case=op/f32/greaterequal.json
 --reset --dt=f16 --in-shapes=1:1x1x1x1 --case=op/f32/greaterequal.json
