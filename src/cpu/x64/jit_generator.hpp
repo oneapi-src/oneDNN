@@ -2700,7 +2700,6 @@ public:
             Xbyak::Ymm &ymm_mask, Xbyak::Xmm &xmm_upper_mask);
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_generator);
 
-public:
     /* All uni_ instructions -- apart from uni_vzeroupper() -- will comply with
      * the max_cpu_isa argument */
     jit_generator(const char *name, cpu_isa_t max_cpu_isa = get_max_cpu_isa())
