@@ -31,17 +31,15 @@ dnnl::impl::cpu::x64::jit_brgemm_kernel_diff_bias_t<Vmm>::
     : jit_generator(jit_name())
     , brg_(abrg)
     , reduce_kind_(matmul_reduce_kind::undef)
-    , ddst_dt_(ajbgp.dst_dt)
+    , ddst_dt_((ajbgp.isa == avx512_core_fp16 && ajbgp.use_buffer_b)
+                      ? data_type::f32
+                      : ajbgp.dst_dt)
     , bia_dt_(ajbgp.bia_dt)
     , acc_dt_(ajbgp.acc_dt)
+    , ddst_typesize_(types::data_type_size(ddst_dt_))
     , bia_typesize_(types::data_type_size(bia_dt_))
-    , acc_typesize_(types::data_type_size(acc_dt_)) {
-    ddst_dt_ = (ajbgp.isa == avx512_core_fp16 && ajbgp.use_buffer_b)
-            ? data_type::f32
-            : ajbgp.dst_dt;
-    ddst_typesize_ = types::data_type_size(ddst_dt_);
-    mult_ = data_type_vnni_granularity(ddst_dt_);
-}
+    , acc_typesize_(types::data_type_size(acc_dt_))
+    , mult_(data_type_vnni_granularity(ddst_dt_)) {}
 
 // This version is used from MatMul for src tensor.
 template <typename Vmm>
@@ -52,20 +50,18 @@ dnnl::impl::cpu::x64::jit_brgemm_kernel_diff_bias_t<Vmm>::
     , brg_(abrg)
     , reduce_kind_(bgmmc.reduce_kind)
     // MatMul `src`.
-    , ddst_dt_(bgmmc.src_dt)
+    , ddst_dt_((bgmmc.isa == avx512_core_fp16 && bgmmc.use_buffer_a)
+                      ? data_type::f32
+                      : bgmmc.src_dt)
     // MatMul `reduce` buffer.
     , bia_dt_(bgmmc.reduce_dt)
     , acc_dt_(bgmmc.acc_dt)
+    , ddst_typesize_(types::data_type_size(ddst_dt_))
     , bia_typesize_(types::data_type_size(bia_dt_))
-    , acc_typesize_(types::data_type_size(acc_dt_)) {
+    , acc_typesize_(types::data_type_size(acc_dt_))
+    , mult_(0) { // Unused.
     // This kernel must be called after the copy A routine because it assumes
     // that fp16 data has already been upconverted to f32.
-    ddst_dt_ = (bgmmc.isa == avx512_core_fp16 && bgmmc.use_buffer_a)
-            ? data_type::f32
-            : bgmmc.src_dt;
-
-    ddst_typesize_ = types::data_type_size(ddst_dt_);
-    mult_ = 0; // Unused.
 
     // Only reduction for `src` is supported.
     assert(reduce_kind_ == matmul_reduce_kind::src);
