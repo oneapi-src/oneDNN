@@ -236,9 +236,11 @@ def initialize():
     plt.draw()
 
 def update():
+    DebugPrint("plotter update")
     plt.draw()
     plt.pause(0.02)
 
 def finalize():
+    DebugPrint("plotter finalize")
     plt.ioff()
     plt.show()
