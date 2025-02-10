@@ -22,3 +22,13 @@
 
 --attr-post-ops=add:bf16,linear:0.5:-1
 --batch=set_all_small
+
+# Backward propagation without f32 accumulator
+--attr-post-ops=
+
+--alg=max
+--tag=axb,aBx16b
+
+--dir=BWD_D
+--attr-acc-mode=relaxed
+--batch=set_topologies
