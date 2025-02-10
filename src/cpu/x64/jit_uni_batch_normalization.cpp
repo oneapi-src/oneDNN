@@ -135,7 +135,8 @@ struct jit_bnorm_conf_t {
     // given nthr and shape of problem, choose the thread partition
     // to use (ie set N_nthr, C_nthr, and S_nthr)
     bool thread_partition(bool spatial_thr_allowed, int nthr, dim_t N,
-            dim_t C_blks, dim_t SP, int &C_nthr, int &N_nthr, int &S_nthr) {
+            dim_t C_blks, dim_t SP, int &C_nthr, int &N_nthr,
+            int &S_nthr) const {
         if (((nthr <= C_blks) && IMPLICATION(is_nspc_, N == 1))
                 || !dnnl_thr_syncable()) {
             C_nthr = nthr;
