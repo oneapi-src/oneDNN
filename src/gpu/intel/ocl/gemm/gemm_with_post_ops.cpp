@@ -271,11 +271,9 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
             pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) > 0 ? 1 : 0);
     arg_list.set(idx, GEMM_CTX_ARG_STORAGE(c_zero_point));
     auto nd_range = pd()->dispatch_.nd_range();
-    exec_status
-            = parallel_for(ctx, nd_range, post_process_kernels_[0], arg_list);
+    CHECK(parallel_for(ctx, nd_range, post_process_kernel_, arg_list));
 
-    if (!subbyte_pack || exec_status != status_t::dnnl_success)
-        return exec_status;
+    if (!subbyte_pack) return status_t::dnnl_success;
     memory_desc_wrapper dst_mdw(pd()->dst_md(0));
     const dim_t nelems = dst_mdw.nelems();
     compute::kernel_arg_list_t repack_arg_list;
@@ -286,7 +284,7 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
     compute::range_t repack_gws((nelems * 4 + 7) / 8);
     compute::nd_range_t repack_nd_range(repack_gws);
     return large_parallel_for(exec_ctx_t(ctx.stream()), repack_nd_range,
-            post_process_kernels_[1], repack_arg_list, 4);
+            subbyte_pack_kernel_, repack_arg_list, 4);
 };
 
 } // namespace ocl
