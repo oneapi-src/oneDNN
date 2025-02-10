@@ -62,15 +62,14 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
                         &threads_per_eu)) {
             CHECK(attr.set_gpu_attr(gpu_primitive_attr_t(threads_per_eu)));
         }
-        post_process_kernels_.resize(2);
         compute::kernel_ctx_t kernel_ctx(&attr);
         ret_status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(ret_status);
         ret_status = create_kernel(
-                engine, &post_process_kernels_[0], "gemm_post_ops", kernel_ctx);
+                engine, &post_process_kernel_, "gemm_post_ops", kernel_ctx);
         if (pd()->subbyte_pack_)
-            CHECK(create_kernel(engine, &post_process_kernels_[1],
-                    "subbyte_pack", kernel_ctx));
+            CHECK(create_kernel(
+                    engine, &subbyte_pack_kernel_, "subbyte_pack", kernel_ctx));
         return ret_status;
     }
 
@@ -79,7 +78,8 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<impl::primitive_t> gemm_prim_;
-    std::vector<compute::kernel_t> post_process_kernels_;
+    compute::kernel_t post_process_kernel_;
+    compute::kernel_t subbyte_pack_kernel_;
 };
 
 } // namespace ocl
