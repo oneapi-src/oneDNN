@@ -1618,7 +1618,7 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
-
+    //printf("init jcp\n");
     // take L1 as 7/8 of the real size for L1
     brg_blocking_t::L1 = (platform::get_per_core_cache_size(1) * 7) / 8;
     brg_blocking_t::L2 = platform::get_per_core_cache_size(2);
@@ -1721,6 +1721,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.is_fp8 = one_of(jcp.src_dt, f8_e5m2, f8_e4m3)
             && one_of(jcp.wei_dt, f8_e5m2, f8_e4m3);
     jcp.is_fp8_convert = jcp.is_fp8 && utils::one_of(isa, avx10_1_512_amx_fp16);
+    jcp.is_f32_f16
+            = everyone_is(f32, jcp.src_dt, jcp.dst_dt) && jcp.wei_dt == f16;
+    jcp.is_f32_bf16
+            = everyone_is(f32, jcp.src_dt, jcp.dst_dt) && jcp.wei_dt == bf16;
     jcp.src_dsz = types::data_type_size(jcp.src_dt);
     jcp.wei_dsz = types::data_type_size(jcp.wei_dt);
     jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
@@ -1739,7 +1743,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     const auto vnni_dt = jcp.prop_kind == prop_kind::backward_weights
             ? jcp.dst_dt
-            : jcp.wei_dt;
+            : utils::one_of(true, jcp.is_f32_bf16, jcp.is_f32_f16) ? jcp.src_dt
+                                                                   : jcp.wei_dt;
     const data_type_t vnni_block_dt = get_mac_emu_data_type(
             vnni_dt, isa, isa == avx10_1_512 && !jcp.is_fp8_convert);
     jcp.vnni_block = data_type_vnni_granularity(vnni_block_dt);
@@ -1826,11 +1831,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                             || one_of(jcp.isa, avx2_vnni, avx2_vnni_2)),
             VERBOSE_ISA_DT_MISMATCH);
     VDISPATCH_CONV_IC(
-            IMPLICATION(jcp.wei_dt == bf16,
+            IMPLICATION(jcp.wei_dt == bf16 && !jcp.is_f32_bf16,
                     mayiuse(avx512_core_bf16) || mayiuse(avx2_vnni_2)),
             VERBOSE_ISA_DT_MISMATCH);
     VDISPATCH_CONV_IC(
-            IMPLICATION(jcp.wei_dt == f16,
+            IMPLICATION(jcp.wei_dt == f16 && !jcp.is_f32_f16,
                     mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)),
             VERBOSE_ISA_DT_MISMATCH);
     const bool is_f32
@@ -1838,7 +1843,12 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     VDISPATCH_CONV_IC(
             IMPLICATION(is_f32, one_of(isa, avx512_core, avx2) || jcp.is_bf32),
             VERBOSE_ISA_DT_MISMATCH);
-
+    VDISPATCH_CONV_IC(
+            IMPLICATION(jcp.is_f32_f16, isa == avx2), VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_CONV_IC(
+            IMPLICATION(jcp.is_f32_bf16, isa == avx2), VERBOSE_ISA_DT_MISMATCH);
+    printf("correct ISA - DT match: src: %d, wei: %d, acc: %d, dst: %d\n",
+            jcp.src_dt, jcp.wei_dt, jcp.acc_dt, jcp.dst_dt);
     jcp.amx_h = 16;
     jcp.amx_w = 64 / (jcp.is_bf32 ? types::data_type_size(bf16) : jcp.src_dsz);
 
@@ -1936,7 +1946,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     CHECK(init_jcp(
             jcp, isa, cd, src_md, weights_md, dst_md, bias_md, attr, nthreads));
-
+    //printf("success in init jcp\n");
     const bool is_int8_convolution = everyone_is(true,
             (jcp.src_dt == u8 || jcp.src_dt == s8), jcp.wei_dt == s8,
             one_of(jcp.dst_dt, f32, s32, s8, u8, bf16));
@@ -1986,7 +1996,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = brgemm_kernel_loop_order_t::brgemm_lo_default;
 
     const int min_oc_block = jcp.acc_simd_w;
-
+    //printf("loop order: %d, brgemm loop order: %d\n", jcp.loop_order, jcp.brgemm_kernel_loop_order);
     int selected_ur = 0;
     MAYBE_UNUSED(selected_ur);
 
@@ -2174,7 +2184,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.max_batch = jcp.kd * jcp.kh * jcp.kw;
 
     bool try_exec_type_res = false;
-
+    //printf("try relo whi: %d, try relo wi: %d, try exec trans: %d\n", try_relo_whi, try_relo_wi, try_exec_trans);
     if (try_exec_type_res == false && try_exec_trans) {
         jcp.exec_type = exec_trans;
         if (try_relo_whi) {
@@ -2234,6 +2244,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
         try_exec_type_res = try_exec_type();
     }
+    //printf("try exec vpad: %d, try exec base: %d\n", try_exec_vpad, try_exec_base);
     if (try_exec_type_res == false && try_exec_vpad) {
         jcp.exec_type = exec_vpad;
         try_exec_type_res = try_exec_type();
@@ -2252,7 +2263,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
         try_exec_type_res = try_exec_type();
     }
-
+    //printf("try_exec_type_res: %d\n", try_exec_type_res);
     if (try_exec_type_res == false) return status::unimplemented;
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
@@ -2270,7 +2281,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     VDISPATCH_CONV_IC(
             !(jcp.ow_block == 0 || jcp.ic_block == 0 || jcp.oc_block == 0),
             VERBOSE_BLOCKING_FAIL, "bad blocking dimensions");
-
+    //printf("blocking ok\n");
     // Dispatch the shape to VNNI for better performance on AMX
     const bool is_int8_small_ic = jcp.oc == 32 && jcp.ic < jcp.simd_w / 2
             && is_int8_convolution && is_amx(jcp.isa)
@@ -2286,7 +2297,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (!jcp.wei_plain)
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
-
+    //printf("check wei tag\n");
     jcp.buffer_size = jcp.LDC * jcp.M;
 
     jcp.nb_od = div_up(jcp.od, jcp.od_block);
