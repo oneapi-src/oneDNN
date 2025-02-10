@@ -111,7 +111,7 @@ void jit_avx512_common_lrn_kernel_fwd_t<d_type>::load_tail(int tail_value,
 template <>
 void jit_avx512_common_lrn_kernel_fwd_t<f16>::store_data(
         const Address addr, Zmm zr, Ymm yr) {
-    this->vcvtps2ph(addr, zr, this->_op_mxcsr);
+    this->vcvtps2ph(addr, zr, jit_generator::_op_mxcsr);
 }
 
 template <>
