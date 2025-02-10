@@ -1104,7 +1104,19 @@ int release_hw_config(const kernel_args_t &kernel_args) {
         DNN_SAFE(namespace_impl::amx_tile_release(), WARN);
     }
 #endif
-#else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
+#endif
+    return OK;
+}
+
+// `release_hw_config` and `brgemm_finalize` are doing the same thing -
+// releasing the hw resources they allocated. The difference is in the
+// implementation side - ukernel has lazy initialization and would reset the
+// state per `set_hw_config` call while internal API doesn't - it just sets
+// the new state unconditionally. Because of laziness, the test wants to ensure
+// resetting is correct and, thus, releasing is done once - at the end of the
+// suite, while for internal API it is done after each case.
+int brgemm_finalize() {
+#if defined(DNNL_EXPERIMENTAL_UKERNEL)
     DNN_SAFE(dnnl_brgemm_release_hw_context(), WARN);
 #endif
     return OK;
@@ -1331,6 +1343,11 @@ int doit(const prb_t *prb, res_t *res) {
 }
 
 #else
+
+// For builadability of non-x64 configuration.
+int brgemm_finalize() {
+    return OK;
+}
 
 int doit(const prb_t *prb, res_t *res) {
     return OK;

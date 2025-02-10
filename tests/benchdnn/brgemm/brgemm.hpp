@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -256,6 +256,9 @@ struct cfg_t : public base_cfg_t {
 
     float get_density(const density_args_t &density_args) const override;
 };
+
+// See the description next to the definition.
+int brgemm_finalize();
 
 void skip_unimplemented_prb(const prb_t *prb, res_t *res);
 void skip_invalid_prb(const prb_t *prb, res_t *res);
