@@ -69,8 +69,8 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
 int execute(const prb_t *prb, const args_t &args, res_t *res) {
     dnn_mem_t &dst = const_cast<dnn_mem_t &>(args.find(DNNL_ARG_DST));
-    size_t axis = prb->axis;
     auto ndims = dst.ndims();
+    const size_t axis = prb->axis < 0 ? (prb->axis + ndims) : prb->axis;
     auto dims = dst.dims();
     auto strides = dst.strides();
 
