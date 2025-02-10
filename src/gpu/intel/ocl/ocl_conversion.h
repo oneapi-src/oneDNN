@@ -162,28 +162,7 @@ IF_HALF_SUPPORTED(def_two_step_conversion(bf16, half, float));
 #ifdef MATH_UTILS_DECLARE_BF8
 
 f8_e5m2 __attribute__((overloadable)) into_f8_e5m2(half f) {
-    // we just need to apply rounding
-    ushort fraw = as_ushort(f);
-    ushort naninf_mask = 0x7c00;
-
-    bool is_special = (fraw & naninf_mask) == naninf_mask;
-    bool is_nan = is_special && (fraw & 0x03ff); // one of the lsb is non zero
-
-    // we always return R ind for Nan input as there is no good
-    // conversion of payload
-    if (is_nan) { return as_f8_e5m2((fraw >> 8) | 0x02); }
-
-    // if infinity, we just return it as is
-    if (is_special) {
-        uchar raw_bits = fraw >> 8;
-        return as_f8_e5m2(raw_bits);
-    }
-
-    // otherwise we just round and return
-    ushort rounding_nudge = 0x007f + ((fraw & 0x0100) >> 8);
-    fraw = fraw + rounding_nudge;
-    uchar raw_bits = fraw >> 8;
-    return as_f8_e5m2(raw_bits);
+    return as_f8_e5m2(cvt_hf_to_f8_e5m2(f));
 }
 
 half __attribute__((overloadable)) into_half(f8_e5m2 b) {
@@ -201,81 +180,11 @@ IF_DOUBLE_SUPPORTED(def_two_step_conversion(double, f8_e5m2, float));
 
 #ifdef MATH_UTILS_DECLARE_HF8
 f8_e4m3 __attribute__((overloadable)) into_f8_e4m3(half f) {
-    // Here the idea is to add a large constant to the float16_t to force the
-    // proper rounding to f8_e4m3 accuracy.
-    uchar raw_bits = 0;
-    ushort fraw = as_ushort(f);
-
-    // first we extract the sign and make the input positive
-    uint s8 = (fraw & 0x8000) >> 8;
-    fraw = fraw & 0x7fff;
-
-    // we filter out overlow, nan
-    if (fraw >= 0x5f40) {
-        raw_bits = s8 | 0x7f;
-        return as_f8_e4m3(raw_bits);
-    }
-    // we filter out underflow when f <= 2^-10
-    if (fraw <= 0x1400) {
-        raw_bits = s8;
-        return as_f8_e4m3(raw_bits);
-    }
-
-    // compute the rounding shifter by taking its exponent + 0x1p7
-    // Lucky us, it does not overflow as fraw <= 448.
-    ushort a = 0x7c00, b = 0x1c00;
-    ushort shifter = (fraw & a) + b;
-    // e8 = e16 - e16_bias + e8_bias = e16 - 15 + 7
-    // e8 will be denorm if e8 <= 0 or e16 + 7 < 16
-    const int exp_threshold = 0x4000; // raw bits of exponent = 16
-    ushort is_denorm = shifter < exp_threshold;
-    if (is_denorm) shifter = exp_threshold;
-
-    ushort rounded
-            = as_ushort((as_half(fraw) + as_half(shifter)) - as_half(shifter));
-
-    int e8 = ((rounded & 0x7c00) >> 10) - 8;
-    uchar m8 = (rounded & 0x03ff) >> 7;
-
-    // we need to make the implicit f32 mantissa bit explicit for
-    // denorm f8_e4m3
-    if (is_denorm) {
-        m8 = (m8 | 0x08) >> (-e8 + 1);
-        e8 = 0;
-    }
-
-    raw_bits = s8 | (e8 << 3) | m8;
-    return as_f8_e4m3(raw_bits);
+    return as_f8_e4m3(cvt_hf_to_f8_e4m3(f));
 }
 
 half __attribute__((overloadable)) into_half(f8_e4m3 b) {
-    uchar raw_bits_ = b.data;
-    ushort s8 = (raw_bits_ & 0x80) >> 7;
-    ushort e8 = (raw_bits_ & 0x78) >> 3;
-    ushort m8 = (raw_bits_ & 0x7);
-    ushort s16 = s8;
-    ushort e16 = e8 + 8; /* 15 - 7 = e16_bias - e8_bias */
-    ushort m16 = m8;
-
-    // Need to convert f8_e4m3 denormal into f16 normal.
-    if (e8 == 0 && m8 != 0) {
-        ushort count = 2;
-        count = m8 > 0x1 ? 1 : count;
-        count = m8 > 0x3 ? 0 : count;
-        e16 -= count;
-        m16 = (m16 << (count + 1)) & 0x7;
-    } else if (e8 == 0 && m8 == 0) {
-        e16 = 0;
-    } else if (e8 == 0xf && m8 == 0x7) {
-        e16 = 0x1f;
-        m16 = 0x4; // Real Indefinite (a qNaN)
-    }
-    s16 <<= 15;
-    e16 <<= 10;
-    m16 <<= 7;
-
-    ushort u16 = s16 | e16 | m16;
-    return as_half(u16);
+    return cvt_f8_e4m3_to_hf(b.data);
 }
 
 def_two_step_conversion(f8_e4m3, float, half);
@@ -285,6 +194,40 @@ def_two_step_conversion(float, f8_e4m3, half);
 IF_DOUBLE_SUPPORTED(def_two_step_conversion(f8_e4m3, double, float));
 IF_DOUBLE_SUPPORTED(def_two_step_conversion(double, f8_e4m3, float));
 #endif // MATH_UTILS_DECLARE_HF8
+
+#ifdef MATH_UTILS_DECLARE_F4_E2M1
+f4_e2m1 __attribute__((overloadable)) into_f4_e2m1(float f) {
+    return as_f4_e2m1(cvt_f32_to_f4_e2m1(f));
+}
+
+half __attribute__((overloadable)) into_float(f4_e2m1 b) {
+    return cvt_f4_e2m1_to_f32(b.data);
+}
+
+def_two_step_conversion(f4_e2m1, half, float);
+def_two_step_conversion(f4_e2m1, int, float);
+def_two_step_conversion(half, f4_e2m1, float);
+
+IF_DOUBLE_SUPPORTED(def_two_step_conversion(f4_e2m1, double, float));
+IF_DOUBLE_SUPPORTED(def_two_step_conversion(double, f4_e2m1, float));
+#endif // MATH_UTILS_DECLARE_F4_E2M1
+
+#ifdef MATH_UTILS_DECLARE_F4_E3M0
+f4_e3m0 __attribute__((overloadable)) into_f4_e3m0(float f) {
+    return as_f4_e3m0(cvt_f32_to_f4_e3m0(f));
+}
+
+half __attribute__((overloadable)) into_float(f4_e3m0 b) {
+    return cvt_f4_e3m0_to_f32(b.data);
+}
+
+def_two_step_conversion(f4_e3m0, half, float);
+def_two_step_conversion(f4_e3m0, int, float);
+def_two_step_conversion(half, f4_e3m0, float);
+
+IF_DOUBLE_SUPPORTED(def_two_step_conversion(f4_e3m0, double, float));
+IF_DOUBLE_SUPPORTED(def_two_step_conversion(double, f4_e3m0, float));
+#endif // MATH_UTILS_DECLARE_F4_E3M0
 
 #ifdef MATH_UTILS_DECLARE_E8M0
 // Copy-paste from `cvt_e8m0_to_f32`.
