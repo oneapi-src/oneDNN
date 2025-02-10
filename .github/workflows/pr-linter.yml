@@ -100,15 +100,6 @@ jobs:
       - name: Build oneDNN
         run: |
             .github/automation/build_linters.sh 2>&1 | tee build.log
-            echo "CHECK BUILDLOG CONTENT:"
-            cat build.log
-            echo "CHECK BUILDLOG grep:"
-            grep -i "warning:" build.log
-            echo "CHECK BUILDLOG grep and sort:"
-            grep -i "warning:" build.log | sort -u
-            echo "SUMMARY:"
-            SUMMARY=$(grep -i "warning:" build.log | sort -u)
-            echo $SUMMARY
-            [ -n "$SUMMARY" ] && exit 1 || true
+            grep -i "warning:" build.log | sort -u && exit 1 || true
         env:
           ONEDNN_ACTION: build
