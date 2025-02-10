@@ -311,6 +311,8 @@ bool fit_impl(const kernel_desc_t &desc, const problem_t &prb, bool exact) {
     if (desc.use_stream_k) {
         gpu_check(!prb.with_bias_fwd() && !prb.with_post_ops())
                 << "Stream-K is incompatible with post-ops/bias";
+        gpu_check(!prb.deterministic())
+                << "Stream-K is not supported in deterministic mode";
     }
     if (exact) {
         gpu_check(prb.with_bias_bwd_w() == desc.with_bias_bwd_w())

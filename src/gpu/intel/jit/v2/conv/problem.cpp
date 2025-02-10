@@ -163,6 +163,8 @@ std::string problem_t::str() const {
     oss << "  Destination:   " << dst_tag_ << std::endl;
     oss << "  With post-ops: " << ir_utils::to_string(with_post_ops_)
         << std::endl;
+    oss << "  Deterministic: " << ir_utils::to_string(deterministic_)
+        << std::endl;
     oss << "  Descriptor:    " << desc_str();
     return oss.str();
 }
