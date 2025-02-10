@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -485,7 +485,7 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
         }
     }
 
-    ~jit_avx512_core_bf16_conv_bwd_weights_kernel_f32() = default;
+    ~jit_avx512_core_bf16_conv_bwd_weights_kernel_f32() override = default;
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
             jit_avx512_core_bf16_conv_bwd_weights_kernel_f32)
@@ -563,7 +563,7 @@ private:
     reg64_t scratch = r11;
 
     inline void maybe_zero_kernel();
-    inline void get_ur_w(int &ur_w, int &ur_w_tail, int &ur_w_trips);
+    inline void get_ur_w(int &ur_w, int &ur_w_tail, int &ur_w_trips) const;
     inline void compute_oh_step_unroll_ow_icblock(int ic_block_step);
     inline void od_step_comeback_pointers();
     inline void oh_step_comeback_pointers();
@@ -596,12 +596,12 @@ private:
     inline void compute_ic_block_step_vpermw_expl(int ur_w, int pad_l,
             int pad_r, int ic_block_step, int src_offset, int kernel_offset,
             int ddst_offset, bool is_tail = false);
-    inline bool is_src_layout_nxc() {
+    inline bool is_src_layout_nxc() const {
         return jcp.uses_permw_transposition
                 && utils::one_of(jcp.src_tag, format_tag::ndhwc,
                         format_tag::nhwc, format_tag::nwc);
     }
-    inline bool is_ddst_layout_nxc() {
+    inline bool is_ddst_layout_nxc() const {
         return jcp.uses_permw_transposition
                 && utils::one_of(jcp.dst_tag, format_tag::ndhwc,
                         format_tag::nhwc, format_tag::nwc);
@@ -613,7 +613,7 @@ private:
             int &nthr_g, int &nthr_oc_b, int &nthr_ic_b);
 
     void get_w_positions(int ur_w, int pad_l, int pad_r, int i_ur, int i_kw,
-            int &iw_0, int &iw_1) {
+            int &iw_0, int &iw_1) const {
         auto get_w_position = [&](int idx) {
             int iw = i_ur + idx;
             if (iw >= ur_w) return -1;
@@ -649,15 +649,15 @@ private:
         return rt;
     }
 
-    inline dim_t filter_w_to_src(int kw, int ow = 0, int pad_l = 0) {
+    inline dim_t filter_w_to_src(int kw, int ow = 0, int pad_l = 0) const {
         int stride_w = jcp.transpose_src ? 1 : jcp.stride_w;
         return static_cast<dim_t>(kw) * (jcp.dilate_w + 1) + ow * stride_w
                 - pad_l;
     }
-    inline dim_t filter_h_to_src(int kh) {
+    inline dim_t filter_h_to_src(int kh) const {
         return static_cast<dim_t>(kh) * (jcp.dilate_h + 1);
     }
-    inline dim_t filter_d_to_src(int kd) {
+    inline dim_t filter_d_to_src(int kd) const {
         return static_cast<dim_t>(kd) * (jcp.dilate_d + 1) * jcp.ih;
     }
 
@@ -698,7 +698,7 @@ private:
         return jcp.typesize_in * (w_off + hd_off);
     }
 
-    inline dim_t get_kernel_offset(int ic_idx, dim_t ksp_idx) {
+    inline dim_t get_kernel_offset(int ic_idx, dim_t ksp_idx) const {
         // Only the ic_idx index inside the block is supported,
         // ic_idx == jcp.ic_block is considered as a shift inside one block
         // and not as moving to the next ic block.
@@ -708,7 +708,7 @@ private:
                 * (ksp_idx * jcp.ic_block + ic_idx);
     }
 
-    Xbyak::Zmm get_perm_reg() {
+    Xbyak::Zmm get_perm_reg() const {
         int idx = !(jcp.uses_permw_transposition
                           && jcp.kernel_kind == expl_bcast)
                 ? 24
@@ -720,7 +720,7 @@ private:
     inline int interleave_w_reorder_size(int ur_w) const;
     inline int interleave_w_reorder_bytes(int ur_w);
     inline int interleave_stack_size(int ur_w, int ic_block_step);
-    inline int permw_stack_size(int ur_w) {
+    inline int permw_stack_size(int ur_w) const {
         return (ur_w + jcp.kw - 1) * sizeof_cacheline;
     }
 
