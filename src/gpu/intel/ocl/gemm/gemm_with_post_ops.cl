@@ -39,7 +39,11 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src,
     size_t data_idx = SRC_OFF(d0, d1, d2, d3, 0, 0);
 
     ACC_DATA_T acc;
+#if SRC_DT_F4_E2M1 || SRC_DT_F4_E3M0
+    load(&acc, src, data_idx);
+#else
     load(&acc, src + data_idx);
+#endif
     POST_OP_DATA_T accumulator = 0;
     if (d0 < DST_D0 && d1 < DST_D1 && d2 < DST_D2 && d3 < DST_D3) {
         const float a_scale = A_SCALES ? a_scales[0] : 1;
@@ -56,7 +60,11 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src,
 
         // Apply postops
         POST_OP_DATA_T sum_src = 0.0f;
+#if DST_DT_F4_E2M1 || DST_DT_F4_E3M0
+        if (WITH_SUM) load(&sum_src, dst, data_idx);
+#else
         if (WITH_SUM) load(&sum_src, dst + data_idx);
+#endif
 
         accumulator = AS_POST_OP_DATA_T(acc);
         APPLY_POST_OPS_SERIAL(accumulator, POST_OP_DATA_T, sum_src,
