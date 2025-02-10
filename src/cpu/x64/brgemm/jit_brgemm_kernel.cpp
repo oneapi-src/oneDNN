@@ -2800,7 +2800,8 @@ void jit_brgemm_kernel_t<Wmm>::bdb_loop() {
 template <typename Wmm>
 void jit_brgemm_kernel_t<Wmm>::generate() {
     preamble();
-
+    printf("is f32: %d, is f16: %d, is bf16: %d, dt_a: %d, dt b: %d\n",
+            brg.is_f32, brg.is_f16, brg.is_bf16, brg.dt_a, brg.dt_b);
     sub(rsp, stack_space_needed_);
 
     vpad_exist

@@ -56,12 +56,14 @@ void init_kernel_datatype(
     // Note: f32:bf16 is treated as f32 case while f32:f16 has already been
     // treated as f16. Probably, need a common ground here.
     brg->is_f32 = (dt_a == data_type::f32)
-            && utils::one_of(dt_b, data_type::f32, data_type::bf16);
+            && utils::one_of(
+                    dt_b, data_type::f32, data_type::bf16, data_type::f16);
     brg->is_f16 = utils::one_of(data_type::f16, dt_a, dt_b);
     brg->is_fp8 = one_of(dt_a, data_type::f8_e5m2, data_type::f8_e4m3)
             && one_of(dt_b, data_type::f8_e5m2, data_type::f8_e4m3);
     assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16
             || brg->is_fp8);
+    //printf("dt a: %d, dt b: %d, is_f32: %d, is bf16: %d, is f16: %d\n", dt_a, dt_b, brg->is_f32, brg->is_bf16, brg->is_f16);
 }
 
 void init_common_conf(brgemm_desc_t *brg, brgemm_batch_kind_t type, float alpha,

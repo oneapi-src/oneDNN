@@ -189,7 +189,7 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::add_brg_descriptor(int vM,
     const auto src_type = src_md(0)->data_type;
     const auto wei_type = weights_md(0)->data_type;
     const auto is_amx = brgemm_convolution_utils::is_amx(isa);
-
+    //printf("src type: %d, wei type: %d\n", src_type, wei_type);
     const float alpha = 1.0;
     const float beta = 1.0;
 
