@@ -2413,11 +2413,9 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
                 auto abdb = bdb + ibdb;
                 if (abdb >= brg.bdb) break;
                 if (brg.bdb_tail && abdb == brg.bdb - 1)
-                    bdi.blocks.emplace_back(
-                            iteration_block_t(bdi_pos, brg.bdb_tail, true));
+                    bdi.blocks.emplace_back(bdi_pos, brg.bdb_tail, true);
                 else
-                    bdi.blocks.emplace_back(
-                            iteration_block_t(bdi_pos, brg.bd_block, false));
+                    bdi.blocks.emplace_back(bdi_pos, brg.bd_block, false);
                 bdi_pos += brg.bd_block;
                 if (bdi_pos >= brg.bcast_dim) break;
                 bdi_pos = skipped_bd_mask(bdi_pos);
@@ -2458,11 +2456,9 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
                 auto aldb = ldb + ildb;
                 if (aldb >= brg.ldb) break;
                 if (brg.ldb_tail && aldb == brg.ldb - 1)
-                    ldi.blocks.emplace_back(
-                            iteration_block_t(ldi_pos, brg.ldb_tail, true));
+                    ldi.blocks.emplace_back(ldi_pos, brg.ldb_tail, true);
                 else
-                    ldi.blocks.emplace_back(
-                            iteration_block_t(ldi_pos, brg.ld_block, false));
+                    ldi.blocks.emplace_back(ldi_pos, brg.ld_block, false);
                 ldi_pos++;
             }
             ldi.idx = tloop.ldis.size();
@@ -2474,15 +2470,14 @@ void jit_brgemm_amx_uker_base_t::fill_imap() {
         rdi.blocks.reserve(1);
         for (int rdb = 0; rdb < brg.rdb; rdb++) {
             rdi.blocks.clear();
-            rdi.blocks.emplace_back(iteration_block_t(rdi_pos, brg.rd_block));
+            rdi.blocks.emplace_back(rdi_pos, brg.rd_block);
             rdi.idx = tloop.rdis.size();
             tloop.rdis.push_back(rdi);
             rdi_pos++;
         }
         if (brg.rdb_tail > 0) {
             rdi.blocks.clear();
-            rdi.blocks.emplace_back(
-                    iteration_block_t(rdi_pos, brg.rdb_tail, true));
+            rdi.blocks.emplace_back(rdi_pos, brg.rdb_tail, true);
             rdi.idx = tloop.rdis.size();
             tloop.rdis.push_back(rdi);
         }
