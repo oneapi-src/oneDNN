@@ -90,6 +90,8 @@ def reporter(sample_queue):
                 if sample == ExitToken:
                     break
                 for r in reports:
+                    ##### ???? todo remove: just added perf data
+                    #DebugPrint("loop r in reports")
                     r.add(sample)
                 has_new_data = True
                 no_data = False
@@ -101,11 +103,20 @@ def reporter(sample_queue):
             clear_screen()
             last_report_update = update_time
             for r in reports:
+                ##### ???? to check - many reports
+                ##### ???? todo remove: just updated table
+                #DebugPrint("loop r in reports")
                 r.update()
             last_update = time.monotonic()
 
         if(has_plot):
             plotter.update()
+
+    for r in reports:
+        ##### ???? to check - many reports
+        ##### ???? todo remove: just updated table
+        #DebugPrint("loop r in reports")
+        r.finalize()
 
     if(has_plot):
         plotter.finalize()
