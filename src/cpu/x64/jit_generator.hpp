@@ -69,12 +69,11 @@ typedef enum {
 
 // TODO: move this somewhere else? Although this is only used by jit kernels
 // (Roma)
-static inline int float2int(float x) {
+inline int float2int(float x) {
     return utils::bit_cast<int>(x);
 }
 
-static inline void tc_configure_tile(
-        palette_config_t *tc, int t, int rows, int cols) {
+inline void tc_configure_tile(palette_config_t *tc, int t, int rows, int cols) {
     const bool rows_ok = (size_t)t < sizeof(tc->rows) / sizeof(tc->rows[0]);
     const bool cols_ok = (size_t)t < sizeof(tc->cols) / sizeof(tc->cols[0]);
     if (rows_ok && cols_ok) {
@@ -239,8 +238,7 @@ public:
     // By default it assumes to be called after the prologue
     // Note: that we cannot use RBP inside as we override it in preamble
     // for address computation in EVEX instructions
-    inline const Xbyak::RegExp get_stack_params_address(
-            bool after_prolog = true) {
+    inline Xbyak::RegExp get_stack_params_address(bool after_prolog = true) {
         int saved_regs_size = after_prolog ? get_size_of_abi_save_regs() : 0;
 #ifdef _WIN32
         // Using stack layout described in MS ABI
@@ -2711,7 +2709,7 @@ public:
                   /*allocator=*/this)
         , max_cpu_isa_(max_cpu_isa) {}
 
-    virtual ~jit_generator() {}
+    ~jit_generator() override = default;
 
     virtual const char *name() const = 0;
     virtual const char *source_file() const = 0;
