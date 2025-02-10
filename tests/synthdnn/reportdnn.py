@@ -43,14 +43,16 @@ from utils import *
 class Sample:
     def __init__(self, sample_line):
         _, name, prb, flops, bandwidth = sample_line.strip().split(",")
-        DebugPrint(f"name = {name}")
-        DebugPrint(f"prb = {prb}")
-        DebugPrint(f"flops = {flops}")
-        DebugPrint(f"bandwidth = {bandwidth}")
+#        DebugPrint(f"name = {name}")
+#        DebugPrint(f"prb = {prb}")
+#        DebugPrint(f"flops = {flops}")
+#        DebugPrint(f"bandwidth = {bandwidth}")
         self.name = name
         self.primitive = Primitive.from_repro(prb)
         self.flops = float(flops)
         self.bandwidth = float(bandwidth)
+#        DebugPrint(f"prb = {prb} prmitive = {self.primitive}")
+
     def kind(self):
         if self.name != "":
             return self.name + ": " + str(self.primitive.kind)
