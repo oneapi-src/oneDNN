@@ -74,7 +74,7 @@ post_op_context_t::post_op_context_t(const primitive_attr_t &attr,
                     wei_scales_mask = mask;
                     break;
                 case DNNL_ARG_DST: // Invert dst scales right after load.
-                    gpu_assert(mask == 0);
+                    gpu_assert(utils::one_of(mask, 0, 2));
                     dst_scales_type = sc_type;
                     view = po_vm_.create_view(sc_type, mask);
                     dst_scales = add_input_tensor(view, buf);
