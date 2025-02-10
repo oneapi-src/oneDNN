@@ -22,3 +22,6 @@ def DebugPrint(msg=""):
     head, tail = os.path.split(fname)
     print(f"Debug: {tail}:{sys._getframe().f_back.f_lineno}: {msg}")
 
+def getenv(var):
+    return os.environ.get(var)
+
