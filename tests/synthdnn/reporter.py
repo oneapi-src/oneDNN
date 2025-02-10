@@ -45,8 +45,8 @@ class summaryStats:
             mean = stat.mean(data.metrics.data)
             stdev = float('nan')
             if sample_size > 1:
-                #DebugPrint(f"{doprint} sample_size = {sample_size}")
-                #DebugPrint(f"{doprint} data = {data.metrics.data}")
+                DebugPrint(f"{doprint} sample_size = {sample_size}")
+                DebugPrint(f"{doprint} data = {data.metrics.data}")
                 stdev = stat.stdev(data.metrics.data)
             table.append([kind, "{:.1%}".format(mean), "{:.1%}".format(stdev), sample_size])
 
