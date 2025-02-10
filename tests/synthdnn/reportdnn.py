@@ -98,6 +98,7 @@ def reporter(sample_queue):
         except queue.Empty:
             pass
 
+        """
         update_time = time.monotonic()
         if(has_new_data and (update_time - last_report_update > 1)):
             clear_screen()
@@ -108,10 +109,12 @@ def reporter(sample_queue):
                 #DebugPrint("loop r in reports")
                 r.update(False)
             last_update = time.monotonic()
+        """
 
         if(has_plot):
             plotter.update()
 
+    # ???? Final
     for r in reports:
         ##### ???? to check - many reports
         ##### ???? todo remove: just updated table
