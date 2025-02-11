@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -104,12 +104,10 @@ protected:
 
         // inner product zero dimension shapes with channel tails
         for (auto sz : {1, 3, 15, 17, 31, 33, 63, 65, 127, 129})
-            inner_product_shapes.emplace_back(
-                    inner_product_shape_t {sz, sz, sz});
+            inner_product_shapes.emplace_back(sz, sz, sz);
 
         // inner product zero dimensional regression shapes
-        inner_product_shapes.emplace_back(
-                inner_product_shape_t {2, 1024, 30522});
+        inner_product_shapes.emplace_back(2, 1024, 30522);
 
         // inner product shapes of higher dimensions
         // dims format: either of {mb, ic, oc, kw}, {mb, ic, oc, kw, kh},
