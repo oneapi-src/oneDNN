@@ -1844,9 +1844,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             IMPLICATION(is_f32, one_of(isa, avx512_core, avx2) || jcp.is_bf32),
             VERBOSE_ISA_DT_MISMATCH);
     VDISPATCH_CONV_IC(
-            IMPLICATION(jcp.is_f32_f16, isa == avx2), VERBOSE_ISA_DT_MISMATCH);
+            IMPLICATION(jcp.is_f32_f16, one_of(isa, avx512_core, avx2)),
+            VERBOSE_ISA_DT_MISMATCH);
     VDISPATCH_CONV_IC(
-            IMPLICATION(jcp.is_f32_bf16, isa == avx2), VERBOSE_ISA_DT_MISMATCH);
+            IMPLICATION(jcp.is_f32_bf16, one_of(isa, avx512_core, avx2)),
+            VERBOSE_ISA_DT_MISMATCH);
     printf("correct ISA - DT match: src: %d, wei: %d, acc: %d, dst: %d\n",
             jcp.src_dt, jcp.wei_dt, jcp.acc_dt, jcp.dst_dt);
     jcp.amx_h = 16;
