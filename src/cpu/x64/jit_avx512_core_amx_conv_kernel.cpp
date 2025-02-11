@@ -3912,6 +3912,16 @@ status_t jit_avx512_core_amx_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
             = jcp.with_bias ? types::data_type_size(bias_d.data_type()) : 0;
     jcp.typesize_acc = sizeof(int32_t);
 
+    dim_t src_size = (dim_t)jcp.mb * jcp.id * jcp.ih * jcp.iw * jcp.ic
+            * jcp.typesize_in;
+    VDISPATCH_CONV_IC(src_size <= INT_MAX, VERBOSE_UNSUPPORTED_FEATURE,
+            "src size > INT_MAX is not supported");
+
+    dim_t dst_size = (dim_t)jcp.mb * jcp.od * jcp.oh * jcp.ow * jcp.oc
+            * jcp.typesize_out;
+    VDISPATCH_CONV_IC(dst_size <= INT_MAX, VERBOSE_UNSUPPORTED_FEATURE,
+            "dst size > INT_MAX is not supported");
+
     jcp.nb_ic = jcp.ic / jcp.ic_block;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
     jcp.nb_oc_int = div_up(jcp.oc, jcp.oc_block_int);
