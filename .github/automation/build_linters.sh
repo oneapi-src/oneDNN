@@ -18,7 +18,7 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
       set -x
       cmake \
           -Bbuild -S. \
-          -DCMAKE_BUILD_TYPE=debug \
+          -DCMAKE_BUILD_TYPE=release \
           -DONEDNN_BUILD_GRAPH=ON \
           -DDNNL_EXPERIMENTAL=ON \
           -DDNNL_EXPERIMENTAL_SPARSE=ON \
