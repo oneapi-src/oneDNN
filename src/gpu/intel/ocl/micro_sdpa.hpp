@@ -153,8 +153,9 @@ struct micro_sdpa_t : public gpu_primitive_t {
             if (!desc()->vs_scales.has_default_values()
                     || !desc()->vs_zero_points.has_default_values()) {
                 int vgs = value_group_size();
-                VDISPATCH_SDPA(
-                        math::is_pow2<int>(vgs) || vgs == val_md()->dims[3],
+                VDISPATCH_SDPA(utils::one_of(vs_scales_mask, 0, 1, 3)
+                                || (math::is_pow2<int>(vgs)
+                                        || vgs == val_md()->dims[3]),
                         "the value group size(%d) must be a power of 2 or "
                         "equal to the number of values(%d).",
                         vgs, val_md()->dims[3]);
