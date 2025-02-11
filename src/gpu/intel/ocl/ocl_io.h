@@ -95,6 +95,10 @@ DECLARE_AS_BLOCK(double)
         *dst = CONCAT2(into_, dst_dt)(*val); \
     } \
     dst_dt __attribute__((overloadable, warn_unused_result)) \
+            load(dst_dt dst, __global src_dt *val) { \
+        return CONCAT2(into_, dst_dt)(*val); \
+    } \
+    dst_dt __attribute__((overloadable, warn_unused_result)) \
             load(dst_dt dst, __global const src_dt *val) { \
         return CONCAT2(into_, dst_dt)(*val); \
     } \
@@ -166,7 +170,7 @@ DECLARE_AS_BLOCK(double)
 
 #define DEF_write(dst_dt, src_dt) \
     void __attribute__((overloadable)) \
-            write(__global dst_dt *dst, __private src_dt *val) { \
+            write(__global dst_dt *dst, __private const src_dt *val) { \
         *dst = CONCAT2(into_, dst_dt)(*val); \
     } \
     void __attribute__((overloadable)) \
