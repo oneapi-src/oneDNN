@@ -53,8 +53,7 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src,
         if (A_SCALES || B_SCALES) acc *= a_scale * b_scale;
 
         if (bias) {
-            ACC_DATA_T b;
-            load(&b, bias + BIAS_OFF(d0, d1, d2, d3, 0, 0));
+            ACC_DATA_T b = load(b, bias + BIAS_OFF(d0, d1, d2, d3, 0, 0));
             acc += b;
         }
 
@@ -71,8 +70,7 @@ __kernel void gemm_post_ops(__global SRC_DATA_T *src,
                 POST_OP_DATA_T, d0, 1, d1, 1, d2, 1, d3, 1, 0, 1, 0, 1);
 
         if (C_SCALES) {
-            POST_OP_DATA_T c_scale = 1;
-            load(&c_scale, c_scales);
+            POST_OP_DATA_T c_scale = load(c_scale, c_scales);
             accumulator /= c_scale;
         }
         if (DST_ZERO_POINT) accumulator += dst_zp[0];
