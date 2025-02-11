@@ -27,13 +27,12 @@
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
+#include "cpu/x64/utils/jit_io_helper.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
-
-struct bf16_emulation_t;
 
 template <cpu_isa_t isa>
 struct jit_uni_pool_kernel : public jit_generator {
@@ -81,9 +80,8 @@ private:
     Ymm ymm_tmp_1 = Ymm(0);
     Vmm vmm_tmp_1 = Vmm(0);
 
-    // Used only for avx and if c tail is present
+    // Used only for avx and if c tail is present; is shared with jit_io_multi_dt_helper_t
     Vmm vmm_c_tail_mask = Vmm(2);
-    Xmm xmm_c_tail_mask = Xmm(2);
 
     Vmm vmm_ker_area_h = Vmm(2);
     Vmm vmm_one = Vmm(2);
@@ -91,14 +89,6 @@ private:
     Xmm xmm_tmp = Xmm(3);
 
     Vmm vmm_k_offset = Vmm(1);
-
-    // Used only for avx512 when bf16 is present
-    inline Vmm vmm_idx() {
-        if (!jpp.is_backward) {
-            return (jpp.is_training) ? Vmm(4) : Vmm(1);
-        } else
-            return Vmm(4);
-    }
 
     Zmm bf16_emu_reserv_1 = Zmm(5);
     Zmm bf16_emu_reserv_2 = Zmm(6);
@@ -114,33 +104,23 @@ private:
     Reg64 fp8_emu_reg64 = bf16_emu_reserv_4;
     Xbyak::Opmask fp8_tmp_mask = Xbyak::Opmask(3);
 
-    Opmask k_c_tail_mask = Opmask(4);
-    Opmask k_mask_cvt = Opmask(5);
-    Opmask k_store_mask = Opmask(6);
-
-    // Here be some (tame) dragons. This kernel does not follow the regular
-    // OS-agnostic ABI pattern because when isa is sse41 it uses maskmovdqu
-    // instruction which has its destination hardcoded in rdi. Therefore:
-    // - all registers are hardcoded
-    // - on Windows rdi and rcx are swapped to mimic the Unix x86_64 ABI
-    //
-    // While this is only required by the backward pass, the quirk above
-    // is applied to the forward pass as well to keep things simpler.
+    Opmask k_c_tail_mask = Opmask(
+            4); // is shared with jit_io_multi_dt_helper_t and jit_uni_postops_injector_t
+    Opmask k_store_mask = Opmask(5);
 
     using reg64_t = const Reg64;
-    reg64_t reg_param = rdi; // Always mimic the Unix ABI
+    reg64_t reg_param = abi_param1;
     reg64_t reg_input = r8;
     reg64_t aux_reg_input = r9;
     reg64_t reg_index = r10;
     reg64_t reg_output = r12;
     reg64_t reg_kd_pad_shift = r13;
-    reg64_t dst_ptr = rdi; // Must be rdi due to maskmovdqu
 
     reg64_t kj = r14;
     reg64_t oi_iter = r15;
     reg64_t reg_kh = rax;
     reg64_t reg_k_shift = rbx;
-    reg64_t tmp_gpr = rcx; // Must be rcx because rdi is used above
+    reg64_t tmp_gpr = abi_not_param1;
     reg64_t reg_ker_area_h = rdx;
     reg64_t reg_nbc = rsi;
 
@@ -158,7 +138,6 @@ private:
 
     int prev_kw;
 
-    void prepare_tail_mask();
     void put_one_in_vmm();
     void uni_broadcast_reg_val(const int reg_idx, const int vmm_idx);
     void push_vmm_val(const int idx);
@@ -167,6 +146,10 @@ private:
             const int offset, const bool is_c_tail_proccessing);
     void store(const data_type_t dt, const int idx, const reg64_t &reg_ptr,
             const int offset, const bool is_c_tail_proccessing);
+    void pad_with_zeros(int idx);
+    void load_indices(int indr_i, int step_index, bool is_c_tail_processing);
+    void store_indices(int indr_i, int step_index, bool is_c_tail_processing,
+            bool is_first_w_block);
 
     void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r,
             bool with_c_tail_proccessing);
@@ -271,11 +254,11 @@ private:
         return jpp.is_fp8 && is_superset(isa, avx512_core_fp16);
     }
 
-    std::unique_ptr<bf16_emulation_t> bf16_emu_;
     std::unique_ptr<fp8_emulation_e5m2_t> f8_e5m2_emu_;
     std::unique_ptr<fp8_emulation_e4m3_t> f8_e4m3_emu_;
     std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
             postops_injector_;
+    io::jit_io_multi_dt_helper_t<Vmm> io_;
 };
 
 } // namespace x64
