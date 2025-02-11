@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 
 #include "cpu/platform.hpp"
 
+#include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm/gemm_pack.hpp"
 
 #if DNNL_X64
@@ -861,8 +862,8 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     // TODO: using matmul is disabled for SYCL runtime for now.
     // Enable it after memory handles issue fix
 #if DNNL_X64
-            && IMPLICATION(
-                    rnn.is_cell_dt_bf16(), !x64::mayiuse(x64::avx512_core))
+            && IMPLICATION(rnn.is_cell_dt_bf16(),
+                    (!x64::mayiuse(x64::avx512_core) || !__BUILD_GEMM_AVX512))
             && IMPLICATION(rnn.is_cell_dt_f32() || rnn.is_cell_dt_int8(),
                     x64::mayiuse(x64::avx2)
                             && utils::one_of(rd.cell_kind,
