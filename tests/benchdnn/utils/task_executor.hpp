@@ -60,10 +60,10 @@ struct task_executor_t {
         // Special case is needed for THREADPOOL RUNTIME. Both `Parallel_nd` and
         // `createit` calls activate threadpool which causes undesired behavior.
         if (tasks_.size() == 1)
-            tasks_[0].create();
+            tasks_[0].create(/* in_parallel = */ false);
         else
-            benchdnn_parallel_nd(
-                    tasks_.size(), [&](int i) { tasks_[i].create(); });
+            benchdnn_parallel_nd(tasks_.size(),
+                    [&](int i) { tasks_[i].create(/* in_parallel = */ true); });
 
         // Check caches first to avoid filling cache with service reorders.
         for (auto &t : tasks_) {

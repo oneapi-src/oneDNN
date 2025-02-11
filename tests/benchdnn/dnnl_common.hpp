@@ -617,6 +617,12 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
         TIME_COMPARE(check_buffer_overwrite(args.dnn_mem(i), args.arg(i), res));
     }
 
+    // Report prim_ref run status for easier distinguishing between GPU failures
+    // and ref CPU failures.
+    if (prim_ref) {
+        BENCHDNN_PRINT(1, "run ref: %s\n", res->prim_ref_repro.c_str());
+    }
+
     TIME_REF(compute_ref(prb, ref_args, prim_ref));
 
     for (const auto &kind : kinds) {
@@ -644,15 +650,6 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
                 cpu_cache_args.L2_size, cpu_cache_args.L3_size,
                 benchdnn_get_max_threads(),
                 query_impl_info(query_pd(prim_ref)).c_str());
-
-        // Replace engine kind for repro line from GPU to CPU.
-        const auto eng_pos = res->prim_ref_repro.find("engine=gpu");
-        if (eng_pos != std::string::npos)
-            // Replace `g` in `gpu` with `c`
-            res->prim_ref_repro[eng_pos + 7] = 'c';
-
-        BENCHDNN_PRINT(
-                0, "[PRIM_REF][REPRO]: %s\n", res->prim_ref_repro.c_str());
     }
 }
 
@@ -1086,7 +1083,27 @@ int init_prim_ref_common(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
 
     BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
             query_impl_info(pdw).c_str());
+
     res->prim_ref_repro = prb_cpu->str();
+    // Replace engine kind for repro line from GPU to CPU.
+    const auto eng_pos = res->prim_ref_repro.find("engine=gpu");
+    if (eng_pos != std::string::npos) {
+        // Replace `g` in `gpu` with `c`
+        res->prim_ref_repro[eng_pos + 7] = 'c';
+    }
+
+    // Remove `--impl=XXX` as it doesn't affect prim_ref.
+    const auto impl_pos = res->prim_ref_repro.find("--impl=");
+    if (impl_pos != std::string::npos) {
+        // Search for the next space starting from `impl_pos` as names' length
+        // is variadic.
+        const auto end_impl_pos
+                = res->prim_ref_repro.find_first_of(" ", impl_pos);
+        assert(end_impl_pos != std::string::npos);
+        // `+ 1` is for extra space.
+        res->prim_ref_repro.erase(impl_pos, end_impl_pos - impl_pos + 1);
+    }
+
     prim_ref.reset(prim_ref_ptr);
     return OK;
 }
