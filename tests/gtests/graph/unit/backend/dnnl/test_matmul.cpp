@@ -8127,8 +8127,7 @@ TEST(test_matmul_execute_subgraph_int8, NoShareCachedWeight) {
         std::generate(weight_data.begin(), weight_data.end(), [&]() {
             return static_cast<int8_t>(s8_distribution(generator));
         });
-        weight_s8_ts_vec.emplace_back(
-                test_tensor_t(weight_s8, engine, weight_data));
+        weight_s8_ts_vec.emplace_back(weight_s8, engine, weight_data);
     }
 
     for (size_t i = 0; i < src_shapes.size(); ++i) {
