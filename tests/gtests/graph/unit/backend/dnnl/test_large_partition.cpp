@@ -293,8 +293,7 @@ TEST(test_large_partition_execute, F32Resnet50Stage2Block) {
     std::vector<test_tensor_t> inputs_ts, outputs_ts, ref_outputs_ts;
 
     for (auto &lt : inputs) {
-        inputs_data.emplace_back(
-                std::vector<float>(utils::product(ltw(lt).vdims())));
+        inputs_data.emplace_back(utils::product(ltw(lt).vdims()));
         fill_data(inputs_data.back(), ltw(lt).data_type());
         inputs_ts.emplace_back(*lt, eng, inputs_data.back());
     }
@@ -304,9 +303,9 @@ TEST(test_large_partition_execute, F32Resnet50Stage2Block) {
         cp.query_logical_tensor(lt->id, &compiled_output);
         const std::vector<int64_t> dims = ltw(compiled_output).vdims();
         auto size = utils::product(dims);
-        outputs_data.emplace_back(std::vector<float>(size));
+        outputs_data.emplace_back(size);
         outputs_ts.emplace_back(compiled_output, eng, outputs_data.back());
-        ref_outputs_data.emplace_back(std::vector<float>(size));
+        ref_outputs_data.emplace_back(size);
         ref_outputs_ts.emplace_back(
                 compiled_output, eng, ref_outputs_data.back());
     }
@@ -1031,8 +1030,8 @@ TEST(test_large_partition_execute, Bf16Mha_CPU) {
     for (auto &lt : inputs) {
         // set all the input value to 1.f, then the value after softmax should
         // be 1.f/seq_len, and the final output should be 1.f
-        inputs_data.emplace_back(std::vector<uint16_t>(
-                utils::product(ltw(lt).vdims()), f32_to_bf16(1.f)));
+        inputs_data.emplace_back(
+                utils::product(ltw(lt).vdims()), f32_to_bf16(1.f));
         inputs_ts.emplace_back(*lt, eng, inputs_data.back());
     }
 
