@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 * Copyright 2020-2025 Arm Ltd. and affiliates
 * Copyright 2020-2024 FUJITSU LIMITED
 *
@@ -157,6 +157,14 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE(gemm_convolution_fwd_t)
             CPU_INSTANCE(ref_convolution_fwd_t)
             CPU_INSTANCE(ref_fused_convolution_fwd_t)
+            nullptr,
+        }},
+        {{forward, f32, f16, f32}, {
+            CPU_INSTANCE(ref_convolution_fwd_t)
+            nullptr,
+        }},
+        {{forward, f32, bf16, f32}, {
+            CPU_INSTANCE(ref_convolution_fwd_t)
             nullptr,
         }},
         {{forward, bf16, bf16, f32}, {
