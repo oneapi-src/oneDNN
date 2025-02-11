@@ -44,7 +44,7 @@ def log(output):
     print("reportdnn: " + output)
 
 def error(output):
-    print("reportdnn: error: " + output)
+    print("\nreportdnn: error: " + output + "\n")
     exit(1)
 
 class Sample:
@@ -79,6 +79,14 @@ def reporter(sample_queue):
         summaryStats(Absolute(), Bandwidth()),
 #        summaryStats(SampleRelative(), Flops())
     ]
+
+    # TEMP - via env
+    report_mode = getenv('REPORT_MODE')
+    if not (report_mode == "interactive" or report_mode == "final"):
+        error(f"unsupported mode {report_mode}")
+    DebugPrint(f"report mode is {report_mode}")
+
+
     last_report_update = time.monotonic()
     has_plot = False
     for r in reports:
@@ -107,25 +115,22 @@ def reporter(sample_queue):
         except queue.Empty:
             pass
 
-        """
-        # ???? if interactive mode
-        update_time = time.monotonic()
-        if(has_new_data and (update_time - last_report_update > 1)):
-            clear_screen()
-            last_report_update = update_time
-            for r in reports:
-                ##### ???? to check - many reports
-                ##### ???? todo remove: just updated table
-                #DebugPrint("loop r in reports")
-                r.update()
-            last_update = time.monotonic()
-        """
+        if report_mode == "interactive":
+            update_time = time.monotonic()
+            if(has_new_data and (update_time - last_report_update > 1)):
+                clear_screen()
+                last_report_update = update_time
+                for r in reports:
+                    r.update()
+                last_update = time.monotonic()
 
         # ???? needed for all modes ?????
         if(has_plot):
             plotter.update()
 
-    # ???? Final
+    if report_mode == "interactive":
+        clear_screen()
+
     for r in reports:
         ##### ???? to check - many reports
         ##### ???? todo remove: just updated table
