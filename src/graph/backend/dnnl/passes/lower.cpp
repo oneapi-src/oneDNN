@@ -703,6 +703,13 @@ static status_t gen_index_handler(
         const std::shared_ptr<op_t> &op, subgraph_rewriter_t &rewriter) {
     auto new_op = std::make_shared<op_t>(op_kind::dnnl_gen_index);
     new_op->merge_attributes(op->get_attributes());
+    int64_t axis = new_op->get_attr<int64_t>(op_attr::axis);
+    const int64_t ndims = static_cast<int64_t>(
+            ltw(op->get_input_value(0)->get_logical_tensor()).ndims());
+    VCHECK_INVALID_ARGUMENT(axis >= -1 * ndims && axis < ndims,
+            "GenIndex axis should be in range [-ndims, ndims) but got %d",
+            static_cast<int>(axis));
+    if (axis < 0) { new_op->set_attr<int64_t>(op_attr::axis, axis + ndims); }
     rewriter.replace_op(op, new_op);
     return status::success;
 }
