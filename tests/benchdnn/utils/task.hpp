@@ -38,8 +38,11 @@ struct task_t {
         , perf_template_(perf_template)
         , idx_(idx) {}
 
-    int create() {
-        BENCHDNN_PRINT(1, "create: %s\n", prb_.str());
+    int create(bool in_parallel) {
+        // Report creation status for problems only in sequential mode as in
+        // parallel it's still not clear which one failed.
+        if (!in_parallel) BENCHDNN_PRINT(1, "create: %s\n", prb_.str());
+
         if (skip_start(&res_, idx_)) return OK;
         if (bench_mode == bench_mode_t::list) return res_.state = LISTED, OK;
 
