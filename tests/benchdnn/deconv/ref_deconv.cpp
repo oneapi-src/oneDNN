@@ -324,8 +324,8 @@ void compute_ref_bwd_weights(const prb_t *prb, const args_t &args) {
             = [](int64_t I, int64_t O, int64_t k, int64_t S, int64_t P,
                       int64_t D, int64_t &o_s, int64_t &o_e) {
                   const float tmp = P - k * D;
-                  o_s = MAX2(0, ceilf(tmp / S));
-                  o_e = MIN2(O, ceilf((I + tmp) / S));
+                  o_s = MAX2(0, div_up(tmp, S));
+                  o_e = MIN2(O, div_up(I + tmp, S));
               };
 
     auto ker = [&](float &dw, int64_t g, int64_t oc, int64_t ic, int64_t kd,
