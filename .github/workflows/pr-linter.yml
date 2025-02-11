@@ -90,7 +90,7 @@ jobs:
       - name: Install clang
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-12 libomp-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
+          sudo apt-get install -y clang-12 libomp-12-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
 
       - name: Configure oneDNN
         run: .github/automation/build_linters.sh
