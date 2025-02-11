@@ -139,7 +139,26 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
 
     if (add) {
         auto m0 = add->get_input_value(0), m1 = add->get_input_value(1);
-        attn_mask_ = in_tensor_list(m1.get(), inputs) ? m1 : m0;
+        if (in_tensor_list(m1.get(), inputs)) {
+            attn_mask_ = m1;
+        } else if (in_tensor_list(m0.get(), inputs)) {
+            attn_mask_ = m0;
+        } else if (m1->has_producer()
+                && m1->get_producer().get_kind() == op_kind::dnnl_unsqueeze
+                && in_tensor_list(
+                        m1->get_producer().get_input_value(0).get(), inputs)) {
+            // consider the case when mask is not 4D,
+            // unsqueeze op is inserted to broadcast the mask
+            attn_mask_ = m1;
+        } else if (m0->has_producer()
+                && m0->get_producer().get_kind() == op_kind::dnnl_unsqueeze
+                && in_tensor_list(
+                        m0->get_producer().get_input_value(0).get(), inputs)) {
+            attn_mask_ = m0;
+        } else {
+            VCHECK_SDP_PRIMITIVE(
+                    false, status::unimplemented, "explicit mask is not found");
+        }
     }
 
     return status::success;
