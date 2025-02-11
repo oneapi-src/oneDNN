@@ -50,9 +50,13 @@
 #define BLOCK_READ_FUNC(dt) CONCAT2(BLOCK_READ_FUNC_, SIZE(dt))
 
 #define DEF_load(dst_dt, src_dt) \
-    void __attribute__((overloadable)) \
-            load(__private dst_dt *dst, __global src_dt *val) { \
+    void __attribute__((overloadable)) load( \
+            __private dst_dt *dst, __global src_dt *val) { \
         *dst = CONCAT2(into_, dst_dt)(*val); \
+    } \
+    dst_dt __attribute__((overloadable, warn_unused_result)) load( \
+            dst_dt dst, __global src_dt *val) { \
+        return CONCAT2(into_, dst_dt)(*val); \
     } \
     __attribute__((overloadable)) void block_load( \
             __private dst_dt *dst, __global src_dt *src) { \
