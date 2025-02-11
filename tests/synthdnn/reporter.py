@@ -36,7 +36,7 @@ class summaryStats:
 
         super().__init__()
 
-    def update(self,doprint):
+    def update(self):
         #DebugPrint("summaryStats update")
         header = ["Primitive Kind", "Mean", "Std Dev", "Sample Size"]
         table = []
@@ -45,30 +45,16 @@ class summaryStats:
             mean = stat.mean(data.metrics.data)
             stdev = float('nan')
             if sample_size > 1:
-                DebugPrint(f"{doprint} sample_size = {sample_size}")
-                DebugPrint(f"{doprint} data = {data.metrics.data}")
                 stdev = stat.stdev(data.metrics.data)
-            table.append([kind, "{:.1%}".format(mean), "{:.1%}".format(stdev), sample_size])
 
-        if doprint:
-            print(self.title)
-            print(tabulate(table, header, tablefmt="rst"))
-    """
-    def finalize(self):
-        DebugPrint("summaryStats finalize")
-        header = ["Primitive Kind", "Mean-final", "Std Dev", "Sample Size"]
-        table = []
-        for kind, data in self.data.items():
-            sample_size = len(data.metrics.data)
-            mean = stat.mean(data.metrics.data)
-            stdev = float('nan')
-            if sample_size > 1:
-                stdev = stat.stdev(data.metrics.data)
-            table.append([kind, "{:.1%}".format(mean), "{:.1%}".format(stdev), sample_size])
+            if self.scaling.format_to_percent():
+                table.append([kind, "{:.1%}".format(mean), "{:.1%}".format(stdev), sample_size])
+            else:
+                table.append([kind, mean, stdev, sample_size])
 
         print(self.title)
         print(tabulate(table, header, tablefmt="rst"))
-    """
+
     def add(self, sample):
         #DebugPrint("summaryStats add")
         #dt = sample.primitive["dt"]

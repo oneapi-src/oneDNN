@@ -68,7 +68,9 @@ def ingest_data(sample_queue):
 
 def reporter(sample_queue):
     reports = [
-        summaryStats(SampleRelative(), Bandwidth())
+        summaryStats(SampleRelative(), Bandwidth()),
+        summaryStats(Absolute(), Bandwidth()),
+#        summaryStats(SampleRelative(), Flops())
     ]
     last_report_update = time.monotonic()
     has_plot = False
@@ -99,6 +101,7 @@ def reporter(sample_queue):
             pass
 
         """
+        # ???? if interactive mode
         update_time = time.monotonic()
         if(has_new_data and (update_time - last_report_update > 1)):
             clear_screen()
@@ -107,10 +110,11 @@ def reporter(sample_queue):
                 ##### ???? to check - many reports
                 ##### ???? todo remove: just updated table
                 #DebugPrint("loop r in reports")
-                r.update(False)
+                r.update()
             last_update = time.monotonic()
         """
 
+        # ???? needed for all modes ?????
         if(has_plot):
             plotter.update()
 
@@ -118,8 +122,10 @@ def reporter(sample_queue):
     for r in reports:
         ##### ???? to check - many reports
         ##### ???? todo remove: just updated table
-        #DebugPrint("loop r in reports")
-        r.update(True)
+#       DebugPrint(f"loop r in reports : r.scaling.needs_format = {r.scaling.needs_format()}")
+#       DebugPrint(f"loop r in reports : r.scaling.title = {r.scaling.title}")
+        #???? get Relative or Abs from report ????
+        r.update()
 
     if(has_plot):
         plotter.finalize()
