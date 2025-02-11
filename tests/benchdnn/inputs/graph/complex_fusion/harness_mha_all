@@ -46,6 +46,7 @@
 --reset --dt=f32,bf16,f16 --in-shapes=0:32x16x128x64+1:32x16x128x64+5:32x16x128x128+8:32x16x128x64  --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
 --reset --dt=f32,bf16,f16 --in-shapes=0:acbd+1:acbd+8:acbd  --case=complex_fusion/mha/sdpa-plain-simplified-f16.json
 --reset --dt=f32,bf16,f16 --in-shapes=3:384,3:384x384,3:1x16x384x384 --case=complex_fusion/mha/sdpa-plain-scale-by-mul-f16.json
+--reset --dt=f32,bf16,f16 --in-shapes=5:384,5:1x384 --case=complex_fusion/mha/sdpa-plain-scale-by-mul-f16.json
 --reset --op-attrs=34107656704:group_shape:1x1x1x32+34107654464:transpose_b:1 --in-shapes=0:1x32x32x128+1:1x32x32x4+2:1x32x32x4 --case=complex_fusion/mha/sdpa-compressed-k-int8-gs32.json
 --reset --op-attrs=34107656704:qtype:per_channel*axis:3 --in-shapes=1:32+2:1 --case=complex_fusion/mha/sdpa-compressed-k-int8-gs32.json
 --reset --dt=f32,bf16,f16 --op-attrs=2:axis:-2+3:axis:-1 --in-shapes=0:1x32x128x64+1:1x32x128x64+11:1x32x128x64 --case=complex_fusion/mha/sdpa-plain-implicit-causal-mask-fp32-bs1.json
