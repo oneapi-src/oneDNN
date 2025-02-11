@@ -51,11 +51,11 @@
 
 #define DEF_load(dst_dt, src_dt) \
     void __attribute__((overloadable)) \
-            load(__private dst_dt *dst, __global src_dt *val) { \
+            load(__private dst_dt *dst, __global const src_dt *val) { \
         *dst = CONCAT2(into_, dst_dt)(*val); \
     } \
     dst_dt __attribute__((overloadable, warn_unused_result)) \
-            load(dst_dt dst, __global src_dt *val) { \
+            load(dst_dt dst, __global const src_dt *val) { \
         return CONCAT2(into_, dst_dt)(*val); \
     } \
     __attribute__((overloadable)) void block_load( \
