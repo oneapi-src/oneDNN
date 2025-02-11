@@ -160,6 +160,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             nullptr,
         }},
         {{forward, f32, f16, f32}, {
+            CPU_INSTANCE_AVX512(brdgmm_dw_convolution_fwd_t)
             CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx512_core>)
             CPU_INSTANCE_AVX2(brgemm_convolution_fwd_t<avx512_core>)
             CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx2>)
@@ -168,6 +169,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             nullptr,
         }},
         {{forward, f32, bf16, f32}, {
+            CPU_INSTANCE_AVX512(brdgmm_dw_convolution_fwd_t)
             CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx512_core>)
             CPU_INSTANCE_AVX2(brgemm_convolution_fwd_t<avx512_core>)
             CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx2>)

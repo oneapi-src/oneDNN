@@ -814,7 +814,7 @@ void jit_brdgmm_kernel_base_t<Wmm>::load_b(
                 vcvtneobf162ps(vmmb, addr);
         } else {
             vpmovzxwd(vmmb, addr);
-            if (is_slow_bf16_vnni()) vpslld(vmmb, vmmb, 16);
+            if (is_slow_bf16_vnni() || brg.is_f32) vpslld(vmmb, vmmb, 16);
         }
     }
 }
