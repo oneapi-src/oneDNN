@@ -426,6 +426,7 @@ namespace concat {
 bool get_concat_prb_vdims(
         const deserialized_op &base_op_ref, prb_vdims_t &prb_vdims) {
     std::vector<dims_t> vdims;
+    vdims.reserve(base_op_ref.in_lts_.size());
     for (const auto &in : base_op_ref.in_lts_) {
         vdims.push_back(in.shape_);
     }
