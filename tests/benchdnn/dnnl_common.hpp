@@ -1058,4 +1058,37 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
 int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
         const args_t &args, const attr_t &attr, bool inplace, res_t *res);
 
+template <typename prb_t>
+int init_prim_ref_common(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
+        const prb_t *prb_cpu, res_t *res) {
+
+    init_pd_args_t<prb_t> init_pd_args(
+            /* res = */ nullptr, get_cpu_engine(), prb_cpu, prb_cpu->dir,
+            /* hint = */ nullptr, /* src_md = */ nullptr);
+    init_pd(init_pd_args);
+
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
+    // `is_service_prim=true` prevents from filtering the implementation
+    // by name which is intended through a `get_prim_ref_impl_filter()`.
+    // As `fetch_impl` doesn't have any further logic related to it, it's
+    // safe to set it to `false`.
+    fetch_impl(pdw, init_pd_args, get_prim_ref_impl_filter(),
+            /* res = */ nullptr,
+            /* is_service_prim = */ false);
+
+    // Prim desc wasn't created - try the next set...
+    if (!pdw) return FAIL;
+
+    dnnl_primitive_t prim_ref_ptr {};
+    auto st = dnnl_primitive_create(&prim_ref_ptr, pdw);
+    // Primitive wasn't created - try the next set...
+    if (st != dnnl_success) return FAIL;
+
+    BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
+            query_impl_info(pdw).c_str());
+    res->prim_ref_repro = prb_cpu->str();
+    prim_ref.reset(prim_ref_ptr);
+    return OK;
+}
+
 #endif
