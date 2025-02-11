@@ -49,6 +49,8 @@ class SampleRelative(Scaling):
     def initialize(self, val):
         return val / self.max_value
 
+    def format_to_percent(self):
+        return True
 
 class Absolute(Scaling):
     title = "Absolute"
@@ -59,6 +61,9 @@ class Absolute(Scaling):
 
     def initialize(self, val):
         return val
+
+    def format_to_percent(self):
+        return False
 
 
 class Value:
