@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -185,7 +185,7 @@ static status_t init_conf_common(reusable_bnorm_params_t &conf,
 
 static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const reusable_bnorm_params_t &conf) {
-    kernel_ctx.set_data_type(conf.data_type);
+    kernel_ctx.set_data_type(conf.data_type, false);
 
     kernel_ctx.define_int("WITH_RELU", conf.with_relu);
     if (conf.with_leaky_relu) kernel_ctx.define_int("WITH_LEAKY_RELU", 1);
