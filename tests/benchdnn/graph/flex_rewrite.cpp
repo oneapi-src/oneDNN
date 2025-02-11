@@ -1126,6 +1126,7 @@ void flex_rewrite::inports_shape_rewrite(
 
 void flex_rewrite::op_attrs_rewrite(deserialized_graph &dgraph) {
     std::vector<size_t> op_ids_;
+    op_ids_.reserve(dgraph.ops_.size());
     for (const auto &aop : dgraph.ops_) {
         op_ids_.emplace_back(aop.id_);
     }
