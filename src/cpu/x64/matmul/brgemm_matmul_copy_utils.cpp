@@ -3885,12 +3885,12 @@ void jit_brgemm_matmul_copy_b_transposed_t<Vmm>::load_int(const Vmm vmm_in,
     const bool need_preload_int4 = is_src_int4_ && (i * src_stride_) % 2 != 0;
     const auto max_shift_sz = 8;
     if (need_preload_int4) {
-        const auto load_sz = is_tail ? columns_tail
+        const auto load_sz = is_tail ? div_up(columns_tail, 2)
                 : req_cvtps2xf16_    ? req_cvt_bf16_k_blk_step_ / 2
                                      : k_blk_step_ / 2;
         assert(load_sz <= max_shift_sz);
-        if (load_sz < max_shift_sz) {
-            load_bytes(xmm_in, addr, div_up(columns_tail, 2));
+        if (load_sz < max_shift_sz || is_tail) {
+            load_bytes(xmm_in, addr, load_sz);
             vpsrlq(xmm_in, xmm_in, 4);
         } else {
             const auto xmm_tmp = Xmm(tmp_vmm(3).getIdx());
