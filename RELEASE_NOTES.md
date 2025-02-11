@@ -36,9 +36,8 @@
   * Introduced support for `select` algorithm in binary primitive. The functionality is optimized for Intel CPUs.
   * Extended quantization support in matmul and reorder with grouped scales and zero-points for weights. This functionality is optimized for Intel CPUs and GPUs.
   * Introduced initial support for 4-bit floating-point data types `f4_e2m1` and `f4_e3m0` in matmul and reorder, as well as `e8m0` scales data type in matmul and reorder. This functionality is available on Intel CPUs and GPUs.
-  * Introduced [`Select`], [`GenIndex`], and [`GreaterEqual`] operations in Graph API.
+  * Introduced [`GenIndex`], and [`GreaterEqual`] operations in Graph API.
 
-[`Select`]: https://oneapi-src.github.io/oneDNN/dev_guide_op_select.html
 [`GenIndex`]: https://oneapi-src.github.io/oneDNN/dev_guide_op_genindex.html
 [`GreaterEqual`]: https://oneapi-src.github.io/oneDNN/dev_guide_op_greaterequal.html
 
