@@ -82,7 +82,7 @@ jobs:
 
   pr-clang-tidy:
     name: Clang-Tidy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout oneDNN
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -90,12 +90,13 @@ jobs:
       - name: Install clang
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang libomp-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
+          sudo apt-get install -y clang-12 libomp-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
 
       - name: Configure oneDNN
         run: .github/automation/build_linters.sh
         env:
           ONEDNN_ACTION: configure
+          CLANG_VERSION: 12
 
       - name: Build oneDNN
         run: |

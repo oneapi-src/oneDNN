@@ -5,6 +5,14 @@ set -o errexit -o pipefail -o noclobber
 export CC=clang
 export CXX=clang++
 
+if [ -n "$CLANG_VERSION" ]; then
+  export CC=clang-$CLANG_VERSION
+  export CXX=clang++-$CLANG_VERSION
+else
+  export CC=clang
+  export CXX=clang++
+fi
+
 if [[ "$ONEDNN_ACTION" == "configure" ]]; then
     if [[ "$GITHUB_JOB" == "pr-clang-tidy" ]]; then
       set -x
@@ -33,7 +41,7 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
     fi
 elif [[ "$ONEDNN_ACTION" == "build" ]]; then
     set -x
-    cmake --build build
+    cmake --build build -j4
     set +x
 else
     echo "Unknown action: $ONEDNN_ACTION"
