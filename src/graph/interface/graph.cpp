@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ bool logical_tensor_sanity_check(
 // partition into `topo_fused_ops`, the definition of “proxy op” is: the last
 // one in the topological order of the partition
 status_t dnnl_graph_graph::get_ordered_partitions(
-        std::vector<partition_t *> &partitions) {
+        std::vector<partition_t *> &partitions) const {
 
     std::vector<op_t *> topo_unfused_ops;
     std::vector<op_t *> topo_fused_ops;
