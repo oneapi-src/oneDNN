@@ -284,7 +284,7 @@ TEST(test_pool_execute_subgraph_fp32, Pool3Postops) {
         std::vector<graph::op_t> post_ops {};
         for (size_t i = 0; i < post_op_ts.size(); ++i) {
             auto pop_t = post_op_ts[i];
-            post_ops.emplace_back(graph::op_t {i + 1, pop_t, "post op"});
+            post_ops.emplace_back(i + 1, pop_t, "post op");
 
             post_ops.back().add_input(lt_vec[lt_idx]);
             if (std::find(binary_op_ts.begin(), binary_op_ts.end(), pop_t)
