@@ -291,8 +291,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     sub_mm1_wei = memory(sub_mm1_wei_md, p_engine, nullptr);
     sub_mm1_dst = memory(sub_mm1_dst_md, p_engine, nullptr);
     for (size_t i = 0; i < sub_mm1_post_md.size(); i++) {
-        sub_mm1_post_mem.emplace_back(
-                memory(sub_mm1_post_md[i], p_engine, nullptr));
+        sub_mm1_post_mem.emplace_back(sub_mm1_post_md[i], p_engine, nullptr);
     }
     // softmax
     sub_softmax_dst = memory(sub_softmax_dst_md, p_engine, nullptr);
