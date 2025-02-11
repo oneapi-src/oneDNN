@@ -76,6 +76,11 @@ struct reusable_simple_concat_runtime_params_t {
     dim_t gws0_block;
     dim_t inner_axis;
 
+    dim_t src_concat_axis0;
+    dim_t src_concat_axis1;
+    dim_t padded_src_concat_axis0;
+    dim_t padded_src_concat_axis1;
+
     compute::range_t gws_d = compute::range_t::one();
     compute::range_t lws_d;
 };

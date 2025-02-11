@@ -86,6 +86,7 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
     memory_desc_t dst_md, src_md;
     int offset = 0, padded_offset = 0, nonempty_inputs = 0;
     dim_t final_padding = 0;
+    printf("\n");
     for (int i = 0; i < pd->n_inputs(); ++i) {
         if (pd->src_md(i)->padded_dims[concat_dim] == 0) continue;
         max_bytes = std::max(max_bytes,
@@ -102,8 +103,19 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
         final_padding = concat_pdim - concat_dim;
         offset += concat_dim;
         padded_offset += concat_pdim;
+
+        if(nonempty_inputs == 0) {
+            rt_conf.src_concat_axis0 = src_md.dims[axis::concat];
+            rt_conf.padded_src_concat_axis0 = src_md.padded_dims[axis::concat];
+        }
+        if(nonempty_inputs == 1) {
+            rt_conf.src_concat_axis1 = src_md.dims[axis::concat];
+            rt_conf.padded_src_concat_axis1 = src_md.padded_dims[axis::concat];
+        }
         nonempty_inputs++;
+        printf("src %zu %zu %zu \n", src_md.padded_dims[axis::outer], src_md.padded_dims[axis::concat], src_md.padded_dims[axis::inner], conf.n_blocks, conf.blocks[0]);
     }
+    printf("\n");
     memcpy(&dst_md, pd->dst_md(), sizeof(memory_desc_t));
     normalize(dst_md);
     const auto &dst_blkg = dst_md.format_desc.blocking;
@@ -167,6 +179,9 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
         size_t concat2_inner_axis = dst_md.dims[axis::inner];
         size_t concat2_dtsize = dnnl_data_type_size(dst_md.data_type);
 
+        int dtscale = conf.data_type_size / concat2_dtsize;
+        concat2_dtsize = conf.data_type_size; //TODO: TMP: STF test wwrong size? todo figure out how to use scale, in kernel? in setup?
+
         size_t min_bytes_per_thread = 8;
         size_t loads_per_thread = min_bytes_per_thread / concat2_dtsize;
 
@@ -188,13 +203,20 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
         }
 
         // TODO: generalize "src_bank" calculation for smaller block sizes
-        bool supported_block_size = (conf.n_blocks > 0)
-                && ((conf.blocks[0] == 8) || (conf.blocks[0] == 16)
-                        || (conf.blocks[0] == 32));
+        bool supported_block_size = (conf.n_blocks > 0);
+        //bool supported_block_size = (conf.n_blocks > 0)
+                //&& ((conf.blocks[0] == 8) || (conf.blocks[0] == 16)
+                        //|| (conf.blocks[0] == 32));
 
+        printf("%d %d %d %d TTTT? dtsize%d\n", (conf.n == 2),
+                can_subgroup_read_dt, src0_size_sufficient,
+                supported_block_size,
+                conf.data_type_size
+                );
         bool can_use_internal_padding_concat2 = (conf.n == 2)
                 && can_subgroup_read_dt && src0_size_sufficient
                 && supported_block_size;
+        printf("dst %zu %zu %zu  b%d %d %d\n", dst_md.padded_dims[axis::outer], dst_md.padded_dims[axis::concat], dst_md.padded_dims[axis::inner], conf.n_blocks, conf.blocks[0], conf.strides[0]);
         if (can_use_internal_padding_concat2) {
             rt_conf.inner_axis = concat2_inner_axis;
             conf.data_type_size = concat2_dtsize;
@@ -212,14 +234,14 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
             rt_conf.lws_d[1] = 1;
             rt_conf.lws_d[2] = 1;
 
-            //printf("\n dims[%zu %zu %zu] padded: [%zu %zu %zu]\n gws[%zu %zu %zu] simd:%zu dtsize:%zu\n",
-            //dst_md.dims[axis::outer], dst_md.dims[axis::concat], dst_md.dims[axis::inner],
-            //dst_md.padded_dims[axis::outer], dst_md.padded_dims[axis::concat], dst_md.padded_dims[axis::inner],
-            //rt_conf.gws_d[0], rt_conf.gws_d[1], rt_conf.gws_d[2],
-            //conf.simd, conf.data_type_size);
-            //for(int i=0; i<conf.n_blocks; ++i){
-            //printf("b%d: %d, ", i, conf.blocks[i]);
-            //}
+            printf("\n dims[%zu %zu %zu] padded: [%zu %zu %zu]\n gws[%zu %zu %zu] simd:%zu dtsize:%zu\n",
+            dst_md.dims[axis::outer], dst_md.dims[axis::concat], dst_md.dims[axis::inner],
+            dst_md.padded_dims[axis::outer], dst_md.padded_dims[axis::concat], dst_md.padded_dims[axis::inner],
+            rt_conf.gws_d[0], rt_conf.gws_d[1], rt_conf.gws_d[2],
+            conf.simd, conf.data_type_size);
+            for(int i=0; i<conf.n_blocks; ++i){
+            printf("b%d: %d, ", i, conf.blocks[i]);
+            }
         }
     }
 
@@ -302,8 +324,8 @@ void push_idx_kernel_args_internal_padding(
     partial_list.append(static_cast<IDX_T>(rt_conf.dst_concat_axis));
     partial_list.append(static_cast<IDX_T>(rt_conf.dst_padded_concat_axis));
 
-    //printf("dst_concat_axis=%ld dst_padded_concat_axis=%ld\n",
-    //rt_conf.dst_concat_axis, rt_conf.dst_padded_concat_axis);
+    printf("dst_concat_axis=%ld dst_padded_concat_axis=%ld\n",
+    rt_conf.dst_concat_axis, rt_conf.dst_padded_concat_axis);
     for (int idx = 0, valid_idx = 0; idx < pd->n_inputs(); ++idx) {
         // skip invalid inputs
         if (pd->src_md(idx)->padded_dims[concat_dim] == 0) continue;
@@ -317,21 +339,28 @@ void push_idx_kernel_args_internal_padding(
         dim_t src_concat_axis = valid_idx + 1 < conf.n
                 ? rt_conf.offset[valid_idx + 1]
                 : rt_conf.dst_concat_axis;
-        partial_list.append(static_cast<IDX_T>(src_concat_axis));
+        //partial_list.append(static_cast<IDX_T>(src_concat_axis));
 
-        partial_list.append(pd->src_md(idx)->padded_dims[concat_dim]);
+        //partial_list.append(pd->src_md(idx)->padded_dims[concat_dim]);
+        if(valid_idx == 0) {
+            partial_list.append(rt_conf.src_concat_axis0);
+            partial_list.append(rt_conf.padded_src_concat_axis0);
+        } else {
+            partial_list.append(rt_conf.src_concat_axis1);
+            partial_list.append(rt_conf.padded_src_concat_axis1);
+        }
 
-        //printf("offset%d=%ld padded_offset%d=%ld src_concat_axis%d=%ld "
-        //"padded_src_concat_axis%d=%ld\n",
-        //valid_idx, rt_conf.offset[valid_idx], valid_idx,
-        //rt_conf.padded_offset[valid_idx], valid_idx, src_concat_axis,
-        //valid_idx, pd->src_md(idx)->padded_dims[concat_dim]);
+        printf("offset%d=%ld padded_offset%d=%ld src_concat_axis%d=%ld "
+        "padded_src_concat_axis%d=%ld\n",
+        valid_idx, rt_conf.offset[valid_idx], valid_idx,
+        rt_conf.padded_offset[valid_idx], valid_idx, src_concat_axis,
+        valid_idx, pd->src_md(idx)->padded_dims[concat_dim]);
         valid_idx++;
     }
 
     partial_list.append(static_cast<IDX_T>(
             rt_conf.inner_axis)); //INNERDIM add only for internal_pad kernel
-    //printf("inner_axis=%ld \n", rt_conf.inner_axis);
+    printf("inner_axis=%ld \n", rt_conf.inner_axis);
 }
 
 status_t reusable_simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
@@ -348,6 +377,7 @@ status_t reusable_simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
 
     status_t status;
     if (conf.use_internal_padding_kernel) {
+        printf("INTERNAL\n");
         if (conf.use_large_index) {
             push_idx_kernel_args_internal_padding<std::uint64_t>(
                     arg_list, ctx, conf, rt_conf, pd());

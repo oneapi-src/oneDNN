@@ -123,7 +123,8 @@ public:
 
         if (padding_type_ == padding_t::internal) {
             // may use different kernel, requires different partition for blocks
-            chunk_size_ = 1;
+            chunk_size_ = math::gcd(chunk_size_, source_chunk);
+            //chunk_size_ = 1;
         } else {
             chunk_size_ = math::gcd(chunk_size_, pdim);
             padded_chunk_size_ = math::gcd(padded_chunk_size_, source_chunk);
