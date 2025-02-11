@@ -131,14 +131,19 @@ inline status_t convert_data_type(const memory_desc_t *mem_desc,
         case data_type_t::dnnl_bf16:
             *miopen_data_type = miopenDataType_t::miopenBFloat16;
             break;
-        case data_type_t::dnnl_s8:
-            *miopen_data_type
-                    = ((vectorized
-                               && mem_desc->format_desc.blocking.inner_blks[0]
-                                       == 4)
-                                    ? miopenDataType_t::miopenInt8x4
-                                    : miopenDataType_t::miopenInt8);
+        case data_type_t::dnnl_s8: {
+            if (vectorized
+                    && mem_desc->format_desc.blocking.inner_blks[0] == 4) {
+#if MIOPEN_HAS_INT8X4
+                *miopen_data_type = miopenDataType_t::miopenInt8x4;
+#else
+                return status::unimplemented;
+#endif
+            } else {
+                *miopen_data_type = miopenDataType_t::miopenInt8;
+            }
             break;
+        }
         default: return status::unimplemented;
     }
     return status::success;
