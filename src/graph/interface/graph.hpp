@@ -280,7 +280,7 @@ public:
      * \param list of partitions
      */
     graph::status_t get_ordered_partitions(
-            std::vector<graph::partition_t *> &partitions);
+            std::vector<graph::partition_t *> &partitions) const;
 
     // Finalize the graph after finishing adding ops.
     graph::status_t finalize();
