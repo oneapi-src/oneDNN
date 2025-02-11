@@ -89,10 +89,10 @@ bool post_ops_ok(jit_brdgmm_conv_conf_t &jcp, const primitive_attr_t &attr,
                     broadcasting_strategy_t::no_broadcast}));
 }
 
-cpu_isa_t get_supported_isa(
-        bool is_f32, bool is_int8, bool is_bf16, bool is_f16) {
+cpu_isa_t get_supported_isa(bool is_f32, bool is_int8, bool is_bf16,
+        bool is_f16, bool is_f32_bf16, bool is_f32_f16) {
     std::vector<cpu_isa_t> isa_list;
-    if (is_f32) {
+    if (one_of(true, is_f32, is_f32_bf16, is_f32_f16)) {
         isa_list = {avx512_core, avx2};
     } else if (is_int8) {
         isa_list = {avx512_core_vnni, avx2_vnni_2, avx2_vnni};
@@ -125,7 +125,12 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
             && one_of(dst_type, bf16, f32);
     const bool is_f16 = everyone_is(f16, src_type, wei_type)
             && one_of(dst_type, f16, f32);
-    const cpu_isa_t isa = get_supported_isa(is_f32, is_int8, is_bf16, is_f16);
+    const bool is_f32_bf16
+            = everyone_is(f32, src_type, dst_type) && wei_type == bf16;
+    const bool is_f32_f16
+            = everyone_is(f32, src_type, dst_type) && wei_type == f16;
+    const cpu_isa_t isa = get_supported_isa(
+            is_f32, is_int8, is_bf16, is_f16, is_f32_bf16, is_f32_f16);
 
     auto skip_mask = skip_mask_t::post_ops;
     if (is_int8)
@@ -133,7 +138,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
                 | skip_mask_t::zero_points_runtime);
 
     VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
-    VDISPATCH_CONV(one_of(true, is_f32, is_int8, is_bf16, is_f16),
+    VDISPATCH_CONV(one_of(true, is_f32, is_int8, is_bf16, is_f16, is_f32_bf16,
+                           is_f32_f16),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_CONV(
             IMPLICATION(is_int8,
