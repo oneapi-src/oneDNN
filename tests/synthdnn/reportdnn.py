@@ -40,6 +40,13 @@ import time
 
 from utils import *
 
+def log(output):
+    print("reportdnn: " + output)
+
+def error(output):
+    print("reportdnn: error: " + output)
+    exit(1)
+
 class Sample:
     def __init__(self, sample_line):
         _, name, prb, flops, bandwidth = sample_line.strip().split(",")
