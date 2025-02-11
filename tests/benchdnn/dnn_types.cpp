@@ -597,8 +597,7 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks(
             continue;
 
         assert(mask >= 0);
-        v_masks.emplace_back(std::make_pair(
-                DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | arg, mask));
+        v_masks.emplace_back(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | arg, mask);
     }
     return v_masks;
 }

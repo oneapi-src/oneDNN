@@ -141,7 +141,7 @@ struct lru_cache_t {
             cache_mapper_.erase(cache_list_.back().key_);
             cache_list_.pop_back();
         }
-        cache_list_.push_front(entry_t(key, value));
+        cache_list_.emplace_front(key, value);
         cache_mapper_.insert({key, cache_list_.begin()});
     }
 
