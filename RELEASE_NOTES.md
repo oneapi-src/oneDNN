@@ -11,7 +11,7 @@
   * Improved performance of the following subgraphs with Graph API:
     * [Gated Multi-Layer Perceptron (Gated MLP)].
 
-[accumulation mode]: https://oneapi-src.github.io/oneDNN/dev_guide_attributes_accumulation_mode.html#doxid-dev-guide-attributes-accumulation-mode
+[accumulation mode]: https://oneapi-src.github.io/oneDNN/v3.7/dev_guide_attributes_accumulation_mode.html#doxid-dev-guide-attributes-accumulation-mode
 
 ## Intel Graphics Products
   * Introduced initial optimizations for Intel GPUs based on Xe3 architecture.
@@ -23,9 +23,9 @@
     * SDPA with [`int8` or `int4` compressed key and value].
     * Gated MLP.
 
-[implicit causal mask]: https://oneapi-src.github.io/oneDNN/dev_guide_graph_sdpa.html#doxid-dev-guide-graph-sdpa
-[`int8` or `int4` compressed key and value]: https://oneapi-src.github.io/oneDNN/dev_guide_graph_sdpa_compressed_kv.html#doxid-dev-guide-graph-sdpa-compressed-kv
-[Gated Multi-Layer Perceptron (Gated MLP)]: https://oneapi-src.github.io/oneDNN/dev_guide_graph_gated_mlp.html#doxid-dev-guide-graph-gated-mlp
+[implicit causal mask]: https://oneapi-src.github.io/oneDNN/v3.7/dev_guide_graph_sdpa.html#doxid-dev-guide-graph-sdpa
+[`int8` or `int4` compressed key and value]: https://oneapi-src.github.io/oneDNN/v3.7/dev_guide_graph_sdpa_compressed_kv.html#doxid-dev-guide-graph-sdpa-compressed-kv
+[Gated Multi-Layer Perceptron (Gated MLP)]: https://oneapi-src.github.io/oneDNN/v3.7/dev_guide_graph_gated_mlp.html#doxid-dev-guide-graph-gated-mlp
 
 ## NVIDIA GPUs
   * Improved matmul performance using cuBLASLt-based implementation.
@@ -38,8 +38,8 @@
   * Introduced initial support for 4-bit floating-point data types `f4_e2m1` and `f4_e3m0` in matmul and reorder, as well as `e8m0` scales data type in matmul and reorder. This functionality is available on Intel CPUs and GPUs.
   * Introduced [`GenIndex`], and [`GreaterEqual`] operations in Graph API.
 
-[`GenIndex`]: https://oneapi-src.github.io/oneDNN/dev_guide_op_genindex.html
-[`GreaterEqual`]: https://oneapi-src.github.io/oneDNN/dev_guide_op_greaterequal.html
+[`GenIndex`]: https://oneapi-src.github.io/oneDNN/v3.7/dev_guide_op_genindex.html
+[`GreaterEqual`]: https://oneapi-src.github.io/oneDNN/v3.7/dev_guide_op_greaterequal.html
 
 ## Intel Architecture Processors
   * Introduced support for `fp32` matmul with `fp16` and `bf16` weights.
