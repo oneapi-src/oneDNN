@@ -45,7 +45,8 @@ size_t get_benchdnn_device_limit() {
 // Constructs memories for all inputs and outputs needed for comparison.
 dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
         const deserialized_lt &lt, const bool is_op_input,
-        const bool is_fake_output) {
+        const bool is_fake_output)
+    : graph_dims_(lt.shape_), graph_strides_(lt.stride_) {
     const auto &prim_dt = mem.dt();
     // Conversion from graph types to dnnl types + boolean to u8.
     const auto &graph_dt = convert_dt(lt.get_data_type());
@@ -54,9 +55,6 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
     int ndims = mem.ndims();
     dims_t strides(mem.strides(), mem.strides() + ndims);
     std::string mtag = strides2memory_tag(ndims, strides);
-
-    graph_dims_ = lt.shape_;
-    graph_strides_ = lt.stride_;
 
     const auto &g_eng = get_graph_engine().operator const dnnl::engine &();
 

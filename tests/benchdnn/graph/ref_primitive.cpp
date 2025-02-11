@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,10 +19,8 @@
 
 namespace graph {
 
-ref_primitive_t::ref_primitive_t(const deserialized_op &op) {
-    op_ = op;
-    kind_ = opstr2kind(op_.kind_);
-    driver_ = opkind2driver(kind_);
+ref_primitive_t::ref_primitive_t(const deserialized_op &op)
+    : op_(op), kind_(opstr2kind(op_.kind_)), driver_(opkind2driver(kind_)) {
 
     static const ::std::unordered_set<::std::string> special_backward_op = {
             // bnorm backward
