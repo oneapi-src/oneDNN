@@ -198,6 +198,9 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
 int checkit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
+    if (has_bench_mode_bit(mode_bit_t::exec)) {
+        SAFE(check_total_size(res), WARN);
+    }
     if (has_bench_mode_bit(mode_bit_t::corr)) {
         // The assumtion is the capacity doesn't change through the execution.
         static int capacity = 0;
