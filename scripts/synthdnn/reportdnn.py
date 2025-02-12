@@ -29,6 +29,7 @@ from plotter import scatter3D
 
 from reporter import clear_screen
 from reporter import summaryStats
+from reporter import summaryBounds
 
 from metrics import Absolute
 from metrics import SampleRelative
@@ -40,52 +41,60 @@ import time
 
 from utils import *
 
+
 def log(output):
     print("reportdnn: " + output)
+
 
 def error(output):
     print("\nreportdnn: error: " + output + "\n")
     exit(1)
 
+
 class Sample:
     def __init__(self, sample_line):
         _, name, prb, flops, bandwidth = sample_line.strip().split(",")
-#        DebugPrint(f"name = {name}")
-#        DebugPrint(f"prb = {prb}")
-#        DebugPrint(f"flops = {flops}")
-#        DebugPrint(f"bandwidth = {bandwidth}")
+        #        DebugPrint(f"name = {name}")
+        #        DebugPrint(f"prb = {prb}")
+        #        DebugPrint(f"flops = {flops}")
+        #        DebugPrint(f"bandwidth = {bandwidth}")
         self.name = name
         self.primitive = Primitive.from_repro(prb)
         self.flops = float(flops)
         self.bandwidth = float(bandwidth)
-#        DebugPrint(f"prb = {prb} prmitive = {self.primitive}")
+
+    #        DebugPrint(f"prb = {prb} prmitive = {self.primitive}")
 
     def kind(self):
         if self.name != "":
-            return self.name + ": " + str(self.primitive.kind)
+            return self.name + ": " + self.primitive.kind.benchdnn_str()
         else:
             return self.primitive.kind.benchdnn_str()
 
+    def type(self):
+        return self.primitive.kind.type.benchdnn_str()
+
+
 ExitToken = "Exit"
+
+
 def ingest_data(sample_queue):
     for line in sys.stdin:
         if line.startswith("sample"):
             sample_queue.put(Sample(line))
     sample_queue.put(ExitToken)
 
+
 def reporter(sample_queue):
     reports = [
-        summaryStats(SampleRelative(), Bandwidth()),
-        summaryStats(Absolute(), Bandwidth()),
-#        summaryStats(SampleRelative(), Flops())
+        summaryBounds(),
     ]
 
     # TEMP - via env
-    report_mode = getenv('REPORT_MODE')
+    report_mode = getenv("REPORT_MODE")
     if not (report_mode == "interactive" or report_mode == "final"):
         error(f"unsupported mode {report_mode}")
     DebugPrint(f"report mode is {report_mode}")
-
 
     last_report_update = time.monotonic()
     has_plot = False
@@ -94,7 +103,7 @@ def reporter(sample_queue):
             has_plot = True
             break
 
-    if(has_plot):
+    if has_plot:
         plotter.initialize()
 
     sample = None
@@ -108,7 +117,7 @@ def reporter(sample_queue):
                     break
                 for r in reports:
                     ##### ???? todo remove: just added perf data
-                    #DebugPrint("loop r in reports")
+                    # DebugPrint("loop r in reports")
                     r.add(sample)
                 has_new_data = True
                 no_data = False
@@ -117,7 +126,7 @@ def reporter(sample_queue):
 
         if report_mode == "interactive":
             update_time = time.monotonic()
-            if(has_new_data and (update_time - last_report_update > 1)):
+            if has_new_data and (update_time - last_report_update > 1):
                 clear_screen()
                 last_report_update = update_time
                 for r in reports:
@@ -125,7 +134,7 @@ def reporter(sample_queue):
                 last_update = time.monotonic()
 
         # ???? needed for all modes ?????
-        if(has_plot):
+        if has_plot:
             plotter.update()
 
     if report_mode == "interactive":
@@ -134,13 +143,14 @@ def reporter(sample_queue):
     for r in reports:
         ##### ???? to check - many reports
         ##### ???? todo remove: just updated table
-#       DebugPrint(f"loop r in reports : r.scaling.needs_format = {r.scaling.needs_format()}")
-#       DebugPrint(f"loop r in reports : r.scaling.title = {r.scaling.title}")
-        #???? get Relative or Abs from report ????
+        #       DebugPrint(f"loop r in reports : r.scaling.needs_format = {r.scaling.needs_format()}")
+        #       DebugPrint(f"loop r in reports : r.scaling.title = {r.scaling.title}")
+        # ???? get Relative or Abs from report ????
         r.update()
 
-    if(has_plot):
+    if has_plot:
         plotter.finalize()
+
 
 if __name__ == "__main__":
     sample_queue = queue.Queue()

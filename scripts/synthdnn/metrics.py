@@ -19,6 +19,7 @@ from matmul import sampler
 
 from utils import *
 
+
 class Scaling:
     title = ""
 
@@ -51,6 +52,7 @@ class SampleRelative(Scaling):
 
     def format_to_percent(self):
         return True
+
 
 class Absolute(Scaling):
     title = "Absolute"
@@ -110,7 +112,7 @@ class Metric:
     def title(self):
         return f"{self.scaling.title} {self.value.title}"
 
-##    def add(self, sample: matmul.Sample):
+    ##    def add(self, sample: matmul.Sample):
     def add(self, sample: sampler):
         val = self.value.get(sample)
         rescale = self.scaling.rescale(val)
@@ -119,11 +121,7 @@ class Metric:
         self.data.append(self.scaling.initialize(val))
 
 
-class perf_data :
-#Static class members, to be updated via add()
-    max_bandwidth = 0
-    max_flops = {}
-
+class perf_data:
     def __init__(self, perf_metric):
         self.xs = []
         self.ys = []
@@ -133,8 +131,9 @@ class perf_data :
         self.flops = []
         self.bandwidths = []
 
+
     def add(self, dims, sample):
-        #DebugPrint("perf_data update")
+        # DebugPrint("perf_data update")
         if len(dims) > 0:
             self.xs.append(dims[0])
         if len(dims) > 1:
@@ -142,4 +141,6 @@ class perf_data :
         if len(dims) > 2:
             self.zs.append(dims[2])
 
+        self.flops.append(sample.flops)
+        self.bandwidths.append(sample.bandwidth)
         self.metrics.add(sample)

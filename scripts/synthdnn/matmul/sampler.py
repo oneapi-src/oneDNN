@@ -138,6 +138,10 @@ class Sampler:
                     pow(2, random.uniform(math.log2(minval), math.log2(maxval)))
                 )
 
+                # Size 1 dimensions are implicitly aligned
+                if x == 1:
+                    return 1
+
                 # Prevent round to zero
                 if x < align:
                     return align
