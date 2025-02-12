@@ -198,18 +198,23 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 
 int checkit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
-    // Assume it doesn't change through the execution.
-    static int capacity = 0;
-    static auto st = dnnl_get_primitive_cache_capacity(&capacity);
-    if (st != dnnl_success) return FAIL;
-    if (capacity > 0 && prb->n_inputs() + 1 > capacity) {
-        BENCHDNN_PRINT(2, "%s\n",
-                "[INFO] The number of potential internal reorder pds plus "
-                "concat itself exceeds the cache capacity which will lead to a "
-                "test case false-positive failure.");
-        return OK;
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
+        // The assumtion is the capacity doesn't change through the execution.
+        static int capacity = 0;
+        static auto st = dnnl_get_primitive_cache_capacity(&capacity);
+        if (st != dnnl_success) return FAIL;
+
+        if (capacity > 0 && prb->n_inputs() + 1 > capacity) {
+            BENCHDNN_PRINT(2, "%s\n",
+                    "[INFO] The number of potential internal reorder pds plus "
+                    "concat itself exceeds the cache capacity which will lead "
+                    "to a test case false-positive failure.");
+            return OK;
+        }
+
+        SAFE(check_caches(v_prim[0], prb, res), WARN);
     }
-    return check_caches(v_prim[0], prb, res);
+    return OK;
 }
 
 int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
