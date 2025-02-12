@@ -25,6 +25,11 @@
 #include "graph/backend/dnnl/passes/utils.hpp"
 
 #include "graph/backend/dnnl/op_executable.hpp"
+
+#define VCHECK_GENINDEX(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, genindex_t, (cond), status, msg, \
+            ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -40,6 +45,16 @@ status_t genindex_t::compile_impl(const dnnl_partition_impl_t *part,
     subgraph_ = std::make_shared<subgraph_t>(part->get_ops(), p_engine_,
             part->get_fpmath_mode(), part->get_use_blocked_layout(), true);
     BACKEND_DNNL_CHECK(set_given_inputs_outputs(subgraph_, inputs, outputs));
+
+#if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
+    if (p_engine_.get_kind() == engine::kind::gpu) {
+        int ndims = inputs[0].ndims;
+        VCHECK_GENINDEX(ndims <= MAX_NDIMS, status::invalid_arguments,
+                "only tensors of 6 or fewer dimensions are supported for "
+                "genindex GPU, but got %dD",
+                ndims);
+    }
+#endif
 
     subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
         return this->memory_planner_.get_memory_info(val);
@@ -84,7 +99,7 @@ status_t genindex_t::compile_impl(const dnnl_partition_impl_t *part,
 
 void genindex_t::prepare_args_set(const execution_args_set_t *res,
         const std::vector<tensor_t> &inputs,
-        const std::vector<tensor_t> &outputs, const scratchpad_t &scratchpad) {
+        const std::vector<tensor_t> &outputs) {
     // update the data of partition in/outputs args
     for (const auto &mem_idx : res->get_mems_use_external_inputs()) {
         mem_idx.first.set_data_handle(inputs[mem_idx.second].get_data_handle());
@@ -92,13 +107,6 @@ void genindex_t::prepare_args_set(const execution_args_set_t *res,
     for (const auto &mem_idx : res->get_mems_use_external_outputs()) {
         mem_idx.first.set_data_handle(
                 outputs[mem_idx.second].get_data_handle());
-    }
-
-    grantor_t var_grantor = memory_planner_.internal_temporary_grantor(
-            scratchpad.get_buffer());
-
-    for (auto &mem_offkey : res->get_mems_use_internal_temporary()) {
-        mem_offkey.first.set_data_handle(var_grantor.get(mem_offkey.second));
     }
 }
 
@@ -111,14 +119,7 @@ status_t genindex_t::execute_impl(const stream_t *g_stream,
     thread_local_cache_t<execution_args_set_t> res_cache;
     execution_args_set_t *res = res_cache.get_or_add(
             reinterpret_cast<size_t>(this), resource_ctor_);
-
-    temporary_scratchpad_t scratchpad(
-            memory_planner_.total_internal_temporary_size(), p_engine_,
-            *g_alloc_);
-    assertm(scratchpad.size()
-                    >= memory_planner_.total_internal_temporary_size(),
-            "no enough scratchpad memory");
-    prepare_args_set(res, inputs, outputs, scratchpad);
+    prepare_args_set(res, inputs, outputs);
 
     constant_cache_t::cached_t c_buffer;
 
@@ -135,7 +136,26 @@ status_t genindex_t::sycl_execute_impl(const stream_t *g_stream,
         const std::vector<tensor_t> &outputs,
         const std::vector<::sycl::event> &sycl_deps,
         ::sycl::event *sycl_event) {
-    if (p_engine_.get_kind() == engine::kind::gpu) return status::unimplemented;
+    if (p_engine_.get_kind() == engine::kind::gpu) {
+        auto deps = sycl_deps;
+        ::sycl::event returned_event;
+        dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
+
+        thread_local_cache_t<execution_args_set_t> res_cache;
+        execution_args_set_t *res = res_cache.get_or_add(
+                reinterpret_cast<size_t>(this), resource_ctor_);
+        prepare_args_set(res, inputs, outputs);
+        for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+            if (subgraph_->is_constant_[i]) continue;
+            returned_event = subgraph_->execs_[i]->execute_sycl(
+                    p_stream, res->get_exec_args()[i], deps);
+            deps = {returned_event};
+        }
+
+        if (sycl_event) *sycl_event = returned_event;
+
+        return status::success;
+    }
     return execute_impl(g_stream, inputs, outputs);
 }
 #endif
@@ -144,8 +164,27 @@ status_t genindex_t::ocl_execute_impl(const stream_t *g_stream,
         const std::vector<tensor_t> &inputs,
         const std::vector<tensor_t> &outputs,
         const std::vector<cl_event> &ocl_deps, cl_event *ocl_event) {
-    // TODO: add support
-    return status::unimplemented;
+    auto deps = ocl_deps;
+    cl_event returned_event {};
+    dnnl::stream p_stream = make_dnnl_stream(p_engine_, *g_stream);
+
+    // each thread's own local resource
+    thread_local_cache_t<execution_args_set_t> res_cache;
+    execution_args_set_t *res = res_cache.get_or_add(
+            reinterpret_cast<size_t>(this), resource_ctor_);
+
+    prepare_args_set(res, inputs, outputs);
+
+    for (size_t i = 0; i < subgraph_->execs_.size(); i++) {
+        if (subgraph_->is_constant_[i]) continue;
+        returned_event = subgraph_->execs_[i]->execute_ocl(
+                p_stream, res->get_exec_args()[i], deps);
+        deps = {returned_event};
+    }
+
+    if (ocl_event) *ocl_event = returned_event;
+
+    return status::success;
 }
 #endif
 } // namespace dnnl_impl
