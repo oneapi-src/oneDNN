@@ -24,7 +24,6 @@ set -eo pipefail
 OS=${OS:-"Linux"}
 
 # AArch64 does not officially support graph for now.
-SKIPPED_GRAPH_TEST_FAILURES="test_graph_unit_dnnl_sdp_decomp_cpu"
 SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_cpu"
 
 # described in issue: https://github.com/oneapi-src/oneDNN/issues/2175

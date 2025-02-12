@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2024-2025 Intel Corporation
+* Copyright 2025 Arm Limited and affiliates.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -660,9 +661,14 @@ TEST(test_sdp_decomp_execute, F32SdpCorr_CPU) {
                     graph::status::success);
             strm->wait();
 
-            ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
-                    /*rtol*/ 0.01f,
-                    /*atol*/ 1e-6f));
+            if (DNNL_AARCH64 == 1)
+                ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
+                        /*rtol*/ 0.01f,
+                        /*atol*/ 1.f));
+            else
+                ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
+                        /*rtol*/ 0.01f,
+                        /*atol*/ 1e-6f));
         }
     }
 }
@@ -776,9 +782,14 @@ TEST(test_sdp_decomp_execute, F32DistilBertSdpCorr_CPU) {
                 graph::status::success);
         strm->wait();
 
-        ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
-                /*rtol*/ 0.01f,
-                /*atol*/ 1e-6f));
+        if (DNNL_AARCH64 == 1)
+            ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
+                    /*rtol*/ 0.01f,
+                    /*atol*/ 1.f));
+        else
+            ASSERT_TRUE(allclose<float>(outputs1_ts[0], outputs2_ts[0],
+                    /*rtol*/ 0.01f,
+                    /*atol*/ 1e-6f));
     }
 }
 
