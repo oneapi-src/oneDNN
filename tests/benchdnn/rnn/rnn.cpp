@@ -1251,8 +1251,7 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     return OK;
 }
 
-int check_cacheit(
-        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+int checkit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
     SAFE(check_caches(v_prim[0], prb, res), WARN);
     if (v_prim[1]) { SAFE(check_caches(v_prim[1], prb, res), WARN); }

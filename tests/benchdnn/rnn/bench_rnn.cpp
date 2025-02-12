@@ -64,7 +64,7 @@ void check_correctness(
                 i_attr, i_ctx_init, i_ctx_exe, s.impl_filter);
 
         task_executor.submit(
-                std::move(prb), s.perf_template, createit, check_cacheit, doit);
+                std::move(prb), s.perf_template, createit, checkit, doit);
     }
 }
 
