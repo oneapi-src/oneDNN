@@ -42,8 +42,7 @@ void check_correctness(
                 i_ctx_init, i_ctx_exe, s.impl_filter);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
-        task_executor.submit(
-                prb, s.perf_template, createit, check_cacheit, doit);
+        task_executor.submit(prb, s.perf_template, createit, checkit, doit);
     }
 }
 

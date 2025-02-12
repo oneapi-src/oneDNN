@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,15 +26,14 @@
 #include "utils/wrapper.hpp"
 
 template <typename prb_t, typename perf_report_t, typename create_func_t,
-        typename check_cache_func_t, typename do_func_t>
+        typename check_func_t, typename do_func_t>
 struct task_t {
     task_t(const prb_t &prb, const std::string &perf_template,
-            const create_func_t &create_func,
-            const check_cache_func_t &check_cache_func,
+            const create_func_t &create_func, const check_func_t &check_func,
             const do_func_t &do_func, int idx)
         : prb_(std::move(prb))
         , create_func_(create_func)
-        , check_cache_func_(check_cache_func)
+        , check_func_(check_func)
         , do_func_(do_func)
         , perf_template_(perf_template)
         , idx_(idx) {}
@@ -50,20 +49,27 @@ struct task_t {
         return OK;
     }
 
-    // Since task_t doesn't have a control over primitives, it has to pass this
-    // control to a driver which is aware of what primitives should be checked
-    // for being in the cache.
-    int check_cache() {
+    // Since `task_t` doesn't have control over primitives, it delegates the
+    // primitive-based checks to the driver.
+    int check() {
         if (!has_bench_mode_bit(mode_bit_t::corr)) return OK;
+        // No alive testing objects - no checks.
         if (res_.state != INITIALIZED) return OK;
 
-        return check_cache_func_(*v_prim_, &prb_, &res_);
+        return check_func_(*v_prim_, &prb_, &res_);
     }
 
     int exec() {
-        BENCHDNN_PRINT(1, "run: %s\n", prb_.str());
+        // Checking for `INITIALIZED` state here prevents from `SKIPPED`
+        // problems being executed.
         if (res_.state == INITIALIZED && bench_mode != bench_mode_t::init) {
+            // Differentiate a message when the run happens...
+            BENCHDNN_PRINT(1, "run: %s\n", prb_.str());
             do_func_(*v_prim_, &prb_, &res_);
+        } else {
+            // ... versus when it didn't but still indicating the problem went
+            // through this part of the flow.
+            BENCHDNN_PRINT(1, "run (just report, no exec): %s\n", prb_.str());
         }
 
         return report();
@@ -72,7 +78,7 @@ struct task_t {
 private:
     prb_t prb_;
     create_func_t create_func_;
-    check_cache_func_t check_cache_func_;
+    check_func_t check_func_;
     do_func_t do_func_;
     std::string perf_template_;
     res_t res_ {};
