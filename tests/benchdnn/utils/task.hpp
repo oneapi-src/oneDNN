@@ -52,7 +52,6 @@ struct task_t {
     // Since `task_t` doesn't have control over primitives, it delegates the
     // primitive-based checks to the driver.
     int check() {
-        if (!has_bench_mode_bit(mode_bit_t::corr)) return OK;
         // No alive testing objects - no checks.
         if (res_.state != INITIALIZED) return OK;
 
