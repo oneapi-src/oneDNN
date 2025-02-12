@@ -236,7 +236,7 @@ int get_cpu_cache_size(cpu_cache_args_t &cache_args);
 int get_gpu_cache_size(size_t &cache_size);
 
 std::string smart_bytes(double bytes);
-int check_total_size(res_t *res);
+int check_total_size(res_t *res, dnnl_primitive_t prim_ref = nullptr);
 bool is_fwd_training(dnnl_prop_kind_t prop_kind);
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
