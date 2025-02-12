@@ -555,9 +555,18 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
 int checkit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
     if (has_bench_mode_bit(mode_bit_t::exec)) {
-        SAFE(check_total_size(res), WARN);
-        // Don't check total size for CPU prim as the reference - it needs a
-        // special handling to combine both primitive memory requirements.
+        const auto &prim_ref = v_prim[1];
+        if (prim_ref) {
+            // Copy res to avoid save/restore state and reason.
+            res_t res_copy = *res;
+            SAFE(check_total_size(&res_copy, prim_ref), WARN);
+            if (res_copy.state == SKIPPED) {
+                v_prim[1].reset(nullptr);
+                SAFE(check_total_size(res), WARN);
+            }
+        } else {
+            SAFE(check_total_size(res), WARN);
+        }
     }
     if (has_bench_mode_bit(mode_bit_t::corr)) {
         SAFE(check_caches(v_prim[0], prb, res), WARN);
