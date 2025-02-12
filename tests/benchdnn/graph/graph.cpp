@@ -416,10 +416,7 @@ void skip_unimplemented_ops(const dnnl::graph::partition &partition,
 
     // A list of ops that don't have DNNL backend support so far.
     static const std::vector<std::string> unimplemented_ops {"Pow"};
-    // A list of ops that don't have DNNL backend support so far on GPU.
-    static const std::vector<std::string> unimplemented_ops_gpu {"GenIndex"};
-    const auto &eng = get_graph_engine();
-    bool is_gpu = eng.get_kind() == dnnl::engine::kind::gpu;
+
     // For an unsupported partition, retrieve all operation IDs, find a
     // correspondent operation kind in a deserialized_graph_t and match it against
     // a list of known unsupported ops.
@@ -437,21 +434,6 @@ void skip_unimplemented_ops(const dnnl::graph::partition &partition,
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
             return;
-        }
-
-        if (is_gpu) {
-            const bool has_unimplemented_op_gpu = std::any_of(
-                    unimplemented_ops_gpu.begin(), unimplemented_ops_gpu.end(),
-                    [&dg_op_kind](const std::string &kind) {
-                        return dg_op_kind == kind;
-                    });
-            if (has_unimplemented_op_gpu) {
-                BENCHDNN_PRINT(2, "[INFO]: Unimplemented op on GPU: %s.\n",
-                        dg_op_kind.c_str());
-                res->state = SKIPPED;
-                res->reason = skip_reason::case_not_supported;
-                return;
-            }
         }
     }
 }
