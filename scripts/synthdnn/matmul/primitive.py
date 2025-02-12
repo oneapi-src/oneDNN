@@ -214,3 +214,44 @@ class Primitive:
 
     def benchdnn_str(self):
         return f"{self.kind.benchdnn_str()} {self.dims}"
+
+    ##### from older version #####
+    @staticmethod
+    def from_repro(repro_line):
+        t = Types.Type("f32:f32:f32")
+        l = Layouts.Layout("any:any:any")
+        dims = Dims([], 0, 0, 0)
+        for arg in repro_line.split(" "):
+            if arg.startswith("--dt="):
+                t = Types.Type(arg.split("=")[1])
+            elif arg.startswith("--attr-fpmath="):
+                t.mode = arg.split("=")[1]
+            elif arg.startswith("--stag="):
+                l.A = arg.split("=")[1]
+            elif arg.startswith("--wtag="):
+                l.B = arg.split("=")[1]
+            elif arg.startswith("--dtag="):
+                l.C = arg.split("=")[1]
+            elif not arg.startswith("--"):
+                """ ???? dims parsing with correctness check. Buggy ????
+                argsA, argsB = [a.split("x") for a in arg.split(":")];
+                DebugPrint(f"argsA = {argsA} argsB = {argsB}")
+                if len(argsA) == len(argsB) and len(argsA) >= 2:
+                    raise RuntimeError(f"Invalid Matrix Dimension {arg}")
+                dims.b = [int(x) for x in argsA[:-2]]
+                if dims.b != [int(x) for x in argsB[:-2]]:
+                    raise RuntimeError(f"A and B batch dimensions {argsA[:-2]} and {argsB[:-2]} do not match")
+                dims.m = int(argsA[-2])
+                dims.k = int(arg[-1])
+                if dims.k != int(argsB[-2]):
+                    raise RuntimeError(f"A and B k dimensions {argsA[-1]} and {argsB[-2]} do not match")
+                dims.n = int(argsB[-1])
+                """
+                # w/o check
+                dims.m, dims.k, dims.n = arg.split("x")
+                dims.k = dims.k.split(":")[0]
+                """
+                """
+        return Primitive(Kind(l, t), dims)
+
+

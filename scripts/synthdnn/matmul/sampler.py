@@ -137,6 +137,11 @@ class Sampler:
                 x = round(
                     pow(2, random.uniform(math.log2(minval), math.log2(maxval)))
                 )
+
+                # Prevent round to zero
+                if x < align:
+                    return align
+
                 return (x // align) * align
 
             for _ in range(1000):

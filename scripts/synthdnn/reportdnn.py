@@ -64,7 +64,7 @@ class Sample:
         if self.name != "":
             return self.name + ": " + str(self.primitive.kind)
         else:
-            return str(self.primitive.kind)
+            return self.primitive.kind.benchdnn_str()
 
 ExitToken = "Exit"
 def ingest_data(sample_queue):
