@@ -59,7 +59,6 @@ const char** get_plan_registry_entries() {
         "hw=xehpc prop=fwd src=axb:f32 wei=axcb:f32 dst=axb:f32 fma=mad simd=32 regs=128 iter=ic16mb8oc32 tg=ow8 2d=1 prefetch=x1 ext=out_b1,out_b2,stream_k model=01D7C88D440788203F04C83A3F9A05843F0514263F02D9424E4609C32B40030000E6458C802D3C",
         "hw=xehpc prop=fwd src=axb:f32 wei=axcb:f32 dst=axb:f32 fma=mad simd=32 regs=128 iter=ic8oc32ow8 ext=out_b1,out_b2,stream_k model=013EBEAE440B00083FFEDF9F3F0000803F0628533F0200D8E345FFFFCB3E03000003459F1B2D3C",
         "hw=xehpc prop=fwd src=axb:f32 wei=axcb:f32 dst=axb:f32 fma=mad simd=32 regs=128 iter=ic8oc32ow8 tg=ic16 ext=out_b1,out_b2,stream_k model=013D23DC4402783A3FFFB79F3FCCACD13F2E1A073E020C57CA46A9D42A4103000023454C062C3C",
-        "hw=xehpc prop=fwd src=axb:f32 wei=axcb:f32 dst=axb:f32 fma=mad simd=32 regs=128 iter=ic8oc32ow16 ext=out_b1,out_b2 model=0194A8BD447138F23DFFF9673F6A80953FF95FF73F",
         "hw=xehpc prop=fwd src=axb:f32 wei=axcb:f32 dst=axb:f32 fma=mad simd=32 regs=128 iter=ic8oc32ow8 tg=ic4 ext=out_b1,out_b2,stream_k model=01A9B1B44406D01E3FFFB78B3F9A41BD3F1440A83E02D8D4964611F1D73F030000244516BF2D3C",
         "hw=xehpc prop=bwd_d src=axb:bf16 wei=axbc:bf16 dst=axb:bf16 fma=dpas simd=16 regs=256 iter=ic32iw32oc32 tg=ic2iw2 2d=1 prefetch=x1 spec=sd1sh1sw1 model=0167A6114414E0E93EFFEF6C3F68A7DC3FF6FFA741",
         "hw=xehpc prop=bwd_d src=axb:bf16 wei=axbc:bf16 dst=axb:bf16 fma=dpas simd=16 regs=256 iter=ic32iw8oc64 tg=iw4 2d=1 prefetch=x1 spec=sd1sh1sw1 model=0193592A4402C85D3FFEAF7F3F67BEC23F05002B3F",
