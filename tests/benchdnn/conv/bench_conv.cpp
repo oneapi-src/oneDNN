@@ -66,11 +66,11 @@ void check_correctness(
         bool has_dw_po = i_attr.post_ops.convolution_index() >= 0;
         auto &conv_createit
                 = has_dw_po ? conv_dw_fusion::createit : conv::createit;
-        auto &conv_check_cacheit = has_dw_po ? conv_dw_fusion::check_cacheit
-                                             : conv::check_cacheit;
+        auto &conv_checkit
+                = has_dw_po ? conv_dw_fusion::checkit : conv::checkit;
         auto &conv_doit = has_dw_po ? conv_dw_fusion::doit : conv::doit;
-        task_executor.submit(prb, s.perf_template, conv_createit,
-                conv_check_cacheit, conv_doit);
+        task_executor.submit(
+                prb, s.perf_template, conv_createit, conv_checkit, conv_doit);
     }
 }
 

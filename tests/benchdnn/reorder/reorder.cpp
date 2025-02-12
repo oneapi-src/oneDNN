@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -488,8 +488,7 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     return OK;
 }
 
-int check_cacheit(
-        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+int checkit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
     return check_caches(v_prim[0], prb, res);
 }
