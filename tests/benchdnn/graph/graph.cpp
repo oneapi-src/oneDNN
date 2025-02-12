@@ -417,7 +417,7 @@ void skip_unimplemented_ops(const dnnl::graph::partition &partition,
     // A list of ops that don't have DNNL backend support so far.
     static const std::vector<std::string> unimplemented_ops {"Pow"};
     // A list of ops that don't have DNNL backend support so far on GPU.
-    static const std::vector<std::string> unimplemented_ops_gpu {"GenIndex"};
+    static const std::vector<std::string> unimplemented_ops_gpu {};
     const auto &eng = get_graph_engine();
     bool is_gpu = eng.get_kind() == dnnl::engine::kind::gpu;
     // For an unsupported partition, retrieve all operation IDs, find a
