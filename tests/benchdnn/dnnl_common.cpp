@@ -17,6 +17,7 @@
 #include <algorithm> // for std::reverse and std::copy
 #include <functional> // for std::bind and std::placeholders
 #include <list>
+#include <numeric>
 #include <string> // for std::string
 #include <utility> // for std::pair
 #include <vector> // for std::vector
@@ -1105,7 +1106,17 @@ std::string smart_bytes(double bytes) {
     return s;
 }
 
-int check_total_size(res_t *res) {
+// The function logic is the following:
+// `checkit` function verifies that the bare minimum (the library and the stock
+// reference) memory requirements are complied with the limits.
+// If no, drop the case, can't run it.
+// If yes, the second call to this function with `prim_ref` specified will
+// check memory requirements for prim_ref, update according memory parts and
+// verify updated numbers if they are complied.
+// If yes, good to go with a `prim_ref`.
+// If no, indicate that the system won't make it and drop `prim_ref` falling
+// back to stock reference.
+int check_total_size(res_t *res, dnnl_primitive_t prim_ref) {
     static size_t cpu_device_capacity = get_cpu_ram_size();
     static size_t gpu_device_capacity = 0;
     static size_t gpu_max_alloc_capacity = 0;
@@ -1166,7 +1177,22 @@ int check_total_size(res_t *res) {
                 smart_bytes(gpu_max_alloc_capacity).c_str());
     }
 
-    size_t total_size_cpu = check_mem_size_args.total_size_ref
+    // Note: in theory, `total_size_ref` can be smaller for a `prim_ref` because
+    // stock reference uses f32 for estimation and best `prim_ref` tries
+    // requested data types first which can be lower precision data types which
+    // require less memory.
+    size_t total_size_ref = check_mem_size_args.total_size_ref;
+    if (prim_ref) {
+        // Collect memory sizes of prim_ref.
+        check_mem_size_args_t prim_ref_mem_size_args;
+        collect_mem_size(prim_ref_mem_size_args, query_pd(prim_ref), DIR_UNDEF,
+                /* need_skip = */ false);
+        // Update reference size number.
+        total_size_ref = std::accumulate(prim_ref_mem_size_args.sizes.begin(),
+                prim_ref_mem_size_args.sizes.end(), 0ULL);
+    }
+
+    size_t total_size_cpu = total_size_ref
             + check_mem_size_args.total_size_compare
             + check_mem_size_args.total_size_mapped;
     // If the problem runs on CPU, the combined memory represents requirements
@@ -1183,9 +1209,16 @@ int check_total_size(res_t *res) {
     // for integrated devices and mapping/unmapping memory.
 
     if (!fits_cpu_ram) {
+        std::string prim_ref_msg
+                = prim_ref ? " with CPU primitive reference" : "";
         BENCHDNN_PRINT(1,
-                "[CHECK_MEM][%s]: Not enough CPU RAM for a problem.\n",
-                dir_c_str());
+                "[CHECK_MEM][%s]: Not enough CPU RAM for a problem%s.\n",
+                dir_c_str(), prim_ref_msg.c_str());
+        res->state = SKIPPED;
+        res->reason = skip_reason::not_enough_ram;
+    }
+
+    if (!fits_cpu_ram) {
         // Try to catch a huge scratchpad size requested by the library.
         // Use following logic:
         //     scratch_size
@@ -1204,10 +1237,7 @@ int check_total_size(res_t *res) {
                     (size_t)(scratch_trh
                             * check_mem_size_args.total_size_device));
             res->state = FAILED;
-        } else {
-            res->state = SKIPPED;
         }
-        res->reason = skip_reason::not_enough_ram;
     }
 
     BENCHDNN_PRINT((!fits_cpu_ram ? 1 : 6),
