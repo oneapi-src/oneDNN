@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -196,7 +196,7 @@ TEST(iface_sparse_test_t, TestSparseMDSize) {
     ASSERT_EQ(md.get_size(2), 0u);
 }
 
-TEST(iface_sparse_test_t, TestSparseMemoryCreation) {
+HANDLE_EXCEPTIONS_FOR_TEST(iface_sparse_test_t, TestSparseMemoryCreation) {
     engine eng = get_test_engine();
 
     const bool is_unimplemented = (eng.get_kind() == engine::kind::gpu
@@ -212,7 +212,8 @@ TEST(iface_sparse_test_t, TestSparseMemoryCreation) {
     memory mem;
 
     // Default memory constructor.
-    EXPECT_NO_THROW(mem = memory(md, eng));
+    mem = memory(md, eng);
+
     // User provided buffers.
     {
         std::vector<float> values(1);
@@ -227,7 +228,7 @@ TEST(iface_sparse_test_t, TestSparseMemoryCreation) {
     ASSERT_NO_THROW(md = memory::desc::coo({64, 128}, dt::f32, nnz, dt::s32));
 
     // Default memory constructor.
-    EXPECT_NO_THROW(mem = memory(md, eng));
+    mem = memory(md, eng);
     // User provided buffers.
     {
         std::vector<float> values(1);
@@ -240,7 +241,8 @@ TEST(iface_sparse_test_t, TestSparseMemoryCreation) {
     }
 }
 
-TEST(iface_sparse_test_t, TestSparseMemorySetGetDataHandles) {
+HANDLE_EXCEPTIONS_FOR_TEST(
+        iface_sparse_test_t, TestSparseMemorySetGetDataHandles) {
     engine eng = get_test_engine();
 
     const bool is_unimplemented = (eng.get_kind() == engine::kind::gpu
@@ -257,20 +259,23 @@ TEST(iface_sparse_test_t, TestSparseMemorySetGetDataHandles) {
 
     int nhandles = 3;
     // Default memory constructor.
-    EXPECT_NO_THROW(mem = memory(md, eng));
-    for (int i = 0; i < nhandles; i++) {
-        void *h = mem.get_data_handle(i);
-        ASSERT_NE(h, nullptr);
-    }
+    mem = memory(md, eng);
 
-    // Creating a memory object without underlying buffers.
-    for (int i = 0; i < nhandles; i++) {
-        EXPECT_NO_THROW(mem.set_data_handle(DNNL_MEMORY_NONE, i));
-    }
+    {
+        for (int i = 0; i < nhandles; i++) {
+            void *h = mem.get_data_handle(i);
+            ASSERT_NE(h, nullptr);
+        }
 
-    for (int i = 0; i < nhandles; i++) {
-        void *h = mem.get_data_handle(i);
-        ASSERT_EQ(h, nullptr);
+        // Creating a memory object without underlying buffers.
+        for (int i = 0; i < nhandles; i++) {
+            EXPECT_NO_THROW(mem.set_data_handle(DNNL_MEMORY_NONE, i));
+        }
+
+        for (int i = 0; i < nhandles; i++) {
+            void *h = mem.get_data_handle(i);
+            ASSERT_EQ(h, nullptr);
+        }
     }
 
     // User provided buffers.
@@ -292,20 +297,23 @@ TEST(iface_sparse_test_t, TestSparseMemorySetGetDataHandles) {
     ASSERT_NO_THROW(md = memory::desc::coo({64, 128}, dt::f32, nnz, dt::s32));
 
     // Default memory constructor.
-    EXPECT_NO_THROW(mem = memory(md, eng));
-    for (int i = 0; i < nhandles; i++) {
-        void *h = mem.get_data_handle(i);
-        ASSERT_NE(h, nullptr);
-    }
+    mem = memory(md, eng);
 
-    // Creating a memory object without underlying buffers.
-    for (int i = 0; i < nhandles; i++) {
-        EXPECT_NO_THROW(mem.set_data_handle(DNNL_MEMORY_NONE, i));
-    }
+    {
+        for (int i = 0; i < nhandles; i++) {
+            void *h = mem.get_data_handle(i);
+            ASSERT_NE(h, nullptr);
+        }
 
-    for (int i = 0; i < nhandles; i++) {
-        void *h = mem.get_data_handle(i);
-        ASSERT_EQ(h, nullptr);
+        // Creating a memory object without underlying buffers.
+        for (int i = 0; i < nhandles; i++) {
+            EXPECT_NO_THROW(mem.set_data_handle(DNNL_MEMORY_NONE, i));
+        }
+
+        for (int i = 0; i < nhandles; i++) {
+            void *h = mem.get_data_handle(i);
+            ASSERT_EQ(h, nullptr);
+        }
     }
 
     // User provided buffers.
