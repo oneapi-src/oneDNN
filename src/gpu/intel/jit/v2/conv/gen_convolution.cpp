@@ -66,6 +66,26 @@ status_t init_layouts(const kernel_desc_t &desc, convolution_pd_t *pd) {
     return status::success;
 }
 
+bool has_large_buffers(const convolution_pd_t *pd) {
+    auto is_large = [](const memory_desc_t &md) {
+        memory_desc_wrapper mdw(md);
+        gpu_assert(!mdw.format_any());
+        return mdw.size() > std::numeric_limits<int32_t>::max();
+    };
+    if (!is_large(*pd->invariant_src_md())) return true;
+    if (!is_large(*pd->invariant_wei_md())) return true;
+    if (!is_large(*pd->invariant_dst_md())) return true;
+    if (!is_large(*pd->invariant_bia_md())) return true;
+    auto &post_ops = pd->attr()->post_ops_;
+    for (int i = 0; i < post_ops.len(); i++) {
+        auto &e = post_ops.entry_[i];
+        if (e.is_binary()) {
+            if (is_large(e.binary.src1_desc)) return true;
+        }
+    }
+    return false;
+}
+
 class gen_convolution_t {
 public:
     template <typename T>
@@ -81,14 +101,6 @@ public:
                         != pd->diff_src_md()->data_type) {
             return false;
         }
-
-        // Large buffer support is unimplemented
-        if (std::max({memory_desc_wrapper(pd->src_md()).size(),
-                    memory_desc_wrapper(pd->weights_md()).size(),
-                    memory_desc_wrapper(pd->dst_md()).size()})
-                > INT_MAX)
-            return false;
-
         using sm = primitive_attr_t::skip_mask_t;
         auto skip_mask = sm::post_ops | sm::sum_dt;
         if (!pd->attr()->has_default_values(skip_mask)) return false;
@@ -123,6 +135,10 @@ public:
         _desc.fit_to(prb);
         CHECK(init_layouts(_desc, pd));
         CHECK(pd->attr_.set_default_formats(out_md(pd)));
+
+        // Large buffer support is unimplemented.
+        if (has_large_buffers(pd)) return status::unimplemented;
+
         CHECK(_desc.set_post_ops(pd->attr()->post_ops_, out_md(pd), pd));
         if (!create_conv_plan(_desc, prb)) {
             gpu_info() << "Cannot create kernel descriptor.\n";
