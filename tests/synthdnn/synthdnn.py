@@ -41,7 +41,7 @@ def setup_matmul_subparser(subparsers):
     # Interface with benchdnn
     matmul_parser.add_argument("benchdnn", nargs='?', help="path to benchdnn executable")
     matmul_parser.add_argument("--engine", default="cpu", help="engine used for benchdnn execution")
-    matmul_parser.add_argument("--collect", default="corr", help="benchdnn collection type, can be one of [corr, perf, dry-run]")
+    matmul_parser.add_argument("--collect", default="corr", help="benchdnn collection type, can be one of [corr, perf, dry-run, verblog]")
     matmul_parser.add_argument("-n", "--name", default="", help="sample name")
 
     # Sampler Arguments
@@ -83,6 +83,8 @@ def matmul_main(args):
                 error(f"sample name {args.name} contains invalid character: ,")
         elif(args.collect == "dry-run"):
             benchdnn_args = f"--engine={args.engine} --matmul --mode=L"
+        elif(args.collect == "verblog"):
+            benchdnn_args = f"--engine={args.engine} --matmul --mode=R"
         else:
             error(f"unknown collection method {args.collect}")
 
