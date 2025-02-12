@@ -1105,7 +1105,7 @@ std::string smart_bytes(double bytes) {
     return s;
 }
 
-static int check_total_size(res_t *res) {
+int check_total_size(res_t *res) {
     static size_t cpu_device_capacity = get_cpu_ram_size();
     static size_t gpu_device_capacity = 0;
     static size_t gpu_max_alloc_capacity = 0;
@@ -1395,8 +1395,7 @@ int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir,
     // Copy memory stats. It's required to accumulate them before performing
     // the check.
     res->mem_size_args = check_mem_size_args;
-
-    return check_total_size(res);
+    return OK;
 }
 
 int get_memory_footprint(const_dnnl_primitive_desc_t const_pd, res_t *res) {

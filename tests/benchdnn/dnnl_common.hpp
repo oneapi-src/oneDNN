@@ -236,6 +236,7 @@ int get_cpu_cache_size(cpu_cache_args_t &cache_args);
 int get_gpu_cache_size(size_t &cache_size);
 
 std::string smart_bytes(double bytes);
+int check_total_size(res_t *res);
 bool is_fwd_training(dnnl_prop_kind_t prop_kind);
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
@@ -419,7 +420,31 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
     //   Since the mem size check for all the operations are necessary,
     //   the check wouldn't be skipped.
     SAFE(check_mem_size(pdw, res, dir, /* need_skip = */ !is_graph_ref), WARN);
-    if (res->state == SKIPPED) return OK;
+
+    // The library scratchpad is allocated at create_primitive stage. The memory
+    // check is moved after the creation stage. It's necessary to check the
+    // library scratchpad size against gpu_max_alloc, otherwise, out_of_memory
+    // would be issued by the library.
+    if (res->mem_size_args.scratchpad_size > 0 && is_gpu()
+            && query_scratchpad_mode(query_attr(pdw))
+                    == dnnl_scratchpad_mode_library) {
+        static size_t gpu_device_capacity = 0;
+        static size_t gpu_max_alloc_capacity = 0;
+        SAFE(get_gpu_ram_sizes(gpu_device_capacity, gpu_max_alloc_capacity),
+                WARN);
+        const bool fit
+                = res->mem_size_args.scratchpad_size < gpu_max_alloc_capacity;
+        if (!fit) {
+            BENCHDNN_PRINT(1,
+                    "[CHECK_MEM]: Size of the scratchpad %s "
+                    "doesn't fit the allocation limit of %s.\n",
+                    smart_bytes(res->mem_size_args.scratchpad_size).c_str(),
+                    smart_bytes(gpu_max_alloc_capacity).c_str());
+            res->state = SKIPPED;
+            res->reason = skip_reason::not_enough_ram;
+            return OK;
+        }
+    }
 
     TIME_C_PRIM(DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN));
     primw.reset(prim);
