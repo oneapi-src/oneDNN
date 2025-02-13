@@ -385,7 +385,6 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
                 strategy.kParallelVariable = true;
                 strategy.fuseBeta = true;
                 strategy.fusePostOps = true;
-                strategy.persistent = true;
             }
             strategy.C.atomic = true;
             strategy.CO.atomic = problem.sumA || problem.sumB;
@@ -559,7 +558,7 @@ void parseStrategy(const char *str, HW hw, const GEMMProblem &problem, GEMMStrat
 
     if (strategy.block2DCRemainder && !gotSR) strategy.altCRemainder = true;
 
-    if (strategy.persistent && !strategy.linearOrder()) strategy.cWalkOrder = WalkOrder::SimpleLinear;
+    if (strategy.persistentLoop() && !strategy.linearOrder()) strategy.cWalkOrder = WalkOrder::SimpleLinear;
 
     // Use new LSC messages on Xe2+
     if (hw >= ngen::HW::Xe2) {

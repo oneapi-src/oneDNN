@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -141,6 +141,7 @@ enum {
     FlagKPartitioned = 0x4000,
     FlagDidBeta = 0x100,
     FlagSkipBetaCheck = 0x200,
+    FlagKSlice2 = 0x10000,
 };
 
 #include "internal/namespace_end.hxx"

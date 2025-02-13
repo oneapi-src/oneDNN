@@ -351,9 +351,11 @@ struct GEMMStrategy : public GEMMStrategyPOD
     int ka_inc() const { return slmA ? unrollKSLM : ka_load; }
     int kb_inc() const { return slmB ? unrollKSLM : kb_load; }
 
-    bool needsMNLocalIDs()    const { return xParallel || (slmBuffers > 0) || cooperativePF || kParallelLocal || persistent
+    bool persistentLoop()     const { return persistent || kParallelVariable; }
+
+    bool needsMNLocalIDs()    const { return xParallel || (slmBuffers > 0) || cooperativePF || kParallelLocal || persistentLoop()
                                                        || namedBarriers[LoopM] || namedBarriers[LoopN] || (dpasw && !fixedSystolic); }
-    bool needsKLocalIDs()     const { return kParallelLocal || persistent; }
+    bool needsKLocalIDs()     const { return kParallelLocal || persistentLoop(); }
     bool needsKLoopBarrier()  const { return (barrierFreq > 0) || (slmBuffers > 0); }
     bool needsBarrier()       const { return needsKLoopBarrier() || xParallel || kParallelLocal || fuseBeta || fusePostOps; }
 

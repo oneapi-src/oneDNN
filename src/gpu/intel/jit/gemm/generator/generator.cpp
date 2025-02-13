@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@
 #include "pieces/remask.cxx"
 #include "pieces/row_column_sums.cxx"
 #include "pieces/state_utils.cxx"
+#include "pieces/stream_k.cxx"
 #include "pieces/walk_orders.cxx"
 
 #include "pieces/quantization.cxx"

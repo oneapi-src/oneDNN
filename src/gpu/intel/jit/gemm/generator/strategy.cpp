@@ -58,7 +58,7 @@ bool GEMMStrategy::needsUnnamedBarrier(const GEMMProblem &problem) const
     if (needsKLoopBarrier() && (!namedBarriers[LoopM] || !namedBarriers[LoopN]))
         return true;
     if (slmBuffers > 0) {
-        if (persistent) return true;
+        if (persistentLoop()) return true;
         if (problem.needsASums() || problem.needsBSums()) return true;
     }
     if (kParallelLocal) return true;

@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 
+#include "atomic_fusions.hpp"
 #include "cooperative_split.hpp"
 #include "generator.hpp"
 #include "hw_utils.hpp"
@@ -46,7 +47,7 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
     const bool inFusedGEMM = false;
     bool anyKParallelFixed = strategy.kParallelLocal || strategy.kParallel;
 
-    Label lKernelDone, lReentry, lLeavePersistentLoop, lPadThread;
+    Label lKernelDone, lReentry, lLeavePersistentLoop, lPadThread, lKVPhaseDone;
 
     // By default, don't use dispatch mask.
     setDefaultNoMask();
@@ -133,20 +134,34 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
                 || (strategy.prefetchA && strategy.A_prefetch.address2D)
                 || (strategy.prefetchB && strategy.B_prefetch.address2D);
     if (anyKParallelFixed || strategy.kParallelVariable) {
-        if (strategy.persistent || strategy.fusePostOps || anyAB2D) {
+        if (strategy.persistentLoop() || strategy.fuseBeta || strategy.fusePostOps || anyAB2D) {
             state.fullK = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
             mov(1, state.fullK, state.inputs.k);
         }
     } else
         state.fullK = state.inputs.k;
 
-    if (strategy.kParallelVariable)
-        state.k0Rem = copySubregister(state.inputs.k0, state, getHint(HintType::LongTerm, strategy));
+    // Variable k-slicing initialization.
+    if (strategy.kParallelVariable) {
+        state.k0Rem = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
+        state.inputs.kSlicedTiles = state.inputs.kvConfig.uw(0);
+        state.inputs.kSyncSlabs = state.inputs.kvConfig.uw(1);
+        and_(1 | nz | f1[0], null.uw(), state.inputs.kSyncSlabs, 0x8000);
+        and_(1, state.inputs.kSyncSlabs, state.inputs.kSyncSlabs, 0x7FFF);
+        or_(1 | f1[0], state.inputs.flags, state.inputs.flags, FlagKSlice2);
+    }
 
     // L3 prefetch warmup.
     if (strategy.prefetchABL3) {
         gemmInitL3Prefetch(false, problem, strategy, state);
         gemmWarmupL3Prefetch(problem, strategy, state);
+    }
+
+    // Compute group count if needed and not passed as an argument.
+    if (state.groupCountMN.isInvalid() && (strategy.persistent || strategy.kParallelVariable)) {
+        state.groupCountMN = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
+        if (strategy.kParallelVariable)
+            emul(1, state.groupCountMN, state.inputs.groupCountM, state.inputs.groupCountN, strategy, state);
     }
 
     // Surface handling for quantization parameters.
@@ -228,7 +243,7 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
     if (problem.bqGroupN == 0) problem.bqGroupN = 1;
 
     // Persistent thread preparation and re-entry.
-    if (strategy.persistent) {
+    if (strategy.persistentLoop()) {
         if (!strategy.linearOrder()) stub();
         if (problem.batch != BatchMode::None) stub();       // need to wrangle groupIDK also
 
@@ -241,159 +256,12 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
         gemmFoldOffsets(problem, strategy, state);
 
         mark(lReentry);
-
     }
 
-    // Variable k-slicing logic.
-    if (strategy.kParallelVariable) {
-        if (!strategy.persistent) stub();
+    gemmStreamKSetup(lKVPhaseDone, lKernelDone, problem, strategy, state);
 
-        state.h0 = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
-        Label lNoKSlice, lAlreadySliced;
-
-        auto slicedGroupIdx = state.ra.alloc_sub<int32_t>();
-        auto slicedGroups   = state.ra.alloc_sub<uint32_t>();
-        auto temp           = state.ra.alloc_sub<uint32_t>();
-        auto temp2          = state.ra.alloc_sub<uint32_t>();
-        auto temp3          = state.ra.alloc_sub<uint32_t>();
-        auto gcMNStorage    = state.ra.alloc_sub<uint32_t>();
-        auto kpad           = state.ra.alloc_sub<uint32_t>();
-
-        // Check if we have reached the k-sliced region yet, and if so,
-        //   if we need to do k-slicing computations.
-        and_(1 | nz | f0[1], null.ud(), state.inputs.flags, FlagKSlicing);
-        add(1 | ge | f0[0], slicedGroupIdx, state.groupIDMN, -state.inputs.kParallelStart);
-        mov(1, state.h0, 0);
-        mov(1 | lt | f1[1], temp, state.fullK);
-        jmpi(1 | f0[1], lAlreadySliced);
-        if (strategy.kParallelLocal)
-            mov(1, state.inputs.k, state.fullK);
-        jmpi(1 | ~f0[0], lNoKSlice);
-
-        // Reverse ordering of slices so each WG traverses its tiles in reverse order.
-        // For the alternate fused beta path, this helps ensure beta scaling completes
-        //   before the other WGs need its result.
-        eadd3(1, temp, state.inputs.groupStride, -slicedGroupIdx, -1);
-
-        auto groupCountMN = state.inputs.groupCountMN;
-        if (groupCountMN.isInvalid()) {
-            groupCountMN = gcMNStorage;
-            emul(1, groupCountMN, state.inputs.groupCountM, state.inputs.groupCountN, strategy, state);
-        }
-
-        // Split remaining GEMM work (slicedGroups' worth) among persistent workgroups.
-        // Each workgroup gets a k0-sized range in k space, which may span
-        //  multiple C workgroup tiles.
-        // Divide (k0 * groupID) by k...
-        //        h0 <- remainder
-        //   groupID <- quotient + kParallelStart
-        // Also save groupID - kParallelStart back in slicedGroupIdx.
-        Subregister effKPad;
-        if (strategy.kPadding)
-            effKPad = gemmCalcKPadding(problem, strategy, state);
-        alignUp(kpad, state.inputs.k, strategy.kAlign(problem), strategy, state);
-        mul(1, temp, state.inputs.k0, temp.uw());
-        if (strategy.kPadding)
-            add(1, kpad, kpad, effKPad);
-        or_(1, state.inputs.flags, state.inputs.flags, FlagKSlicing);
-        divDown(slicedGroupIdx.ud(), temp, kpad, state.inputs.kRecip, f1[0], strategy, state);
-        emad(1, state.h0, temp, -kpad, slicedGroupIdx.ud(), strategy, state);
-        eadd3(1, state.groupIDMN, groupCountMN, -slicedGroupIdx.ud(), -1);
-        if (strategy.altFusedBeta)
-            add(1 | gt | f0[1], temp3.d(), state.h0, -state.inputs.k0);
-        add(1 | le | f1[1], temp.d(), state.fullK, -state.h0);
-        if (strategy.altFusedBeta) {
-            eadd3(1 | ge | f1[0], temp2.d(), state.h0, state.inputs.k0, -kpad);
-            cmp(1 | f0[1] | lt | f0[1], null.ud(), temp3.ud(), state.fullK);
-        }
-        add(1, slicedGroupIdx, state.groupIDMN, -state.inputs.kParallelStart);
-        if (strategy.altFusedBeta) {
-            // Decide if we are responsible for beta scaling.
-            // If within padded region (h0 >= k, f1.1), scale if f0.1:
-            //   - we're the first one in the padded region (h0 - k0 < k), and
-            //   - no WG completely covers the computation for this tile (h0 - k0 > 0)
-            // Otherwise (h0 < k, ~f1.1), scale only if no later WGs on this tile (h0 + k0 >= kpad, f1.0).
-            mov(1 | f1[1], f1[0], f0[1]);
-            or_(1 | f1[0], state.inputs.flags, state.inputs.flags, FlagDidBeta);
-        }
-
-        mark(lAlreadySliced);
-
-        // In the tail case, it's possible that we don't have a full k0 chunk
-        //  of work to do. Bail if so.
-        // If bias enabled, do it if h0 = 0.
-        cmp(1 | lt | f0[0], state.groupIDMN.d(), state.inputs.kParallelStart);
-        if (problem.cOffset == COffset::Pre)
-            cmp(1 | gt | f0[1], state.h0, 0);
-        min_(1, state.inputs.k, temp.d(), state.k0Rem);     /* temp holds k - h0 */
-            jmpi(1 | f0[0], lLeavePersistentLoop);
-        if (problem.cOffset == COffset::Pre)
-            or_(1 | f0[1], state.inputs.flags, state.inputs.flags, FlagNonfinalKBlock);
-
-        // Update k0Rem with remaining work.
-        if (strategy.kPadding) {
-            auto temp4 = gemmCalcKPadding(problem, strategy, state);
-            add(1, temp4, state.inputs.k, temp4);
-            mov(1 | sat, state.inputs.k.ud(), state.inputs.k);  /* k may have been negative in padded region */
-            add(1 | sat, state.k0Rem.ud(), state.k0Rem, -temp4);
-            state.ra.safeRelease(temp4);
-        } else
-            add(1 | sat, state.k0Rem.ud(), state.k0Rem, -state.inputs.k);
-
-        // With k padding, we might have a zero-size slice. Handle appropriately.
-        if (strategy.kPadding) {
-            if (strategy.altFusedBeta) {
-                Label lContinue;
-                jmpi(1 | ~f1[1], lContinue);
-                jmpi(1 | ~f1[0], lKernelDone);                  // Skip if zero-size and not doing beta scaling.
-                mark(lContinue);
-            } else
-                jmpi(1 | f1[1], lKernelDone);                   // Skip if zero-size.
-        }
-
-        // Beta/post-op fusing: check if we need to do it.
-        if (strategy.fuseBeta || strategy.fusePostOps) {
-            Label lNoCheck;
-
-            cmp(1 | eq | f1[0], state.inputs.k, state.fullK);
-            or_(1 | ~f1[0], state.inputs.flags, state.inputs.flags, FlagKPartitioned);
-            jmpi(1 | f1[0], lNoCheck);
-            gemmFusedBetaPOInit(slicedGroupIdx, problem, strategy, state);
-            mark(lNoCheck);
-        }
-
-        mark(lNoKSlice);
-
-        // Further slice k range within workgroup if requested.
-        // k local size must be a power of 2.
-        state.wgK = state.inputs.k;
-        if (strategy.kParallelLocal) {
-            if (!is_zero_or_pow2(strategy.wg[LoopK])) stub();
-            if (strategy.kInterleave) stub();
-            state.threadK0 = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
-            if ((strategy.fuseBeta && !strategy.altFusedBeta) || strategy.fusePostOps) {
-                state.wgK = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
-                mov(1, state.wgK, state.inputs.k);
-            }
-            fbl(1, temp, state.lszK);
-            eadd3(1, state.threadK0, state.inputs.k, state.lszK, -1);
-            shr(1, state.threadK0, state.threadK0, temp);
-            alignUp(state.threadK0, state.threadK0, strategy.kAlign(problem), strategy, state);
-            mul(1, temp, state.threadK0, state.lidK.uw());
-            add(1 | sat, state.inputs.k.ud(), state.inputs.k, -temp);
-            add(1, state.h0, state.h0, temp);
-            min_(1, state.inputs.k, state.inputs.k, state.threadK0);
-        }
-
-        state.ra.safeRelease(effKPad);
-        state.ra.safeRelease(slicedGroupIdx);
-        state.ra.safeRelease(slicedGroups);
-        state.ra.safeRelease(kpad);
-        state.ra.safeRelease(temp);
-        state.ra.safeRelease(temp2);
-        state.ra.safeRelease(temp3);
-        state.ra.safeRelease(gcMNStorage);
-    }
+    if (state.groupCountMN.isValid() && state.inputs.groupCountMN.isInvalid())
+        state.ra.release(state.groupCountMN);
 
     if (strategy.kParallel && (strategy.fuseBeta || strategy.fusePostOps)) {
         if (!strategy.linearOrder()) stub();
@@ -443,17 +311,14 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
             add(1 | lt | state.flagAP, idK.d(), idK, -state.inputs.localSizeK);
             mov(1 | state.flagAP, state.inputs.k0, 0);
         }
-        if (strategy.fusePostOps) {
-            state.wgK = state.inputs.k;
-            if (strategy.kParallelLocal) {
-                state.wgK = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
-                auto temp = state.ra.alloc_sub<uint32_t>();
-                emul(1, state.wgK, idK, state.inputs.k0, strategy, state);
-                mul(1, temp, state.inputs.k0, state.inputs.localSizeK.uw());
-                add(1 | sat, state.wgK, state.inputs.k, -state.wgK);
-                min_(1, state.wgK, state.wgK, temp);
-                state.ra.safeRelease(temp);
-            }
+        if ((strategy.fuseBeta || strategy.fusePostOps) && strategy.kParallelLocal) {
+            state.wgK = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
+            auto temp = state.ra.alloc_sub<uint32_t>();
+            emul(1, state.wgK, idK, state.inputs.k0, strategy, state);
+            mul(1, temp, state.inputs.k0, state.inputs.localSizeK.uw());
+            add(1 | sat, state.wgK, state.inputs.k, -state.wgK);
+            min_(1, state.wgK, state.wgK, temp);
+            state.ra.safeRelease(temp);
         }
     }
 
@@ -495,16 +360,16 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
     state.ra.safeRelease(idM);
     state.ra.safeRelease(idN);
     state.ra.safeRelease(idK);
-    if (!strategy.persistent) {
+    if (!strategy.persistentLoop()) {
         state.ra.safeRelease(state.inputs.localSizeM);
         state.ra.safeRelease(state.inputs.localSizeN);
     }
     if (anyKParallelFixed) {
         state.ra.safeRelease(state.inputs.localIDK);
-        if (!strategy.persistent)
+        if (!strategy.persistentLoop())
             state.ra.safeRelease(state.inputs.localSizeK);
     }
-    if (strategy.linearOrder() || strategy.persistent) {
+    if (strategy.linearOrder() || strategy.persistentLoop()) {
         state.ra.safeRelease(state.inputs.groupIDM);
         state.ra.safeRelease(state.inputs.groupIDN);
         state.ra.claim(state.nextGroupIDM);
@@ -515,7 +380,7 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
 
     // Adjust k range for local/global k-reduction.
     if (anyKParallelFixed && !strategy.kParallelVariable) {
-        add(1 | sat, state.inputs.k.ud(), strategy.persistent ? state.fullK : state.inputs.k, -state.h0);
+        add(1 | sat, state.inputs.k.ud(), strategy.persistentLoop() ? state.fullK : state.inputs.k, -state.h0);
 
         if (strategy.kInterleave) {
             // k <- floor(k / (chunk * k local size)) * chunk + min(k % (chunk * k local size), chunk)
@@ -533,11 +398,15 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
             state.ra.safeRelease(temp2);
         }
 
+        if (strategy.kParallel && !strategy.kParallelLocal && (strategy.fuseBeta || strategy.fusePostOps)) {
+            state.wgK = state.ra.allocSub<uint32_t>(getHint(HintType::LongTerm));
+            min_(1, state.wgK, state.inputs.k, state.inputs.k0);
+        }
         min_(1, state.inputs.k, state.inputs.k, state.inputs.k0);
 
         bool keepK0 = false;
         keepK0 |= strategy.kParallelLocal && (strategy.barrierFreq > 0 || strategy.slmBuffers > 0);
-        keepK0 |= strategy.persistent;
+        keepK0 |= strategy.persistentLoop();
 
         if (keepK0)
             state.threadK0 = state.inputs.k0;
@@ -577,7 +446,7 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
     mark(lKernelDone);
 
     // Persistent thread loop. Advance group ID and re-enter kernel if there's more work to do.
-    if (strategy.persistent) {
+    if (strategy.persistentLoop()) {
         status << "Persistent loop" << status_stream::endl;
 
         GRF temp;
@@ -595,6 +464,13 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
             }
         };
 
+        // Recompute group count if needed.
+        if (state.inputs.groupCountMN.isInvalid()) {
+            state.ra.claim(state.groupCountMN);
+            emul(1, state.groupCountMN, state.inputs.groupCountM, state.inputs.groupCountN, strategy, state);
+        }
+
+        // Clear flags as needed.
         uint32_t flagsToClear = 0;
 
         if (strategy.fuseBeta)
@@ -615,32 +491,50 @@ void BLASKernelGenerator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy,
         if (strategy.kParallelVariable) {
             Label lNotKSliced;
             and_(1 | ze | f0[0], null.ud(), state.inputs.flags, FlagKSlicing);
+            if (strategy.persistent)
+                and_(1 | nz | f0[1], null.ud(), state.inputs.flags, FlagKSlice2);
             cmp(1 | gt | f1[0], state.k0Rem, 0);
+
             jmpi(1 | f0[0], lNotKSliced);
-            add(1, state.groupIDMN, state.groupIDMN, -1);
-            alignDown(1 | gt | f0[1], state.k0Rem.ud(), state.k0Rem.ud(), strategy.kAlign(problem), strategy, state);
+
+            // Continue work on this slice, if any remaining.
             persistentRestore();
-            jmpi(1 | f0[1], lReentry);
-            jmpi(1, lLeavePersistentLoop);
+            jmpi(1 | f1[0], lReentry);
+
+            // Otherwise, advance to next slice, if any.
+            if (strategy.persistent) {
+                Label lCheckSlice2;
+
+                mark(lCheckSlice2);
+                jmpi(1 | ~f0[1], lLeavePersistentLoop);
+                gemmStreamKPrepareSlice2(problem, strategy, state);
+                jmpi(1, lReentry);
+
+                mark(lKVPhaseDone);
+                and_(1 | nz | f0[1], null.ud(), state.inputs.flags, FlagKSlice2);
+                jmpi(1, lCheckSlice2);
+            } else
+                mark(lKVPhaseDone);
             mark(lNotKSliced);
         }
 
-        if (state.inputs.groupCountMN.isInvalid()) {
-            state.inputs.groupCountMN = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
-            emul(1, state.inputs.groupCountMN, state.inputs.groupCountM, state.inputs.groupCountN, strategy, state);
+        if (strategy.persistent) {
+            add(1, state.groupIDMN, state.groupIDMN, state.inputs.groupStride);
+            if (strategy.kParallelVariable)
+                cmp(1 | gt | f1[0], state.inputs.kSlicedTiles, 0);
+            cmp(1 | lt | f0[0], state.groupIDMN, state.groupCountMN);
+
+            persistentRestore();
+            if (strategy.kParallelVariable)
+                jmpi(1 | f1[0], lReentry);
+            jmpi(1 | f0[0], lReentry);
         }
 
-        add(1, state.groupIDMN, state.groupIDMN, state.inputs.groupStride);
-        cmp(1 | lt | f0[0], state.groupIDMN, state.inputs.groupCountMN);
-        state.ra.safeRelease(state.inputs.groupCountMN);
-
-        persistentRestore();
-        jmpi(1 | f0[0], lReentry);
-
-        if (strategy.kParallelVariable) {
-            jmpi(1 | f1[0], lReentry);
+        if (strategy.kParallelVariable)
             mark(lLeavePersistentLoop);
-        }
+
+        state.ra.safeRelease(state.inputs.groupCountMN);
+        state.ra.safeRelease(state.groupCountMN);
     }
 
     mark(lPadThread);

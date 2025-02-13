@@ -144,11 +144,9 @@ void BLASKernelGenerator<hw>::gemmHilbertlikeOrder(const Subregister &groupIDMN,
     auto np1 = storage2[0].ud(2);
     auto bv1 = storage2[0].ud(3);
     auto uv1 = storage2[0].ud(4);
-    auto temp3 = storage2[0].ud(5);
     auto uo = storage2[0].ud(6);
     /* auto vo = storage2[0].ud(7); */      // not used directly
     auto temp = storage2[1].ud(0);
-    auto temp2 = storage2[1].ud(1);
     auto qrem = storage2[1].ud(2);
     auto qqot = storage2[1].ud(4);
     auto q = storage2[1].ud(6);
@@ -279,24 +277,7 @@ void BLASKernelGenerator<hw>::gemmHilbertlikeOrder(const Subregister &groupIDMN,
 
     // Regular 2D traversal over final block.
     bool nmk = (strategy.loopOrder[0] == LoopN);
-    auto divisor = nmk ? v : u;
-
-    if (hw < HW::Gen12LP) {
-        irem(1, qrem, q, divisor);
-        iqot(1, qqot, q, divisor);
-    } else {
-        auto bias = temp.f();
-        auto divisorFP = temp2.f();
-        auto qFP = temp3.f();
-        mov(1, divisorFP, divisor);
-        mov(1, qFP, q);
-        mov(1, bias, -0.499996185302734375f);       // -1/2 + 2^(-18)
-        einv(1, divisorFP, divisorFP, strategy, state);
-        add(1, divisorFP.ud(), divisorFP.ud(), 2);
-        mad(1, qqot.f(), bias, qFP, divisorFP);
-        mov(1, qqot, qqot.f());
-        mad(1, qrem, q, -qqot.uw(), divisor.uw());
-    }
+    divMod(qqot, qrem, q, nmk ? v : u, strategy, state);
 
     // Assign m/n group IDs.
     add(1, groupIDM, a, nmk ? qqot : qrem);
@@ -304,7 +285,7 @@ void BLASKernelGenerator<hw>::gemmHilbertlikeOrder(const Subregister &groupIDMN,
 
     state.ra.safeRelease(storage);
     state.ra.safeRelease(storage2);
-    if (!strategy.persistent) {
+    if (!strategy.persistentLoop()) {
         state.ra.safeRelease(state.inputs.hilbertVD);
         state.ra.safeRelease(state.inputs.hilbertUVDRecip);
         state.ra.safeRelease(state.inputs.hilbertBail);
@@ -328,7 +309,6 @@ void BLASKernelGenerator<hw>::gemmBoustrophedonOrder(const Subregister &groupIDM
     auto j = storage[0].ud(5);
     auto i0 = storage[0].ud(6);
     auto two = storage[0].f(7);
-    auto numFP = storage[1].f(0);
     auto islice = storage[1].ud(1);
     auto qot = storage[1].ud(2);
     auto rem = storage[1].ud(4);
@@ -337,7 +317,6 @@ void BLASKernelGenerator<hw>::gemmBoustrophedonOrder(const Subregister &groupIDM
     auto temp1 = storage[2].ud(2);
     auto temp2 = storage[2].ud(4);
     auto bias = storage[3].f(0);
-    auto denomFP = storage[3].f(2);
     auto q = storage[3].ud(4);
     auto qFP = storage[3].f(6);
 
@@ -351,36 +330,6 @@ void BLASKernelGenerator<hw>::gemmBoustrophedonOrder(const Subregister &groupIDM
     auto &groupCountN = state.inputs.groupCountN;
 
     Label lBegin, lEnd, lDone, lBeginTri2, lEndTri2, lTricalc1, lTricalc2, lTricalcOut;
-
-    auto divqot = [&](const Subregister &num, const Subregister &denom, bool large) {
-        if (hw < HW::Gen12LP) {
-            irem(1, rem, num, denom);
-            iqot(1, qot, num, denom);
-        } else if (large) {
-            // denom <= 0x400000, qot < 2^16
-            or_(1, cr0[0], cr0[0], 0x20);               // round toward -inf
-            mov(1, denomFP, denom);
-            mov(1, numFP, -num);
-            einv(1, denomFP, denomFP, strategy, state);
-            add(1, denomFP.ud(), denomFP.ud(), 2);
-            mul(1, qot.f(), -numFP, denomFP);
-            mov(1, qot, qot.f());
-            mad(1 | lt | f1[1], rem.d(), num, denom, -qot.uw());
-            add(1 | f1[1], rem, rem, denom);
-            add(1 | f1[1], qot, qot, -1);
-            and_(1, cr0[0], cr0[0], ~0x30);
-        } else {
-            // denom <= 0x40, qot < 2^16
-            mov(1, denomFP, denom);
-            mov(1, numFP, num);
-            mov(1, bias, -0.499996185302734375f);       // -1/2 + 2^(-18)
-            einv(1, denomFP, denomFP, strategy, state);
-            add(1, denomFP.ud(), denomFP.ud(), 2);
-            mad(1, qot.f(), bias, numFP, denomFP);
-            mov(1, qot, qot.f());
-            mad(1, rem, num, -qot.uw(), denom.uw());
-        }
-    };
 
     // NB: Sequence assumes group counts fit in 16 bits.
     status << "Boustrophedon ordering" << status_stream::endl;
@@ -405,7 +354,7 @@ void BLASKernelGenerator<hw>::gemmBoustrophedonOrder(const Subregister &groupIDM
 
     mul(1, temp1, s1.uw(), v.uw());
 
-    divqot(q, temp1, true);
+    divMod(qot, rem, q, temp1, strategy, state, true);
 
     mul(1, i0, qot.uw(), s1.uw());
     mov(1, islice, qot);
@@ -441,7 +390,7 @@ void BLASKernelGenerator<hw>::gemmBoustrophedonOrder(const Subregister &groupIDM
     }
 
     {
-        divqot(q, s, false);
+        divMod(qot, rem, q, s, strategy, state, false);
 
         add(1, i, i0, rem);
         mov(1, j, qot);
@@ -518,7 +467,7 @@ void BLASKernelGenerator<hw>::gemmBoustrophedonOrder(const Subregister &groupIDM
     ecsel(1, lt, f0[0], groupIDN, i, j, s0);
 
     state.ra.safeRelease(storage);
-    if (!strategy.persistent) {
+    if (!strategy.persistentLoop()) {
         state.ra.safeRelease(state.inputs.bslice);
         state.ra.safeRelease(state.inputs.bthresh);
     }
@@ -546,7 +495,7 @@ void BLASKernelGenerator<hw>::gemmReorderGlobalIDs(const GEMMProblem &problem, c
 
     gemmLinearOrder(gidMN, gidM, gidN, Subregister(), Subregister(), problem, strategy, state);
 
-    if (!strategy.persistent) {
+    if (!strategy.persistentLoop()) {
         state.ra.safeRelease(state.inputs.groupCountM);
         state.ra.safeRelease(state.inputs.groupCountN);
         state.ra.safeRelease(state.inputs.gcMNRecip);

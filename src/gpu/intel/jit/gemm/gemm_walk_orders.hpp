@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -161,6 +161,10 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
                     = group_count; /* disable variable k-slicing if indicated by kernel selector */
         if (k_parallel_start > 0 && k_parallel_start != group_count)
             k_parallel_start -= concurrent_tg;
+        uint32_t k_sliced_tiles = group_count - k_parallel_start;
+        uint32_t k_sliced_phases = 1; /* todo: use 2 phases where beneficial */
+        uint32_t tiles_per_phase
+                = utils::div_up(k_sliced_tiles, k_sliced_phases);
 
         int k_padding = info.kPadding(), old_k_padding = k_padding;
         auto k_padded = k;
@@ -169,7 +173,7 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
 
         do {
             k_padded = utils::rnd_up(k + k_padding, info.unroll[LoopK]);
-            k_total = int64_t(k_padded) * (group_count - k_parallel_start);
+            k_total = int64_t(k_padded) * tiles_per_phase;
             if (k_total == 0) break;
 
             k0 = utils::div_up(k_total, concurrent_tg);
@@ -179,16 +183,31 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
             k_padding = std::min<int>(k_padding, 2 * k0);
         } while (k_padding != old_k_padding);
 
-        uint32_t k_recip = uint32_reciprocal(k_padded);
-        uint32_t k0_recip = uint32_reciprocal(k0);
+        group_count = k_parallel_start;
+        uint32_t k_parallel_groups = 0;
+        uint32_t k_sync_slabs = 0;
+
+        if (k0 > 0) {
+            k_parallel_groups = uint32_t(utils::div_up(k_total, k0));
+            if (k_sliced_phases > 1) k_parallel_groups = concurrent_tg;
+            group_count += k_parallel_groups * k_sliced_phases;
+
+            if (tiles_per_phase > 0) {
+                k_sync_slabs = k_parallel_groups + (tiles_per_phase >> 1);
+                if (k_sync_slabs > 0) k_sync_slabs--;
+                k_sync_slabs = std::min(k_sync_slabs, (k_padded - 1) / k0);
+            }
+        }
+
+        uint32_t k_unsynced_padded = k_padded - k_sync_slabs * k0;
+        uint32_t k_recip = uint32_reciprocal(k_unsynced_padded);
+
+        uint32_t kv_config = k_sliced_tiles | (k_sync_slabs << 16);
+        if (k_sliced_phases > 1) kv_config |= 0x80000000u;
 
         arg_list.set(argn++, k0);
-        arg_list.set(argn++, k_parallel_start);
+        arg_list.set(argn++, kv_config);
         arg_list.set(argn++, k_recip);
-        if (info.fusedBeta()) arg_list.set(argn++, k0_recip);
-
-        group_count = k_parallel_start;
-        if (k0 > 0) group_count += utils::div_up(k_total, k0);
     }
 
     if (info.isPersistent()) {
