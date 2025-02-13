@@ -828,8 +828,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
             // Scratchpad memory relates to a primitive. If reference needs it,
             // use switch below to define a memory desc for it.
             if (exec_arg != DNNL_ARG_SCRATCHPAD) {
+                auto is_dropout_seed = exec_arg == DNNL_ARG_ATTR_DROPOUT_SEED;
+                auto type = is_dropout_seed ? dnnl_s32 : dnnl_f32;
+
                 ref_mem_map.emplace(exec_arg,
-                        dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+                        dnn_mem_t(mem.md_, type, tag::abx, ref_engine));
             }
         }
         auto &ref_mem = ref_mem_map[exec_arg];
