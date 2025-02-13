@@ -26,7 +26,10 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
           -DDNNL_CPU_RUNTIME=OMP \
           -DDNNL_GPU_RUNTIME=OCL \
           -DDNNL_WERROR=ON \
-          -DDNNL_BUILD_FOR_CI=ON
+          -DDNNL_BUILD_FOR_CI=ON \
+          -DCMAKE_C_FLAGS="-I/usr/lib/llvm-12/lib/clang/12.0.1/include/" \
+          -DCMAKE_CXX_FLAGS="-I/usr/lib/llvm-12/lib/clang/12.0.1/include/"
+
       set +x
     elif [[ "$GITHUB_JOB" == "pr-format-tags" ]]; then
       set -x
