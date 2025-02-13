@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2024-2025 Intel Corporation
+* Copyright 2025 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -277,6 +278,9 @@ struct zero_points_t : public c_compatible {
 
     // arg-specific checks
     bool common(int arg) const { return get_mask(arg) == 0; }
+    bool per_ocic(int arg, int ndims) const {
+        return get_mask(arg) == 3 << (ndims - 2);
+    }
     bool per_dim_1(int arg) const { return get_mask(arg) == 2; }
     bool has_default_values(int arg) const {
         return is_set(arg) == false && has_default_data_type(arg);

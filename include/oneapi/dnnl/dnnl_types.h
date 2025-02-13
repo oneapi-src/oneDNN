@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2025 Intel Corporation
-* Copyright 2024 FUJITSU LIMITED
+* Copyright 2024-2025 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -715,6 +715,9 @@ typedef enum {
     dnnl_aBC16b32c,
     dnnl_AB16a16b,
     dnnl_AB16a32b,
+    dnnl_BA24b8a,
+    dnnl_aCB24c8b,
+    dnnl_abDC24d8c,
     dnnl_ABcde16a16b2a,
     dnnl_aBCdef16b16c2b,
     dnnl_Acedb16a,
