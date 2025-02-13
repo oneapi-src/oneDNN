@@ -307,12 +307,26 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     mask_add.add_inputs({scaled_score, mask});
     mask_add.add_outputs({masked_score});
 
+    // cast1: cast masked_score to f32.
+    auto score_f32 = logical_tensor(id++, logical_tensor::data_type::f32,
+            score_sz, layout_type::strided);
+    auto cast1 = op(id++, op::kind::TypeCast, "cast1");
+    cast1.add_input(masked_score);
+    cast1.add_output(score_f32);
+
     // attention_probs = softmax(masked_score)
-    auto probs = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    auto probs_f32 = logical_tensor(id++, logical_tensor::data_type::f32,
+            score_sz, layout_type::strided);
     auto softmax = op(id++, op::kind::SoftMax, "softmax");
     softmax.set_attr<int64_t>(op::attr::axis, -1);
-    softmax.add_inputs({masked_score});
-    softmax.add_outputs({probs});
+    softmax.add_input(score_f32);
+    softmax.add_output(probs_f32);
+
+    // cast2:
+    auto probs = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    auto cast2 = op(id++, op::kind::TypeCast, "cast2");
+    cast2.add_input(probs_f32);
+    cast2.add_output(probs);
 
     // attention_output = attention_probs x value
     auto value = logical_tensor(id++, dt, k_sz, layout_type::strided);
@@ -326,7 +340,9 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     sdpa.add_op(bmm1);
     sdpa.add_op(scale_div);
     sdpa.add_op(mask_add);
+    sdpa.add_op(cast1);
     sdpa.add_op(softmax);
+    sdpa.add_op(cast2);
     sdpa.add_op(bmm2);
     sdpa.finalize();
 
@@ -467,13 +483,13 @@ void sdpa_perf(engine::kind ekind, int argc, char **argv) {
         }
     }
 
-    bench(api_kind::graph, ekind, dnnl_f32, params, 2000.0 /*ms*/);
+    // bench(api_kind::graph, ekind, dnnl_f32, params, 2000.0 /*ms*/);
     bench(api_kind::graph, ekind, dnnl_bf16, params, 2000.0 /*ms*/);
-    bench(api_kind::graph, ekind, dnnl_f16, params, 2000.0 /*ms*/);
+    // bench(api_kind::graph, ekind, dnnl_f16, params, 2000.0 /*ms*/);
 
-    bench(api_kind::primitive, ekind, dnnl_f32, params, 2000.0 /*ms*/);
-    bench(api_kind::primitive, ekind, dnnl_bf16, params, 2000.0 /*ms*/);
-    bench(api_kind::primitive, ekind, dnnl_f16, params, 2000.0 /*ms*/);
+    // bench(api_kind::primitive, ekind, dnnl_f32, params, 2000.0 /*ms*/);
+    // bench(api_kind::primitive, ekind, dnnl_bf16, params, 2000.0 /*ms*/);
+    // bench(api_kind::primitive, ekind, dnnl_f16, params, 2000.0 /*ms*/);
 }
 
 int main(int argc, char **argv) {
