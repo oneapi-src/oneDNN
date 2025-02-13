@@ -37,4 +37,4 @@
 --reset --sdt=bf16 --ddt=f64 --stag=acb:acb --dtag=bca 1469x124250x3:1469x28x3
 --reset --sdt=s8 --ddt=u8 --stag=cab:abc --dtag=cba 6x1489864x171:6x1069566x171
 --reset --sdt=f32 --ddt=f32 --stag=bca:cab --dtag=bac 10301x2103x1:10301x62502x1
---reset --sdt=f8_e5m2 --ddt=bf16 --stag=bac:cba --dtag=cba 26x4x7:267x743407x7
+--reset --sdt=f8_e5m2 --ddt=bf16 --stag=bac:cba --dtag=cba 267x4x7:267x743407x7
