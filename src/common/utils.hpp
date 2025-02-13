@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
+#include "verbose.hpp"
 #include "z_magic.hpp"
 
 namespace dnnl {
@@ -74,13 +75,19 @@ static_assert(sizeof(void *) == 8, "oneDNN supports 64-bit architectures only");
 #define CHECK(f) \
     do { \
         dnnl::impl::status_t _status_ = f; \
-        if (_status_ != dnnl::impl::status::success) return _status_; \
+        if (_status_ != dnnl::impl::status::success) { \
+            VDEBUGINFO(6, common, utils, "CHECK() failed"); \
+            return _status_; \
+        } \
     } while (0)
 
 #define CHECK_BOOL(f) \
     do { \
         dnnl::impl::status_t _status_ = f; \
-        if (_status_ != dnnl::impl::status::success) return false; \
+        if (_status_ != dnnl::impl::status::success) { \
+            VDEBUGINFO(6, common, utils, "CHECK_BOOL() failed"); \
+            return false; \
+        } \
     } while (0)
 
 #define UNUSED_STATUS(f) \
@@ -697,15 +704,6 @@ constexpr int msan_enabled = MSAN_ENABLED;
 inline void msan_unpoison(void *ptr, size_t size) {
 #if MSAN_ENABLED
     __msan_unpoison(ptr, size);
-#endif
-}
-
-// Helper to avoid #ifdefs for DNNL_DEV_MODE related code
-static constexpr bool is_dev_mode() {
-#ifdef DNNL_DEV_MODE
-    return true;
-#else
-    return false;
 #endif
 }
 

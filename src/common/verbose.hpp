@@ -25,7 +25,6 @@
 
 #include "c_types_map.hpp"
 #include "oneapi/dnnl/dnnl_debug.h"
-#include "utils.hpp"
 #include "z_magic.hpp"
 
 #include "profiler.hpp"
@@ -64,9 +63,10 @@ struct const_expr_value {
 } // namespace utility
 
 #define UTILITY_CONST_EXPR_VALUE(exp) \
-    utility::const_expr_value<decltype(exp), exp>::value
+    dnnl::impl::utility::const_expr_value<decltype(exp), exp>::value
 
-#define __FILENAME__ (&__FILE__[utility::get_file_name_offset(__FILE__)])
+#define __FILENAME__ \
+    (&__FILE__[dnnl::impl::utility::get_file_name_offset(__FILE__)])
 
 // General formatting macro for verbose.
 // msg is typically a constant string pulled from verbose_msg.hpp
@@ -87,8 +87,10 @@ struct const_expr_value {
 // Logging info
 #define VINFO(apitype, logtype, logsubtype, component, msg, ...) \
     do { \
-        if (dnnl::impl::get_verbose(verbose_t::logtype##_##logsubtype)) \
-            VFORMAT(get_msec(), verbose_t::logtype##_##logsubtype, apitype, \
+        if (dnnl::impl::get_verbose( \
+                    dnnl::impl::verbose_t::logtype##_##logsubtype)) \
+            VFORMAT(dnnl::impl::get_msec(), \
+                    dnnl::impl::verbose_t::logtype##_##logsubtype, apitype, \
                     logtype, VERBOSE_##logsubtype, \
                     #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
                     __LINE__); \
@@ -116,10 +118,10 @@ struct const_expr_value {
 // Special syntactic sugar for error, plus flush of the output stream
 #define VERROR(apitype, component, msg, ...) \
     do { \
-        if (dnnl::impl::get_verbose(verbose_t::error)) { \
-            VFORMAT(get_msec(), verbose_t::error, apitype, error, "", \
-                    #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
-                    __LINE__); \
+        if (dnnl::impl::get_verbose(dnnl::impl::verbose_t::error)) { \
+            VFORMAT(dnnl::impl::get_msec(), dnnl::impl::verbose_t::error, \
+                    apitype, error, "", #component "," msg ",%s:%d", \
+                    ##__VA_ARGS__, __FILENAME__, __LINE__); \
         } \
     } while (0)
 
@@ -129,10 +131,10 @@ struct const_expr_value {
 // thrown or when a status check fails.
 #define VWARN(apitype, component, msg, ...) \
     do { \
-        if (dnnl::impl::get_verbose(verbose_t::warn)) { \
-            VFORMAT(get_msec(), verbose_t::warn, apitype, warn, "", \
-                    #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
-                    __LINE__); \
+        if (dnnl::impl::get_verbose(dnnl::impl::verbose_t::warn)) { \
+            VFORMAT(dnnl::impl::get_msec(), dnnl::impl::verbose_t::warn, \
+                    apitype, warn, "", #component "," msg ",%s:%d", \
+                    ##__VA_ARGS__, __FILENAME__, __LINE__); \
         } \
     } while (0)
 
@@ -140,11 +142,11 @@ struct const_expr_value {
 // `level` is responsible to set the bar to be printed.
 #define VDEBUGINFO(level, apitype, component, msg, ...) \
     do { \
-        if (dnnl::impl::get_verbose_dev_mode(verbose_t::debuginfo) \
+        if (dnnl::impl::get_verbose_dev_mode(dnnl::impl::verbose_t::debuginfo) \
                 >= (level)) { \
-            VFORMAT(get_msec(), verbose_t::debuginfo, apitype, debuginfo, "", \
-                    #component "," msg ",%s:%d", ##__VA_ARGS__, __FILENAME__, \
-                    __LINE__); \
+            VFORMAT(dnnl::impl::get_msec(), dnnl::impl::verbose_t::debuginfo, \
+                    apitype, debuginfo, "", #component "," msg ",%s:%d", \
+                    ##__VA_ARGS__, __FILENAME__, __LINE__); \
         } \
     } while (0)
 
@@ -239,7 +241,15 @@ inline component_t::flag_kind prim_kind2_comp_kind(
 uint32_t get_verbose(verbose_t::flag_kind kind = verbose_t::none,
         component_t::flag_kind filter_kind = component_t::all) noexcept;
 
-// Helper to avoid #ifdefs for DNNL_DEV_MODE related logging
+// Helpers to avoid #ifdefs for DNNL_DEV_MODE related code
+static constexpr bool is_dev_mode() {
+#ifdef DNNL_DEV_MODE
+    return true;
+#else
+    return false;
+#endif
+}
+
 static inline uint32_t get_verbose_dev_mode(
         verbose_t::flag_kind kind = verbose_t::none) {
     return is_dev_mode() ? get_verbose(kind) : 0;
