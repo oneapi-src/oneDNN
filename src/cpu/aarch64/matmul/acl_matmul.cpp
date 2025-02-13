@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Arm Ltd. and affiliates
+* Copyright 2021-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "cpu/aarch64/matmul/acl_matmul.hpp"
+
 #include <mutex>
 
 namespace dnnl {
@@ -151,18 +152,16 @@ status_t acl_matmul_t::pd_t::init(engine_t *engine) {
     auto scratchpad = scratchpad_registry().registrar();
     arm_compute::experimental::MemoryRequirements aux_mem_req;
 
-    // Query buffer memory requirement, if not using fixed-format kernel
-    if (weights_format_kind_ != format_kind::any) {
-        arm_compute::experimental::op::ll::CpuGemmAssemblyDispatch asm_gemm;
-        if (amp_.do_transC) {
-            asm_gemm.configure(&amp_.wei_tensor_info, &amp_.src_tensor_info,
-                    nullptr, &amp_.dst_acc_info, amp_.gemm_info);
-        } else {
-            asm_gemm.configure(&amp_.src_tensor_info, &amp_.wei_tensor_info,
-                    nullptr, &amp_.dst_tensor_info, amp_.gemm_info);
-        }
-        aux_mem_req = asm_gemm.workspace();
+    // Query buffer memory requirement
+    arm_compute::experimental::op::ll::CpuGemmAssemblyDispatch asm_gemm;
+    if (amp_.do_transC) {
+        asm_gemm.configure(&amp_.wei_tensor_info, &amp_.src_tensor_info,
+                nullptr, &amp_.dst_acc_info, amp_.gemm_info);
+    } else {
+        asm_gemm.configure(&amp_.src_tensor_info, &amp_.wei_tensor_info,
+                nullptr, &amp_.dst_tensor_info, amp_.gemm_info);
     }
+    aux_mem_req = asm_gemm.workspace();
     CHECK(acl_matmul_utils::init_scratchpad(
             scratchpad, amp_, src_md_, weights_md_, dst_md_, aux_mem_req));
 
@@ -301,27 +300,28 @@ status_t acl_matmul_t::execute_forward(const exec_ctx_t &ctx) const {
     }
 
     // Get pointer to scratchpad memory and create a workspace tensor for
-    // CpuGemm. Fixed-format kernel does not need this workspace tensor.
+    // CpuGemmAssemblyDispatch.
     std::vector<arm_compute::Tensor> tmp_tensors(acl_obj_->aux_mem_req.size());
-    if (!IsFixedFormat) {
-        for (const auto &key : matmul_keys) {
-            const auto id = key.first;
-            if (acl_obj_->aux_mem_req[id].size > 0) {
-                const auto info = arm_compute::TensorInfo(
-                        arm_compute::TensorShape(
-                                acl_obj_->aux_mem_req[id].size),
-                        1, arm_compute::DataType::U8);
-                auto buffer = scratchpad.get<void>(key.second);
-                tmp_tensors[id].allocator()->init(
-                        info, acl_obj_->aux_mem_req[id].alignment);
-                tmp_tensors[id].allocator()->import_memory(buffer);
-                matmul_pack.add_tensor(
-                        acl_obj_->aux_mem_req[id].slot, &tmp_tensors[id]);
-            }
+    for (const auto &key : matmul_keys) {
+        const auto id = key.first;
+        if (acl_obj_->aux_mem_req[id].size > 0) {
+            auto info = arm_compute::TensorInfo(
+                    arm_compute::TensorShape(acl_obj_->aux_mem_req[id].size), 1,
+                    arm_compute::DataType::U8);
+
+            auto *buffer = scratchpad.get<void>(key.second);
+
+            tmp_tensors[id].allocator()->init(
+                    info, acl_obj_->aux_mem_req[id].alignment);
+            tmp_tensors[id].allocator()->import_memory(buffer);
+
+            matmul_pack.add_tensor(
+                    acl_obj_->aux_mem_req[id].slot, &tmp_tensors[id]);
         }
     }
 
     acl_obj_->asm_gemm.run(matmul_pack);
+
     if (do_act) {
         auto dst_to_use = do_transC ? &dst_acc_tensor : &dst_tensor;
         arm_compute::ITensorPack act_pack;
