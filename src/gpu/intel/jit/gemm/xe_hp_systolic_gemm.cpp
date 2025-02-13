@@ -527,7 +527,7 @@ status_t xe_hp_systolic_gemm_t::init(impl::engine_t *engine) {
         }
     }
 
-    if (get_verbose(verbose_t::debuginfo) >= 2) {
+    if (get_debug_verbose(verbose_t::debug_level::info)) {
         verbose_printf("info,gpu,gemm,kernel:%dx%d,%dx%dx%d\n",
                 pd()->unroll_m(), pd()->unroll_n(), compute_info_.wg[LoopM],
                 compute_info_.wg[LoopN], compute_info_.wg[LoopK]);

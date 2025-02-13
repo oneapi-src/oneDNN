@@ -39,7 +39,7 @@
 #if defined(DNNL_DEV_MODE)
 #define DEBUg(...) \
     do { \
-        if (get_verbose(verbose_t::debuginfo) >= 5) { __VA_ARGS__ } \
+        if (get_debug_verbose(verbose_t::debug_level::debug)) { __VA_ARGS__ } \
     } while (0)
 #else
 #define DEBUg(...)
@@ -2265,7 +2265,7 @@ static void prb_thread_kernel_balance(
     const bool want_borrow_drv_from_ker = size_ker_cur > tr::ker_prb_size_min
             && size_drv_cur < size_drv_min;
 
-    VDEBUGINFO(5, primitive, reorder,
+    VDEBUGINFO(info, primitive, reorder,
             "size_drv_thr=%zu size_drv_min=%zu size_drv_cur=%zu "
             "tr::ker_prb_size_min=%zu want_borrow_ker_from_drv=%d "
             "want_borrow_drv_from_ker=%d",

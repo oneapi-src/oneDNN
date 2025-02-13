@@ -304,7 +304,7 @@ status_t get_ocl_kernel_binary(cl_kernel ocl_kernel, xpu::binary_t &binary) {
 void debugdump_processed_source(const std::string &source,
         const std::string &options, const std::string &cl_options) {
 #if defined(__linux__) && defined(DNNL_DEV_MODE)
-    if (get_verbose(verbose_t::debuginfo) >= 10) {
+    if (get_debug_verbose(verbose_t::debug_level::trace)) {
         auto get_defines = [](const std::string &from) {
             std::string ret;
             size_t pos = 0;

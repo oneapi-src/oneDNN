@@ -770,7 +770,7 @@ status_t simple_rnn_common_t<aprop>::pd_t::init(impl::engine_t *engine) {
         if (threads_per_eu == 0)
             CHECK(gemm_pd->query(
                     query::preferred_gpu_threads_per_eu, 0, &threads_per_eu));
-        else if (get_verbose_dev_mode(verbose_t::debuginfo) > 1) {
+        else if (get_debug_verbose_dev_mode(verbose_t::debug_level::warn)) {
             auto t = 0;
             CHECK(gemm_pd->query(query::preferred_gpu_threads_per_eu, 0, &t));
             if (t != threads_per_eu)

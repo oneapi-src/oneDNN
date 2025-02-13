@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -697,15 +697,6 @@ constexpr int msan_enabled = MSAN_ENABLED;
 inline void msan_unpoison(void *ptr, size_t size) {
 #if MSAN_ENABLED
     __msan_unpoison(ptr, size);
-#endif
-}
-
-// Helper to avoid #ifdefs for DNNL_DEV_MODE related code
-static constexpr bool is_dev_mode() {
-#ifdef DNNL_DEV_MODE
-    return true;
-#else
-    return false;
 #endif
 }
 

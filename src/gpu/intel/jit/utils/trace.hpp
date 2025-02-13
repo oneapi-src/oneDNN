@@ -32,23 +32,17 @@ class ir_context_t;
 #ifdef DNNL_DEV_MODE
 ir_utils::debug_profiler_t &get_trace_profiler();
 inline void trace_start() {
-    if (get_verbose(verbose_t::debuginfo)
-            >= static_cast<int>(log_level_t::perf))
-        get_trace_profiler().start();
+    if (logger_t<log_level::perf>::is_enabled()) get_trace_profiler().start();
 }
 inline void trace_reset() {
-    if (get_verbose(verbose_t::debuginfo)
-            >= static_cast<int>(log_level_t::perf))
-        get_trace_profiler().reset();
+    if (logger_t<log_level::perf>::is_enabled()) get_trace_profiler().reset();
 }
 inline void trace_stamp(const char *pass_name) {
-    if (get_verbose(verbose_t::debuginfo)
-            >= static_cast<int>(log_level_t::perf))
+    if (logger_t<log_level::perf>::is_enabled())
         get_trace_profiler().stamp(pass_name);
 }
 inline void trace_stop(const char *pass_name) {
-    if (get_verbose(verbose_t::debuginfo)
-            >= static_cast<int>(log_level_t::perf))
+    if (logger_t<log_level::perf>::is_enabled())
         get_trace_profiler().stop(pass_name);
 }
 inline void trace_perf() {
