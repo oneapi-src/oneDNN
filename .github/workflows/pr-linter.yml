@@ -95,19 +95,13 @@ jobs:
       - name: Configure oneDNN
         run: |
           .github/automation/build_linters.sh
-          echo $CC
-          echo $CXX
         env:
           ONEDNN_ACTION: configure
           CLANG_VERSION: 12
 
       - name: Build oneDNN
         run: |
-            echo $CC
-            echo $CXX
             .github/automation/build_linters.sh 2>&1 | tee build.log
             grep -i "warning:" build.log | sort -u && exit 1 || true
-            echo $CC
-            echo $CXX
         env:
           ONEDNN_ACTION: build

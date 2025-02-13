@@ -13,6 +13,8 @@ fi
 if [[ "$ONEDNN_ACTION" == "configure" ]]; then
     if [[ "$GITHUB_JOB" == "pr-clang-tidy" ]]; then
       set -x
+      echo "$CC"
+      echo "$CXX"
       cmake \
           -Bbuild -S. \
           -DCMAKE_BUILD_TYPE=debug \
@@ -39,6 +41,8 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
     fi
 elif [[ "$ONEDNN_ACTION" == "build" ]]; then
     set -x
+    echo "$CC"
+    echo "$CXX"
     cmake --build build -j4
     set +x
 else
