@@ -96,3 +96,10 @@
 --dtag=any
 --attr-fpmath=bf16
 --batch=shapes_basic
+#Fp32 with bf16/f16 weights decompression
+--reset
+--dir=FWD_I
+--dt=f32:bf16:f32,f32:f16:f32
+--stag=any
+--dtag=any
+--batch=shapes_basic
