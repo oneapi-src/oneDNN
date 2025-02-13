@@ -13,8 +13,6 @@ fi
 if [[ "$ONEDNN_ACTION" == "configure" ]]; then
     if [[ "$GITHUB_JOB" == "pr-clang-tidy" ]]; then
       set -x
-      echo "$CC"
-      echo "$CXX"
       cmake \
           -Bbuild -S. \
           -DCMAKE_BUILD_TYPE=debug \
@@ -28,7 +26,9 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
           -DDNNL_CPU_RUNTIME=OMP \
           -DDNNL_GPU_RUNTIME=OCL \
           -DDNNL_WERROR=ON \
-          -DDNNL_BUILD_FOR_CI=ON
+          -DDNNL_BUILD_FOR_CI=ON \
+          -DCMAKE_C_FLAGS="-I/usr/lib/llvm-12/lib/clang/12.0.1/include/" \
+          -DCMAKE_CXX_FLAGS="-I/usr/lib/llvm-12/lib/clang/12.0.1/include/"
 
       set +x
     elif [[ "$GITHUB_JOB" == "pr-format-tags" ]]; then
@@ -41,8 +41,6 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
     fi
 elif [[ "$ONEDNN_ACTION" == "build" ]]; then
     set -x
-    echo "$CC"
-    echo "$CXX"
     cmake --build build -j4
     set +x
 else
