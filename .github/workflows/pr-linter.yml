@@ -100,8 +100,14 @@ jobs:
 
       - name: Build oneDNN
         run: |
+            echo "Check omp.h 1:"
+            dpkg -L libomp-12-dev | grep omp.h
+            echo "Check omp.h 2:"
+            find /usr -name "omp.h" 2>/dev/null
+            echo "Check omp.h 3:"
+            clang-12 -E -x c - -v <<< "#include <omp.h>"
+            echo "Build:"
             .github/automation/build_linters.sh 2>&1 | tee build.log
             grep -i "warning:" build.log | sort -u && exit 1 || true
         env:
           ONEDNN_ACTION: build
-          CLANG_VERSION: 12
