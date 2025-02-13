@@ -26,8 +26,7 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
           -DDNNL_CPU_RUNTIME=OMP \
           -DDNNL_GPU_RUNTIME=OCL \
           -DDNNL_WERROR=ON \
-          -DDNNL_BUILD_FOR_CI=ON \
-
+          -DDNNL_BUILD_FOR_CI=ON
       set +x
     elif [[ "$GITHUB_JOB" == "pr-format-tags" ]]; then
       set -x
@@ -39,7 +38,7 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
     fi
 elif [[ "$ONEDNN_ACTION" == "build" ]]; then
     set -x
-    cmake --build build -j4
+    cmake --build build -j8
     set +x
 else
     echo "Unknown action: $ONEDNN_ACTION"

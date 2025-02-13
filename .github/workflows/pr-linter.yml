@@ -87,35 +87,18 @@ jobs:
       - name: Checkout oneDNN
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Install cmake
-        run: |
-          sudo apt remove --purge cmake
-          wget https://cmake.org/files/v3.18/cmake-3.18.2-Linux-x86_64.sh
-          chmod +x cmake-3.18.2-Linux-x86_64.sh
-          sudo mkdir /opt/cmake-3.18.2
-          sudo ./cmake-3.18.2-Linux-x86_64.sh --prefix=/opt/cmake-3.18.2 --skip-license
-          sudo rm /usr/local/bin/cmake
-          sudo ln -s /opt/cmake-3.18.2/bin/cmake /usr/local/bin/cmake
-          cmake --version
-
       - name: Install clang
         run: |
-          clang --version
           sudo apt-get update
           sudo apt install -y clang-12 libomp-12-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-12 100
-          sudo update-alternatives --set clang /usr/bin/clang-12
-          sudo update-alternatives --set clang++ /usr/bin/clang++-12
-          clang --version
           sudo cp -r /usr/lib/llvm-12/lib/clang/12.0.1/include/omp.h /usr/local/include/
 
       - name: Configure oneDNN
         run: |
-          cmake --version
           .github/automation/build_linters.sh
         env:
           ONEDNN_ACTION: configure
+          CLANG_VERSION: 12
 
       - name: Build oneDNN
         run: |
@@ -123,3 +106,4 @@ jobs:
             grep -i "warning:" build.log | sort -u && exit 1 || true
         env:
           ONEDNN_ACTION: build
+          CLANG_VERSION: 12
