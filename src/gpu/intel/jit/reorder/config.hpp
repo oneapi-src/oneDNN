@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,6 +28,12 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
+namespace reorder {
+
+extern pvar_t pvars[];
+
+} // namespace reorder
+
 // Parameters for kernel generation.
 class reorder_config_t : public prim_config_t {
 public:
@@ -46,12 +52,16 @@ public:
 
     int pad_block(const pvar_t &d) const override { return 0; }
 
-    reorder_config_t(
-            const exec_config_t &ec, const layout_t &src, const layout_t &dst) {
-        src_layout().set_user(src);
-        dst_layout().set_user(dst);
-        set_exec_cfg(ec);
-    }
+    int simd() const { return exec_cfg().simd(); }
+    compute::nd_range_t nd_range() const;
+    const std::vector<tensor_t> &tiles() const { return tiles_; }
+    const std::array<pvar_tile_t, 3> &grid() const { return grid_; }
+
+    reorder_config_t(const exec_config_t &ec, layout_t src, layout_t dst);
+
+private:
+    std::vector<tensor_t> tiles_;
+    std::array<pvar_tile_t, 3> grid_;
 };
 
 } // namespace jit
