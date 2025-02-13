@@ -45,6 +45,7 @@
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
+#include "verbose.hpp"
 #include "z_magic.hpp"
 
 namespace dnnl {
@@ -74,13 +75,21 @@ static_assert(sizeof(void *) == 8, "oneDNN supports 64-bit architectures only");
 #define CHECK(f) \
     do { \
         dnnl::impl::status_t _status_ = f; \
-        if (_status_ != dnnl::impl::status::success) return _status_; \
+        if (_status_ != dnnl::impl::status::success) { \
+            VDEBUGINFO(debug, common, utils, "status::%s==" #f, \
+                    dnnl_status2str(_status_)); \
+            return _status_; \
+        } \
     } while (0)
 
 #define CHECK_BOOL(f) \
     do { \
         dnnl::impl::status_t _status_ = f; \
-        if (_status_ != dnnl::impl::status::success) return false; \
+        if (_status_ != dnnl::impl::status::success) { \
+            VDEBUGINFO(debug, common, utils, "status::%s==" #f, \
+                    dnnl_status2str(_status_)); \
+            return false; \
+        } \
     } while (0)
 
 #define UNUSED_STATUS(f) \
