@@ -33,7 +33,10 @@ echo $(git status) | grep "nothing to commit" > /dev/null
 
 if [ $? -eq 1 ]; then
     echo "Clang-format check FAILED! Found not formatted files!"
+    echo "Impacted files: "
     echo "$(git status)"
+    echo "Changes:"
+    echo "$(git diff)"
     RETURN_CODE=3
 else
     echo "Clang-format check PASSED! Not formatted files not found..."
