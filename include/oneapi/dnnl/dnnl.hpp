@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2025 Intel Corporation
-* Copyright 2024 FUJITSU LIMITED
+* Copyright 2024-2025 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1615,6 +1615,9 @@ struct memory : public handle<dnnl_memory_t> {
         BA16a32b4a = dnnl_BA16a32b4a,
         BA16a48b4a = dnnl_BA16a48b4a,
         BA16a64b4a = dnnl_BA16a64b4a,
+        BA24b8a = dnnl_BA24b8a,
+        aCB24c8b = dnnl_aCB24c8b,
+        abDC24d8c = dnnl_abDC24d8c,
         decbA16a = dnnl_decbA16a,
         decbA8a = dnnl_decbA8a,
         defcbA16a = dnnl_defcbA16a,
