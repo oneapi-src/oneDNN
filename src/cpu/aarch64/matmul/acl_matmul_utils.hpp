@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Arm Ltd. and affiliates
+* Copyright 2021-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,9 +21,7 @@
 #include "arm_compute/runtime/experimental/operators/CpuActivation.h"
 #include "arm_compute/runtime/experimental/operators/CpuTranspose.h"
 
-#include "cpu/matmul/cpu_matmul_pd.hpp"
-
-#include "cpu/aarch64/acl_utils.hpp"
+#include "common/memory_tracking.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -35,9 +33,11 @@ namespace {
 using matmul_key_t = decltype(memory_tracking::names::key_gemm_asm_tmp_buffer);
 
 // Map: [slot , key]
-const std::map<int, matmul_key_t> matmul_keys
-        = {{0, matmul_key_t::key_gemm_asm_tmp_buffer},
-                {2, matmul_key_t::key_gemm_pretranspose}};
+const std::map<int, matmul_key_t> matmul_keys = {
+        {0, matmul_key_t::key_gemm_asm_tmp_buffer},
+        {1, matmul_key_t::key_gemm_pretransposed_rhs},
+        {2, matmul_key_t::key_gemm_pretranspose},
+};
 } // namespace
 
 struct acl_matmul_obj_t {

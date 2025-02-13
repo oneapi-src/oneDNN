@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Arm Ltd. and affiliates
+* Copyright 2021-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/matmul/matmul_utils.hpp"
-
 #include "cpu/aarch64/matmul/acl_matmul_utils.hpp"
+#include "cpu/aarch64/acl_utils.hpp"
+#include "cpu/matmul/matmul_utils.hpp"
 
 namespace dnnl {
 namespace impl {
