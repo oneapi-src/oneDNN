@@ -1,0 +1,95 @@
+/*******************************************************************************
+* Copyright 2025 Intel Corporation
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*******************************************************************************/
+
+#include <cassert>
+#include <string>
+#include <vector>
+#include <unordered_map>
+#ifdef DNNL_DEV_MODE
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#endif
+
+#include "common/verbose.hpp"
+#include "gpu/intel/utils.hpp"
+
+namespace dnnl {
+namespace impl {
+namespace gpu {
+namespace intel {
+namespace ocl {
+
+@KER_LIST_EXTERN@
+@KER_HEADERS_EXTERN@
+
+const char *get_graph_kernel_source(const char *name) {
+    static const std::unordered_map<std::string, const char *> kernel_list
+            = { @KER_LIST_ENTRIES@ };
+
+#ifdef DNNL_DEV_MODE
+    static std::unordered_map<std::string, std::string> custom_kernels;
+    const std::string runtime_kernel_overrides
+            = dnnl::impl::gpu::intel::gpu_utils::dev_getenv(
+                    "runtime_kernel_overrides", std::string());
+    if (!runtime_kernel_overrides.empty()) {
+        std::istringstream paths_stream(runtime_kernel_overrides);
+        std::string name_path_pair;
+
+        while (std::getline(paths_stream, name_path_pair, ':')) {
+            std::size_t comma_pos = name_path_pair.find(',');
+            if (comma_pos == std::string::npos) continue;
+
+            std::string kernel_name = name_path_pair.substr(0, comma_pos);
+            std::string kernel_path = name_path_pair.substr(comma_pos + 1);
+
+            if (kernel_name != name) continue;
+
+            auto it = custom_kernels.find(kernel_name);
+            if (it == custom_kernels.end()) {
+                VDEBUGINFO(1, common, kernel_list,
+                        "loading kernel %s from file %s\n", kernel_name.c_str(),
+                        kernel_path.c_str());
+                std::ifstream file(kernel_path, std::ios::binary);
+                gpu_assert(file) << "Could not open runtime_kernel_path file "
+                                 << kernel_path << "\n";
+                std::stringstream buffer;
+                buffer << file.rdbuf();
+                custom_kernels[kernel_name] = buffer.str();
+            }
+
+            return custom_kernels[kernel_name].c_str();
+        }
+    }
+#endif
+
+    if (!name) return nullptr;
+
+    // Missing kernels are expected as they may be included via header files to
+    // enable better reuse between implementations.
+    gpu_assert(kernel_list.count(name) <= 1)
+            << "Found " << kernel_list.count(name) << " kernels with the name "
+            << name << ". Expected at most 1.";
+
+    auto r = kernel_list.find(name);
+    return r != kernel_list.end() ? r->second : nullptr;
+}
+
+} // namespace ocl
+} // namespace intel
+} // namespace gpu
+} // namespace impl
+} // namespace dnnl

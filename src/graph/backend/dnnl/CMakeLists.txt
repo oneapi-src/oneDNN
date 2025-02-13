@@ -55,6 +55,24 @@ if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STRE
         PROPERTIES COMPILE_FLAGS "/bigobj")
 endif()
 
+if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+    include("${PROJECT_SOURCE_DIR}/cmake/gen_gpu_kernel_list.cmake")
+
+    file(GLOB_RECURSE CL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.cl)
+    file(GLOB_RECURSE CL_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
+
+    set(kernel_list_templ "${PROJECT_SOURCE_DIR}/src/graph/backend/dnnl/kernels/ocl/kernel_list.cpp.in")
+    set(kernel_list_src "${PROJECT_BINARY_DIR}/src/graph/backend/dnnl/kernel_list.cpp")
+
+    gen_gpu_kernel_list(
+        "${kernel_list_templ}"
+        "${kernel_list_src}"
+        "${CL_SOURCES}"
+        "${CL_HEADERS}")
+        
+    list(APPEND SOURCES ${kernel_list_src})
+endif()
+
 set(OBJ_LIB ${LIB_PACKAGE_NAME}_graph_backend_dnnl)
 add_library(${OBJ_LIB} OBJECT ${HEADERS} ${SOURCES})
 
