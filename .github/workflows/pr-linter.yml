@@ -101,7 +101,6 @@ jobs:
       - name: Install clang
         run: |
           clang --version
-          sudo apt remove --purge clang
           sudo apt-get update
           sudo apt install -y clang-12 libomp-12-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 100
@@ -109,7 +108,7 @@ jobs:
           sudo update-alternatives --set clang /usr/bin/clang-12
           sudo update-alternatives --set clang++ /usr/bin/clang++-12
           clang --version
-          sudo cp -r /usr/lib/llvm-12/lib/clang/12.0.1/include/* /usr/local/include/
+          sudo cp -r /usr/lib/llvm-12/lib/clang/12.0.1/include/omp.h /usr/local/include/
 
       - name: Configure oneDNN
         run: |
