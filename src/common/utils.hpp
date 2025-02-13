@@ -76,7 +76,7 @@ static_assert(sizeof(void *) == 8, "oneDNN supports 64-bit architectures only");
     do { \
         dnnl::impl::status_t _status_ = f; \
         if (_status_ != dnnl::impl::status::success) { \
-            VDEBUGINFO(6, common, utils, "CHECK() failed"); \
+            VDEBUGINFO(debug, common, utils, "CHECK() failed"); \
             return _status_; \
         } \
     } while (0)
@@ -85,7 +85,7 @@ static_assert(sizeof(void *) == 8, "oneDNN supports 64-bit architectures only");
     do { \
         dnnl::impl::status_t _status_ = f; \
         if (_status_ != dnnl::impl::status::success) { \
-            VDEBUGINFO(6, common, utils, "CHECK_BOOL() failed"); \
+            VDEBUGINFO(debug, common, utils, "CHECK_BOOL() failed"); \
             return false; \
         } \
     } while (0)

@@ -142,8 +142,8 @@ struct const_expr_value {
 // `level` is responsible to set the bar to be printed.
 #define VDEBUGINFO(level, apitype, component, msg, ...) \
     do { \
-        if (dnnl::impl::get_verbose_dev_mode(dnnl::impl::verbose_t::debuginfo) \
-                >= (level)) { \
+        if (dnnl::impl::get_debug_verbose_dev_mode( \
+                    CONCAT2(dnnl::impl::verbose_t::debug_, level))) { \
             VFORMAT(dnnl::impl::get_msec(), dnnl::impl::verbose_t::debuginfo, \
                     apitype, debuginfo, "", #component "," msg ",%s:%d", \
                     ##__VA_ARGS__, __FILENAME__, __LINE__); \
@@ -181,6 +181,15 @@ struct verbose_t {
         level2 = error | exec_profile | warn | create_profile,
 
         all = (uint32_t)-1,
+    };
+
+    enum debug_flag_kind : uint32_t {
+        debug_critical = 1,
+        debug_error = 2,
+        debug_warn = 3,
+        debug_info = 4,
+        debug_debug = 5,
+        debug_trace = 6,
     };
 
     static uint32_t make_debuginfo(uint32_t level) { return level << 24; }
@@ -241,6 +250,10 @@ inline component_t::flag_kind prim_kind2_comp_kind(
 uint32_t get_verbose(verbose_t::flag_kind kind = verbose_t::none,
         component_t::flag_kind filter_kind = component_t::all) noexcept;
 
+static inline uint32_t get_debug_verbose(verbose_t::debug_flag_kind kind) {
+    return get_verbose(verbose_t::debuginfo) >= kind;
+}
+
 // Helpers to avoid #ifdefs for DNNL_DEV_MODE related code
 static constexpr bool is_dev_mode() {
 #ifdef DNNL_DEV_MODE
@@ -253,6 +266,11 @@ static constexpr bool is_dev_mode() {
 static inline uint32_t get_verbose_dev_mode(
         verbose_t::flag_kind kind = verbose_t::none) {
     return is_dev_mode() ? get_verbose(kind) : 0;
+}
+
+static inline uint32_t get_debug_verbose_dev_mode(
+        verbose_t::debug_flag_kind kind) {
+    return is_dev_mode() ? get_debug_verbose(kind) : 0;
 }
 
 bool get_verbose_timestamp();

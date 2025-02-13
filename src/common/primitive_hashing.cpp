@@ -62,7 +62,7 @@ bool key_t::operator==(const key_t &rhs) const {
 
     if (!ret) {
         // ANCHOR: HASHING_DEBUGINFO_16.
-        VDEBUGINFO(16, primitive, hashing, "operator==,ret=%d", ret);
+        VDEBUGINFO(trace, primitive, hashing, "operator==,ret=%d", ret);
         return ret;
     }
 
@@ -106,7 +106,7 @@ bool key_t::operator==(const key_t &rhs) const {
     // clang-format on
 
     // ANCHOR: HASHING_DEBUGINFO_16.
-    VDEBUGINFO(16, primitive, hashing, "operator==,ret=%d", ret);
+    VDEBUGINFO(trace, primitive, hashing, "operator==,ret=%d", ret);
     return ret;
 }
 
