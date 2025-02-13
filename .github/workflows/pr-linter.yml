@@ -89,11 +89,8 @@ jobs:
 
       - name: Install clang
         run: |
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 12
           sudo apt-get update
-          sudo apt install -y libomp-12-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
+          sudo apt install -y clang-12 libomp-12-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
 
       - name: Configure oneDNN
         run: .github/automation/build_linters.sh
