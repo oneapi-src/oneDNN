@@ -29,14 +29,18 @@ echo "Starting format check..."
 for filename in $(find "$(pwd)" -type f | grep -P ".*\.(c|cpp|h|hpp|cl)$"); do ${CLANG_FORMAT} -style=file -i $filename; done
 
 RETURN_CODE=0
-echo $(git status) | grep "nothing to commit" > /dev/null
 
+echo $(git status) | grep "nothing to commit" > /dev/null
 if [ $? -eq 1 ]; then
-    echo "Clang-format check FAILED! Found not formatted files!"
-    echo "$(git status)"
+    echo "Clang-format check FAILED! The following files must be formatted with ${CLANG_FORMAT}:"
+    echo "$(git diff --name-only)"
+    echo
+    echo "Changes required to pass this check:"
+    echo "$(git diff)"
+    echo
     RETURN_CODE=3
 else
-    echo "Clang-format check PASSED! Not formatted files not found..."
+    echo "Clang-format check PASSED!"
 fi
 
 exit ${RETURN_CODE}
