@@ -105,3 +105,4 @@ jobs:
             grep -i "warning:" build.log | sort -u && exit 1 || true
         env:
           ONEDNN_ACTION: build
+          CLANG_VERSION: 12
