@@ -399,8 +399,9 @@ private:
                     reorder_info.register_user_arg(user_buf, user_arg_key,
                             /*is_input=*/true);
                     add_compute_arg(reorder_info, compute_buf, false);
-                    reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
-                            cfg.exec_cfg(), t.user_layout, t.compute_layout));
+                    reorder_config_t reorder_cfg(
+                            cfg.exec_cfg(), t.user_layout, t.compute_layout);
+                    reorder_info.set_nd_range(reorder_cfg.nd_range());
                 }
                 if (!src_conv_precalc && t.is_output) {
                     auto &reorder_info
@@ -408,8 +409,9 @@ private:
                     add_compute_arg(reorder_info, compute_buf, true);
                     reorder_info.register_user_arg(user_buf, user_arg_key,
                             /*is_input=*/false);
-                    reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
-                            cfg.exec_cfg(), t.compute_layout, t.user_layout));
+                    reorder_config_t reorder_cfg(
+                            cfg.exec_cfg(), t.compute_layout, t.user_layout);
+                    reorder_info.set_nd_range(reorder_cfg.nd_range());
                 }
                 if (src_conv_precalc) {
                     scratchpad_book(++scratchpad_key);

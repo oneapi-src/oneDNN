@@ -38,62 +38,16 @@ public:
     reorder_ir_builder_t(const reorder_config_t &cfg,
             const kernel_info_t &kernel_info, const primitive_attr_t *attr,
             const memory_desc_t *dst_md)
-        : src_layout_(cfg.src_layout().user())
-        , dst_layout_(cfg.dst_layout().user())
-        , cfg_(cfg)
-        , kernel_info_(kernel_info)
-        , attr_(attr)
-        , dst_md_(dst_md) {
-        normalize_reorder_layouts(src_layout_, dst_layout_);
+        : cfg_(cfg), kernel_info_(kernel_info), attr_(attr), dst_md_(dst_md) {
         build();
     }
 
-    const grid_info_t &kernel_grid() const { return kernel_grid_; }
-
-    static void compute_blocks(const exec_config_t &exec_cfg,
-            const layout_t &src, const layout_t &dst,
-            std::vector<int> &iter_blocks, std::vector<int> &loop_blocks,
-            std::vector<int> &tg_blocks, dim_t max_iter_tile_bytes = 0,
-            dim_t max_thr_tile_bytes = 0);
-
-    static void compute_blocks(const exec_config_t &exec_cfg,
-            const layout_t &src, const layout_t &dst,
-            std::vector<int> &tile_blocks, std::vector<int> &tg_blocks);
-
-    static void compute_grid(const layout_t &src, const layout_t &dst,
-            const std::vector<int> &iter_blocks,
-            const std::vector<int> &loop_blocks,
-            const std::vector<int> &tg_blocks, grid_info_t &kernel_grid,
-            grid_info_t &tg_grid, std::vector<dim_idx_t> *dim2grid = nullptr);
-
-    static compute::nd_range_t nd_range(
-            const exec_config_t &exec_cfg, layout_t src, layout_t dst);
+    const grid_info_t &kernel_grid() const { return cfg_.kernel_grid(); }
 
 private:
     void build() override;
-    bool try_build(const std::vector<int> &iter_blocks,
-            const std::vector<int> &loop_blocks,
-            const std::vector<int> &tg_blocks);
+    bool try_build(const pvar_tile_t &iter_tile, const pvar_tile_t &loop_tile);
 
-    static void normalize_reorder_layouts(layout_t &a, layout_t &b);
-    static dim_t max_tile_size(
-            const hw_t &hw, const layout_t &dst, const layout_t &src) {
-        // XeHPC is fine with 2048 bytes, XeHPG and below can fit 2048 bytes if
-        // reorder is a simple copy.
-        return (hw <= ngen::HW::XeHPG && dst != src) ? 1024 : 2048;
-    }
-
-    static dim_t count_block_messages(
-            const exec_config_t &exec_cfg, dim_t bytes, dim_t iterations);
-    static dim_t count_scattered_messages(
-            const exec_config_t &exec_cfg, dim_t bytes, dim_t iterations);
-    static dim_t message_latency(const exec_config_t &exec_cfg,
-            const layout_t &l, const tensor_t &t);
-
-    grid_info_t kernel_grid_;
-    grid_info_t tg_grid_;
-    layout_t src_layout_;
-    layout_t dst_layout_;
     const reorder_config_t &cfg_;
     const kernel_info_t &kernel_info_;
     const primitive_attr_t *attr_;
