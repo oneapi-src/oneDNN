@@ -92,6 +92,7 @@ jobs:
           sudo apt remove --purge cmake
           wget https://cmake.org/files/v3.18/cmake-3.18.2-Linux-x86_64.sh
           chmod +x cmake-3.18.2-Linux-x86_64.sh
+          sudo mkdir /opt/cmake-3.18.2
           sudo ./cmake-3.18.2-Linux-x86_64.sh --prefix=/opt/cmake-3.18.2 --skip-license
           sudo ln -s /opt/cmake-3.18.2/bin/cmake /usr/local/bin/cmake
           cmake --version
