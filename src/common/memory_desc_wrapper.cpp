@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2025 Intel Corporation
-* Copyright 2024 FUJITSU LIMITED
+* Copyright 2024-2025 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -202,6 +202,9 @@ status_t memory_desc_wrapper::compute_blocking(
         C(BA16a32b, {1, 0}, {16, 32}, {0, 1});
         C(BA16a48b, {1, 0}, {16, 48}, {0, 1});
         C(BA16a64b, {1, 0}, {16, 64}, {0, 1});
+        C(BA24b8a, {1, 0}, {24, 8}, {1, 0});
+        C(aCB24c8b, {0, 2, 1}, {24, 8}, {2, 1});
+        C(abDC24d8c, {0, 1, 3, 2}, {24, 8}, {3, 2});
         C(BA16a16b2a, {1, 0}, {16, 16, 2}, {0, 1, 0});
         C(BA16a32b2a, {1, 0}, {16, 32, 2}, {0, 1, 0});
         C(BA16a48b2a, {1, 0}, {16, 48, 2}, {0, 1, 0});
