@@ -87,6 +87,15 @@ jobs:
       - name: Checkout oneDNN
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      - name: Install cmake
+        run: |
+          sudo apt remove --purge cmake
+          wget https://cmake.org/files/v3.18/cmake-3.18.2-Linux-x86_64.sh
+          chmod +x cmake-3.18.2-Linux-x86_64.sh
+          sudo ./cmake-3.18.2-Linux-x86_64.sh --prefix=/opt/cmake-3.18.2 --skip-license
+          sudo ln -s /opt/cmake-3.18.2/bin/cmake /usr/local/bin/cmake
+          cmake --version
+
       - name: Install clang
         run: |
           sudo apt-get update
@@ -94,6 +103,7 @@ jobs:
 
       - name: Configure oneDNN
         run: |
+          cmake --version
           .github/automation/build_linters.sh
         env:
           ONEDNN_ACTION: configure
