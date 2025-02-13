@@ -181,8 +181,7 @@ status_t gen_reorder_t::pd_t::init_kernel_info() {
             /*oc=*/1, tensor_cfg);
 
     kernel_info = std::make_shared<kernel_info_t>();
-    auto nd_range = reorder_kernel_t<>::nd_range(cfg->exec_cfg(),
-            cfg->src_layout().user(), cfg->dst_layout().user());
+    auto nd_range = cfg->nd_range();
     auto global_range = nd_range.global_range();
     constexpr int max = std::numeric_limits<int>::max();
     // This case *probably* overflowed in int32 precision.
