@@ -51,10 +51,11 @@ bool allow_perf_heuristics(const jit_brgemm_conv_conf_t &jcp) {
     // Disable performance heuristics for plain weights as there are no other
     // optimized implementations.
     if (jcp.wei_plain) return false;
-    // Disable performance heuristics for f16 as there are no other
-    // optimized implementations.
+    // Disable performance heuristics for f16, fp8, f32 with xf16 weights
+    // as there are no other optimized implementations.
     if (jcp.wei_dt == f16) return false;
     if (one_of(jcp.wei_dt, f8_e5m2, f8_e4m3)) return false;
+    if (one_of(true, jcp.is_f32_f16, jcp.is_f32_bf16)) return false;
     return true;
 }
 } // namespace
@@ -1721,6 +1722,10 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.is_fp8 = one_of(jcp.src_dt, f8_e5m2, f8_e4m3)
             && one_of(jcp.wei_dt, f8_e5m2, f8_e4m3);
     jcp.is_fp8_convert = jcp.is_fp8 && utils::one_of(isa, avx10_1_512_amx_fp16);
+    jcp.is_f32_f16
+            = everyone_is(f32, jcp.src_dt, jcp.dst_dt) && jcp.wei_dt == f16;
+    jcp.is_f32_bf16
+            = everyone_is(f32, jcp.src_dt, jcp.dst_dt) && jcp.wei_dt == bf16;
     jcp.src_dsz = types::data_type_size(jcp.src_dt);
     jcp.wei_dsz = types::data_type_size(jcp.wei_dt);
     jcp.dst_dsz = types::data_type_size(jcp.dst_dt);
@@ -1739,7 +1744,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     const auto vnni_dt = jcp.prop_kind == prop_kind::backward_weights
             ? jcp.dst_dt
-            : jcp.wei_dt;
+            : utils::one_of(true, jcp.is_f32_bf16, jcp.is_f32_f16) ? jcp.src_dt
+                                                                   : jcp.wei_dt;
     const data_type_t vnni_block_dt = get_mac_emu_data_type(
             vnni_dt, isa, isa == avx10_1_512 && !jcp.is_fp8_convert);
     jcp.vnni_block = data_type_vnni_granularity(vnni_block_dt);
@@ -1826,17 +1832,23 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                             || one_of(jcp.isa, avx2_vnni, avx2_vnni_2)),
             VERBOSE_ISA_DT_MISMATCH);
     VDISPATCH_CONV_IC(
-            IMPLICATION(jcp.wei_dt == bf16,
+            IMPLICATION(jcp.wei_dt == bf16 && !jcp.is_f32_bf16,
                     mayiuse(avx512_core_bf16) || mayiuse(avx2_vnni_2)),
             VERBOSE_ISA_DT_MISMATCH);
     VDISPATCH_CONV_IC(
-            IMPLICATION(jcp.wei_dt == f16,
+            IMPLICATION(jcp.wei_dt == f16 && !jcp.is_f32_f16,
                     mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)),
             VERBOSE_ISA_DT_MISMATCH);
     const bool is_f32
             = utils::everyone_is(f32, jcp.src_dt, jcp.wei_dt, jcp.dst_dt);
     VDISPATCH_CONV_IC(
             IMPLICATION(is_f32, one_of(isa, avx512_core, avx2) || jcp.is_bf32),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_CONV_IC(
+            IMPLICATION(jcp.is_f32_f16, one_of(isa, avx512_core, avx2)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_CONV_IC(
+            IMPLICATION(jcp.is_f32_bf16, one_of(isa, avx512_core, avx2)),
             VERBOSE_ISA_DT_MISMATCH);
 
     jcp.amx_h = 16;
