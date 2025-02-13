@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2016-2025 Intel Corporation
-* Copyright 2024 FUJITSU LIMITED
+* Copyright 2024-2025 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -372,6 +372,9 @@ const format_tag_t aCB16b16c = dnnl_aCB16b16c;
 const format_tag_t aCB16b32c = dnnl_aCB16b32c;
 const format_tag_t aCB16b48c = dnnl_aCB16b48c;
 const format_tag_t aCB16b64c = dnnl_aCB16b64c;
+const format_tag_t BA24b8a = dnnl_BA24b8a;
+const format_tag_t aCB24c8b = dnnl_aCB24c8b;
+const format_tag_t abDC24d8c = dnnl_abDC24d8c;
 const format_tag_t aCB16b16c2b = dnnl_aCB16b16c2b;
 const format_tag_t aCB16b32c2b = dnnl_aCB16b32c2b;
 const format_tag_t aCB16b48c2b = dnnl_aCB16b48c2b;

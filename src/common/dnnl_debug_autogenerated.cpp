@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2018-2025 Intel Corporation
-* Copyright 2024 FUJITSU LIMITED
+* Copyright 2024-2025 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -953,6 +953,9 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_aCBdef8b8c) return "aCBdef8b8c";
     if (v == dnnl_abdEC16e4c) return "abdEC16e4c";
     if (v == dnnl_abDC16d4c) return "abDC16d4c";
+    if (v == dnnl_BA24b8a) return "BA24b8a";
+    if (v == dnnl_aCB24c8b) return "aCB24c8b";
+    if (v == dnnl_abDC24d8c) return "abDC24d8c";
     if (v == dnnl_format_tag_last) return "format_tag_last";
     if (v == dnnl_x) return "x";
     if (v == dnnl_nc) return "nc";
