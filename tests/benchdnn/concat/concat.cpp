@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,9 +101,11 @@ int fill_src(int input_idx, dnnl_data_type_t dt, dnn_mem_t &mem_dt,
         std::minstd_rand msr(input_idx * n_chunks + idx_start + 1);
         msr.discard(1);
         std::uniform_int_distribution<> igen(min_val, max_val);
-        // No need to round final value as it's already in needed dt.
-        for (int64_t idx = idx_start; idx < idx_end; ++idx)
-            mem_fp.set_elem(idx, (float)igen(msr));
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            mem_fp.set_elem(idx,
+                    (float)round_to_nearest_representable(
+                            mem_dt.dt(), igen(msr)));
+        }
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
