@@ -25,12 +25,15 @@ namespace intel {
 namespace jit {
 namespace reorder {
 
-dim_t max_elems(const hw_t &hw, const layout_t &a, const layout_t &b) {
+enum class message_kind_t {
+    block,
+    scattered,
+};
+
+dim_t max_bytes(const hw_t &hw, const layout_t &a, const layout_t &b) {
     // XeHPC is fine with 2048 bytes, XeHPG and below can fit 2048 bytes if
     // reorder is a simple copy.
-    dim_t max_bytes = (hw <= ngen::HW::XeHPG && a != b) ? 1024 : 2048;
-    int max_type_size = std::max(a.type().size(), b.type().size());
-    return max_bytes / max_type_size;
+    return (hw <= ngen::HW::XeHPG && a != b) ? 1024 : 2048;
 }
 
 dim_t count_block_messages(
@@ -56,14 +59,9 @@ dim_t count_block_messages(
 }
 
 dim_t count_scattered_messages(
-        const hw_t &hw, dim_t inner_bytes, dim_t iterations) {
+        const hw_t &hw, dim_t inner_bytes, dim_t iterations, int item_size) {
     const auto max_block_items = hw.grf_size() / 2;
-    int item_size = 8;
-
-    // Find the largest uint size we can use
-    for (; item_size > 1; item_size >>= 1) {
-        if (inner_bytes % item_size == 0) break;
-    }
+    int penalty = 4 * (item_size < 4 ? 4 / item_size : 1);
 
     dim_t block_items = max_block_items / 2;
     auto inner_items = (iterations * inner_bytes) / item_size;
@@ -76,17 +74,41 @@ dim_t count_scattered_messages(
         }
     }
     if (inner_items) messages++;
-    return messages;
+    return messages * penalty;
 }
 
-dim_t message_latency(const hw_t &hw, const layout_t &l, const tensor_t &t) {
-    const auto grf_size = hw.grf_size();
-    const int scattered_message_penalty = 4;
-    bool can_use_block_messages = true;
-    std::vector<dim_t> outer = t.dims();
-    dim_t inner_elems = 1;
+struct message_info_t {
+    message_info_t() = default;
+    message_info_t(message_kind_t kind, dim_t inner_bytes, dim_t iterations,
+            int item_size)
+        : kind(kind)
+        , inner_bytes(inner_bytes)
+        , iterations(iterations)
+        , item_size(item_size) {}
 
-    for (auto &blk : l.blocks()) {
+    message_kind_t kind = message_kind_t::block;
+    dim_t inner_bytes = 0;
+    dim_t iterations = 0;
+    int item_size = 16;
+
+    dim_t latency(const hw_t &hw) const {
+        if (inner_bytes == 0 || iterations == 0) return 0;
+        return kind == message_kind_t::block
+                ? count_block_messages(hw, inner_bytes, iterations)
+                : count_scattered_messages(
+                        hw, inner_bytes, iterations, item_size);
+    }
+};
+
+message_info_t estimate_message_info(
+        const hw_t &hw, const layout_t &layout, const tensor_t &tile) {
+    const auto grf_size = hw.grf_size();
+    bool can_use_block_messages = true;
+    std::vector<dim_t> outer = tile.dims();
+    dim_t inner_elems = 1;
+    int item_size = 16;
+
+    for (auto &blk : layout.blocks()) {
         auto block = blk.block;
         auto dim_idx = blk.dim_idx;
         if (block == 1) continue;
@@ -103,23 +125,27 @@ dim_t message_latency(const hw_t &hw, const layout_t &l, const tensor_t &t) {
         outer[dim_idx] = utils::div_up(outer[dim_idx], block);
     }
 
-    auto type_size = l.type().scalar().size();
-    auto inner_bytes = inner_elems * type_size;
+    auto inner_bytes = utils::div_up(
+            layout.type().with_elems(8).size() * inner_elems, 8);
     auto iterations = tensor_t(outer).elems();
     can_use_block_messages &= (inner_bytes % 16 == 0);
     can_use_block_messages &= (iterations == 1 || inner_bytes % grf_size == 0);
 
-    if (inner_bytes == 0 || iterations == 0) return 0;
+    if (inner_bytes == 0 || iterations == 0) return {};
 
-    return can_use_block_messages
-            ? count_block_messages(hw, inner_bytes, iterations)
-            : count_scattered_messages(hw, inner_bytes, iterations)
-                    * scattered_message_penalty;
+    auto message_kind = can_use_block_messages ? message_kind_t::block
+                                               : message_kind_t::scattered;
+    if (!can_use_block_messages)
+        // Find the largest unit size we can use
+        for (item_size = 8; item_size > 1; item_size >>= 1) {
+            if (inner_bytes % item_size == 0) break;
+        }
+    return {message_kind, inner_bytes, iterations, item_size};
 }
 
 std::vector<tensor_t> tiles(const hw_t &hw, layout_t a, layout_t b) {
     using tile_pair_t = std::array<tensor_t, 2>;
-    auto max_elems = reorder::max_elems(hw, a, b);
+    auto max_size = max_bytes(hw, a, b);
 
     std::vector<dim_t> dims(a.ndims());
     for (dim_idx_t i = 0; i < a.ndims(); ++i)
@@ -184,30 +210,18 @@ std::vector<tensor_t> tiles(const hw_t &hw, layout_t a, layout_t b) {
         return a.elems() < b.elems();
     };
 
-    // Incrementally increase subtiles in a and b. The goal is to find the
-    // maximum tiles so that the final combined tile covers dense regions as big
-    // as possible in a/b layouts.
-    std::vector<tensor_t> candidate_tiles;
-    auto a_tiles = inner_tiles(a.blocks(), a.ndims()) | filter(mappable_tiles)
-            | transform(add_pseudo_dimension(a));
-    auto b_tiles = inner_tiles(b.blocks(), b.ndims()) | filter(mappable_tiles)
-            | transform(add_pseudo_dimension(b));
-    auto tiles = merge(a_tiles, b_tiles, take_smaller) | transform(merge_tiles);
-    for (auto tile : tiles) {
-        if (tile.elems() > max_elems) break;
-        if (candidate_tiles.empty() || !tile.is_equal(candidate_tiles.back()))
-            candidate_tiles.push_back(tile);
-    }
-    gpu_assert(!candidate_tiles.empty());
-
     const auto eu_count = hw.eu_count();
     auto cmp = [&](const tensor_t &l, const tensor_t &r) {
         auto l_threads_reqd = a.elems() / l.elems();
         auto r_threads_reqd = a.elems() / r.elems();
         auto l_eu_util = utils::div_up(l_threads_reqd, eu_count);
         auto r_eu_util = utils::div_up(r_threads_reqd, eu_count);
-        auto l_msg_load = message_latency(hw, a, l) + message_latency(hw, b, l);
-        auto r_msg_load = message_latency(hw, a, r) + message_latency(hw, b, r);
+        auto l_a_msg = estimate_message_info(hw, a, l);
+        auto l_b_msg = estimate_message_info(hw, b, l);
+        auto r_a_msg = estimate_message_info(hw, a, r);
+        auto r_b_msg = estimate_message_info(hw, b, r);
+        auto l_msg_load = l_a_msg.latency(hw) + l_b_msg.latency(hw);
+        auto r_msg_load = r_a_msg.latency(hw) + r_b_msg.latency(hw);
 
         // Choose tiles with less message overhead per thread
         if (l_eu_util * l_msg_load != r_eu_util * r_msg_load)
@@ -220,6 +234,41 @@ std::vector<tensor_t> tiles(const hw_t &hw, layout_t a, layout_t b) {
         // If all else fails, go with the bigger tile
         return l.elems() > r.elems();
     };
+
+    // Incrementally increase subtiles in a and b. The goal is to find the
+    // maximum tiles so that the final combined tile covers dense regions as big
+    // as possible in a/b layouts.
+    std::vector<tensor_t> candidate_tiles;
+    auto a_tiles = inner_tiles(a.blocks(), a.ndims()) | filter(mappable_tiles)
+            | transform(add_pseudo_dimension(a));
+    auto b_tiles = inner_tiles(b.blocks(), b.ndims()) | filter(mappable_tiles)
+            | transform(add_pseudo_dimension(b));
+    auto tiles = merge(a_tiles, b_tiles, take_smaller) | transform(merge_tiles);
+
+    const int unit_size = std::max(a.type().size(), b.type().size());
+    const dim_t max_units = max_size / unit_size;
+
+    auto get_grf_layout_size = [&](const tensor_t &tile) {
+        auto elems = tile.elems();
+        dim_t grf_layout_size = 0;
+        for (const auto &l : {a, b}) {
+            auto info = estimate_message_info(hw, l, tile);
+            int elem_size = std::max(info.item_size, 4);
+            int elem_packing = info.item_size / l.type().size();
+            auto layout_size = elem_size * elems / elem_packing;
+            if (layout_size > grf_layout_size) grf_layout_size = layout_size;
+        }
+        return grf_layout_size;
+    };
+
+    for (auto tile : tiles) {
+        if (tile.elems() > max_units) break;
+        if (get_grf_layout_size(tile) > max_size) continue;
+        if (candidate_tiles.empty() || !tile.is_equal(candidate_tiles.back()))
+            candidate_tiles.push_back(tile);
+    }
+    gpu_assert(!candidate_tiles.empty());
+
     size_t best_idx = 0;
     for (size_t i = 0; i < candidate_tiles.size(); ++i)
         if (cmp(candidate_tiles[i], candidate_tiles[best_idx])) best_idx = i;
