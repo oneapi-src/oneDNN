@@ -166,24 +166,25 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
                 dst_dims[3], dst_dims[4], dst_dims[5]);
 
 #if SUB_GROUP_SIZE > 1
-#if DT_BF16 == 1
+#define WITH_PUNNING (DT_BF16 == 1 || DT_BF8 == 1 || DT_HF8 == 1)
+#if WITH_PUNNING
         float src_val = DATA_TO_REF(AS_DATA_T(
                 BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off])));
-#else // DT_BF16 == 1
+#else // WITH_PUNNING
         SRC_DATA_T src_val = AS_DATA_T(
                 BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off]));
-#endif // DT_BF16 == 1
+#endif // WITH_PUNNING
 #if SCALES_MASK > 0
         BLOCK_WRITE_DST(&dst[dst_off], TO_DST((float)src_val * tmp_src_scale));
 #else
         BLOCK_WRITE_DST(&dst[dst_off], TO_DST(src_val));
 #endif
 #else // SUB_GROUP_SIZE > 1
-#if DT_BF16 == 1
+#if WITH_PUNNING
         float src_val = DATA_TO_REF(src[src_off]);
-#else // DT_BF16 == 1
+#else // WITH_PUNNING
         SRC_DATA_T src_val = src[src_off];
-#endif // DT_BF16 == 1
+#endif // WITH_PUNNING
         WRITE_DST
 #endif // SUB_GROUP_SIZE > 1
     }
