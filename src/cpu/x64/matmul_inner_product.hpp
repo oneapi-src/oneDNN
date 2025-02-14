@@ -205,9 +205,11 @@ struct matmul_inner_product_bwd_weights_t : public primitive_t {
             const auto src_dt = invariant_src_md()->data_type;
             const auto diff_wei_dt = invariant_wei_md()->data_type;
             const auto diff_dst_dt = invariant_dst_md()->data_type;
+            const auto diff_bia_dt = invariant_bia_md()->data_type;
 
             const bool is_f32
-                    = utils::everyone_is(f32, src_dt, diff_wei_dt, diff_dst_dt);
+                    = utils::everyone_is(f32, src_dt, diff_wei_dt, diff_dst_dt)
+                    && IMPLICATION(with_bias(), diff_bia_dt == f32);
 
             VDISPATCH_INNER_PRODUCT(mayiuse(avx2), VERBOSE_UNSUPPORTED_ISA);
             VDISPATCH_INNER_PRODUCT(IMPLICATION(!is_f32, mayiuse(avx512_core)),
