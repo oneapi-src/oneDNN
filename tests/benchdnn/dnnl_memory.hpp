@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,11 +36,12 @@ struct dnn_mem_t {
     struct handle_info_t {
         bool is_host_ptr;
         void *ptr;
+        bool is_rng;
 
         bool is_allocate() const { return ptr == DNNL_MEMORY_ALLOCATE; }
 
         static handle_info_t allocate() {
-            return {false, DNNL_MEMORY_ALLOCATE};
+            return {false, DNNL_MEMORY_ALLOCATE, true};
         }
     };
 
@@ -151,6 +152,8 @@ struct dnn_mem_t {
     void map() const;
     void unmap() const;
     void memset(int value, size_t size) const;
+
+    dnnl_status_t memset_rng(size_t size) const;
 
     static dnn_mem_t create_from_host_ptr(
             const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr);
