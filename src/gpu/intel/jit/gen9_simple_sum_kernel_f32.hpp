@@ -18,7 +18,7 @@
 #define GPU_INTEL_JIT_GEN9_SIMPLE_SUM_KERNEL_F32_HPP
 
 #include "common/c_types_map.hpp"
-#include "gpu/intel/jit/jit_generator.hpp"
+#include "gpu/intel/jit/generator.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {
@@ -27,10 +27,10 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-class gen9_simple_sum_kernel_f32_t : public jit_generator<gpu_gen9> {
+class gen9_simple_sum_kernel_f32_t : public generator_t<gpu_gen9> {
 public:
     gen9_simple_sum_kernel_f32_t()
-        : jit_generator<gpu_gen9>({GENERATOR_NAME, GENERATOR_LINE}) {
+        : generator_t<gpu_gen9>({GENERATOR_NAME, GENERATOR_LINE}) {
         using namespace ngen;
         constexpr auto GlobalPtr = ExternalArgumentType::GlobalPtr;
         constexpr auto Scalar = ExternalArgumentType::Scalar;

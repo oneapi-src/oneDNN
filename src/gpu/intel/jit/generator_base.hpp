@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024-2025 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,27 +14,35 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/jit/jit_generator.hpp"
+#ifndef GPU_INTEL_JIT_GENERATOR_BASE_HPP
+#define GPU_INTEL_JIT_GENERATOR_BASE_HPP
 
-#include "gpu/intel/jit/utils/utils.hpp"
+#include <vector>
+#include <CL/cl.h>
+
+#include "xpu/utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace intel {
+
+namespace ocl {
+class engine_t;
+}
+
 namespace jit {
 
-void check_kernel_size(const std::string &kernel_name, size_t kernel_size,
-        size_t icache_size) {
-    if (kernel_size > icache_size) {
-        gpu_warning() << kernel_name
-                      << " larger than icache, kernel: " << kernel_size
-                      << " bytes, icache: " << icache_size << " bytes";
-    }
-}
+struct generator_base_t {
+    virtual ~generator_base_t() = default;
+    virtual const char *kernel_name() const = 0;
+    virtual xpu::binary_t get_binary(const ocl::engine_t *engine) = 0;
+};
 
 } // namespace jit
 } // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+#endif // GPU_INTEL_JIT_GENERATOR_BASE_HPP

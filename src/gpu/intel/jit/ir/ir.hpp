@@ -380,6 +380,7 @@ std::vector<std::pair<KeyT, ValueT>> sort_var_map(
         const std::unordered_map<KeyT, ValueT, HashT, EqualT> &map,
         const CompareT &compare) {
     std::vector<std::pair<KeyT, ValueT>> ret;
+    ret.reserve(map.size());
     for (auto &kv : map)
         ret.emplace_back(kv);
     std::sort(ret.begin(), ret.end(), compare);

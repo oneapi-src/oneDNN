@@ -927,8 +927,7 @@ void gen_gemm_kernel_t::init_interface() {
     interface_.externalName(kernel_name());
 }
 
-xpu::binary_t gen_gemm_kernel_t::get_binary(
-        const ocl::ocl_gpu_engine_t *engine) {
+xpu::binary_t gen_gemm_kernel_t::get_binary(const ocl::engine_t *engine) {
     init_interface();
     maybe_print_verbose();
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -182,7 +182,7 @@ void LoopSequencer::analyze()
 // Sequence the loop.
 void LoopSequencer::materialize(int minLoops, int maxLoops)
 {
-    typedef CallbackType CT;
+    using CT = CallbackType;
 
     analyze();
 
@@ -307,7 +307,7 @@ void LoopSequencer::materialize(int minLoops, int maxLoops)
 
 void LoopSequencer::run(int l, int guaranteedMin, int guaranteedMax, int alignOffset)
 {
-    typedef CallbackType CT;
+    using CT = CallbackType;
 
     auto alignCounter = [&](int i) {
         return align_up(i - alignOffset, counterAlign) + alignOffset;

@@ -153,6 +153,8 @@ private:
 #define ARG_PTR_TYPE(t) \
     typename std::remove_cv<typename std::remove_pointer<t>::type>::type *
 
+#define ARG_PTR_TYPE(t) ARG_TYPE(t) *
+
 // Returns destination memory which has been zero pad initialized. This macro
 // may result in a failure returned via the `status` input since zero pad
 // may fail.

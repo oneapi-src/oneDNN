@@ -749,7 +749,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
     gen_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
-    ~gen_gemm_t() {
+    ~gen_gemm_t() override {
         if (zero_pool_) release_zero_pool(zero_pool_);
     }
 

@@ -21,7 +21,7 @@
 #include "common/type_helpers.hpp"
 
 #include "gpu/intel/compute/device_info.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 using namespace dnnl::impl::memory_tracking::names;
 

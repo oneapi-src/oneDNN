@@ -706,7 +706,8 @@ bool is_enum_name_templ_impl(
     inline std::string to_string(enum_type e) { \
         return to_string_impl(e, enum_names); \
     } \
-    inline void to_enum_impl(const std::string &s, enum_type &e) { \
+    inline void to_enum_impl( \
+            const std::string &s, decltype(std::declval<enum_type>()) &e) { \
         to_enum_templ_impl(s, e, enum_names); \
     } \
     inline bool is_enum_name_impl(const std::string &s, const enum_type *) { \

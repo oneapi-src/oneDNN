@@ -19,7 +19,7 @@
 #include "common/sdpa_pd.hpp"
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include "gpu/intel/ocl/ocl_stream.hpp"
+#include "gpu/intel/ocl/stream.hpp"
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
 #include "gpu/intel/sycl/stream.hpp"
 #endif
@@ -299,9 +299,8 @@ status_t sdp_primitive_kernel_t<quantized>::ocl_execute_impl(
     exec_ctx_t ctx(p_stream.get(), std::move(args));
 
     // TODO (pc): refactor
-    auto *ocl_stream
-            = dnnl::impl::utils::downcast<gpu::intel::ocl::ocl_stream_t *>(
-                    p_stream.get());
+    auto *ocl_stream = dnnl::impl::utils::downcast<gpu::intel::ocl::stream_t *>(
+            p_stream.get());
 
     ocl_stream->before_exec_hook();
 

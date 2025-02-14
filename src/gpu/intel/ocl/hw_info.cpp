@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/ocl_gpu_hw_info.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/hw_info.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 #include "gpu/intel/jit/binary_format.hpp"
-#include "gpu/intel/jit/jit_generator.hpp"
+#include "gpu/intel/jit/generator.hpp"
 #include "gpu/intel/jit/utils/ngen_type_bridge.hpp"
 
 #ifndef CL_DEVICE_IP_VERSION_INTEL
@@ -62,7 +62,7 @@ status_t init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
     using namespace ngen;
     HW hw = HW::Unknown;
     Product product = {ProductFamily::Unknown, 0};
-    jit::jit_generator<HW::Unknown>::detectHWInfo(context, device, hw, product);
+    jit::generator_t<HW::Unknown>::detectHWInfo(context, device, hw, product);
     bool is_xelpg = (product.family == ngen::ProductFamily::ARL
             || product.family == ngen::ProductFamily::MTL);
 
