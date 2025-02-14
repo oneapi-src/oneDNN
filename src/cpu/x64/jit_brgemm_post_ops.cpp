@@ -368,6 +368,7 @@ void dnnl::impl::cpu::x64::jit_brgemm_kernel_diff_bias_t<Vmm>::init_masks(
 
     if (reduce_kind_ == matmul_reduce_kind::src
             && utils::one_of(bia_dt_, data_type::f16, data_type::bf16)) {
+        assert(isa_has_masks(brg_.isa_impl));
         mov(reg_mask, 1);
         kmovq(k_store_mask, reg_mask);
     }
