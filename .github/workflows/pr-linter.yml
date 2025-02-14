@@ -101,6 +101,6 @@ jobs:
         run: |
           .github/automation/build_linters.sh | tee build.log
           cat build.log
-          grep -i "warning:" build.log | sort -u && exit 1 || true
+          grep -i "warning:" build.log | sort -u | awk '{print}' && exit 1 || true
         env:
           ONEDNN_ACTION: build
