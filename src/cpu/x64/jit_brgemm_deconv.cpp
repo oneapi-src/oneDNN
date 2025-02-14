@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -209,7 +209,6 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
                     "brgemm implementation not found for strided convolution");
     } else {
         CHECK(fwd_conv_desc_create(fwd_deconv_d, &conv_d));
-
         primitive_desc_iterator_t it(engine,
                 reinterpret_cast<const op_desc_t *>(&conv_d), attr(), nullptr);
         if (!it.is_initialized()) return status::out_of_memory;

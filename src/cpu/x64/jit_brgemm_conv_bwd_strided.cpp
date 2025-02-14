@@ -111,15 +111,21 @@ status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::init(engine_t *engine) {
             && one_of(diff_src_type, wei_type, f32, f8_e5m2, f8_e4m3)
             && IMPLICATION(
                     with_bias(), one_of(bias_md_.data_type, f32, wei_type));
+    const bool is_f32_xf16_supported = one_of(wei_type, bf16, f16)
+            && everyone_is(f32, diff_src_type, diff_dst_type)
+            && IMPLICATION(with_bias(), bias_md_.data_type == f32);
 
     VDISPATCH_CONV(is_bwd_d(), VERBOSE_BAD_PROPKIND);
     VDISPATCH_CONV(
             impl_supports_datatype(diff_src_type), VERBOSE_UNSUPPORTED_DT);
-    VDISPATCH_CONV(impl_supports_datatype(wei_type), VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_CONV(impl_supports_datatype(
+                           is_f32_xf16_supported ? diff_dst_type : wei_type),
+            VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_CONV(
             impl_supports_datatype(diff_dst_type), VERBOSE_UNSUPPORTED_DT);
-    VDISPATCH_CONV(one_of(true, is_f32_supported, is_xf16_supported,
-                           is_int8_supported, is_fp8_supported),
+    VDISPATCH_CONV(
+            one_of(true, is_f32_supported, is_xf16_supported, is_int8_supported,
+                    is_fp8_supported, is_f32_xf16_supported),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
             VERBOSE_BAD_ALGORITHM);
