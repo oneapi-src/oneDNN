@@ -168,7 +168,7 @@ status_t brgemm_t::get_B_pack_type(
     brgemm_utils::set_isa_impl(&brg);
     if (brg.isa_impl == cpu_isa_t::isa_undef) {
         VCHECK_BRGEMM_STATUS(
-                status::invalid_arguments, false, "get_B_pack_type failed");
+                status::unimplemented, false, "get_B_pack_type failed");
     }
     const bool has_vnni_layout = brgemm_desc_t::is_b_data_layout_vnni(
             dt_a, dt_b, /* brgattr.b_is_vnni = */ false, brg.isa_impl);
