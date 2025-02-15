@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,10 +54,11 @@ private:
             sttilecfg(ptr[abi_param2]);
             // Move tilecfg into Zmm for further comparison.
             vmovdqu64(Xbyak::Zmm(0), ptr[abi_param2]);
-            // Sets `1` per word if values are equal.
+            // Sets `1` per word, 32 words total for Zmms, if values are equal.
             vpcmpeqw(Xbyak::Opmask(0), Xbyak::Zmm(0), ptr[abi_param1]);
-            // `kortestw` will set CF=1 if all `1` in the mask.
-            kortestw(Xbyak::Opmask(0), Xbyak::Opmask(0));
+            // `kortestd` will set CF=1 if all `1` in the mask. Double word
+            // takes 32 bits to compare.
+            kortestd(Xbyak::Opmask(0), Xbyak::Opmask(0));
             // Checks if CF=1. If it is, everything matched, skipping config...
             jc(skip_tilecfg, T_NEAR);
             // ... otherwise, configure tile with user palette.
