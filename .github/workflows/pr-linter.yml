@@ -33,7 +33,7 @@ concurrency:
 jobs:
   pr-formatting:
     name: Formatting
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -42,7 +42,7 @@ jobs:
       - name: Check commit messages
         run: python3 ./.github/automation/commit-msg-check.py "${{ github.event.pull_request.head.sha }}" "${{ github.event.pull_request.base.sha }}"
       - name: Install clang-format
-        run: sudo apt update && sudo apt install -y "clang-format-11"
+        run: sudo apt update && sudo apt install -y "clang-format-17"
       - name: Check code formatting
         run: .github/automation/clang-format.sh
 
