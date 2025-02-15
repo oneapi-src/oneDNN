@@ -47,8 +47,6 @@ if [[ "$OS" == "Linux" ]]; then
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-mqa-cpp"
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-sdpa-cpp"
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-sdpa-stacked-qkv-cpp"
-    # TODO: Issue: https://github.com/oneapi-src/oneDNN/issues/2572
-    SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_convolution"
     SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_large_partition_cpu"
 fi
 
