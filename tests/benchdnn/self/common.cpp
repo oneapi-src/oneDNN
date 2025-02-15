@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -518,13 +518,16 @@ static int check_trim_tags() {
 }
 
 static int check_skip_impl() {
-    impl_filter_t impl_filter({"gemm"}, /* use_impl = */ false);
+    impl_filter_t impl_filter({"gemm"}, /* use_impl = */ false,
+            /* respect_global_filter = */ true);
     SELF_CHECK_EQ(true, need_next_impl("x64:gemm:jit", impl_filter));
 
-    impl_filter = impl_filter_t({"ref", "x64:gemm"}, /* use_impl = */ false);
+    impl_filter = impl_filter_t({"ref", "x64:gemm"}, /* use_impl = */ false,
+            /* respect_global_filter = */ true);
     SELF_CHECK_EQ(true, need_next_impl("x64:gemm:jit", impl_filter));
 
-    impl_filter = impl_filter_t({"this_finds_nothing"}, /* use_impl = */ false);
+    impl_filter = impl_filter_t({"this_finds_nothing"}, /* use_impl = */ false,
+            /* respect_global_filter = */ true);
     SELF_CHECK_EQ(false, need_next_impl("x64:gemm:jit", impl_filter));
 
     return OK;
