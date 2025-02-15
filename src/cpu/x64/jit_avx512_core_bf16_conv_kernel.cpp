@@ -2655,8 +2655,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
                 src_offset, kernel_offset, ddst_offset, is_tail);
 }
 
-void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::get_ur_w(
-        int &ur_w, int &ur_w_tail, int &ur_w_trips) {
+void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::get_ur_w(
+        int &ur_w, int &ur_w_tail, int &ur_w_trips) const {
     if (jcp.tr_ow <= max_ur_w) {
         ur_w = jcp.tr_ow;
         ur_w_tail = 0;

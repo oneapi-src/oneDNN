@@ -331,7 +331,7 @@ struct jit_bnorm_process_relu_t {
         const Xmm xmm_aux = Xmm(valpha.getIdx());
         h_->vmovq(xmm_aux, reg_alpha);
         h_->vbroadcastss(valpha, xmm_aux);
-        h_->vcmpps(kstore_mask_, vzero_, vmm_dst, h_->_cmp_lt_os);
+        h_->vcmpps(kstore_mask_, vzero_, vmm_dst, jit_generator::_cmp_lt_os);
         h_->vmulps(valpha, vmm_dst, valpha);
         h_->vblendmps(vmm_dst | kstore_mask_, valpha, vmm_dst);
     }
@@ -341,7 +341,7 @@ struct jit_bnorm_process_relu_t {
         h_->uni_vpxor(vmask, vmask, vmask);
         h_->uni_vmovq(xmm_aux, reg_alpha);
         h_->uni_vbroadcastss(valpha, xmm_aux);
-        h_->uni_vcmpps(vmask, vmm_dst, vzero_, h_->_cmp_lt_os);
+        h_->uni_vcmpps(vmask, vmm_dst, vzero_, jit_generator::_cmp_lt_os);
         h_->uni_vmulps(valpha, valpha, vmm_dst);
         h_->uni_vblendvps(
                 vmm_dst, vmm_dst, valpha, vmask); // swaped aux and dst
@@ -436,7 +436,8 @@ struct helper_vmovups_data_t {
                 h_->uni_vmovups(dst.getAddress(), dst_reg);
             } else if (is_f16_) {
                 auto src_reg = Vmm(src.getIdx());
-                h_->vcvtps2ph(dst.getAddress(), src_reg, h_->_op_mxcsr);
+                h_->vcvtps2ph(
+                        dst.getAddress(), src_reg, jit_generator::_op_mxcsr);
             } else {
                 h_->uni_vmovups(dst.getAddress(), Vmm(src.getIdx()));
             }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ private:
 };
 
 struct brgemm_palette_container_t {
-    typedef std::array<char, AMX_PALETTE_SIZE> S_t;
+    using S_t = std::array<char, AMX_PALETTE_SIZE>;
 
     brgemm_palette_container_t() {}
     brgemm_palette_container_t(size_t ns) { resize(ns); }
