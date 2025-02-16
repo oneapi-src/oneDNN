@@ -45,6 +45,7 @@ enum class scalar_type_t {
     undef,
     _char,
     _f4_e2m1,
+    _f4_e3m0,
     _hfloat8,
     _bfloat8,
     _bfloat16,
@@ -77,6 +78,7 @@ inline std::string to_string(scalar_type_t type) {
         CASE(undef);
         CASE(_char);
         CASE(_f4_e2m1);
+        CASE(_f4_e3m0);
         CASE(_hfloat8);
         CASE(_bfloat8);
         CASE(_bfloat16);

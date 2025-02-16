@@ -77,6 +77,30 @@ e8m0 as_e8m0(unsigned char data) {
 /*****************************/
 
 typedef struct {
+    char data;
+} f4_e2m1;
+
+f4_e2m1 as_f4_e2m1(unsigned char data) {
+    f4_e2m1 res;
+    res.data = data;
+    return res;
+}
+
+/*****************************/
+
+typedef struct {
+    char data;
+} f4_e3m0;
+
+f4_e3m0 as_f4_e3m0(unsigned char data) {
+    f4_e3m0 res;
+    res.data = data;
+    return res;
+}
+
+/*****************************/
+
+typedef struct {
     char invalid_data;
 } undef_data;
 

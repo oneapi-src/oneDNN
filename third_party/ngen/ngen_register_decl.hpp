@@ -505,6 +505,11 @@ NGEN_REGISTER_DECL_EXTRA4(CG,PREFIX)
 #include "ngen.hpp"
 NGEN_REGISTER_DECL(NGEN_NAMESPACE::BinaryCodeGenerator<hw>, template <NGEN_NAMESPACE::HW hw>)
 
+#ifdef NGEN_ASM
+#include "ngen_asm.hpp"
+NGEN_REGISTER_DECL(NGEN_NAMESPACE::AsmCodeGenerator, /* nothing */)
+#endif
+
 template class NGEN_NAMESPACE::BinaryCodeGenerator<NGEN_NAMESPACE::HW::Unknown>;
 template class NGEN_NAMESPACE::BinaryCodeGenerator<NGEN_NAMESPACE::HW::Gen9>;
 template class NGEN_NAMESPACE::BinaryCodeGenerator<NGEN_NAMESPACE::HW::Gen10>;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
         bool use_reorder = false;
         compute::dispatch_t dispatch_;
         attr_info_t attr_info_;
+        bool subbyte_pack_;
     };
 
     status_t init(impl::engine_t *engine) override {
@@ -66,6 +67,9 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
         CHECK(ret_status);
         ret_status = create_kernel(
                 engine, &post_process_kernel_, "gemm_post_ops", kernel_ctx);
+        if (pd()->subbyte_pack_)
+            CHECK(create_kernel(
+                    engine, &subbyte_pack_kernel_, "subbyte_pack", kernel_ctx));
         return ret_status;
     }
 
@@ -75,6 +79,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<impl::primitive_t> gemm_prim_;
     compute::kernel_t post_process_kernel_;
+    compute::kernel_t subbyte_pack_kernel_;
 };
 
 } // namespace ocl

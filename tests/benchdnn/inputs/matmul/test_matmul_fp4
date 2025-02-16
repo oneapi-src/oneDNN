@@ -9,26 +9,17 @@
 ## plain fp4
 --dt=f4_e2m1,f4_e2m1:f4_e2m1:f32,f4_e2m1:f4_e2m1:bf16,f4_e2m1:f4_e3m0:f4_e2m1
 --attr-scales=
-24x32:32x64
-25x32:32x16
-96x96:96x64
-14x96:96x32
+--batch=shapes_4bit
 
 
 ## MXFP4
 # --dt=f4_e2m1
 # --attr-scales=src:per_ocic:e8m0:1x32+wei:per_ocic:e8m0:32x1+dst:per_ocic:e8m0:1x32
-# 24x32:32x64
-# 25x32:32x16
-# 96x96:96x64
-# 14x96:96x32
+#--batch=shapes_4bit
 
 
 # --dt=f4_e2m1:f4_e2m1:f32,f4_e2m1:f4_e2m1:bf16
 # --attr-scales=src:per_ocic:e8m0:1x32+wei:per_ocic:e8m0:32x1
-# 24x32:32x64
-# 25x32:32x16
-# 96x96:96x64
-# 14x96:96x32
+#--batch=shapes_4bit
 
 

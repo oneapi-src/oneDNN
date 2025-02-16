@@ -308,11 +308,11 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     compute::range_t gws = {1, (size_t)N, (size_t)(D0 * D1 * D2 * D3)};
     auto nd_range = compute::nd_range_t(gws);
 
-    status_t status = parallel_for(ctx, nd_range, kernels_[0], arg_list);
+    CHECK(parallel_for(ctx, nd_range, kernels_[0], arg_list));
 
     ctx.zero_pad_output(DNNL_ARG_DST);
 
-    if (!subbyte_pack) return status;
+    if (!subbyte_pack) return status_t::dnnl_success;
     compute::kernel_arg_list_t repack_arg_list;
     repack_arg_list.set(0, *tmp);
     repack_arg_list.set(1, c);
