@@ -235,15 +235,20 @@ int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size);
 int get_cpu_cache_size(cpu_cache_args_t &cache_args);
 int get_gpu_cache_size(size_t &cache_size);
 
+std::string smart_bytes(double bytes);
+int check_total_size(res_t *res, dnnl_primitive_t prim_ref = nullptr);
 bool is_fwd_training(dnnl_prop_kind_t prop_kind);
 bool is_fwd_prop_kind(dnnl_prop_kind_t prop_kind);
 int get_memory_footprint(const_dnnl_primitive_desc_t pd, res_t *res);
 int check_same_pd(const dnnl_primitive_desc_t &pd_no_attr, res_t *res);
 int test_persistent_cache_api(
         benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim, res_t *res);
+// This call is used in zeropad only and still does check inside, too.
 int check_mem_size(const_dnnl_memory_desc_t md, res_t *res);
-int check_mem_size(const_dnnl_primitive_desc_t const_pd, res_t *res, dir_t dir,
-        bool need_skip = true);
+// Only collects memory sizes from an input `const_pd` and puts the result into
+// `mem_size_args`.
+int collect_mem_size(check_mem_size_args_t &mem_size_args,
+        const_dnnl_primitive_desc_t const_pd, dir_t dir, bool need_skip = true);
 
 inline bool should_stop(const timer::timer_t &t) {
     const bool stop = false
@@ -413,12 +418,36 @@ int create_primitive(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &primw,
             WARN);
     if (res->state == SKIPPED) return OK;
 
-    // Check memory requirements if only execution happens.
-    // Note: As a graph may contains moare than one operations with identical
-    // `dir`. Since the mem size check for all the operations are necessary,
-    // the check should not be skipped.
-    SAFE(check_mem_size(pdw, res, dir, /*need_skip=*/!is_graph_ref), WARN);
-    if (res->state == SKIPPED) return OK;
+    // Note: Graph may contain more than one operation with identical `dir`.
+    //   It's required to collect all memory sizes regardless of `dir`.
+    SAFE(collect_mem_size(res->mem_size_args, pdw, dir,
+                 /* need_skip = */ !is_graph_ref),
+            WARN);
+
+    // The library scratchpad is allocated at create_primitive stage. The memory
+    // check is moved after the creation stage. It's necessary to check the
+    // library scratchpad size against gpu_max_alloc, otherwise, out_of_memory
+    // would be issued by the library.
+    if (res->mem_size_args.scratchpad_size > 0 && is_gpu()
+            && query_scratchpad_mode(query_attr(pdw))
+                    == dnnl_scratchpad_mode_library) {
+        static size_t gpu_device_capacity = 0;
+        static size_t gpu_max_alloc_capacity = 0;
+        SAFE(get_gpu_ram_sizes(gpu_device_capacity, gpu_max_alloc_capacity),
+                WARN);
+        const bool fit
+                = res->mem_size_args.scratchpad_size < gpu_max_alloc_capacity;
+        if (!fit) {
+            BENCHDNN_PRINT(1,
+                    "[CHECK_MEM]: Size of the scratchpad %s "
+                    "doesn't fit the allocation limit of %s.\n",
+                    smart_bytes(res->mem_size_args.scratchpad_size).c_str(),
+                    smart_bytes(gpu_max_alloc_capacity).c_str());
+            res->state = SKIPPED;
+            res->reason = skip_reason::not_enough_ram;
+            return OK;
+        }
+    }
 
     TIME_C_PRIM(DNN_SAFE(dnnl_primitive_create(&prim, pdw), WARN));
     primw.reset(prim);
@@ -588,6 +617,12 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
         TIME_COMPARE(check_buffer_overwrite(args.dnn_mem(i), args.arg(i), res));
     }
 
+    // Report prim_ref run status for easier distinguishing between GPU failures
+    // and ref CPU failures.
+    if (prim_ref) {
+        BENCHDNN_PRINT(1, "run ref: %s\n", res->prim_ref_repro.c_str());
+    }
+
     TIME_REF(compute_ref(prb, ref_args, prim_ref));
 
     for (const auto &kind : kinds) {
@@ -615,15 +650,6 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
                 cpu_cache_args.L2_size, cpu_cache_args.L3_size,
                 benchdnn_get_max_threads(),
                 query_impl_info(query_pd(prim_ref)).c_str());
-
-        // Replace engine kind for repro line from GPU to CPU.
-        const auto eng_pos = res->prim_ref_repro.find("engine=gpu");
-        if (eng_pos != std::string::npos)
-            // Replace `g` in `gpu` with `c`
-            res->prim_ref_repro[eng_pos + 7] = 'c';
-
-        BENCHDNN_PRINT(
-                0, "[PRIM_REF][REPRO]: %s\n", res->prim_ref_repro.c_str());
     }
 }
 
@@ -1028,5 +1054,58 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
 
 int check_bitwise(dnnl_primitive_t prim, const std::vector<data_kind_t> &kinds,
         const args_t &args, const attr_t &attr, bool inplace, res_t *res);
+
+template <typename prb_t>
+int init_prim_ref_common(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
+        const prb_t *prb_cpu, res_t *res) {
+
+    init_pd_args_t<prb_t> init_pd_args(
+            /* res = */ nullptr, get_cpu_engine(), prb_cpu, prb_cpu->dir,
+            /* hint = */ nullptr, /* src_md = */ nullptr);
+    init_pd(init_pd_args);
+
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
+    // `is_service_prim=true` prevents from filtering the implementation
+    // by name which is intended through a `get_prim_ref_impl_filter()`.
+    // As `fetch_impl` doesn't have any further logic related to it, it's
+    // safe to set it to `false`.
+    fetch_impl(pdw, init_pd_args, get_prim_ref_impl_filter(),
+            /* res = */ nullptr,
+            /* is_service_prim = */ false);
+
+    // Prim desc wasn't created - try the next set...
+    if (!pdw) return FAIL;
+
+    dnnl_primitive_t prim_ref_ptr {};
+    auto st = dnnl_primitive_create(&prim_ref_ptr, pdw);
+    // Primitive wasn't created - try the next set...
+    if (st != dnnl_success) return FAIL;
+
+    BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
+            query_impl_info(pdw).c_str());
+
+    res->prim_ref_repro = prb_cpu->str();
+    // Replace engine kind for repro line from GPU to CPU.
+    const auto eng_pos = res->prim_ref_repro.find("engine=gpu");
+    if (eng_pos != std::string::npos) {
+        // Replace `g` in `gpu` with `c`
+        res->prim_ref_repro[eng_pos + 7] = 'c';
+    }
+
+    // Remove `--impl=XXX` as it doesn't affect prim_ref.
+    const auto impl_pos = res->prim_ref_repro.find("--impl=");
+    if (impl_pos != std::string::npos) {
+        // Search for the next space starting from `impl_pos` as names' length
+        // is variadic.
+        const auto end_impl_pos
+                = res->prim_ref_repro.find_first_of(" ", impl_pos);
+        assert(end_impl_pos != std::string::npos);
+        // `+ 1` is for extra space.
+        res->prim_ref_repro.erase(impl_pos, end_impl_pos - impl_pos + 1);
+    }
+
+    prim_ref.reset(prim_ref_ptr);
+    return OK;
+}
 
 #endif

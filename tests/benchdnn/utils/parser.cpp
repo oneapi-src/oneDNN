@@ -405,7 +405,7 @@ bool parse_impl_filter(impl_filter_t &impl_filter,
             }
         }
 
-        return impl_filter_t(v, use_impl);
+        return impl_filter_t(v, use_impl, /* respect_global_filter = */ true);
     };
     return parse_single_value_option(impl_filter, def_impl_filter,
             str2impl_filter, str, option_name, help);

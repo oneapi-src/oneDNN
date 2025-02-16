@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -532,7 +532,9 @@ int ref_partition_t::check_partition_total_size(
     // after reference path data filling(`C` mode only)
     // 3. Memory to be allocated for comparing results(`C` mode only)
     // 4. Memory to be allocated for mapping device memory(GPU backend only)
-    size_t new_cpu_req = check_mem_size_args.total_size_cpu;
+    size_t new_cpu_req = check_mem_size_args.total_size_ref
+            + check_mem_size_args.total_size_compare
+            + check_mem_size_args.total_size_mapped;
     size_t new_gpu_req = check_mem_size_args.total_size_device;
 
     // STEP 1: Memory allocation stage for the reference path

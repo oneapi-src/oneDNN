@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ int query_n_outputs(const_dnnl_primitive_desc_t pd);
 bool query_post_ops_has_kind(dnnl_primitive_t prim, dnnl_primitive_kind_t kind);
 bool query_post_ops_has_kind(
         const_dnnl_post_ops_t post_ops, dnnl_primitive_kind_t kind);
+dnnl_scratchpad_mode_t query_scratchpad_mode(const_dnnl_primitive_attr_t attr);
 const_dnnl_post_ops_t query_post_ops(const_dnnl_primitive_attr_t attr);
 const_dnnl_post_ops_t query_post_ops(const_dnnl_primitive_desc_t pd);
 const_dnnl_primitive_attr_t query_attr(const_dnnl_primitive_desc_t pd);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,21 +20,35 @@
 #include "utils/parallel.hpp"
 #include "utils/task.hpp"
 
+// A macro serves an unification purpose.
+// It must be a macro due to `prb_t` type is unique per driver.
+#define TASK_EXECUTOR_DECL_TYPES \
+    using create_func_t = std::function<int( \
+            std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, \
+            const prb_t *, res_t *)>; \
+    using check_func_t = std::function<int( \
+            std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, \
+            const prb_t *, res_t *)>; \
+    using do_func_t = std::function<int( \
+            const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &, \
+            const prb_t *, res_t *)>; \
+    using driver_task_executor_t = task_executor_t<prb_t, perf_report_t, \
+            create_func_t, check_func_t, do_func_t>;
+
 extern int repeats_per_prb;
 
 template <typename prb_t, typename perf_report_t, typename create_func_t,
-        typename check_cache_func_t, typename do_func_t>
+        typename check_func_t, typename do_func_t>
 struct task_executor_t {
     virtual ~task_executor_t() { assert(tasks_.empty()); }
 
     void submit(const prb_t &prb, const std::string &perf_template,
-            const create_func_t &create_func,
-            const check_cache_func_t &check_cache_func,
+            const create_func_t &create_func, const check_func_t &check_func,
             const do_func_t &do_func) {
         static const int nthreads = benchdnn_get_max_threads();
         for (int r = 0; r < repeats_per_prb; r++) {
-            tasks_.emplace_back(prb, perf_template, create_func,
-                    check_cache_func, do_func, get_idx());
+            tasks_.emplace_back(prb, perf_template, create_func, check_func,
+                    do_func, get_idx());
             if (has_bench_mode_modifier(mode_modifier_t::par_create)
                     && static_cast<int>(tasks_.size()) < nthreads)
                 continue;
@@ -46,14 +60,14 @@ struct task_executor_t {
         // Special case is needed for THREADPOOL RUNTIME. Both `Parallel_nd` and
         // `createit` calls activate threadpool which causes undesired behavior.
         if (tasks_.size() == 1)
-            tasks_[0].create();
+            tasks_[0].create(/* in_parallel = */ false);
         else
-            benchdnn_parallel_nd(
-                    tasks_.size(), [&](int i) { tasks_[i].create(); });
+            benchdnn_parallel_nd(tasks_.size(),
+                    [&](int i) { tasks_[i].create(/* in_parallel = */ true); });
 
         // Check caches first to avoid filling cache with service reorders.
         for (auto &t : tasks_) {
-            t.check_cache();
+            t.check();
         }
 
         for (auto &t : tasks_) {
@@ -63,7 +77,7 @@ struct task_executor_t {
         tasks_.clear();
     }
 
-    std::vector<task_t<prb_t, perf_report_t, create_func_t, check_cache_func_t,
+    std::vector<task_t<prb_t, perf_report_t, create_func_t, check_func_t,
             do_func_t>>
             tasks_;
 

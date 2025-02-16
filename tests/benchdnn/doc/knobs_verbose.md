@@ -16,6 +16,8 @@ following information is printed for certain verbosity levels.
 ## Level 1
 * Problem reproducer line right after the problem was constructed. It is
   convenient to catch the repro line in case of a program crash.
+* The problem memory footprint and RAM capacity on devices in cases when the
+  limit is reached and the problem will be skipped.
 
 ## Level 2
 * Various warnings.
@@ -29,7 +31,7 @@ following information is printed for certain verbosity levels.
 * The library implementation name picked to compute the given problem.
 
 ## Level 6
-* The problem memory footprint and RAM capacity on devices.
+* The problem memory footprint and RAM capacity on devices, unconditionally.
 * Fill configuration stats.
 * Compare configuration stats.
 * Additional implementation filtering information.
