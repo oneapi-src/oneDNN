@@ -295,7 +295,11 @@
 #define TO_FLT_ACC_DATA_T convert_float
 
 #elif DT_BF16 == 1
+#if WITH_PUNNING
 #define DATA_T ushort
+#else
+#define DATA_T bf16
+#endif
 #define DATA2_T ushort2
 #define POST_OP_DATA_T float
 #define DATA2_T ushort2
@@ -351,6 +355,11 @@
 #define TO_FLT_ACC_DATA_T cvt_bf16_to_f32
 
 #elif DT_BF8 == 1
+#if WITH_PUNNING
+#define DATA_T uchar
+#else
+#define DATA_T f8_e5m2
+#endif
 #define DATA_T uchar
 #define DATA2_T uchar2
 #define DATA4_T uchar4
@@ -413,7 +422,11 @@
 #define TO_FLT_ACC_DATA_T convert_float(cvt_f8_e5m2_to_hf(v))
 
 #elif DT_HF8 == 1
+#if WITH_PUNNING
 #define DATA_T uchar
+#else
+#define DATA_T f8_e4m3
+#endif
 #define DATA2_T uchar2
 #define DATA4_T uchar4
 #define DATA8_T uchar8
@@ -475,7 +488,11 @@
 #define TO_FLT_ACC_DATA_T(v) convert_float(cvt_f8_e4m3_to_hf(v))
 
 #elif DT_F4_E3M0 == 1
+#if WITH_PUNNING
 #define DATA_T uchar
+#else
+#define DATA_T f4_e3m0
+#endif
 #define DATA2_T uchar2
 #define DATA4_T uchar4
 #define DATA8_T uchar8
@@ -537,7 +554,11 @@
 #define TO_FLT_ACC_DATA_T(v) (cvt_f4_e3m0_to_f32(v))
 
 #elif DT_F4_E2M1 == 1
+#if WITH_PUNNING
 #define DATA_T uchar
+#else
+#define DATA_T f4_e2m1
+#endif
 #define DATA2_T uchar2
 #define DATA4_T uchar4
 #define DATA8_T uchar8

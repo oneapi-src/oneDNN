@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 #include "gpu/intel/ocl/dispatch.h"
 #include "gpu/intel/ocl/ocl_eltwise.h"
+#include "gpu/intel/ocl/ocl_io.h"
 #include "gpu/intel/ocl/ocl_post_ops.h"
 #include "gpu/intel/ocl/types_interop.h"
 
@@ -41,7 +42,7 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
 
     if (d0 >= DATA_D0 || d1 >= DATA_D1 || d2 >= DATA_D2 || d3 >= DATA_D3
             || d4 >= DATA_D4 || d5 >= DATA_D5) {
-        dst[data_off] = CONVERT_DATA_T(0.f);
+        write(dst + data_off, 0.f);
         return;
     }
 #else
@@ -63,20 +64,20 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
 #endif
 
 #if DT_F16 == 1
-    float tmp_s = CONVERT_FLOAT_T(src[data_off]);
+    float tmp_s = load(tmp_s, src + data_off);
 #else
-    float tmp_s = DATA_TO_REF(src[data_off]);
+    float tmp_s = load(tmp_s, src + data_off);
 #endif
     tmp_s = fwd_eltwise(tmp_s, alpha, beta, 1.0f);
 
     float dst_data;
 #if WITH_SUM
-    dst_data = convert_float(DATA_TO_REF(dst[data_off]));
+    load(dst_data, dst + data_off);
 #endif
 
     APPLY_POST_OPS_SERIAL(tmp_s, float, dst_data, float, d0, 1, d1, 1, d2, 1,
             d3, 1, d4, 1, d5, 1);
-    dst[data_off] = CONVERT_DATA_T(tmp_s);
+    write(dst + data_off, tmp_s);
 }
 
 #else // #if IS_FWD
@@ -102,11 +103,10 @@ __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
         return;
     }
 
-    POST_OP_DATA_T tmp_dd = DATA_TO_REF(diff_dst[diff_data_off]);
-    POST_OP_DATA_T tmp_s = DATA_TO_REF(src[data_off]);
+    POST_OP_DATA_T tmp_dd = load(tmp_dd, diff_dst + diff_data_off);
+    POST_OP_DATA_T tmp_s = load(tmp_s, src + data_off);
 
-    diff_src[diff_data_off]
-            = CONVERT_DATA_T(bwd_eltwise(tmp_dd, tmp_s, alpha, beta));
+    write(diff_src + diff_data_off, bwd_eltwise(tmp_dd, tmp_s, alpha, beta));
 }
 #endif
 
