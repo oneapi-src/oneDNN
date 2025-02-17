@@ -172,8 +172,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion_gpu)
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     auto optional_scale_and_mask = optional_scale_and_masks(
                             pgraph, matmul_qk, /*check_xf16*/ true);
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, optional_scale_and_mask, 0)});
+                    auto softmax
+                            = alter_fp_softmax(pgraph, optional_scale_and_mask);
                     auto matmul_v = pgraph->append_op(
                             graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     // Optional transpose + reshape/reorder
@@ -210,8 +210,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_gqa_fusion)
 
                     // Optional select for distilbert
                     auto p_select2 = optional_select(pgraph, mask, 2);
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, p_select2, 0)});
+                    auto softmax = alter_fp_softmax(pgraph, p_select2);
                     auto reshape3
                             = pgraph->append_op(graph::op_kind::StaticReshape);
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
@@ -447,8 +446,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, sdp_with_compressed_kv_fusion)
                     auto optional_scale_and_mask
                             = optional_scale_and_masks(pgraph, matmul_qk);
 
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, optional_scale_and_mask, 0)});
+                    auto softmax
+                            = alter_fp_softmax(pgraph, optional_scale_and_mask);
                     auto dequantize_value = pgraph->append_op(
                             graph::op_kind::DynamicDequantize);
                     pgraph->append_op(graph::op_kind::MatMul,
@@ -469,8 +468,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, sdp_with_compressed_v_fusion)
 
                     auto optional_scale_and_mask
                             = optional_scale_and_masks(pgraph, matmul_qk);
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, optional_scale_and_mask, 0)});
+                    auto softmax
+                            = alter_fp_softmax(pgraph, optional_scale_and_mask);
                     auto dequantize_value = pgraph->append_op(
                             graph::op_kind::DynamicDequantize);
                     pgraph->append_op(graph::op_kind::MatMul,
@@ -495,8 +494,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, sdp_with_compressed_k_fusion)
                     auto optional_scale_and_mask
                             = optional_scale_and_masks(pgraph, matmul_qk);
 
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, optional_scale_and_mask, 0)});
+                    auto softmax
+                            = alter_fp_softmax(pgraph, optional_scale_and_mask);
                     pgraph->append_op(
                             graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                 })
