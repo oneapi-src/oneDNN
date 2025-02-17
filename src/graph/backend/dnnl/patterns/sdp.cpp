@@ -40,6 +40,7 @@ using FCreatePattern = graph::pass::FCreatePattern;
 // we use "sdp", the acronym of "scaled_dot_product"
 // to replace former name "mha"
 
+namespace {
 /*
  [query]    [key]
       \     /
@@ -112,6 +113,30 @@ graph::utils::pm::repetition_t *optional_scale_and_masks(
     return opt_select;
 }
 
+// (-> softmax ->) OR (-> typecast -> softmax -> typecast ->)
+graph::utils::pm::alternation_t *alter_fp_softmax(
+        const std::shared_ptr<pb_graph_t> &pgraph,
+        graph::utils::pm::pb_node_t *input) {
+    auto softmax_g1 = std::make_shared<graph::utils::pm::pb_graph_t>();
+    auto softmax1 = softmax_g1->append_op(graph::op_kind::SoftMax);
+    softmax_g1->create_input_port(0, softmax1, 0);
+    softmax_g1->create_output_port(0, softmax1, 0);
+
+    auto softmax_g2 = std::make_shared<graph::utils::pm::pb_graph_t>();
+    auto tc1 = softmax_g2->append_op(graph::op_kind::TypeCast);
+    auto softmax2 = softmax_g2->append_op(
+            graph::op_kind::SoftMax, {in_edge(0, tc1, 0)});
+    auto tc2 = softmax_g2->append_op(
+            graph::op_kind::TypeCast, {in_edge(0, softmax2, 0)});
+    softmax_g2->create_input_port(0, tc1, 0);
+    softmax_g2->create_output_port(0, tc2, 0);
+
+    auto ret = pgraph->append_alternation(
+            {softmax_g1, softmax_g2}, {in_edge(0, input, 0)});
+    return ret;
+}
+} // namespace
+
 DNNL_BACKEND_REGISTER_PATTERN_DEF_BEGIN(sdp)
 
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion_cpu)
@@ -123,28 +148,12 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_sdp_fusion_cpu)
                     auto matmul_qk = pgraph->append_op(graph::op_kind::MatMul);
                     auto optional_scale_and_mask
                             = optional_scale_and_masks(pgraph, matmul_qk);
-                    // optional typecast
-                    auto optional_tc1 = std::make_shared<pb_graph_t>();
-                    auto tc1
-                            = optional_tc1->append_op(graph::op_kind::TypeCast);
-                    optional_tc1->create_input_port(0, tc1, 0);
-                    optional_tc1->create_output_port(0, tc1, 0);
-                    auto tc1_out = pgraph->append_optional(optional_tc1,
-                            {in_edge(0, optional_scale_and_mask, 0)});
 
-                    auto softmax = pgraph->append_op(
-                            graph::op_kind::SoftMax, {in_edge(0, tc1_out, 0)});
-                    // optional typecast
-                    auto optional_tc2 = std::make_shared<pb_graph_t>();
-                    auto tc2
-                            = optional_tc2->append_op(graph::op_kind::TypeCast);
-                    optional_tc2->create_input_port(0, tc2, 0);
-                    optional_tc2->create_output_port(0, tc2, 0);
-                    auto tc2_out = pgraph->append_optional(
-                            optional_tc2, {in_edge(0, softmax, 0)});
+                    auto softmax
+                            = alter_fp_softmax(pgraph, optional_scale_and_mask);
 
                     auto matmul_v = pgraph->append_op(
-                            graph::op_kind::MatMul, {in_edge(0, tc2, 0)});
+                            graph::op_kind::MatMul, {in_edge(0, softmax, 0)});
                     // Optional transpose + reshape/reorder
                     optional_transpose_reshape(pgraph, matmul_v, 0);
                 })
