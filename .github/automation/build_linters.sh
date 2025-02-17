@@ -33,7 +33,7 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
     fi
 elif [[ "$ONEDNN_ACTION" == "build" ]]; then
     set -x
-    cmake --build build
+    cmake --build build -j`nproc`
     set +x
 else
     echo "Unknown action: $ONEDNN_ACTION"
