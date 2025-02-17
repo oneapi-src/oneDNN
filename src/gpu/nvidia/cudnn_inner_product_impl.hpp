@@ -146,12 +146,14 @@ struct cudnn_inner_product_impl_base_t {
     virtual status_t init(impl::engine_t * /*engine*/,
             inner_product_pd_t * /*pd*/, bool /*with_relu*/,
             bool /*with_eltwise*/, bool /*with_sum */,
-            bool /*using_fused_path_for_blocking*/)
+            bool /*using_fused_path_for_blocking*/, bool /* use_f32_sum */)
             = 0;
 
     virtual void execute(cudnnHandle_t /*handle*/,
             cublasHandle_t /*cublas_handle*/,
             const std::vector<void *> & /*args*/) const = 0;
+
+    virtual ~cudnn_inner_product_impl_base_t() = default;
 };
 
 struct cudnn_inner_product_fwd_base_t : public cudnn_inner_product_impl_base_t {

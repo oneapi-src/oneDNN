@@ -49,6 +49,8 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
                 memory_tracking::names::key_iprod_int_dat_in_acc_dt);
         auto arg_spacial_scratch
                 = CTX_SCRATCH_SYCL_MEMORY(memory_tracking::names::key_none);
+        auto arg_f32_bias_scratch = CTX_SCRATCH_SYCL_MEMORY(
+                memory_tracking::names::key_iprod_bias_bf16_convert_wsp);
         compat::host_task(cgh, [=, this](const compat::interop_handle &ih) {
             auto &sycl_engine = *utils::downcast<nvidia::engine_t *>(
                     cuda_stream->engine());
@@ -72,6 +74,7 @@ status_t cudnn_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
             args.push_back(arg_src_scale.get_native_pointer(ih));
             args.push_back(arg_wei_scale.get_native_pointer(ih));
             args.push_back(arg_dst_scale.get_native_pointer(ih));
+            args.push_back(arg_f32_bias_scratch.get_native_pointer(ih));
 
             pd()->inner_product_impl_->execute(
                     cudnn_handle, cublas_handle, args);
