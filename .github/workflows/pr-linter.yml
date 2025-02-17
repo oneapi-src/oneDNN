@@ -67,7 +67,7 @@ jobs:
           python -m pip install --no-cache-dir --disable-pip-version-check castxml
 
       - name: Configure oneDNN
-        run: .github/automation/build_linters.sh
+        run: .github/automation/x64/build_linters.sh
         working-directory: ${{ github.workspace }}/source
         env:
           ONEDNN_ACTION: configure
@@ -93,11 +93,11 @@ jobs:
           sudo apt-get install -y clang libomp-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
 
       - name: Configure oneDNN
-        run: .github/automation/build_linters.sh
+        run: .github/automation/x64/build_linters.sh
         env:
           ONEDNN_ACTION: configure
 
       - name: Build oneDNN
-        run: .github/automation/build_linters.sh
+        run: .github/automation/x64/build_linters.sh
         env:
           ONEDNN_ACTION: build
