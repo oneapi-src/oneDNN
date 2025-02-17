@@ -15,9 +15,9 @@
 # limitations under the License.
 # *******************************************************************************
 --reset
---stag=ab
---wtag=any
---attr-post-ops=sum
---dtag=ab
---dt=f32,bf16
-1500x1536:1536x384
+--inplace=true
+--alg=gelu_erf
+--dir=FWD_D
+--dt=bf16
+--tag=abc
+1x1x1536
