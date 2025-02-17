@@ -1,0 +1,83 @@
+.. index:: pair: struct; dnnl_binary_desc_t
+.. _doxid-structdnnl__binary__desc__t:
+
+struct dnnl_binary_desc_t
+=========================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+A descriptor of a binary operation. :ref:`More...<details-structdnnl__binary__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_binary_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__binary__desc__t_1ad75051989d398a64b5bd4f800a9bc737>`;
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` :ref:`alg_kind<doxid-structdnnl__binary__desc__t_1a7de6b0ea07d03866df649802405a7918>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`src_desc<doxid-structdnnl__binary__desc__t_1a50c9f3d0674411b2ed9d4fdcfbda5229>`[2];
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`dst_desc<doxid-structdnnl__binary__desc__t_1a2fa2cd762baa72745052afdcd4262642>`;
+	};
+.. _details-structdnnl__binary__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A descriptor of a binary operation.
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__binary__desc__t_1ad75051989d398a64b5bd4f800a9bc737:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_binary <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aa1d51705e2642ce2ce19a3e163bb25f93>`.
+
+.. index:: pair: variable; alg_kind
+.. _doxid-structdnnl__binary__desc__t_1a7de6b0ea07d03866df649802405a7918:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind
+
+The kind of the binary algorithm.
+
+Possible values: :ref:`dnnl_binary_add <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ad4c6d69ac6f6b443449923d51325886d>`, :ref:`dnnl_binary_mul <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ade272a5bcb8af2b2cb0bc691c78b4e36>`, :ref:`dnnl_binary_max <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23af93b25a1cd108fbecfdbee9f1cfcdd88>`, :ref:`dnnl_binary_min <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a21a9b503c9d06cea5f231fd170e623cc>`, :ref:`dnnl_binary_div <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ad63a6855c4f438cabd245b0bbff61cf4>` and :ref:`dnnl_binary_sub <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a551dc23f954000fe81a97c9bd8ca4899>`.
+
+.. index:: pair: variable; src_desc
+.. _doxid-structdnnl__binary__desc__t_1a50c9f3d0674411b2ed9d4fdcfbda5229:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` src_desc[2]
+
+Source memory descriptors.
+
+.. index:: pair: variable; dst_desc
+.. _doxid-structdnnl__binary__desc__t_1a2fa2cd762baa72745052afdcd4262642:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` dst_desc
+
+Destination memory descriptor.
+

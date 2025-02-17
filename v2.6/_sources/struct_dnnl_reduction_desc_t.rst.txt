@@ -1,0 +1,97 @@
+.. index:: pair: struct; dnnl_reduction_desc_t
+.. _doxid-structdnnl__reduction__desc__t:
+
+struct dnnl_reduction_desc_t
+============================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+A descriptor of reduction operation. :ref:`More...<details-structdnnl__reduction__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_reduction_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__reduction__desc__t_1abe4e6b2f3798b2144784974e87a9b884>`;
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` :ref:`alg_kind<doxid-structdnnl__reduction__desc__t_1a835996fde0c166f98cafacad81a721cd>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`src_desc<doxid-structdnnl__reduction__desc__t_1aa0daa0060d84d01fc44cdc2b2c265dc6>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`dst_desc<doxid-structdnnl__reduction__desc__t_1a051a063de9837b53c804bb84bcaff800>`;
+		float :ref:`p<doxid-structdnnl__reduction__desc__t_1a6416796e8e4e6baa165f613464473445>`;
+		float :target:`eps<doxid-structdnnl__reduction__desc__t_1aa4ad9b484420e66d5158ffc86d92f7e8>`;
+	};
+.. _details-structdnnl__reduction__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A descriptor of reduction operation.
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__reduction__desc__t_1abe4e6b2f3798b2144784974e87a9b884:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_reduction <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aaf3bb69107badd983d16909afe507ed04>`.
+
+.. index:: pair: variable; alg_kind
+.. _doxid-structdnnl__reduction__desc__t_1a835996fde0c166f98cafacad81a721cd:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind
+
+The kind of reduction algorithm.
+
+Possible values: :ref:`dnnl_reduction_max <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23aae4722e394206cf9774ae45db959854e>`, :ref:`dnnl_reduction_min <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a3edeac87290d164cfd3e79adcb6ed91a>`, :ref:`dnnl_reduction_sum <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ae74491a0b7bfe0720be69e3732894818>`, :ref:`dnnl_reduction_mul <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a9ff432e67749e211f5f0f64d5f707359>`, :ref:`dnnl_reduction_mean <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ac88d2b9bc130483c177868888c705694>`, :ref:`dnnl_reduction_norm_lp_max <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ad6459b4162ab312f59fa48bf9dcf35c3>`, :ref:`dnnl_reduction_norm_lp_sum <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a21c93597a1be438219bbbd832830f096>`, :ref:`dnnl_reduction_norm_lp_power_p_max <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a3838df4d5d37de3237359043ccebfba1>`, :ref:`dnnl_reduction_norm_lp_power_p_sum <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23adcb83e9f76b3beaeb831a59cd257d7dd>`.
+
+.. index:: pair: variable; src_desc
+.. _doxid-structdnnl__reduction__desc__t_1aa0daa0060d84d01fc44cdc2b2c265dc6:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` src_desc
+
+Source memory descriptor.
+
+.. index:: pair: variable; dst_desc
+.. _doxid-structdnnl__reduction__desc__t_1a051a063de9837b53c804bb84bcaff800:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` dst_desc
+
+Destination memory descriptor.
+
+.. index:: pair: variable; p
+.. _doxid-structdnnl__reduction__desc__t_1a6416796e8e4e6baa165f613464473445:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	float p
+
+Algorithm specific parameters.
+
+Accordance table: :ref:`dnnl_reduction_max <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23aae4722e394206cf9774ae45db959854e>` : ``p`` and ``eps`` are ignored :ref:`dnnl_reduction_min <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a3edeac87290d164cfd3e79adcb6ed91a>` : ``p`` and ``eps`` are ignored :ref:`dnnl_reduction_norm_lp_max <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ad6459b4162ab312f59fa48bf9dcf35c3>` : ``p`` power, ``eps`` epsilon :ref:`dnnl_reduction_norm_lp_sum <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a21c93597a1be438219bbbd832830f096>` : ``p`` power, ``eps`` epsilon :ref:`dnnl_reduction_norm_lp_power_p_max <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a3838df4d5d37de3237359043ccebfba1>` : ``p`` power, ``eps`` epsilon :ref:`dnnl_reduction_norm_lp_power_p_sum <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23adcb83e9f76b3beaeb831a59cd257d7dd>` : ``p`` power, ``eps`` epsilon :ref:`dnnl_reduction_sum <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ae74491a0b7bfe0720be69e3732894818>` : ``p`` and ``eps`` are ignored :ref:`dnnl_reduction_mul <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a9ff432e67749e211f5f0f64d5f707359>` : ``p`` and ``eps`` are ignored :ref:`dnnl_reduction_mean <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ac88d2b9bc130483c177868888c705694>` : ``p`` and ``eps`` are ignored
+

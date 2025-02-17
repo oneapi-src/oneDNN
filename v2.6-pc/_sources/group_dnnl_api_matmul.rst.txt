@@ -1,0 +1,109 @@
+.. index:: pair: group; Matrix Multiplication
+.. _doxid-group__dnnl__api__matmul:
+
+Matrix Multiplication
+=====================
+
+.. toctree::
+	:hidden:
+
+	struct_dnnl_matmul_desc_t.rst
+	struct_dnnl_matmul.rst
+
+Overview
+~~~~~~~~
+
+A primitive to perform matrix-matrix multiplication. :ref:`More...<details-group__dnnl__api__matmul>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	// structs
+
+	struct :ref:`dnnl_matmul_desc_t<doxid-structdnnl__matmul__desc__t>`;
+	struct :ref:`dnnl::matmul<doxid-structdnnl_1_1matmul>`;
+
+	// global functions
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API :ref:`dnnl_matmul_desc_init<doxid-group__dnnl__api__matmul_1ga5eb0d52c67c41c51e237172521c2f525>`(
+		:ref:`dnnl_matmul_desc_t<doxid-structdnnl__matmul__desc__t>`* matmul_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc
+		);
+
+.. _details-group__dnnl__api__matmul:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A primitive to perform matrix-matrix multiplication.
+
+The batched mode is supported with 3D tensors.
+
+
+
+.. rubric:: See also:
+
+:ref:`Matrix Multiplication <doxid-dev_guide_matmul>` in developer guide
+
+Global Functions
+----------------
+
+.. index:: pair: function; dnnl_matmul_desc_init
+.. _doxid-group__dnnl__api__matmul_1ga5eb0d52c67c41c51e237172521c2f525:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_status_t<doxid-group__dnnl__api__utils_1gad24f9ded06e34d3ee71e7fc4b408d57a>` DNNL_API dnnl_matmul_desc_init(
+		:ref:`dnnl_matmul_desc_t<doxid-structdnnl__matmul__desc__t>`* matmul_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* src_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* weights_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* bias_desc,
+		const :ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>`* dst_desc
+		)
+
+Initializes a matrix multiplication descriptor.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- matmul_desc
+
+		- Output descriptor for matmul primitive.
+
+	*
+		- src_desc
+
+		- Source memory descriptor (matrix A)
+
+	*
+		- weights_desc
+
+		- Weights memory descriptor (matrix B)
+
+	*
+		- bias_desc
+
+		- Bias memory descriptor. Passing NULL, a zero memory descriptor, or a memory descriptor with format_kind set to :ref:`dnnl_format_kind_undef <doxid-group__dnnl__api__memory_1ggaa75cad747fa467d9dc527d943ba3367dac86d377bba856ea7aa9679ecf65c8364>` disables the bias term.
+
+	*
+		- dst_desc
+
+		- Destination memory descriptor (matrix C).
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise.
+

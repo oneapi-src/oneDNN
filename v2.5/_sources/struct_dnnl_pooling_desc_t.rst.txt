@@ -1,0 +1,164 @@
+.. index:: pair: struct; dnnl_pooling_desc_t
+.. _doxid-structdnnl__pooling__desc__t:
+
+struct dnnl_pooling_desc_t
+==========================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+A descriptor of a pooling operation. :ref:`More...<details-structdnnl__pooling__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_pooling_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__pooling__desc__t_1a0f632965c845f392df1f87a0f4f976a1>`;
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` :ref:`prop_kind<doxid-structdnnl__pooling__desc__t_1a8afb23b314a15ae9ee4e0654eb4b8371>`;
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` :ref:`alg_kind<doxid-structdnnl__pooling__desc__t_1a6dc1371eb776111b66334f0f0aea2a4c>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`src_desc<doxid-structdnnl__pooling__desc__t_1a4757f18317487b79bf6f62b52ac865c9>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_src_desc<doxid-structdnnl__pooling__desc__t_1a22eca3d8d4a7f8eec128fb62614dc841>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`dst_desc<doxid-structdnnl__pooling__desc__t_1a1e4f834d49d4535ae42cd3ea482bd16a>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_dst_desc<doxid-structdnnl__pooling__desc__t_1a8bb0b2076e09bd020d55d12510aaaa8c>`;
+		:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` :ref:`strides<doxid-structdnnl__pooling__desc__t_1a2ea5682de63b0f77709cd1d0197997a3>`;
+		:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` :ref:`kernel<doxid-structdnnl__pooling__desc__t_1a9c5ac09cf26ab0a93bd068eda066ada9>`;
+		:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` :ref:`padding<doxid-structdnnl__pooling__desc__t_1a331b687629f491f85d4513cb9367a889>`[2];
+		:ref:`dnnl_data_type_t<doxid-group__dnnl__api__memory_1ga012ba1c84ff24bdd068f9d2f9b26a130>` :ref:`accum_data_type<doxid-structdnnl__pooling__desc__t_1add70bfb59910284ac5600554560c8e55>`;
+	};
+.. _details-structdnnl__pooling__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A descriptor of a pooling operation.
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__pooling__desc__t_1a0f632965c845f392df1f87a0f4f976a1:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_pooling <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aac16fd61735aacd6937755e41274dca0c>`.
+
+.. index:: pair: variable; prop_kind
+.. _doxid-structdnnl__pooling__desc__t_1a8afb23b314a15ae9ee4e0654eb4b8371:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind
+
+The kind of propagation.
+
+Possible values: :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>`, :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`, :ref:`dnnl_backward <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a326a5e31769302972e7bded555e1cc10>`, and :ref:`dnnl_backward_data <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a524dd6cb2ed9680bbd170ba15261d218>`.
+
+.. index:: pair: variable; alg_kind
+.. _doxid-structdnnl__pooling__desc__t_1a6dc1371eb776111b66334f0f0aea2a4c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind
+
+The kind of pooling algorithm.
+
+Possible values: :ref:`dnnl_pooling_max <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23acf3529ba1c4761c0da90eb6750def6c7>`, :ref:`dnnl_pooling_avg_include_padding <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ac13a4cc7c0dc1edfcbf1bac23391d5cb>`, and :ref:`dnnl_pooling_avg_exclude_padding <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a00156580493fd7c2f4cdbaaf9fcbde79>`.
+
+.. index:: pair: variable; src_desc
+.. _doxid-structdnnl__pooling__desc__t_1a4757f18317487b79bf6f62b52ac865c9:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` src_desc
+
+Source memory descriptor.
+
+.. index:: pair: variable; diff_src_desc
+.. _doxid-structdnnl__pooling__desc__t_1a22eca3d8d4a7f8eec128fb62614dc841:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_src_desc
+
+Source gradient memory descriptor.
+
+.. index:: pair: variable; dst_desc
+.. _doxid-structdnnl__pooling__desc__t_1a1e4f834d49d4535ae42cd3ea482bd16a:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` dst_desc
+
+Destination memory descriptor.
+
+.. index:: pair: variable; diff_dst_desc
+.. _doxid-structdnnl__pooling__desc__t_1a8bb0b2076e09bd020d55d12510aaaa8c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_dst_desc
+
+Destination gradient memory descriptor.
+
+.. index:: pair: variable; strides
+.. _doxid-structdnnl__pooling__desc__t_1a2ea5682de63b0f77709cd1d0197997a3:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides
+
+Pooling kernel strides for spatial dimensions.
+
+.. index:: pair: variable; kernel
+.. _doxid-structdnnl__pooling__desc__t_1a9c5ac09cf26ab0a93bd068eda066ada9:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` kernel
+
+Pooling kernel spatial dimensions.
+
+.. index:: pair: variable; padding
+.. _doxid-structdnnl__pooling__desc__t_1a331b687629f491f85d4513cb9367a889:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` padding[2]
+
+Padding in each spatial dimension.
+
+padding[0] is a padding in the beginning (``padding_l``), padding[1] is a padding in the end (``padding_r``).
+
+.. index:: pair: variable; accum_data_type
+.. _doxid-structdnnl__pooling__desc__t_1add70bfb59910284ac5600554560c8e55:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_data_type_t<doxid-group__dnnl__api__memory_1ga012ba1c84ff24bdd068f9d2f9b26a130>` accum_data_type
+
+The accumulator data type. Initialized automatically.
+

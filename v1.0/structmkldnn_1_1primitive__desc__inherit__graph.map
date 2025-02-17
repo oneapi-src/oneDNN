@@ -1,0 +1,31 @@
+<map id="mkldnn::primitive_desc" name="mkldnn::primitive_desc">
+<area shape="rect" id="node3" href="$structmkldnn_1_1batch__normalization__backward_1_1primitive__desc.html" title="Primitive descriptor for batch normalization backward propagation. " alt="" coords="484,5,696,47"/>
+<area shape="rect" id="node4" href="$structmkldnn_1_1batch__normalization__forward_1_1primitive__desc.html" title="Primitive descriptor for batch normalization forward propagation. " alt="" coords="484,71,696,112"/>
+<area shape="rect" id="node5" href="$structmkldnn_1_1convolution__backward__data_1_1primitive__desc.html" title="Primitive descriptor for convolution backward propagation. " alt="" coords="474,136,706,177"/>
+<area shape="rect" id="node6" href="$structmkldnn_1_1convolution__backward__weights_1_1primitive__desc.html" title="Primitive descriptor for convolution weight update. " alt="" coords="463,201,717,243"/>
+<area shape="rect" id="node7" href="$structmkldnn_1_1convolution__forward_1_1primitive__desc.html" title="Primitive descriptor for convolution forward propagation. " alt="" coords="499,267,681,308"/>
+<area shape="rect" id="node8" href="$structmkldnn_1_1deconvolution__backward__data_1_1primitive__desc.html" title="Primitive descriptor for deconvolution backward propagation. " alt="" coords="474,332,706,373"/>
+<area shape="rect" id="node9" href="$structmkldnn_1_1deconvolution__backward__weights_1_1primitive__desc.html" title="Primitive descriptor for deconvolution weight update. " alt="" coords="463,397,717,439"/>
+<area shape="rect" id="node10" href="$structmkldnn_1_1deconvolution__forward_1_1primitive__desc.html" title="Primitive descriptor for deconvolution forward propagation. " alt="" coords="499,463,681,504"/>
+<area shape="rect" id="node11" href="$structmkldnn_1_1eltwise__backward_1_1primitive__desc.html" title="Primitive descriptor for eltwise backward propagation. " alt="" coords="492,528,688,569"/>
+<area shape="rect" id="node12" href="$structmkldnn_1_1eltwise__forward_1_1primitive__desc.html" title="Primitive descriptor for eltwise forward propagation. " alt="" coords="499,593,681,635"/>
+<area shape="rect" id="node13" href="$structmkldnn_1_1gru__backward_1_1primitive__desc.html" title="Primitive descriptor for GRU backward propagation. " alt="" coords="505,659,675,700"/>
+<area shape="rect" id="node14" href="$structmkldnn_1_1gru__forward_1_1primitive__desc.html" title="Primitive descriptor for GRU forward propagation. " alt="" coords="511,724,669,765"/>
+<area shape="rect" id="node15" href="$structmkldnn_1_1inner__product__backward__data_1_1primitive__desc.html" title="Primitive descriptor for inner product backward propagation with respect to data. ..." alt="" coords="474,789,706,831"/>
+<area shape="rect" id="node16" href="$structmkldnn_1_1inner__product__backward__weights_1_1primitive__desc.html" title="Primitive descriptor for inner product backward propagation with respect to weights. " alt="" coords="463,855,717,896"/>
+<area shape="rect" id="node17" href="$structmkldnn_1_1inner__product__forward_1_1primitive__desc.html" title="Primitive descriptor for inner product forward propagation. " alt="" coords="499,920,681,961"/>
+<area shape="rect" id="node18" href="$structmkldnn_1_1lbr__gru__backward_1_1primitive__desc.html" title="Primitive descriptor for LBR_GRU backward propagation. " alt="" coords="493,985,687,1027"/>
+<area shape="rect" id="node19" href="$structmkldnn_1_1lbr__gru__forward_1_1primitive__desc.html" title="Primitive descriptor for LBR_GRU forward propagation. " alt="" coords="499,1051,681,1092"/>
+<area shape="rect" id="node20" href="$structmkldnn_1_1lrn__backward_1_1primitive__desc.html" title="Primitive descriptor for local response normalization backward propagation. " alt="" coords="507,1116,673,1157"/>
+<area shape="rect" id="node21" href="$structmkldnn_1_1lrn__forward_1_1primitive__desc.html" title="Primitive descriptor for local response normalization forward propagation. " alt="" coords="513,1181,667,1223"/>
+<area shape="rect" id="node22" href="$structmkldnn_1_1lstm__backward_1_1primitive__desc.html" title="Primitive descriptor for LSTM backward propagation. " alt="" coords="501,1247,679,1288"/>
+<area shape="rect" id="node23" href="$structmkldnn_1_1lstm__forward_1_1primitive__desc.html" title="Primitive descriptor for LSTM forward propagation. " alt="" coords="507,1312,673,1353"/>
+<area shape="rect" id="node24" href="$structmkldnn_1_1pooling__backward_1_1primitive__desc.html" title="Primitive descriptor for pooling backward propagation. " alt="" coords="491,1377,689,1419"/>
+<area shape="rect" id="node25" href="$structmkldnn_1_1pooling__forward_1_1primitive__desc.html" title="Primitive descriptor for pooling forward propagation. " alt="" coords="498,1443,682,1484"/>
+<area shape="rect" id="node26" href="$structmkldnn_1_1shuffle__forward_1_1primitive__desc.html" title="Primitive descriptor for shuffle forward propagation. " alt="" coords="500,1508,680,1549"/>
+<area shape="rect" id="node27" href="$structmkldnn_1_1softmax__backward_1_1primitive__desc.html" title="Primitive descriptor for softmax backward propagation. " alt="" coords="489,1573,691,1615"/>
+<area shape="rect" id="node28" href="$structmkldnn_1_1softmax__forward_1_1primitive__desc.html" title="Primitive descriptor for softmax forward propagation. " alt="" coords="495,1639,685,1680"/>
+<area shape="rect" id="node29" href="$structmkldnn_1_1vanilla__rnn__backward_1_1primitive__desc.html" title="Primitive descriptor for RNN backward propagation. " alt="" coords="492,1704,688,1745"/>
+<area shape="rect" id="node30" href="$structmkldnn_1_1vanilla__rnn__forward_1_1primitive__desc.html" title="Primitive descriptor for RNN forward propagation. " alt="" coords="499,1769,681,1811"/>
+<area shape="rect" id="node2" href="$classmkldnn_1_1handle.html" title="mkldnn::handle\&lt; mkldnn\l_primitive_desc_t \&gt;" alt="" coords="5,888,192,929"/>
+</map>

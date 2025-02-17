@@ -1,0 +1,4 @@
+<map id="mkldnn::batch_normalization_forward" name="mkldnn::batch_normalization_forward">
+<area shape="rect" id="node2" href="$classmkldnn_1_1primitive.html" title="Base class for all computational primitives. " alt="" coords="42,95,181,121"/>
+<area shape="rect" id="node3" href="$classmkldnn_1_1handle.html" title="mkldnn::handle\&lt; mkldnn\l_primitive_t \&gt;" alt="" coords="18,5,205,47"/>
+</map>

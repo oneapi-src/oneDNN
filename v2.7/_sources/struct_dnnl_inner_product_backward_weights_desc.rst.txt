@@ -1,0 +1,137 @@
+.. index:: pair: struct; dnnl::inner_product_backward_weights::desc
+.. _doxid-structdnnl_1_1inner__product__backward__weights_1_1desc:
+
+struct dnnl::inner_product_backward_weights::desc
+=================================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for an inner product weights gradient primitive. :ref:`More...<details-structdnnl_1_1inner__product__backward__weights_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_inner_product_desc_t<doxid-structdnnl__inner__product__desc__t>` :target:`data<doxid-structdnnl_1_1inner__product__backward__weights_1_1desc_1a19fe1e4c8092d8cf4daef922095510bf>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1inner__product__backward__weights_1_1desc_1a08da17f4f460b7613d8c6143f984f941>`(
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_bias_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc
+			);
+	
+		:ref:`desc<doxid-structdnnl_1_1inner__product__backward__weights_1_1desc_1aec714169ef02d38afdd353a3962387ea>`(
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc
+			);
+	};
+.. _details-structdnnl_1_1inner__product__backward__weights_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for an inner product weights gradient primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1inner__product__backward__weights_1_1desc_1a08da17f4f460b7613d8c6143f984f941:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_bias_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc
+		)
+
+Constructs a descriptor for an inner product descriptor weights update primitive with bias.
+
+.. note:: 
+
+   All the memory descriptors may be initialized with the :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- src_desc
+
+		- Memory descriptor for src.
+
+	*
+		- diff_weights_desc
+
+		- Memory descriptor for diff weights.
+
+	*
+		- diff_bias_desc
+
+		- Memory descriptor for diff bias.
+
+	*
+		- diff_dst_desc
+
+		- Memory descriptor for diff dst.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1inner__product__backward__weights_1_1desc_1aec714169ef02d38afdd353a3962387ea:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc
+		)
+
+Constructs a descriptor for an inner product descriptor weights update primitive without bias.
+
+.. note:: 
+
+   All the memory descriptors may be initialized with the :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- src_desc
+
+		- Memory descriptor for src.
+
+	*
+		- diff_weights_desc
+
+		- Memory descriptor for diff weights.
+
+	*
+		- diff_dst_desc
+
+		- Memory descriptor for diff dst.
+

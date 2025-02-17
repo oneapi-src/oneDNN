@@ -1,0 +1,559 @@
+.. index:: pair: enum; dnnl_query_t
+.. _doxid-group__dnnl__api__primitives__common_1ga9e5235563cf7cfc10fa89f415de98059:
+
+enum dnnl_query_t
+=================
+
+Overview
+~~~~~~~~
+
+Primitive descriptor query specification. :ref:`More...<details-group__dnnl__api__primitives__common_1ga9e5235563cf7cfc10fa89f415de98059>`
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+
+	enum dnnl_query_t
+	{
+	    :ref:`dnnl_query_undef<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059aaa3009651cd11cc84f7a73ef88671b61>`                  = 0,
+	    :ref:`dnnl_query_engine<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ad089d541f9a2e7c98ab889dc4bfaaad2>`,
+	    :ref:`dnnl_query_primitive_kind<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a43cbb3f840bd56f2fd1d5b8b20493b55>`,
+	    :ref:`dnnl_query_num_of_inputs_s32<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a1fe7a52f5934c92b0bd0330463549c0e>`,
+	    :ref:`dnnl_query_num_of_outputs_s32<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a06833f7d865faf3eaaad3b71976ba16a>`,
+	    :ref:`dnnl_query_time_estimate_f64<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a5a72c2b4080956d6834c38473d2ce88d>`,
+	    :ref:`dnnl_query_memory_consumption_s64<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a313c02f42fd648d45795fa0d4b1f93af>`,
+	    :ref:`dnnl_query_scratchpad_engine<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059aa62d8ff7a29ccf566c5cfbf8fa168097>`,
+	    :ref:`dnnl_query_impl_info_str<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a5a44980a7317e63cc7b6877d15a549aa>`,
+	    :ref:`dnnl_query_reorder_src_engine<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a9f81ab2ba3cb5463579f8ba438206448>`,
+	    :ref:`dnnl_query_reorder_dst_engine<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a9c45c82900a38af7406c3834079318ac>`,
+	    :ref:`dnnl_query_prop_kind<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ab73dd19af163f8059de03d51898b3a1b>`,
+	    :ref:`dnnl_query_cache_blob_id_size_s64<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a31e8bf3af71e992a6bc44720016dced7>`,
+	    :ref:`dnnl_query_cache_blob_id<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a2b380a4f0c67079a4bba3a434cc83abb>`,
+	    :ref:`dnnl_query_some_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a51f7c4f1463995ba8e6addf95498960d>`                 = 64,
+	    :ref:`dnnl_query_op_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a218e433d8705845d71df3ebdc084da52>`,
+	    :ref:`dnnl_query_convolution_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a0c630599ffd92d1d8e452542f75c9b1f>`,
+	    :ref:`dnnl_query_deconvolution_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a3c07b67edb62a3bdc34a4f916485f252>`,
+	    :ref:`dnnl_query_shuffle_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a302867b6bc980b75788adeabba84f299>`,
+	    :ref:`dnnl_query_eltwise_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a728b10b96e4e477bc9bfce2ddce29e42>`,
+	    :ref:`dnnl_query_softmax_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a15f3f776cc3763cd0ea41a2b4b3f8356>`,
+	    :ref:`dnnl_query_pooling_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059abe740f86209eda0e01df120298178c8f>`,
+	    :ref:`dnnl_query_lrn_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059adcc42a35903cab69c3bcdee0baaa66c0>`,
+	    :ref:`dnnl_query_batch_normalization_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a52d156901812246b3bb6e9a6ec4df8a8>`,
+	    :ref:`dnnl_query_layer_normalization_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ad99ef330567a7f63105cee0bcb841aa6>`,
+	    :ref:`dnnl_query_inner_product_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a361b37db79b77c4f14c107e051cad4dc>`,
+	    :ref:`dnnl_query_rnn_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ad78b3945c7d4da7938ca77daa425afab>`,
+	    :ref:`dnnl_query_gemm_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a983136e74f9746f470ed80d6337a147e>`,
+	    :ref:`dnnl_query_binary_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a1c3379cb10acf363b9d50e8eb6e40010>`,
+	    :ref:`dnnl_query_logsoftmax_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059afef5b19704b36da50f1bcfa5b66a61a2>`,
+	    :ref:`dnnl_query_matmul_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a1e4a8897b0c5b3e10277ec3f39dcf942>`,
+	    :ref:`dnnl_query_resampling_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a00299748d58f2d43671011e5662a14aa>`,
+	    :ref:`dnnl_query_pooling_v2_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a80845ccb1f1c7009c7acdef74f24df9b>`,
+	    :ref:`dnnl_query_reduction_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a86bed243debcaf81549d4b11a5c6280a>`,
+	    :ref:`dnnl_query_prelu_d<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059af291654d3c28900b0c8cf1e5a5c87dc3>`,
+	    :ref:`dnnl_query_some_md<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a0c4a1096638c39c0771db9a4cb2a3336>`                = 128,
+	    :ref:`dnnl_query_src_md<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a14a86faee7b85eeb60d0d7886756ffa5>`,
+	    :ref:`dnnl_query_diff_src_md<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a2367b043da6df5d691d6038693f363d6>`,
+	    :ref:`dnnl_query_weights_md<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a12ea0b4858b84889acab34e498323355>`,
+	    :ref:`dnnl_query_diff_weights_md<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a8551246c3e70fa1e420411507dbdfe32>`,
+	    :ref:`dnnl_query_dst_md<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059add5c338ad7ae0c296509e54d22130598>`,
+	    :ref:`dnnl_query_diff_dst_md<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ae28e33688bf6c55edcf108bd24eb90de>`,
+	    :ref:`dnnl_query_workspace_md<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a1c465006660aabe46e644e6df7d36e8a>`,
+	    :ref:`dnnl_query_scratchpad_md<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a2ef0eedf44417ce40237f6f459347663>`,
+	    :ref:`dnnl_query_exec_arg_md<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ac7ecf09260d89d54ddd7f35c51a244da>`            = 255,
+	    :target:`dnnl_query_max<doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a0c1f3b9e3113ee4ba2156c3e6cee4917>`                    = 0x7fff,
+	};
+
+.. _details-group__dnnl__api__primitives__common_1ga9e5235563cf7cfc10fa89f415de98059:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Primitive descriptor query specification.
+
+For generic function :ref:`dnnl_primitive_desc_query() <doxid-group__dnnl__api__primitives__common_1ga041881114858228279174aff5c1f5e75>`, the type of result must agree with the queried argument. The correspondence table:
+
+=======================================================================================================================================================  ======================================================================================================================  
+Query kind                                                                                                                                               Type of query result ----                                                                                               
+=======================================================================================================================================================  ======================================================================================================================  
+:ref:`dnnl_query_engine <doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ad089d541f9a2e7c98ab889dc4bfaaad2>`              :ref:`dnnl_engine_t <doxid-group__dnnl__api__engine_1ga1ce7843660e8203ed6e1af9bfd23e14f>` *                             
+:ref:`dnnl_query_scratchpad_engine <doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059aa62d8ff7a29ccf566c5cfbf8fa168097>`   :ref:`dnnl_engine_t <doxid-group__dnnl__api__engine_1ga1ce7843660e8203ed6e1af9bfd23e14f>` *                             
+:ref:`dnnl_query_primitive_kind <doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a43cbb3f840bd56f2fd1d5b8b20493b55>`      :ref:`dnnl_primitive_kind_t <doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` *         
+dnnl_query_*_s32                                                                                                                                         int *                                                                                                                   
+dnnl_query_*_s64                                                                                                                                         :ref:`dnnl_dim_t <doxid-group__dnnl__api__memory_1ga872631b12a112bf43fba985cba24dd20>` * (same as int64_t *)            
+dnnl_query_*_f64                                                                                                                                         double *                                                                                                                
+dnnl_query_*_str                                                                                                                                         const char **                                                                                                           
+:ref:`dnnl_query_op_d <doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a218e433d8705845d71df3ebdc084da52>`                :ref:`const_dnnl_op_desc_t <doxid-group__dnnl__api__primitives__common_1ga68197f349eb0876085adfb385d8932de>` *          
+dnnl_query_*_md                                                                                                                                          const :ref:`dnnl_memory_desc_t <doxid-structdnnl__memory__desc__t>` **                                                  
+dnnl_query_*_<op>_d                                                                                                                                      const dnnl_<op>_desc_t **                                                                                               
+dnnl_query_*_pd                                                                                                                                          :ref:`const_dnnl_primitive_desc_t <doxid-group__dnnl__api__primitives__common_1gab604e76e39a791e855bc6bb4ee13c63f>` *   
+dnnl_query_cache_blob_id                                                                                                                                 const uint8_t **                                                                                                        
+=======================================================================================================================================================  ======================================================================================================================
+
+.. note:: 
+
+   Rule of thumb: all opaque types and structures are returned by reference. All numbers are returned by value.
+   
+   
+
+.. warning:: 
+
+   All returned references point to constant objects and are valid only during the lifetime of the queried primitive descriptor. Returned objects must not be destroyed by the user. If you need to keep the object longer than the lifetime of the queried primitive descriptor, use :ref:`dnnl_primitive_desc_clone() <doxid-group__dnnl__api__primitives__common_1gae40abecf7360106805eabc049cc86e4b>` to make a copy.
+
+Enum Values
+-----------
+
+.. index:: pair: enumvalue; dnnl_query_undef
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059aaa3009651cd11cc84f7a73ef88671b61:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_undef
+
+no query
+
+.. index:: pair: enumvalue; dnnl_query_engine
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ad089d541f9a2e7c98ab889dc4bfaaad2:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_engine
+
+execution engine
+
+.. index:: pair: enumvalue; dnnl_query_primitive_kind
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a43cbb3f840bd56f2fd1d5b8b20493b55:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_primitive_kind
+
+primitive kind
+
+.. index:: pair: enumvalue; dnnl_query_num_of_inputs_s32
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a1fe7a52f5934c92b0bd0330463549c0e:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_num_of_inputs_s32
+
+number of inputs expected
+
+.. index:: pair: enumvalue; dnnl_query_num_of_outputs_s32
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a06833f7d865faf3eaaad3b71976ba16a:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_num_of_outputs_s32
+
+number of outputs expected
+
+.. index:: pair: enumvalue; dnnl_query_time_estimate_f64
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a5a72c2b4080956d6834c38473d2ce88d:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_time_estimate_f64
+
+runtime estimation (seconds)
+
+.. index:: pair: enumvalue; dnnl_query_memory_consumption_s64
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a313c02f42fd648d45795fa0d4b1f93af:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_memory_consumption_s64
+
+memory consumption extra
+
+.. index:: pair: enumvalue; dnnl_query_scratchpad_engine
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059aa62d8ff7a29ccf566c5cfbf8fa168097:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_scratchpad_engine
+
+(scratch) memory, additional to all inputs and outputs memory (bytes)
+
+scratchpad engine engine to be used
+
+.. index:: pair: enumvalue; dnnl_query_impl_info_str
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a5a44980a7317e63cc7b6877d15a549aa:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_impl_info_str
+
+for creating scratchpad memory
+
+implementation name
+
+.. index:: pair: enumvalue; dnnl_query_reorder_src_engine
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a9f81ab2ba3cb5463579f8ba438206448:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_reorder_src_engine
+
+source engine
+
+.. index:: pair: enumvalue; dnnl_query_reorder_dst_engine
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a9c45c82900a38af7406c3834079318ac:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_reorder_dst_engine
+
+destination engine
+
+.. index:: pair: enumvalue; dnnl_query_prop_kind
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ab73dd19af163f8059de03d51898b3a1b:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_prop_kind
+
+propagation kind
+
+.. index:: pair: enumvalue; dnnl_query_cache_blob_id_size_s64
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a31e8bf3af71e992a6bc44720016dced7:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_cache_blob_id_size_s64
+
+size of cache blob ID in bytes
+
+.. index:: pair: enumvalue; dnnl_query_cache_blob_id
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a2b380a4f0c67079a4bba3a434cc83abb:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_cache_blob_id
+
+cache blob ID (pointer to array)
+
+.. index:: pair: enumvalue; dnnl_query_some_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a51f7c4f1463995ba8e6addf95498960d:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_some_d
+
+stub
+
+.. index:: pair: enumvalue; dnnl_query_op_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a218e433d8705845d71df3ebdc084da52:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_op_d
+
+op descriptor
+
+.. index:: pair: enumvalue; dnnl_query_convolution_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a0c630599ffd92d1d8e452542f75c9b1f:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_convolution_d
+
+convolution descriptor
+
+.. index:: pair: enumvalue; dnnl_query_deconvolution_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a3c07b67edb62a3bdc34a4f916485f252:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_deconvolution_d
+
+deconvolution descriptor
+
+.. index:: pair: enumvalue; dnnl_query_shuffle_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a302867b6bc980b75788adeabba84f299:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_shuffle_d
+
+shuffle descriptor
+
+.. index:: pair: enumvalue; dnnl_query_eltwise_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a728b10b96e4e477bc9bfce2ddce29e42:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_eltwise_d
+
+eltwise descriptor
+
+.. index:: pair: enumvalue; dnnl_query_softmax_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a15f3f776cc3763cd0ea41a2b4b3f8356:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_softmax_d
+
+softmax descriptor
+
+.. index:: pair: enumvalue; dnnl_query_pooling_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059abe740f86209eda0e01df120298178c8f:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_pooling_d
+
+pooling descriptor
+
+.. index:: pair: enumvalue; dnnl_query_lrn_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059adcc42a35903cab69c3bcdee0baaa66c0:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_lrn_d
+
+lrn descriptor
+
+.. index:: pair: enumvalue; dnnl_query_batch_normalization_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a52d156901812246b3bb6e9a6ec4df8a8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_batch_normalization_d
+
+batch normalization descriptor
+
+.. index:: pair: enumvalue; dnnl_query_layer_normalization_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ad99ef330567a7f63105cee0bcb841aa6:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_layer_normalization_d
+
+layer normalization descriptor
+
+.. index:: pair: enumvalue; dnnl_query_inner_product_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a361b37db79b77c4f14c107e051cad4dc:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_inner_product_d
+
+inner product descriptor
+
+.. index:: pair: enumvalue; dnnl_query_rnn_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ad78b3945c7d4da7938ca77daa425afab:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_rnn_d
+
+rnn descriptor
+
+.. index:: pair: enumvalue; dnnl_query_gemm_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a983136e74f9746f470ed80d6337a147e:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_gemm_d
+
+GEMM descriptor (internal)
+
+.. index:: pair: enumvalue; dnnl_query_binary_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a1c3379cb10acf363b9d50e8eb6e40010:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_binary_d
+
+binary descriptor
+
+.. index:: pair: enumvalue; dnnl_query_logsoftmax_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059afef5b19704b36da50f1bcfa5b66a61a2:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_logsoftmax_d
+
+logsoftmax descriptor
+
+.. index:: pair: enumvalue; dnnl_query_matmul_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a1e4a8897b0c5b3e10277ec3f39dcf942:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_matmul_d
+
+matrix multiplication (matmul) descriptor
+
+.. index:: pair: enumvalue; dnnl_query_resampling_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a00299748d58f2d43671011e5662a14aa:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_resampling_d
+
+resampling descriptor
+
+.. index:: pair: enumvalue; dnnl_query_pooling_v2_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a80845ccb1f1c7009c7acdef74f24df9b:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_pooling_v2_d
+
+pooling version 2 descriptor
+
+.. index:: pair: enumvalue; dnnl_query_reduction_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a86bed243debcaf81549d4b11a5c6280a:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_reduction_d
+
+reduction descriptor
+
+.. index:: pair: enumvalue; dnnl_query_prelu_d
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059af291654d3c28900b0c8cf1e5a5c87dc3:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_prelu_d
+
+prelu descriptor
+
+.. index:: pair: enumvalue; dnnl_query_some_md
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a0c4a1096638c39c0771db9a4cb2a3336:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_some_md
+
+stub
+
+.. index:: pair: enumvalue; dnnl_query_src_md
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a14a86faee7b85eeb60d0d7886756ffa5:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_src_md
+
+source memory desc
+
+.. index:: pair: enumvalue; dnnl_query_diff_src_md
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a2367b043da6df5d691d6038693f363d6:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_diff_src_md
+
+source gradient memory desc
+
+.. index:: pair: enumvalue; dnnl_query_weights_md
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a12ea0b4858b84889acab34e498323355:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_weights_md
+
+weights memory descriptor desc
+
+.. index:: pair: enumvalue; dnnl_query_diff_weights_md
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a8551246c3e70fa1e420411507dbdfe32:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_diff_weights_md
+
+weights grad. memory desc
+
+.. index:: pair: enumvalue; dnnl_query_dst_md
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059add5c338ad7ae0c296509e54d22130598:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_dst_md
+
+destination memory desc
+
+.. index:: pair: enumvalue; dnnl_query_diff_dst_md
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ae28e33688bf6c55edcf108bd24eb90de:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_diff_dst_md
+
+destination grad. memory desc
+
+.. index:: pair: enumvalue; dnnl_query_workspace_md
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a1c465006660aabe46e644e6df7d36e8a:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_workspace_md
+
+workspace memory desc
+
+.. index:: pair: enumvalue; dnnl_query_scratchpad_md
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059a2ef0eedf44417ce40237f6f459347663:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_scratchpad_md
+
+scratchpad memory desc
+
+.. index:: pair: enumvalue; dnnl_query_exec_arg_md
+.. _doxid-group__dnnl__api__primitives__common_1gga9e5235563cf7cfc10fa89f415de98059ac7ecf09260d89d54ddd7f35c51a244da:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_query_exec_arg_md
+
+memory desc of an execute argument
+

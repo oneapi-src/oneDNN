@@ -1,0 +1,28 @@
+var structdnnl_1_1rnn__primitive__desc__base =
+[
+    [ "rnn_primitive_desc_base", "structdnnl_1_1rnn__primitive__desc__base.html#a5f08b3113b2f2b4b67d9348ef7046251", null ],
+    [ "rnn_primitive_desc_base", "structdnnl_1_1rnn__primitive__desc__base.html#a91be3d723ce87dc5498d061f269f9705", null ],
+    [ "src_layer_desc", "structdnnl_1_1rnn__primitive__desc__base.html#ae49709b806f2cb108affe1ec5aebb504", null ],
+    [ "src_iter_desc", "structdnnl_1_1rnn__primitive__desc__base.html#ab73a02922a9a7d2f0d6066572d5c6a09", null ],
+    [ "src_iter_c_desc", "structdnnl_1_1rnn__primitive__desc__base.html#ab37877634785901c8d8850d1a928c9b2", null ],
+    [ "weights_layer_desc", "structdnnl_1_1rnn__primitive__desc__base.html#a20737480e3672640657a34afd631f11f", null ],
+    [ "weights_iter_desc", "structdnnl_1_1rnn__primitive__desc__base.html#a2464426ea23b9d026fd5d2c8d92c942a", null ],
+    [ "weights_peephole_desc", "structdnnl_1_1rnn__primitive__desc__base.html#a1d634c656c92e69393cd52a4551c951b", null ],
+    [ "weights_projection_desc", "structdnnl_1_1rnn__primitive__desc__base.html#ac42d2cf801857a02db5c23e4a4d4eba1", null ],
+    [ "bias_desc", "structdnnl_1_1rnn__primitive__desc__base.html#ac2045ddda996b5e3ac2c0974ca70bfa1", null ],
+    [ "dst_layer_desc", "structdnnl_1_1rnn__primitive__desc__base.html#aa9a4652f8f5c8d1b32d2f26deac70f92", null ],
+    [ "dst_iter_desc", "structdnnl_1_1rnn__primitive__desc__base.html#af82a946c412df434d8842292d77a496c", null ],
+    [ "dst_iter_c_desc", "structdnnl_1_1rnn__primitive__desc__base.html#a1d56829ac12568aea3a7203631e7c202", null ],
+    [ "diff_src_layer_desc", "structdnnl_1_1rnn__primitive__desc__base.html#afbf93e3cf53b5ef7d04a0b2fcb41f77b", null ],
+    [ "diff_src_iter_desc", "structdnnl_1_1rnn__primitive__desc__base.html#a248bcc0f5bec8d76eda24ad391693fa2", null ],
+    [ "diff_src_iter_c_desc", "structdnnl_1_1rnn__primitive__desc__base.html#a6f3d6865c312c3231ff7dec8df561ecb", null ],
+    [ "diff_weights_layer_desc", "structdnnl_1_1rnn__primitive__desc__base.html#a1df1f7cb00c68c73bc4320d7b5fda7bb", null ],
+    [ "diff_weights_iter_desc", "structdnnl_1_1rnn__primitive__desc__base.html#a4243bb55a8d07fa66a3c44633996e73b", null ],
+    [ "diff_weights_peephole_desc", "structdnnl_1_1rnn__primitive__desc__base.html#af8f947d6baeee3cded8f178c0d87532a", null ],
+    [ "diff_weights_projection_desc", "structdnnl_1_1rnn__primitive__desc__base.html#aab56611714a0496cfe15a36e68b2c495", null ],
+    [ "diff_bias_desc", "structdnnl_1_1rnn__primitive__desc__base.html#aa81c0dbda6447fe83d1d37122fdc708c", null ],
+    [ "diff_dst_layer_desc", "structdnnl_1_1rnn__primitive__desc__base.html#aeb8d331bd2bcb80bd06ec729175e4314", null ],
+    [ "diff_dst_iter_desc", "structdnnl_1_1rnn__primitive__desc__base.html#a4a5eceabe7b1ffd9f181376192f5d397", null ],
+    [ "diff_dst_iter_c_desc", "structdnnl_1_1rnn__primitive__desc__base.html#a33e735717f2dffa22cc28e90e20bd344", null ],
+    [ "primitive_desc", "structdnnl_1_1rnn__primitive__desc__base.html#a1d5b57166120c0204ee4bb86d310b9ab", null ]
+];

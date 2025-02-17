@@ -1,0 +1,213 @@
+.. index:: pair: struct; dnnl::vanilla_rnn_backward::desc
+.. _doxid-structdnnl_1_1vanilla__rnn__backward_1_1desc:
+
+struct dnnl::vanilla_rnn_backward::desc
+=======================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a vanilla RNN backward propagation primitive. :ref:`More...<details-structdnnl_1_1vanilla__rnn__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_rnn_desc_t<doxid-structdnnl__rnn__desc__t>` :target:`data<doxid-structdnnl_1_1vanilla__rnn__backward_1_1desc_1a037886f0480645b4ab43929666c5877d>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1vanilla__rnn__backward_1_1desc_1a37cbb3e4ad0fc1ec1f319cd8d743cd41>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` activation,
+			:ref:`rnn_direction<doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` direction,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_bias_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_desc,
+			:ref:`rnn_flags<doxid-group__dnnl__api__rnn_1gad27d0db2a86ae3072207769f5c2ddd1e>` flags = :ref:`rnn_flags::undef<doxid-group__dnnl__api__rnn_1ggad27d0db2a86ae3072207769f5c2ddd1eaf31ee5e3824f1f5e5d206bdf3029f22b>`,
+			float alpha = 0.0f,
+			float beta = 0.0f
+			);
+	};
+.. _details-structdnnl_1_1vanilla__rnn__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a vanilla RNN backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1vanilla__rnn__backward_1_1desc_1a37cbb3e4ad0fc1ec1f319cd8d743cd41:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` activation,
+		:ref:`rnn_direction<doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` direction,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_bias_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_desc,
+		:ref:`rnn_flags<doxid-group__dnnl__api__rnn_1gad27d0db2a86ae3072207769f5c2ddd1e>` flags = :ref:`rnn_flags::undef<doxid-group__dnnl__api__rnn_1ggad27d0db2a86ae3072207769f5c2ddd1eaf31ee5e3824f1f5e5d206bdf3029f22b>`,
+		float alpha = 0.0f,
+		float beta = 0.0f
+		)
+
+Constructs a descriptor for a vanilla RNN backward propagation primitive.
+
+The following arguments may point to a zero memory descriptor:
+
+* ``src_iter_desc`` together with ``diff_src_iter_desc``,
+
+* ``bias_desc`` together with ``diff_bias_desc``,
+
+* ``dst_iter_desc`` together with ``diff_dst_iter_desc``.
+
+This would then indicate that the RNN backward propagation primitive should not use the respective data and should use zero values instead.
+
+.. note:: 
+
+   All the memory descriptors may be initialized with the :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Must be :ref:`dnnl::prop_kind::backward <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa195fe59b6f103787a914aead0f3db502>`.
+
+	*
+		- activation
+
+		- Activation kind. Possible values are :ref:`dnnl::algorithm::eltwise_relu <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640aba09bebb742494255b90b43871c01c69>`, :ref:`dnnl::algorithm::eltwise_tanh <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a38dd7159307eab45742c78e72f06abb0>`, or :ref:`dnnl::algorithm::eltwise_logistic <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a282836cce833348ee509b0ecd764d217>`.
+
+	*
+		- direction
+
+		- RNN direction. See :ref:`dnnl::rnn_direction <doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` for more info.
+
+	*
+		- src_layer_desc
+
+		- Memory descriptor for the input vector.
+
+	*
+		- src_iter_desc
+
+		- Memory descriptor for the input recurrent hidden state vector.
+
+	*
+		- weights_layer_desc
+
+		- Memory descriptor for the weights applied to the layer input.
+
+	*
+		- weights_iter_desc
+
+		- Memory descriptor for the weights applied to the recurrent input.
+
+	*
+		- bias_desc
+
+		- Bias memory descriptor.
+
+	*
+		- dst_layer_desc
+
+		- Memory descriptor for the output vector.
+
+	*
+		- dst_iter_desc
+
+		- Memory descriptor for the output recurrent hidden state vector.
+
+	*
+		- diff_src_layer_desc
+
+		- Memory descriptor for the diff of input vector.
+
+	*
+		- diff_src_iter_desc
+
+		- Memory descriptor for the diff of input recurrent hidden state vector.
+
+	*
+		- diff_weights_layer_desc
+
+		- Memory descriptor for the diff of weights applied to the layer input.
+
+	*
+		- diff_weights_iter_desc
+
+		- Memory descriptor for the diff of weights applied to the recurrent input.
+
+	*
+		- diff_bias_desc
+
+		- Diff bias memory descriptor.
+
+	*
+		- diff_dst_layer_desc
+
+		- Memory descriptor for the diff of output vector.
+
+	*
+		- diff_dst_iter_desc
+
+		- Memory descriptor for the diff of output recurrent hidden state vector.
+
+	*
+		- flags
+
+		- Unused.
+
+	*
+		- alpha
+
+		- Negative slope if activation is :ref:`dnnl::algorithm::eltwise_relu <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640aba09bebb742494255b90b43871c01c69>`.
+
+	*
+		- beta
+
+		- Unused.
+

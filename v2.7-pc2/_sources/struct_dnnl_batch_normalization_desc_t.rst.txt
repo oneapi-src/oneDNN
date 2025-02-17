@@ -1,0 +1,122 @@
+.. index:: pair: struct; dnnl_batch_normalization_desc_t
+.. _doxid-structdnnl__batch__normalization__desc__t:
+
+struct dnnl_batch_normalization_desc_t
+======================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+A descriptor of a Batch Normalization operation. :ref:`More...<details-structdnnl__batch__normalization__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_batch_normalization_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__batch__normalization__desc__t_1a9418b8e53dc1201d1f06cdf0152afe27>`;
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` :ref:`prop_kind<doxid-structdnnl__batch__normalization__desc__t_1a76acc806f760eea2589c375fdc8b80b1>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`data_desc<doxid-structdnnl__batch__normalization__desc__t_1a0f6463524bea1389a89ff67accd07d68>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_data_desc<doxid-structdnnl__batch__normalization__desc__t_1a7aec0325ac47e3327aa506e2f7636c8f>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`data_scaleshift_desc<doxid-structdnnl__batch__normalization__desc__t_1a452eaa4f7413e5638c814304ee8819bc>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :target:`diff_data_scaleshift_desc<doxid-structdnnl__batch__normalization__desc__t_1a88eda79577973d4e80aa123dab5723c6>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`stat_desc<doxid-structdnnl__batch__normalization__desc__t_1a5e779c209cd4296445ce2be9b6d5fbb8>`;
+		float :ref:`batch_norm_epsilon<doxid-structdnnl__batch__normalization__desc__t_1ab2508100481c6a19566f122198294e55>`;
+		unsigned :target:`flags<doxid-structdnnl__batch__normalization__desc__t_1a6776a23c3a63580e4524994c68654d78>`;
+	};
+.. _details-structdnnl__batch__normalization__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A descriptor of a Batch Normalization operation.
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__batch__normalization__desc__t_1a9418b8e53dc1201d1f06cdf0152afe27:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_batch_normalization <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aa8483b015fd10c9832c6326a1c5b59ed5>`.
+
+.. index:: pair: variable; prop_kind
+.. _doxid-structdnnl__batch__normalization__desc__t_1a76acc806f760eea2589c375fdc8b80b1:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind
+
+The kind of propagation.
+
+Possible values: :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>`, :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`, :ref:`dnnl_backward <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a326a5e31769302972e7bded555e1cc10>`, and :ref:`dnnl_backward_data <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a524dd6cb2ed9680bbd170ba15261d218>`.
+
+.. index:: pair: variable; data_desc
+.. _doxid-structdnnl__batch__normalization__desc__t_1a0f6463524bea1389a89ff67accd07d68:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` data_desc
+
+Source and destination memory descriptor.
+
+.. index:: pair: variable; diff_data_desc
+.. _doxid-structdnnl__batch__normalization__desc__t_1a7aec0325ac47e3327aa506e2f7636c8f:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_data_desc
+
+Source and destination gradient memory descriptor.
+
+.. index:: pair: variable; data_scaleshift_desc
+.. _doxid-structdnnl__batch__normalization__desc__t_1a452eaa4f7413e5638c814304ee8819bc:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` data_scaleshift_desc
+
+Scale and shift data and gradient memory descriptors.
+
+Scaleshift memory descriptor uses 2D :ref:`dnnl_nc <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091dac08a541001fe70289305a5fbde48906d>` format[2,Channels]. 1-st dimension contains gamma parameter, 2-nd dimension contains beta parameter.
+
+.. index:: pair: variable; stat_desc
+.. _doxid-structdnnl__batch__normalization__desc__t_1a5e779c209cd4296445ce2be9b6d5fbb8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` stat_desc
+
+Statistics memory descriptor.
+
+Statistics (mean or variance) descriptor use 1D :ref:`dnnl_x <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091da9ccb37bb1a788f0245efbffbaf81e145>` format[Channels].
+
+.. index:: pair: variable; batch_norm_epsilon
+.. _doxid-structdnnl__batch__normalization__desc__t_1ab2508100481c6a19566f122198294e55:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	float batch_norm_epsilon
+
+Batch normalization epsilon parameter.
+

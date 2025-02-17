@@ -1,0 +1,8 @@
+<map id="mkldnn::deconvolution_forward::desc" name="mkldnn::deconvolution_forward::desc">
+<area shape="rect" id="node2" href="$structmkldnn__convolution__desc__t.html" title="A descriptor of a convolution operation. " alt="" coords="721,102,876,143"/>
+<area shape="rect" id="node3" href="$structmkldnn__memory__desc__t.html" title="Memory descriptor. " alt="" coords="373,109,556,136"/>
+<area shape="rect" id="node4" href="$structmkldnn__memory__extra__desc__t.html" title="Description of extra information stored in memory. " alt="" coords="19,18,194,59"/>
+<area shape="rect" id="node5" href="$structmkldnn__rnn__packed__desc__t.html" title="Description of tensor of packed weights for rnn. " alt="" coords="5,84,208,111"/>
+<area shape="rect" id="node6" href="$structmkldnn__blocking__desc__t.html" title="Generic description of blocked data layout for most memory formats. " alt="" coords="15,135,198,161"/>
+<area shape="rect" id="node7" href="$structmkldnn__wino__desc__t.html" title="Description of tensor of weights for winograd 2x3 convolution. " alt="" coords="27,185,186,212"/>
+</map>

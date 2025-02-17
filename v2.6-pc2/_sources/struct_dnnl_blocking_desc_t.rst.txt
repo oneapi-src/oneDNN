@@ -1,0 +1,89 @@
+.. index:: pair: struct; dnnl_blocking_desc_t
+.. _doxid-structdnnl__blocking__desc__t:
+
+struct dnnl_blocking_desc_t
+===========================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Generic description of blocked data layout for most memory formats. :ref:`More...<details-structdnnl__blocking__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_blocking_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` :ref:`strides<doxid-structdnnl__blocking__desc__t_1a48c1a3cb43f5b935fe3627e6312543b3>`;
+		int :ref:`inner_nblks<doxid-structdnnl__blocking__desc__t_1aa605314004fee131958a1d4cf2e1905c>`;
+		:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` :ref:`inner_blks<doxid-structdnnl__blocking__desc__t_1ab142704c20c4c2518488baa18cb453a5>`;
+		:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` :ref:`inner_idxs<doxid-structdnnl__blocking__desc__t_1ac60774d51adba600161db81846b5ca77>`;
+	};
+.. _details-structdnnl__blocking__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Generic description of blocked data layout for most memory formats.
+
+
+
+.. rubric:: See also:
+
+:ref:`Understanding Memory Formats <doxid-dev_guide_understanding_memory_formats>`
+
+Fields
+------
+
+.. index:: pair: variable; strides
+.. _doxid-structdnnl__blocking__desc__t_1a48c1a3cb43f5b935fe3627e6312543b3:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` strides
+
+The strides between the outermost blocks.
+
+In case of plain (non-blocked) formats the strides between dimensions.
+
+.. index:: pair: variable; inner_nblks
+.. _doxid-structdnnl__blocking__desc__t_1aa605314004fee131958a1d4cf2e1905c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	int inner_nblks
+
+The number of innermost blocks, e.g. 3 in case of ``OIhw_4i16o4i_``
+
+.. index:: pair: variable; inner_blks
+.. _doxid-structdnnl__blocking__desc__t_1ab142704c20c4c2518488baa18cb453a5:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` inner_blks
+
+The size of the blocks, e.g. ``{4, 16, 4}`` in case of ``OIhw_4i16o4i``
+
+.. index:: pair: variable; inner_idxs
+.. _doxid-structdnnl__blocking__desc__t_1ac60774d51adba600161db81846b5ca77:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_dims_t<doxid-group__dnnl__api__memory_1ga8331e1160e52a5d4babe96736464095a>` inner_idxs
+
+The logical indices of the blocks, e.g.
+
+``{1, 0, 1}`` in case of ``4i16o4i``, because ``i`` is the 1st dim and ``o`` is the 0st dim
+

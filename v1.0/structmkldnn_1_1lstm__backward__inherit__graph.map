@@ -1,0 +1,4 @@
+<map id="mkldnn::lstm_backward" name="mkldnn::lstm_backward">
+<area shape="rect" id="node2" href="$classmkldnn_1_1primitive.html" title="Base class for all computational primitives. " alt="" coords="29,95,168,121"/>
+<area shape="rect" id="node3" href="$classmkldnn_1_1handle.html" title="mkldnn::handle\&lt; mkldnn\l_primitive_t \&gt;" alt="" coords="5,5,192,47"/>
+</map>

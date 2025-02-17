@@ -1,0 +1,4 @@
+<map id="dnnl::binary" name="dnnl::binary">
+<area shape="rect" id="node2" href="$classdnnl_1_1primitive.html" title="Base class for all computational primitives. " alt="" coords="19,95,137,121"/>
+<area shape="rect" id="node3" href="$classdnnl_1_1handle.html" title="dnnl::handle\&lt; dnnl\l_primitive_t \&gt;" alt="" coords="5,5,151,47"/>
+</map>

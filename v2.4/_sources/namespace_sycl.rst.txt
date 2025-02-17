@@ -1,0 +1,11 @@
+.. index:: pair: namespace; sycl
+.. _doxid-namespacecl_1_1sycl:
+
+namespace sycl
+==============
+
+.. toctree::
+	:hidden:
+
+
+

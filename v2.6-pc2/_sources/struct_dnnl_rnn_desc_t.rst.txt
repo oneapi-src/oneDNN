@@ -1,0 +1,361 @@
+.. index:: pair: struct; dnnl_rnn_desc_t
+.. _doxid-structdnnl__rnn__desc__t:
+
+struct dnnl_rnn_desc_t
+======================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+A descriptor for an RNN operation. :ref:`More...<details-structdnnl__rnn__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_rnn_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__rnn__desc__t_1a4541587e9f28c8cf4f463e4d59806e3e>`;
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` :ref:`prop_kind<doxid-structdnnl__rnn__desc__t_1a8b7898089ad817a0efd47aca420b6dbb>`;
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` :ref:`cell_kind<doxid-structdnnl__rnn__desc__t_1a2cadbfb9b13da099140fd55635a51419>`;
+		:ref:`dnnl_rnn_direction_t<doxid-group__dnnl__api__rnn_1ga629de1827647bf1824361a276c5169f0>` :ref:`direction<doxid-structdnnl__rnn__desc__t_1a05d5f4a7c0acb6a544e92017bc44ba2b>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`src_layer_desc<doxid-structdnnl__rnn__desc__t_1aaea1364f2c21f03fe881c0d91dc5a169>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`src_iter_desc<doxid-structdnnl__rnn__desc__t_1af74516f123704c1a9aec5d39dba9650a>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`src_iter_c_desc<doxid-structdnnl__rnn__desc__t_1a9a842279b35376bd855cb5381e26900c>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`weights_layer_desc<doxid-structdnnl__rnn__desc__t_1a1856a3555d8abf5be371b161b559b438>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`weights_iter_desc<doxid-structdnnl__rnn__desc__t_1afb36d75add9d2606cc81d5bd18288d8e>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`bias_desc<doxid-structdnnl__rnn__desc__t_1aab26def80bd3afaa3ebe5b0968aa38de>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`dst_layer_desc<doxid-structdnnl__rnn__desc__t_1ab7ade312afc618dad1da2c0d7284588a>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`dst_iter_desc<doxid-structdnnl__rnn__desc__t_1ace867837ea9f25b4fce034a9ac5c3dad>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`dst_iter_c_desc<doxid-structdnnl__rnn__desc__t_1a1aaeffcd4fbcb2a912281cc75a7bad1d>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`weights_peephole_desc<doxid-structdnnl__rnn__desc__t_1aca86677fb7aadfca20fac609bdadeb60>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`weights_projection_desc<doxid-structdnnl__rnn__desc__t_1a5cd42ad59082a5d7e290e76db066e738>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_src_layer_desc<doxid-structdnnl__rnn__desc__t_1a529238b7d0088a147dd84df80f54496e>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_src_iter_desc<doxid-structdnnl__rnn__desc__t_1a1782c72801a69671fa93393d0909e59d>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_src_iter_c_desc<doxid-structdnnl__rnn__desc__t_1a5538f8cace2b41f89d985454713c8c72>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_weights_layer_desc<doxid-structdnnl__rnn__desc__t_1a8030f10b83affa1bb99e6c18ec77632d>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_weights_iter_desc<doxid-structdnnl__rnn__desc__t_1a284239fadd76cec600abf418e4cc19a9>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_bias_desc<doxid-structdnnl__rnn__desc__t_1ac69690614c53e3a6818195349166c5fa>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_dst_layer_desc<doxid-structdnnl__rnn__desc__t_1a4f22acfd6dee07584cc62e3ed6b8e7be>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_dst_iter_desc<doxid-structdnnl__rnn__desc__t_1afc36e9660a6d883ecaed0940a9c7fb99>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_dst_iter_c_desc<doxid-structdnnl__rnn__desc__t_1a25af5a28b6f2d91951dadeefdb9b5b37>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_weights_peephole_desc<doxid-structdnnl__rnn__desc__t_1a6f029378877c8b0dbdd76802b94b0ad0>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_weights_projection_desc<doxid-structdnnl__rnn__desc__t_1aef81a788e59692effd741bc4ce3e229e>`;
+		unsigned int :ref:`flags<doxid-structdnnl__rnn__desc__t_1aaafd96a309b11d4d88a8f83530ae57b8>`;
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` :ref:`activation_kind<doxid-structdnnl__rnn__desc__t_1ac25cfdc16c19ba5d2b3c1eba086e8a75>`;
+		float :target:`alpha<doxid-structdnnl__rnn__desc__t_1ae695e1809c32e8d78aeee21664f5513c>`;
+		float :target:`beta<doxid-structdnnl__rnn__desc__t_1af05666d00d87fdf465a7cd5d925238d6>`;
+	};
+.. _details-structdnnl__rnn__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A descriptor for an RNN operation.
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__rnn__desc__t_1a4541587e9f28c8cf4f463e4d59806e3e:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_rnn <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aaf383485481e1d188df5b59c5424ee3ea>`.
+
+.. index:: pair: variable; prop_kind
+.. _doxid-structdnnl__rnn__desc__t_1a8b7898089ad817a0efd47aca420b6dbb:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind
+
+The kind of propagation.
+
+Possible values: :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>`, :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`, and :ref:`dnnl_backward <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a326a5e31769302972e7bded555e1cc10>`.
+
+.. index:: pair: variable; cell_kind
+.. _doxid-structdnnl__rnn__desc__t_1a2cadbfb9b13da099140fd55635a51419:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` cell_kind
+
+RNN cell kind.
+
+Must be one of :ref:`dnnl_vanilla_rnn <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a65d20a62fd39cfe09b3deb2e35752449>`, :ref:`dnnl_vanilla_lstm <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a765cecdcf6f7c524833a241ecc9bf41d>`, :ref:`dnnl_vanilla_gru <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a7ba4a460b8bff80dcdf1240d7ad34208>`, or :ref:`dnnl_lbr_gru <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a7cd2e2970fefcdeb255415d0363279e2>`.
+
+.. index:: pair: variable; direction
+.. _doxid-structdnnl__rnn__desc__t_1a05d5f4a7c0acb6a544e92017bc44ba2b:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_rnn_direction_t<doxid-group__dnnl__api__rnn_1ga629de1827647bf1824361a276c5169f0>` direction
+
+The direction of RNN primitive execution.
+
+.. index:: pair: variable; src_layer_desc
+.. _doxid-structdnnl__rnn__desc__t_1aaea1364f2c21f03fe881c0d91dc5a169:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` src_layer_desc
+
+Source layer memory descriptor.
+
+.. index:: pair: variable; src_iter_desc
+.. _doxid-structdnnl__rnn__desc__t_1af74516f123704c1a9aec5d39dba9650a:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` src_iter_desc
+
+Source iteration memory descriptor for hidden state.
+
+.. index:: pair: variable; src_iter_c_desc
+.. _doxid-structdnnl__rnn__desc__t_1a9a842279b35376bd855cb5381e26900c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` src_iter_c_desc
+
+Source iteration memory descriptor for cell state.
+
+.. index:: pair: variable; weights_layer_desc
+.. _doxid-structdnnl__rnn__desc__t_1a1856a3555d8abf5be371b161b559b438:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` weights_layer_desc
+
+Weights layer memory descriptor.
+
+.. index:: pair: variable; weights_iter_desc
+.. _doxid-structdnnl__rnn__desc__t_1afb36d75add9d2606cc81d5bd18288d8e:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` weights_iter_desc
+
+Weights iteration memory descriptor.
+
+.. index:: pair: variable; bias_desc
+.. _doxid-structdnnl__rnn__desc__t_1aab26def80bd3afaa3ebe5b0968aa38de:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` bias_desc
+
+Bias memory descriptor.
+
+.. index:: pair: variable; dst_layer_desc
+.. _doxid-structdnnl__rnn__desc__t_1ab7ade312afc618dad1da2c0d7284588a:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` dst_layer_desc
+
+Destination layer memory descriptor.
+
+.. index:: pair: variable; dst_iter_desc
+.. _doxid-structdnnl__rnn__desc__t_1ace867837ea9f25b4fce034a9ac5c3dad:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` dst_iter_desc
+
+Destination iter memory descriptor for hidden state.
+
+.. index:: pair: variable; dst_iter_c_desc
+.. _doxid-structdnnl__rnn__desc__t_1a1aaeffcd4fbcb2a912281cc75a7bad1d:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` dst_iter_c_desc
+
+Destination iter memory descriptor for cell state.
+
+.. index:: pair: variable; weights_peephole_desc
+.. _doxid-structdnnl__rnn__desc__t_1aca86677fb7aadfca20fac609bdadeb60:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` weights_peephole_desc
+
+Weights peephole memory descriptor.
+
+This memory descriptor is equal to zero memory descriptor in case of non-peephole LSTMs and other non-LSTM RNNs.
+
+.. index:: pair: variable; weights_projection_desc
+.. _doxid-structdnnl__rnn__desc__t_1a5cd42ad59082a5d7e290e76db066e738:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` weights_projection_desc
+
+Weights projection memory descriptor.
+
+This memory descriptor is equal to zero memory descriptor in case of non-projection LSTMs and other non-LSTM RNNs.
+
+.. index:: pair: variable; diff_src_layer_desc
+.. _doxid-structdnnl__rnn__desc__t_1a529238b7d0088a147dd84df80f54496e:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_src_layer_desc
+
+Source gradient layer memory descriptor.
+
+.. index:: pair: variable; diff_src_iter_desc
+.. _doxid-structdnnl__rnn__desc__t_1a1782c72801a69671fa93393d0909e59d:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_src_iter_desc
+
+Source gradient iter memory descriptor for hidden state.
+
+.. index:: pair: variable; diff_src_iter_c_desc
+.. _doxid-structdnnl__rnn__desc__t_1a5538f8cace2b41f89d985454713c8c72:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_src_iter_c_desc
+
+Source gradient iter memory descriptor for cell state.
+
+.. index:: pair: variable; diff_weights_layer_desc
+.. _doxid-structdnnl__rnn__desc__t_1a8030f10b83affa1bb99e6c18ec77632d:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_weights_layer_desc
+
+Weights gradient layer memory descriptor.
+
+.. index:: pair: variable; diff_weights_iter_desc
+.. _doxid-structdnnl__rnn__desc__t_1a284239fadd76cec600abf418e4cc19a9:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_weights_iter_desc
+
+Weights gradient iter memory descriptor.
+
+.. index:: pair: variable; diff_bias_desc
+.. _doxid-structdnnl__rnn__desc__t_1ac69690614c53e3a6818195349166c5fa:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_bias_desc
+
+Bias gradient memory descriptor.
+
+.. index:: pair: variable; diff_dst_layer_desc
+.. _doxid-structdnnl__rnn__desc__t_1a4f22acfd6dee07584cc62e3ed6b8e7be:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_dst_layer_desc
+
+Destination gradient layer memory descriptor.
+
+.. index:: pair: variable; diff_dst_iter_desc
+.. _doxid-structdnnl__rnn__desc__t_1afc36e9660a6d883ecaed0940a9c7fb99:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_dst_iter_desc
+
+Destination gradient iteration memory descriptor for hidden state.
+
+.. index:: pair: variable; diff_dst_iter_c_desc
+.. _doxid-structdnnl__rnn__desc__t_1a25af5a28b6f2d91951dadeefdb9b5b37:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_dst_iter_c_desc
+
+Destination gradient iteration memory descriptor for cell state.
+
+.. index:: pair: variable; diff_weights_peephole_desc
+.. _doxid-structdnnl__rnn__desc__t_1a6f029378877c8b0dbdd76802b94b0ad0:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_weights_peephole_desc
+
+Weights gradient peephole memory descriptor.
+
+This memory descriptor is equal to zero memory descriptor in case of non-peephole LSTMs and other non-LSTM RNNs.
+
+.. index:: pair: variable; diff_weights_projection_desc
+.. _doxid-structdnnl__rnn__desc__t_1aef81a788e59692effd741bc4ce3e229e:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_weights_projection_desc
+
+Weights gradient projection memory descriptor.
+
+This memory descriptor is equal to zero memory descriptor in case of non-projection LSTMs and other non-LSTM RNNs.
+
+.. index:: pair: variable; flags
+.. _doxid-structdnnl__rnn__desc__t_1aaafd96a309b11d4d88a8f83530ae57b8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	unsigned int flags
+
+RNN cell flags.
+
+.. index:: pair: variable; activation_kind
+.. _doxid-structdnnl__rnn__desc__t_1ac25cfdc16c19ba5d2b3c1eba086e8a75:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` activation_kind
+
+Activation function used for vanilla_rnn cell kind.
+
+Must be either :ref:`dnnl_eltwise_relu <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a5e37643fec6531331e2e38df68d4c65a>` or :ref:`dnnl_eltwise_tanh <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a81b20d8f0b54c7114024186a9fbb698e>`.
+

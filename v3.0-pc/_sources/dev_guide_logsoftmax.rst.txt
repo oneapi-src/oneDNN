@@ -1,0 +1,140 @@
+.. index:: pair: page; LogSoftmax
+.. _doxid-dev_guide_logsoftmax:
+
+LogSoftmax
+==========
+
+:ref:`API Reference <doxid-group__dnnl__api__logsoftmax>`
+
+General
+~~~~~~~
+
+.. note:: 
+
+   This functionality is deprecated and will be removed in future releases.
+   
+   
+The logsoftmax primitive performs softmax along a particular axis on data with arbitrary dimensions followed by the logarithm function. All other axes are treated as independent (batch).
+
+Forward
+-------
+
+In general form, the operation is defined by the following formulas (the variable names follow the standard :ref:`Naming Conventions <doxid-dev_guide_conventions>`). Second form is used as more numerically stable:
+
+.. math::
+
+	\dst(\overline{ou}, c, \overline{in}) = \ln\left({\frac { e^{\src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})} } { \sum\limits_{ic} e^{\src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})} }}\right) = \left(\src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})\right) - \ln\left( \sum\limits_{ic} e^{\src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})} \right),
+
+where
+
+* :math:`c` axis over which the logsoftmax computation is computed on,
+
+* :math:`\overline{ou}` is the outermost index (to the left of logsoftmax axis),
+
+* :math:`\overline{in}` is the innermost index (to the right of logsoftmax axis), and
+
+* :math:`\nu` is used to produce more accurate results and defined as:
+  
+  .. math::
+  
+  	\nu(\overline{ou}, \overline{in}) = \max\limits_{ic} \src(\overline{ou}, ic, \overline{in})
+
+Difference Between Forward Training and Forward Inference
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+There is no difference between the :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>` and :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>` propagation kinds.
+
+Backward
+--------
+
+The backward propagation computes :math:`\diffsrc(ou, c, in)`, based on :math:`\diffdst(ou, c, in)` and :math:`\dst(ou, c, in)`.
+
+Execution Arguments
+~~~~~~~~~~~~~~~~~~~
+
+When executed, the inputs and outputs should be mapped to an execution argument index as specified by the following table.
+
+=======================  =========================  
+Primitive input/output   Execution argument index   
+=======================  =========================  
+:math:`\src`             DNNL_ARG_SRC               
+:math:`\dst`             DNNL_ARG_DST               
+:math:`\diffsrc`         DNNL_ARG_DIFF_SRC          
+:math:`\diffdst`         DNNL_ARG_DIFF_DST          
+=======================  =========================
+
+Implementation Details
+~~~~~~~~~~~~~~~~~~~~~~
+
+General Notes
+-------------
+
+#. Both forward and backward propagation support in-place operations, meaning that ``src`` can be used as input and output for forward propagation, and ``diff_dst`` can be used as input and output for backward propagation. In case of in-place operation, the original data will be overwritten.
+
+Post-Ops and Attributes
+-----------------------
+
+The logsoftmax primitive does not support any post-ops or attributes.
+
+Data Type Support
+-----------------
+
+The logsoftmax primitive supports the following combinations of data types:
+
+===================  ===============  
+Propagation          Sou              
+===================  ===============  
+forward / backward   bf16, f32, f16   
+===================  ===============
+
+Data Representation
+-------------------
+
+Source, Destination, and Their Gradients
+++++++++++++++++++++++++++++++++++++++++
+
+The logsoftmax primitive works with arbitrary data tensors. There is no special meaning associated with any logical dimensions. However, the logsoftmax axis is typically referred to as channels (hence in formulas we use :math:`c`).
+
+Implementation Limitations
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#. No primitive specific limitations. Refer to :ref:`Data Types <doxid-dev_guide_data_types>` for limitations related to data types support.
+
+#. GPU
+   
+   * No support.
+
+Performance Tips
+~~~~~~~~~~~~~~~~
+
+#. Use in-place operations whenever possible.
+
+#. Currently the softmax primitive is optimized for the cases where the dimension of the softmax axis is physically dense. For instance:
+   
+   * Optimized: 2D case, tensor :math:`A \times B`, softmax axis 1 (B), format tag :ref:`dnnl_ab <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091da1bd907fc29344dfe7ba88336960dcf53>`
+   
+   * Optimized: 4D case, tensor :math:`A \times B \times C \times D`, softmax axis 3 (D), format tag :ref:`dnnl_abcd <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091da6e669cc61278663a5ddbd3d0b25c6c5c>`
+   
+   * Optimized: 4D case, tensor :math:`A \times B \times C \times D`, softmax axis 1 (B), format tag :ref:`dnnl_abcd <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091da6e669cc61278663a5ddbd3d0b25c6c5c>`, and :math:`C = D = 1`
+   
+   * Optimized: 4D case, tensor :math:`A \times B \times C \times D`, softmax axis 1 (B), format tag :ref:`dnnl_acdb <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091da8fcce5dd7260b5b0740e3b37b1e9ad41>` or :ref:`dnnl_aBcd16b <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091da590d748ac3761a51b407555a9a0d5efe>`, and :math:`C \cdot D \ne 1`
+   
+   * Non-optimized: 2D case, tensor :math:`A \times B`, softmax axis 0 (A), format tag :ref:`dnnl_ab <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091da1bd907fc29344dfe7ba88336960dcf53>`, and :math:`B \ne 1`
+   
+   * Non-optimized: 2D case, tensor :math:`A \times B`, softmax axis 1 (B), format tag :ref:`dnnl_ba <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091da6a6dbc0b30468d92e32a9cb3f6615c43>`, and :math:`A \ne 1`
+   
+   * Non-optimized: 4D case, tensor :math:`A \times B \times C \times D`, softmax axis 2 (C), format tag :ref:`dnnl_acdb <doxid-group__dnnl__api__memory_1gga395e42b594683adb25ed2d842bb3091da8fcce5dd7260b5b0740e3b37b1e9ad41>`, and and :math:`D \cdot B \ne 1`
+
+Example
+~~~~~~~
+
+:ref:`Logsoftmax Primitive Example <doxid-logsoftmax_example_cpp>`
+
+This C++ API example demonstrates how to create and execute a :ref:`Logsoftmax <doxid-dev_guide_logsoftmax>` primitive in forward training propagation mode.
+
+Key optimizations included in this example:
+
+* In-place primitive execution;
+
+* Softmax along axis 1 (C) for 2D tensors.
+

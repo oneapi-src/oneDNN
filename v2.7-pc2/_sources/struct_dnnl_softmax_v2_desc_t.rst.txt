@@ -1,0 +1,129 @@
+.. index:: pair: struct; dnnl_softmax_v2_desc_t
+.. _doxid-structdnnl__softmax__v2__desc__t:
+
+struct dnnl_softmax_v2_desc_t
+=============================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+A descriptor of a Softmax operation. :ref:`More...<details-structdnnl__softmax__v2__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_softmax_v2_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__softmax__v2__desc__t_1aa48832e3b4daad7ad378329e028b8f04>`;
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` :ref:`prop_kind<doxid-structdnnl__softmax__v2__desc__t_1a4092a09322b6b5c4bc74cbc33a23d5a9>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`src_desc<doxid-structdnnl__softmax__v2__desc__t_1a3a34370e73b48cdecf3998e62b0d2c46>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_src_desc<doxid-structdnnl__softmax__v2__desc__t_1a8cc0df0b19a0c9a6a03e5a6249d27df6>`;
+		int :ref:`softmax_axis<doxid-structdnnl__softmax__v2__desc__t_1a184017535be31d3d6d133ac218e236bb>`;
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` :ref:`alg_kind<doxid-structdnnl__softmax__v2__desc__t_1ae95479aa51f590448e0c02a93149277e>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`dst_desc<doxid-structdnnl__softmax__v2__desc__t_1ac88abe94c32e3a054a6c98d84efcc966>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_dst_desc<doxid-structdnnl__softmax__v2__desc__t_1ab3c01315174f169de709851ba18ac1c5>`;
+	};
+.. _details-structdnnl__softmax__v2__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A descriptor of a Softmax operation.
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__softmax__v2__desc__t_1aa48832e3b4daad7ad378329e028b8f04:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_softmax_v2 <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aa271a1846806adf86457292f38250d619>`.
+
+.. index:: pair: variable; prop_kind
+.. _doxid-structdnnl__softmax__v2__desc__t_1a4092a09322b6b5c4bc74cbc33a23d5a9:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind
+
+The kind of propagation.
+
+Possible values: :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>`, :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`, and :ref:`dnnl_backward_data <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a524dd6cb2ed9680bbd170ba15261d218>`.
+
+.. index:: pair: variable; src_desc
+.. _doxid-structdnnl__softmax__v2__desc__t_1a3a34370e73b48cdecf3998e62b0d2c46:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` src_desc
+
+Source memory descriptor.
+
+.. index:: pair: variable; diff_src_desc
+.. _doxid-structdnnl__softmax__v2__desc__t_1a8cc0df0b19a0c9a6a03e5a6249d27df6:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_src_desc
+
+Source gradient memory descriptor.
+
+.. index:: pair: variable; softmax_axis
+.. _doxid-structdnnl__softmax__v2__desc__t_1a184017535be31d3d6d133ac218e236bb:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	int softmax_axis
+
+The axis along which to perform the softmax.
+
+.. index:: pair: variable; alg_kind
+.. _doxid-structdnnl__softmax__v2__desc__t_1ae95479aa51f590448e0c02a93149277e:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind
+
+Softmax algorithm.
+
+Possible values: :ref:`dnnl_softmax_accurate <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a0df1f8d88eb88b4d6c955e8473f54ade>` and :ref:`dnnl_softmax_log <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a92892f2d392fe424f3387b07dde9c680>`.
+
+.. index:: pair: variable; dst_desc
+.. _doxid-structdnnl__softmax__v2__desc__t_1ac88abe94c32e3a054a6c98d84efcc966:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` dst_desc
+
+Destination memory descriptor.
+
+.. index:: pair: variable; diff_dst_desc
+.. _doxid-structdnnl__softmax__v2__desc__t_1ab3c01315174f169de709851ba18ac1c5:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_dst_desc
+
+Destination gradient memory descriptor.
+

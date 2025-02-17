@@ -1,0 +1,154 @@
+.. index:: pair: struct; dnnl_eltwise_desc_t
+.. _doxid-structdnnl__eltwise__desc__t:
+
+struct dnnl_eltwise_desc_t
+==========================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+A descriptor of a element-wise operation. :ref:`More...<details-structdnnl__eltwise__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_eltwise_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__eltwise__desc__t_1aa55089b9c9c29b1582bbd77cc4e8caf8>`;
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` :ref:`prop_kind<doxid-structdnnl__eltwise__desc__t_1ad01dd86738e3d04720716a962c3dd05f>`;
+		:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` :ref:`alg_kind<doxid-structdnnl__eltwise__desc__t_1ae5d386bea1a4c651880ab304a7044fe4>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`data_desc<doxid-structdnnl__eltwise__desc__t_1a7638c60c3d134422173640a2f964833e>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_data_desc<doxid-structdnnl__eltwise__desc__t_1a04054bd18d7c1113a7d0dbd2544ec524>`;
+		float :ref:`alpha<doxid-structdnnl__eltwise__desc__t_1a10784684fa814edcb365c0a8fecdef59>`;
+		float :target:`beta<doxid-structdnnl__eltwise__desc__t_1a4c6ad13e2440d6e523dccf1a256dfb5f>`;
+	};
+.. _details-structdnnl__eltwise__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A descriptor of a element-wise operation.
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__eltwise__desc__t_1aa55089b9c9c29b1582bbd77cc4e8caf8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_eltwise <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aa9d7e709dd7e25d7ff11cf51c13fa2819>`.
+
+.. index:: pair: variable; prop_kind
+.. _doxid-structdnnl__eltwise__desc__t_1ad01dd86738e3d04720716a962c3dd05f:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind
+
+The kind of propagation.
+
+Possible values: :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>`, :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`, :ref:`dnnl_backward <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a326a5e31769302972e7bded555e1cc10>`, and :ref:`dnnl_backward_data <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a524dd6cb2ed9680bbd170ba15261d218>`.
+
+.. index:: pair: variable; alg_kind
+.. _doxid-structdnnl__eltwise__desc__t_1ae5d386bea1a4c651880ab304a7044fe4:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_alg_kind_t<doxid-group__dnnl__api__primitives__common_1ga96946c805f6c4922c38c37049ab95d23>` alg_kind
+
+The kind of eltwise algorithm.
+
+Possible values: :ref:`dnnl_eltwise_relu <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a5e37643fec6531331e2e38df68d4c65a>`, :ref:`dnnl_eltwise_tanh <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a81b20d8f0b54c7114024186a9fbb698e>`, :ref:`dnnl_eltwise_elu <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a7afda2aa9bac4a229909522235f461b5>`, :ref:`dnnl_eltwise_square <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a4da34cea03ccb7cc2701b2f2023bcc2e>`, :ref:`dnnl_eltwise_abs <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a2ac04aed39c46f6d6356744d9d12df43>`, :ref:`dnnl_eltwise_sqrt <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a2152d4664761b356bbceed3d9afe2189>`, :ref:`dnnl_eltwise_linear <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23aed5eec69000ddfe6ac96e161b0d723b4>`, :ref:`dnnl_eltwise_bounded_relu <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23aed5e7f85cc5d7dfeacefe6a7a5032502>`, :ref:`dnnl_eltwise_soft_relu <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a82d95f7071af086d4b1652160d9a972f>`, :ref:`dnnl_eltwise_logistic <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ab560981bee9e7711017423e29ba46071>`, :ref:`dnnl_eltwise_exp <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a4859f1326783a273500ef294bb7c7d5c>`, :ref:`dnnl_eltwise_gelu_tanh <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a18c14d6904040bff94bce8a43c039c62>`, :ref:`dnnl_eltwise_swish <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a63447dedf2e45ab535f1365502ff3240>`, :ref:`dnnl_eltwise_log <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a8ea10785816fd41353b49445852e0b74>`, :ref:`dnnl_eltwise_clip <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a026ef822b5cc28653e0730f8c8c2cf32>`, :ref:`dnnl_eltwise_clip_v2 <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a911e6995e534a9f8e6af121bc2aba2d6>`, :ref:`dnnl_eltwise_pow <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23aa1d0f7a69b7dfbfbd817623552558054>`, :ref:`dnnl_eltwise_gelu_erf <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a676e7d4e899ab2bbddc72f73a54c7779>`, :ref:`dnnl_eltwise_round <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23adda28cb0389d39c0c43967352b116d9d>`, :ref:`dnnl_eltwise_logsigmoid <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a0d83b3b9df42473195a58796f7bc8142>`, :ref:`dnnl_eltwise_mish <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ae3b2cacb38f7aa0a115e631caa5d63d5>`, :ref:`dnnl_eltwise_hardswish <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a9ee6277dfff509e9fde3d5329b8eacd9>`. Possible values for passing destination memory on backward: :ref:`dnnl_eltwise_relu_use_dst_for_bwd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23aa2fffcdde8480cd08a0d6e4dee7dec53>`, :ref:`dnnl_eltwise_tanh_use_dst_for_bwd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a04e559b66a5d43a74a9f1b91da78151c>`, :ref:`dnnl_eltwise_elu_use_dst_for_bwd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a975aea11dce8571bf1d4b2552c652a27>`, :ref:`dnnl_eltwise_sqrt_use_dst_for_bwd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a45b82064ee41f69c5463895c41ec24d0>`, :ref:`dnnl_eltwise_logistic_use_dst_for_bwd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ad224a5a4730407c8b97a10fb53d1fe0f>`, :ref:`dnnl_eltwise_exp_use_dst_for_bwd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ae7f15ca067ce527eb66a35767d253e81>`, :ref:`dnnl_eltwise_clip_v2_use_dst_for_bwd <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a50d7ed64b4ab2a5c4a156291ac7cb98d>`.
+
+.. index:: pair: variable; data_desc
+.. _doxid-structdnnl__eltwise__desc__t_1a7638c60c3d134422173640a2f964833e:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` data_desc
+
+Source and destination memory descriptor.
+
+.. index:: pair: variable; diff_data_desc
+.. _doxid-structdnnl__eltwise__desc__t_1a04054bd18d7c1113a7d0dbd2544ec524:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_data_desc
+
+Source and destination gradient memory descriptor.
+
+.. index:: pair: variable; alpha
+.. _doxid-structdnnl__eltwise__desc__t_1a10784684fa814edcb365c0a8fecdef59:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	float alpha
+
+Algorithm specific parameter.
+
+Accordance table:
+
+* :ref:`dnnl_eltwise_relu <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a5e37643fec6531331e2e38df68d4c65a>` : ``alpha`` negative slope, ``beta`` ignored
+
+* :ref:`dnnl_eltwise_tanh <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a81b20d8f0b54c7114024186a9fbb698e>` : ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_elu <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a7afda2aa9bac4a229909522235f461b5>` : ``alpha`` negative slope, ``beta`` ignored
+
+* :ref:`dnnl_eltwise_square <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a4da34cea03ccb7cc2701b2f2023bcc2e>` : ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_abs <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a2ac04aed39c46f6d6356744d9d12df43>` : ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_sqrt <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a2152d4664761b356bbceed3d9afe2189>` : ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_linear <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23aed5eec69000ddfe6ac96e161b0d723b4>` : ``alpha`` scale, ``beta`` shift
+
+* :ref:`dnnl_eltwise_bounded_relu <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23aed5e7f85cc5d7dfeacefe6a7a5032502>` : ``alpha`` upper bound, ``beta`` ignored
+
+* :ref:`dnnl_eltwise_soft_relu <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a82d95f7071af086d4b1652160d9a972f>` : ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_logistic <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ab560981bee9e7711017423e29ba46071>` : ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_exp <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a4859f1326783a273500ef294bb7c7d5c>` : ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_gelu_tanh <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a18c14d6904040bff94bce8a43c039c62>` : ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_swish <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a63447dedf2e45ab535f1365502ff3240>` : ``alpha`` sigmoid arg scaling, ``beta`` ignored
+
+* :ref:`dnnl_eltwise_log <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a8ea10785816fd41353b49445852e0b74>` : ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_clip <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a026ef822b5cc28653e0730f8c8c2cf32>` : ``alpha`` lower bound, ``beta`` upper bound
+
+* :ref:`dnnl_eltwise_clip_v2 <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a911e6995e534a9f8e6af121bc2aba2d6>` : ``alpha`` lower bound, ``beta`` upper bound
+
+* :ref:`dnnl_eltwise_pow <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23aa1d0f7a69b7dfbfbd817623552558054>` : ``alpha`` scale, ``beta`` exponent
+
+* :ref:`dnnl_eltwise_gelu_erf <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a676e7d4e899ab2bbddc72f73a54c7779>` : ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_round <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23adda28cb0389d39c0c43967352b116d9d>` : ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_logsigmoid <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a0d83b3b9df42473195a58796f7bc8142>` ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_mish <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23ae3b2cacb38f7aa0a115e631caa5d63d5>` ``alpha`` and ``beta`` ignored
+
+* :ref:`dnnl_eltwise_hardswish <doxid-group__dnnl__api__primitives__common_1gga96946c805f6c4922c38c37049ab95d23a9ee6277dfff509e9fde3d5329b8eacd9>` ``alpha`` and ``beta`` ignored
+

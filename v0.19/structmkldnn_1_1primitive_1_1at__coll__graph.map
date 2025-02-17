@@ -1,0 +1,4 @@
+<map id="mkldnn::primitive::at" name="mkldnn::primitive::at">
+<area shape="rect" id="node2" href="$structmkldnn__primitive__at__t.html" title="A wrapper structure to specify a particular output of a primitive. " alt="" coords="5,95,175,121"/>
+<area shape="rect" id="node3" href="$structmkldnn__primitive.html" title="An opaque structure to describe a primitive. " alt="" coords="21,5,159,32"/>
+</map>

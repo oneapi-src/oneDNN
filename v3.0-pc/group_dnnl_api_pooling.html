@@ -1,0 +1,3071 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>Pooling &#8212; oneDNN v2.7.0 documentation</title>
+    
+  <link rel="stylesheet" href="_static/css/index.f658d18f9b420779cfdf24aa0a7e2d77.css">
+
+    
+  <link rel="stylesheet"
+    href="_static/vendor/fontawesome/5.13.0/css/all.min.css">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin
+    href="_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2">
+
+    
+      
+  <link rel="stylesheet"
+    href="_static/vendor/open-sans_all/1.44.1/index.css">
+  <link rel="stylesheet"
+    href="_static/vendor/lato_latin-ext/1.44.1/index.css">
+
+    
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-book-theme.c441f2ba0852f4cabcb80105e3a46ae6.css" />
+    <link rel="stylesheet" type="text/css" href="_static/doxyrest-pygments.css" />
+    
+  <link rel="preload" as="script" href="_static/js/index.d3f166471bb80abb5163.js">
+
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/target-highlight.js"></script>
+    <script src="_static/sphinx-book-theme.7d483ff0a819d6edff12ce0b1ead3928.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="struct dnnl_pooling_desc_t" href="struct_dnnl_pooling_desc_t.html" />
+    <link rel="prev" title="struct dnnl::logsoftmax_forward::primitive_desc" href="struct_dnnl_logsoftmax_forward_primitive_desc.html" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="docsearch:language" content="en" />
+
+
+
+  </head>
+  <body data-spy="scroll" data-target="#bd-toc-nav" data-offset="80">
+    
+
+    <div class="container-xl">
+      <div class="row">
+          
+<div class="col-12 col-md-3 bd-sidebar site-navigation show" id="site-navigation">
+    
+        <div class="navbar-brand-box">
+<a class="navbar-brand text-wrap" href="index.html">
+  
+  
+  <h1 class="site-logo" id="site-title">oneDNN v2.7.0 documentation</h1>
+  
+</a>
+</div><form class="bd-search d-flex align-items-center" action="search.html" method="get">
+  <i class="icon fas fa-search"></i>
+  <input type="search" class="form-control" name="q" id="search-input" placeholder="Search the docs ..." aria-label="Search the docs ..." autocomplete="off" >
+</form>
+<nav class="bd-links" id="bd-docs-nav" aria-label="Main navigation">
+    <ul class="current nav sidenav_l1">
+ <li class="toctree-l1 collapsible-parent">
+  <a class="reference internal" href="build_and_link.html">
+   Building and Linking
+  </a>
+  <ul class="collapse-ul">
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_build.html">
+     Build from Source
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_build_options.html">
+     Build Options
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_link.html">
+     Linking to the Library
+    </a>
+   </li>
+  </ul>
+  <i class="fas fa-chevron-down">
+  </i>
+ </li>
+ <li class="toctree-l1 collapsible-parent">
+  <a class="reference internal" href="programming_model.html">
+   Programming Model
+  </a>
+  <ul class="collapse-ul">
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_basic_concepts.html">
+     Basic Concepts
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="page_getting_started_cpp.html">
+     Getting started
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="page_memory_format_propagation_cpp.html">
+     Memory Format Propagation
+    </a>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="dev_guide_inference_and_training_aspects.html">
+     Inference and Training Aspects
+    </a>
+    <ul class="collapse-ul">
+     <li class="toctree-l3">
+      <a class="reference internal" href="dev_guide_inference.html">
+       Inference
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="dev_guide_inference_int8.html">
+       Int8 Inference
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="dev_guide_training_bf16.html">
+       Bfloat16 Training
+      </a>
+     </li>
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="dev_guide_attributes.html">
+     Primitive Attributes
+    </a>
+    <ul class="collapse-ul">
+     <li class="toctree-l3">
+      <a class="reference internal" href="dev_guide_attributes_fpmath_mode.html">
+       Primitive Attributes: floating-point math mode
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="dev_guide_attributes_quantization.html">
+       Primitive Attributes: Quantization
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="dev_guide_attributes_post_ops.html">
+       Primitive Attributes: Post-ops
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="dev_guide_attributes_scratchpad.html">
+       Primitive Attributes: Scratchpad
+      </a>
+     </li>
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_data_types.html">
+     Data Types
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="page_cross_engine_reorder_cpp.html">
+     Reorder between CPU and GPU engines
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_c_and_cpp_apis.html">
+     API
+    </a>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="interop_with_dpcpp_and_opencl.html">
+     Interoperability with DPC++ and OpenCL
+    </a>
+    <ul class="collapse-ul">
+     <li class="toctree-l3">
+      <a class="reference internal" href="dev_guide_opencl_interoperability.html">
+       OpenCL Interoperability
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="dev_guide_dpcpp_interoperability.html">
+       DPC++ Interoperability
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="dev_guide_dpcpp_backends.html">
+       DPC++ Backends Support: OpenCL and Level Zero
+      </a>
+     </li>
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+  </ul>
+  <i class="fas fa-chevron-down">
+  </i>
+ </li>
+ <li class="toctree-l1 collapsible-parent">
+  <a class="reference internal" href="supported_primitives.html">
+   Supported Primitives
+  </a>
+  <ul class="collapse-ul">
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_convolution.html">
+     Convolution
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_inner_product.html">
+     Inner Product
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_matmul.html">
+     Matrix Multiplication
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_rnn.html">
+     RNN
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_batch_normalization.html">
+     Batch Normalization
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_binary.html">
+     Binary
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_concat.html">
+     Concat
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_eltwise.html">
+     Eltwise
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_layer_normalization.html">
+     Layer Normalization
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_lrn.html">
+     Local Response Normalization (LRN)
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_logsoftmax.html">
+     LogSoftmax
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_pooling.html">
+     Pooling
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_prelu.html">
+     PReLU
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_resampling.html">
+     Resampling
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_shuffle.html">
+     Shuffle
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_softmax.html">
+     Softmax
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_sum.html">
+     Sum
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_reorder.html">
+     Reorder
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_reduction.html">
+     Reduction
+    </a>
+   </li>
+  </ul>
+  <i class="fas fa-chevron-down">
+  </i>
+ </li>
+ <li class="toctree-l1">
+  <a class="reference internal" href="dev_guide_examples.html">
+   Examples
+  </a>
+ </li>
+ <li class="toctree-l1 collapsible-parent">
+  <a class="reference internal" href="performance_profiling_and_inspection.html">
+   Performance Profiling and Inspection
+  </a>
+  <ul class="collapse-ul">
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_verbose.html">
+     Verbose Mode
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_performance_settings.html">
+     Configuring oneDNN for Benchmarking
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_benchdnn.html">
+     Benchmarking Performance
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_profilers.html">
+     Profiling oneDNN Performance
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_inspecting_jit.html">
+     Inspecting JIT Code
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="page_performance_profiling_cpp.html">
+     Performance Profiling Example
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_cpu_dispatcher_control.html">
+     CPU Dispatcher Control
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_cpu_isa_hints.html">
+     CPU ISA Hints
+    </a>
+   </li>
+  </ul>
+  <i class="fas fa-chevron-down">
+  </i>
+ </li>
+ <li class="toctree-l1 collapsible-parent">
+  <a class="reference internal" href="advanced_topics.html">
+   Advanced Topics
+  </a>
+  <ul class="collapse-ul">
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_transition_to_dnnl.html">
+     Transitioning from Intel MKL-DNN to oneDNN
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_understanding_memory_formats.html">
+     Understanding Memory Formats
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_int8_computations.html">
+     Nuances of int8 Computations
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_primitive_cache.html">
+     Primitive Cache
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_persistent_cache.html">
+     Persistent Cache
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_threadpool.html">
+     Using oneDNN with Threadpool-Based Threading
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="dev_guide_experimental.html">
+     Experimental features
+    </a>
+   </li>
+  </ul>
+  <i class="fas fa-chevron-down">
+  </i>
+ </li>
+ <li class="toctree-l1 current active collapsible-parent">
+  <a class="reference internal" href="group_dnnl_api.html">
+   oneDNN API
+  </a>
+  <ul class="current collapse-ul">
+   <li class="toctree-l2 current active collapsible-parent">
+    <a class="reference internal" href="group_dnnl_api_primitives.html">
+     Primitives
+    </a>
+    <ul class="current collapse-ul">
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_primitives_common.html">
+       Common
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_alg_kind_t.html">
+         enum dnnl_alg_kind_t
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_normalization_flags_t.html">
+         enum dnnl_normalization_flags_t
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_primitive_kind_t.html">
+         enum dnnl_primitive_kind_t
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_prop_kind_t.html">
+         enum dnnl_prop_kind_t
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_query_t.html">
+         enum dnnl_query_t
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_normalization_flags.html">
+         enum dnnl::normalization_flags
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_query.html">
+         enum dnnl::query
+        </a>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_exec_arg_t.html">
+         struct dnnl_exec_arg_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_primitive.html">
+         struct dnnl_primitive
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_primitive_desc.html">
+         struct dnnl_primitive_desc
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_primitive_desc_iterator.html">
+         struct dnnl_primitive_desc_iterator
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_primitive-2.html">
+         struct dnnl::primitive
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5">
+          <a class="reference internal" href="enum_dnnl_primitive_kind.html">
+           enum dnnl::primitive::kind
+          </a>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_primitive_desc-2.html">
+         struct dnnl::primitive_desc
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_primitive_desc_base.html">
+         struct dnnl::primitive_desc_base
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_attributes.html">
+       Attributes
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_algorithm.html">
+         enum dnnl::algorithm
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_fpmath_mode_t.html">
+         enum dnnl_fpmath_mode_t
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_scratchpad_mode_t.html">
+         enum dnnl_scratchpad_mode_t
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_fpmath_mode.html">
+         enum dnnl::fpmath_mode
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_prop_kind.html">
+         enum dnnl::prop_kind
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_scratchpad_mode.html">
+         enum dnnl::scratchpad_mode
+        </a>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_post_ops.html">
+         struct dnnl_post_ops
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_primitive_attr.html">
+         struct dnnl_primitive_attr
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_post_ops-2.html">
+         struct dnnl::post_ops
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_primitive_attr-2.html">
+         struct dnnl::primitive_attr
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_reorder.html">
+       Reorder
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_reorder.html">
+         struct dnnl::reorder
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_reorder_primitive_desc.html">
+           struct dnnl::reorder::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_concat.html">
+       Concat
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_concat.html">
+         struct dnnl::concat
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_concat_primitive_desc.html">
+           struct dnnl::concat::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_sum.html">
+       Sum
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_sum.html">
+         struct dnnl::sum
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_sum_primitive_desc.html">
+           struct dnnl::sum::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_binary.html">
+       Binary
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_binary.html">
+         struct dnnl::binary
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_binary_desc.html">
+           struct dnnl::binary::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_binary_primitive_desc.html">
+           struct dnnl::binary::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_binary_desc_t.html">
+         struct dnnl_binary_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_convolution.html">
+       Convolution
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_convolution_backward_data.html">
+         struct dnnl::convolution_backward_data
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_convolution_backward_data_desc.html">
+           struct dnnl::convolution_backward_data::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_convolution_backward_data_primitive_desc.html">
+           struct dnnl::convolution_backward_data::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_convolution_backward_weights.html">
+         struct dnnl::convolution_backward_weights
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_convolution_backward_weights_desc.html">
+           struct dnnl::convolution_backward_weights::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_convolution_backward_weights_primitive_desc.html">
+           struct dnnl::convolution_backward_weights::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_convolution_forward.html">
+         struct dnnl::convolution_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_convolution_forward_desc.html">
+           struct dnnl::convolution_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_convolution_forward_primitive_desc.html">
+           struct dnnl::convolution_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_convolution_desc_t.html">
+         struct dnnl_convolution_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_deconvolution.html">
+       Deconvolution
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_deconvolution_backward_data.html">
+         struct dnnl::deconvolution_backward_data
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_deconvolution_backward_data_desc.html">
+           struct dnnl::deconvolution_backward_data::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_deconvolution_backward_data_primitive_desc.html">
+           struct dnnl::deconvolution_backward_data::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_deconvolution_backward_weights.html">
+         struct dnnl::deconvolution_backward_weights
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_deconvolution_backward_weights_desc.html">
+           struct dnnl::deconvolution_backward_weights::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_deconvolution_backward_weights_primitive_desc.html">
+           struct dnnl::deconvolution_backward_weights::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_deconvolution_forward.html">
+         struct dnnl::deconvolution_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_deconvolution_forward_desc.html">
+           struct dnnl::deconvolution_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_deconvolution_forward_primitive_desc.html">
+           struct dnnl::deconvolution_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_shuffle.html">
+       Shuffle
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_shuffle_desc_t.html">
+         struct dnnl_shuffle_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_shuffle_backward.html">
+         struct dnnl::shuffle_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_shuffle_backward_desc.html">
+           struct dnnl::shuffle_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_shuffle_backward_primitive_desc.html">
+           struct dnnl::shuffle_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_shuffle_forward.html">
+         struct dnnl::shuffle_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_shuffle_forward_desc.html">
+           struct dnnl::shuffle_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_shuffle_forward_primitive_desc.html">
+           struct dnnl::shuffle_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_eltwise.html">
+       Eltwise
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_eltwise_desc_t.html">
+         struct dnnl_eltwise_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_eltwise_backward.html">
+         struct dnnl::eltwise_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_eltwise_backward_desc.html">
+           struct dnnl::eltwise_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_eltwise_backward_primitive_desc.html">
+           struct dnnl::eltwise_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_eltwise_forward.html">
+         struct dnnl::eltwise_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_eltwise_forward_desc.html">
+           struct dnnl::eltwise_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_eltwise_forward_primitive_desc.html">
+           struct dnnl::eltwise_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_softmax.html">
+       Softmax
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_softmax_desc_t.html">
+         struct dnnl_softmax_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_softmax_backward.html">
+         struct dnnl::softmax_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_softmax_backward_desc.html">
+           struct dnnl::softmax_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_softmax_backward_primitive_desc.html">
+           struct dnnl::softmax_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_softmax_forward.html">
+         struct dnnl::softmax_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_softmax_forward_desc.html">
+           struct dnnl::softmax_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_softmax_forward_primitive_desc.html">
+           struct dnnl::softmax_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_softmax_v2.html">
+       Softmax_v2
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_softmax_v2_desc_t.html">
+         struct dnnl_softmax_v2_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_softmax_v2_backward.html">
+         struct dnnl::softmax_v2_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_softmax_v2_backward_desc.html">
+           struct dnnl::softmax_v2_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_softmax_v2_backward_primitive_desc.html">
+           struct dnnl::softmax_v2_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_softmax_v2_forward.html">
+         struct dnnl::softmax_v2_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_softmax_v2_forward_desc.html">
+           struct dnnl::softmax_v2_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_softmax_v2_forward_primitive_desc.html">
+           struct dnnl::softmax_v2_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_logsoftmax.html">
+       LogSoftmax
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_logsoftmax_backward.html">
+         struct dnnl::logsoftmax_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_logsoftmax_backward_desc.html">
+           struct dnnl::logsoftmax_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_logsoftmax_backward_primitive_desc.html">
+           struct dnnl::logsoftmax_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_logsoftmax_forward.html">
+         struct dnnl::logsoftmax_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_logsoftmax_forward_desc.html">
+           struct dnnl::logsoftmax_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_logsoftmax_forward_primitive_desc.html">
+           struct dnnl::logsoftmax_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 current active collapsible-parent">
+      <a class="current reference internal" href="#">
+       Pooling
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_pooling_desc_t.html">
+         struct dnnl_pooling_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_pooling_backward.html">
+         struct dnnl::pooling_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_pooling_backward_desc.html">
+           struct dnnl::pooling_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_pooling_backward_primitive_desc.html">
+           struct dnnl::pooling_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_pooling_forward.html">
+         struct dnnl::pooling_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_pooling_forward_desc.html">
+           struct dnnl::pooling_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_pooling_forward_primitive_desc.html">
+           struct dnnl::pooling_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_pooling_v2.html">
+       Pooling_v2
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_pooling_v2_desc_t.html">
+         struct dnnl_pooling_v2_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_pooling_v2_backward.html">
+         struct dnnl::pooling_v2_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_pooling_v2_backward_desc.html">
+           struct dnnl::pooling_v2_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_pooling_v2_backward_primitive_desc.html">
+           struct dnnl::pooling_v2_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_pooling_v2_forward.html">
+         struct dnnl::pooling_v2_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_pooling_v2_forward_desc.html">
+           struct dnnl::pooling_v2_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_pooling_v2_forward_primitive_desc.html">
+           struct dnnl::pooling_v2_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_prelu.html">
+       PReLU
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_prelu_desc_t.html">
+         struct dnnl_prelu_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_prelu_backward.html">
+         struct dnnl::prelu_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_prelu_backward_desc.html">
+           struct dnnl::prelu_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_prelu_backward_primitive_desc.html">
+           struct dnnl::prelu_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_prelu_forward.html">
+         struct dnnl::prelu_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_prelu_forward_desc.html">
+           struct dnnl::prelu_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_prelu_forward_primitive_desc.html">
+           struct dnnl::prelu_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_lrn.html">
+       LRN
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_lrn_desc_t.html">
+         struct dnnl_lrn_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_lrn_backward.html">
+         struct dnnl::lrn_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lrn_backward_desc.html">
+           struct dnnl::lrn_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lrn_backward_primitive_desc.html">
+           struct dnnl::lrn_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_lrn_forward.html">
+         struct dnnl::lrn_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lrn_forward_desc.html">
+           struct dnnl::lrn_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lrn_forward_primitive_desc.html">
+           struct dnnl::lrn_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_batch_normalization.html">
+       Batch Normalization
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_batch_normalization_backward.html">
+         struct dnnl::batch_normalization_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_batch_normalization_backward_desc.html">
+           struct dnnl::batch_normalization_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_batch_normalization_backward_primitive_desc.html">
+           struct dnnl::batch_normalization_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_batch_normalization_forward.html">
+         struct dnnl::batch_normalization_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_batch_normalization_forward_desc.html">
+           struct dnnl::batch_normalization_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_batch_normalization_forward_primitive_desc.html">
+           struct dnnl::batch_normalization_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_batch_normalization_desc_t.html">
+         struct dnnl_batch_normalization_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_layer_normalization.html">
+       Dnnl_api_layer_normalization
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_layer_normalization_desc_t.html">
+         struct dnnl_layer_normalization_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_layer_normalization_v2.html">
+       Layer Normalization
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_layer_normalization_v2_desc_t.html">
+         struct dnnl_layer_normalization_v2_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_layer_normalization_backward.html">
+         struct dnnl::layer_normalization_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_layer_normalization_backward_desc.html">
+           struct dnnl::layer_normalization_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_layer_normalization_backward_primitive_desc.html">
+           struct dnnl::layer_normalization_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_layer_normalization_forward.html">
+         struct dnnl::layer_normalization_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_layer_normalization_forward_desc.html">
+           struct dnnl::layer_normalization_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_layer_normalization_forward_primitive_desc.html">
+           struct dnnl::layer_normalization_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_inner_product.html">
+       Inner Product
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_inner_product_desc_t.html">
+         struct dnnl_inner_product_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_inner_product_backward_data.html">
+         struct dnnl::inner_product_backward_data
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_inner_product_backward_data_desc.html">
+           struct dnnl::inner_product_backward_data::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_inner_product_backward_data_primitive_desc.html">
+           struct dnnl::inner_product_backward_data::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_inner_product_backward_weights.html">
+         struct dnnl::inner_product_backward_weights
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_inner_product_backward_weights_desc.html">
+           struct dnnl::inner_product_backward_weights::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_inner_product_backward_weights_primitive_desc.html">
+           struct dnnl::inner_product_backward_weights::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_inner_product_forward.html">
+         struct dnnl::inner_product_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_inner_product_forward_desc.html">
+           struct dnnl::inner_product_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_inner_product_forward_primitive_desc.html">
+           struct dnnl::inner_product_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_rnn.html">
+       RNN
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_rnn_direction_t.html">
+         enum dnnl_rnn_direction_t
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_rnn_flags_t.html">
+         enum dnnl_rnn_flags_t
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_rnn_direction.html">
+         enum dnnl::rnn_direction
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_rnn_flags.html">
+         enum dnnl::rnn_flags
+        </a>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_augru_backward.html">
+         struct dnnl::augru_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_augru_backward_desc.html">
+           struct dnnl::augru_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_augru_backward_primitive_desc.html">
+           struct dnnl::augru_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_augru_forward.html">
+         struct dnnl::augru_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_augru_forward_desc.html">
+           struct dnnl::augru_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_augru_forward_primitive_desc.html">
+           struct dnnl::augru_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_rnn_desc_t.html">
+         struct dnnl_rnn_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_gru_backward.html">
+         struct dnnl::gru_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_gru_backward_desc.html">
+           struct dnnl::gru_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_gru_backward_primitive_desc.html">
+           struct dnnl::gru_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_gru_forward.html">
+         struct dnnl::gru_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_gru_forward_desc.html">
+           struct dnnl::gru_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_gru_forward_primitive_desc.html">
+           struct dnnl::gru_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_lbr_augru_backward.html">
+         struct dnnl::lbr_augru_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lbr_augru_backward_desc.html">
+           struct dnnl::lbr_augru_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lbr_augru_backward_primitive_desc.html">
+           struct dnnl::lbr_augru_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_lbr_augru_forward.html">
+         struct dnnl::lbr_augru_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lbr_augru_forward_desc.html">
+           struct dnnl::lbr_augru_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lbr_augru_forward_primitive_desc.html">
+           struct dnnl::lbr_augru_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_lbr_gru_backward.html">
+         struct dnnl::lbr_gru_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lbr_gru_backward_desc.html">
+           struct dnnl::lbr_gru_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lbr_gru_backward_primitive_desc.html">
+           struct dnnl::lbr_gru_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_lbr_gru_forward.html">
+         struct dnnl::lbr_gru_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lbr_gru_forward_desc.html">
+           struct dnnl::lbr_gru_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lbr_gru_forward_primitive_desc.html">
+           struct dnnl::lbr_gru_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_lstm_backward.html">
+         struct dnnl::lstm_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lstm_backward_desc.html">
+           struct dnnl::lstm_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lstm_backward_primitive_desc.html">
+           struct dnnl::lstm_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_lstm_forward.html">
+         struct dnnl::lstm_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lstm_forward_desc.html">
+           struct dnnl::lstm_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_lstm_forward_primitive_desc.html">
+           struct dnnl::lstm_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_rnn_primitive_desc_base.html">
+         struct dnnl::rnn_primitive_desc_base
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_vanilla_rnn_backward.html">
+         struct dnnl::vanilla_rnn_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_vanilla_rnn_backward_desc.html">
+           struct dnnl::vanilla_rnn_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_vanilla_rnn_backward_primitive_desc.html">
+           struct dnnl::vanilla_rnn_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_vanilla_rnn_forward.html">
+         struct dnnl::vanilla_rnn_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_vanilla_rnn_forward_desc.html">
+           struct dnnl::vanilla_rnn_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_vanilla_rnn_forward_primitive_desc.html">
+           struct dnnl::vanilla_rnn_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_matmul.html">
+       Matrix Multiplication
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_matmul_desc_t.html">
+         struct dnnl_matmul_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_matmul.html">
+         struct dnnl::matmul
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_matmul_desc.html">
+           struct dnnl::matmul::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_matmul_primitive_desc.html">
+           struct dnnl::matmul::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_resampling.html">
+       Resampling
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_resampling_desc_t.html">
+         struct dnnl_resampling_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_resampling_backward.html">
+         struct dnnl::resampling_backward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_resampling_backward_desc.html">
+           struct dnnl::resampling_backward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_resampling_backward_primitive_desc.html">
+           struct dnnl::resampling_backward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_resampling_forward.html">
+         struct dnnl::resampling_forward
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_resampling_forward_desc.html">
+           struct dnnl::resampling_forward::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_resampling_forward_primitive_desc.html">
+           struct dnnl::resampling_forward::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_reduction.html">
+       Reduction
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_reduction_desc_t.html">
+         struct dnnl_reduction_desc_t
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_reduction.html">
+         struct dnnl::reduction
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_reduction_desc.html">
+           struct dnnl::reduction::desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_reduction_primitive_desc.html">
+           struct dnnl::reduction::primitive_desc
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="group_dnnl_api_memory.html">
+     Memory
+    </a>
+    <ul class="collapse-ul">
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_data_type_t.html">
+       enum dnnl_data_type_t
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_format_kind_t.html">
+       enum dnnl_format_kind_t
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_format_tag_t.html">
+       enum dnnl_format_tag_t
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_memory_extra_flags_t.html">
+       enum dnnl_memory_extra_flags_t
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_rnn_packed_memory_format_t.html">
+       enum dnnl_rnn_packed_memory_format_t
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_wino_memory_format_t.html">
+       enum dnnl_wino_memory_format_t
+      </a>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_blocking_desc_t.html">
+       struct dnnl_blocking_desc_t
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_memory.html">
+       struct dnnl_memory
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_memory_desc_t.html">
+       struct dnnl_memory_desc_t
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_memory_extra_desc_t.html">
+       struct dnnl_memory_extra_desc_t
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_rnn_packed_desc_t.html">
+       struct dnnl_rnn_packed_desc_t
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_wino_desc_t.html">
+       struct dnnl_wino_desc_t
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_memory-2.html">
+       struct dnnl::memory
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_memory_data_type.html">
+         enum dnnl::memory::data_type
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_memory_format_kind.html">
+         enum dnnl::memory::format_kind
+        </a>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_memory_format_tag.html">
+         enum dnnl::memory::format_tag
+        </a>
+       </li>
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="struct_dnnl_memory_desc.html">
+         struct dnnl::memory::desc
+        </a>
+        <ul class="simple collapse-ul">
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="group_dnnl_api_engine.html">
+     Engine
+    </a>
+    <ul class="collapse-ul">
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_engine_kind_t.html">
+       enum dnnl_engine_kind_t
+      </a>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_engine.html">
+       struct dnnl_engine
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_engine-2.html">
+       struct dnnl::engine
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_engine_kind.html">
+         enum dnnl::engine::kind
+        </a>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="group_dnnl_api_stream.html">
+     Stream
+    </a>
+    <ul class="collapse-ul">
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_stream_flags_t.html">
+       enum dnnl_stream_flags_t
+      </a>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_stream.html">
+       struct dnnl_stream
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_stream-2.html">
+       struct dnnl::stream
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_stream_flags.html">
+         enum dnnl::stream::flags
+        </a>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="group_dnnl_api_primitive_cache.html">
+     Primitive Cache
+    </a>
+    <ul class="simple collapse-ul">
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="group_dnnl_api_mathmode.html">
+     Floating-point Math Mode
+    </a>
+    <ul class="simple collapse-ul">
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="group_dnnl_api_service.html">
+     Service
+    </a>
+    <ul class="collapse-ul">
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_cpu_isa.html">
+       enum dnnl::cpu_isa
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_cpu_isa_hints.html">
+       enum dnnl::cpu_isa_hints
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_cpu_isa_hints_t.html">
+       enum dnnl_cpu_isa_hints_t
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_cpu_isa_t.html">
+       enum dnnl_cpu_isa_t
+      </a>
+     </li>
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_status.html">
+       enum dnnl::status
+      </a>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_version_t.html">
+       struct dnnl_version_t
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="group_dnnl_api_blas.html">
+     BLAS functions
+    </a>
+    <ul class="simple collapse-ul">
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="group_dnnl_api_interop.html">
+     Runtime interoperability API
+    </a>
+    <ul class="collapse-ul">
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_ocl_interop.html">
+       OpenCL interoperability API
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="namespace_dnnl_ocl_interop.html">
+         namespace dnnl::ocl_interop
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5">
+          <a class="reference internal" href="enum_dnnl_ocl_interop_memory_kind.html">
+           enum dnnl::ocl_interop::memory_kind
+          </a>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_ocl_interop_memory_kind_t.html">
+         enum dnnl_ocl_interop_memory_kind_t
+        </a>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_sycl_interop.html">
+       SYCL interoperability API
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="namespace_dnnl_sycl_interop.html">
+         namespace dnnl::sycl_interop
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5">
+          <a class="reference internal" href="enum_dnnl_sycl_interop_memory_kind.html">
+           enum dnnl::sycl_interop::memory_kind
+          </a>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+       <li class="toctree-l4">
+        <a class="reference internal" href="enum_dnnl_sycl_interop_memory_kind_t.html">
+         enum dnnl_sycl_interop_memory_kind_t
+        </a>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="group_dnnl_api_threadpool_interop.html">
+       Threadpool interoperability API
+      </a>
+      <ul class="collapse-ul">
+       <li class="toctree-l4 collapsible-parent">
+        <a class="reference internal" href="namespace_dnnl_threadpool_interop.html">
+         namespace dnnl::threadpool_interop
+        </a>
+        <ul class="collapse-ul">
+         <li class="toctree-l5 collapsible-parent">
+          <a class="reference internal" href="struct_dnnl_threadpool_interop_threadpool_iface.html">
+           struct dnnl::threadpool_interop::threadpool_iface
+          </a>
+          <ul class="simple collapse-ul">
+          </ul>
+          <i class="fas fa-chevron-down">
+          </i>
+         </li>
+        </ul>
+        <i class="fas fa-chevron-down">
+        </i>
+       </li>
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="group_dnnl_api_utils.html">
+     Utilities
+    </a>
+    <ul class="collapse-ul">
+     <li class="toctree-l3">
+      <a class="reference internal" href="enum_dnnl_status_t.html">
+       enum dnnl_status_t
+      </a>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_error.html">
+       struct dnnl::error
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_handle.html">
+       template struct dnnl::handle
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+     <li class="toctree-l3 collapsible-parent">
+      <a class="reference internal" href="struct_dnnl_handle_traits.html">
+       template struct dnnl::handle_traits
+      </a>
+      <ul class="simple collapse-ul">
+      </ul>
+      <i class="fas fa-chevron-down">
+      </i>
+     </li>
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="namespace_dnnl.html">
+     namespace dnnl
+    </a>
+    <ul class="simple collapse-ul">
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+   <li class="toctree-l2 collapsible-parent">
+    <a class="reference internal" href="namespace_oneapi.html">
+     namespace oneapi
+    </a>
+    <ul class="simple collapse-ul">
+    </ul>
+    <i class="fas fa-chevron-down">
+    </i>
+   </li>
+  </ul>
+  <i class="fas fa-chevron-down">
+  </i>
+ </li>
+</ul>
+
+</nav> <!-- To handle the deprecated key -->
+
+<div class="navbar_extra_footer">
+  Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a>
+</div>
+
+</div>
+
+
+          
+
+
+          
+<main class="col py-md-3 pl-md-4 bd-content overflow-auto" role="main">
+    
+    <div class="topbar container-xl fixed-top">
+    <div class="topbar-contents row">
+        <div class="col-12 col-md-3 bd-topbar-whitespace site-navigation show"></div>
+        <div class="col pl-md-4 topbar-main">
+            
+            <button id="navbar-toggler" class="navbar-toggler ml-0" type="button" data-toggle="collapse"
+                data-toggle="tooltip" data-placement="bottom" data-target=".site-navigation" aria-controls="navbar-menu"
+                aria-expanded="true" aria-label="Toggle navigation" aria-controls="site-navigation"
+                title="Toggle navigation" data-toggle="tooltip" data-placement="left">
+                <i class="fas fa-bars"></i>
+                <i class="fas fa-arrow-left"></i>
+                <i class="fas fa-arrow-up"></i>
+            </button>
+            
+            
+<div class="dropdown-buttons-trigger">
+    <button id="dropdown-buttons-trigger" class="btn btn-secondary topbarbtn" aria-label="Download this page"><i
+            class="fas fa-download"></i></button>
+
+    <div class="dropdown-buttons">
+        <!-- ipynb file if we had a myst markdown file -->
+        
+        <!-- Download raw file -->
+        <a class="dropdown-buttons" href="_sources/group_dnnl_api_pooling.rst.txt"><button type="button"
+                class="btn btn-secondary topbarbtn" title="Download source file" data-toggle="tooltip"
+                data-placement="left">.rst</button></a>
+        <!-- Download PDF via print -->
+        <button type="button" id="download-print" class="btn btn-secondary topbarbtn" title="Print to PDF"
+            onClick="window.print()" data-toggle="tooltip" data-placement="left">.pdf</button>
+    </div>
+</div>
+
+            <!-- Source interaction buttons -->
+
+
+            <!-- Full screen (wrap in <a> to have style consistency -->
+            <a class="full-screen-button"><button type="button" class="btn btn-secondary topbarbtn" data-toggle="tooltip"
+                    data-placement="bottom" onclick="toggleFullScreen()" aria-label="Fullscreen mode"
+                    title="Fullscreen mode"><i
+                        class="fas fa-expand"></i></button></a>
+
+            <!-- Launch buttons -->
+
+        </div>
+
+        <!-- Table of contents -->
+        <div class="d-none d-md-block col-md-2 bd-toc show">
+            
+        <div class="tocsection onthispage pt-5 pb-3">
+            <i class="fas fa-list"></i>
+            Contents
+        </div>
+        <nav id="bd-toc-nav">
+            <ul class="nav section-nav flex-column">
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#overview">
+   Overview
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#detailed-documentation">
+   Detailed Documentation
+  </a>
+  <ul class="nav section-nav flex-column">
+   <li class="toc-h3 nav-item toc-entry">
+    <a class="reference internal nav-link" href="#global-functions">
+     Global Functions
+    </a>
+   </li>
+  </ul>
+ </li>
+</ul>
+
+        </nav>
+        
+        </div>
+    </div>
+</div>
+    <div id="main-content" class="row">
+        <div class="col-12 col-md-9 pl-md-3 pr-md-0">
+        
+              <div>
+                
+  <section id="pooling">
+<span id="doxid-group-dnnl-api-pooling"></span><span id="index-0"></span><h1>Pooling<a class="headerlink" href="#pooling" title="Permalink to this headline">¶</a></h1>
+<div class="toctree-wrapper compound">
+</div>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h2>
+<p>A primitive to perform max or average pooling. <a class="reference internal" href="#details-group-dnnl-api-pooling"><span class="std std-ref">More…</span></a></p>
+<pre class="highlight doxyrest-overview-code-block literal-block"><span></span><span class="c1">// structs</span>
+
+<span class="k">struct</span> <a class="reference internal" href="struct_dnnl_pooling_desc_t.html#doxid-structdnnl-pooling-desc-t"><span class="std std-ref">dnnl_pooling_desc_t</span></a><span></span><span class="p">;</span>
+<span class="k">struct</span> <a class="reference internal" href="struct_dnnl_pooling_backward.html#doxid-structdnnl-1-1pooling-backward"><span class="std std-ref">dnnl::pooling_backward</span></a><span></span><span class="p">;</span>
+<span class="k">struct</span> <a class="reference internal" href="struct_dnnl_pooling_forward.html#doxid-structdnnl-1-1pooling-forward"><span class="std std-ref">dnnl::pooling_forward</span></a><span></span><span class="p">;</span>
+
+<span class="c1">// global functions</span>
+
+<a class="reference internal" href="enum_dnnl_status_t.html#doxid-group-dnnl-api-utils-1gad24f9ded06e34d3ee71e7fc4b408d57a"><span class="std std-ref">dnnl_status_t</span></a><span></span> <span class="n">DNNL_API</span> <a class="reference internal" href="#doxid-group-dnnl-api-pooling-1ga1e5b3f2b9088ba7260c996d96268e84e"><span class="std std-ref">dnnl_pooling_forward_desc_init</span></a><span></span><span class="p">(</span>
+    <a class="reference internal" href="struct_dnnl_pooling_desc_t.html#doxid-structdnnl-pooling-desc-t"><span class="std std-ref">dnnl_pooling_desc_t</span></a><span></span><span class="o">*</span> <span class="n">pool_desc</span><span class="p">,</span>
+    <a class="reference internal" href="enum_dnnl_prop_kind_t.html#doxid-group-dnnl-api-primitives-common-1gae3c1f22ae55645782923fbfd8b07d0c4"><span class="std std-ref">dnnl_prop_kind_t</span></a><span></span> <span class="n">prop_kind</span><span class="p">,</span>
+    <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1ga96946c805f6c4922c38c37049ab95d23"><span class="std std-ref">dnnl_alg_kind_t</span></a><span></span> <span class="n">alg_kind</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="struct_dnnl_memory_desc_t.html#doxid-structdnnl-memory-desc-t"><span class="std std-ref">dnnl_memory_desc_t</span></a><span></span><span class="o">*</span> <span class="n">src_desc</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="struct_dnnl_memory_desc_t.html#doxid-structdnnl-memory-desc-t"><span class="std std-ref">dnnl_memory_desc_t</span></a><span></span><span class="o">*</span> <span class="n">dst_desc</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">strides</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">kernel</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">padding_l</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">padding_r</span>
+    <span class="p">);</span>
+
+<a class="reference internal" href="enum_dnnl_status_t.html#doxid-group-dnnl-api-utils-1gad24f9ded06e34d3ee71e7fc4b408d57a"><span class="std std-ref">dnnl_status_t</span></a><span></span> <span class="n">DNNL_API</span> <a class="reference internal" href="#doxid-group-dnnl-api-pooling-1gaa9c943c7a3957b78a94e36b1ed10c577"><span class="std std-ref">dnnl_pooling_backward_desc_init</span></a><span></span><span class="p">(</span>
+    <a class="reference internal" href="struct_dnnl_pooling_desc_t.html#doxid-structdnnl-pooling-desc-t"><span class="std std-ref">dnnl_pooling_desc_t</span></a><span></span><span class="o">*</span> <span class="n">pool_desc</span><span class="p">,</span>
+    <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1ga96946c805f6c4922c38c37049ab95d23"><span class="std std-ref">dnnl_alg_kind_t</span></a><span></span> <span class="n">alg_kind</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="struct_dnnl_memory_desc_t.html#doxid-structdnnl-memory-desc-t"><span class="std std-ref">dnnl_memory_desc_t</span></a><span></span><span class="o">*</span> <span class="n">diff_src_desc</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="struct_dnnl_memory_desc_t.html#doxid-structdnnl-memory-desc-t"><span class="std std-ref">dnnl_memory_desc_t</span></a><span></span><span class="o">*</span> <span class="n">diff_dst_desc</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">strides</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">kernel</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">padding_l</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">padding_r</span>
+    <span class="p">);</span></pre>
+</section>
+<section id="detailed-documentation">
+<span id="details-group-dnnl-api-pooling"></span><h2>Detailed Documentation<a class="headerlink" href="#detailed-documentation" title="Permalink to this headline">¶</a></h2>
+<p>A primitive to perform max or average pooling.</p>
+<p class="rubric">See also:</p>
+<p><a class="reference internal" href="dev_guide_pooling.html#doxid-dev-guide-pooling"><span class="std std-ref">Pooling</span></a> in developer guide</p>
+<section id="global-functions">
+<h3>Global Functions<a class="headerlink" href="#global-functions" title="Permalink to this headline">¶</a></h3>
+<pre class="highlight doxyrest-title-code-block literal-block" id="doxid-group-dnnl-api-pooling-1ga1e5b3f2b9088ba7260c996d96268e84e"><span id="index-1"></span><a class="reference internal" href="enum_dnnl_status_t.html#doxid-group-dnnl-api-utils-1gad24f9ded06e34d3ee71e7fc4b408d57a"><span class="std std-ref">dnnl_status_t</span></a><span></span> <span class="n">DNNL_API</span> <span class="n">dnnl_pooling_forward_desc_init</span><span class="p">(</span>
+    <a class="reference internal" href="struct_dnnl_pooling_desc_t.html#doxid-structdnnl-pooling-desc-t"><span class="std std-ref">dnnl_pooling_desc_t</span></a><span></span><span class="o">*</span> <span class="n">pool_desc</span><span class="p">,</span>
+    <a class="reference internal" href="enum_dnnl_prop_kind_t.html#doxid-group-dnnl-api-primitives-common-1gae3c1f22ae55645782923fbfd8b07d0c4"><span class="std std-ref">dnnl_prop_kind_t</span></a><span></span> <span class="n">prop_kind</span><span class="p">,</span>
+    <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1ga96946c805f6c4922c38c37049ab95d23"><span class="std std-ref">dnnl_alg_kind_t</span></a><span></span> <span class="n">alg_kind</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="struct_dnnl_memory_desc_t.html#doxid-structdnnl-memory-desc-t"><span class="std std-ref">dnnl_memory_desc_t</span></a><span></span><span class="o">*</span> <span class="n">src_desc</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="struct_dnnl_memory_desc_t.html#doxid-structdnnl-memory-desc-t"><span class="std std-ref">dnnl_memory_desc_t</span></a><span></span><span class="o">*</span> <span class="n">dst_desc</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">strides</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">kernel</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">padding_l</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">padding_r</span>
+    <span class="p">)</span></pre>
+<p>Initializes a descriptor for pooling forward propagation primitive.</p>
+<p>Arrays <code class="docutils literal notranslate"><span class="pre">strides</span></code>, <code class="docutils literal notranslate"><span class="pre">kernel</span></code>, <code class="docutils literal notranslate"><span class="pre">padding_l</span></code>, and <code class="docutils literal notranslate"><span class="pre">padding_r</span></code> contain values for spatial dimensions only and hence must have the same number of elements as there are spatial dimensions. The order of values is the same as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.</p>
+<p class="rubric">Parameters:</p>
+<table class="colwidths-given table">
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 80%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p>pool_desc</p></td>
+<td><p>Output descriptor for a pooling primitive.</p></td>
+</tr>
+<tr class="row-even"><td><p>prop_kind</p></td>
+<td><p>Propagation kind. Possible values are <a class="reference internal" href="enum_dnnl_prop_kind_t.html#doxid-group-dnnl-api-primitives-common-1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0"><span class="std std-ref">dnnl_forward_training</span></a> and <a class="reference internal" href="enum_dnnl_prop_kind_t.html#doxid-group-dnnl-api-primitives-common-1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d"><span class="std std-ref">dnnl_forward_inference</span></a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p>alg_kind</p></td>
+<td><p>Pooling algorithm kind: either <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1gga96946c805f6c4922c38c37049ab95d23acf3529ba1c4761c0da90eb6750def6c7"><span class="std std-ref">dnnl_pooling_max</span></a>, <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1gga96946c805f6c4922c38c37049ab95d23ac13a4cc7c0dc1edfcbf1bac23391d5cb"><span class="std std-ref">dnnl_pooling_avg_include_padding</span></a>, or <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1gga96946c805f6c4922c38c37049ab95d23a1411592a76d7b05aaa720445e28e72e5"><span class="std std-ref">dnnl_pooling_avg</span></a> (same as <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1gga96946c805f6c4922c38c37049ab95d23a00156580493fd7c2f4cdbaaf9fcbde79"><span class="std std-ref">dnnl_pooling_avg_exclude_padding</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p>src_desc</p></td>
+<td><p>Source memory descriptor.</p></td>
+</tr>
+<tr class="row-odd"><td><p>dst_desc</p></td>
+<td><p>Destination memory descriptor.</p></td>
+</tr>
+<tr class="row-even"><td><p>strides</p></td>
+<td><p>Array of strides for spatial dimension.</p></td>
+</tr>
+<tr class="row-odd"><td><p>kernel</p></td>
+<td><p>Array of kernel spatial dimensions.</p></td>
+</tr>
+<tr class="row-even"><td><p>padding_l</p></td>
+<td><p>Array of padding values for low indices for each spatial dimension <code class="docutils literal notranslate"><span class="pre">([[front,]</span> <span class="pre">top,]</span> <span class="pre">left)</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p>padding_r</p></td>
+<td><p>Array of padding values for high indices for each spatial dimension <code class="docutils literal notranslate"><span class="pre">([[back,]</span> <span class="pre">bottom,]</span> <span class="pre">right)</span></code>. Can be NULL in which case padding is considered to be symmetrical.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Returns:</p>
+<p><a class="reference internal" href="enum_dnnl_status_t.html#doxid-group-dnnl-api-utils-1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c"><span class="std std-ref">dnnl_success</span></a> on success and a status describing the error otherwise.</p>
+<pre class="highlight doxyrest-title-code-block literal-block" id="doxid-group-dnnl-api-pooling-1gaa9c943c7a3957b78a94e36b1ed10c577"><span id="index-2"></span><a class="reference internal" href="enum_dnnl_status_t.html#doxid-group-dnnl-api-utils-1gad24f9ded06e34d3ee71e7fc4b408d57a"><span class="std std-ref">dnnl_status_t</span></a><span></span> <span class="n">DNNL_API</span> <span class="n">dnnl_pooling_backward_desc_init</span><span class="p">(</span>
+    <a class="reference internal" href="struct_dnnl_pooling_desc_t.html#doxid-structdnnl-pooling-desc-t"><span class="std std-ref">dnnl_pooling_desc_t</span></a><span></span><span class="o">*</span> <span class="n">pool_desc</span><span class="p">,</span>
+    <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1ga96946c805f6c4922c38c37049ab95d23"><span class="std std-ref">dnnl_alg_kind_t</span></a><span></span> <span class="n">alg_kind</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="struct_dnnl_memory_desc_t.html#doxid-structdnnl-memory-desc-t"><span class="std std-ref">dnnl_memory_desc_t</span></a><span></span><span class="o">*</span> <span class="n">diff_src_desc</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="struct_dnnl_memory_desc_t.html#doxid-structdnnl-memory-desc-t"><span class="std std-ref">dnnl_memory_desc_t</span></a><span></span><span class="o">*</span> <span class="n">diff_dst_desc</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">strides</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">kernel</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">padding_l</span><span class="p">,</span>
+    <span class="k">const</span> <a class="reference internal" href="group_dnnl_api_memory.html#doxid-group-dnnl-api-memory-1ga8331e1160e52a5d4babe96736464095a"><span class="std std-ref">dnnl_dims_t</span></a><span></span> <span class="n">padding_r</span>
+    <span class="p">)</span></pre>
+<p>Initializes a descriptor for pooling backward propagation primitive.</p>
+<p>Arrays <code class="docutils literal notranslate"><span class="pre">strides</span></code>, <code class="docutils literal notranslate"><span class="pre">kernel</span></code>, <code class="docutils literal notranslate"><span class="pre">padding_l</span></code>, and <code class="docutils literal notranslate"><span class="pre">padding_r</span></code> contain values for spatial dimensions only and hence must have the same number of elements as there are spatial dimensions. The order of values is the same as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.</p>
+<p class="rubric">Parameters:</p>
+<table class="colwidths-given table">
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 80%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p>pool_desc</p></td>
+<td><p>Output descriptor for a pooling primitive.</p></td>
+</tr>
+<tr class="row-even"><td><p>alg_kind</p></td>
+<td><p>Pooling algorithm kind: either <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1gga96946c805f6c4922c38c37049ab95d23acf3529ba1c4761c0da90eb6750def6c7"><span class="std std-ref">dnnl_pooling_max</span></a>, <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1gga96946c805f6c4922c38c37049ab95d23ac13a4cc7c0dc1edfcbf1bac23391d5cb"><span class="std std-ref">dnnl_pooling_avg_include_padding</span></a>, or <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1gga96946c805f6c4922c38c37049ab95d23a1411592a76d7b05aaa720445e28e72e5"><span class="std std-ref">dnnl_pooling_avg</span></a> (same as <a class="reference internal" href="enum_dnnl_alg_kind_t.html#doxid-group-dnnl-api-primitives-common-1gga96946c805f6c4922c38c37049ab95d23a00156580493fd7c2f4cdbaaf9fcbde79"><span class="std std-ref">dnnl_pooling_avg_exclude_padding</span></a>).</p></td>
+</tr>
+<tr class="row-odd"><td><p>diff_src_desc</p></td>
+<td><p>Diff source memory descriptor.</p></td>
+</tr>
+<tr class="row-even"><td><p>diff_dst_desc</p></td>
+<td><p>Diff destination memory descriptor.</p></td>
+</tr>
+<tr class="row-odd"><td><p>strides</p></td>
+<td><p>Array of strides for spatial dimension.</p></td>
+</tr>
+<tr class="row-even"><td><p>kernel</p></td>
+<td><p>Array of kernel spatial dimensions.</p></td>
+</tr>
+<tr class="row-odd"><td><p>padding_l</p></td>
+<td><p>Array of padding values for low indices for each spatial dimension <code class="docutils literal notranslate"><span class="pre">([[front,]</span> <span class="pre">top,]</span> <span class="pre">left)</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p>padding_r</p></td>
+<td><p>Array of padding values for high indices for each spatial dimension <code class="docutils literal notranslate"><span class="pre">([[back,]</span> <span class="pre">bottom,]</span> <span class="pre">right)</span></code>. Can be NULL in which case padding is considered to be symmetrical.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Returns:</p>
+<p><a class="reference internal" href="enum_dnnl_status_t.html#doxid-group-dnnl-api-utils-1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c"><span class="std std-ref">dnnl_success</span></a> on success and a status describing the error otherwise.</p>
+</section>
+</section>
+</section>
+
+
+              </div>
+              
+        
+        <div class='prev-next-bottom'>
+            
+    <a class='left-prev' id="prev-link" href="struct_dnnl_logsoftmax_forward_primitive_desc.html" title="previous page">struct dnnl::logsoftmax_forward::primitive_desc</a>
+    <a class='right-next' id="next-link" href="struct_dnnl_pooling_desc_t.html" title="next page">struct dnnl_pooling_desc_t</a>
+
+        </div>
+        
+        </div>
+    </div>
+    <footer class="footer mt-5 mt-md-0">
+    <div class="container">
+      <p>
+        
+          By Intel<br/>
+        
+            &copy; Copyright © Copyright 2016 - 2022, Intel Corporation.<br/>
+      </p>
+    </div>
+  </footer>
+</main>
+
+
+      </div>
+    </div>
+
+    
+  <script src="_static/js/index.d3f166471bb80abb5163.js"></script>
+
+
+    
+  </body>
+</html>

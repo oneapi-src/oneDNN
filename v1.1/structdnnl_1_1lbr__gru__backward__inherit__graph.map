@@ -1,0 +1,4 @@
+<map id="dnnl::lbr_gru_backward" name="dnnl::lbr_gru_backward">
+<area shape="rect" id="node2" href="$classdnnl_1_1primitive.html" title="Base class for all computational primitives. " alt="" coords="33,95,151,121"/>
+<area shape="rect" id="node3" href="$classdnnl_1_1handle.html" title="dnnl::handle\&lt; dnnl\l_primitive_t \&gt;" alt="" coords="19,5,165,47"/>
+</map>

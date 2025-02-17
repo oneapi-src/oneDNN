@@ -1,0 +1,110 @@
+.. index:: pair: struct; dnnl::pooling_backward::desc
+.. _doxid-structdnnl_1_1pooling__backward_1_1desc:
+
+struct dnnl::pooling_backward::desc
+===================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a pooling backward propagation primitive. :ref:`More...<details-structdnnl_1_1pooling__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_pooling_desc_t<doxid-structdnnl__pooling__desc__t>` :target:`data<doxid-structdnnl_1_1pooling__backward_1_1desc_1a8f292edd429d90737b977d6d19605ecd>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1pooling__backward_1_1desc_1aa7bea39c45614f099b67a68b1825d080>`(
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc,
+			const :ref:`memory::dims<doxid-structdnnl_1_1memory_1afdd20764d58c0b517d5a31276672aeb8>`& strides,
+			const :ref:`memory::dims<doxid-structdnnl_1_1memory_1afdd20764d58c0b517d5a31276672aeb8>`& kernel,
+			const :ref:`memory::dims<doxid-structdnnl_1_1memory_1afdd20764d58c0b517d5a31276672aeb8>`& padding_l,
+			const :ref:`memory::dims<doxid-structdnnl_1_1memory_1afdd20764d58c0b517d5a31276672aeb8>`& padding_r
+			);
+	};
+.. _details-structdnnl_1_1pooling__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a pooling backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1pooling__backward_1_1desc_1aa7bea39c45614f099b67a68b1825d080:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc,
+		const :ref:`memory::dims<doxid-structdnnl_1_1memory_1afdd20764d58c0b517d5a31276672aeb8>`& strides,
+		const :ref:`memory::dims<doxid-structdnnl_1_1memory_1afdd20764d58c0b517d5a31276672aeb8>`& kernel,
+		const :ref:`memory::dims<doxid-structdnnl_1_1memory_1afdd20764d58c0b517d5a31276672aeb8>`& padding_l,
+		const :ref:`memory::dims<doxid-structdnnl_1_1memory_1afdd20764d58c0b517d5a31276672aeb8>`& padding_r
+		)
+
+Constructs a descriptor for pooling backward propagation primitive.
+
+Arrays ``strides``, ``kernel``, ``padding_l``, and ``padding_r`` contain values for spatial dimensions only and hence must have the same number of elements as there are spatial dimensions. The order of values is the same as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aalgorithm
+
+		- Pooling algorithm kind: either :ref:`dnnl::algorithm::pooling_max <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a8c73d4bb88a0497586a74256bb338e88>`, :ref:`dnnl::algorithm::pooling_avg_include_padding <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640ad62617dd43972a6bbff8d263a5c4462c>`, or :ref:`dnnl::algorithm::pooling_avg <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a7702ff2872aa0321d96ea7134bad855a>` (same as :ref:`dnnl::algorithm::pooling_avg_exclude_padding <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a7ed10af2056450d8f6ac7277b48fc6a8>`).
+
+	*
+		- diff_src_desc
+
+		- Diff source memory descriptor.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+
+	*
+		- strides
+
+		- Vector of strides for spatial dimension.
+
+	*
+		- kernel
+
+		- Vector of kernel spatial dimensions.
+
+	*
+		- padding_l
+
+		- Vector of padding values for low indices for each spatial dimension ``([[front,] top,] left)``.
+
+	*
+		- padding_r
+
+		- Vector of padding values for high indices for each spatial dimension ``([[back,] bottom,] right)``.
+

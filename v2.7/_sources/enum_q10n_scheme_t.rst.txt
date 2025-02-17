@@ -1,0 +1,18 @@
+.. index:: pair: enum; q10n_scheme_t
+.. _doxid-cpu__matmul__quantization_8cpp_1a3a8e666f74334604d8c51a9dae41f665:
+
+enum q10n_scheme_t
+==================
+
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	
+	enum q10n_scheme_t
+	{
+	    :target:`DYNAMIC<doxid-cpu__matmul__quantization_8cpp_1a3a8e666f74334604d8c51a9dae41f665a0fcc90da4811c877ba9f9c12f7d60bc9>`,
+	    :target:`STATIC<doxid-cpu__matmul__quantization_8cpp_1a3a8e666f74334604d8c51a9dae41f665afe6f99ef1ec99efbdc19a9786cf1facc>`,
+	};
+

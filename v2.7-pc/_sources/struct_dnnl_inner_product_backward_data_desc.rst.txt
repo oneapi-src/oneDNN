@@ -1,0 +1,84 @@
+.. index:: pair: struct; dnnl::inner_product_backward_data::desc
+.. _doxid-structdnnl_1_1inner__product__backward__data_1_1desc:
+
+struct dnnl::inner_product_backward_data::desc
+==============================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for an inner product backward propagation primitive. :ref:`More...<details-structdnnl_1_1inner__product__backward__data_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_inner_product_desc_t<doxid-structdnnl__inner__product__desc__t>` :target:`data<doxid-structdnnl_1_1inner__product__backward__data_1_1desc_1a6bb3c8c9d494e6b3e580fa3075c0ebe2>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1inner__product__backward__data_1_1desc_1acb7a59b3dee40a7f67a388bbdd1d5a22>`(
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc
+			);
+	};
+.. _details-structdnnl_1_1inner__product__backward__data_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for an inner product backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1inner__product__backward__data_1_1desc_1acb7a59b3dee40a7f67a388bbdd1d5a22:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc
+		)
+
+Constructs a descriptor for an inner product backward propagation primitive.
+
+.. note:: 
+
+   All the memory descriptors may be initialized with the :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- diff_src_desc
+
+		- Memory descriptor for diff src.
+
+	*
+		- weights_desc
+
+		- Memory descriptor for weights.
+
+	*
+		- diff_dst_desc
+
+		- Memory descriptor for diff dst.
+

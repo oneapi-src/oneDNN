@@ -1,0 +1,1571 @@
+.. index:: pair: struct; dnnl::post_ops
+.. _doxid-structdnnl_1_1post__ops:
+
+struct dnnl::post_ops
+=====================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Post-ops. :ref:`More...<details-structdnnl_1_1post__ops>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct post_ops: public :ref:`dnnl::handle<doxid-structdnnl_1_1handle>`
+	{
+		// methods
+	
+		int :ref:`len<doxid-structdnnl_1_1post__ops_1a84653b68d83c2d84d3ac432a8dc1f5fd>`() const;
+		:ref:`primitive::kind<doxid-structdnnl_1_1primitive_1ad1ec93215a0cf3aa0a32bae0c2cd9169>` :ref:`kind<doxid-structdnnl_1_1post__ops_1a454acad1a18f2763f07b42912778c0f8>`(int index) const;
+	
+		void :ref:`append_sum<doxid-structdnnl_1_1post__ops_1ab8e3832e8600216a3646e9050d3bc1f3>`(
+			float scale = 1.f,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` data_type = :ref:`memory::data_type::undef<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dceaf31ee5e3824f1f5e5d206bdf3029f22b>`
+			);
+	
+		void :ref:`append_sum<doxid-structdnnl_1_1post__ops_1a8cb2a7ff1020dd066a007932a9e4affd>`(
+			float scale,
+			int32_t zero_point,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` data_type = :ref:`memory::data_type::undef<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dceaf31ee5e3824f1f5e5d206bdf3029f22b>`
+			);
+	
+		void :ref:`get_params_sum<doxid-structdnnl_1_1post__ops_1aaeb404084e7f9c65e8e266acca2ea6ac>`(int index, float& scale) const;
+		void :ref:`get_params_sum<doxid-structdnnl_1_1post__ops_1a19a49b0e1c5b2ce4f38d7774a50b0824>`(int index, float& scale, :ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& data_type) const;
+	
+		void :ref:`get_params_sum<doxid-structdnnl_1_1post__ops_1a11c17d7a4ebbd50251eb20f535eb08e8>`(
+			int index,
+			float& scale,
+			int32_t& zero_point,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& data_type
+			) const;
+	
+		void :ref:`append_eltwise<doxid-structdnnl_1_1post__ops_1a28460923ad579c780e4027a6256fe207>`(float scale, :ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm, float alpha, float beta);
+	
+		void :ref:`get_params_eltwise<doxid-structdnnl_1_1post__ops_1aacdd5699855516a79903e4fb416e0710>`(
+			int index,
+			float& scale,
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>`& aalgorithm,
+			float& alpha,
+			float& beta
+			) const;
+	
+		void :ref:`append_dw<doxid-structdnnl_1_1post__ops_1af23e9740652372dad32a34b64601de1c>`(
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` weights_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` bias_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` dst_data_type,
+			:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>` kernel_size,
+			:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>` stride_size,
+			:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>` padding_l_size,
+			int mask,
+			const std::vector<float>& scales
+			);
+	
+		void :ref:`get_params_dw<doxid-structdnnl_1_1post__ops_1a0eedf5be676d0d7905752b9d5cead6aa>`(
+			int index,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& weights_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& bias_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& dst_data_type,
+			:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>`& kernel_size,
+			:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>`& stride_size,
+			:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>`& padding_l_size,
+			int& mask,
+			std::vector<float>& scales
+			) const;
+	
+		void :ref:`append_dw_k3s1p1<doxid-structdnnl_1_1post__ops_1a4229db0e1e1eab273ed0e2b3e18402de>`(
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` weights_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` bias_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` dst_data_type,
+			int mask,
+			const std::vector<float>& scales
+			);
+	
+		void :ref:`get_params_dw_k3s1p1<doxid-structdnnl_1_1post__ops_1a0a2e4900906d5696c027f317264ba014>`(
+			int index,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& weights_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& bias_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& dst_data_type,
+			int& mask,
+			std::vector<float>& scales
+			) const;
+	
+		void :ref:`append_dw_k3s2p1<doxid-structdnnl_1_1post__ops_1a88ed886c27b4df4667431ed48d29f4c1>`(
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` weights_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` bias_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` dst_data_type,
+			int mask,
+			const std::vector<float>& scales
+			);
+	
+		void :ref:`get_params_dw_k3s2p1<doxid-structdnnl_1_1post__ops_1aab8e82524241127a2a655fbab33d55fe>`(
+			int index,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& weights_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& bias_data_type,
+			:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& dst_data_type,
+			int& mask,
+			std::vector<float>& scales
+			) const;
+	
+		void :ref:`append_binary<doxid-structdnnl_1_1post__ops_1a40bb2b39a685726ac54873b203be41b5>`(:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm, const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src1_desc);
+	
+		void :ref:`get_params_binary<doxid-structdnnl_1_1post__ops_1a0a367859cac33d597743de491d26dcb9>`(
+			int index,
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>`& aalgorithm,
+			:ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src1_desc
+			) const;
+	
+		void :ref:`set_output_scales<doxid-structdnnl_1_1post__ops_1afbca16b83429bc2f5e47ec07807ef1f6>`(int mask, const std::vector<float>& scales);
+		void :ref:`get_scales<doxid-structdnnl_1_1post__ops_1abfa6cce32604f569b7a3b5fd35ad3497>`(int arg, int& mask, std::vector<float>& scales) const;
+		void :ref:`set_scales<doxid-structdnnl_1_1post__ops_1a3dd0e698adc3e501ba1069290d314b96>`(int arg, int mask, const std::vector<float>& scales);
+		void :ref:`get_zero_points<doxid-structdnnl_1_1post__ops_1a9a925fec872dadfb27c20e70a54e5ecd>`(int arg, int& mask, std::vector<int32_t>& zero_points) const;
+		void :ref:`set_zero_points<doxid-structdnnl_1_1post__ops_1ae9302dadab0571ff4387cf8a5f050160>`(int arg, int mask, const std::vector<int32_t>& zero_points);
+		const post_ops :ref:`get_post_ops<doxid-structdnnl_1_1post__ops_1a1d623ce8fcc95f68ab1de43ce410d99c>`() const;
+		void :ref:`set_post_ops<doxid-structdnnl_1_1post__ops_1ac2a1ad4e8978966a8723baedf75d0edd>`(const post_ops ops);
+		void :ref:`set_rnn_data_qparams<doxid-structdnnl_1_1post__ops_1a20cf7c08b56ad23a7125478ce7ac1113>`(float scale, float shift);
+		void :ref:`get_rnn_data_qparams<doxid-structdnnl_1_1post__ops_1a7c6f9f1ae3e868240f1d01f68e8f55ab>`(float& scale, float& shift);
+		void :ref:`set_rnn_weights_qparams<doxid-structdnnl_1_1post__ops_1a802aea3d7e50aefc8eae68f84ae44af3>`(int mask, const std::vector<float>& scales);
+		void :ref:`get_rnn_weights_qparams<doxid-structdnnl_1_1post__ops_1aacb4e2be880583eec5bb86977151a2cc>`(int& mask, std::vector<float>& scales);
+	
+		void :ref:`set_rnn_weights_projection_qparams<doxid-structdnnl_1_1post__ops_1a059426e563fab17134c341f40ede2796>`(
+			int mask,
+			const std::vector<float>& scales
+			);
+	
+		void :ref:`get_rnn_weights_projection_qparams<doxid-structdnnl_1_1post__ops_1a38fd234aecae3c112565d1d6a11736ac>`(int& mask, std::vector<float>& scales);
+	};
+
+Inherited Members
+-----------------
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-inherited-code-block
+
+	public:
+		// methods
+	
+		:ref:`handle<doxid-structdnnl_1_1handle>`<T, traits>& :ref:`operator =<doxid-structdnnl_1_1handle_1a4ad1ff54e4aafeb560a869c49aa20b52>` (const :ref:`handle<doxid-structdnnl_1_1handle>`<T, traits>&);
+		:ref:`handle<doxid-structdnnl_1_1handle>`<T, traits>& :ref:`operator =<doxid-structdnnl_1_1handle_1af3f85524f3d83abdd4917b46ce23e727>` (:ref:`handle<doxid-structdnnl_1_1handle>`<T, traits>&&);
+		void :ref:`reset<doxid-structdnnl_1_1handle_1a8862ef3d31c3b19bd88395e0b1373909>`(T t, bool weak = false);
+		T :ref:`get<doxid-structdnnl_1_1handle_1a2208243e1d147a0be9da87fff46ced7e>`(bool allow_empty = false) const;
+		:ref:`operator T<doxid-structdnnl_1_1handle_1a498e45a0937a32367b400b09dbc3dac3>` () const;
+		:ref:`operator bool<doxid-structdnnl_1_1handle_1ad14e2635ad97d873f0114ed77c1f55d5>` () const;
+		bool :ref:`operator ==<doxid-structdnnl_1_1handle_1a069b5ea2a2c13fc4ebefd4fb51d0899e>` (const :ref:`handle<doxid-structdnnl_1_1handle>`<T, traits>& other) const;
+		bool :ref:`operator !=<doxid-structdnnl_1_1handle_1a1895f4cd3fc3eca7560756c0c508e5ab>` (const :ref:`handle<doxid-structdnnl_1_1handle>`& other) const;
+
+.. _details-structdnnl_1_1post__ops:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Post-ops.
+
+Post-ops are computations executed after the main primitive computations and are attached to the primitive via primitive attributes.
+
+
+
+.. rubric:: See also:
+
+:ref:`Primitive Attributes: Post-ops <doxid-dev_guide_attributes_post_ops>`
+
+Methods
+-------
+
+.. index:: pair: function; len
+.. _doxid-structdnnl_1_1post__ops_1a84653b68d83c2d84d3ac432a8dc1f5fd:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	int len() const
+
+Returns the number of post-ops entries.
+
+.. index:: pair: function; kind
+.. _doxid-structdnnl_1_1post__ops_1a454acad1a18f2763f07b42912778c0f8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`primitive::kind<doxid-structdnnl_1_1primitive_1ad1ec93215a0cf3aa0a32bae0c2cd9169>` kind(int index) const
+
+Returns the primitive kind of post-op at entry with a certain index.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- index
+
+		- Index of the post-op to return the kind for.
+
+
+
+.. rubric:: Returns:
+
+Primitive kind of the post-op at the specified index.
+
+.. index:: pair: function; append_sum
+.. _doxid-structdnnl_1_1post__ops_1ab8e3832e8600216a3646e9050d3bc1f3:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void append_sum(
+		float scale = 1.f,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` data_type = :ref:`memory::data_type::undef<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dceaf31ee5e3824f1f5e5d206bdf3029f22b>`
+		)
+
+Appends an accumulation (sum) post-op.
+
+Prior to accumulating the result, the previous value would be multiplied by a scaling factor ``scale``.
+
+The kind of this post-op is :ref:`dnnl::primitive::kind::sum <doxid-structdnnl_1_1primitive_1ad1ec93215a0cf3aa0a32bae0c2cd9169a1d623b89683f9ce4e074de1676d12416>`.
+
+This feature may improve performance for cases like residual learning blocks, where the result of convolution is accumulated to the previously computed activations. The parameter ``scale`` may be used for the integer-based computations when the result and previous activations have different logical scaling factors.
+
+In the simplest case when the accumulation is the only post-op, the computations will be ``dst[:] := scale * dst[:] + op(...)`` instead of ``dst[:] := op(...)``.
+
+If ``data_type`` is specified, the original dst tensor will be reinterpreted as a tensor with the provided data type. Because it is a reinterpretation, data_type and dst data type should have the same size. As a result, computations will be ``dst[:] <- scale * as_data_type(dst[:]) + op(...)`` instead of ``dst[:] <- op(...)``.
+
+.. note:: 
+
+   This post-op executes in-place and does not change the destination layout.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- scale
+
+		- Scaling factor.
+
+	*
+		- data_type
+
+		- Data type.
+
+.. index:: pair: function; append_sum
+.. _doxid-structdnnl_1_1post__ops_1a8cb2a7ff1020dd066a007932a9e4affd:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void append_sum(
+		float scale,
+		int32_t zero_point,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` data_type = :ref:`memory::data_type::undef<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dceaf31ee5e3824f1f5e5d206bdf3029f22b>`
+		)
+
+Appends an accumulation (sum) post-op.
+
+Prior to accumulating the result, the previous value will be will be reduced by zero point ``zero_point`` and multiplied by a scaling factor ``scale``.
+
+The kind of this post-op is :ref:`dnnl::primitive::kind::sum <doxid-structdnnl_1_1primitive_1ad1ec93215a0cf3aa0a32bae0c2cd9169a1d623b89683f9ce4e074de1676d12416>`.
+
+This feature may improve performance for cases like dequantize the asymmetrically quantized sum's src1 tensor to f32 domain before performing the sum operation by subtracting ``zero_point`` before the scaling.
+
+In the simplest case when the accumulation is the only post-op, the computations will be ``dst[:] := scale * (dst[:] - zero_point) + op(...)`` instead of ``dst[:] := op(...)``.
+
+If ``data_type`` is specified, the original dst tensor will be reinterpreted as a tensor with the provided data type. Because it is a reinterpretation, data_type and dst data type should have the same size. As a result, computations will be ``dst[:] <- scale * (as_data_type(dst[:]) - zero_point) + op(...)`` instead of ``dst[:] <- op(...)``.
+
+.. note:: 
+
+   This post-op executes in-place and does not change the destination layout.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- scale
+
+		- Scaling factor.
+
+	*
+		- zero_point
+
+		- Zero point.
+
+	*
+		- data_type
+
+		- Data type.
+
+.. index:: pair: function; get_params_sum
+.. _doxid-structdnnl_1_1post__ops_1aaeb404084e7f9c65e8e266acca2ea6ac:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_params_sum(int index, float& scale) const
+
+Returns the parameters of an accumulation (sum) post-op.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- index
+
+		- Index of the sum post-op.
+
+	*
+		- scale
+
+		- Scaling factor of the sum post-op.
+
+.. index:: pair: function; get_params_sum
+.. _doxid-structdnnl_1_1post__ops_1a19a49b0e1c5b2ce4f38d7774a50b0824:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_params_sum(int index, float& scale, :ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& data_type) const
+
+Returns the parameters of an accumulation (sum) post-op.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- index
+
+		- Index of the sum post-op.
+
+	*
+		- scale
+
+		- Scaling factor of the sum post-op.
+
+	*
+		- data_type
+
+		- Data type of the sum post-op.
+
+.. index:: pair: function; get_params_sum
+.. _doxid-structdnnl_1_1post__ops_1a11c17d7a4ebbd50251eb20f535eb08e8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_params_sum(
+		int index,
+		float& scale,
+		int32_t& zero_point,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& data_type
+		) const
+
+Returns the parameters of an accumulation (sum) post-op.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- index
+
+		- Index of the sum post-op.
+
+	*
+		- scale
+
+		- Scaling factor of the sum post-op.
+
+	*
+		- zero_point
+
+		- Single scalar int32_t value of zeropoint.
+
+	*
+		- data_type
+
+		- Data type of the sum post-op.
+
+.. index:: pair: function; append_eltwise
+.. _doxid-structdnnl_1_1post__ops_1a28460923ad579c780e4027a6256fe207:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void append_eltwise(float scale, :ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm, float alpha, float beta)
+
+Appends an elementwise post-op.
+
+The kind of this post-op is :ref:`dnnl::primitive::kind::eltwise <doxid-structdnnl_1_1primitive_1ad1ec93215a0cf3aa0a32bae0c2cd9169a98b908c7d0339bb6a4832db44fc2c8da>`.
+
+In the simplest case when the elementwise is the only post-op, the computations would be ``dst[:] := scale * eltwise_op (op(...))`` instead of ``dst[:] <- op(...)``, where eltwise_op is configured with the given parameters.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- scale
+
+		- Scaling factor.
+
+	*
+		- aalgorithm
+
+		- Elementwise algorithm.
+
+	*
+		- alpha
+
+		- Alpha parameter for the elementwise algorithm.
+
+	*
+		- beta
+
+		- Beta parameter for the elementwise algorithm.
+
+.. index:: pair: function; get_params_eltwise
+.. _doxid-structdnnl_1_1post__ops_1aacdd5699855516a79903e4fb416e0710:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_params_eltwise(
+		int index,
+		float& scale,
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>`& aalgorithm,
+		float& alpha,
+		float& beta
+		) const
+
+Returns parameters of an elementwise post-op.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- index
+
+		- Index of the post-op.
+
+	*
+		- scale
+
+		- Output scaling factor.
+
+	*
+		- aalgorithm
+
+		- Output elementwise algorithm kind.
+
+	*
+		- alpha
+
+		- Output alpha parameter for the elementwise algorithm.
+
+	*
+		- beta
+
+		- Output beta parameter for the elementwise algorithm.
+
+.. index:: pair: function; append_dw
+.. _doxid-structdnnl_1_1post__ops_1af23e9740652372dad32a34b64601de1c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void append_dw(
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` weights_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` bias_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` dst_data_type,
+		:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>` kernel_size,
+		:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>` stride_size,
+		:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>` padding_l_size,
+		int mask,
+		const std::vector<float>& scales
+		)
+
+Appends a depthwise post-op convolution.
+
+This post-op can only be fused with a 2D 1x1 convolution (convolution with weights spatial dimension equal to 1 i.e., kh=kw=1).
+
+The kind of this post-op is :ref:`dnnl_convolution <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aa402cfeaa257524d301bb73e770bc87f6>`.
+
+The number of outputs for primitive remain same as before. The output spatial size can be derived as below:
+
+output_height = ceil(output_height_1x1_convolution, stride) output_width = ceil(output_width_1x1_convolution, stride)
+
+See :ref:`dev_guide_attributes_post_ops_depthwise <doxid-dev_guide_attributes_post_ops_1dev_guide_attributes_post_ops_depthwise>` and :ref:`dev_guide_attributes_post_ops_depthwise_fusion <doxid-dev_guide_attributes_post_ops_1dev_guide_attributes_post_ops_depthwise_fusion>` for more info.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- weights_data_type
+
+		- Weights data type of depthwise post-op
+
+	*
+		- bias_data_type
+
+		- Bias data type of depthwise post-op
+
+	*
+		- dst_data_type
+
+		- Output data type of depthwise post-op
+
+	*
+		- kernel_size
+
+		- Size of kernel of depthwise post-op
+
+	*
+		- stride_size
+
+		- Size of stride of depthwise post-op
+
+	*
+		- padding_l_size
+
+		- Size of left and top paddings of depthwise post-op
+
+	*
+		- mask
+
+		- Output scaling factors correspondence mask that defines the correspondence between the output tensor dimensions and the ``scales`` array. The set i-th bit indicates that a dedicated output scaling factor is used for each index along that dimension. The mask value of 0 implies a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Output pointer to a constant array of float scaling factors.
+
+.. index:: pair: function; get_params_dw
+.. _doxid-structdnnl_1_1post__ops_1a0eedf5be676d0d7905752b9d5cead6aa:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_params_dw(
+		int index,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& weights_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& bias_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& dst_data_type,
+		:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>`& kernel_size,
+		:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>`& stride_size,
+		:ref:`memory::dim<doxid-structdnnl_1_1memory_1a6ad818e4699872cc913474fa5f122cd5>`& padding_l_size,
+		int& mask,
+		std::vector<float>& scales
+		) const
+
+Returns the parameters of an depthwise post-op with stride 1.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- index
+
+		- Index of the elementwise post-op.
+
+	*
+		- weights_data_type
+
+		- Weights data type of depthwise post-op
+
+	*
+		- bias_data_type
+
+		- Bias data type of depthwise post-op
+
+	*
+		- dst_data_type
+
+		- Output data type of depthwise post-op
+
+	*
+		- mask
+
+		- Output scaling factors correspondence mask that defines the correspondence between the output tensor dimensions and the ``scales`` array. The set i-th bit indicates that a dedicated output scaling factor is used for each index along that dimension. The mask value of 0 implies a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Output pointer to a constant array of float scaling factors.
+
+.. index:: pair: function; append_dw_k3s1p1
+.. _doxid-structdnnl_1_1post__ops_1a4229db0e1e1eab273ed0e2b3e18402de:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void append_dw_k3s1p1(
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` weights_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` bias_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` dst_data_type,
+		int mask,
+		const std::vector<float>& scales
+		)
+
+Appends a depthwise post-op convolution with stride 1.
+
+This post-op can only be fused with a 2D 1x1 convolution (convolution with weights spatial dimension equal to 1 i.e., kh=kw=1).
+
+The kind of this post-op is :ref:`dnnl_convolution <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aa402cfeaa257524d301bb73e770bc87f6>`.
+
+The number of outputs for primitive remain same as before. The output size remain same as the original primitive due to stride=1.
+
+The Post-op can be defined as:
+
+.. code-block:: cpp
+
+	dst[:] <- scales * (conv_dw(conv_1x1))
+
+See :ref:`dev_guide_attributes_post_ops_depthwise <doxid-dev_guide_attributes_post_ops_1dev_guide_attributes_post_ops_depthwise>` and :ref:`dev_guide_attributes_post_ops_depthwise_fusion <doxid-dev_guide_attributes_post_ops_1dev_guide_attributes_post_ops_depthwise_fusion>` for more info.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- weights_data_type
+
+		- Weights data type of depthwise post-op
+
+	*
+		- bias_data_type
+
+		- Bias data type of depthwise post-op
+
+	*
+		- dst_data_type
+
+		- Output data type of depthwise post-op
+
+	*
+		- mask
+
+		- Output scaling factors correspondence mask that defines the correspondence between the output tensor dimensions and the ``scales`` array. The set i-th bit indicates that a dedicated output scaling factor is used for each index along that dimension. The mask value of 0 implies a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Output pointer to a constant array of float scaling factors.
+
+.. index:: pair: function; get_params_dw_k3s1p1
+.. _doxid-structdnnl_1_1post__ops_1a0a2e4900906d5696c027f317264ba014:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_params_dw_k3s1p1(
+		int index,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& weights_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& bias_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& dst_data_type,
+		int& mask,
+		std::vector<float>& scales
+		) const
+
+Returns the parameters of an depthwise post-op with stride 1.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- index
+
+		- Index of the elementwise post-op.
+
+	*
+		- weights_data_type
+
+		- Weights data type of depthwise post-op
+
+	*
+		- bias_data_type
+
+		- Bias data type of depthwise post-op
+
+	*
+		- dst_data_type
+
+		- Output data type of depthwise post-op
+
+	*
+		- mask
+
+		- Output scaling factors correspondence mask that defines the correspondence between the output tensor dimensions and the ``scales`` array. The set i-th bit indicates that a dedicated output scaling factor is used for each index along that dimension. The mask value of 0 implies a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Output pointer to a constant array of float scaling factors.
+
+.. index:: pair: function; append_dw_k3s2p1
+.. _doxid-structdnnl_1_1post__ops_1a88ed886c27b4df4667431ed48d29f4c1:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void append_dw_k3s2p1(
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` weights_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` bias_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>` dst_data_type,
+		int mask,
+		const std::vector<float>& scales
+		)
+
+Appends a depthwise post-op convolution with stride 2.
+
+This post-op can only be fused with a 2D 1x1 convolution (convolution with weights spatial dimension equal to 1 i.e., kh=kw=1).
+
+The kind of this post-op is :ref:`dnnl_convolution <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aa402cfeaa257524d301bb73e770bc87f6>`.
+
+The number of outputs for primitive remain same as before. The output spatial size can be derived as below:
+
+output_height = ceil(output_height_1x1_convolution, stride) output_width = ceil(output_width_1x1_convolution, stride)
+
+The Post-op can be defined as:
+
+.. code-block:: cpp
+
+	dst[:] <- scales * (conv_dw(conv_1x1))
+
+See :ref:`dev_guide_attributes_post_ops_depthwise <doxid-dev_guide_attributes_post_ops_1dev_guide_attributes_post_ops_depthwise>` and :ref:`dev_guide_attributes_post_ops_depthwise_fusion <doxid-dev_guide_attributes_post_ops_1dev_guide_attributes_post_ops_depthwise_fusion>` for more info.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- weights_data_type
+
+		- Weights data type of depthwise post-op
+
+	*
+		- bias_data_type
+
+		- Bias data type of depthwise post-op
+
+	*
+		- dst_data_type
+
+		- Output data type of depthwise post-op
+
+	*
+		- mask
+
+		- Output scaling factors correspondence mask that defines the correspondence between the output tensor dimensions and the ``scales`` array. The set i-th bit indicates that a dedicated output scaling factor is used for each index along that dimension. The mask value of 0 implies a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Output pointer to a constant array of float scaling factors.
+
+
+
+.. rubric:: Returns:
+
+:ref:`dnnl_success <doxid-group__dnnl__api__utils_1ggad24f9ded06e34d3ee71e7fc4b408d57aaa31395e9dccc103cf166cf7b38fc5b9c>` on success and a status describing the error otherwise
+
+.. index:: pair: function; get_params_dw_k3s2p1
+.. _doxid-structdnnl_1_1post__ops_1aab8e82524241127a2a655fbab33d55fe:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_params_dw_k3s2p1(
+		int index,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& weights_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& bias_data_type,
+		:ref:`memory::data_type<doxid-structdnnl_1_1memory_1a8e83474ec3a50e08e37af76c8c075dce>`& dst_data_type,
+		int& mask,
+		std::vector<float>& scales
+		) const
+
+Returns the parameters of an depthwise post-op with stride 2.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- index
+
+		- Index of the elementwise post-op.
+
+	*
+		- weights_data_type
+
+		- Weights data type of depthwise post-op
+
+	*
+		- bias_data_type
+
+		- Bias data type of depthwise post-op
+
+	*
+		- dst_data_type
+
+		- Output data type of depthwise post-op
+
+	*
+		- mask
+
+		- Output scaling factors correspondence mask that defines the correspondence between the output tensor dimensions and the ``scales`` array. The set i-th bit indicates that a dedicated output scaling factor is used for each index along that dimension. The mask value of 0 implies a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Output pointer to a constant array of float scaling factors.
+
+.. index:: pair: function; append_binary
+.. _doxid-structdnnl_1_1post__ops_1a40bb2b39a685726ac54873b203be41b5:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void append_binary(:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm, const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src1_desc)
+
+Appends a binary post-op.
+
+The kind of this post operation is :ref:`dnnl_binary <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aa1d51705e2642ce2ce19a3e163bb25f93>`.
+
+In the simplest case when the binary is the only post operation, the computations would be:
+
+.. code-block:: cpp
+
+	dst[:] <- binary_op (dst[:], another_input[:])
+
+where binary_op is configured with the given parameters. binary_op supports broadcast semantics for a second operand.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aalgorithm
+
+		- Binary algorithm for the post-op.
+
+	*
+		- src1_desc
+
+		- Memory descriptor of a second operand.
+
+.. index:: pair: function; get_params_binary
+.. _doxid-structdnnl_1_1post__ops_1a0a367859cac33d597743de491d26dcb9:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_params_binary(
+		int index,
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>`& aalgorithm,
+		:ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src1_desc
+		) const
+
+Returns the parameters of a binary post-op.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- index
+
+		- Index of the binary post-op.
+
+	*
+		- aalgorithm
+
+		- Output binary algorithm kind.
+
+	*
+		- src1_desc
+
+		- Output memory descriptor of a second operand.
+
+.. index:: pair: function; set_output_scales
+.. _doxid-structdnnl_1_1post__ops_1afbca16b83429bc2f5e47ec07807ef1f6:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void set_output_scales(int mask, const std::vector<float>& scales)
+
+Appends a prelu forward post-op.
+
+The kind of this post-op is :ref:`dnnl::primitive::kind::prelu <doxid-structdnnl_1_1primitive_1ad1ec93215a0cf3aa0a32bae0c2cd9169a837c39f77d473b24eb27c0758d5c7c1b>`.
+
+The post-op can be defined as:
+
+.. code-block:: cpp
+
+	dst[:] <- prelu(dst[:], weights[:])
+	prelu:
+	dst[:] <- dst[:] if dst[:] > 0
+	dst[:] <- dst[:] * weights[:] if dst[:] <= 0
+
+Example usage:
+
+.. ref-code-block:: cpp
+
+	            int mb = 32, oc = 32,
+	                oh = 14, ow = 14; // convolution output params
+	            // unique weights per output channel
+	            vector<float> weights = { ... };
+	            int oc_dim = 1; // mb_dim = 0, channel_dim = 1, height_dim = 2, ...
+	       
+	            // construct a convolution descriptor
+	            dnnl::convolution::desc conv_d;
+	       
+	            dnnl::primitive_attr attr;
+	            attr.append_prelu(1 << oc_dim);
+	       
+	            dnnl::primitive_desc conv_pd(conv_d, attr, engine);
+	            memory prelu_weights({{1}, dt::f32, {1}}, eng, weights.data());
+	       
+	            std::unordered_map<int, memory> conv_args;
+	       
+	            conv_args.insert(
+	             {DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_WEIGHTS, prelu_weights})
+	
+	        @note
+	            The order of dimensions does not depend on how elements are laid
+	            out in memory. For example:
+	            - for a 2D CNN activations tensor the order is always (n, c)
+	            - for a 4D CNN activations tensor the order is always (n, c, h, w)
+	            - for a 5D CNN weights tensor the order is always
+	               (g, oc, ic, kh, kw)
+	       
+	           Prelu weights tensor is passed in runtime execution phase. Prelu
+	           weights tensor data type is implicitly assumed as f32 using plain
+	           layout (a, ab, acb, acdb, acdeb)
+	
+	        @param mask Defines the correspondence between the output tensor
+	            dimensions and the prelu weights tensor. The set i-th bit indicates
+	            that a dedicated weights value is used for each index along that
+	            dimension. Set the mask to 0 to use a common weights value
+	            for the whole output tensor.
+	    void append_prelu(int mask) {
+	        error::wrap_c_api(dnnl_post_ops_append_prelu(get(), mask),
+	                "could not append a prelu post-op");
+	    }
+	
+	        Returns the parameters of a prelu post-op.
+	       
+	        @param index Index of the prelu post-op.
+	        @param maks Weights mask of prelu post-op.
+	    void get_params_prelu(int index, int &mask) const {
+	        error::wrap_c_api(dnnl_post_ops_get_params_prelu(get(), index, &mask),
+	                "could not get parameters of a binary post-op");
+	    }
+	};
+	
+	    
+	
+	
+	
+	
+	
+	
+	
+	
+	    Primitive attributes.
+	   
+	    @sa @ref dev_guide_attributes
+	struct primitive_attr : public handle<dnnl_primitive_attr_t> {
+	    using handle<dnnl_primitive_attr_t>::handle;
+	
+	        Constructs default (empty) primitive attributes.
+	    primitive_attr() {
+	        dnnl_primitive_attr_t result;
+	        error::wrap_c_api(dnnl_primitive_attr_create(&result),
+	                "could not create primitive attribute");
+	        reset(result);
+	    }
+	
+	        Creates primitive attributes from a C API ::dnnl_primitive_attr_t
+	        handle. The resulting handle is not weak and the C handle will be
+	        destroyed during the destruction of the C++ object.
+	       
+	        @param attr The C API primitive attributes.
+	    primitive_attr(dnnl_primitive_attr_t attr)
+	        : handle<dnnl_primitive_attr_t>(attr) {}
+	
+	        Returns the fpmath mode
+	    fpmath_mode get_fpmath_mode() const {
+	        dnnl_fpmath_mode_t result;
+	        error::wrap_c_api(dnnl_primitive_attr_get_fpmath_mode(get(), &result),
+	                "could not get fpmath mode primitive attribute");
+	        return fpmath_mode(result);
+	    }
+	
+	        Sets fpmath mode.
+	       
+	        @param mode Specified fpmath mode.
+	    void set_fpmath_mode(fpmath_mode mode) {
+	        error::wrap_c_api(dnnl_primitive_attr_set_fpmath_mode(
+	                                  get(), dnnl::convert_to_c(mode)),
+	                "could not set fpmath mode primitive attribute");
+	    }
+	
+	        Returns the scratchpad mode.
+	    scratchpad_mode get_scratchpad_mode() const {
+	        dnnl_scratchpad_mode_t result;
+	        error::wrap_c_api(
+	                dnnl_primitive_attr_get_scratchpad_mode(get(), &result),
+	                "could not get scratchpad mode primitive attribute");
+	        return scratchpad_mode(result);
+	    }
+	
+	        Sets scratchpad mode.
+	       
+	        @param mode Specified scratchpad mode.
+	    void set_scratchpad_mode(scratchpad_mode mode) {
+	        error::wrap_c_api(dnnl_primitive_attr_set_scratchpad_mode(
+	                                  get(), dnnl::convert_to_c(mode)),
+	                "could not set scratchpad mode primitive attribute");
+	    }
+	
+	        Returns output scaling factors correspondence mask and values.
+	       
+	        @param mask Scaling factors correspondence mask that defines the
+	            correspondence between the output tensor dimensions and the @p
+	            scales vector. The set i-th bit indicates that a dedicated output
+	            scaling factor is used for each index along that dimension. The
+	            mask value of 0 implies a common output scaling factor for the
+	            whole output tensor.
+	        @param scales Vector of output scaling factors.
+	    void get_output_scales(int &mask, std::vector<float> &scales) const {
+	        dnnl_dim_t count;
+	        int c_mask;
+	        const float *c_scales;
+	        error::wrap_c_api(dnnl_primitive_attr_get_output_scales(
+	                                  get(), &count, &c_mask, &c_scales),
+	                "could not get output scales primitive attribute");
+	        scales.resize(count);
+	
+	        mask = c_mask;
+	        for (dnnl_dim_t c = 0; c < count; ++c)
+	            scales[c] = c_scales[c];
+	    }
+	
+	        Sets output scaling factors correspondence mask and values.
+	       
+	        Example usage:
+	        @code
+	            int mb = 32, oc = 32,
+	                oh = 14, ow = 14; // convolution output params
+	            // unique output scales per output channel
+	            vector<float> scales = { ... };
+	            int oc_dim = 1; // mb_dim = 0, channel_dim = 1, height_dim = 2, ...
+	       
+	            // construct a convolution descriptor
+	            dnnl::convolution::desc conv_d;
+	       
+	            dnnl::primitive_attr attr;
+	            attr.set_output_scales(attr, oc, 1 << oc_dim, scales);
+	       
+	            dnnl::primitive_desc conv_pd(conv_d, attr, engine);
+
+.. note:: 
+
+   The order of dimensions does not depend on how elements are laid out in memory. For example:
+   
+   * for a 2D CNN activations tensor the order is always (n, c)
+   
+   * for a 4D CNN activations tensor the order is always (n, c, h, w)
+   
+   * for a 5D CNN weights tensor the order is always (g, oc, ic, kh, kw)
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- mask
+
+		- Defines the correspondence between the output tensor dimensions and the ``scales`` vector. The set i-th bit indicates that a dedicated scaling factor is used for each index along that dimension. Set the mask to 0 to use a common output scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Constant vector of output scaling factors. If the scaling factors are known at the time of this call, the following equality must hold: :math:`scales.size() = \prod\limits_{d \in mask} output.dims[d].` Violations can only be detected when the attributes are used to create a primitive descriptor. If the scaling factors are not known at the time of the call, this vector must contain a single :ref:`DNNL_RUNTIME_F32_VAL <doxid-group__dnnl__api__memory_1gab16365c11b4dc88fbb453edb51f1979f>` value and the output scaling factors must be passed at execution time as an argument with index :ref:`DNNL_ARG_ATTR_OUTPUT_SCALES <doxid-group__dnnl__api__primitives__common_1ga0afb48b0c2b8f3ee30609aaa47aa29db>`.
+
+.. index:: pair: function; get_scales
+.. _doxid-structdnnl_1_1post__ops_1abfa6cce32604f569b7a3b5fd35ad3497:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_scales(int arg, int& mask, std::vector<float>& scales) const
+
+Returns scaling factors correspondence mask and values for a given memory argument.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- arg
+
+		- Parameter argument index as passed to the :ref:`primitive::execute() <doxid-structdnnl_1_1primitive_1a2c112f2449a18a87310dee2ecd8c64eb>` call.
+
+	*
+		- mask
+
+		- Scaling factors correspondence mask that defines the correspondence between the output tensor dimensions and the ``scales`` vector. The set i-th bit indicates that a dedicated scaling factor is used for each index along that dimension. Set the mask to 0 to use a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Output vector of scaling factors.
+
+.. index:: pair: function; set_scales
+.. _doxid-structdnnl_1_1post__ops_1a3dd0e698adc3e501ba1069290d314b96:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void set_scales(int arg, int mask, const std::vector<float>& scales)
+
+Sets scaling factors for primitive operations for a given memory argument.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- arg
+
+		- Parameter argument index as passed to the :ref:`primitive::execute() <doxid-structdnnl_1_1primitive_1a2c112f2449a18a87310dee2ecd8c64eb>` call.
+
+	*
+		- mask
+
+		- Scaling factors correspondence mask that defines the correspondence between the tensor dimensions and the ``scales`` vector. The set i-th bit indicates that a dedicated scaling factor is used for each index along that dimension. Set the mask to 0 to use a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Constant vector of scaling factors. The following equality must hold: :math:`scales.size() = \prod\limits_{d \in mask} argument.dims[d].`
+
+
+
+.. rubric:: See also:
+
+:ref:`dnnl_primitive_attr_set_scales <doxid-group__dnnl__api__attributes_1gaaa6b2f9a167cfd6ddee2ec93be8ea41e>`
+
+dnnl::primitive_attr::set_output_scales
+
+.. index:: pair: function; get_zero_points
+.. _doxid-structdnnl_1_1post__ops_1a9a925fec872dadfb27c20e70a54e5ecd:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_zero_points(int arg, int& mask, std::vector<int32_t>& zero_points) const
+
+Returns zero points correspondence mask and values.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- arg
+
+		- Parameter argument index as passed to the :ref:`primitive::execute() <doxid-structdnnl_1_1primitive_1a2c112f2449a18a87310dee2ecd8c64eb>` call.
+
+	*
+		- mask
+
+		- Zero points correspondence mask that defines the correspondence between the output tensor dimensions and the ``zero_points`` vector. The set i-th bit indicates that a dedicated zero point is used for each index along that dimension. Set the mask to 0 to use a common zero point for the whole output tensor.
+
+	*
+		- zero_points
+
+		- Output vector of zero points.
+
+.. index:: pair: function; set_zero_points
+.. _doxid-structdnnl_1_1post__ops_1ae9302dadab0571ff4387cf8a5f050160:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void set_zero_points(int arg, int mask, const std::vector<int32_t>& zero_points)
+
+Sets zero points for primitive operations for a given memory argument.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- arg
+
+		- Parameter argument index as passed to the :ref:`primitive::execute() <doxid-structdnnl_1_1primitive_1a2c112f2449a18a87310dee2ecd8c64eb>` call.
+
+	*
+		- mask
+
+		- Zero point correspondence mask that defines the correspondence between the tensor dimensions and the ``zero_points`` vector. The set i-th bit indicates that a dedicated zero point is used for each index along that dimension. Set the mask to 0 to use a common zero point for the whole output tensor.
+
+	*
+		- zero_points
+
+		- Constant vector of zero points. If the zero points are known at the time of this call, the following equality must hold: :math:`zero\_points.size() = \prod\limits_{d \in mask} argument.dims[d].` If the zero points are not known at the time of the call, this vector must contain a single :ref:`DNNL_RUNTIME_S32_VAL <doxid-group__dnnl__api__memory_1ga30139d5110e9e895ccd93fe503ca4c35>` value and the zero points must be passed at execution time as an argument with index :ref:`DNNL_ARG_ATTR_ZERO_POINTS <doxid-group__dnnl__api__primitives__common_1gaf8d879adfe2baa2f9f2a5143a0f274b6>`.
+
+
+
+.. rubric:: See also:
+
+:ref:`dnnl_primitive_attr_set_zero_points <doxid-group__dnnl__api__attributes_1ga6f4b625c7f238883fe32cbf6829b7f30>`
+
+dnnl::primitive_attr::set_output_scales
+
+.. index:: pair: function; get_post_ops
+.. _doxid-structdnnl_1_1post__ops_1a1d623ce8fcc95f68ab1de43ce410d99c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	const post_ops get_post_ops() const
+
+Returns post-ops previously set via :ref:`set_post_ops() <doxid-structdnnl_1_1post__ops_1ac2a1ad4e8978966a8723baedf75d0edd>`.
+
+
+
+.. rubric:: Returns:
+
+Post-ops.
+
+.. index:: pair: function; set_post_ops
+.. _doxid-structdnnl_1_1post__ops_1ac2a1ad4e8978966a8723baedf75d0edd:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void set_post_ops(const post_ops ops)
+
+Sets post-ops.
+
+.. note:: 
+
+   There is no way to check whether the post-ops would be supported by the target primitive. Any error will be reported by the respective primitive descriptor constructor.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- ops
+
+		- Post-ops object to copy post-ops from.
+
+.. index:: pair: function; set_rnn_data_qparams
+.. _doxid-structdnnl_1_1post__ops_1a20cf7c08b56ad23a7125478ce7ac1113:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void set_rnn_data_qparams(float scale, float shift)
+
+Sets quantization scale and shift parameters for RNN data tensors.
+
+For performance reasons, the low-precision configuration of the RNN primitives expect input activations to have the unsigned 8-bit integer data type. The scale and shift parameters are used to quantize floating-point data to unsigned integer and must be passed to the RNN primitive using attributes.
+
+The quantization formula is ``scale * data + shift``.
+
+Example usage:
+
+.. ref-code-block:: cpp
+
+	// RNN parameters
+	int l = 2, t = 2, mb = 32, sic = 32, slc = 32, dic = 32, dlc = 32;
+	// Activations quantization parameters
+	float scale = 63.f, shift = 64.f;
+	
+	primitive_attr attr;
+	
+	// Set scale and shift for int8 quantization of activation
+	attr.set_rnn_data_qparams(scale, shift);
+	
+	// Create and configure rnn op_desc
+	vanilla_rnn_forward::desc rnn_d(/* arguments */);
+	vanilla_rnn_forward::primitive_desc rnn_d(rnn_d, attr, engine);
+
+.. note:: 
+
+   Quantization scale and shift are common for src_layer, src_iter, dst_iter, and dst_layer.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- scale
+
+		- The value to scale the data by.
+
+	*
+		- shift
+
+		- The value to shift the data by.
+
+.. index:: pair: function; get_rnn_data_qparams
+.. _doxid-structdnnl_1_1post__ops_1a7c6f9f1ae3e868240f1d01f68e8f55ab:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_rnn_data_qparams(float& scale, float& shift)
+
+Returns the quantization scale and shift parameters for RNN data tensors.
+
+.. note:: 
+
+   Quantization scale and shift are common for src_layer, src_iter, dst_iter, and dst_layer.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- scale
+
+		- The value to scale the data by.
+
+	*
+		- shift
+
+		- The value to shift the data by.
+
+.. index:: pair: function; set_rnn_weights_qparams
+.. _doxid-structdnnl_1_1post__ops_1a802aea3d7e50aefc8eae68f84ae44af3:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void set_rnn_weights_qparams(int mask, const std::vector<float>& scales)
+
+Sets quantization scaling factors for RNN weights tensors.
+
+The low-precision configuration of the RNN primitives expect input weights to use the signed 8-bit integer data type. The scaling factors are used to quantize floating-point data to signed integer and must be passed to RNN primitives using attributes.
+
+.. note:: 
+
+   The dimension order is always native and does not depend on the actual layout used. For example, five-dimensional weights always have (l, d, i, g, o) logical dimension ordering.
+   
+   
+
+.. note:: 
+
+   Quantization scales are common for weights_layer and weights_iteration
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- mask
+
+		- Scaling factors correspondence mask that defines the correspondence between the output tensor dimensions and the ``scales`` vector. The set i-th bit indicates that a dedicated scaling factor should be used each index along that dimension. Set the mask to 0 to use a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Constant vector of output scaling factors. The following equality must hold: :math:`scales.size() = \prod\limits_{d \in mask} weights.dims[d].` Violations can only be detected when the attributes are used to create a primitive descriptor.
+
+.. index:: pair: function; get_rnn_weights_qparams
+.. _doxid-structdnnl_1_1post__ops_1aacb4e2be880583eec5bb86977151a2cc:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_rnn_weights_qparams(int& mask, std::vector<float>& scales)
+
+Returns the quantization scaling factors for RNN projection weights tensors.
+
+.. note:: 
+
+   The dimension order is always native and does not depend on the actual layout used. For example, five-dimensional weights always have (l, d, i, g, o) logical dimension ordering.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- mask
+
+		- Scaling factors correspondence mask that defines the correspondence between the output tensor dimensions and the ``scales`` vector. The set i-th bit indicates that a dedicated scaling factor should be used each index along that dimension. Set the mask to 0 to use a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Constant vector of output scaling factors. The following equality must hold: :math:`scales.size() = \prod\limits_{d \in mask} weights.dims[d].` Violations can only be detected when the attributes are used to create a primitive descriptor.
+
+.. index:: pair: function; set_rnn_weights_projection_qparams
+.. _doxid-structdnnl_1_1post__ops_1a059426e563fab17134c341f40ede2796:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void set_rnn_weights_projection_qparams(
+		int mask,
+		const std::vector<float>& scales
+		)
+
+Sets quantization scaling factors for RNN projection weights tensors.
+
+passed to RNN primitives using attributes.
+
+.. note:: 
+
+   The dimension order is always native and does not depend on the actual layout used. For example, five-dimensional weights always have (l, d, i, g, o) logical dimension ordering.
+   
+   
+
+.. note:: 
+
+   Quantization scales are common for weights_layer and weights_iteration
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- mask
+
+		- Scaling factors correspondence mask that defines the correspondence between the output tensor dimensions and the ``scales`` vector. The set i-th bit indicates that a dedicated scaling factor should be used each index along that dimension. Set the mask to 0 to use a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Constant vector of output scaling factors. The following equality must hold: :math:`scales.size() = \prod\limits_{d \in mask} weights.dims[d].` Violations can only be detected when the attributes are used to create a primitive descriptor.
+
+.. index:: pair: function; get_rnn_weights_projection_qparams
+.. _doxid-structdnnl_1_1post__ops_1a38fd234aecae3c112565d1d6a11736ac:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	void get_rnn_weights_projection_qparams(int& mask, std::vector<float>& scales)
+
+Returns the quantization scaling factors for RNN projection weights tensors.
+
+.. note:: 
+
+   The dimension order is always native and does not depend on the actual layout used. For example, five-dimensional weights always have (l, d, i, g, o) logical dimension ordering.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- mask
+
+		- Scaling factors correspondence mask that defines the correspondence between the output tensor dimensions and the ``scales`` vector. The set i-th bit indicates that a dedicated scaling factor should be used each index along that dimension. Set the mask to 0 to use a common scaling factor for the whole output tensor.
+
+	*
+		- scales
+
+		- Constant vector of output scaling factors. The following equality must hold: :math:`scales.size() = \prod\limits_{d \in mask} weights.dims[d].` Violations can only be detected when the attributes are used to create a primitive descriptor.
+

@@ -1,0 +1,33 @@
+.. index:: pair: struct; dnnl_wino_desc_t
+.. _doxid-structdnnl__wino__desc__t:
+
+struct dnnl_wino_desc_t
+=======================
+
+.. toctree::
+	:hidden:
+
+Description of tensor of weights for winograd 2x3 convolution.
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_wino_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_wino_memory_format_t<doxid-group__dnnl__api__memory_1gaaab02321c4a85efc3dbd94ee3b0594c9>` :target:`wino_format<doxid-structdnnl__wino__desc__t_1a07b5b3c10724d9a9a68e5edebffc6e50>`;
+		int :target:`r<doxid-structdnnl__wino__desc__t_1a0434664cf7d9286426bbd8e35911929e>`;
+		int :target:`alpha<doxid-structdnnl__wino__desc__t_1a2d11f08c18f0a5cd5767eed7dddb4530>`;
+		int :target:`ic<doxid-structdnnl__wino__desc__t_1a12bb94bb5b97e011892127dbcdd08cac>`;
+		int :target:`oc<doxid-structdnnl__wino__desc__t_1a04f0e0fac9ca350056dea292fb92ca49>`;
+		int :target:`ic_block<doxid-structdnnl__wino__desc__t_1aa086d28c738d37c36f95d2e8c11c5a76>`;
+		int :target:`oc_block<doxid-structdnnl__wino__desc__t_1a2c3e28d84fe63d763042457137e3e865>`;
+		int :target:`ic2_block<doxid-structdnnl__wino__desc__t_1af08fd67ccee1de3802805a3924fd5c93>`;
+		int :target:`oc2_block<doxid-structdnnl__wino__desc__t_1a324bb0cdb4c4d8d40cc3423317bf05d4>`;
+		float :target:`adj_scale<doxid-structdnnl__wino__desc__t_1a33e6e104202dcb8f2ccde6e7332ad0b7>`;
+		size_t :target:`size<doxid-structdnnl__wino__desc__t_1a6022ba4f2f52b8915a4136d96b5bb793>`;
+	};

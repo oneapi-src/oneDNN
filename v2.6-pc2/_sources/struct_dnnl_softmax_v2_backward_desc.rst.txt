@@ -1,0 +1,106 @@
+.. index:: pair: struct; dnnl::softmax_v2_backward::desc
+.. _doxid-structdnnl_1_1softmax__v2__backward_1_1desc:
+
+struct dnnl::softmax_v2_backward::desc
+======================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a softmax backward propagation primitive. :ref:`More...<details-structdnnl_1_1softmax__v2__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_softmax_v2_desc_t<doxid-structdnnl__softmax__v2__desc__t>` :target:`data<doxid-structdnnl_1_1softmax__v2__backward_1_1desc_1a69ea63ae3264d4155cfc2f616cb0e9ac>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1softmax__v2__backward_1_1desc_1a722f995c8386b5fa3e871340dc0259d9>`();
+	
+		:ref:`desc<doxid-structdnnl_1_1softmax__v2__backward_1_1desc_1aa1bd049217956835b9d02a2504669cf0>`(
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc,
+			int softmax_axis
+			);
+	};
+.. _details-structdnnl_1_1softmax__v2__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a softmax backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1softmax__v2__backward_1_1desc_1a722f995c8386b5fa3e871340dc0259d9:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc()
+
+Default constructor. Produces an empty object.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1softmax__v2__backward_1_1desc_1aa1bd049217956835b9d02a2504669cf0:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_desc,
+		int softmax_axis
+		)
+
+Constructs a descriptor for a softmax backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aalgorithm
+
+		- Softmax algorithm kind: either :ref:`dnnl::algorithm::softmax_accurate <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a6aba07e95369523dbbb9cab366480dd4>`, or :ref:`dnnl::algorithm::softmax_log <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a0888321c22541f5d7094cf44bc261ec9>`.
+
+	*
+		- diff_src_desc
+
+		- Diff source memory descriptor.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+
+	*
+		- dst_desc
+
+		- Destination memory descriptor.
+
+	*
+		- softmax_axis
+
+		- Axis over which softmax is computed.
+

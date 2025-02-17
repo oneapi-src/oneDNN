@@ -1,0 +1,21 @@
+.. index:: pair: enum; dnnl_rnn_packed_memory_format_t
+.. _doxid-group__dnnl__api__memory_1ga3b23aa49576e041b6c5a96af5dda4176:
+
+enum dnnl_rnn_packed_memory_format_t
+====================================
+
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+
+	enum dnnl_rnn_packed_memory_format_t
+	{
+	    :target:`dnnl_packed_format_undef<doxid-group__dnnl__api__memory_1gga3b23aa49576e041b6c5a96af5dda4176a334e5c86bedb5f4b4b68f4c945df6fb6>` = 0,
+	    :target:`dnnl_ldigo_p<doxid-group__dnnl__api__memory_1gga3b23aa49576e041b6c5a96af5dda4176a8bc6dc31a9b8a3d85bf8b53feac3ec01>`,
+	    :target:`dnnl_ldgoi_p<doxid-group__dnnl__api__memory_1gga3b23aa49576e041b6c5a96af5dda4176a429832d4ed45d98d3e4aeff083c43fe8>`,
+	    :target:`dnnl_ldio_p<doxid-group__dnnl__api__memory_1gga3b23aa49576e041b6c5a96af5dda4176a797b04157b4cfb4227cbb165ae7fbc8d>`,
+	};
+

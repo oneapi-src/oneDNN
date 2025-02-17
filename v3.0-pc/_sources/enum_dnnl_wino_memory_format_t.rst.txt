@@ -1,0 +1,85 @@
+.. index:: pair: enum; dnnl_wino_memory_format_t
+.. _doxid-group__dnnl__api__memory_1gaaab02321c4a85efc3dbd94ee3b0594c9:
+
+enum dnnl_wino_memory_format_t
+==============================
+
+Overview
+~~~~~~~~
+
+Winograd-specific formats. :ref:`More...<details-group__dnnl__api__memory_1gaaab02321c4a85efc3dbd94ee3b0594c9>`
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+
+	enum dnnl_wino_memory_format_t
+	{
+	    :ref:`dnnl_wino_undef<doxid-group__dnnl__api__memory_1ggaaab02321c4a85efc3dbd94ee3b0594c9a8327b4514289b80707542878551aa58b>`          = 0,
+	    :ref:`dnnl_wino_wei_aaOIoi<doxid-group__dnnl__api__memory_1ggaaab02321c4a85efc3dbd94ee3b0594c9aca3a0ab293e37899cd241b85c9f48793>`,
+	    :ref:`dnnl_wino_wei_aaOio<doxid-group__dnnl__api__memory_1ggaaab02321c4a85efc3dbd94ee3b0594c9a47ce86a27d9acdc92eb35ed5e51d1965>`,
+	    :ref:`dnnl_wino_wei_aaOBiOo<doxid-group__dnnl__api__memory_1ggaaab02321c4a85efc3dbd94ee3b0594c9a7b7d072c7c19c2eed3dc59af5334deda>`,
+	    :ref:`dnnl_wino_wei_OBaaIBOIio<doxid-group__dnnl__api__memory_1ggaaab02321c4a85efc3dbd94ee3b0594c9a2d781d6b2235ebfd05673a2828f04ff5>`,
+	};
+
+.. _details-group__dnnl__api__memory_1gaaab02321c4a85efc3dbd94ee3b0594c9:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Winograd-specific formats.
+
+Enum Values
+-----------
+
+.. index:: pair: enumvalue; dnnl_wino_undef
+.. _doxid-group__dnnl__api__memory_1ggaaab02321c4a85efc3dbd94ee3b0594c9a8327b4514289b80707542878551aa58b:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_wino_undef
+
+Undefined memory format, used for empty memory descriptors.
+
+.. index:: pair: enumvalue; dnnl_wino_wei_aaOIoi
+.. _doxid-group__dnnl__api__memory_1ggaaab02321c4a85efc3dbd94ee3b0594c9aca3a0ab293e37899cd241b85c9f48793:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_wino_wei_aaOIoi
+
+Internal weights format for 2x3 Winograd.
+
+.. index:: pair: enumvalue; dnnl_wino_wei_aaOio
+.. _doxid-group__dnnl__api__memory_1ggaaab02321c4a85efc3dbd94ee3b0594c9a47ce86a27d9acdc92eb35ed5e51d1965:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_wino_wei_aaOio
+
+Internal weights format for 2x3 Winograd.
+
+.. index:: pair: enumvalue; dnnl_wino_wei_aaOBiOo
+.. _doxid-group__dnnl__api__memory_1ggaaab02321c4a85efc3dbd94ee3b0594c9a7b7d072c7c19c2eed3dc59af5334deda:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_wino_wei_aaOBiOo
+
+Internal weights format for 2x3 Winograd.
+
+.. index:: pair: enumvalue; dnnl_wino_wei_OBaaIBOIio
+.. _doxid-group__dnnl__api__memory_1ggaaab02321c4a85efc3dbd94ee3b0594c9a2d781d6b2235ebfd05673a2828f04ff5:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	dnnl_wino_wei_OBaaIBOIio
+
+Internal weights format for 4x3 Winograd.
+

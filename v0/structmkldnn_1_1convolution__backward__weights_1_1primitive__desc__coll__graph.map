@@ -1,0 +1,4 @@
+<map id="mkldnn::convolution_backward_weights::primitive_desc" name="mkldnn::convolution_backward_weights::primitive_desc">
+<area shape="rect" id="node2" href="$structmkldnn_1_1primitive__desc.html" title="A base class for all primitive descriptors. " alt="" coords="45,95,220,121"/>
+<area shape="rect" id="node3" href="$classmkldnn_1_1handle.html" title="mkldnn::handle\&lt; mkldnn\l_primitive_desc_t \&gt;" alt="" coords="39,5,226,47"/>
+</map>

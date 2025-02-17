@@ -1,0 +1,32 @@
+.. index:: pair: struct; dnnl_rnn_packed_desc_t
+.. _doxid-structdnnl__rnn__packed__desc__t:
+
+struct dnnl_rnn_packed_desc_t
+=============================
+
+.. toctree::
+	:hidden:
+
+Description of tensor of packed weights for rnn.
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_rnn_packed_desc_t
+	{
+		// fields
+	
+		dnnl_rnn_packed_memory_format_t :target:`format<doxid-structdnnl__rnn__packed__desc__t_1a9c864a86aed452bb689c7ff625998122>`;
+		int :target:`n_parts<doxid-structdnnl__rnn__packed__desc__t_1ad47ed01dc381f613dda819d83c6d64cc>`;
+		int :target:`n<doxid-structdnnl__rnn__packed__desc__t_1aaaacc0e32dd606e63f4c927239fbad62>`;
+		int :target:`ldb<doxid-structdnnl__rnn__packed__desc__t_1aaa9d34b24add6c6021f5f57e28ab5a79>`;
+		int :target:`parts<doxid-structdnnl__rnn__packed__desc__t_1a0e3271632fe13c994a92bbe6725e2aa1>`[DNNL_RNN_MAX_N_PARTS];
+		size_t :target:`part_pack_size<doxid-structdnnl__rnn__packed__desc__t_1aa76dc9b94eb7f28328d013feba9009f8>`[DNNL_RNN_MAX_N_PARTS];
+		unsigned :target:`pack_part<doxid-structdnnl__rnn__packed__desc__t_1a5cca03b7980766e680f6eb9a815e4c3f>`[DNNL_RNN_MAX_N_PARTS];
+		size_t :target:`offset_compensation<doxid-structdnnl__rnn__packed__desc__t_1a3d5d49b02b710cd972fc9a84218e04d8>`;
+		size_t :target:`size<doxid-structdnnl__rnn__packed__desc__t_1a80904f525ce806e14478503755e6a2a1>`;
+		char :target:`reserved<doxid-structdnnl__rnn__packed__desc__t_1a6499785f96e711d0750431c9e0710f79>`[200];
+	};

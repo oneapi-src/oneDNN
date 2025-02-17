@@ -1,0 +1,129 @@
+.. index:: pair: struct; dnnl::resampling_backward::desc
+.. _doxid-structdnnl_1_1resampling__backward_1_1desc:
+
+struct dnnl::resampling_backward::desc
+======================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a resampling backward propagation primitive. :ref:`More...<details-structdnnl_1_1resampling__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_resampling_desc_t<doxid-structdnnl__resampling__desc__t>` :target:`data<doxid-structdnnl_1_1resampling__backward_1_1desc_1aae2ed79030214b6999918430d50adabe>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1resampling__backward_1_1desc_1ab07740cc68c779297cded54bb7787be8>`(
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc
+			);
+	
+		:ref:`desc<doxid-structdnnl_1_1resampling__backward_1_1desc_1af261675bea957340e584ee788ed21263>`(
+			:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+			const std::vector<float>& factors,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc
+			);
+	};
+.. _details-structdnnl_1_1resampling__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a resampling backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1resampling__backward_1_1desc_1ab07740cc68c779297cded54bb7787be8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc
+		)
+
+Constructs a descriptor for a resampling backward propagation primitive using source and destination memory descriptors.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aalgorithm
+
+		- resampling algorithm kind: either :ref:`dnnl::algorithm::resampling_nearest <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a091b262cfae5e610fcad1490bfb79431>`, or :ref:`dnnl::algorithm::resampling_linear <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a05731680a83c6dccd19a758b72a4ecbd>`
+
+	*
+		- diff_src_desc
+
+		- Diff source memory descriptor.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1resampling__backward_1_1desc_1af261675bea957340e584ee788ed21263:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`algorithm<doxid-group__dnnl__api__attributes_1ga00377dd4982333e42e8ae1d09a309640>` aalgorithm,
+		const std::vector<float>& factors,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_desc
+		)
+
+Constructs a descriptor for resampling backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aalgorithm
+
+		- resampling algorithm kind: either :ref:`dnnl::algorithm::resampling_nearest <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a091b262cfae5e610fcad1490bfb79431>`, or :ref:`dnnl::algorithm::resampling_linear <doxid-group__dnnl__api__attributes_1gga00377dd4982333e42e8ae1d09a309640a05731680a83c6dccd19a758b72a4ecbd>`
+
+	*
+		- factors
+
+		- Vector of scaling factors for spatial dimension.
+
+	*
+		- diff_src_desc
+
+		- Diff source memory descriptor.
+
+	*
+		- diff_dst_desc
+
+		- Diff destination memory descriptor.
+

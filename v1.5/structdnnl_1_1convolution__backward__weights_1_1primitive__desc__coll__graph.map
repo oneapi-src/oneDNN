@@ -1,0 +1,5 @@
+<map id="dnnl::convolution_backward_weights::primitive_desc" name="dnnl::convolution_backward_weights::primitive_desc">
+<area shape="rect" id="node2" href="$structdnnl_1_1primitive__desc.html" title="A base class for descriptors of all primitives that have an operation descriptor and that support ite..." alt="" coords="30,169,185,196"/>
+<area shape="rect" id="node3" href="$structdnnl_1_1primitive__desc__base.html" title="Base class for all primitive descriptors. " alt="" coords="11,95,203,121"/>
+<area shape="rect" id="node4" href="$structdnnl_1_1handle.html" title="dnnl::handle\&lt; dnnl\l_primitive_desc_t \&gt;" alt="" coords="31,5,183,47"/>
+</map>

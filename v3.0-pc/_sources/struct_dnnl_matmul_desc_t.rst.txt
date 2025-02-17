@@ -1,0 +1,107 @@
+.. index:: pair: struct; dnnl_matmul_desc_t
+.. _doxid-structdnnl__matmul__desc__t:
+
+struct dnnl_matmul_desc_t
+=========================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+A descriptor of a matrix multiplication operation. :ref:`More...<details-structdnnl__matmul__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_matmul_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__matmul__desc__t_1a7261a9f79330b2cc485ce26642976801>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`src_desc<doxid-structdnnl__matmul__desc__t_1add93963f961662be8a1ff7ba9fb87fe4>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`weights_desc<doxid-structdnnl__matmul__desc__t_1a22eaca0d885cda5bd8a6a952c5d22b48>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`bias_desc<doxid-structdnnl__matmul__desc__t_1a996d0b2dec63ebe06d43b5fed3d803f4>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`dst_desc<doxid-structdnnl__matmul__desc__t_1a329e6d8c0478e3bbc65a7706fbb53fe4>`;
+		:ref:`dnnl_data_type_t<doxid-group__dnnl__api__memory_1ga012ba1c84ff24bdd068f9d2f9b26a130>` :ref:`accum_data_type<doxid-structdnnl__matmul__desc__t_1aff9853c7aee532d6baca81c4ee8ab810>`;
+	};
+.. _details-structdnnl__matmul__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A descriptor of a matrix multiplication operation.
+
+2D case: dst[m, n] = src[m, k] \* weights[k, n] + bias[m, n]
+
+3D case: dst[mb, m, n] = src[mb, m, k] \* weights[mb, k, n] + bias[mb, m, n]
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__matmul__desc__t_1a7261a9f79330b2cc485ce26642976801:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_matmul <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aa9e943e8007f69f82a00e30a3079cb407>`.
+
+.. index:: pair: variable; src_desc
+.. _doxid-structdnnl__matmul__desc__t_1add93963f961662be8a1ff7ba9fb87fe4:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` src_desc
+
+Source memory descriptor.
+
+.. index:: pair: variable; weights_desc
+.. _doxid-structdnnl__matmul__desc__t_1a22eaca0d885cda5bd8a6a952c5d22b48:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` weights_desc
+
+Weights memory descriptor.
+
+.. index:: pair: variable; bias_desc
+.. _doxid-structdnnl__matmul__desc__t_1a996d0b2dec63ebe06d43b5fed3d803f4:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` bias_desc
+
+Bias memory descriptor.
+
+.. index:: pair: variable; dst_desc
+.. _doxid-structdnnl__matmul__desc__t_1a329e6d8c0478e3bbc65a7706fbb53fe4:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` dst_desc
+
+Destination memory descriptor.
+
+.. index:: pair: variable; accum_data_type
+.. _doxid-structdnnl__matmul__desc__t_1aff9853c7aee532d6baca81c4ee8ab810:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_data_type_t<doxid-group__dnnl__api__memory_1ga012ba1c84ff24bdd068f9d2f9b26a130>` accum_data_type
+
+The accumulator data type. Initialized automatically.
+

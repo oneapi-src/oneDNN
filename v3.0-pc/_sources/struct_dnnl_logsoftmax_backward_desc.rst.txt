@@ -1,0 +1,92 @@
+.. index:: pair: struct; dnnl::logsoftmax_backward::desc
+.. _doxid-structdnnl_1_1logsoftmax__backward_1_1desc:
+
+struct dnnl::logsoftmax_backward::desc
+======================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a logsoftmax backward propagation primitive. :ref:`More...<details-structdnnl_1_1logsoftmax__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_logsoftmax_desc_t<doxid-group__dnnl__api__logsoftmax_1ga312b4653a7712a595c96e23cddd7b8d8>` :target:`data<doxid-structdnnl_1_1logsoftmax__backward_1_1desc_1abf2797265c6c209b9c59f5c24c62ea71>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1logsoftmax__backward_1_1desc_1a08c7a60efa0c72ef3f5b2e06ade71558>`();
+	
+		:ref:`desc<doxid-structdnnl_1_1logsoftmax__backward_1_1desc_1a6818afe6a767ad7af4b5c286d533be66>`(
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			int logsoftmax_axis
+			);
+	};
+.. _details-structdnnl_1_1logsoftmax__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a logsoftmax backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1logsoftmax__backward_1_1desc_1a08c7a60efa0c72ef3f5b2e06ade71558:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc()
+
+Default constructor. Produces an empty object.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1logsoftmax__backward_1_1desc_1a6818afe6a767ad7af4b5c286d533be66:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		int logsoftmax_axis
+		)
+
+Constructs a descriptor for a logsoftmax backward propagation primitive.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- diff_data_desc
+
+		- Diff source and diff destination memory descriptors.
+
+	*
+		- data_desc
+
+		- Destination memory descriptor.
+
+	*
+		- logsoftmax_axis
+
+		- Axis over which softmax is computed.
+

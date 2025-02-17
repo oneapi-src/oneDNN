@@ -1,0 +1,89 @@
+.. index:: pair: enum; format_kind
+.. _doxid-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105f:
+
+enum dnnl::memory::format_kind
+==============================
+
+Overview
+~~~~~~~~
+
+Memory format kind. :ref:`More...<details-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105f>`
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+
+	enum format_kind
+	{
+	    :ref:`undef<doxid-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105faf31ee5e3824f1f5e5d206bdf3029f22b>`   = dnnl_format_kind_undef,
+	    :ref:`any<doxid-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105fa100b8cad7cf2a56f6df78f171f97a1ec>`     = dnnl_format_kind_any,
+	    :ref:`blocked<doxid-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105fa61326117ed4a9ddf3f754e71e119e5b3>` = dnnl_blocked,
+	    :ref:`wino<doxid-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105fa9252fe5d140e19d308f2037404a0536a>`    = dnnl_format_kind_wino,
+	    :ref:`packed<doxid-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105faf59dcd306ec32930f1e78a1d82280b48>`  = dnnl_format_kind_rnn_packed,
+	};
+
+.. _details-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105f:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Memory format kind.
+
+Enum Values
+-----------
+
+.. index:: pair: enumvalue; undef
+.. _doxid-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105faf31ee5e3824f1f5e5d206bdf3029f22b:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	undef
+
+Undefined memory format kind, used for empty memory descriptors.
+
+.. index:: pair: enumvalue; any
+.. _doxid-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105fa100b8cad7cf2a56f6df78f171f97a1ec:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	any
+
+Unspecified format kind.
+
+The primitive selects a format automatically.
+
+.. index:: pair: enumvalue; blocked
+.. _doxid-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105fa61326117ed4a9ddf3f754e71e119e5b3:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	blocked
+
+A tensor in a generic format described by the stride and blocking values in each dimension.
+
+See :ref:`dnnl_blocking_desc_t <doxid-structdnnl__blocking__desc__t>` for more information.
+
+.. index:: pair: enumvalue; wino
+.. _doxid-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105fa9252fe5d140e19d308f2037404a0536a:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	wino
+
+Weights format used in 8-bit Winograd convolution.
+
+.. index:: pair: enumvalue; packed
+.. _doxid-structdnnl_1_1memory_1aabcadfb0e23a36a91272fc571cff105faf59dcd306ec32930f1e78a1d82280b48:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	packed
+
+Packed weights format used in RNN.
+

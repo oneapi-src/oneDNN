@@ -1,0 +1,94 @@
+.. index:: pair: struct; dnnl::batch_normalization_backward::desc
+.. _doxid-structdnnl_1_1batch__normalization__backward_1_1desc:
+
+struct dnnl::batch_normalization_backward::desc
+===============================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for a batch normalization backward propagation primitive. :ref:`More...<details-structdnnl_1_1batch__normalization__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_batch_normalization_desc_t<doxid-structdnnl__batch__normalization__desc__t>` :target:`data<doxid-structdnnl_1_1batch__normalization__backward_1_1desc_1a7d70fd1bb4b7a45dbe2277a64137b536>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1batch__normalization__backward_1_1desc_1a3074a8fda3a8a60bfe6ed3ccf425bb15>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+			float epsilon,
+			:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+			);
+	};
+.. _details-structdnnl_1_1batch__normalization__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for a batch normalization backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1batch__normalization__backward_1_1desc_1a3074a8fda3a8a60bfe6ed3ccf425bb15:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_data_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& data_desc,
+		float epsilon,
+		:ref:`normalization_flags<doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>` flags
+		)
+
+Constructs a batch normalization descriptor for backward propagation.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Possible values are :ref:`dnnl::prop_kind::backward_data <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438faa12627cacf73ecb7ef088beedd650e96>` and :ref:`dnnl::prop_kind::backward <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa195fe59b6f103787a914aead0f3db502>` (diffs for all parameters are computed in this case).
+
+	*
+		- diff_data_desc
+
+		- Diff source and diff destination memory descriptor.
+
+	*
+		- data_desc
+
+		- Source memory descriptor.
+
+	*
+		- epsilon
+
+		- Batch normalization epsilon parameter.
+
+	*
+		- flags
+
+		- Batch normalization flags (:ref:`dnnl::normalization_flags <doxid-group__dnnl__api__primitives__common_1gad8ef0fcbb7b10cae3d67dd46892002be>`).
+

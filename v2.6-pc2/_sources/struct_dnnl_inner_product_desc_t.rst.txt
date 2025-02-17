@@ -1,0 +1,160 @@
+.. index:: pair: struct; dnnl_inner_product_desc_t
+.. _doxid-structdnnl__inner__product__desc__t:
+
+struct dnnl_inner_product_desc_t
+================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+A descriptor of an inner product operation. :ref:`More...<details-structdnnl__inner__product__desc__t>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl_types.h>
+	
+	struct dnnl_inner_product_desc_t
+	{
+		// fields
+	
+		:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` :ref:`primitive_kind<doxid-structdnnl__inner__product__desc__t_1ae00125361bc2a81ef62494fa04776218>`;
+		:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` :ref:`prop_kind<doxid-structdnnl__inner__product__desc__t_1a11f80370edffb5ec93508217096ccf9d>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`src_desc<doxid-structdnnl__inner__product__desc__t_1a68762e89cd2e756c1628d04f79eb563b>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_src_desc<doxid-structdnnl__inner__product__desc__t_1a3208b8ea5b4363b3fb8e56a0a8470a1c>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`weights_desc<doxid-structdnnl__inner__product__desc__t_1af07d9a1980955d116ecd8294a1164459>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_weights_desc<doxid-structdnnl__inner__product__desc__t_1ab19d58dc0b094224396f9f938e65d2cf>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`bias_desc<doxid-structdnnl__inner__product__desc__t_1a89c838b9cf12a95465a9c679002c66c8>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_bias_desc<doxid-structdnnl__inner__product__desc__t_1a448be4278e8986fbe63564bc6f1ac6ee>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`dst_desc<doxid-structdnnl__inner__product__desc__t_1abe6d1e85eac421962b38dc91c2fc2382>`;
+		:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` :ref:`diff_dst_desc<doxid-structdnnl__inner__product__desc__t_1adfd81a8ea749f0a6f875c94a4d4eb125>`;
+		:ref:`dnnl_data_type_t<doxid-group__dnnl__api__memory_1ga012ba1c84ff24bdd068f9d2f9b26a130>` :ref:`accum_data_type<doxid-structdnnl__inner__product__desc__t_1a8fd7ff28b94fc9d485371536f6a2a1c8>`;
+	};
+.. _details-structdnnl__inner__product__desc__t:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+A descriptor of an inner product operation.
+
+Fields
+------
+
+.. index:: pair: variable; primitive_kind
+.. _doxid-structdnnl__inner__product__desc__t_1ae00125361bc2a81ef62494fa04776218:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_primitive_kind_t<doxid-group__dnnl__api__primitives__common_1ga9878f4795e53ad8443e5c0a29e53286a>` primitive_kind
+
+The kind of primitive.
+
+Used for self-identifying the primitive descriptor. Must be :ref:`dnnl_inner_product <doxid-group__dnnl__api__primitives__common_1gga9878f4795e53ad8443e5c0a29e53286aa443fbc5518e5e47cd97d43339a2c4987>`.
+
+.. index:: pair: variable; prop_kind
+.. _doxid-structdnnl__inner__product__desc__t_1a11f80370edffb5ec93508217096ccf9d:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_prop_kind_t<doxid-group__dnnl__api__primitives__common_1gae3c1f22ae55645782923fbfd8b07d0c4>` prop_kind
+
+The kind of propagation.
+
+Possible values: :ref:`dnnl_forward_training <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a992e03bebfe623ac876b3636333bbce0>`, :ref:`dnnl_forward_inference <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a2f77a568a675dec649eb0450c997856d>`, :ref:`dnnl_backward_data <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a524dd6cb2ed9680bbd170ba15261d218>`, :ref:`dnnl_backward_weights <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4a28ab91d299557b64b2f844548b6504bd>`, and :ref:`dnnl_backward_bias <doxid-group__dnnl__api__primitives__common_1ggae3c1f22ae55645782923fbfd8b07d0c4aa15193604f51a9b42ecff7469bf51cc2>`.
+
+.. index:: pair: variable; src_desc
+.. _doxid-structdnnl__inner__product__desc__t_1a68762e89cd2e756c1628d04f79eb563b:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` src_desc
+
+Source memory descriptor.
+
+.. index:: pair: variable; diff_src_desc
+.. _doxid-structdnnl__inner__product__desc__t_1a3208b8ea5b4363b3fb8e56a0a8470a1c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_src_desc
+
+Source gradient memory descriptor.
+
+.. index:: pair: variable; weights_desc
+.. _doxid-structdnnl__inner__product__desc__t_1af07d9a1980955d116ecd8294a1164459:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` weights_desc
+
+Weights memory descriptor.
+
+.. index:: pair: variable; diff_weights_desc
+.. _doxid-structdnnl__inner__product__desc__t_1ab19d58dc0b094224396f9f938e65d2cf:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_weights_desc
+
+Weights gradient memory descriptor.
+
+.. index:: pair: variable; bias_desc
+.. _doxid-structdnnl__inner__product__desc__t_1a89c838b9cf12a95465a9c679002c66c8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` bias_desc
+
+Bias memory descriptor.
+
+.. index:: pair: variable; diff_bias_desc
+.. _doxid-structdnnl__inner__product__desc__t_1a448be4278e8986fbe63564bc6f1ac6ee:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_bias_desc
+
+Bias gradient memory descriptor.
+
+.. index:: pair: variable; dst_desc
+.. _doxid-structdnnl__inner__product__desc__t_1abe6d1e85eac421962b38dc91c2fc2382:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` dst_desc
+
+Destination memory descriptor.
+
+.. index:: pair: variable; diff_dst_desc
+.. _doxid-structdnnl__inner__product__desc__t_1adfd81a8ea749f0a6f875c94a4d4eb125:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_memory_desc_t<doxid-structdnnl__memory__desc__t>` diff_dst_desc
+
+Destination gradient memory descriptor.
+
+.. index:: pair: variable; accum_data_type
+.. _doxid-structdnnl__inner__product__desc__t_1a8fd7ff28b94fc9d485371536f6a2a1c8:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	:ref:`dnnl_data_type_t<doxid-group__dnnl__api__memory_1ga012ba1c84ff24bdd068f9d2f9b26a130>` accum_data_type
+
+The accumulator data type. Initialized automatically.
+

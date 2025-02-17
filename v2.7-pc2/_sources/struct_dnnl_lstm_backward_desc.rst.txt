@@ -1,0 +1,632 @@
+.. index:: pair: struct; dnnl::lstm_backward::desc
+.. _doxid-structdnnl_1_1lstm__backward_1_1desc:
+
+struct dnnl::lstm_backward::desc
+================================
+
+.. toctree::
+	:hidden:
+
+Overview
+~~~~~~~~
+
+Descriptor for an LSTM backward propagation primitive. :ref:`More...<details-structdnnl_1_1lstm__backward_1_1desc>`
+
+
+.. ref-code-block:: cpp
+	:class: doxyrest-overview-code-block
+
+	#include <dnnl.hpp>
+	
+	struct desc
+	{
+		// fields
+	
+		:ref:`dnnl_rnn_desc_t<doxid-structdnnl__rnn__desc__t>` :target:`data<doxid-structdnnl_1_1lstm__backward_1_1desc_1a4d581e6d00f468271ba21f1de20a3ea0>`;
+
+		// construction
+	
+		:ref:`desc<doxid-structdnnl_1_1lstm__backward_1_1desc_1a39e5609147948d5aedcbe6289420ee3c>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			:ref:`rnn_direction<doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` direction,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_c_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_peephole_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_projection_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_c_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_c_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_peephole_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_projection_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_bias_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_c_desc,
+			:ref:`rnn_flags<doxid-group__dnnl__api__rnn_1gad27d0db2a86ae3072207769f5c2ddd1e>` flags = :ref:`rnn_flags::undef<doxid-group__dnnl__api__rnn_1ggad27d0db2a86ae3072207769f5c2ddd1eaf31ee5e3824f1f5e5d206bdf3029f22b>`
+			);
+	
+		:ref:`desc<doxid-structdnnl_1_1lstm__backward_1_1desc_1aefb5f997f5ea15eab34f248320f8ff5f>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			:ref:`rnn_direction<doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` direction,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_c_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_peephole_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_c_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_c_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_peephole_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_bias_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_c_desc,
+			:ref:`rnn_flags<doxid-group__dnnl__api__rnn_1gad27d0db2a86ae3072207769f5c2ddd1e>` flags = :ref:`rnn_flags::undef<doxid-group__dnnl__api__rnn_1ggad27d0db2a86ae3072207769f5c2ddd1eaf31ee5e3824f1f5e5d206bdf3029f22b>`
+			);
+	
+		:ref:`desc<doxid-structdnnl_1_1lstm__backward_1_1desc_1a8e8a5662ef97f5ef8586e6ff8363a99e>`(
+			:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+			:ref:`rnn_direction<doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` direction,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_c_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_c_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_c_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_bias_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_layer_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_desc,
+			const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_c_desc,
+			:ref:`rnn_flags<doxid-group__dnnl__api__rnn_1gad27d0db2a86ae3072207769f5c2ddd1e>` flags = :ref:`rnn_flags::undef<doxid-group__dnnl__api__rnn_1ggad27d0db2a86ae3072207769f5c2ddd1eaf31ee5e3824f1f5e5d206bdf3029f22b>`
+			);
+	};
+.. _details-structdnnl_1_1lstm__backward_1_1desc:
+
+Detailed Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+Descriptor for an LSTM backward propagation primitive.
+
+Construction
+------------
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1lstm__backward_1_1desc_1a39e5609147948d5aedcbe6289420ee3c:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		:ref:`rnn_direction<doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` direction,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_c_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_peephole_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_projection_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_c_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_c_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_peephole_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_projection_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_bias_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_c_desc,
+		:ref:`rnn_flags<doxid-group__dnnl__api__rnn_1gad27d0db2a86ae3072207769f5c2ddd1e>` flags = :ref:`rnn_flags::undef<doxid-group__dnnl__api__rnn_1ggad27d0db2a86ae3072207769f5c2ddd1eaf31ee5e3824f1f5e5d206bdf3029f22b>`
+		)
+
+Constructs an LSTM (with or without peephole and with or without projection) descriptor for backward propagation using ``prop_kind``, ``direction``, and memory descriptors.
+
+The following arguments may point to a zero memory descriptor:
+
+* ``src_iter_desc`` together with ``src_iter_c_desc``, ``diff_src_iter_desc``, and ``diff_src_iter_c_desc``,
+
+* ``weights_peephole_desc`` together with ``diff_weights_peephole_desc``
+
+* ``bias_desc`` together with ``diff_bias_desc``,
+
+* ``dst_iter_desc`` together with ``dst_iter_c_desc``, ``diff_dst_iter_desc``, and ``diff_dst_iter_c_desc``.
+
+This would then indicate that the LSTM backward propagation primitive should not use them and should default to zero values instead.
+
+The ``weights_projection_desc`` together with ``diff_weights_projection_desc`` may point to a zero memory descriptor. This would then indicate that the LSTM doesn't have recurrent projection layer.
+
+.. note:: 
+
+   All memory descriptors can be initialized with :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Must be :ref:`dnnl::prop_kind::backward <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa195fe59b6f103787a914aead0f3db502>`.
+
+	*
+		- direction
+
+		- RNN direction. See :ref:`dnnl::rnn_direction <doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` for more info.
+
+	*
+		- src_layer_desc
+
+		- Memory descriptor for the input vector.
+
+	*
+		- src_iter_desc
+
+		- Memory descriptor for the input recurrent hidden state vector.
+
+	*
+		- src_iter_c_desc
+
+		- Memory descriptor for the input recurrent cell state vector.
+
+	*
+		- weights_layer_desc
+
+		- Memory descriptor for the weights applied to the layer input.
+
+	*
+		- weights_iter_desc
+
+		- Memory descriptor for the weights applied to the recurrent input.
+
+	*
+		- weights_peephole_desc
+
+		- Memory descriptor for the weights applied to the cell states (according to the Peephole LSTM formula).
+
+	*
+		- weights_projection_desc
+
+		- Memory descriptor for the weights applied to the hidden states to get the recurrent projection (according to the Projection LSTM formula).
+
+	*
+		- bias_desc
+
+		- Bias memory descriptor.
+
+	*
+		- dst_layer_desc
+
+		- Memory descriptor for the output vector.
+
+	*
+		- dst_iter_desc
+
+		- Memory descriptor for the output recurrent hidden state vector.
+
+	*
+		- dst_iter_c_desc
+
+		- Memory descriptor for the output recurrent cell state vector.
+
+	*
+		- diff_src_layer_desc
+
+		- Memory descriptor for the diff of input vector.
+
+	*
+		- diff_src_iter_desc
+
+		- Memory descriptor for the diff of input recurrent hidden state vector.
+
+	*
+		- diff_src_iter_c_desc
+
+		- Memory descriptor for the diff of input recurrent cell state vector.
+
+	*
+		- diff_weights_layer_desc
+
+		- Memory descriptor for the diff of weights applied to the layer input.
+
+	*
+		- diff_weights_iter_desc
+
+		- Memory descriptor for the diff of weights applied to the recurrent input.
+
+	*
+		- diff_weights_peephole_desc
+
+		- Memory descriptor for the diff of weights applied to the cell states (according to the Peephole LSTM formula).
+
+	*
+		- diff_weights_projection_desc
+
+		- Memory descriptor for the diff of weights applied to the hidden states to get the recurrent projection (according to the Projection LSTM formula).
+
+	*
+		- diff_bias_desc
+
+		- Diff bias memory descriptor.
+
+	*
+		- diff_dst_layer_desc
+
+		- Memory descriptor for the diff of output vector.
+
+	*
+		- diff_dst_iter_desc
+
+		- Memory descriptor for the diff of output recurrent hidden state vector.
+
+	*
+		- diff_dst_iter_c_desc
+
+		- Memory descriptor for the diff of output recurrent cell state vector.
+
+	*
+		- flags
+
+		- Unused.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1lstm__backward_1_1desc_1aefb5f997f5ea15eab34f248320f8ff5f:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		:ref:`rnn_direction<doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` direction,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_c_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_peephole_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_c_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_c_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_peephole_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_bias_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_c_desc,
+		:ref:`rnn_flags<doxid-group__dnnl__api__rnn_1gad27d0db2a86ae3072207769f5c2ddd1e>` flags = :ref:`rnn_flags::undef<doxid-group__dnnl__api__rnn_1ggad27d0db2a86ae3072207769f5c2ddd1eaf31ee5e3824f1f5e5d206bdf3029f22b>`
+		)
+
+Constructs an LSTM (with or without peephole) descriptor for backward propagation using ``prop_kind``, ``direction``, and memory descriptors.
+
+The following arguments may point to a zero memory descriptor:
+
+* ``src_iter_desc`` together with ``src_iter_c_desc``, ``diff_src_iter_desc``, and ``diff_src_iter_c_desc``,
+
+* ``weights_peephole_desc`` together with ``diff_weights_peephole_desc``
+
+* ``bias_desc`` together with ``diff_bias_desc``,
+
+* ``dst_iter_desc`` together with ``dst_iter_c_desc``, ``diff_dst_iter_desc``, and ``diff_dst_iter_c_desc``.
+
+This would then indicate that the LSTM backward propagation primitive should not use them and should default to zero values instead.
+
+.. note:: 
+
+   All memory descriptors may be initialized with :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Must be :ref:`dnnl::prop_kind::backward <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa195fe59b6f103787a914aead0f3db502>`.
+
+	*
+		- direction
+
+		- RNN direction. See :ref:`dnnl::rnn_direction <doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` for more info.
+
+	*
+		- src_layer_desc
+
+		- Memory descriptor for the input vector.
+
+	*
+		- src_iter_desc
+
+		- Memory descriptor for the input recurrent hidden state vector.
+
+	*
+		- src_iter_c_desc
+
+		- Memory descriptor for the input recurrent cell state vector.
+
+	*
+		- weights_layer_desc
+
+		- Memory descriptor for the weights applied to the layer input.
+
+	*
+		- weights_iter_desc
+
+		- Memory descriptor for the weights applied to the recurrent input.
+
+	*
+		- weights_peephole_desc
+
+		- Memory descriptor for the weights applied to the cell states (according to the Peephole LSTM formula).
+
+	*
+		- bias_desc
+
+		- Bias memory descriptor.
+
+	*
+		- dst_layer_desc
+
+		- Memory descriptor for the output vector.
+
+	*
+		- dst_iter_desc
+
+		- Memory descriptor for the output recurrent hidden state vector.
+
+	*
+		- dst_iter_c_desc
+
+		- Memory descriptor for the output recurrent cell state vector.
+
+	*
+		- diff_src_layer_desc
+
+		- Memory descriptor for the diff of input vector.
+
+	*
+		- diff_src_iter_desc
+
+		- Memory descriptor for the diff of input recurrent hidden state vector.
+
+	*
+		- diff_src_iter_c_desc
+
+		- Memory descriptor for the diff of input recurrent cell state vector.
+
+	*
+		- diff_weights_layer_desc
+
+		- Memory descriptor for the diff of weights applied to the layer input.
+
+	*
+		- diff_weights_iter_desc
+
+		- Memory descriptor for the diff of weights applied to the recurrent input.
+
+	*
+		- diff_weights_peephole_desc
+
+		- Memory descriptor for the diff of weights applied to the cell states (according to the Peephole LSTM formula).
+
+	*
+		- diff_bias_desc
+
+		- Diff bias memory descriptor.
+
+	*
+		- diff_dst_layer_desc
+
+		- Memory descriptor for the diff of output vector.
+
+	*
+		- diff_dst_iter_desc
+
+		- Memory descriptor for the diff of output recurrent hidden state vector.
+
+	*
+		- diff_dst_iter_c_desc
+
+		- Memory descriptor for the diff of output recurrent cell state vector.
+
+	*
+		- flags
+
+		- Unused.
+
+.. index:: pair: function; desc
+.. _doxid-structdnnl_1_1lstm__backward_1_1desc_1a8e8a5662ef97f5ef8586e6ff8363a99e:
+
+.. ref-code-block:: cpp
+	:class: doxyrest-title-code-block
+
+	desc(
+		:ref:`prop_kind<doxid-group__dnnl__api__attributes_1gac7db48f6583aa9903e54c2a39d65438f>` aprop_kind,
+		:ref:`rnn_direction<doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` direction,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& src_iter_c_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& weights_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& bias_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& dst_iter_c_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_src_iter_c_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_weights_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_bias_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_layer_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_desc,
+		const :ref:`memory::desc<doxid-structdnnl_1_1memory_1_1desc>`& diff_dst_iter_c_desc,
+		:ref:`rnn_flags<doxid-group__dnnl__api__rnn_1gad27d0db2a86ae3072207769f5c2ddd1e>` flags = :ref:`rnn_flags::undef<doxid-group__dnnl__api__rnn_1ggad27d0db2a86ae3072207769f5c2ddd1eaf31ee5e3824f1f5e5d206bdf3029f22b>`
+		)
+
+Constructs an LSTM descriptor for backward propagation using ``prop_kind``, ``direction``, and memory descriptors.
+
+The following arguments may point to a zero memory descriptor:
+
+* ``src_iter_desc`` together with ``src_iter_c_desc``, ``diff_src_iter_desc``, and ``diff_src_iter_c_desc``,
+
+* ``bias_desc`` together with ``diff_bias_desc``,
+
+* ``dst_iter_desc`` together with ``dst_iter_c_desc``, ``diff_dst_iter_desc``, and ``diff_dst_iter_c_desc``.
+
+This would then indicate that the LSTM backward propagation primitive should not use them and should default to zero values instead.
+
+.. note:: 
+
+   All memory descriptors may be initialized with :ref:`dnnl::memory::format_tag::any <doxid-structdnnl_1_1memory_1a8e71077ed6a5f7fb7b3e6e1a5a2ecf3fa100b8cad7cf2a56f6df78f171f97a1ec>` value of ``format_tag``.
+
+
+
+.. rubric:: Parameters:
+
+.. list-table::
+	:widths: 20 80
+
+	*
+		- aprop_kind
+
+		- Propagation kind. Must be :ref:`dnnl::prop_kind::backward <doxid-group__dnnl__api__attributes_1ggac7db48f6583aa9903e54c2a39d65438fa195fe59b6f103787a914aead0f3db502>`.
+
+	*
+		- direction
+
+		- RNN direction. See :ref:`dnnl::rnn_direction <doxid-group__dnnl__api__rnn_1ga33315cf335d1cbe26fd6b70d956e23d5>` for more info.
+
+	*
+		- src_layer_desc
+
+		- Memory descriptor for the input vector.
+
+	*
+		- src_iter_desc
+
+		- Memory descriptor for the input recurrent hidden state vector.
+
+	*
+		- src_iter_c_desc
+
+		- Memory descriptor for the input recurrent cell state vector.
+
+	*
+		- weights_layer_desc
+
+		- Memory descriptor for the weights applied to the layer input.
+
+	*
+		- weights_iter_desc
+
+		- Memory descriptor for the weights applied to the recurrent input.
+
+	*
+		- bias_desc
+
+		- Bias memory descriptor.
+
+	*
+		- dst_layer_desc
+
+		- Memory descriptor for the output vector.
+
+	*
+		- dst_iter_desc
+
+		- Memory descriptor for the output recurrent hidden state vector.
+
+	*
+		- dst_iter_c_desc
+
+		- Memory descriptor for the output recurrent cell state vector.
+
+	*
+		- diff_src_layer_desc
+
+		- Memory descriptor for the diff of input vector.
+
+	*
+		- diff_src_iter_desc
+
+		- Memory descriptor for the diff of input recurrent hidden state vector.
+
+	*
+		- diff_src_iter_c_desc
+
+		- Memory descriptor for the diff of input recurrent cell state vector.
+
+	*
+		- diff_weights_layer_desc
+
+		- Memory descriptor for the diff of weights applied to the layer input.
+
+	*
+		- diff_weights_iter_desc
+
+		- Memory descriptor for the diff of weights applied to the recurrent input.
+
+	*
+		- diff_bias_desc
+
+		- Diff bias memory descriptor.
+
+	*
+		- diff_dst_layer_desc
+
+		- Memory descriptor for the diff of output vector.
+
+	*
+		- diff_dst_iter_desc
+
+		- Memory descriptor for the diff of output recurrent hidden state vector.
+
+	*
+		- diff_dst_iter_c_desc
+
+		- Memory descriptor for the diff of output recurrent cell state vector.
+
+	*
+		- flags
+
+		- Unused.
+
