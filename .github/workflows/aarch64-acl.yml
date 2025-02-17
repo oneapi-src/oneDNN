@@ -1,0 +1,124 @@
+# *******************************************************************************
+# Copyright 2025 Arm Limited and affiliates.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# *******************************************************************************
+
+name: "Build ACL cache"
+
+#* To avoid duplicate jobs running when both push and PR is satisfied, we use this:
+#* https://github.com/orgs/community/discussions/26940#discussioncomment-5686753
+on:
+  workflow_call:
+  workflow_dispatch:
+
+# Declare default permissions as read only.
+permissions: read-all
+
+jobs:
+  # Cache is built sequentially to avoid cache-hit race conditions
+  build-cache:
+    strategy:
+      max-parallel: 1
+      matrix:
+        config: [
+          { name: MacOS, label: macos-14, threading: SEQ, toolset: clang, build: Release },
+          { name: cb100, label: ubuntu-24.04-arm, threading: OMP, toolset: gcc, build: Release },
+          { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50, threading: OMP, toolset: clang, build: Debug },
+          { name: c6g, label: ah-ubuntu_22_04-c6g_2x-50, threading: OMP, toolset: gcc, build: Release }
+        ]
+
+    name: ${{ matrix.config.name }}, ${{ matrix.config.toolset }}, ${{ matrix.config.threading }}, ${{ matrix.config.build }}
+    runs-on: ${{ matrix.config.label }}
+    steps:
+      - name: Checkout oneDNN
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: oneDNN
+
+      - name: Read version file
+        id: get-versions
+        run: |
+          content=`cat ${{ github.workspace }}/oneDNN/.github/automation/aarch64/ci.json`
+          content="${content//[$'\t\r\n$ ']}"
+          echo "output=$content" >> $GITHUB_OUTPUT
+
+      - name: Clone ACL
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build_acl.sh
+        env:
+          ACL_ACTION: clone
+          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
+          ACL_VERSION: ${{ fromJson(steps.get-versions.outputs.output).dependencies.acl }}
+
+      - name: Get ACL commit hash for cache key
+        id: get_acl_commit_hash
+        run: (cd ${{ github.workspace }}/ComputeLibrary && echo "ACLCommitHash=$(git rev-parse --short HEAD)") >> $GITHUB_OUTPUT
+
+      - name: Get system name
+        id: get_system_name
+        run: (echo "SystemName=$(uname)") >> $GITHUB_OUTPUT
+
+      - name: Restore cached ACL
+        id: cache-acl-restore
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.config.toolset }}-${{ matrix.config.build }}-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
+          path: ${{ github.workspace }}/ComputeLibrary/build
+
+      - name: Install Scons (MacOS)
+        if: ${{ matrix.config.name == 'MacOS' && (steps.cache-acl-restore.outputs.cache-hit != 'true') }}
+        run: brew install scons
+
+      - name: Install scons (Linux)
+        if: ${{ matrix.config.name != 'MacOS' && (steps.cache-acl-restore.outputs.cache-hit != 'true') }}
+        run: |
+          sudo apt update -y
+          sudo apt install -y scons
+
+      - if: ${{ contains(matrix.config.label,'ubuntu') && (matrix.config.threading == 'OMP') && (steps.cache-acl-restore.outputs.cache-hit != 'true') }}
+        name: Install openmp
+        run: |
+          sudo apt install -y libomp-dev
+
+      - if: ${{ contains(matrix.config.label,'ubuntu') && (matrix.config.toolset == 'gcc') && (steps.cache-acl-restore.outputs.cache-hit != 'true') }}
+        name: Install gcc
+        run: |
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+          sudo apt update -y
+          sudo apt install -y g++-${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
+
+      - if: ${{ contains(matrix.config.label,'ubuntu') && (matrix.config.toolset == 'clang') && (steps.cache-acl-restore.outputs.cache-hit != 'true') }}
+        name: Install clang
+        uses: KyleMayes/install-llvm-action@e0a8dc9cb8a22e8a7696e8a91a4e9581bec13181
+        with:
+          version: ${{ fromJson(steps.get-versions.outputs.output).dependencies.clang }}
+
+      - name: Build ACL
+        if: ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build_acl.sh
+        env:
+          ACL_ACTION: build
+          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
+          ACL_THREADING: ${{ matrix.config.threading }}
+          BUILD_TOOLSET: ${{ matrix.config.toolset }}
+          ACL_BUILD_TYPE: ${{ matrix.config.build }}
+          GCC_VERSION: ${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
+
+      - name: Save ACL in cache
+        id: cache-acl_build-save
+        if: ${{ steps.cache-acl-restore.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.config.toolset }}-${{ matrix.config.build }}-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
+          path: ${{ github.workspace }}/ComputeLibrary/build

@@ -1,7 +1,7 @@
-#! /bin/bash
+#!/usr/bin/env bash
 
 # *******************************************************************************
-# Copyright 2024 Arm Limited and affiliates.
+# Copyright 2024-2025 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,38 +17,22 @@
 # limitations under the License.
 # *******************************************************************************
 
-# Build oneDNN for aarch64.
+# Test oneDNN for aarch64.
 
 set -o errexit -o pipefail -o noclobber
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
+export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-"Release"}
+
 # Defines MP, CC, CXX and OS.
-source ${SCRIPT_DIR}/common_aarch64.sh
+source ${SCRIPT_DIR}/common.sh
 
-export ACL_ROOT_DIR=${ACL_ROOT_DIR:-"${PWD}/ComputeLibrary"}
-
-CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-"Release"}
-ONEDNN_TEST_SET=${ONEDNN_TEST_SET:-"SMOKE"}
-ONEDNN_BUILD_GRAPH=${ONEDNN_BUILD_GRAPH:-"ON"}
-
-if [[ "$ONEDNN_ACTION" == "configure" ]]; then
-    set -x
-    cmake \
-        -Bbuild -S. \
-        -DDNNL_AARCH64_USE_ACL=ON \
-        -DONEDNN_BUILD_GRAPH=$ONEDNN_BUILD_GRAPH \
-        -DDNNL_CPU_RUNTIME=$ONEDNN_THREADING \
-        -DONEDNN_WERROR=ON \
-        -DDNNL_BUILD_FOR_CI=ON \
-        -DONEDNN_TEST_SET=$ONEDNN_TEST_SET \
-        -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE
-    set +x
-elif [[ "$ONEDNN_ACTION" == "build" ]]; then
-    set -x
-    cmake --build build 
-    set +x
-else
-    echo "Unknown action: $ONEDNN_ACTION"
-    exit 1
+# Sequential (probably macOS) builds should use num proc parallelism.
+if [[ "$ONEDNN_THREADING" == "SEQ" ]]; then
+    export CTEST_PARALLEL_LEVEL=""
 fi
+
+set -x
+ctest --no-tests=error --output-on-failure -E $("${SCRIPT_DIR}"/skipped-tests.sh)
+set +x
