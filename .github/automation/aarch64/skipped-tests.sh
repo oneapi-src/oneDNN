@@ -1,7 +1,7 @@
-#! /bin/bash
+#!/usr/bin/env bash
 
 # *******************************************************************************
-# Copyright 2024 Arm Limited and affiliates.
+# Copyright 2025 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,12 +19,9 @@
 
 # Test oneDNN for aarch64.
 
-set -o errexit -o pipefail -o noclobber
+set -eo pipefail
 
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-
-# Defines MP, CC, CXX and OS.
-source ${SCRIPT_DIR}/common_aarch64.sh
+OS=${OS:-"Linux"}
 
 # AArch64 does not officially support graph for now.
 SKIPPED_GRAPH_TEST_FAILURES="test_graph_unit_dnnl_sdp_decomp_cpu"
@@ -47,6 +44,8 @@ if [[ "$OS" == "Linux" ]]; then
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-mqa-cpp"
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-sdpa-cpp"
     SKIPPED_GRAPH_TEST_FAILURES+="|cpu-graph-sdpa-stacked-qkv-cpp"
+    # TODO: Issue: https://github.com/oneapi-src/oneDNN/issues/2572
+    SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_convolution"
     SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_large_partition_cpu"
 fi
 
@@ -64,11 +63,4 @@ SKIPPED_NIGHTLY_TEST_FAILURES+="|test_benchdnn_modeC_graph_int8_cpu"
 
 SKIPPED_TEST_FAILURES+="|${SKIPPED_GRAPH_TEST_FAILURES}|${SKIPPED_NIGHTLY_TEST_FAILURES}"
 
-# Sequential (probably macOS) builds should use num proc parallelism.
-if [[ "$ONEDNN_THREADING" == "SEQ" ]]; then
-    export CTEST_PARALLEL_LEVEL=""
-fi
-
-set -x
-ctest --no-tests=error --output-on-failure -E "$SKIPPED_TEST_FAILURES"
-set +x
+printf "${SKIPPED_TEST_FAILURES}"

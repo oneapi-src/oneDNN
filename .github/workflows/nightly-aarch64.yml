@@ -1,5 +1,5 @@
 # *******************************************************************************
-# Copyright 2024 Arm Limited and affiliates.
+# Copyright 2024-2025 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,7 +35,11 @@ concurrency:
 permissions: read-all
 
 jobs:
+  build-acl-cache:
+    uses: ./.github/workflows/aarch64-acl.yml
+
   build-and-test:
+    needs: build-acl-cache
     strategy:
       matrix:
         config: [
@@ -52,8 +56,9 @@ jobs:
         with:
           path: oneDNN
 
+      # Note: This will create a github actions cache
       - name: Get latest CMake and Ninja
-        uses: lukka/get-cmake@8567b9d9b63052b8430ef30042e13c3ba5288f16 # v3.31.3
+        uses: lukka/get-cmake@5f6e04f5267c8133f1273bf2103583fc72c46b17 # v3.31.5
         with:
           cmakeVersion: 3.31.0
           ninjaVersion: 1.12.0
@@ -63,56 +68,62 @@ jobs:
         run: |
           sudo apt install -y libomp-dev
 
+      - name: Read version file
+        id: get-versions
+        run: |
+          content=`cat ${{ github.workspace }}/oneDNN/.github/automation/aarch64/ci.json`
+          content="${content//[$'\t\r\n$ ']}"
+          echo "output=$content" >> $GITHUB_OUTPUT
+
       - name: Install gcc
         run: |
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
           sudo apt update -y
-          sudo apt install -y g++-13
+          sudo apt install -y g++-${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
 
       - name: Clone ACL
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build_acl.sh
         env:
           ACL_ACTION: clone
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
-          ACL_VERSION: v24.11.1
+          ACL_VERSION: ${{ fromJson(steps.get-versions.outputs.output).dependencies.acl }}
 
-      - name: Configure ACL
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
-        env:
-          ACL_ACTION: configure
-          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
-          ACL_THREADING: ${{ matrix.config.threading }}
-          BUILD_TOOLSET: ${{ matrix.config.toolset }}
-          CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
-          CMAKE_GENERATOR: Ninja
-          GCC_VERSION: 13
+      - name: Get ACL commit hash for cache key
+        id: get_acl_commit_hash
+        run: (cd ${{ github.workspace }}/ComputeLibrary && echo "ACLCommitHash=$(git rev-parse --short HEAD)") >> $GITHUB_OUTPUT
 
-      - name: Build ACL
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_acl.sh
-        env:
-          ACL_ACTION: build
+      - name: Get system name
+        id: get_system_name
+        run: (echo "SystemName=$(uname)") >> $GITHUB_OUTPUT
+
+      - name: Restore cached ACL
+        id: cache-acl-restore
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ steps.get_system_name.outputs.SystemName }}-acl-${{ matrix.config.toolset }}-${{ matrix.config.build }}-${{ steps.get_acl_commit_hash.outputs.ACLCommitHash }}
+          path: ${{ github.workspace }}/ComputeLibrary/build
 
       - name: Configure oneDNN
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build.sh
         working-directory: ${{ github.workspace }}/oneDNN
         env:
           ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
           BUILD_TOOLSET: ${{ matrix.config.toolset }}
           CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
           CMAKE_GENERATOR: Ninja
-          GCC_VERSION: 13
+          GCC_VERSION: ${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
           ONEDNN_ACTION: configure
           ONEDNN_TEST_SET: ${{ matrix.config.testset }}
           ONEDNN_THREADING: ${{ matrix.config.threading }}
 
       - name: Build oneDNN
-        run: ${{ github.workspace }}/oneDNN/.github/automation/build_aarch64.sh
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build.sh
         working-directory: ${{ github.workspace }}/oneDNN
         env:
           ONEDNN_ACTION: build
 
       - name: Run oneDNN tests
-        run: ${{ github.workspace }}/oneDNN/.github/automation/test_aarch64.sh
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/test.sh
         working-directory: ${{ github.workspace }}/oneDNN/build
         env:
           BUILD_TOOLSET: ${{ matrix.config.toolset }}

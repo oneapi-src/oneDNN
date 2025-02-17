@@ -1,7 +1,5 @@
-#! /bin/bash
-
 # *******************************************************************************
-# Copyright 2024 Arm Limited and affiliates.
+# Copyright 2025 Arm Limited and affiliates.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,23 +15,8 @@
 # limitations under the License.
 # *******************************************************************************
 
-# Common variables for aarch64 ci. Exports: 
-# CC, CXX, OS
-
-set -o errexit -o pipefail -o noclobber
-
-export OS=$(uname)
-
-if [[ "$BUILD_TOOLSET" == "gcc" ]]; then
-    export CC=gcc-${GCC_VERSION}
-    export CXX=g++-${GCC_VERSION}
-elif [[ "$BUILD_TOOLSET" == "clang" ]]; then
-    export CC=clang
-    export CXX=clang++
-fi
-
-# Print every exported variable.
-echo "OS: $OS"
-echo "Toolset: $BUILD_TOOLSET"
-echo "CC: $CC"
-echo "CXX: $CXX"
+# From Resnet
+--reset
+--dir=FWD_D
+--dt=f32
+mb1_ic64oc256_ih200oh200kh1sh1dh0ph0_iw267ow267kw1sw1dw0pw0
