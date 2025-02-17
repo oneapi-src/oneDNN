@@ -1,6 +1,6 @@
 {
     "dependencies": {
-        "acl": "v24.11.1",
+        "acl": "v25.02",
         "gcc": "13",
         "clang": "17"
     }
