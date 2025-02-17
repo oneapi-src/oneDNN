@@ -206,7 +206,7 @@ bool jit_io_helper_t<Vmm>::is_data_type_supported(const data_type_t dt) {
         case data_type::f16:
             return is_superset(isa_, avx512_core_fp16) || isa_ == avx2_vnni_2;
         case data_type::f8_e4m3:
-        case data_type::f8_e5m2: return is_superset(isa_, avx512_core_amx);
+        case data_type::f8_e5m2: return is_superset(isa_, avx512_core_fp16);
         default: assert(!"Unsupported data type");
     }
     return false;
