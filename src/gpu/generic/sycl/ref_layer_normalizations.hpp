@@ -81,6 +81,8 @@ struct ref_layer_normalization_fwd_t : public gpu::generic::sycl::primitive_t {
 
             const auto &scales = attr()->scales_;
             for (auto arg : supported_args) {
+                if (scales.has_default_data_type(arg)) continue;
+
                 const auto dt = scales.get_data_type(arg);
                 if (!is_supported_type(dt)) { return false; }
             }
