@@ -124,6 +124,7 @@ graph::utils::pm::alternation_t *alter_fp_softmax(
 
     auto softmax_g2 = std::make_shared<graph::utils::pm::pb_graph_t>();
     auto tc1 = softmax_g2->append_op(graph::op_kind::TypeCast);
+    tc1->append_decision_function(check_output_dtype<graph::data_type::f32>);
     auto softmax2 = softmax_g2->append_op(
             graph::op_kind::SoftMax, {in_edge(0, tc1, 0)});
     auto tc2 = softmax_g2->append_op(
