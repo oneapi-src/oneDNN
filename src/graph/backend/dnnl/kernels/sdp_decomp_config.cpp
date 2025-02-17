@@ -114,8 +114,17 @@ impl::status_t sdp_decomp_config_t::construct_params(
             ltw(inputs[graph_inport[0]]).data_type());
     memory::data_type dt_wei_user = static_cast<memory::data_type>(
             ltw(inputs[graph_inport[1]]).data_type());
+
+    const auto &lt_softmax_in
+            = sdp_op[2]->get_input_value(0)->get_logical_tensor();
+    const auto &lt_softmax_out
+            = sdp_op[2]->get_output_value(0)->get_logical_tensor();
+    memory::data_type dt_softmax_in
+            = static_cast<memory::data_type>(ltw(lt_softmax_in).data_type());
+    memory::data_type dt_softmax_out
+            = static_cast<memory::data_type>(ltw(lt_softmax_out).data_type());
+
     memory::data_type dt_wei = quantized ? memory::data_type::s8 : dt_src_user;
-    memory::data_type dt_inter = quantized ? dt : dt_src_user;
 
     ////////////////////////////////////////////////////////////////////////
     ////////////// Start Creating primitives ///////////////////////////////
@@ -173,7 +182,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
 
     sub_mm1_src_md = memory::desc(sub_mm1_src_dims, dt_src_user, tag::abcd);
     sub_mm1_wei_md = memory::desc(sub_mm1_wei_dims, dt_wei, tag::abdc);
-    sub_mm1_dst_md = memory::desc(sub_mm1_dst_dims, dt_inter, tag::abcd);
+    sub_mm1_dst_md = memory::desc(sub_mm1_dst_dims, dt_softmax_in, tag::abcd);
     dnnl::post_ops dnnl_pops;
     auto ori_dnnl_pops = sub_matmul1_attr.get_post_ops();
     for (int i = 0; i < ori_dnnl_pops.get()->len(); i++) {
@@ -198,7 +207,8 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // softmax
     // create softmax primitive attr
     dnnl::primitive_attr sub_softmax_attr = make_primitive_attr(sdp_op[2], mgr);
-    sub_softmax_dst_md = memory::desc(sub_mm1_dst_dims, dt_src_user, tag::abcd);
+    sub_softmax_dst_md
+            = memory::desc(sub_mm1_dst_dims, dt_softmax_out, tag::abcd);
     auto sub_softmax_pd = softmax_forward::primitive_desc(p_engine,
             prop_kind::forward_inference, algorithm::softmax_accurate,
             sub_mm1_dst_md, sub_softmax_dst_md, sub_mm1_dst_md.get_ndims() - 1,
