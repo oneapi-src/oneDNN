@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,7 +57,10 @@ struct ref_convolution_fwd_t : public primitive_t {
             VDISPATCH_CONV(
                     utils::one_of(src_type, f32, bf16, f16, f8_e5m2, f8_e4m3),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_CONV(src_type == wei_type, VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_CONV(IMPLICATION(src_type != wei_type,
+                                   utils::one_of(wei_type, f16, bf16)
+                                           && src_type == f32),
+                    VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_CONV(utils::one_of(dst_type, src_type, f32),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_CONV(
