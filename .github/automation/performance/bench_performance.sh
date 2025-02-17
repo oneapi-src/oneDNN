@@ -27,4 +27,6 @@ do
     $2 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul >> $4
     $1 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv >> $3
     $2 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv >> $4
+    $1 --eltwise --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/eltwise >> $3
+    $2 --eltwise --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/eltwise >> $4
 done
