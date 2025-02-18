@@ -49,11 +49,7 @@ jobs:
   pr-format-tags:
     name: Format tags consistency
     runs-on: ubuntu-latest
-    if: ${{ contains(github.event.pull_request.changed_files, 'examples/') || 
-          contains(github.event.pull_request.changed_files, 'include/' ||
-          contains(github.event.pull_request.changed_files, 'src/') ||
-          contains(github.event.pull_request.changed_files, 'tests/')
-        ) }}
+    if: ${{ git diff --name-only main..HEAD  | grep -q -E "^examples/|^include/|^src/|^tests/ && true || false" }}
 
     steps:
       - name: Checkout oneDNN
@@ -93,7 +89,7 @@ jobs:
       contains(github.event.pull_request.changed_files, 'include/' ||
       contains(github.event.pull_request.changed_files, 'src/') ||
       contains(github.event.pull_request.changed_files, 'tests/')
-      ) }}
+      }}
 
     steps:
       - name: Checkout oneDNN
