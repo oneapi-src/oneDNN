@@ -2358,8 +2358,8 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const auto zp = attr.zero_points_;
     jcp.dst_zero_point = !zp.has_default_values(DNNL_ARG_DST);
     jcp.src_zero_point = !zp.has_default_values(DNNL_ARG_SRC);
-    jcp.zp_src_is_common = zp.common(
-            DNNL_ARG_SRC); // otherwise, it's per-channel (not supported)
+    // If it's not per-tensor, then it's per-channel (not supported)
+    jcp.zp_src_is_common = zp.get_mask(DNNL_ARG_SRC) == 0;
 
     VDISPATCH_CONV_IC(
             !(!IMPLICATION(jcp.src_zero_point, jcp.zp_src_is_common)

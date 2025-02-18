@@ -151,16 +151,9 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             = a_d.ndims() > 3 ? src_scale_strides[a_d.ndims() - 4] : 0;
 
     const auto &attr_zps = pd()->attr()->zero_points_;
-    int wei_zp_mask = 0;
-    attr_zps.get(DNNL_ARG_WEIGHTS, &wei_zp_mask);
-    const bool wei_zp_per_k = wei_zp_mask & pd()->wei_qmask_K();
-    const auto wei_zp_group_ndims = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS);
-    const auto wei_zp_group_k = wei_zp_group_ndims > 0
-            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
-            : (wei_zp_per_k ? 1 : K);
-    const auto wei_zp_group_n = wei_zp_group_ndims > 0
-            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[1]
-            : 1;
+    int wei_zp_mask = attr_zps.get_mask(DNNL_ARG_WEIGHTS);
+    const auto wei_zp_group_k = attr_zps.get_group(DNNL_ARG_WEIGHTS, 0);
+    const auto wei_zp_group_n = attr_zps.get_group(DNNL_ARG_WEIGHTS, 1);
     const auto wei_zp_ngroups_k = K / wei_zp_group_k;
     // Identify wei_zp dimensions as user may not pass them.
     dims_t wei_zp_dims {};
@@ -186,13 +179,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t wei_zp_stride_b1
             = b_d.ndims() > 3 ? wei_zp_strides[b_d.ndims() - 4] : 0;
 
-    int src_zp_mask = 0;
-    attr_zps.get(DNNL_ARG_SRC, &src_zp_mask);
-    const bool src_zp_per_k = src_zp_mask & pd()->src_qmask_K();
-    const auto src_zp_group_ndims = attr_zps.get_groups_ndims(DNNL_ARG_SRC);
-    const auto src_zp_group_k = src_zp_group_ndims > 0
-            ? attr_zps.get_groups(DNNL_ARG_SRC)[1]
-            : (src_zp_per_k ? 1 : K);
+    int src_zp_mask = attr_zps.get_mask(DNNL_ARG_SRC);
+    const auto src_zp_group_k = attr_zps.get_group(DNNL_ARG_SRC, 1);
     const auto src_zp_ngroups_k = K / src_zp_group_k;
     // Identify src_zp dimensions as user may not pass them.
     dims_t src_zp_dims {};

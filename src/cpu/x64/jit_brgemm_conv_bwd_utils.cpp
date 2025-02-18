@@ -1630,19 +1630,22 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                       attr, cd.use_inversion ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC)
             != brgemm_broadcast_t::none;
 
-    const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
+    const auto &zp = attr.zero_points_;
+    VDISPATCH_CONV_IC(IMPLICATION(jcp.src_zero_point || jcp.dst_zero_point,
+                              utils::one_of(jcp.src_dt, s8, u8)),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
 
-    const bool params_ok
-            = IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
-            && IMPLICATION(jcp.src_zero_point,
-                    attr.zero_points_.common(cd.use_inversion
-                                    ? DNNL_ARG_SRC
-                                    : DNNL_ARG_DIFF_DST))
-            && IMPLICATION(jcp.dst_zero_point,
-                    attr.zero_points_.common(cd.use_inversion
-                                    ? DNNL_ARG_DST
-                                    : DNNL_ARG_DIFF_SRC));
-    VDISPATCH_CONV_IC(params_ok, VERBOSE_UNSUPPORTED_ZP_CFG);
+    VDISPATCH_CONV_IC(IMPLICATION(jcp.src_zero_point,
+                              zp.get_mask(cd.use_inversion ? DNNL_ARG_SRC
+                                                           : DNNL_ARG_DIFF_DST)
+                                      == 0),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
+
+    VDISPATCH_CONV_IC(IMPLICATION(jcp.dst_zero_point,
+                              zp.get_mask(cd.use_inversion ? DNNL_ARG_DST
+                                                           : DNNL_ARG_DIFF_SRC)
+                                      == 0),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
 
     jcp.nthr = nthreads;
     jcp.copy_block_only = false;

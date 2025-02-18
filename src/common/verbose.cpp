@@ -739,30 +739,9 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
         ss << field_delim() << "attr-scales:" << scales.get_verbose();
     }
 
-    const zero_points_t &zp = attr->zero_points_;
-    if (!zp.has_default_values()) {
-        std::string delim = empty_delim;
-        ss << field_delim() << "attr-zero-points:";
-        for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-            if (zp.has_default_values(arg)) continue;
-
-            int mask = 0;
-            zp.get(arg, &mask);
-            const auto dt = zp.get_data_type(arg);
-
-            ss << delim << arg2str(arg) << ":" << mask << ":" << dt;
-
-            const auto &g_ndim = zp.get_groups_ndims(arg);
-            if (g_ndim) {
-                const auto &g_dims = zp.get_groups(arg);
-                ss << ":";
-                for (int i = 0; i < g_ndim - 1; ++i)
-                    ss << g_dims[i] << 'x';
-                ss << g_dims[g_ndim - 1];
-            }
-
-            delim = attr_delim;
-        }
+    const zero_points_t &zero_points = attr->zero_points_;
+    if (!zero_points.has_default_values()) {
+        ss << field_delim() << "attr-zero-points:" << zero_points.get_verbose();
     }
 
     const post_ops_t &po = attr->post_ops_;
@@ -1582,47 +1561,24 @@ std::string init_info_sdpa(const engine_t *e, const pd_t *pd) {
 
     const sdpa_desc_t *desc = pd->desc();
 
-    // TODO: re-use the code from primitive_attr operator<<
-    auto print_zp = [&](std::ostream &ss, const zero_points_t &zp) {
-        for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-            if (zp.has_default_values(arg)) continue;
-
-            int mask = 0;
-            zp.get(arg, &mask);
-            const auto dt = zp.get_data_type(arg);
-
-            ss << arg2str(arg) << ":" << mask << ":" << dt;
-
-            const auto &g_ndim = zp.get_groups_ndims(arg);
-            if (g_ndim) {
-                const auto &g_dims = zp.get_groups(arg);
-                ss << ":";
-                for (int i = 0; i < g_ndim - 1; ++i)
-                    ss << g_dims[i] << 'x';
-                ss << g_dims[g_ndim - 1];
-            }
-        }
-        return std::ref(ss);
-    };
-
     std::string delimiter;
     if (!desc->kq_scales.has_default_values()) {
         ss << delimiter << "kq_attr-scales:wei:" << desc->kq_scales;
         delimiter = "+";
     }
     if (!desc->kq_zero_points.has_default_values()) {
-        ss << delimiter << "kq_attr-zero-points:";
-        print_zp(ss, desc->kq_zero_points);
+        ss << delimiter
+           << "kq_attr-zero-points:" << desc->kq_zero_points.get_verbose();
         delimiter = "+";
     }
+
     if (!desc->vs_scales.has_default_values()) {
         ss << delimiter << "vs_attr-scales:wei:" << desc->vs_scales;
         delimiter = "+";
     }
     if (!desc->vs_zero_points.has_default_values()) {
-        ss << delimiter << "vs_attr-zero-points:";
-        print_zp(ss, desc->vs_zero_points);
-        delimiter = "+";
+        ss << delimiter
+           << "vs_attr-zero-points:" << desc->vs_zero_points.get_verbose();
     }
 
     ss << ",query:" << pd->qry_md()->data_type << ":"

@@ -88,16 +88,10 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto &attr_zps = pd()->attr()->zero_points_;
     const bool with_wei_zero_points
             = !attr_zps.has_default_values(DNNL_ARG_WEIGHTS);
-    int wei_zp_mask = 0;
-    attr_zps.get(DNNL_ARG_WEIGHTS, &wei_zp_mask);
+    int wei_zp_mask = attr_zps.get_mask(DNNL_ARG_WEIGHTS);
     const auto &wei_zp_dt = attr_zps.get_data_type(DNNL_ARG_WEIGHTS);
-    const auto wei_zp_group_ndims = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS);
-    const auto wei_zp_group_k = wei_zp_group_ndims > 0
-            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
-            : 1;
-    const auto wei_zp_group_n = wei_zp_group_ndims > 0
-            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[1]
-            : 1;
+    const auto wei_zp_group_k = attr_zps.get_group(DNNL_ARG_WEIGHTS, 0);
+    const auto wei_zp_group_n = attr_zps.get_group(DNNL_ARG_WEIGHTS, 1);
     // Initialize a memory desc for quant entries for easier offset calculation.
     memory_desc_t wei_zp_md {};
     CHECK(matmul_helper_t::get_quant_md(wei_zp_md, ndims, weights_d.dims(),

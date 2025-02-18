@@ -62,10 +62,13 @@ status_t acl_lowp_matmul_sq_t::pd_t::init(engine_t *engine) {
                 VERBOSE_UNSUPPORTED_SCALES_CFG);
     }
 
-    VDISPATCH_MATMUL(attr()->zero_points_.get(DNNL_ARG_SRC) == 0
-                    && attr()->zero_points_.get(DNNL_ARG_WEIGHTS) == 0
-                    && attr()->zero_points_.get(DNNL_ARG_DST) == 0,
-            "common zero points only");
+    for (int arg : supported_args) {
+        if (attr()->zero_points_.has_default_values(arg)) continue;
+
+        VDISPATCH_MATMUL(attr()->zero_points_.get_mask(arg) == 0,
+                VERBOSE_UNSUPPORTED_SCALES_CFG);
+    }
+
     VDISPATCH_MATMUL(
             !has_runtime_dims_or_strides(), VERBOSE_RUNTIMEDIM_UNSUPPORTED);
     const memory_desc_wrapper src_d(src_md_);

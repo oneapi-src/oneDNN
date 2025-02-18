@@ -106,9 +106,6 @@ struct ref_gemm_t : public gpu_gemm_t {
             const auto b_strides = desc()->b_desc.format_desc.blocking.strides;
             const auto c_strides = desc()->c_desc.format_desc.blocking.strides;
 
-            VDISPATCH_GEMM(
-                    IMPLICATION(acc_dt == s32, attr()->zero_points_.common()),
-                    VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_GEMM(!has_blocks(), VERBOSE_UNSUPPORTED_FEATURE,
                     "blocked format");
             VDISPATCH_GEMM(desc()->c_desc.ndims <= 3, VERBOSE_BAD_NDIMS,
@@ -208,9 +205,21 @@ struct ref_gemm_t : public gpu_gemm_t {
         }
 
         bool attr_zp_ok() const {
-            return this->attr()->zero_points_.common(DNNL_ARG_A)
-                    && this->attr()->zero_points_.common(DNNL_ARG_B)
-                    && this->attr()->zero_points_.common(DNNL_ARG_C);
+            const auto &zp = attr()->zero_points_;
+
+            bool ok = IMPLICATION(desc()->acc_type != data_type::s32,
+                    zp.has_default_values());
+            if (!ok) return false;
+
+            static const std::vector<int> supported_args {
+                    DNNL_ARG_A, DNNL_ARG_B, DNNL_ARG_C};
+            for (int arg : supported_args) {
+                if (!zp.has_default_values(arg)) {
+                    const int mask = zp.get_mask(arg);
+                    if (mask > 0) return false;
+                }
+            }
+            return true;
         }
 
         bool attr_post_ops_ok() const {

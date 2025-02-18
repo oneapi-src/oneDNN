@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,21 +35,31 @@ protected:
     // TODO: consider either moving this method to primitive_conf.hpp or making
     //       it static, or removing the 'attr' argument accessible via attr()
     bool zero_points_ok(const primitive_attr_t *attr) const {
-        using namespace data_type;
-        const auto src_type = invariant_src_md()->data_type;
-        int mask_wei = 0, mask_src = 0, mask_dst = 0;
-        if (attr->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei)
-                != status::success)
-            return false;
-        if (attr->zero_points_.get(DNNL_ARG_SRC, &mask_src) != status::success)
-            return false;
-        if (attr->zero_points_.get(DNNL_ARG_DST, &mask_dst) != status::success)
-            return false;
+        const auto &zp = attr->zero_points_;
 
-        return IMPLICATION(!utils::one_of(src_type, s8, u8),
-                       attr->zero_points_.has_default_values())
-                && (mask_wei == 0) && (mask_src == 0 || mask_src == 1 << 1)
-                && (mask_dst == 0 || mask_dst == 1 << 1);
+        using namespace data_type;
+        bool ok = IMPLICATION(
+                !utils::one_of(invariant_src_md()->data_type, s8, u8),
+                zp.has_default_values());
+        if (!ok) return false;
+
+        if (!zp.has_default_values(DNNL_ARG_SRC)) {
+            int mask_src = zp.get_mask(DNNL_ARG_SRC);
+            ok = utils::one_of(mask_src, 0, (1 << 1));
+            if (!ok) return false;
+        }
+        if (!zp.has_default_values(DNNL_ARG_WEIGHTS)) {
+            int mask_wei = zp.get_mask(DNNL_ARG_WEIGHTS);
+            ok = mask_wei == 0;
+            if (!ok) return false;
+        }
+        if (!zp.has_default_values(DNNL_ARG_DST)) {
+            int mask_dst = zp.get_mask(DNNL_ARG_DST);
+            ok = utils::one_of(mask_dst, 0, (1 << 1));
+            if (!ok) return false;
+        }
+
+        return true;
     }
 };
 
@@ -60,19 +70,26 @@ protected:
     // TODO: consider either moving this method to primitive_conf.hpp or making
     //       it static, or removing the 'attr' argument accessible via attr()
     bool zero_points_ok(const primitive_attr_t *attr) const {
-        using namespace data_type;
-        const auto dst_type = invariant_dst_md()->data_type;
-        int mask_src = 0, mask_dst = 0;
-        if (attr->zero_points_.get(DNNL_ARG_SRC, &mask_src) != status::success)
-            return false;
-        if (attr->zero_points_.get(DNNL_ARG_DST, &mask_dst) != status::success)
-            return false;
+        const auto &zp = attr->zero_points_;
 
-        return IMPLICATION(!utils::one_of(dst_type, s8, u8),
-                       attr->zero_points_.has_default_values())
-                && attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-                && (mask_src == 0 || mask_src == 1 << 1)
-                && (mask_dst == 0 || mask_dst == 1 << 1);
+        using namespace data_type;
+        bool ok = IMPLICATION(
+                !utils::one_of(invariant_dst_md()->data_type, s8, u8),
+                zp.has_default_values());
+        if (!ok) return false;
+
+        if (!zp.has_default_values(DNNL_ARG_SRC)) {
+            int mask_src = zp.get_mask(DNNL_ARG_SRC);
+            ok = utils::one_of(mask_src, 0, (1 << 1));
+            if (!ok) return false;
+        }
+        if (!zp.has_default_values(DNNL_ARG_DST)) {
+            int mask_dst = zp.get_mask(DNNL_ARG_DST);
+            ok = utils::one_of(mask_dst, 0, (1 << 1));
+            if (!ok) return false;
+        }
+
+        return zp.has_default_values(DNNL_ARG_WEIGHTS);
     }
 
     // TODO: consider either moving this method to primitive_conf.hpp or making

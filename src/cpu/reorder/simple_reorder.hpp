@@ -2341,16 +2341,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     src_scales_d.data_type());
         }
 
-        int src_zps_mask = -1;
-        CHECK(zps.get(DNNL_ARG_SRC, &src_zps_mask));
+        int src_zps_mask = zps.get_mask(DNNL_ARG_SRC);
         // Applied to the pre-last dimension.
-        const auto src_zps_group0 = zps.get_groups_ndims(DNNL_ARG_SRC) > 0
-                ? zps.get_groups(DNNL_ARG_SRC)[0]
-                : 1;
+        const auto src_zps_group0 = zps.get_group(DNNL_ARG_SRC, 0);
         // Applied to the last dimension.
-        const auto src_zps_group1 = zps.get_groups_ndims(DNNL_ARG_SRC) > 0
-                ? zps.get_groups(DNNL_ARG_SRC)[1]
-                : 1;
+        const auto src_zps_group1 = zps.get_group(DNNL_ARG_SRC, 1);
         memory_desc_t src_zps_md {};
         if (has_src_zps) {
             get_quant_md(src_zps_md, ndims, input_d.dims(), src_zps_mask,
@@ -2583,17 +2578,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         }
 
         const auto &zps = pd->attr()->zero_points_;
-        int src_zps_mask = -1;
-        CHECK(zps.get(DNNL_ARG_SRC, &src_zps_mask));
+        int src_zps_mask = zps.get_mask(DNNL_ARG_SRC);
         const bool has_src_zps = !zps.has_default_values(DNNL_ARG_SRC);
         // Applied to the pre-last dimension.
-        const auto src_zps_group0 = zps.get_groups_ndims(DNNL_ARG_SRC) > 0
-                ? zps.get_groups(DNNL_ARG_SRC)[0]
-                : 1;
+        const auto src_zps_group0 = zps.get_group(DNNL_ARG_SRC, 0);
         // Applied to the last dimension.
-        const auto src_zps_group1 = zps.get_groups_ndims(DNNL_ARG_SRC) > 0
-                ? zps.get_groups(DNNL_ARG_SRC)[1]
-                : 1;
+        const auto src_zps_group1 = zps.get_group(DNNL_ARG_SRC, 1);
         memory_desc_t src_zps_md {};
         if (has_src_zps) {
             get_quant_md(src_zps_md, ndims, input_d.dims(), src_zps_mask,

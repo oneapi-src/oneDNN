@@ -132,10 +132,12 @@ attr_info_t attr_info_t::create(const primitive_attr_t *attr) {
     attr_info.dst_zpoints_data_type = zp.get_data_type(DNNL_ARG_DST);
 
     attr_info.with_per_ic_src_zpoints = attr_info.with_src_zpoints
-            && !zp.has_default_values(DNNL_ARG_SRC) && !zp.common(DNNL_ARG_SRC);
+            && !zp.has_default_values(DNNL_ARG_SRC)
+            && zp.get_mask(DNNL_ARG_SRC) > 0;
 
     attr_info.with_per_oc_dst_zpoints = attr_info.with_dst_zpoints
-            && !zp.has_default_values(DNNL_ARG_DST) && !zp.common(DNNL_ARG_DST);
+            && !zp.has_default_values(DNNL_ARG_DST)
+            && zp.get_mask(DNNL_ARG_DST) > 0;
 
     // Rounding mode.
     attr_info.with_dst_sround = attr->rounding_mode_.get(DNNL_ARG_DST)

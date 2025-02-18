@@ -699,7 +699,7 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
     jcp.dst_zero_point = !zp.has_default_values(DNNL_ARG_DST);
     jcp.src_zero_point = !zp.has_default_values(DNNL_ARG_SRC);
     jcp.zp_src_is_common
-            = zp.common(DNNL_ARG_SRC); // otherwise, it's per-channel
+            = zp.get_mask(DNNL_ARG_SRC) == 0; // otherwise, it's per-channel
     assert(IMPLICATION(jcp.src_zero_point, jcp.zp_src_is_common));
 
     VDISPATCH_CONV_IC(

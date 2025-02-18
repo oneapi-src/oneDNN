@@ -78,14 +78,9 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto &attr_zps = pd()->attr()->zero_points_;
     const bool with_src_zero_points
             = !attr_zps.has_default_values(DNNL_ARG_SRC);
-    int src_zp_mask = 0;
-    attr_zps.get(DNNL_ARG_SRC, &src_zp_mask);
-    const bool src_zp_per_k = src_zp_mask & pd()->src_qmask_K();
+    int src_zp_mask = attr_zps.get_mask(DNNL_ARG_SRC);
     const auto &src_zp_dt = attr_zps.get_data_type(DNNL_ARG_SRC);
-    const auto src_zp_group_ndims = attr_zps.get_groups_ndims(DNNL_ARG_SRC);
-    const auto src_zp_group_k = src_zp_group_ndims > 0
-            ? attr_zps.get_groups(DNNL_ARG_SRC)[1]
-            : (src_zp_per_k ? 1 : K);
+    const auto src_zp_group_k = attr_zps.get_group(DNNL_ARG_SRC, 1);
     const auto src_zp_ngroups_k = K / src_zp_group_k;
     // Initialize a memory desc for quant entries for easier offset calculation.
     memory_desc_t src_zp_md {};
@@ -94,17 +89,10 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const bool with_wei_zero_points
             = !attr_zps.has_default_values(DNNL_ARG_WEIGHTS);
-    int wei_zp_mask = 0;
-    attr_zps.get(DNNL_ARG_WEIGHTS, &wei_zp_mask);
-    const bool wei_zp_per_k = wei_zp_mask & pd()->wei_qmask_K();
+    int wei_zp_mask = attr_zps.get_mask(DNNL_ARG_WEIGHTS);
     const auto &wei_zp_dt = attr_zps.get_data_type(DNNL_ARG_WEIGHTS);
-    const auto wei_zp_group_ndims = attr_zps.get_groups_ndims(DNNL_ARG_WEIGHTS);
-    const auto wei_zp_group_k = wei_zp_group_ndims > 0
-            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[0]
-            : (wei_zp_per_k ? 1 : K);
-    const auto wei_zp_group_n = wei_zp_group_ndims > 0
-            ? attr_zps.get_groups(DNNL_ARG_WEIGHTS)[1]
-            : 1;
+    const auto wei_zp_group_k = attr_zps.get_group(DNNL_ARG_WEIGHTS, 0);
+    const auto wei_zp_group_n = attr_zps.get_group(DNNL_ARG_WEIGHTS, 1);
     const auto wei_zp_ngroups_k = K / wei_zp_group_k;
     // Initialize a memory desc for quant entries for easier offset calculation.
     memory_desc_t wei_zp_md {};
@@ -119,7 +107,8 @@ status_t ref_matmul_int8_t::execute_ref(const exec_ctx_t &ctx) const {
             = utils::get_dims_mask(dst_d.dims(), bia_d.dims(), ndims);
 
     // zp_idx_mult = 1 for per_dim1 zero points and 0, otherwise
-    const int dst_zp_idx_mult = !attr_zps.common(DNNL_ARG_DST);
+    const int dst_zp_idx_mult = !attr_zps.has_default_values(DNNL_ARG_DST)
+            && attr_zps.get_mask(DNNL_ARG_DST) > 0;
 
     // arg scales section
     const auto &attr_scales = pd()->attr()->scales_;

@@ -178,26 +178,6 @@ void serialize_post_ops(
     }
 }
 
-void serialize_zero_points(
-        serialization_stream_t &sstream, const zero_points_t &zps) {
-    for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
-        if (!zps.has_default_values(arg)) {
-            // zero_points: arg
-            sstream.write(&arg);
-            int mask = 0;
-            data_type_t dt = data_type::s32;
-            zps.get(arg, &mask, &dt);
-            // zero_points: mask
-            sstream.write(&mask);
-            // zero points: groups
-            const int ndims = zps.get_groups_ndims(arg);
-            sstream.write(&ndims);
-            if (ndims > 0) sstream.write(zps.get_groups(arg), ndims);
-            // zero_points: data type
-            sstream.write(&dt);
-        }
-}
-
 void serialize_attr(
         serialization_stream_t &sstream, const primitive_attr_t &attr) {
     // scratchpad_mode
@@ -215,8 +195,10 @@ void serialize_attr(
         attr.scales_.serialize(sstream);
     }
     // zero_points
-    if (!attr.zero_points_.has_default_values()) sstream.write("zp:");
-    serialize_zero_points(sstream, attr.zero_points_);
+    if (!attr.zero_points_.has_default_values()) {
+        sstream.write("zp:");
+        attr.zero_points_.serialize(sstream);
+    }
 
     // Rounding modes
     if (!attr.rounding_mode_.has_default_values()) sstream.write("rm:");
@@ -610,9 +592,9 @@ void serialize_desc(serialization_stream_t &sstream, const sdpa_desc_t &desc) {
     serialize_md(sstream, desc.k_desc);
     serialize_md(sstream, desc.v_desc);
     desc.kq_scales.serialize(sstream);
-    serialize_zero_points(sstream, desc.kq_zero_points);
+    desc.kq_zero_points.serialize(sstream);
     desc.vs_scales.serialize(sstream);
-    serialize_zero_points(sstream, desc.vs_zero_points);
+    desc.vs_zero_points.serialize(sstream);
     serialize_md(sstream, desc.dst_desc);
     serialize_md(sstream, desc.attn_mask_desc);
     sstream.write(&desc.scale_dt);

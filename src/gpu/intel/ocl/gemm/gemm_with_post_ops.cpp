@@ -92,15 +92,17 @@ status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
     attributes_without_po.set_post_ops(post_ops_t());
     attributes_without_po.scales_ = scales_t();
     attributes_without_po.zero_points_ = zero_points_t();
-    int src_mask, wei_mask;
-    auto zp = attributes_with_po->zero_points_;
-    zp.get(DNNL_ARG_SRC, &src_mask);
-    zp.get(DNNL_ARG_WEIGHTS, &wei_mask);
-    if (!zp.has_default_values(DNNL_ARG_SRC))
+    const auto &zp = attributes_with_po->zero_points_;
+    int src_mask = zp.get_mask(DNNL_ARG_SRC);
+    int wei_mask = zp.get_mask(DNNL_ARG_WEIGHTS);
+    if (!zp.has_default_values(DNNL_ARG_SRC)) {
         attributes_without_po.zero_points_.set(DNNL_ARG_SRC, src_mask);
-    if (!zp.has_default_values(DNNL_ARG_WEIGHTS))
-        attributes_without_po.zero_points_.set(DNNL_ARG_WEIGHTS, wei_mask, 0,
-                nullptr, attr()->zero_points_.get_data_type(DNNL_ARG_WEIGHTS));
+    }
+    if (!zp.has_default_values(DNNL_ARG_WEIGHTS)) {
+        const auto dt = attr()->zero_points_.get_data_type(DNNL_ARG_WEIGHTS);
+        attributes_without_po.zero_points_.set(
+                DNNL_ARG_WEIGHTS, wei_mask, dt, 0, {});
+    }
 
     primitive_desc_iterator_t it_gemm_without_po(engine,
             reinterpret_cast<const op_desc_t *>(&gemm_desc),
@@ -183,8 +185,6 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("A_SCALES", with_src_scales);
     kernel_ctx.define_int("B_SCALES", with_wei_scales);
     kernel_ctx.define_int("C_SCALES", with_dst_scales);
-    int dst_zp_mask;
-    attr()->zero_points_.get(DNNL_ARG_DST, &dst_zp_mask);
     kernel_ctx.define_int("DST_ZERO_POINT",
             !attr()->zero_points_.has_default_values(DNNL_ARG_DST));
     def_dispatch(kernel_ctx, dispatch_);

@@ -71,11 +71,11 @@ public:
         , is_runtime_dst_zero_points(pd
                   && !pd->attr()->zero_points_.has_default_values(DNNL_ARG_DST))
         , is_common_src_zero_point(
-                  pd && pd->attr()->zero_points_.common(DNNL_ARG_SRC))
-        , is_common_wei_zero_point(
-                  pd && pd->attr()->zero_points_.common(DNNL_ARG_WEIGHTS))
+                  pd && pd->attr()->zero_points_.get_mask(DNNL_ARG_SRC) == 0)
+        , is_common_wei_zero_point(pd
+                  && pd->attr()->zero_points_.get_mask(DNNL_ARG_WEIGHTS) == 0)
         , is_common_dst_zero_point(
-                  pd && pd->attr()->zero_points_.common(DNNL_ARG_DST))
+                  pd && pd->attr()->zero_points_.get_mask(DNNL_ARG_DST) == 0)
         , needs_src_reorder_precalc(
                   pd && do_src_compensation && can_use_src_reorder_precalc(pd))
         , needs_src_conv_precalc(pd && do_src_compensation
@@ -111,7 +111,7 @@ private:
         // specify the weights mem desc so the convolution can choose it freely
         // and set a mem desc flag asking a reorder to precompute the values.
         return (pd->invariant_wei_md()->format_kind == format_kind::any)
-                && pd->attr()->zero_points_.common(DNNL_ARG_SRC)
+                && pd->attr()->zero_points_.get_mask(DNNL_ARG_SRC) == 0
                 && pd->attr()->zero_points_.has_default_values(
                         DNNL_ARG_WEIGHTS);
     }

@@ -205,14 +205,18 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
         // Check zero points
         if (!attr->zero_points_.has_default_values()) {
             const auto &zp = attr->zero_points_;
-            int mask_src = 0, mask_wei = 0, mask_dst = 0;
-            zp.get(DNNL_ARG_SRC, &mask_src);
-            zp.get(DNNL_ARG_WEIGHTS, &mask_wei);
-            zp.get(DNNL_ARG_DST, &mask_dst);
 
-            VCHECK_CONV_UNIMPL((mask_src == 0 || mask_src == 1 << 1)
-                            && (mask_wei == 0)
-                            && (mask_dst == 0 || mask_dst == 1 << 1),
+            VCHECK_CONV_UNIMPL(IMPLICATION(!zp.has_default_values(DNNL_ARG_SRC),
+                                       utils::one_of(zp.get_mask(DNNL_ARG_SRC),
+                                               0, 1 << 1)),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+            VCHECK_CONV_UNIMPL(
+                    IMPLICATION(!zp.has_default_values(DNNL_ARG_WEIGHTS),
+                            zp.get_mask(DNNL_ARG_WEIGHTS) == 0),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+            VCHECK_CONV_UNIMPL(IMPLICATION(!zp.has_default_values(DNNL_ARG_DST),
+                                       utils::one_of(zp.get_mask(DNNL_ARG_DST),
+                                               0, 1 << 1)),
                     VERBOSE_UNSUPPORTED_ZP_CFG);
         }
 

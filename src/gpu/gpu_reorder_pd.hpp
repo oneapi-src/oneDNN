@@ -36,23 +36,28 @@ protected:
     }
 
     bool zero_points_ok() const {
+        const auto &zp = attr()->zero_points_;
+
         using namespace data_type;
-        const auto src_dt = src_md()->data_type;
-        const auto dst_dt = dst_md()->data_type;
+        bool ok = IMPLICATION(!utils::one_of(src_md()->data_type, s8, u8),
+                zp.has_default_values(DNNL_ARG_SRC));
+        if (!ok) return false;
+        ok = IMPLICATION(!utils::one_of(dst_md()->data_type, s8, u8),
+                zp.has_default_values(DNNL_ARG_DST));
+        if (!ok) return false;
 
-        int mask_src = 0, mask_dst = 0;
-        if (attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src)
-                != status::success)
-            return false;
-        if (attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst)
-                != status::success)
-            return false;
+        if (!zp.has_default_values(DNNL_ARG_SRC)) {
+            int mask_src = zp.get_mask(DNNL_ARG_SRC);
+            ok = mask_src == 0;
+            if (!ok) return false;
+        }
+        if (!zp.has_default_values(DNNL_ARG_DST)) {
+            int mask_dst = zp.get_mask(DNNL_ARG_DST);
+            ok = mask_dst == 0;
+            if (!ok) return false;
+        }
 
-        return IMPLICATION(!utils::one_of(src_dt, s8, u8),
-                       attr()->zero_points_.has_default_values(DNNL_ARG_SRC))
-                && IMPLICATION(!utils::one_of(dst_dt, s8, u8),
-                        attr()->zero_points_.has_default_values(DNNL_ARG_DST))
-                && mask_src == 0 && mask_dst == 0;
+        return true;
     }
 
     bool post_ops_ok() const {

@@ -213,8 +213,8 @@ bool with_quantize_common(const quant_entry_t &scale_entry) {
 /// Returns true if a common zero points value is used for each slice of the
 /// tensor operation
 bool with_quantize_common(const zero_points_t &zp) {
-    int mask = zp.get(DNNL_ARG_WEIGHTS);
-    return !zp.has_default_values()
+    int mask = zp.get_mask(DNNL_ARG_WEIGHTS);
+    return !zp.has_default_values(DNNL_ARG_WEIGHTS)
             && (((mask & 3) != 0 && (mask & 12) == 0) || mask == 0);
 }
 

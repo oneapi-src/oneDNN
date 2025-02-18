@@ -93,17 +93,15 @@ private:
 
 class zero_points_query_t {
 public:
-    bool has_default_values() const { return zps_.has_default_values(arg_); }
-    int get_mask() const {
-        int mask = zps_.get(arg_);
-        return mask;
-    }
+    bool has_default_values() const { return zps_.has_default_values(); }
+    int get_mask() const { return zps_.get_mask(); }
     size_t get_count() const { return count_; }
-    data_type_t get_data_type() const { return zps_.get_data_type(arg_); }
+    data_type_t get_data_type() const { return zps_.get_data_type(); }
     dim_t get_group() const {
-        if (zps_.get_groups_ndims(arg_) < 2) return 1;
-        const auto g0 = zps_.get_groups(arg_)[0];
-        const auto g1 = zps_.get_groups(arg_)[1];
+        if (zps_.has_default_groups()) return 1;
+
+        const auto g0 = zps_.get_group(0);
+        const auto g1 = zps_.get_group(1);
         assert(utils::one_of(1, g0, g1));
         return g0 > 1 ? g0 : g1;
     }
@@ -111,13 +109,16 @@ public:
     int get_group_dim() const {
         // If groups are not identified, they should be set to `1`, and
         // it shouldn't hurt to divide by 1 any dim. Just use 0th for that.
-        if (zps_.get_groups_ndims(arg_) < 2) return 0;
-        const auto g0 = zps_.get_groups(arg_)[0];
-        const auto g1 = zps_.get_groups(arg_)[1];
+        if (zps_.has_default_groups()) return 0;
+
+        const auto g0 = zps_.get_group(0);
+        const auto g1 = zps_.get_group(1);
         assert(utils::one_of(1, g0, g1));
         UNUSED(g1);
         const int g_dim = g0 > 1 ? 0 : 1;
-        return ndims_ - zps_.get_groups_ndims(arg_) + g_dim;
+        // Note: hardcoded value so far.
+        // TODO: replace with some API when ndims can be different from 2.
+        return ndims_ - /* zps_.get_groups_ndims() = */ 2 + g_dim;
     }
 
     memory_storage_t &get_zero_points(const exec_ctx_t &ctx) const {
@@ -127,13 +128,13 @@ public:
     zero_points_query_t() = default;
     zero_points_query_t(const primitive_attr_t *attr,
             const memory_desc_wrapper &mdw, int arg)
-        : zps_(attr->zero_points_)
-        , count_(get_attr_oscales_count(zps_.get(arg), mdw))
+        : zps_(attr->zero_points_.get(arg))
+        , count_(get_attr_oscales_count(zps_.get_mask(), mdw))
         , arg_(arg)
         , ndims_(mdw.ndims()) {}
 
 private:
-    zero_points_t zps_;
+    quant_entry_t zps_;
     dim_t count_ = 0;
     int arg_ = 0;
     int ndims_ = 0;
