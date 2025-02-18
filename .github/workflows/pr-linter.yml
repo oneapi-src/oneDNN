@@ -46,7 +46,7 @@ jobs:
       - name: Check codebase changes
         id: changes
         run: |
-          if git diff origin/${{ github.base_ref }}..origin/${{ github.head_ref }}  | grep -q -E "^examples/|^include/|^src/|^tests/"; then
+          if git diff --name-only origin/${{ github.base_ref }}..origin/${{ github.head_ref }}  | grep -q -E "^examples/|^include/|^src/|^tests/"; then
             echo "Found changes in codebase"
             echo "changed=true" >> $GITHUB_ENV
           else
