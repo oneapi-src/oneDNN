@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017 - 2024 Intel Corporation
+* Copyright 2017 - 2025 Intel Corporation
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -483,6 +483,151 @@ private:
     const dim_t c_tail_;
 };
 
+struct bwd_f32_accum_for_bf16_t {
+    using value_type = typename prec_traits<data_type::f32>::type;
+
+    bwd_f32_accum_for_bf16_t(const jit_pool_conf_t &jpp, const exec_ctx_t &ctx);
+
+    value_type *get_addr_2d(int ithr, dim_t ih) const {
+        return blk_data(ithr, 0, ih, 0);
+    }
+
+    value_type *get_addr_3d(int ithr, dim_t id, dim_t ih) const {
+        return blk_data(ithr, 0, id, ih, 0);
+    }
+
+    void zero_data(int ithr);
+
+    void cvt_to_bf16_slice_2d(int ithr, bfloat16_t *dst,
+            memory_desc_wrapper const &dst_d, dim_t n, dim_t b_c,
+            dim_t ur_bc) const;
+
+    void cvt_to_bf16_slice_3d(int ithr, bfloat16_t *dst,
+            memory_desc_wrapper const &dst_d, dim_t n, dim_t b_c,
+            dim_t ur_bc) const;
+
+private:
+    template <typename... Args>
+    value_type *blk_data(Args... args) const {
+        assert(wsp_);
+        return wsp_ + accum_d_.blk_off(std::forward<Args>(args)...);
+    }
+
+    const jit_pool_conf_t &jpp_;
+    value_type *wsp_ {nullptr};
+    memory_desc_wrapper accum_d_ {nullptr};
+};
+
+bwd_f32_accum_for_bf16_t::bwd_f32_accum_for_bf16_t(
+        const jit_pool_conf_t &jpp, const exec_ctx_t &ctx)
+    : jpp_ {jpp} {
+    if (jpp_.needs_f32_accum_for_bf16) {
+        accum_d_ = memory_desc_wrapper(jpp_.tmp_md);
+        auto &scratchpad = ctx.get_scratchpad_grantor();
+        wsp_ = scratchpad.template get<value_type>(
+                memory_tracking::names::key_pool_src_f32_accum);
+        assert(wsp_);
+    }
+}
+
+void bwd_f32_accum_for_bf16_t::zero_data(int ithr) {
+    auto *data = blk_data(ithr);
+    memset(data, 0,
+            jpp_.tmp_md.format_desc.blocking.strides[0] * sizeof(value_type));
+}
+
+void bwd_f32_accum_for_bf16_t::cvt_to_bf16_slice_2d(int ithr, bfloat16_t *dst,
+        memory_desc_wrapper const &dst_d, dim_t n, dim_t b_c,
+        dim_t ur_bc) const {
+
+    assert(wsp_ && (jpp_.ndims == 3 || jpp_.ndims == 4)
+            && (jpp_.tag_kind == jit_memory_tag_kind_t::nspc
+                    || jpp_.tag_kind == jit_memory_tag_kind_t::blocked));
+
+    if (jpp_.tag_kind == jit_memory_tag_kind_t::nspc) {
+        if (jpp_.tmp_md.dims[1] == jpp_.c && b_c == 0
+                && jpp_.c == ur_bc * jpp_.c_block) {
+            // all channels
+            const size_t nelems = jpp_.ih * jpp_.iw * jpp_.c;
+            const auto *cur_src = blk_data(ithr);
+            auto *cur_dst = dst + dst_d.blk_off(n);
+            cvt_float_to_bfloat16(cur_dst, cur_src, nelems);
+        } else {
+            const auto c_b = jpp_.c_block * b_c;
+            const auto c_e = nstl::min(
+                    static_cast<dim_t>(jpp_.c), jpp_.c_block * (b_c + ur_bc));
+
+            if (c_b >= c_e) return;
+
+            const size_t nelems = c_e - c_b;
+            if (jpp_.ndims == 4) {
+                for (dim_t h = 0; h < jpp_.ih; ++h) {
+                    for (dim_t w = 0; w < jpp_.iw; ++w) {
+                        const auto *cur_src = blk_data(ithr, 0, h, w);
+                        auto *cur_dst = dst + dst_d.blk_off(n, c_b, h, w);
+                        cvt_float_to_bfloat16(cur_dst, cur_src, nelems);
+                    }
+                }
+            } else {
+                for (dim_t w = 0; w < jpp_.iw; ++w) {
+                    const auto *cur_src = blk_data(ithr, 0, w);
+                    auto *cur_dst = dst + dst_d.blk_off(n, c_b, w);
+                    cvt_float_to_bfloat16(cur_dst, cur_src, nelems);
+                }
+            }
+        }
+    } else if (jpp_.tag_kind == jit_memory_tag_kind_t::blocked) {
+        assert(ur_bc == 1);
+
+        const size_t nelems = jpp_.ih * jpp_.iw * jpp_.c_block;
+        const auto *src_b = blk_data(ithr);
+        auto *dst_b = dst + dst_d.blk_off(n, b_c);
+        cvt_float_to_bfloat16(dst_b, src_b, nelems);
+    }
+}
+
+void bwd_f32_accum_for_bf16_t::cvt_to_bf16_slice_3d(int ithr, bfloat16_t *dst,
+        memory_desc_wrapper const &dst_d, dim_t n, dim_t b_c,
+        dim_t ur_bc) const {
+
+    assert(wsp_ && jpp_.ndims == 5
+            && (jpp_.tag_kind == jit_memory_tag_kind_t::nspc
+                    || jpp_.tag_kind == jit_memory_tag_kind_t::blocked));
+
+    if (jpp_.tag_kind == jit_memory_tag_kind_t::blocked) {
+        assert(ur_bc == 1);
+        const size_t nelems = jpp_.id * jpp_.ih * jpp_.iw * jpp_.c_block;
+        const auto *src_b = blk_data(ithr);
+        auto *dst_b = dst + dst_d.blk_off(n, b_c);
+        cvt_float_to_bfloat16(dst_b, src_b, nelems);
+    } else if (jpp_.tag_kind == jit_memory_tag_kind_t::nspc) {
+        if (jpp_.tmp_md.dims[1] == jpp_.c && b_c == 0
+                && jpp_.c == ur_bc * jpp_.c_block) {
+            // all channels
+            const size_t nelems = jpp_.id * jpp_.ih * jpp_.iw * jpp_.c;
+            cvt_float_to_bfloat16(
+                    dst + dst_d.blk_off(n), blk_data(ithr), nelems);
+        } else {
+            const auto c_b = jpp_.c_block * b_c;
+            const auto c_e = nstl::min(
+                    static_cast<dim_t>(jpp_.c), jpp_.c_block * (b_c + ur_bc));
+
+            if (c_b >= c_e) return;
+
+            const size_t nelems = c_e - c_b;
+            for (dim_t id = 0; id < jpp_.id; ++id) {
+                for (dim_t h = 0; h < jpp_.ih; ++h) {
+                    for (dim_t w = 0; w < jpp_.iw; ++w) {
+                        const auto *cur_src = blk_data(ithr, 0, id, h, w);
+                        auto *cur_dst = dst + dst_d.blk_off(n, c_b, id, h, w);
+                        cvt_float_to_bfloat16(cur_dst, cur_src, nelems);
+                    }
+                }
+            }
+        }
+    }
+}
+
 } // namespace jit_uni_pooling_utils
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
@@ -906,6 +1051,8 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
                     diff_dst_d, indices_d, wsp_dt_, diff_src, diff_dst, indices,
                     ctx);
 
+    bwd_f32_accum_for_bf16_t f32_accum(jpp, ctx);
+
     auto get_first_ih = [&](int oh) {
         return nstl::min(nstl::max(oh * jpp.stride_h - jpp.t_pad, 0), jpp.ih);
     };
@@ -924,6 +1071,8 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         const auto c_off = jpp.is_plain() ? b_c * jpp.c_block : b_c;
         if (transpose_facade.should_transpose_src())
             arg.src = transpose_facade.get_src_addr(ithr, ih, jpp);
+        else if (jpp.needs_f32_accum_for_bf16)
+            arg.src = f32_accum.get_addr_2d(ithr, ih);
         else
             arg.src = &diff_src[diff_src_d.blk_off(n, c_off, ih)];
 
@@ -950,6 +1099,8 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         if (transpose_facade.should_transpose_src())
             arg.zero_ptr
                     = transpose_facade.get_src_addr(ithr, zero_ih_start, jpp);
+        else if (jpp.needs_f32_accum_for_bf16)
+            arg.zero_ptr = f32_accum.get_addr_2d(ithr, zero_ih_start);
         else
             arg.zero_ptr
                     = &diff_src[diff_src_d.blk_off(n, c_off, zero_ih_start, 0)];
@@ -978,6 +1129,10 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
 
         if (transpose_facade.should_transpose_src())
             transpose_facade.execute_transpose_output(ithr, n, b_c);
+
+        if (jpp.needs_f32_accum_for_bf16)
+            f32_accum.cvt_to_bf16_slice_2d(
+                    ithr, (bfloat16_t *)diff_src, diff_src_d, n, b_c, ur_bc);
     };
 
     const int nthr = jpp.nthr;
@@ -1029,6 +1184,12 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
     const auto trans_src = transpose_facade.should_transpose_src();
     const auto trans_dst = transpose_facade.should_transpose_dst();
 
+    bwd_f32_accum_for_bf16_t f32_accum(jpp, ctx);
+
+    const size_t input_dt_size = jpp.needs_f32_accum_for_bf16
+            ? sizeof(bwd_f32_accum_for_bf16_t::value_type)
+            : jpp.dt_size;
+
     auto get_last_ih = [&](int oh) {
         return nstl::min(
                 nstl::max(oh * jpp.stride_h - jpp.t_pad + jpp.kh, 0), jpp.ih);
@@ -1056,6 +1217,8 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
 
         if (trans_src)
             arg.src = transpose_facade.get_src_addr_3d(ithr, id + kd, ih, jpp);
+        else if (jpp.needs_f32_accum_for_bf16)
+            arg.src = f32_accum.get_addr_3d(ithr, id + kd, ih);
         else
             arg.src = (const void *)&diff_src[diff_src_d.blk_off(
                     n, c_off, id + kd, ih)];
@@ -1091,6 +1254,9 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
             if (trans_src)
                 arg.zero_ptr = transpose_facade.get_src_addr_3d(
                         ithr, zero_id_start, zero_ih_start, jpp);
+            else if (jpp.needs_f32_accum_for_bf16)
+                arg.zero_ptr = f32_accum.get_addr_3d(
+                        ithr, zero_id_start, zero_ih_start);
             else
                 arg.zero_ptr = &diff_src[diff_src_d.blk_off(
                         n, c_off, zero_id_start, zero_ih_start, 0)];
@@ -1135,18 +1301,34 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
     const int nthr = jpp.nthr;
 
     if (jpp.simple_alg) {
+        const dim_t nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
+
         if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
-            const dim_t nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
-            parallel_nd(
-                    jpp.mb, jpp.od, nb2_c, [&](dim_t n, dim_t od, dim_t b2_c) {
-                        const dim_t b_c = b2_c * jpp.ur_bc;
-                        const dim_t ur_bc
-                                = nstl::min(dim_t(jpp.ur_bc), jpp.nb_c - b_c);
-                        process_simple(n, b_c, od, ur_bc, first_ithr);
-                    });
+            if (!jpp.needs_f32_accum_for_bf16) {
+                parallel_nd(jpp.mb, jpp.od, nb2_c,
+                        [&](dim_t n, dim_t od, dim_t b2_c) {
+                            const dim_t b_c = b2_c * jpp.ur_bc;
+                            const dim_t ur_bc = nstl::min(
+                                    dim_t(jpp.ur_bc), jpp.nb_c - b_c);
+                            process_simple(n, b_c, od, ur_bc, first_ithr);
+                        });
+            } else {
+                parallel_nd_ext(nthr, jpp.mb, nb2_c,
+                        [&](dim_t ithr, dim_t nthr, dim_t n, dim_t b2_c) {
+                            const dim_t b_c = b2_c * jpp.ur_bc;
+                            const dim_t ur_bc = nstl::min(
+                                    dim_t(jpp.ur_bc), jpp.nb_c - b_c);
+                            for (int od = 0; od < jpp.od; ++od) {
+                                process_simple(n, b_c, od, ur_bc, ithr);
+                            }
+                            f32_accum.cvt_to_bf16_slice_3d(ithr,
+                                    (bfloat16_t *)diff_src, diff_src_d, n, b_c,
+                                    ur_bc);
+                        });
+            }
         } else {
             assert(jpp.ur_bc == 1);
-            if (trans_src || trans_dst) {
+            if (trans_src || trans_dst || jpp.needs_f32_accum_for_bf16) {
                 parallel_nd_ext(nthr, jpp.mb, jpp.nb_c,
                         [&](dim_t ithr, dim_t nthr, dim_t n, dim_t b_c) {
                             if (trans_src)
@@ -1158,6 +1340,10 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
                             if (trans_dst)
                                 transpose_facade.execute_transpose_output(
                                         ithr, n, b_c);
+                            if (jpp.needs_f32_accum_for_bf16)
+                                f32_accum.cvt_to_bf16_slice_3d(ithr,
+                                        (bfloat16_t *)diff_src, diff_src_d, n,
+                                        b_c, 1);
                         });
             } else {
                 parallel_nd(jpp.mb, jpp.nb_c, jpp.od,
@@ -1168,31 +1354,35 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
         }
     } else {
         const data_t zero_val = 0;
-        if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
-            const size_t chunk_size = (size_t)jpp.ih * jpp.iw * jpp.c;
-            parallel_nd(jpp.mb, jpp.id, [&](dim_t n, dim_t id) {
-                const size_t offset = ((size_t)n * jpp.id + id) * chunk_size;
-                PRAGMA_OMP_SIMD()
-                for (size_t idx = 0; idx < chunk_size; ++idx)
-                    diff_src[offset + idx] = zero_val;
-            });
-        } else {
-            if (!trans_src) {
-                const size_t chunk_size
-                        = (size_t)jpp.id * jpp.ih * jpp.iw * jpp.c_block;
-                parallel_nd_ext(nthr, jpp.mb, jpp.nb_c,
-                        [&](dim_t ithr, dim_t nthr, dim_t n, dim_t b_c) {
-                            const size_t offset
-                                    = ((size_t)n * jpp.nb_c + b_c) * chunk_size;
-                            PRAGMA_OMP_SIMD()
-                            for (size_t idx = 0; idx < chunk_size; ++idx)
-                                diff_src[offset + idx] = zero_val;
-                        });
+        if (!jpp.needs_f32_accum_for_bf16) {
+            if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
+                const size_t chunk_size = (size_t)jpp.ih * jpp.iw * jpp.c;
+                parallel_nd(jpp.mb, jpp.id, [&](dim_t n, dim_t id) {
+                    const size_t offset
+                            = ((size_t)n * jpp.id + id) * chunk_size;
+                    PRAGMA_OMP_SIMD()
+                    for (size_t idx = 0; idx < chunk_size; ++idx)
+                        diff_src[offset + idx] = zero_val;
+                });
+            } else {
+                if (!trans_src) {
+                    const size_t chunk_size
+                            = (size_t)jpp.id * jpp.ih * jpp.iw * jpp.c_block;
+                    parallel_nd_ext(nthr, jpp.mb, jpp.nb_c,
+                            [&](dim_t ithr, dim_t nthr, dim_t n, dim_t b_c) {
+                                const size_t offset
+                                        = ((size_t)n * jpp.nb_c + b_c)
+                                        * chunk_size;
+                                PRAGMA_OMP_SIMD()
+                                for (size_t idx = 0; idx < chunk_size; ++idx)
+                                    diff_src[offset + idx] = zero_val;
+                            });
+                }
             }
         }
 
         const auto nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
-        if (trans_src || trans_dst) {
+        if (trans_src || trans_dst || jpp.needs_f32_accum_for_bf16) {
             parallel_nd_ext(nthr, jpp.mb, nb2_c,
                     [&](dim_t ithr, dim_t nthr, dim_t n, dim_t b2_c) {
                         const dim_t b_c = b2_c * jpp.ur_bc;
@@ -1202,16 +1392,19 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
                                     ithr, n, b_c);
 
                             size_t block_size = jpp.c_block * jpp.id * jpp.ih
-                                    * jpp.iw * jpp.dt_size;
+                                    * jpp.iw * input_dt_size;
 
                             const void *src = transpose_facade.get_src_addr_3d(
                                     ithr, 0, 0, jpp);
                             std::memset((void *)src, zero_val, block_size);
                         }
 
+                        if (jpp.needs_f32_accum_for_bf16)
+                            f32_accum.zero_data(ithr);
+
+                        const dim_t ur_bc
+                                = nstl::min(dim_t(jpp.ur_bc), jpp.nb_c - b_c);
                         for (dim_t kd = 0; kd < jpp.kd; ++kd) {
-                            const dim_t ur_bc = nstl::min(
-                                    dim_t(jpp.ur_bc), jpp.nb_c - b_c);
                             for (int od = 0; od < jpp.od; ++od) {
                                 const dim_t ik
                                         = static_cast<dim_t>(od) * jpp.stride_d;
@@ -1236,6 +1429,11 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
                         if (trans_src)
                             transpose_facade.execute_transpose_output(
                                     ithr, n, b_c);
+
+                        if (jpp.needs_f32_accum_for_bf16)
+                            f32_accum.cvt_to_bf16_slice_3d(ithr,
+                                    (bfloat16_t *)diff_src, diff_src_d, n, b_c,
+                                    ur_bc);
                     });
         } else {
             for (dim_t kd = 0; kd < jpp.kd; ++kd) {
