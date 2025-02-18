@@ -16,6 +16,12 @@
 # *******************************************************************************
 
 --reset
---dir=FWD_D
---dt=f32
-mb1_ic64oc256_ih200oh200kh1sh1dh0ph0_iw267ow267kw1sw1dw0pw0
+--batch=reorder
+
+--reset
+--sdt=f32,s8
+--ddt=f32,s8
+
+--stag=abx,axb,aBx4b,aBx8b
+--dtag=abx,axb,aBx4b,aBx8b
+4x128x5x5

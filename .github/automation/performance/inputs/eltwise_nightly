@@ -16,6 +16,26 @@
 # *******************************************************************************
 
 --reset
---dir=FWD_D
+--batch=eltwise
+
+--reset
+
 --dt=f32
-mb1_ic64oc256_ih200oh200kh1sh1dh0ph0_iw267ow267kw1sw1dw0pw0
+--tag=abx,axb
+--dir=FWD_D
+--attr-post-ops=,
+
+## algs which do not support alpha and beta + relu with alpha=0
+--alpha=0 --beta=0
+--alg=exp,exp_dst,gelu_erf,gelu_tanh,relu_dst,tanh,tanh_dst
+384x384
+
+## algs which support negative alpha
+--alpha=-2 --beta=0
+--alg=elu,relu,swish
+384x384
+
+## algs which support alpha and beta
+--alpha=-2 --beta=3
+--alg=linear
+384x384
