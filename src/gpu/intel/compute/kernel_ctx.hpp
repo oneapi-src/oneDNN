@@ -26,6 +26,7 @@
 #include <unordered_map>
 
 #include "common/bit_cast.hpp"
+#include "common/type_helpers.hpp"
 #include "gpu/intel/gpu_primitive_attr.hpp"
 #include "gpu/intel/utils.hpp"
 
@@ -68,12 +69,13 @@ public:
         return oss.str();
     }
 
-    void register_buffer_size(size_t size) {
-        if (size > INT_MAX) use_int32_offset(false);
+    void register_buffer_size(size_t size, size_t offset0, data_type_t dt) {
+        if (size + offset0 * types::data_type_size(dt) > INT_MAX)
+            use_int32_offset(false);
     }
 
     void register_buffer_size(const memory_desc_wrapper &mdw) {
-        register_buffer_size(mdw.size());
+        register_buffer_size(mdw.size(), mdw.offset0(), mdw.data_type());
     }
 
     // Enable various optimizations when all buffers are < 2GB in size. In this
