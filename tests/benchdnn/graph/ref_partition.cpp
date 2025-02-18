@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -254,12 +254,12 @@ void ref_partition_t::exec_ops(res_t *res) {
                     if (parent_op->kind_ != "MatMul") continue;
                 }
 
-                int arg = get_prim_arg_name_from_graph_op_input_offset(
-                        ref_prim->get_kind(), i, use_dst);
-                dnn_mem_t &src_i
-                        = const_cast<dnn_mem_t &>(ref_prim->get_arg(arg));
-                dnn_mem_t src_low_dt(src_i, dt, tag::abx, src_i.engine());
-                SAFE_V(src_i.reorder(src_low_dt));
+                // int arg = get_prim_arg_name_from_graph_op_input_offset(
+                //         ref_prim->get_kind(), i, use_dst);
+                // dnn_mem_t &src_i
+                //         = const_cast<dnn_mem_t &>(ref_prim->get_arg(arg));
+                // dnn_mem_t src_low_dt(src_i, dt, tag::abx, src_i.engine());
+                // SAFE_V(src_i.reorder(src_low_dt));
             }
         }
 
@@ -278,12 +278,12 @@ void ref_partition_t::exec_ops(res_t *res) {
                 // There's no need to reorder data for undefined or f32 tensors.
                 if (dt == dnnl_data_type_undef || dt == dnnl_f32) continue;
 
-                int arg = get_prim_arg_name_from_graph_op_output_offset(
-                        ref_prim->get_kind(), i);
-                dnn_mem_t &dst_i
-                        = const_cast<dnn_mem_t &>(ref_prim->get_arg(arg));
-                dnn_mem_t dst_low_dt(dst_i, dt, tag::abx, dst_i.engine());
-                SAFE_V(dst_i.reorder(dst_low_dt));
+                // int arg = get_prim_arg_name_from_graph_op_output_offset(
+                //         ref_prim->get_kind(), i);
+                // dnn_mem_t &dst_i
+                //         = const_cast<dnn_mem_t &>(ref_prim->get_arg(arg));
+                // dnn_mem_t dst_low_dt(dst_i, dt, tag::abx, dst_i.engine());
+                // SAFE_V(dst_i.reorder(dst_low_dt));
             }
         }
     }
