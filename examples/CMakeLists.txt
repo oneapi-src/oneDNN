@@ -18,7 +18,7 @@ if (NOT DNNL_BUILD_EXAMPLES OR DNNL_ENABLE_STACK_CHECKER)
     return()
 endif()
 
-# propagate EXAMPLE specific flags
+## propagate EXAMPLE specific flags
 append(CMAKE_C_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
 
