@@ -31,11 +31,11 @@ namespace intel {
 
 enum class log_level_t {
     off = 0,
-    warning = 100,
-    suggestion = 120,
-    info = 150,
-    perf = 170,
-    trace = 200,
+    warning = verbose_t::debug_warn,
+    suggestion = verbose_t::debug_warn,
+    info = verbose_t::debug_info,
+    perf = verbose_t::debug_info,
+    trace = verbose_t::debug_trace,
 };
 
 template <typename T, typename = void>
@@ -94,9 +94,7 @@ private:
     void add_header(bool with_file) {
         switch (level) {
             case log_level_t::warning: out_ << "[ WARN]"; break;
-            case log_level_t::suggestion: out_ << "[SUGGESTION]"; break;
             case log_level_t::info: out_ << "[ INFO]"; break;
-            case log_level_t::perf: out_ << "[ PERF]"; break;
             case log_level_t::trace: out_ << "[TRACE]"; break;
             default: gpu_error_not_expected();
         }

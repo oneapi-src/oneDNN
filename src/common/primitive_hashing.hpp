@@ -192,10 +192,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
             // clang-format on
 #undef CASE
 
-        // Note: `16` is just a random number, as debuginfo hasn't received a
-        // single command center for levels across layers of the library.
-        // ANCHOR: HASHING_DEBUGINFO_16.
-        VDEBUGINFO(16, primitive, hashing,
+        VDEBUGINFO(trace, primitive, hashing,
                 "operator(),seed_before_desc=%zu seed_after_desc=%zu",
                 verb_seed_before_desc, seed);
 

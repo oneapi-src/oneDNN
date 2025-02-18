@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ const char *get_kernel_source(const char *name) {
 
             auto it = custom_kernels.find(kernel_name);
             if (it == custom_kernels.end()) {
-                VDEBUGINFO(1, common, kernel_list,
+                VDEBUGINFO(info, common, kernel_list,
                         "loading kernel %s from file %s\n", kernel_name.c_str(),
                         kernel_path.c_str());
                 std::ifstream file(kernel_path, std::ios::binary);
