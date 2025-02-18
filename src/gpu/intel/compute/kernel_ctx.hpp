@@ -26,6 +26,7 @@
 #include <unordered_map>
 
 #include "common/bit_cast.hpp"
+#include "common/type_helpers.hpp"
 #include "gpu/intel/gpu_primitive_attr.hpp"
 #include "gpu/intel/utils.hpp"
 
@@ -33,6 +34,9 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace intel {
+
+struct memory_desc_info_t;
+
 namespace compute {
 
 class kernel_ctx_t {
@@ -73,8 +77,9 @@ public:
     }
 
     void register_buffer_size(const memory_desc_wrapper &mdw) {
-        register_buffer_size(mdw.size());
+        register_buffer_size(mdw.size(0, true, true));
     }
+    void register_buffer_size(const memory_desc_info_t &mdi);
 
     // Enable various optimizations when all buffers are < 2GB in size. In this
     // case, int32_t types can be used for data offsets and avoid int64_t
