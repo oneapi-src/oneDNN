@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,13 +97,7 @@ int ref_primitive_t::init_prb(res_t *res) {
 
 int ref_primitive_t::init_prim(
         const engine_t &ref_eng, res_t *res, bool force_override) {
-    const bool is_quant_or_dequant = kind_ == dnnl::graph::op::kind::Dequantize
-            || kind_ == dnnl::graph::op::kind::Quantize
-            || kind_ == dnnl::graph::op::kind::DynamicDequantize
-            || kind_ == dnnl::graph::op::kind::DynamicQuantize;
-    // (De-)Quantize op is built on reorder which expects int8 dt for
-    // zero-points attribute. Thus, skip them for forcing.
-    const bool force_f32_prim_dt = !force_override && !is_quant_or_dequant;
+    UNUSED(force_override);
 
 #define CASE_INIT_PRIM(driver) \
     case dnnl_driver_t::driver: { \
@@ -112,7 +106,7 @@ int ref_primitive_t::init_prim(
         if (is_special_backward_op_) { \
             SAFE(create_primitive(fwd_prim_, ref_eng, ::driver::init_pd, prb, \
                          res, FLAG_FWD, nullptr, prb->dir &FLAG_BWD, nullptr, \
-                         force_f32_prim_dt, /*is_graph_ref=*/true), \
+                         false, /*is_graph_ref=*/true), \
                     WARN); \
             if (res->state == SKIPPED || res->state == UNIMPLEMENTED) \
                 return OK; \
@@ -127,8 +121,7 @@ int ref_primitive_t::init_prim(
         SAFE(create_primitive(prim_, ref_eng, ::driver::init_pd, prb, res, \
                      prb->dir, \
                      is_special_backward_op_ ? query_pd(fwd_prim_) : nullptr, \
-                     false, nullptr, force_f32_prim_dt, \
-                     /*is_graph_ref=*/true), \
+                     false, nullptr, false, /*is_graph_ref=*/true), \
                 WARN); \
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK; \
         break; \
