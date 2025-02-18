@@ -582,6 +582,10 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks(
         const auto &e = this->entry[idx];
         int mask = -1;
         int arg = DNNL_ARG_UNDEF;
+
+        int mask2 = -1;
+        int arg2 = DNNL_ARG_UNDEF;
+
         if (e.is_binary_kind()) {
             using mask_input_t = entry_t::binary_t::mask_input_t;
             auto mask_input = e.binary.mask_input;
@@ -590,6 +594,12 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks(
                     : policy2mask(
                             DNNL_ARG_SRC_1, e.binary.policy, prim_kind, ndims);
             arg = DNNL_ARG_SRC_1;
+
+            if (e.is_binary_kind_with_ternary_op()) {
+                mask2 = e.binary.mask;
+                arg2 = DNNL_ARG_SRC_2;
+            }
+
         } else if (e.is_prelu_kind()) {
             mask = attr_t::get_default_mask(e.prelu.policy);
             arg = DNNL_ARG_WEIGHTS;
@@ -599,6 +609,10 @@ std::vector<std::pair<int, int>> attr_t::post_ops_t::get_po_masks(
         assert(mask >= 0);
         v_masks.emplace_back(std::make_pair(
                 DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | arg, mask));
+
+        if (e.is_binary_kind_with_ternary_op())
+            v_masks.emplace_back(std::make_pair(
+                    DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | arg2, mask2));
     }
     return v_masks;
 }
@@ -631,11 +645,10 @@ bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
     return kind > ELTWISE_START && kind < ELTWISE_END;
 }
 bool attr_t::post_ops_t::entry_t::is_binary_kind() const {
-    // binary select is a ternary operation and not currently
-    // supported in post-ops for the binary primitive
-    // TODO: add post-ops support for binary select operation
-    return kind > pk_t::BINARY_START && kind < pk_t::BINARY_END
-            && kind != pk_t::SELECT;
+    return kind > pk_t::BINARY_START && kind < pk_t::BINARY_END;
+}
+bool attr_t::post_ops_t::entry_t::is_binary_kind_with_ternary_op() const {
+    return kind == pk_t::SELECT;
 }
 bool attr_t::post_ops_t::entry_t::is_prelu_kind() const {
     return kind == PRELU;
@@ -1062,6 +1075,22 @@ int attr_args_t::prepare_post_ops_mds(const attr_t &attr, int ndims,
             mds.emplace((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
                                 | po_rhs_tensor_entry.arg_attr_mask),
                     std::move(rhs_tensor_desc));
+
+            if (e.is_binary_kind_with_ternary_op()) {
+
+                const post_ops_rhs_tensor_entry_t
+                        post_op_rhs_select_tensor_entry
+                        = {e.binary.src2_dt, 0, e.binary.tag, DNNL_ARG_SRC_2};
+
+                auto rhs_select_tensor_desc = dnn_mem_t::init_md(ndims, dims,
+                        e.binary.src2_dt, post_op_rhs_select_tensor_entry.tag);
+
+                mds.emplace((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                    | post_op_rhs_select_tensor_entry
+                                              .arg_attr_mask),
+                        std::move(rhs_select_tensor_desc));
+            }
+
         } else if (e.is_convolution_kind()) {
             // Update dims for post operations appended after conv_dw
             conv_dw_fusion::get_fused_conv_dst_dims(ndims, e, dims, dims);
@@ -1165,9 +1194,16 @@ dnnl_primitive_attr_t create_dnnl_attr(
             } else if (e.is_binary_kind()) {
                 const auto &src1_md = attr_args.get_md(
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+                const auto &src2_md = attr_args.get_md(
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_2));
                 assert(query_md_ndims(src1_md) != 0);
-                DNN_SAFE_V(dnnl_post_ops_append_binary(
-                        ops, e.binary.alg, src1_md));
+
+                if (e.is_binary_kind_with_ternary_op())
+                    assert(query_md_ndims(src2_md) != 0);
+
+                DNN_SAFE_V(dnnl_post_ops_append_binary_v2(
+                        ops, e.binary.alg, src1_md, src2_md));
+
             } else if (e.is_prelu_kind()) {
                 const auto &policy = e.prelu.policy;
                 const auto mask = attr_t::get_default_mask(policy);
@@ -1675,7 +1711,15 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
             const auto &b = e.eltwise.beta;
             val = compute_eltwise_fwd(e.kind, val, a, b);
         } else if (e.is_binary_kind()) {
-            val = compute_binary(e.kind, val, *it_po, false);
+
+            auto src1_val = *it_po;
+            bool src2_val = false;
+
+            if (e.is_binary_kind_with_ternary_op()) {
+                it_po++;
+                src2_val = *it_po;
+            }
+            val = compute_binary(e.kind, val, src1_val, src2_val);
             it_po++;
         } else if (e.is_prelu_kind()) {
             val = val > 0 ? val : val * (*it_po);

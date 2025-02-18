@@ -868,9 +868,13 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
     for (int idx = 0; idx < dnnl_post_ops_len(const_po); ++idx) {
         if (dnnl_post_ops_get_kind(const_po, idx) != dnnl_binary) continue;
 
-        int po_arg = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1;
-        const auto &po_md = query_md(const_pd, po_arg);
-        mem_map.emplace(po_arg, dnn_mem_t(po_md, test_engine));
+        int po_arg1 = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1;
+        const auto &po_md1 = query_md(const_pd, po_arg1);
+        mem_map.emplace(po_arg1, dnn_mem_t(po_md1, test_engine));
+
+        int po_arg2 = DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_2;
+        const auto &po_md2 = query_md(const_pd, po_arg2);
+        mem_map.emplace(po_arg2, dnn_mem_t(po_md2, test_engine));
     }
 
     // Prelu post-op.
