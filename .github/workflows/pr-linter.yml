@@ -44,14 +44,13 @@ jobs:
       - name: Check commit messages
         run: python3 ./.github/automation/commit-msg-check.py "${{ github.event.pull_request.head.sha }}" "${{ github.event.pull_request.base.sha }}"
       - name: Check codebase changes
-        id: check
         run: |
           if git diff --name-only main..HEAD  | grep -q -E "^examples/|^include/|^src/|^tests/; then
             echo "Found changes in codebase"
-            echo "changes=true" >> $GITHUB_ENV
+            echo "CHANGES=true" >> $GITHUB_ENV
           else
             echo "No changes in codebase"
-            echo "changes=false" >> $GITHUB_ENV
+            echo "CHANGES=false" >> $GITHUB_ENV
           fi
       - name: Install clang-format
         run: sudo apt update && sudo apt install -y "clang-format-11"
@@ -61,7 +60,8 @@ jobs:
   pr-format-tags:
     name: Format tags consistency
     runs-on: ubuntu-latest
-    if: env.changes == 'true'
+    needs: pr-formatting
+    if: "$CHANGES" = true
 
     steps:
       - name: Checkout oneDNN
