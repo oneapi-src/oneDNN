@@ -94,6 +94,12 @@ The implementation supports both forward and backward directions.
 * Supported formats: `NCDHW`, `NDHWC`, `NCHW`, `NHWC`, `NCW`, `NWC`, `NC`, `N`
 * Supported data types: `f32`, `bf16`, `f16`, `s32`, `s8`, `u8`
 
+## Group Normalization
+* Supported Direction: forward data and forward inference.
+* Supported data types: All possible data combinations listed in the oneDNN specification are supported.
+* Support Data layouts: All data layouts are supported.
+
+
 ## Inner Product
 
 The implementation supports the forward direction only.
