@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ struct jit_avx2_convolution_fwd_t : public primitive_t {
 
     jit_avx2_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits_t<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
@@ -197,7 +197,7 @@ struct jit_avx2_convolution_bwd_data_t : public primitive_t {
 
     jit_avx2_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits_t<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(
@@ -320,7 +320,7 @@ struct jit_avx2_convolution_bwd_weights_t : public primitive_t {
 
     jit_avx2_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits_t<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(

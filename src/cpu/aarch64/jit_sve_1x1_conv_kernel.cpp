@@ -812,8 +812,8 @@ status_t jit_sve_1x1_conv_kernel<isa_>::init_conf(jit_1x1_conv_conf_t &jcp,
         if (jcp.wei_tag != wei_tag) return status::unimplemented;
 
         //        jcp.fma_step = 1;
-        jcp.typesize_in = sizeof(prec_traits<data_type::f32>::type);
-        jcp.typesize_out = sizeof(prec_traits<data_type::f32>::type);
+        jcp.typesize_in = sizeof(prec_traits_t<data_type::f32>::type);
+        jcp.typesize_out = sizeof(prec_traits_t<data_type::f32>::type);
     } else {
         // TODO: currently, only support fp32;
         return status::unimplemented;

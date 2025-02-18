@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,9 +74,9 @@ struct jit_avx512_common_convolution_fwd_t : public primitive_t {
 
     jit_avx512_common_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
+    typedef typename prec_traits_t<src_type>::type src_data_t;
+    typedef typename prec_traits_t<wei_type>::type wei_data_t;
+    typedef typename prec_traits_t<dst_type>::type dst_data_t;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
@@ -151,9 +151,9 @@ struct jit_avx512_common_convolution_bwd_data_t : public primitive_t {
     jit_avx512_common_convolution_bwd_data_t(const pd_t *apd)
         : primitive_t(apd) {}
 
-    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
+    typedef typename prec_traits_t<diff_dst_type>::type diff_dst_data_t;
+    typedef typename prec_traits_t<wei_type>::type wei_data_t;
+    typedef typename prec_traits_t<diff_src_type>::type diff_src_data_t;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
@@ -241,9 +241,9 @@ struct jit_avx512_common_convolution_bwd_weights_t : public primitive_t {
     jit_avx512_common_convolution_bwd_weights_t(const pd_t *apd)
         : primitive_t(apd) {}
 
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
-    typedef typename prec_traits<diff_weights_type>::type diff_weights_data_t;
+    typedef typename prec_traits_t<src_type>::type src_data_t;
+    typedef typename prec_traits_t<diff_dst_type>::type diff_dst_data_t;
+    typedef typename prec_traits_t<diff_weights_type>::type diff_weights_data_t;
 
     status_t init(engine_t *engine) override;
 

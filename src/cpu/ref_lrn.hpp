@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ struct ref_lrn_fwd_t : public primitive_t {
     };
 
     ref_lrn_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-    typedef typename prec_traits<d_type>::type data_t;
+    typedef typename prec_traits_t<d_type>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         using namespace format_tag;
@@ -127,7 +127,7 @@ struct ref_lrn_bwd_t : public primitive_t {
     };
 
     ref_lrn_bwd_t(const pd_t *apd) : primitive_t(apd) {}
-    typedef typename prec_traits<d_type>::type data_t;
+    typedef typename prec_traits_t<d_type>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         using namespace format_tag;

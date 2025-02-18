@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ namespace dnnl {
 namespace impl {
 
 struct scratchpad_t {
-    virtual ~scratchpad_t() {}
+    virtual ~scratchpad_t() = default;
     virtual const memory_storage_t *get_memory_storage() const = 0;
     virtual size_t size() const = 0;
 };

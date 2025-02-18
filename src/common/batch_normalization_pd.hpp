@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ struct batch_normalization_pd_t : public primitive_desc_t {
 
     float alpha() const {
         const auto &p = attr()->post_ops_;
-        const bool entry_size_ok = p.entry_.size() > 0;
+        const bool entry_size_ok = !p.entry_.empty();
         assert(entry_size_ok || fuse_norm_relu() || fuse_norm_add_relu());
         if (entry_size_ok) return p.entry_[0].eltwise.alpha;
         return 0.f;
@@ -134,8 +134,7 @@ protected:
         , hint_fwd_pd_(hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , stat_md_(desc_.stat_desc)
-        , scaleshift_md_(desc_.scaleshift_desc)
-        , ws_md_() {}
+        , scaleshift_md_(desc_.scaleshift_desc) {}
 
     virtual status_t init_default_ws(size_t bits_per_element) {
         const auto src_mdw = memory_desc_wrapper(src_md_);
@@ -150,8 +149,8 @@ protected:
 };
 
 struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
-    typedef batch_normalization_fwd_pd_t base_class;
-    typedef batch_normalization_fwd_pd_t hint_class;
+    using base_class = batch_normalization_fwd_pd_t;
+    using hint_class = batch_normalization_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -249,8 +248,8 @@ protected:
 };
 
 struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
-    typedef batch_normalization_bwd_pd_t base_class;
-    typedef batch_normalization_fwd_pd_t hint_class;
+    using base_class = batch_normalization_bwd_pd_t;
+    using hint_class = batch_normalization_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE,

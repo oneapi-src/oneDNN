@@ -291,8 +291,7 @@ struct dnnl_memory_desc : public dnnl::impl::c_compatible {
         , padded_offsets {}
         , offset0(0)
         , format_kind(dnnl::impl::format_kind::undef)
-        , format_desc {}
-        , extra {} {}
+        , format_desc {} {}
     // Number of dimensions
     int ndims;
     // Dimensions in the following order:

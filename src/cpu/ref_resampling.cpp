@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ template <data_type_t type>
 load_fn_t create_load() {
     return [](const byte *base, dim_t offset) -> float {
         return static_cast<float>(
-                reinterpret_cast<const typename prec_traits<type>::type *>(
+                reinterpret_cast<const typename prec_traits_t<type>::type *>(
                         base)[offset]);
     };
 }
@@ -55,7 +55,7 @@ load_fn_t create_load<data_type::f32>() {
 }
 template <data_type_t type>
 store_fn_t create_store() {
-    using dst_t = typename prec_traits<type>::type;
+    using dst_t = typename prec_traits_t<type>::type;
     return [](const float val, byte *base, const dim_t offset) {
         *reinterpret_cast<dst_t *>(base + sizeof(dst_t) * offset)
                 = cpu::q10n::saturate_and_round<dst_t>(val);

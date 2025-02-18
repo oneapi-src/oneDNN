@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -171,7 +171,7 @@ dnnl_status_t pack_no_copy(const T *src, dim_t ld_src, dim_t nrows, dim_t ncols,
     dim_t nrows_dst, ncols_dst;
     dim_t ld_dst, td_dst;
 
-    constexpr bool is_f32 = data_traits<T>::data_type == data_type::f32;
+    constexpr bool is_f32 = data_traits_t<T>::data_type == data_type::f32;
 
     if (!dst_pack->get_nocopy(0, trans_dst, ld_dst, td_dst))
         return dnnl_invalid_arguments;

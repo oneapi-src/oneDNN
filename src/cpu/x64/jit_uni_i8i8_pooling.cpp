@@ -160,8 +160,8 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     // thus we need to take into account ratio of sizes s32/i8 = 4
     static constexpr data_type_t avg_proc_dt = data_type::s32;
     enum : int {
-        s32_to_i8_ratio = sizeof(typename prec_traits<avg_proc_dt>::type)
-                / sizeof(typename prec_traits<data_type::u8>::type),
+        s32_to_i8_ratio = sizeof(typename prec_traits_t<avg_proc_dt>::type)
+                / sizeof(typename prec_traits_t<data_type::u8>::type),
         max_num_ll = s32_to_i8_ratio,
         mmx_msk_base_reg = 3
     };

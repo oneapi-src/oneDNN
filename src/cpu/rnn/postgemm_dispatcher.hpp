@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,14 +52,14 @@ template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t scratch_type, impl::data_type_t acc_type>
 struct rnn_postgemm_dispatcher {
 
-    typedef typename prec_traits<src_type>::type src_layer_t;
-    typedef typename prec_traits<src_type>::type src_iter_t;
-    typedef typename prec_traits<src_type>::type dst_layer_t;
-    typedef typename prec_traits<src_type>::type dst_iter_t;
-    typedef typename prec_traits<acc_type>::type gemm_acc_t;
-    typedef typename prec_traits<scratch_type>::type scratch_t;
-    typedef typename prec_traits<src_type>::type ht_t;
-    typedef typename prec_traits<src_type>::type gates_t;
+    typedef typename prec_traits_t<src_type>::type src_layer_t;
+    typedef typename prec_traits_t<src_type>::type src_iter_t;
+    typedef typename prec_traits_t<src_type>::type dst_layer_t;
+    typedef typename prec_traits_t<src_type>::type dst_iter_t;
+    typedef typename prec_traits_t<acc_type>::type gemm_acc_t;
+    typedef typename prec_traits_t<scratch_type>::type scratch_t;
+    typedef typename prec_traits_t<src_type>::type ht_t;
+    typedef typename prec_traits_t<src_type>::type gates_t;
 
     using class_name
             = rnn_postgemm_dispatcher<aprop, src_type, scratch_type, acc_type>;

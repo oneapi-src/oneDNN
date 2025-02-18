@@ -402,7 +402,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
         }
     };
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits_t<data_type::f32>::type data_t;
 
     ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
@@ -557,18 +557,18 @@ private:
 
     template <data_type_t dbia_type, data_type_t ddst_type>
     void compute_bwd_bias_ncdhw(
-            typename prec_traits<dbia_type>::type *diff_bias,
-            const typename prec_traits<ddst_type>::type *diff_dst) const;
+            typename prec_traits_t<dbia_type>::type *diff_bias,
+            const typename prec_traits_t<ddst_type>::type *diff_dst) const;
 
     template <data_type_t dbia_type, data_type_t ddst_type>
     void compute_bwd_bias_ndhwc(
-            typename prec_traits<dbia_type>::type *diff_bias,
-            const typename prec_traits<ddst_type>::type *diff_dst) const;
+            typename prec_traits_t<dbia_type>::type *diff_bias,
+            const typename prec_traits_t<ddst_type>::type *diff_dst) const;
 
     template <data_type_t dbia_type, data_type_t ddst_type, dim_t blksize>
     void compute_bwd_bias_nCdhwXc(
-            typename prec_traits<dbia_type>::type *diff_bias,
-            const typename prec_traits<ddst_type>::type *diff_dst) const;
+            typename prec_traits_t<dbia_type>::type *diff_bias,
+            const typename prec_traits_t<ddst_type>::type *diff_dst) const;
 
     template <data_type_t dbia_type, data_type_t ddst_type>
     void compute_bias(const exec_ctx_t &ctx) const;

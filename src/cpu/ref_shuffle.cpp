@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ template <int data_type_size>
 status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
     using namespace prop_kind;
     using namespace utils;
-    using data_t = typename typesize_traits<data_type_size>::type;
+    using data_t = typename typesize_traits_t<data_type_size>::type;
 
     const memory_desc_wrapper src_d(
             pd()->is_fwd() ? pd()->src_md() : pd()->diff_src_md());

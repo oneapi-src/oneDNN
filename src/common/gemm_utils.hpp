@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -144,7 +144,7 @@ static inline status_t create_gemm_pd(
 
     gemm_pd_ = *(++it);
     if (!gemm_pd_) return status::unimplemented;
-    if (skip_ref && strstr(gemm_pd_.get()->name(), "ref") != NULL)
+    if (skip_ref && strstr(gemm_pd_->name(), "ref") != nullptr)
         return status::unimplemented;
 
     return status::success;

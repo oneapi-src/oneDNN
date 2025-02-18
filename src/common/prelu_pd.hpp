@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,8 +88,8 @@ protected:
 };
 
 struct prelu_fwd_pd_t : public prelu_pd_t {
-    typedef prelu_fwd_pd_t base_class;
-    typedef prelu_fwd_pd_t hint_class;
+    using base_class = prelu_fwd_pd_t;
+    using hint_class = prelu_fwd_pd_t;
 
     primitive_desc_t::arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -150,8 +150,8 @@ protected:
 };
 
 struct prelu_bwd_pd_t : public prelu_pd_t {
-    typedef prelu_bwd_pd_t base_class;
-    typedef prelu_fwd_pd_t hint_class;
+    using base_class = prelu_bwd_pd_t;
+    using hint_class = prelu_fwd_pd_t;
 
     primitive_desc_t::arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;

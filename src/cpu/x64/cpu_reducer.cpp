@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ using namespace Xbyak;
 
 template <impl::data_type_t data_type>
 struct reducer_2d_driver_t : public jit_generator {
-    using data_t = typename prec_traits<data_type>::type;
+    using data_t = typename prec_traits_t<data_type>::type;
 
     reducer_2d_driver_t(int n_src, size_t src_ld, size_t src_step,
             size_t dst_step, bool nullify_dst, const char *name)
@@ -122,7 +122,7 @@ template <impl::data_type_t data_type, cpu_isa_t isa>
 struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type> {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(reducer_2d_driver_f_s_32_t)
 
-    using data_t = typename prec_traits<data_type>::type;
+    using data_t = typename prec_traits_t<data_type>::type;
 
     void operator()(
             data_t *dst, const data_t *srcs, size_t ny, size_t nx) override {
@@ -147,7 +147,7 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type> {
 
     const int vlen = cpu_isa_traits<isa>::vlen;
     const int typesize
-            = sizeof(typename dnnl::impl::prec_traits<data_type>::type);
+            = sizeof(typename dnnl::impl::prec_traits_t<data_type>::type);
     Xbyak::Reg64 reg_dst = abi_param1;
     Xbyak::Reg64 reg_src = abi_param2;
     Xbyak::Reg64 reg_ny = abi_param3;

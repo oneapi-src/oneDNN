@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2023 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -88,10 +88,10 @@ struct gemm_f32_matmul_t : public primitive_t {
     static constexpr data_type_t dst_type = data_type::f32;
     static constexpr data_type_t acc_type = data_type::f32;
 
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<weights_type>::type weights_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
-    typedef typename prec_traits<acc_type>::type acc_data_t;
+    typedef typename prec_traits_t<src_type>::type src_data_t;
+    typedef typename prec_traits_t<weights_type>::type weights_data_t;
+    typedef typename prec_traits_t<dst_type>::type dst_data_t;
+    typedef typename prec_traits_t<acc_type>::type acc_data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_ref(ctx);

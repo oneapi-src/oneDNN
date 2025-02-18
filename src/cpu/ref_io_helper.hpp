@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ inline int load_int_value(data_type_t dt, const void *ptr, dim_t idx) {
 #define CASE(dt) \
     case dt: \
         return static_cast<int>( \
-                reinterpret_cast<const typename prec_traits<dt>::type *>( \
+                reinterpret_cast<const typename prec_traits_t<dt>::type *>( \
                         ptr)[idx]);
 
     using namespace data_type;
@@ -67,7 +67,7 @@ inline float load_float_value(data_type_t dt, const void *ptr, dim_t idx) {
 #define CASE(dt) \
     case dt: \
         return static_cast<float>( \
-                reinterpret_cast<const typename prec_traits<dt>::type *>( \
+                reinterpret_cast<const typename prec_traits_t<dt>::type *>( \
                         ptr)[idx]);
 
     using namespace data_type;
@@ -116,7 +116,7 @@ inline void store_float_value(data_type_t dt, float val, void *ptr, dim_t idx) {
     assert(ptr);
 #define CASE(dt) \
     case dt: { \
-        using type_ = typename prec_traits<dt>::type; \
+        using type_ = typename prec_traits_t<dt>::type; \
         *(reinterpret_cast<type_ *>(ptr) + idx) \
                 = cpu::q10n::saturate_and_round<type_>(val); \
     } break;

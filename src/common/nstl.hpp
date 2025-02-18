@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,14 +84,14 @@ protected:
 namespace nstl {
 
 template <typename T>
-constexpr const T abs(const T &a) {
+constexpr T abs(const T &a) {
     return a >= 0 ? a : -a;
 }
 
 // Computes the modulus and returns the result as the least positive residue
 // when the divisor > 0.
 template <typename T>
-inline const T modulo(const T &dividend, const T &divisor) {
+inline T modulo(const T &dividend, const T &divisor) {
     static_assert(std::is_integral<T>::value, "T must be an integer type.");
     assert(divisor > 0);
     T result = dividend % divisor;
@@ -101,7 +101,7 @@ inline const T modulo(const T &dividend, const T &divisor) {
 // Computes the additive inverse modulus and returns the result as the least
 // positive residue when the divisor > 0.
 template <typename T>
-inline const T additive_inverse_modulo(const T &dividend, const T &divisor) {
+inline T additive_inverse_modulo(const T &dividend, const T &divisor) {
     static_assert(std::is_integral<T>::value, "T must be an integer type.");
     assert(divisor > 0);
     T result = modulo(dividend, divisor);
@@ -286,7 +286,7 @@ struct numeric_limits<int4_t> {
 };
 
 template <typename T>
-struct is_integral {
+struct is_integral { // NOLINT(readability-identifier-naming)
     static constexpr bool value = false;
 };
 template <>
@@ -315,7 +315,7 @@ struct is_integral<uint4_t> {
 };
 
 template <typename T, typename U>
-struct is_same {
+struct is_same { // NOLINT(readability-identifier-naming)
     static constexpr bool value = false;
 };
 template <typename T>
@@ -343,20 +343,20 @@ struct is_same<T, T> {
 enum nstl_status_t { success = 0, out_of_memory };
 
 template <typename T>
-class vector : public c_compatible {
+class vector : public c_compatible { // NOLINT(readability-identifier-naming)
 private:
     std::vector<T> _impl;
 
 public:
-    typedef typename std::vector<T>::iterator iterator;
-    typedef typename std::vector<T>::const_iterator const_iterator;
-    typedef typename std::vector<T>::size_type size_type;
-    vector() {}
+    using iterator = typename std::vector<T>::iterator;
+    using const_iterator = typename std::vector<T>::const_iterator;
+    using size_type = typename std::vector<T>::size_type;
+    vector() = default;
     vector(size_type n) : _impl(n) {}
     vector(size_type n, const T &value) : _impl(n, value) {}
     template <typename input_iterator>
     vector(input_iterator first, input_iterator last) : _impl(first, last) {}
-    ~vector() {}
+    ~vector() = default;
     size_type size() const { return _impl.size(); }
     T &operator[](size_type i) { return _impl[i]; }
     const T &operator[](size_type i) const { return _impl[i]; }
@@ -377,16 +377,16 @@ public:
 };
 
 template <typename Key, typename T>
-class map : public c_compatible {
+class map : public c_compatible { // NOLINT(readability-identifier-naming)
 private:
     std::map<Key, T> _impl;
 
 public:
-    typedef typename std::map<Key, T>::iterator iterator;
-    typedef typename std::map<Key, T>::const_iterator const_iterator;
-    typedef typename std::map<Key, T>::size_type size_type;
-    map() {}
-    ~map() {}
+    using iterator = typename std::map<Key, T>::iterator;
+    using const_iterator = typename std::map<Key, T>::const_iterator;
+    using size_type = typename std::map<Key, T>::size_type;
+    map() = default;
+    ~map() = default;
     size_type size() const { return _impl.size(); }
     T &operator[](const Key &k) { return _impl[k]; }
     const T &operator[](const Key &k) const { return _impl[k]; }
@@ -402,10 +402,10 @@ public:
 
 // Compile-time sequence of indices (part of C++14)
 template <size_t... Ints>
-struct index_sequence {};
+struct index_sequence {}; // NOLINT(readability-identifier-naming)
 
 template <size_t N, size_t... Next>
-struct make_index_sequence_helper
+struct make_index_sequence_helper // NOLINT(readability-identifier-naming)
     : public make_index_sequence_helper<N - 1, N - 1, Next...> {};
 
 template <size_t... Next>
