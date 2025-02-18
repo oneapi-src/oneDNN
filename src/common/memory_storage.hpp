@@ -75,6 +75,14 @@ struct memory_storage_t : public c_compatible {
     /** returns shallow copy */
     virtual std::unique_ptr<memory_storage_t> clone() const = 0;
 
+    /** returns shallow copy with a offset for accessor pointer for buffers
+    * to prevent use of sub-buffers where possible*/
+    virtual std::unique_ptr<memory_storage_t> clone_ptr_off(
+            size_t offset) const {
+        assert(!"not expected");
+        return nullptr;
+    }
+
     /** returns true if the pointer associated with the storage is NULL */
     bool is_null() const {
         void *ptr;

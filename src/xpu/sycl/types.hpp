@@ -101,7 +101,8 @@ struct memory_arg_t {
         if (usm_) return usm_;
         return const_cast<acc_dt *>(
                 acc_.template get_multi_ptr<::sycl::access::decorated::no>()
-                        .get());
+                        .get()
+                + acc_.get_offset());
     }
 
     bool empty() const { return empty_; }

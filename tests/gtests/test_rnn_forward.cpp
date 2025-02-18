@@ -169,6 +169,19 @@ protected:
 
     void SetUp() override {
         auto p = ::testing::TestWithParam<test_rnn_params_t>::GetParam();
+        SKIP_IF_GENERIC(!is_vanilla_rnn, "Unsupported cell type");
+        SKIP_IF_GENERIC(
+                !(p.direction == rnn_direction::unidirectional_left2right),
+                "Unsupported direction");
+        SKIP_IF_GENERIC(
+                is_lstm || is_gru || is_lbr_gru || is_augru || is_lbr_augru,
+                "Unsupported cell type");
+        SKIP_IF_CUDA(!is_vanilla_rnn, "Unsupported cell type");
+        SKIP_IF_CUDA(!(p.direction == rnn_direction::unidirectional_left2right),
+                "Unsupported direction cuda");
+        SKIP_IF_CUDA(
+                is_lstm || is_gru || is_lbr_gru || is_augru || is_lbr_augru,
+                "Unsupported cell type");
         catch_expected_failures(
                 [&]() { Test(); }, p.expect_to_fail, p.expected_status, false);
     }
@@ -711,6 +724,65 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
                 /* Check if passing {src,dst}_iter impacts results */
                 cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
 
+                        prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::undef, fmt::ldigo, fmt::ldigo,
+                                fmt::undef, fmt::undef, fmt::ldgo, fmt::tnc,
+                                fmt::ldnc},
+                        test_rnn_sizes_t {3, 1, 5, 1, 4, 4, 4, 4}},
+                cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
+                        prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo,
+                                fmt::undef, fmt::undef, fmt::ldgo, fmt::tnc,
+                                fmt::undef},
+                        test_rnn_sizes_t {3, 1, 5, 1, 4, 4, 4, 4}},
+                cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
+                        prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::undef, fmt::ldigo, fmt::ldigo,
+                                fmt::undef, fmt::undef, fmt::ldgo, fmt::tnc,
+                                fmt::undef},
+                        test_rnn_sizes_t {3, 1, 5, 1, 4, 4, 4, 4}}));
+
+TEST_P(rnn_forward_test_f32, TestsRnnGPU) {}
+GPU_INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
+        ::testing::Values(
+                cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
+                        prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo,
+                                fmt::undef, fmt::undef, fmt::ldgo, fmt::tnc,
+                                fmt::ldnc},
+                        test_rnn_sizes_t {1, 1, 10, 16, 100, 100, 100, 100}},
+                /* Check for invalid parameters: unsupported unrolling */
+                cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
+                        prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo,
+                                fmt::undef, fmt::undef, fmt::ldgo, fmt::tnc,
+                                fmt::ldnc},
+                        test_rnn_sizes_t {2, 1, 10, 16, 200, 100, 100, 100},
+                        true, dnnl_invalid_arguments},
+                cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
+                        prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo,
+                                fmt::undef, fmt::undef, fmt::ldgo, fmt::tnc,
+                                fmt::ldnc},
+                        test_rnn_sizes_t {2, 1, 10, 16, 100, 200, 100, 100},
+                        true, dnnl_invalid_arguments},
+                /* Check for invalid parameters: inconsistent dimensions */
+                cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
+                        prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo,
+                                fmt::undef, fmt::undef, fmt::ldgo, fmt::tnc,
+                                fmt::ldnc},
+                        test_rnn_sizes_t {2, 1, 10, 16, 100, 100, 50, 100},
+                        true, dnnl_invalid_arguments},
+                /* Check if passing {src,dst}_iter impacts results */
+                cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
                         prop_kind::forward_inference,
                         dir::unidirectional_left2right,
                         {fmt::tnc, fmt::undef, fmt::ldigo, fmt::ldigo,

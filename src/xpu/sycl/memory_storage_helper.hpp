@@ -63,17 +63,19 @@ public:
     interop_memory_arg_t(memory_storage_t *raw_mem, ::sycl::handler &cgh) {
         if (!raw_mem || raw_mem->is_null()) { return; }
         auto *mem = static_cast<memory_storage_base_t *>(raw_mem);
+        dim_t offset = mem->offset();
         switch (mem->memory_kind()) {
             case sycl::memory_kind::buffer: {
                 auto *buffer_storage
                         = utils::downcast<buffer_memory_storage_t *>(mem);
                 acc_.emplace(buffer_storage->buffer(), cgh);
-                offset_ = buffer_storage->base_offset();
+                offset_ = buffer_storage->base_offset() + offset;
                 break;
             }
             case sycl::memory_kind::usm: {
                 raw_ptr_ = utils::downcast<const usm_memory_storage_t *>(mem)
                                    ->usm_ptr();
+                offset_ = offset;
                 break;
             }
             default: assert(!"unexpected memory kind");
@@ -107,7 +109,8 @@ public:
                             ih.get_native_mem<be>(acc_.value()))
                     + offset_);
         } else {
-            raw_ptr = raw_ptr_;
+            raw_ptr = reinterpret_cast<T *>(
+                    reinterpret_cast<uint8_t *>(raw_ptr_) + offset_);
         }
         return reinterpret_cast<T *>(raw_ptr);
     }
@@ -117,7 +120,7 @@ public:
 private:
     void *raw_ptr_ = nullptr;
     std::optional<::sycl::accessor<uint8_t, 1, mode>> acc_;
-    size_t offset_;
+    size_t offset_ = 0;
 };
 
 } // namespace sycl
