@@ -44,7 +44,7 @@ std::string to_string(tensor_kind_t tensor);
 class pvar_t {
 public:
     pvar_t() = default;
-    pvar_t(const std::string &name) : name_(name) {}
+    pvar_t(const std::string &name) : name_(name) { gpu_assert(!name.empty()); }
     const std::string &name() const { return name_; }
     bool is_undef() const { return name_.empty(); }
     bool operator==(const pvar_t &other) const { return name_ == other.name_; }

@@ -362,6 +362,11 @@ expr_t operator-(const expr_t &a) {
     return const_fold_non_recursive(unary_op_t::make(op_kind_t::_minus, a));
 }
 
+expr_t div_up(const expr_t &a, const expr_t &b) {
+    return const_fold_non_recursive(
+            binary_op_t::make(op_kind_t::_div_up, a, b));
+}
+
 #define DEFINE_BINARY_OPERATOR(op, op_kind) \
     expr_t operator op(const expr_t &a, const expr_t &b) { \
         if (a.type().is_ptr()) return shift_ptr(op_kind, a, b); \

@@ -3,14 +3,15 @@
 ## General information
 
 Support for AMD backend is implemented via SYCL HIP backend. The feature is
-disabled by default. Users must enable it at build time with a CMake option
-`DNNL_GPU_VENDOR=AMD`. The AMD GPUs can be used via oneDNN engine abstraction.
-The engine should be created using `dnnl::engine::kind::gpu` engine kind or the
-user can provide a `sycl::device` objects that corresponds to AMD GPUs.
+disabled by default and is currently experimental. You must enable it at the
+build time with a CMake option `DNNL_GPU_VENDOR=AMD`. The AMD GPUs can be used
+via oneDNN engine abstraction. The engine should be created using
+`dnnl::engine::kind::gpu` engine kind or you can provide `sycl::device` objects
+that correspond to AMD GPUs.
 
 ## Pre-requisites
 * [oneAPI DPC++ Compiler with support for HIP AMD](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-hip-amd), version [2022-12](https://github.com/intel/llvm/releases/tag/2022-12)
-* [AMD ROCm](https://github.com/RadeonOpenCompute/ROCm), version 5.3 or newer
+* [AMD ROCm](https://github.com/RadeonOpenCompute/ROCm), version 5.3 or newer. The latest supported version currently is 6.1.
 * [MIOpen](https://github.com/ROCmSoftwarePlatform/MIOpen), version 2.18 or newer (optional if AMD ROCm includes the required version of MIOpen)
 * [rocBLAS](https://github.com/ROCmSoftwarePlatform/rocBLAS), version 2.45.0 or newer (optional if AMD ROCm includes the required version of rocBLAS)
 

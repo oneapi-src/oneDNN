@@ -81,6 +81,7 @@ inline problem_t to_problem(
     prb.set_dst_tag(dst);
     prb.set_shape(shape);
     if (pd->attr()->post_ops_.len() > 0) prb.set_with_post_ops(true);
+    prb.set_deterministic(pd->attr()->deterministic_);
     prb.normalize();
 
     return prb;

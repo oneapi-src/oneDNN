@@ -19,6 +19,7 @@
 
 #include "gpu/intel/jit/v2/conv/bench_data.hpp"
 #include "gpu/intel/jit/v2/conv/kernel_desc.hpp"
+#include "gpu/intel/jit/v2/conv/plan_registry.hpp"
 
 #include "oneapi/dnnl/dnnl.hpp"
 
@@ -54,7 +55,7 @@ private:
 };
 
 struct bench_input_params_t {
-    static const int default_nprbs = 100;
+    static const int default_nprbs = 250;
 
     hw_t hw;
     prop_kind_t prop;
@@ -71,12 +72,11 @@ struct bench_input_params_t {
     bench_input_params_t(const kernel_desc_t &kernel_desc, const hw_t &hw,
             int nprbs = default_nprbs)
         : hw(hw), nprbs(nprbs) {
-        gpu_assert(kernel_desc.is_finalized);
         prop = kernel_desc.prop;
         src_tag = kernel_desc.src_tag;
         wei_tag = kernel_desc.wei_tag;
         dst_tag = kernel_desc.dst_tag;
-        reqs = kernel_desc.reqs;
+        reqs = kernel_desc.reqs();
         is_dw = kernel_desc.is_dw;
         bias_type = kernel_desc.bias_type;
         tile = kernel_desc.iter_tile;
@@ -110,8 +110,9 @@ private:
 };
 
 bench_data_t bench(const bench_manager_t &bench_mger,
-        const kernel_desc_t &kernel_desc, int nprbs = 100);
-kernel_desc_t try_extensions(
+        const kernel_desc_t &kernel_desc,
+        int nprbs = bench_input_params_t::default_nprbs);
+plan_registry_t::entry_t prepare_plan_registry_entry(
         const bench_manager_t &bench_mger, const kernel_desc_t &kernel_desc);
 
 } // namespace planner

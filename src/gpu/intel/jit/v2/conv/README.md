@@ -42,7 +42,6 @@ event of changes in the kernel generation or of adding new features, use the
 snippet below to overwrite the kernel registry in oneDNN.
 
 ```bash
-export ONEDNN_EXPERIMENTAL_GPU_CONV_V2=1
 export ONEDNN_GPU_CONV_PLAN_REGISTRY_PATH=plan_registry_data.txt
 ./build/src/gpu/intel/jit/v2/conv/planner/gpu_conv_planner --auto-search
 cp ${ONEDNN_GPU_CONV_PLAN_REGISTRY_PATH}.cpp /path/to/onednn/src/gpu/intel/jit/v2/conv/plan_registry_data.cpp

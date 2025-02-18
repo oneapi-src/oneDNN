@@ -402,23 +402,40 @@ struct brgemm_desc_t {
         return sz;
     }
 
+    // A class version of the `static` version of the function.
+    // Note: used in benchdnn only, not used inside the library.
+    bool is_b_data_layout_vnni() const {
+        return is_b_data_layout_vnni(dt_a, dt_b, brgattr.b_is_vnni, isa_impl);
+    }
+
     // This function indicates when VNNI granularity packing is expected by the
     // kernel.
     //
-    // Note: used in benchdnn and ukernel only, not used inside the library.
+    // Note: used as the `static` function in ukernel only, not anywhere else.
+    //   `static`-ness is required to identify if the transform routine must be
+    //   used for the ukernel to work properly. This information is critical
+    //   because the transform routine accepts only 4 `ldb` values which affects
+    //   ukernel creation. Otherwise, the user must create the ukernel object,
+    //   query the packing info, and if it's required, likely re-create the
+    //   object with a different `ldb` value, which may not work because
+    //   creation stage for user's application may not provide all the info to
+    //   create a ukernel object.
     // Note: for `bf32` (or brgattr.fpmath_mode_ == bf16) the function returns
     //   `true` because the data transformation to vnni layout is internal and
     //   transparent to the user.
-    bool is_b_data_layout_vnni() const {
+    // Note: the library MUST NOT break the ability to provide this information
+    //   without brgemm_desc_t object creation.
+    static bool is_b_data_layout_vnni(data_type_t dt_a, data_type_t dt_b,
+            bool attr_b_is_vnni, cpu_isa_t isa) {
         using namespace data_type;
         switch (dt_b) {
             case f32: return false;
             // Note: `dt_a == f32` means implicit up-conversion of B to f32.
             case f16:
                 return dt_a != f32
-                        && (is_f16_b_non_amx_vnni()
-                                || is_superset(isa_impl, avx512_core_amx_fp16)
-                                || is_superset(isa_impl, avx2_vnni_2));
+                        && (is_f16_b_non_amx_vnni(dt_b, attr_b_is_vnni, isa)
+                                || is_superset(isa, avx512_core_amx_fp16)
+                                || is_superset(isa, avx2_vnni_2));
             // Note: `dt_a == f32` means implicit up-conversion of B to f32.
             case bf16: return dt_a != f32;
             default: return true;
@@ -445,10 +462,16 @@ struct brgemm_desc_t {
     bool is_xf16() const noexcept { return is_bf16 || is_f16; }
 
     bool is_f16_b_non_amx_vnni() const {
+        return is_f16_b_non_amx_vnni(dt_b, brgattr.b_is_vnni, isa_impl);
+    }
+
+    // Note: `static` version appears because of `static is_b_data_layout_vnni`.
+    static bool is_f16_b_non_amx_vnni(
+            data_type_t dt_b, bool attr_b_is_vnni, cpu_isa_t isa) {
         // This function controls the code section which relies on
         // `avx512_core_fp16` instructions directly.
-        return dt_b == data_type::f16 && brgattr.b_is_vnni
-                && isa_impl == avx512_core_fp16;
+        return dt_b == data_type::f16 && attr_b_is_vnni
+                && isa == avx512_core_fp16;
     }
 
     bool reduce_by_words() const {

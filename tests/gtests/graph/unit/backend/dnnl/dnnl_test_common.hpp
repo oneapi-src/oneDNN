@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,23 +72,24 @@ static inline void run_all_single_passes(dnnl::impl::graph::graph_t &agraph) {
 // given graph will be deep copied first so that all the changes inside the
 // function are not visible outside.
 static inline dnnl::impl::graph::status_t run_graph(
-        dnnl::impl::graph::graph_t &agraph,
-        const std::vector<test_tensor> &g_in_ts,
-        const std::vector<test_tensor> &g_out_ts,
+        const dnnl::impl::graph::graph_t &agraph,
+        const std::vector<test_tensor_t> &g_in_ts,
+        const std::vector<test_tensor_t> &g_out_ts,
         dnnl::impl::graph::engine_t &eng, dnnl::impl::graph::stream_t &strm) {
     namespace graph = dnnl::impl::graph;
     namespace dnnl_impl = graph::dnnl_impl;
     graph::status_t ret;
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     graph::graph_t copied(agraph);
     auto ops = copied.get_ops();
 
     // force each tensor to be strided
     for (auto &op : ops) {
-        for (auto val : op->get_input_values()) {
+        for (const auto &val : op->get_input_values()) {
             val->set_layout_type(graph::layout_type::strided);
         }
 
-        for (auto val : op->get_output_values()) {
+        for (const auto &val : op->get_output_values()) {
             val->set_layout_type(graph::layout_type::strided);
         }
     }
@@ -109,7 +110,7 @@ static inline dnnl::impl::graph::status_t run_graph(
     if (ret != graph::status::success) return ret;
 
     // used to hold the temporary buffers
-    std::unordered_map<size_t, test_tensor> temp_data;
+    std::unordered_map<size_t, test_tensor_t> temp_data;
 
     // compile and execute each op in topo order
     return graph::topo_order_visit(
@@ -175,7 +176,7 @@ static inline dnnl::impl::graph::status_t run_graph(
                 for (auto &in_val : op->get_input_values()) {
                     auto in_lt = in_val->get_logical_tensor();
                     auto pos = std::find_if(g_in_ts.begin(), g_in_ts.end(),
-                            [&](const test_tensor &t) {
+                            [&](const test_tensor_t &t) {
                                 return in_lt.id
                                         == t.get().get_logical_tensor().id;
                             });
@@ -184,14 +185,15 @@ static inline dnnl::impl::graph::status_t run_graph(
                         continue;
                     }
                     if (temp_data.find(in_lt.id) == temp_data.end()) {
-                        temp_data.insert({in_lt.id, test_tensor(in_lt, &eng)});
+                        temp_data.insert(
+                                {in_lt.id, test_tensor_t(in_lt, &eng)});
                     }
                     in_ts.emplace_back(temp_data.at(in_lt.id).get());
                 }
                 for (auto &out_val : op->get_output_values()) {
                     auto out_lt = out_val->get_logical_tensor();
                     auto pos = std::find_if(g_out_ts.begin(), g_out_ts.end(),
-                            [&](const test_tensor &t) {
+                            [&](const test_tensor_t &t) {
                                 return out_lt.id
                                         == t.get().get_logical_tensor().id;
                             });
@@ -201,7 +203,7 @@ static inline dnnl::impl::graph::status_t run_graph(
                     }
                     if (temp_data.find(out_lt.id) == temp_data.end()) {
                         temp_data.insert(
-                                {out_lt.id, test_tensor(out_lt, &eng)});
+                                {out_lt.id, test_tensor_t(out_lt, &eng)});
                     }
                     out_ts.emplace_back(temp_data.at(out_lt.id).get());
                 }
@@ -247,8 +249,8 @@ static inline bool allclose(const std::vector<T> &a, const std::vector<T> &b,
 //      |                                 ^
 #endif
 template <typename T>
-static inline bool allclose(
-        const test_tensor &a, const test_tensor &b, float rtol, float atol) {
+static inline bool allclose(const test_tensor_t &a, const test_tensor_t &b,
+        float rtol, float atol) {
     auto av = a.as_vec_type<T>();
     auto bv = b.as_vec_type<T>();
     return allclose(av, bv, rtol, atol);
@@ -266,56 +268,69 @@ static inline size_t product(std::vector<int64_t> &in) {
 
 #define for_ for
 #define SET_Q_DQ_DATA_ATTR(q_dq_data) \
-    q_dq_data.set_attr<std::string>( \
+    (q_dq_data).set_attr<std::string>( \
             dnnl::impl::graph::op_attr::qtype, "per_tensor"); \
-    q_dq_data.set_attr<std::vector<int64_t>>( \
+    (q_dq_data).set_attr<std::vector<int64_t>>( \
             dnnl::impl::graph::op_attr::zps, {zp_src}); \
-    q_dq_data.set_attr<std::vector<float>>( \
+    (q_dq_data).set_attr<std::vector<float>>( \
             dnnl::impl::graph::op_attr::scales, {scale_src}); \
-    q_dq_data.set_attr<int64_t>(dnnl::impl::graph::op_attr::axis, 0);
+    (q_dq_data).set_attr<int64_t>(dnnl::impl::graph::op_attr::axis, 0);
 
 #define SET_Q_DQ_WEIGHT_ATTR(q_dq_weight, pc_axis) \
-    q_dq_weight.set_attr<std::string>( \
-            dnnl::impl::graph::op_attr::qtype, wei_qtype); \
-    q_dq_weight.set_attr<std::vector<int64_t>>( \
-            dnnl::impl::graph::op_attr::zps, zp_wei); \
-    q_dq_weight.set_attr<std::vector<float>>( \
-            dnnl::impl::graph::op_attr::scales, scale_wei); \
-    q_dq_weight.set_attr<int64_t>(dnnl::impl::graph::op_attr::axis, pc_axis);
+    (q_dq_weight) \
+            .set_attr<std::string>( \
+                    dnnl::impl::graph::op_attr::qtype, wei_qtype); \
+    (q_dq_weight) \
+            .set_attr<std::vector<int64_t>>( \
+                    dnnl::impl::graph::op_attr::zps, zp_wei); \
+    (q_dq_weight) \
+            .set_attr<std::vector<float>>( \
+                    dnnl::impl::graph::op_attr::scales, scale_wei); \
+    (q_dq_weight) \
+            .set_attr<int64_t>(dnnl::impl::graph::op_attr::axis, (pc_axis));
 
 #define SET_CONV_ATTR(conv, nd) \
-    conv.set_attr<dims>(dnnl::impl::graph::op_attr::strides, dims(nd, 1)); \
-    conv.set_attr<dims>(dnnl::impl::graph::op_attr::dilations, dims(nd, 1)); \
-    conv.set_attr<dims>(dnnl::impl::graph::op_attr::pads_begin, dims(nd, 0)); \
-    conv.set_attr<dims>(dnnl::impl::graph::op_attr::pads_end, dims(nd, 0)); \
-    conv.set_attr<int64_t>(dnnl::impl::graph::op_attr::groups, g); \
-    conv.set_attr<std::string>( \
+    (conv).set_attr<dims>(dnnl::impl::graph::op_attr::strides, dims((nd), 1)); \
+    (conv).set_attr<dims>( \
+            dnnl::impl::graph::op_attr::dilations, dims((nd), 1)); \
+    (conv).set_attr<dims>( \
+            dnnl::impl::graph::op_attr::pads_begin, dims((nd), 0)); \
+    (conv).set_attr<dims>( \
+            dnnl::impl::graph::op_attr::pads_end, dims((nd), 0)); \
+    (conv).set_attr<int64_t>(dnnl::impl::graph::op_attr::groups, g); \
+    (conv).set_attr<std::string>( \
             dnnl::impl::graph::op_attr::data_format, "NCX"); \
-    conv.set_attr<std::string>( \
+    (conv).set_attr<std::string>( \
             dnnl::impl::graph::op_attr::weights_format, "OIX");
 
 #define SET_CONVTRANSPOSE_ATTR(convtranspose, nd) \
-    convtranspose.set_attr<dims>( \
-            dnnl::impl::graph::op_attr::strides, dims(nd, 1)); \
-    convtranspose.set_attr<dims>( \
-            dnnl::impl::graph::op_attr::dilations, dims(nd, 1)); \
-    convtranspose.set_attr<dims>( \
-            dnnl::impl::graph::op_attr::pads_begin, dims(nd, 0)); \
-    convtranspose.set_attr<dims>( \
-            dnnl::impl::graph::op_attr::pads_end, dims(nd, 0)); \
-    convtranspose.set_attr<int64_t>(dnnl::impl::graph::op_attr::groups, g); \
-    convtranspose.set_attr<std::string>( \
-            dnnl::impl::graph::op_attr::data_format, "NCX"); \
-    convtranspose.set_attr<std::string>( \
-            dnnl::impl::graph::op_attr::weights_format, "IOX");
+    (convtranspose) \
+            .set_attr<dims>( \
+                    dnnl::impl::graph::op_attr::strides, dims((nd), 1)); \
+    (convtranspose) \
+            .set_attr<dims>( \
+                    dnnl::impl::graph::op_attr::dilations, dims((nd), 1)); \
+    (convtranspose) \
+            .set_attr<dims>( \
+                    dnnl::impl::graph::op_attr::pads_begin, dims((nd), 0)); \
+    (convtranspose) \
+            .set_attr<dims>( \
+                    dnnl::impl::graph::op_attr::pads_end, dims((nd), 0)); \
+    (convtranspose).set_attr<int64_t>(dnnl::impl::graph::op_attr::groups, g); \
+    (convtranspose) \
+            .set_attr<std::string>( \
+                    dnnl::impl::graph::op_attr::data_format, "NCX"); \
+    (convtranspose) \
+            .set_attr<std::string>( \
+                    dnnl::impl::graph::op_attr::weights_format, "IOX");
 
 #define SET_Q_DQ_OUT_ATTR(q_dq_out) \
-    q_dq_out.set_attr<std::string>( \
+    (q_dq_out).set_attr<std::string>( \
             dnnl::impl::graph::op_attr::qtype, "per_tensor"); \
-    q_dq_out.set_attr<std::vector<int64_t>>( \
+    (q_dq_out).set_attr<std::vector<int64_t>>( \
             dnnl::impl::graph::op_attr::zps, {zp_out}); \
-    q_dq_out.set_attr<std::vector<float>>( \
+    (q_dq_out).set_attr<std::vector<float>>( \
             dnnl::impl::graph::op_attr::scales, {scale_out}); \
-    q_dq_out.set_attr<int64_t>(dnnl::impl::graph::op_attr::axis, 0);
+    (q_dq_out).set_attr<int64_t>(dnnl::impl::graph::op_attr::axis, 0);
 
 #endif

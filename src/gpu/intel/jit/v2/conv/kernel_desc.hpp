@@ -49,6 +49,9 @@ namespace conv {
 struct hw_desc_t {
     ngen::HW hw = ngen::HW::Unknown;
 
+    hw_desc_t() = default;
+    hw_desc_t(ngen::HW hw) : hw(hw) {}
+    operator ngen::HW() const { return hw; }
     int grf_size() const { return ngen::GRF::bytes(hw); }
     void stringify(std::ostream &out) const { jit::stringify(out, hw); }
     void parse(std::istream &in) { jit::parse(in, hw); }
@@ -59,14 +62,53 @@ struct hw_desc_t {
 
 // Represents specialization requirements for problem dimensions. A call to
 // desc.specialize(problem_t) is required to finish generation.
-enum class spec_strategy_t { none, max, min_dims };
+enum class specialization_mode_t {
+    none,
+    // Whether to specialize all problem values.
+    max,
+    // Whether to reduce dimensions based on the problem, e.g. 3D -> 2D.
+    min_dims
+};
 
-static auto spec_strategy_names = nstl::to_array({
-        make_enum_name(spec_strategy_t::none, "none"),
-        make_enum_name(spec_strategy_t::max, "max"),
-        make_enum_name(spec_strategy_t::min_dims, "min_dims"),
+static auto specialization_mode_names = nstl::to_array({
+        make_enum_name(specialization_mode_t::none, "none"),
+        make_enum_name(specialization_mode_t::max, "max"),
+        make_enum_name(specialization_mode_t::min_dims, "min_dims"),
 });
-GPU_DEFINE_PARSE_ENUM(spec_strategy_t, spec_strategy_names)
+GPU_DEFINE_PARSE_ENUM(specialization_mode_t, specialization_mode_names)
+
+struct specialization_t {
+    specialization_mode_t mode;
+    // Dimension values to specialize (e.g. kw1).
+    pvar_tile_t dim_values;
+    // Dimension modulus to specialize (e.g. oc@64)
+    pvar_tile_t dim_mods;
+
+    // Whether the specialization depends on the problem dimensions, meaning
+    // that specialize() must be called.
+    bool is_dynamic() const { return mode != specialization_mode_t::none; }
+
+    // Deduce problem dimensions based on max/min_dims specialization mode.
+    void specialize(const problem_t &prb);
+
+    explicit operator bool() const {
+        return mode != specialization_mode_t::none || !dim_values.is_empty()
+                || !dim_mods.is_empty();
+    }
+
+    prb_reqs_t reqs() const;
+
+    std::string str() const;
+    IR_DEFINE_DUMP()
+
+#if __cplusplus >= 202002L
+    bool operator==(const specialization_t &other) const = default;
+#endif
+
+    void stringify(std::ostream &out) const { out << str(); }
+    void parse(std::istream &in);
+    void canonicalize();
+};
 
 struct loop_desc_entry_t {
     pvar_t dim;
@@ -165,40 +207,6 @@ private:
     std::vector<loop_desc_entry_t> entries_;
 };
 
-struct align_desc_t {
-    struct align_t {
-        int value = 1;
-        // If true, then value in bytes, otherwise in elements.
-        bool in_bytes = false;
-
-#if __cplusplus >= 202002L
-        bool operator==(const align_t &other) const = default;
-#endif
-
-        bool is_default() const { return value == 1; }
-        std::string str() const;
-        void parse(const std::string &s);
-    };
-    align_t src;
-    align_t wei;
-    align_t dst;
-
-    bool is_default() const {
-        return src.is_default() && wei.is_default() && dst.is_default();
-    }
-
-    std::string str() const;
-
-    IR_DEFINE_DUMP()
-
-#if __cplusplus >= 202002L
-    bool operator==(const align_desc_t &other) const = default;
-#endif
-
-    void stringify(std::ostream &out) const { out << str(); }
-    void parse(std::istream &in);
-};
-
 struct prefetch_desc_t {
     int dist = 0;
     bool a = false;
@@ -258,8 +266,6 @@ struct extensions_t {
     static extension_kind_t out_size(int size);
 };
 
-pvar_tile_t min_dims_tile(const problem_t &prb);
-
 struct plan_t;
 class grid_t;
 
@@ -271,7 +277,7 @@ public:
     layout_tag_t wei_tag;
     layout_tag_t dst_tag;
     type_t bias_type;
-    spec_strategy_t spec_strategy = spec_strategy_t::none;
+    specialization_t spec;
     hw_desc_t hw_desc;
     fma_kind_t fma = fma_kind_t::undef;
     int simd = 0;
@@ -283,20 +289,16 @@ public:
 
     bool use_stream_k = false;
     bool use_2d_access = false;
-    align_desc_t align;
 
     prefetch_desc_t prefetch;
-    prb_reqs_t reqs;
     extensions_t ext;
     gpu_post_ops_t post_ops;
 
-    bool is_finalized = false;
-
     bool is_empty() const { return prop == prop_kind::undef; }
-    bool is_supported(const hw_t &hw) const;
+    bool is_supported(const hw_t &hw, const problem_t *prb = nullptr) const;
+    prb_reqs_t reqs() const;
     void set(const std::string &s);
     void set_defaults();
-    void finalize(const prb_reqs_t &final_reqs);
     bool can_fit(const problem_t &prb) const;
     void fit_to(const problem_t &prb);
     status_t set_post_ops(const post_ops_t &post_ops,
@@ -320,6 +322,9 @@ public:
                 return pick_b(prop, src_tag, wei_tag, dst_tag);
             case tensor_kind_t::c:
                 return pick_c(prop, src_tag, wei_tag, dst_tag);
+            case tensor_kind_t::src: return src_tag;
+            case tensor_kind_t::wei: return wei_tag;
+            case tensor_kind_t::dst: return dst_tag;
             default: gpu_error_not_expected();
         }
         return src_tag;
@@ -347,26 +352,7 @@ public:
         return utils::one_of(fma, fma_kind_t::dpas, fma_kind_t::dpasw);
     }
 
-    bool has_spec_strategy() const {
-        return spec_strategy != spec_strategy_t::none;
-    }
-
-    void specialize(const problem_t &prb) {
-        if (!has_spec_strategy()) return;
-        switch (spec_strategy) {
-            case spec_strategy_t::max:
-                reqs.add(prb.shape());
-                reqs.simplify();
-                break;
-            case spec_strategy_t::min_dims:
-                reqs.add(min_dims_tile(prb));
-                reqs.simplify();
-                break;
-            case spec_strategy_t::none: break;
-            default: gpu_error_not_expected();
-        }
-        spec_strategy = spec_strategy_t::none;
-    }
+    void specialize(const problem_t &prb) { spec.specialize(prb); }
 
     void init_kernel_iface(kernel_iface_t &kernel_iface) const override;
     void init_kernel_info(kernel_info_t &kernel_info,
@@ -490,6 +476,7 @@ dim_t stream_k_thread_groups(
         dim_t total_iters, dim_t max_thread_groups_per_wave);
 type_t accumulator_type(const type_t &a_type, const type_t &b_type);
 kernel_desc_t to_stream_k(const kernel_desc_t &desc, bool check_ext = true);
+prb_reqs_t generate_2d_reqs(const kernel_desc_t &desc);
 
 class kernel_params_t : public kernel_params_base_t {
 public:
@@ -506,17 +493,15 @@ struct trivial_key_validator_t<jit::v2::conv::kernel_desc_t> {
         auto tmp = jit::v2::conv::kernel_desc_t::deserialize(t.serialize());
         return (t.prop == tmp.prop) && (t.is_dw == tmp.is_dw)
                 && (t.src_tag == tmp.src_tag) && (t.wei_tag == tmp.wei_tag)
-                && (t.dst_tag == tmp.dst_tag)
-                && (t.spec_strategy == tmp.spec_strategy)
+                && (t.dst_tag == tmp.dst_tag) && (t.spec == tmp.spec)
                 && (t.hw_desc == tmp.hw_desc) && (t.fma == tmp.fma)
                 && (t.simd == tmp.simd) && (t.regs == tmp.regs)
                 && (t.iter_tile == tmp.iter_tile)
                 && (t.thread_group_tile == tmp.thread_group_tile)
                 && (t.loop_desc == tmp.loop_desc)
-                && (t.prefetch == tmp.prefetch) && (t.align == tmp.align)
+                && (t.prefetch == tmp.prefetch)
                 && (t.use_stream_k == tmp.use_stream_k)
-                && (t.use_2d_access == tmp.use_2d_access)
-                && (t.is_finalized == tmp.is_finalized);
+                && (t.use_2d_access == tmp.use_2d_access);
     }
 };
 #endif

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -90,7 +90,7 @@ public:
                                      std::vector<std::unordered_map<int,
                                              memory>> &args) {
                 args.resize(nthr);
-                for (auto iter : ori_args) {
+                for (const auto &iter : ori_args) {
                     memory ori_mem = iter.second;
                     if (mem_map.count(ori_mem.get()) == 0) {
                         //construct new memory

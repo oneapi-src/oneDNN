@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,8 +69,8 @@ TEST(test_interpolate_execute, InterpolateForwardNearest) {
     graph::logical_tensor_t lt;
     cp.query_logical_tensor(dst_lt.id, &lt);
 
-    test_tensor src_ts(src_lt, engine, src);
-    test_tensor dst_ts(lt, engine, dst);
+    test_tensor_t src_ts(src_lt, engine, src);
+    test_tensor_t dst_ts(lt, engine, dst);
     cp.execute(strm, {src_ts.get()}, {dst_ts.get()});
     strm->wait();
     dst = dst_ts.as_vec_type<float>();
@@ -137,9 +137,9 @@ TEST(test_interpolate_execute, InterpolateAddForwardNearest) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_ts(src_lt, engine, src);
-    test_tensor src1_ts(src1_lt, engine, src1);
-    test_tensor dst_add_ts(*lt_outs[0], engine, dst_add);
+    test_tensor_t src_ts(src_lt, engine, src);
+    test_tensor_t src1_ts(src1_lt, engine, src1);
+    test_tensor_t dst_add_ts(*lt_outs[0], engine, dst_add);
     cp.execute(strm, {src_ts.get(), src1_ts.get()}, {dst_add_ts.get()});
     strm->wait();
     dst_add = dst_add_ts.as_vec_type<float>();
@@ -207,8 +207,8 @@ TEST(test_interpolate_execute, InterpolateSwish) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_ts(src_lt, engine, src);
-    test_tensor dst_mul_ts(*lt_outs[0], engine, dst_mul);
+    test_tensor_t src_ts(src_lt, engine, src);
+    test_tensor_t dst_mul_ts(*lt_outs[0], engine, dst_mul);
     cp.execute(strm, {src_ts.get()}, {dst_mul_ts.get()});
     strm->wait();
 }
@@ -280,9 +280,9 @@ TEST(test_interpolate_execute, Interpolate3PostOps) {
 
     p.compile(&cp, lt_ins, lt_outs, engine);
 
-    test_tensor src_ts(src_lt, engine, src);
-    test_tensor src_div_ts(src_div_lt, engine, src_div);
-    test_tensor dst_div_ts(dst_div_lt, engine, dst_div);
+    test_tensor_t src_ts(src_lt, engine, src);
+    test_tensor_t src_div_ts(src_div_lt, engine, src_div);
+    test_tensor_t dst_div_ts(dst_div_lt, engine, dst_div);
     cp.execute(strm, {src_ts.get(), src_div_ts.get()}, {dst_div_ts.get()});
     strm->wait();
 }
@@ -397,9 +397,9 @@ TEST(test_interpolate_execute, InterpolatePostOps) {
 
         p.compile(&cp, lt_ins, lt_outs, engine);
 
-        test_tensor src_ts(src_lt, engine, src);
-        test_tensor src1_ts(src1_lt, engine, src1);
-        test_tensor dst_add_ts(*lt_outs[0], engine, dst_add);
+        test_tensor_t src_ts(src_lt, engine, src);
+        test_tensor_t src1_ts(src1_lt, engine, src1);
+        test_tensor_t dst_add_ts(*lt_outs[0], engine, dst_add);
         if (std::find(
                     two_inputs_ops.begin(), two_inputs_ops.end(), post_op_kind)
                 != two_inputs_ops.end()) {
@@ -458,8 +458,8 @@ TEST(test_interpolate_execute, InterpolateForwardLinear) {
     graph::logical_tensor_t dst_lt_tmp;
     cp.query_logical_tensor(dst_lt.id, &dst_lt_tmp);
 
-    test_tensor src_ts(src_lt, engine, src);
-    test_tensor dst_ts(dst_lt_tmp, engine, dst);
+    test_tensor_t src_ts(src_lt, engine, src);
+    test_tensor_t dst_ts(dst_lt_tmp, engine, dst);
     cp.execute(strm, {src_ts.get()}, {dst_ts.get()});
     strm->wait();
     dst = dst_ts.as_vec_type<float>();
@@ -510,9 +510,9 @@ TEST(test_interpolate_execute, InterpolateBackwardNearest) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst);
-    test_tensor diff_src_ts(diff_src_lt, eng, diff_src);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst);
+    test_tensor_t diff_src_ts(diff_src_lt, eng, diff_src);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), diff_dst_ts.get()}, {diff_src_ts.get()});
@@ -566,9 +566,9 @@ TEST(test_interpolate_execute, InterpolateBackwardLinear) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst);
-    test_tensor diff_src_ts(diff_src_lt, eng, diff_src);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst);
+    test_tensor_t diff_src_ts(diff_src_lt, eng, diff_src);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), diff_dst_ts.get()}, {diff_src_ts.get()});

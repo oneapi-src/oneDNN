@@ -1965,8 +1965,8 @@ void jit_brgemm_kernel_t<Wmm>::maybe_tileloadd_nt(matrix_kind_t matrix_kind,
         mov(reg64_fp8_aux, ptr[rsp + reg_val_tmp_1_]);
         mov(reg_buf_aux, ptr[rsp + reg_val_tmp_2_]);
     } else {
-        if (maybe_pre_process_k_tail(last_bdb, is_rd_tail, t1, reg_base, offset,
-                    reg_stride, matrix_kind))
+        if (maybe_pre_process_k_tail(last_bdb || is_tail, is_rd_tail, t1,
+                    reg_base, offset, reg_stride, matrix_kind))
             return;
 
         const size_t cache_footprint = static_cast<size_t>(brg.typesize_A)
@@ -1991,7 +1991,6 @@ bool jit_brgemm_kernel_t<Wmm>::maybe_pre_process_k_tail(bool last_bdb,
     // TODO: check is it last bs to calculate need_k_tail_processing
     const auto need_k_tail_processing = mk == matrix_A && brg.amx_wary_k_tail()
             && brg.rdb_tail != 0 && last_bdb && is_rd_tail;
-
     if (!need_k_tail_processing) return false;
 
     const auto zmm_width_in_bytes = cpu_isa_traits<avx512_core>::vlen;

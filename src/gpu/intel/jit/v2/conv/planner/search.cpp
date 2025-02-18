@@ -327,9 +327,9 @@ public:
     const std::vector<kernel_desc_t> &descs() const { return descs_; }
 
     void add_desc(const kernel_desc_t &desc) {
-        gpu_assert(desc.reqs.str() == reqs_.str())
+        gpu_assert(desc.reqs().str() == reqs_.str())
                 << "Reqs mismatch:\n"
-                << desc.cmd_str() << "\ndesc.reqs:" << desc.reqs.str()
+                << desc.cmd_str() << "\ndesc.reqs:" << desc.reqs().str()
                 << "\nreqs:\n"
                 << reqs_.str();
         if (descs_.empty()) {
@@ -369,8 +369,6 @@ public:
     // Number of problems to generate to rank kernel descriptors in a kernel
     // descriptor group.
     static const int bench_nprbs = 50;
-    // Number of problems to generate to build performance model.
-    static const int model_nprbs = 250;
     // Number of top kernel descriptors in a kernel descriptor group to save to
     // registry.
     static const int registry_top_k = 8;
@@ -383,13 +381,16 @@ public:
 
     void search() {
         std::cout << "Starting kernel search" << std::endl;
+        auto &registry = plan_registry();
         auto desc_groups = gen_desc_groups();
         for (auto &dg : desc_groups) {
             auto bench_data_set = bench_kernel_desc_group(
                     bench_mger_, dg, bench_nprbs, max_descs);
             auto best = bench_data_set.find_best(registry_top_k);
             for (auto &bd : best) {
-                update_registry(bd.kernel_desc);
+                auto entry = prepare_plan_registry_entry(
+                        bench_mger_, bd.kernel_desc);
+                registry.set(entry);
             }
         }
         std::cout << "Kernel search completed" << std::endl;
@@ -409,7 +410,7 @@ private:
                 auto d_key = jit::stringify(d);
                 if (seen.count(d_key) > 0) continue;
                 seen.insert(d_key);
-                if (!finalize_conv_desc(d, bench_mger_.hw())) {
+                if (!create_conv_plan(d, bench_mger_.hw())) {
                     std::cout << d.brief_str() << ": \033[1;31mFAIL\033[0m"
                               << std::endl;
                     continue;
@@ -430,14 +431,12 @@ private:
         }
         for (auto &d : descs) {
             auto ret = desc_groups.emplace(
-                    d.reqs.str(), search_kernel_desc_group_t(d.reqs));
+                    d.reqs().str(), search_kernel_desc_group_t(d.reqs()));
             ret.first->second.add_desc(d);
             for (int dist : prefetch_dists) {
                 auto _d = d;
                 _d.prefetch = prefetch_desc_t(dist, true, true);
-                _d.reqs = params_.base_desc.reqs;
-                _d.is_finalized = false;
-                if (!finalize_conv_desc(_d, bench_mger_.hw())) {
+                if (!create_conv_plan(_d, bench_mger_.hw())) {
                     std::cout << d.brief_str() << ": \033[1;31mFAIL\033[0m"
                               << std::endl;
                     continue;
@@ -470,22 +469,6 @@ private:
             }
         }
         return tiles;
-    }
-
-    void update_registry(const kernel_desc_t &desc) const {
-        auto &registry = plan_registry();
-        auto bd = bench(bench_mger_, desc, model_nprbs);
-        if (!bd) return;
-        model_set_t model_set;
-        model_fit(bd, model_set);
-        auto d_ext = try_extensions(bench_mger_, desc);
-        if (d_ext.ext.has(extension_kind_t::stream_k)) {
-            // Fit another model for Stream-K.
-            auto d_sk = to_stream_k(d_ext);
-            auto bd = bench(bench_mger_, d_sk, model_nprbs);
-            model_fit(bd, model_set);
-        }
-        registry.set(d_ext, model_set);
     }
 
     const bench_manager_t &bench_mger_;
@@ -624,26 +607,26 @@ void auto_search(
     // clang-format off
     std::vector<const char *> recipes = {
         "--hw xehpc --prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --fma dpas --simd 16 --regs 256 --2d 1",
-        "--hw xehpc --prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --fma dpas --simd 16 --regs 256 --align 1",
+        "--hw xehpc --prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --fma dpas --simd 16 --regs 256",
         "--hw xehpc --prop fwd --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --2d 1",
-        "--hw xehpc --prop fwd --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --align 1",
+        "--hw xehpc --prop fwd --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256",
         "--hw xehpc --prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --2d 1",
-        "--hw xehpc --prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --align 1",
+        "--hw xehpc --prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 32 --regs 128",
         "--hw xehpc --prop bwd_d --src axb:bf16 --wei axbc:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --2d 1",
-        "--hw xehpc --prop bwd_d --src axb:bf16 --wei axbc:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --align 1",
+        "--hw xehpc --prop bwd_d --src axb:bf16 --wei axbc:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256",
         "--hw xehpc --prop bwd_d --src axb:f32 --wei axbc:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --2d 1",
-        "--hw xehpc --prop bwd_d --src axb:f32 --wei axbc:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --align 1",
+        "--hw xehpc --prop bwd_d --src axb:f32 --wei axbc:f32 --dst axb:f32 --fma mad --simd 32 --regs 128",
         "--hw xehpc --prop bwd_w --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --2d 1",
-        "--hw xehpc --prop bwd_w --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256 --align 1",
+        "--hw xehpc --prop bwd_w --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma dpas --simd 16 --regs 256",
         "--hw xehpc --prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 16 --regs 128 --2d 1",
-        "--hw xehpc --prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 16 --regs 128 --align 1",
-        "--hw xehpc --dw 1 --prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --fma mad --simd 32 --regs 128 --align 1",
-        "--hw xehpc --dw 1 --prop fwd --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma mad --simd 32 --regs 128 --align 1",
-        "--hw xehpc --dw 1 --prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --align 1",
-        "--hw xehpc --dw 1 --prop bwd_d --src axb:bf16 --wei axbc:bf16 --dst axb:bf16 --fma mad --simd 32 --regs 128 --align 1",
-        "--hw xehpc --dw 1 --prop bwd_d --src axb:f32 --wei axbc:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --align 1",
-        "--hw xehpc --dw 1 --prop bwd_w --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma mad --simd 16 --regs 128 --align 1",
-        "--hw xehpc --dw 1 --prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 32 --regs 128 --align 1",
+        "--hw xehpc --prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 16 --regs 128",
+        "--hw xehpc --dw 1 --prop fwd --src axb:s8 --wei axcb:s8 --dst axb:s8 --fma mad --simd 32 --regs 128",
+        "--hw xehpc --dw 1 --prop fwd --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma mad --simd 32 --regs 128",
+        "--hw xehpc --dw 1 --prop fwd --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 32 --regs 128",
+        "--hw xehpc --dw 1 --prop bwd_d --src axb:bf16 --wei axbc:bf16 --dst axb:bf16 --fma mad --simd 32 --regs 128",
+        "--hw xehpc --dw 1 --prop bwd_d --src axb:f32 --wei axbc:f32 --dst axb:f32 --fma mad --simd 32 --regs 128",
+        "--hw xehpc --dw 1 --prop bwd_w --src axb:bf16 --wei axcb:bf16 --dst axb:bf16 --fma mad --simd 16 --regs 128",
+        "--hw xehpc --dw 1 --prop bwd_w --src axb:f32 --wei axcb:f32 --dst axb:f32 --fma mad --simd 32 --regs 128",
     };
     // clang-format on
     auto &iface = kernel_desc_t::parse_iface();

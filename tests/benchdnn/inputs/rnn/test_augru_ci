@@ -4,9 +4,6 @@
 --activation=UNDEF
 --direction=left2right
 --skip-nonlinear=false
---l=1
---t=1,2
---mb=1,2
 
 --trivial-strides=true,false
 --prop=FWD_I,BWD_DW

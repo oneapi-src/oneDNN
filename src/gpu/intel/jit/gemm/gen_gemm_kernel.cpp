@@ -178,6 +178,9 @@ status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
     if (strategy_.barrierFreq > 0 && k_ >= 0 && k_ < 2 * strategy_.barrierFreq)
         strategy_.barrierFreq = 0;
 
+    // Correct GRF count in following calculations for fixed systolic kernels.
+    if (strategy_.fixedSystolic) strategy_.GRFs = 256;
+
     // Disable linear ordering and persistent threads if the GEMM doesn't fill the GPU.
     if (m_ >= 0 && n_ >= 0 && eu_count_ >= 0) {
         int wg_tile_m = strategy_.wg[LoopM] * strategy_.unroll[LoopM];

@@ -38,17 +38,18 @@ public:
         entry_t() = default;
         entry_t(const kernel_desc_t &desc, const model_set_t &model_set)
             : desc(desc), model_set(model_set) {}
+        bool is_empty() const { return desc.is_empty(); }
         void stringify(std::ostream &out) const;
         void parse(std::istream &in);
+        std::string str() const;
+        std::string registry_str() const;
+        IR_DEFINE_DUMP()
     };
 
     plan_registry_t() = default;
     plan_registry_t(const char **entries);
 
-    void set(const kernel_desc_t &desc, const model_set_t &model_set) {
-        gpu_assert(desc.is_finalized);
-        entries_.emplace_back(desc, model_set);
-    }
+    void set(const entry_t &entry) { entries_.emplace_back(entry); }
     int size() const { return (int)entries_.size(); }
     kernel_desc_t find_best(const problem_t &prb) const;
     void stringify(std::ostream &out) const;

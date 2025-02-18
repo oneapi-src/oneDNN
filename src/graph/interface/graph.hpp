@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -295,7 +295,7 @@ public:
     // This function is used to infer shape for all the ops in a graph.
     // Before calling this function, the inputs value of the graph should
     // have valid shape
-    graph::status_t infer_shape() {
+    graph::status_t infer_shape() const {
         using value_ptr = std::shared_ptr<value_t>;
 
         // Check inputs shape
@@ -346,6 +346,7 @@ public:
 
     // This function is used to set user given logical tensors for inputs and
     // outputs of a graph.
+    // NOLINTNEXTLINE(readability-make-member-function-const)
     graph::status_t set_user_inputs_outputs(
             const std::vector<graph::logical_tensor_t> &inputs,
             const std::vector<graph::logical_tensor_t> &outputs) {

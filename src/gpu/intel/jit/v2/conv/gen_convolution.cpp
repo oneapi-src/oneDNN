@@ -28,8 +28,8 @@
 #include "gpu/intel/jit/utils/utils.hpp"
 #include "gpu/intel/jit/v2/conv/bridge.hpp"
 #include "gpu/intel/jit/v2/conv/builder.hpp"
+#include "gpu/intel/jit/v2/conv/debug.hpp"
 #include "gpu/intel/jit/v2/conv/kernel.hpp"
-#include "gpu/intel/jit/v2/conv/plan_preset.hpp"
 #include "gpu/intel/jit/v2/conv/plan_registry.hpp"
 
 namespace dnnl {
@@ -53,6 +53,16 @@ void maybe_init_layout(
     md = layout.to_dnnl(md.dims);
 }
 
+status_t init_default_layouts(convolution_pd_t *pd) {
+    auto &src_md = *const_cast<memory_desc_t *>(pd->invariant_src_md());
+    auto &dst_md = *const_cast<memory_desc_t *>(pd->invariant_dst_md());
+    if (src_md.format_kind == format_kind::any)
+        set_default_format(src_md, "axb");
+    if (dst_md.format_kind == format_kind::any)
+        set_default_format(dst_md, "axb");
+    return status::success;
+}
+
 status_t init_layouts(const kernel_desc_t &desc, convolution_pd_t *pd) {
     auto &src_md = *const_cast<memory_desc_t *>(pd->invariant_src_md());
     auto &wei_md = *const_cast<memory_desc_t *>(pd->invariant_wei_md());
@@ -64,6 +74,26 @@ status_t init_layouts(const kernel_desc_t &desc, convolution_pd_t *pd) {
     maybe_init_layout(
             bia_md, make_conv_layout_tag(tensor_kind_t::bias, "a"), false);
     return status::success;
+}
+
+bool has_large_buffers(const convolution_pd_t *pd) {
+    auto is_large = [](const memory_desc_t &md) {
+        memory_desc_wrapper mdw(md);
+        gpu_assert(!mdw.format_any());
+        return mdw.size() > std::numeric_limits<int32_t>::max();
+    };
+    if (is_large(*pd->invariant_src_md())) return true;
+    if (is_large(*pd->invariant_wei_md())) return true;
+    if (is_large(*pd->invariant_dst_md())) return true;
+    if (is_large(*pd->invariant_bia_md())) return true;
+    auto &post_ops = pd->attr()->post_ops_;
+    for (int i = 0; i < post_ops.len(); i++) {
+        auto &e = post_ops.entry_[i];
+        if (e.is_binary()) {
+            if (is_large(e.binary.src1_desc)) return true;
+        }
+    }
+    return false;
 }
 
 class gen_convolution_t {
@@ -81,14 +111,6 @@ public:
                         != pd->diff_src_md()->data_type) {
             return false;
         }
-
-        // Large buffer support is unimplemented
-        if (std::max({memory_desc_wrapper(pd->src_md()).size(),
-                    memory_desc_wrapper(pd->weights_md()).size(),
-                    memory_desc_wrapper(pd->dst_md()).size()})
-                > INT_MAX)
-            return false;
-
         using sm = primitive_attr_t::skip_mask_t;
         auto skip_mask = sm::post_ops | sm::sum_dt;
         if (!pd->attr()->has_default_values(skip_mask)) return false;
@@ -106,10 +128,12 @@ public:
         if (!pd->set_default_alg_kind(alg_kind::convolution_direct))
             return status::unimplemented;
 
+        CHECK(init_default_layouts(pd));
+
         auto prb = to_problem(pd, engine);
         kernel_desc_t _desc;
-        if (plan_preset_t::instance().is_set()) {
-            _desc = plan_preset_t::instance().get();
+        if (debug_t::init_kernel_desc(_desc)) {
+            _desc.set_defaults();
         } else {
             auto &registry = const_plan_registry();
             _desc = registry.find_best(prb);
@@ -118,13 +142,17 @@ public:
                 return status::unimplemented;
             }
         }
-        _desc.spec_strategy = spec_strategy_t::min_dims;
+        _desc.spec.mode = specialization_mode_t::min_dims;
         _desc.fit_to(prb);
         CHECK(init_layouts(_desc, pd));
         CHECK(pd->attr_.set_default_formats(out_md(pd)));
+
+        // Large buffer support is unimplemented.
+        if (has_large_buffers(pd)) return status::unimplemented;
+
         CHECK(_desc.set_post_ops(pd->attr()->post_ops_, out_md(pd), pd));
-        if (!finalize_conv_desc(_desc, prb)) {
-            gpu_info() << "Cannot create kernel descriptor.";
+        if (!create_conv_plan(_desc, prb)) {
+            gpu_info() << "Cannot create kernel descriptor.\n";
             return status::runtime_error;
         }
         pd->init_plan = std::make_shared<primitive_init_plan_t>();

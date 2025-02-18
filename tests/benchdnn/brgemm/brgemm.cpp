@@ -435,7 +435,9 @@ int init_kernel(kernel_args_t &kernel_args) {
     if (res->state == SKIPPED) return OK;
 
     dnnl_pack_type_t pack_type = dnnl_pack_type_undef;
-    DNN_SAFE(dnnl_brgemm_get_B_pack_type(brgemm, &pack_type), WARN);
+    DNN_SAFE(dnnl_brgemm_get_B_pack_type(
+                     &pack_type, prb->src_dt(), prb->wei_dt()),
+            WARN);
     kernel_args.need_pack_ = pack_type == dnnl_pack_type_pack32;
 
     DNN_SAFE(dnnl_brgemm_generate(brgemm), WARN);

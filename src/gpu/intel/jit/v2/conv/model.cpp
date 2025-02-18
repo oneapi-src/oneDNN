@@ -16,6 +16,8 @@
 
 #include "gpu/intel/jit/v2/conv/model.hpp"
 
+#include "gpu/intel/jit/v2/conv/tensor_utils.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -27,83 +29,18 @@ namespace conv {
 struct hw_config_t {
     hw_t hw;
     fma_kind_t fma = fma_kind_t::undef;
-    type_t type;
     int regs = 0;
 
     hw_config_t() = default;
-    hw_config_t(const hw_t &hw, fma_kind_t fma, const type_t &type)
-        : hw(hw), fma(fma), type(type) {
+    hw_config_t(const hw_t &hw, fma_kind_t fma) : hw(hw), fma(fma) {
         regs = (utils::one_of(fma, fma_kind_t::dpas, fma_kind_t::dpasw) ? 256
                                                                         : 128);
-    }
-
-    int max_tgs_per_gpu() const {
-        int ss_per_gpu = hw.eu_count() / hw.eus_per_ss_or_dss();
-        return ss_per_gpu * hw.threads_per_eu(regs);
     }
 
     int max_tgs_per_gpu(dim_t tg_size) const {
         int tgs_per_ss
                 = hw.eus_per_ss_or_dss() * hw.threads_per_eu(regs) / tg_size;
         return hw.eu_count() / hw.eus_per_ss_or_dss() * tgs_per_ss;
-    }
-
-    int max_threads() const { return hw.eu_count() * hw.threads_per_eu(regs); }
-
-    int f32_mad_ops_per_clock() const {
-        switch (hw.to_ngen()) {
-            case ngen::HW::XeHPC: return 32;
-            default: gpu_error_not_expected();
-        }
-        return 0;
-    }
-
-    int int8_dpas_ops_per_clock() const {
-        switch (hw.to_ngen()) {
-            case ngen::HW::XeHPC: return 1024;
-            default: gpu_error_not_expected();
-        }
-        return 0;
-    }
-
-    int ops_per_clock(fma_kind_t fma, const type_t &type) const;
-
-    int ops_per_clock() const {
-        bool is_mad = (fma == fma_kind_t::mad);
-        bool is_dpas = utils::one_of(fma, fma_kind_t::dpas, fma_kind_t::dpasw);
-        switch (type.size()) {
-            case 1: {
-                return is_dpas ? int8_dpas_ops_per_clock()
-                               : f32_mad_ops_per_clock() * 4;
-            }
-            case 2: {
-                return is_dpas ? int8_dpas_ops_per_clock() / 2
-                               : f32_mad_ops_per_clock() * 2;
-            }
-            case 4: {
-                return is_dpas ? int8_dpas_ops_per_clock() / 4
-                               : f32_mad_ops_per_clock() * 1;
-            }
-            case 8: {
-                gpu_assert(is_mad);
-                return f32_mad_ops_per_clock() / 2;
-            }
-            default: gpu_error_not_expected();
-        }
-        return 0;
-    }
-
-    float freq() const {
-        switch (hw.to_ngen()) {
-            case ngen::HW::XeHPC: return 1.6e9;
-            default: gpu_error_not_expected();
-        }
-        return 0;
-    }
-
-    float max_gops_per_sec() const {
-        float max_ops_per_sec = freq() * hw.eu_count() * ops_per_clock();
-        return max_ops_per_sec / 1e9;
     }
 };
 
@@ -112,7 +49,7 @@ public:
     sample_impl_t(model_kind_t model_kind, const problem_t &prb,
             const kernel_desc_t &desc)
         : model_kind_(model_kind), prb_(prb), desc_(desc) {
-        hw_cfg_ = hw_config_t(prb_.hw(), desc_.fma, desc_.a_type());
+        hw_cfg_ = hw_config_t(prb_.hw(), desc_.fma);
     }
     virtual ~sample_impl_t() = default;
     virtual vec1d to_x() const = 0;
@@ -130,8 +67,6 @@ std::vector<std::string> feature_names(model_kind_t kind) {
         case model_kind_t::data_parallel:
             return std::vector<std::string>({"kl", "waves"});
         case model_kind_t::stream_k: return std::vector<std::string>({"iters"});
-        case model_kind_t::data_copy:
-            return std::vector<std::string>({"bytes"});
         default: gpu_error_not_expected();
     }
     return std::vector<std::string>();
@@ -183,7 +118,8 @@ struct bmnk_helper_t {
 };
 
 dim_t layout_size(const layout_tag_t &tag, const problem_t &prb) {
-    gpu_assert(!tag.is_any() && !tag.is_empty());
+    gpu_assert(!tag.is_any() && !tag.is_empty())
+            << "Unexpected tag: " << tag.str();
     pvar_tile_t tile;
     for (auto &d : tag.desc().letter_map())
         tile[d] = prb.shape().at(d);
@@ -251,30 +187,6 @@ private:
     dim_t iters_;
 };
 
-class data_copy_sample_t : public sample_impl_t {
-public:
-    data_copy_sample_t(const problem_t &prb, const kernel_desc_t &desc,
-            const bench_time_t &time)
-        : sample_impl_t(model_kind_t::data_copy, prb, desc)
-        , nsec_(time.total - conv_time_nsec(time)) {
-        auto &desc_tag = desc.layout_tag(tensor_kind_t::c);
-        auto prb_tag = prb.layout_tag(tensor_kind_t::c);
-        if (desc.use_stream_k) bytes_ += layout_size(desc_tag, prb);
-        if (prb_tag.is_any()) prb_tag = desc_tag.with_type(prb_tag.type());
-        if (prb_tag != desc_tag) {
-            bytes_ += layout_size(prb_tag, prb);
-            bytes_ += layout_size(desc_tag, prb);
-        }
-    }
-
-    vec1d to_x() const override { return vec1d({(float)bytes_}); }
-    float to_y() const override { return nsec_; }
-
-private:
-    uint64_t nsec_ = 0;
-    dim_t bytes_ = 0;
-};
-
 class sample_t {
 public:
     sample_t(model_kind_t kind, const problem_t &prb, const kernel_desc_t &desc,
@@ -286,9 +198,6 @@ public:
                 break;
             case model_kind_t::stream_k:
                 impl_ = std::make_shared<stream_k_sample_t>(prb, desc, time);
-                break;
-            case model_kind_t::data_copy:
-                impl_ = std::make_shared<data_copy_sample_t>(prb, desc, time);
                 break;
             default: gpu_error_not_expected();
         }
@@ -361,12 +270,24 @@ float predict_stream_k(const vec1d &x, const vec1d &coef) {
     return a + b * iters;
 }
 
-float predict_data_copy(const vec1d &x, const vec1d &coef) {
-    const int FIXED_DATA_COPY_COST = 25000;
-    float bytes = x[0];
-    float a = coef[0];
-    float b = coef[1];
-    return FIXED_DATA_COPY_COST + a + b * bytes;
+float predict_data_copy(const problem_t &prb, const kernel_desc_t &desc) {
+    auto tensor_kind = from_abc(desc.prop, tensor_kind_t::c);
+    auto desc_tag = append_groups(
+            tensor_kind, desc.layout_tag(tensor_kind_t::c), desc.is_dw);
+    auto prb_tag = append_groups(
+            tensor_kind, prb.layout_tag(tensor_kind_t::c), desc.is_dw);
+    dim_t bytes = 0;
+    if (desc.use_stream_k) bytes += layout_size(desc_tag, prb);
+    if (prb_tag.is_any()) prb_tag = desc_tag.with_type(prb_tag.type());
+    if (prb_tag != desc_tag) {
+        bytes += layout_size(prb_tag, prb);
+        bytes += layout_size(desc_tag, prb);
+    }
+    // XXX: Hardcoding for now, need a separate hardware-specific model.
+    // Time is in nanoseconds.
+    const int const_cost_time = 30000;
+    const float time_per_byte = 1e-2f;
+    return const_cost_time + time_per_byte * bytes;
 }
 
 void model_t::coef_ranges(model_kind_t kind, const vec2d &X, const vec1d &y,
@@ -387,8 +308,7 @@ void model_t::coef_ranges(model_kind_t kind, const vec2d &X, const vec1d &y,
             add("a_wp", 2, 1, 100);
             add("b_wp", 1, 0.0001f, 100);
             break;
-        case model_kind_t::stream_k:
-        case model_kind_t::data_copy: {
+        case model_kind_t::stream_k: {
             float t_min = *std::min_element(y.begin(), y.end());
             float t_max = *std::max_element(y.begin(), y.end());
             float t0 = *std::min_element(y.begin(), y.end());
@@ -413,7 +333,6 @@ float model_t::predict(model_kind_t kind, const vec1d &x, const vec1d &coef) {
     switch (kind) {
         case model_kind_t::data_parallel: return predict_data_parallel(x, coef);
         case model_kind_t::stream_k: return predict_stream_k(x, coef);
-        case model_kind_t::data_copy: return predict_data_copy(x, coef);
         default:
             gpu_error_not_expected() << "Unknown kind: " << to_string(kind);
     }
@@ -445,11 +364,17 @@ size_t model_t::coef_count(model_kind_t kind) {
     switch (kind) {
         case model_kind_t::data_parallel: return 5;
         case model_kind_t::stream_k: return 2;
-        case model_kind_t::data_copy: return 2;
         default:
             gpu_error_not_expected() << "Unknown kind: " << to_string(kind);
     }
     return 0;
+}
+
+std::string model_t::str() const {
+    using namespace ir_utils;
+    std::ostringstream oss;
+    oss << to_string(kind_) << ": " << coef_;
+    return oss.str();
 }
 
 bool with_data_copy(const problem_t &prb, const kernel_desc_t &desc) {
@@ -484,9 +409,7 @@ float model_set_t::time(const problem_t &prb, const kernel_desc_t &desc) const {
     } else {
         ret += time(model_kind_t::data_parallel, prb, desc);
     }
-    if (with_data_copy(prb, desc)) {
-        ret += time(model_kind_t::data_copy, prb, desc);
-    }
+    if (with_data_copy(prb, desc)) ret += predict_data_copy(prb, desc);
     return ret;
 }
 
@@ -523,6 +446,17 @@ void model_set_t::parse(std::istream &in) {
         }
         models_.emplace_back(kind, coef);
     }
+}
+
+std::string model_set_t::str() const {
+    std::ostringstream oss;
+    bool is_first = true;
+    for (auto &m : models_) {
+        if (!is_first) oss << std::endl;
+        oss << m.str();
+        is_first = false;
+    }
+    return oss.str();
 }
 
 void to_model_data(

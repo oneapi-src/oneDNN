@@ -257,9 +257,7 @@ public:
         return !operator==(other);
     }
 
-    void stringify(std::ostream &out) const {
-        jit::stringify(out, to_tag(collapse_x().entries()));
-    }
+    void stringify(std::ostream &out) const { out << str(); }
 
     void parse(std::istream &in) {
         auto tag = jit::parse<std::string>(in);
@@ -271,15 +269,12 @@ private:
     void init_entries(const std::string &s);
     bool has_x() const;
     void expand_x(dim_idx_t ndims);
-    layout_raw_tag_t collapse_x() const;
     std::vector<bool> skip_mask(
             const layout_desc_t &desc, const pvar_tile_t &sizes) const;
     static std::vector<std::pair<char, int>> parse_letter_blocks(
             const std::string &tag);
     static std::vector<layout_raw_tag_entry_t> to_entries(
             const std::string &tag);
-    static std::string to_tag(
-            const std::vector<layout_raw_tag_entry_t> &entries);
 
     bool is_any_ = false;
     std::vector<layout_raw_tag_entry_t> entries_;
@@ -384,7 +379,7 @@ public:
     bool has_const_strides() const;
     pvar_tile_t int_dim_sizes() const;
     pvar_map_t<expr_t> dim_sizes() const;
-    int inner_block(const pvar_t &dim) const;
+    int inner_block(const pvar_t &dim, bool with_outer = true) const;
     int inner_stride() const;
     expr_t stride(const pvar_t &dim, int dim_block_idx = 0) const;
     expr_t shift_in_bytes(const std::vector<int> &block_off) const;

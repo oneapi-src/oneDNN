@@ -34,6 +34,7 @@ list(APPEND EXTRA_SHARED_LIBS amd_comgr)
 
 # Prioritize MIOPENROOT
 list(APPEND miopen_root_hints
+            $ENV{ROCM_PATH}
             ${MIOPENROOT}
             $ENV{MIOPENROOT}
             "/opt/rocm"
@@ -67,6 +68,10 @@ if(EXISTS "${MIOpen_INCLUDE_DIR}/miopen/version.h")
     set(MIOpen_VERSION
         "${MIOpen_MAJOR_VERSION}.${MIOpen_MINOR_VERSION}.${MIOpen_PATCH_VERSION}"
     )
+
+    if(${MIOpen_MAJOR_VERSION} LESS 3)
+        add_definitions(-DMIOPEN_HAS_INT8X4=1)
+    endif()
 
     unset(MIOpen_VERSION_CONTENT)
 else()

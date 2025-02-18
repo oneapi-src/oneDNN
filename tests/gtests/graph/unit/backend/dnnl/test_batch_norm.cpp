@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,12 +26,13 @@ namespace graph = dnnl::impl::graph;
 namespace utils = dnnl::graph::tests::unit::utils;
 
 static inline void ref_batchnorm_fwd(graph::dim_t mb, graph::dim_t ic,
-        graph::dim_t ih, graph::dim_t iw, test_tensor *src, test_tensor *dst,
-        test_tensor *scale, test_tensor *shift, test_tensor *mean = nullptr,
-        test_tensor *variance = nullptr, test_tensor *running_mean = nullptr,
-        test_tensor *running_variance = nullptr,
-        test_tensor *batch_mean = nullptr,
-        test_tensor *batch_variance = nullptr, float epsilon = 0.001f,
+        graph::dim_t ih, graph::dim_t iw, test_tensor_t *src,
+        test_tensor_t *dst, test_tensor_t *scale, test_tensor_t *shift,
+        test_tensor_t *mean = nullptr, test_tensor_t *variance = nullptr,
+        test_tensor_t *running_mean = nullptr,
+        test_tensor_t *running_variance = nullptr,
+        test_tensor_t *batch_mean = nullptr,
+        test_tensor_t *batch_variance = nullptr, float epsilon = 0.001f,
         float momentum = 0.1f,
         std::function<float(const float)> activation = nullptr,
         bool channel_last = false, bool is_training = false) {
@@ -355,26 +356,28 @@ public:
                     });
         }
 
-        test_tensor src_ts(src, engine, src_data);
-        test_tensor scale_ts(scale, engine, scale_data);
-        test_tensor shift_ts(shift, engine, shift_data);
-        test_tensor mean_ts(mean, engine, mean_data);
-        test_tensor variance_ts(variance, engine, variance_data);
-        test_tensor running_mean_ts(running_mean, engine, running_mean_data);
-        test_tensor running_variance_ts(
+        test_tensor_t src_ts(src, engine, src_data);
+        test_tensor_t scale_ts(scale, engine, scale_data);
+        test_tensor_t shift_ts(shift, engine, shift_data);
+        test_tensor_t mean_ts(mean, engine, mean_data);
+        test_tensor_t variance_ts(variance, engine, variance_data);
+        test_tensor_t running_mean_ts(running_mean, engine, running_mean_data);
+        test_tensor_t running_variance_ts(
                 running_variance, engine, running_variance_data);
-        test_tensor batch_mean_ts(batch_mean, engine, batch_mean_data);
-        test_tensor batch_variance_ts(
+        test_tensor_t batch_mean_ts(batch_mean, engine, batch_mean_data);
+        test_tensor_t batch_variance_ts(
                 batch_variance, engine, batch_variance_data);
-        test_tensor dst_ts(params.with_relu ? relu_dst : dst, engine, dst_data);
-        test_tensor ref_dst_ts(
+        test_tensor_t dst_ts(
+                params.with_relu ? relu_dst : dst, engine, dst_data);
+        test_tensor_t ref_dst_ts(
                 params.with_relu ? relu_dst : dst, engine, ref_dst_data);
-        test_tensor ref_running_mean_ts(
+        test_tensor_t ref_running_mean_ts(
                 running_mean, engine, ref_running_mean_data);
-        test_tensor ref_running_variance_ts(
+        test_tensor_t ref_running_variance_ts(
                 running_variance, engine, ref_running_variance_data);
-        test_tensor ref_batch_mean_ts(batch_mean, engine, ref_batch_mean_data);
-        test_tensor ref_batch_variance_ts(
+        test_tensor_t ref_batch_mean_ts(
+                batch_mean, engine, ref_batch_mean_data);
+        test_tensor_t ref_batch_variance_ts(
                 batch_variance, engine, ref_batch_variance_data);
 
         graph::stream_t *strm = get_stream();
@@ -555,14 +558,14 @@ TEST(test_batch_norm_compile, BatchNormBackwardFp32) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor scale_ts(scale, engine, scale_data);
-    test_tensor mean_ts(mean, engine, mean_data);
-    test_tensor variance_ts(variance, engine, varience_data);
-    test_tensor diff_dst_ts(diff_dst, engine, diff_dst_data);
-    test_tensor diff_src_ts(diff_src, engine, diff_src_data);
-    test_tensor diff_scale_ts(diff_scale, engine, diff_scale_data);
-    test_tensor diff_shift_ts(diff_shift, engine, diff_shift_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t scale_ts(scale, engine, scale_data);
+    test_tensor_t mean_ts(mean, engine, mean_data);
+    test_tensor_t variance_ts(variance, engine, varience_data);
+    test_tensor_t diff_dst_ts(diff_dst, engine, diff_dst_data);
+    test_tensor_t diff_src_ts(diff_src, engine, diff_src_data);
+    test_tensor_t diff_scale_ts(diff_scale, engine, diff_scale_data);
+    test_tensor_t diff_shift_ts(diff_shift, engine, diff_shift_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm,
@@ -651,11 +654,11 @@ TEST(test_batch_norm_compile, BatchNormBackwardFp32WithSingleOutput) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, engine), graph::status::success);
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor mean_ts(mean, engine, mean_data);
-    test_tensor variance_ts(variance, engine, variance_data);
-    test_tensor diff_dst_ts(diff_dst, engine, diff_dst_data);
-    test_tensor diff_src_ts(diff_src, engine, diff_src_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t mean_ts(mean, engine, mean_data);
+    test_tensor_t variance_ts(variance, engine, variance_data);
+    test_tensor_t diff_dst_ts(diff_dst, engine, diff_dst_data);
+    test_tensor_t diff_src_ts(diff_src, engine, diff_src_data);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm,
@@ -771,11 +774,11 @@ TEST(test_batch_norm_compile, BatchNormForwardTrainingWith1DSpatialInput) {
     ASSERT_TRUE(std::equal(output_strides.begin(), output_strides.end(),
             output_strides_ref.begin()));
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor scale_ts(scale, engine, scale_data);
-    test_tensor shift_ts(shift, engine, shift_data);
-    test_tensor mean_ts(mean, engine, mean_data);
-    test_tensor variance_ts(variance, engine, variance_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t scale_ts(scale, engine, scale_data);
+    test_tensor_t shift_ts(shift, engine, shift_data);
+    test_tensor_t mean_ts(mean, engine, mean_data);
+    test_tensor_t variance_ts(variance, engine, variance_data);
     graph::logical_tensor_t dst_, running_mean_, running_variance_, batch_mean_,
             batch_variance_;
     cp.query_logical_tensor(dst.id, &dst_);
@@ -783,11 +786,11 @@ TEST(test_batch_norm_compile, BatchNormForwardTrainingWith1DSpatialInput) {
     cp.query_logical_tensor(running_variance.id, &running_variance_);
     cp.query_logical_tensor(batch_mean.id, &batch_mean_);
     cp.query_logical_tensor(batch_variance.id, &batch_variance_);
-    test_tensor dst_ts(dst_, engine);
-    test_tensor running_mean_ts(running_mean_, engine);
-    test_tensor running_variance_ts(running_variance_, engine);
-    test_tensor batch_mean_ts(batch_mean_, engine);
-    test_tensor batch_variance_ts(batch_variance_, engine);
+    test_tensor_t dst_ts(dst_, engine);
+    test_tensor_t running_mean_ts(running_mean_, engine);
+    test_tensor_t running_variance_ts(running_variance_, engine);
+    test_tensor_t batch_mean_ts(batch_mean_, engine);
+    test_tensor_t batch_variance_ts(batch_variance_, engine);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm,
@@ -904,11 +907,11 @@ TEST(test_batch_norm_compile, BatchNormForwardTrainingWith0DSpatialInput) {
     ASSERT_TRUE(std::equal(output_strides.begin(), output_strides.end(),
             output_strides_ref.begin()));
 
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor scale_ts(scale, engine, scale_data);
-    test_tensor shift_ts(shift, engine, shift_data);
-    test_tensor mean_ts(mean, engine, mean_data);
-    test_tensor variance_ts(variance, engine, variance_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t scale_ts(scale, engine, scale_data);
+    test_tensor_t shift_ts(shift, engine, shift_data);
+    test_tensor_t mean_ts(mean, engine, mean_data);
+    test_tensor_t variance_ts(variance, engine, variance_data);
     graph::logical_tensor_t dst_, running_mean_, running_variance_, batch_mean_,
             batch_variance_;
     cp.query_logical_tensor(dst.id, &dst_);
@@ -916,11 +919,11 @@ TEST(test_batch_norm_compile, BatchNormForwardTrainingWith0DSpatialInput) {
     cp.query_logical_tensor(running_variance.id, &running_variance_);
     cp.query_logical_tensor(batch_mean.id, &batch_mean_);
     cp.query_logical_tensor(batch_variance.id, &batch_variance_);
-    test_tensor dst_ts(dst_, engine);
-    test_tensor running_mean_ts(running_mean_, engine);
-    test_tensor running_variance_ts(running_variance_, engine);
-    test_tensor batch_mean_ts(batch_mean_, engine);
-    test_tensor batch_variance_ts(batch_variance_, engine);
+    test_tensor_t dst_ts(dst_, engine);
+    test_tensor_t running_mean_ts(running_mean_, engine);
+    test_tensor_t running_variance_ts(running_variance_, engine);
+    test_tensor_t batch_mean_ts(batch_mean_, engine);
+    test_tensor_t batch_variance_ts(batch_variance_, engine);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm,
@@ -1008,18 +1011,18 @@ TEST(test_batch_norm_execute, BatchNormInt8) {
     ASSERT_EQ(g.add_op(&quant), graph::status::success);
     g.finalize();
 
-    test_tensor src_ts(src_int8, &engine);
+    test_tensor_t src_ts(src_int8, &engine);
     src_ts.fill<int8_t>(0, 5);
-    test_tensor scale_ts(scale, &engine);
+    test_tensor_t scale_ts(scale, &engine);
     scale_ts.fill<float>();
-    test_tensor shift_ts(shift, &engine);
+    test_tensor_t shift_ts(shift, &engine);
     shift_ts.fill<float>();
-    test_tensor mean_ts(mean, &engine);
+    test_tensor_t mean_ts(mean, &engine);
     mean_ts.fill<float>();
-    test_tensor variance_ts(variance, &engine);
+    test_tensor_t variance_ts(variance, &engine);
     variance_ts.fill<float>();
-    test_tensor dst_ts(dst_int8_out, &engine);
-    test_tensor ref_dst_ts(dst_int8_out, &engine);
+    test_tensor_t dst_ts(dst_int8_out, &engine);
+    test_tensor_t ref_dst_ts(dst_int8_out, &engine);
 
     ASSERT_EQ(run_graph(g, {src_ts, scale_ts, shift_ts, mean_ts, variance_ts},
                       {ref_dst_ts}, engine, strm),
@@ -1167,18 +1170,18 @@ TEST(test_batch_norm_execute, BatchNormReluInt8) {
 
     ASSERT_EQ(p.compile(&cp, inputs, outputs, &engine), graph::status::success);
 
-    test_tensor src_ts(src_int8, &engine);
+    test_tensor_t src_ts(src_int8, &engine);
     src_ts.fill<int8_t>(0, 5);
-    test_tensor scale_ts(scale, &engine);
+    test_tensor_t scale_ts(scale, &engine);
     scale_ts.fill<float>();
-    test_tensor shift_ts(shift, &engine);
+    test_tensor_t shift_ts(shift, &engine);
     shift_ts.fill<float>();
-    test_tensor mean_ts(mean, &engine);
+    test_tensor_t mean_ts(mean, &engine);
     mean_ts.fill<float>();
-    test_tensor variance_ts(variance, &engine);
+    test_tensor_t variance_ts(variance, &engine);
     variance_ts.fill<float>();
-    test_tensor dst_ts(dst_int8_out, &engine);
-    test_tensor ref_dst_ts(dst_int8_out, &engine);
+    test_tensor_t dst_ts(dst_int8_out, &engine);
+    test_tensor_t ref_dst_ts(dst_int8_out, &engine);
 
     graph::stream_t &strm = *get_stream();
 

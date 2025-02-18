@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2023 Intel Corporation
+ * Copyright 2021-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -193,7 +193,7 @@ class buffer_assigner_t {
 public:
     // constructor
     explicit buffer_assigner_t(const size_t match_range)
-        : match_range_(match_range), free_(), data_() {}
+        : match_range_(match_range) {}
 
     // request a free buffer
     size_t request(size_t size) {

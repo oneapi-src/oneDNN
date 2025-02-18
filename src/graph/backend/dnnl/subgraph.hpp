@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2024 Intel Corporation
+ * Copyright 2022-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,6 +109,7 @@ public:
     {
         MAYBE_UNUSED(partition_id);
         // Set _DNNL_BACKEND_SUBGRAPH_DUMP=1 to enable dump subgraph
+        // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
         enabled_ = graph::utils::getenv_int_internal("BACKEND_SUBGRAPH_DUMP", 0)
                 > 0;
     }

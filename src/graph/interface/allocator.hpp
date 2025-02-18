@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,15 +65,10 @@ public:
         size_t alignment_;
 
         /// Default constructor for an uninitialized attribute
-        mem_attr_t() {
-            type_ = mem_type_t::persistent;
-            alignment_ = 0;
-        }
+        mem_attr_t() : type_(mem_type_t::persistent), alignment_(0) {}
 
-        mem_attr_t(mem_type_t type, size_t alignment) {
-            type_ = type;
-            alignment_ = alignment;
-        }
+        mem_attr_t(mem_type_t type, size_t alignment)
+            : type_(type), alignment_(alignment) {}
     };
 
     void *allocate(size_t size, mem_attr_t attr = {}) const {

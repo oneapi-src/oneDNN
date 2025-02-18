@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,8 +97,8 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
         impl::engine_t &eng = *get_engine();
         ASSERT_EQ(p.compile(&cp, inputs, outputs, &eng), impl::status::success);
 
-        std::vector<test_tensor> execution_inputs;
-        std::vector<test_tensor> execution_outputs;
+        std::vector<test_tensor_t> execution_inputs;
+        std::vector<test_tensor_t> execution_outputs;
         partition_outputs.clear();
         for (auto &lt : outputs) {
             impl::logical_tensor_t compiled_output;
@@ -119,18 +119,18 @@ static void compile_execution_pipeline(impl::graph_t &agraph,
         }
 
         for (auto &lt : partition_inputs) {
-            test_tensor placeholder(lt, &eng);
+            test_tensor_t placeholder(lt, &eng);
             execution_inputs.push_back(placeholder);
         }
         for (auto &lt : partition_outputs) {
-            test_tensor placeholder(lt, &eng);
+            test_tensor_t placeholder(lt, &eng);
             execution_outputs.push_back(placeholder);
         }
 
         impl::stream_t &strm = *get_stream();
         ASSERT_EQ(cp.execute(&strm,
-                          test_tensor::to_graph_tensor(execution_inputs),
-                          test_tensor::to_graph_tensor(execution_outputs)),
+                          test_tensor_t::to_graph_tensor(execution_inputs),
+                          test_tensor_t::to_graph_tensor(execution_outputs)),
                 impl::status::success);
         strm.wait();
     }
@@ -349,23 +349,23 @@ TEST(GCGraphTest, FP32MHACompileExecutionMultiThreading_CPU) {
     int thread_num = 2;
 
     auto thread_func = [&](size_t tid) {
-        std::vector<test_tensor> execution_inputs;
-        std::vector<test_tensor> execution_outputs;
+        std::vector<test_tensor_t> execution_inputs;
+        std::vector<test_tensor_t> execution_outputs;
 
         for (auto &lt : partition_inputs) {
-            test_tensor placeholder(lt, engine);
+            test_tensor_t placeholder(lt, engine);
             execution_inputs.push_back(placeholder);
         }
         for (auto &lt : partition_outputs) {
             graph::logical_tensor_t compiled_output;
             cp.query_logical_tensor(lt.id, &compiled_output);
-            test_tensor placeholder(compiled_output, engine);
+            test_tensor_t placeholder(compiled_output, engine);
             execution_outputs.push_back(placeholder);
         }
         impl::stream_t &strm = *get_stream();
         ASSERT_EQ(cp.execute(&strm,
-                          test_tensor::to_graph_tensor(execution_inputs),
-                          test_tensor::to_graph_tensor(execution_outputs)),
+                          test_tensor_t::to_graph_tensor(execution_inputs),
+                          test_tensor_t::to_graph_tensor(execution_outputs)),
                 impl::status::success);
     };
 
@@ -702,7 +702,7 @@ TEST(GCGraphTest, BF16MHATrainingGraphCompileExecution2_CPU) {
 TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_identical_bottleneck_resblock(&agraph, id_gen,
@@ -716,7 +716,7 @@ TEST(GCGraphTest, FP32IdenticalBottleneckCompileExecution_CPU) {
 TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_convolutional_bottleneck_resblock(&agraph, id_gen,
@@ -730,7 +730,7 @@ TEST(GCGraphTest, FP32ConvolutionalBottleneckCompileExecution_CPU) {
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     REQUIRE_AMX();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
@@ -744,7 +744,7 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecution_CPU) {
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC_CPU) {
     REQUIRE_VNNI_AMXINT8();
     REQUIRE_AMX();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
@@ -759,7 +759,7 @@ TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionNXC_CPU) {
 TEST(GCGraphTest, INT8ConvolutionalBottleneckCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     REQUIRE_AMX();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_convolutional_bottleneck_resblock(&agraph,
@@ -773,7 +773,7 @@ TEST(GCGraphTest, INT8ConvolutionalBottleneckCompileExecution_CPU) {
 TEST(GCGraphTest, FP32IdenticalBottleneckTrainingCompileExecution_CPU) {
     REQUIRE_AVX512();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
@@ -787,7 +787,7 @@ TEST(GCGraphTest, FP32IdenticalBottleneckTrainingCompileExecution_CPU) {
 TEST(GCGraphTest, FP32IdenticalBottleneckTrainingCompileExecutionNCX_CPU) {
     REQUIRE_AVX512();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
@@ -802,7 +802,7 @@ TEST(GCGraphTest, FP32IdenticalBottleneckTrainingCompileExecutionNCX_CPU) {
 TEST(GCGraphTest, FP32ConvolutionalBottleneckTrainingCompileExecution_CPU) {
     REQUIRE_AVX512();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_convolutional_bottleneck_training_subgraph(
@@ -816,7 +816,7 @@ TEST(GCGraphTest, FP32ConvolutionalBottleneckTrainingCompileExecution_CPU) {
 TEST(GCGraphTest, BF16IdenticalBottleneckTrainingCompileExecution_CPU) {
     REQUIRE_AMXBF16();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_identical_bottleneck_training_subgraph(&agraph,
@@ -837,7 +837,7 @@ TEST(GCGraphTest, BF16ConvolutionalBottleneckTrainingCompileExecution_CPU) {
         return;
     }
 #endif
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_convolutional_bottleneck_training_subgraph(
@@ -852,7 +852,7 @@ TEST(GCGraphTest, BF16ConvolutionalBottleneckTrainingCompileExecution_CPU) {
 TEST(GCGraphTest, INT8IdenticalBottleneckCompileExecutionDynamicQuantize_CPU) {
     REQUIRE_VNNI_AMXINT8();
     REQUIRE_AMX();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
@@ -870,7 +870,7 @@ TEST(GCGraphTest,
     REQUIRE_VNNI_AMXINT8();
     REQUIRE_AMX();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_identical_bottleneck_resblock(&agraph,
@@ -887,7 +887,7 @@ TEST(GCGraphTest,
         INT8ConvolutionalBottleneckCompileExecutionDynamicQuantize_CPU) {
     REQUIRE_VNNI_AMXINT8();
     REQUIRE_AMX();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_int8_convolutional_bottleneck_resblock(&agraph,
@@ -904,7 +904,7 @@ TEST(GCGraphTest,
 TEST(GCGraphTest, INT8MulQuantizeCompileExecution_CPU) {
     REQUIRE_AVX512();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_mul_quantize_subgraph(
@@ -916,7 +916,7 @@ TEST(GCGraphTest, INT8MulQuantizeCompileExecution_CPU) {
 
 TEST(GCGraphTest, FP32GPTMHACompileExecution_CPU) {
     REQUIRE_AVX512();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, false, false);
@@ -927,7 +927,7 @@ TEST(GCGraphTest, FP32GPTMHACompileExecution_CPU) {
 
 TEST(GCGraphTest, BF16GPTMHACompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, true, false);
@@ -938,7 +938,7 @@ TEST(GCGraphTest, BF16GPTMHACompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8FP32GPTMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, false, true);
@@ -949,7 +949,7 @@ TEST(GCGraphTest, INT8FP32GPTMHACompileExecution_CPU) {
 
 TEST(GCGraphTest, INT8BF16GPTMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mha_subgraph(&agraph, id_gen, true, true);
@@ -960,7 +960,7 @@ TEST(GCGraphTest, INT8BF16GPTMHACompileExecution_CPU) {
 
 TEST(GCGraphTest, FP32LLAMAMHACompileExecution_CPU) {
     REQUIRE_AVX512();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, false, false);
@@ -971,7 +971,7 @@ TEST(GCGraphTest, FP32LLAMAMHACompileExecution_CPU) {
 
 TEST(GCGraphTest, BF16LLAMAMHACompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, true, false);
@@ -983,7 +983,7 @@ TEST(GCGraphTest, BF16LLAMAMHACompileExecution_CPU) {
 TEST(GCGraphTest, INT8FP32LLAMAMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, false, true);
@@ -995,7 +995,7 @@ TEST(GCGraphTest, INT8FP32LLAMAMHACompileExecution_CPU) {
 TEST(GCGraphTest, INT8BF16LLAMAMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mha_subgraph(&agraph, id_gen, true, true);
@@ -1007,7 +1007,7 @@ TEST(GCGraphTest, INT8BF16LLAMAMHACompileExecution_CPU) {
 TEST(GCGraphTest, FP32GPTMLPCompileExecution_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, false, false);
@@ -1019,7 +1019,7 @@ TEST(GCGraphTest, FP32GPTMLPCompileExecution_CPU) {
 TEST(GCGraphTest, BF16GPTMLPCompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
     REQUIRE_AMX();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, true, false);
@@ -1031,7 +1031,7 @@ TEST(GCGraphTest, BF16GPTMLPCompileExecution_CPU) {
 TEST(GCGraphTest, INT8FP32GPTMLPCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, false, true);
@@ -1043,7 +1043,7 @@ TEST(GCGraphTest, INT8FP32GPTMLPCompileExecution_CPU) {
 TEST(GCGraphTest, INT8BF16GPTMLPCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_gpt_mlp_subgraph(&agraph, id_gen, true, true);
@@ -1055,7 +1055,7 @@ TEST(GCGraphTest, INT8BF16GPTMLPCompileExecution_CPU) {
 TEST(GCGraphTest, FP32LLAMAMLPCompileExecution_CPU) {
     REQUIRE_AVX512();
     REQUIRE_AMX();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, false, false);
@@ -1067,7 +1067,7 @@ TEST(GCGraphTest, FP32LLAMAMLPCompileExecution_CPU) {
 TEST(GCGraphTest, BF16LLAMAMLPCompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
     REQUIRE_AMX();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, true, false);
@@ -1079,7 +1079,7 @@ TEST(GCGraphTest, BF16LLAMAMLPCompileExecution_CPU) {
 TEST(GCGraphTest, INT8FP32LLAMAMLPCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, false, true);
@@ -1091,7 +1091,7 @@ TEST(GCGraphTest, INT8FP32LLAMAMLPCompileExecution_CPU) {
 TEST(GCGraphTest, INT8BF16LLAMAMLPCompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_llama_mlp_subgraph(&agraph, id_gen, true, true);
@@ -1140,7 +1140,7 @@ TEST(GCGraphTest, LlamaInt8Bf16Concat_CPU) {
 
 TEST(GCGraphTest, FP32STARCODERMHACompileExecution_CPU) {
     REQUIRE_AVX512();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_starcoder_mha_subgraph(
@@ -1152,7 +1152,7 @@ TEST(GCGraphTest, FP32STARCODERMHACompileExecution_CPU) {
 
 TEST(GCGraphTest, BF16STARCODERMHACompileExecution_CPU) {
     REQUIRE_BF16_AMXBF16();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_starcoder_mha_subgraph(
@@ -1165,7 +1165,7 @@ TEST(GCGraphTest, BF16STARCODERMHACompileExecution_CPU) {
 TEST(GCGraphTest, INT8FP32STARCODERMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_starcoder_mha_subgraph(
@@ -1178,7 +1178,7 @@ TEST(GCGraphTest, INT8FP32STARCODERMHACompileExecution_CPU) {
 TEST(GCGraphTest, INT8BF16STARCODERMHACompileExecution_CPU) {
     REQUIRE_VNNI_AMXINT8();
     SKIP_WHEN_SINGLE_OP_PATTERN_ON();
-    utils::id_generator id_gen;
+    utils::id_generator_t id_gen;
     REQUIRE_CPU_ENGINE();
     impl::graph_t agraph(engine->kind());
     compiler_utils::construct_starcoder_mha_subgraph(

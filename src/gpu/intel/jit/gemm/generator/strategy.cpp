@@ -182,6 +182,9 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
 
     extendedAtomicFMA &= !problem.needsASums() && !problem.needsBSums();
 
+    if (tlbWarmup && !linearOrder())
+         cWalkOrder = WalkOrder::SimpleLinear;
+
     // Default SIMD setting.
     if (fmaSIMD == 0) {
         fmaSIMD = std::min(32, 2 * GRF::bytes(hw) / std::max<int>({Ta.paddedSize(), Tb.paddedSize(), Tc.paddedSize()}));

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -2920,7 +2920,7 @@ static std::vector<graph::dim_t> extract_filter_info(
 }
 
 inline graph::logical_tensor_t create_dyn_dequantize(
-        utils::id_generator &id_gen, graph_t &agraph,
+        utils::id_generator_t &id_gen, graph_t &agraph,
         const graph::logical_tensor_t &src, const std::string &qtype,
         int64_t axis, graph::dim_t channel_size = 1) {
     graph::op_t dq_op(
@@ -2941,9 +2941,10 @@ inline graph::logical_tensor_t create_dyn_dequantize(
     return dst;
 }
 
-inline graph::logical_tensor_t create_dyn_quantize(utils::id_generator &id_gen,
-        graph_t &agraph, const graph::logical_tensor_t &src,
-        data_type_t dst_dtype, const std::string &qtype, int64_t axis) {
+inline graph::logical_tensor_t create_dyn_quantize(
+        utils::id_generator_t &id_gen, graph_t &agraph,
+        const graph::logical_tensor_t &src, data_type_t dst_dtype,
+        const std::string &qtype, int64_t axis) {
     graph::op_t q_op(
             id_gen.get_id(), graph::op_kind::DynamicQuantize, "quantize");
     q_op.set_attr<std::string>(op_attr::qtype, qtype);
@@ -2960,7 +2961,7 @@ inline graph::logical_tensor_t create_dyn_quantize(utils::id_generator &id_gen,
 }
 
 inline graph::logical_tensor_t create_int8_convolution_dyn_quant(
-        utils::id_generator &id_gen, graph_t &agraph,
+        utils::id_generator_t &id_gen, graph_t &agraph,
         const graph::logical_tensor_t &src, int64_t ic, int64_t ks, int64_t oc,
         int64_t groups, const dims &strides, const dims &dilations,
         const dims &pads_begin, const dims &pads_end,
@@ -3053,7 +3054,7 @@ inline graph::logical_tensor_t create_int8_convolution_dyn_quant(
 // filter_shape in the order of 1x1; 1x1 + 3x3 + 1x1
 // strides and paddings also start with the single conv branch
 inline void construct_convolutional_bottleneck_resblock(graph::graph_t *agraph,
-        utils::id_generator &id_gen, const dims &input_shape,
+        utils::id_generator_t &id_gen, const dims &input_shape,
         const std::vector<dims> &filter_shapes, bool is_bf16 = false,
         const std::vector<std::vector<int64_t>> &strides
         = {{2, 2}, {1, 1}, {2, 2}, {1, 1}},
@@ -3088,7 +3089,7 @@ inline void construct_convolutional_bottleneck_resblock(graph::graph_t *agraph,
 }
 
 inline void construct_identical_bottleneck_resblock(graph::graph_t *agraph,
-        utils::id_generator &id_gen, const dims &input_shape,
+        utils::id_generator_t &id_gen, const dims &input_shape,
         const std::vector<dims> &filter_shapes, bool is_bf16 = false,
         const std::vector<std::vector<int64_t>> &strides
         = {{1, 1}, {1, 1}, {1, 1}},
@@ -3117,7 +3118,7 @@ inline void construct_identical_bottleneck_resblock(graph::graph_t *agraph,
 }
 
 inline void construct_int8_identical_bottleneck_resblock(graph::graph_t *agraph,
-        utils::id_generator &id_gen, const dims &input_shape,
+        utils::id_generator_t &id_gen, const dims &input_shape,
         const std::vector<dims> &filter_shapes,
         const std::vector<std::vector<int64_t>> &strides
         = {{1, 1}, {1, 1}, {1, 1}},
@@ -3174,7 +3175,7 @@ inline void construct_int8_identical_bottleneck_resblock(graph::graph_t *agraph,
 // filter_shape in the order of 1x1; 1x1+3x3+1x1
 // strides and paddings also first consider the single conv branch
 inline void construct_int8_convolutional_bottleneck_resblock(
-        graph::graph_t *agraph, utils::id_generator &id_gen,
+        graph::graph_t *agraph, utils::id_generator_t &id_gen,
         const dims &input_shape, const std::vector<dims> &filter_shapes,
         const std::vector<std::vector<int64_t>> &strides
         = {{2, 2}, {1, 1}, {2, 2}, {1, 1}},
@@ -3244,7 +3245,7 @@ inline void construct_int8_convolutional_bottleneck_resblock(
     (void)(q2);
 }
 
-inline graph::logical_tensor_t create_relu_bwd(utils::id_generator &id_gen,
+inline graph::logical_tensor_t create_relu_bwd(utils::id_generator_t &id_gen,
         graph::graph_t &agraph, const graph::logical_tensor_t &dst,
         const graph::logical_tensor_t &delta_in, const dims &dims) {
     graph::op_t relu_bwd(
@@ -3258,7 +3259,7 @@ inline graph::logical_tensor_t create_relu_bwd(utils::id_generator &id_gen,
     return delta;
 }
 
-inline graph::logical_tensor_t create_relu_bwd2(utils::id_generator &id_gen,
+inline graph::logical_tensor_t create_relu_bwd2(utils::id_generator_t &id_gen,
         graph::graph_t &agraph, const graph::logical_tensor_t &dst,
         const graph::logical_tensor_t &delta) {
     graph::op_t relu_bwd(
@@ -3287,7 +3288,7 @@ inline graph::logical_tensor_t create_relu_bwd2(utils::id_generator &id_gen,
         (dst)         (delta_in_next)
 */
 inline std::vector<graph::logical_tensor_t> create_convolution_training(
-        utils::id_generator &id_gen, graph::graph_t &agraph,
+        utils::id_generator_t &id_gen, graph::graph_t &agraph,
         const graph::logical_tensor_t &src, graph::logical_tensor_t &delta_in,
         const dims &filter_shape, const dims &strides, const dims &pads_begin,
         const dims &pads_end, const std::string &data_format,
@@ -3497,7 +3498,7 @@ inline std::vector<graph::logical_tensor_t> create_convolution_training(
 }
 
 inline void construct_identical_bottleneck_training_subgraph(
-        graph::graph_t *agraph, utils::id_generator &id_gen,
+        graph::graph_t *agraph, utils::id_generator_t &id_gen,
         const dims &input_shape, const std::vector<dims> &filter_shapes,
         bool is_bf16 = false, bool is_bn_bf16 = false,
         const std::vector<std::vector<int64_t>> &strides
@@ -3542,7 +3543,7 @@ inline void construct_identical_bottleneck_training_subgraph(
 
 // filter is in order {rhs, lhs0, lhs1, lhs2}
 inline void construct_convolutional_bottleneck_training_subgraph(
-        graph::graph_t *agraph, utils::id_generator &id_gen,
+        graph::graph_t *agraph, utils::id_generator_t &id_gen,
         const dims &input_shape, const std::vector<dims> &filter_shapes,
         bool is_bf16 = false, bool is_bn_bf16 = false,
         const std::vector<std::vector<int64_t>> &strides
@@ -4109,7 +4110,7 @@ inline void add_bart_mlp_residual_subgraph(graph::graph_t *agraph,
 }
 
 inline void construct_mul_quantize_subgraph(graph::graph_t *agraph,
-        utils::id_generator &id_gen, const graph::dims &input_shape,
+        utils::id_generator_t &id_gen, const graph::dims &input_shape,
         bool is_mixed_precision = false) {
     graph::dims smooth_quant_scales_shape {input_shape[input_shape.size() - 1]};
     auto dtype = is_mixed_precision ? graph::data_type::bf16
@@ -4140,7 +4141,7 @@ inline void construct_mul_quantize_subgraph(graph::graph_t *agraph,
 }
 
 inline void construct_gpt_mha_subgraph(graph::graph_t *agraph,
-        utils::id_generator &id_gen, bool use_bf16 = false,
+        utils::id_generator_t &id_gen, bool use_bf16 = false,
         bool use_int8 = false, int batch_size = 4, int seq_len = 34,
         int num_head = 16, int head_dim = 4096) {
     int size_per_head = head_dim / num_head;
@@ -4409,7 +4410,7 @@ inline void construct_gpt_mha_subgraph(graph::graph_t *agraph,
 }
 
 static void construct_llama_mha_base(graph::graph_t *agraph,
-        utils::id_generator &id_gen, graph::data_type_t dtype,
+        utils::id_generator_t &id_gen, graph::data_type_t dtype,
         int batch_size = 4, int seq_len = 34, int num_head = 32,
         int head_dim = 4096) {
     int size_per_head = head_dim / num_head;
@@ -4518,7 +4519,7 @@ static void construct_llama_mha_base(graph::graph_t *agraph,
 }
 
 static void insert_quantization_before_op(graph::graph_t *agraph,
-        utils::id_generator &id_gen, graph::op_t *op, int idx, bool is_bf16) {
+        utils::id_generator_t &id_gen, graph::op_t *op, int idx, bool is_bf16) {
     // init quant dequant
     graph::op_t quantize {
             id_gen.get_id(), graph::op_kind::Quantize, "quantize"};
@@ -4578,7 +4579,7 @@ static void insert_quantization_before_op(graph::graph_t *agraph,
 }
 
 static void insert_quantization_after_output(graph::graph_t *agraph,
-        utils::id_generator &id_gen, const graph::logical_tensor_t &output_lt,
+        utils::id_generator_t &id_gen, const graph::logical_tensor_t &output_lt,
         bool is_bf16) {
     // init quant dequant
     graph::op_t quantize {
@@ -4630,7 +4631,7 @@ static void insert_quantization_after_output(graph::graph_t *agraph,
 }
 
 inline void construct_llama_mha_subgraph(graph::graph_t *agraph,
-        utils::id_generator &id_gen, bool use_bf16 = false,
+        utils::id_generator_t &id_gen, bool use_bf16 = false,
         bool use_int8 = false, int batch_size = 4, int seq_len = 34,
         int num_head = 32, int head_dim = 4096) {
     construct_llama_mha_base(agraph, id_gen,
@@ -4698,8 +4699,9 @@ inline void construct_llama_mha_subgraph(graph::graph_t *agraph,
     }
 }
 
-static inline graph::logical_tensor_t create_matmul(utils::id_generator &id_gen,
-        graph::graph_t *agraph, const graph::logical_tensor_t *input,
+static inline graph::logical_tensor_t create_matmul(
+        utils::id_generator_t &id_gen, graph::graph_t *agraph,
+        const graph::logical_tensor_t *input,
         const graph::logical_tensor_t *weight,
         const graph::logical_tensor_t *bias = nullptr,
         bool transpose_b = false) {
@@ -4715,7 +4717,7 @@ static inline graph::logical_tensor_t create_matmul(utils::id_generator &id_gen,
 }
 
 static graph::logical_tensor_t construct_gpt_mlp_base(graph::graph_t *agraph,
-        utils::id_generator &id_gen, graph::data_type_t dtype,
+        utils::id_generator_t &id_gen, graph::data_type_t dtype,
         graph::dim_t batch_size = 4,
         std::vector<graph::dim_t> hidden_sizes = {4096, 16384, 4096}) {
     std::vector<graph::dim_t> input_shape {batch_size, 1, hidden_sizes[0]};
@@ -4777,7 +4779,7 @@ static graph::logical_tensor_t construct_gpt_mlp_base(graph::graph_t *agraph,
 }
 
 inline void construct_gpt_mlp_subgraph(graph::graph_t *agraph,
-        utils::id_generator &id_gen, bool use_bf16 = false,
+        utils::id_generator_t &id_gen, bool use_bf16 = false,
         bool use_int8 = false, graph::dim_t batch_size = 4,
         std::vector<graph::dim_t> hidden_sizes = {4096, 16384, 4096}) {
     auto output_lt = construct_gpt_mlp_base(agraph, id_gen,
@@ -4799,7 +4801,7 @@ inline void construct_gpt_mlp_subgraph(graph::graph_t *agraph,
 }
 
 static graph::logical_tensor_t construct_rms_norm_subgraph(
-        graph::graph_t *agraph, utils::id_generator &id_gen,
+        graph::graph_t *agraph, utils::id_generator_t &id_gen,
         const graph::logical_tensor_t &input_desc,
         graph::dim_t mul_in_size = 4096) {
     bool is_bf16 = input_desc.data_type == graph::data_type::bf16;
@@ -4877,7 +4879,7 @@ static graph::logical_tensor_t construct_rms_norm_subgraph(
 }
 
 static graph::logical_tensor_t construct_llama_mlp_base(graph::graph_t *agraph,
-        utils::id_generator &id_gen, graph::data_type_t dtype,
+        utils::id_generator_t &id_gen, graph::data_type_t dtype,
         graph::dim_t batch_size = 4,
         std::vector<graph::dim_t> hidden_sizes = {4096, 4096, 11008, 4096}) {
     std::vector<graph::dim_t> input_shape {batch_size, 1, hidden_sizes[0]};
@@ -4939,7 +4941,7 @@ static graph::logical_tensor_t construct_llama_mlp_base(graph::graph_t *agraph,
 }
 
 inline void construct_llama_mlp_subgraph(graph::graph_t *agraph,
-        utils::id_generator &id_gen, bool use_bf16 = false,
+        utils::id_generator_t &id_gen, bool use_bf16 = false,
         bool use_int8 = false, graph::dim_t batch_size = 4,
         std::vector<graph::dim_t> hidden_sizes = {4096, 4096, 11008, 4096}) {
     auto output_lt = construct_llama_mlp_base(agraph, id_gen,
@@ -5295,7 +5297,7 @@ inline void add_llama_concat_subgraph(
 }
 
 static void construct_starcoder_mha_base(graph::graph_t *agraph,
-        utils::id_generator &id_gen, graph::data_type_t dtype,
+        utils::id_generator_t &id_gen, graph::data_type_t dtype,
         int batch_size = 1, int query_seq_len = 16, int key_seq_len = 16,
         int num_head = 32, int head_dim = 4096) {
     int size_per_head = head_dim / num_head;
@@ -5382,7 +5384,7 @@ static void construct_starcoder_mha_base(graph::graph_t *agraph,
 }
 
 inline void construct_starcoder_mha_subgraph(graph::graph_t *agraph,
-        utils::id_generator &id_gen, bool use_bf16 = false,
+        utils::id_generator_t &id_gen, bool use_bf16 = false,
         bool use_int8 = false, int batch_size = 1, int query_seq_len = 16,
         int key_seq_len = 16, int num_head = 32, int head_dim = 4096) {
     construct_starcoder_mha_base(agraph, id_gen,

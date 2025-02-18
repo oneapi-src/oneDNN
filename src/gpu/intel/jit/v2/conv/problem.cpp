@@ -30,12 +30,6 @@ problem_t::problem_t(const std::string &line) {
     set_shape(s_desc);
 }
 
-pvar_map_t<dim_t> problem_t::vars() const {
-    pvar_map_t<dim_t> map;
-    map[pvar_t("outsz")] = out_type().size();
-    return map;
-}
-
 const type_t &problem_t::out_type() const {
     switch (prop_) {
         case prop_kind::forward: return dst_tag_.type();
@@ -162,6 +156,8 @@ std::string problem_t::str() const {
     oss << "  Weights:       " << wei_tag_ << std::endl;
     oss << "  Destination:   " << dst_tag_ << std::endl;
     oss << "  With post-ops: " << ir_utils::to_string(with_post_ops_)
+        << std::endl;
+    oss << "  Deterministic: " << ir_utils::to_string(deterministic_)
         << std::endl;
     oss << "  Descriptor:    " << desc_str();
     return oss.str();

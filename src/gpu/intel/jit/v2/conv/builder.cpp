@@ -496,14 +496,14 @@ public:
 private:
     view_t rhs_mem_view(const pvar_coord_t<expr_t> &_coord,
             const pvar_tile_t &_tile, const type_t &type, uint16_t mask) {
-        dim_mapper_manager_t mger(desc_.prop, desc_.reqs);
+        dim_mapper_manager_t mger(desc_.prop, desc_.spec.reqs());
         auto &c_mapper = mger.mapper(tensor_kind_t::c);
         auto kind = pick_c(desc_.prop, tensor_kind_t::src, tensor_kind_t::wei,
                 tensor_kind_t::dst);
         auto &c_tag = pick_c(
                 desc_.prop, desc_.src_tag, desc_.wei_tag, desc_.dst_tag);
-        auto rhs_layout
-                = make_conv_layout(kind, c_tag, desc_.is_dw, desc_.reqs, mask);
+        auto rhs_layout = make_conv_layout(
+                kind, c_tag, desc_.is_dw, desc_.spec.reqs(), mask);
         rhs_layout = rhs_layout.retype(type);
         auto is_bcast = [&](const pvar_t &dim) {
             for (auto &b : rhs_layout.blocks()) {

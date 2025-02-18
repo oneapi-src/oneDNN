@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/jit/v2/conv/plan_preset.hpp"
+#include "gpu/intel/jit/v2/conv/debug.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -24,8 +24,7 @@ namespace jit {
 namespace v2 {
 namespace conv {
 
-kernel_desc_t plan_preset_t::env_desc_;
-thread_local kernel_desc_t plan_preset_t::tls_desc_;
+thread_local kernel_desc_t debug_t::tls_desc_;
 
 } // namespace conv
 } // namespace v2

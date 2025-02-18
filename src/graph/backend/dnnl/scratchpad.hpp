@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2021-2024 Intel Corporation
+ * Copyright 2021-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -215,7 +215,8 @@ public:
     }
 
     char *get(const registry_t::key_t &key) const {
-        return aligned_base_ptr_ + registry_.get(key);
+        return aligned_base_ptr_ ? (aligned_base_ptr_ + registry_.get(key))
+                                 : nullptr;
     }
 
 private:

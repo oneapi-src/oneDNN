@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -392,9 +392,9 @@ TEST(test_convolution_execute, ConvolutionNcxOix) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -458,9 +458,9 @@ TEST(test_convolution_execute, ConvtransposeWithGroups) {
     ASSERT_EQ(p.compile(&cp, inputs, outputs, eng), graph::status::success);
     ASSERT_EQ(dst_lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()}),
@@ -527,9 +527,9 @@ TEST(test_convolution_execute, Convolution3DNcxOix) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -595,9 +595,9 @@ TEST(test_convolution_execute, ConvolutionNcxXio) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -663,9 +663,9 @@ TEST(test_convolution_execute, Convolution3DNcxXio) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -732,9 +732,9 @@ TEST(test_convolution_execute, ConvolutionNxcXio) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -801,9 +801,9 @@ TEST(test_convolution_execute, Convolution3DNxcXio) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -869,9 +869,9 @@ TEST(test_convolution_execute, ConvolutionNxcOix) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -937,9 +937,9 @@ TEST(test_convolution_execute, Convolution3DNxcOix) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -1006,9 +1006,9 @@ TEST(test_convolution_execute, ConvolutionF16F16F16_GPU) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -1076,9 +1076,9 @@ TEST(test_convolution_execute, ConvolutionBf16Bf16Bf16) {
     cp.query_logical_tensor(dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -1273,9 +1273,9 @@ TEST(test_convolution_execute, GroupConvolution) {
     std::vector<float> weight(32 * 8 * 1 * 1, 1);
     std::vector<float> dst(8 * 32 * 16 * 16, 1);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get()}, {dst_ts.get()});
@@ -1344,9 +1344,9 @@ TEST(test_convolution_execute, ConvolutionBackwardData) {
     cp.query_logical_tensor(diff_src_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor diff_dst_ts(diff_dst_lt, eng, diff_dst);
-    test_tensor diff_src_ts(diff_src_lt, eng, diff_src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t diff_dst_ts(diff_dst_lt, eng, diff_dst);
+    test_tensor_t diff_src_ts(diff_src_lt, eng, diff_src);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {diff_dst_ts.get(), weight_ts.get()}, {diff_src_ts.get()});
@@ -1420,13 +1420,13 @@ TEST(test_convolution_execute, ConvolutionBnFp32) {
     std::generate(bn_shift.begin(), bn_shift.end(),
             [&]() { return distribution(generator); });
 
-    test_tensor conv_src_ts(conv_src_lt, eng, conv_src);
-    test_tensor conv_weight_ts(conv_weight_lt, eng, conv_weight);
-    test_tensor bn_gamma_ts(gamma_lt, eng, bn_gamma);
-    test_tensor bn_beta_ts(beta_lt, eng, bn_beta);
-    test_tensor bn_scale_ts(scale_lt, eng, bn_scale);
-    test_tensor bn_shift_ts(shift_lt, eng, bn_shift);
-    test_tensor bn_dst_ts(bn_dst_lt, eng, bn_dst);
+    test_tensor_t conv_src_ts(conv_src_lt, eng, conv_src);
+    test_tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight);
+    test_tensor_t bn_gamma_ts(gamma_lt, eng, bn_gamma);
+    test_tensor_t bn_beta_ts(beta_lt, eng, bn_beta);
+    test_tensor_t bn_scale_ts(scale_lt, eng, bn_scale);
+    test_tensor_t bn_shift_ts(shift_lt, eng, bn_shift);
+    test_tensor_t bn_dst_ts(bn_dst_lt, eng, bn_dst);
 
     conv_op.add_input(conv_src_lt);
     conv_op.add_input(conv_weight_lt);
@@ -1469,7 +1469,7 @@ TEST(test_convolution_execute, ConvolutionBnFp32) {
     p.compile(&cp, inputs, outputs, eng);
 
     std::vector<float> convbn_dst(8 * 32 * 16 * 16, 0.0);
-    test_tensor convbn_dst_ts(bn_dst_lt, eng, convbn_dst);
+    test_tensor_t convbn_dst_ts(bn_dst_lt, eng, convbn_dst);
 
     cp.execute(strm,
             {conv_src_ts.get(), conv_weight_ts.get(), bn_gamma_ts.get(),
@@ -1533,10 +1533,10 @@ TEST(test_convolution_compile, ConvBnSharedInputs) {
     std::generate(bn_shared_input.begin(), bn_shared_input.end(),
             [&]() { return distribution(generator); });
 
-    test_tensor conv_src_ts(conv_src_lt, eng, conv_src);
-    test_tensor conv_weight_ts(conv_weight_lt, eng, conv_weight);
-    test_tensor bn_shared_input_ts(shared_lt, eng, bn_shared_input);
-    test_tensor bn_dst_ts(bn_dst_lt, eng, bn_dst);
+    test_tensor_t conv_src_ts(conv_src_lt, eng, conv_src);
+    test_tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight);
+    test_tensor_t bn_shared_input_ts(shared_lt, eng, bn_shared_input);
+    test_tensor_t bn_dst_ts(bn_dst_lt, eng, bn_dst);
 
     conv_op.add_input(conv_src_lt);
     conv_op.add_input(conv_weight_lt);
@@ -1580,7 +1580,7 @@ TEST(test_convolution_compile, ConvBnSharedInputs) {
     p.compile(&cp, inputs, outputs, eng);
 
     std::vector<float> convbn_dst(8 * 32 * 16 * 16, 0.0);
-    test_tensor convbn_dst_ts(bn_dst_lt, eng, convbn_dst);
+    test_tensor_t convbn_dst_ts(bn_dst_lt, eng, convbn_dst);
 
     cp.execute(strm,
             {conv_src_ts.get(), conv_weight_ts.get(), bn_shared_input_ts.get(),
@@ -1671,10 +1671,10 @@ TEST(test_convolution_execute, ConvAdd) {
         cp.query_logical_tensor(add_dst_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        test_tensor src_ts(src_lt, eng, src);
-        test_tensor weight_ts(weight_lt, eng, weight);
-        test_tensor post_src_ts(post_src_lt, eng, post_src);
-        test_tensor add_dst_ts(add_dst_lt, eng, dst);
+        test_tensor_t src_ts(src_lt, eng, src);
+        test_tensor_t weight_ts(weight_lt, eng, weight);
+        test_tensor_t post_src_ts(post_src_lt, eng, post_src);
+        test_tensor_t add_dst_ts(add_dst_lt, eng, dst);
 
         graph::stream_t *strm = get_stream();
         cp.execute(strm, {src_ts.get(), weight_ts.get(), post_src_ts.get()},
@@ -1758,10 +1758,10 @@ TEST(test_convolution_execute, ConvAddPerTensorBroadcast) {
     cp.query_logical_tensor(add_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor post_src_ts(post_src_lt, eng, post_src);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t post_src_ts(post_src_lt, eng, post_src);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), post_src_ts.get()},
@@ -1842,10 +1842,10 @@ TEST(test_convolution_execute, ConvAddExpandedPerTensorBroadcast) {
     cp.query_logical_tensor(add_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor post_src_ts(post_src_lt, eng, post_src);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t post_src_ts(post_src_lt, eng, post_src);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), post_src_ts.get()},
@@ -1927,10 +1927,10 @@ TEST(test_convolution_execute, ConvAddPerChannelBroadcast) {
     cp.query_logical_tensor(add_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor post_src_ts(post_src_lt, eng, post_src);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t post_src_ts(post_src_lt, eng, post_src);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), post_src_ts.get()},
@@ -2012,10 +2012,10 @@ TEST(test_convolution_execute, ConvAddPerChannelBroadcastNxc) {
     cp.query_logical_tensor(add_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor post_src_ts(post_src_lt, eng, post_src);
-    test_tensor dst_ts(dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t post_src_ts(post_src_lt, eng, post_src);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), post_src_ts.get()},
@@ -2169,10 +2169,10 @@ TEST(test_convolution_execute, ConvAddRelu) {
     cp.query_logical_tensor(relu_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor post_src_ts(post_lt, eng, post_src);
-    test_tensor relu_dst_ts(relu_dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t post_src_ts(post_lt, eng, post_src);
+    test_tensor_t relu_dst_ts(relu_dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm, {src_ts.get(), weight_ts.get(), post_src_ts.get()},
@@ -2293,13 +2293,13 @@ TEST(test_convolution_execute, ConvMultiplePostOps) {
     cp.query_logical_tensor(add_dst_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src_lt, eng, src);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor bias_ts(bias_lt, eng, bias);
-    test_tensor mul_other_ts(mul_other_lt, eng, mul_other);
-    test_tensor sum_other_ts(sum_other_lt, eng, sum_other);
-    test_tensor add_other_ts(add_other_lt, eng, add_other);
-    test_tensor add_dst_ts(add_dst_lt, eng, dst);
+    test_tensor_t src_ts(src_lt, eng, src);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t bias_ts(bias_lt, eng, bias);
+    test_tensor_t mul_other_ts(mul_other_lt, eng, mul_other);
+    test_tensor_t sum_other_ts(sum_other_lt, eng, sum_other);
+    test_tensor_t add_other_ts(add_other_lt, eng, add_other);
+    test_tensor_t add_dst_ts(add_dst_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm,
@@ -2416,10 +2416,10 @@ TEST(test_convolution_execute, ConvBiasEltwise) {
         cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        test_tensor src_ts(src_lt, eng, src);
-        test_tensor weight_ts(weight_lt, eng, weight);
-        test_tensor bias_ts(bias_lt, eng, param.bias);
-        test_tensor eltwise_dst_ts(eltwise_dst_lt, eng, dst);
+        test_tensor_t src_ts(src_lt, eng, src);
+        test_tensor_t weight_ts(weight_lt, eng, weight);
+        test_tensor_t bias_ts(bias_lt, eng, param.bias);
+        test_tensor_t eltwise_dst_ts(eltwise_dst_lt, eng, dst);
 
         graph::stream_t *strm = get_stream();
         cp.execute(strm, {src_ts.get(), weight_ts.get(), bias_ts.get()},
@@ -2532,11 +2532,11 @@ TEST(test_convolution_execute, ConvBiasAddEltwise) {
         cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        test_tensor src_ts(src_lt, eng, src);
-        test_tensor weight_ts(weight_lt, eng, weight);
-        test_tensor bias_ts(bias_lt, eng, param.bias);
-        test_tensor post_src_ts(post_lt, eng, post_src);
-        test_tensor eltwise_dst_ts(eltwise_dst_lt, eng, dst);
+        test_tensor_t src_ts(src_lt, eng, src);
+        test_tensor_t weight_ts(weight_lt, eng, weight);
+        test_tensor_t bias_ts(bias_lt, eng, param.bias);
+        test_tensor_t post_src_ts(post_lt, eng, post_src);
+        test_tensor_t eltwise_dst_ts(eltwise_dst_lt, eng, dst);
 
         graph::stream_t *strm = get_stream();
         cp.execute(strm,
@@ -2655,10 +2655,10 @@ TEST(test_convolution_execute, ConvAddEltwise) {
         cp.query_logical_tensor(eltwise_dst_lt.id, &lt);
         ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-        test_tensor src_ts(src_lt, eng, src);
-        test_tensor weight_ts(weight_lt, eng, weight);
-        test_tensor post_src_ts(post_lt, eng, post_src);
-        test_tensor eltwise_dst_ts(eltwise_dst_lt, eng, dst);
+        test_tensor_t src_ts(src_lt, eng, src);
+        test_tensor_t weight_ts(weight_lt, eng, weight);
+        test_tensor_t post_src_ts(post_lt, eng, post_src);
+        test_tensor_t eltwise_dst_ts(eltwise_dst_lt, eng, dst);
 
         graph::stream_t *strm = get_stream();
         cp.execute(strm, {src_ts.get(), weight_ts.get(), post_src_ts.get()},
@@ -2735,13 +2735,13 @@ TEST(test_convolution_execute_subgraph_fp32, ConvDepthwise_CPU) {
     g.add_op(&depthwise);
     g.finalize();
 
-    test_tensor conv_src_ts(conv_src, engine, src_data);
-    test_tensor conv_wei_ts(conv_wei, engine, wei_data);
-    test_tensor dw_wei_ts(dw_wei, engine, dw_wei_data);
+    test_tensor_t conv_src_ts(conv_src, engine, src_data);
+    test_tensor_t conv_wei_ts(conv_wei, engine, wei_data);
+    test_tensor_t dw_wei_ts(dw_wei, engine, dw_wei_data);
 
     // -------------------------case 1----------------------------------
     std::vector<float> case1_out_data(product(dw_dst_shape));
-    test_tensor dw_dst_ts(dw_dst, engine, case1_out_data);
+    test_tensor_t dw_dst_ts(dw_dst, engine, case1_out_data);
 
     ASSERT_EQ(run_graph(g, {conv_src_ts, conv_wei_ts, dw_wei_ts}, {dw_dst_ts},
                       *engine, *strm),
@@ -2766,7 +2766,7 @@ TEST(test_convolution_execute_subgraph_fp32, ConvDepthwise_CPU) {
     ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), graph::status::success);
 
     std::vector<float> case2_out_data(product(dw_dst_shape));
-    test_tensor dw_dst_ts2(dw_dst, engine, case2_out_data);
+    test_tensor_t dw_dst_ts2(dw_dst, engine, case2_out_data);
 
     cp.execute(strm, {conv_src_ts.get(), conv_wei_ts.get(), dw_wei_ts.get()},
             {dw_dst_ts2.get()});
@@ -2904,14 +2904,14 @@ TEST(test_convolution_execute_subgraph_int8, Conv1dConv2dConv3d) {
         g.add_op(&qout_node);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
-        test_tensor bias_f32_ts;
+        test_tensor_t src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
+            bias_f32_ts = test_tensor_t(bias_f32, engine, bias_data);
         }
-        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
-        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
@@ -3081,14 +3081,14 @@ static inline void quantized_conv2d_eltwise(
         g.add_op(&qout_node);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
-        test_tensor bias_f32_ts;
+        test_tensor_t src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
+            bias_f32_ts = test_tensor_t(bias_f32, engine, bias_data);
         }
-        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
-        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
@@ -3324,15 +3324,15 @@ TEST(test_convolution_execute_subgraph_int8, Conv2dSumRelu) {
         }
         dst_s8 = utils::logical_tensor_init(9, dst_shape, graph::data_type::s8);
 
-        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
-        test_tensor other_s8_ts(other_s8, engine, other_s8_data);
-        test_tensor bias_f32_ts;
+        test_tensor_t src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor_t other_s8_ts(other_s8, engine, other_s8_data);
+        test_tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
+            bias_f32_ts = test_tensor_t(bias_f32, engine, bias_data);
         }
-        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
-        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
@@ -3533,12 +3533,12 @@ TEST(test_convolution_execute_subgraph_int8,
     bias_f32 = utils::logical_tensor_init(6, bias_shape, graph::data_type::f32);
     dst_u8 = utils::logical_tensor_init(9, dst_shape, graph::data_type::u8);
 
-    test_tensor src_u8_ts(src_u8, engine, src_u8_data);
-    test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
-    test_tensor other_s8_ts(other_s8, engine, other_s8_data);
-    test_tensor bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
-    test_tensor dst_u8_ts(dst_u8, engine, case1_out_data);
-    test_tensor dst_u8_case2_ts(dst_u8, engine, case2_out_data);
+    test_tensor_t src_u8_ts(src_u8, engine, src_u8_data);
+    test_tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data);
+    test_tensor_t other_s8_ts(other_s8, engine, other_s8_data);
+    test_tensor_t bias_f32_ts = test_tensor_t(bias_f32, engine, bias_data);
+    test_tensor_t dst_u8_ts(dst_u8, engine, case1_out_data);
+    test_tensor_t dst_u8_case2_ts(dst_u8, engine, case2_out_data);
 
     // -------------------------case 1----------------------------------
     ASSERT_EQ(run_graph(agraph,
@@ -3738,15 +3738,15 @@ TEST(test_convolution_execute_subgraph_int8, Conv2dSumReluNxc) {
         }
         dst_s8 = utils::logical_tensor_init(9, dst_shape, graph::data_type::s8);
 
-        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
-        test_tensor other_s8_ts(other_s8, engine, other_s8_data);
-        test_tensor bias_f32_ts;
+        test_tensor_t src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor_t other_s8_ts(other_s8, engine, other_s8_data);
+        test_tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
+            bias_f32_ts = test_tensor_t(bias_f32, engine, bias_data);
         }
-        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
-        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
@@ -3919,16 +3919,16 @@ TEST(test_convolution_execute_subgraph_int8, Conv1d2d3dX8s8f32) {
         g.add_op(&conv_node);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
-        test_tensor bias_f32_ts;
+        test_tensor_t src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
+            bias_f32_ts = test_tensor_t(bias_f32, engine, bias_data);
         }
 
         // -------------------------case 1----------------------------------
         std::vector<float> case1_out_data(product(dst_shape));
-        test_tensor dst_f32_ts(dst_f32, engine, case1_out_data);
+        test_tensor_t dst_f32_ts(dst_f32, engine, case1_out_data);
 
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
                           {dst_f32_ts}, *engine, *strm),
@@ -3956,7 +3956,7 @@ TEST(test_convolution_execute_subgraph_int8, Conv1d2d3dX8s8f32) {
         p.compile(&cp, lt_ins, lt_outs, engine);
 
         std::vector<float> case2_out_data(product(dst_shape));
-        test_tensor dst_f32_case2_ts(dst_f32, engine, case2_out_data);
+        test_tensor_t dst_f32_case2_ts(dst_f32, engine, case2_out_data);
         if (with_bias)
             cp.execute(strm,
                     {src_u8_ts.get(), weight_s8_ts.get(), bias_f32_ts.get()},
@@ -4088,14 +4088,14 @@ TEST(test_convolution_execute_subgraph_int8, Conv2dReluX8s8f32) {
         g.add_op(&relu_node);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
-        test_tensor bias_f32_ts;
+        test_tensor_t src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data);
+        test_tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
+            bias_f32_ts = test_tensor_t(bias_f32, engine, bias_data);
         }
-        test_tensor dst_relu_f32_ts(dst_relu_f32, engine, case1_out_data);
-        test_tensor dst_f32_case2_ts(dst_relu_f32, engine, case2_out_data);
+        test_tensor_t dst_relu_f32_ts(dst_relu_f32, engine, case1_out_data);
+        test_tensor_t dst_f32_case2_ts(dst_relu_f32, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g, {src_u8_ts, weight_s8_ts, bias_f32_ts},
@@ -4502,10 +4502,10 @@ TEST(test_convolution_execute_subgraph_int8, ConvolutionBiasU8s8u8MixBf16) {
         ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
                 graph::status::success);
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-        test_tensor bias_bf16_ts(bias_bf16, engine, bias_data);
-        test_tensor dst_ts(dst_u8, engine);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+        test_tensor_t bias_bf16_ts(bias_bf16, engine, bias_data);
+        test_tensor_t dst_ts(dst_u8, engine);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_s8_ts.get(), bias_bf16_ts.get()},
                 {dst_ts.get()});
@@ -4694,10 +4694,10 @@ TEST(test_convolution_execute_subgraph_int8, ConvolutionBiasaddU8s8u8MixBf16) {
         ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
                 graph::status::success);
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-        test_tensor dst_ts(dst_u8, engine);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t dst_ts(dst_u8, engine);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
                 {dst_ts.get()});
@@ -4869,10 +4869,10 @@ TEST(test_convolution_execute_subgraph_int8, ConvolutionBiasGeluU8s8u8MixBf16) {
         ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
                 graph::status::success);
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-        test_tensor bias_bf16_ts(bias_bf16, engine, bias_data);
-        test_tensor dst_ts(dst_u8, engine);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+        test_tensor_t bias_bf16_ts(bias_bf16, engine, bias_data);
+        test_tensor_t dst_ts(dst_u8, engine);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_s8_ts.get(), bias_bf16_ts.get()},
                 {dst_ts.get()});
@@ -5008,10 +5008,10 @@ TEST(test_convolution_execute_subgraph_int8, ConvolutionReluMulS8Bf16Accuracy) {
 
     ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), graph::status::success);
 
-    test_tensor src_s8_ts(src_s8, engine, src_data);
-    test_tensor weight_s8_ts(weight_s8, engine, weight_data);
-    test_tensor mul_bf16_ts(mul_bf16, engine, mul_data);
-    test_tensor dst_bf16_ts(mul_out_bf16, engine, act_dst_data);
+    test_tensor_t src_s8_ts(src_s8, engine, src_data);
+    test_tensor_t weight_s8_ts(weight_s8, engine, weight_data);
+    test_tensor_t mul_bf16_ts(mul_bf16, engine, mul_data);
+    test_tensor_t dst_bf16_ts(mul_out_bf16, engine, act_dst_data);
     cp.execute(strm, {src_s8_ts.get(), weight_s8_ts.get(), mul_bf16_ts.get()},
             {dst_bf16_ts.get()});
     strm->wait();
@@ -5211,10 +5211,10 @@ TEST(test_convolution_execute_subgraph_int8,
         ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine),
                 graph::status::success);
 
-        test_tensor src_u8_ts(src_u8, engine, src_data);
-        test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-        test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-        test_tensor dst_ts(dst_u8, engine);
+        test_tensor_t src_u8_ts(src_u8, engine, src_data);
+        test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+        test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+        test_tensor_t dst_ts(dst_u8, engine);
         cp.execute(strm,
                 {src_u8_ts.get(), weight_f32_ts.get(), bias_f32_ts.get()},
                 {dst_ts.get()});
@@ -5838,11 +5838,11 @@ TEST(test_convolution_execute_subgraph_int8, ConvolutionAddU8s8u8MixBf16) {
 
     ASSERT_EQ(p.compile(&cp, lt_ins, lt_outs, engine), graph::status::success);
 
-    test_tensor src_u8_ts(src_u8, engine, src_data);
-    test_tensor weight_f32_ts(weight_f32, engine, weight_data);
-    test_tensor bias_f32_ts(bias_f32, engine, bias_data);
-    test_tensor post_add_src1_bf16_ts(bias_bf16, engine, post_add_src1_data);
-    test_tensor dst_ts(bias_out_bf16, engine);
+    test_tensor_t src_u8_ts(src_u8, engine, src_data);
+    test_tensor_t weight_f32_ts(weight_f32, engine, weight_data);
+    test_tensor_t bias_f32_ts(bias_f32, engine, bias_data);
+    test_tensor_t post_add_src1_bf16_ts(bias_bf16, engine, post_add_src1_data);
+    test_tensor_t dst_ts(bias_out_bf16, engine);
     cp.execute(strm,
             {src_u8_ts.get(), weight_f32_ts.get(), post_add_src1_bf16_ts.get()},
             {dst_ts.get()});
@@ -5938,11 +5938,11 @@ TEST(test_convolution_execute, ConvSumSum) {
     cp.query_logical_tensor(add2_lt.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src1_ts(src1_lt, eng, src1);
-    test_tensor src2_ts(src2_lt, eng, src2);
-    test_tensor src3_ts(src3_lt, eng, src3);
-    test_tensor weight_ts(weight_lt, eng, weight);
-    test_tensor add2_ts(add2_lt, eng, dst);
+    test_tensor_t src1_ts(src1_lt, eng, src1);
+    test_tensor_t src2_ts(src2_lt, eng, src2);
+    test_tensor_t src3_ts(src3_lt, eng, src3);
+    test_tensor_t weight_ts(weight_lt, eng, weight);
+    test_tensor_t add2_ts(add2_lt, eng, dst);
 
     graph::stream_t *strm = get_stream();
     cp.execute(strm,
@@ -5996,10 +5996,10 @@ TEST(test_convolution_execute, ConvolutionBf16InFp32Out) {
     std::vector<uint16_t> post_src(8 * 32 * 16 * 16, 1);
     std::vector<float> tc_dst(8 * 32 * 16 * 16, 0.0);
 
-    test_tensor conv_src_ts(conv_src_lt, eng, conv_src);
-    test_tensor conv_weight_ts(conv_weight_lt, eng, conv_weight);
-    test_tensor post_src_ts(post_src_lt, eng, post_src);
-    test_tensor tc_dst_ts(tc_dst_lt, eng, tc_dst);
+    test_tensor_t conv_src_ts(conv_src_lt, eng, conv_src);
+    test_tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight);
+    test_tensor_t post_src_ts(post_src_lt, eng, post_src);
+    test_tensor_t tc_dst_ts(tc_dst_lt, eng, tc_dst);
 
     conv_op.add_input(conv_src_lt);
     conv_op.add_input(conv_weight_lt);
@@ -6041,7 +6041,7 @@ TEST(test_convolution_execute, ConvolutionBf16InFp32Out) {
     p.compile(&cp, inputs, outputs, eng);
 
     std::vector<float> convtc_dst(8 * 32 * 16 * 16, 0.0);
-    test_tensor convtc_dst_ts(tc_dst_lt, eng, convtc_dst);
+    test_tensor_t convtc_dst_ts(tc_dst_lt, eng, convtc_dst);
 
     cp.execute(strm,
             {conv_src_ts.get(), conv_weight_ts.get(), post_src_ts.get()},
@@ -6224,15 +6224,15 @@ TEST(test_convolution_execute_subgraph_int8, QuantWeiConv2dSumRelu) {
             bias_f32.property = graph::property_type::constant;
         }
 
-        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
-        test_tensor weight_f32_ts(weight_f32, engine, weight_f32_data);
-        test_tensor other_s8_ts(other_s8, engine, other_s8_data);
-        test_tensor bias_f32_ts;
+        test_tensor_t src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor_t weight_f32_ts(weight_f32, engine, weight_f32_data);
+        test_tensor_t other_s8_ts(other_s8, engine, other_s8_data);
+        test_tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
+            bias_f32_ts = test_tensor_t(bias_f32, engine, bias_data);
         }
-        test_tensor dst_s8_ts(dst_s8, engine, case1_out_data);
-        test_tensor dst_s8_case2_ts(dst_s8, engine, case2_out_data);
+        test_tensor_t dst_s8_ts(dst_s8, engine, case1_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
@@ -6467,15 +6467,15 @@ TEST(test_convolution_execute_subgraph_int8, QuantWeiConv2dSumS8Relu) {
             bias_f32.property = graph::property_type::constant;
         }
 
-        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
-        test_tensor weight_f32_ts(weight_f32, engine, weight_f32_data);
-        test_tensor other_s8_ts(other_s8, engine, other_s8_data);
-        test_tensor bias_f32_ts;
+        test_tensor_t src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor_t weight_f32_ts(weight_f32, engine, weight_f32_data);
+        test_tensor_t other_s8_ts(other_s8, engine, other_s8_data);
+        test_tensor_t bias_f32_ts;
         if (with_bias) {
-            bias_f32_ts = test_tensor(bias_f32, engine, bias_data);
+            bias_f32_ts = test_tensor_t(bias_f32, engine, bias_data);
         }
-        test_tensor dst_u8_ts(dst_u8, engine, case1_out_data);
-        test_tensor dst_u8_case2_ts(dst_u8, engine, case2_out_data);
+        test_tensor_t dst_u8_ts(dst_u8, engine, case1_out_data);
+        test_tensor_t dst_u8_case2_ts(dst_u8, engine, case2_out_data);
 
         // -------------------------case 1----------------------------------
         ASSERT_EQ(run_graph(g,
@@ -6578,9 +6578,9 @@ TEST(test_convolution_execute, ConvReluUnfused) {
     std::vector<float> conv_weight(32 * 32 * 1 * 1, 1);
     std::vector<float> relu_dst(8 * 32 * 16 * 16, 1);
 
-    test_tensor conv_src_ts(conv_src_lt, eng, conv_src);
-    test_tensor conv_weight_ts(conv_weight_lt, eng, conv_weight);
-    test_tensor relu_dst_ts(relu_dst_lt, eng, relu_dst);
+    test_tensor_t conv_src_ts(conv_src_lt, eng, conv_src);
+    test_tensor_t conv_weight_ts(conv_weight_lt, eng, conv_weight);
+    test_tensor_t relu_dst_ts(relu_dst_lt, eng, relu_dst);
 
     // run unfused graph to compute the reference
     ASSERT_EQ(run_graph(g, {conv_src_ts, conv_weight_ts}, {relu_dst_ts}, *eng,
@@ -6742,10 +6742,10 @@ TEST(test_convolution_execute_subgraph_int8, ConvDepthwise) {
         g.add_op(&qout_node);
         g.finalize();
 
-        test_tensor src_u8_ts(src_u8, eng, src_u8_data);
-        test_tensor weight_f32_ts(weight_f32, eng, weight_f32_data);
-        test_tensor dst_s8_ts(dst_s8, eng, case1_out_data);
-        test_tensor dst_s8_case2_ts(dst_s8, eng, case2_out_data);
+        test_tensor_t src_u8_ts(src_u8, eng, src_u8_data);
+        test_tensor_t weight_f32_ts(weight_f32, eng, weight_f32_data);
+        test_tensor_t dst_s8_ts(dst_s8, eng, case1_out_data);
+        test_tensor_t dst_s8_case2_ts(dst_s8, eng, case2_out_data);
 
         // -------------------------case 2----------------------------------
         graph::pass::pass_base_ptr apass
@@ -6840,7 +6840,7 @@ TEST(test_convolution_execute_subgraph_int8, ShareCachedWeights) {
     std::vector<int8_t> weight_s8_data(product(weight_shape));
     std::generate(weight_s8_data.begin(), weight_s8_data.end(),
             [&]() { return static_cast<int8_t>(s8_distribution(generator)); });
-    test_tensor weight_s8_ts(weight_s8, engine, weight_s8_data);
+    test_tensor_t weight_s8_ts(weight_s8, engine, weight_s8_data);
 
     std::vector<std::vector<int64_t>> src_shapes {
             {1, 8, 12, 12}, {3, 8, 12, 12}};
@@ -6869,13 +6869,13 @@ TEST(test_convolution_execute_subgraph_int8, ShareCachedWeights) {
         std::generate(src_u8_data.begin(), src_u8_data.end(), [&]() {
             return static_cast<uint8_t>(u8_distribution(generator));
         });
-        test_tensor src_u8_ts(src_u8, engine, src_u8_data);
-        test_tensor dst_ts(dst_f32, engine);
+        test_tensor_t src_u8_ts(src_u8, engine, src_u8_data);
+        test_tensor_t dst_ts(dst_f32, engine);
 
         cp.execute(strm, {src_u8_ts.get(), weight_s8_ts.get()}, {dst_ts.get()});
         strm->wait();
 
-        test_tensor ref_dst_ts(dst_f32, engine);
+        test_tensor_t ref_dst_ts(dst_f32, engine);
 
         ASSERT_EQ(run_graph(agraph, {src_u8_ts, weight_s8_ts}, {ref_dst_ts},
                           *engine, *strm),

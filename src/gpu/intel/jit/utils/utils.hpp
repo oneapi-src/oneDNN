@@ -400,10 +400,21 @@ inline std::string to_string(bool b) {
     return b ? "True" : "False";
 }
 
+inline std::string to_yes_no(bool b) {
+    return b ? "Yes" : "No";
+}
+
 inline std::string to_lower(const std::string &s) {
     auto ret = s;
     std::transform(ret.begin(), ret.end(), ret.begin(),
             [](char c) { return std::tolower(c); });
+    return ret;
+}
+
+inline std::string to_upper(const std::string &s) {
+    auto ret = s;
+    std::transform(ret.begin(), ret.end(), ret.begin(),
+            [](char c) { return std::toupper(c); });
     return ret;
 }
 
@@ -920,12 +931,18 @@ template <typename T>
 class parse_iface_t {
 public:
     using base_type = T;
+    using str_default_func_type = std::string (*)(const T &);
+
+    template <typename U>
+    static std::string str_default_func(const T &) {
+        return jit::stringify(U());
+    }
 
     struct entry_t {
         std::string name;
         std::string help;
-        std::string _default;
         bool required = false;
+        std::function<std::string(const T &)> _default;
         std::function<void(std::ostream &, const T &)> stringify;
         std::function<void(std::istream &, T &)> parse;
 
@@ -943,11 +960,12 @@ public:
 
     template <typename U, U T::*ptr>
     void add(const std::string &name = {}, const std::string &help = {},
-            bool required = false) {
+            bool required = false,
+            const str_default_func_type &_default = str_default_func<U>) {
         entry_t e;
         e.name = name;
         e.help = help;
-        e._default = jit::stringify(U());
+        e._default = _default;
         e.required = required;
         e.stringify = [](std::ostream &out, const T &parent) {
             jit::stringify(out, parent.*ptr);
@@ -986,7 +1004,7 @@ public:
         for (auto &e : entries_) {
             std::ostringstream e_oss;
             e.stringify(e_oss, parent);
-            if (!e.required && e_oss.str() == e._default) continue;
+            if (!e.required && e_oss.str() == e._default(parent)) continue;
             if (!is_first) out << " ";
             if (!e.name.empty()) {
                 if (cli) {

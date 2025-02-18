@@ -19,21 +19,23 @@ find_package(Threads REQUIRED)
 
 # Prioritize ROCBLASROOT
 list(APPEND rocblas_root_hints
+            $ENV{ROCM_PATH}
             ${ROCBLASROOT}
             $ENV{ROCBLASROOT}
             "/opt/rocm"
-            "/opt/rocm/rocblas")
+            "/opt/rocm/rocblas"
+            "/opt/rocm/lib")
 
 find_path(
     rocBLAS_INCLUDE_DIR "rocblas.h"
     HINTS ${rocblas_root_hints}
-    PATH_SUFFIXES include
+    PATH_SUFFIXES include include/rocblas
 )
 
 find_library(
     rocBLAS_LIBRARY rocblas
     HINTS ${rocblas_root_hints}
-    PATH_SUFFIXES lib
+    PATH_SUFFIXES lib lib/rocblas
 )
 
 if(EXISTS "${rocBLAS_INCLUDE_DIR}/internal/rocblas-version.h")

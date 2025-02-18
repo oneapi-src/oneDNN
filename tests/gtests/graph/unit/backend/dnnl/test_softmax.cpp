@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,8 +67,8 @@ TEST(test_softmax_execute, Softmax) {
     cp.query_logical_tensor(dst.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor dst_ts(lt, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t dst_ts(lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get()}, {dst_ts.get()}),
@@ -121,8 +121,8 @@ TEST(test_softmax_execute, SoftmaxWithLastDim) {
     cp.query_logical_tensor(dst.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor dst_ts(lt, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t dst_ts(lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get()}, {dst_ts.get()}),
@@ -185,9 +185,9 @@ static inline void test_softmax_bwd_common(const graph::op_kind_t op_kind,
     for (auto i = 0; i < dst_lt.ndims; i++)
         ASSERT_EQ(q_lt.dims[i], dst_lt.dims[i]);
 
-    test_tensor dst_ts(dst_lt, eng, dst);
-    test_tensor diff_dst_ts(d_lt, eng, diff_dst);
-    test_tensor diff_src_ts(q_lt, eng, diff_src);
+    test_tensor_t dst_ts(dst_lt, eng, dst);
+    test_tensor_t diff_dst_ts(d_lt, eng, diff_dst);
+    test_tensor_t diff_src_ts(q_lt, eng, diff_src);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {diff_dst_ts.get(), dst_ts.get()},
@@ -265,8 +265,8 @@ TEST(test_softmax_execute, LogSoftmax) {
     cp.query_logical_tensor(dst.id, &lt);
     ASSERT_EQ(lt.layout_type, graph::layout_type::strided);
 
-    test_tensor src_ts(src, eng, src_data);
-    test_tensor dst_ts(lt, eng, dst_data);
+    test_tensor_t src_ts(src, eng, src_data);
+    test_tensor_t dst_ts(lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src_ts.get()}, {dst_ts.get()}),
@@ -419,9 +419,9 @@ TEST(test_softmax_execute_subgraph_int8, SoftmaxTypecastQuant) {
 
     std::vector<uint8_t> dst_data(product(softmax_shape));
     std::vector<uint8_t> ref_data(product(softmax_shape));
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor dst_ts(quant_dst, engine, dst_data);
-    test_tensor ref_ts(quant_dst, engine, ref_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t dst_ts(quant_dst, engine, dst_data);
+    test_tensor_t ref_ts(quant_dst, engine, ref_data);
 
     ASSERT_EQ(run_graph(g, {src_ts}, {ref_ts}, *engine, *strm),
             graph::status::success);
@@ -492,10 +492,10 @@ TEST(test_softmax_compile, SoftmaxAdd) {
 
     std::vector<float> dst_data(product(softmax_shape));
     std::vector<float> ref_data(product(softmax_shape));
-    test_tensor src_ts(src, engine, src_data);
-    test_tensor src1_ts(add_src1, engine, src1_data);
-    test_tensor dst_ts(add_dst, engine, dst_data);
-    test_tensor ref_ts(add_dst, engine, ref_data);
+    test_tensor_t src_ts(src, engine, src_data);
+    test_tensor_t src1_ts(add_src1, engine, src1_data);
+    test_tensor_t dst_ts(add_dst, engine, dst_data);
+    test_tensor_t ref_ts(add_dst, engine, ref_data);
 
     ASSERT_EQ(run_graph(g, {src_ts, src1_ts}, {ref_ts}, *engine, *strm),
             graph::status::success);

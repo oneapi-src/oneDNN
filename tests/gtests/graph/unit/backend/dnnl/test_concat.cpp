@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,9 +89,9 @@ public:
         g.add_op(&concat_op);
         g.finalize();
 
-        test_tensor src0_ts(src0_lt, eng, src0_data);
-        test_tensor src1_ts(src1_lt, eng, src1_data);
-        test_tensor case1_dst_ts(dst_lt, eng, case1_out_data);
+        test_tensor_t src0_ts(src0_lt, eng, src0_data);
+        test_tensor_t src1_ts(src1_lt, eng, src1_data);
+        test_tensor_t case1_dst_ts(dst_lt, eng, case1_out_data);
 
         ASSERT_EQ(run_graph(g, {src0_ts, src1_ts}, {case1_dst_ts}, *eng, *strm),
                 graph::status::success);
@@ -112,7 +112,7 @@ public:
 
         p.compile(&cp, inputs, outputs, eng);
 
-        test_tensor case2_dst_ts(dst_lt, eng, case2_out_data);
+        test_tensor_t case2_dst_ts(dst_lt, eng, case2_out_data);
         cp.execute(strm, {src0_ts.get(), src1_ts.get()}, {case2_dst_ts.get()});
         strm->wait();
 
@@ -321,11 +321,11 @@ TEST(test_concat_execute_subgraph_int8, Concat) {
     g.add_op(&q_op);
     g.finalize();
 
-    test_tensor src0_s8_ts(src0_s8, engine, src0_s8_data);
-    test_tensor src1_s8_ts(src1_s8, engine, src1_s8_data);
-    test_tensor src2_s8_ts(src2_s8, engine, src2_s8_data);
-    test_tensor case1_dst_s8_ts(dst_s8_q, engine, case1_dst_s8_data);
-    test_tensor case2_dst_s8_ts(dst_s8_q, engine, case2_dst_s8_data);
+    test_tensor_t src0_s8_ts(src0_s8, engine, src0_s8_data);
+    test_tensor_t src1_s8_ts(src1_s8, engine, src1_s8_data);
+    test_tensor_t src2_s8_ts(src2_s8, engine, src2_s8_data);
+    test_tensor_t case1_dst_s8_ts(dst_s8_q, engine, case1_dst_s8_data);
+    test_tensor_t case2_dst_s8_ts(dst_s8_q, engine, case2_dst_s8_data);
 
     // -------------------------case 1----------------------------------
     ASSERT_EQ(run_graph(g, {src0_s8_ts, src1_s8_ts, src2_s8_ts},
@@ -413,10 +413,10 @@ TEST(test_concat_execute, ConcatEmptyInput) {
     std::vector<float> src2_data(24);
     std::vector<float> dst_data(48);
 
-    test_tensor src0_ts(src0, eng, src0_data);
-    test_tensor src1_ts(src1_lt, eng);
-    test_tensor src2_ts(src2, eng, src2_data);
-    test_tensor dst_ts(lt, eng, dst_data);
+    test_tensor_t src0_ts(src0, eng, src0_data);
+    test_tensor_t src1_ts(src1_lt, eng);
+    test_tensor_t src2_ts(src2, eng, src2_data);
+    test_tensor_t dst_ts(lt, eng, dst_data);
 
     graph::stream_t *strm = get_stream();
     ASSERT_EQ(cp.execute(strm, {src0_ts.get(), src1_ts.get(), src2_ts.get()},

@@ -134,6 +134,14 @@ tensor_kind_t to_abc(prop_kind_t prop, tensor_kind_t tensor) {
     return kinds[0];
 }
 
+tensor_kind_t from_abc(prop_kind_t prop, tensor_kind_t abc) {
+    for (auto t :
+            {tensor_kind_t::src, tensor_kind_t::wei, tensor_kind_t::dst}) {
+        if (to_abc(prop, t) == abc) return t;
+    }
+    return tensor_kind_t::undef;
+}
+
 const std::vector<pvar_t> &conv_stride_dims() {
     static std::vector<pvar_t> _stride_dims = [&]() {
         std::vector<pvar_t> ret;

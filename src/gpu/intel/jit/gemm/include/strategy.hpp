@@ -212,7 +212,8 @@ struct GEMMStrategyPOD : public CommonStrategy {
     bool kDescRem = false;                       // Allow descriptor-based k remainder handling for A/B.
     bool slmA = false, slmB = false;             // Whether to copy A/B to SLM.
     bool splitCopy = false;                      // Separate SLM copy and compute threads?
-                                    ZPAD(C, 2)
+    bool tlbWarmup = false;                      // Enable TLB warmup?
+                                    ZPAD(C, 1)
     int slmBuffers = 0;                          // # of A/B SLM buffers, 0 for none.
     int unrollKSLM = 0;                          // k unroll for SLM copies (0 = auto = unroll[LoopK]/slmCopies)
     int unrollKSLMMasked = 0;                    //   Alternate value to use with masking (0 = same as unrollKSLM)

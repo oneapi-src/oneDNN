@@ -1945,6 +1945,17 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         VDISPATCH_CONV_IC(!allow_perf_heuristics(jcp),
                 VERBOSE_IMPL_HEURISTIC_FAIL,
                 "no optimization for 1x1 convolution");
+
+    dim_t src_size
+            = (dim_t)jcp.mb * jcp.id * jcp.ih * jcp.iw * jcp.ic * jcp.src_dsz;
+    VDISPATCH_CONV_IC(src_size <= INT_MAX, VERBOSE_UNSUPPORTED_FEATURE,
+            "src size > INT_MAX is not supported");
+
+    dim_t dst_size
+            = (dim_t)jcp.mb * jcp.od * jcp.oh * jcp.ow * jcp.oc * jcp.dst_dsz;
+    VDISPATCH_CONV_IC(dst_size <= INT_MAX, VERBOSE_UNSUPPORTED_FEATURE,
+            "dst size > INT_MAX is not supported");
+
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
@@ -2287,7 +2298,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     if (!jcp.wei_plain)
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
 
-    jcp.buffer_size = jcp.LDC * jcp.M;
+    jcp.buffer_size = static_cast<dim_t>(jcp.LDC) * jcp.M;
 
     jcp.nb_od = div_up(jcp.od, jcp.od_block);
     jcp.nb_oh = div_up(jcp.oh, jcp.oh_block);
@@ -3386,8 +3397,9 @@ status_t init_scratchpad_bwd_w(memory_tracking::registrar_t &scratchpad,
     if (IMPLICATION(jcp.nthr_mb == 1,
                 (jcp.with_bias && jcp.bia_dt != data_type::f32)
                         || jcp.wei_dt != data_type::f32)) {
-        const size_t wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block
-                * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
+        const size_t wei_size = static_cast<size_t>(jcp.ngroups) * jcp.nb_oc
+                * jcp.oc_block * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw
+                * jcp.kd;
         const size_t bia_size
                 = jcp.with_bias * jcp.ngroups * jcp.nb_oc * jcp.oc_block;
 

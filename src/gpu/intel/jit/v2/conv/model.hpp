@@ -36,14 +36,12 @@ enum class model_kind_t : uint8_t {
     undef = 0,
     data_parallel = 1,
     stream_k = 2,
-    data_copy = 3,
 };
 
 static auto model_kind_names = nstl::to_array({
         make_enum_name(model_kind_t::undef, "undef"),
         make_enum_name(model_kind_t::data_parallel, "data_parallel"),
         make_enum_name(model_kind_t::stream_k, "stream_k"),
-        make_enum_name(model_kind_t::data_copy, "data_copy"),
 });
 GPU_DEFINE_PARSE_ENUM(model_kind_t, model_kind_names)
 
@@ -64,6 +62,9 @@ public:
     static float predict(model_kind_t kind, const vec1d &x, const vec1d &coef);
     static size_t coef_count(model_kind_t kind);
 
+    std::string str() const;
+    IR_DEFINE_DUMP()
+
 private:
     model_kind_t kind_;
     vec1d coef_;
@@ -73,10 +74,13 @@ class model_set_t {
 public:
     model_set_t() = default;
     model_set_t(const model_t &model) { models_.push_back(model); }
+    bool is_empty() const { return models_.empty(); }
     void add(const model_t &model) { models_.push_back(model); }
     float time(const problem_t &prb, const kernel_desc_t &desc) const;
     void stringify(std::ostream &out) const;
     void parse(std::istream &in);
+    std::string str() const;
+    IR_DEFINE_DUMP()
 
 private:
     float time(model_kind_t kind, const problem_t &prb,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -196,7 +196,7 @@ inline void gemm_linear_order_args(compute::kernel_arg_list_t &arg_list,
         arg_list.set(argn++, group_count);
     }
 
-    gws[0] = lws[0] * group_count;
+    gws[0] = lws[0] * (group_count + info.extraWGs());
     gws[1] = lws[1];
 }
 

@@ -106,6 +106,7 @@ layout_tag_t make_conv_layout_tag(
 
 layout_tag_t append_groups(
         tensor_kind_t tensor_kind, const layout_tag_t &layout_tag, bool is_dw) {
+    if (layout_tag.is_any()) return layout_tag;
     bool is_src = (tensor_kind == tensor_kind_t::src);
     bool is_dst = (tensor_kind == tensor_kind_t::dst);
     bool is_bias = (tensor_kind == tensor_kind_t::bias);
@@ -156,12 +157,11 @@ layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
     layout_t ret(tag.desc(), tag.type());
     pvar_map_t<int> blocks;
     auto rem_size = [&](const pvar_t &dim, const pvar_map_t<int> &blocks) {
-        auto dim_size = dim.var();
         uint32_t dim_mask = (mask & (1 << tag.desc().dim_index(dim)));
-        bool is_dim_1 = reqs.is_equal(dim, 1) || (dim_mask == 0);
-        if (is_dim_1) return expr_t(1);
+        if (dim_mask == 0) return expr_t(1);
+        auto dim_size = reqs.to_expr(dim);
         if (!blocks.has(dim)) return dim_size;
-        return binary_op_t::make(op_kind_t::_div_up, dim_size, blocks[dim]);
+        return div_up(dim_size, blocks[dim]);
     };
     auto &entries = tag.raw_tag().entries();
     for (auto it = entries.rbegin(); it != entries.rend(); it++) {

@@ -77,6 +77,7 @@ T &&pick_c(prop_kind_t prop, T &&src, T &&wei, T &&dst) {
 }
 
 tensor_kind_t to_abc(prop_kind_t prop, tensor_kind_t tensor);
+tensor_kind_t from_abc(prop_kind_t prop, tensor_kind_t abc);
 const std::vector<pvar_t> &conv_stride_dims();
 const std::vector<pvar_t> &conv_dilation_dims();
 const std::vector<pvar_t> &conv_padding_dims();

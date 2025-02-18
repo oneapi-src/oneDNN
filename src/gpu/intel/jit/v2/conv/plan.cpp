@@ -196,6 +196,35 @@ public:
     }
 
 private:
+    struct fused_dim_t {
+        char mnk = '\0';
+        std::vector<pvar_t> dims;
+        std::vector<dim_t> sizes;
+
+        fused_dim_t(char mnk) : mnk(mnk) {}
+        int ndims() const { return (int)dims.size(); }
+        dim_t size() const { return utils::array_product(sizes); }
+        void add(const pvar_t &dim, dim_t size) {
+            gpu_assert(size > 1);
+            dims.push_back(dim);
+            sizes.push_back(size);
+        }
+
+        std::pair<pvar_t, dim_t> pop(dim_t &block) {
+            gpu_assert(!dims.empty());
+            dim_t b = math::gcd(sizes.back(), block);
+            gpu_assert(b > 1);
+            auto ret = std::make_pair(dims.back(), b);
+            sizes.back() /= b;
+            block /= b;
+            if (sizes.back() == 1) {
+                dims.pop_back();
+                sizes.pop_back();
+            }
+            return ret;
+        }
+    };
+
     bool fma_type_supported(const type_t &type) const {
         switch (fma_) {
             case fma_kind_t::mad:
@@ -261,60 +290,57 @@ private:
 
     bool init_dpas(const layout_desc_t &a_desc, const layout_desc_t &b_desc,
             const layout_desc_t &c_desc) {
-        pvar_t m_dim;
-        pvar_t n_dim;
-        pvar_t k_dim;
+        fused_dim_t m_dim('m');
+        fused_dim_t n_dim('n');
+        fused_dim_t k_dim('k');
         for (auto &d : iter_tile_) {
             switch (to_bmnk(d)) {
-                case 'm':
-                    gpu_assert(m_dim.is_undef());
-                    m_dim = d;
-                    break;
-                case 'n':
-                    gpu_assert(n_dim.is_undef());
-                    n_dim = d;
-                    break;
-                case 'k':
-                    gpu_assert(k_dim.is_undef());
-                    k_dim = d;
-                    break;
+                case 'm': m_dim.add(d, iter_tile_[d]); break;
+                case 'n': n_dim.add(d, iter_tile_[d]); break;
+                case 'k': k_dim.add(d, iter_tile_[d]); break;
                 default: gpu_error_not_expected();
             }
         }
-        gpu_check(!m_dim.is_undef() && !n_dim.is_undef() && !k_dim.is_undef())
+        gpu_check(m_dim.ndims() == 1 && n_dim.ndims() == 1
+                && utils::one_of(k_dim.ndims(), 1, 2))
                 << "init_dpas: cannot initialize MNK dimensions.";
-        dim_t m_size = iter_tile_.at(m_dim);
-        dim_t n_size = iter_tile_.at(n_dim);
-        dim_t k_size = iter_tile_.at(k_dim);
-        uint8_t sdepth = 8;
-        uint8_t rcount = 8;
+        if (k_dim.ndims() == 2) {
+            std::swap(k_dim.dims[0], k_dim.dims[1]);
+            std::swap(k_dim.sizes[0], k_dim.sizes[1]);
+        }
+        const uint8_t sdepth = 8;
+        const uint8_t rcount = 8;
         int type_size = a_type_.size();
-        gpu_check(m_size % rcount == 0)
-                << "init_dpas: M dimension size is invalid: " << m_size;
-        gpu_check(n_size % simd_ == 0)
-                << "init_dpas: N dimension size is invalid: " << n_size;
-        gpu_check((k_size * type_size) % (sdepth * 4) == 0)
-                << "init_dpas: K dimension size is invalid: " << k_size;
+        int dword_size = 4;
+        gpu_check(m_dim.size() % rcount == 0)
+                << "init_dpas: M dimension size is invalid: " << m_dim.size();
+        gpu_check(n_dim.size() % simd_ == 0)
+                << "init_dpas: N dimension size is invalid: " << n_dim.size();
+        gpu_check((k_dim.size() * type_size) % (sdepth * dword_size) == 0)
+                << "init_dpas: K dimension size is invalid: " << k_dim.size();
 
         auto _dpas = dpas_t::make(
                 /*is_dpasw=*/false, simd_, sdepth, rcount, acc_type_, b_type_,
                 a_type_);
         auto &dpas = _dpas.as<dpas_t>();
-        a_inner_ = to_v2_layout(
-                dpas.b_layout(), a_desc, std::vector<pvar_t> {k_dim, m_dim});
-        b_inner_ = to_v2_layout(
-                dpas.a_layout(), b_desc, std::vector<pvar_t> {n_dim, k_dim});
-        c_inner_ = to_v2_layout(
-                dpas.c_layout(), c_desc, std::vector<pvar_t> {n_dim, m_dim});
+        a_inner_ = to_v2_layout(dpas.b_layout(), a_desc,
+                std::vector<fused_dim_t> {k_dim, m_dim});
+        b_inner_ = to_v2_layout(dpas.a_layout(), b_desc,
+                std::vector<fused_dim_t> {n_dim, k_dim});
+        c_inner_ = to_v2_layout(dpas.c_layout(), c_desc,
+                std::vector<fused_dim_t> {n_dim, m_dim});
         return true;
     }
 
     static layout_t to_v2_layout(const jit::layout_t &layout,
-            const layout_desc_t &desc, const std::vector<pvar_t> &dims) {
+            const layout_desc_t &desc, std::vector<fused_dim_t> dims) {
         layout_t ret(desc, layout.type());
         for (auto &b : layout.blocks()) {
-            auto dim = dims[b.dim_idx];
-            ret.add_block(dim, b.block);
+            dim_t block = b.block;
+            while (block > 1) {
+                auto dim_block = dims[b.dim_idx].pop(block);
+                ret.add_block(dim_block.first, dim_block.second);
+            }
         }
         return ret;
     }
@@ -337,8 +363,7 @@ public:
     plan_builder_t() = default;
     plan_builder_t(const kernel_desc_t &desc, const hw_t &hw)
         : desc_(desc), hw_(hw) {
-        reqs_ = desc_.reqs;
-        desc_.reqs = prb_reqs_t();
+        reqs_ = desc_.reqs();
     }
 
     const prb_reqs_t &reqs() const { return reqs_; }
@@ -346,7 +371,7 @@ public:
     plan_t build() {
         init_dim_mapper_manager();
         init_tiles();
-        init_layouts();
+        if (!init_layouts()) return plan_t();
         if (!init_info()) return plan_t();
         return init_plan();
     }
@@ -365,12 +390,15 @@ private:
         return plan;
     }
 
-    void add_align_req(const pvar_t &dim, const type_t &type,
-            const align_desc_t::align_t &align) {
-        int align_bytes
-                = (align.in_bytes ? align.value : align.value * type.size());
-        reqs_.add(
-                dim.var() % ir_utils::safe_div(align_bytes, type.size()) == 0);
+    static bool check_compatible_layout(
+            const layout_t &layout, const pvar_tile_t &tile) {
+        for (auto &d : tile) {
+            int inner = layout.inner_block(d, /*with_outer=*/false);
+            gpu_check(tile[d] % inner == 0)
+                    << "Incompatible layout and tiling. Layout: "
+                    << layout.str() << ", tile: " << tile.str();
+        }
+        return true;
     }
 
     void init_dim_mapper_manager() {
@@ -391,13 +419,16 @@ private:
         }
     }
 
-    void init_layouts() {
+    bool init_layouts() {
         auto src_layout = make_conv_layout(
                 tensor_kind_t::src, desc_.src_tag, desc_.is_dw, reqs_);
         auto wei_layout = make_conv_layout(
                 tensor_kind_t::wei, desc_.wei_tag, desc_.is_dw, reqs_);
         auto dst_layout = make_conv_layout(
                 tensor_kind_t::dst, desc_.dst_tag, desc_.is_dw, reqs_);
+        gpu_check(check_compatible_layout(src_layout, desc_.iter_tile));
+        gpu_check(check_compatible_layout(wei_layout, desc_.iter_tile));
+        gpu_check(check_compatible_layout(dst_layout, desc_.iter_tile));
         a_layout_ = pick_a(desc_.prop, src_layout, wei_layout, dst_layout);
         b_layout_ = pick_b(desc_.prop, src_layout, wei_layout, dst_layout);
         c_layout_ = pick_c(desc_.prop, src_layout, wei_layout, dst_layout);
@@ -407,10 +438,7 @@ private:
             bias_layout_ = make_conv_layout(
                     tensor_kind_t::bias, bias_tag, desc_.is_dw, reqs_);
         }
-        auto &align = desc_.align;
-        add_align_req(src_layout.blocks()[0].dim, src_layout.type(), align.src);
-        add_align_req(wei_layout.blocks()[0].dim, wei_layout.type(), align.wei);
-        add_align_req(dst_layout.blocks()[0].dim, dst_layout.type(), align.dst);
+        return true;
     }
 
     pvar_map_t<char> to_bmnk_map() const {
@@ -801,12 +829,16 @@ private:
     bool check_plan(const plan_t &plan) const {
         int grf_bound = hw_.grf_size() * desc_.regs;
         int grf_bytes = plan.grf_usage_bytes();
-        gpu_check(grf_bytes <= grf_bound) << "check_plan: out of registers";
+        gpu_check(grf_bytes <= grf_bound)
+                << "Plan:\n"
+                << plan.str() << "\ncheck_plan: out of registers";
         int slm_bound = compute::device_info_t::max_slm_size_per_tg(
                 convert_ngen_arch_to_dnnl(hw_.to_ngen()),
                 into<int>(desc_.thread_group_tile.elems()), desc_.regs > 128);
         int slm_bytes = plan.slm_usage_bytes();
-        gpu_check(slm_bytes <= slm_bound) << "check_plan: out of SLM";
+        gpu_check(slm_bytes <= slm_bound)
+                << "Plan:\n"
+                << plan.str() << "\ncheck_plan: out of SLM";
         return true;
     }
 
@@ -853,53 +885,32 @@ private:
     prb_reqs_t reqs_;
 };
 
-template <typename KernelDescT>
-plan_t create_conv_plan_impl(KernelDescT &desc, const hw_t &hw, bool finalize) {
-    if (!desc.is_supported(hw)) return plan_t();
-    gpu_assert(!desc.has_spec_strategy())
-            << "Kernel descriptor strategies are required to be specialized "
-               "before plan creation";
-    if (!finalize) {
-        gpu_assert(desc.is_finalized)
-                << "Kernel descriptor must be finalized before plan creation";
-    }
+plan_t create_conv_plan_impl(const kernel_desc_t &desc, const hw_t &hw,
+        const problem_t *prb = nullptr) {
+    if (!desc.is_supported(hw, prb)) return plan_t();
     plan_builder_t builder(desc, hw);
     auto plan = builder.build();
     if (plan) {
-        if (finalize) {
-            const_cast<kernel_desc_t &>(desc).finalize(builder.reqs());
-        } else {
-            gpu_assert(desc.reqs.implies(builder.reqs()));
-        }
+#ifdef DNNL_DEV_MODE
+        auto &plan_reqs = builder.reqs();
+        auto desc_reqs = desc.reqs();
+        desc_reqs.simplify();
+        gpu_assert(plan_reqs.str() == desc_reqs.str())
+                << "Mismatch between plan and descriptor dimension "
+                   "requirements:\n== Plan:\n"
+                << plan_reqs.str() << "\n== Descriptor:\n"
+                << desc_reqs.str();
+#endif
     }
     return plan;
 }
 
 plan_t create_conv_plan(const kernel_desc_t &desc, const hw_t &hw) {
-    return create_conv_plan_impl(desc, hw, /*finalize=*/false);
+    return create_conv_plan_impl(desc, hw);
 }
 
-bool finalize_conv_desc_impl(kernel_desc_t &desc, const hw_t &hw,
-        const problem_t *prb, plan_t *out_plan) {
-    if (desc.is_empty()) return false;
-    if (desc.hw_desc.hw != hw.to_ngen()) return false;
-    if (!desc.is_supported(hw)) return false;
-    if (desc.is_finalized) return true;
-    auto plan = create_conv_plan_impl(desc, hw, /*finalize=*/true);
-    if (plan) {
-        if (out_plan) *out_plan = plan;
-        if (prb && !desc.matches(*prb)) return false;
-    }
-    return (bool)plan;
-}
-
-bool finalize_conv_desc(
-        kernel_desc_t &desc, const problem_t &prb, plan_t *plan) {
-    return finalize_conv_desc_impl(desc, prb.hw(), &prb, plan);
-}
-
-bool finalize_conv_desc(kernel_desc_t &desc, const hw_t &hw, plan_t *plan) {
-    return finalize_conv_desc_impl(desc, hw, nullptr, plan);
+plan_t create_conv_plan(const kernel_desc_t &desc, const problem_t &prb) {
+    return create_conv_plan_impl(desc, prb.hw(), &prb);
 }
 
 } // namespace conv
