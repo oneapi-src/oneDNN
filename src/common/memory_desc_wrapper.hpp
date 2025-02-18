@@ -223,9 +223,10 @@ struct memory_desc_wrapper : public c_compatible {
         return buff_size;
     }
 
-    /** returns the size required to store described memory
-     * note: if offset0 != 0 returns 0 (need to specify the behavior) */
-    size_t size(int index = 0, bool include_additional_size = true) const {
+    /** returns the size required to store described memory note: does not
+        include offset0 by default */
+    size_t size(int index = 0, bool include_additional_size = true,
+            bool include_offset0 = false) const {
         if (utils::one_of(format_kind(), format_kind::undef, format_kind::any)
                 || is_zero() || has_zero_dim())
             return 0;
@@ -246,8 +247,6 @@ struct memory_desc_wrapper : public c_compatible {
         } else if (is_cublaslt_blocked_desc()) {
             return cublaslt_blocked_desc().size;
         } else if (is_blocking_desc()) {
-            if (offset0() != 0) return 0;
-
             dims_t blocks = {0};
             compute_blocks(blocks);
 
@@ -277,7 +276,8 @@ struct memory_desc_wrapper : public c_compatible {
                 data_size = utils::rnd_up(data_size, alignment_in_bytes);
             }
             return data_size
-                    + (include_additional_size ? additional_buffer_size() : 0);
+                    + (include_additional_size ? additional_buffer_size() : 0)
+                    + (include_offset0 ? data_type_size() * offset0() : 0);
         } else if (is_sparse_desc()) {
             if (sparse_desc().encoding == sparse_encoding::csr) {
                 switch (index) {
