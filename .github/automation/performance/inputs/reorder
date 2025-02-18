@@ -16,6 +16,14 @@
 # *******************************************************************************
 
 --reset
---dir=FWD_D
---dt=bf16,f32
-mb1_ic64oc256_ih200oh200kh1sh1dh0ph0_iw267ow267kw1sw1dw0pw0
+--sdt=f32,bf16
+--ddt=f32,bf16
+--attr-scales=src:per_dim_1
+--stag=axb
+--dtag=axb
+1500x384
+
+--reset
+--sdt=f32
+--ddt=bf16
+1500x384
