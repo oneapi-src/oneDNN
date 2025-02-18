@@ -59,7 +59,7 @@ jobs:
     name: Format tags consistency
     runs-on: ubuntu-latest
     needs: pr-formatting
-    if: ${{ [ "$CHANGES" = true ] }}
+    if: ${{ "$CHANGES" = true }}
 
     steps:
       - name: Checkout oneDNN
