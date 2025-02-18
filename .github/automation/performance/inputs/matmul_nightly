@@ -15,7 +15,21 @@
 # limitations under the License.
 # *******************************************************************************
 
+# Plain cases
 --reset
---dir=FWD_D
---dt=bf16,f32
-mb1_ic64oc256_ih200oh200kh1sh1dh0ph0_iw267ow267kw1sw1dw0pw0
+--dt=f32,bf16,u8:s8:s8,s8:s8:f32
+--bia-dt=f32,undef
+--bia_mask=2
+--batch=shapes_2d_ci
+--batch=shapes_2d
+--bia_mask=4
+--batch=shapes_3d
+
+#f16
+--dt=f16:f16:f16
+--bia-dt=undef
+--bia_mask=2
+--batch=shapes_2d_ci
+--batch=shapes_2d
+--bia_mask=4
+--batch=shapes_3d
