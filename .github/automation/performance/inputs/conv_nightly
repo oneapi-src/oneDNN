@@ -15,9 +15,10 @@
 # limitations under the License.
 # *******************************************************************************
 --reset
---inplace=true
---alg=gelu_erf
---dir=FWD_D
---dt=f32,bf16
---tag=abc
-1536x384
+--batch=conv
+
+--reset 
+--dt=f32
+--alg=auto
+--dir=FWD_D,FWD_B
+--batch=shapes_resnet_50

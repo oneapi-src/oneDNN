@@ -38,6 +38,9 @@ jobs:
   build-acl-cache:
     uses: ./.github/workflows/aarch64-acl.yml
 
+  test-performance:
+    uses: ./.github/workflows/performance-aarch64.yml
+
   build-and-test:
     needs: build-acl-cache
     strategy:

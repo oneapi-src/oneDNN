@@ -15,9 +15,21 @@
 # limitations under the License.
 # *******************************************************************************
 --reset
---inplace=true
---alg=gelu_erf
---dir=FWD_D
---dt=f32,bf16
---tag=abc
-1536x384
+--batch=matmul
+
+# Plain cases
+--reset
+--dt=f32,s8:s8:f32
+--bia-dt=f32,undef
+--bia_mask=2
+--batch=shapes_2d_ci
+--bia_mask=4
+--batch=shapes_3d
+
+#f16
+--dt=f16:f16:f16
+--bia-dt=undef
+--bia_mask=2
+--batch=shapes_2d_ci
+--bia_mask=4
+--batch=shapes_3d

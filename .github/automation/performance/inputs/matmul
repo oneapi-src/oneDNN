@@ -19,5 +19,5 @@
 --wtag=any
 --attr-post-ops=sum
 --dtag=ab
---dt=f32,bf16
+--dt=f32
 1500x1536:1536x384
