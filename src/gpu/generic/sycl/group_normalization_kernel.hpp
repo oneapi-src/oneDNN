@@ -222,6 +222,158 @@ private:
     post_op_input_args po_args_;
     ::sycl::local_accessor<float, 1> local_memory;
 };
+
+struct group_norm_bwd_t {
+    using sycl_dims_t = int32_t[6];
+    group_norm_bwd_t(const sycl_gnorm_bwd_conf_t &conf_,
+            ::sycl::local_accessor<float, 1> &local_memory,
+            ::sycl::handler &cgh, const exec_ctx_t &ctx)
+        : conf_(conf_)
+        , src(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SRC))
+        , diff_dst(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_DST))
+        , mean(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_MEAN))
+        , variance(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_VARIANCE))
+        , scales(CTX_IN_SYCL_KERNEL_MEMORY(DNNL_ARG_SCALE))
+        , diff_src(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SRC))
+        , diff_scales(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SCALE))
+        , diff_bias(CTX_INOUT_SYCL_KERNEL_MEMORY(DNNL_ARG_DIFF_SHIFT))
+        , local_memory(local_memory) {}
+
+    void operator()(::sycl::nd_item<1> it) const {
+        auto channel_num = it.get_group(0);
+        auto group_num = channel_num / conf_.num_channels_per_group;
+        // each group handles a channel
+
+        dim_t num_spatial_elements = 1;
+        auto num_dims = conf_.src_desc.ndims();
+        const auto &dims = conf_.src_desc.dims();
+
+        for (int i = 2; i < num_dims; i++) {
+            num_spatial_elements *= dims[i];
+        }
+
+        dims_t logical_index;
+        logical_index[1] = channel_num;
+        float gamma = conf_.scale_diff_required ? load_float_value(
+                              data_type::f32, scales.get_pointer(), channel_num)
+                                                : 1.0f;
+        float diff_gamma = 0;
+        float diff_beta = 0;
+        for (dim_t batch = 0; batch < dims[0]; batch++) {
+            logical_index[0] = batch;
+            float mean_val = load_float_value(data_type::f32,
+                    mean.get_pointer(), batch * conf_.num_groups + group_num);
+            float variance_val
+                    = load_float_value(data_type::f32, variance.get_pointer(),
+                            batch * conf_.num_groups + group_num);
+            float std = ::sycl::sqrt(variance_val + conf_.eta);
+            for (dim_t spatial_index = it.get_local_id(0);
+                    spatial_index < num_spatial_elements;
+                    spatial_index += it.get_local_range(0)) {
+                get_spatial_logical_index(
+                        dims, logical_index, spatial_index, num_dims);
+                float src_val = load_float_value(conf_.src_desc.data_type(),
+                        src.get_pointer(), conf_.src_desc.off_v(logical_index));
+                float diff_dst_val = load_float_value(
+                        conf_.diff_dst_desc.data_type(), diff_dst.get_pointer(),
+                        conf_.diff_dst_desc.off_v(logical_index));
+                // mean and variance will always have memory format dnnl::format::ab
+                float normalized_value = (src_val - mean_val) / std;
+                // dL / dY = \sigma_{i = 0}^{C} dL/dy_{i} * \hat{x_{i}}
+                diff_gamma += diff_dst_val * normalized_value;
+                diff_beta += diff_dst_val;
+            }
+        }
+
+        workgroup_reduce(it, diff_gamma);
+        if (it.get_local_linear_id() == 0 && conf_.scale_diff_required) {
+            // group leader writes back to global memory
+            store_float_value(data_type::f32, local_memory[0],
+                    diff_scales.get_pointer(), channel_num);
+        }
+        // update all threads with the final value of diff_gamma
+        diff_gamma = local_memory[0];
+        ::sycl::group_barrier(it.get_group());
+        workgroup_reduce(it, diff_beta);
+        if (it.get_local_linear_id() == 0 && conf_.bias_diff_required) {
+            // group leader writes back to global memory
+            store_float_value(data_type::f32, local_memory[0],
+                    diff_bias.get_pointer(), channel_num);
+        }
+        // update all threads with the final value of diff_beta
+        diff_beta = local_memory[0];
+
+        // Calculate dL/dX
+        for (dim_t batch = 0; batch < dims[0]; batch++) {
+            logical_index[0] = batch;
+            float mean_val = load_float_value(data_type::f32,
+                    mean.get_pointer(), batch * conf_.num_groups + group_num);
+            float variance_val
+                    = load_float_value(data_type::f32, variance.get_pointer(),
+                            batch * conf_.num_groups + group_num);
+            float std = ::sycl::sqrt(variance_val + conf_.eta);
+            for (dim_t spatial_index = it.get_local_id(0);
+                    spatial_index < num_spatial_elements;
+                    spatial_index += it.get_local_range(0)) {
+                get_spatial_logical_index(
+                        dims, logical_index, spatial_index, num_dims);
+                float diff_src_value = load_float_value(
+                        conf_.diff_dst_desc.data_type(), diff_dst.get_pointer(),
+                        conf_.diff_dst_desc.off_v(logical_index));
+                if (not conf_.used_global_stats) {
+                    float x = load_float_value(conf_.src_desc.data_type(),
+                            src.get_pointer(),
+                            conf_.src_desc.off_v(logical_index));
+                    float x_hat = (x - mean_val) * diff_gamma;
+                    diff_src_value -= (diff_beta + (x_hat / std))
+                            / (num_spatial_elements
+                                    * conf_.num_channels_per_group);
+                }
+                diff_src_value = gamma * (diff_src_value / std);
+                store_float_value(conf_.diff_src_desc.data_type(),
+                        diff_src_value, diff_src.get_pointer(),
+                        conf_.diff_src_desc.off_v(logical_index));
+            }
+        }
+    }
+
+private:
+    inline void get_spatial_logical_index(const sycl_dims_t &dims,
+            dims_t &logical_index, dim_t flattened_index,
+            dim_t num_dims) const {
+        for (dim_t i = num_dims - 1; i >= 2; i--) {
+            logical_index[i] = flattened_index % dims[i];
+            flattened_index /= dims[i];
+        }
+    }
+
+    inline void workgroup_reduce(
+            ::sycl::nd_item<1> &it, float wi_accum_value) const {
+        local_memory[it.get_local_id(0)] = wi_accum_value;
+        ::sycl::group_barrier(it.get_group());
+        //group leader accumulates
+        if (it.get_local_id(0) == 0) {
+            float accum_value = 0;
+            for (std::size_t i = 0; i < it.get_local_range(0); i++) {
+                accum_value += local_memory[i];
+            }
+            local_memory[0] = accum_value;
+        }
+        ::sycl::group_barrier(it.get_group());
+    }
+
+    sycl_gnorm_bwd_conf_t conf_;
+    xpu::sycl::in_memory_arg_t src;
+    xpu::sycl::in_memory_arg_t diff_dst;
+    xpu::sycl::in_memory_arg_t mean;
+    xpu::sycl::in_memory_arg_t variance;
+    xpu::sycl::in_memory_arg_t scales;
+    xpu::sycl::inout_memory_arg_t diff_src;
+    xpu::sycl::inout_memory_arg_t diff_scales;
+    xpu::sycl::inout_memory_arg_t diff_bias;
+    ::sycl::local_accessor<float, 1> local_memory;
+};
+
 } // namespace dnnl::impl::gpu::generic::sycl
 
 #endif

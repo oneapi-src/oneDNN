@@ -180,12 +180,6 @@ protected:
     }
 
     void Backward(prop_kind pk, normalization_flags flags) {
-        SKIP_IF_CUDA(
-                true, "Group Normalization operator is not supported in CUDA");
-        SKIP_IF_HIP(
-                true, "Group Normalization operator is not supported in HIP");
-        SKIP_IF_GENERIC(true,
-                "Group Normalization operator is not supported in generic");
         SKIP_IF(unsupported_prop_kind(pk, p.src_dt, p.diff_src_dt, p.dst_dt),
                 "Engine does not support this prop kind with this data types");
         // group_normalization specific types and values
