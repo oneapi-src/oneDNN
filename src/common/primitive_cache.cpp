@@ -23,6 +23,12 @@
 #include "primitive_iface.hpp"
 #include "z_magic.hpp"
 
+#if defined(__linux__)
+#include <dlfcn.h>
+#elif defined(_WIN32)
+#include "windows.h"
+#endif
+
 namespace dnnl {
 namespace impl {
 
@@ -32,7 +38,16 @@ struct primitive_cache_t {
     using result_t = primitive_cache_iface_t::result_t;
     using create_func_t = result_t (&)(void *);
 
-    primitive_cache_t(int capacity) : cache_(capacity) {};
+    primitive_cache_t(int capacity) : cache_(capacity) {
+#if defined(__linux__)
+        void *handle = dlopen("libOpencl.so.1.2", RTLD_NOW | RTLD_LOCAL);
+#elif defined(_WIN32)
+        // Use LOAD_LIBRARY_SEARCH_SYSTEM32 flag to avoid DLL hijacking issue.
+        HMODULE handle = LoadLibraryExA(
+                "OpenCL.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+#endif
+        MAYBE_UNUSED(handle);
+    };
 
     ~primitive_cache_t() = default;
 

@@ -45,7 +45,7 @@ public:
 
     status_t init() override {
         cl_int err = CL_SUCCESS;
-        err = clGetDeviceInfo(device(), CL_DEVICE_PLATFORM, sizeof(platform_),
+        err = call_clGetDeviceInfo(device(), CL_DEVICE_PLATFORM, sizeof(platform_),
                 &platform_, nullptr);
         if (err != CL_SUCCESS) {
             device_ = nullptr;
@@ -54,7 +54,7 @@ public:
 
         OCL_CHECK(err);
 
-        err = clRetainDevice(device());
+        err = call_clRetainDevice(device());
         if (err != CL_SUCCESS) {
             device_ = nullptr;
             context_ = nullptr;
@@ -63,10 +63,10 @@ public:
         OCL_CHECK(err);
 
         if (is_user_context_) {
-            err = clRetainContext(context());
+            err = call_clRetainContext(context());
             if (err != CL_SUCCESS) context_ = nullptr;
         } else {
-            context_ = clCreateContext(
+            context_ = call_clCreateContext(
                     nullptr, 1, &device_.unwrap(), nullptr, nullptr, &err);
         }
 
@@ -76,20 +76,20 @@ public:
 
         // TODO: Remove it as soon as device info is generalized.
         size_t param_size = 0;
-        err = clGetDeviceInfo(device_, CL_DEVICE_NAME, 0, nullptr, &param_size);
+        err = call_clGetDeviceInfo(device_, CL_DEVICE_NAME, 0, nullptr, &param_size);
         OCL_CHECK(err);
 
         name_ = std::string(param_size, '\0');
-        err = clGetDeviceInfo(
+        err = call_clGetDeviceInfo(
                 device_, CL_DEVICE_NAME, param_size, &name_[0], &param_size);
         OCL_CHECK(err);
 
-        err = clGetDeviceInfo(
+        err = call_clGetDeviceInfo(
                 device_, CL_DRIVER_VERSION, 0, nullptr, &param_size);
         OCL_CHECK(err);
 
         std::string driver_version(param_size, '\0');
-        err = clGetDeviceInfo(device_, CL_DRIVER_VERSION, param_size,
+        err = call_clGetDeviceInfo(device_, CL_DRIVER_VERSION, param_size,
                 &driver_version[0], nullptr);
         OCL_CHECK(err);
 

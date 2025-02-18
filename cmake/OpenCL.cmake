@@ -42,5 +42,5 @@ endif()
 add_definitions(-DCL_TARGET_OPENCL_VERSION=120)
 
 set(DNNL_GPU_RUNTIME_CURRENT ${DNNL_GPU_RUNTIME})
-include_directories(${OpenCL_INCLUDE_DIRS})
-list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
+#include_directories(${OpenCL_INCLUDE_DIRS})
+#list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)

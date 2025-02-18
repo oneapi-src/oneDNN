@@ -60,11 +60,11 @@ status_t buffer_memory_storage_t::map_data(
     }
 
     cl_mem_flags mem_flags;
-    OCL_CHECK(clGetMemObjectInfo(mem_object(), CL_MEM_FLAGS, sizeof(mem_flags),
+    OCL_CHECK(call_clGetMemObjectInfo(mem_object(), CL_MEM_FLAGS, sizeof(mem_flags),
             &mem_flags, nullptr));
 
     size_t mem_bytes;
-    OCL_CHECK(clGetMemObjectInfo(
+    OCL_CHECK(call_clGetMemObjectInfo(
             mem_object(), CL_MEM_SIZE, sizeof(mem_bytes), &mem_bytes, nullptr));
 
     cl_map_flags map_flags = 0;
@@ -82,7 +82,7 @@ status_t buffer_memory_storage_t::map_data(
 
     // Use blocking operation to simplify the implementation and API
     cl_int err;
-    *mapped_ptr = clEnqueueMapBuffer(queue, mem_object(), CL_TRUE, map_flags, 0,
+    *mapped_ptr = call_clEnqueueMapBuffer(queue, mem_object(), CL_TRUE, map_flags, 0,
             mem_bytes, 0, nullptr, nullptr, &err);
     return xpu::ocl::convert_to_dnnl(err);
 }
@@ -92,9 +92,9 @@ status_t buffer_memory_storage_t::unmap_data(
     if (!mapped_ptr) return status::success;
     cl_command_queue queue;
     CHECK(get_map_queue(queue, engine(), stream));
-    OCL_CHECK(clEnqueueUnmapMemObject(queue, mem_object_,
+    OCL_CHECK(call_clEnqueueUnmapMemObject(queue, mem_object_,
             const_cast<void *>(mapped_ptr), 0, nullptr, nullptr));
-    OCL_CHECK(clFinish(queue));
+    OCL_CHECK(call_clFinish(queue));
     return status::success;
 }
 
@@ -107,7 +107,7 @@ std::unique_ptr<memory_storage_t> buffer_memory_storage_t::get_sub_storage(
 
     cl_mem_flags mem_flags;
     cl_int err;
-    err = clGetMemObjectInfo(
+    err = call_clGetMemObjectInfo(
             mem_object(), CL_MEM_FLAGS, sizeof(mem_flags), &mem_flags, nullptr);
 
     // TODO: Generalize gpu_assert to make it available for use in the xpu
@@ -125,7 +125,7 @@ std::unique_ptr<memory_storage_t> buffer_memory_storage_t::get_sub_storage(
 
     cl_buffer_region buffer_region = {base_offset_ + offset, size};
     xpu::ocl::wrapper_t<cl_mem> sub_buffer
-            = clCreateSubBuffer(parent_mem_object(), mem_flags,
+            = call_clCreateSubBuffer(parent_mem_object(), mem_flags,
                     CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
     assert(err == CL_SUCCESS);
     if (err != CL_SUCCESS) return nullptr;
