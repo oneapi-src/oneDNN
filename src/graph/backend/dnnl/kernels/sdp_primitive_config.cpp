@@ -163,6 +163,17 @@ status_t sdp_primitive_config_t::initial_check(
     op_ptr mm1 = nullptr, mm2 = nullptr, scale = nullptr;
     for (const auto &cur_op : sg->get_ops()) {
         const auto &op_kind = cur_op->get_kind();
+        if (op_kind == graph::op_kind::SoftMax) {
+            //sdpa primitive only supports f32 softmax
+            const auto &in_op = cur_op->get_input_value(0)->get_producer();
+            if (in_op.get_kind() != graph::op_kind::TypeCast)
+                return status::unimplemented;
+            const auto &out_ops = cur_op->get_output_value(0)->get_consumers();
+            if (out_ops.size() != 1) return status::unimplemented;
+            if (out_ops[0].get_op().get_kind() != graph::op_kind::TypeCast)
+                return status::unimplemented;
+            continue;
+        }
         if (op_kind == graph::op_kind::DynamicDequantize
                 && cur_op->get_attr<std::string>(op_attr::qtype)
                         == "per_group") {
