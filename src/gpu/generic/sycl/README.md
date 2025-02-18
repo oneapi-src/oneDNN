@@ -95,7 +95,7 @@ The implementation supports both forward and backward directions.
 * Supported data types: `f32`, `bf16`, `f16`, `s32`, `s8`, `u8`
 
 ## Group Normalization
-* Supported Direction: forward data and forward inference.
+* Supported Direction:  Both forward and backward directions are supported.
 * Supported data types: All possible data combinations listed in the oneDNN specification are supported.
 * Support Data layouts: All data layouts are supported.
 
