@@ -34,6 +34,8 @@ jobs:
   pr-formatting:
     name: Formatting
     runs-on: ubuntu-22.04
+    outputs:
+      changes: ${{ steps.check.outputs.changes }}
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -41,6 +43,16 @@ jobs:
           fetch-depth: 0
       - name: Check commit messages
         run: python3 ./.github/automation/commit-msg-check.py "${{ github.event.pull_request.head.sha }}" "${{ github.event.pull_request.base.sha }}"
+      - name: Check codebase changes
+        id: check
+        run: |
+          if git diff --name-only main..HEAD  | grep -q -E "^examples/|^include/|^src/|^tests/; then
+            echo "Found changes in codebase"
+            echo "changes=true" >> $GITHUB_ENV
+          else
+            echo "No changes in codebase"
+            echo "changes=false" >> $GITHUB_ENV
+          fi
       - name: Install clang-format
         run: sudo apt update && sudo apt install -y "clang-format-11"
       - name: Check code formatting
@@ -49,7 +61,7 @@ jobs:
   pr-format-tags:
     name: Format tags consistency
     runs-on: ubuntu-latest
-    if: ${{ git diff --name-only main..HEAD  | grep -q -E "^examples/|^include/|^src/|^tests/ && true || false" }}
+    if: env.changes == 'true'
 
     steps:
       - name: Checkout oneDNN
@@ -85,11 +97,7 @@ jobs:
   pr-clang-tidy:
     name: Clang-Tidy
     runs-on: ubuntu-latest
-    if: ${{ contains(github.event.pull_request.changed_files, 'examples/') ||
-      contains(github.event.pull_request.changed_files, 'include/' ||
-      contains(github.event.pull_request.changed_files, 'src/') ||
-      contains(github.event.pull_request.changed_files, 'tests/')
-      }}
+    if: env.changes == 'true'
 
     steps:
       - name: Checkout oneDNN
