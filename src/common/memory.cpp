@@ -59,12 +59,8 @@ size_t memory_desc_map_size(const memory_desc_t *md, int index = 0) {
     auto mdw = memory_desc_wrapper(md);
 
     if (mdw.has_runtime_dims_or_strides()) return DNNL_RUNTIME_SIZE_VAL;
-    if (mdw.offset0() == 0) return mdw.size(index);
 
-    memory_desc_t md_no_offset0 = *md;
-    md_no_offset0.offset0 = 0;
-    return memory_desc_wrapper(md_no_offset0).size(index)
-            + md->offset0 * mdw.data_type_size();
+    return mdw.size(index, true, true);
 }
 } // namespace
 
