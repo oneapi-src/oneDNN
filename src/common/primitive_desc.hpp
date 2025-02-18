@@ -39,7 +39,12 @@ namespace impl {
 static int po_inputs(const post_ops_t &post_ops, const primitive_kind_t kind) {
     int n_inputs = 0;
     for (int idx = 0; idx < post_ops.len(); ++idx) {
-        if (post_ops.contain(kind, idx)) n_inputs++;
+        if (post_ops.contain(kind, idx)) {
+            n_inputs++;
+            if (kind == primitive_kind::binary)
+                n_inputs += static_cast<int>(
+                        post_ops.entry_[idx].binary.is_ternary_op);
+        }
     }
     return n_inputs;
 }
@@ -183,6 +188,8 @@ struct primitive_desc_t : public c_compatible {
             if (post_op_has_proper_input(
                         attr(), binary, idx, arg, DNNL_ARG_SRC_1)
                     || post_op_has_proper_input(
+                            attr(), binary, idx, arg, DNNL_ARG_SRC_2)
+                    || post_op_has_proper_input(
                             attr(), prelu, idx, arg, DNNL_ARG_WEIGHTS))
                 return arg_usage_t::input;
         }
@@ -199,12 +206,18 @@ struct primitive_desc_t : public c_compatible {
                            post_ops_t::post_ops_limit)) {
             const auto &po = attr()->post_ops_;
             for (int idx = 0; idx < po.len(); ++idx) {
-                if (arg
-                        != (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
-                                | DNNL_ARG_SRC_1))
+                if (!utils::one_of(arg,
+                            (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                    | DNNL_ARG_SRC_1),
+                            (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                    | DNNL_ARG_SRC_2)))
                     continue;
 
-                return &po.entry_[idx].binary.src1_desc;
+                return (arg
+                               == (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                       | DNNL_ARG_SRC_1))
+                        ? &po.entry_[idx].binary.src1_desc
+                        : &po.entry_[idx].binary.src2_desc;
             }
         }
 
