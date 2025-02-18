@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,12 +51,9 @@ public:
             const std::vector<logical_tensor_t> &inputs,
             const std::vector<logical_tensor_t> &outputs) override {
         const engine_kind_t ekind = g_engine->kind();
-        bool enable_decomp = false;
         bool enable_ukernel = false;
 
-        if (ekind == engine_kind::cpu) {
-            enable_decomp = enable_decomp_kernel();
-        } else if (ekind == engine_kind::gpu) {
+        if (ekind == engine_kind::gpu) {
             enable_ukernel = !force_primitive();
         } else {
             assert(!"unknown engine kind");
@@ -70,15 +67,15 @@ public:
             ret = kernel->compile_impl(part, g_engine, inputs, outputs);
         }
 
-        if (ret != status::success && enable_decomp) {
-            kernel = std::make_shared<sdp_decomp_kernel_t<quantized, dt>>();
-            ret = kernel->compile_impl(part, g_engine, inputs, outputs);
-        }
+        // if (ret != status::success && enable_decomp) {
+        //     kernel = std::make_shared<sdp_decomp_kernel_t<quantized, dt>>();
+        //     ret = kernel->compile_impl(part, g_engine, inputs, outputs);
+        // }
 
-        if (ret != status::success) {
-            kernel = std::make_shared<larger_partition_kernel_t>();
-            ret = kernel->compile_impl(part, g_engine, inputs, outputs);
-        }
+        // if (ret != status::success) {
+        //     kernel = std::make_shared<larger_partition_kernel_t>();
+        //     ret = kernel->compile_impl(part, g_engine, inputs, outputs);
+        // }
         if (ret == status::success)
             VDISPATCH_GRAPH_SDP(
                     "sdpa is dispatched to (%s)", kernel->str().c_str());
