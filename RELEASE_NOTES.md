@@ -27,6 +27,12 @@
 [`int8` or `int4` compressed key and value]: https://oneapi-src.github.io/oneDNN/v3.7/dev_guide_graph_sdpa_compressed_kv.html#doxid-dev-guide-graph-sdpa-compressed-kv
 [Gated Multi-Layer Perceptron (Gated MLP)]: https://oneapi-src.github.io/oneDNN/v3.7/dev_guide_graph_gated_mlp.html#doxid-dev-guide-graph-gated-mlp
 
+## AArch64-based Processors
+  * Improved `bf16` matmul performance with `fp32` destination with Arm Compute Library (ACL).
+  * Improved `bf16` to `fp32` reorder performance.
+  * Improved `bf16` reorder performance.
+  * Improved `bf16` convolution with ACL.
+
 ## NVIDIA GPUs
   * Improved matmul performance using cuBLASLt-based implementation.
 
@@ -70,6 +76,11 @@
   * Improved support of large size tensors in convolution, matmul and reduction primitives on Intel GPUs.
   * Reduced scratchpad usage for NCHW convolution on Intel GPUs.
 
+## AArch64-based Processors
+  * Added support for the Arm Compute Library (ACL) thread_local scheduler via ThreadpoolScheduler.
+  * Improved memory efficiency in ACL matmuls by fixing a bug where scratchpad memory was not being used.
+  * Made the ACL matmul primitive thread-safe which allows concurrent execution.
+
 # Validation
   * Extended benchdnn with support and validation for fp8 matmul patterns for tensor tags in RNN primitive validation.
   * Extended benchdnn with support for rewriting data types in the test JSON files in the graph driver.
@@ -84,6 +95,7 @@
   * Updated minimal supported CMake version to 3.13 (was 2.8.12).
   * Updated minimal supported GCC version to 8.0 (was 4.8).
   * Updated minimal supported Clang version to 11.0 (was 3.0).
+  * Updated minimal supported ACL version to 24.11.1 (was 24.09).
   * Removed support for SYCL older than 2020.
   * Enforced `fp32` accumulation mode in `fp16` matmul and inner product primitives on Intel Graphics products without Intel XMX cores. Previous behavir can be enabled with relaxed [accumulation mode].
 
