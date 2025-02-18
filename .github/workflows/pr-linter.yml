@@ -48,10 +48,10 @@ jobs:
         run: |
           if git diff --name-only origin/${{ github.base_ref }}..origin/${{ github.head_ref }}  | grep -q -E "^examples/|^include/|^src/|^tests/"; then
             echo "Found changes in codebase"
-            echo "changed=true" >> $GITHUB_ENV
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "No changes in codebase"
-            echo "changed=false" >> $GITHUB_ENV
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Install clang-format
         run: sudo apt update && sudo apt install -y "clang-format-11"
