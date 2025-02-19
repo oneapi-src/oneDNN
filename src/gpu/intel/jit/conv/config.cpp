@@ -1026,9 +1026,7 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
 }
 
 bool should_use_mad(const conv_problem_t &prb) {
-    bool small_ic_oc = prb.ic < 3 && prb.oc < 3 && prb.mb < 8;
-    bool grouped_small_ic_oc = prb.ic < 4 && prb.oc < 4 && prb.g > 1;
-    return prb.is_dw || small_ic_oc || grouped_small_ic_oc;
+    return prb.is_dw;
 }
 
 status_t init_fma_kind(
