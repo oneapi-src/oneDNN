@@ -60,31 +60,6 @@ pr:
       - src/xpu
 
 jobs:
-  - job: 'Ubuntu20'
-    timeoutInMinutes: 120
-    pool:
-      vmImage: 'ubuntu-20.04'
-    strategy:
-      matrix: 
-        clang:
-          CC: clang
-          CXX: clang++
-        gcc:
-          CC: gcc
-          CXX: g++
-    steps:
-      - script: |
-          if [ "$(CC)" == "clang" ]; then
-            .github/azure/env/clang.sh 9
-          fi
-        displayName: "Init_Env"
-      - script: |
-          .github/azure/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
-        displayName: 'build'
-      - script: |
-          .github/azure/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
-        displayName: 'test'
-        failOnStderr: true
   - job: 'Ubuntu22'
     timeoutInMinutes: 120
     pool:
@@ -103,18 +78,6 @@ jobs:
             .github/azure/env/clang.sh 15
           fi
         displayName: "Init_Env"
-      - script: |
-          .github/azure/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
-        displayName: 'build'
-      - script: |
-          .github/azure/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
-        displayName: 'test'
-        failOnStderr: true
-  - job: 'macOS13'
-    timeoutInMinutes: 120
-    pool:
-      vmImage: 'macOS-13'
-    steps:
       - script: |
           .github/azure/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
         displayName: 'build'
@@ -144,17 +107,5 @@ jobs:
         displayName: 'build'
       - script: |
           .github\azure\test.bat /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
-        displayName: 'test'
-        failOnStderr: true
-  - job: 'Windows_Server_2019'
-    timeoutInMinutes: 120
-    pool:
-      vmImage: 'windows-2019'
-    steps:
-      - script: |
-          .github\azure\build.bat /THREADING omp /MODE Release /VSVERSION vs2019 /SOURCEDIR %CD% /BUILDDIR %CD%\build
-        displayName: 'build'
-      - script: |
-         .github\azure\test.bat /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
         displayName: 'test'
         failOnStderr: true
