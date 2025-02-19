@@ -350,6 +350,13 @@ private:
     void finalize_loop_dims(const conv_config_t &cfg) {
         auto &prb = cfg.prb();
         if (prb.is_bwd_w) {
+            if (!cfg.allow_global_reduction()) {
+                for (auto &d : {pvars::mb, pvars::od, pvars::oh, pvars::ow}) {
+                    loop_[d] = 1;
+                    tile_info(d).add(tile_flags_t::loop);
+                    tile_info(d).add(tile_flags_t::loop_span);
+                }
+            }
             struct loop_dim_t {
                 pvar_t dim;
                 dim_t size = 0;
