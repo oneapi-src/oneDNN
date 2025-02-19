@@ -528,6 +528,30 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             res->reason = skip_reason::case_not_supported;
             return;
         }
+
+        auto is_int = [](dnnl_data_type_t t) {
+            return dnnl::impl::utils::one_of(
+                    t, dnnl_s4, dnnl_u4, dnnl_s8, dnnl_u8, dnnl_s32);
+        };
+        if (is_int(prb->src_dt()) != is_int(prb->wei_dt())) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: CPU doesn't support mixed integer and "
+                    "floating point source and weights.\n",
+                    __FILE__, __LINE__);
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
+        }
+
+        if (!is_int(prb->src_dt()) && !is_int(prb->wei_dt())
+                && is_int(prb->dst_dt())) {
+            BENCHDNN_PRINT(2,
+                    "[SKIP][%s:%d]: CPU doesn't support integer destination "
+                    "with  floating point source and weights.\n",
+                    __FILE__, __LINE__);
+            res->state = SKIPPED;
+            res->reason = skip_reason::case_not_supported;
+        }
+
         if (!prb->attr.scales.is_def(DNNL_ARG_DST)
                 && prb->attr.scales.get(DNNL_ARG_DST).policy
                         != attr_t::COMMON) {
