@@ -191,7 +191,8 @@ void ref_partition_t::exec_ops(res_t *res) {
             const auto &lt = op.in_lts_[i];
             int arg = get_prim_arg_name_from_graph_op_input_offset(
                     ref_prim->get_kind(), i, use_dst);
-            ref_prim->replace_arg(arg, lt_id_2_mems_.at(lt.id_));
+            const auto &mem = lt_id_2_mems_.at(lt.id_);
+            ref_prim->replace_arg(arg, mem);
         }
         for (size_t i = 0; i < op.out_lts_.size(); i++) {
             const auto &lt = op.out_lts_[i];
