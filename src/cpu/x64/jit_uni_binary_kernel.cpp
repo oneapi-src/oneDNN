@@ -29,6 +29,7 @@ namespace x64 {
 static bcast_set_t get_supported_postops_bcast_strategies() {
     return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
             broadcasting_strategy_t::per_oc_spatial,
+            broadcasting_strategy_t::per_w,
             broadcasting_strategy_t::no_broadcast};
 }
 
