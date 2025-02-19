@@ -448,9 +448,19 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
             auto src_dt = invariant_src_md()->data_type;
             auto diff_wei_type = invariant_wei_md()->data_type;
             auto diff_dst_type = invariant_dst_md()->data_type;
+            auto diff_bia_type = invariant_bia_md()->data_type;
             // disabling verbose dispatch messages for unsupported isa for
             // better readability
             if (!mayiuse(isa)) return status::unimplemented;
+
+            const bool is_f32 = utils::everyone_is(data_type::f32, src_dt,
+                                        diff_wei_type, diff_dst_type)
+                    && IMPLICATION(
+                            with_bias(), diff_bia_type == data_type::f32);
+
+            VDISPATCH_INNER_PRODUCT(IMPLICATION(!is_f32, mayiuse(avx512_core)),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+
             VDISPATCH_INNER_PRODUCT(
                     desc()->prop_kind == prop_kind::backward_weights,
                     VERBOSE_BAD_PROPKIND);
