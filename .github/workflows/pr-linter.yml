@@ -47,12 +47,10 @@ jobs:
       - name: Check codebase changes
         id: changes
         run: |
-          if git diff --name-only origin/${{ github.base_ref }}..origin/${{ github.head_ref }} | grep -q -E "^(.github/|examples/|include/|src/|tests/)"; then
+          if git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | grep -q -E "^(.github/|examples/|include/|src/|tests/)"; then
             echo "Found changes in codebase"
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
-            if git diff --name-only origin/${{ github.base_ref }}..origin/${{ github.head_ref }} | grep -q -E "^(src/cpu/x64/|src/gpu/intel/)"; then
-              git diff --name-only origin/${{ github.base_ref }}..origin/${{ github.head_ref }} | grep -E "^(src/cpu/x64/|src/gpu/intel/)"
+            if git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | grep -q -E "^(src/cpu/x64/|src/gpu/intel/)"; then
               echo "Found changes in x64 codebase"
               echo "changed_x64=true" >> "$GITHUB_OUTPUT"
             fi
