@@ -60,20 +60,11 @@ dim_t count_block_messages(
 
 dim_t count_scattered_messages(
         const hw_t &hw, dim_t inner_bytes, dim_t iterations, int item_size) {
-    const auto max_block_items = hw.grf_size() / 2;
     constexpr int scattered_message_penalty = 4;
+    const int message_items = hw.grf_size() / 2;
 
-    dim_t block_items = max_block_items / 2;
     auto inner_items = (iterations * inner_bytes) / item_size;
-    dim_t messages = (inner_items + (block_items - 1)) / max_block_items;
-    inner_items -= std::min(inner_items, messages * max_block_items);
-    for (; block_items >= (dim_t)2; block_items >>= 1) {
-        if (inner_items > block_items / 2) {
-            inner_items -= std::min(inner_items, block_items);
-            messages++;
-        }
-    }
-    if (inner_items) messages++;
+    auto messages = utils::div_up(inner_items, message_items);
     return messages * scattered_message_penalty;
 }
 
