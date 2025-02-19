@@ -310,8 +310,8 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
 void reorder_ir_builder_t::compute_grid(const layout_t &src,
         const layout_t &dst, const std::vector<int> &iter_blocks,
         const std::vector<int> &loop_blocks, const std::vector<int> &tg_blocks,
-        grid_info_t &kernel_grid, grid_info_t &tg_grid,
-        std::vector<dim_idx_t> *dim2grid) {
+        const idx_dispatcher_t &idx_disp, grid_info_t &kernel_grid,
+        grid_info_t &tg_grid, std::vector<dim_idx_t> *dim2grid) {
     dim_idx_t ndims = src.ndims();
     std::vector<dim_t> dims(ndims);
     for (dim_idx_t i = 0; i < ndims; i++) {
@@ -333,14 +333,15 @@ void reorder_ir_builder_t::compute_grid(const layout_t &src,
         kernel_grid_dims[grid_idx] *= outer;
         if (outer != 1 && grid_idx != max_grid_idx) grid_idx++;
     }
-    auto &tg_idxs = ir_builder_t::tg_idxs();
+    auto &tg_idxs = idx_disp.tg_idxs();
     kernel_grid = grid_info_t(kernel_grid_dims,
             std::vector<expr_t>(tg_idxs.begin(), tg_idxs.end()));
     tg_grid = grid_info_t(tg_grid_dims, "thr_idx");
 }
 
 compute::nd_range_t reorder_ir_builder_t::nd_range(
-        const exec_config_t &exec_cfg, layout_t src, layout_t dst) {
+        const idx_dispatcher_t &idx_disp, const exec_config_t &exec_cfg,
+        layout_t src, layout_t dst) {
     const int simd = exec_cfg.simd();
     std::vector<int> iter_blocks;
     std::vector<int> loop_blocks;
@@ -349,8 +350,8 @@ compute::nd_range_t reorder_ir_builder_t::nd_range(
     compute_blocks(exec_cfg, src, dst, iter_blocks, loop_blocks, tg_blocks);
     grid_info_t kernel_grid;
     grid_info_t tg_grid;
-    compute_grid(src, dst, iter_blocks, loop_blocks, tg_blocks, kernel_grid,
-            tg_grid);
+    compute_grid(src, dst, iter_blocks, loop_blocks, tg_blocks, idx_disp,
+            kernel_grid, tg_grid);
     compute::range_t global = compute::range_t::empty(kernel_grid.ndims());
     compute::range_t local = compute::range_t::empty(kernel_grid.ndims());
     for (dim_idx_t i = 0; i < kernel_grid.ndims(); i++) {
@@ -647,11 +648,11 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
 
     std::vector<dim_idx_t> dim2grid;
     compute_grid(src_layout_, dst_layout_, iter_blocks, loop_blocks, tg_blocks,
-            kernel_grid_, tg_grid_, &dim2grid);
+            kernel_info_.idx_disp(), kernel_grid_, tg_grid_, &dim2grid);
 
     std::vector<stmt_t> init_stmts;
-    init_kernel_grid(kernel_grid_, tg_grid_, cfg_.exec_cfg().simd(), init_cset,
-            init_stmts);
+    init_kernel_grid(kernel_grid_, tg_grid_, kernel_info_.idx_disp(),
+            cfg_.exec_cfg().simd(), init_cset, init_stmts);
 
     std::vector<dim_t> vdims(ndims);
     for (dim_idx_t i = 0; i < ndims; i++) {

@@ -1497,14 +1497,14 @@ public:
         params_gen_.set_cur_index(idx);
     }
 
-    void set_params(conv_config_t &cfg) {
+    void set_params(conv_config_t &cfg, const idx_dispatcher_t &idx_disp) {
         init_regs(cfg);
         if (is_tuning_mode()) {
             tuner_->set_params(cfg);
         } else {
             params_gen_.set_params(cfg);
             if (grf_mode_policy_ == grf_mode_policy_t::try_small_grf)
-                maybe_try_small_grf(cfg);
+                maybe_try_small_grf(cfg, idx_disp);
         }
     }
 
@@ -1601,12 +1601,13 @@ private:
         if (tiler_params().do_list) print_all();
     }
 
-    void maybe_try_small_grf(conv_config_t &cfg) {
+    void maybe_try_small_grf(
+            conv_config_t &cfg, const idx_dispatcher_t &idx_disp) {
         if (cfg.regs() == 128 || cfg.exec_cfg_param().is_overridden("regs"))
             return;
         auto try_cfg = cfg;
         init_walk_order(try_cfg);
-        init_kernel_grid(try_cfg);
+        init_kernel_grid(try_cfg, idx_disp);
         init_thread_group_grid(try_cfg);
         dim_t kg_elems = try_cfg.kernel_grid().elems(),
               tg_elems = try_cfg.thread_group_grid().elems();
@@ -1660,8 +1661,9 @@ void conv_tiler_t::set_cur_version(int32_t version) {
     impl_->set_cur_version(version);
 }
 
-void conv_tiler_t::set_params(conv_config_t &cfg) {
-    impl_->set_params(cfg);
+void conv_tiler_t::set_params(
+        conv_config_t &cfg, const idx_dispatcher_t &idx_disp) {
+    impl_->set_params(cfg, idx_disp);
 }
 
 void conv_tiler_t::notify_out_of_registers(const conv_config_t &cfg) {

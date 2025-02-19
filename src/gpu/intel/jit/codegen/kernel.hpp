@@ -293,13 +293,13 @@ public:
 
     void bind_external_vars(const stmt_t &kernel_body,
             const walk_order_t &kernel_grid_walk_order,
-            expr_binding_t &expr_binding) {
-        bind_external_vars(kernel_body, expr_binding);
+            const idx_dispatcher_t &idx_disp, expr_binding_t &expr_binding) {
+        bind_external_vars(kernel_body, idx_disp, expr_binding);
         bind_kernel_grid_walk_order(kernel_grid_walk_order, expr_binding);
     }
 
-    void bind_external_vars(
-            const stmt_t &kernel_body, expr_binding_t &expr_binding) {
+    void bind_external_vars(const stmt_t &kernel_body,
+            const idx_dispatcher_t &idx_disp, expr_binding_t &expr_binding) {
         alloc_manager_t alloc_mgr(kernel_body);
 
         // Bind grid indices.
@@ -307,13 +307,12 @@ public:
         for (int i = 0; i < 3; i++) {
             auto tmp = ra_.template alloc_sub<int32_t>();
             mov(1, tmp, r0.ud(r0_sub_idxs[i]));
-            expr_binding.bind(ir_builder_t::tg_idxs()[i], tmp);
+            expr_binding.bind(idx_disp.tg_idxs()[i], tmp);
         }
 
         // Bind local IDs.
         for (int i = 0; i < 3; i++) {
-            expr_binding.bind(
-                    ir_builder_t::local_ids()[i], getLocalID(i).uw(0));
+            expr_binding.bind(idx_disp.local_ids()[i], getLocalID(i).uw(0));
         }
 
         // Bind arguments.

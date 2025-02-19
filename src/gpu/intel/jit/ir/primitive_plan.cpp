@@ -129,8 +129,8 @@ status_t primitive_init_plan_t::add_reorder_kernel(
         }
     }
     exec_config_t exec_cfg(hw_t(engine), regs_, simd_);
-    kernel_info.set_nd_range(
-            reorder_kernel_t<>::nd_range(exec_cfg, src.layout, dst.layout));
+    kernel_info.set_nd_range(reorder_kernel_t<>::nd_range(
+            kernel_info.idx_disp(), exec_cfg, src.layout, dst.layout));
     reorder_config_t cfg(exec_cfg, src.layout, dst.layout);
     auto kernel = make_kernel<reorder_kernel_t>(primitive,
             /*register_kernel=*/true, engine, cfg, "reorder", kernel_info,
