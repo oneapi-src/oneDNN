@@ -306,6 +306,7 @@ bool conv_problem_t::with_sum_post_op() const {
 }
 
 void conv_problem_t::init_transpose(const hw_t &hw) {
+    return;
     using sm = primitive_attr_t::skip_mask_t;
     auto attr_skip_mask = sm::post_ops | sm::sum_dt | sm::scales_runtime;
     bool allow_ab_transpose = gpu_utils::dev_getenv("allow_ab_transpose", true);
