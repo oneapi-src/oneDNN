@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/intel/ocl/dispatch.h"
+#include "gpu/intel/ocl/ocl_io.h"
 #include "gpu/intel/ocl/ocl_types.h"
 
 #include "gpu/intel/ocl/concat_common.h"
@@ -22,19 +23,19 @@
 #define SCALE_PTR(n) __global const float *scale##n
 
 #define IS_IN_PART(x) (dst_dims[CONCAT_AXIS] < CONCAT3(SRC, x, _END))
-#define WRITE_DST_X(x) dst[dst_off] = TO_DST(x);
+#define WRITE_DST_X(x) write(dst + dst_off, x);
 #if SCALES_MASK > 0
 #define EXTRACT_SCALES_IF(n) \
     if (SCALES_MASK & (1 << n)) tmp_src_scale = *scale##n;
 #define WRITE_DST WRITE_DST_X((float)src_val *tmp_src_scale)
-#define INIT_FLOAT_SCALE float tmp_src_scale = 1.0;
+#define INIT_FLOAT_SCALE float tmp_src_scale = 1.f;
 #define SCALE_PTRS , REDUCE(NUM_INPUTS, JOIN_COMMA, SCALE_PTR)
 #else
 #define WRITE_DST WRITE_DST_X(src_val)
 #define EXTRACT_SCALES_IF(n)
 #define INIT_FLOAT_SCALE
 #define SCALE_PTRS
-#define WRITE_SCALE dst[dst_off] = TO_DST(src_val);
+#define WRITE_SCALE write(dst + dst_off, src_val);
 #endif
 
 #define SET_DIMS(x, y) \
@@ -86,9 +87,10 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
             const off_t dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1],
                     dst_dims[2], dst_dims[3], dst_dims[4], dst_dims[5]);
 #if SUB_GROUP_SIZE > 1
-            BLOCK_WRITE_DST(&dst[dst_off], TO_DST(0.0f));
+            float zval = 0.0f;
+            block_write(dst + dst_off, &zval, VECT_DT_N);
 #else // SUB_GROUP_SIZE > 1
-            dst[dst_off] = TO_DST(0.0f);
+            write(dst + dst_off, 0.0f);
 #endif // SUB_GROUP_SIZE > 1
         }
         return;
@@ -165,26 +167,15 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
         const off_t dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1], dst_dims[2],
                 dst_dims[3], dst_dims[4], dst_dims[5]);
 
+        FLT_ACC_DATA_T src_val;
 #if SUB_GROUP_SIZE > 1
-#define WITH_PUNNING (DT_BF16 == 1 || DT_BF8 == 1 || DT_HF8 == 1)
-#if WITH_PUNNING
-        float src_val = DATA_TO_REF(AS_DATA_T(
-                BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off])));
-#else // WITH_PUNNING
-        SRC_DATA_T src_val = AS_DATA_T(
-                BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off]));
-#endif // WITH_PUNNING
+        block_load(&src_val, (__global SRC_DATA_T *)src + src_off);
 #if SCALES_MASK > 0
-        BLOCK_WRITE_DST(&dst[dst_off], TO_DST((float)src_val * tmp_src_scale));
-#else
-        BLOCK_WRITE_DST(&dst[dst_off], TO_DST(src_val));
+        src_val = SCALES_MASK ? src_val * tmp_src_scale : src_val;
 #endif
+        block_write(dst + dst_off, &src_val, VECT_DT_N);
 #else // SUB_GROUP_SIZE > 1
-#if WITH_PUNNING
-        float src_val = DATA_TO_REF(src[src_off]);
-#else // WITH_PUNNING
-        SRC_DATA_T src_val = src[src_off];
-#endif // WITH_PUNNING
+        load(&src_val, src + src_off);
         WRITE_DST
 #endif // SUB_GROUP_SIZE > 1
     }
@@ -192,9 +183,10 @@ __kernel void gen9_concat(__global DST_DATA_T *dst, long dst_offset0,
         const off_t dst_off = OFF_MD(DST, dst_dims[0], dst_dims[1], dst_dims[2],
                 dst_dims[3], dst_dims[4], dst_dims[5]);
 #if SUB_GROUP_SIZE > 1
-        BLOCK_WRITE_DST(&dst[dst_off], TO_DST(0.0f));
+        FLT_ACC_DATA_T zval = 0.f;
+        block_write(dst + dst_off, &zval, VECT_DT_N);
 #else // SUB_GROUP_SIZE > 1
-        dst[dst_off] = TO_DST(0.0f);
+        write(dst + dst_off, 0.f);
 #endif // SUB_GROUP_SIZE > 1
     }
 }
