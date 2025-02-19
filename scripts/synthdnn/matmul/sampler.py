@@ -157,7 +157,8 @@ class Sampler:
                         self.region.alignment[i],
                     )
                 dims_tuple = tuple(dims)
-                if dims_tuple not in self.seen:
+                size = math.prod(dims_tuple)
+                if dims_tuple not in self.seen and size > 8*1024*1024:
                     self.seen.add(dims_tuple)
                     return Dims(dims[:-3], dims[-3], dims[-2], dims[-1])
 
