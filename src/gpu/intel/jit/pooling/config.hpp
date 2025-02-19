@@ -213,7 +213,7 @@ public:
         }
     }
 
-    void compute_grid() {
+    void compute_grid(const idx_dispatcher_t::vars_t &tg_idxs) {
         const auto &prb = pooling_problem();
         const auto &src = src_layout().user();
         const auto &exec = exec_cfg();
@@ -499,7 +499,6 @@ public:
 
         set_dims_padded(grid_info_t(padded, ""));
         set_loop_grid(grid_info_t(lg, "lg_idx"));
-        auto &tg_idxs = ir_builder_t::tg_idxs();
         set_kernel_grid(grid_info_t(
                 kg, std::vector<expr_t>(tg_idxs.begin(), tg_idxs.end())));
         set_thread_group_grid(grid_info_t(tg, "tg_idx"));

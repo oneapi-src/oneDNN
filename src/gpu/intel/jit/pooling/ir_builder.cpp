@@ -222,7 +222,7 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     constraint_set_t init_cset;
     std::vector<stmt_t> init_stmts;
-    pb.init_kernel_grid(kg, tg, simd, init_cset, init_stmts);
+    pb.init_kernel_grid(kg, tg, ki.idx_disp(), simd, init_cset, init_stmts);
 
     gemm_schedule_t schedule(init_cset, kg, tg);
     schedule.set_view(src_view);

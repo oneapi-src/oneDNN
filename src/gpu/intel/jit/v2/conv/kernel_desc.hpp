@@ -20,6 +20,7 @@
 #include "gpu/intel/gpu_post_ops.hpp"
 #include "gpu/intel/jit/ir/fma.hpp"
 #include "gpu/intel/jit/ir/hw.hpp"
+#include "gpu/intel/jit/ir/ir_builder.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/ir/primitive_plan.hpp"
@@ -286,6 +287,7 @@ public:
     pvar_tile_t iter_outer_tile;
     pvar_tile_t thread_group_tile;
     loop_desc_t loop_desc;
+    idx_dispatcher_t idx_disp;
 
     bool use_stream_k = false;
     bool use_2d_access = false;
