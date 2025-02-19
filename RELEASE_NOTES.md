@@ -1,7 +1,7 @@
 # Performance Optimizations
 
 ## Intel Architecture Processors
-  * Improved performance of convolution and matmul primitives on Intel Xeon processors with Intel AMX support (formerly Sapphire Rapids and Granite Rapids).
+  * Improved performance of convolution and matmul primitives on Intel Xeon processors with Intel AMX instruction set support (formerly Sapphire Rapids and Granite Rapids).
   * Improved performance of `int8` and `fp32` forward convolution primitive on processors with Intel AVX2 instruction set support.
   * Improved performance of `fp8` matmul primitives with `bf16` and `fp16` bias data type on Intel Xeon processors with Intel AMX instruction set support (formerly Sapphire Rapids and Granite Rapids).
   * Improved performance of `int8` RNN primitive on processors with Intel AVX2 and Intel AVX-512 instruction set support.
@@ -96,11 +96,11 @@
   * Updated minimal supported GCC version to 8.0 (was 4.8).
   * Updated minimal supported Clang version to 11.0 (was 3.0).
   * Updated minimal supported ACL version to 24.11.1 (was 24.09).
-  * Removed support for SYCL older than 2020.
+  * Removed support for SYCL standards preceding SYCL 2020.
   * Enforced `fp32` accumulation mode in `fp16` matmul and inner product primitives on Intel Graphics products without Intel XMX cores. Previous behavir can be enabled with relaxed [accumulation mode].
 
 # Thanks to our Contributors
 
-This release contains contributions from the [project core team] as well as Aditya Tewari @aditew01, Alexandra Sidorova @a-sidorova, Atharva Dubey @AD2605, Deb Taylor @deb-intel, Dmitriy Ovchinnikov @inteldimitrius, Fadi Arafeh @fadara01, Hengyu Meng @airMeng, @hmaciak, John Osorio @kala855, Marek Michalowski @michalowski-arm, Michael Froelich @MichaelFroelich, Michał Górny @mgorny, Nikhil Sharma @nikhilfujitsu, Permanence AI Coder @Permanence-AI-Coder, @raistefintel, Ravi Pushkar @rpushkarr, Renato Barros Arantes @renato-arantes, Romain Biessy @Rbiessy, Ryo Suzuki @Ryo-not-rio, @Shreyas-fuj, Varad Ahirwadkar @varad-ahirwadkar, @vishwascm, and Ye Tao @taoye9. We would also like to thank everyone who asked questions and reported issues.
+This release contains contributions from the [project core team] as well as Aditya Tewari @aditew01, Alexandra Sidorova @a-sidorova, Atharva Dubey @AD2605, Deb Taylor @deb-intel, Dmitriy Ovchinnikov @inteldimitrius, Fadi Arafeh @fadara01, Hengyu Meng @airMeng, @hmaciak, John Karasev @karasjoh000, John Osorio @kala855, Keola Wierschem @kwiersch, Marek Michalowski @michalowski-arm, Michael Froelich @MichaelFroelich, Michał Górny @mgorny, Nicolò Scipione @s-Nick, Nikhil Sharma @nikhilfujitsu, Permanence AI Coder @Permanence-AI-Coder, @raistefintel, Ravi Pushkar @rpushkarr, Renato Barros Arantes @renato-arantes, Romain Biessy @Rbiessy, Ryo Suzuki @Ryo-not-rio, @Shreyas-fuj, Tadej Ciglarič @t4c1, Varad Ahirwadkar @varad-ahirwadkar, Viktoriia Gvozdeva @vgvozdeva, @vishwascm, @yair-obodovsky, Ye Tao @taoye9. We would also like to thank everyone who asked questions and reported issues.
 
 [project core team]: https://github.com/oneapi-src/oneDNN/blob/rls-v3.7/MAINTAINERS.md
