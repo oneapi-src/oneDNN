@@ -3,6 +3,7 @@
 --skip-impl=ref
 --mb=2
 
+--dt=f32,f32:f16:f32,f32:bf16:f32
 --dir=FWD_B
 --attr-post-ops=,sum,linear:2:1,sum:1.5+add:f32:per_oc+relu
 --batch=set_all
