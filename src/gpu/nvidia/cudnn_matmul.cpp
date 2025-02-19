@@ -66,65 +66,9 @@ status_t cudnn_matmul_lt_t::execute(const exec_ctx_t &ctx) const {
     nvidia::stream_t *cuda_stream
             = utils::downcast<nvidia::stream_t *>(ctx.stream());
 
-    const bool has_src_scales
-            = ctx.args().find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC)
-            != ctx.args().end();
-    const bool has_wei_scales
-            = ctx.args().find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS)
-            != ctx.args().end();
     const bool has_dst_scales
             = ctx.args().find(DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST)
             != ctx.args().end();
-
-    if (has_src_scales
-            && (pd()->params_->multi_src_scale_
-                    || pd()->params_->acc_type_ == CUDA_R_32I)) {
-        // src scale sycl binary
-        exec_args_t src_scale_binary_args;
-        src_scale_binary_args[DNNL_ARG_SRC_0]
-                = memory_arg_t {ctx.args().at(DNNL_ARG_SRC).mem, true};
-        src_scale_binary_args[DNNL_ARG_SRC_1] = memory_arg_t {
-                ctx.args().at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC).mem, true};
-
-        std::unique_ptr<memory_t, memory_deleter_t> scratch_mem;
-        auto scratchpad_storage
-                = ctx.get_scratchpad_grantor().get_memory_storage(
-                        memory_tracking::names::key_matmul_lt_src_scale);
-        safe_ptr_assign(scratch_mem,
-                new memory_t(ctx.stream()->engine(), pd()->src_md(),
-                        std::move(scratchpad_storage)));
-        src_scale_binary_args[DNNL_ARG_DST]
-                = memory_arg_t {scratch_mem.get(), false};
-
-        exec_ctx_t binary_ctx(ctx, std::move(src_scale_binary_args));
-
-        CHECK(src_scale_binary_->execute(binary_ctx));
-    }
-    if (has_wei_scales
-            && (pd()->params_->multi_wei_scale_
-                    || pd()->params_->acc_type_ == CUDA_R_32I)) {
-        // wei scale sycl binary
-        exec_args_t wei_scale_binary_args;
-        wei_scale_binary_args[DNNL_ARG_SRC_0]
-                = memory_arg_t {ctx.args().at(DNNL_ARG_WEIGHTS).mem, true};
-        wei_scale_binary_args[DNNL_ARG_SRC_1] = memory_arg_t {
-                ctx.args().at(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS).mem,
-                true};
-
-        std::unique_ptr<memory_t, memory_deleter_t> scratch_mem;
-        auto scratchpad_storage
-                = ctx.get_scratchpad_grantor().get_memory_storage(
-                        memory_tracking::names::key_matmul_lt_wei_scale);
-        safe_ptr_assign(scratch_mem,
-                new memory_t(ctx.stream()->engine(), pd()->weights_md(0),
-                        std::move(scratchpad_storage)));
-        wei_scale_binary_args[DNNL_ARG_DST]
-                = memory_arg_t {scratch_mem.get(), false};
-
-        exec_ctx_t binary_ctx(ctx, std::move(wei_scale_binary_args));
-
-        CHECK(wei_scale_binary_->execute(binary_ctx));
-    }
 
     CHECK(executor_->execute(ctx, ctx.stream()->engine(), matmul_impl_,
             pd()->params_, src_d, weights_d, dst_d));
