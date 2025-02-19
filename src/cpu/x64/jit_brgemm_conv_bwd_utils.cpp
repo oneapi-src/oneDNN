@@ -111,7 +111,8 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &diff_dst_md,
     } else {
         jcp.LDB = jcp.ic_block;
         const bool no_vnni_format = jcp.wei_dt == f32
-                || (jcp.wei_dt == f16 && jcp.isa == avx512_core_fp16);
+                || (jcp.wei_dt == f16 && jcp.isa == avx512_core_fp16)
+                || jcp.is_f32_bf16 || jcp.is_f32_f16;
         if (jcp.ic_block == 64) {
             if (is_3d) {
                 if (no_vnni_format)
@@ -1496,11 +1497,17 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.is_bf32 = everyone_is(f32, jcp.src_dt, jcp.wei_dt)
             && one_of(attr.fpmath_.mode_, fpmath_mode::bf16, fpmath_mode::any)
             && isa == avx512_core_amx;
+    jcp.is_f32_bf16
+            = everyone_is(f32, jcp.src_dt, jcp.dst_dt) && jcp.wei_dt == bf16;
+    jcp.is_f32_f16
+            = everyone_is(f32, jcp.src_dt, jcp.dst_dt) && jcp.wei_dt == f16;
 
     VDISPATCH_CONV_IC(!jcp.is_bf32, VERBOSE_UNSUPPORTED_DT);
 
+    const auto wei_dt
+            = jcp.is_f32_f16 || jcp.is_f32_bf16 ? jcp.src_dt : jcp.wei_dt;
     const data_type_t last_oc_block_dt = get_mac_emu_data_type(
-            jcp.wei_dt, isa, isa == avx512_core_fp16 && !jcp.is_fp8_convert);
+            wei_dt, isa, isa == avx512_core_fp16 && !jcp.is_fp8_convert);
     jcp.vnni_block = data_type_vnni_granularity(last_oc_block_dt);
 
     // TODO: optimize grouped convolutions with small oc
@@ -1591,17 +1598,25 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                             || one_of(jcp.isa, avx2_vnni, avx2_vnni_2)),
             VERBOSE_ISA_DT_MISMATCH);
 
-    VDISPATCH_CONV_IC(IMPLICATION(jcp.wei_dt == bf16,
+    VDISPATCH_CONV_IC(IMPLICATION(jcp.wei_dt == bf16 && !jcp.is_f32_bf16,
                               is_superset(jcp.isa, avx512_core_bf16)
                                       || is_superset(jcp.isa, avx2_vnni_2)),
             VERBOSE_ISA_DT_MISMATCH);
 
-    VDISPATCH_CONV_IC(IMPLICATION(jcp.wei_dt == f16,
+    VDISPATCH_CONV_IC(IMPLICATION(jcp.wei_dt == f16 && !jcp.is_f32_f16,
                               is_superset(jcp.isa, avx512_core_fp16)
                                       || is_superset(jcp.isa, avx2_vnni_2)),
             VERBOSE_ISA_DT_MISMATCH);
 
     VDISPATCH_CONV_IC(IMPLICATION(is_f32, one_of(isa, avx512_core, avx2)),
+            VERBOSE_ISA_DT_MISMATCH);
+
+    VDISPATCH_CONV_IC(
+            IMPLICATION(jcp.is_f32_bf16, one_of(isa, avx512_core, avx2)),
+            VERBOSE_ISA_DT_MISMATCH);
+
+    VDISPATCH_CONV_IC(
+            IMPLICATION(jcp.is_f32_f16, one_of(isa, avx512_core, avx2)),
             VERBOSE_ISA_DT_MISMATCH);
 
     jcp.amx_h = 16;
