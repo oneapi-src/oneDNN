@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/intel/ocl/dispatch.h"
+#include "gpu/intel/ocl/ocl_io.h"
 #include "gpu/intel/ocl/ocl_types.h"
 
 int reduce_index(int x[5]) {
@@ -38,7 +39,7 @@ __kernel void calculate_mean(__global DATA_T *src, __global float *mean) {
     float sum = 0;
     for (int i = 0; i < REDUCE_DIM; i++) {
         x[REDUCE_DIM_IDX] = i;
-        sum += TO_DEF_ACC_DATA_T(src[SRC_OFF(x[0], x[1], x[2], x[3], x[4])]);
+        sum += load(sum, src + SRC_OFF(x[0], x[1], x[2], x[3], x[4]));
     }
     x[REDUCE_DIM_IDX] = 0;
     int reduce_idx = reduce_index(x);
@@ -58,7 +59,7 @@ __kernel void calculate_variance(
     for (int i = 0; i < REDUCE_DIM; i++) {
         x[REDUCE_DIM_IDX] = i;
         DEF_ACC_DATA_T v0
-                = TO_DEF_ACC_DATA_T(src[SRC_OFF(x[0], x[1], x[2], x[3], x[4])])
+                = load(v0, src + SRC_OFF(x[0], x[1], x[2], x[3], x[4]))
                 - mean[x[1]];
         sum += v0 * v0;
     }
@@ -126,11 +127,11 @@ __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
     float v_mean = mean[c];
     float v_variance = variance[c];
     const int off = SRC_OFF(n, c, d, h, w);
-    float v0 = TO_DEF_ACC_DATA_T(src[off]);
+    float v0 = load(v0, src + off);
     float sqrt_variance = 1.0f / sqrt(v_variance + eps);
     float bn_res = sm * (v0 - v_mean) * sqrt_variance + sv;
 #if FUSE_BN_ADD_RELU == 1
-    bn_res += TO_DEF_ACC_DATA_T(src_add[off]);
+    bn_res += load(bn_res, src_add + off);
 #endif
 
 #if FUSE_BN_RELU == 1
@@ -152,7 +153,7 @@ __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #endif //WITH_LEAKY_RELU
 #endif //WITH_RELU
 
-    dst[off] = TO_DATA_T(bn_res);
+    write(dst + off, bn_res);
 }
 #endif
 
@@ -173,11 +174,11 @@ __kernel void calculate_stats(__global DATA_T *src, __global float *mean,
     for (int i = 0; i < REDUCE_DIM; i++) {
         x[REDUCE_DIM_IDX] = i;
         int off = SRC_OFF(x[0], x[1], x[2], x[3], x[4]);
-        float dd = CONVERT_FLOAT_T(diff_dst[off]);
+        float dd = load(dd, diff_dst + off);
 #if FUSE_BN_RELU == 1
         if (!ws[off]) dd = 0;
 #endif
-        diff_gamma += (CONVERT_FLOAT_T(src[off]) - mean[x[1]]) * dd;
+        diff_gamma += (load(diff_gamma, src + off) - mean[x[1]]) * dd;
         diff_beta += dd;
     }
 
@@ -244,22 +245,22 @@ __kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
 #endif
 
     const int off = SRC_OFF(n, c, d, h, w);
-    float dd = TO_DEF_ACC_DATA_T(diff_dst[off]);
+    float dd = load(dd, diff_dst + off);
 #if FUSE_BN_RELU == 1
     if (!ws[off]) dd = 0;
 #if FUSE_BN_ADD_RELU == 1
-    diff_src_add[off] = TO_DATA_T(dd);
+    write(diff_src_add + off, dd);
 #endif
 #endif
 
     float v_diff_src = dd;
 #if CALCULATE_STATS == 1
     v_diff_src -= diff_beta / (MB * ID * IH * IW)
-            + (CONVERT_FLOAT_T(src[off]) - v_mean) * diff_gamma * sqrt_variance
-                    / (MB * ID * IH * IW);
+            + (load(v_diff_src, src + off) - v_mean) * diff_gamma
+                    * sqrt_variance / (MB * ID * IH * IW);
 #endif
     v_diff_src *= gamma * sqrt_variance;
 
-    diff_src[off] = TO_DATA_T(v_diff_src);
+    write(diff_src + off, v_diff_src);
 }
 #endif

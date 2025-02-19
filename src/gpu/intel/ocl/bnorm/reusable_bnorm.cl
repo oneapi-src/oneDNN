@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/intel/ocl/dispatch.h"
+#include "gpu/intel/ocl/ocl_io.h"
 #include "gpu/intel/ocl/ocl_types.h"
 #include "gpu/intel/ocl/types_interop.h"
 
@@ -26,7 +27,7 @@ __kernel void reusable_calculate_mean(__global DATA_T *src,
     mean = GWS_GET_BUFFER_POS_NAMED(DST, CALC, gws_params, mean);
     float sum = 0;
     unroll_16_for(off_t i = 0; i < reduce_dim; i++) {
-        sum += TO_DEF_ACC_DATA_T(src[i * (off_t)reduce_dim_stride]);
+        sum += load(sum, src + i * (off_t)reduce_dim_stride);
     }
 
     *mean = sum;
@@ -41,8 +42,8 @@ __kernel void reusable_calculate_variance(__global DATA_T *src,
     variance = GWS_GET_BUFFER_POS_NAMED(DST, CALC, gws_params, variance);
     float sum = 0;
     unroll_16_for(off_t i = 0; i < reduce_dim; i++) {
-        DEF_ACC_DATA_T v0 = TO_DEF_ACC_DATA_T(src[i * (off_t)reduce_dim_stride])
-                - mean[c];
+        DEF_ACC_DATA_T v0
+                = load(v0, src + i * (off_t)reduce_dim_stride) - mean[c];
         sum += v0 * v0;
     }
 
@@ -96,10 +97,10 @@ __kernel void reusable_bnorm_fwd(__global DATA_T *src, __global float *mean,
     float sv = USE_SHIFT ? shift[c] : 0;
     float v_mean = mean[c];
     float v_variance = variance[c];
-    float v0 = TO_DEF_ACC_DATA_T(*src);
+    float v0 = load(v0, src);
     float sqrt_variance = 1.0f / sqrt(v_variance + eps);
     float bn_res = sm * (v0 - v_mean) * sqrt_variance + sv;
-    if (FUSE_BN_ADD_RELU) bn_res += TO_DEF_ACC_DATA_T(*src_add);
+    if (FUSE_BN_ADD_RELU) bn_res += load(bn_res, src_add);
 
 #if FUSE_BN_RELU == 1
     if (bn_res <= 0) {
@@ -120,7 +121,7 @@ __kernel void reusable_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #endif //WITH_LEAKY_RELU
 #endif //WITH_RELU
 
-    *dst = TO_DATA_T(bn_res);
+    write(dst, bn_res);
 }
 
 NAMED_KERNEL_ATTR(CALC)
@@ -142,9 +143,9 @@ __kernel void reusable_calculate_stats(__global DATA_T *src,
 
     unroll_16_for(off_t i = 0; i < reduce_dim; i++) {
         const off_t offi = i * (off_t)reduce_dim_stride;
-        float dd = CONVERT_FLOAT_T(diff_dst[offi]);
+        float dd = load(dd, diff_dst + offi);
         if (FUSE_BN_RELU && !ws[offi]) dd = 0;
-        diff_gamma += (CONVERT_FLOAT_T(src[offi]) - mean[c]) * dd;
+        diff_gamma += (load(diff_gamma, src + offi) - mean[c]) * dd;
         diff_beta += dd;
     }
 
@@ -196,10 +197,10 @@ __kernel void reusable_bnorm_bwd(__global DATA_T *src, __global float *mean,
     float sqrt_variance = 1.0f / sqrt(v_variance + eps);
     float gamma = USE_SCALE ? scale[c] : 1;
 
-    float dd = TO_DEF_ACC_DATA_T(*diff_dst);
+    float dd = load(dd, diff_dst);
 #if FUSE_BN_RELU == 1
     if (!*ws) dd = 0;
-    if (FUSE_BN_ADD_RELU) *diff_src_add = TO_DATA_T(dd);
+    if (FUSE_BN_ADD_RELU) write(diff_src_add, dd);
 #endif
 
     float v_diff_src = dd;
@@ -208,10 +209,10 @@ __kernel void reusable_bnorm_bwd(__global DATA_T *src, __global float *mean,
     float diff_gamma = diff_scale[c];
     float diff_beta = diff_shift[c];
     v_diff_src -= diff_beta / div
-            + (CONVERT_FLOAT_T(*src) - v_mean) * diff_gamma * sqrt_variance
+            + (load(v_diff_src, src) - v_mean) * diff_gamma * sqrt_variance
                     / div;
 #endif
     v_diff_src *= gamma * sqrt_variance;
 
-    *diff_src = TO_DATA_T(v_diff_src);
+    write(diff_src, v_diff_src);
 }
