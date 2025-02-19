@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+/// @file
+/// Threadpool Interoperability C++ Types
+
 #ifndef ONEAPI_DNNL_DNNL_THREADPOOL_IFACE_HPP
 #define ONEAPI_DNNL_DNNL_THREADPOOL_IFACE_HPP
 // NOLINTBEGIN(readability-identifier-naming)
