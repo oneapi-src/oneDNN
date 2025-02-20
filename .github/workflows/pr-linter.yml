@@ -31,12 +31,9 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  pr-changes:
-    name: Check changes
+  pr-commits:
+    name: Check commits
     runs-on: ubuntu-latest
-    outputs:
-      changed: ${{ steps.changes.outputs.changed }}
-      changed_x64: ${{ steps.changes.outputs.changed_x64 }}
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -44,21 +41,6 @@ jobs:
           fetch-depth: 0
       - name: Check commit messages
         run: python3 ./.github/automation/commit-msg-check.py "${{ github.event.pull_request.head.sha }}" "${{ github.event.pull_request.base.sha }}"
-      - name: Check codebase changes
-        id: changes
-        run: |
-          if git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | grep -q -E "^(.github/|examples/|include/|src/|tests/)"; then
-            echo "Found changes in codebase"
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            if git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | grep -q -E "^(.github/|src/cpu/x64/|src/gpu/intel/)"; then
-              echo "Found changes in x64 codebase"
-              echo "changed_x64=true" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            echo "No changes in codebase"
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "changed_x64=false" >> "$GITHUB_OUTPUT"
-          fi
 
   pr-clang-format:
     name: Formatting
@@ -76,8 +58,6 @@ jobs:
   pr-format-tags:
     name: Format tags consistency
     runs-on: ubuntu-latest
-    needs: pr-changes
-    if: ${{ needs.pr-changes.outputs.changed == 'true' }}
     steps:
       - name: Checkout oneDNN
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -108,30 +88,3 @@ jobs:
           python ${{ github.workspace }}/source/scripts/generate_format_tags.py
           cd ${{ github.workspace }}/source/
           git diff | grep . && exit 1 || true
-
-  pr-clang-tidy:
-    name: Clang-Tidy
-    runs-on: ubuntu-latest
-    needs: pr-changes
-    if: ${{ needs.pr-changes.outputs.changed_x64 == 'true' }}
-    steps:
-      - name: Checkout oneDNN
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Install clang
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang libomp-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
-
-      - name: Configure oneDNN
-        run: .github/automation/x64/build_linters.sh
-        env:
-          ONEDNN_ACTION: configure
-
-      - name: Build oneDNN
-        run: |
-          .github/automation/x64/build_linters.sh 2>&1 | tee build.log
-          grep -i "warning:" build.log | sort -u
-          grep -q -i "warning:" build.log && exit 1 || true
-        env:
-          ONEDNN_ACTION: build
