@@ -49,8 +49,6 @@ status_t cudnn_convolution_fwd_t::execute_convolution(
 
         xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read_write>
                 temp_dst;
-        xpu::sycl::interop_memory_arg_t<::sycl::access::mode::read_write>
-                temp_reorder;
 
         if (pd()->use_temp_dst()) {
             memory_storage_t *temp_dst_mem = scratch_storage.get();

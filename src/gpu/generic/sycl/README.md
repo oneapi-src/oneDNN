@@ -179,3 +179,11 @@ The implementation supports both forward and backward propagations.
 
 * Supported formats: plain formats with up to 6 dimensions
 * Supported data types: `f32`, `bf16`, `f16`, `s8`, `u8`
+
+## RNN
+
+The implementation supports forward propagation and vanilla RNN cell kind.
+
+* Supported formats: `ldigo`, `ldgoi`
+* Supported data types: `f32`, `bf16`, `f16`, `s8`, `u8`
+* Supported direction: `left2right`

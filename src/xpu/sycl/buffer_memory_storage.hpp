@@ -68,6 +68,9 @@ public:
 
     std::unique_ptr<memory_storage_t> clone() const override;
 
+    std::unique_ptr<memory_storage_t> clone_ptr_off(
+            size_t offset) const override;
+
     in_memory_arg_t get_in_memory_arg(
             stream_t *stream, ::sycl::handler &cgh) const override;
     out_memory_arg_t get_out_memory_arg(
