@@ -9,7 +9,7 @@ on:
       - "src/cpu/x64/**"
       - "src/gpu/intel/**"
 
-# Declare default permissions as read only.
+## Declare default permissions as read only.
 permissions: read-all
 
 # Kill stale checks
