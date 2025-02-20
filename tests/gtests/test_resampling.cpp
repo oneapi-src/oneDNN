@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -211,7 +211,7 @@ private:
     std::shared_ptr<memory::desc> src_desc, dst_desc;
     std::vector<float> factors;
     std::vector<float> expected_factors;
-    resampling_forward::primitive_desc resampling_pd;
+    std::shared_ptr<resampling_forward::primitive_desc> pd_fwd_hint;
 
     resampling_test_params_t p;
     engine eng;
@@ -289,37 +289,48 @@ protected:
     }
 
     void Forward() {
-        resampling_pd = resampling_forward::primitive_desc(
-                eng, p.aprop_kind, p.aalgorithm, *src_desc, *dst_desc);
-        resampling_pd = resampling_forward::primitive_desc(
-                resampling_pd.get()); // test construction from a C pd
+        // resampling specific types and values
+        using pd_t = resampling_forward::primitive_desc;
+
+        allows_attr_t aa {};
+        aa.po_sum = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_binary = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+        aa.po_eltwise = !is_nvidia_gpu(eng) && !is_amd_gpu(eng);
+
+        // default pd ctor
+        auto pd = pd_t();
+        // regular pd ctor
+        pd = pd_t(eng, p.aprop_kind, p.aalgorithm, *src_desc, *dst_desc);
+        // test all pd ctors
+        test_fwd_pd_constructors<pd_t>(
+                pd, aa, p.aprop_kind, p.aalgorithm, *src_desc, *dst_desc);
+        pd_fwd_hint = std::make_shared<pd_t>(pd);
+
+        EXPECT_ANY_THROW(resampling_forward(pd, {}));
+        // default primitive ctor
+        auto resampling = resampling_forward();
+        // regular primitive ctor
+        resampling = resampling_forward(pd);
 
         {
-            auto resampling_desc_no_dst
-                    = resampling_forward::primitive_desc(eng, p.aprop_kind,
-                            p.aalgorithm, factors, resampling_pd.src_desc());
-            auto resampling_pd_no_dst
-                    = resampling_forward::primitive_desc(eng, p.aprop_kind,
-                            p.aalgorithm, factors, resampling_pd.src_desc());
-            ASSERT_EQ(
-                    resampling_pd.dst_desc(), resampling_pd_no_dst.dst_desc());
-            ASSERT_EQ(resampling_pd_no_dst.get_factors(), expected_factors);
+            auto pd_no_dst = pd_t(
+                    eng, p.aprop_kind, p.aalgorithm, factors, pd.src_desc());
+            ASSERT_EQ(pd.dst_desc(), pd_no_dst.dst_desc());
+            ASSERT_EQ(pd_no_dst.get_factors(), expected_factors);
         }
 
-        ASSERT_EQ(resampling_pd.get_prop_kind(), p.aprop_kind);
-        ASSERT_EQ(resampling_pd.get_algorithm(), p.aalgorithm);
-        ASSERT_EQ(resampling_pd.get_factors(), expected_factors);
+        ASSERT_EQ(pd.get_prop_kind(), p.aprop_kind);
+        ASSERT_EQ(pd.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(pd.get_factors(), expected_factors);
 
-        auto src = test::make_memory(resampling_pd.src_desc(), eng);
-        auto dst = test::make_memory(resampling_pd.dst_desc(), eng);
-        auto dst_ref = test::make_memory(resampling_pd.dst_desc(), eng);
+        auto src = test::make_memory(pd.src_desc(), eng);
+        auto dst = test::make_memory(pd.dst_desc(), eng);
+        auto dst_ref = test::make_memory(pd.dst_desc(), eng);
 
         fill_data<data_t>(src.get_desc().get_size() / sizeof(data_t), src);
         check_zero_tail<data_t>(1, src);
 
-        EXPECT_ANY_THROW(resampling_forward(resampling_pd, {}));
-        resampling_forward(resampling_pd)
-                .execute(strm, {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
+        resampling.execute(strm, {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
         strm.wait();
 
         compute_ref_resampling_fwd<data_t>(p, src, dst_ref);
@@ -330,30 +341,41 @@ protected:
     }
 
     void Backward() {
-        auto resampling_bwd_pd = resampling_backward::primitive_desc(eng,
-                p.aalgorithm, factors, *src_desc, *dst_desc, resampling_pd);
+        // resampling specific types and values
+        using pd_t = resampling_backward::primitive_desc;
+        using hint_pd_t = resampling_forward::primitive_desc;
+        allows_attr_t aa {}; // doesn't support anything
 
-        auto diff_src
-                = test::make_memory(resampling_bwd_pd.diff_src_desc(), eng);
-        auto diff_dst
-                = test::make_memory(resampling_bwd_pd.diff_dst_desc(), eng);
-        auto diff_src_ref
-                = test::make_memory(resampling_bwd_pd.diff_src_desc(), eng);
+        // default pd ctor
+        auto pd = pd_t();
+        // regular pd ctor
+        pd = pd_t(
+                eng, p.aalgorithm, factors, *src_desc, *dst_desc, *pd_fwd_hint);
+        // test all pd ctors
+        test_bwd_pd_constructors<pd_t, hint_pd_t>(pd, *pd_fwd_hint, aa,
+                p.aalgorithm, factors, *src_desc, *dst_desc);
 
-        ASSERT_EQ(resampling_bwd_pd.get_prop_kind(), prop_kind::backward_data);
-        ASSERT_EQ(resampling_bwd_pd.get_algorithm(), p.aalgorithm);
-        ASSERT_EQ(resampling_bwd_pd.get_factors(), expected_factors);
+        EXPECT_ANY_THROW(resampling_backward(pd, {}));
+        // default primitive ctor
+        auto resampling = resampling_backward();
+        // regular primitive ctor
+        resampling = resampling_backward(pd);
+
+        auto diff_src = test::make_memory(pd.diff_src_desc(), eng);
+        auto diff_dst = test::make_memory(pd.diff_dst_desc(), eng);
+        auto diff_src_ref = test::make_memory(pd.diff_src_desc(), eng);
+
+        ASSERT_EQ(pd.get_prop_kind(), prop_kind::backward_data);
+        ASSERT_EQ(pd.get_algorithm(), p.aalgorithm);
+        ASSERT_EQ(pd.get_factors(), expected_factors);
 
         fill_data<data_t>(
                 diff_dst.get_desc().get_size() / sizeof(data_t), diff_dst);
         check_zero_tail<data_t>(1, diff_dst);
         check_zero_tail<data_t>(1, diff_src);
 
-        EXPECT_ANY_THROW(resampling_backward(resampling_bwd_pd, {}));
-        resampling_backward(resampling_bwd_pd)
-                .execute(strm,
-                        {{DNNL_ARG_DIFF_SRC, diff_src},
-                                {DNNL_ARG_DIFF_DST, diff_dst}});
+        resampling.execute(strm,
+                {{DNNL_ARG_DIFF_SRC, diff_src}, {DNNL_ARG_DIFF_DST, diff_dst}});
         strm.wait();
 
         compute_ref_resampling_bwd<data_t>(p, diff_dst, diff_src_ref);
