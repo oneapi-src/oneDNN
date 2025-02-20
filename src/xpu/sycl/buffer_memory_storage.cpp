@@ -39,7 +39,10 @@ memory_arg_t<mode> get_memory_arg(const buffer_memory_storage_t *storage,
                 = utils::downcast<xpu::sycl::stream_impl_t *>(stream->impl());
         return {sycl_stream_impl->get_dummy_accessor<mode>(cgh)};
     }
-    return {storage->buffer().get_access<mode>(cgh)};
+    ::sycl::id<1> offset(storage->offset());
+    ::sycl::range<1> range(storage->buffer().size() - storage->offset());
+
+    return {storage->buffer().get_access<mode>(cgh, range, offset)};
 }
 
 } // namespace
@@ -124,6 +127,16 @@ std::unique_ptr<memory_storage_t> buffer_memory_storage_t::clone() const {
 
     storage->buffer_ = buffer_;
     storage->base_offset_ = base_offset_;
+    storage->set_offset(offset());
+
+    return storage;
+}
+
+std::unique_ptr<memory_storage_t> buffer_memory_storage_t::clone_ptr_off(
+        size_t offset) const {
+    auto storage = clone();
+    storage->set_offset(offset + this->offset());
+
     return storage;
 }
 
