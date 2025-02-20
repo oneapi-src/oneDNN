@@ -170,8 +170,10 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
             return arg_usage_t::unused;
         }
 
-        if (arg == DNNL_ARG_SCALE && use_scale()) return arg_usage_t::input;
-        if (arg == DNNL_ARG_SHIFT && use_shift()) return arg_usage_t::input;
+        if (arg == DNNL_ARG_SCALE)
+            return use_scale() ? arg_usage_t::input : arg_usage_t::unused;
+        if (arg == DNNL_ARG_SHIFT)
+            return use_shift() ? arg_usage_t::input : arg_usage_t::unused;
 
         return primitive_desc_t::arg_usage(arg);
     }
@@ -275,15 +277,15 @@ struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
                     DNNL_ARG_DIFF_DST))
             return arg_usage_t::input;
 
-        if (arg == DNNL_ARG_SCALE && use_scale()) return arg_usage_t::input;
-        if (arg == DNNL_ARG_SHIFT && use_shift()) return arg_usage_t::input;
+        if (arg == DNNL_ARG_SCALE)
+            return use_scale() ? arg_usage_t::input : arg_usage_t::unused;
 
         if (arg == DNNL_ARG_DIFF_SRC) return arg_usage_t::output;
 
-        if (arg == DNNL_ARG_DIFF_SCALE && use_scale())
-            return arg_usage_t::output;
-        if (arg == DNNL_ARG_DIFF_SHIFT && use_shift())
-            return arg_usage_t::output;
+        if (arg == DNNL_ARG_DIFF_SCALE)
+            return use_scale() ? arg_usage_t::output : arg_usage_t::unused;
+        if (arg == DNNL_ARG_DIFF_SHIFT)
+            return use_shift() ? arg_usage_t::output : arg_usage_t::unused;
 
         return primitive_desc_t::arg_usage(arg);
     }
@@ -332,7 +334,7 @@ struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
         return index == 0 ? &diff_scaleshift_md_ : &glob_zero_md;
     }
 
-    int n_inputs() const override { return 4 + use_scale() + use_shift(); }
+    int n_inputs() const override { return 4 + use_scale(); }
     int n_outputs() const override {
         return 1
                 + (desc_.prop_kind == prop_kind::backward)
