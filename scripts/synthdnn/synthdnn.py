@@ -71,6 +71,16 @@ def setup_collect_args(parser, req):
         help="implementation to skip in benchdnn execution",
     )
     parser.add_argument(
+        "--global-impl",
+        default=None,
+        help="implementation to use in benchdnn execution",
+    )
+    parser.add_argument(
+        "--global-skip-impl",
+        default=None,
+        help="implementation to skip in benchdnn execution",
+    )
+    parser.add_argument(
         "--collect",
         default="corr",
         help="benchdnn collection type, can be one of [corr, perf]",
@@ -95,6 +105,10 @@ def get_optional_args(args):
         optional_args.append(f"--impl={args.impl}")
     if args.skip_impl:
         optional_args.append(f"--skip-impl={args.skip_impl}")
+    if args.global_impl:
+        optional_args.append(f"--global-impl={args.global_impl}")
+    if args.global_skip_impl:
+        optional_args.append(f"--global-skip-impl={args.global_skip_impl}")
 
     if len(optional_args) > 0:
         return " ".join(optional_args) + " "
