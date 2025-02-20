@@ -927,15 +927,19 @@ std::ostream &dump_global_params(std::ostream &s) {
     return s;
 }
 
-dnnl_engine_kind_t str2engine_kind(const char *str) {
-    const char *param = "cpu";
-    if (!strncasecmp(param, str, strlen(param))) return dnnl_cpu;
-
-    param = "gpu";
-    if (!strncasecmp(param, str, strlen(param))) return dnnl_gpu;
-
-    assert(!"not expected");
-    return dnnl_cpu;
+dnnl_engine_kind_t str2engine_kind(const std::string &s) {
+    if (s == "cpu") {
+        return dnnl_cpu;
+    } else if (s == "gpu") {
+        return dnnl_gpu;
+    } else {
+        BENCHDNN_PRINT(0,
+                "Error: engine kind supports values \'cpu\' and \'gpu\' only. "
+                "Given input: %s\n",
+                s.c_str());
+        SAFE_V(FAIL);
+    }
+    return dnnl_any_engine;
 }
 
 dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str) {

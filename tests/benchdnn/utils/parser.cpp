@@ -1010,15 +1010,19 @@ static bool parse_engine(
               "use an engine with requested `KIND`.\n    `KIND` values can be "
               "`cpu` or `gpu`.\n    `INDEX` is an integer value specifying "
               "which engine to use if several were identified.\n";
+
+    size_t start_pos = 0;
+    std::string kind_str = get_substr(str, start_pos, ':');
+
     if (!parse_single_value_option(engine_tgt_kind, dnnl_cpu, str2engine_kind,
-                str, option_name, help))
+                kind_str.c_str(), option_name, help))
         return false;
-    // Parse engine index if present
-    std::string s(str);
-    auto start_pos = s.find_first_of(':');
-    if (start_pos != eol) {
-        // Let the library catch issues with incorrect engine indices.
-        engine_index = std::stoi(s.substr(start_pos + 1));
+
+    if (start_pos != std::string::npos) {
+        std::string index_str(str + start_pos);
+        // If the index is a valid number, let the library catch potential
+        // issues around unavailable devices, etc.
+        engine_index = parser_utils::stoll_safe(index_str);
     }
 
     return true;
