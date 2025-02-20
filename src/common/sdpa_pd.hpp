@@ -48,6 +48,9 @@ struct sdpa_pd_t : public primitive_desc_t {
     }
 
     arg_usage_t arg_usage(int arg) const override {
+        // TODO: this is broken for cases when the user passes quantization
+        // memories unconditionally but the primitive desc is not set up for
+        // quantization.
         if (utils::one_of(arg, DNNL_ARG_QUERIES, DNNL_ARG_KEYS, DNNL_ARG_VALUES,
                     DNNL_ARG_ATTN_MASK, DNNL_ARG_SCALE,
                     DNNL_ARG_ATTR_SCALES | DNNL_ARG_KEYS,
