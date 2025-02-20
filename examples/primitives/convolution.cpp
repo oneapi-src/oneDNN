@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -75,6 +75,7 @@ void convolution_example(dnnl::engine::kind engine_kind) {
     // dimensions.
     memory::dims src_dims = {N, IC, IH, IW};
     memory::dims weights_dims = {OC, IC, KH, KW};
+    // To simulate an empty bias use an empty initializer `{}`.
     memory::dims bias_dims = {OC};
     memory::dims dst_dims = {N, OC, OH, OW};
 
@@ -86,7 +87,7 @@ void convolution_example(dnnl::engine::kind engine_kind) {
     // Allocate buffers.
     std::vector<float> src_data(product(src_dims));
     std::vector<float> weights_data(product(weights_dims));
-    std::vector<float> bias_data(OC);
+    std::vector<float> bias_data(product(bias_dims));
     std::vector<float> dst_data(product(dst_dims));
 
     // Initialize src, weights, and dst tensors.
@@ -118,13 +119,16 @@ void convolution_example(dnnl::engine::kind engine_kind) {
     auto conv_dst_md = memory::desc(dst_dims, dt::f32, tag::any);
 
     // Create memory descriptor and memory object for input bias.
-    auto user_bias_md = memory::desc(bias_dims, dt::f32, tag::a);
+    auto user_bias_md = bias_dims.empty()
+            ? memory::desc()
+            : memory::desc(bias_dims, dt::f32, tag::a);
     auto user_bias_mem = memory(user_bias_md, engine);
 
     // Write data to memory object's handle.
     write_to_dnnl_memory(src_data.data(), user_src_mem);
     write_to_dnnl_memory(weights_data.data(), user_weights_mem);
-    write_to_dnnl_memory(bias_data.data(), user_bias_mem);
+    if (!bias_dims.empty())
+        write_to_dnnl_memory(bias_data.data(), user_bias_mem);
 
     // Create primitive post-ops (ReLU).
     const float alpha = 0.f;
