@@ -179,6 +179,7 @@ const op_kind_t Minimum = dnnl_graph_op_minimum;
 const op_kind_t Mish = dnnl_graph_op_mish;
 const op_kind_t MishBackward = dnnl_graph_op_mish_backward;
 const op_kind_t Multiply = dnnl_graph_op_multiply;
+const op_kind_t PagedCacheLoad = dnnl_graph_op_paged_cache_load;
 const op_kind_t Pow = dnnl_graph_op_pow;
 const op_kind_t PReLU = dnnl_graph_op_prelu;
 const op_kind_t PReLUBackward = dnnl_graph_op_prelu_backward;
@@ -269,7 +270,7 @@ const op_attr_t weights_format = dnnl_graph_op_attr_weights_format;
 const op_attr_t mode = dnnl_graph_op_attr_mode;
 const op_attr_t qtype = dnnl_graph_op_attr_qtype;
 const op_attr_t rounding_type = dnnl_graph_op_attr_rounding_type;
-
+const op_attr_t seq_lens = dnnl_graph_op_attr_seq_lens;
 // Used to indicate the end of all external attributes, note all the new
 // attribute should be added above this one.
 const op_attr_t end = dnnl_graph_op_attr_end;

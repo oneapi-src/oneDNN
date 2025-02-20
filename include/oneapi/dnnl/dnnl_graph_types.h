@@ -258,6 +258,7 @@ typedef enum {
     dnnl_graph_op_group_norm,
     dnnl_graph_op_gen_index,
     dnnl_graph_op_greater_equal,
+    dnnl_graph_op_paged_cache_load,
     dnnl_graph_op_last_symbol,
 } dnnl_graph_op_kind_t;
 
@@ -317,6 +318,8 @@ typedef enum {
     dnnl_graph_op_attr_pads_begin,
     /// Specifies a pads_end attribute to an op.
     dnnl_graph_op_attr_pads_end,
+    /// Specifies a lens of sequences to an op.
+    dnnl_graph_op_attr_seq_lens,
     /// Specifies a shape attribute to an op.
     dnnl_graph_op_attr_shape,
     /// Specifies a sizes attribute to an op.
@@ -381,7 +384,6 @@ typedef enum {
     /// Specifies a weights_format of an op. The value can be "OIX", "XIO",
     /// "IOX", or "XOI". Different operations may support different values.
     dnnl_graph_op_attr_weights_format,
-
     /// Specifies the end of all above exteral attributes for check.
     dnnl_graph_op_attr_end = 0xFF,
 } dnnl_graph_op_attr_t;

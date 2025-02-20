@@ -839,6 +839,7 @@ public:
         Wildcard = dnnl_graph_op_wildcard,
         GenIndex = dnnl_graph_op_gen_index,
         GreaterEqual = dnnl_graph_op_greater_equal,
+        PagedCacheLoad = dnnl_graph_op_paged_cache_load,
         // Sentinel
         LastSymbol = dnnl_graph_op_last_symbol,
     };

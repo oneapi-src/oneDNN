@@ -810,6 +810,20 @@ DNNL_GRAPH_OP_SCHEMA(Multiply, 1,
                 .set_shape_inference_function(
                         infer_elemwise_arithmetic_output_shape))
 
+DNNL_GRAPH_OP_SCHEMA(PagedCacheLoad, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "src", "T1")
+                .set_input(1, "block_table", "T2")
+                .set_output(0, "dst", "T1")
+                .set_attr(op_attr::seq_lens, true, attribute_kind::is)
+                .set_type_constraints(
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints("T2", {data_type::s32})
+                .set_shape_inference_function(
+                        infer_paged_cache_load_output_shape))
+
 DNNL_GRAPH_OP_SCHEMA(Pow, 1,
         op_schema_t()
                 .set_num_inputs(1)

@@ -116,6 +116,7 @@ TEST(APIOp, CreateAllOps) {
             op::kind::GroupNorm,
             op::kind::GenIndex,
             op::kind::GreaterEqual,
+            op::kind::PagedCacheLoad,
     };
     // clang-format on
 

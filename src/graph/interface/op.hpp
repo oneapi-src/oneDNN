@@ -417,6 +417,7 @@ public:
             CASE(Mish);
             CASE(MishBackward);
             CASE(Multiply);
+            CASE(PagedCacheLoad);
             CASE(Pow);
             CASE(PReLU);
             CASE(PReLUBackward);
