@@ -446,6 +446,11 @@ bool ref_partition_t::need_unfusable_output_crop(
     // * If it's the last one, no crop, as f32 will happen on the other end.
     const deserialized_op *next_child_op = nullptr;
     if (!has_child_op(*child_op, &next_child_op)) return false;
+    if (next_child_op->kind_ == "MatMul") {
+        // Target dt in this case is the output dt of input `op`.
+        dt = convert_dt(op.out_lts_[0].get_data_type());
+        return true;
+    }
     // * If there's a child Quantize, no crop either, since output would
     //   perform a reorder with a proper scale value to match the other end.
     if (next_child_op->kind_ == "Quantize") return false;
