@@ -152,32 +152,33 @@ struct primitive_desc_t : public c_compatible {
         using types::is_zero_md;
         if (arg & DNNL_ARG_ATTR_ZERO_POINTS) {
             int zp_arg = arg & ~DNNL_ARG_ATTR_ZERO_POINTS;
-            if (!attr()->zero_points_.has_default_values(zp_arg))
-                return arg_usage_t::input;
+            return !attr()->zero_points_.has_default_values(zp_arg)
+                    ? arg_usage_t::input
+                    : arg_usage_t::unused;
         }
         if (arg & DNNL_ARG_ATTR_SCALES) {
             int scale_arg = arg & ~DNNL_ARG_ATTR_SCALES;
-            if (!attr()->scales_.has_default_values(scale_arg))
-                return arg_usage_t::input;
+            return !attr()->scales_.has_default_values(scale_arg)
+                    ? arg_usage_t::input
+                    : arg_usage_t::unused;
         }
-        if ((arg == (DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_0))
-                && !attr()->scales_.has_default_values(DNNL_ARG_SRC_0))
-            return arg_usage_t::input;
-        if ((arg == (DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_1))
-                && !attr()->scales_.has_default_values(DNNL_ARG_SRC_1))
-            return arg_usage_t::input;
-        if (arg == DNNL_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
-            return arg_usage_t::output;
-        if (arg == DNNL_ARG_ATTR_DROPOUT_MASK
-                && !attr()->dropout_.has_default_values())
-            return arg_usage_t::output;
-        if ((arg == DNNL_ARG_ATTR_DROPOUT_PROBABILITY
-                    || arg == DNNL_ARG_ATTR_DROPOUT_SEED)
-                && !attr()->dropout_.has_default_values())
-            return arg_usage_t::input;
-        if ((arg == DNNL_ARG_ATTR_ROUNDING_SEED)
-                && !attr()->rounding_mode_.has_default_values())
-            return arg_usage_t::input;
+        if (arg == DNNL_ARG_SCRATCHPAD)
+            return !is_zero_md(scratchpad_md()) ? arg_usage_t::output
+                                                : arg_usage_t::unused;
+        if (arg == DNNL_ARG_ATTR_DROPOUT_MASK)
+            return !attr()->dropout_.has_default_values() ? arg_usage_t::output
+                                                          : arg_usage_t::unused;
+        if (arg == DNNL_ARG_ATTR_DROPOUT_PROBABILITY)
+            return !attr()->dropout_.has_default_values() ? arg_usage_t::input
+                                                          : arg_usage_t::unused;
+        if (arg == DNNL_ARG_ATTR_DROPOUT_SEED)
+            return !attr()->dropout_.has_default_values() ? arg_usage_t::input
+                                                          : arg_usage_t::unused;
+        if (arg == DNNL_ARG_ATTR_ROUNDING_SEED)
+            return !attr()->rounding_mode_.has_default_values()
+                    ? arg_usage_t::input
+                    : arg_usage_t::unused;
+
         for (int idx = 0; idx < attr()->post_ops_.len(); ++idx) {
             using namespace primitive_kind;
             if (post_op_has_proper_input(
