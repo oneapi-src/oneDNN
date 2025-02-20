@@ -1264,12 +1264,13 @@ void flex_rewrite::dt_rewrite(deserialized_graph &dgraph) {
     }
 
     static const std::vector<std::string> lowp_ops {
-            "TypeCast",
             "Quantize",
             "Dequantize",
             "DynamicQuantize",
             "DynamicDequantize",
     };
+    std::unordered_set<size_t> skip_rewrite_ids;
+
     // If the graph contains mix-precision ops, we cannot rewrite the data type
     // trivially.
     for (auto &aop : dgraph.ops_) {
@@ -1279,6 +1280,28 @@ void flex_rewrite::dt_rewrite(deserialized_graph &dgraph) {
                     "graph: rewrite: the graph contains operation `%s`\n",
                     aop.kind_.c_str());
             SAFE_V(FAIL);
+        }
+
+        // For xf16 SDPA with f32 softmax, do not rewrite the dt of input/
+        // output tensors of SoftMax.
+        // TODO(zhitao): Consider what if the typecast and the softmax are not
+        // fused.
+        if (aop.kind_ == "SoftMax") {
+            const auto &parent_op
+                    = dgraph.get_op_by_out_lt(aop.in_lts_.front().id_);
+            const auto &child_op
+                    = dgraph.get_op_by_in_lt(aop.out_lts_.front().id_);
+            if (parent_op.kind_ == "TypeCast" && child_op.kind_ == "TypeCast") {
+                if (dt_ == dnnl_f32) {
+                    BENCHDNN_PRINT(0,
+                            "graph: rewrite: the graph cannot rewrite xf16 <-> "
+                            "f32 `%s` with f32 data type\n",
+                            parent_op.kind_.c_str());
+                    SAFE_V(FAIL);
+                }
+                skip_rewrite_ids.insert(aop.in_lts_.front().id_);
+                skip_rewrite_ids.insert(aop.out_lts_.front().id_);
+            }
         }
     }
 
@@ -1317,11 +1340,11 @@ void flex_rewrite::dt_rewrite(deserialized_graph &dgraph) {
             }
         } else {
             for (auto &lt : aop.in_lts_) {
-                lt.data_type_ = str_dt;
+                if (!skip_rewrite_ids.count(lt.id_)) lt.data_type_ = str_dt;
             }
 
             for (auto &lt : aop.out_lts_) {
-                lt.data_type_ = str_dt;
+                if (!skip_rewrite_ids.count(lt.id_)) lt.data_type_ = str_dt;
             }
         }
     }
