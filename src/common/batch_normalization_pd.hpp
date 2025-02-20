@@ -154,8 +154,9 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
-        if (arg == DNNL_ARG_SRC_1 && fuse_norm_add_relu())
-            return arg_usage_t::input;
+        if (arg == DNNL_ARG_SRC_1)
+            return fuse_norm_add_relu() ? arg_usage_t::input
+                                        : arg_usage_t::unused;
         if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
         if (utils::one_of(arg, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE)) {
@@ -164,11 +165,14 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
             return arg_usage_t::unused;
         }
 
-        if (arg == DNNL_ARG_SCALE && use_scale()) return arg_usage_t::input;
-        if (arg == DNNL_ARG_SHIFT && use_shift()) return arg_usage_t::input;
+        if (arg == DNNL_ARG_SCALE)
+            return use_scale() ? arg_usage_t::input : arg_usage_t::unused;
+        if (arg == DNNL_ARG_SHIFT)
+            return use_shift() ? arg_usage_t::input : arg_usage_t::unused;
 
-        if (arg == DNNL_ARG_WORKSPACE && !types::is_zero_md(workspace_md()))
-            return arg_usage_t::output;
+        if (arg == DNNL_ARG_WORKSPACE)
+            return !types::is_zero_md(workspace_md()) ? arg_usage_t::output
+                                                      : arg_usage_t::unused;
 
         return primitive_desc_t::arg_usage(arg);
     }
@@ -256,20 +260,24 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
                     DNNL_ARG_DIFF_DST))
             return arg_usage_t::input;
 
-        if (arg == DNNL_ARG_SCALE && use_scale()) return arg_usage_t::input;
-        if (arg == DNNL_ARG_SHIFT && use_shift()) return arg_usage_t::input;
+        if (arg == DNNL_ARG_SCALE)
+            return use_scale() ? arg_usage_t::input : arg_usage_t::unused;
+        if (arg == DNNL_ARG_SHIFT)
+            return use_shift() ? arg_usage_t::input : arg_usage_t::unused;
 
-        if (arg == DNNL_ARG_WORKSPACE && !types::is_zero_md(workspace_md()))
-            return arg_usage_t::input;
+        if (arg == DNNL_ARG_WORKSPACE)
+            return !types::is_zero_md(workspace_md()) ? arg_usage_t::input
+                                                      : arg_usage_t::unused;
 
         if (arg == DNNL_ARG_DIFF_SRC) return arg_usage_t::output;
-        if (arg == DNNL_ARG_DIFF_SRC_1 && fuse_norm_add_relu())
-            return arg_usage_t::output;
+        if (arg == DNNL_ARG_DIFF_SRC_1)
+            return fuse_norm_add_relu() ? arg_usage_t::output
+                                        : arg_usage_t::unused;
 
-        if (arg == DNNL_ARG_DIFF_SCALE && use_scale())
-            return arg_usage_t::output;
-        if (arg == DNNL_ARG_DIFF_SHIFT && use_shift())
-            return arg_usage_t::output;
+        if (arg == DNNL_ARG_DIFF_SCALE)
+            return use_scale() ? arg_usage_t::output : arg_usage_t::unused;
+        if (arg == DNNL_ARG_DIFF_SHIFT)
+            return use_shift() ? arg_usage_t::output : arg_usage_t::unused;
         return primitive_desc_t::arg_usage(arg);
     }
 
