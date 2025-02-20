@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -1501,8 +1501,9 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
             jcp.src_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
     const bool is_ddst_layout_nxc = utils::one_of(
             jcp.dst_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
-    const int wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block * jcp.nb_ic
-            * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
+    const size_t wei_size = static_cast<size_t>(jcp.ngroups) * jcp.nb_oc
+            * jcp.oc_block * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw
+            * jcp.kd;
     const int bias_buf_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
 
     float *diff_wei;
@@ -1554,7 +1555,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
     auto uker_trans = [&](int img, int g = 0, int ic_b = 0) {
         int j {0}, d {0};
         int my_work = jcp.ih * jcp.id;
-        int ic;
+        dim_t ic;
         int icb_start = ic_b;
         if (jcp.global_transpose) {
             const int work_amount = is_src_layout_nxc
@@ -1784,8 +1785,9 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
 
     const auto &jcp = kernel_->jcp;
-    const int wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block * jcp.nb_ic
-            * jcp.ic_block * jcp.kh * jcp.kw * ((jcp.ndims == 5) ? jcp.kd : 1);
+    const size_t wei_size = static_cast<size_t>(jcp.ngroups) * jcp.nb_oc
+            * jcp.oc_block * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw
+            * ((jcp.ndims == 5) ? jcp.kd : 1);
 
     const bool is_bf16_out = diff_weights_d.data_type() == data_type::bf16;
     const bool is_bf16_bias = jcp.with_bias && jcp.bia_dt == data_type::bf16;
