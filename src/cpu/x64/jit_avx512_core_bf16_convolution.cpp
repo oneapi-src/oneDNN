@@ -1555,7 +1555,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
     auto uker_trans = [&](int img, int g = 0, int ic_b = 0) {
         int j {0}, d {0};
         int my_work = jcp.ih * jcp.id;
-        int ic;
+        dim_t ic;
         int icb_start = ic_b;
         if (jcp.global_transpose) {
             const int work_amount = is_src_layout_nxc
