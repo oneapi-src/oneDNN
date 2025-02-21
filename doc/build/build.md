@@ -51,8 +51,13 @@ cmake .. <extra build options>
 
 - Build the library
 ~~~sh
-make -j
+make -j<number_of_jobs>
 ~~~
+Where
+
+ `number_of_jobs` specifies the maximum number of concurrent jobs that can be executed. 
+
+  @note The `number_of_jobs` value depends on the number of available CPU cores and must be specified to ensure a smooth build process.
 
 #### Intel oneAPI DPC++/C++ Compiler with SYCL runtime
 
@@ -88,6 +93,11 @@ it is installed in a custom location.
 ~~~sh
 make -j
 ~~~
+Where
+
+ `number_of_jobs` specifies the maximum number of concurrent jobs that can be executed. 
+
+  @note The `number_of_jobs` value depends on the number of available CPU cores and must be specified to ensure a smooth build process.
 
 #### GCC targeting AArch64 on x64 host
 
@@ -108,6 +118,11 @@ cmake .. \
 ~~~sh
 make -j
 ~~~
+Where
+
+ `number_of_jobs` specifies the maximum number of concurrent jobs that can be executed. 
+
+  @note The `number_of_jobs` value depends on the number of available CPU cores and must be specified to ensure a smooth build process.
 
 #### GCC with Arm Compute Library (ACL) on AArch64 host
 
@@ -125,6 +140,11 @@ cmake .. \
 ~~~sh
 make -j
 ~~~
+Where
+
+ `number_of_jobs` specifies the maximum number of concurrent jobs that can be executed. 
+
+  @note The `number_of_jobs` value depends on the number of available CPU cores and must be specified to ensure a smooth build process.
 
 ### Windows
 
