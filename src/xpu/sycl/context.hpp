@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ struct event_t : public xpu::event_t {
     event_t(const std::vector<::sycl::event> &event) : events(event) {}
     event_t(std::vector<::sycl::event> &&event) : events(std::move(event)) {}
     event_t(const event_t &) = default;
-    event_t &operator=(event_t other) {
+    event_t &operator=(const event_t &other) {
         events = other.events;
         return *this;
     }
@@ -63,7 +63,7 @@ struct event_t : public xpu::event_t {
 
 struct context_t final : public xpu::context_t {
     context_t() = default;
-    context_t(const std::vector<::sycl::event> &&events)
+    context_t(std::vector<::sycl::event> events)
         : events_(std::move(events)) {};
     context_t(const context_t &) = default;
     ~context_t() override = default;
