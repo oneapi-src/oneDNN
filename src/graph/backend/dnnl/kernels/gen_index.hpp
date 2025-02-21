@@ -57,8 +57,7 @@ public:
     }
     void prepare_args_set(const execution_args_set_t *res,
             const std::vector<tensor_t> &inputs,
-            const std::vector<tensor_t> &outputs,
-            const scratchpad_t &scratchpad);
+            const std::vector<tensor_t> &outputs);
     status_t compile_impl(const dnnl_partition_impl_t *part,
             const engine_t *g_engine,
             const std::vector<logical_tensor_t> &inputs,
