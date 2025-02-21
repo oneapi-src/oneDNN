@@ -18,7 +18,7 @@ on:
       - "src/cpu/x64/**"
       - "src/gpu/*"
       - "src/gpu/intel/**"
-      - "src/gpu/graph/**"
+      - "src/graph/**"
       - "tests/**"
       - "CMakeLists.txt"
 
