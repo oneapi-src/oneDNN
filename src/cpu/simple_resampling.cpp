@@ -179,25 +179,19 @@ void simple_resampling_kernel_t<src_type, dst_type>::fill_coeffs() {
     if (pd_->is_fwd()) {
         linear_coeffs_.reserve(pd_->OD() + pd_->OH() + pd_->OW());
         for (dim_t od = 0; od < pd_->OD(); od++)
-            linear_coeffs_.emplace_back(
-                    linear_coeffs_t(od, pd_->OD(), pd_->ID()));
+            linear_coeffs_.emplace_back(od, pd_->OD(), pd_->ID());
         for (dim_t oh = 0; oh < pd_->OH(); oh++)
-            linear_coeffs_.emplace_back(
-                    linear_coeffs_t(oh, pd_->OH(), pd_->IH()));
+            linear_coeffs_.emplace_back(oh, pd_->OH(), pd_->IH());
         for (dim_t ow = 0; ow < pd_->OW(); ow++)
-            linear_coeffs_.emplace_back(
-                    linear_coeffs_t(ow, pd_->OW(), pd_->IW()));
+            linear_coeffs_.emplace_back(ow, pd_->OW(), pd_->IW());
     } else {
         bwd_linear_coeffs_.reserve(pd_->ID() + pd_->IH() + pd_->IW());
         for (dim_t id = 0; id < pd_->ID(); id++)
-            bwd_linear_coeffs_.emplace_back(
-                    bwd_linear_coeffs_t(id, pd_->OD(), pd_->ID()));
+            bwd_linear_coeffs_.emplace_back(id, pd_->OD(), pd_->ID());
         for (dim_t ih = 0; ih < pd_->IH(); ih++)
-            bwd_linear_coeffs_.emplace_back(
-                    bwd_linear_coeffs_t(ih, pd_->OH(), pd_->IH()));
+            bwd_linear_coeffs_.emplace_back(ih, pd_->OH(), pd_->IH());
         for (dim_t iw = 0; iw < pd_->IW(); iw++)
-            bwd_linear_coeffs_.emplace_back(
-                    bwd_linear_coeffs_t(iw, pd_->OW(), pd_->IW()));
+            bwd_linear_coeffs_.emplace_back(iw, pd_->OW(), pd_->IW());
     }
 }
 

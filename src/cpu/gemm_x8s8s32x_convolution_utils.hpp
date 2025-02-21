@@ -32,7 +32,7 @@ struct pp_ker_t {
             const convolution_pd_t *pd, const conv_gemm_conf_t &jcp);
     virtual ~pp_ker_t() = default;
 
-    typedef typename prec_traits_t<data_type::s32>::type acc_data_t;
+    using acc_data_t = typename prec_traits_t<data_type::s32>::type;
 
     virtual void operator()(void *dst, const acc_data_t *acc, const char *bias,
             const float *scales, float dst_scale, float sum_scale,
