@@ -323,6 +323,8 @@ status_t brgemm_blocking(brgemm_desc_t *brg) {
             min_bcast_block = bdb_tail > 0 ? bdb_tail : max_bcast_block;
             if (min_bcast_block >= max_vpad) break;
         }
+        printf("bcast dim: %d, min_bcast_block: %d, max_vpad: %d\n",
+                brg->bcast_dim, min_bcast_block, max_vpad);
         // bcast block in brgemm kernel should be greater than virtual
         // padding to avoid possible functional issues
         if (min_bcast_block < max_vpad) return status::unimplemented;

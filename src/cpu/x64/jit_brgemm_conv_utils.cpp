@@ -618,16 +618,24 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     brgemm_utils::init_brgemm_conf(&brg, isa, brgemm_addr, src_dt, wei_dt,
             brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN, vK, nullptr,
             is_bf32);
+    brgemm_attr_t brgattr;
+    brgattr.max_bs = max_batch;
+    max_vpad = exec_type == exec_vpad ? nstl::max(l_pad, r_pad) : 0;
+    brgattr.max_top_vpad = max_vpad;
+    brgattr.max_bottom_vpad = max_vpad;
+    //    brgattr.fpmath_mode = attr->fpmath_.mode_;
+    CHECK(brgemm_desc_set_attr(&brg, brgattr));
     CHECK(brgemm_utils::brgemm_blocking(&brg));
     ur = brg.bd_block * (is_amx(isa) ? brg.bd_block2 : 1);
     ur_block = brg.bd_block;
-    if (is_1x1 && is_amx(isa) && M > 0 && M_tail > 0) {
+    if (1 /*is_1x1 && is_amx(isa) && M > 0 && M_tail > 0*/) {
         brgemm_desc_t brg_sp_tail;
         brgemm_utils::init_brgemm_conf(&brg_sp_tail, isa, brgemm_addr, src_dt,
                 wei_dt, brgemm_row_major, alpha, beta, LDA, LDB, LDC, M_tail,
                 vN, vK, nullptr, is_bf32);
+        CHECK(brgemm_desc_set_attr(&brg_sp_tail, brgattr));
         CHECK(brgemm_utils::brgemm_blocking(&brg_sp_tail));
-        ur_block_tail = brg_sp_tail.bd_block;
+        ur_block_tail = 0; //brg_sp_tail.bd_block;
     } else {
         ur_block_tail = 0;
     }
@@ -1117,6 +1125,7 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
         const auto spb = div_up(sp, ns);
         if (spb == prev_spb || spb > start_sp_block) continue;
         if (is_os_blocking && spb != ow) continue;
+        //if (spb < 5900) continue;
         prev_spb = spb;
         ow_block = spb;
         sp_block = ow_block;
@@ -1133,11 +1142,13 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
 
         const status_t st = estimate_brgemm_ur();
         if (st != status::success) continue;
+        //printf("ow block: %d");
         os_block = sp_block = ow_block;
         update_blocks();
 
         eff = est_eff();
-
+        printf("ow block: %d, best ow: %d, eff: %f, best eff: %f\n", ow_block,
+                best_brgb.ow_block, eff, best_brgb.eff);
         if (eff > best_brgb.eff || best_brgb.eff == 0) best_brgb = *this;
     }
 }
@@ -2029,9 +2040,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
             const status_t blocking_ok = cur_brgb.calc_blocks();
             if (blocking_ok != status::success) continue;
-
+            printf("calc blocks res - ow block: %d\n", cur_brgb.ow_block);
             const status_t st = cur_brgb.get_brgemm_ur(&attr, dst_md);
             if (st != status::success) continue;
+            printf("success in get brgemm ur\n");
             cur_brgb.eff = cur_brgb.est_eff();
             if (cur_brgb.eff > best_brgb.eff) best_brgb = cur_brgb;
         }
@@ -2390,7 +2402,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const auto shape_for_brgemm_kernel
             = (output_sz <= 8192 && jcp.oc < 512) || jcp.ow > 128;
     const auto is_relo = jcp.is_relo() && jcp.relo_conv_weights;
-    jcp.req_brg_comp_pad = compensation_w_padding && jcp.exec_type != exec_trans
+    jcp.req_brg_comp_pad = 0 && compensation_w_padding
+            && jcp.exec_type != exec_trans
             && IMPLICATION(!is_relo, shape_for_brgemm_kernel)
             && IMPLICATION(
                     jcp.exec_type == exec_vpad, jcp.comp_a_buffer_size > 1024);
@@ -2406,7 +2419,10 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     VDISPATCH_CONV_IC(IMPLICATION(jcp.is_bf32, jcp.use_uker),
             "cannot use unrolled kernel for current datatype configuration");
-
+    printf("exec type: %d, is relo: %d, ow block: %d, req_brg_comp_pad: %d, "
+           "req_cal_comp_pad: %d\n",
+            jcp.exec_type, jcp.is_relo(), jcp.ow_block, jcp.req_brg_comp_pad,
+            jcp.req_cal_comp_pad);
     return status::success;
 }
 
