@@ -1054,7 +1054,7 @@ static bool parse_global_impl(
     static const std::string help
             = "STRINGS    (Default: not specified)\n    Same as `--impl` but "
               "overrides any values from `--impl` or `--skip-impl` options met "
-              "on the way\n.";
+              "on the way.\n";
 
     return parser_utils::parse_impl_filter(global_impl_filter, impl_filter_t(),
             /* use_impl = */ true, str, option_name, help);
@@ -1065,7 +1065,7 @@ static bool parse_global_skip_impl(
     static const std::string help
             = "STRINGS    (Default: not specified)\n    Same as `--skip-impl` "
               "but overrides any values from `--impl` or `--skip-impl` options "
-              "met on the way\n.";
+              "met on the way.\n";
 
     return parser_utils::parse_impl_filter(global_impl_filter, impl_filter_t(),
             /* use_impl = */ false, str, option_name, help);
