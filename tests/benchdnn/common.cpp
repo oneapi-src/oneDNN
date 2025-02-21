@@ -438,7 +438,7 @@ int batch(const char *fname, bench_f bench) {
     std::string str;
     bool continued_line = false;
     while (ifs >> str) {
-        if (str.length() == 0) continue;
+        if (str.empty()) continue;
 
         // shell style comments
         if (str.front() == '#') {

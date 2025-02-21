@@ -609,7 +609,7 @@ TEST(test_binary_op_execute_subgraph_fp32, Binary3Postops) {
         std::vector<graph::op_t> post_ops {};
         for (size_t i = 0; i < pop_ts.size(); ++i) {
             auto pop_t = pop_ts[i];
-            post_ops.emplace_back(graph::op_t {i + 1, pop_t, "post op"});
+            post_ops.emplace_back(i + 1, pop_t, "post op");
 
             // set additional parameters for specific ops
             if (pop_t == graph::op_kind::Elu) {
@@ -640,8 +640,7 @@ TEST(test_binary_op_execute_subgraph_fp32, Binary3Postops) {
         test_tensor_t binary_src1_ts(lt_vec[1], engine, src_datas[1]);
         std::vector<test_tensor_t> src_tss {};
         for (size_t i = 0; i < input_lts.size(); ++i)
-            src_tss.emplace_back(
-                    test_tensor_t(lt_vec[input_lts[i]], engine, src_datas[i]));
+            src_tss.emplace_back(lt_vec[input_lts[i]], engine, src_datas[i]);
 
         // -------------------------case 1----------------------------------
         std::vector<float> case1_out_data(product(binary_src_shape));
