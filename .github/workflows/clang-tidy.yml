@@ -55,4 +55,3 @@ jobs:
           grep -q -i "warning:" build.log && exit 1 || true
         env:
           ONEDNN_ACTION: build
-          
