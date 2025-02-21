@@ -538,6 +538,17 @@ bool deserialized_graph::check_tensor_with_mb(size_t tensor_id,
                 && (tensor_id == aop.in_lts_[0].id_
                         || tensor_id == aop.in_lts_[1].id_
                         || tensor_id == aop.in_lts_[2].id_);
+        const auto broadcast_mb_rewrite
+                = [tensor_id](const deserialized_op &aop) -> bool {
+            const deserialized_lt *target_lt = nullptr;
+            int max_rank = 0;
+            for (const auto &lt : aop.in_lts_) {
+                max_rank = MAX2(max_rank, static_cast<int>(lt.shape_.size()));
+                if (lt.id_ == tensor_id) { target_lt = &lt; }
+            }
+            return static_cast<int>(target_lt->shape_.size()) == max_rank
+                    && target_lt->shape_.front() == 1;
+        };
 
         if (std::find(unsupport_mb_rewrite_ops_.begin(),
                     unsupport_mb_rewrite_ops_.end(), aop.kind_)
@@ -562,16 +573,11 @@ bool deserialized_graph::check_tensor_with_mb(size_t tensor_id,
                 ret = check_tensor_with_mb(aop.out_lts_[0].id_, mb_rewrite_ret);
             }
         } else if (std::find(binary_ops_.begin(), binary_ops_.end(), aop.kind_)
-                != binary_ops_.end()) {
+                        != binary_ops_.end()
+                || aop.kind_ == "Select") {
             // binary ops need consider rank of 2 inputs
             ret = false;
-            size_t max_rank_id = aop.in_lts_[0].shape_.size()
-                            >= aop.in_lts_[1].shape_.size()
-                    ? aop.in_lts_[0].id_
-                    : aop.in_lts_[1].id_;
-            if ((aop.in_lts_[0].shape_.size() == aop.in_lts_[1].shape_.size()
-                        && aop.in_lts_[1].shape_[0] != 1)
-                    || tensor_id == max_rank_id) {
+            if (broadcast_mb_rewrite(aop)) {
                 ret = check_tensor_with_mb(aop.out_lts_[0].id_, mb_rewrite_ret);
             }
         } else if (aop.kind_ == "PReLU" && tensor_id == aop.in_lts_[1].id_) {
@@ -581,7 +587,7 @@ bool deserialized_graph::check_tensor_with_mb(size_t tensor_id,
                 ret = check_tensor_with_mb(aop.out_lts_[0].id_, mb_rewrite_ret);
             }
         } else if (!(matmul_mb_rewrite || dynamicdq_mb_rewrite
-                           || aop.kind_ == "Concat")
+                           || aop.kind_ == "Concat" || aop.kind_ == "Select")
                 && tensor_id != aop.in_lts_[0].id_) {
             // Do not rewrite if the given tensor is not the first input of the
             // op, except matmul, dynamic dequantize and concat.
