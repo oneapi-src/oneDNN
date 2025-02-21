@@ -43,9 +43,7 @@ void check_correctness(
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_wtag : s.wtag)
     for_(const auto &i_dtag : s.dtag)
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     for_(const auto &i_sparse_options : s.sparse_options)
-#endif
     for_(const auto &i_strides : s.strides)
     for_(const auto &i_rt_dims_masks : s.rt_dims_masks)
     for_(const auto &i_attr : s.attributes)
@@ -54,10 +52,7 @@ void check_correctness(
     for (const auto &i_bia_cfg : bia_cfg) {
         const prb_t prb(s.prb_vdims, i_dt, i_stag, i_wtag, i_dtag, i_strides,
                 i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks,
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-                i_sparse_options,
-#endif
-                i_attr, i_ctx_init, i_ctx_exe, s.impl_filter);
+                i_sparse_options, i_attr, i_ctx_init, i_ctx_exe, s.impl_filter);
         if (s.pattern && !match_regex(prb.str(), s.pattern)) return;
 
         task_executor.submit(prb, s.perf_template, createit, checkit, doit);
@@ -165,9 +160,7 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.wtag, def.wtag, argv[0], "wtag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
-#ifdef DNNL_EXPERIMENTAL_SPARSE
                 || parse_encoding(s.sparse_options, argv[0], "encoding")
-#endif
                 || parse_strides(s.strides, def.strides, argv[0], "strides")
                 || parse_dt(s.bia_dt, def.bia_dt, argv[0], "bia-dt")
                 // TODO: remove this later
