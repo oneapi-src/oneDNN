@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   pr-commits:
-    name: Check commits
+    name: "Commit messages"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -43,7 +43,7 @@ jobs:
         run: python3 ./.github/automation/commit-msg-check.py "${{ github.event.pull_request.head.sha }}" "${{ github.event.pull_request.base.sha }}"
 
   pr-clang-format:
-    name: Formatting
+    name: "Clang-Format"
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
