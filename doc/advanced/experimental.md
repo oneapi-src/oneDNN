@@ -30,7 +30,6 @@ Both kinds of experimental features can be enabled simultaneously.
 | ONEDNN_EXPERIMENTAL_SPARSE                 | Enable experimental API and functionality for sparse domain.       |
 | ONEDNN_EXPERIMENTAL_UKERNEL                | Enable experimental microkernel APIs and functionalities.          |
 | ONEDNN_EXPERIMENTAL_PROFILING              | Enable experimental profiling API.                                 |
-| ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND | Enable experimental graph compiler backend of the graph component. |
 | ONEDNN_EXPERIMENTAL_LOGGING                | Enable experimental logging support for oneDNN verbose mode.       |
 
 ## Features details
@@ -333,15 +332,6 @@ user-provided queue.
 * Only GPU engines with OpenCL and SYCL runtimes are supported
 * Only Intel vendor is supported for SYCL runtime
 * Out-of-order queue is not supported
-
-### ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_BACKEND
-This option extends the coverage scope of the graph API to cover larger fusion
-patterns apart from primitive patterns. Refer to
-[Graph Compiler](@ref dev_guide_graph_compiler) for more details.
-
-@warning
-- Enabling some experimental features does not guarantee that the library will utilize them
-- Enabling some experimental features might change the accuracy of oneDNN primitives
 
 ### ONEDNN_EXPERIMENTAL_LOGGING
 This option introduces logging support in oneDNN which allows one to save the 
