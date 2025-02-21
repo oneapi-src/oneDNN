@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -162,9 +162,6 @@
 
 // When defined, experimental features are enabled.
 #cmakedefine DNNL_EXPERIMENTAL
-
-// When defined, experimental functionality for sparse domain is enabled.
-#cmakedefine DNNL_EXPERIMENTAL_SPARSE
 
 // When defined, experimental functionality for ukernels is enabled.
 #cmakedefine DNNL_EXPERIMENTAL_UKERNEL
