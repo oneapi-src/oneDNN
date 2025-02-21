@@ -714,6 +714,14 @@ static status_t gen_index_handler(
     return status::success;
 }
 
+static status_t paged_cache_load_handler(
+        const std::shared_ptr<op_t> &op, subgraph_rewriter_t &rewriter) {
+    auto new_op = std::make_shared<op_t>(op_kind::dnnl_paged_cache_load);
+    new_op->merge_attributes(op->get_attributes());
+    rewriter.replace_op(op, new_op);
+    return status::success;
+}
+
 #define ITEM(kind, func) \
     { \
         graph::op_kind::kind, handler_func { (func) } \
@@ -826,6 +834,7 @@ static const std::unordered_map<graph::op_kind_t, handler_func> handler_table {
         ITEM(SquaredDifference, squared_difference_handler),
         ITEM(Select, select_handler),
         ITEM(GenIndex, gen_index_handler),
+        ITEM(PagedCacheLoad, paged_cache_load_handler),
         // utility
         ITEM(Wildcard, dummy_handler),
         ITEM(End, dummy_handler),

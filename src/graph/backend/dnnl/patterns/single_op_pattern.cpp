@@ -437,6 +437,19 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gen_index_pass)
         .set_attr<FCreateKernel>("FCreateKernel",
                 []() -> kernel_ptr { return std::make_shared<genindex_t>(); });
 
+// PagedCacheLoad currently is CPU only
+DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, paged_cache_load_pass)
+        .set_priority(DEFAULT_P)
+        .set_engine_kind(engine_kind::cpu)
+        .set_kind(partition_kind_t::misc_post_ops)
+        .set_attr<FCreatePattern>("FCreatePattern",
+                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
+                    pgraph->append_op(graph::op_kind::PagedCacheLoad);
+                })
+        .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
+            return std::make_shared<paged_cache_load_t>();
+        });
+
 #undef DNNL_BACKEND_SINGLE_OP_TRANSFORM
 #undef DEFAULT_P
 

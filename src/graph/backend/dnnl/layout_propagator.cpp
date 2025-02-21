@@ -1568,6 +1568,20 @@ status_t layout_propagator_for_mask(std::shared_ptr<op_t> &op,
     return status;
 }
 
+status_t layout_propagator_for_paged_cache_load(std::shared_ptr<op_t> &op,
+        const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
+        pd_cache_t &pd_cache, subgraph_rewriter_t &rewriter) {
+    UNUSED(p_engine);
+    UNUSED(mgr);
+    UNUSED(pd_cache);
+    UNUSED(rewriter);
+    value_ptr dst_val = op->get_output_value(0);
+    auto dst_md = make_dnnl_memory_desc(
+            op->get_output_value(0)->get_logical_tensor());
+    status_t status = fill_layout_info(dst_val, to_ncx_format(dst_md));
+    return status;
+}
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

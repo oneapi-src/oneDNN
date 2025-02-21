@@ -39,7 +39,8 @@ bool has_scratchpad(const op_t *op) {
             op_kind::dnnl_to_group, op_kind::dnnl_from_group,
             op_kind::dnnl_permute, op_kind::dnnl_squeeze,
             op_kind::dnnl_unsqueeze, op_kind::dnnl_transpose,
-            op_kind::dnnl_reshape, op_kind::dnnl_gen_index, op_kind::dnnl_mask};
+            op_kind::dnnl_reshape, op_kind::dnnl_gen_index, op_kind::dnnl_mask,
+            op_kind::dnnl_paged_cache_load};
 
     // the following ops may have scratchpad output if output size > 1
     const static std::set<op_kind_t> may_have_scratchpad_ops {

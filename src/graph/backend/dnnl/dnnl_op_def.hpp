@@ -1134,6 +1134,23 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_mask, 1,
                 .SET_EXECUTABLE_CREATOR(executable_creator<memory_reparser_t>)
                 .SET_ARG_INDICES_GETTER(memory_reparser_t))
 
+DNNL_GRAPH_OP_SCHEMA(dnnl_paged_cache_load, 1,
+        op_schema_t()
+                .set_num_inputs(2)
+                .set_num_outputs(1)
+                .set_input(0, "input")
+                .set_input(1, "block_table")
+                .set_output(0, "output")
+                .set_attr(op_attr::seq_lens, true, attribute_kind::is)
+                .SET_ATTR_IS_CONSTANT // used for constant prop and cache
+                // Analysis rules
+                .set_shape_inference_function(
+                        infer_paged_cache_load_output_shape)
+                .SET_LAYOUT_PROPAGATOR(layout_propagator_for_paged_cache_load)
+                .SET_EXECUTABLE_CREATOR(
+                        executable_creator<paged_cache_load_executable_t>)
+                .SET_ARG_INDICES_GETTER(paged_cache_load_executable_t))
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

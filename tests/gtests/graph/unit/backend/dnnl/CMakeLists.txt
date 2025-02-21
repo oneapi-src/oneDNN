@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2024 Intel Corporation
+# Copyright 2021-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -60,6 +60,7 @@ FILE(GLOB DNNL_OP_EXECUTION_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test_layer_norm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_matmul.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_mqa_decomp.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_paged_cache_load.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_pool.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_prelu.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_quantize.cpp
