@@ -270,6 +270,9 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         VCHECK_MATMUL_UNIMPL(
                 po.check_sum_consistency(dst_dt, src_is_int8, true),
                 VERBOSE_UNSUPPORTED_POSTOP);
+
+        // Note: verbose support is inside the call.
+        CHECK(po.validate_binary_with_dst_consistency(&desc.dst_desc));
     }
 
     return status::success;

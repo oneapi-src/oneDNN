@@ -641,7 +641,7 @@ std::string normalize_tag(const std::string &tag, int ndims = -1);
 dnnl_primitive_attr_t create_dnnl_attr(
         const attr_t &attr, const attr_args_t &attr_args);
 
-dnnl_engine_kind_t str2engine_kind(const char *str);
+dnnl_engine_kind_t str2engine_kind(const std::string &s);
 dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str);
 dnnl_fpmath_mode_t str2fpmath_mode(const char *str);
 dnnl_accumulation_mode_t str2accumulation_mode(const char *str);

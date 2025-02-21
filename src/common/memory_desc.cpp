@@ -531,8 +531,10 @@ status_t memory_desc_init_by_string_tag(memory_desc_t &md, int ndims,
             pos--;
 
         int dim_idx = std::tolower(tag[pos0]) - 'a';
-        VCHECK_MEMORY(dim_idx < ndims, invalid_arguments, VERBOSE_BAD_NDIMS, "",
-                ndims);
+        VCHECK_MEMORY(dim_idx < ndims, invalid_arguments,
+                "ndims deduced (%d) from the tag \'%s\' is inconsistent with "
+                "provided ndims (%d)",
+                dim_idx + 1, tag.c_str(), ndims);
         ndims_from_tag = std::max(dim_idx + 1, ndims_from_tag);
         int block_str_len = pos0 - pos - 1;
         bool is_blocked = block_str_len > 0;
@@ -542,7 +544,9 @@ status_t memory_desc_init_by_string_tag(memory_desc_t &md, int ndims,
         dim_blocks.emplace_back(dim_idx, block);
     }
     VCHECK_MEMORY((ndims_from_tag == ndims), invalid_arguments,
-            VERBOSE_BAD_NDIMS, "", ndims);
+            "ndims deduced (%d) from the tag \'%s\' is inconsistent with "
+            "provided ndims (%d)",
+            ndims_from_tag, tag.c_str(), ndims);
 
     auto &blk = md.format_desc.blocking;
 
