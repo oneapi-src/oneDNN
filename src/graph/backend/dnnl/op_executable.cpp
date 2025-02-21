@@ -1102,9 +1102,8 @@ concat_executable_t::desc_t concat_executable_t::create_desc(
     for (const auto &in_val : op->get_input_values()) {
         const auto tmp_desc
                 = make_dnnl_memory_desc(in_val->get_logical_tensor());
-        src_mds.emplace_back(
-                memory::desc {tmp_desc.get_dims(), tmp_desc.get_data_type(),
-                        get_forced_format_tag(tmp_desc.get_dims())});
+        src_mds.emplace_back(tmp_desc.get_dims(), tmp_desc.get_data_type(),
+                get_forced_format_tag(tmp_desc.get_dims()));
     }
     const auto tmp_desc = make_dnnl_memory_desc(
             op->get_output_value(0)->get_logical_tensor());

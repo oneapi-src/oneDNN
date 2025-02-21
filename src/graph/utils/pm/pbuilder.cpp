@@ -220,6 +220,7 @@ bool pb_graph_t::set_edge(const std::shared_ptr<consumer_t> &p_consumer,
 
 std::vector<pb_node_t *> pb_graph_t::get_nodes() {
     std::vector<pb_node_t *> retval;
+    retval.reserve(nodes_.size());
     for (auto const &i : nodes_) {
         retval.push_back(i.get());
     }
@@ -369,6 +370,7 @@ alternation_t::alternation_t(std::vector<std::shared_ptr<pb_graph_t>> p_nodes)
 
 std::vector<pb_graph_t *> alternation_t::get_alternatives() {
     std::vector<pb_graph_t *> retval;
+    retval.reserve(alternatives_.size());
     for (auto const &i : alternatives_) {
         retval.push_back(i.get());
     }

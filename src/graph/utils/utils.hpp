@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ using namespace dnnl::impl::utils;
 #ifndef NDEBUG
 #define DEBUG_PRINT_ERROR(message) \
     do { \
-        std::cout << message << std::endl; \
+        std::cout << (message) << std::endl; \
     } while (0)
 #else
 #define DEBUG_PRINT_ERROR(message)
