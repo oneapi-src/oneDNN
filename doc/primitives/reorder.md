@@ -128,6 +128,25 @@ would lead to the following operation:
       multiplication of tensor values by a scale value. Using \f$scale_{dst}\f$
       argument will lead to division of tensor values by a scale value.
 
+### Sparsity
+
+Currently, there is only one reorder for packing a dense tensor, i.e. converting
+a dense tensor that is in `ab` format to a sparse tensor that is encoded with
+the `PACKED` encoding.
+
+In general, it is expected that all reorder-related functionality
+(e.g. scales, zero-points, etc) that is supported for the dense
+destination tensor should also work for the sparse one.
+
+ Common Limitations
+* The interoperability API to get/set data handles is not supported. Use the
+runtime agnostic API to do that.
+* Sparse memory and memory descriptor can only be used with the Matrix
+Multiplication and Reorder primitives.
+
+Refer to [Sparsity Advanced Topic](@ref dev_guide_sparsity) page for more
+information on sparse encding.
+
 ## Implementation Limitations
 
 1. Refer to @ref dev_guide_data_types for limitations related to data types

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -266,7 +266,6 @@ TEST_P(sycl_memory_usm_test, MemoryOutOfScope) {
     s.wait();
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 TEST_P(sycl_memory_usm_test, TestSparseMemoryCreation) {
     engine::kind eng_kind = GetParam();
 
@@ -380,7 +379,6 @@ TEST_P(sycl_memory_usm_test, TestSparseMemoryMapUnmap) {
     ASSERT_NO_THROW(coo_mem.unmap_data(mapped_row_indices, 1));
     ASSERT_NO_THROW(coo_mem.unmap_data(mapped_col_indices, 2));
 }
-#endif
 
 namespace {
 struct PrintToStringParamName {

@@ -36,10 +36,7 @@ Orphans
     example_concat.cpp.rst
     example_convolution.cpp.rst
     example_cpu_cnn_training_f32.c.rst
-    example_cpu_matmul_csr.cpp.rst
-    example_cpu_matmul_coo.cpp.rst
     example_cpu_matmul_quantization.cpp.rst
-    example_cpu_matmul_weights_compression.cpp.rst
     example_cpu_rnn_inference_f32.cpp.rst
     example_cpu_rnn_inference_int8.cpp.rst
     example_cpu_sgemm_and_matmul.cpp.rst
@@ -55,7 +52,10 @@ Orphans
     example_lrn.cpp.rst
     example_lstm.cpp.rst
     example_matmul.cpp.rst
+    example_matmul_csr.cpp.rst
+    example_matmul_coo.cpp.rst
     example_memory_format_propagation.cpp.rst
+    example_matmul_weights_compression.cpp.rst
     example_performance_profiling.cpp.rst
     example_pooling.cpp.rst
     example_prelu.cpp.rst
@@ -79,9 +79,6 @@ Orphans
     page_concat_example_cpp_short.rst
     page_convolution_example_cpp.rst
     page_convolution_example_cpp_short.rst
-    page_cpu_matmul_csr_cpp
-    page_cpu_matmul_coo_cpp
-    page_cpu_matmul_weights_compression_cpp
     page_cpu_matmul_quantization_cpp.rst
     page_cpu_matmul_quantization_cpp_short.rst
     page_cpu_sgemm_and_matmul_cpp.rst
@@ -117,8 +114,11 @@ Orphans
     page_lrn_example_cpp_short.rst
     page_lstm_example_cpp.rst
     page_lstm_example_cpp_short.rst
+    page_matmul_csr_cpp
+    page_matmul_coo_cpp
     page_matmul_example_cpp.rst
     page_matmul_example_cpp_short.rst
+    page_matmul_weights_compression_cpp
     page_pooling_example_cpp.rst
     page_pooling_example_cpp_short.rst
     page_prelu_example_cpp.rst

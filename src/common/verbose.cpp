@@ -131,13 +131,6 @@ void print_header() noexcept {
         verbose_printf("info,GPU convolution v2 is %s\n",
                 experimental::use_gpu_conv_v2() ? "enabled" : "disabled");
 #endif
-
-#ifdef DNNL_EXPERIMENTAL_SPARSE
-        verbose_printf(
-                "info,experimental functionality for sparse domain is "
-                "enabled\n");
-#endif
-
         verbose_printf(
                 "primitive,info,template:%soperation,engine,primitive,"
                 "implementation,prop_kind,memory_descriptors,attributes,"
@@ -354,12 +347,10 @@ std::ostream &operator<<(std::ostream &ss, format_kind_t format_kind) {
     return ss;
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 std::ostream &operator<<(std::ostream &ss, sparse_encoding_t encoding) {
     ss << dnnl_sparse_encoding2str(encoding);
     return ss;
 }
-#endif
 
 std::string normalization_flags2str(unsigned flags) {
     std::string s;

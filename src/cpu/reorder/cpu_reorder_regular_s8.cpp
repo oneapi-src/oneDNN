@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2022 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -66,7 +66,7 @@ const impl_list_map_t &regular_s8_impl_list_map() {
             REG_SR(s8, any, s8, any, fmt_order::any, spec::reference)
             REG_SR(s8, any, u8, any, fmt_order::any, spec::reference)
 
-            REG_SPARSE_SR_X64(s8, any, s8, any)
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(simple_sparse_reorder_t<s8, impl::format_tag_t, any, s8, impl::format_tag_t, any>))
 
             nullptr,
         }},

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,6 @@ using dnnl::impl::status_t;
 using ::sycl::context;
 using ::sycl::get_pointer_type;
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 status_t dnnl_sycl_interop_memory_create_v2(memory_t **memory,
         const memory_desc_t *md, engine_t *engine, memory_kind_t memory_kind,
         int nhandles, void **handles) {
@@ -94,7 +93,6 @@ status_t dnnl_sycl_interop_memory_create_v2(memory_t **memory,
     return safe_ptr_assign(
             *memory, new memory_t(engine, md, std::move(mem_storages)));
 }
-#endif
 
 status_t dnnl_sycl_interop_memory_create(memory_t **memory,
         const memory_desc_t *md, engine_t *engine, memory_kind_t memory_kind,

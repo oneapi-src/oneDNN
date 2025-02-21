@@ -61,6 +61,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_iface_attr_quantization.cpp
                               test_iface_weights_format.cpp
                               test_iface_wino_convolution.cpp
+                              test_iface_sparse.cpp
                               test_memory.cpp
                               test_sum.cpp
                               test_reorder.cpp
@@ -94,10 +95,6 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_prelu.cpp
                               test_group_normalization.cpp
                               )
-
-if(DNNL_EXPERIMENTAL_SPARSE)
-    list(APPEND PRIM_TEST_CASES_SRC test_iface_sparse.cpp)
-endif()
 
 if(DNNL_CPU_RUNTIME STREQUAL "NONE")
     list(APPEND PRIM_TEST_CASES_SRC test_iface_gpu_only.cpp)

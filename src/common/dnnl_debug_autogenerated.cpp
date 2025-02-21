@@ -94,7 +94,6 @@ const char *dnnl_engine_kind2str(dnnl_engine_kind_t v) {
     return "unknown engine_kind";
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 const char *dnnl_sparse_encoding2str(dnnl_sparse_encoding_t v) {
     if (v == dnnl_sparse_encoding_undef) return "undef";
     if (v == dnnl_csr) return "csr";
@@ -104,7 +103,6 @@ const char *dnnl_sparse_encoding2str(dnnl_sparse_encoding_t v) {
     return "unknown sparse_encoding";
 }
 
-#endif
 const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_format_tag_undef) return "undef";
     if (v == dnnl_format_tag_any) return "any";
