@@ -88,7 +88,7 @@ jobs:
           python ${{ github.workspace }}/source/scripts/generate_format_tags.py
           cd ${{ github.workspace }}/source/
           git diff | grep . && exit 1 || true
-          
+
   pr-status:
     name: "Formatting"
     runs-on: ubuntu-latest
