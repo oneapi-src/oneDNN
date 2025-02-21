@@ -31,9 +31,10 @@ enum class message_kind_t {
 };
 
 dim_t max_bytes(const hw_t &hw, const layout_t &a, const layout_t &b) {
-    // XeHPC is fine with 2048 bytes, XeHPG and below can fit 2048 bytes if
-    // reorder is a simple copy.
-    return (hw <= ngen::HW::XeHPG && a != b) ? 1024 : 2048;
+    // 2112 bytes is 1/4 of the GRF + 1 register for XeHPC and above;
+    // 1056 is 1/4 of the GRF + 1 register for XeHPG and below.
+    // We expect direct copies to be handled elsewhere.
+    return (hw <= ngen::HW::XeHPG && a != b) ? 1056 : 2112;
 }
 
 dim_t count_block_messages(
