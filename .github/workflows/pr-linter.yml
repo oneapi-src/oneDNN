@@ -88,3 +88,10 @@ jobs:
           python ${{ github.workspace }}/source/scripts/generate_format_tags.py
           cd ${{ github.workspace }}/source/
           git diff | grep . && exit 1 || true
+  pr-status:
+    name: "Formatting"
+    runs-on: ubuntu-latest
+    needs: [ pr-commits, pr-clang-format, pr-format-tags ]
+    steps:
+      - name: Print success
+        run: echo "Success"
