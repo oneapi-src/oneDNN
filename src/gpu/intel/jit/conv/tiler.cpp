@@ -53,7 +53,11 @@ bool is_reduction_dim(const pvar_t &d, const conv_problem_t &prb) {
 
 bool is_vectorized_dim(const pvar_t &d, const conv_problem_t &prb) {
     if (prb.is_dw) return d == pvars::g;
-    return to_gemm(d, prb) == pvars::n;
+    if (to_gemm(d, prb) != pvars::n) return false;
+    bool is_mb = (d == pvars::mb);
+    bool is_spatial = is_input_spatial(d) || is_output_spatial(d);
+    if (prb.is_fwd) return !is_mb;
+    return !is_spatial;
 }
 
 int tensor_conv_dim_index(const pvar_t &d, tensor_kind_t t) {
