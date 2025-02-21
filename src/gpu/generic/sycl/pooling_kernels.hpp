@@ -380,6 +380,23 @@ private:
     xpu::sycl::in_memory_arg_t ws_;
 };
 
+struct pooling_fill_kernel_t {
+    pooling_fill_kernel_t(data_type_t out_dt,
+            xpu::sycl::out_memory_arg_t &out_arg, float fill_val)
+        : out_dt_(out_dt), out_arg_(out_arg), fill_val_(fill_val) {}
+
+    void operator()(::sycl::item<1> item) const {
+        const auto idx = item.get_linear_id();
+        auto out_ptr = out_arg_.get_pointer();
+        store_float_value(out_dt_, fill_val_, out_ptr, idx);
+    }
+
+private:
+    data_type_t out_dt_;
+    xpu::sycl::out_memory_arg_t out_arg_;
+    float fill_val_ = 0.f;
+};
+
 } // namespace sycl
 } // namespace generic
 } // namespace gpu

@@ -86,6 +86,8 @@ struct ref_pooling_fwd_t : public gpu::generic::sycl::primitive_t {
 
         status_t init_conf();
         sycl_pooling_fwd_conf_t conf_;
+        bool src_zero_dim_ = false;
+        bool dst_zero_dim_ = false;
     };
 
     status_t init(impl::engine_t *engine) override;
@@ -97,6 +99,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     kernel_t kernel_;
+    kernel_t fill_kernel_;
 };
 
 struct ref_pooling_bwd_t : public gpu::generic::sycl::primitive_t {
