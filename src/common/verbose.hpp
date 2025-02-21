@@ -237,7 +237,8 @@ inline component_t::flag_kind prim_kind2_comp_kind(
 }
 
 uint32_t get_verbose(verbose_t::flag_kind kind = verbose_t::none,
-        component_t::flag_kind filter_kind = component_t::all) noexcept;
+        component_t::flag_kind filter_kind = component_t::all,
+        bool add_headers = true) noexcept;
 
 // Helper to avoid #ifdefs for DNNL_DEV_MODE related logging
 static inline uint32_t get_verbose_dev_mode(

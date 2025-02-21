@@ -165,7 +165,7 @@ void print_header(const filter_status_t &filter_status) noexcept {
 
 // hint parameter is the kind of verbose we are querying for
 uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
-        component_t::flag_kind filter_kind) noexcept {
+        component_t::flag_kind filter_kind, bool add_headers) noexcept {
 #if defined(DISABLE_VERBOSE)
     return verbose_t::none;
 #endif
@@ -287,7 +287,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
     int result = verbose.get() & verbosity_kind;
     if (verbosity_kind == verbose_t::debuginfo)
         result = verbose_t::get_debuginfo(verbose.get());
-    if (result) print_header(filter_status);
+    if (result && add_headers) print_header(filter_status);
     bool filter_result = flags & filter_kind;
     return filter_result ? result : 0;
 }
