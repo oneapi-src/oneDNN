@@ -68,7 +68,7 @@ struct stream_t : public cpu::cpu_stream_t {
             register_deps(cgh);
             submit_cpu_primitive(this, prim_iface, exec_ctx, cgh);
         });
-        sycl_ctx().set_deps({event});
+        sycl_ctx().set_deps({std::move(event)});
         return status::success;
     }
 
