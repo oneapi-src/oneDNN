@@ -77,7 +77,7 @@ status_t stream_impl_t::copy(impl::stream_t *stream,
                         const xpu::ocl::buffer_memory_storage_t *>(ocl_src);
                 const auto *ocl_buffer_dst = utils::downcast<
                         const xpu::ocl::buffer_memory_storage_t *>(ocl_dst);
-                OCL_CHECK(clEnqueueCopyBuffer(queue(),
+                OCL_CHECK(call_clEnqueueCopyBuffer(queue(),
                         ocl_buffer_src->mem_object(),
                         ocl_buffer_dst->mem_object(), src.offset(),
                         dst.offset(), size, num_events, events_ptr,
@@ -107,7 +107,7 @@ status_t stream_impl_t::copy(impl::stream_t *stream,
                     const xpu::ocl::buffer_memory_storage_t *>(ocl_dst);
 
             cl_mem ocl_mem = ocl_buffer_dst->mem_object();
-            cl_int err = clEnqueueWriteBuffer(queue(), ocl_mem, CL_TRUE, 0,
+            cl_int err = call_clEnqueueWriteBuffer(queue(), ocl_mem, CL_TRUE, 0,
                     size, src_ptr, num_events, events_ptr, out_event_ptr);
             OCL_CHECK(err);
         }
@@ -134,7 +134,7 @@ status_t stream_impl_t::copy(impl::stream_t *stream,
                     const xpu::ocl::buffer_memory_storage_t *>(ocl_src);
 
             cl_mem ocl_mem = ocl_buffer_src->mem_object();
-            cl_int err = clEnqueueReadBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
+            cl_int err = call_clEnqueueReadBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
                     dst_ptr, num_events, events_ptr, out_event_ptr);
             OCL_CHECK(err);
         }
@@ -220,7 +220,7 @@ status_t stream_impl_t::fill(impl::stream_t *stream,
     } else {
         const auto *ocl_buffer_dst
                 = downcast<const xpu::ocl::buffer_memory_storage_t *>(ocl_dst);
-        cl_int err = clEnqueueFillBuffer(queue(), ocl_buffer_dst->mem_object(),
+        cl_int err = call_clEnqueueFillBuffer(queue(), ocl_buffer_dst->mem_object(),
                 &pattern, sizeof(uint8_t), dst.offset(), size, num_events,
                 events_ptr, out_event_ptr);
         OCL_CHECK(err);
@@ -239,7 +239,7 @@ status_t stream_impl_t::fill(impl::stream_t *stream,
 }
 
 status_t stream_impl_t::barrier() {
-    cl_int err = clEnqueueMarkerWithWaitList(queue(), 0, nullptr, nullptr);
+    cl_int err = call_clEnqueueMarkerWithWaitList(queue(), 0, nullptr, nullptr);
     OCL_CHECK(err);
     return status::success;
 }

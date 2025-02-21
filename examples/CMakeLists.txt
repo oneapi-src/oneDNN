@@ -38,6 +38,10 @@ if(DNNL_WITH_SYCL)
     endif()
 endif()
 
+if(DNNL_GPU_RUNTIME STREQUAL "OCL")
+    list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
+endif()
+
 # propagate sanitizer flags
 append(CMAKE_C_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")

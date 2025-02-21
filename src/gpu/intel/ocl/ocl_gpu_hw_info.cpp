@@ -36,11 +36,11 @@ xpu::runtime_version_t get_driver_version(cl_device_id device) {
     xpu::runtime_version_t runtime_version(-1, -1, -1);
 
     size_t param_size = 0;
-    err = clGetDeviceInfo(device, CL_DRIVER_VERSION, 0, nullptr, &param_size);
+    err = call_clGetDeviceInfo(device, CL_DRIVER_VERSION, 0, nullptr, &param_size);
     std::string driver_version(param_size, '\0');
 
     if (err == CL_SUCCESS) {
-        err = clGetDeviceInfo(device, CL_DRIVER_VERSION, param_size,
+        err = call_clGetDeviceInfo(device, CL_DRIVER_VERSION, param_size,
                 &driver_version[0], nullptr);
     }
 
@@ -84,7 +84,7 @@ status_t init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
     }
 
     ip_version = 0;
-    OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_IP_VERSION_INTEL,
+    OCL_CHECK(call_clGetDeviceInfo(device, CL_DEVICE_IP_VERSION_INTEL,
             sizeof(ip_version), &ip_version, nullptr));
     return status::success;
 }

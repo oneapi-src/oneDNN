@@ -60,6 +60,10 @@ append(CMAKE_CXX_FLAGS "${CMAKE_TEST_CCXX_NOWARN_FLAGS}")
 
 append_host_compiler_options(CMAKE_CXX_FLAGS "${DPCPP_CXX_NOWARN_FLAGS}")
 
+if(DNNL_GPU_RUNTIME STREQUAL "OCL")
+    list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
+endif()
+
 if(NOT DNNL_CPU_RUNTIME STREQUAL "NONE" AND
    NOT DNNL_ENABLE_STACK_CHECKER AND
    # TBB threading runtime requires explicit finalization for tests used
