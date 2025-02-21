@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@
 #include "gpu/gpu_softmax_pd.hpp"
 #include "gpu/intel/compute/dispatch_reusable.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/stream.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {
@@ -211,9 +211,9 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        status_t init_dispatch_default_reusable(engine_t *engine);
+        status_t init_dispatch_default_reusable(gpu::engine_t *engine);
         status_t init_dispatch_workgroup_per_reduction(
-                engine_t *engine, const size_t num_workers_per_workgroup);
+                gpu::engine_t *engine, const size_t num_workers_per_workgroup);
 
         reusable_softmax_params_t conf;
         reusable_softmax_runtime_params_t rt_conf;

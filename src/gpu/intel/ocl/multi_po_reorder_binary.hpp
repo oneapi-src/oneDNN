@@ -25,7 +25,7 @@
 #include "gpu/gpu_binary_pd.hpp"
 #include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {

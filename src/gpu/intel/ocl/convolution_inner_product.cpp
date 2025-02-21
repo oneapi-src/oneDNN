@@ -18,7 +18,7 @@
 #include "common/c_types_map.hpp"
 #include "common/convolution_pd.hpp"
 #include "common/reorder.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 using namespace dnnl::impl::memory_tracking;
 

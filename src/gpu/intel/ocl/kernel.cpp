@@ -18,7 +18,7 @@
 #include <string>
 #include <CL/cl.h>
 
-#include "gpu/intel/ocl/ocl_gpu_kernel.hpp"
+#include "gpu/intel/ocl/kernel.hpp"
 
 #include "common/rw_mutex.hpp"
 #include "common/utils.hpp"
@@ -29,8 +29,9 @@
 #include "xpu/ocl/memory_storage.hpp"
 #include "xpu/ocl/usm_utils.hpp"
 
-#include "gpu/intel/ocl/ocl_stream.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/engine.hpp"
+#include "gpu/intel/ocl/stream.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -72,11 +73,11 @@ private:
     cl_kernel kernel_;
 };
 
-class ocl_gpu_kernel_cache_t {
+class kernel_cache_t {
 public:
-    ocl_gpu_kernel_cache_t(cl_kernel main_kernel) : main_kernel_(main_kernel) {}
+    kernel_cache_t(cl_kernel main_kernel) : main_kernel_(main_kernel) {}
 
-    ~ocl_gpu_kernel_cache_t() {
+    ~kernel_cache_t() {
         for (auto &kv : kernels_) {
             OCL_CHECK_V(clReleaseKernel(kv.second));
         }
@@ -110,35 +111,35 @@ private:
     utils::rw_mutex_t mutex_;
 };
 
-ocl_gpu_kernel_t::ocl_gpu_kernel_t(xpu::ocl::wrapper_t<cl_kernel> &&ocl_kernel,
+kernel_t::kernel_t(xpu::ocl::wrapper_t<cl_kernel> &&ocl_kernel,
         const std::vector<gpu::intel::compute::scalar_type_t> &arg_types,
         compute::program_src_t src)
     : ocl_kernel_(std::move(ocl_kernel))
     , arg_types_(arg_types)
     , src_(std::move(src))
     , save_events_(false) {
-    cache_ = std::make_shared<ocl_gpu_kernel_cache_t>(ocl_kernel_);
+    cache_ = std::make_shared<kernel_cache_t>(ocl_kernel_);
 }
 
-status_t ocl_gpu_kernel_t::get_binary(
+status_t kernel_t::get_binary(
         const impl::engine_t *engine, xpu::binary_t &binary) const {
-    auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
+    auto *ocl_engine = utils::downcast<const engine_t *>(engine);
     return get_ocl_program_binary(ocl_kernel(), ocl_engine->device(), binary);
 }
 
-status_t ocl_gpu_kernel_t::get_binary_size(
+status_t kernel_t::get_binary_size(
         const impl::engine_t *engine, size_t *binary_size) const {
-    auto *ocl_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
+    auto *ocl_engine = utils::downcast<const engine_t *>(engine);
     return get_ocl_program_binary_size(
             ocl_kernel(), ocl_engine->device(), binary_size);
 }
 
-status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
+status_t kernel_t::parallel_for(impl::stream_t &stream,
         const compute::nd_range_t &range,
         const compute::kernel_arg_list_t &arg_list, const xpu::event_t &deps,
         xpu::event_t &out_dep) {
 
-    auto *ocl_stream = utils::downcast<ocl_stream_t *>(&stream);
+    auto *ocl_stream = utils::downcast<stream_t *>(&stream);
     cl_command_queue queue = ocl_stream->queue();
 
     kernel_wrapper_t *kernel = nullptr;
@@ -146,8 +147,7 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
     CHECK(check_scalar_arguments(arg_list));
 
     auto stream_ocl_device_info
-            = utils::downcast<ocl_gpu_engine_t *>(stream.engine())
-                      ->device_info();
+            = utils::downcast<engine_t *>(stream.engine())->device_info();
     const size_t pointer_size
             = stream_ocl_device_info->device_address_bits() / 8;
     size_t param_bytes = 0;
@@ -163,11 +163,10 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
                 // Validate that the OpenCL contexts match for execution
                 // context and memory.
                 auto stream_ocl_ctx
-                        = utils::downcast<ocl_gpu_engine_t *>(stream.engine())
+                        = utils::downcast<engine_t *>(stream.engine())
                                   ->context();
                 auto memory_storage_ocl_ctx
-                        = utils::downcast<ocl_gpu_engine_t *>(
-                                ocl_mem_storage->engine())
+                        = utils::downcast<engine_t *>(ocl_mem_storage->engine())
                                   ->context();
                 if (stream_ocl_ctx != memory_storage_ocl_ctx) {
                     MAYBE_REPORT_ERROR(
@@ -260,14 +259,14 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
     return status::success;
 }
 
-status_t ocl_gpu_kernel_t::dump() const {
+status_t kernel_t::dump() const {
     xpu::binary_t binary;
     CHECK(get_ocl_kernel_binary(ocl_kernel(), binary));
     CHECK(gpu_utils::dump_kernel_binary(binary, name()));
     return status::success;
 }
 
-std::string ocl_gpu_kernel_t::name() const {
+std::string kernel_t::name() const {
     return xpu::ocl::get_kernel_name(ocl_kernel());
 }
 

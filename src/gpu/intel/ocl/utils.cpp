@@ -20,10 +20,10 @@
 #include <mutex>
 #include <CL/cl_ext.h>
 
-#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
-#include "gpu/intel/ocl/ocl_gpu_hw_info.hpp"
-#include "gpu/intel/ocl/ocl_gpu_kernel.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/engine.hpp"
+#include "gpu/intel/ocl/hw_info.hpp"
+#include "gpu/intel/ocl/kernel.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 #include "xpu/ocl/utils.hpp"
 
 #ifdef DNNL_WITH_SYCL
@@ -124,8 +124,7 @@ int get_sycl_ocl_device_and_context(
                 true);
         if (err) return -1;
     } else if (be == xpu::sycl::backend_t::level0) {
-        std::unique_ptr<gpu::intel::ocl::ocl_gpu_engine_t, engine_deleter_t>
-                ocl_engine;
+        std::unique_ptr<gpu::intel::ocl::engine_t, engine_deleter_t> ocl_engine;
         auto err
                 = gpu::intel::sycl::create_ocl_engine(&ocl_engine, sycl_engine);
         if (err != status::success) return -1;
@@ -148,8 +147,7 @@ bool mayiuse_microkernels(const impl::engine_t *engine) {
                 if (err) return false;
             } break;
             case runtime_kind::ocl: {
-                const ocl_gpu_engine_t *eng
-                        = utils::downcast<const ocl_gpu_engine_t *>(engine);
+                const engine_t *eng = utils::downcast<const engine_t *>(engine);
                 ocl_device = xpu::ocl::make_wrapper(eng->device(), true);
                 ocl_context = xpu::ocl::make_wrapper(eng->context(), true);
             } break;

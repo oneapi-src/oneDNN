@@ -25,9 +25,9 @@
 #include "gpu/intel/jit/codegen/register_scope.hpp"
 #include "gpu/intel/jit/codegen/reorder.hpp"
 #include "gpu/intel/jit/codegen/send.hpp"
+#include "gpu/intel/jit/eltwise_injector.hpp"
 #include "gpu/intel/jit/ir/eltwise.hpp"
 #include "gpu/intel/jit/ir/fma.hpp"
-#include "gpu/intel/jit/jit_eltwise_injector.hpp"
 #include "ngen/ngen.hpp"
 
 namespace dnnl {
@@ -61,14 +61,17 @@ public:
         , eu_count_(host->exec_cfg_.hw().eu_count())
         , with_atomic_fp64_(host->exec_cfg_.hw().has_fp64_atomic_support()) {}
 
-    ~ir_to_ngen_t() {
+    ~ir_to_ngen_t() override
 #ifdef DNNL_DEV_MODE
+    {
         if (bank_conflicts_ > 0)
             gpu_warning() << "Found bank conflicts: " << bank_conflicts_;
         if (bundle_conflicts_ > 0)
             gpu_warning() << "Found bundle conflicts: " << bundle_conflicts_;
-#endif
     }
+#else
+            = default;
+#endif
 
     void _visit(const alloc_t &obj) override {
         auto scope = register_scope();
@@ -726,7 +729,7 @@ private:
         auto &data_op = eltwise_t::arg_data(args);
         const auto &data_rd = data_op.reg_buf_data();
 
-        jit_eltwise_injector_f32<hw> inj(host_, func.alg_kind, func.alpha,
+        eltwise_injector_f32_t<hw> inj(host_, func.alg_kind, func.alpha,
                 func.beta, func.scale, eu_count_);
         auto scratch = scope.alloc_range(inj.preferred_scratch_regs());
         inj.set_scratch(scratch);
