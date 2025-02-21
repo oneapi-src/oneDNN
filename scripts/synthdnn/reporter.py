@@ -15,6 +15,7 @@
 ################################################################################
 
 import statistics as stat
+import math
 
 from tabulate import tabulate
 
@@ -90,10 +91,9 @@ class summaryBounds:
         header = [
             "Primitive Kind",
             "Compute Bound Mean",
-            "Compute Std Dev",
+            "\u03c3",
             "Memory Bound Mean",
-            "Memory Std Dev",
-            "Sample Size",
+            "\u03c3",
         ]
         table = []
         for kind, data in self.data.items():
@@ -113,12 +113,18 @@ class summaryBounds:
                 else:
                     compute_data.append(compute_efficiency)
 
+            # 90% confidence interval
+            z_score = 1.28
+
             compute_mean = float("nan")
             compute_stdev = float("nan")
             if len(compute_data) > 0:
                 compute_mean = stat.mean(compute_data)
             if len(compute_data) > 1:
                 compute_stdev = stat.stdev(compute_data)
+            compute_sampling_error = (
+                z_score * compute_stdev / math.sqrt(len(compute_data))
+            )
 
             mem_mean = float("nan")
             mem_stdev = float("nan")
@@ -126,17 +132,21 @@ class summaryBounds:
                 mem_mean = stat.mean(mem_data)
             if len(mem_data) > 1:
                 mem_stdev = stat.stdev(mem_data)
+            mem_sampling_error = z_score * mem_stdev / math.sqrt(len(mem_data))
 
             table.append(
                 [
                     kind,
-                    "{:.1%} of {} GFLOPS".format(
-                        compute_mean, self.max_flops[data.type]
+                    "{:.1%} \u00B1 {:.1%} of {:.3g} TFLOPS".format(
+                        compute_mean,
+                        compute_sampling_error,
+                        self.max_flops[data.type]/1024,
                     ),
                     "{:.1%}".format(compute_stdev),
-                    "{:.1%} of {} GB/S".format(mem_mean, self.max_bandwidth),
+                    "{:.1%} \u00B1 {:.1%} of {:.3g} GB/S".format(
+                        mem_mean, mem_sampling_error, self.max_bandwidth
+                    ),
                     "{:.1%}".format(mem_stdev),
-                    sample_size,
                 ]
             )
 
