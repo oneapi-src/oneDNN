@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
     : jit_uni_lrn_kernel_t(name) {
     if (config.dat_tag == nhwc)
         single_pixel_offset_
-                = config.C * sizeof(typename prec_traits<d_type>::type);
+                = config.C * sizeof(typename prec_traits_t<d_type>::type);
 }
 
 template <template <cpu_isa_t isa, data_type_t d_type> class Derived,

@@ -683,7 +683,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.dst_iter_c_dt = dst_iter_c_d.is_zero() ? data_type::f32
                                                : dst_iter_c_d.data_type();
 
-    rnn.cell_dt = data_traits<typename T::src_layer_t>::data_type;
+    rnn.cell_dt = data_traits_t<typename T::src_layer_t>::data_type;
     switch (rd.direction) {
         case dnnl_unidirectional_left2right: rnn.exec_dir = l2r; break;
         case dnnl_unidirectional_right2left: rnn.exec_dir = r2l; break;

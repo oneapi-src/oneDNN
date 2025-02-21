@@ -57,14 +57,14 @@ inline constexpr size_t get_file_name_offset(T (&str)[1]) {
     return 0;
 }
 template <typename T, T v>
-struct const_expr_value {
+struct const_expr_value_t {
     static constexpr const T value = v;
 };
 
 } // namespace utility
 
 #define UTILITY_CONST_EXPR_VALUE(exp) \
-    utility::const_expr_value<decltype(exp), exp>::value
+    utility::const_expr_value_t<decltype(exp), exp>::value
 
 #define __FILENAME__ (&__FILE__[utility::get_file_name_offset(__FILE__)])
 

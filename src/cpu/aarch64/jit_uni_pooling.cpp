@@ -560,7 +560,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
     const auto post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(jpp.post_ops, ctx);
 
-    using wsp_data_t = typename prec_traits<wsp_dt_>::type;
+    using wsp_data_t = typename prec_traits_t<wsp_dt_>::type;
     using namespace jit_uni_pooling_utils;
 
     const auto transpose_facade
@@ -688,7 +688,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
     const auto post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(jpp.post_ops, ctx);
 
-    using wsp_data_t = typename prec_traits<wsp_dt_>::type;
+    using wsp_data_t = typename prec_traits_t<wsp_dt_>::type;
     using namespace jit_uni_pooling_utils;
     static constexpr int first_ithr = 0;
 
@@ -893,7 +893,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
 
     using namespace jit_uni_pooling_utils;
-    using wsp_data_t = typename prec_traits<wsp_dt_>::type;
+    using wsp_data_t = typename prec_traits_t<wsp_dt_>::type;
 
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
@@ -1018,7 +1018,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
 
     const auto &jpp = pd()->jpp_;
 
-    using wsp_data_t = typename prec_traits<wsp_dt_>::type;
+    using wsp_data_t = typename prec_traits_t<wsp_dt_>::type;
     using namespace jit_uni_pooling_utils;
     static constexpr int first_ithr = 0;
 

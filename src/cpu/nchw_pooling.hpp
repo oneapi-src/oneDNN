@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ struct nchw_pooling_fwd_t : public primitive_t {
 
     nchw_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    using data_t = typename prec_traits<d_type>::type;
+    using data_t = typename prec_traits_t<d_type>::type;
 
     status_t init(engine_t *engine) override {
         ref_post_ops_
@@ -209,7 +209,7 @@ struct nchw_pooling_bwd_t : public primitive_t {
     };
 
     nchw_pooling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
-    typedef typename prec_traits<d_type>::type data_t;
+    typedef typename prec_traits_t<d_type>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);

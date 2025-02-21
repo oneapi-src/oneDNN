@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ struct pp_ker_t {
             const convolution_pd_t *pd, const conv_gemm_conf_t &jcp);
     virtual ~pp_ker_t() = default;
 
-    typedef typename prec_traits<data_type::s32>::type acc_data_t;
+    typedef typename prec_traits_t<data_type::s32>::type acc_data_t;
 
     virtual void operator()(void *dst, const acc_data_t *acc, const char *bias,
             const float *scales, float dst_scale, float sum_scale,

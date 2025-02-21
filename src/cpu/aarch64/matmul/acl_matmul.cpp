@@ -27,7 +27,7 @@ namespace matmul {
 using namespace data_type;
 
 namespace {
-using data_t = prec_traits<data_type::f32>::type;
+using data_t = prec_traits_t<data_type::f32>::type;
 } // namespace
 
 status_t acl_matmul_t::init(engine_t *engine) {

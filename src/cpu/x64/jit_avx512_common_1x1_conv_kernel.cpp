@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -683,8 +683,8 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
     if (jcp.wei_tag != wei_tag) return status::unimplemented;
 
-    jcp.typesize_in = sizeof(prec_traits<data_type::f32>::type);
-    jcp.typesize_out = sizeof(prec_traits<data_type::f32>::type);
+    jcp.typesize_in = sizeof(prec_traits_t<data_type::f32>::type);
+    jcp.typesize_out = sizeof(prec_traits_t<data_type::f32>::type);
 
     /* once all the formats are set, check the padding consistency */
     if (!is_data_layout_nxc) {

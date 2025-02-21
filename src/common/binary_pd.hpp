@@ -40,8 +40,8 @@ namespace impl {
 struct binary_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::binary;
 
-    typedef binary_pd_t base_class;
-    typedef binary_pd_t hint_class;
+    using base_class = binary_pd_t;
+    using hint_class = binary_pd_t;
 
     const binary_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {

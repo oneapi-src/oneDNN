@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -733,8 +733,8 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.os = static_cast<dim_t>(jcp.od) * jcp.oh * jcp.ow;
     jcp.is = static_cast<dim_t>(jcp.id) * jcp.ih * jcp.iw;
 
-    jcp.typesize_in = sizeof(prec_traits<data_type::f32>::type);
-    jcp.typesize_out = sizeof(prec_traits<data_type::f32>::type);
+    jcp.typesize_in = sizeof(prec_traits_t<data_type::f32>::type);
+    jcp.typesize_out = sizeof(prec_traits_t<data_type::f32>::type);
 
     const auto &post_ops = attr.post_ops_;
     const int dw_conv_ind = post_ops.find(primitive_kind::convolution);

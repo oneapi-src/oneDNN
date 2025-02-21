@@ -325,12 +325,12 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
 }
 
 template <inner_blk_t b>
-struct inner_blk_traits {
+struct inner_blk_traits_t {
     using ib = inner_blk_t;
 };
 
 template <format_tag_t>
-struct tag_traits {
+struct tag_traits_t {
     // block_dim_t block_dims;
     // inner_blk_t inner_blks;
     // int ndims;
@@ -338,7 +338,7 @@ struct tag_traits {
 
 #define DECL_TRAITS(_tag, _blk_fmt, _inner_blk, _ndims) \
     template <> \
-    struct tag_traits<format_tag::_tag> { \
+    struct tag_traits_t<format_tag::_tag> { \
         static constexpr block_dim_t block_dims = block_dim_t::_blk_fmt; \
         static constexpr inner_blk_t inner_blks = inner_blk_t::_inner_blk; \
         static constexpr int ndims = _ndims; \

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ protected:
     const Xbyak::Reg64 reg_tmp_ = this->rsi;
     static constexpr size_t simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
     int single_pixel_offset_
-            = VECTOR_LENGTH * sizeof(typename prec_traits<d_type>::type);
+            = VECTOR_LENGTH * sizeof(typename prec_traits_t<d_type>::type);
 
     io::jit_io_multi_dt_helper_t<Vmm> io_;
 };

@@ -22,7 +22,7 @@ namespace cpu {
 namespace aarch64 {
 
 namespace {
-using data_t = prec_traits<data_type::f32>::type;
+using data_t = prec_traits_t<data_type::f32>::type;
 
 // Keys are anonymous. So deduce the type automagically.
 using conv_key_t = decltype(memory_tracking::names::key_gemm_tmp_buffer);
