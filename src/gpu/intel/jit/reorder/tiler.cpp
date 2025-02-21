@@ -30,11 +30,14 @@ enum class message_kind_t {
     scattered,
 };
 
-dim_t max_bytes(const hw_t &hw, const layout_t &a, const layout_t &b) {
-    // 2112 bytes is 1/4 of the GRF + 1 register for XeHPC and above;
-    // 1056 is 1/4 of the GRF + 1 register for XeHPG and below.
-    // We expect direct copies to be handled elsewhere.
-    return (hw <= ngen::HW::XeHPG && a != b) ? 1056 : 2112;
+dim_t max_strided_bytes(const hw_t &hw) {
+    // Allow up to 48 registers. Empirically determined.
+    // TODO: This should be adjusted when post-ops are present.
+    return 48 * hw.grf_size();
+}
+
+dim_t max_packed_bytes(const hw_t &hw) {
+    return 32 * hw.grf_size();
 }
 
 dim_t count_block_messages(
@@ -137,7 +140,6 @@ message_info_t estimate_message_info(
 
 std::vector<tensor_t> tiles(const hw_t &hw, layout_t a, layout_t b) {
     using tile_pair_t = std::array<tensor_t, 2>;
-    auto max_size = max_bytes(hw, a, b);
 
     std::vector<dim_t> dims(a.ndims());
     for (dim_idx_t i = 0; i < a.ndims(); ++i)
@@ -237,8 +239,9 @@ std::vector<tensor_t> tiles(const hw_t &hw, layout_t a, layout_t b) {
             | transform(add_pseudo_dimension(b));
     auto tiles = merge(a_tiles, b_tiles, take_smaller) | transform(merge_tiles);
 
-    const int unit_size = std::max(a.type().size(), b.type().size());
-    const dim_t max_units = max_size / unit_size;
+    const int elem_size = std::max(a.type().size(), b.type().size());
+    const dim_t max_elems = max_packed_bytes(hw) / elem_size;
+    const dim_t max_layout_size = max_strided_bytes(hw);
 
     auto get_grf_layout_size = [&](const tensor_t &tile) {
         auto elems = tile.elems();
@@ -254,8 +257,8 @@ std::vector<tensor_t> tiles(const hw_t &hw, layout_t a, layout_t b) {
     };
 
     for (auto tile : tiles) {
-        if (tile.elems() > max_units) break;
-        if (get_grf_layout_size(tile) > max_size) continue;
+        if (tile.elems() > max_elems) break;
+        if (get_grf_layout_size(tile) > max_layout_size) continue;
         if (candidate_tiles.empty() || !tile.is_equal(candidate_tiles.back()))
             candidate_tiles.push_back(tile);
     }
