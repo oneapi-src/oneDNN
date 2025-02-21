@@ -117,7 +117,7 @@ struct cudnn_conv_inner_product_fwd_impl_t
     }
     virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool with_relu, bool with_eltwise, bool with_sum,
-            bool use_fuse_path_for_blocking) override {
+            bool use_fuse_path_for_blocking, bool /* use_f32_sum */) override {
         with_bias_ = pd->with_bias();
         with_relu_ = with_relu;
         with_eltwise_ = with_eltwise;
@@ -424,7 +424,8 @@ struct cudnn_conv_inner_product_bwd_data_impl_t
     cudnnTensorFormat_t diff_source_format_;
     virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
-            bool /*using_fused_path_for_blocking*/) override {
+            bool /*using_fused_path_for_blocking*/,
+            bool /* use_f32_sum */) override {
         // Pad out the dimensions to 4
         if (pd->ndims() > CUDNN_DIM_MAX || pd->ndims() < 2) {
             return status::invalid_arguments;
@@ -575,7 +576,8 @@ struct cudnn_conv_inner_product_bwd_weights_impl_t
 
     virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
-            bool /*using_fused_path_for_blocking*/) override {
+            bool /*using_fused_path_for_blocking*/,
+            bool /* use_f32_sum */) override {
         // If any of the dimensions are 0 we should not continue with creating
         // cudnn descriptors
         with_bias_ = pd->with_bias();
