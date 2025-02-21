@@ -27,13 +27,13 @@ permissions: read-all
 
 # Kill stale checks
 concurrency:
-  group: ${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  pr-formatting:
-    name: Formatting
-    runs-on: ubuntu-22.04
+  pr-commits:
+    name: "Commit messages"
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -41,6 +41,15 @@ jobs:
           fetch-depth: 0
       - name: Check commit messages
         run: python3 ./.github/automation/commit-msg-check.py "${{ github.event.pull_request.head.sha }}" "${{ github.event.pull_request.base.sha }}"
+
+  pr-clang-format:
+    name: "Clang-Format"
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
       - name: Install clang-format
         run: sudo apt update && sudo apt install -y "clang-format-11"
       - name: Check code formatting
@@ -80,27 +89,10 @@ jobs:
           cd ${{ github.workspace }}/source/
           git diff | grep . && exit 1 || true
 
-  pr-clang-tidy:
-    name: Clang-Tidy
+  pr-status:
+    name: "Formatting"
     runs-on: ubuntu-latest
+    needs: [ pr-commits, pr-clang-format, pr-format-tags ]
     steps:
-      - name: Checkout oneDNN
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Install clang
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang libomp-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
-
-      - name: Configure oneDNN
-        run: .github/automation/x64/build_linters.sh
-        env:
-          ONEDNN_ACTION: configure
-
-      - name: Build oneDNN
-        run: |
-          .github/automation/x64/build_linters.sh 2>&1 | tee build.log
-          grep -i "warning:" build.log | sort -u
-          grep -q -i "warning:" build.log && exit 1 || true
-        env:
-          ONEDNN_ACTION: build
+      - name: Print success
+        run: echo "Success"
