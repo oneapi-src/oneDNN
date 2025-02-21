@@ -63,7 +63,7 @@ kernel_t<hw>::kernel_t(
 
     // Bind "external" variables.
     expr_binding_t expr_binding(hw);
-    bind_external_vars(body, expr_binding);
+    bind_external_vars(body, desc.idx_disp, expr_binding);
 
     // Generate assembly from IR.
     convert_ir_to_ngen<hw>(body, this, expr_binding);

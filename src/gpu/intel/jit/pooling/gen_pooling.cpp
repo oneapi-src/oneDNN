@@ -107,9 +107,10 @@ status_t gen_pooling_fwd_t::pd_t::init(impl::engine_t *engine) {
 status_t gen_pooling_fwd_t::init(impl::engine_t *engine) {
     cfg_ = pooling_config_t(
             *pd()->exec_cfg, *pd()->pool_conf, *pd()->src, *pd()->dst);
+    kernel_info_ = kernel_info_t();
     zero_points_config_t zp_cfg(pd());
     cfg_.set_zp_cfg(zp_cfg);
-    cfg_.compute_grid();
+    cfg_.compute_grid(kernel_info_.idx_disp().tg_idxs());
 
     if (auto blob = cache_blob()) {
         int32_t version;
@@ -127,7 +128,6 @@ status_t gen_pooling_fwd_t::init(impl::engine_t *engine) {
     init_extra_tensors(cfg_.zp_cfg(), *pd()->attr(), nullptr, *pd()->dst_md(),
             /* ic = */ 1, /* oc = */ 1, tensor_cfg);
 
-    kernel_info_ = kernel_info_t();
     kernel_info_.set_nd_range(cfg_.nd_range());
 
     // Initialize kernel arguments.

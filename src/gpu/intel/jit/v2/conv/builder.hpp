@@ -26,6 +26,9 @@ namespace impl {
 namespace gpu {
 namespace intel {
 namespace jit {
+
+class idx_dispatcher_t;
+
 namespace v2 {
 
 class var_manager_t;
