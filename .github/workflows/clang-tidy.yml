@@ -6,8 +6,21 @@ on:
     paths:
       - ".github/automation/x64/**"
       - ".github/workflows/clang-tidy.yml"
+      - "cmake/**"
+      - "examples/**"
+      - "include/**"
+      - "src/common/**"
+      - "src/cpu/*"
+      - "src/cpu/gemm/**"
+      - "src/cpu/matmul/**"
+      - "src/cpu/reorder/**"
+      - "src/cpu/rnn/**"
       - "src/cpu/x64/**"
-      - "src/gpu/intel/**"
+      - "src/gpu/*"
+      - "src/gpu/intel/**""
+      - "src/gpu/graph/**"
+      - "tests/**"
+      - "CMakeLists.txt"
 
 ## Declare default permissions as read only.
 permissions: read-all
