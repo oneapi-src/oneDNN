@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -306,11 +306,25 @@ void ref_post_ops_t::execute(float &res, const args_t &args) const {
 
                 const auto off = get_binary_src1_off(
                         src1_desc, args.l_offset, dst_d.dims(), dst_d.ndims());
+
                 const auto src1_binary_po = CTX_IN_MEM(const void *,
                         (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+                const auto src2_binary_po = CTX_IN_MEM(const void *,
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_2));
+
+                bool src2_val = false;
+                if (e.binary.is_ternary_op) {
+                    const auto &src2_desc = e.binary.src2_desc;
+                    const auto src2_off = get_binary_src1_off(src2_desc,
+                            args.l_offset, dst_d.dims(), dst_d.ndims());
+                    src2_val = static_cast<bool>(io::load_int_value(
+                            src2_desc.data_type, src2_binary_po, src2_off));
+                }
+
                 const float val_po = io::load_float_value(
                         src1_desc.data_type, src1_binary_po, off);
-                res = it_binary_po->compute_scalar(res, val_po, false);
+
+                res = it_binary_po->compute_scalar(res, val_po, src2_val);
                 ++it_binary_po;
             } break;
             case primitive_kind::prelu: {

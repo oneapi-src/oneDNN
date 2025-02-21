@@ -217,6 +217,9 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
         } else if (e.is_binary_kind()) {
             const auto dt_str = get_substr(subs, subs_pos, ':');
             e.binary.src1_dt = str2dt(dt_str.c_str());
+
+            if (e.is_binary_kind_with_ternary_op()) e.binary.src2_dt = dnnl_s8;
+
             if (e.binary.src1_dt == dnnl_data_type_undef) {
                 BENCHDNN_PRINT(0, "%s \'%s\' %s\n",
                         "Error: binary post-op data type", dt_str.c_str(),
