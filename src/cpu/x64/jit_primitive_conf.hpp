@@ -526,6 +526,8 @@ struct jit_pool_conf_t {
     bool with_binary;
     int nthr;
     memory_desc_t tmp_md;
+    bool needs_f32_accum_for_bf16;
+    dim_t f32_accum_block_size;
 };
 
 struct jit_pool_call_s {
