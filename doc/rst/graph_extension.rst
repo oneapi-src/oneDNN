@@ -9,4 +9,3 @@ Graph Extension
    dev_guide_graph_fusion_patterns
    dev_guide_graph_dump
    dev_guide_constant_tensor_cache
-   dev_guide_graph_compiler
