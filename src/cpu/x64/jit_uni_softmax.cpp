@@ -1670,7 +1670,7 @@ status_t jit_uni_softmax_fwd_t::execute(const exec_ctx_t &ctx) const {
     const int nthr = pd()->nthr_;
     const char *dst_orig_ptr = dst;
 
-    VDEBUGINFO(1, primitive, softmax,
+    VDEBUGINFO(info, primitive, softmax,
             "%s,src=%p dst=%p outer_size=%" PRId64 " outer_stride=%" PRId64
             " inner_size=%" PRId64 " inner_stride=%" PRId64
             " axis_stride=%" PRId64,

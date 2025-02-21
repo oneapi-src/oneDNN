@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -108,7 +108,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     memory_desc_wrapper dst_mdw(pd->dst_md());
     if (src_mdw.blocking_desc().inner_nblks != 0
             || dst_mdw.blocking_desc().inner_nblks != 0) {
-        VDEBUGINFO(15, primitive, lnorm,
+        VDEBUGINFO(info, primitive, lnorm,
                 "Reusable Vectorized LNorm not used because source or "
                 "destination tensors have blocked memory layouts.");
         return status::unimplemented;
@@ -116,7 +116,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
 
     bool c_is_last_physical = src_mdw.blocking_desc().strides[ndims - 1] == 1;
     if (!(src_mdw.is_dense() && c_is_last_physical)) {
-        VDEBUGINFO(15, primitive, lnorm,
+        VDEBUGINFO(info, primitive, lnorm,
                 "Reusable Vectorized LNorm not used because the source tensor "
                 "is not dense(%s) or the last axis(stride[ndims-1] = %d) "
                 "is not continuous.",
@@ -152,7 +152,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     }
 
     if (found_compatible_sg_and_vector_size == false) {
-        VDEBUGINFO(15, primitive, lnorm,
+        VDEBUGINFO(info, primitive, lnorm,
                 "Reusable Vectorized LNorm not used because norm_axis(%ld) "
                 "is not a multiple of the vector size and subgroup size.",
                 long(pd->norm_axis()));

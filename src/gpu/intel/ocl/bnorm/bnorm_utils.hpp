@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@
 #ifndef DPRINT
 #define DPRINT(fmt, ...) \
     do { \
-        if (get_verbose_dev_mode(verbose_t::debuginfo) >= 3) { \
+        if (get_debug_verbose_dev_mode(verbose_t::debug_level::debug)) { \
             printf(fmt, __VA_ARGS__); \
             fflush(0); \
         } \
@@ -44,7 +44,7 @@
 #ifndef DPRINT_PARAMS
 #define DPRINT_PARAMS(fmt, ...) \
     do { \
-        if (get_verbose_dev_mode(verbose_t::debuginfo) >= 2) { \
+        if (get_debug_verbose_dev_mode(verbose_t::debug_level::info)) { \
             printf(fmt, __VA_ARGS__); \
             fflush(0); \
         } \
@@ -53,7 +53,7 @@
 #ifndef DPRINT_MODEL
 #define DPRINT_MODEL(fmt, ...) \
     do { \
-        if (get_verbose_dev_mode(verbose_t::debuginfo) >= 4) { \
+        if (get_debug_verbose_dev_mode(verbose_t::debug_level::trace)) { \
             printf(fmt, __VA_ARGS__); \
             fflush(0); \
         } \

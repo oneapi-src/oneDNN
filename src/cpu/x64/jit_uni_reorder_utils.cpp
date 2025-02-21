@@ -30,7 +30,7 @@
 #if defined(DNNL_DEV_MODE)
 #define DEBUg(...) \
     do { \
-        if (get_verbose(verbose_t::debuginfo) >= 5) { __VA_ARGS__ } \
+        if (get_debug_verbose(verbose_t::debug_level::debug)) { __VA_ARGS__ } \
     } while (0)
 #else
 #define DEBUg(...)

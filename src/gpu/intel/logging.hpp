@@ -29,14 +29,14 @@ namespace impl {
 namespace gpu {
 namespace intel {
 
-enum class log_level_t {
-    off = 0,
-    warning = 100,
-    suggestion = 120,
-    info = 150,
-    perf = 170,
-    trace = 200,
-};
+namespace log_level {
+constexpr verbose_t::debug_level off = verbose_t::debug_level::off;
+constexpr verbose_t::debug_level warning = verbose_t::debug_level::warn;
+constexpr verbose_t::debug_level suggestion = verbose_t::debug_level::warn;
+constexpr verbose_t::debug_level info = verbose_t::debug_level::info;
+constexpr verbose_t::debug_level perf = verbose_t::debug_level::info;
+constexpr verbose_t::debug_level trace = verbose_t::debug_level::trace;
+} // namespace log_level
 
 template <typename T, typename = void>
 struct print_helper_t {
@@ -48,7 +48,7 @@ struct print_helper_t<T, decltype(std::declval<T>().str(), void())> {
     static void call(std::ostream &out, const T &t) { out << t.str(); }
 };
 
-template <log_level_t level, bool value = true>
+template <verbose_t::debug_level level, bool value = true>
 class logger_t {
 public:
     logger_t(const char *file_name, int line, std::ostream &out = std::cout)
@@ -67,12 +67,9 @@ public:
         }
     }
 
-    static bool is_enabled() {
-        return get_verbose_dev_mode(verbose_t::debuginfo)
-                >= static_cast<int>(level);
-    }
+    static bool is_enabled() { return get_debug_verbose_dev_mode(level); }
 
-    log_level_t get_level() const { return level; }
+    verbose_t::debug_level get_level() const { return level; }
 
     operator bool() const { return value; }
 
@@ -93,11 +90,9 @@ public:
 private:
     void add_header(bool with_file) {
         switch (level) {
-            case log_level_t::warning: out_ << "[ WARN]"; break;
-            case log_level_t::suggestion: out_ << "[SUGGESTION]"; break;
-            case log_level_t::info: out_ << "[ INFO]"; break;
-            case log_level_t::perf: out_ << "[ PERF]"; break;
-            case log_level_t::trace: out_ << "[TRACE]"; break;
+            case log_level::warning: out_ << "[ WARN]"; break;
+            case log_level::info: out_ << "[ INFO]"; break;
+            case log_level::trace: out_ << "[TRACE]"; break;
             default: gpu_error_not_expected();
         }
         if (with_file) out_ << "[" << file_path_ << "]";
@@ -110,55 +105,55 @@ private:
 
 #define gpu_perf() \
     dnnl::impl::gpu::intel::logger_t< \
-            dnnl::impl::gpu::intel::log_level_t::perf>::is_enabled() \
+            dnnl::impl::gpu::intel::log_level::perf>::is_enabled() \
             && dnnl::impl::gpu::intel::logger_t< \
-                    dnnl::impl::gpu::intel::log_level_t::perf>( \
+                    dnnl::impl::gpu::intel::log_level::perf>( \
                     __FILENAME__, __LINE__)
 
 // Trace can result in overhead making measurement meaningless
 #define gpu_perf_no_trace() \
     dnnl::impl::gpu::intel::logger_t< \
-            dnnl::impl::gpu::intel::log_level_t::perf>::is_enabled() \
+            dnnl::impl::gpu::intel::log_level::perf>::is_enabled() \
             && !dnnl::impl::gpu::intel::logger_t< \
-                    dnnl::impl::gpu::intel::log_level_t::trace>::is_enabled() \
+                    dnnl::impl::gpu::intel::log_level::trace>::is_enabled() \
             && dnnl::impl::gpu::intel::logger_t< \
-                    dnnl::impl::gpu::intel::log_level_t::perf>( \
+                    dnnl::impl::gpu::intel::log_level::perf>( \
                     __FILENAME__, __LINE__)
 
 #define gpu_info() \
     dnnl::impl::gpu::intel::logger_t< \
-            dnnl::impl::gpu::intel::log_level_t::info>::is_enabled() \
+            dnnl::impl::gpu::intel::log_level::info>::is_enabled() \
             && dnnl::impl::gpu::intel::logger_t< \
-                    dnnl::impl::gpu::intel::log_level_t::info>( \
+                    dnnl::impl::gpu::intel::log_level::info>( \
                     __FILENAME__, __LINE__)
 
 #define gpu_warning() \
     dnnl::impl::gpu::intel::logger_t< \
-            dnnl::impl::gpu::intel::log_level_t::warning>::is_enabled() \
+            dnnl::impl::gpu::intel::log_level::warning>::is_enabled() \
             && dnnl::impl::gpu::intel::logger_t< \
-                    dnnl::impl::gpu::intel::log_level_t::warning>( \
+                    dnnl::impl::gpu::intel::log_level::warning>( \
                     __FILENAME__, __LINE__)
 
 #define gpu_suggestion() \
     dnnl::impl::gpu::intel::logger_t< \
-            dnnl::impl::gpu::intel::log_level_t::suggestion>::is_enabled() \
+            dnnl::impl::gpu::intel::log_level::suggestion>::is_enabled() \
             && dnnl::impl::gpu::intel::logger_t< \
-                    dnnl::impl::gpu::intel::log_level_t::suggestion>( \
+                    dnnl::impl::gpu::intel::log_level::suggestion>( \
                     __FILENAME__, __LINE__)
 
 #define gpu_trace() \
     dnnl::impl::gpu::intel::logger_t< \
-            dnnl::impl::gpu::intel::log_level_t::trace>::is_enabled() \
+            dnnl::impl::gpu::intel::log_level::trace>::is_enabled() \
             && dnnl::impl::gpu::intel::logger_t< \
-                    dnnl::impl::gpu::intel::log_level_t::trace>( \
+                    dnnl::impl::gpu::intel::log_level::trace>( \
                     __FILENAME__, __LINE__)
 
 #define gpu_check(cond) \
     if (!(cond)) \
     return dnnl::impl::gpu::intel::logger_t< \
-                   dnnl::impl::gpu::intel::log_level_t::trace>::is_enabled() \
+                   dnnl::impl::gpu::intel::log_level::trace>::is_enabled() \
             && dnnl::impl::gpu::intel::logger_t< \
-                    dnnl::impl::gpu::intel::log_level_t::trace, false>( \
+                    dnnl::impl::gpu::intel::log_level::trace, false>( \
                     __FILENAME__, __LINE__)
 
 } // namespace intel

@@ -402,7 +402,7 @@ struct primitive_desc_t : public c_compatible {
             std::pair<std::shared_ptr<primitive_t>, cache_state_t> &primitive,
             engine_t *engine,
             const cache_blob_t &cache_blob = cache_blob_t()) const {
-        if (get_verbose(verbose_t::debuginfo) >= 1) {
+        if (get_debug_verbose(verbose_t::debug_level::critical)) {
             double start_ms = get_msec();
             CHECK(create_primitive(primitive, engine, cache_blob));
             double duration_ms = get_msec() - start_ms;

@@ -103,7 +103,7 @@ struct kernel_t : public jit_uni_group_normalization_fwd_t::kernel_base_t,
                 io_conf, io_tail_conf, io_bf16_conf,
                 {{dst_d_.data_type(), io_saturation_conf}});
 
-        VDEBUGINFO(1, primitive, group_normalization,
+        VDEBUGINFO(info, primitive, group_normalization,
                 "%s:\n    C_=%" PRId64 "\n    C_PER_G_=%" PRId64
                 "\n    simd_w_=%zu\n    axis_simd_full_=%" PRId64
                 "\n    axis_simd_tail_=%" PRId64
@@ -421,7 +421,7 @@ struct kernel_stat_t
         io_stat_ = io::jit_io_multi_dt_helper_t<Vmm>(
                 this, io_isa, {f32}, io_conf, io_tail_conf_stats);
 
-        VDEBUGINFO(1, primitive, group_normalization,
+        VDEBUGINFO(info, primitive, group_normalization,
                 "%s:\n    compute_var_=%d\n    C_=%" PRId64
                 "\n    C_PER_G_=%" PRId64
                 "\n    simd_w_=%zu\n    axis_simd_tail_=%" PRId64

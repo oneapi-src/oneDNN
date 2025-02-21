@@ -62,7 +62,7 @@ void maybe_print_build_info(const std::vector<const char *> &kernel_names,
 #endif
 
     // Print out kernel options if the correct verbosity is set
-    if (get_verbose(verbose_t::debuginfo) >= 5) {
+    if (get_debug_verbose(verbose_t::debug_level::debug)) {
         std::ostringstream oss;
         for (const char *name : kernel_names)
             oss << name << " ";
