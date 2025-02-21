@@ -357,6 +357,12 @@ void deserialized_graph::load(const std::string &pass_config_json) {
         }
     }
 
+    std::cout << "mb rewrite tensors: ";
+    for (const auto &id : graph_inputs_with_mb_) {
+        std::cout << id << " ";
+    }
+    std::cout << std::endl;
+
     // at this very stage, put all graph_tensors_ id to input_ports_ if
     // even if input_ports_ is not empty
     for (const auto &item : graph_tensors_) {
