@@ -625,7 +625,7 @@ void jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>::generate(
     if (pk_ != prop_kind::forward_inference) add(scratch_, 32);
     this->dec(hw);
     this->cmp(hw, 0);
-    this->jne(lrn_loop, this->T_NEAR);
+    this->jne(lrn_loop, jit_generator::T_NEAR);
 
     this->add(t, 64);
     this->postamble();
@@ -722,7 +722,7 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(const nhwc_across_t &J) {
 
     this->dec(c);
     this->cmp(c, 0);
-    this->jne(lrn_loop, this->T_NEAR);
+    this->jne(lrn_loop, jit_generator::T_NEAR);
 
     this->vmovups(yc, this->ptr[src_]);
     this->vfmadd231ps(ysum, yc, yc);
@@ -912,7 +912,7 @@ void jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>::generate(
 
     this->dec(c);
     this->cmp(c, 0);
-    this->jne(lrn_loop, this->T_NEAR);
+    this->jne(lrn_loop, jit_generator::T_NEAR);
 
     /* compute last 3 blocks of channels:
      * block:       | -- low -- | -- hi --  |
@@ -1233,7 +1233,7 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::generate(const nchw_across_t &J) {
     if (pk_ != prop_kind::forward_inference) this->add(scratch_, J.HW * 4);
     this->dec(c);
     this->cmp(c, 0);
-    this->jne(lrn_loop, this->T_NEAR);
+    this->jne(lrn_loop, jit_generator::T_NEAR);
 
     this->vxorps(ye, ye, ye);
 
@@ -1410,7 +1410,7 @@ void jit_uni_lrn_fwd_kernel_t<sse41, data_type::f32>::generate(
     if (pk_ != prop_kind::forward_inference) add(scratch_, J.HW * 4);
     this->dec(c);
     this->cmp(c, 0);
-    this->jne(lrn_loop, this->T_NEAR);
+    this->jne(lrn_loop, jit_generator::T_NEAR);
 
     this->xorps(xe_lo, xe_lo);
     this->xorps(xe_hi, xe_hi);

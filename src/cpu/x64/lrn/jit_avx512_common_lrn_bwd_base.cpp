@@ -70,7 +70,7 @@ void jit_avx512_common_lrn_kernel_bwd_t<f16>::load_data(
 template <>
 void jit_avx512_common_lrn_kernel_bwd_t<f16>::store_data(
         bool nt, const Address addr, Zmm zr) {
-    this->vcvtps2ph(addr, zr, this->_op_mxcsr);
+    this->vcvtps2ph(addr, zr, jit_generator::_op_mxcsr);
 }
 
 template <>
