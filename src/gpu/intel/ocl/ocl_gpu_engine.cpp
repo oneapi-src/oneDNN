@@ -153,26 +153,27 @@ status_t create_ocl_kernel_from_cache_blob(const ocl_gpu_engine_t *ocl_engine,
 cl_int maybe_print_debug_info(
         cl_int err_, cl_program program, cl_device_id dev) {
     // Return error code if verbose is not enabled.
-    if (!get_verbose(verbose_t::error) && !get_verbose(verbose_t::warn))
-        return err_;
+    bool is_err_mode = get_verbose(verbose_t::error, component_t::all, false);
+    bool is_warn_mode = get_verbose(verbose_t::warn, component_t::all, false);
+
+    if (!is_err_mode && !is_warn_mode) return err_;
 
     size_t log_length = 0;
     auto err = clGetProgramBuildInfo(
             program, dev, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_length);
     gpu_assert(err == CL_SUCCESS);
 
-    bool is_err = get_verbose(verbose_t::error) && err_ != status::success;
-    bool is_warn = get_verbose(verbose_t::warn);
-    if (log_length > 1 && (is_err || is_warn)) {
+    bool is_err_status = is_err_mode && err_ != CL_SUCCESS;
+    if (log_length > 1 && (is_err_status || is_warn_mode)) {
         std::vector<char> log_buf(log_length);
         err = clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG,
                 log_length, log_buf.data(), nullptr);
         gpu_assert(err == CL_SUCCESS);
-        if (is_err)
+        if (is_err_status)
             VERROR(common, ocl,
                     "Error during the build of OpenCL program. Build log:\n%s",
                     log_buf.data());
-        else if (is_warn)
+        else if (is_warn_mode)
             VWARN(common, ocl,
                     "Warning during the build of OpenCL program. Build "
                     "log:\n%s",
