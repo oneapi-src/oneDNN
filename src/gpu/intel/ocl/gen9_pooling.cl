@@ -165,12 +165,12 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
 #endif // ALG_AVG_P
 
 #if ALG_AVG_NP
-    const off_t id_start = max(od * SD - PD, 0);
-    const off_t ih_start = max(oh * SH - PH, 0);
-    const off_t iw_start = max(ow * SW - PW, 0);
-    const off_t id_end = min(od * SD - PD + KD, ID);
-    const off_t ih_end = min(oh * SH - PH + KH, IH);
-    const off_t iw_end = min(ow * SW - PW + KW, IW);
+    const off_t id_start = max(od * SD - PD, (off_t)0);
+    const off_t ih_start = max(oh * SH - PH, (off_t)0);
+    const off_t iw_start = max(ow * SW - PW, (off_t)0);
+    const off_t id_end = min(od * SD - PD + KD, (off_t)ID);
+    const off_t ih_end = min(oh * SH - PH + KH, (off_t)IH);
+    const off_t iw_end = min(ow * SW - PW + KW, (off_t)IW);
     const int num_summands = (int)(ih_end - ih_start) * (int)(iw_end - iw_start)
             * (int)(id_end - id_start);
     D0 = D0 / num_summands;
@@ -394,12 +394,12 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
 #endif
 #endif
 #if ALG_AVG_NP
-                const off_t id_start = max(id - kd, 0);
-                const off_t ih_start = max(ih - kh, 0);
-                const off_t iw_start = max(iw - kw, 0);
-                const off_t id_end = min(id - kd + KD, ID);
-                const off_t ih_end = min(ih - kh + KH, IH);
-                const off_t iw_end = min(iw - kw + KW, IW);
+                const off_t id_start = max(id - kd, (off_t)0);
+                const off_t ih_start = max(ih - kh, (off_t)0);
+                const off_t iw_start = max(iw - kw, (off_t)0);
+                const off_t id_end = min(id - kd + KD, (off_t)ID);
+                const off_t ih_end = min(ih - kh + KH, (off_t)IH);
+                const off_t iw_end = min(iw - kw + KW, (off_t)IW);
                 const int num_summands = (int)(ih_end - ih_start)
                         * (int)(iw_end - iw_start) * (int)(id_end - id_start);
                 D0 /= num_summands;
