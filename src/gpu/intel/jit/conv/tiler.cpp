@@ -53,7 +53,11 @@ bool is_reduction_dim(const pvar_t &d, const conv_problem_t &prb) {
 
 bool is_vectorized_dim(const pvar_t &d, const conv_problem_t &prb) {
     if (prb.is_dw) return d == pvars::g;
-    return to_gemm(d, prb) == pvars::n;
+    if (to_gemm(d, prb) != pvars::n) return false;
+    bool is_mb = (d == pvars::mb);
+    bool is_spatial = is_input_spatial(d) || is_output_spatial(d);
+    if (prb.is_fwd) return !is_mb;
+    return !is_spatial;
 }
 
 int tensor_conv_dim_index(const pvar_t &d, tensor_kind_t t) {
@@ -954,9 +958,9 @@ namespace conv_schemes {
 //   #dim - remove minimum block restriction (minimum is 1)
 conv_blocking_scheme_t fwd_T_wo_I_noi("ls:[ic,kd,kh,kw],T:[oc,ow],i:[mb,oc,ic]");
 conv_blocking_scheme_t fwd_T_no_I_noi("ls:[ic,kd,kh,kw],T:[oc,mb],i:[mb,oc,ic]");
-conv_blocking_scheme_t fwd_T_wn_I_wnoi("ls:[ic,kd,kh,kw],T:[ow,mb],i:[ow,mb,oc,ic]");
+//conv_blocking_scheme_t fwd_T_wn_I_wnoi("ls:[ic,kd,kh,kw],T:[ow,mb],i:[ow,mb,oc,ic]");
 conv_blocking_scheme_t fwd_T_i_I_noi("ls:[ic,kd,kh,kw],T:[ic],i:[mb,oc,ic]");
-conv_blocking_scheme_t fwd_T_iw_I_wnoi("ls:[ic,kd,kh,kw],T:[ic,ow],i:[ow,mb,oc,ic]");
+//conv_blocking_scheme_t fwd_T_iw_I_wnoi("ls:[ic,kd,kh,kw],T:[ic,ow],i:[ow,mb,oc,ic]");
 conv_blocking_scheme_t fwd_T_wo_I_woi("ls:[ic,kd,kh,kw],T:[oc,ow],i:[ow,oc,ic]");
 conv_blocking_scheme_t fwd_T_i_I_woi("ls:[ic,kd,kh,kw],T:[ic],i:[ow,oc,ic]");
 conv_blocking_scheme_t fwd_T_wo_I_woki("ls:[ic,kd,kh,kw],T:[oc,ow],i:[ow,oc,kw,ic]");
@@ -1081,26 +1085,24 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_w_dw(
 
 conv_blocking_scheme_list_t get_blocking_schemes_fwd(const conv_config_t &cfg) {
     conv_blocking_scheme_list_t ret(conv_tune_level());
-    auto m_iter_dim = cfg.prb().ab_swap_transpose
-            ? pvars::oc
-            : select_iter_dim(cfg, {pvars::mb, pvars::ow});
-    bool m_is_mb = (m_iter_dim == pvars::mb);
-    bool m_is_ow = (m_iter_dim == pvars::ow);
-    bool m_is_oc = (m_iter_dim == pvars::oc);
+    auto m_iter_dim = select_iter_dim(cfg, {pvars::mb, pvars::ow});
+    bool mb_iter = (m_iter_dim == pvars::mb);
+    bool ow_iter = (m_iter_dim == pvars::ow);
+    //bool m_is_oc = (m_iter_dim == pvars::oc);
     bool ge_xelp = (cfg.hw() >= ngen::HW::XeLP);
     bool small_ic = (is_small_ic(cfg.prb()) && cfg.prb().kw > 1);
-    ret.add(m_is_mb, conv_schemes::fwd_T_wo_I_noi);
-    ret.add(m_is_mb, conv_schemes::fwd_T_no_I_noi);
-    ret.add(m_is_mb && ge_xelp, conv_schemes::fwd_T_i_I_noi);
-    ret.add(m_is_oc, conv_schemes::fwd_T_wn_I_wnoi);
-    ret.add(m_is_oc && ge_xelp, conv_schemes::fwd_T_i_I_noi);
-    ret.add(m_is_oc && ge_xelp, conv_schemes::fwd_T_iw_I_wnoi);
-    ret.add(m_is_ow, conv_schemes::fwd_T_wo_I_woi);
-    ret.add(m_is_ow && ge_xelp, conv_schemes::fwd_T_i_I_woi);
-    ret.add(m_is_mb && small_ic, conv_schemes::fwd_T_wo_I_noki);
-    ret.add(m_is_oc && small_ic, conv_schemes::fwd_T_w_I_woki);
-    ret.add(m_is_oc && small_ic, conv_schemes::fwd_T_w_I_noki);
-    ret.add(m_is_ow && small_ic, conv_schemes::fwd_T_wo_I_woki);
+    ret.add(mb_iter, conv_schemes::fwd_T_wo_I_noi);
+    ret.add(mb_iter, conv_schemes::fwd_T_no_I_noi);
+    ret.add(mb_iter && ge_xelp, conv_schemes::fwd_T_i_I_noi);
+    //ret.add(m_is_oc, conv_schemes::fwd_T_wn_I_wnoi);
+    //ret.add(m_is_oc && ge_xelp, conv_schemes::fwd_T_i_I_noi);
+    //ret.add(m_is_oc && ge_xelp, conv_schemes::fwd_T_iw_I_wnoi);
+    ret.add(ow_iter, conv_schemes::fwd_T_wo_I_woi);
+    ret.add(ow_iter && ge_xelp, conv_schemes::fwd_T_i_I_woi);
+    ret.add(mb_iter && small_ic, conv_schemes::fwd_T_wo_I_noki);
+    //ret.add(m_is_oc && small_ic, conv_schemes::fwd_T_w_I_woki);
+    //ret.add(m_is_oc && small_ic, conv_schemes::fwd_T_w_I_noki);
+    ret.add(ow_iter && small_ic, conv_schemes::fwd_T_wo_I_woki);
     return ret;
 }
 

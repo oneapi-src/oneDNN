@@ -1272,35 +1272,16 @@ struct fma_context_t {
 
     layout_t maybe_retype_layout_for_mad(
             bool is_a, const layout_t &layout) const {
-        bool is_b = !is_a;
+        //bool is_b = !is_a;
         // mad with s8/u8 is not supported, promote to strided s16.
         if (layout.type().is_x8())
             return layout.retype(type_t::s16()).make_strided(2);
-
-        if (a_type.is_f16() && b_type.is_f16() && c_type.is_f32()) {
+        bool is_a_xf8_or_xf16
+                = (a_type.is_fp8() || a_type.is_bf16() || a_type.is_f16());
+        bool is_b_xf8_or_xf16
+                = (b_type.is_fp8() || b_type.is_bf16() || b_type.is_f16());
+        if (is_a_xf8_or_xf16 || is_b_xf8_or_xf16) {
             return layout.retype(type_t::f32()).make_dense();
-        }
-        if (layout.type().is_fp8()) {
-            auto alt_type = is_b ? a_type : b_type;
-            return layout.make_dense().retype(
-                    alt_type.is_fp8() ? type_t::f16() : alt_type);
-        }
-
-        // mad with f16 requires aligned regioning for src1/src2.
-        if (a_type.is_f16()) return layout.make_dense();
-
-        if (layout.type().is_bf16() && !hw.systolic_support())
-            return layout.retype(type_t::f32()).make_dense();
-
-        if (a_type.is_bf16()) {
-            // bf16 mixed mode requires src1 to be converted to f32 when it's
-            // broadcasted.
-            if (is_a && is_src1_broadcast)
-                return layout.retype(type_t::f32()).make_dense();
-            // bf16 mixed mode mad requires src1 to be packed
-            if (is_a) return layout.make_dense();
-            // bf16 mixed mode mad requires src2 to be f32.
-            if (is_b) return layout.retype(type_t::f32()).make_dense();
         }
         return layout;
     }
@@ -1310,7 +1291,6 @@ struct fma_context_t {
         bool is_mad = (fma == fma_kind_t::mad);
         bool is_dpas = is_dp_fma(fma);
         bool is_a = (abc == abc_kind_t::a);
-        bool is_b = (abc == abc_kind_t::b);
         auto type = (is_a ? a_type : b_type);
         int type_size = (layout.type().is_fp8() ? 2 : type.size());
         if (is_dpas) {
@@ -1342,30 +1322,6 @@ struct fma_context_t {
         }
 
         if (is_mad) {
-            // swap b blocks for axb layouts when a inner dim is required by transpose
-            if (is_b && ab_swap_transpose_) {
-                if (layout.blocks().size() > 1) {
-                    std::vector<block_t> blocks;
-                    dim_t new_inner_stride = 1;
-                    int nblocks = (int)layout.blocks().size();
-                    auto inner_most_block = layout.blocks()[0];
-                    for (int i = nblocks - 1; i >= 0; --i) {
-                        auto &b = layout.blocks()[i];
-                        if (b.dim_idx != inner_most_block.dim_idx) {
-                            new_inner_stride = b.block;
-                            blocks.insert(blocks.begin(),
-                                    block_t(b.dim_idx, b.block, stride_t(1)));
-                        } else {
-                            blocks.emplace_back(block_t(b.dim_idx, b.block,
-                                    stride_t(new_inner_stride)));
-                        }
-                    }
-                    return maybe_retype_layout_for_mad(is_a,
-                            layout_t(layout.type(), layout.ndims(),
-                                    layout.offset(), blocks)
-                                    .make_dense());
-                }
-            }
             // XXX: type and layout.type() may be different here when using mad
             // with fpmath attribute. For now type is ignored and hence fpmath
             // attribute has no effect with mad.
@@ -2378,10 +2334,6 @@ private:
         auto &a_type = a_layout.type();
         auto &b_type = b_layout.type();
         auto c_type = get_default_accumulation_type(a_type, b_type);
-        if (fma_kind == fma_kind_t::mad && a_type.is_f16() && b_type.is_f16()) {
-            // FIXME: f16 must use f32 accumulator according to documentation.
-            c_type = type_t::f16();
-        }
         layout_t c_blk_layout(c_type, 0, std::vector<dim_t>(3, 1));
         switch (fma_kind) {
             case fma_kind_t::dp4a:
