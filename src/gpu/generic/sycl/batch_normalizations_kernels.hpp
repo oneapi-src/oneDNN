@@ -130,7 +130,7 @@ private:
 
                 if (data_md().data_type() == data_type::s8) {
                     bn_res = gpu::generic::sycl::qz_a1b0<float,
-                            xpu::sycl::prec_traits<data_type::s8>::type>()(
+                            xpu::sycl::prec_traits_t<data_type::s8>::type>()(
                             maybe_post_op(bn_res));
                     dst_mem.store(bn_res, d_off);
                 } else {
@@ -278,7 +278,7 @@ private:
 
                 if (data_md().data_type() == data_type::s8) {
                     bn_res = gpu::generic::sycl::qz_a1b0<float,
-                            xpu::sycl::prec_traits<data_type::s8>::type>()(
+                            xpu::sycl::prec_traits_t<data_type::s8>::type>()(
                             maybe_post_op(bn_res));
                     dst_mem.store(bn_res, d_off);
                 } else {
