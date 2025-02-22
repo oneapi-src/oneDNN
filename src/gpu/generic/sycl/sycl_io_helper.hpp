@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,8 @@ inline int load_int_value(data_type_t dt, const void *ptr, dim_t idx) {
 #define CASE(dt) \
     case dt: \
         return static_cast<int>(reinterpret_cast< \
-                const typename xpu::sycl::prec_traits_t<dt>::type *>(ptr)[idx]);
+                const typename xpu::sycl::prec_traits_t<dt>::type *>( \
+                ptr)[idx]);
     using namespace data_type;
     switch (dt) {
         CASE(s32);
@@ -54,7 +55,8 @@ inline float load_float_value(data_type_t dt, const void *ptr, dim_t idx) {
 #define CASE(dt) \
     case dt: \
         return static_cast<float>(reinterpret_cast< \
-                const typename xpu::sycl::prec_traits_t<dt>::type *>(ptr)[idx]);
+                const typename xpu::sycl::prec_traits_t<dt>::type *>( \
+                ptr)[idx]);
 
     using namespace data_type;
     switch (dt) {
