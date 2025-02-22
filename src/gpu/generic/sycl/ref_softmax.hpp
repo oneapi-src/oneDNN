@@ -47,8 +47,8 @@ struct ref_sycl_softmax_fwd_t : public gpu::generic::sycl::primitive_t {
             VDISPATCH_SOFTMAX(
                     (src_md(0)->format_desc.blocking.inner_nblks == 0),
                     VERBOSE_UNSUPPORTED_FORMAT_KIND);
-            VDISPATCH_SOFTMAX(attr()->has_default_values(
-                                      sm::scales_runtime | sm::post_ops),
+            VDISPATCH_SOFTMAX(
+                    attr()->has_default_values(sm::scales | sm::post_ops),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_SOFTMAX(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_SOFTMAX(sycl_post_ops_t::post_ops_ok(attr(), true, false),

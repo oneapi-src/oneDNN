@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,12 +69,11 @@ struct gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
 
             VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
 
-            VDISPATCH_CONV(
-                    attr()->has_default_values(skip_mask_t::scales_runtime
-                                    | skip_mask_t::zero_points_runtime
-                                    | skip_mask_t::post_ops
-                                    | skip_mask_t::sum_dt,
-                            dst_type),
+            VDISPATCH_CONV(attr()->has_default_values(skip_mask_t::scales
+                                           | skip_mask_t::zero_points
+                                           | skip_mask_t::post_ops
+                                           | skip_mask_t::sum_dt,
+                                   dst_type),
                     VERBOSE_UNSUPPORTED_ATTR);
 
             VDISPATCH_CONV(attr()->post_ops_.check_sum_consistency(dst_type,
@@ -156,9 +155,8 @@ struct gemm_x8s8s32x_convolution_bwd_data_t : public primitive_t {
                     VERBOSE_BAD_ALGORITHM);
 
             VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
-            VDISPATCH_CONV(
-                    attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::scales_runtime),
+            VDISPATCH_CONV(attr()->has_default_values(
+                                   primitive_attr_t::skip_mask_t::scales),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 

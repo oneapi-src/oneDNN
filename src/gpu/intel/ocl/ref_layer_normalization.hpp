@@ -67,8 +67,7 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
                     stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_LNORM(check_scale_shift_data_type({f32, bf16, f16}),
                     VERBOSE_UNSUPPORTED_DT_CFG);
-            VDISPATCH_LNORM(
-                    attr()->has_default_values(skip_mask_t::scales_runtime),
+            VDISPATCH_LNORM(attr()->has_default_values(skip_mask_t::scales),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_LNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_LNORM(

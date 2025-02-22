@@ -74,9 +74,8 @@ struct simple_softmax_fwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DEVICE_FEATURE, "subgroup_size");
             VDISPATCH_SOFTMAX(!memory_desc_ndims_ok(src_md(), dst_md()),
                     VERBOSE_INCONSISTENT_NDIMS, "src", "dst");
-            VDISPATCH_SOFTMAX(
-                    attr()->has_default_values(skip_mask_t::scales_runtime
-                            | skip_mask_t::post_ops),
+            VDISPATCH_SOFTMAX(attr()->has_default_values(skip_mask_t::scales
+                                      | skip_mask_t::post_ops),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_SOFTMAX(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_SOFTMAX(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);

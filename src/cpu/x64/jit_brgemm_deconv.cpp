@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -162,8 +162,7 @@ status_t brgemm_deconvolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
     const bool is_int8 = utils::one_of(src_type, s8, u8);
 
     auto skip_mask = smask_t::post_ops | smask_t::sum_dt;
-    if (is_int8)
-        skip_mask |= smask_t::scales_runtime | smask_t::zero_points_runtime;
+    if (is_int8) skip_mask |= smask_t::scales | smask_t::zero_points;
 
     VDISPATCH_DECONVOLUTION(is_fwd(), VERBOSE_BAD_PROPKIND);
     VDISPATCH_DECONVOLUTION((desc()->alg_kind & alg_kind::deconvolution_direct),

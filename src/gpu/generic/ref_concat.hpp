@@ -40,7 +40,7 @@ struct ref_concat_t : public gpu::primitive_t {
         status_t init(impl::engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
 
-            VDISPATCH_CONCAT(attr()->has_default_values(sm::scales_runtime),
+            VDISPATCH_CONCAT(attr()->has_default_values(sm::scales),
                     VERBOSE_UNSUPPORTED_ATTR);
 
             tent_dst_md_ = types::zero_md();

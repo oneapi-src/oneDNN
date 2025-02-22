@@ -107,8 +107,8 @@ struct convolution_deconvolution_fwd_t : public gpu::primitive_t {
             using namespace format_tag;
             using sm = primitive_attr_t::skip_mask_t;
 
-            const auto attr_skip_mask = sm::post_ops | sm::zero_points_runtime
-                    | sm::scales_runtime;
+            const auto attr_skip_mask
+                    = sm::post_ops | sm::zero_points | sm::scales;
 
             VDISPATCH_DECONVOLUTION(is_fwd(), VERBOSE_BAD_PROPKIND);
             VDISPATCH_DECONVOLUTION(

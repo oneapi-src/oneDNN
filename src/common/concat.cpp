@@ -51,7 +51,7 @@ status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
         attr = &default_attr();
     else {
         using smask_t = primitive_attr_t::skip_mask_t;
-        VCHECK_CONCAT_UNIMPL(attr->has_default_values(smask_t::scales_runtime),
+        VCHECK_CONCAT_UNIMPL(attr->has_default_values(smask_t::scales),
                 VERBOSE_UNSUPPORTED_ATTR);
         const auto &scales = attr->scales_;
         if (!scales.has_default_values()) {

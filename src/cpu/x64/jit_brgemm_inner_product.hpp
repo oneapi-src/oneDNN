@@ -62,7 +62,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt
                     | skip_mask_t::fpmath_mode;
-            if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
+            if (is_int8) skip_mask |= skip_mask_t::scales;
             // disabling verbose dispatch messages for unsupported isa for
             // better readability
             if (!mayiuse(isa)) return status::unimplemented;

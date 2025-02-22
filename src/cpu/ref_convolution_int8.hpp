@@ -59,9 +59,9 @@ struct ref_convolution_int8_fwd_t : public primitive_t {
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_CONV(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_CONV(
-                    attr()->has_default_values(smask_t::scales_runtime
-                                    | smask_t::zero_points_runtime
-                                    | smask_t::post_ops | smask_t::sum_dt,
+                    attr()->has_default_values(smask_t::scales
+                                    | smask_t::zero_points | smask_t::post_ops
+                                    | smask_t::sum_dt,
                             dst_type),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_CONV(attr()->post_ops_.check_sum_consistency(dst_type,
@@ -148,9 +148,8 @@ struct ref_convolution_int8_bwd_data_t : public primitive_t {
             VDISPATCH_CONV(utils::one_of(diff_src_type, f32, bf16, s32, s8, u8),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_CONV(set_default_formats(), VERBOSE_UNSUPPORTED_TAG);
-            VDISPATCH_CONV(
-                    attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::scales_runtime),
+            VDISPATCH_CONV(attr()->has_default_values(
+                                   primitive_attr_t::skip_mask_t::scales),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_CONV(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 

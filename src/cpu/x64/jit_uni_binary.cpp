@@ -139,8 +139,7 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
             VERBOSE_INCONSISTENT_MDS, "src", "dst");
     VDISPATCH_BINARY(
             is_applicable(), "not applicable for current implementation");
-    VDISPATCH_BINARY(
-            attr()->has_default_values(sm::post_ops | sm::scales_runtime),
+    VDISPATCH_BINARY(attr()->has_default_values(sm::post_ops | sm::scales),
             VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_BINARY(attr_.set_default_formats(dst_md(0)) == status::success,
             VERBOSE_UNSUPPORTED_POSTOP);

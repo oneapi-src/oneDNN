@@ -1414,8 +1414,8 @@ status_t jit_uni_x8s8s32x_deconvolution_fwd_t<isa>::pd_t::init(
     VDISPATCH_DECONVOLUTION(
             desc()->accum_data_type == s32, VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_DECONVOLUTION(
-            attr()->has_default_values(skip_mask_t::scales_runtime
-                    | skip_mask_t::post_ops | skip_mask_t::zero_points_runtime),
+            attr()->has_default_values(skip_mask_t::scales
+                    | skip_mask_t::post_ops | skip_mask_t::zero_points),
             VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_DECONVOLUTION(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 

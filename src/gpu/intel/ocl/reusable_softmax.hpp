@@ -120,9 +120,8 @@ struct reusable_softmax_fwd_t : public gpu_primitive_t {
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp64)),
                     VERBOSE_UNSUPPORTED_DT_CFG);
-            VDISPATCH_SOFTMAX(
-                    attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::scales_runtime),
+            VDISPATCH_SOFTMAX(attr()->has_default_values(
+                                      primitive_attr_t::skip_mask_t::scales),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_SOFTMAX(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_SOFTMAX_SC(

@@ -61,9 +61,8 @@ status_t acl_lowp_matmul_resource_t::configure(
 status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
     VDISPATCH_MATMUL(set_default_formats(), "failed to set default formats");
     using smask_t = primitive_attr_t::skip_mask_t;
-    VDISPATCH_MATMUL(
-            attr()->has_default_values(smask_t::scales_runtime
-                    | smask_t::zero_points_runtime | smask_t::post_ops),
+    VDISPATCH_MATMUL(attr()->has_default_values(smask_t::scales
+                             | smask_t::zero_points | smask_t::post_ops),
             "only scale, zero point and post-ops attrs supported");
 
     static const std::vector<int> supported_args {

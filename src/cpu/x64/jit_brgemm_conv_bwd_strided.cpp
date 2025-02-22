@@ -87,8 +87,7 @@ status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::init(engine_t *engine) {
     if (cd.use_inversion)
         skip_mask |= skip_mask_t::post_ops | skip_mask_t::sum_dt;
     if (is_int8 && cd.use_inversion)
-        skip_mask |= skip_mask_t::scales_runtime
-                | skip_mask_t::zero_points_runtime;
+        skip_mask |= skip_mask_t::scales | skip_mask_t::zero_points;
 
     const bool is_f32_supported
             = everyone_is(f32, diff_src_type, wei_type, diff_dst_type)

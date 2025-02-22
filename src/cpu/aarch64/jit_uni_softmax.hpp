@@ -81,7 +81,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                             utils::one_of(bf16, src_dt, dst_dt), mayiuse_bf16())
                     && (mayiuse(sve_512) || mayiuse(sve_256)
                             || mayiuse(sve_128))
-                    && attr()->has_default_values(skip_mask_t::scales_runtime)
+                    && attr()->has_default_values(skip_mask_t::scales)
                     && attr_scales_ok()
                     && set_default_formats() == status::success;
             if (!ok) return status::unimplemented;

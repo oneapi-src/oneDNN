@@ -202,9 +202,8 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     bool ok = im_d.is_blocking_desc() && om_d.is_blocking_desc()
             && !im_d.has_runtime_dims_or_strides() && !im_d.has_zero_dim()
             && !om_d.has_runtime_dims_or_strides() && !om_d.has_zero_dim()
-            && attr->has_default_values(
-                    primitive_attr_t::skip_mask_t::scales_runtime
-                    | primitive_attr_t::skip_mask_t::zero_points_runtime
+            && attr->has_default_values(primitive_attr_t::skip_mask_t::scales
+                    | primitive_attr_t::skip_mask_t::zero_points
                     | primitive_attr_t::skip_mask_t::post_ops)
             && check_post_ops(attr);
     if (!ok) return unimplemented;

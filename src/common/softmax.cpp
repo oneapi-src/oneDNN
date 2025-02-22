@@ -107,7 +107,7 @@ status_t softmax_attr_check(const softmax_desc_t &desc, const engine_t *engine,
 
         const bool is_int8 = utils::one_of(src_dt, data_type::s8, data_type::u8)
                 || utils::one_of(dst_dt, data_type::s8, data_type::u8);
-        if (is_int8) fwd_attr_mask |= smask_t::scales_runtime;
+        if (is_int8) fwd_attr_mask |= smask_t::scales;
 
         VCHECK_SOFTMAX_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
                 VERBOSE_UNSUPPORTED_ATTR);
