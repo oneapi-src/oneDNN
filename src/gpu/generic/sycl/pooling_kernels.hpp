@@ -119,20 +119,20 @@ private:
                 return (float)
                         std::numeric_limits<xpu::sycl::bfloat16_t>::lowest();
             case data_type::s8:
-                return (float)numeric_limits<typename xpu::sycl::prec_traits<
+                return (float)numeric_limits<typename xpu::sycl::prec_traits_t<
                         data_type::s8>::type>::lowest();
             case data_type::f16:
                 return (float)
-                        std::numeric_limits<typename xpu::sycl::prec_traits<
+                        std::numeric_limits<typename xpu::sycl::prec_traits_t<
                                 data_type::f16>::type>::lowest();
             case data_type::s32:
-                return (float)numeric_limits<typename xpu::sycl::prec_traits<
+                return (float)numeric_limits<typename xpu::sycl::prec_traits_t<
                         data_type::s32>::type>::lowest();
             case data_type::u8:
-                return (float)numeric_limits<typename xpu::sycl::prec_traits<
+                return (float)numeric_limits<typename xpu::sycl::prec_traits_t<
                         data_type::u8>::type>::lowest();
             default:
-                return (float)numeric_limits<typename xpu::sycl::prec_traits<
+                return (float)numeric_limits<typename xpu::sycl::prec_traits_t<
                         data_type::f32>::type>::lowest();
         }
     }

@@ -298,30 +298,30 @@ CHECK_SYCL_KERNEL_ARG_TYPE(md_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(bfloat16_t);
 
 template <data_type_t>
-struct prec_traits;
+struct prec_traits_t;
 
 template <>
-struct prec_traits<data_type::f16> {
+struct prec_traits_t<data_type::f16> {
     using type = float16_t;
 };
 template <>
-struct prec_traits<data_type::bf16> {
+struct prec_traits_t<data_type::bf16> {
     using type = bfloat16_t;
 };
 template <>
-struct prec_traits<data_type::f32> {
+struct prec_traits_t<data_type::f32> {
     using type = float;
 };
 template <>
-struct prec_traits<data_type::s32> {
+struct prec_traits_t<data_type::s32> {
     using type = int32_t;
 };
 template <>
-struct prec_traits<data_type::s8> {
+struct prec_traits_t<data_type::s8> {
     using type = int8_t;
 };
 template <>
-struct prec_traits<data_type::u8> {
+struct prec_traits_t<data_type::u8> {
     using type = uint8_t;
 };
 
