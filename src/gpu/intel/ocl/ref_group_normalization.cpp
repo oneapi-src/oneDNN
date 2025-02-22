@@ -78,8 +78,7 @@ status_t ref_group_normalization_fwd_t::pd_t::init(impl::engine_t *engine) {
     VDISPATCH_GNORM(utils::one_of(dst_dt, f32, bf16, f16, s8, u8),
             VERBOSE_UNSUPPORTED_DT);
 
-    const skip_mask_t attr_mask
-            = skip_mask_t::scales_runtime | skip_mask_t::post_ops;
+    const skip_mask_t attr_mask = skip_mask_t::scales | skip_mask_t::post_ops;
     VDISPATCH_GNORM(
             attr()->has_default_values(attr_mask), VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_GNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
