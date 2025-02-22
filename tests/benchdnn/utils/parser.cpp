@@ -442,6 +442,79 @@ summary_t parse_summary_str(const std::string &s) {
     return v;
 }
 
+cold_cache_input_t str2cold_cache_input(const std::string &s) {
+    // Allowed input: MODE[+EXTENSION[+...]]
+    // Allowed extensions: TLB[:SIZE]
+    cold_cache_input_t c;
+
+    size_t start_pos = 0;
+    std::string mode_str = get_substr(s, start_pos, '+');
+    if (mode_str == "none") {
+        c.cold_cache_mode_ = cold_cache_mode_t::none;
+    } else if (mode_str == "wei") {
+        c.cold_cache_mode_ = cold_cache_mode_t::wei;
+    } else if (mode_str == "all") {
+        c.cold_cache_mode_ = cold_cache_mode_t::all;
+    } else if (mode_str == "custom") {
+        c.cold_cache_mode_ = cold_cache_mode_t::custom;
+    } else {
+        BENCHDNN_PRINT(0,
+                "Error: unknown cold-cache mode \'%s\'. Supported values are "
+                "\'wei\', \'all\', or \'custom\'.\n",
+                mode_str.c_str());
+        SAFE_V(FAIL);
+    }
+
+    if (c.cold_cache_mode_ == cold_cache_mode_t::none
+            && start_pos != std::string::npos) {
+        BENCHDNN_PRINT(0, "%s\n",
+                "Error: cold-cache extensions can't be enabled with cold-cache "
+                "disabled");
+        SAFE_V(FAIL);
+    }
+
+    while (start_pos != std::string::npos) {
+        std::string ext_str = get_substr(s, start_pos, '+');
+
+        size_t ext_pos = 0;
+        std::string ext_main_str = get_substr(ext_str, ext_pos, ':');
+        if (ext_main_str == "tlb") {
+            c.cold_tlb_ = true;
+            if (ext_pos != std::string::npos) {
+                std::string ext_aux_str = get_substr(ext_str, ext_pos, '\0');
+
+                const auto last_char = std::toupper(ext_aux_str.back());
+                if (last_char != 'G' && last_char != 'M') {
+                    BENCHDNN_PRINT(0,
+                            "Error: cold-TLB supports only \'M\' or \'G\' "
+                            "values for size modification. Given input: "
+                            "\'%c\'.\n",
+                            last_char);
+                    SAFE_V(FAIL);
+                }
+
+                std::string size_str = ext_aux_str;
+                // Remove size modifier to feed the rest for value verification.
+                size_str.pop_back();
+                const float size = stof_safe(size_str);
+                c.cold_tlb_size_ = static_cast<size_t>(
+                        size * 1024 * 1024 * (last_char == 'G' ? 1024 : 1));
+
+                // Save the input string once all values are verified.
+                c.cold_tlb_size_str_ = ext_aux_str;
+            }
+        } else {
+            BENCHDNN_PRINT(0,
+                    "Error: unknown cold-cache extension \'%s\'. Supported "
+                    "values are \'tlb\'\n.",
+                    ext_main_str.c_str());
+            SAFE_V(FAIL);
+        }
+    }
+
+    return c;
+}
+
 } // namespace parser_utils
 
 // vector types
@@ -959,35 +1032,23 @@ static bool parse_check_ref_impl(
 static bool parse_cold_cache(
         const char *str, const std::string &option_name = "cold-cache") {
     static const std::string help
-            = "MODE    (Default: `none`)\n    Instructs the driver to enable a "
-              "cold cache for performance mode.\n    When set to `none` (the "
-              "default), cold cache is disabled.\n    When set to `wei`, cold "
-              "cache is enabled for weights argument only. Targets forward "
-              "propagation kind.\n    When set to `all`, cold cache is enabled "
-              "for each execution argument.\n    When set to `custom`, cold "
-              "cache is enabled for custom arguments which should be specified "
-              "directly in the code. Refer to doc for more details.\n";
+            = "MODE[+EXTENSION]    (Default: `empty`)\n    Instructs the "
+              "driver to enable a cold-cache feature for the performance "
+              "mode.\n    When `MODE` set to `none` (the default), the "
+              "cold-cache mode is disabled.\n    When `MODE` set to `wei`, the "
+              "cold-cache is enabled for weights argument only. Targets "
+              "forward propagation kind.\n    When `MODE` set to `all`, the "
+              "cold-cache is enabled for every execution argument.\n    When "
+              "`MODE` set to `custom`, the cold-cache is enabled for custom "
+              "arguments which should be specified directly in the code. Refer "
+              "to doc for more details.\n    Supported `EXTENSION` values:\n   "
+              " * `tlb[:SIZE]`, where `SIZE` is a string-literal with "
+              "floating-point number followed by `M` (Megabytes) or `G` "
+              "(Gigabytes) characters, e.g., `tlb:500M`.\n";
 
-    const auto str2cold_cache_mode = [](const std::string &_str) {
-        cold_cache_mode_t cc_mode = default_cold_cache_mode;
-        if (_str == "none") {
-            cc_mode = cold_cache_mode_t::none;
-        } else if (_str == "wei") {
-            cc_mode = cold_cache_mode_t::wei;
-        } else if (_str == "all") {
-            cc_mode = cold_cache_mode_t::all;
-        } else if (_str == "custom") {
-            cc_mode = cold_cache_mode_t::custom;
-        } else {
-            BENCHDNN_PRINT(0, "%s \'%s\'\n%s", "Error: unknown cold cache mode",
-                    _str.c_str(), help.c_str());
-            SAFE_V(FAIL);
-        }
-        return cc_mode;
-    };
-
-    return parse_single_value_option(cold_cache_mode, cold_cache_mode_t::none,
-            str2cold_cache_mode, str, option_name, help);
+    return parse_single_value_option(cold_cache_input,
+            default_cold_cache_input(), parser_utils::str2cold_cache_input, str,
+            option_name, help);
 }
 
 static bool parse_cpu_isa_hints(

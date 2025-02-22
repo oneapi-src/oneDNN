@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,8 +19,12 @@
 #include "utils/cold_cache.hpp"
 #include "utils/fill.hpp"
 
-cold_cache_mode_t default_cold_cache_mode {cold_cache_mode_t::none};
-cold_cache_mode_t cold_cache_mode {default_cold_cache_mode};
+cold_cache_input_t cold_cache_input;
+
+const cold_cache_input_t &default_cold_cache_input() {
+    static const cold_cache_input_t cold_cache_input;
+    return cold_cache_input;
+}
 
 namespace cold_cache_utils {
 // Returns `arg` index in `dnnl_args` since they packed in random order.
@@ -39,20 +43,11 @@ size_t get_arg_size(const std::vector<dnnl_exec_arg_t> &dnnl_args, int arg) {
 }
 } // namespace cold_cache_utils
 
-cold_cache_t::cold_cache_t()
-    : enabled_(false)
-    , n_buffers_top_limit_(0)
-    , n_buffers_bottom_limit_(0)
-    , n_buffers_(0)
-    , override_n_buffers_(false) {}
-
 cold_cache_t::cold_cache_t(
         const std::vector<dnnl_exec_arg_t> &dnnl_args, dnnl_stream_t stream)
-    : enabled_(use_cold_cache(dnnl_args))
-    , n_buffers_top_limit_(is_gpu() ? gpu_n_buffers_top_limit_ : SIZE_MAX)
-    , n_buffers_bottom_limit_(0)
-    , n_buffers_(0)
-    , override_n_buffers_(false) {
+    : cold_cache_input_(cold_cache_input)
+    , enabled_(use_cold_cache(dnnl_args))
+    , n_buffers_top_limit_(is_gpu() ? gpu_n_buffers_top_limit_ : SIZE_MAX) {
 
     // Note: there's an additional return from ctor below if it was identified
     // that no buffers are needed.
@@ -82,20 +77,21 @@ cold_cache_t::cold_cache_t(
     size_t cold_args_size = 0;
 
     std::vector<int> cc_args; // future keys for cold_cache object.
-    if (cold_cache_mode == cold_cache_mode_t::wei) {
+    if (cold_cache_input_.cold_cache_mode_ == cold_cache_mode_t::wei) {
         cc_args = {DNNL_ARG_WEIGHTS};
         const auto wei_size
                 = cold_cache_utils::get_arg_size(dnnl_args, DNNL_ARG_WEIGHTS);
         hot_args_size -= wei_size;
         cold_args_size += wei_size;
-    } else if (cold_cache_mode == cold_cache_mode_t::all) {
+    } else if (cold_cache_input_.cold_cache_mode_ == cold_cache_mode_t::all) {
         cc_args.resize(dnnl_args.size());
         for (size_t i = 0; i < dnnl_args.size(); i++) {
             cc_args[i] = dnnl_args[i].arg;
         }
         hot_args_size = 0;
         cold_args_size = full_args_size;
-    } else if (cold_cache_mode == cold_cache_mode_t::custom) {
+    } else if (cold_cache_input_.cold_cache_mode_
+            == cold_cache_mode_t::custom) {
         const std::vector<int> user_args = {/* DNNL_ARG_WEIGHTS, ... */};
         cc_args = user_args;
         if (cc_args.empty()) {
@@ -114,14 +110,12 @@ cold_cache_t::cold_cache_t(
         assert(!"unknown cold cache mode!");
     }
 
-    const auto MB = [](size_t bytes) {
-        return static_cast<double>(bytes) / powf(2, 20);
-    };
     BENCHDNN_PRINT(3,
-            "[COLD_CACHE]%s Size: %.3g MB; Limit: %.3g MB; Hot args: "
-            "%.3g MB; Cold args: %.3g MB;\n",
-            (is_gpu() ? "[GPU]" : "[CPU]"), MB(cache_capacity),
-            MB(cache_size_upper_bound), MB(hot_args_size), MB(cold_args_size));
+            "[COLD_CACHE]%s Size:%s; Limit:%s; Hot args:%s; Cold args:%s;\n",
+            (is_gpu() ? "[GPU]" : "[CPU]"), smart_bytes(cache_capacity).c_str(),
+            smart_bytes(cache_size_upper_bound).c_str(),
+            smart_bytes(hot_args_size).c_str(),
+            smart_bytes(cold_args_size).c_str());
 
     const size_t cold_mem_pool_size
             = MAX2(cache_size_upper_bound - hot_args_size, 0);
@@ -144,6 +138,10 @@ cold_cache_t::cold_cache_t(
                             ? "SIZE_MAX"
                             : std::to_string(n_buffers_top_limit_).c_str()),
             n_mem_pool_buffers, n_buffers_);
+    if (cold_cache_input_.cold_tlb_) {
+        BENCHDNN_PRINT(3, "[COLD_CACHE] tlb:enabled; size:%s;\n",
+                smart_bytes(cold_cache_input_.cold_tlb_size_).c_str());
+    }
     if (n_buffers_ <= 0) {
         // No buffers allocation needed, return to avoid scratching `cache_`
         // object. This allows to keep rest logic intact.
@@ -225,32 +223,14 @@ cold_cache_t::cold_cache_t(
     }
 
     // Refer to `gpu_n_buffers_top_limit_` comment.
-    // Exact cache size for src is needed to secure from potential non-temporal
-    // dst stores.
     // Run reorder only if memory heuristic was overrided.
     if (override_n_buffers_) {
-        dnnl_primitive_desc_t r_pd {};
-        dnnl_primitive_t prim {};
-        dnnl_primitive_attr_t attr {};
-
-        const auto &engine = get_test_engine();
-        const dnnl_dim_t nelems = static_cast<dnnl_dim_t>(
-                div_up(cache_capacity, sizeof(float)));
-        dnnl_dims_t dims {nelems};
-        dnn_mem_t src_m(1, dims, dnnl_f32, tag::abx, engine);
-        dnn_mem_t dst_m(1, dims, dnnl_f32, tag::abx, engine);
-
-        DNN_SAFE_V(dnnl_reorder_primitive_desc_create(
-                &r_pd, src_m.md_, engine, dst_m.md_, engine, attr));
-        auto r_pd_w = make_benchdnn_dnnl_wrapper(r_pd);
-
-        DNN_SAFE_V(dnnl_primitive_create(&prim, r_pd));
-        auto prim_w = make_benchdnn_dnnl_wrapper(prim);
-
-        args_t args;
-        args.set(DNNL_ARG_FROM, src_m);
-        args.set(DNNL_ARG_TO, dst_m);
-        SAFE_V(execute_and_wait(prim, args));
+        // Exact cache size for src is needed to secure from potential
+        // non-temporal dst stores or addresses collisions which would result
+        // in part cache update.
+        const size_t mem_size = cache_capacity;
+        static constexpr size_t cache_line_size = 64;
+        SAFE_V(thrash_reorder(mem_size, /* granularity = */ cache_line_size));
     }
 }
 
@@ -277,9 +257,48 @@ cold_cache_t &cold_cache_t::operator=(cold_cache_t &&rhs) {
     n_buffers_bottom_limit_ = rhs.n_buffers_bottom_limit_;
     n_buffers_ = rhs.n_buffers_;
     override_n_buffers_ = rhs.override_n_buffers_;
+    cold_cache_input_ = std::move(rhs.cold_cache_input_);
     cache_ = std::move(rhs.cache_);
 
     return *this;
+}
+
+// `mem_size` is the amount of memory in bytes for reorder.
+// `granularity` defines the stride between elements to make an object of
+//   `granularity` size to fit the specific cache. Mostly designed for
+//   cache-line size of 64, or a page size of 4096.
+int cold_cache_t::thrash_reorder(size_t mem_size, size_t granularity) const {
+    const auto &engine = get_test_engine();
+
+    const dnnl_dim_t nelems
+            = static_cast<dnnl_dim_t>(div_up(mem_size, sizeof(float)));
+    const dnnl_dim_t stride = granularity / sizeof(float);
+
+    // Reduce the number of element by the the stride to keep the memory size
+    // as requested.
+    const dnnl_dims_t dims {div_up(nelems, stride)};
+    const dnnl_dims_t strides {stride};
+
+    dnn_mem_t src_m(1, dims, dnnl_f32, strides, engine);
+    dnn_mem_t dst_m(1, dims, dnnl_f32, strides, engine);
+
+    dnnl_primitive_desc_t r_pd {};
+    dnnl_primitive_attr_t attr {};
+    DNN_SAFE(dnnl_reorder_primitive_desc_create(
+                     &r_pd, src_m.md_, engine, dst_m.md_, engine, attr),
+            WARN);
+    auto r_pd_w = make_benchdnn_dnnl_wrapper(r_pd);
+
+    dnnl_primitive_t prim {};
+    DNN_SAFE(dnnl_primitive_create(&prim, r_pd), WARN);
+    auto prim_w = make_benchdnn_dnnl_wrapper(prim);
+
+    args_t args;
+    args.set(DNNL_ARG_FROM, src_m);
+    args.set(DNNL_ARG_TO, dst_m);
+    SAFE(execute_and_wait(prim, args), WARN);
+
+    return OK;
 }
 
 bool cold_cache_t::update_dnnl_args(std::vector<dnnl_exec_arg_t> &dnnl_args) {
@@ -296,6 +315,24 @@ bool cold_cache_t::update_dnnl_args(std::vector<dnnl_exec_arg_t> &dnnl_args) {
         if (cc_counter_ >= e.size()) cc_counter_ = 0;
         dnnl_args[dnnl_args_idx].memory = e[cc_counter_].m_;
     }
+
+    // Need to sweep all pages from TLB. Must be done every time the stack of
+    // memories was used for measurements as they hit TLB after being used.
+    if (cold_cache_input_.cold_tlb_ && cc_counter_ == 0) {
+        // A full size requested will be used for source AND destination in the
+        // underlying reorder. Though it's double the size, addresses of the
+        // buffers may coincide and TLB will be thrashed just by the `size`,
+        // not the double size.
+        //
+        // In theory, a single buffer split in half should work, but currently
+        // benchdnn abstractions are not ready to work with external pointers of
+        // non-host nature.
+        const size_t mem_size = cold_cache_input_.cold_tlb_size_;
+        static constexpr size_t page_size = 4096; // 4 KB.
+        auto st = thrash_reorder(mem_size, /* granularity = */ page_size);
+        if (st != OK) return false;
+    }
+
     // Update counter outside of the loop to make **all** arguments use same
     // order element from the cache.
     cc_counter_++;
@@ -308,10 +345,13 @@ bool cold_cache_t::should_stop() const {
 }
 
 bool cold_cache_t::use_cold_cache(
-        const std::vector<dnnl_exec_arg_t> &dnnl_args) {
-    const bool cc_wei = cold_cache_mode == cold_cache_mode_t::wei;
-    const bool cc_all = cold_cache_mode == cold_cache_mode_t::all;
-    const bool cc_custom = cold_cache_mode == cold_cache_mode_t::custom;
+        const std::vector<dnnl_exec_arg_t> &dnnl_args) const {
+    const bool cc_wei
+            = cold_cache_input_.cold_cache_mode_ == cold_cache_mode_t::wei;
+    const bool cc_all
+            = cold_cache_input_.cold_cache_mode_ == cold_cache_mode_t::all;
+    const bool cc_custom
+            = cold_cache_input_.cold_cache_mode_ == cold_cache_mode_t::custom;
     const bool has_weights
             = cold_cache_utils::get_arg_idx(dnnl_args, DNNL_ARG_WEIGHTS) >= 0;
     static int warning_printed = 0;
@@ -337,6 +377,19 @@ std::ostream &operator<<(std::ostream &s, cold_cache_mode_t cold_cache_mode) {
         s << "custom";
     else {
         assert(!"unsupported cold cache mode");
+    }
+    return s;
+}
+
+std::ostream &operator<<(
+        std::ostream &s, const cold_cache_input_t &cold_cache_input) {
+    s << cold_cache_input.cold_cache_mode_;
+    if (cold_cache_input.cold_tlb_) {
+        s << "+tlb";
+        if (cold_cache_input.cold_tlb_size_str_
+                != default_cold_cache_input().cold_tlb_size_str_) {
+            s << ":" << cold_cache_input.cold_tlb_size_str_;
+        }
     }
     return s;
 }
