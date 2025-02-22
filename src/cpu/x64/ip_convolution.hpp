@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -196,7 +196,7 @@ struct ip_convolution_fwd_t : public primitive_t {
             VDISPATCH_CONV(set_default_alg_kind(alg_kind::convolution_direct),
                     VERBOSE_BAD_ALGORITHM);
             VDISPATCH_CONV(attr()->has_default_values(
-                                   smask_t::scales_runtime | smask_t::post_ops),
+                                   smask_t::scales | smask_t::post_ops),
                     VERBOSE_UNSUPPORTED_ATTR);
 
             CHECK(check_conv_ip(this));

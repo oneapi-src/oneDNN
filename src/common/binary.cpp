@@ -48,7 +48,7 @@ status_t binary_attr_check(const binary_desc_t &desc, const engine_t *engine,
     // Check attributes
     const data_type_t dst_dt = desc.dst_desc.data_type;
 
-    auto attr_mask = smask_t::post_ops | smask_t::scales_runtime;
+    auto attr_mask = smask_t::post_ops | smask_t::scales;
 
     VCHECK_BINARY_UNIMPL(attr->has_default_values(attr_mask, dst_dt),
             VERBOSE_UNSUPPORTED_ATTR);

@@ -57,10 +57,8 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
             VDISPATCH_MATMUL(check_formats(src_d, weights_d, dst_d),
                     VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_MATMUL(
-                    attr()->has_default_values(sm::scales_runtime
-                            | sm::zero_points_runtime | sm::post_ops
-                            | sm::dropout | sm::scales_runtime_data_type
-                            | sm::zero_points_runtime_data_type),
+                    attr()->has_default_values(sm::post_ops | sm::dropout
+                            | sm::scales_data_type | sm::zero_points_data_type),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_MATMUL(IMPLICATION(!attr()->scales_.has_default_values(),
                                      scales_ok()),

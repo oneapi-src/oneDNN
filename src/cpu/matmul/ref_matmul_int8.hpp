@@ -62,10 +62,10 @@ struct ref_matmul_int8_t : public primitive_t {
                     utils::one_of(dst_type, f32, bf16, f16, s32, s8, u8),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_MATMUL(
-                    attr()->has_default_values(smask_t::scales_runtime_data_type
-                                    | smask_t::scales_runtime_groups
-                                    | smask_t::zero_points_runtime_data_type
-                                    | smask_t::zero_points_runtime_groups
+                    attr()->has_default_values(smask_t::scales_data_type
+                                    | smask_t::scales_groups
+                                    | smask_t::zero_points_data_type
+                                    | smask_t::zero_points_groups
                                     | smask_t::post_ops | smask_t::sum_dt,
                             dst_type),
                     VERBOSE_UNSUPPORTED_ATTR);

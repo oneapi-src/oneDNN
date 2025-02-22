@@ -118,7 +118,7 @@ status_t jit_uni_binary_t::pd_t::init(engine_t *engine) {
             && data_format_supported(src0_md_, conf_.isa)
             && set_default_params() == status::success && !has_zero_dim_memory()
             && IMPLICATION(!conf_.is_i8, src0_md_ == dst_md_) && is_applicable()
-            && attr()->has_default_values(sm::post_ops | sm::scales_runtime)
+            && attr()->has_default_values(sm::post_ops | sm::scales)
             && attr_.set_default_formats(dst_md(0)) == status::success;
     if (!ok) return status::unimplemented;
 

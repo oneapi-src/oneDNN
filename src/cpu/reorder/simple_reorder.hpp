@@ -148,7 +148,7 @@ inline status_t get_scales_mask(
 inline bool simple_attr_check(const primitive_attr_t *attr,
         bool many_scales_support, bool sum_support) {
     using smask_t = primitive_attr_t::skip_mask_t;
-    smask_t skip_mask = smask_t::scales_runtime;
+    smask_t skip_mask = smask_t::scales;
     if (sum_support) skip_mask = skip_mask | smask_t::post_ops;
     if (!attr->has_default_values(skip_mask)) return false;
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_DST}) {
@@ -2259,10 +2259,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 output_d.is_dense(), VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "dst");
 
         using smask_t = primitive_attr_t::skip_mask_t;
-        smask_t skip_mask = smask_t::scales_runtime_data_type
-                | smask_t::scales_runtime_groups
-                | smask_t::zero_points_runtime_data_type
-                | smask_t::zero_points_runtime_groups;
+        smask_t skip_mask = smask_t::scales_data_type | smask_t::scales_groups
+                | smask_t::zero_points_data_type | smask_t::zero_points_groups;
         VDISPATCH_REORDER_IC(
                 attr->has_default_values(skip_mask), VERBOSE_UNSUPPORTED_ATTR);
         VDISPATCH_REORDER_IC(attr->scales_.has_default_values(DNNL_ARG_DST),
@@ -2524,10 +2522,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         }
 
         using smask_t = primitive_attr_t::skip_mask_t;
-        smask_t skip_mask = smask_t::scales_runtime_data_type
-                | smask_t::scales_runtime_groups
-                | smask_t::zero_points_runtime_data_type
-                | smask_t::zero_points_runtime_groups | smask_t::post_ops;
+        smask_t skip_mask = smask_t::scales_data_type | smask_t::scales_groups
+                | smask_t::zero_points_data_type | smask_t::zero_points_groups
+                | smask_t::post_ops;
         VDISPATCH_REORDER_IC(
                 attr->has_default_values(skip_mask), VERBOSE_UNSUPPORTED_ATTR);
         VDISPATCH_REORDER_IC(simple_po_check(attr), VERBOSE_UNSUPPORTED_POSTOP);
@@ -2664,11 +2661,10 @@ struct simple_reorder_t : public primitive_t {
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
             VDISPATCH_REORDER_IC(
-                    attr->has_default_values(
-                            skip_mask_t::scales_runtime_data_type
-                            | skip_mask_t::scales_runtime_groups
-                            | skip_mask_t::zero_points_runtime_data_type
-                            | skip_mask_t::zero_points_runtime_groups
+                    attr->has_default_values(skip_mask_t::scales_data_type
+                            | skip_mask_t::scales_groups
+                            | skip_mask_t::zero_points_data_type
+                            | skip_mask_t::zero_points_groups
                             | skip_mask_t::post_ops),
                     VERBOSE_UNSUPPORTED_ATTR);
 

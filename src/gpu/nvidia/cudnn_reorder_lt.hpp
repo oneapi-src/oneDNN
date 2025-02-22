@@ -138,8 +138,7 @@ struct cudnn_reorder_lt_t : public gpu::primitive_t {
 
         status_t init(impl::engine_t *engine, impl::engine_t *src_engine,
                 impl::engine_t *dst_engine) {
-            const auto attr_skip_mask
-                    = primitive_attr_t::skip_mask_t::scales_runtime
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::scales
                     | primitive_attr_t::skip_mask_t::post_ops;
             bool ok = engine == dst_engine && src_engine == dst_engine
                     && valid_data_n_mem_format(engine)

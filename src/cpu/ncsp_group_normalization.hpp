@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,8 +68,7 @@ struct ncsp_group_normalization_fwd_t : public primitive_t {
             VDISPATCH_GNORM(memory_desc_matches_one_of_tag(
                                     *dst_md(), ncdhw, nchw, ncw, nc),
                     VERBOSE_UNSUPPORTED_TAG_S, "dst");
-            VDISPATCH_GNORM(
-                    attr()->has_default_values(skip_mask_t::scales_runtime)
+            VDISPATCH_GNORM(attr()->has_default_values(skip_mask_t::scales)
                             && attr_scales_ok(),
                     VERBOSE_UNSUPPORTED_ATTR);
             nthr_ = dnnl_get_max_threads();

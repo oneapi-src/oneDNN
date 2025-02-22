@@ -71,7 +71,7 @@ struct cudnn_matmul_lt_t : public gpu::primitive_t {
             bool is_eltwise_ok = eltwise_ok();
 
             bool ok = is_dense_format_kind()
-                    && attr()->has_default_values(smask_t::scales_runtime)
+                    && attr()->has_default_values(smask_t::scales)
                     // src & weights scaling is not supported as this implementation uses integer types
                     // for the compute type, but the scales are floating point numbers
                     && attr()->scales_.get(DNNL_ARG_SRC).has_default_values()

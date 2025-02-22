@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,7 +68,7 @@ struct ref_inner_product_int8_fwd_t : public primitive_t {
                     set_default_params(allow_all_tags) == status::success,
                     VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_INNER_PRODUCT(
-                    attr()->has_default_values(smask_t::scales_runtime
+                    attr()->has_default_values(smask_t::scales
                             | smask_t::post_ops | smask_t::sum_dt),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_INNER_PRODUCT(

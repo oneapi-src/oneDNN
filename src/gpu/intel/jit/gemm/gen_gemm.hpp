@@ -57,7 +57,7 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             // LIMITATIONS:
             // - runtime dims are not supported
-            auto attr_skip_mask = smask_t::scales_runtime | smask_t::post_ops
+            auto attr_skip_mask = smask_t::scales | smask_t::post_ops
                     | smask_t::fpmath_mode | smask_t::accumulation_mode
                     | smask_t::rounding_mode;
             auto &attr_zps = attr()->zero_points_;
@@ -125,10 +125,9 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             if (quant_enabled_) {
                 attr_skip_mask |= smask_t::fpmath_mode
-                        | smask_t::scales_runtime_data_type
-                        | smask_t::scales_runtime_groups
-                        | smask_t::zero_points_runtime_data_type
-                        | smask_t::zero_points_runtime_groups;
+                        | smask_t::scales_data_type | smask_t::scales_groups
+                        | smask_t::zero_points_data_type
+                        | smask_t::zero_points_groups;
             }
 
             const int mask_scalar = 1 << 0;
@@ -149,7 +148,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 VDISPATCH_GEMM(
                         (utils::one_of(d->b_type(), u8, s8) || wei_decomp_),
                         VERBOSE_UNSUPPORTED_DT);
-                attr_skip_mask |= smask_t::zero_points_runtime;
+                attr_skip_mask |= smask_t::zero_points;
 
                 VDISPATCH_GEMM(IMPLICATION(utils::one_of(d->c_type(), f32, s8,
                                                    u8, f16),

@@ -127,9 +127,8 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
     VDISPATCH_MATMUL(check_attr_scales(), VERBOSE_UNSUPPORTED_SCALES_CFG);
     VDISPATCH_MATMUL(check_attr_zero_points(), VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_MATMUL(
-            attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::scales_runtime
-                            | primitive_attr_t::skip_mask_t::zero_points_runtime
+            attr()->has_default_values(primitive_attr_t::skip_mask_t::scales
+                            | primitive_attr_t::skip_mask_t::zero_points
                             | primitive_attr_t::skip_mask_t::post_ops
                             | primitive_attr_t::skip_mask_t::sum_dt,
                     dst_md()->data_type),

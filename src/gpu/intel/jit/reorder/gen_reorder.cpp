@@ -99,8 +99,8 @@ status_t gen_reorder_t::pd_t::init(impl::engine_t *engine,
                               device_info->has_native(f64)),
             VERBOSE_UNSUPPORTED_DT_CFG);
     using sm = dnnl_primitive_attr::skip_mask_t;
-    auto skip_mask = sm::post_ops | sm::zero_points_runtime | sm::scales_runtime
-            | sm::rounding_mode;
+    auto skip_mask
+            = sm::post_ops | sm::zero_points | sm::scales | sm::rounding_mode;
     VDISPATCH_REORDER(
             attr()->has_default_values(skip_mask), VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_REORDER(extra_ok(true), VERBOSE_UNSUPPORTED_MD_FLAG, "extra_ok");

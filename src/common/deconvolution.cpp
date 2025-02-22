@@ -162,9 +162,7 @@ status_t deconv_attr_check(const deconvolution_desc_t &desc,
             is_int8 = is_int8
                     || utils::one_of(dst_dt, data_type::s8, data_type::u8,
                             data_type::s32);
-        if (is_int8)
-            fwd_attr_mask
-                    |= smask_t::scales_runtime | smask_t::zero_points_runtime;
+        if (is_int8) fwd_attr_mask |= smask_t::scales | smask_t::zero_points;
 
         VCHECK_DECONV_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
                 VERBOSE_UNSUPPORTED_ATTR);

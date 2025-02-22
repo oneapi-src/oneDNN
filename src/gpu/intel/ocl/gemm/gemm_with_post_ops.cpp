@@ -27,12 +27,10 @@ status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
     using namespace data_type;
 
     const auto &d = desc();
-    const auto attr_skip_mask = primitive_attr_t::skip_mask_t::scales_runtime
-            | primitive_attr_t::skip_mask_t::scales_runtime_data_type
+    const auto attr_skip_mask = primitive_attr_t::skip_mask_t::scales_data_type
             | primitive_attr_t::skip_mask_t::post_ops
             | primitive_attr_t::skip_mask_t::fpmath_mode
-            | primitive_attr_t::skip_mask_t::zero_points_runtime
-            | primitive_attr_t::skip_mask_t::zero_points_runtime_data_type;
+            | primitive_attr_t::skip_mask_t::zero_points_data_type;
 
     bool wei_decomp = (utils::one_of(d->c_type(), f32, f16, bf16)
                               && utils::one_of(d->a_type(), u8, s8, u4, s4)

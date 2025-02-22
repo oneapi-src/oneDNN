@@ -92,11 +92,11 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
     VDISPATCH_MATMUL(is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
     VDISPATCH_MATMUL(problem_dt_correct, VERBOSE_UNSUPPORTED_DT_CFG);
     VDISPATCH_MATMUL(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
-    VDISPATCH_MATMUL(attr()->has_default_values(
-                             primitive_attr_t::skip_mask_t::scales_runtime
-                                     | primitive_attr_t::skip_mask_t::post_ops
-                                     | primitive_attr_t::skip_mask_t::sum_dt,
-                             dst_type),
+    VDISPATCH_MATMUL(
+            attr()->has_default_values(primitive_attr_t::skip_mask_t::scales
+                            | primitive_attr_t::skip_mask_t::post_ops
+                            | primitive_attr_t::skip_mask_t::sum_dt,
+                    dst_type),
             VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_MATMUL(attr()->post_ops_.check_sum_consistency(dst_type,
                              /* is_int8 */ false),

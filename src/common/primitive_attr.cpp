@@ -88,12 +88,6 @@ status_t dropout_t::set_default_formats(const memory_desc_t *dst_md) {
 bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
         dnnl::impl::data_type_t dst_dt) const {
     using smask_t = skip_mask_t;
-    // prepare mask for runtime-parameters check
-    smask_t defined_mask = smask_t::none;
-    if ((mask & smask_t::scales_runtime) == smask_t::scales_runtime)
-        defined_mask |= smask_t::scales;
-    if ((mask & smask_t::zero_points_runtime) == smask_t::zero_points_runtime)
-        defined_mask |= smask_t::zero_points;
     bool ok = true;
 
 #define CHECK_ARG(x) ok = ok && (x)
@@ -101,16 +95,15 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
     CHECK_ARG(IMPLICATION( \
             (bool)(~mask & (mask_name)), (mask_field).has_default_values()))
     CHECK_MASK(smask_t::scales, scales_);
-    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::scales_runtime_groups),
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::scales_groups),
             scales_.has_default_groups()));
-    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::scales_runtime_data_type),
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::scales_data_type),
             scales_.has_default_data_type()));
     CHECK_MASK(smask_t::zero_points, zero_points_);
-    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::zero_points_runtime_groups),
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::zero_points_groups),
             zero_points_.has_default_groups()));
-    CHECK_ARG(
-            IMPLICATION((bool)(~mask & smask_t::zero_points_runtime_data_type),
-                    zero_points_.has_default_data_type()));
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::zero_points_data_type),
+            zero_points_.has_default_data_type()));
     CHECK_MASK(smask_t::post_ops, post_ops_);
     CHECK_MASK(smask_t::rnn_data_qparams, rnn_data_qparams_);
     CHECK_MASK(smask_t::rnn_weights_qparams, rnn_weights_qparams_);
@@ -129,7 +122,7 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
             (bool)(~mask & smask_t::dropout), dropout_.has_default_values()));
     CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::rounding_mode),
             rounding_mode_.has_default_values()));
-    CHECK_ARG(this->defined(defined_mask));
+    CHECK_ARG(this->defined(smask_t::none));
     bool fpmath_mode_ok = IMPLICATION(
             (bool)(~mask & smask_t::fpmath_mode) && fpmath_.apply_to_int_,
             fpmath_.mode_ == fpmath_mode::strict);

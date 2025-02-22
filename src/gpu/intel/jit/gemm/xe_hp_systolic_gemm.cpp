@@ -96,9 +96,9 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(impl::engine_t *engine) {
     if (!packed_c())
         limits_ok = limits_ok && (d->ldc() != DNNL_RUNTIME_DIM_VAL);
 
-    auto attr_skip_mask = smask_t::scales_runtime | smask_t::post_ops;
+    auto attr_skip_mask = smask_t::scales | smask_t::post_ops;
 
-    if (dt_int_ok) attr_skip_mask |= smask_t::zero_points_runtime;
+    if (dt_int_ok) attr_skip_mask |= smask_t::zero_points;
 
     bool arch_ok = utils::one_of(arch, arch_t::xe_hp, arch_t::xe_hpg,
             arch_t::xe_hpc, arch_t::xe2, arch_t::xe3);

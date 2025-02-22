@@ -63,7 +63,7 @@ struct ref_layer_normalization_fwd_t : public gpu::generic::sycl::primitive_t {
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_LNORM(check_scale_shift_data_type({f32, bf16, f16}),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_LNORM(attr()->has_default_values(sm::scales_runtime),
+            VDISPATCH_LNORM(attr()->has_default_values(sm::scales),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_LNORM(IMPLICATION(!attr()->scales_.has_default_values(),
                                     scales_ok()),
