@@ -917,7 +917,9 @@ int dnn_mem_t::initialize(
                 // initializing cold cache buffers.
                 // TODO: consider enabling broadly for perf mode.
                 if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)
-                        || cold_cache_mode != default_cold_cache_mode) {
+                        || cold_cache_input.cold_cache_mode_
+                                != default_cold_cache_input()
+                                           .cold_cache_mode_) {
                     // Fill memory directly with 0x3F3F3F3F (0.747059f) number.
                     this->memset(dnnl_mem_default_perf_test_value, sz);
                 } else {
