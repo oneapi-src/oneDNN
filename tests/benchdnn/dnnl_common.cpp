@@ -1800,15 +1800,25 @@ int init_ref_memory_args_default_case(int exec_arg, dnn_mem_t &mem,
                     = exec_arg / DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE - 1;
             assert(bin_po_idx < attr.post_ops.len());
             const auto alg = attr.post_ops.entry[bin_po_idx].kind;
+            const bool is_src2_mem
+                    = ((exec_arg & DNNL_ARG_SRC_2) == DNNL_ARG_SRC_2);
+
             // Binary post-op filling.
-            fill_cfg_t def_binary_cfg(mem.dt(), -16.f, 16.f, /* int = */ true,
-                    alg, "def_binary_post_op");
-            const auto it = fill_cfg_map.find(DNNL_ARG_SRC_1);
-            const bool has_external_cfg = it != fill_cfg_map.end();
-            const fill_cfg_t &binary_fill_cfg
-                    = has_external_cfg ? (*it).second : def_binary_cfg;
-            TIME_FILL(SAFE(fill_random_real(mem, ref_mem, res, binary_fill_cfg),
-                    WARN));
+            if (!is_src2_mem
+                    || attr.post_ops.entry[bin_po_idx]
+                               .is_binary_kind_with_ternary_op()) {
+                const int f_min = is_src2_mem ? 0 : -16.f;
+                fill_cfg_t def_binary_cfg(mem.dt(), f_min, 16.f,
+                        /* int = */ true, alg, "def_binary_post_op");
+                const auto it = fill_cfg_map.find(
+                        is_src2_mem ? DNNL_ARG_SRC_2 : DNNL_ARG_SRC_1);
+                const bool has_external_cfg = it != fill_cfg_map.end();
+                const fill_cfg_t &binary_fill_cfg
+                        = has_external_cfg ? (*it).second : def_binary_cfg;
+                TIME_FILL(SAFE(
+                        fill_random_real(mem, ref_mem, res, binary_fill_cfg),
+                        WARN));
+            }
         } else if (exec_arg & DNNL_ARG_WEIGHTS) {
             // Prelu post-op filling.
             fill_cfg_t def_prelu_fill_cfg(mem.dt(), -2.f, 2.f, /* int = */ true,

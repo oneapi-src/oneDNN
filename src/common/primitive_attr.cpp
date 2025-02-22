@@ -213,14 +213,17 @@ status_t post_ops_t::append_dw(data_type_t wei_dt, data_type_t bias_dt,
     return success;
 }
 
-status_t post_ops_t::validate_binary(
-        alg_kind_t alg, const memory_desc_t *user_src1_desc) const {
+status_t post_ops_t::validate_binary(alg_kind_t alg,
+        const memory_desc_t *user_src1_desc,
+        const memory_desc_t *user_src2_desc) const {
 
     if (len() == post_ops_limit) return out_of_memory;
     using namespace alg_kind;
     bool alg_ok = one_of(alg, binary_add, binary_mul, binary_max, binary_min,
             binary_div, binary_sub, binary_ge, binary_gt, binary_le, binary_lt,
-            binary_eq, binary_ne);
+            binary_eq, binary_ne, binary_select);
+    bool is_ternary_op = (alg == binary_select);
+
     if (!alg_ok) return invalid_arguments;
     if (!memory_desc_sanity_check(*user_src1_desc)) return invalid_arguments;
 
@@ -230,34 +233,62 @@ status_t post_ops_t::validate_binary(
             return invalid_arguments;
     }
 
+    // Additional checks if the algorithm involves ternary inputs
+    if (is_ternary_op) {
+        if (!memory_desc_sanity_check(*user_src2_desc))
+            return invalid_arguments;
+        for (int d = 0; d < user_src2_desc->ndims; ++d) {
+            if (user_src2_desc->dims[d] == DNNL_RUNTIME_DIM_VAL)
+                return invalid_arguments;
+        }
+    } else {
+        if (user_src2_desc != nullptr) return invalid_arguments;
+    }
+
     return success;
 }
 
-status_t post_ops_t::append_binary(
-        alg_kind_t alg, const memory_desc_t *user_src1_desc) {
-    auto status = validate_binary(alg, user_src1_desc);
+status_t post_ops_t::append_binary(alg_kind_t alg,
+        const memory_desc_t *user_src1_desc,
+        const memory_desc_t *user_src2_desc) {
+    auto status = validate_binary(alg, user_src1_desc, user_src2_desc);
     if (status != success) return status;
 
     entry_.emplace_back();
     auto &e = entry_.back();
     e.kind = primitive_kind::binary;
     e.binary.alg = alg;
+    e.binary.is_ternary_op = (alg == alg_kind::binary_select);
+
     e.binary.user_src1_desc = *user_src1_desc;
     e.binary.src1_desc = *user_src1_desc;
+
+    if (e.binary.is_ternary_op) {
+        e.binary.user_src2_desc = *user_src2_desc;
+        e.binary.src2_desc = *user_src2_desc;
+    }
     return success;
 }
 
-status_t post_ops_t::prepend_binary(
-        alg_kind_t alg, const memory_desc_t *user_src1_desc) {
-    auto status = validate_binary(alg, user_src1_desc);
+status_t post_ops_t::prepend_binary(alg_kind_t alg,
+        const memory_desc_t *user_src1_desc,
+        const memory_desc_t *user_src2_desc) {
+    auto status = validate_binary(alg, user_src1_desc, user_src2_desc);
     if (status != success) return status;
 
     entry_.emplace(entry_.begin());
     auto &e = entry_[0];
     e.kind = primitive_kind::binary;
     e.binary.alg = alg;
+    e.binary.is_ternary_op = (alg == alg_kind::binary_select);
+
     e.binary.user_src1_desc = *user_src1_desc;
     e.binary.src1_desc = *user_src1_desc;
+
+    if (e.binary.is_ternary_op) {
+        e.binary.user_src2_desc = *user_src2_desc;
+        e.binary.src2_desc = *user_src2_desc;
+    }
     return success;
 }
 
@@ -277,17 +308,32 @@ status_t post_ops_t::set_default_formats(const memory_desc_t *dst_md) {
 
         auto &src1_md = entry_[idx].binary.src1_desc;
         const memory_desc_wrapper src1_mdw(src1_md);
-        if (!src1_mdw.format_any()) continue;
 
         const memory_desc_wrapper dst_mdw(dst_md);
-        assert(!dst_mdw.format_any());
 
         // 1D tensors should be plain abx.
-        if (src1_mdw.count_non_unit_dims(1))
-            CHECK(memory_desc_init_by_strides(src1_md, nullptr));
-        else
-            CHECK(memory_desc_init_by_blocking_desc(
-                    src1_md, dst_mdw.blocking_desc()));
+        if (src1_mdw.format_any()) {
+            assert(!dst_mdw.format_any());
+
+            if (src1_mdw.count_non_unit_dims(1))
+                CHECK(memory_desc_init_by_strides(src1_md, nullptr));
+            else
+                CHECK(memory_desc_init_by_blocking_desc(
+                        src1_md, dst_mdw.blocking_desc()));
+        }
+
+        auto &src2_md = entry_[idx].binary.src2_desc;
+        const memory_desc_wrapper src2_mdw(src2_md);
+
+        if (entry_[idx].binary.is_ternary_op && src2_mdw.format_any()) {
+            assert(!dst_mdw.format_any());
+
+            if (src1_mdw.count_non_unit_dims(1))
+                CHECK(memory_desc_init_by_strides(src2_md, nullptr));
+            else
+                CHECK(memory_desc_init_by_blocking_desc(
+                        src2_md, dst_mdw.blocking_desc()));
+        }
     }
 
     return status::success;
@@ -714,6 +760,14 @@ status_t dnnl_post_ops_append_binary(post_ops_t *post_ops, alg_kind_t alg_kind,
     return post_ops->append_binary(alg_kind, user_src1_desc);
 }
 
+status_t dnnl_post_ops_append_binary_v2(post_ops_t *post_ops,
+        alg_kind_t alg_kind, const memory_desc_t *user_src1_desc,
+        const memory_desc_t *user_src2_desc) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_binary(alg_kind, user_src1_desc, user_src2_desc);
+}
+
 status_t dnnl_post_ops_get_params_binary(const post_ops_t *post_ops, int index,
         alg_kind_t *alg_kind, const memory_desc_t **user_src1_desc) {
     CHECK(simple_get_params_check(post_ops, index, primitive_kind::binary));
@@ -721,6 +775,20 @@ status_t dnnl_post_ops_get_params_binary(const post_ops_t *post_ops, int index,
     const auto &b = post_ops->entry_[index].binary;
     if (alg_kind) *alg_kind = b.alg;
     if (user_src1_desc) *user_src1_desc = &b.user_src1_desc;
+
+    return success;
+}
+
+status_t dnnl_post_ops_get_params_binary_v2(const post_ops_t *post_ops,
+        int index, alg_kind_t *alg_kind, const memory_desc_t **user_src1_desc,
+        const memory_desc_t **user_src2_desc) {
+    if (!simple_get_params_check(post_ops, index, primitive_kind::binary))
+        return invalid_arguments;
+
+    const auto &b = post_ops->entry_[index].binary;
+    if (alg_kind) *alg_kind = b.alg;
+    if (user_src1_desc) *user_src1_desc = &b.user_src1_desc;
+    if (user_src2_desc) *user_src2_desc = &b.user_src2_desc;
 
     return success;
 }
