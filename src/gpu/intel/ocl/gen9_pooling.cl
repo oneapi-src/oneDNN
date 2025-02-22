@@ -220,26 +220,34 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         int c_sub_block_id = idx % CHUNKS_PER_C_BLOCK;
         int mb_sub_block_id = idx / CHUNKS_PER_C_BLOCK;
         const off_t po_oc = c + c_sub_block_id * SUB_GROUP_SIZE + local_id;
-        off_t po_mb = (mb0 + mb_sub_block_id) % MB;
+        off_t po_mb = (mb0 + mb_sub_block_id);
 #else // USE_MB_C_BLOCK
         const off_t po_oc = c + idx * SUB_GROUP_SIZE + local_id;
         off_t po_mb = mb0;
 #endif // USE_MB_C_BLOCK
 
-        if (po_mb >= MB || po_oc >= C_WO_PADDING) continue;
-
         float d0_i = USE_FLOATS ? D0[idx] : CONVERT_FLOAT_T(D0[idx]);
         POST_OP_DATA_T sum0_i = DATA_TO_REF(sum0[idx]);
-        APPLY_POST_OPS_SERIAL_BINARY_2D(
-                d0_i, float, sum0_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-        D0[idx] = USE_FLOATS ? d0_i : CONVERT_DATA_T(d0_i);
+        if (po_mb >= MB || po_oc >= C_WO_PADDING) {
+            D0[idx] = 0;
+            WS0[idx] = 0;
+        } else {
+            APPLY_POST_OPS_SERIAL_BINARY_2D(
+                    d0_i, float, sum0_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
+            D0[idx] = USE_FLOATS ? d0_i : CONVERT_DATA_T(d0_i);
+        }
 
         float d1_i = USE_FLOATS ? D1[idx] : CONVERT_FLOAT_T(D1[idx]);
         POST_OP_DATA_T sum1_i = DATA_TO_REF(sum1[idx]);
         po_mb += VECT_DT_N;
-        APPLY_POST_OPS_SERIAL_BINARY_2D(
-                d1_i, float, sum1_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-        D1[idx] = USE_FLOATS ? d1_i : CONVERT_DATA_T(d1_i);
+        if (po_mb >= MB || po_oc >= C_WO_PADDING) {
+            D1[idx] = 0;
+            WS1[idx] = 0;
+        } else {
+            APPLY_POST_OPS_SERIAL_BINARY_2D(
+                    d1_i, float, sum1_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
+            D1[idx] = USE_FLOATS ? d1_i : CONVERT_DATA_T(d1_i);
+        }
     }
 #endif // #if VECT_DT_N == 1
 #if USE_FLOATS
