@@ -45,10 +45,11 @@ status_t ref_convolution_fwd_t::pd_t::init_conf() {
     conf_.single_weight_scale = attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) == 0;
 
     conf_.use_data_zeropoints
-            = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC_0);
+            = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC);
     conf_.use_dst_zeropoints
             = !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
-    conf_.single_data_zeropoint = attr()->zero_points_.common(DNNL_ARG_SRC_0);
+    conf_.single_data_zeropoint
+            = attr()->zero_points_.get_mask(DNNL_ARG_SRC) == 0;
     conf_.single_dst_zeropoint
             = attr()->zero_points_.get_mask(DNNL_ARG_DST) == 0;
 
@@ -101,20 +102,6 @@ status_t ref_convolution_bwd_data_t::pd_t::init_conf() {
 
     conf_.wk_size = memory_desc_wrapper(diff_src_md()).nelems();
 
-    conf_.do_scale_data = !attr()->scales_.has_default_values(DNNL_ARG_SRC_0);
-    conf_.do_scale_weights
-            = !attr()->scales_.has_default_values(DNNL_ARG_WEIGHTS);
-    conf_.do_scale_dst = !attr()->scales_.has_default_values(DNNL_ARG_DST);
-    conf_.single_weight_scale = attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) == 0;
-
-    conf_.use_data_zeropoints
-            = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC_0);
-    conf_.use_dst_zeropoints
-            = !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
-    conf_.single_data_zeropoint = attr()->zero_points_.common(DNNL_ARG_SRC_0);
-    conf_.single_dst_zeropoint
-            = attr()->zero_points_.get_mask(DNNL_ARG_DST) == 0;
-
     conf_.post_ops = sycl_post_ops_t(attr(), diff_src_md());
 
     conf_.padding[0] = static_cast<int>(desc()->padding[0][0]);
@@ -164,20 +151,6 @@ status_t ref_convolution_bwd_weights_t::pd_t::init_conf() {
     conf_.ndims = ndims();
 
     conf_.wk_size = memory_desc_wrapper(diff_weights_md()).nelems();
-
-    conf_.do_scale_data = !attr()->scales_.has_default_values(DNNL_ARG_SRC_0);
-    conf_.do_scale_weights
-            = !attr()->scales_.has_default_values(DNNL_ARG_WEIGHTS);
-    conf_.do_scale_dst = !attr()->scales_.has_default_values(DNNL_ARG_DST);
-    conf_.single_weight_scale = attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) == 0;
-
-    conf_.use_data_zeropoints
-            = !attr()->zero_points_.has_default_values(DNNL_ARG_SRC_0);
-    conf_.use_dst_zeropoints
-            = !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
-    conf_.single_data_zeropoint = attr()->zero_points_.common(DNNL_ARG_SRC_0);
-    conf_.single_dst_zeropoint
-            = attr()->zero_points_.get_mask(DNNL_ARG_DST) == 0;
 
     conf_.post_ops = sycl_post_ops_t(attr(), dst_md());
 
