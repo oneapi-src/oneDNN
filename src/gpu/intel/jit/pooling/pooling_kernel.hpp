@@ -49,7 +49,7 @@ public:
         setup_interface(body);
         generate_prologue();
         expr_binding_t expr_binding(hw);
-        bind_external_vars(body, kernel_info.idx_disp(), expr_binding);
+        bind_external_vars(body, expr_binding);
 
         // Generate assembly from IR.
         convert_ir_to_ngen<hw>(body, this, expr_binding);

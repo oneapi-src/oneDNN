@@ -638,8 +638,8 @@ void conv_ir_builder_t::build() {
     auto &plan = cfg_.plan();
     auto gemm_schedule = plan.gemm_schedule;
     auto init_cset = plan.init_cset;
-    init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(),
-            kernel_info_.idx_disp(), cfg_.simd(), init_cset, init_stmts);
+    init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(), cfg_.simd(),
+            init_cset, init_stmts);
 
     auto &walk_order = gemm_schedule.kernel_grid_walk_order();
     for (auto &info : walk_order.dim_infos()) {

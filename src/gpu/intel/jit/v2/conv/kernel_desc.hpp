@@ -20,7 +20,6 @@
 #include "gpu/intel/gpu_post_ops.hpp"
 #include "gpu/intel/jit/ir/fma.hpp"
 #include "gpu/intel/jit/ir/hw.hpp"
-#include "gpu/intel/jit/ir/ir_builder.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/ir/primitive_plan.hpp"
@@ -287,7 +286,6 @@ public:
     pvar_tile_t iter_outer_tile;
     pvar_tile_t thread_group_tile;
     loop_desc_t loop_desc;
-    idx_dispatcher_t idx_disp;
 
     bool use_stream_k = false;
     bool use_2d_access = false;
@@ -393,10 +391,9 @@ public:
     static const int N = 3;
 
     grid_t() = default;
-    grid_t(const std::string &prefix) {
+    grid_t(std::string (*genname)(int)) {
         for (int i = 0; i < N; i++)
-            entries_[i].idx_var
-                    = var_t::make(type_t::s32(), prefix + std::to_string(i));
+            entries_[i].idx_var = var_t::make(type_t::s32(), genname(i));
     }
     grid_t(const std::array<expr_t, N> &idx_vars) {
         for (int i = 0; i < N; i++) {

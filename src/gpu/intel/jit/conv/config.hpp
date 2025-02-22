@@ -662,8 +662,7 @@ private:
 
 status_t init_pd_time_cfg(const conv_problem_t &prb, conv_config_t &cfg,
         impl::engine_t *engine, convolution_pd_t *pd, primitive_attr_t *attr);
-status_t init_cfg(conv_config_t &cfg, const idx_dispatcher_t &idx_disp,
-        const primitive_t *prim);
+status_t init_cfg(conv_config_t &cfg, const primitive_t *prim);
 status_t init_regs(conv_config_t &cfg);
 int slm_bufs_hint(const conv_problem_t &prb, dim_t m_tg, dim_t n_tg,
         bool do_src_zp_compensation, bool enable_a, bool enable_b,
@@ -673,7 +672,7 @@ tensor_config_t get_tensor_config(
 bool is_small(const type_t &type, dim_t elems);
 int estimate_register_count(const conv_config_t &cfg);
 int default_regs(const conv_config_t &cfg);
-void init_kernel_grid(conv_config_t &cfg, const idx_dispatcher_t &idx_disp);
+void init_kernel_grid(conv_config_t &cfg);
 void init_walk_order(conv_config_t &cfg);
 void init_thread_group_grid(conv_config_t &cfg);
 void prepare_zp_precompute_conv(const conv_problem_t &prb, dim_t *idhw,

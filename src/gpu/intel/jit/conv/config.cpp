@@ -1307,8 +1307,8 @@ send_pattern_t<pvar_t> validate_blocking(const conv_config_t &cfg,
     return send_pattern();
 }
 
-void init_params(conv_config_t &cfg, const idx_dispatcher_t &idx_disp) {
-    cfg.tiler().set_params(cfg, idx_disp);
+void init_params(conv_config_t &cfg) {
+    cfg.tiler().set_params(cfg);
 }
 
 std::array<pvar_tile_t, 3> get_kernel_grid_conv_dims(const conv_config_t &cfg) {
@@ -1353,8 +1353,8 @@ pvar_tile_3 get_thread_group_grid_conv_dims(const conv_config_t &cfg) {
     return fwd;
 }
 
-void init_kernel_grid(conv_config_t &cfg, const idx_dispatcher_t &idx_disp) {
-    cfg.init_kernel_grid(get_kernel_grid_conv_dims(cfg), idx_disp.tg_idxs());
+void init_kernel_grid(conv_config_t &cfg) {
+    cfg.init_kernel_grid(get_kernel_grid_conv_dims(cfg));
 }
 
 void init_thread_group_grid(conv_config_t &cfg) {
@@ -1883,10 +1883,10 @@ void validate_config_and_plan(conv_config_t &cfg) {
 #endif
 }
 
-status_t try_init_cfg(conv_config_t &cfg, const idx_dispatcher_t &idx_disp) {
-    init_params(cfg, idx_disp);
+status_t try_init_cfg(conv_config_t &cfg) {
+    init_params(cfg);
     init_walk_order(cfg);
-    init_kernel_grid(cfg, idx_disp);
+    init_kernel_grid(cfg);
     init_thread_group_grid(cfg);
 
     CHECK(init_plan(cfg));
@@ -1902,14 +1902,13 @@ status_t try_init_cfg(conv_config_t &cfg, const idx_dispatcher_t &idx_disp) {
     return status::success;
 }
 
-status_t init_cfg(conv_config_t &cfg, const idx_dispatcher_t &idx_disp,
-        const primitive_t *prim) {
+status_t init_cfg(conv_config_t &cfg, const primitive_t *prim) {
     static std::mutex tune_mutex;
     std::unique_lock<std::mutex> lock(tune_mutex, std::defer_lock_t());
     if (cfg.tiler().is_tuning_mode()) lock.lock();
     while (cfg.tiler().is_valid()) {
         auto try_cfg = cfg;
-        auto status = try_init_cfg(try_cfg, idx_disp);
+        auto status = try_init_cfg(try_cfg);
         if (status == status::success) {
             if (cfg.tiler().is_tuning_mode()) cfg.tiler().move_next(cfg);
             cfg = std::move(try_cfg);

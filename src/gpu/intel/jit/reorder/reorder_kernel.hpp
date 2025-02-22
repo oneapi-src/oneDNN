@@ -53,7 +53,7 @@ public:
         setup_interface(body);
         generate_prologue();
         expr_binding_t expr_binding(hw);
-        bind_external_vars(body, kernel_info.idx_disp(), expr_binding);
+        bind_external_vars(body, expr_binding);
 
         // Generate assembly from IR.
         convert_ir_to_ngen<hw>(body, this, expr_binding);
@@ -61,10 +61,9 @@ public:
         generate_epilogue();
     }
 
-    static compute::nd_range_t nd_range(const idx_dispatcher_t &idx_disp,
-            const exec_config_t &exec_cfg, const layout_t &src,
-            const layout_t &dst) {
-        return reorder_ir_builder_t::nd_range(idx_disp, exec_cfg, src, dst);
+    static compute::nd_range_t nd_range(const exec_config_t &exec_cfg,
+            const layout_t &src, const layout_t &dst) {
+        return reorder_ir_builder_t::nd_range(exec_cfg, src, dst);
     }
 };
 

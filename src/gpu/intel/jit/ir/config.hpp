@@ -439,8 +439,7 @@ public:
 
     int sort_key(const param_t *param) const override;
 
-    void init_kernel_grid(const std::array<pvar_tile_t, 3> &grid,
-            const idx_dispatcher_t::vars_t &tg_idxs) {
+    void init_kernel_grid(const std::array<pvar_tile_t, 3> &grid) {
         std::vector<dim_t> dims(grid.size(), 1);
         for (dim_idx_t i = 0; i < grid.size(); i++) {
             for (auto &d : grid[i]) {
@@ -449,8 +448,7 @@ public:
                 dims[i] *= ir_utils::safe_divide(padded_dim(d), tg_block);
             }
         }
-        set_kernel_grid(grid_info_t(
-                dims, std::vector<expr_t>(tg_idxs.begin(), tg_idxs.end())));
+        set_kernel_grid(grid_info_t(dims, ir_builder_t::tg_idx));
     }
 
     void init_thread_group_grid(const std::array<pvar_tile_t, 3> &grid) {
@@ -459,7 +457,7 @@ public:
             for (auto &d : grid[i])
                 dims[i] *= thread_group_dim(d);
         }
-        set_thread_group_grid(grid_info_t(dims, "thr_idx"));
+        set_thread_group_grid(grid_info_t(dims, ir_builder_t::thr_idx));
     }
 
 protected:

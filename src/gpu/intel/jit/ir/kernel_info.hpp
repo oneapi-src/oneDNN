@@ -25,7 +25,6 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive_exec_types.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/jit/ir/ir_builder.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"
 #include "gpu/intel/serialization.hpp"
 
@@ -160,8 +159,6 @@ public:
     }
 
     const compute::nd_range_t &nd_range() const { return nd_range_; }
-
-    const idx_dispatcher_t &idx_disp() const { return idx_disp_; }
 
     void register_internal_arg(
             const expr_t &var, const expr_t &value = expr_t()) {
@@ -365,7 +362,6 @@ private:
 
     kernel_id_t id_ = kernel_id_t::undef;
     compute::nd_range_t nd_range_;
-    idx_dispatcher_t idx_disp_;
 
     std::vector<arg_t> args_;
 };

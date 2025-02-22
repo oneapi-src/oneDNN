@@ -23,27 +23,21 @@ namespace intel {
 namespace jit {
 
 void ir_builder_t::init_kernel_grid(const grid_info_t &kernel_grid,
-        const grid_info_t &tg_grid, const idx_dispatcher_t &idx_disp,
-        int simd_size, constraint_set_t &cset,
+        const grid_info_t &tg_grid, int simd_size, constraint_set_t &cset,
         std::vector<stmt_t> &init_stmts) {
-    dim_idx_t grid_ndims = kernel_grid.ndims();
-    gpu_assert(grid_ndims <= idx_disp.local_ids().size());
-    for (dim_idx_t i = 0; i < grid_ndims; i++) {
+    for (dim_idx_t i = 0; i < kernel_grid.ndims(); i++) {
+        auto local_id = var_t::make(type_t::u16(), ir_builder_t::local_id(i));
         int local_id_bound = into<int>(tg_grid.dim(i));
         if (i == dim_idx_t(0)) local_id_bound *= simd_size;
-        cset.add_constraint(idx_disp.local_ids()[i] >= 0);
-        cset.add_constraint(idx_disp.local_ids()[i] < local_id_bound);
-        cset.add_constraint(idx_disp.tg_idxs()[i] >= 0);
-        cset.add_constraint(idx_disp.tg_idxs()[i] < kernel_grid.dim(i));
+        cset.add_constraint(local_id >= 0);
+        cset.add_constraint(local_id < local_id_bound);
+        cset.add_constraint(kernel_grid.idx(i) >= 0);
+        cset.add_constraint(kernel_grid.idx(i) < kernel_grid.dim(i));
         cset.add_constraint(tg_grid.idx(i) >= 0);
         cset.add_constraint(tg_grid.idx(i) < tg_grid.dim(i));
-    }
-
-    for (dim_idx_t i = 0; i < grid_ndims; i++) {
-        auto value = idx_disp.local_ids()[i];
-        if (i == 0) value /= simd_size;
+        if (i == 0) local_id /= simd_size;
         auto &type = tg_grid.idx(i).type();
-        init_stmts.push_back(let_t::make(tg_grid.idx(i), cast(value, type)));
+        init_stmts.push_back(let_t::make(tg_grid.idx(i), cast(local_id, type)));
     }
 }
 

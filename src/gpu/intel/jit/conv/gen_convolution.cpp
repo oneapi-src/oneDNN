@@ -149,10 +149,7 @@ public:
                 cfg.set_pd(
                         static_cast<const convolution_pd_t *>(primitive->pd()));
                 cfg.set_tiler(tiler);
-                auto &kernel_infos = data.kernel_infos;
-                gpu_assert(!kernel_infos.empty()
-                        && (kernel_infos[0].id() == kernel_id_t::convolution));
-                CHECK(init_cfg(cfg, kernel_infos[0].idx_disp(), primitive));
+                CHECK(init_cfg(cfg, primitive));
 
                 if (!tiler->is_grf_limit_ok(cfg)) continue;
 
@@ -160,6 +157,7 @@ public:
                 gpu_info() << cfg;
 
                 init_nd_ranges(primitive, cfg);
+                auto &kernel_infos = data.kernel_infos;
 
                 // This absolutely HAS to be executed first if present,
                 // since it adds its own version mark to the cache blob
@@ -402,8 +400,7 @@ private:
                             /*is_input=*/true);
                     add_compute_arg(reorder_info, compute_buf, false);
                     reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
-                            reorder_info.idx_disp(), cfg.exec_cfg(),
-                            t.user_layout, t.compute_layout));
+                            cfg.exec_cfg(), t.user_layout, t.compute_layout));
                 }
                 if (!src_conv_precalc && t.is_output) {
                     auto &reorder_info
@@ -412,8 +409,7 @@ private:
                     reorder_info.register_user_arg(user_buf, user_arg_key,
                             /*is_input=*/false);
                     reorder_info.set_nd_range(reorder_kernel_t<>::nd_range(
-                            reorder_info.idx_disp(), cfg.exec_cfg(),
-                            t.compute_layout, t.user_layout));
+                            cfg.exec_cfg(), t.compute_layout, t.user_layout));
                 }
                 if (src_conv_precalc) {
                     scratchpad_book(++scratchpad_key);

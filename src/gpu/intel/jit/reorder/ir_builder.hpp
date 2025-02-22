@@ -63,11 +63,10 @@ public:
     static void compute_grid(const layout_t &src, const layout_t &dst,
             const std::vector<int> &iter_blocks,
             const std::vector<int> &loop_blocks,
-            const std::vector<int> &tg_blocks, const idx_dispatcher_t &idx_disp,
-            grid_info_t &kernel_grid, grid_info_t &tg_grid,
-            std::vector<dim_idx_t> *dim2grid = nullptr);
+            const std::vector<int> &tg_blocks, grid_info_t &kernel_grid,
+            grid_info_t &tg_grid, std::vector<dim_idx_t> *dim2grid = nullptr);
 
-    static compute::nd_range_t nd_range(const idx_dispatcher_t &idx_disp,
+    static compute::nd_range_t nd_range(
             const exec_config_t &exec_cfg, layout_t src, layout_t dst);
 
 private:
