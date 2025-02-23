@@ -118,30 +118,31 @@ private:
 
 std::ostream &operator<<(std::ostream &ss, const quant_entry_t &e);
 
-struct scales_t : public c_compatible {
-    scales_t() = default;
+struct quant_entries_t : public c_compatible {
+    quant_entries_t(data_type_t default_data_type)
+        : default_data_type_(default_data_type) {}
 
     const quant_entry_t &get(int arg) const {
-        const auto it = scales_.find(arg);
-        if (it == scales_.end()) return default_quant_entry();
+        const auto it = entries_.find(arg);
+        if (it == entries_.end()) return default_quant_entry();
         return it->second;
     }
 
     // See `set(...)` comment for `quant_entry_t` for a design choice
     // explanation.
     status_t set(int arg, int mask) {
-        return set(arg, mask, default_data_type, 0, {});
+        return set(arg, mask, default_data_type_, 0, {});
     }
     status_t set(int arg, int mask, data_type_t data_type, int group_ndims,
             const dims_t group_dims) {
         if (!check_arg(arg)) return status::invalid_arguments;
-        CHECK(scales_[arg].set(mask, data_type, group_ndims, group_dims));
+        CHECK(entries_[arg].set(mask, data_type, group_ndims, group_dims));
         return status::success;
     }
     // Use this interface with `default_quant_entry` when need to remove a
-    // specific scale.
+    // specific entry.
     status_t set(int arg, const quant_entry_t &other) {
-        return scales_[arg].set(other);
+        return entries_[arg].set(other);
     }
 
     // This interface is different from the one below and is just a shortcut.
@@ -158,27 +159,15 @@ struct scales_t : public c_compatible {
         return has_default_property(supported_args, predicate);
     }
 
-    // This interface is used to make sure that other than `supported_args` have
-    // default values. It's to make sure that non-allowed arguments were not
-    // passed to the library.
-    bool has_default_data_type(
-            const std::vector<int> &supported_args = {}) const {
-        auto predicate = [](const quant_entry_t &s) {
-            // Note: `data_type::undef` represents `default_quant_entry`.
-            return utils::one_of(
-                    s.get_data_type(), default_data_type, data_type::undef);
-        };
-        return has_default_property(supported_args, predicate);
-    }
     // This interface checks specific argument. It exists because quant_entry_t
-    // doesn't have a notion of default data_type, only scales do.
+    // doesn't have a notion of default data_type, only this object does.
     // Note: can be removed once the library unconditionally supports data type
-    // for scales for every implementation, then this call can be removed as to
-    // make a proper load, the data type must be queried.
+    // for scales/zero-points for every implementation, then this call can be
+    // removed as to make a proper load, the data type must be queried.
     bool has_default_data_type(int arg) const {
         // Note: `data_type::undef` represents `default_quant_entry`.
         return utils::one_of(
-                get(arg).get_data_type(), default_data_type, data_type::undef);
+                get(arg).get_data_type(), default_data_type_, data_type::undef);
     }
 
     // This interface is different from the one below and is just a shortcut.
@@ -201,8 +190,8 @@ struct scales_t : public c_compatible {
     }
     dim_t get_group(int arg, int d) const { return get(arg).get_group(d); }
 
-    bool operator==(const scales_t &rhs) const {
-        return scales_ == rhs.scales_;
+    bool operator==(const quant_entries_t &rhs) const {
+        return entries_ == rhs.entries_;
     }
 
     size_t get_hash() const;
@@ -211,12 +200,63 @@ struct scales_t : public c_compatible {
 
     std::string get_verbose() const;
 
-private:
+protected:
     // Sorted property of `std::map` is used for hashing.
-    std::map<int, quant_entry_t> scales_;
-    static constexpr data_type_t default_data_type = data_type::f32;
+    std::map<int, quant_entry_t> entries_;
+    // Value is different depending on the inheritor.
+    data_type_t default_data_type_ = data_type::undef;
 
-    bool check_arg(int arg) const {
+    virtual bool check_arg(int arg) const = 0;
+
+    // The function makes sure that if any argument was specified by user, that
+    // only `supported_args` have their value customized, rest unsupported
+    // values were not updated.
+    bool has_default_property(const std::vector<int> &supported_args,
+            bool (*predicate)(const quant_entry_t &)) const {
+        for (const auto &s : entries_) {
+            // Arg passed the condition, check the next one.
+            if (predicate(s.second)) continue;
+
+            bool allow_non_default = false;
+            for (const auto &supported_arg : supported_args)
+                if (s.first == supported_arg) {
+                    allow_non_default = true;
+                    break;
+                }
+            if (allow_non_default) continue;
+            return false;
+        }
+        return true;
+    }
+};
+
+struct scales_t : public quant_entries_t {
+    scales_t() : quant_entries_t(default_data_type_) {};
+
+    // This interface checks the content of all entries, and allows to ignore
+    // certain arguments.
+    // Note: can't be put in `quant_entries_t` because `default_data_type_` is
+    // not a static member, but `has_default_property` requires `predicate`
+    // to have it this way.
+    bool has_default_data_type(
+            const std::vector<int> &supported_args = {}) const {
+        auto predicate = [](const quant_entry_t &s) {
+            // Note: `data_type::undef` represents `default_quant_entry`.
+            return utils::one_of(
+                    s.get_data_type(), default_data_type_, data_type::undef);
+        };
+        return has_default_property(supported_args, predicate);
+    }
+    // Note: must present as compiler doesn't see an overloaded version inside a
+    // base class.
+    bool has_default_data_type(int arg) const {
+        return quant_entries_t::has_default_data_type(arg);
+    }
+
+private:
+    static constexpr data_type_t default_data_type_ = data_type::f32;
+
+    bool check_arg(int arg) const override {
         // regular
         for (const auto &sa : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
             if (arg == sa) return true;
@@ -235,127 +275,35 @@ private:
         if (arg == DNNL_ARG_SRC_2) return true;
         return false;
     }
-
-    // The function makes sure that if any argument was specified by user, that
-    // only `supported_args` have their value customized, rest unsupported
-    // values were not updated.
-    bool has_default_property(const std::vector<int> &supported_args,
-            bool (*predicate)(const quant_entry_t &)) const {
-        for (const auto &s : scales_) {
-            // Arg passed the condition, check the next one.
-            if (predicate(s.second)) continue;
-
-            bool allow_non_default = false;
-            for (const auto &supported_arg : supported_args)
-                if (s.first == supported_arg) {
-                    allow_non_default = true;
-                    break;
-                }
-            if (allow_non_default) continue;
-            return false;
-        }
-        return true;
-    }
 };
 
-struct zero_points_t : public c_compatible {
-    zero_points_t() = default;
+struct zero_points_t : public quant_entries_t {
+    zero_points_t() : quant_entries_t(default_data_type_) {};
 
-    const quant_entry_t &get(int arg) const {
-        const auto it = zero_points_.find(arg);
-        if (it == zero_points_.end()) return default_quant_entry();
-        return it->second;
-    }
-
-    // See `set(...)` comment for `quant_entry_t` for a design choice
-    // explanation.
-    status_t set(int arg, int mask) {
-        return set(arg, mask, default_data_type, 0, {});
-    }
-    status_t set(int arg, int mask, data_type_t data_type, int group_ndims,
-            const dims_t group_dims) {
-        if (!check_arg(arg)) return status::invalid_arguments;
-        CHECK(zero_points_[arg].set(mask, data_type, group_ndims, group_dims));
-        return status::success;
-    }
-    // Use this interface with `default_quant_entry` when need to remove a
-    // specific zero_point.
-    status_t set(int arg, const quant_entry_t &other) {
-        return zero_points_[arg].set(other);
-    }
-
-    // This interface is different from the one below and is just a shortcut.
-    bool has_default_values(int arg) const {
-        return get(arg).has_default_values();
-    }
-
-    // This interface is used to make sure that other than `supported_args` have
-    // default values. It's to make sure that non-allowed arguments were not
-    // passed to the library.
-    bool has_default_values(const std::vector<int> &supported_args = {}) const {
-        auto predicate
-                = [](const quant_entry_t &s) { return s.has_default_values(); };
-        return has_default_property(supported_args, predicate);
-    }
-
-    // This interface checks the content of all zero_points, and allows to
-    // ignore certain arguments.
+    // This interface checks the content of all entries, and allows to ignore
+    // certain arguments.
+    // Note: can't be put in `quant_entries_t` because `default_data_type_` is
+    // not a static member, but `has_default_property` requires `predicate`
+    // to have it this way.
     bool has_default_data_type(
             const std::vector<int> &supported_args = {}) const {
         auto predicate = [](const quant_entry_t &s) {
             // Note: `data_type::undef` represents `default_quant_entry`.
             return utils::one_of(
-                    s.get_data_type(), default_data_type, data_type::undef);
+                    s.get_data_type(), default_data_type_, data_type::undef);
         };
         return has_default_property(supported_args, predicate);
     }
-    // This interface checks specific argument. It exists because quant_entry_t
-    // doesn't have a notion of default data_type, only zero_points do.
-    // Note: can be removed once the library unconditionally supports data type
-    // for zero_points for every implementation, then this call can be removed
-    // as to make a proper load, the data type must be queried.
+    // Note: must present as compiler doesn't see an overloaded version inside a
+    // base class.
     bool has_default_data_type(int arg) const {
-        // Note: `data_type::undef` represents `default_quant_entry`.
-        return utils::one_of(
-                get(arg).get_data_type(), default_data_type, data_type::undef);
+        return quant_entries_t::has_default_data_type(arg);
     }
-
-    // This interface is different from the one below and is just a shortcut.
-    bool has_default_groups(int arg) const {
-        return get(arg).has_default_groups();
-    }
-
-    // This interface is used to make sure that other than `supported_args` have
-    // default values. It's to make sure that non-allowed arguments were not
-    // passed to the library.
-    bool has_default_groups(const std::vector<int> &supported_args = {}) const {
-        auto predicate
-                = [](const quant_entry_t &s) { return s.has_default_groups(); };
-        return has_default_property(supported_args, predicate);
-    }
-
-    int get_mask(int arg) const { return get(arg).get_mask(); }
-    data_type_t get_data_type(int arg) const {
-        return get(arg).get_data_type();
-    }
-    dim_t get_group(int arg, int d) const { return get(arg).get_group(d); }
-
-    bool operator==(const zero_points_t &rhs) const {
-        return zero_points_ == rhs.zero_points_;
-    }
-
-    size_t get_hash() const;
-
-    void serialize(serialization_stream_t &sstream) const;
-
-    std::string get_verbose() const;
 
 private:
-    // Sorted property of `std::map` is used for hashing.
-    std::map<int, quant_entry_t> zero_points_;
-    static constexpr data_type_t default_data_type = data_type::s32;
+    static constexpr data_type_t default_data_type_ = data_type::s32;
 
-    bool check_arg(int arg) const {
+    bool check_arg(int arg) const override {
         // regular
         // gemm internal primitive would use DNNL_ARG_A, DNNL_ARG_B, DNNL_ARG_C,
         // which match to DNNL_ARG_WEIGHTS, DNNL_ARG_SRC, DNNL_ARG_DST. They
@@ -366,27 +314,6 @@ private:
         // sdpa
         if (arg == DNNL_ARG_SRC_2) return true;
         return false;
-    }
-
-    // The function makes sure that if any argument was specified by user, that
-    // only `supported_args` have their value customized, rest unsupported
-    // values were not updated.
-    bool has_default_property(const std::vector<int> &supported_args,
-            bool (*predicate)(const quant_entry_t &)) const {
-        for (const auto &s : zero_points_) {
-            // Arg passed the condition, check the next one.
-            if (predicate(s.second)) continue;
-
-            bool allow_non_default = false;
-            for (const auto &supported_arg : supported_args)
-                if (s.first == supported_arg) {
-                    allow_non_default = true;
-                    break;
-                }
-            if (allow_non_default) continue;
-            return false;
-        }
-        return true;
     }
 };
 
