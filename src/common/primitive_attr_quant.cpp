@@ -62,67 +62,32 @@ std::ostream &operator<<(std::ostream &ss, const quant_entry_t &e) {
     return ss;
 }
 
-size_t scales_t::get_hash() const {
+size_t quant_entries_t::get_hash() const {
     size_t seed = 0;
     // Go through scales for all arguments.
-    for (const auto &e : scales_) {
+    for (const auto &e : entries_) {
         seed = hash_combine(seed, e.first);
         seed = hash_combine(seed, e.second.get_hash());
     }
     return seed;
 }
 
-void scales_t::serialize(serialization_stream_t &sstream) const {
-    for (const auto &e : scales_) {
+void quant_entries_t::serialize(serialization_stream_t &sstream) const {
+    for (const auto &e : entries_) {
         sstream.write(&e.first);
         e.second.serialize(sstream);
     }
 }
 
-std::string scales_t::get_verbose() const {
+std::string quant_entries_t::get_verbose() const {
     std::string s;
     std::string empty_delim, attr_delim = "+";
     std::string delim = empty_delim;
-    for (const auto &scale : scales_) {
+    for (const auto &scale : entries_) {
         const auto &q = scale.second;
         if (q.has_default_values()) continue;
 
         int arg = scale.first;
-        s.append(delim)
-                .append(arg2str(arg))
-                .append(":")
-                .append(q.get_verbose());
-        delim = attr_delim;
-    }
-    return s;
-}
-
-size_t zero_points_t::get_hash() const {
-    size_t seed = 0;
-    // Go through zero_points for all arguments.
-    for (const auto &e : zero_points_) {
-        seed = hash_combine(seed, e.first);
-        seed = hash_combine(seed, e.second.get_hash());
-    }
-    return seed;
-}
-
-void zero_points_t::serialize(serialization_stream_t &sstream) const {
-    for (const auto &e : zero_points_) {
-        sstream.write(&e.first);
-        e.second.serialize(sstream);
-    }
-}
-
-std::string zero_points_t::get_verbose() const {
-    std::string s;
-    std::string empty_delim, attr_delim = "+";
-    std::string delim = empty_delim;
-    for (const auto &zero_point : zero_points_) {
-        const auto &q = zero_point.second;
-        if (q.has_default_values()) continue;
-
-        int arg = zero_point.first;
         s.append(delim)
                 .append(arg2str(arg))
                 .append(":")
