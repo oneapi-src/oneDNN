@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,6 +29,9 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 namespace binary_injector {
+
+#define VCHECK_BIN_INJ_BOOL(cond, msg) \
+    VCONDCHECK(primitive, create, check, binary_injector, cond, false, msg);
 
 bcast_set_t get_all_strategies_supported_by_injector() {
     return bcast_set_t {broadcasting_strategy_t::scalar,
@@ -90,17 +93,22 @@ bool is_bcast_supported(const dnnl::impl::memory_desc_t &src1_desc,
 
     if (bcast_type == broadcasting_strategy_t::no_broadcast) {
         // in case of no broadcast data layout of dst and src1 have to be the same
-        if (!src1_desc_layout_same_as_dst_d(src1_desc, dst_d)) return false;
+        VCHECK_BIN_INJ_BOOL(src1_desc_layout_same_as_dst_d(src1_desc, dst_d),
+                "Dst and src1 layout are not the same");
+        return true;
     }
 
-    return bcast_type != broadcasting_strategy_t::unsupported;
+    VCHECK_BIN_INJ_BOOL(bcast_type != broadcasting_strategy_t::unsupported,
+            "Unsupported broadcast type");
+    return true;
 }
 
 bool is_supported(cpu_isa_t isa, const dnnl::impl::memory_desc_t &src1_desc,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set) {
-    return is_data_supported(isa, src1_desc.data_type)
-            && is_bcast_supported(src1_desc, dst_d, supported_strategy_set);
+    VCHECK_BIN_INJ_BOOL(is_data_supported(isa, src1_desc.data_type),
+            VERBOSE_ISA_DT_MISMATCH);
+    return is_bcast_supported(src1_desc, dst_d, supported_strategy_set);
 }
 
 bool binary_args_broadcast_supported(const post_ops_t &post_ops,
@@ -3590,6 +3598,8 @@ template class jit_uni_binary_injector_t<avx2, Xbyak::Xmm>;
 template class jit_uni_binary_injector_t<avx, Xbyak::Ymm>;
 template class jit_uni_binary_injector_t<avx, Xbyak::Xmm>;
 template class jit_uni_binary_injector_t<sse41>;
+
+#undef VCHECK_BIN_INJ_BOOL
 
 } // namespace binary_injector
 } // namespace x64

@@ -29,6 +29,9 @@ namespace x64 {
 
 namespace eltwise_injector {
 
+#define VCHECK_ELT_INJ_BOOL(cond, msg) \
+    VCONDCHECK(primitive, create, check, binary_injector, cond, false, msg);
+
 bool is_isa_supported(cpu_isa_t isa) {
     return is_superset(isa, sse41);
 }
@@ -48,10 +51,13 @@ bool is_alg_supported(alg_kind_t alg) {
 }
 
 bool is_supported(cpu_isa_t isa, alg_kind_t alg, data_type_t dt) {
-    if (dt != data_type::f32) return false;
-
-    return is_isa_supported(isa) && is_alg_supported(alg);
+    VCHECK_ELT_INJ_BOOL(dt == data_type::f32, VERBOSE_UNSUPPORTED_DT);
+    VCHECK_ELT_INJ_BOOL(is_isa_supported(isa), VERBOSE_UNSUPPORTED_ISA);
+    VCHECK_ELT_INJ_BOOL(is_alg_supported(alg), "Unsupported algorithm");
+    return true;
 }
+
+#undef VCHECK_ELT_INJ_BOOL
 
 } // namespace eltwise_injector
 
