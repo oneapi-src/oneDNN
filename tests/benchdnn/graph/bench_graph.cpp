@@ -33,9 +33,9 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_dt : s.dt)
     for_(const auto &i_dt_map : s.dt_map)
     for (const auto &i_mb : s.mb) {
-        deserialized_graph dg;
+        deserialized_graph_t dg;
         dg.load(locate_file(s.json_file));
-        flex_rewrite fw(
+        flex_rewrite_t fw(
                 i_in_shapes, i_op_attrs, i_fpmath_mode, i_mb, i_dt, i_dt_map);
         fw.rewrite(dg);
         BENCHDNN_PRINT(7, "[INFO] Graph dump:\n%s\n", dg.get_string().c_str());

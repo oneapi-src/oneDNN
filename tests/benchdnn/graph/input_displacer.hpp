@@ -48,24 +48,24 @@ enum class filling_type_t {
 //     the tensor as a displace starting point,
 //     filling_type
 // >
-using displace_t = ::std::tuple<::graph::deserialized_op, size_t,
+using displace_t = ::std::tuple<::graph::deserialized_op_t, size_t,
         ::graph::deserialized_lt, filling_type_t>;
 
 class partition_data_displacer_t {
 public:
     partition_data_displacer_t() = default;
     partition_data_displacer_t(
-            const deserialized_graph &dg, const dnnl::graph::partition &par);
+            const deserialized_graph_t &dg, const dnnl::graph::partition &par);
     int displace_input_data(size_t lt_id, dnn_mem_t &mem, res_t *res);
 
 private:
-    const deserialized_graph *dg_ = nullptr;
+    const deserialized_graph_t *dg_ = nullptr;
     // A set of op_id values from a partition came to a displacer. Used to
     // identify at displacement stage if Deq is the starting point or not.
     std::unordered_set<size_t> op_ids_set_;
     ::std::unordered_map<size_t, displace_t> quantize_displace_;
 
-    int gen_quantize_filling(const ::graph::deserialized_op &main_op, int arg,
+    int gen_quantize_filling(const ::graph::deserialized_op_t &main_op, int arg,
             dnn_mem_t &mem, const ::std::string &dt, res_t *res);
     // Generates values in the target memory based on predefined set of values
     // from `fill_cfg`.
