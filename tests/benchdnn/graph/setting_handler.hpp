@@ -70,15 +70,15 @@ using req = typename std::enable_if<B, bool>::type;
     setting_t get_setting(const deserialized_op_t &base_op_ref, res_t *res) { \
         deserialized_op_t base_op = base_op_ref; \
         for (size_t i = 0; i < base_op.in_lts_.size(); i++) { \
-            if (base_op.in_lts_[i].shape_.size() == 0) \
+            if (base_op.in_lts_[i].shape_.empty()) \
                 base_op.in_lts_[i].shape_.emplace_back(1); \
-            if (base_op.in_lts_[i].stride_.size() == 0) \
+            if (base_op.in_lts_[i].stride_.empty()) \
                 base_op.in_lts_[i].stride_.emplace_back(1); \
         } \
         for (size_t i = 0; i < base_op.out_lts_.size(); i++) { \
-            if (base_op.out_lts_[i].shape_.size() == 0) \
+            if (base_op.out_lts_[i].shape_.empty()) \
                 base_op.out_lts_[i].shape_.emplace_back(1); \
-            if (base_op.out_lts_[i].stride_.size() == 0) \
+            if (base_op.out_lts_[i].stride_.empty()) \
                 base_op.out_lts_[i].stride_.emplace_back(1); \
         } \
         return driver::get_setting(base_op, res); \
