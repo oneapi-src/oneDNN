@@ -139,13 +139,11 @@ public:
     void deallocate(void *ptr) {
         std::lock_guard<std::mutex> pool_guard(pool_lock);
         is_free_ptr_[ptr] = true;
-        return;
     }
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     void deallocate(void *ptr) {
         std::lock_guard<std::mutex> pool_guard(pool_lock);
         is_free_ptr_[ptr] = true;
-        return;
     }
 #endif
 
